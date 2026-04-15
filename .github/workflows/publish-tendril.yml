@@ -70,7 +70,7 @@ jobs:
           echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore Ivy.Tendril/Ivy.Tendril.csproj
 
       - name: Pack NuGet
         run: |
@@ -166,7 +166,7 @@ jobs:
           echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore Ivy.Tendril/Ivy.Tendril.csproj
 
       - name: Install vpk tool and dependencies
         run: |
@@ -269,50 +269,4 @@ jobs:
             --repo "${{ github.repository }}" \
             --clobber
 
-  deploy-docs:
-    needs: version
-    runs-on: ubuntu-latest
-    environment: production
-    env:
-      RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
-      APP_SERVICE_NAME: ${{ vars.TENDRIL_DOCS_SERVICE_NAME }}
-      ACR_NAME: ${{ vars.ACR_NAME }}
-      ACR_LOGIN_SERVER: ${{ vars.ACR_NAME }}.azurecr.io
-      IMAGE_NAME: ${{ vars.TENDRIL_DOCS_IMAGE_NAME }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: 'Az login with OIDC'
-        uses: azure/login@v2
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
-      - name: 'ACR Login'
-        run: az acr login --name $ACR_NAME
-
-      - name: 'Build and Push'
-        run: |
-          docker build -t $ACR_LOGIN_SERVER/$IMAGE_NAME:${{ github.sha }} \
-            --build-arg IVY_PACKAGE_VERSION=${{ needs.version.outputs.version }} \
-            -f .github/docker/Dockerfile.tendril-docs .
-          docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:${{ github.sha }}
-
-      - name: 'Deploy to Preproduction Slot'
-        uses: azure/webapps-deploy@v2
-        with:
-          app-name: ${{ env.APP_SERVICE_NAME }}
-          images: '${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}'
-          slot-name: 'preproduction'
-
-      - name: 'Swap Preproduction with Production'
-        uses: azure/cli@v2
-        with:
-          inlineScript: |
-            az webapp deployment slot swap \
-              --resource-group ${{ env.RESOURCE_GROUP }} \
-              --name ${{ env.APP_SERVICE_NAME }} \
-              --slot preproduction \
-              --target-slot production
+  # TODO: Enable deploy-docs once Ivy.Docs.Helpers is published to NuGet
