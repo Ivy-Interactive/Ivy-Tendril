@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Ivy.Tendril.Test")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.18.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.18+7eb0a10a564551b8c4e4a2ab9b8d5e11974da323")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.18+44e5af78a235ae680b96510f91e9d57c464e2753")]
 [assembly: System.Reflection.AssemblyProductAttribute("Ivy.Tendril.Test")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Ivy.Tendril.Test")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.18.0")]
