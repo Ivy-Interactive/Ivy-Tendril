@@ -179,6 +179,80 @@ If the plan references other plans (from `[number]` syntax in args), add them to
 4. Validate count: grep results must match documented callers
 5. Incomplete caller lists cause follow-up fixes during execution (see Memory/caller-audit-pattern.md)
 
+### 4.4. When to Use dependsOn
+
+The `dependsOn` field in plan.yaml declares **true blocking dependencies** between plans. Use it sparingly — git's merge capabilities handle most concurrent work safely.
+
+**Add `dependsOn` when:**
+
+1. **Sequential changes to same API surface**
+   - Plan A renames `ProcessData()` to `TransformData()`
+   - Plan B adds a new caller to the renamed method
+   - Without `dependsOn`, Plan B will fail to compile (symbol doesn't exist yet)
+
+2. **Building on new infrastructure**
+   - Plan A adds a new `IAuthService` interface and implementation
+   - Plan B creates a new feature that depends on `IAuthService`
+   - Without `dependsOn`, Plan B references non-existent types
+
+3. **Database schema migrations with data dependencies**
+   - Plan A adds a new `users.role` column with migration
+   - Plan B adds validation logic that reads `users.role`
+   - Without `dependsOn`, Plan B queries non-existent column
+
+4. **Semantic conflicts (same change, different approaches)**
+   - Plan A implements error handling using exceptions
+   - Plan B implements error handling using Result<T> pattern
+   - Both modify the same method signature incompatibly
+   - Without `dependsOn`, merge conflict is guaranteed but semantically broken
+
+**Do NOT use `dependsOn` when:**
+
+1. **Plans modify different files in same repository**
+   - Plan A: changes `Services/AuthService.cs`
+   - Plan B: changes `Controllers/UserController.cs`
+   - Git handles these independently — no conflict
+
+2. **Plans modify different parts of same file**
+   - Plan A: adds method `GetUserById()` to `UserService.cs`
+   - Plan B: adds method `CreateUser()` to `UserService.cs`
+   - Git auto-merges these changes (different line ranges)
+
+3. **Plans share common ancestor but diverge**
+   - Plan A: adds logging to `ProcessOrder()`
+   - Plan B: adds metrics to `ProcessOrder()`
+   - Both touch same method, but git 3-way merge handles this correctly
+
+4. **Hypothetical conflicts (might overlap)**
+   - Plan A: "refactor authentication flow"
+   - Plan B: "add new login page"
+   - These *might* conflict, but let git decide — don't block preemptively
+
+**How git handles concurrent work:**
+
+- **3-way merge:** Git compares both branches against their common ancestor to intelligently merge changes
+- **Merge conflict detection:** When lines truly conflict, git marks them for human resolution during PR creation
+- **Independent file changes:** Changes to different files always merge cleanly
+- **Non-overlapping line changes:** Changes to different parts of the same file usually merge automatically
+
+**Why overlap warnings were misleading:**
+
+Before plan 03348, MakePlan warned about any plans working on the same repository simultaneously. This created false positives:
+
+- ❌ **False positive:** Two plans adding different methods to different services in the same repo
+- ❌ **False positive:** One plan updating docs while another fixes a bug in source code
+- ❌ **False positive:** Two plans adding new files to different directories
+
+These scenarios don't require blocking — git merges them automatically. The warnings created unnecessary friction.
+
+**Decision heuristic:**
+
+Ask: "Will Plan B fail to compile/run if Plan A's changes aren't merged first?"
+- **Yes** → Use `dependsOn`
+- **No** → Let git handle it
+
+When in doubt, **don't use `dependsOn`** — git will surface real conflicts during PR creation, which is the appropriate time to resolve them.
+
 ### 4.5. Recommend Execution Profile
 
 Analyze the task complexity and set `executionProfile` in plan.yaml. Consider:
