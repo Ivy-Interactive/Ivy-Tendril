@@ -10,7 +10,9 @@ public class PlanReaderServiceTests
     private class TestPlanWatcherService : IPlanWatcherService
     {
         public List<string> NotifiedFolders { get; } = new();
+#pragma warning disable CS0067
         public event Action<string?>? PlansChanged;
+#pragma warning restore CS0067
 
         public void NotifyChanged(string? folderName = null)
         {
