@@ -130,4 +130,41 @@ public class ExecutePlanProfileOverrideTests
         Assert.Contains("executionProfile: balanced", repaired);
         Assert.DoesNotContain("unknownField", repaired);
     }
+
+    [Fact]
+    public void RepairPlanYaml_RemovesDocumentMarkersMidFile()
+    {
+        var yaml = "state: Blocked\nproject: Tendril\n---\nlevel: NiceToHave\ntitle: Test\n";
+
+        var repaired = PlanReaderService.RepairPlanYaml(yaml);
+
+        Assert.DoesNotContain("---", repaired);
+        Assert.Contains("state: Blocked", repaired);
+        Assert.Contains("level: NiceToHave", repaired);
+    }
+
+    [Fact]
+    public void RepairPlanYaml_FixesEmptyScalarListKeys()
+    {
+        var yaml = "state: Completed\nproject: Framework\nrelatedPlans: \ndependsOn: \nrepos:\n- D:\\Repos\\Foo\n";
+
+        var repaired = PlanReaderService.RepairPlanYaml(yaml);
+        var result = Deserializer.Deserialize<PlanYaml>(repaired);
+
+        Assert.NotNull(result);
+        Assert.Equal("Completed", result.State);
+        Assert.Single(result.Repos ?? []);
+    }
+
+    [Fact]
+    public void RepairPlanYaml_FixesEmptyScalarListKeysAtEof()
+    {
+        var yaml = "state: Draft\nproject: Test\ndependsOn: ";
+
+        var repaired = PlanReaderService.RepairPlanYaml(yaml);
+        var result = Deserializer.Deserialize<PlanYaml>(repaired);
+
+        Assert.NotNull(result);
+        Assert.Equal("Draft", result.State);
+    }
 }

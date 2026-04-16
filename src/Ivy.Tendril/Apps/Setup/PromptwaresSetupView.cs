@@ -14,25 +14,26 @@ public class PromptwaresSetupView : ViewBase
 
         var promptwares = config.Settings.Promptwares;
 
-        var rows = promptwares.Select(kvp => new PromptwareRow(
+        var rows = promptwares.Select((kvp, i) => new PromptwareRow(
             kvp.Key,
             kvp.Value.Profile,
-            string.Join(", ", kvp.Value.AllowedTools)
+            string.Join(", ", kvp.Value.AllowedTools),
+            i
         )).ToList();
 
         var table = new TableBuilder<PromptwareRow>(rows)
-            .Header(t => t.Name, "")
-            .Builder(t => t.Name, f => f.Func<PromptwareRow, string>(name =>
+            .Header(t => t.Index, "")
+            .Builder(t => t.Index, f => f.Func<PromptwareRow, PromptwareRow>(row =>
                 Layout.Horizontal().Gap(1)
                 | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit this promptware").OnClick(() =>
                 {
-                    editKey.Set(name);
+                    editKey.Set(row.Name);
                 })
                 | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete this promptware").OnClick(() =>
                 {
-                    promptwares.Remove(name);
+                    promptwares.Remove(row.Name);
                     config.SaveSettings();
-                    client.Toast($"Promptware '{name}' deleted", "Deleted");
+                    client.Toast($"Promptware '{row.Name}' deleted", "Deleted");
                     refreshToken.Refresh();
                 })
             ));
@@ -49,5 +50,5 @@ public class PromptwaresSetupView : ViewBase
                | new EditPromptwareDialog(editKey, promptwares, config, client, refreshToken);
     }
 
-    private record PromptwareRow(string Name, string Profile, string AllowedTools);
+    private record PromptwareRow(string Name, string Profile, string AllowedTools, int Index);
 }

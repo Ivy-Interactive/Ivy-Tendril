@@ -240,6 +240,46 @@ projects:
     action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
   repoPaths:
   - D:\Repos\_Ivy\Ivy-Services
+- name: Rustino
+  color: Orange
+  meta:
+    slackEmoji: ':crab:'
+  repos:
+  - path: D:\Repos\_Ivy\Rustino
+    prRule: yolo
+    baseBranch: development
+  verifications:
+  - *o0
+  - *o1
+  - *o2
+  - name: RustBuild
+    required: true
+  - name: RustTest
+    required: true
+  - name: RustClippy
+    required: true
+  - *o3
+  context: >
+    Rustino — cross-platform native desktop windows with embedded web views (Rust + .NET).
+    Key folders:
+    - src/Rustino.Native/ — Rust cdylib (wry + tao for webview/window)
+    - src/Rustino.NET/ — C# P/Invoke wrapper
+    - src/Rustino.NET.Reactive/ — IObservable extensions
+    - src/Rustino.Samples/ — demo applications
+    Build: `cd src/Rustino.Native && cargo build --release`, then `dotnet build`
+  reviewActions:
+  - name: HelloWorld Sample
+    condition: Test-Path "worktrees\Rustino\src\Rustino.Samples\Rustino.Samples.HelloWorld"
+    action: dotnet run --project worktrees\Rustino\src\Rustino.Samples\Rustino.Samples.HelloWorld
+  hooks:
+  - name: SlackNotify
+    when: after
+    promptwares:
+    - MakePr
+    condition: ''
+    action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
+  repoPaths:
+  - D:\Repos\_Ivy\Rustino
 verifications:
 - name: DotnetBuild
   prompt: Run `dotnet build --warnaserror` in the plan's worktree directory (not the original repo) and verify it succeeds with zero errors and zero warnings.
@@ -305,6 +345,19 @@ verifications:
     Run `go vet ./...` in the Go source directory of the project repo.
     For Services: `cd ivy-proxy && go vet ./...`
     Verify no issues are reported.
+- name: RustBuild
+  prompt: >
+    Run `cargo build --release` in the Rust source directory (src/Rustino.Native).
+    Verify the build completes with zero errors and zero warnings.
+    The output cdylib should be in target/release/ (rustino_native.dll on Windows, librustino_native.so on Linux, librustino_native.dylib on macOS).
+- name: RustTest
+  prompt: >
+    Run `cargo test` in the Rust source directory (src/Rustino.Native).
+    Verify all tests pass. If no test files exist, report "No tests found" and pass.
+- name: RustClippy
+  prompt: >
+    Run `cargo clippy -- -D warnings` in the Rust source directory (src/Rustino.Native).
+    Verify no warnings or errors are reported. Clippy is the Rust linter.
 - name: VitePlusCheck
   prompt: >
     Run `vp check` in the VitePlus frontend directory of the project repo.
