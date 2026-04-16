@@ -1317,8 +1317,8 @@
         },
         "runtime": {
           "Ivy.dll": {
-            "assemblyVersion": "0.0.0.0",
-            "fileVersion": "0.0.0.0"
+            "assemblyVersion": "1.2.43.0",
+            "fileVersion": "1.2.43.0"
           }
         }
       },
@@ -1357,8 +1357,8 @@
         },
         "runtime": {
           "Ivy.Hooks.Pty.dll": {
-            "assemblyVersion": "0.0.0.0",
-            "fileVersion": "0.0.0.0"
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
           }
         }
       },
@@ -1392,8 +1392,8 @@
         },
         "runtime": {
           "Ivy.Widgets.ClaudeJsonRenderer.dll": {
-            "assemblyVersion": "0.0.0.0",
-            "fileVersion": "0.0.0.0"
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
           }
         }
       },
@@ -1403,8 +1403,8 @@
         },
         "runtime": {
           "Ivy.Widgets.DiffView.dll": {
-            "assemblyVersion": "0.0.0.0",
-            "fileVersion": "0.0.0.0"
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
           }
         }
       },
@@ -1414,8 +1414,8 @@
         },
         "runtime": {
           "Ivy.Widgets.Xterm.dll": {
-            "assemblyVersion": "0.0.0.0",
-            "fileVersion": "0.0.0.0"
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
           }
         }
       }

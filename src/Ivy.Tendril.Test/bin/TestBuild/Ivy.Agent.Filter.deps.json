@@ -1,0 +1,329 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v10.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v10.0": {
+      "Ivy.Agent.Filter/1.2.43": {
+        "dependencies": {
+          "Antlr4.Runtime.Standard": "4.13.1",
+          "Antlr4BuildTasks": "12.11.0",
+          "Google.Protobuf": "3.33.2",
+          "Microsoft.Extensions.AI": "10.4.1",
+          "Microsoft.Extensions.AI.Abstractions": "10.4.1",
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.5",
+          "YamlDotNet": "16.3.0"
+        },
+        "runtime": {
+          "Ivy.Agent.Filter.dll": {}
+        }
+      },
+      "Antlr4.Runtime.Standard/4.13.1": {
+        "runtime": {
+          "lib/netstandard2.0/Antlr4.Runtime.Standard.dll": {
+            "assemblyVersion": "4.13.1.0",
+            "fileVersion": "4.13.1.0"
+          }
+        }
+      },
+      "Antlr4BuildTasks/12.11.0": {
+        "dependencies": {
+          "Microsoft.Build.Framework": "17.14.28",
+          "Microsoft.Build.Utilities.Core": "17.14.28"
+        },
+        "runtime": {
+          "lib/netstandard2.0/Antlr4BuildTasks.dll": {
+            "assemblyVersion": "12.11.0.0",
+            "fileVersion": "12.11.0.0"
+          }
+        }
+      },
+      "Google.Protobuf/3.33.2": {
+        "runtime": {
+          "lib/net5.0/Google.Protobuf.dll": {
+            "assemblyVersion": "3.33.2.0",
+            "fileVersion": "3.33.2.0"
+          }
+        }
+      },
+      "Microsoft.Build.Framework/17.14.28": {
+        "runtime": {
+          "lib/net9.0/Microsoft.Build.Framework.dll": {
+            "assemblyVersion": "15.1.0.0",
+            "fileVersion": "17.14.28.46601"
+          }
+        }
+      },
+      "Microsoft.Build.Utilities.Core/17.14.28": {
+        "dependencies": {
+          "Microsoft.Build.Framework": "17.14.28",
+          "Microsoft.NET.StringTools": "17.14.28",
+          "System.Configuration.ConfigurationManager": "9.0.0",
+          "System.Diagnostics.EventLog": "9.0.0",
+          "System.Security.Cryptography.ProtectedData": "9.0.0"
+        },
+        "runtime": {
+          "lib/net9.0/Microsoft.Build.Utilities.Core.dll": {
+            "assemblyVersion": "15.1.0.0",
+            "fileVersion": "17.14.28.46601"
+          }
+        }
+      },
+      "Microsoft.Extensions.AI/10.4.1": {
+        "dependencies": {
+          "Microsoft.Extensions.AI.Abstractions": "10.4.1",
+          "Microsoft.Extensions.Caching.Abstractions": "10.0.4",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.5",
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.5",
+          "System.Numerics.Tensors": "10.0.4"
+        },
+        "runtime": {
+          "lib/net10.0/Microsoft.Extensions.AI.dll": {
+            "assemblyVersion": "10.4.0.0",
+            "fileVersion": "10.400.126.16803"
+          }
+        }
+      },
+      "Microsoft.Extensions.AI.Abstractions/10.4.1": {
+        "runtime": {
+          "lib/net10.0/Microsoft.Extensions.AI.Abstractions.dll": {
+            "assemblyVersion": "10.4.0.0",
+            "fileVersion": "10.400.126.16803"
+          }
+        }
+      },
+      "Microsoft.Extensions.Caching.Abstractions/10.0.4": {
+        "dependencies": {
+          "Microsoft.Extensions.Primitives": "10.0.4"
+        },
+        "runtime": {
+          "lib/net10.0/Microsoft.Extensions.Caching.Abstractions.dll": {
+            "assemblyVersion": "10.0.0.0",
+            "fileVersion": "10.0.426.12010"
+          }
+        }
+      },
+      "Microsoft.Extensions.DependencyInjection.Abstractions/10.0.5": {
+        "runtime": {
+          "lib/net10.0/Microsoft.Extensions.DependencyInjection.Abstractions.dll": {
+            "assemblyVersion": "10.0.0.0",
+            "fileVersion": "10.0.526.15411"
+          }
+        }
+      },
+      "Microsoft.Extensions.Logging.Abstractions/10.0.5": {
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.5"
+        },
+        "runtime": {
+          "lib/net10.0/Microsoft.Extensions.Logging.Abstractions.dll": {
+            "assemblyVersion": "10.0.0.0",
+            "fileVersion": "10.0.526.15411"
+          }
+        }
+      },
+      "Microsoft.Extensions.Primitives/10.0.4": {
+        "runtime": {
+          "lib/net10.0/Microsoft.Extensions.Primitives.dll": {
+            "assemblyVersion": "10.0.0.0",
+            "fileVersion": "10.0.426.12010"
+          }
+        }
+      },
+      "Microsoft.NET.StringTools/17.14.28": {
+        "runtime": {
+          "lib/net9.0/Microsoft.NET.StringTools.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "17.14.28.46601"
+          }
+        }
+      },
+      "System.Configuration.ConfigurationManager/9.0.0": {
+        "dependencies": {
+          "System.Diagnostics.EventLog": "9.0.0",
+          "System.Security.Cryptography.ProtectedData": "9.0.0"
+        },
+        "runtime": {
+          "lib/net9.0/System.Configuration.ConfigurationManager.dll": {
+            "assemblyVersion": "9.0.0.0",
+            "fileVersion": "9.0.24.52809"
+          }
+        }
+      },
+      "System.Diagnostics.EventLog/9.0.0": {
+        "runtime": {
+          "lib/net9.0/System.Diagnostics.EventLog.dll": {
+            "assemblyVersion": "9.0.0.0",
+            "fileVersion": "9.0.24.52809"
+          }
+        },
+        "runtimeTargets": {
+          "runtimes/win/lib/net9.0/System.Diagnostics.EventLog.Messages.dll": {
+            "rid": "win",
+            "assetType": "runtime",
+            "assemblyVersion": "9.0.0.0",
+            "fileVersion": "0.0.0.0"
+          },
+          "runtimes/win/lib/net9.0/System.Diagnostics.EventLog.dll": {
+            "rid": "win",
+            "assetType": "runtime",
+            "assemblyVersion": "9.0.0.0",
+            "fileVersion": "9.0.24.52809"
+          }
+        }
+      },
+      "System.Numerics.Tensors/10.0.4": {
+        "runtime": {
+          "lib/net10.0/System.Numerics.Tensors.dll": {
+            "assemblyVersion": "10.0.0.4",
+            "fileVersion": "10.0.426.12010"
+          }
+        }
+      },
+      "System.Security.Cryptography.ProtectedData/9.0.0": {
+        "runtime": {
+          "lib/net9.0/System.Security.Cryptography.ProtectedData.dll": {
+            "assemblyVersion": "9.0.0.0",
+            "fileVersion": "9.0.24.52809"
+          }
+        }
+      },
+      "YamlDotNet/16.3.0": {
+        "runtime": {
+          "lib/net8.0/YamlDotNet.dll": {
+            "assemblyVersion": "16.0.0.0",
+            "fileVersion": "16.3.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "Ivy.Agent.Filter/1.2.43": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Antlr4.Runtime.Standard/4.13.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-Da5+i4kFHUseJRZGcBG5fmZGpA/Ns180ibrQMxgZzjpQOnENVvSL5gi5HZ8Ncz8/AR2WsKbOg2lMBzjz0HUQcA==",
+      "path": "antlr4.runtime.standard/4.13.1",
+      "hashPath": "antlr4.runtime.standard.4.13.1.nupkg.sha512"
+    },
+    "Antlr4BuildTasks/12.11.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-sj3oqkFWdshhp6xxW69QSAObHJIR5PU63zBQuqn473LQ9tEAwOmUHMJ7R8ODzTfP3TAROMg3kCSnXWVF7aa88g==",
+      "path": "antlr4buildtasks/12.11.0",
+      "hashPath": "antlr4buildtasks.12.11.0.nupkg.sha512"
+    },
+    "Google.Protobuf/3.33.2": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-vZXVbrZgBqUkP5iWQi0CS6pucIS2MQdEYPS1duWCo8fGrrt4th6HTiHfLFX2RmAWAQl1oUnzGgyDBsfq7fHQJA==",
+      "path": "google.protobuf/3.33.2",
+      "hashPath": "google.protobuf.3.33.2.nupkg.sha512"
+    },
+    "Microsoft.Build.Framework/17.14.28": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-wRcyTzGV0LRAtFdrddtioh59Ky4/zbvyraP0cQkDzRSRkhgAQb0K88D/JNC6VHLIXanRi3mtV1jU0uQkBwmiVg==",
+      "path": "microsoft.build.framework/17.14.28",
+      "hashPath": "microsoft.build.framework.17.14.28.nupkg.sha512"
+    },
+    "Microsoft.Build.Utilities.Core/17.14.28": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-rhSdPo8QfLXXWM+rY0x0z1G4KK4ZhMoIbHROyDj8MUBFab9nvHR0NaMnjzOgXldhmD2zi2ir8d6xCatNzlhF5g==",
+      "path": "microsoft.build.utilities.core/17.14.28",
+      "hashPath": "microsoft.build.utilities.core.17.14.28.nupkg.sha512"
+    },
+    "Microsoft.Extensions.AI/10.4.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-io38o6v3Tpbh++UqIcievOOTRwEyBpbNcudpZDjOo+DnAEQQvc3WqlChPipWLYH65cl9m8jiqH6ahHeasZzmOA==",
+      "path": "microsoft.extensions.ai/10.4.1",
+      "hashPath": "microsoft.extensions.ai.10.4.1.nupkg.sha512"
+    },
+    "Microsoft.Extensions.AI.Abstractions/10.4.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-ZxhU/wg9BOc3ohibhLl18toPLWm96ysQoE+3OhCgrZ0TUPZd7bsUmGteeatz08yweyuPIEhtyUzEZTF+3bMWEQ==",
+      "path": "microsoft.extensions.ai.abstractions/10.4.1",
+      "hashPath": "microsoft.extensions.ai.abstractions.10.4.1.nupkg.sha512"
+    },
+    "Microsoft.Extensions.Caching.Abstractions/10.0.4": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-uDRooaV6N3WZ0kdlNPMB68/MdGn/in1Fs7Db7DnIm85RBTPy4P321WO+daAImiYpH5dekjNggDqy1N44WaIlMA==",
+      "path": "microsoft.extensions.caching.abstractions/10.0.4",
+      "hashPath": "microsoft.extensions.caching.abstractions.10.0.4.nupkg.sha512"
+    },
+    "Microsoft.Extensions.DependencyInjection.Abstractions/10.0.5": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-iVMtq9eRvzyhx8949EGT0OCYJfXi737SbRVzWXE5GrOgGj5AaZ9eUuxA/BSUfmOMALKn/g8KfFaNQw0eiB3lyA==",
+      "path": "microsoft.extensions.dependencyinjection.abstractions/10.0.5",
+      "hashPath": "microsoft.extensions.dependencyinjection.abstractions.10.0.5.nupkg.sha512"
+    },
+    "Microsoft.Extensions.Logging.Abstractions/10.0.5": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-9HOdqlDtPptVcmKAjsQ/Nr5Rxfq6FMYLdhvZh1lVmeKR738qeYecQD7+ldooXf+u2KzzR1kafSphWngIM3C6ug==",
+      "path": "microsoft.extensions.logging.abstractions/10.0.5",
+      "hashPath": "microsoft.extensions.logging.abstractions.10.0.5.nupkg.sha512"
+    },
+    "Microsoft.Extensions.Primitives/10.0.4": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-lABYqiRH9HgYJsjzO3W7+cucUwWXhEkiyrRylANdIubnzcESlkIsLowXpQ4E+sc7kjMLbk1hk5oxw4qTKowTEg==",
+      "path": "microsoft.extensions.primitives/10.0.4",
+      "hashPath": "microsoft.extensions.primitives.10.0.4.nupkg.sha512"
+    },
+    "Microsoft.NET.StringTools/17.14.28": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-DMIeWDlxe0Wz0DIhJZ2FMoGQAN2yrGZOi5jjFhRYHWR5ONd0CS6IpAHlRnA7uA/5BF+BADvgsETxW2XrPiFc1A==",
+      "path": "microsoft.net.stringtools/17.14.28",
+      "hashPath": "microsoft.net.stringtools.17.14.28.nupkg.sha512"
+    },
+    "System.Configuration.ConfigurationManager/9.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-PdkuMrwDhXoKFo/JxISIi9E8L+QGn9Iquj2OKDWHB6Y/HnUOuBouF7uS3R4Hw3FoNmwwMo6hWgazQdyHIIs27A==",
+      "path": "system.configuration.configurationmanager/9.0.0",
+      "hashPath": "system.configuration.configurationmanager.9.0.0.nupkg.sha512"
+    },
+    "System.Diagnostics.EventLog/9.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-qd01+AqPhbAG14KtdtIqFk+cxHQFZ/oqRSCoxU1F+Q6Kv0cl726sl7RzU9yLFGd4BUOKdN4XojXF0pQf/R6YeA==",
+      "path": "system.diagnostics.eventlog/9.0.0",
+      "hashPath": "system.diagnostics.eventlog.9.0.0.nupkg.sha512"
+    },
+    "System.Numerics.Tensors/10.0.4": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-EK8wJVxnVfeCzchnEqVjIfZDpVIcmjfjUs9x1nzI41X2naPGT57QjoHlQJma2vDQUxEtPQiGv/v90mwcflx6mQ==",
+      "path": "system.numerics.tensors/10.0.4",
+      "hashPath": "system.numerics.tensors.10.0.4.nupkg.sha512"
+    },
+    "System.Security.Cryptography.ProtectedData/9.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-CJW+x/F6fmRQ7N6K8paasTw9PDZp4t7G76UjGNlSDgoHPF0h08vTzLYbLZpOLEJSg35d5wy2jCXGo84EN05DpQ==",
+      "path": "system.security.cryptography.protecteddata/9.0.0",
+      "hashPath": "system.security.cryptography.protecteddata.9.0.0.nupkg.sha512"
+    },
+    "YamlDotNet/16.3.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-SgMOdxbz8X65z8hraIs6hOEdnkH6hESTAIUa7viEngHOYaH+6q5XJmwr1+yb9vJpNQ19hCQY69xbFsLtXpobQA==",
+      "path": "yamldotnet/16.3.0",
+      "hashPath": "yamldotnet.16.3.0.nupkg.sha512"
+    }
+  }
+}

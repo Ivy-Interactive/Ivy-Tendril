@@ -160,10 +160,8 @@ function UpdatePlanState {
 
     $content = Get-Content $planYamlPath -Raw
     $now = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-    $yaml = $content | ConvertFrom-Yaml -Ordered
-    $yaml["state"] = $NewState
-    $yaml["updated"] = $now
-    $content = ConvertTo-Yaml $yaml
+    $content = $content -replace '(?m)^state:\s*.*$', "state: $NewState"
+    $content = $content -replace '(?m)^updated:\s*.*$', "updated: $now"
     Set-Content -Path $planYamlPath -Value $content -NoNewline -Encoding UTF8
     Write-Host "Plan state updated to: $NewState" -ForegroundColor Cyan
 }
