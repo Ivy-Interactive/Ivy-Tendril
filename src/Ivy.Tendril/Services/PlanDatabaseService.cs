@@ -243,7 +243,7 @@ public class PlanDatabaseService : IPlanDatabaseService
             var pfAlias = projectFilter != null ? " AND p.Project = @project" : "";
             var pfAlias2 = projectFilter != null ? " AND p2.Project = @project2" : "";
 
-            // Query 1: Status counts + avg cost
+            // Query 1: Status counts + avg cost (LAST 7 DAYS - filtered by cutoff)
             int totalCount, draftCount, inProgressCount, reviewCount, completedCount, failedCount;
             decimal avgCost;
             using (var cmd = _connection.CreateCommand())
@@ -259,10 +259,11 @@ public class PlanDatabaseService : IPlanDatabaseService
                         (SELECT CASE WHEN COUNT(DISTINCT p2.Id) > 0
                             THEN COALESCE(SUM(c2.Cost), 0) / COUNT(DISTINCT p2.Id) ELSE 0 END
                          FROM Costs c2 JOIN Plans p2 ON p2.Id = c2.PlanId
-                         WHERE p2.State IN ('Completed', 'Failed', 'ReadyForReview') {pfAlias2}
+                         WHERE p2.Created >= @cutoff AND p2.State IN ('Completed', 'Failed', 'ReadyForReview') {pfAlias2}
                         ) AS AvgCost
-                    FROM Plans WHERE 1=1 {pf}
+                    FROM Plans WHERE Created >= @cutoff {pf}
                     """;
+                cmd.Parameters.AddWithValue("@cutoff", cutoff);
                 if (projectFilter != null)
                 {
                     cmd.Parameters.AddWithValue("@project", projectFilter);
@@ -280,7 +281,7 @@ public class PlanDatabaseService : IPlanDatabaseService
                 avgCost = Convert.ToDecimal(r.GetValue(6), CultureInfo.InvariantCulture);
             }
 
-            // Query 2: All daily stats in one pass
+            // Query 2: All daily stats in one pass (LAST 7 DAYS - uses cutoff)
             var dailyCreated = new Dictionary<string, int>();
             var dailyCompleted = new Dictionary<string, int>();
             var dailyFailed = new Dictionary<string, int>();
@@ -376,13 +377,15 @@ public class PlanDatabaseService : IPlanDatabaseService
                 ));
             }
 
-            // Query 3: Project counts (always unfiltered for the stacked progress bar)
+            // Query 3: Project counts (LAST 7 DAYS - filtered by cutoff)
             var projectCounts = new List<ProjectCount>();
             using (var cmd = _connection.CreateCommand())
             {
-                cmd.CommandText = "SELECT Project, COUNT(*) FROM Plans GROUP BY Project ORDER BY COUNT(*) DESC";
+                cmd.CommandText = "SELECT Project, COUNT(*) FROM Plans WHERE Created >= @cutoff GROUP BY Project ORDER BY COUNT(*) DESC";
+                cmd.Parameters.AddWithValue("@cutoff", cutoff);
                 using var r = cmd.ExecuteReader();
-                while (r.Read()) projectCounts.Add(new ProjectCount(r.GetString(0), r.GetInt32(1)));
+                while (r.Read())
+                    projectCounts.Add(new ProjectCount(r.GetString(0), r.GetInt32(1)));
             }
 
             return new DashboardStats(
