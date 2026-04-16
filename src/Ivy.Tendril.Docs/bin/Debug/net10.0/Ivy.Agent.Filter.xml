@@ -1,0 +1,1089 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Ivy.Agent.Filter</name>
+    </assembly>
+    <members>
+        <member name="T:Ivy.Agent.Filter.Node">
+            <summary>
+            Base class for all AST nodes in the advanced filter filter
+            </summary>
+        </member>
+        <member name="T:Ivy.Agent.Filter.And">
+            <summary>
+            Logical AND operation between two nodes
+            </summary>
+        </member>
+        <member name="M:Ivy.Agent.Filter.And.#ctor(Ivy.Agent.Filter.Node,Ivy.Agent.Filter.Node)">
+            <summary>
+            Logical AND operation between two nodes
+            </summary>
+        </member>
+        <member name="T:Ivy.Agent.Filter.Or">
+            <summary>
+            Logical OR operation between two nodes
+            </summary>
+        </member>
+        <member name="M:Ivy.Agent.Filter.Or.#ctor(Ivy.Agent.Filter.Node,Ivy.Agent.Filter.Node)">
+            <summary>
+            Logical OR operation between two nodes
+            </summary>
+        </member>
+        <member name="T:Ivy.Agent.Filter.Not">
+            <summary>
+            Logical NOT operation (negation) of a node
+            </summary>
+        </member>
+        <member name="M:Ivy.Agent.Filter.Not.#ctor(Ivy.Agent.Filter.Node)">
+            <summary>
+            Logical NOT operation (negation) of a node
+            </summary>
+        </member>
+        <member name="T:Ivy.Agent.Filter.Op">
+            <summary>
+            Normalized operator types for filter operations
+            </summary>
+        </member>
+        <member name="T:Ivy.Agent.Filter.FieldType">
+            <summary>
+            Column data types supported by the filter system
+            </summary>
+        </member>
+        <member name="T:Ivy.Agent.Filter.FieldMeta">
+            <summary>
+            Metadata about a column including display name, internal ID, and data type
+            </summary>
+        </member>
+        <member name="M:Ivy.Agent.Filter.FieldMeta.#ctor(System.String,System.String,Ivy.Agent.Filter.FieldType)">
+            <summary>
+            Metadata about a column including display name, internal ID, and data type
+            </summary>
+        </member>
+        <member name="M:Ivy.Agent.Filter.FieldMeta.#ctor(System.String,System.Type)">
+            <summary>
+            Constructor for creating FieldMeta from a PropertyInfo
+            </summary>
+        </member>
+        <member name="T:Ivy.Agent.Filter.Leaf">
+            <summary>
+            Leaf node representing a single filter condition on a column
+            </summary>
+            <param name="FieldDisplay">The display name of the column as it appears in [brackets]</param>
+            <param name="FieldId">The internal column ID for the grid system</param>
+            <param name="Type">The data type of the column</param>
+            <param name="Op">The normalized operator to apply</param>
+            <param name="A">First operand (or only operand for single-operand operations)</param>
+            <param name="B">Second operand (reserved for future use)</param>
+        </member>
+        <member name="M:Ivy.Agent.Filter.Leaf.#ctor(System.String,System.String,Ivy.Agent.Filter.FieldType,Ivy.Agent.Filter.Op,System.Object,System.Object)">
+            <summary>
+            Leaf node representing a single filter condition on a column
+            </summary>
+            <param name="FieldDisplay">The display name of the column as it appears in [brackets]</param>
+            <param name="FieldId">The internal column ID for the grid system</param>
+            <param name="Type">The data type of the column</param>
+            <param name="Op">The normalized operator to apply</param>
+            <param name="A">First operand (or only operand for single-operand operations)</param>
+            <param name="B">Second operand (reserved for future use)</param>
+        </member>
+        <member name="P:Ivy.Agent.Filter.Leaf.FieldDisplay">
+            <summary>The display name of the column as it appears in [brackets]</summary>
+        </member>
+        <member name="P:Ivy.Agent.Filter.Leaf.FieldId">
+            <summary>The internal column ID for the grid system</summary>
+        </member>
+        <member name="P:Ivy.Agent.Filter.Leaf.Type">
+            <summary>The data type of the column</summary>
+        </member>
+        <member name="P:Ivy.Agent.Filter.Leaf.Op">
+            <summary>The normalized operator to apply</summary>
+        </member>
+        <member name="P:Ivy.Agent.Filter.Leaf.A">
+            <summary>First operand (or only operand for single-operand operations)</summary>
+        </member>
+        <member name="P:Ivy.Agent.Filter.Leaf.B">
+            <summary>Second operand (reserved for future use)</summary>
+        </member>
+        <member name="T:Ivy.Agent.Filter.DiagnosticSeverity">
+            <summary>
+            Severity levels for filter diagnostics
+            </summary>
+        </member>
+        <member name="T:Ivy.Agent.Filter.Diagnostic">
+            <summary>
+            Represents a diagnostic issue found during filter parsing or validation
+            </summary>
+            <param name="Severity">The severity level of the diagnostic</param>
+            <param name="Message">Human-readable description of the issue</param>
+            <param name="Line">Line number where the issue occurs (1-based)</param>
+            <param name="Column">Column number where the issue occurs (0-based)</param>
+            <param name="Length">Length of the problematic text span</param>
+        </member>
+        <member name="M:Ivy.Agent.Filter.Diagnostic.#ctor(Ivy.Agent.Filter.DiagnosticSeverity,System.String,System.Int32,System.Int32,System.Int32)">
+            <summary>
+            Represents a diagnostic issue found during filter parsing or validation
+            </summary>
+            <param name="Severity">The severity level of the diagnostic</param>
+            <param name="Message">Human-readable description of the issue</param>
+            <param name="Line">Line number where the issue occurs (1-based)</param>
+            <param name="Column">Column number where the issue occurs (0-based)</param>
+            <param name="Length">Length of the problematic text span</param>
+        </member>
+        <member name="P:Ivy.Agent.Filter.Diagnostic.Severity">
+            <summary>The severity level of the diagnostic</summary>
+        </member>
+        <member name="P:Ivy.Agent.Filter.Diagnostic.Message">
+            <summary>Human-readable description of the issue</summary>
+        </member>
+        <member name="P:Ivy.Agent.Filter.Diagnostic.Line">
+            <summary>Line number where the issue occurs (1-based)</summary>
+        </member>
+        <member name="P:Ivy.Agent.Filter.Diagnostic.Column">
+            <summary>Column number where the issue occurs (0-based)</summary>
+        </member>
+        <member name="P:Ivy.Agent.Filter.Diagnostic.Length">
+            <summary>Length of the problematic text span</summary>
+        </member>
+        <member name="T:Ivy.Agent.Filter.FilterErrorListener">
+            <summary>
+            Custom error listener for ANTLR parser that collects syntax errors
+            </summary>
+        </member>
+        <member name="M:Ivy.Agent.Filter.FilterErrorListener.AddSemanticError(System.String,Antlr4.Runtime.IToken)">
+            <summary>
+            Adds a semantic error to the diagnostics collection
+            </summary>
+        </member>
+        <member name="M:Ivy.Agent.Filter.FilterErrorListener.AddWarning(System.String,Antlr4.Runtime.IToken)">
+            <summary>
+            Adds a warning to the diagnostics collection
+            </summary>
+        </member>
+        <member name="M:Ivy.Agent.Filter.FilterErrorListener.Clear">
+            <summary>
+            Clears all diagnostics
+            </summary>
+        </member>
+        <member name="T:Ivy.Agent.Filter.FilterAstVisitor">
+            <summary>
+            Visitor that builds an AST from the ANTLR parse tree and performs semantic validation
+            </summary>
+        </member>
+        <member name="M:Ivy.Agent.Filter.FilterAstVisitor.#ctor(System.Collections.Generic.IDictionary{System.String,Ivy.Agent.Filter.FieldMeta},Ivy.Agent.Filter.FilterErrorListener)">
+            <summary>
+            Visitor that builds an AST from the ANTLR parse tree and performs semantic validation
+            </summary>
+        </member>
+        <member name="T:Ivy.Agent.Filter.FilterConverter">
+            <summary>
+            Converts AST nodes to grid-compatible filter models
+            </summary>
+        </member>
+        <member name="M:Ivy.Agent.Filter.FilterConverter.ConvertToModel(Ivy.Agent.Filter.Node)">
+            <summary>
+            Converts an AST node to a grid filter model
+            </summary>
+        </member>
+        <member name="T:Ivy.Agent.Filter.FilterModel">
+            <summary>
+            Represents the filter model structure for grid filtering
+            </summary>
+        </member>
+        <member name="T:Ivy.Agent.Filter.GroupFilterModel">
+            <summary>
+            Join filter model for combining multiple conditions with AND/OR
+            </summary>
+        </member>
+        <member name="T:Ivy.Agent.Filter.FieldFilterModel">
+            <summary>
+            Field filter model for leaf conditions
+            </summary>
+        </member>
+        <member name="M:Ivy.Agent.Filter.FieldFilterModel.#ctor(System.String)">
+            <summary>
+            Field filter model for leaf conditions
+            </summary>
+        </member>
+        <member name="T:Ivy.Agent.Filter.FilterParseResult">
+            <summary>
+            Result of parsing a filter, containing the AST and any diagnostics
+            </summary>
+        </member>
+        <member name="T:Ivy.Agent.Filter.UsageInfo">
+            <summary>
+            Token usage information for cost tracking
+            </summary>
+        </member>
+        <member name="T:Ivy.Agent.Filter.FilterParser">
+            <summary>
+            Main entry point for parsing advanced filter filters
+            </summary>
+        </member>
+        <member name="M:Ivy.Agent.Filter.FilterParser.#ctor(System.Collections.Generic.IEnumerable{Ivy.Agent.Filter.FieldMeta})">
+            <summary>
+            Creates a new filter parser with the specified column metadata
+            </summary>
+            <param name="fields">Available columns mapped by their display names</param>
+        </member>
+        <member name="M:Ivy.Agent.Filter.FilterParser.Parse(System.String)">
+            <summary>
+            Parses a filter string into an AST and filter model
+            </summary>
+            <param name="filter">The filter text to parse</param>
+            <returns>Parse result containing AST, model, and diagnostics</returns>
+        </member>
+        <member name="M:Ivy.Agent.Filter.FilterParser.IsValid(System.String)">
+            <summary>
+            Quick validation method that returns true if the filter is syntactically and semantically valid
+            </summary>
+            <param name="filter">The filter to validate</param>
+            <returns>True if valid, false otherwise</returns>
+        </member>
+        <member name="M:Ivy.Agent.Filter.FilterParser.GetAvailableFields">
+            <summary>
+            Gets all available fields
+            </summary>
+        </member>
+        <member name="T:Ivy.Agent.Filter.FieldMetaYaml">
+            <summary>
+            YAML-serializable representation of field metadata
+            </summary>
+        </member>
+        <member name="T:FiltersBaseListener">
+            <summary>
+            This class provides an empty implementation of <see cref="T:IFiltersListener"/>,
+            which can be extended to create a listener which only needs to handle a subset
+            of the available methods.
+            </summary>
+        </member>
+        <member name="M:FiltersBaseListener.EnterFormula(FiltersParser.FormulaContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.formula"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.ExitFormula(FiltersParser.FormulaContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.formula"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.EnterExpr(FiltersParser.ExprContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.expr"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.ExitExpr(FiltersParser.ExprContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.expr"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.EnterOrExpr(FiltersParser.OrExprContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.orExpr"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.ExitOrExpr(FiltersParser.OrExprContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.orExpr"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.EnterAndExpr(FiltersParser.AndExprContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.andExpr"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.ExitAndExpr(FiltersParser.AndExprContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.andExpr"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.EnterUnaryExpr(FiltersParser.UnaryExprContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.unaryExpr"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.ExitUnaryExpr(FiltersParser.UnaryExprContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.unaryExpr"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.EnterPrimary(FiltersParser.PrimaryContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.primary"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.ExitPrimary(FiltersParser.PrimaryContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.primary"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.EnterGroup(FiltersParser.GroupContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.group"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.ExitGroup(FiltersParser.GroupContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.group"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.EnterComparison(FiltersParser.ComparisonContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.comparison"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.ExitComparison(FiltersParser.ComparisonContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.comparison"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.EnterTextOperation(FiltersParser.TextOperationContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.textOperation"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.ExitTextOperation(FiltersParser.TextOperationContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.textOperation"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.EnterExistenceOperation(FiltersParser.ExistenceOperationContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.existenceOperation"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.ExitExistenceOperation(FiltersParser.ExistenceOperationContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.existenceOperation"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.EnterFieldRef(FiltersParser.FieldRefContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.fieldRef"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.ExitFieldRef(FiltersParser.FieldRefContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.fieldRef"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.EnterFieldIdentifier(FiltersParser.FieldIdentifierContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.fieldIdentifier"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.ExitFieldIdentifier(FiltersParser.FieldIdentifierContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.fieldIdentifier"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.EnterCompOp(FiltersParser.CompOpContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.compOp"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.ExitCompOp(FiltersParser.CompOpContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.compOp"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.EnterTextOp(FiltersParser.TextOpContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.textOp"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.ExitTextOp(FiltersParser.TextOpContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.textOp"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.EnterOperand(FiltersParser.OperandContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.operand"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.ExitOperand(FiltersParser.OperandContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.operand"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.EnterBooleanLiteral(FiltersParser.BooleanLiteralContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.booleanLiteral"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.ExitBooleanLiteral(FiltersParser.BooleanLiteralContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.booleanLiteral"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.EnterNumber(FiltersParser.NumberContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.number"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.ExitNumber(FiltersParser.NumberContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.number"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.EnterStringLiteral(FiltersParser.StringLiteralContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.stringLiteral"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.ExitStringLiteral(FiltersParser.StringLiteralContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.stringLiteral"/>.
+            <para>The default implementation does nothing.</para>
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:FiltersBaseListener.EnterEveryRule(Antlr4.Runtime.ParserRuleContext)">
+            <inheritdoc/>
+            <remarks>The default implementation does nothing.</remarks>
+        </member>
+        <member name="M:FiltersBaseListener.ExitEveryRule(Antlr4.Runtime.ParserRuleContext)">
+            <inheritdoc/>
+            <remarks>The default implementation does nothing.</remarks>
+        </member>
+        <member name="M:FiltersBaseListener.VisitTerminal(Antlr4.Runtime.Tree.ITerminalNode)">
+            <inheritdoc/>
+            <remarks>The default implementation does nothing.</remarks>
+        </member>
+        <member name="M:FiltersBaseListener.VisitErrorNode(Antlr4.Runtime.Tree.IErrorNode)">
+            <inheritdoc/>
+            <remarks>The default implementation does nothing.</remarks>
+        </member>
+        <member name="T:FiltersBaseVisitor`1">
+            <summary>
+            This class provides an empty implementation of <see cref="T:IFiltersVisitor`1"/>,
+            which can be extended to create a visitor which only needs to handle a subset
+            of the available methods.
+            </summary>
+            <typeparam name="Result">The return type of the visit operation.</typeparam>
+        </member>
+        <member name="M:FiltersBaseVisitor`1.VisitFormula(FiltersParser.FormulaContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.formula"/>.
+            <para>
+            The default implementation returns the result of calling <see cref="M:Antlr4.Runtime.Tree.AbstractParseTreeVisitor`1.VisitChildren(Antlr4.Runtime.Tree.IRuleNode)"/>
+            on <paramref name="context"/>.
+            </para>
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:FiltersBaseVisitor`1.VisitExpr(FiltersParser.ExprContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.expr"/>.
+            <para>
+            The default implementation returns the result of calling <see cref="M:Antlr4.Runtime.Tree.AbstractParseTreeVisitor`1.VisitChildren(Antlr4.Runtime.Tree.IRuleNode)"/>
+            on <paramref name="context"/>.
+            </para>
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:FiltersBaseVisitor`1.VisitOrExpr(FiltersParser.OrExprContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.orExpr"/>.
+            <para>
+            The default implementation returns the result of calling <see cref="M:Antlr4.Runtime.Tree.AbstractParseTreeVisitor`1.VisitChildren(Antlr4.Runtime.Tree.IRuleNode)"/>
+            on <paramref name="context"/>.
+            </para>
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:FiltersBaseVisitor`1.VisitAndExpr(FiltersParser.AndExprContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.andExpr"/>.
+            <para>
+            The default implementation returns the result of calling <see cref="M:Antlr4.Runtime.Tree.AbstractParseTreeVisitor`1.VisitChildren(Antlr4.Runtime.Tree.IRuleNode)"/>
+            on <paramref name="context"/>.
+            </para>
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:FiltersBaseVisitor`1.VisitUnaryExpr(FiltersParser.UnaryExprContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.unaryExpr"/>.
+            <para>
+            The default implementation returns the result of calling <see cref="M:Antlr4.Runtime.Tree.AbstractParseTreeVisitor`1.VisitChildren(Antlr4.Runtime.Tree.IRuleNode)"/>
+            on <paramref name="context"/>.
+            </para>
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:FiltersBaseVisitor`1.VisitPrimary(FiltersParser.PrimaryContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.primary"/>.
+            <para>
+            The default implementation returns the result of calling <see cref="M:Antlr4.Runtime.Tree.AbstractParseTreeVisitor`1.VisitChildren(Antlr4.Runtime.Tree.IRuleNode)"/>
+            on <paramref name="context"/>.
+            </para>
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:FiltersBaseVisitor`1.VisitGroup(FiltersParser.GroupContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.group"/>.
+            <para>
+            The default implementation returns the result of calling <see cref="M:Antlr4.Runtime.Tree.AbstractParseTreeVisitor`1.VisitChildren(Antlr4.Runtime.Tree.IRuleNode)"/>
+            on <paramref name="context"/>.
+            </para>
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:FiltersBaseVisitor`1.VisitComparison(FiltersParser.ComparisonContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.comparison"/>.
+            <para>
+            The default implementation returns the result of calling <see cref="M:Antlr4.Runtime.Tree.AbstractParseTreeVisitor`1.VisitChildren(Antlr4.Runtime.Tree.IRuleNode)"/>
+            on <paramref name="context"/>.
+            </para>
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:FiltersBaseVisitor`1.VisitTextOperation(FiltersParser.TextOperationContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.textOperation"/>.
+            <para>
+            The default implementation returns the result of calling <see cref="M:Antlr4.Runtime.Tree.AbstractParseTreeVisitor`1.VisitChildren(Antlr4.Runtime.Tree.IRuleNode)"/>
+            on <paramref name="context"/>.
+            </para>
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:FiltersBaseVisitor`1.VisitExistenceOperation(FiltersParser.ExistenceOperationContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.existenceOperation"/>.
+            <para>
+            The default implementation returns the result of calling <see cref="M:Antlr4.Runtime.Tree.AbstractParseTreeVisitor`1.VisitChildren(Antlr4.Runtime.Tree.IRuleNode)"/>
+            on <paramref name="context"/>.
+            </para>
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:FiltersBaseVisitor`1.VisitFieldRef(FiltersParser.FieldRefContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.fieldRef"/>.
+            <para>
+            The default implementation returns the result of calling <see cref="M:Antlr4.Runtime.Tree.AbstractParseTreeVisitor`1.VisitChildren(Antlr4.Runtime.Tree.IRuleNode)"/>
+            on <paramref name="context"/>.
+            </para>
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:FiltersBaseVisitor`1.VisitFieldIdentifier(FiltersParser.FieldIdentifierContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.fieldIdentifier"/>.
+            <para>
+            The default implementation returns the result of calling <see cref="M:Antlr4.Runtime.Tree.AbstractParseTreeVisitor`1.VisitChildren(Antlr4.Runtime.Tree.IRuleNode)"/>
+            on <paramref name="context"/>.
+            </para>
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:FiltersBaseVisitor`1.VisitCompOp(FiltersParser.CompOpContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.compOp"/>.
+            <para>
+            The default implementation returns the result of calling <see cref="M:Antlr4.Runtime.Tree.AbstractParseTreeVisitor`1.VisitChildren(Antlr4.Runtime.Tree.IRuleNode)"/>
+            on <paramref name="context"/>.
+            </para>
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:FiltersBaseVisitor`1.VisitTextOp(FiltersParser.TextOpContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.textOp"/>.
+            <para>
+            The default implementation returns the result of calling <see cref="M:Antlr4.Runtime.Tree.AbstractParseTreeVisitor`1.VisitChildren(Antlr4.Runtime.Tree.IRuleNode)"/>
+            on <paramref name="context"/>.
+            </para>
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:FiltersBaseVisitor`1.VisitOperand(FiltersParser.OperandContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.operand"/>.
+            <para>
+            The default implementation returns the result of calling <see cref="M:Antlr4.Runtime.Tree.AbstractParseTreeVisitor`1.VisitChildren(Antlr4.Runtime.Tree.IRuleNode)"/>
+            on <paramref name="context"/>.
+            </para>
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:FiltersBaseVisitor`1.VisitBooleanLiteral(FiltersParser.BooleanLiteralContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.booleanLiteral"/>.
+            <para>
+            The default implementation returns the result of calling <see cref="M:Antlr4.Runtime.Tree.AbstractParseTreeVisitor`1.VisitChildren(Antlr4.Runtime.Tree.IRuleNode)"/>
+            on <paramref name="context"/>.
+            </para>
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:FiltersBaseVisitor`1.VisitNumber(FiltersParser.NumberContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.number"/>.
+            <para>
+            The default implementation returns the result of calling <see cref="M:Antlr4.Runtime.Tree.AbstractParseTreeVisitor`1.VisitChildren(Antlr4.Runtime.Tree.IRuleNode)"/>
+            on <paramref name="context"/>.
+            </para>
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:FiltersBaseVisitor`1.VisitStringLiteral(FiltersParser.StringLiteralContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.stringLiteral"/>.
+            <para>
+            The default implementation returns the result of calling <see cref="M:Antlr4.Runtime.Tree.AbstractParseTreeVisitor`1.VisitChildren(Antlr4.Runtime.Tree.IRuleNode)"/>
+            on <paramref name="context"/>.
+            </para>
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="T:IFiltersListener">
+            <summary>
+            This interface defines a complete listener for a parse tree produced by
+            <see cref="T:FiltersParser"/>.
+            </summary>
+        </member>
+        <member name="M:IFiltersListener.EnterFormula(FiltersParser.FormulaContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.formula"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.ExitFormula(FiltersParser.FormulaContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.formula"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.EnterExpr(FiltersParser.ExprContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.expr"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.ExitExpr(FiltersParser.ExprContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.expr"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.EnterOrExpr(FiltersParser.OrExprContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.orExpr"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.ExitOrExpr(FiltersParser.OrExprContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.orExpr"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.EnterAndExpr(FiltersParser.AndExprContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.andExpr"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.ExitAndExpr(FiltersParser.AndExprContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.andExpr"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.EnterUnaryExpr(FiltersParser.UnaryExprContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.unaryExpr"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.ExitUnaryExpr(FiltersParser.UnaryExprContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.unaryExpr"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.EnterPrimary(FiltersParser.PrimaryContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.primary"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.ExitPrimary(FiltersParser.PrimaryContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.primary"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.EnterGroup(FiltersParser.GroupContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.group"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.ExitGroup(FiltersParser.GroupContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.group"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.EnterComparison(FiltersParser.ComparisonContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.comparison"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.ExitComparison(FiltersParser.ComparisonContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.comparison"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.EnterTextOperation(FiltersParser.TextOperationContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.textOperation"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.ExitTextOperation(FiltersParser.TextOperationContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.textOperation"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.EnterExistenceOperation(FiltersParser.ExistenceOperationContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.existenceOperation"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.ExitExistenceOperation(FiltersParser.ExistenceOperationContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.existenceOperation"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.EnterFieldRef(FiltersParser.FieldRefContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.fieldRef"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.ExitFieldRef(FiltersParser.FieldRefContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.fieldRef"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.EnterFieldIdentifier(FiltersParser.FieldIdentifierContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.fieldIdentifier"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.ExitFieldIdentifier(FiltersParser.FieldIdentifierContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.fieldIdentifier"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.EnterCompOp(FiltersParser.CompOpContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.compOp"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.ExitCompOp(FiltersParser.CompOpContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.compOp"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.EnterTextOp(FiltersParser.TextOpContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.textOp"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.ExitTextOp(FiltersParser.TextOpContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.textOp"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.EnterOperand(FiltersParser.OperandContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.operand"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.ExitOperand(FiltersParser.OperandContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.operand"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.EnterBooleanLiteral(FiltersParser.BooleanLiteralContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.booleanLiteral"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.ExitBooleanLiteral(FiltersParser.BooleanLiteralContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.booleanLiteral"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.EnterNumber(FiltersParser.NumberContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.number"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.ExitNumber(FiltersParser.NumberContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.number"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.EnterStringLiteral(FiltersParser.StringLiteralContext)">
+            <summary>
+            Enter a parse tree produced by <see cref="M:FiltersParser.stringLiteral"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="M:IFiltersListener.ExitStringLiteral(FiltersParser.StringLiteralContext)">
+            <summary>
+            Exit a parse tree produced by <see cref="M:FiltersParser.stringLiteral"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+        </member>
+        <member name="T:IFiltersVisitor`1">
+            <summary>
+            This interface defines a complete generic visitor for a parse tree produced
+            by <see cref="T:FiltersParser"/>.
+            </summary>
+            <typeparam name="Result">The return type of the visit operation.</typeparam>
+        </member>
+        <member name="M:IFiltersVisitor`1.VisitFormula(FiltersParser.FormulaContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.formula"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:IFiltersVisitor`1.VisitExpr(FiltersParser.ExprContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.expr"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:IFiltersVisitor`1.VisitOrExpr(FiltersParser.OrExprContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.orExpr"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:IFiltersVisitor`1.VisitAndExpr(FiltersParser.AndExprContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.andExpr"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:IFiltersVisitor`1.VisitUnaryExpr(FiltersParser.UnaryExprContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.unaryExpr"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:IFiltersVisitor`1.VisitPrimary(FiltersParser.PrimaryContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.primary"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:IFiltersVisitor`1.VisitGroup(FiltersParser.GroupContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.group"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:IFiltersVisitor`1.VisitComparison(FiltersParser.ComparisonContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.comparison"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:IFiltersVisitor`1.VisitTextOperation(FiltersParser.TextOperationContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.textOperation"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:IFiltersVisitor`1.VisitExistenceOperation(FiltersParser.ExistenceOperationContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.existenceOperation"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:IFiltersVisitor`1.VisitFieldRef(FiltersParser.FieldRefContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.fieldRef"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:IFiltersVisitor`1.VisitFieldIdentifier(FiltersParser.FieldIdentifierContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.fieldIdentifier"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:IFiltersVisitor`1.VisitCompOp(FiltersParser.CompOpContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.compOp"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:IFiltersVisitor`1.VisitTextOp(FiltersParser.TextOpContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.textOp"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:IFiltersVisitor`1.VisitOperand(FiltersParser.OperandContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.operand"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:IFiltersVisitor`1.VisitBooleanLiteral(FiltersParser.BooleanLiteralContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.booleanLiteral"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:IFiltersVisitor`1.VisitNumber(FiltersParser.NumberContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.number"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+        <member name="M:IFiltersVisitor`1.VisitStringLiteral(FiltersParser.StringLiteralContext)">
+            <summary>
+            Visit a parse tree produced by <see cref="M:FiltersParser.stringLiteral"/>.
+            </summary>
+            <param name="context">The parse tree.</param>
+            <return>The visitor result.</return>
+        </member>
+    </members>
+</doc>
