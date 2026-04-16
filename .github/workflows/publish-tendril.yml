@@ -70,11 +70,11 @@ jobs:
           echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
       - name: Restore
-        run: dotnet restore Ivy.Tendril/Ivy.Tendril.csproj
+        run: dotnet restore src/Ivy.Tendril/Ivy.Tendril.csproj
 
       - name: Pack NuGet
         run: |
-          dotnet pack Ivy.Tendril/Ivy.Tendril.csproj \
+          dotnet pack src/Ivy.Tendril/Ivy.Tendril.csproj \
             --configuration Release \
             --output ./nupkg \
             /p:Version=${{ needs.version.outputs.version }}
@@ -166,7 +166,7 @@ jobs:
           echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
       - name: Restore
-        run: dotnet restore Ivy.Tendril/Ivy.Tendril.csproj
+        run: dotnet restore src/Ivy.Tendril/Ivy.Tendril.csproj
 
       - name: Install vpk tool and dependencies
         run: |
@@ -178,16 +178,16 @@ jobs:
       - name: Set Icon Path
         run: |
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            echo "ICON_PATH=Ivy.Tendril/Assets/Tendril.ico" >> $GITHUB_ENV
+            echo "ICON_PATH=src/Ivy.Tendril/Assets/Tendril.ico" >> $GITHUB_ENV
           elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            echo "ICON_PATH=Ivy.Tendril/Assets/Tendril.icns" >> $GITHUB_ENV
+            echo "ICON_PATH=src/Ivy.Tendril/Assets/Tendril.icns" >> $GITHUB_ENV
           else
-            echo "ICON_PATH=Ivy.Tendril/Assets/Tendril.png" >> $GITHUB_ENV
+            echo "ICON_PATH=src/Ivy.Tendril/Assets/Tendril.png" >> $GITHUB_ENV
           fi
 
       - name: Publish Desktop Binary
         run: |
-          dotnet publish Ivy.Tendril/Ivy.Tendril.csproj \
+          dotnet publish src/Ivy.Tendril/Ivy.Tendril.csproj \
             --configuration Release \
             --runtime ${{ matrix.rid }} \
             --output ./publish/desktop/${{ matrix.rid }} \

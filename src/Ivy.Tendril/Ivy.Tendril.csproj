@@ -43,12 +43,12 @@
     <PackageReference Include="Velopack" Version="0.0.1298" />
   </ItemGroup>
   <ItemGroup Condition="'$(IvySource)' == 'true'">
-    <ProjectReference Include="../../Ivy/Ivy.csproj" />
-    <ProjectReference Include="../../Ivy.Hooks.Pty/Ivy.Hooks.Pty.csproj" />
-    <ProjectReference Include="../../widgets/Ivy.Widgets.Xterm/Ivy.Widgets.Xterm.csproj" />
-    <ProjectReference Include="../../widgets/Ivy.Widgets.DiffView/Ivy.Widgets.DiffView.csproj" />
-    <ProjectReference Include="../../widgets/Ivy.Widgets.ClaudeJsonRenderer/Ivy.Widgets.ClaudeJsonRenderer.csproj" />
-    <ProjectReference Include="../../Ivy.Desktop/Ivy.Desktop.csproj" />
+    <ProjectReference Include="../../../Ivy/Ivy.csproj" />
+    <ProjectReference Include="../../../Ivy.Hooks.Pty/Ivy.Hooks.Pty.csproj" />
+    <ProjectReference Include="../../../widgets/Ivy.Widgets.Xterm/Ivy.Widgets.Xterm.csproj" />
+    <ProjectReference Include="../../../widgets/Ivy.Widgets.DiffView/Ivy.Widgets.DiffView.csproj" />
+    <ProjectReference Include="../../../widgets/Ivy.Widgets.ClaudeJsonRenderer/Ivy.Widgets.ClaudeJsonRenderer.csproj" />
+    <ProjectReference Include="../../../Ivy.Desktop/Ivy.Desktop.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(IvySource)' != 'true'">
     <PackageReference Include="Ivy" Version="1.2.42" />
@@ -59,7 +59,7 @@
     <PackageReference Include="Ivy.Desktop" Version="1.2.42" />
   </ItemGroup>
   <ItemGroup Condition="'$(IvySource)' == 'true'">
-    <ProjectReference Include="../../Ivy.Analyser/Ivy.Analyser.csproj">
+    <ProjectReference Include="../../../Ivy.Analyser/Ivy.Analyser.csproj">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
@@ -77,7 +77,7 @@
     <None Update="example.config.yaml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
   <Target Name="PackPromptwaresZip" BeforeTargets="PrepareForBuild" Condition="'$(Configuration)' == 'Release'">

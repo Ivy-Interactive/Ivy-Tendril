@@ -17,7 +17,7 @@ WORKDIR /src
 COPY . .
 
 RUN --mount=type=cache,id=nuget-tendril-docs,target=/root/.nuget/packages \
-    dotnet publish "Ivy.Tendril.Docs/Ivy.Tendril.Docs.csproj" \
+    dotnet publish "src/Ivy.Tendril.Docs/Ivy.Tendril.Docs.csproj" \
     -a ${TARGETARCH:-x64} \
     -c $BUILD_CONFIGURATION \
     -o /app/publish \

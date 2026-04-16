@@ -33,7 +33,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Ivy.Tendril\Ivy.Tendril.csproj" />
-    <ProjectReference Include="..\..\Ivy\Ivy.csproj" />
+    <ProjectReference Include="..\..\..\Ivy\Ivy.csproj" />
   </ItemGroup>
 
 </Project>
