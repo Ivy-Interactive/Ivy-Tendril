@@ -23,7 +23,7 @@ projects:
   - &o2
     name: DotnetTest
     required: true
-  - name: FrontendLint
+  - name: FrameworkFrontendLint
     required: true
   - name: IvyFrameworkVerification
     required: true
@@ -296,7 +296,7 @@ verifications:
     6. Verify all executed tests pass.
 - name: DotnetFormat
   prompt: Run `dotnet format` in the plan's worktree directory (not the original repo), scoped to only the files changed by this plan's commits. Get the list of changed .cs files with `git diff --name-only --diff-filter=ACM HEAD~<N> -- '*.cs'` (where N is the number of commits in this execution), then run `dotnet format --include <files>`. If it modifies any files, stage and commit them. If no .cs files were changed, skip this verification.
-- name: FrontendLint
+- name: FrameworkFrontendLint
   prompt: Run `cd src\frontend && npm run lint && npm run format:check` and verify no errors.
 - name: IvyFrameworkVerification
   prompt: 'Run the IvyFrameworkVerification promptware to visually verify UI changes. Execute: `pwsh -NoProfile -File "$TENDRIL_HOME\Promptwares\IvyFrameworkVerification\IvyFrameworkVerification.ps1" -PlanPath "<PlanFolder>"`. Creates a temp project with demo apps, runs Playwright tests, and copies artifacts to <PlanFolder>\artifacts\. Write the verification report to <PlanFolder>\verification\IvyFrameworkVerification.md.'

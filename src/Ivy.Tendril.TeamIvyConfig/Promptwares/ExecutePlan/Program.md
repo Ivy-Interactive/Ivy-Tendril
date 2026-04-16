@@ -482,7 +482,7 @@ Optionally include `impact` and `risk` to help prioritize the recommendation. Im
 
 Do NOT include items that are part of the current plan's scope.
 
-Do NOT include recommendations about code formatting, linting, or style issues (e.g., line wrapping, indentation, trailing whitespace, import ordering). These are handled automatically by DotnetFormat and FrontendLint verifications.
+Do NOT include recommendations about code formatting, linting, or style issues (e.g., line wrapping, indentation, trailing whitespace, import ordering). These are handled automatically by DotnetFormat and FrameworkFrontendLint verifications.
 
 If after genuine reflection you found nothing noteworthy, skip the file — but this should be rare. Most plans touch enough code to surface at least one observation.
 
