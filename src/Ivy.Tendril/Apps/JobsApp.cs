@@ -211,7 +211,7 @@ public class JobsApp : ViewBase
             .Filterable(t => t.LastOutput, false)
             .Config(c =>
             {
-                c.AllowSorting = false;
+                c.AllowSorting = true;
                 c.AllowFiltering = true;
                 c.ShowSearch = false;
                 c.SelectionMode = SelectionModes.None;

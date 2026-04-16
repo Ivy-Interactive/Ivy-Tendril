@@ -1,4 +1,4 @@
-![Tendril Logo](src/logo.png)
+![Tendril Logo](src/Tendril.svg)
 
 [![NuGet](https://img.shields.io/nuget/v/Ivy.Tendril?style=flat)](https://www.nuget.org/packages/Ivy.Tendril)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/Ivy.Tendril?style=flat)](https://www.nuget.org/packages/Ivy.Tendril)

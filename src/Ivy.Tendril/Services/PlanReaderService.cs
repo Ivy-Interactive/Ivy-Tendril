@@ -107,6 +107,9 @@ public class PlanReaderService(
                     {
                         FileHelper.WriteAllText(planYamlPath, repaired);
                         _logger.LogInformation("Repaired plan.yaml in {Folder}", Path.GetFileName(dir));
+                        _planWatcherService?.NotifyChanged(Path.GetFileName(dir));
+                        _planCountsCache.Invalidate();
+                        _recommendationsCache.Invalidate();
                     }
                 }
                 catch (Exception ex)

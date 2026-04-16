@@ -345,14 +345,6 @@ verifications:
     Run `go vet ./...` in the Go source directory of the project repo.
     For Services: `cd ivy-proxy && go vet ./...`
     Verify no issues are reported.
-- name: VitePlusCheck
-  prompt: >
-    Run `vp check` in the VitePlus frontend directory of the project repo.
-    For PrCostCalculator: run in repo root.
-    For Framework: `cd src\frontend && vp check`
-    For Console: `cd Ivy.Studio\Widgets\frontend && vp check`
-    If `vp check` reports fixable issues, run `vp check --fix`, then stage and commit the changes.
-    Also run `vp build` to verify the production build succeeds.
 - name: RustBuild
   prompt: >
     Run `cargo build --release` in the Rust source directory (src/Rustino.Native).
@@ -366,6 +358,14 @@ verifications:
   prompt: >
     Run `cargo clippy -- -D warnings` in the Rust source directory (src/Rustino.Native).
     Verify no warnings or errors are reported. Clippy is the Rust linter.
+- name: VitePlusCheck
+  prompt: >
+    Run `vp check` in the VitePlus frontend directory of the project repo.
+    For PrCostCalculator: run in repo root.
+    For Framework: `cd src\frontend && vp check`
+    For Console: `cd Ivy.Studio\Widgets\frontend && vp check`
+    If `vp check` reports fixable issues, run `vp check --fix`, then stage and commit the changes.
+    Also run `vp build` to verify the production build succeeds.
 planTemplate: >
   # {title}
 
