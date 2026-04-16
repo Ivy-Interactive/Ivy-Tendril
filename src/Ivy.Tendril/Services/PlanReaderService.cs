@@ -609,9 +609,8 @@ public class PlanReaderService(
         // 0. Convert multi-line or unterminated quoted scalars to block scalars
         repaired = RepairMultiLineQuotedScalars(repaired);
 
-        // 1. Remove YAML document markers (--- at start and end)
-        repaired = Regex.Replace(repaired, @"^---\s*\r?\n", "");
-        repaired = Regex.Replace(repaired, @"\r?\n---\s*$", "");
+        // 1. Remove YAML document markers (--- anywhere in the document)
+        repaired = Regex.Replace(repaired, @"(?m)^---[ \t]*(\r?\n|$)", "");
 
         // 2. Convert object-style repos (- name: X\n    path: Y\n    branch: ...) to plain path strings
         repaired = Regex.Replace(repaired,
@@ -704,6 +703,13 @@ public class PlanReaderService(
             repaired,
             @"(?m)^(\s*)(repos|commits|prs|verifications|relatedPlans|dependsOn):\s*\r?\n(?!\s*-)",
             "$1$2: []\n");
+
+        // 12. Fix list keys with empty/whitespace-only scalar values (e.g. "relatedPlans: " at EOF)
+        //     ConvertTo-Yaml in powershell-yaml serializes empty arrays as bare "key: " lines.
+        repaired = Regex.Replace(
+            repaired,
+            @"(?m)^(\s*)(repos|commits|prs|verifications|relatedPlans|dependsOn):[ \t]*$",
+            "$1$2: []");
 
         return NormalizePlanYamlStructure(repaired);
     }

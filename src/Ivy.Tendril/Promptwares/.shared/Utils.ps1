@@ -160,10 +160,8 @@ function UpdatePlanState {
 
     $content = Get-Content $planYamlPath -Raw
     $now = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-    $yaml = $content | ConvertFrom-Yaml -Ordered
-    $yaml["state"] = $NewState
-    $yaml["updated"] = $now
-    $content = ConvertTo-Yaml $yaml
+    $content = $content -replace '(?m)^state:\s*.*$', "state: $NewState"
+    $content = $content -replace '(?m)^updated:\s*.*$', "updated: $now"
     Set-Content -Path $planYamlPath -Value $content -NoNewline -Encoding UTF8
     Write-Host "Plan state updated to: $NewState" -ForegroundColor Cyan
 }
@@ -565,8 +563,21 @@ function InvokePromptwareAgent {
 
             Add-Content -Path $rawLogFile -Value "[tendril] Command: $($agent.Executable) $($agent.Args -join ' ') $($ExtraAgentArgs -join ' ')" -Encoding UTF8
 
+            # Debug: Log environment to diagnose TTY detection issues
+            Add-Content -Path $rawLogFile -Value "[tendril] PWD: $(Get-Location)" -Encoding UTF8
+            Add-Content -Path $rawLogFile -Value "[tendril] CI: $env:CI" -Encoding UTF8
+            Add-Content -Path $rawLogFile -Value "[tendril] TERM: $env:TERM" -Encoding UTF8
+
+            $outputReceived = $false
+            $startTime = Get-Date
             $output = & $agent.Executable @($agent.Args) @ExtraAgentArgs -- (Get-Content $promptFile -Raw) 2>&1 |
             ForEach-Object {
+                if (-not $outputReceived) {
+                    $outputReceived = $true
+                    $elapsed = (Get-Date) - $startTime
+                    Add-Content -Path $rawLogFile -Value "[tendril] First output received after $($elapsed.TotalSeconds)s" -Encoding UTF8
+                }
+
                 $line = if ($_ -is [System.Management.Automation.ErrorRecord]) {
                     "[stderr] $_"
                 }
@@ -577,6 +588,14 @@ function InvokePromptwareAgent {
                 $_
             }
             $output | Write-Output
+
+            # Check if we received any output
+            if (-not $outputReceived) {
+                $elapsed = (Get-Date) - $startTime
+                $errorMsg = "Agent produced zero output after $($elapsed.TotalSeconds)s - possible stdio redirection or TTY detection issue. Check CI and TERM environment variables."
+                Add-Content -Path $rawLogFile -Value "[tendril] ERROR: $errorMsg" -Encoding UTF8
+                Write-Error $errorMsg
+            }
         }
     }
     finally {

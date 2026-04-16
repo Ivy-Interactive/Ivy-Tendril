@@ -603,19 +603,6 @@ public class JobService : IJobService
                 return id;
             }
 
-            // Check for concurrent execution on same repos
-            var (concurrentOk, concurrentReason) = CheckRepositoryConcurrency(planFolder);
-            if (!concurrentOk)
-            {
-                job.Status = JobStatus.Blocked;
-                job.StatusMessage = concurrentReason;
-                job.CompletedAt = DateTime.UtcNow;
-                ResetPlanStateToBlocked(job);
-                var blockedNotification = new JobNotification("Job Blocked", $"{planFile}: {concurrentReason}", false);
-                RaiseNotification(blockedNotification);
-                RaiseJobsStructureChanged();
-                return id;
-            }
         }
 
         // Ensure any pending plan state writes are flushed to disk before scripts read plan.yaml
@@ -722,6 +709,10 @@ public class JobService : IJobService
         psi.Environment["TENDRIL_SESSION_ID"] = job.SessionId;
         if (_configService != null)
             psi.Environment["TENDRIL_CONFIG"] = _configService.ConfigPath;
+
+        // Force non-interactive mode for Claude Code CLI to prevent TTY detection issues
+        psi.Environment["CI"] = "true";
+        psi.Environment["TERM"] = "dumb";
 
         foreach (var arg in processArgs)
             psi.ArgumentList.Add(arg);
@@ -946,11 +937,6 @@ public class JobService : IJobService
 
             var (ok, _) = CheckDependencies(planFolder);
             if (!ok)
-                continue;
-
-            // Also check concurrency before retrying
-            var (concurrentOk, _) = CheckRepositoryConcurrency(planFolder);
-            if (!concurrentOk)
                 continue;
 
             // Remove the blocked job entry — only one thread succeeds
@@ -1440,76 +1426,6 @@ public class JobService : IJobService
         }
     }
 
-    private (bool Ok, string? BlockReason) CheckRepositoryConcurrency(string planFolder)
-    {
-        try
-        {
-            var planYaml = ReadPlanYaml(planFolder);
-            if (planYaml == null)
-                return (true, null);
-
-            var repos = planYaml.Repos;
-            if (repos.Count == 0 && _configService != null)
-            {
-                var projectConfig = _configService.GetProject(planYaml.Project);
-                if (projectConfig != null)
-                    repos = projectConfig.RepoPaths;
-            }
-
-            if (repos.Count == 0)
-                return (true, null);
-
-            var activeJobs = _jobs.Values
-                .Where(j => j.Type == "ExecutePlan" &&
-                           j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending)
-                .ToList();
-
-            foreach (var activeJob in activeJobs)
-            {
-                var activePlanFolder = activeJob.Args.Length > 0 ? activeJob.Args[0] : "";
-                if (string.IsNullOrEmpty(activePlanFolder) || activePlanFolder == planFolder)
-                    continue;
-
-                var activePlan = ReadPlanYaml(activePlanFolder);
-                if (activePlan == null) continue;
-
-                var activeRepos = activePlan.Repos;
-                if (activeRepos.Count == 0 && _configService != null)
-                {
-                    var activeProjectConfig = _configService.GetProject(activePlan.Project);
-                    if (activeProjectConfig != null)
-                        activeRepos = activeProjectConfig.RepoPaths;
-                }
-
-                foreach (var repo in repos)
-                {
-                    var normalizedRepo = NormalizeRepoPath(repo);
-                    foreach (var activeRepo in activeRepos)
-                    {
-                        var normalizedActiveRepo = NormalizeRepoPath(activeRepo);
-                        if (normalizedRepo == normalizedActiveRepo)
-                        {
-                            var activePlanId = Path.GetFileName(activePlanFolder);
-                            var repoName = Path.GetFileName(repo);
-                            return (false, $"Plan {activePlanId} is currently executing on repository '{repoName}'. Wait for it to complete to avoid conflicting changes.");
-                        }
-                    }
-                }
-            }
-
-            return (true, null);
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogError(ex, "Concurrency check failed for plan {PlanFolder}", planFolder);
-            return (false, $"Concurrency check failed: {ex.Message}");
-        }
-    }
-
-    private static string NormalizeRepoPath(string path)
-    {
-        return path.Replace('\\', '/').TrimEnd('/').ToLowerInvariant();
-    }
 
     private void RetryBlockedDependents(string completedPlanFolder)
     {
