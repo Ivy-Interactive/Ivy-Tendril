@@ -1137,4 +1137,64 @@ public class PlanDatabaseServiceTests : IDisposable
         Assert.Single(results);
         Assert.Equal(1700, results[0].Id);
     }
+
+    [Fact]
+    public void GetDashboardData_AllStats_Use7DayWindow()
+    {
+        var today = DateTime.UtcNow.Date;
+
+        // Create plans within the 7-day window
+        _db.UpsertPlan(new PlanFile(
+            new PlanMetadata(3200, "Tendril", "NiceToHave", "Recent Plan", PlanStatus.Completed,
+                [], [], [], [], [], [],
+                today, today, null, null),
+            "# Content", "D:\\Plans\\03200-RecentPlan", "state: Completed"));
+
+        // Create plans outside the 7-day window (8 days ago)
+        _db.UpsertPlan(new PlanFile(
+            new PlanMetadata(3201, "Tendril", "NiceToHave", "Old Plan", PlanStatus.Completed,
+                [], [], [], [], [], [],
+                today.AddDays(-8), today.AddDays(-8), null, null),
+            "# Content", "D:\\Plans\\03201-OldPlan", "state: Completed"));
+
+        // Create Framework project plan outside window for project count verification
+        _db.UpsertPlan(new PlanFile(
+            new PlanMetadata(3202, "Framework", "NiceToHave", "Old Framework Plan", PlanStatus.Draft,
+                [], [], [], [], [], [],
+                today.AddDays(-8), today.AddDays(-8), null, null),
+            "# Content", "D:\\Plans\\03202-OldFrameworkPlan", "state: Draft"));
+
+        // Add costs for recent plans to test avg cost calculation
+        _db.UpsertCosts(3200, [new("ExecutePlan", 50000, 2.00m, today)]);
+
+        // Act
+        var stats = _db.GetDashboardData(null);
+
+        // Assert: Status counts should exclude old plans
+        Assert.Equal(1, stats.TotalCount);  // Only 3200 (recent), not 3201 or 3202
+        Assert.Equal(0, stats.DraftCount);  // Old Framework plan is excluded
+        Assert.Equal(1, stats.CompletedCount);  // Only recent completed plan
+
+        // Assert: Avg cost should reflect only recent plans
+        Assert.Equal(2.00m, stats.AvgCostPerPlan);
+
+        // Assert: Daily stats should reflect only recent plans within 7-day window
+        Assert.Equal(7, stats.DailyStats.Count);
+        var todayStats = stats.DailyStats.First(d => d.Date == today);
+        Assert.Equal(1, todayStats.Created);  // Only recent plan
+
+        // Verify 8 days ago has no data even though old plans exist
+        var eightDaysAgoStats = stats.DailyStats.FirstOrDefault(d => d.Date == today.AddDays(-8));
+        Assert.Null(eightDaysAgoStats);  // Not in 7-day window
+
+        // Assert: Project counts should exclude old plans
+        // Tendril should have only 1 (recent plan 3200), not 2 (3200 + 3201)
+        var tendrilCount = stats.ProjectCounts.FirstOrDefault(pc => pc.Project == "Tendril");
+        Assert.NotNull(tendrilCount);
+        Assert.Equal(1, tendrilCount!.Count);
+
+        // Framework should have 0 (3202 is excluded), not 1
+        var frameworkCount = stats.ProjectCounts.FirstOrDefault(pc => pc.Project == "Framework");
+        Assert.Null(frameworkCount);  // Framework has no plans in 7-day window
+    }
 }

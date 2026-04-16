@@ -178,20 +178,22 @@ if (Test-Path $worktreesDir) {
                 $prBody += "`n`n## Commits`n`n- $commits"
             }
 
-            # Add issue reference to PR body
-            if ($issueNumber -and $issueRepo) {
-                $prBody += "`n`nCloses $issueRepo#$issueNumber"
-            }
-
             # Add artifacts if any
             if ($artifactMarkdown) {
                 $prBody += "`n`n## Artifacts`n`n$artifactMarkdown"
             }
 
             # Truncate body if too large (GitHub limit is 65536 characters)
+            # This must happen BEFORE adding the issue reference to ensure the issue reference is never truncated
             if ($prBody.Length -gt 65000) {
                 Write-Host "  Warning: PR body too large ($($prBody.Length) chars), truncating..." -ForegroundColor Yellow
                 $prBody = $prBody.Substring(0, 65000) + "`n`n... (truncated)"
+            }
+
+            # Add issue reference to PR body AFTER truncation
+            # This ensures the issue reference is never cut off, which is critical for GitHub auto-close functionality
+            if ($issueNumber -and $issueRepo) {
+                $prBody += "`n`n---`n`nCloses $issueRepo#$issueNumber"
             }
 
             # Create PR - write body to temp file to avoid encoding issues

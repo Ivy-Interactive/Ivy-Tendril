@@ -225,6 +225,14 @@ If ANY repo used the `default` prRule (or custom options with `merge: false`), d
 
 > If merge conflict resolution was performed (Step 4), the resolution commit hash should already be on the pushed branch. No additional plan.yaml update needed beyond the PR URL.
 
+### Edge Case: Direct-to-Main (No PR Needed)
+
+Some plans create new repos and push directly to main (e.g., repo scaffolding). These have `repos: []`, no worktrees, and commits already on `origin/main`. When detected:
+1. Verify the commit(s) exist on the remote default branch
+2. Mark plan.yaml state as `Completed`
+3. Log outcome as "No PR Required — Direct-to-Main"
+4. Skip steps 2–5 entirely
+
 ### Rules
 
 - **ALL 7 steps are mandatory** (including 2.5) — do not stop after creating the PR
