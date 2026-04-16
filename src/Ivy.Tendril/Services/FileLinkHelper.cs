@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Ivy.Tendril.Apps;
 
 namespace Ivy.Tendril.Services;
@@ -22,6 +23,16 @@ public static class FileLinkHelper
                 var planIdStr = url.Substring("plan://".Length);
                 if (int.TryParse(planIdStr, out var planId))
                     onPlanClick?.Invoke(planId);
+            }
+            else if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                     url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                // Open external links in system default browser
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = url,
+                    UseShellExecute = true
+                });
             }
         };
     }
