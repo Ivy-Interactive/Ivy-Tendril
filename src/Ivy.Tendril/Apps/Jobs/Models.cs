@@ -17,6 +17,12 @@ public enum JobStatus
 
 public record JobItem
 {
+    /// <summary>
+    /// Maximum number of output lines retained per job during execution.
+    /// Lines beyond this limit are discarded (not just hidden from display).
+    /// Memory is freed when EvictStaleJobs() removes completed jobs after 1 hour.
+    /// Output is not persisted to SQLite—this in-memory queue is the only retention.
+    /// </summary>
     private const int MaxOutputLines = 10_000;
     private int _completionGuard;
 
