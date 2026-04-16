@@ -723,6 +723,10 @@ public class JobService : IJobService
         if (_configService != null)
             psi.Environment["TENDRIL_CONFIG"] = _configService.ConfigPath;
 
+        // Force non-interactive mode for Claude Code CLI to prevent TTY detection issues
+        psi.Environment["CI"] = "true";
+        psi.Environment["TERM"] = "dumb";
+
         foreach (var arg in processArgs)
             psi.ArgumentList.Add(arg);
 

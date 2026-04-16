@@ -83,6 +83,15 @@ try {
     Add-Content -Path $rawLogFile -Value "[tendril] Agent invocation started at $startTs (provider: $($agent.CodingAgent))" -Encoding UTF8
     Add-Content -Path $rawLogFile -Value "[tendril] Command: $($agent.Executable) $($agent.Args -join ' ') $($extraArgs -join ' ')" -Encoding UTF8
 
+    # Debug: Log environment to diagnose TTY detection issues
+    Add-Content -Path $rawLogFile -Value "[tendril] PWD: $(Get-Location)" -Encoding UTF8
+    Add-Content -Path $rawLogFile -Value "[tendril] CI: $env:CI" -Encoding UTF8
+    Add-Content -Path $rawLogFile -Value "[tendril] TERM: $env:TERM" -Encoding UTF8
+    $execPath = Get-Command $agent.Executable -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+    if ($execPath) {
+        Add-Content -Path $rawLogFile -Value "[tendril] Executable path: $execPath" -Encoding UTF8
+    }
+
     # Claude uses -- separator; Codex/Gemini take prompt as positional argument
     $promptContent = Get-Content $promptFile -Raw
     $agentArgs = if ($agent.CodingAgent -eq "claude") {
@@ -91,8 +100,17 @@ try {
     else {
         @($agent.Args) + $extraArgs + @($promptContent)
     }
+
+    $outputReceived = $false
+    $startTime = Get-Date
     $output = & $agent.Executable @agentArgs 2>&1 |
     ForEach-Object {
+        if (-not $outputReceived) {
+            $outputReceived = $true
+            $elapsed = (Get-Date) - $startTime
+            Add-Content -Path $rawLogFile -Value "[tendril] First output received after $($elapsed.TotalSeconds)s" -Encoding UTF8
+        }
+
         $line = if ($_ -is [System.Management.Automation.ErrorRecord]) {
             "[stderr] $_"
         }
@@ -104,6 +122,15 @@ try {
     }
     $output | Write-Output
     $exitCode = $LASTEXITCODE
+
+    # Check if we received any output - fail fast if zero output detected
+    if (-not $outputReceived) {
+        $elapsed = (Get-Date) - $startTime
+        $errorMsg = "Claude produced zero output after $($elapsed.TotalSeconds)s - possible stdio redirection or TTY detection issue. Check CI and TERM environment variables."
+        Add-Content -Path $rawLogFile -Value "[tendril] ERROR: $errorMsg" -Encoding UTF8
+        Write-Error $errorMsg
+        throw $errorMsg
+    }
 
     # Extract summary from agent's stream-json result
     $summary = ""
