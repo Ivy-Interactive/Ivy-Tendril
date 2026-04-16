@@ -12,7 +12,7 @@ icon: Rocket
 # Welcome to Tendril
 
 <Ingress>
-Tendril is an AI orchestration app on the Ivy stack: a cross-platform UI plus autonomous agents for real software workflows—not a black box.
+Tendril is a coding orchestrator built on the [Ivy Framework](https://github.com/Ivy-Interactive/Ivy): a cross-platform UI to streamline the collaboration between developers and agents.
 </Ingress>
 
 <Embed Url="https://youtu.be/Gkj5aj5nEKA"/>
@@ -73,9 +73,7 @@ Tendril is an Open Source AI Orchestrator designed for real-world agentic softwa
 
 ## The Concept
 
-In Tendril, work is organized into **Plans**—structured units of work like bug fixes, refactors, or new features. Instead of a "black box" that outputs code and hopes for the best, Tendril moves your Plan through a defined lifecycle using Promptwares: isolated, single-purpose agents that specialize in specific stages of the SDLC.
-
-Whether it’s generating code, verifying builds, or opening PRs, you have total visibility. Tendril doesn't just autocomplete your lines; it orchestrates your workflow.
+In Tendril, work is organized into **Plans**—structured units of work like bug fixes, refactors, or new features. Instead of a "black box" that outputs code and hopes for the best, Tendril moves your Plan through a defined lifecycle using Promptwares: isolated, single-purpose agents that specialize in specific stages of the SDLC. Whether it’s generating code, verifying builds, or opening PRs, you have total visibility. Tendril doesn't just autocomplete your lines; it orchestrates your workflow.
 
 <Image Src="https://i.postimg.cc/NB89LJkw/Make-Plan-2.gif" />
 
