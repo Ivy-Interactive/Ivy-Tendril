@@ -7,23 +7,36 @@ EXPOSE 5010
 ENV DOTNET_TieredPGO=1
 ENV DOTNET_TC_QuickJitForLoops=1
 
-# Build .NET from source (using NuGet packages for Ivy dependencies)
+# Build .NET from source (using Ivy-Framework project references)
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 ARG TARGETARCH
-ARG IVY_PACKAGE_VERSION=1.2.43
+ARG IVY_FRAMEWORK_REF=main
 WORKDIR /src
 
-COPY . .
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+
+RUN git clone --depth 1 --branch $IVY_FRAMEWORK_REF \
+    https://github.com/Ivy-Interactive/Ivy-Framework.git /src/Ivy-Framework
+
+COPY . /src/Ivy-Tendril
+
+# Install ivy-docs-cli for markdown transformation (TransformMarkdown MSBuild target).
+# dotnet tool restore runs from the repo root (/src/Ivy-Tendril).
+RUN mkdir -p /src/Ivy-Tendril/.config && \
+    echo '{"version":1,"isRoot":true,"tools":{"ivy.docs.compiler":{"version":"0.1.0","commands":["ivy-docs-cli"]}}}' \
+    > /src/Ivy-Tendril/.config/dotnet-tools.json && \
+    dotnet tool install --global Ivy.Docs.Compiler || true
+ENV PATH="$PATH:/root/.dotnet/tools"
 
 RUN --mount=type=cache,id=nuget-tendril-docs,target=/root/.nuget/packages \
-    dotnet publish "src/Ivy.Tendril.Docs/Ivy.Tendril.Docs.csproj" \
+    dotnet publish "/src/Ivy-Tendril/src/Ivy.Tendril.Docs/Ivy.Tendril.Docs.csproj" \
     -a ${TARGETARCH:-x64} \
     -c $BUILD_CONFIGURATION \
     -o /app/publish \
     /p:UseAppHost=false \
     /p:PublishReadyToRun=true \
-    /p:IvyPackageVersion=$IVY_PACKAGE_VERSION
+    /p:IvySource=true
 
 FROM base AS final
 WORKDIR /app
