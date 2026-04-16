@@ -1,29 +1,30 @@
-# Ivy Tendril
+![Tendril Logo](src/logo.png)
 
-![Tendril Logo](logo.png)
+[![NuGet](https://img.shields.io/nuget/v/Ivy.Tendril?style=flat)](https://www.nuget.org/packages/Ivy.Tendril)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/Ivy.Tendril?style=flat)](https://www.nuget.org/packages/Ivy.Tendril)
+[![License](https://img.shields.io/github/license/Ivy-Interactive/Ivy-Tendril?style=flat)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/Ivy-Interactive/Ivy-Tendril/publish-tendril.yml?style=flat&label=CI)](https://github.com/Ivy-Interactive/Ivy-Tendril/actions/workflows/publish-tendril.yml)
+[![website](https://img.shields.io/badge/website-ivy.app-green?style=flat)](https://tendril.ivy.app)
 
-A web-based orchestration tool for managing multiple coding agents in parallel.
+# Ivy Tendril - AI Coding Agent Orchestrator
 
-
-## What is Tendril?
-
-Tendril is a web application built on [Ivy Framework](https://github.com/Ivy-Interactive/Ivy-Framework) that manages AI coding plans end-to-end. It orchestrates coding agents (claude, codex, gemini) through a structured lifecycle - from plan creation and expansion to execution, verification, and PR generation. Tendril tracks jobs, costs, tokens, and verification results, giving you full visibility into your AI-assisted development workflow.
+Tendril is a web application built on [Ivy Framework](https://github.com/Ivy-Interactive/Ivy-Framework) that manages AI coding plans end-to-end. It orchestrates coding agents (Claude, Codex, Gemini) through a structured lifecycle — from plan creation and expansion to execution, verification, and PR generation. Tendril tracks jobs, costs, tokens, and verification results, giving you full visibility into your AI-assisted development workflow.
 
 ## Features
 
-- **Plan lifecycle management** -- Draft, Execute, Review, and PR stages with state tracking
-- **Multi-project support** -- Configure multiple repos with per-project verifications
-- **Job monitoring** -- Live cost and token tracking for running agents
-- **Claude agent orchestration** -- Promptwares for each stage (MakePlan, ExecutePlan, ExpandPlan, MakePr, etc.)
-- **Dashboard** -- Activity statistics and plan counts at a glance
-- **GitHub PR integration** -- Automated pull request creation from completed plans
-- **Plan review workflow** -- Review diffs, run sample apps, approve or send back for revision
+- **Plan lifecycle management** — Draft, Execute, Review, and PR stages with state tracking
+- **Multi-agent support** — Orchestrate Claude, Codex, and Gemini with configurable profiles (deep, balanced, quick)
+- **Multi-project support** — Configure multiple repos with per-project verifications
+- **Job monitoring** — Live cost and token tracking for running agents
+- **Dashboard** — Activity statistics and plan counts at a glance
+- **GitHub PR integration** — Automated pull request creation from completed plans
+- **Plan review workflow** — Review diffs, run sample apps, approve or send back for revision
 
 ## Prerequisites
 
 ### For Running Tendril
 
-- [Claude CLI](https://docs.anthropic.com/en/docs/claude-code) (`claude`)
+- [Claude CLI](https://docs.anthropic.com/en/docs/claude-code) (`claude`), [Codex CLI](https://github.com/openai/codex) (`codex`), or [Gemini CLI](https://github.com/google-gemini/gemini-cli) (`gemini`)
 - [GitHub CLI](https://cli.github.com/) (`gh`)
 - PowerShell
 - Git
@@ -37,8 +38,8 @@ Tendril is a web application built on [Ivy Framework](https://github.com/Ivy-Int
 1. **Clone the repo**
 
    ```bash
-   git clone https://github.com/Ivy-Interactive/Ivy-Framework.git
-   cd Ivy-Framework/src/tendril/Ivy.Tendril
+   git clone https://github.com/Ivy-Interactive/Ivy-Tendril.git
+   cd Ivy-Tendril
    ```
 
 2. **Configure `config.yaml`**
@@ -46,12 +47,12 @@ Tendril is a web application built on [Ivy Framework](https://github.com/Ivy-Int
    Copy the example config and edit it:
 
    ```bash
-   cp example.config.yaml ~/.tendril/config.yaml
+   cp src/Ivy.Tendril/example.config.yaml ~/.tendril/config.yaml
    ```
 
    Key fields:
-   - `projects` -- List of projects with their repo paths, verifications, and context
-   - `codingAgent` -- The coding agent to use (claude, codex, or gemini)
+   - `projects` — List of projects with their repo paths, verifications, and context
+   - `codingAgent` — The coding agent to use (`claude`, `codex`, or `gemini`)
 
 3. **Set `TENDRIL_HOME` environment variable**
 
@@ -67,18 +68,8 @@ Tendril is a web application built on [Ivy Framework](https://github.com/Ivy-Int
 4. **Run**
 
     ```bash
-    dotnet run --project Ivy.Tendril/Ivy.Tendril.csproj
+    dotnet run --project src/Ivy.Tendril/Ivy.Tendril.csproj
     ```
-
-### Running as Desktop App
-
-1. **Build and Run**
-
-   ```bash
-   dotnet run --project Ivy.Tendril.Desktop/Ivy.Tendril.Desktop.csproj
-   ```
-
-   This launches Tendril in a native cross-platform window using `Ivy.Desktop`.
 
 ### Installing as Global CLI Tool (NPM)
 
@@ -99,27 +90,3 @@ You can run Tendril from any directory using `npx` or by installing it globally 
    ```
 
    *(Note: The NPM package is a wrapper for the `dotnet tool`. Both must be available for the `tendril` command to work.)*
-
-## Project Structure
-
-| Folder | Description |
-|---|---|
-| `Services/` | Core services -- config loading, plan reading, job management, Git/GitHub integration |
-| `Apps/` | Web application screens -- plans list, jobs view, dashboard, review, PR creation |
-| `AppShell/` | Application shell and navigation |
-| `Promptwares/` | Agent promptwares for each lifecycle stage (MakePlan, ExecutePlan, etc.) |
-| `Views/` | Shared UI components and views |
-| `Controllers/` | Action controllers for plan operations |
-| `Database/` | SQLite database schema and migrations |
-
-## How It Works
-
-Tendril manages plans through a structured lifecycle:
-
-1. **MakePlan** -- An agent drafts a plan from a description or issue, producing a structured revision with problem, solution, tests, and verification steps.
-2. **ExpandPlan** -- Optionally expands a plan with more detail, or splits large plans into smaller ones via **SplitPlan**.
-3. **ExecutePlan** -- An agent creates a git worktree, implements the plan, runs verifications (build, format, tests), and commits the result.
-4. **Review** -- You review the diff, run sample apps, and approve or send back with comments.
-5. **MakePr** -- An agent creates a GitHub pull request from the worktree branch.
-
-Each stage is powered by a promptware -- a structured prompt with tools and memory that runs via the Claude CLI. Jobs are tracked with live status, cost, and token metrics.
