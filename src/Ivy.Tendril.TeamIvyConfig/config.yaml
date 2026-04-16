@@ -148,21 +148,23 @@ projects:
   meta:
     slackEmoji: ':seedling:'
   repos:
-  - *o5
+  - path: '%REPOS_HOME%\Ivy-Tendril'
+    prRule: yolo
+    baseBranch: development
   verifications:
   - *o0
   - *o1
   - name: DotnetTest
   - *o3
   context: >
-    Plan management TUI. Key folders: - Services\ — ConfigService, PlanReaderService, JobService - Apps\ — PlansApp, JobsApp UI - Promptwares\ — MakePlan, UpdatePlan, SplitPlan, ExpandPlan This project uses the Ivy Framework - there's CLI helper methods you can use:  ivy docs AGENTS.md  ivy question "How do I make a button in Ivy?"
+    Plan management TUI. Key folders: - src\Ivy.Tendril\Services\ — ConfigService, PlanReaderService, JobService - src\Ivy.Tendril\Apps\ — PlansApp, JobsApp UI - src\Ivy.Tendril\Promptwares\ — MakePlan, UpdatePlan, SplitPlan, ExpandPlan This project uses the Ivy Framework - there's CLI helper methods you can use:  ivy docs AGENTS.md  ivy question "How do I make a button in Ivy?"
   reviewActions:
   - name: Tendril
-    condition: Test-Path "worktrees\Ivy-Framework\src\tendril\Ivy.Tendril"
-    action: dotnet run --project worktrees\Ivy-Framework\src\tendril\Ivy.Tendril
+    condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril"
+    action: dotnet run --project worktrees\Ivy-Tendril\src\Ivy.Tendril
   - name: Docs
-    condition: Test-Path "worktrees\Ivy-Framework\src\tendril\Ivy.Tendril.Docs"
-    action: dotnet run --project worktrees\Ivy-Framework\src\tendril\Ivy.Tendril.Docs --browse --find-available-port
+    condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril.Docs"
+    action: dotnet run --project worktrees\Ivy-Tendril\src\Ivy.Tendril.Docs --browse --find-available-port
   hooks:
   - name: SlackNotify
     when: after
@@ -171,7 +173,7 @@ projects:
     condition: ''
     action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
   repoPaths:
-  - D:\Repos\_Ivy\Ivy-Framework
+  - '%REPOS_HOME%\Ivy-Tendril'
 - name: Mcp
   color: Sky
   meta:

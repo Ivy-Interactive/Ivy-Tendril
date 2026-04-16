@@ -18,7 +18,7 @@ Tendril is an AI orchestration app on the Ivy stack: a cross-platform UI plus au
 <Embed Url="https://youtu.be/Gkj5aj5nEKA"/>
 
 <Callout type="tip">
-You can always report issues and suggestions on the [GitHub repository](https://github.com/Ivy-Interactive/Ivy-Framework/issues).
+You can always report issues and suggestions on the [GitHub repository](https://github.com/Ivy-Interactive/Ivy-Tendril/issues).
 If you need direct help, please join our [Discord](https://discord.gg/FHgxkDga3y).
 </Callout>
 

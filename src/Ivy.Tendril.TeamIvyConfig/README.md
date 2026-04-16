@@ -9,22 +9,22 @@ This folder contains the Team Ivy configuration for Tendril, a self-contained co
 **Windows (PowerShell):**
 ```powershell
 # Set permanently
-[System.Environment]::SetEnvironmentVariable('TENDRIL_HOME', 'D:\Repos\_Ivy\Ivy-Framework\src\tendril\Ivy.Tendril.TeamIvyConfig', 'User')
+[System.Environment]::SetEnvironmentVariable('TENDRIL_HOME', 'D:\Repos\_Ivy\Ivy-Tendril\src\Ivy.Tendril.TeamIvyConfig', 'User')
 [System.Environment]::SetEnvironmentVariable('REPOS_HOME', 'D:\Repos\_Ivy', 'User')
 
 # Or set for current session only
-$env:TENDRIL_HOME = "D:\Repos\_Ivy\Ivy-Framework\src\tendril\Ivy.Tendril.TeamIvyConfig"
+$env:TENDRIL_HOME = "D:\Repos\_Ivy\Ivy-Tendril\src\Ivy.Tendril.TeamIvyConfig"
 $env:REPOS_HOME = "D:\Repos\_Ivy"
 ```
 
 **macOS/Linux (Bash/Zsh):**
 ```bash
 # Add to ~/.bashrc or ~/.zshrc for persistence
-export TENDRIL_HOME=~/repos/Ivy-Framework/src/tendril/Ivy.Tendril.TeamIvyConfig
+export TENDRIL_HOME=~/repos/Ivy-Tendril/src/Ivy.Tendril.TeamIvyConfig
 export REPOS_HOME=~/repos
 
 # Or set for current session only
-export TENDRIL_HOME=~/repos/Ivy-Framework/src/tendril/Ivy.Tendril.TeamIvyConfig
+export TENDRIL_HOME=~/repos/Ivy-Tendril/src/Ivy.Tendril.TeamIvyConfig
 export REPOS_HOME=~/repos
 ```
 
@@ -34,7 +34,7 @@ If you want to use the LLM features, configure your API credentials using .NET u
 
 ```bash
 # Navigate to this directory
-cd D:\Repos\_Ivy\Ivy-Framework\src\tendril\Ivy.Tendril.TeamIvyConfig
+cd D:\Repos\_Ivy\Ivy-Tendril\src\Ivy.Tendril.TeamIvyConfig
 
 # Set your OpenAI credentials
 dotnet user-secrets set "OpenAi:Endpoint" "https://api.openai.com/v1"
@@ -105,7 +105,7 @@ It reads `plan.yaml` to extract the plan title, project name, and PR URLs, then 
 
 ```bash
 # From the Ivy.Tendril application directory
-cd D:\Repos\_Ivy\Ivy-Framework\src\tendril\Ivy.Tendril
+cd D:\Repos\_Ivy\Ivy-Tendril\src\Ivy.Tendril
 dotnet run
 ```
 
