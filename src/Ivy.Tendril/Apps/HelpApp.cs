@@ -30,7 +30,7 @@ public class HelpApp : ViewBase
                       .Icon(Icons.Bug, Align.Right)
                       .OnClick(() =>
                           client.OpenUrl(
-                              "https://github.com/Ivy-Interactive/Ivy-Framework/issues/new?title=%28tendril%29%20"))
+                              "https://github.com/Ivy-Interactive/Ivy-Tendril/issues/new"))
                );
     }
 }

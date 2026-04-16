@@ -158,11 +158,11 @@ projects:
     Plan management TUI. Key folders: - Services\ — ConfigService, PlanReaderService, JobService - Apps\ — PlansApp, JobsApp UI - Promptwares\ — MakePlan, UpdatePlan, SplitPlan, ExpandPlan This project uses the Ivy Framework - there's CLI helper methods you can use:  ivy docs AGENTS.md  ivy question "How do I make a button in Ivy?"
   reviewActions:
   - name: Tendril
-    condition: Test-Path "worktrees\Ivy-Framework\src\tendril\Ivy.Tendril"
-    action: dotnet run --project worktrees\Ivy-Framework\src\tendril\Ivy.Tendril
+    condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril"
+    action: dotnet run --project worktrees\Ivy-Tendril\src\Ivy.Tendril
   - name: Docs
-    condition: Test-Path "worktrees\Ivy-Framework\src\tendril\Ivy.Tendril.Docs"
-    action: dotnet run --project worktrees\Ivy-Framework\src\tendril\Ivy.Tendril.Docs --browse --find-available-port
+    condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril.Docs"
+    action: dotnet run --project worktrees\Ivy-Tendril\src\Ivy.Tendril.Docs --browse --find-available-port
   hooks:
   - name: SlackNotify
     when: after

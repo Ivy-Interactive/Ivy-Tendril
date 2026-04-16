@@ -1,7 +1,7 @@
 # Utils.ps1 - Shared utility functions for MakePr promptware
 
 $script:configCache = $null
-$script:configPath = "D:\Repos\_Ivy\Ivy-Framework\src\tendril\Ivy.Tendril.TeamIvyConfig\config.yaml"
+$script:configPath = $env:TENDRIL_CONFIG
 
 function Get-ConfigYaml {
     <#

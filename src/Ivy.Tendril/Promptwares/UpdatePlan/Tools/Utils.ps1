@@ -14,7 +14,7 @@ function Get-ConfigYaml {
     }
 
     # Try to find config.yaml in the repository
-    $configPath = "D:\Repos\_Ivy\Ivy-Framework\src\tendril\Ivy.Tendril.TeamIvyConfig\config.yaml"
+    $configPath = $env:TENDRIL_CONFIG
 
     if (Test-Path $configPath) {
         $config = Get-Content $configPath -Raw | ConvertFrom-Yaml

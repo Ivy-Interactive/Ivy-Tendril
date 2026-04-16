@@ -22,13 +22,13 @@ One-liner: installs Tendril and required backend tools.
 ### macOS / Linux
 
 ```bash
-curl -sSf https://raw.githubusercontent.com/Ivy-Interactive/Ivy-Framework/main/src/tendril/install.sh | sh
+curl -sSf https://raw.githubusercontent.com/Ivy-Interactive/Ivy-Tendril/main/src/install.sh | sh
 ```
 
 ### Windows
 
 ```powershell
-Invoke-RestMethod -Uri https://raw.githubusercontent.com/Ivy-Interactive/Ivy-Framework/main/src/tendril/install.ps1 | Invoke-Expression
+Invoke-RestMethod -Uri https://raw.githubusercontent.com/Ivy-Interactive/Ivy-Tendril/main/src/install.ps1 | Invoke-Expression
 ```
 
 ## .NET Tool

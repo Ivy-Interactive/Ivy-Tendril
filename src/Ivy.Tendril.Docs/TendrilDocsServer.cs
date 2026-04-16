@@ -48,7 +48,7 @@ public static class TendrilDocsServer
                 var githubItem = MenuItem.Default("View on Github")
                     .Tag("$github")
                     .Icon(Icons.Github)
-                    .OnSelect(() => navigator.Navigate("https://github.com/Ivy-Interactive/Ivy-Framework/tree/development/src/tendril"));
+                    .OnSelect(() => navigator.Navigate("https://github.com/Ivy-Interactive/Ivy-Tendril"));
                 return new[] { githubItem }.Concat(items);
             });
         server.UseAppShell(() => new DefaultSidebarAppShell(appShellSettings));
