@@ -28,6 +28,8 @@ In Tendril, work is organized into **Plans**—structured units of work like bug
 
  <Image Src="https://i.postimg.cc/NB89LJkw/Make-Plan-2.gif" />
 
+---
+
 ## Key Features
 
 
@@ -38,7 +40,7 @@ Layout.Grid().Columns(3).Gap(4)
 | new Card().Icon(Icons.Activity.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Jobs")).Description(Text.Muted("Status, tokens, cost.").Small()).Height(Size.Units(28)).OnClick(() => {})
 | new Card().Icon(Icons.Bot.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Promptwares")).Description(Text.Muted("Modular agents: MakePlan, ExecutePlan, ExpandPlan, MakePr.").Small()).Height(Size.Units(28)).OnClick(() => {})
 | new Card().Icon(Icons.GitFork.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Git Worktrees")).Description(Text.Muted("Agent work stays off your main branch.").Small()).Height(Size.Units(28)).OnClick(() => {})
-| new Card().Icon(Icons.Terminal.ToIcon().Color(Colors.Gray)).Title(Layout.Vertical().Gap(0) | Text.Bold("Terminal & File Viewer")).Description(Text.Muted("Embedded terminal and fast local file access.").Small()).Height(Size.Units(28)).OnClick(() => {})
+| new Card().Icon(Icons.Terminal.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Terminal & File Viewer")).Description(Text.Muted("Embedded terminal and fast local file access.").Small()).Height(Size.Units(28)).OnClick(() => {})
 | new Card().Icon(Icons.BadgeCheck.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Verification")).Description(Text.Muted("Hook your build, test, and format checks.").Small()).Height(Size.Units(28)).OnClick(() => {})
 ```
 
@@ -95,7 +97,6 @@ flowchart LR
 At [Ivy Interactive](https://www.ivy.app), we experimented with many different systems of architecture in order to improve our workflow and take advantage of the advancements in AI/agentic coding capabilities. Working with the incredible capabilities of Claude and others was great, but it quickly became messy managing a dozen terminal windows.
 
 Therefore, we created this system to streamline the experience of working with different agents. Through the **Promptware** architecture, we have created a feedback loop that ensures agents are not only organized and structured, but also self-improving according to the needs and context of the projects they work with. By centering the entire process on a **Plan**, you maintain the "Source of Truth" while specialized agents handle the heavy lifting.
-
 
 <Callout type="tip">
 We LOVE hearing from you! You are always welcome to report issues, bugs, and suggestions on our **[GitHub repository](https://github.com/Ivy-Interactive/Ivy-Tendril)**.  If you need direct help or would like to connect with the community, please join us on **[Discord](https://discord.gg/FHgxkDga3y)** — we'd love to see you there!
