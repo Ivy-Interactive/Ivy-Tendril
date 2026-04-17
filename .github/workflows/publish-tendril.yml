@@ -276,6 +276,7 @@ jobs:
             --clobber
 
   deploy-docs:
+    needs: [publish-nuget, publish-desktop]
     runs-on: ubuntu-latest
     environment: production
     env:
