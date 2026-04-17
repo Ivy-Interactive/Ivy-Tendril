@@ -9,6 +9,8 @@ searchHints:
   - worktree
 ---
 
+<Text Color="Green" Small Bold>Configuration</Text>
+
 # Project Setup
 
 <Ingress>
