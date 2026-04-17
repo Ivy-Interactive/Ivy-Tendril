@@ -11,7 +11,7 @@ ENV DOTNET_TC_QuickJitForLoops=1
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 ARG TARGETARCH
-ARG IVY_FRAMEWORK_REF=main
+
 WORKDIR /src
 
 # Copy Node.js, npm, npx from official image to avoid flaky apt mirrors
@@ -23,8 +23,7 @@ RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
 # Install pnpm + vite-plus (Ivy.csproj MSBuild targets run "vp install/build")
 RUN npm install -g pnpm@latest vite-plus@latest
 
-RUN git clone --depth 1 --branch $IVY_FRAMEWORK_REF \
-    https://github.com/Ivy-Interactive/Ivy-Framework.git /src/Ivy-Framework
+
 
 COPY . /src/Ivy-Tendril
 
