@@ -14,12 +14,14 @@ ARG TARGETARCH
 ARG IVY_FRAMEWORK_REF=main
 WORKDIR /src
 
-RUN apt-get update && apt-get install -y git curl && rm -rf /var/lib/apt/lists/*
+# Copy Node.js, npm, npx from official image to avoid flaky apt mirrors
+COPY --from=node:20-bookworm-slim /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:20-bookworm-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
+    ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
-# Install Node.js + pnpm + vite-plus (Ivy.csproj MSBuild targets run "vp install/build")
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y nodejs && \
-    npm install -g pnpm@10.33.0 vite-plus@0.1.13
+# Install pnpm + vite-plus (Ivy.csproj MSBuild targets run "vp install/build")
+RUN npm install -g pnpm@10.33.0 vite-plus@0.1.13
 
 RUN git clone --depth 1 --branch $IVY_FRAMEWORK_REF \
     https://github.com/Ivy-Interactive/Ivy-Framework.git /src/Ivy-Framework
