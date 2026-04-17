@@ -51,7 +51,7 @@ public class WallpaperApp : ViewBase
                         | Text.Block($"Tendril v{versionInfo.Value.LatestVersion} is available!")
                         | Text.Muted($"You're running v{versionInfo.Value.CurrentVersion}")
                         | Text.Muted("Run: tendril --version && dotnet tool update -g Ivy.Tendril"))
-            ).Margin(2));
+            ));
 
         return new Fragment(elements.ToArray());
     }
