@@ -41,8 +41,7 @@ RUN --mount=type=cache,id=nuget-tendril-docs,target=/root/.nuget/packages \
     -c $BUILD_CONFIGURATION \
     -o /app/publish \
     /p:UseAppHost=false \
-    /p:PublishReadyToRun=true \
-    /p:IvySource=true
+    /p:PublishReadyToRun=true
 
 FROM base AS final
 WORKDIR /app
