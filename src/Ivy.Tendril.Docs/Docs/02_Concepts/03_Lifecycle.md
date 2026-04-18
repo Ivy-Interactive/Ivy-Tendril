@@ -10,10 +10,12 @@ searchHints:
   - verification
 ---
 
+<Text Color="Green" Small Bold>Concepts</Text>
+
 # Lifecycle & Jobs
 
 <Ingress>
-Each promptware run is a **Job**: live status, cost, and telemetry for that agent.
+Each Promptware run is a **Job**: live status, cost, and telemetry for that agent.
 </Ingress>
 
 ## What you see per job

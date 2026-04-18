@@ -8,13 +8,17 @@ searchHints:
   - tools
 ---
 
+<Text Color="Green" Small Bold>Concepts</Text>
+
 # Promptwares
 
 <Ingress>
-Promptwares are the agents behind each plan stage: each has its own prompt, tools, memory, and hooks.
+*Promptwares* are the self-improving agents behind each plan stage: each with its own prompt, tools, memory, and hooks.
 </Ingress>
 
-Promptwares is a folder under `TENDRIL_HOME/Promptwares/`:
+![Tendril Promptwares](https://i.postimg.cc/B6jK1sgB/promptware.gif)
+
+They are located in a folder under `TENDRIL_HOME/Promptwares/`:
 
 - **Program.md** — System prompt (goal and rules).
 - **Tools/** — Scripts (e.g. PowerShell) the agent calls as tools.
@@ -22,7 +26,9 @@ Promptwares is a folder under `TENDRIL_HOME/Promptwares/`:
 
 Tendril runs them through the configured AI stack (e.g. Claude Code) for focused automation.
 
-## Core jobs
+
+
+## Core Jobs
 
 | Job | Role |
 |-----|------|
@@ -34,7 +40,7 @@ Tendril runs them through the configured AI stack (e.g. Claude Code) for focused
 | **MakePr** | GitHub PR from the worktree diff (`gh`). |
 | **CreateIssue** | Push plan failure/state to GitHub for triage. |
 
-## Execution flow
+## Execution Flow
 
 1. **Context** — Load `Program.md`; attach project context from `config.yaml`.
 2. **Tools** — Expose `Tools/` via the tool protocol.

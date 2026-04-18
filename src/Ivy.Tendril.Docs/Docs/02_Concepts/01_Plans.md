@@ -10,11 +10,15 @@ searchHints:
   - states
 ---
 
+<Text Color="Green" Small Bold>Concepts</Text>
+
+
 # Plans
 
 <Ingress>
-Plans are the core unit of work in Tendril. Each plan moves through a rigorous series of states from creation to completion, representing the lifecycle of an AI development task.
+*Plans* are the core unit of work in Tendril. Each plan moves through a rigorous series of states from creation to completion, representing the lifecycle of an AI development task.
 </Ingress>
+
 
 ## Plan States
 
