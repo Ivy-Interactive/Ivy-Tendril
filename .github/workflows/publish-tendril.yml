@@ -15,15 +15,21 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - name: Determine version from tag
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Determine version
         id: version
         run: |
           if [[ "${{ github.event_name }}" == "release" ]]; then
             TAG="${{ github.event.release.tag_name }}"
-          else
+            VERSION="${TAG#v}"
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
             TAG="${GITHUB_REF#refs/tags/}"
+            VERSION="${TAG#v}"
+          else
+            VERSION=$(grep -oP '(?<=<Version>)[^<]+' src/Directory.Build.props | head -n 1)
           fi
-          VERSION="${TAG#v}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Resolved version: $VERSION"
 
@@ -270,6 +276,7 @@ jobs:
             --clobber
 
   deploy-docs:
+    needs: [publish-nuget, publish-desktop]
     runs-on: ubuntu-latest
     environment: production
     env:
