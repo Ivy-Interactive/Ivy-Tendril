@@ -788,7 +788,7 @@ public static class DoctorCommand
                 return "Empty";
 
             var recs = Services.YamlHelper.Deserializer.Deserialize<List<Apps.Plans.RecommendationYaml>>(content);
-            if (recs == null || recs.Count == 0)
+            if (recs == null)
                 return "Empty list";
 
             return null;
