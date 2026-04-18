@@ -21,6 +21,7 @@ public class ReviewApp : ViewBase
         var projectFilter = UseState<string?>(null);
         var levelFilter = UseState<string?>(null);
         var textFilter = UseState<string?>("");
+        var showCompleted = UseState(false);
         var refreshToken = UseRefreshToken();
 
         UseEffect(() =>
@@ -37,7 +38,9 @@ public class ReviewApp : ViewBase
         var previousPlans = UseRef(new List<PlanFile>());
 
         var plans = planService.GetPlans()
-            .Where(p => p.Status is PlanStatus.ReadyForReview or PlanStatus.Failed)
+            .Where(p => showCompleted.Value
+                ? p.Status is PlanStatus.ReadyForReview or PlanStatus.Failed or PlanStatus.Completed
+                : p.Status is PlanStatus.ReadyForReview or PlanStatus.Failed)
             .ToList();
         var filteredPlans = PlanFilters.ApplyFilters(plans, projectFilter.Value, levelFilter.Value, textFilter.Value).ToList();
 
@@ -59,7 +62,7 @@ public class ReviewApp : ViewBase
 
         previousPlans.Value = filteredPlans;
 
-        var sidebar = new SidebarView(plans, selectedPlanState, projectFilter, levelFilter, textFilter, configService);
+        var sidebar = new SidebarView(plans, selectedPlanState, projectFilter, levelFilter, textFilter, showCompleted, configService);
 
         return new SidebarLayout(
             new ContentView(selectedPlanState.Value, filteredPlans, selectedPlanState, planService, jobService,

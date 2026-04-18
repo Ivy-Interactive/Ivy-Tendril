@@ -9,6 +9,7 @@ public class SidebarView(
     IState<string?> projectFilter,
     IState<string?> levelFilter,
     IState<string?> textFilter,
+    IState<bool> showCompleted,
     IConfigService config) : ViewBase
 {
     private readonly IConfigService _config = config;
@@ -17,6 +18,7 @@ public class SidebarView(
     private readonly IState<string?> _projectFilter = projectFilter;
     private readonly IState<string?> _levelFilter = levelFilter;
     private readonly IState<string?> _textFilter = textFilter;
+    private readonly IState<bool> _showCompleted = showCompleted;
 
     public override object Build()
     {
@@ -54,7 +56,8 @@ public class SidebarView(
                       | _projectFilter.ToSelectInput(projectCounts).Placeholder("All Projects").Nullable()
                           .WithField().Label("Project")
                       | _levelFilter.ToSelectInput(levelOptions.ToOptions()).Placeholder("All Levels").Nullable()
-                          .WithField().Label("Level");
+                          .WithField().Label("Level")
+                      | _showCompleted.ToBoolInput("Show Completed");
         }
 
         var content = new List(filteredPlans.Select(plan =>
