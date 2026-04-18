@@ -184,17 +184,34 @@ public class PlanDatabaseSyncService : IDisposable
 
     private void SyncPlanRecommendations(PlanFile plan)
     {
-        var recommendationsPath = Path.Combine(plan.FolderPath, "artifacts", "recommendations.yaml");
-        if (!File.Exists(recommendationsPath)) return;
-
         try
         {
-            var yaml = FileHelper.ReadAllText(recommendationsPath);
-            var items = YamlHelper.Deserializer.Deserialize<List<RecommendationYaml>>(yaml);
-            if (items == null) return;
+            List<RecommendationYaml>? items = null;
 
-            _database.UpsertRecommendations(plan.Id, plan.FolderName, items,
-                plan.Project, plan.Title, plan.Updated, plan.Status);
+            // Prefer recommendations from plan.yaml, fall back to artifacts/recommendations.yaml
+            var planYamlPath = Path.Combine(plan.FolderPath, "plan.yaml");
+            if (File.Exists(planYamlPath))
+            {
+                var yaml = FileHelper.ReadAllText(planYamlPath);
+                var planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml);
+                items = planYaml?.Recommendations;
+            }
+
+            if (items == null || items.Count == 0)
+            {
+                var recommendationsPath = Path.Combine(plan.FolderPath, "artifacts", "recommendations.yaml");
+                if (File.Exists(recommendationsPath))
+                {
+                    var yaml = FileHelper.ReadAllText(recommendationsPath);
+                    items = YamlHelper.Deserializer.Deserialize<List<RecommendationYaml>>(yaml);
+                }
+            }
+
+            if (items != null && items.Count > 0)
+            {
+                _database.UpsertRecommendations(plan.Id, plan.FolderName, items,
+                    plan.Project, plan.Title, plan.Updated, plan.Status);
+            }
         }
         catch (Exception ex)
         {

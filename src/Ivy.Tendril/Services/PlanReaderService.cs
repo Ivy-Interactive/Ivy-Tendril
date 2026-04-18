@@ -564,23 +564,47 @@ public class PlanReaderService(
         // Without a backing database, writes need to complete before the next read.
         WriteFile(() =>
         {
-            var recommendationsPath = Path.Combine(PlansDirectory, planFolderName, "artifacts", "recommendations.yaml");
-            if (!File.Exists(recommendationsPath)) return;
+            var planYamlPath = Path.Combine(PlansDirectory, planFolderName, "plan.yaml");
+            if (!File.Exists(planYamlPath)) return;
 
-            var yaml = FileHelper.ReadAllText(recommendationsPath);
-            var items = YamlHelper.Deserializer.Deserialize<List<RecommendationYaml>>(yaml);
-            if (items == null) return;
+            var yaml = FileHelper.ReadAllText(planYamlPath);
+            var plan = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml);
+            if (plan == null) return;
 
-            var item = items.FirstOrDefault(r => r.Title == recommendationTitle);
-            if (item == null) return;
+            // Write to plan.yaml if recommendations exist there, otherwise fall back to artifacts/recommendations.yaml
+            if (plan.Recommendations != null && plan.Recommendations.Count > 0)
+            {
+                var item = plan.Recommendations.FirstOrDefault(r => r.Title == recommendationTitle);
+                if (item == null) return;
 
-            item.State = newState;
-            if (newState == "Declined" && !string.IsNullOrWhiteSpace(declineReason))
-                item.DeclineReason = declineReason;
+                item.State = newState;
+                if (newState == "Declined" && !string.IsNullOrWhiteSpace(declineReason))
+                    item.DeclineReason = declineReason;
+                else
+                    item.DeclineReason = null;
+
+                FileHelper.WriteAllText(planYamlPath, YamlHelper.Serializer.Serialize(plan));
+            }
             else
-                item.DeclineReason = null;
+            {
+                var recommendationsPath = Path.Combine(PlansDirectory, planFolderName, "artifacts", "recommendations.yaml");
+                if (!File.Exists(recommendationsPath)) return;
 
-            FileHelper.WriteAllText(recommendationsPath, YamlHelper.Serializer.Serialize(items));
+                var recYaml = FileHelper.ReadAllText(recommendationsPath);
+                var items = YamlHelper.Deserializer.Deserialize<List<RecommendationYaml>>(recYaml);
+                if (items == null) return;
+
+                var item = items.FirstOrDefault(r => r.Title == recommendationTitle);
+                if (item == null) return;
+
+                item.State = newState;
+                if (newState == "Declined" && !string.IsNullOrWhiteSpace(declineReason))
+                    item.DeclineReason = declineReason;
+                else
+                    item.DeclineReason = null;
+
+                FileHelper.WriteAllText(recommendationsPath, YamlHelper.Serializer.Serialize(items));
+            }
         });
     }
 
@@ -1299,18 +1323,11 @@ public class PlanReaderService(
 
         foreach (var (folderPath, folderName, planYamlPath) in EnumerateValidPlanFolders())
         {
-            var recommendationsPath = Path.Combine(folderPath, "artifacts", "recommendations.yaml");
-            if (!File.Exists(recommendationsPath)) continue;
-
             try
             {
                 var planYaml = FileHelper.ReadAllText(planYamlPath);
                 var plan = YamlHelper.Deserializer.Deserialize<PlanYaml>(planYaml);
                 if (plan == null) continue;
-
-                var yaml = FileHelper.ReadAllText(recommendationsPath);
-                var items = YamlHelper.Deserializer.Deserialize<List<RecommendationYaml>>(yaml);
-                if (items == null) continue;
 
                 var match = FolderNameRegex.Match(folderName);
                 var planId = match.Groups[1].Value;
@@ -1318,27 +1335,43 @@ public class PlanReaderService(
                 if (!Enum.TryParse<PlanStatus>(plan.State, true, out var status))
                     status = PlanStatus.Draft;
 
-                foreach (var item in items)
-                    recommendations.Add(new Recommendation(
-                        item.Title,
-                        item.Description,
-                        string.IsNullOrWhiteSpace(item.State) ? "Pending" : item.State,
-                        planId,
-                        plan.Title ?? "",
-                        folderName,
-                        plan.Project ?? "",
-                        plan.Updated,
-                        status,
-                        item.DeclineReason,
-                        item.Impact,
-                        item.Risk
-                    ));
+                // Prefer plan.yaml recommendations, fall back to artifacts/recommendations.yaml
+                List<RecommendationYaml>? items = plan.Recommendations;
+
+                if (items == null || items.Count == 0)
+                {
+                    var recommendationsPath = Path.Combine(folderPath, "artifacts", "recommendations.yaml");
+                    if (File.Exists(recommendationsPath))
+                    {
+                        var yaml = FileHelper.ReadAllText(recommendationsPath);
+                        items = YamlHelper.Deserializer.Deserialize<List<RecommendationYaml>>(yaml);
+                    }
+                }
+
+                if (items != null)
+                {
+                    foreach (var item in items)
+                        recommendations.Add(new Recommendation(
+                            item.Title,
+                            item.Description,
+                            string.IsNullOrWhiteSpace(item.State) ? "Pending" : item.State,
+                            planId,
+                            plan.Title ?? "",
+                            folderName,
+                            plan.Project ?? "",
+                            plan.Updated,
+                            status,
+                            item.DeclineReason,
+                            item.Impact,
+                            item.Risk
+                        ));
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(
-                    "Failed to load recommendations from {RecommendationsPath}: {Message}",
-                    recommendationsPath,
+                    "Failed to load recommendations from {PlanFolder}: {Message}",
+                    folderName,
                     ex.Message);
             }
         }
@@ -1368,19 +1401,27 @@ public class PlanReaderService(
                     }
                 }
 
-                var recommendationsPath = Path.Combine(folderPath, "artifacts", "recommendations.yaml");
-                if (File.Exists(recommendationsPath))
+                // Count pending recommendations from plan.yaml or artifacts/recommendations.yaml
+                var plan = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml);
+                List<RecommendationYaml>? items = plan?.Recommendations;
+
+                if (items == null || items.Count == 0)
                 {
-                    var recYaml = FileHelper.ReadAllText(recommendationsPath);
-                    var items = YamlHelper.Deserializer.Deserialize<List<RecommendationYaml>>(recYaml);
-                    if (items != null)
-                        foreach (var item in items)
-                        {
-                            var state = string.IsNullOrWhiteSpace(item.State) ? "Pending" : item.State;
-                            if (state.Equals("Pending", StringComparison.OrdinalIgnoreCase))
-                                pendingRecs++;
-                        }
+                    var recommendationsPath = Path.Combine(folderPath, "artifacts", "recommendations.yaml");
+                    if (File.Exists(recommendationsPath))
+                    {
+                        var recYaml = FileHelper.ReadAllText(recommendationsPath);
+                        items = YamlHelper.Deserializer.Deserialize<List<RecommendationYaml>>(recYaml);
+                    }
                 }
+
+                if (items != null)
+                    foreach (var item in items)
+                    {
+                        var state = string.IsNullOrWhiteSpace(item.State) ? "Pending" : item.State;
+                        if (state.Equals("Pending", StringComparison.OrdinalIgnoreCase))
+                            pendingRecs++;
+                    }
             }
             catch
             {
