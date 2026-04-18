@@ -23,7 +23,7 @@ public class WallpaperApp : ViewBase
 
         var counts = countsService.Current;
 
-        var hasActivity = counts.Drafts > 0 || counts.ActiveJobs > 0 || counts.Reviews > 0;
+        var hasActivity = counts.TotalPlans > 0;
 
         var heading = hasActivity ? "What are we making next?" : "Welcome to Ivy Tendril";
         var subtitle = hasActivity ? BuildSummary(counts) : "Manage your plans, track jobs, and review pull requests.";
