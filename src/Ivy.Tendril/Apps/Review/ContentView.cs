@@ -251,6 +251,12 @@ public class ContentView(
 
         var planData = planContentQuery.Value;
 
+        // Early null guard: _selectedPlan may become null due to state updates
+        if (_selectedPlan is null)
+        {
+            return Text.Muted("No plan selected");
+        }
+
         // Plan tab content (not dependent on query — uses in-memory data)
         var reviewAnnotated = MarkdownHelper.AnnotateAllBrokenLinks(_selectedPlan.LatestRevisionContent, _planService.PlansDirectory);
         var planTabContent = new Markdown(reviewAnnotated)
