@@ -39,16 +39,25 @@ public class JobsApp : ViewBase
             {
                 streamingJobId.Set(activeJobId);
                 startIdx = 0;
+
+                // Immediately seed the stream with existing lines
+                var existingLines = activeJob.OutputLines.ToArray();
+                foreach (var line in existingLines)
+                {
+                    outputStream.Write(line);
+                }
+                lastProcessedIndex.Set(existingLines.Length);
             }
-
-            var currentLines = activeJob.OutputLines.ToArray();
-
-            for (var i = startIdx; i < currentLines.Length; i++)
+            else
             {
-                outputStream.Write(currentLines[i]);
+                // Continue pumping new lines
+                var currentLines = activeJob.OutputLines.ToArray();
+                for (var i = startIdx; i < currentLines.Length; i++)
+                {
+                    outputStream.Write(currentLines[i]);
+                }
+                lastProcessedIndex.Set(currentLines.Length);
             }
-
-            lastProcessedIndex.Set(currentLines.Length);
         }, TimeSpan.FromMilliseconds(300));
         var config = UseService<IConfigService>();
         UseEffect(() =>
