@@ -36,7 +36,7 @@ public class PrStatusSyncService : IStartable, IDisposable
         _timer?.Dispose();
     }
 
-    internal async Task RunSyncAsync()
+    public async Task RunSyncAsync()
     {
         try
         {
