@@ -1,9 +1,15 @@
+using Microsoft.Extensions.Logging;
+
 namespace Ivy.Tendril.Services;
 
-public class OnboardingSetupService(IConfigService config, IServiceProvider services) : IOnboardingSetupService
+public class OnboardingSetupService(IConfigService config, IServiceProvider services, ILogger<OnboardingSetupService> logger) : IOnboardingSetupService
 {
+    private readonly ILogger<OnboardingSetupService> _logger = logger;
+
     public async Task CompleteSetupAsync(string tendrilHome)
     {
+        _logger.LogInformation("Creating Tendril directory structure at {Path}", tendrilHome);
+
         // Create directory structure
         Directory.CreateDirectory(tendrilHome);
         Directory.CreateDirectory(Path.Combine(tendrilHome, "Inbox"));
@@ -18,7 +24,10 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
             PromptwareDeployer.Deploy(Path.Combine(tendrilHome, "Promptwares"));
         Directory.CreateDirectory(Path.Combine(tendrilHome, "Hooks"));
 
+        _logger.LogInformation("Directory structure created");
+
         // Copy template or create basic config
+        _logger.LogInformation("Writing config file to {Path}", Path.Combine(tendrilHome, "config.yaml"));
         var projectDir = Path.GetDirectoryName(System.AppContext.BaseDirectory);
         while (projectDir != null && !File.Exists(Path.Combine(projectDir, "example.config.yaml")))
             projectDir = Path.GetDirectoryName(projectDir);
@@ -75,7 +84,10 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
             await FileHelper.WriteAllTextAsync(configPath, basicConfig);
         }
 
+        _logger.LogInformation("Config file written");
+
         // Set environment variable for current session
+        _logger.LogInformation("Setting environment variable TENDRIL_HOME={Value}", tendrilHome);
         Environment.SetEnvironmentVariable("TENDRIL_HOME", tendrilHome);
 
         // Persist environment variable across restarts
@@ -94,6 +106,8 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
                            : shell.EndsWith("/bash") ? Path.Combine(home, ".bashrc")
                            : Path.Combine(home, ".profile");
 
+                _logger.LogInformation("Persisting TENDRIL_HOME to {RcFile} (shell={Shell})", rcFile, shell);
+
                 var exportLine = $"export TENDRIL_HOME=\"{tendrilHome}\"";
 
                 var content = File.Exists(rcFile) ? await FileHelper.ReadAllTextAsync(rcFile) : "";
@@ -101,12 +115,16 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
                     await File.AppendAllLinesAsync(rcFile, new[] { "", "# Tendril Home", exportLine });
             }
         }
-        catch
+        catch (Exception ex)
         {
-            /* Best effort — env var is set for current session regardless */
+            _logger.LogWarning(ex, "Failed to persist TENDRIL_HOME to shell rc file (shell={Shell})",
+                Environment.GetEnvironmentVariable("SHELL"));
         }
 
+        _logger.LogInformation("Environment variable persisted (Windows={IsWin})", OperatingSystem.IsWindows());
+
         // Mark onboarding complete (this reloads config from the file we just wrote)
+        _logger.LogInformation("Marking onboarding complete");
         config.CompleteOnboarding(tendrilHome);
 
         // Add pending verification definitions to global config
@@ -124,7 +142,12 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
             config.SaveSettings();
         }
 
-        // Initialize database and start background services now that TendrilHome is set
-        BackgroundServiceActivator.Start(services);
+        _logger.LogInformation("Configuration saved");
+    }
+
+    public void StartBackgroundServices()
+    {
+        _logger.LogInformation("Starting background services (deferred)");
+        BackgroundServiceActivator.Start(services, _logger);
     }
 }
