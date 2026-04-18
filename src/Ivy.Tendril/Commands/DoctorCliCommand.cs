@@ -32,7 +32,7 @@ public class DoctorPlansSettings : CommandSettings
 
 public class DoctorCliCommand : AsyncCommand<DoctorSettings>
 {
-    public override async Task<int> ExecuteAsync(CommandContext context, DoctorSettings settings)
+    protected override async Task<int> ExecuteAsync(CommandContext context, DoctorSettings settings, CancellationToken cancellationToken)
     {
         return await DoctorCommand.RunAsync();
     }
@@ -40,7 +40,7 @@ public class DoctorCliCommand : AsyncCommand<DoctorSettings>
 
 public class DoctorPlansCommand : Command<DoctorPlansSettings>
 {
-    public override int Execute(CommandContext context, DoctorPlansSettings settings)
+    protected override int Execute(CommandContext context, DoctorPlansSettings settings, CancellationToken cancellationToken)
     {
         var args = new List<string>();
         if (settings.All) args.Add("--all");

@@ -21,7 +21,7 @@ public class DbResetSettings : CommandSettings
 
 public class DbVersionCommand : Command<DbVersionSettings>
 {
-    public override int Execute(CommandContext context, DbVersionSettings settings)
+    protected override int Execute(CommandContext context, DbVersionSettings settings, CancellationToken cancellationToken)
     {
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         if (string.IsNullOrEmpty(tendrilHome))
@@ -37,7 +37,7 @@ public class DbVersionCommand : Command<DbVersionSettings>
 
 public class DbMigrateCommand : Command<DbMigrateSettings>
 {
-    public override int Execute(CommandContext context, DbMigrateSettings settings)
+    protected override int Execute(CommandContext context, DbMigrateSettings settings, CancellationToken cancellationToken)
     {
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         if (string.IsNullOrEmpty(tendrilHome))
@@ -53,7 +53,7 @@ public class DbMigrateCommand : Command<DbMigrateSettings>
 
 public class DbResetCommand : Command<DbResetSettings>
 {
-    public override int Execute(CommandContext context, DbResetSettings settings)
+    protected override int Execute(CommandContext context, DbResetSettings settings, CancellationToken cancellationToken)
     {
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         if (string.IsNullOrEmpty(tendrilHome))

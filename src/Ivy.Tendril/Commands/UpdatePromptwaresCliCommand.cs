@@ -9,7 +9,7 @@ public class UpdatePromptwaresSettings : CommandSettings
 
 public class UpdatePromptwaresCliCommand : Command<UpdatePromptwaresSettings>
 {
-    public override int Execute(CommandContext context, UpdatePromptwaresSettings settings)
+    protected override int Execute(CommandContext context, UpdatePromptwaresSettings settings, CancellationToken cancellationToken)
     {
         return PromptwareCommands.UpdatePromptwaresCommandInternal();
     }

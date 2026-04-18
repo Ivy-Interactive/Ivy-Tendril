@@ -39,8 +39,6 @@ public static class DoctorCommand
     }
 
     public static async Task<int> RunAsync()
-
-    private static async Task<int> RunAsync()
     {
         var hasErrors = false;
 
