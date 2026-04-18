@@ -12,12 +12,12 @@ public static class PromptwareCommands
 
         return args[0] switch
         {
-            "update-promptwares" => UpdatePromptwaresCommand(),
+            "update-promptwares" => UpdatePromptwaresCommandInternal(),
             _ => -1
         };
     }
 
-    private static int UpdatePromptwaresCommand()
+    public static int UpdatePromptwaresCommandInternal()
     {
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         if (string.IsNullOrEmpty(tendrilHome))

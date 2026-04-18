@@ -39,7 +39,7 @@
     <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.4.1" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.0" />
     <PackageReference Include="PostHog" Version="1.0.8" />
-    <PackageReference Include="Spectre.Console.Cli" Version="0.53.1" />
+    <PackageReference Include="Spectre.Console.Cli" Version="1.0.0-alpha.0.16" />
     <PackageReference Include="Velopack" Version="0.0.1298" />
   </ItemGroup>
   <ItemGroup Condition="'$(IvySource)' == 'true'">
