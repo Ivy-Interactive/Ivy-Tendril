@@ -28,6 +28,8 @@ projects:
   - name: IvyFrameworkVerification
     required: true
   - name: NewWidgetChecklist
+  - name: VitePlusCheck
+    required: true
   - &o3
     name: CheckResult
     required: true
@@ -127,6 +129,8 @@ projects:
   - *o0
   - *o1
   - *o2
+  - name: VitePlusCheck
+    required: true
   - *o3
   context: >
     - Ivy.Console\ — desktop CLI and TUI client - Ivy.Internals\ — shared internals - Ivy.Studio\ — vibe-coding agent
@@ -354,6 +358,14 @@ verifications:
   prompt: >
     Run `cargo clippy -- -D warnings` in the Rust source directory (src/Rustino.Native).
     Verify no warnings or errors are reported. Clippy is the Rust linter.
+- name: VitePlusCheck
+  prompt: >
+    Run `vp check` in the VitePlus frontend directory of the project repo.
+    For PrCostCalculator: run in repo root.
+    For Framework: `cd src\frontend && vp check`
+    For Console: `cd Ivy.Studio\Widgets\frontend && vp check`
+    If `vp check` reports fixable issues, run `vp check --fix`, then stage and commit the changes.
+    Also run `vp build` to verify the production build succeeds.
 planTemplate: >
   # {title}
 
