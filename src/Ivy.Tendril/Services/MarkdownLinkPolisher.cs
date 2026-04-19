@@ -75,7 +75,7 @@ public class MarkdownLinkPolisher
                 return match.Value;
 
             var filePath = fileLinkMatch.Groups[1].Value;
-            var hasAnchor = fileLinkMatch.Groups[2].Success;
+            var anchor = fileLinkMatch.Groups[2].Success ? fileLinkMatch.Groups[2].Value : null;
 
             filePath = NormalizePath(filePath);
 
@@ -86,13 +86,42 @@ public class MarkdownLinkPolisher
                 if (found.Count == 1)
                     filePath = found[0].Replace('\\', '/');
                 else
-                    return hasAnchor
+                    return anchor != null
                         ? $"[{linkText}](file:///{filePath})"
                         : match.Value;
             }
 
-            return $"[{linkText}](file:///{filePath})";
+            // Simplify verbose link text
+            var simplifiedText = SimplifyLinkText(linkText, filePath, anchor);
+            return $"[{simplifiedText}](file:///{filePath})";
         });
+    }
+
+    private string SimplifyLinkText(string linkText, string filePath, string? anchor)
+    {
+        var fileName = Path.GetFileName(filePath);
+
+        // Pattern: link text is verbose file:///path or file:///path:line
+        if (linkText.StartsWith("file:///", StringComparison.OrdinalIgnoreCase))
+        {
+            var textMatch = FileLinkRegex.Match(linkText);
+            if (textMatch.Success)
+            {
+                var textAnchor = textMatch.Groups[2].Success ? textMatch.Groups[2].Value : null;
+                return textAnchor != null
+                    ? $"{Path.GetFileName(textMatch.Groups[1].Value)}:{textAnchor}"
+                    : Path.GetFileName(textMatch.Groups[1].Value);
+            }
+        }
+
+        // Pattern: link text contains directory separators (full path without file:/// prefix)
+        if (linkText.Contains(Path.DirectorySeparatorChar) || linkText.Contains(Path.AltDirectorySeparatorChar))
+        {
+            return anchor != null ? $"{fileName}:{anchor}" : fileName;
+        }
+
+        // Already simplified or no simplification needed
+        return linkText;
     }
 
     private string ConvertBarePlanNumbers(string content, string planFolder)
