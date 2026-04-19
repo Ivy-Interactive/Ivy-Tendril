@@ -60,6 +60,11 @@ if (Test-Path $configPath) {
 # Build PR links for Slack
 $prLinks = @()
 foreach ($pr in $prs) {
+    # Skip empty or whitespace-only entries
+    if ([string]::IsNullOrWhiteSpace($pr)) {
+        continue
+    }
+
     # Extract owner/repo#number from URL like https://github.com/owner/repo/pull/123
     if ($pr -match "github\.com/([^/]+/[^/]+)/pull/(\d+)") {
         $repoSlug = $Matches[1]
