@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Ivy.Helpers;
 using Ivy.Tendril.Services;
 using Microsoft.Data.Sqlite;
+using Spectre.Console;
 
 namespace Ivy.Tendril.Commands;
 
@@ -51,7 +52,7 @@ public static class DoctorCommand
         if (string.IsNullOrEmpty(tendrilHome))
         {
             PrintStatus("TENDRIL_HOME", "Not set", StatusKind.Error);
-            Console.Error.WriteLine("\nTENDRIL_HOME is not set. Cannot continue.\n");
+            AnsiConsole.MarkupLine("[red]\nTENDRIL_HOME is not set. Cannot continue.\n[/]");
             return 1;
         }
 
@@ -233,7 +234,7 @@ public static class DoctorCommand
                     continue;
                 }
 
-                Console.WriteLine($"  {label}");
+                AnsiConsole.WriteLine($"  {label}");
 
                 foreach (var profile in agent.Profiles)
                 {
@@ -270,18 +271,14 @@ public static class DoctorCommand
         }
 
         // Summary
-        Console.WriteLine();
+        AnsiConsole.WriteLine();
         if (hasErrors)
         {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine("Issues found. Fix the errors above and re-run `tendril doctor`.");
-            Console.ResetColor();
+            AnsiConsole.MarkupLine("[red]Issues found. Fix the errors above and re-run `tendril doctor`.[/]");
             return 1;
         }
 
-        Console.ForegroundColor = ConsoleColor.Green;
-        Console.WriteLine("All checks passed.");
-        Console.ResetColor();
+        AnsiConsole.MarkupLine("[green]All checks passed.[/]");
         return 0;
     }
 
@@ -425,29 +422,20 @@ public static class DoctorCommand
 
     private static void PrintHeader(string title)
     {
-        Console.WriteLine();
-        Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.WriteLine($"── {title} ──");
-        Console.ResetColor();
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine($"[cyan]── {title} ──[/]");
     }
 
     private static void PrintStatus(string label, string value, StatusKind kind)
     {
         var (symbol, color) = kind switch
         {
-            StatusKind.Ok => ("✓", ConsoleColor.Green),
-            StatusKind.Warn => ("!", ConsoleColor.Yellow),
-            StatusKind.Error => ("✗", ConsoleColor.Red),
-            _ => (" ", ConsoleColor.Gray)
+            StatusKind.Ok => ("✓", "green"),
+            StatusKind.Warn => ("!", "yellow"),
+            StatusKind.Error => ("✗", "red"),
+            _ => (" ", "grey")
         };
-
-        Console.ForegroundColor = color;
-        Console.Write($"  {symbol} ");
-        Console.ResetColor();
-        Console.Write(label.PadRight(40));
-        Console.ForegroundColor = color;
-        Console.WriteLine(value);
-        Console.ResetColor();
+        AnsiConsole.MarkupLine($"[{color}]  {symbol} {label.PadRight(40)}{value}[/]");
     }
 
     // --- doctor plans subcommand ---
@@ -481,7 +469,7 @@ public static class DoctorCommand
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
         if (string.IsNullOrEmpty(tendrilHome))
         {
-            Console.Error.WriteLine("TENDRIL_HOME is not set.");
+            AnsiConsole.MarkupLine("[red]TENDRIL_HOME is not set.[/]");
             return 1;
         }
 
@@ -490,22 +478,20 @@ public static class DoctorCommand
             : Path.Combine(tendrilHome, "Plans");
         if (!Directory.Exists(plansDir))
         {
-            Console.Error.WriteLine($"Plans directory not found: {plansDir}");
+            AnsiConsole.MarkupLine($"[red]Plans directory not found: {plansDir}[/]");
             return 1;
         }
 
-        Console.WriteLine($"Scanning plans in: {plansDir}");
+        AnsiConsole.WriteLine($"Scanning plans in: {plansDir}");
         Console.WriteLine();
 
         var allResults = ScanPlans(plansDir);
 
         if (fix)
         {
-            Console.WriteLine();
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine("Repairing unhealthy plans...");
-            Console.ResetColor();
-            Console.WriteLine();
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("[yellow]Repairing unhealthy plans...[/]");
+            AnsiConsole.WriteLine();
 
             var repairedCount = 0;
             var failedCount = 0;
@@ -517,23 +503,19 @@ public static class DoctorCommand
                 var repairResult = RepairPlan(result.FolderPath, result);
                 if (repairResult.Success)
                 {
-                    Console.ForegroundColor = ConsoleColor.Green;
-                    Console.WriteLine($"  ✓ {result.Id}: {repairResult.Message}");
-                    Console.ResetColor();
+                    AnsiConsole.MarkupLine($"[green]  ✓ {result.Id}: {repairResult.Message}[/]");
                     repairedCount++;
                 }
                 else if (repairResult.Message != null)
                 {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine($"  ✗ {result.Id}: {repairResult.Message}");
-                    Console.ResetColor();
+                    AnsiConsole.MarkupLine($"[red]  ✗ {result.Id}: {repairResult.Message}[/]");
                     failedCount++;
                 }
             }
 
-            Console.WriteLine();
-            Console.WriteLine($"Repair summary: {repairedCount} repaired, {failedCount} failed");
-            Console.WriteLine();
+            AnsiConsole.WriteLine();
+            AnsiConsole.WriteLine($"Repair summary: {repairedCount} repaired, {failedCount} failed");
+            AnsiConsole.WriteLine();
 
             allResults = ScanPlans(plansDir);
         }
@@ -543,23 +525,17 @@ public static class DoctorCommand
             var pruneCandidates = FindPruneCandidates(plansDir, allResults);
             if (pruneCandidates.Count > 0)
             {
-                Console.WriteLine();
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($"Found {pruneCandidates.Count} plan(s) that appear to be test/junk data:");
-                Console.ResetColor();
-                Console.WriteLine();
+                AnsiConsole.WriteLine();
+                AnsiConsole.MarkupLine($"[yellow]Found {pruneCandidates.Count} plan(s) that appear to be test/junk data:[/]");
+                AnsiConsole.WriteLine();
 
                 foreach (var (dir, result, reason) in pruneCandidates)
                 {
-                    Console.ForegroundColor = ConsoleColor.DarkGray;
-                    Console.WriteLine($"  {result.Id}-{result.Title}  ({reason})");
-                    Console.ResetColor();
+                    AnsiConsole.MarkupLine($"[grey]  {result.Id}-{result.Title}  ({reason})[/]");
                 }
 
-                Console.WriteLine();
-                Console.Write("Remove these plans? [y/N] ");
-                var answer = Console.ReadLine()?.Trim();
-                if (answer?.Equals("y", StringComparison.OrdinalIgnoreCase) == true)
+                AnsiConsole.WriteLine();
+                if (AnsiConsole.Confirm("Remove these plans?", false))
                 {
                     var removed = 0;
                     foreach (var (dir, result, _) in pruneCandidates)
@@ -567,34 +543,30 @@ public static class DoctorCommand
                         try
                         {
                             Directory.Delete(dir, true);
-                            Console.ForegroundColor = ConsoleColor.Green;
-                            Console.WriteLine($"  ✓ Removed {result.Id}-{result.Title}");
-                            Console.ResetColor();
+                            AnsiConsole.MarkupLine($"[green]  ✓ Removed {result.Id}-{result.Title}[/]");
                             removed++;
                         }
                         catch (Exception ex)
                         {
-                            Console.ForegroundColor = ConsoleColor.Red;
-                            Console.WriteLine($"  ✗ Failed to remove {result.Id}-{result.Title}: {ex.Message}");
-                            Console.ResetColor();
+                            AnsiConsole.MarkupLine($"[red]  ✗ Failed to remove {result.Id}-{result.Title}: {ex.Message}[/]");
                         }
                     }
 
-                    Console.WriteLine();
-                    Console.WriteLine($"Pruned {removed} plan(s).");
+                    AnsiConsole.WriteLine();
+                    AnsiConsole.WriteLine($"Pruned {removed} plan(s).");
                 }
                 else
                 {
-                    Console.WriteLine("Prune cancelled.");
+                    AnsiConsole.WriteLine("Prune cancelled.");
                 }
 
-                Console.WriteLine();
+                AnsiConsole.WriteLine();
                 allResults = ScanPlans(plansDir);
             }
             else
             {
-                Console.WriteLine();
-                Console.WriteLine("No prune candidates found.");
+                AnsiConsole.WriteLine();
+                AnsiConsole.WriteLine("No prune candidates found.");
             }
         }
 
@@ -804,9 +776,9 @@ public static class DoctorCommand
         const int stateWidth = 10;
         const int wtWidth = 10;
 
-        Console.WriteLine(
+        AnsiConsole.WriteLine(
             $"{"Id".PadRight(idWidth)}  {"Plan".PadRight(planWidth)}  {"State".PadRight(stateWidth)}  {"Worktrees".PadRight(wtWidth)}  Health");
-        Console.WriteLine(
+        AnsiConsole.WriteLine(
             $"{new string('-', idWidth)}  {new string('-', planWidth)}  {new string('-', stateWidth)}  {new string('-', wtWidth)}  ------");
 
         foreach (var r in results)
@@ -815,31 +787,20 @@ public static class DoctorCommand
                 ? r.Title[..(planWidth - 3)] + "..."
                 : r.Title;
 
-            Console.Write($"{r.Id.PadRight(idWidth)}  {truncatedTitle.PadRight(planWidth)}  {r.State.PadRight(stateWidth)}  {r.Worktrees.ToString().PadRight(wtWidth)}  ");
-
-            if (r.IsHealthy)
-            {
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine("OK");
-            }
-            else
-            {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine(r.Health);
-            }
-
-            Console.ResetColor();
+            var healthColor = r.IsHealthy ? "green" : "red";
+            var healthText = r.IsHealthy ? "OK" : r.Health;
+            AnsiConsole.MarkupLine($"{r.Id.PadRight(idWidth)}  {truncatedTitle.PadRight(planWidth)}  {r.State.PadRight(stateWidth)}  {r.Worktrees.ToString().PadRight(wtWidth)}  [{healthColor}]{healthText}[/]");
         }
     }
 
     internal static void PrintPlansSummary(List<PlanHealthResult> allResults)
     {
-        Console.WriteLine();
-        Console.WriteLine("Summary:");
-        Console.WriteLine($"  Total plans: {allResults.Count}");
-        Console.WriteLine($"  Healthy: {allResults.Count(r => r.IsHealthy)}");
-        Console.WriteLine($"  Unhealthy: {allResults.Count(r => !r.IsHealthy)}");
-        Console.WriteLine($"  With worktrees: {allResults.Count(r => r.Worktrees > 0)}");
+        AnsiConsole.WriteLine();
+        AnsiConsole.WriteLine("Summary:");
+        AnsiConsole.WriteLine($"  Total plans: {allResults.Count}");
+        AnsiConsole.WriteLine($"  Healthy: {allResults.Count(r => r.IsHealthy)}");
+        AnsiConsole.WriteLine($"  Unhealthy: {allResults.Count(r => !r.IsHealthy)}");
+        AnsiConsole.WriteLine($"  With worktrees: {allResults.Count(r => r.Worktrees > 0)}");
     }
 
     internal record RepairResult(bool Success, string? Message);

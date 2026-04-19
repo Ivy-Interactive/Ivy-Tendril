@@ -1,5 +1,6 @@
 using System.Text;
 using Isopoh.Cryptography.Argon2;
+using Spectre.Console;
 
 namespace Ivy.Tendril.Commands;
 
@@ -30,11 +31,11 @@ public static class HashPasswordCommand
             HashLength = 32
         });
 
-        Console.WriteLine("Password hash:");
-        Console.WriteLine(hash);
-        Console.WriteLine();
-        Console.WriteLine("Hash secret (if newly generated):");
-        Console.WriteLine(secret);
+        AnsiConsole.MarkupLine("[bold]Password hash:[/]");
+        AnsiConsole.WriteLine(hash);
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[bold]Hash secret (if newly generated):[/]");
+        AnsiConsole.WriteLine(secret);
 
         return 0;
     }
