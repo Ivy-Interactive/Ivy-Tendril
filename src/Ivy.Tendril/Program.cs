@@ -46,10 +46,9 @@ public class Program
                 config.PropagateExceptions();
 
                 // Doctor command and subcommands
-                config.AddCommand<DoctorCliCommand>("doctor")
-                    .WithDescription("Run system diagnostics");
-                config.AddBranch("doctor", doctor =>
+                config.AddBranch<DoctorSettings>("doctor", doctor =>
                 {
+                    doctor.SetDefaultCommand<DoctorCliCommand>();
                     doctor.AddCommand<DoctorPlansCommand>("plans")
                         .WithDescription("Check plan health");
                 });

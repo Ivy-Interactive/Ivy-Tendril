@@ -7,7 +7,7 @@ public class DoctorSettings : CommandSettings
 {
 }
 
-public class DoctorPlansSettings : CommandSettings
+public class DoctorPlansSettings : DoctorSettings
 {
     [CommandOption("--all")]
     [Description("Show all plans including completed ones")]

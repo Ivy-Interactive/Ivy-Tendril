@@ -777,46 +777,23 @@ public static class DoctorCommand
 
     internal static string? CheckRecommendationsHealth(string planPath)
     {
-        // Check plan.yaml first, fall back to artifacts/recommendations.yaml
         var planYamlPath = Path.Combine(planPath, "plan.yaml");
-        if (File.Exists(planYamlPath))
-        {
-            try
-            {
-                var content = File.ReadAllText(planYamlPath);
-                var plan = Services.YamlHelper.Deserializer.Deserialize<Apps.Plans.PlanYaml>(content);
-                if (plan?.Recommendations != null && plan.Recommendations.Count > 0)
-                {
-                    // Recommendations exist in plan.yaml - validate them
-                    return null;
-                }
-            }
-            catch (Exception ex)
-            {
-                return $"Parse error in plan.yaml recommendations: {ex.Message}";
-            }
-        }
-
-        // Fall back to legacy location
-        var recsPath = Path.Combine(planPath, "artifacts", "recommendations.yaml");
-        if (!File.Exists(recsPath))
+        if (!File.Exists(planYamlPath))
             return null;
 
         try
         {
-            var content = File.ReadAllText(recsPath);
-            if (string.IsNullOrWhiteSpace(content))
-                return "Empty";
-
-            var recs = Services.YamlHelper.Deserializer.Deserialize<List<Apps.Plans.RecommendationYaml>>(content);
-            if (recs == null)
-                return "Empty list";
+            var content = File.ReadAllText(planYamlPath);
+            var plan = Services.YamlHelper.Deserializer.Deserialize<Apps.Plans.PlanYaml>(content);
+            // Recommendations are optional — only validate if present
+            if (plan?.Recommendations != null && plan.Recommendations.Count > 0)
+                return null;
 
             return null;
         }
         catch (Exception ex)
         {
-            return $"Parse error: {ex.Message}";
+            return $"Parse error in plan.yaml: {ex.Message}";
         }
     }
 
@@ -899,21 +876,6 @@ public static class DoctorCommand
                     {
                         File.WriteAllText(yamlPath, repaired);
                         repairs.Add("repaired plan.yaml");
-                    }
-                }
-            }
-
-            if (healthResult.Health.Contains("Recs:"))
-            {
-                var recsPath = Path.Combine(planPath, "artifacts", "recommendations.yaml");
-                if (File.Exists(recsPath))
-                {
-                    var content = File.ReadAllText(recsPath);
-                    var repaired = RepairRecommendationsYaml(content);
-                    if (repaired != content)
-                    {
-                        File.WriteAllText(recsPath, repaired);
-                        repairs.Add("repaired recommendations.yaml");
                     }
                 }
             }
@@ -1007,15 +969,6 @@ public static class DoctorCommand
                 lines[i] = $"{field}: []";
             return;
         }
-    }
-
-    internal static string RepairRecommendationsYaml(string content)
-    {
-        return System.Text.RegularExpressions.Regex.Replace(
-            content,
-            @"(?<=^- title: )(`[^`]*`)(.*)$",
-            m => "'" + m.Groups[1].Value.Replace("'", "''") + m.Groups[2].Value.Replace("'", "''") + "'",
-            System.Text.RegularExpressions.RegexOptions.Multiline);
     }
 
     private static string EscapeYamlString(string value)

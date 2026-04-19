@@ -571,40 +571,18 @@ public class PlanReaderService(
             var plan = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml);
             if (plan == null) return;
 
-            // Write to plan.yaml if recommendations exist there, otherwise fall back to artifacts/recommendations.yaml
-            if (plan.Recommendations != null && plan.Recommendations.Count > 0)
-            {
-                var item = plan.Recommendations.FirstOrDefault(r => r.Title == recommendationTitle);
-                if (item == null) return;
+            if (plan.Recommendations == null || plan.Recommendations.Count == 0) return;
 
-                item.State = newState;
-                if (newState == "Declined" && !string.IsNullOrWhiteSpace(declineReason))
-                    item.DeclineReason = declineReason;
-                else
-                    item.DeclineReason = null;
+            var item = plan.Recommendations.FirstOrDefault(r => r.Title == recommendationTitle);
+            if (item == null) return;
 
-                FileHelper.WriteAllText(planYamlPath, YamlHelper.Serializer.Serialize(plan));
-            }
+            item.State = newState;
+            if (newState == "Declined" && !string.IsNullOrWhiteSpace(declineReason))
+                item.DeclineReason = declineReason;
             else
-            {
-                var recommendationsPath = Path.Combine(PlansDirectory, planFolderName, "artifacts", "recommendations.yaml");
-                if (!File.Exists(recommendationsPath)) return;
+                item.DeclineReason = null;
 
-                var recYaml = FileHelper.ReadAllText(recommendationsPath);
-                var items = YamlHelper.Deserializer.Deserialize<List<RecommendationYaml>>(recYaml);
-                if (items == null) return;
-
-                var item = items.FirstOrDefault(r => r.Title == recommendationTitle);
-                if (item == null) return;
-
-                item.State = newState;
-                if (newState == "Declined" && !string.IsNullOrWhiteSpace(declineReason))
-                    item.DeclineReason = declineReason;
-                else
-                    item.DeclineReason = null;
-
-                FileHelper.WriteAllText(recommendationsPath, YamlHelper.Serializer.Serialize(items));
-            }
+            FileHelper.WriteAllText(planYamlPath, YamlHelper.Serializer.Serialize(plan));
         });
     }
 
@@ -738,6 +716,12 @@ public class PlanReaderService(
             @"(?m)^(\s*)(repos|commits|prs|verifications|relatedPlans|dependsOn):[ \t]*$",
             "$1$2: []");
 
+        // 13. Fix priority field with non-numeric values (e.g. "priority: NiceToHave" should be "priority: 0")
+        repaired = Regex.Replace(
+            repaired,
+            @"(?m)^priority:\s*(?!\d).*$",
+            "priority: 0");
+
         return NormalizePlanYamlStructure(repaired);
     }
 
@@ -748,21 +732,28 @@ public class PlanReaderService(
             "state", "project", "level", "title", "sessionId",
             "repos", "created", "updated", "initialPrompt", "sourceUrl",
             "prs", "commits", "verifications", "relatedPlans", "dependsOn",
-            "priority", "executionProfile"
+            "priority", "executionProfile", "recommendations"
         };
         var listKeys = new HashSet<string>(StringComparer.Ordinal)
         {
-            "repos", "prs", "commits", "verifications", "relatedPlans", "dependsOn"
+            "repos", "prs", "commits", "verifications", "relatedPlans", "dependsOn",
+            "recommendations"
         };
 
         var normalized = yaml.Replace("\r\n", "\n");
         var lines = normalized.Split('\n');
         var output = new List<string>(lines.Length);
         string? currentListKey = null;
-        var inVerificationItem = false;
+        var inStructuredListItem = false;
+        var inListItemBlockScalar = false;
         var inBlockScalar = false;
         var inUnknownKey = false;
         var seenKeys = new HashSet<string>();
+        var structuredListKeys = new Dictionary<string, (string itemStartPattern, string subKeyPattern)>
+        {
+            ["verifications"] = (@"^-\s+name:", @"^(name|status):"),
+            ["recommendations"] = (@"^-\s+title:", @"^(title|description|state|impact|risk|declineReason):")
+        };
 
         static bool IsBlockScalarValue(string value)
         {
@@ -812,7 +803,8 @@ public class PlanReaderService(
 
                 var key = detectedKey;
                 currentListKey = listKeys.Contains(key) ? key : null;
-                inVerificationItem = false;
+                inStructuredListItem = false;
+                inListItemBlockScalar = false;
                 inBlockScalar = false;
                 inUnknownKey = false;
 
@@ -844,21 +836,42 @@ public class PlanReaderService(
 
             if (currentListKey != null)
             {
+                var isStructured = structuredListKeys.TryGetValue(currentListKey, out var patterns);
+
                 if (trimmed.StartsWith("-"))
                 {
-                    if (currentListKey == "verifications" && !Regex.IsMatch(trimmed, @"^-\s+name:"))
+                    if (isStructured && !Regex.IsMatch(trimmed, patterns.itemStartPattern))
                     {
-                        inVerificationItem = false;
+                        inStructuredListItem = false;
+                        inListItemBlockScalar = false;
                         continue;
                     }
 
                     output.Add($"  {trimmed}");
-                    inVerificationItem = currentListKey == "verifications";
+                    inStructuredListItem = isStructured;
+                    inListItemBlockScalar = false;
                 }
-                else if (currentListKey == "verifications" && inVerificationItem)
+                else if (isStructured && inStructuredListItem)
                 {
-                    if (Regex.IsMatch(trimmed, @"^(name|status):"))
+                    if (inListItemBlockScalar)
+                    {
+                        if (Regex.IsMatch(trimmed, patterns.subKeyPattern))
+                        {
+                            inListItemBlockScalar = false;
+                            output.Add($"    {trimmed}");
+                        }
+                        else
+                        {
+                            output.Add($"      {trimmed}");
+                        }
+                    }
+                    else if (Regex.IsMatch(trimmed, patterns.subKeyPattern))
+                    {
                         output.Add($"    {trimmed}");
+                        var subValue = trimmed[(trimmed.IndexOf(':') + 1)..].Trim();
+                        if (IsBlockScalarValue(subValue))
+                            inListItemBlockScalar = true;
+                    }
                 }
                 else
                 {
@@ -867,13 +880,15 @@ public class PlanReaderService(
                     {
                         var key = strayKeyMatch.Groups[1].Value;
                         currentListKey = listKeys.Contains(key) ? key : null;
-                        inVerificationItem = false;
+                        inStructuredListItem = false;
+                        inListItemBlockScalar = false;
                         output.Add(trimmed);
                     }
                     else if (strayKeyMatch.Success)
                     {
                         currentListKey = null;
                         inUnknownKey = true;
+                        inListItemBlockScalar = false;
                     }
                     else
                     {
@@ -1335,18 +1350,7 @@ public class PlanReaderService(
                 if (!Enum.TryParse<PlanStatus>(plan.State, true, out var status))
                     status = PlanStatus.Draft;
 
-                // Prefer plan.yaml recommendations, fall back to artifacts/recommendations.yaml
-                List<RecommendationYaml>? items = plan.Recommendations;
-
-                if (items == null || items.Count == 0)
-                {
-                    var recommendationsPath = Path.Combine(folderPath, "artifacts", "recommendations.yaml");
-                    if (File.Exists(recommendationsPath))
-                    {
-                        var yaml = FileHelper.ReadAllText(recommendationsPath);
-                        items = YamlHelper.Deserializer.Deserialize<List<RecommendationYaml>>(yaml);
-                    }
-                }
+                var items = plan.Recommendations;
 
                 if (items != null)
                 {
@@ -1402,19 +1406,8 @@ public class PlanReaderService(
                     }
                 }
 
-                // Count pending recommendations from plan.yaml or artifacts/recommendations.yaml
                 var plan = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml);
-                List<RecommendationYaml>? items = plan?.Recommendations;
-
-                if (items == null || items.Count == 0)
-                {
-                    var recommendationsPath = Path.Combine(folderPath, "artifacts", "recommendations.yaml");
-                    if (File.Exists(recommendationsPath))
-                    {
-                        var recYaml = FileHelper.ReadAllText(recommendationsPath);
-                        items = YamlHelper.Deserializer.Deserialize<List<RecommendationYaml>>(recYaml);
-                    }
-                }
+                var items = plan?.Recommendations;
 
                 if (items != null)
                     foreach (var item in items)
