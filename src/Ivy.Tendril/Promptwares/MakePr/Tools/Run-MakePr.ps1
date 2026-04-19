@@ -88,35 +88,50 @@ if (Test-Path $worktreesDir) {
             $branch = git rev-parse --abbrev-ref HEAD
             Write-Host "  Branch: $branch"
 
-            # Get default branch to check commits ahead
-            $defaultBranch = gh repo view $ownerRepo --json defaultBranchRef -q .defaultBranchRef.name
+            # Get repo config early to know baseBranch for commit checking
+            $repoPathForConfig = $planYaml.repos | Where-Object {
+                $worktreePath.Contains([System.IO.Path]::GetFileName($_))
+            } | Select-Object -First 1
+
+            if (-not $repoPathForConfig) {
+                $repoPathForConfig = $planYaml.repos[0]
+            }
+
+            $repoConfigForCheck = $projectConfig.repos | Where-Object {
+                $p = if ($_ -is [hashtable]) { $_.path } else { "$_" }
+                $expandedPath = [Environment]::ExpandEnvironmentVariables($p)
+                $expandedPath -eq $repoPathForConfig
+            } | Select-Object -First 1
+
+            $checkBaseBranch = if ($repoConfigForCheck -is [hashtable] -and $repoConfigForCheck.baseBranch) {
+                $repoConfigForCheck.baseBranch
+            } else {
+                gh repo view $ownerRepo --json defaultBranchRef -q .defaultBranchRef.name
+            }
 
             # Check if there are commits ahead of base branch
-            $commitsAhead = git rev-list --count origin/$defaultBranch..HEAD
+            $commitsAhead = git rev-list --count origin/$checkBaseBranch..HEAD
             if ($commitsAhead -eq 0) {
-                Write-Host "  No commits ahead of $defaultBranch - skipping PR creation" -ForegroundColor Gray
+                Write-Host "  No commits ahead of $checkBaseBranch - skipping PR creation" -ForegroundColor Gray
                 Pop-Location
                 continue
             }
             Write-Host "  Commits ahead: $commitsAhead"
 
-            # Find prRule for this repo
-            $repoPath = $planYaml.repos | Where-Object { $_.Contains($repo) } | Select-Object -First 1
-            if (-not $repoPath) {
-                Write-Warning "Could not find repo path in plan.yaml, using first repo"
-                $repoPath = $planYaml.repos[0]
-            }
-
-            $repoConfig = $projectConfig.repos | Where-Object {
-                $p = if ($_ -is [hashtable]) { $_.path } else { "$_" }
-                $expandedPath = [Environment]::ExpandEnvironmentVariables($p)
-                $expandedPath -eq $repoPath
-            } | Select-Object -First 1
+            # Use the repoConfig we already found above
+            $repoConfig = $repoConfigForCheck
+            $repoPath = $repoPathForConfig
 
             $prRule = if ($repoConfig -is [hashtable] -and $repoConfig.prRule) {
                 $repoConfig.prRule
             } else {
                 "default"
+            }
+
+            $baseBranch = if ($repoConfig -is [hashtable] -and $repoConfig.baseBranch) {
+                $repoConfig.baseBranch
+            } else {
+                $null
             }
 
             Write-Host "  PrRule: $prRule" -ForegroundColor Magenta
@@ -147,9 +162,14 @@ if (Test-Path $worktreesDir) {
             # Step 3: Create PR
             Write-Host "`n  [3] Creating pull request..."
 
-            # Get default branch
-            $defaultBranch = gh repo view $ownerRepo --json defaultBranchRef -q .defaultBranchRef.name
-            Write-Host "  Base branch: $defaultBranch"
+            # Get base branch (use config baseBranch if set, otherwise GitHub default)
+            if ($baseBranch) {
+                $targetBranch = $baseBranch
+                Write-Host "  Base branch: $targetBranch (from config)"
+            } else {
+                $targetBranch = gh repo view $ownerRepo --json defaultBranchRef -q .defaultBranchRef.name
+                Write-Host "  Base branch: $targetBranch (from GitHub default)"
+            }
 
             # Build PR body
             $prTitle = "[$planId] $title"
@@ -200,7 +220,7 @@ if (Test-Path $worktreesDir) {
             $tempBodyFile = [System.IO.Path]::GetTempFileName()
             Set-Content -Path $tempBodyFile -Value $prBody -Encoding UTF8 -NoNewline
             try {
-                $prUrl = & gh pr create --repo $ownerRepo --base $defaultBranch --head $branch --title $prTitle --body-file $tempBodyFile --label "tendril"
+                $prUrl = & gh pr create --repo $ownerRepo --base $targetBranch --head $branch --title $prTitle --body-file $tempBodyFile --label "tendril"
                 if ($LASTEXITCODE -ne 0) {
                     Write-Error "Failed to create PR"
                 }
@@ -280,11 +300,11 @@ if (Test-Path $worktreesDir) {
                         }
                     }
 
-                    # Pull default branch
-                    Write-Host "  Pulling $defaultBranch in original repo..."
+                    # Pull target branch
+                    Write-Host "  Pulling $targetBranch in original repo..."
                     Push-Location $repoPath
                     try {
-                        git pull origin $defaultBranch
+                        git pull origin $targetBranch
                         Write-Host "  Pulled successfully" -ForegroundColor Green
                     } finally {
                         Pop-Location

@@ -338,7 +338,7 @@ public class JobServiceRetryBlockedTests
 
         public PlanReaderService.PlanCountSnapshot ComputePlanCounts()
         {
-            return new PlanReaderService.PlanCountSnapshot(0, 0, 0, 0, 0);
+            return new PlanReaderService.PlanCountSnapshot(0, 0, 0, 0, 0, 0);
         }
 
         public void UpdateRecommendationState(string planFolderName, string recommendationTitle, string newState,

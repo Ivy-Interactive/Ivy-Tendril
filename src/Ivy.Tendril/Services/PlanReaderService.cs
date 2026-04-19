@@ -1381,11 +1381,12 @@ public class PlanReaderService(
 
     private PlanCountSnapshot ComputePlanCountsInternal()
     {
-        int drafts = 0, reviews = 0, failed = 0, icebox = 0, pendingRecs = 0;
+        int drafts = 0, reviews = 0, failed = 0, icebox = 0, pendingRecs = 0, total = 0;
 
         foreach (var (folderPath, _, planYamlPath) in EnumerateValidPlanFolders())
             try
             {
+                total++;
                 var yaml = FileHelper.ReadAllText(planYamlPath);
                 var stateMatch = Regex.Match(yaml, @"(?m)^state:\s*(.+)$");
                 if (stateMatch.Success)
@@ -1428,7 +1429,7 @@ public class PlanReaderService(
                 // Skip malformed plans
             }
 
-        return new PlanCountSnapshot(drafts, reviews, failed, icebox, pendingRecs);
+        return new PlanCountSnapshot(drafts, reviews, failed, icebox, pendingRecs, total);
     }
 
     /// <summary>
@@ -1498,7 +1499,8 @@ public class PlanReaderService(
         int ReadyForReview,
         int Failed,
         int Icebox,
-        int PendingRecommendations
+        int PendingRecommendations,
+        int TotalPlans
     );
 }
 

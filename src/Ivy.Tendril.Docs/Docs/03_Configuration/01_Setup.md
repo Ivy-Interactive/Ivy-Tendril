@@ -9,6 +9,8 @@ searchHints:
   - gui
 ---
 
+<Text Color="Green" Small Bold>Configuration</Text>
+
 # Setup & Settings
 
 <Ingress>
@@ -56,7 +58,7 @@ coworkers:
 
 | Field | Purpose |
 |-------|---------|
-| `codingAgent` | Agent runtime. See [Claude Code](../06_Integrations/02_ClaudeCode.md), [Codex](../06_Integrations/03_Codex.md), or [Gemini](../06_Integrations/04_Gemini.md) for details. |
+| `codingAgent` | Agent runtime. See Claude Code, Codex, or Gemini for details. |
 | `maxConcurrentJobs` | Cap on parallel agent runs (worktrees). |
 | `projects` | Registered repositories and their settings. |
 | `coworkers` | GitHub users for PR assignment / team features. |
