@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Spectre.Console;
 using Spectre.Console.Cli;
 using Ivy.Tendril.Database;
 
@@ -26,7 +27,7 @@ public class DbVersionCommand : Command<DbVersionSettings>
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         if (string.IsNullOrEmpty(tendrilHome))
         {
-            Console.Error.WriteLine("Error: TENDRIL_HOME environment variable is not set.");
+            AnsiConsole.MarkupLine("[red]Error: TENDRIL_HOME environment variable is not set.[/]");
             return 1;
         }
 
@@ -42,7 +43,7 @@ public class DbMigrateCommand : Command<DbMigrateSettings>
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         if (string.IsNullOrEmpty(tendrilHome))
         {
-            Console.Error.WriteLine("Error: TENDRIL_HOME environment variable is not set.");
+            AnsiConsole.MarkupLine("[red]Error: TENDRIL_HOME environment variable is not set.[/]");
             return 1;
         }
 
@@ -58,7 +59,7 @@ public class DbResetCommand : Command<DbResetSettings>
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         if (string.IsNullOrEmpty(tendrilHome))
         {
-            Console.Error.WriteLine("Error: TENDRIL_HOME environment variable is not set.");
+            AnsiConsole.MarkupLine("[red]Error: TENDRIL_HOME environment variable is not set.[/]");
             return 1;
         }
 
