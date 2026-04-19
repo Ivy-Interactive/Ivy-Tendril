@@ -97,14 +97,10 @@ if (Test-Path $worktreesDir) {
                 $repoPathForConfig = $planYaml.repos[0]
             }
 
-            $repoConfigForCheck = $projectConfig.repos | Where-Object {
-                $p = if ($_ -is [hashtable]) { $_.path } else { "$_" }
-                $expandedPath = [Environment]::ExpandEnvironmentVariables($p)
-                $expandedPath -eq $repoPathForConfig
-            } | Select-Object -First 1
+            $repoConfig = GetRepoConfig -RepoPath $repoPathForConfig -Project $project
 
-            $checkBaseBranch = if ($repoConfigForCheck -is [hashtable] -and $repoConfigForCheck.baseBranch) {
-                $repoConfigForCheck.baseBranch
+            $checkBaseBranch = if ($repoConfig.BaseBranch) {
+                $repoConfig.BaseBranch
             } else {
                 gh repo view $ownerRepo --json defaultBranchRef -q .defaultBranchRef.name
             }
@@ -118,21 +114,9 @@ if (Test-Path $worktreesDir) {
             }
             Write-Host "  Commits ahead: $commitsAhead"
 
-            # Use the repoConfig we already found above
-            $repoConfig = $repoConfigForCheck
             $repoPath = $repoPathForConfig
-
-            $prRule = if ($repoConfig -is [hashtable] -and $repoConfig.prRule) {
-                $repoConfig.prRule
-            } else {
-                "default"
-            }
-
-            $baseBranch = if ($repoConfig -is [hashtable] -and $repoConfig.baseBranch) {
-                $repoConfig.baseBranch
-            } else {
-                $null
-            }
+            $prRule = $repoConfig.PrRule
+            $baseBranch = $repoConfig.BaseBranch
 
             Write-Host "  PrRule: $prRule" -ForegroundColor Magenta
 

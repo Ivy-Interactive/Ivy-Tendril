@@ -373,7 +373,7 @@ function GetRepoConfig {
 
     $config = Get-ConfigYaml
     if (-not $config -or -not $config.projects) {
-        return @{ BaseBranch = $null; SyncStrategy = "fetch" }
+        return @{ BaseBranch = $null; PrRule = "default"; SyncStrategy = "fetch" }
     }
 
     $resolvedRepoPath = try { (Resolve-Path $RepoPath -ErrorAction Stop).Path } catch { $RepoPath }
@@ -400,6 +400,7 @@ function GetRepoConfig {
                 if ($repo -is [hashtable] -or $repo -is [System.Collections.IDictionary]) {
                     return @{
                         BaseBranch   = $repo.baseBranch
+                        PrRule       = if ($repo.prRule) { $repo.prRule } else { "default" }
                         SyncStrategy = if ($repo.syncStrategy) { $repo.syncStrategy } else { "fetch" }
                     }
                 }
@@ -407,7 +408,7 @@ function GetRepoConfig {
         }
     }
 
-    return @{ BaseBranch = $null; SyncStrategy = "fetch" }
+    return @{ BaseBranch = $null; PrRule = "default"; SyncStrategy = "fetch" }
 }
 
 function Get-ConfigYaml {
