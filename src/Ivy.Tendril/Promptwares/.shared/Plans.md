@@ -159,7 +159,11 @@ Each revision can include `## Verification` with checkboxes from `config.yaml`:
 
 ## Notes
 
-- **Local file links in plans:** `[Button.cs](file:///path/to/...)` so VS Code opens the path; keep the path as link text.
+- **Local file links in plans:** Use format `[FileName.ext:line](file:///full/path/to/FileName.ext)` for clickable links that VS Code can open. Link text should be just the filename (with optional `:line` or `:start-end` line numbers). Link URL should be the full `file:///` path without line number fragments (`#L123`). Examples:
+  - Single line: `[JobsApp.cs:205](file:///D:\Repos\_Ivy\Ivy-Tendril\src\Ivy.Tendril\Apps\JobsApp.cs)`
+  - Line range: `[Utils.cs:42-50](file:///D:\Repos\_Ivy\Ivy-Framework\src\Ivy\Utils.cs)`
+  - File without line: `[Program.cs](file:///D:\Repos\_Ivy\Ivy-Tendril\src\Ivy.Tendril\Program.cs)`
+  - Never use backticks in link text or `#L` fragments in URLs
 - **Plan references:** `[Plan 03156](plan://03156)` to link to other plans. The link handler will navigate to that plan in the Plans app. The plan ID can be 5 digits (e.g., `plan://03156`) or without leading zeros (e.g., `plan://3156`).
 - Images: normal markdown `![alt](url)`.
 - **Diagrams:** Graphviz/DOT (```dot / ```graphviz) or Mermaid (```mermaid). **Prefer DOT** for layout. Use only when a diagram really helps.

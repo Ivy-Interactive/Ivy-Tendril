@@ -150,4 +150,70 @@ public class MarkdownLinkPolisherTests : IDisposable
 
         Assert.Equal("Use `SomeMethod()` to call it", result);
     }
+
+    [Fact]
+    public void PolishLinks_SimplifiesVerboseLinkTextWithFullPath()
+    {
+        var subDir = Path.Combine(_repoDir, "src", "Apps");
+        Directory.CreateDirectory(subDir);
+        var filePath = Path.Combine(subDir, "JobsApp.cs");
+        File.WriteAllText(filePath, "content");
+        var normalizedPath = filePath.Replace('\\', '/');
+
+        var polisher = new MarkdownLinkPolisher();
+        var verboseText = $"file:///{normalizedPath}:205";
+        var input = $"[`{verboseText}`](file:///{normalizedPath}#L205)";
+        var result = polisher.PolishLinks(input, new[] { _repoDir }, _planFolder);
+
+        Assert.Equal($"[JobsApp.cs:205](file:///{normalizedPath})", result);
+    }
+
+    [Fact]
+    public void PolishLinks_SimplifiesVerboseLinkTextWithoutLineNumber()
+    {
+        var subDir = Path.Combine(_repoDir, "src");
+        Directory.CreateDirectory(subDir);
+        var filePath = Path.Combine(subDir, "Program.cs");
+        File.WriteAllText(filePath, "content");
+        var normalizedPath = filePath.Replace('\\', '/');
+
+        var polisher = new MarkdownLinkPolisher();
+        var verboseText = $"file:///{normalizedPath}";
+        var input = $"[`{verboseText}`](file:///{normalizedPath})";
+        var result = polisher.PolishLinks(input, new[] { _repoDir }, _planFolder);
+
+        Assert.Equal($"[Program.cs](file:///{normalizedPath})", result);
+    }
+
+    [Fact]
+    public void PolishLinks_SimplifiesLinkTextWithLineRange()
+    {
+        var subDir = Path.Combine(_repoDir, "src");
+        Directory.CreateDirectory(subDir);
+        var filePath = Path.Combine(subDir, "Utils.cs");
+        File.WriteAllText(filePath, "content");
+        var normalizedPath = filePath.Replace('\\', '/');
+
+        var polisher = new MarkdownLinkPolisher();
+        var input = $"[file:///{normalizedPath}:42-50](file:///{normalizedPath})";
+        var result = polisher.PolishLinks(input, new[] { _repoDir }, _planFolder);
+
+        Assert.Equal($"[Utils.cs:42-50](file:///{normalizedPath})", result);
+    }
+
+    [Fact]
+    public void PolishLinks_PreservesAlreadySimplifiedLinks()
+    {
+        var subDir = Path.Combine(_repoDir, "src", "Apps");
+        Directory.CreateDirectory(subDir);
+        var filePath = Path.Combine(subDir, "JobsApp.cs");
+        File.WriteAllText(filePath, "content");
+        var normalizedPath = filePath.Replace('\\', '/');
+
+        var polisher = new MarkdownLinkPolisher();
+        var input = $"[JobsApp.cs:205](file:///{normalizedPath})";
+        var result = polisher.PolishLinks(input, new[] { _repoDir }, _planFolder);
+
+        Assert.Equal(input, result);
+    }
 }
