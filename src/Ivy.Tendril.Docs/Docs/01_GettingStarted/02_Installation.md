@@ -38,7 +38,7 @@ Invoke-RestMethod -Uri https://raw.githubusercontent.com/Ivy-Interactive/Ivy-Ten
 Global install from NuGet:
 
 ```bash
-dotnet tool install --g Ivy.Tendril
+dotnet tool install -g Ivy.Tendril
 ```
 
 <Callout type="Tip">
@@ -57,5 +57,5 @@ tendril
 You can update Ivy Tendril at anytime after the initial install using the dotnet tool update command:
 
 ```bash
-dotnet tool update --g Ivy.Tendril
+dotnet tool update -g Ivy.Tendril
 ```
