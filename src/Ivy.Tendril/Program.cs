@@ -5,6 +5,7 @@ using Ivy.Helpers;
 using Ivy.Tendril.Commands;
 using Ivy.Tendril.Database;
 using Ivy.Tendril.Services;
+using Spectre.Console.Cli;
 using Velopack;
 
 namespace Ivy.Tendril;
@@ -36,19 +37,53 @@ public class Program
 
         var filteredArgs = args.Where(a => a != "--desktop" && a != "--photino" && a != "--web").ToArray();
 
-        // Handle database CLI commands before starting the server/GUI
-        var dbExitCode = DatabaseCommands.Handle(filteredArgs);
-        if (dbExitCode >= 0)
-            return dbExitCode;
+        // Handle CLI commands using Spectre.Console.Cli
+        if (filteredArgs.Length > 0)
+        {
+            var app = new CommandApp();
+            app.Configure(config =>
+            {
+                config.PropagateExceptions();
 
-        var pwExitCode = PromptwareCommands.Handle(filteredArgs);
-        if (pwExitCode >= 0)
-            return pwExitCode;
+                // Doctor command and subcommands
+                config.AddCommand<DoctorCliCommand>("doctor")
+                    .WithDescription("Run system diagnostics");
+                config.AddBranch("doctor", doctor =>
+                {
+                    doctor.AddCommand<DoctorPlansCommand>("plans")
+                        .WithDescription("Check plan health");
+                });
 
-        var doctorExitCode = DoctorCommand.Handle(filteredArgs);
-        if (doctorExitCode >= 0)
-            return doctorExitCode;
+                // Database commands
+                config.AddCommand<DbVersionCommand>("db-version")
+                    .WithDescription("Show database version");
+                config.AddCommand<DbMigrateCommand>("db-migrate")
+                    .WithDescription("Apply database migrations");
+                config.AddCommand<DbResetCommand>("db-reset")
+                    .WithDescription("Reset database");
 
+                // Other commands
+                config.AddCommand<UpdatePromptwaresCliCommand>("update-promptwares")
+                    .WithDescription("Update embedded promptwares");
+            });
+
+            try
+            {
+                // Check if this is a recognized CLI command
+                var firstArg = filteredArgs[0];
+                if (firstArg == "doctor" || firstArg == "db-version" || firstArg == "db-migrate" ||
+                    firstArg == "db-reset" || firstArg == "update-promptwares")
+                {
+                    return app.Run(filteredArgs);
+                }
+            }
+            catch (Exception)
+            {
+                // If command parsing fails, fall through to legacy handlers
+            }
+        }
+
+        // Legacy handlers for commands not yet migrated to Spectre.Console.Cli
         var hashExitCode = HashPasswordCommand.Handle(filteredArgs);
         if (hashExitCode >= 0)
             return hashExitCode;

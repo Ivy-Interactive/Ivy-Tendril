@@ -33,12 +33,12 @@ public static class DoctorCommand
         if (args.Length == 0 || args[0] != "doctor") return -1;
 
         if (args.Length > 1 && args[1] == "plans")
-            return DoctorPlans(args.Skip(2).ToArray());
+            return DoctorPlansInternal(args.Skip(2).ToArray());
 
         return RunAsync().GetAwaiter().GetResult();
     }
 
-    private static async Task<int> RunAsync()
+    public static async Task<int> RunAsync()
     {
         var hasErrors = false;
 
@@ -470,7 +470,7 @@ public static class DoctorCommand
         return null;
     }
 
-    internal static int DoctorPlans(string[] args)
+    public static int DoctorPlansInternal(string[] args)
     {
         var showAll = args.Contains("--all");
         var fix = args.Contains("--fix");
