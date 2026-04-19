@@ -22,7 +22,7 @@ public class PlanSetVerificationSettings : CommandSettings
 
 public class PlanSetVerificationCommand : Command<PlanSetVerificationSettings>
 {
-    public override int Execute(CommandContext context, PlanSetVerificationSettings settings)
+    protected override int Execute(CommandContext context, PlanSetVerificationSettings settings, CancellationToken cancellationToken)
     {
         try
         {

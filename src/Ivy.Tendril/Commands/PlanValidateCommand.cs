@@ -13,7 +13,7 @@ public class PlanValidateSettings : CommandSettings
 
 public class PlanValidateCommand : Command<PlanValidateSettings>
 {
-    public override int Execute(CommandContext context, PlanValidateSettings settings)
+    protected override int Execute(CommandContext context, PlanValidateSettings settings, CancellationToken cancellationToken)
     {
         try
         {

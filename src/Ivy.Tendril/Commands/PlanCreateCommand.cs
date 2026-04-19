@@ -18,7 +18,7 @@ public class PlanCreateSettings : CommandSettings
 
 public class PlanCreateCommand : Command<PlanCreateSettings>
 {
-    public override int Execute(CommandContext context, PlanCreateSettings settings)
+    protected override int Execute(CommandContext context, PlanCreateSettings settings, CancellationToken cancellationToken)
     {
         try
         {

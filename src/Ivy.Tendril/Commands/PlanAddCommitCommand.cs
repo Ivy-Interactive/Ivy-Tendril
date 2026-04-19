@@ -17,7 +17,7 @@ public class PlanAddCommitSettings : CommandSettings
 
 public class PlanAddCommitCommand : Command<PlanAddCommitSettings>
 {
-    public override int Execute(CommandContext context, PlanAddCommitSettings settings)
+    protected override int Execute(CommandContext context, PlanAddCommitSettings settings, CancellationToken cancellationToken)
     {
         try
         {

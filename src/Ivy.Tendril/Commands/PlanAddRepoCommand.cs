@@ -17,7 +17,7 @@ public class PlanAddRepoSettings : CommandSettings
 
 public class PlanAddRepoCommand : Command<PlanAddRepoSettings>
 {
-    public override int Execute(CommandContext context, PlanAddRepoSettings settings)
+    protected override int Execute(CommandContext context, PlanAddRepoSettings settings, CancellationToken cancellationToken)
     {
         try
         {
