@@ -152,7 +152,7 @@ Each revision can include `## Verification` with checkboxes from `config.yaml`:
 
 - [x] DotnetBuild
 - [x] DotnetTest
-- [ ] FrontendLint
+- [ ] FrameworkFrontendLint
 ```
 
 `- [x]` = ExecutePlan will run; `- [ ]` = skipped. Definitions live in top-level `config.yaml` `verifications`; projects reference by name + `required`.

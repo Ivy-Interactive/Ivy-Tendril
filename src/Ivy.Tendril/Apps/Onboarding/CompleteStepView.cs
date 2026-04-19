@@ -30,7 +30,21 @@ public class CompleteStepView(IState<int> stepperIndex) : ViewBase
 
                 await setupService.CompleteSetupAsync(tendrilHome);
 
+                // Redirect first to unblock UI
                 client.Redirect("/", true);
+
+                // Start background services after redirect (fire-and-forget)
+                _ = Task.Run(() =>
+                {
+                    try
+                    {
+                        setupService.StartBackgroundServices();
+                    }
+                    catch
+                    {
+                        // Already logged by StartBackgroundServices
+                    }
+                });
             }
             catch (Exception ex)
             {

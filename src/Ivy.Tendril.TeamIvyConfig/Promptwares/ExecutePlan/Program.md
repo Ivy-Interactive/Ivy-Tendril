@@ -465,15 +465,16 @@ Update the summary after verification fixes too — if verifications cause addit
 3. **Bugs** — Did you notice any unrelated bugs, broken tests, or incorrect behavior in surrounding code?
 4. **Optimizations** — Are there performance improvements, unnecessary complexity, or refactoring opportunities in the area you worked in?
 
-If you identified items in ANY category, write them to `<PlanFolder>/artifacts/recommendations.yaml`:
+If you identified items in ANY category, append them to the `recommendations` field in `<PlanFolder>/plan.yaml`:
 
 ```yaml
-- title: "Short descriptive title"
-  description: |
-    Markdown description with context and location.
-  state: Pending
-  impact: Medium   # Optional: Small, Medium, or High
-  risk: Small      # Optional: Small, Medium, or High
+recommendations:
+  - title: "Short descriptive title"
+    description: |
+      Markdown description with context and location.
+    state: Pending
+    impact: Medium   # Optional: Small, Medium, or High
+    risk: Small      # Optional: Small, Medium, or High
 ```
 
 Optionally include `impact` and `risk` to help prioritize the recommendation. Impact indicates the value of implementing it; Risk indicates the potential for complications or bugs.
@@ -482,7 +483,7 @@ Optionally include `impact` and `risk` to help prioritize the recommendation. Im
 
 Do NOT include items that are part of the current plan's scope.
 
-Do NOT include recommendations about code formatting, linting, or style issues (e.g., line wrapping, indentation, trailing whitespace, import ordering). These are handled automatically by DotnetFormat and FrontendLint verifications.
+Do NOT include recommendations about code formatting, linting, or style issues (e.g., line wrapping, indentation, trailing whitespace, import ordering). These are handled automatically by DotnetFormat and FrameworkFrontendLint verifications.
 
 If after genuine reflection you found nothing noteworthy, skip the file — but this should be rare. Most plans touch enough code to surface at least one observation.
 

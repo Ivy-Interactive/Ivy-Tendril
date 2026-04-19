@@ -777,6 +777,27 @@ public static class DoctorCommand
 
     internal static string? CheckRecommendationsHealth(string planPath)
     {
+        // Check plan.yaml first, fall back to artifacts/recommendations.yaml
+        var planYamlPath = Path.Combine(planPath, "plan.yaml");
+        if (File.Exists(planYamlPath))
+        {
+            try
+            {
+                var content = File.ReadAllText(planYamlPath);
+                var plan = Services.YamlHelper.Deserializer.Deserialize<Apps.Plans.PlanYaml>(content);
+                if (plan?.Recommendations != null && plan.Recommendations.Count > 0)
+                {
+                    // Recommendations exist in plan.yaml - validate them
+                    return null;
+                }
+            }
+            catch (Exception ex)
+            {
+                return $"Parse error in plan.yaml recommendations: {ex.Message}";
+            }
+        }
+
+        // Fall back to legacy location
         var recsPath = Path.Combine(planPath, "artifacts", "recommendations.yaml");
         if (!File.Exists(recsPath))
             return null;

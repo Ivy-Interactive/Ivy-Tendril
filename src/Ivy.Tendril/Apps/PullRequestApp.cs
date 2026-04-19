@@ -22,6 +22,8 @@ public class PullRequestApp : ViewBase
         var config = UseService<IConfigService>();
         var databaseService = UseService<IPlanDatabaseService>();
         var jobService = UseService<IJobService>();
+        var prStatusSyncService = UseService<PrStatusSyncService>();
+        var (loadingView, showLoading) = UseLoading();
         var prStatuses = databaseService.GetAllPrStatuses();
 
         var plans = planService.GetPlans()
@@ -108,7 +110,8 @@ public class PullRequestApp : ViewBase
                 new MenuItem("View Plan", Icon: Icons.FileText, Tag: "view-plan").Tooltip("Open the associated plan"),
                 new MenuItem("Follow Up", Icon: Icons.GitBranch, Tag: "follow-up").Tooltip("Create a follow-up plan based on this PR"),
                 new MenuItem("Open PR", Icon: Icons.ExternalLink, Tag: "open-pr").Tooltip(
-                    "Open the pull request in browser")
+                    "Open the pull request in browser"),
+                new MenuItem("Resync", Icon: Icons.RefreshCw, Tag: "resync").Tooltip("Refresh PR status from GitHub")
             )
             .OnRowAction(e =>
             {
@@ -131,6 +134,15 @@ public class PullRequestApp : ViewBase
                     else if (tag == "open-pr")
                     {
                         nav.Navigate(row.Pr);
+                    }
+                    else if (tag == "resync")
+                    {
+                        showLoading(async ctx =>
+                        {
+                            ctx.Message("Syncing PR statuses from GitHub...");
+                            await prStatusSyncService.RunSyncAsync();
+                            refreshToken.Refresh();
+                        });
                     }
                 }
 
@@ -157,7 +169,7 @@ public class PullRequestApp : ViewBase
                 }
             );
 
-            return Layout.Vertical().Height(Size.Full()) | new Fragment(dataTable, followUpDialog);
+            return Layout.Vertical().Height(Size.Full()) | new Fragment(dataTable, followUpDialog, loadingView);
         }
 
         if (showPlan.Value is { } planPath)
@@ -183,12 +195,12 @@ public class PullRequestApp : ViewBase
             ).Width(Size.Half()).Resizable();
 
             if (fileLinkSheet is not null)
-                return Layout.Vertical().Height(Size.Full()) | new Fragment(dataTable, planSheet, fileLinkSheet);
+                return Layout.Vertical().Height(Size.Full()) | new Fragment(dataTable, planSheet, fileLinkSheet, loadingView);
 
-            return Layout.Vertical().Height(Size.Full()) | new Fragment(dataTable, planSheet);
+            return Layout.Vertical().Height(Size.Full()) | new Fragment(dataTable, planSheet, loadingView);
         }
 
-        return Layout.Vertical().Height(Size.Full()) | dataTable;
+        return Layout.Vertical().Height(Size.Full()) | new Fragment(dataTable, loadingView);
     }
 
     /// <summary>

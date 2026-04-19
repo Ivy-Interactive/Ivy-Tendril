@@ -84,6 +84,7 @@ priority: 0
 | `dependsOn`    | Plan folder names this plan depends on (e.g. `- 01478-WorktreeIsolation`). ExecutePlan will block until all dependencies are `Completed` and their PRs are merged. |
 | `priority`     | Integer priority (0 = normal). Higher values are executed first. Set by MakePlan launcher, not by agents. |
 | `executionProfile` | (Optional) Recommended execution profile for ExecutePlan: `deep`, `balanced`, or `quick`. If set, overrides config.yaml default. MakePlan sets this based on task complexity analysis. |
+| `recommendations` | (Optional) List of recommendations discovered during ExecutePlan. Each entry has `title`, `description`, `state` (Pending/Accepted/Declined), `declineReason`, `impact` (Small/Medium/High), and `risk` (Small/Medium/High). |
 
 **Do NOT add fields beyond those listed above.** Unknown fields (e.g. `tags`, `category`) will be stripped by the normalizer and may cause parse errors.
 
