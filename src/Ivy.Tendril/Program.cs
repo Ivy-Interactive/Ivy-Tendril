@@ -64,6 +64,31 @@ public class Program
                 // Other commands
                 config.AddCommand<UpdatePromptwaresCliCommand>("update-promptwares")
                     .WithDescription("Update embedded promptwares");
+
+                // Plan management commands
+                config.AddBranch("plan", plan =>
+                {
+                    plan.AddCommand<PlanCreateCommand>("create")
+                        .WithDescription("Create a new plan");
+                    plan.AddCommand<PlanUpdateCommand>("update")
+                        .WithDescription("Update plan from STDIN");
+                    plan.AddCommand<PlanSetCommand>("set")
+                        .WithDescription("Set a single field");
+                    plan.AddCommand<PlanAddRepoCommand>("add-repo")
+                        .WithDescription("Add a repository");
+                    plan.AddCommand<PlanRemoveRepoCommand>("remove-repo")
+                        .WithDescription("Remove a repository");
+                    plan.AddCommand<PlanAddPrCommand>("add-pr")
+                        .WithDescription("Add a PR URL");
+                    plan.AddCommand<PlanAddCommitCommand>("add-commit")
+                        .WithDescription("Add a commit hash");
+                    plan.AddCommand<PlanSetVerificationCommand>("set-verification")
+                        .WithDescription("Update verification status");
+                    plan.AddCommand<PlanGetCommand>("get")
+                        .WithDescription("Read plan or field");
+                    plan.AddCommand<PlanValidateCommand>("validate")
+                        .WithDescription("Validate plan health");
+                });
             });
 
             try
@@ -71,7 +96,7 @@ public class Program
                 // Check if this is a recognized CLI command
                 var firstArg = filteredArgs[0];
                 if (firstArg == "doctor" || firstArg == "db-version" || firstArg == "db-migrate" ||
-                    firstArg == "db-reset" || firstArg == "update-promptwares")
+                    firstArg == "db-reset" || firstArg == "update-promptwares" || firstArg == "plan")
                 {
                     return app.Run(filteredArgs);
                 }
