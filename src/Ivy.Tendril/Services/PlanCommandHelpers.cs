@@ -13,13 +13,7 @@ public static class PlanCommandHelpers
     /// </summary>
     public static string ResolvePlanFolder(string planId)
     {
-        var plansDirectory = Environment.GetEnvironmentVariable("TENDRIL_HOME");
-        if (string.IsNullOrWhiteSpace(plansDirectory))
-            throw new InvalidOperationException("TENDRIL_HOME environment variable is not set");
-
-        plansDirectory = Path.Combine(plansDirectory, "Plans");
-        if (!Directory.Exists(plansDirectory))
-            throw new DirectoryNotFoundException($"Plans directory not found: {plansDirectory}");
+        var plansDirectory = GetPlansDirectory();
 
         var normalized = NormalizePlanId(planId, plansDirectory);
 
@@ -51,6 +45,30 @@ public static class PlanCommandHelpers
             return num.ToString("D5");
 
         return input;
+    }
+
+    /// <summary>
+    ///     Resolves the plans directory from TENDRIL_PLANS or TENDRIL_HOME/Plans.
+    /// </summary>
+    public static string GetPlansDirectory()
+    {
+        var plans = Environment.GetEnvironmentVariable("TENDRIL_PLANS")?.Trim();
+        if (!string.IsNullOrEmpty(plans))
+        {
+            if (!Directory.Exists(plans))
+                throw new DirectoryNotFoundException($"Plans directory not found: {plans}");
+            return plans;
+        }
+
+        var home = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
+        if (string.IsNullOrWhiteSpace(home))
+            throw new InvalidOperationException("TENDRIL_HOME environment variable is not set");
+
+        var plansDirectory = Path.Combine(home, "Plans");
+        if (!Directory.Exists(plansDirectory))
+            throw new DirectoryNotFoundException($"Plans directory not found: {plansDirectory}");
+
+        return plansDirectory;
     }
 
     /// <summary>

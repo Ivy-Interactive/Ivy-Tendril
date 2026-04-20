@@ -62,6 +62,7 @@ coworkers:
 | `maxConcurrentJobs` | Cap on parallel agent runs (worktrees). |
 | `projects` | Registered repositories and their settings. |
 | `coworkers` | GitHub users for PR assignment / team features. |
+| `api.apiKey` | Protect the REST API with a shared secret (see [REST API](../08_API/01_REST.md)). |
 
 ## Verifications
 

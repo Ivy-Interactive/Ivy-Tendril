@@ -44,7 +44,7 @@ Prints the installed Tendril version (e.g. `1.0.18`).
 tendril mcp [args...]
 ```
 
-Launches the Tendril MCP (Model Context Protocol) server for integration with AI coding agents like Claude Code. Additional arguments are forwarded to the MCP runtime.
+Launches the Tendril MCP (Model Context Protocol) server for integration with AI coding agents like Claude Code. Additional arguments are forwarded to the MCP runtime. See [MCP Server](../08_API/02_MCP.md) for available tools and configuration.
 
 ## hash-password
 

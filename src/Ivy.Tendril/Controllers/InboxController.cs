@@ -5,19 +5,11 @@ namespace Ivy.Tendril.Controllers;
 
 [ApiController]
 [Route("api/inbox")]
-public class InboxController(IJobService jobService, IConfigService configService) : ControllerBase
+public class InboxController(IJobService jobService) : ControllerBase
 {
     [HttpPost]
     public IActionResult PostPlan([FromBody] CreatePlanRequest request)
     {
-        var apiKey = configService.Settings.Api?.ApiKey;
-        if (!string.IsNullOrEmpty(apiKey))
-        {
-            var providedKey = Request.Headers["X-Api-Key"].FirstOrDefault();
-            if (string.IsNullOrEmpty(providedKey) || providedKey != apiKey)
-                return Unauthorized(new { error = "Invalid or missing API key" });
-        }
-
         if (string.IsNullOrWhiteSpace(request.Description))
             return BadRequest(new { error = "Description is required" });
 
