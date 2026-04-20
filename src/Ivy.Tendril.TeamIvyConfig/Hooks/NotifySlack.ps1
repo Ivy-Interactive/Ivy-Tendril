@@ -1,4 +1,4 @@
-# NotifySlack.ps1 — After-hook for MakePr to send Slack notifications
+# NotifySlack.ps1 — After-hook for CreatePr to send Slack notifications
 # Receives: $env:TENDRIL_PLAN_FOLDER, $env:TENDRIL_JOB_STATUS
 
 $ErrorActionPreference = "Stop"

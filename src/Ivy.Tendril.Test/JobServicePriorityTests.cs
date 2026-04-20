@@ -8,13 +8,13 @@ namespace Ivy.Tendril.Test;
 public class JobServicePriorityTests
 {
     [Fact]
-    public void StartJob_MakePlan_ReadsPriorityFromArgs()
+    public void StartJob_CreatePlan_ReadsPriorityFromArgs()
     {
         var service = new JobService(
             TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
             null, 0);
 
-        var id = service.StartJob("MakePlan", "-Description", "Test", "-Project", "Framework", "-Priority", "2");
+        var id = service.StartJob("CreatePlan", "-Description", "Test", "-Project", "Framework", "-Priority", "2");
         var job = service.GetJob(id);
 
         Assert.NotNull(job);
@@ -22,13 +22,13 @@ public class JobServicePriorityTests
     }
 
     [Fact]
-    public void StartJob_MakePlan_DefaultsPriorityToZero()
+    public void StartJob_CreatePlan_DefaultsPriorityToZero()
     {
         var service = new JobService(
             TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
             null, 0);
 
-        var id = service.StartJob("MakePlan", "-Description", "Test", "-Project", "Framework");
+        var id = service.StartJob("CreatePlan", "-Description", "Test", "-Project", "Framework");
         var job = service.GetJob(id);
 
         Assert.NotNull(job);
@@ -36,13 +36,13 @@ public class JobServicePriorityTests
     }
 
     [Fact]
-    public void StartJob_MakePlan_HandlesInvalidPriorityGracefully()
+    public void StartJob_CreatePlan_HandlesInvalidPriorityGracefully()
     {
         var service = new JobService(
             TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
             null, 0);
 
-        var id = service.StartJob("MakePlan", "-Description", "Test", "-Priority", "notanumber");
+        var id = service.StartJob("CreatePlan", "-Description", "Test", "-Priority", "notanumber");
         var job = service.GetJob(id);
 
         Assert.NotNull(job);
@@ -57,9 +57,9 @@ public class JobServicePriorityTests
             TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
             null, 0);
 
-        var lowId = service.StartJob("MakePlan", "-Description", "Low priority", "-Priority", "0");
-        var highId = service.StartJob("MakePlan", "-Description", "High priority", "-Priority", "2");
-        var medId = service.StartJob("MakePlan", "-Description", "Med priority", "-Priority", "1");
+        var lowId = service.StartJob("CreatePlan", "-Description", "Low priority", "-Priority", "0");
+        var highId = service.StartJob("CreatePlan", "-Description", "High priority", "-Priority", "2");
+        var medId = service.StartJob("CreatePlan", "-Description", "Med priority", "-Priority", "1");
 
         // All should be queued
         Assert.Equal(JobStatus.Queued, service.GetJob(lowId)!.Status);

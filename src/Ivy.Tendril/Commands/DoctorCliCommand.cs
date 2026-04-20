@@ -7,7 +7,7 @@ public class DoctorSettings : CommandSettings
 {
 }
 
-public class DoctorPlansSettings : DoctorSettings
+public class PlanDoctorSettings : CommandSettings
 {
     [CommandOption("--all")]
     [Description("Show all plans including completed ones")]
@@ -38,9 +38,9 @@ public class DoctorCliCommand : AsyncCommand<DoctorSettings>
     }
 }
 
-public class DoctorPlansCommand : Command<DoctorPlansSettings>
+public class PlanDoctorCommand : Command<PlanDoctorSettings>
 {
-    protected override int Execute(CommandContext context, DoctorPlansSettings settings, CancellationToken cancellationToken)
+    protected override int Execute(CommandContext context, PlanDoctorSettings settings, CancellationToken cancellationToken)
     {
         var args = new List<string>();
         if (settings.All) args.Add("--all");

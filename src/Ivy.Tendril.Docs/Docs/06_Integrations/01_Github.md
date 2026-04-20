@@ -29,13 +29,13 @@ Use the **Import Issues** dialog to fetch GitHub issues and convert them into Te
 1. Open the **Plans** app
 2. Select **Import Issues** from the menu
 3. Choose the target repository and filter by labels or milestones
-4. Selected issues are converted into plans via the MakePlan promptware
+4. Selected issues are converted into plans via the CreatePlan promptware
 
 Each imported issue retains a link back to the original GitHub issue for traceability.
 
 ## Automatic PR Creation
 
-When a plan reaches the **Completed** state, the **MakePr** promptware automatically:
+When a plan reaches the **Completed** state, the **CreatePr** promptware automatically:
 
 1. Pushes the worktree branch to the remote
 2. Creates a pull request with a summary of changes

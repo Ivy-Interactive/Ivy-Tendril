@@ -16,7 +16,7 @@ Integrate jam.dev with Tendril to automatically create plans from bug reports vi
 
 ## Overview
 
-jam.dev can send bug reports to Tendril's inbox API endpoint, which automatically creates plans via the MakePlan promptware.
+jam.dev can send bug reports to Tendril's inbox API endpoint, which automatically creates plans via the CreatePlan promptware.
 
 ## Webhook URL
 

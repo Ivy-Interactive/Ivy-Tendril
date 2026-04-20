@@ -314,9 +314,9 @@ public class JobsApp : ViewBase
                     {
                         if (job.Status is JobStatus.Failed or JobStatus.Timeout or JobStatus.Stopped)
                         {
-                            if (job.Type == "MakePlan" && !job.Args.Contains("-Description"))
+                            if (job.Type == "CreatePlan" && !job.Args.Contains("-Description"))
                             {
-                                client.Toast("Cannot rerun MakePlan: original description was not preserved.", "Rerun Failed");
+                                client.Toast("Cannot rerun CreatePlan: original description was not preserved.", "Rerun Failed");
                                 return ValueTask.CompletedTask;
                             }
 
@@ -450,7 +450,7 @@ public class JobsApp : ViewBase
 
     private static string? GetFullPrompt(JobItem job)
     {
-        if (job.Type == "MakePlan")
+        if (job.Type == "CreatePlan")
         {
             for (var i = 0; i < job.Args.Length - 1; i++)
                 if (job.Args[i].Equals("-Description", StringComparison.OrdinalIgnoreCase))
@@ -524,8 +524,8 @@ public class JobsApp : ViewBase
             }
         }
 
-        // MakePlan jobs: use the -Description arg for display when no title is available yet
-        if (j.Type == "MakePlan")
+        // CreatePlan jobs: use the -Description arg for display when no title is available yet
+        if (j.Type == "CreatePlan")
         {
             var desc = CleanPromptText(GetFullPrompt(j) ?? j.PlanFile);
             return desc.Length > PromptDisplayMaxLength ? desc[..PromptDisplayMaxLength] + "..." : desc;

@@ -9,6 +9,7 @@ public static class PlanCommandHelpers
 {
     /// <summary>
     ///     Resolves a plan folder path from a plan ID.
+    ///     Accepts: full path, folder name (e.g. "00015-Title"), zero-padded ID ("00015"), or bare number ("15").
     /// </summary>
     public static string ResolvePlanFolder(string planId)
     {
@@ -20,14 +21,36 @@ public static class PlanCommandHelpers
         if (!Directory.Exists(plansDirectory))
             throw new DirectoryNotFoundException($"Plans directory not found: {plansDirectory}");
 
-        var planFolders = Directory.GetDirectories(plansDirectory, $"{planId}-*");
+        var normalized = NormalizePlanId(planId, plansDirectory);
+
+        var planFolders = Directory.GetDirectories(plansDirectory, $"{normalized}-*");
         if (planFolders.Length == 0)
-            throw new DirectoryNotFoundException($"Plan {planId} not found in {plansDirectory}");
+            throw new DirectoryNotFoundException($"Plan {normalized} not found in {plansDirectory}");
 
         if (planFolders.Length > 1)
-            throw new InvalidOperationException($"Multiple plan folders found for ID {planId}");
+            throw new InvalidOperationException($"Multiple plan folders found for ID {normalized}");
 
         return planFolders[0];
+    }
+
+    internal static string NormalizePlanId(string input, string plansDirectory)
+    {
+        input = input.Trim().TrimEnd('/', '\\');
+
+        // Full path: extract folder name then ID
+        if (Path.IsPathRooted(input))
+            input = Path.GetFileName(input);
+
+        // Folder name like "00015-Title": extract numeric prefix
+        var dashIndex = input.IndexOf('-');
+        if (dashIndex > 0 && int.TryParse(input[..dashIndex], out _))
+            return input[..dashIndex];
+
+        // Already a zero-padded or bare number
+        if (int.TryParse(input, out var num))
+            return num.ToString("D5");
+
+        return input;
     }
 
     /// <summary>

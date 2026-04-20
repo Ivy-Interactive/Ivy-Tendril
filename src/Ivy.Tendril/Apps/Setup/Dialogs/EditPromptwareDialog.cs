@@ -41,7 +41,7 @@ public class EditPromptwareDialog(
             new DialogHeader(isNew ? "Add Promptware" : "Edit Promptware"),
             new DialogBody(
                 Layout.Vertical().Gap(2)
-                | editName.ToTextInput("Promptware name (e.g. MakePlan)...").WithField().Label("Name")
+                | editName.ToTextInput("Promptware name (e.g. CreatePlan)...").WithField().Label("Name")
                 | editProfile.ToTextInput("Profile name (e.g. deep, balanced, quick)...").WithField().Label("Profile")
                 | editAllowedTools.ToTextInput("Comma-separated tools (e.g. Read, Write, Edit)...").WithField()
                     .Label("Allowed Tools")

@@ -80,14 +80,14 @@ notify slack done-by-niels --message "Test message from Tendril"
 
 #### How it works
 
-The `config.yaml` `hooks` section defines a `SlackNotify` hook that runs **after** the `MakePr` promptware completes:
+The `config.yaml` `hooks` section defines a `SlackNotify` hook that runs **after** the `CreatePr` promptware completes:
 
 ```yaml
 hooks:
 - name: SlackNotify
   when: after
   promptwares:
-  - MakePr
+  - CreatePr
   action: pwsh -NoProfile -File Hooks/NotifySlack.ps1
 ```
 

@@ -25,4 +25,4 @@ Removing a draft or failed run moves artifacts here so you can restore or read t
 
 ## Force Plan
 
-If a plan was blocked as a duplicate but should run anyway, select it in Trash and use **Force Plan** to send the prompt through **MakePlan** again (bypasses duplicate checks).
+If a plan was blocked as a duplicate but should run anyway, select it in Trash and use **Force Plan** to send the prompt through **CreatePlan** again (bypasses duplicate checks).

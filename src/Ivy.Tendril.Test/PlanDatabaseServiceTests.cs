@@ -172,7 +172,7 @@ public class PlanDatabaseServiceTests : IDisposable
         var costs = new List<CostEntry>
         {
             new("ExecutePlan", 50000, 1.50m, DateTime.UtcNow),
-            new("MakePr", 10000, 0.30m, DateTime.UtcNow)
+            new("CreatePr", 10000, 0.30m, DateTime.UtcNow)
         };
         _db.UpsertCosts(1500, costs);
 
@@ -407,7 +407,7 @@ public class PlanDatabaseServiceTests : IDisposable
         var costs = new List<CostEntry>
         {
             new("ExecutePlan", 50000, 1.50m, now),
-            new("MakePr", 10000, 0.30m, now)
+            new("CreatePr", 10000, 0.30m, now)
         };
         _db.UpsertCosts(1500, costs);
 
@@ -469,7 +469,7 @@ public class PlanDatabaseServiceTests : IDisposable
         var now = DateTime.UtcNow;
         _db.UpsertCosts(1760, [
             new("ExecutePlan", 40000, 1.00m, now),
-            new("MakePr", 20000, 0.50m, null)
+            new("CreatePr", 20000, 0.50m, null)
         ]);
 
         var burn = _db.GetHourlyTokenBurn();
@@ -822,7 +822,7 @@ public class PlanDatabaseServiceTests : IDisposable
         _db.UpsertJob(new JobItem
         {
             Id = "job-002",
-            Type = "MakePr",
+            Type = "CreatePr",
             PlanFile = "plan-b",
             Project = "Tendril",
             Status = JobStatus.Completed,

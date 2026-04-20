@@ -20,7 +20,7 @@ public class JobServiceNotificationThreadSafetyTests
             service.NotificationReady += n => received = n;
 
             // Start a job and complete it to trigger notification
-            var id = service.StartJob("MakePr", Path.GetTempPath());
+            var id = service.StartJob("CreatePr", Path.GetTempPath());
             service.CompleteJob(id, 0);
 
             // The notification should have been posted to the sync context, not invoked directly
@@ -30,7 +30,7 @@ public class JobServiceNotificationThreadSafetyTests
             // Execute the posted callbacks
             testContext.ExecutePending();
             Assert.NotNull(received);
-            Assert.Equal("MakePr Completed", received.Title);
+            Assert.Equal("CreatePr Completed", received.Title);
             Assert.True(received.IsSuccess);
         }
         finally
@@ -51,11 +51,11 @@ public class JobServiceNotificationThreadSafetyTests
         JobNotification? received = null;
         service.NotificationReady += n => received = n;
 
-        var id = service.StartJob("MakePr", Path.GetTempPath());
+        var id = service.StartJob("CreatePr", Path.GetTempPath());
         service.CompleteJob(id, 0);
 
         Assert.NotNull(received);
-        Assert.Equal("MakePr Completed", received.Title);
+        Assert.Equal("CreatePr Completed", received.Title);
         Assert.True(received.IsSuccess);
     }
 
@@ -73,16 +73,16 @@ public class JobServiceNotificationThreadSafetyTests
 
         // Complete multiple jobs rapidly
         var ids = new List<string>();
-        for (var i = 0; i < 5; i++) ids.Add(service.StartJob("MakePr", Path.GetTempPath()));
+        for (var i = 0; i < 5; i++) ids.Add(service.StartJob("CreatePr", Path.GetTempPath()));
 
         foreach (var id in ids) service.CompleteJob(id, 0);
 
         Assert.Equal(5, notifications.Count);
 
-        // All should be "MakePr Completed"
+        // All should be "CreatePr Completed"
         while (notifications.TryDequeue(out var n))
         {
-            Assert.Equal("MakePr Completed", n.Title);
+            Assert.Equal("CreatePr Completed", n.Title);
             Assert.True(n.IsSuccess);
         }
     }

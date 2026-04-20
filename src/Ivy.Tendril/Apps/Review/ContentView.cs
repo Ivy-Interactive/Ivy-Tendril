@@ -242,7 +242,7 @@ public class ContentView(
 
             if (allYolo)
             {
-                _jobService.StartJob("MakePr", _selectedPlan.FolderPath);
+                _jobService.StartJob("CreatePr", _selectedPlan.FolderPath);
                 _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Building);
                 _refreshPlans();
             }

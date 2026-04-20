@@ -19,12 +19,12 @@ public class FileLinkHelperTests
     }
 
     [Fact]
-    public void CreateFileLinkClickHandler_IgnoresNonFileUrls()
+    public void CreateFileLinkClickHandler_DoesNotSetFileState_ForUnrecognizedSchemes()
     {
         var state = new TestState<string?>(null);
         var handler = FileLinkHelper.CreateFileLinkClickHandler(state);
 
-        handler("https://example.com/page");
+        handler("ftp://example.com/page");
 
         Assert.Null(state.Value);
     }

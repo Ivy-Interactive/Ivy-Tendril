@@ -99,7 +99,7 @@ public class InboxRecoveryTests
     }
 
     [Fact]
-    public void MakePlanJob_WritesInboxFile_AndDeletesOnCompletion()
+    public void CreatePlanJob_WritesInboxFile_AndDeletesOnCompletion()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"inbox-makeplan-{Guid.NewGuid():N}");
         var inboxDir = Path.Combine(tempDir, "Inbox");
@@ -109,7 +109,7 @@ public class InboxRecoveryTests
         {
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
 
-            var id = jobService.StartJob("MakePlan",
+            var id = jobService.StartJob("CreatePlan",
                 "-Description", "Test plan description",
                 "-Project", "Tendril");
 
@@ -136,7 +136,7 @@ public class InboxRecoveryTests
     }
 
     [Fact]
-    public void MakePlanJob_InboxFileDeletedOnFailure()
+    public void CreatePlanJob_InboxFileDeletedOnFailure()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"inbox-fail-{Guid.NewGuid():N}");
         var inboxDir = Path.Combine(tempDir, "Inbox");
@@ -146,7 +146,7 @@ public class InboxRecoveryTests
         {
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
 
-            var id = jobService.StartJob("MakePlan",
+            var id = jobService.StartJob("CreatePlan",
                 "-Description", "Failing plan",
                 "-Project", "Tendril");
 
@@ -166,7 +166,7 @@ public class InboxRecoveryTests
     }
 
     [Fact]
-    public void MakePlanJob_InboxFileDeletedOnStop()
+    public void CreatePlanJob_InboxFileDeletedOnStop()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"inbox-stop-{Guid.NewGuid():N}");
         var inboxDir = Path.Combine(tempDir, "Inbox");
@@ -176,7 +176,7 @@ public class InboxRecoveryTests
         {
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
 
-            var id = jobService.StartJob("MakePlan",
+            var id = jobService.StartJob("CreatePlan",
                 "-Description", "Stopped plan",
                 "-Project", "Tendril");
 
@@ -196,7 +196,7 @@ public class InboxRecoveryTests
     }
 
     [Fact]
-    public void MakePlanJob_WithExistingInboxFile_TracksIt()
+    public void CreatePlanJob_WithExistingInboxFile_TracksIt()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"inbox-existing-{Guid.NewGuid():N}");
         var inboxDir = Path.Combine(tempDir, "Inbox");
@@ -210,7 +210,7 @@ public class InboxRecoveryTests
 
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
 
-            var id = jobService.StartJob("MakePlan",
+            var id = jobService.StartJob("CreatePlan",
                 ["-Description", "Some request", "-Project", "Agent"],
                 processingFile);
 
@@ -230,7 +230,7 @@ public class InboxRecoveryTests
     }
 
     [Fact]
-    public void NonMakePlanJob_DoesNotWriteInboxFile()
+    public void NonCreatePlanJob_DoesNotWriteInboxFile()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"inbox-nonmake-{Guid.NewGuid():N}");
         var inboxDir = Path.Combine(tempDir, "Inbox");
@@ -264,7 +264,7 @@ public class InboxRecoveryTests
 
         try
         {
-            // Step 1: Simulate a crashed MakePlan — .processing file left behind
+            // Step 1: Simulate a crashed CreatePlan — .processing file left behind
             var processingFile = Path.Combine(inboxDir, "pending-job-001.md.processing");
             File.WriteAllText(processingFile, "---\nproject: Tendril\n---\nCrashed task description");
 
@@ -285,9 +285,9 @@ public class InboxRecoveryTests
             // The file should either be .processing (job running) or gone (job completed/processed)
             Assert.Empty(mdFiles);
 
-            // A MakePlan job should have been started
+            // A CreatePlan job should have been started
             var jobs = jobService.GetJobs();
-            Assert.Contains(jobs, j => j.Type == "MakePlan" && j.PlanFile.Contains("Crashed task description"));
+            Assert.Contains(jobs, j => j.Type == "CreatePlan" && j.PlanFile.Contains("Crashed task description"));
         }
         finally
         {

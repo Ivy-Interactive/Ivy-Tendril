@@ -37,7 +37,7 @@ sourcePath: optional/path/to/code
 ---
 
 Describe the plan here. This text becomes the plan description
-and is passed to the MakePlan promptware.
+and is passed to the CreatePlan promptware.
 ```
 
 | Field | Required | Description |
