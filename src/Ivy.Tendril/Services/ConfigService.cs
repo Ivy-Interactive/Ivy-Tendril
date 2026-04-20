@@ -156,6 +156,7 @@ public record ConfigParseError(string Message, string FilePath, Exception? Inner
 
 public class ConfigService : IConfigService
 {
+    private readonly bool _explicitHome;
     private string[]? _levelNamesCache;
     private string? _pendingCodingAgent;
     private ProjectConfig? _pendingProject;
@@ -166,6 +167,7 @@ public class ConfigService : IConfigService
     {
         Settings = settings;
         TendrilHome = tendrilHome ?? Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? "";
+        _explicitHome = tendrilHome != null;
         ConfigPath = !string.IsNullOrEmpty(TendrilHome)
             ? Path.Combine(TendrilHome, "config.yaml")
             : Path.Combine(System.AppContext.BaseDirectory, "config.yaml");
@@ -251,7 +253,7 @@ public class ConfigService : IConfigService
     public string ConfigPath { get; private set; }
 
     public string PlanFolder =>
-        Environment.GetEnvironmentVariable("TENDRIL_PLANS")?.Trim() is { Length: > 0 } plans
+        !_explicitHome && Environment.GetEnvironmentVariable("TENDRIL_PLANS")?.Trim() is { Length: > 0 } plans
             ? plans
             : string.IsNullOrEmpty(TendrilHome) ? "" : Path.Combine(TendrilHome, "Plans");
 

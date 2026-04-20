@@ -83,6 +83,7 @@ internal static class FileHelper
 
     public static void WriteAllText(string path, string contents)
     {
+        ClearReadOnly(path);
         for (var attempt = 0; ; attempt++)
             try
             {
@@ -118,6 +119,7 @@ internal static class FileHelper
 
     public static async Task WriteAllTextAsync(string path, string contents)
     {
+        ClearReadOnly(path);
         for (var attempt = 0; ; attempt++)
             try
             {
@@ -163,6 +165,7 @@ internal static class FileHelper
 
     public static void AppendAllText(string path, string contents)
     {
+        ClearReadOnly(path);
         for (var attempt = 0; ; attempt++)
             try
             {
@@ -175,5 +178,13 @@ internal static class FileHelper
             {
                 Thread.Sleep(RetryDelaysMs[attempt]);
             }
+    }
+
+    private static void ClearReadOnly(string path)
+    {
+        if (!File.Exists(path)) return;
+        var attrs = File.GetAttributes(path);
+        if ((attrs & FileAttributes.ReadOnly) != 0)
+            File.SetAttributes(path, attrs & ~FileAttributes.ReadOnly);
     }
 }
