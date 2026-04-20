@@ -162,12 +162,12 @@ public class PlanRecCommandTests : IDisposable
         var plan = PlanCommandHelpers.ReadPlan(planFolder);
         var match = plan.Recommendations!.First(r =>
             r.Title.Equals("ToRemove", StringComparison.OrdinalIgnoreCase));
-        plan.Recommendations.Remove(match);
+        plan.Recommendations!.Remove(match);
         PlanCommandHelpers.WritePlan(planFolder, plan);
 
         var result = ReadPlan("10020");
         Assert.Single(result.Recommendations!);
-        Assert.Equal("ToKeep", result.Recommendations[0].Title);
+        Assert.Equal("ToKeep", result.Recommendations![0].Title);
     }
 
     [Fact]
