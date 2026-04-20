@@ -10,9 +10,7 @@ public class WallpaperApp : ViewBase
     {
         var countsService = UseService<IPlanCountsService>();
         var versionService = UseService<IVersionCheckService>();
-        var weatherService = UseService<IWeatherService>();
         var versionInfo = UseState<VersionInfo?>(null);
-        var weatherInfo = UseState<WeatherInfo?>(null);
 
         UseEffect(() =>
         {
@@ -20,12 +18,6 @@ public class WallpaperApp : ViewBase
             {
                 var info = await versionService.CheckForUpdatesAsync();
                 versionInfo.Set(info);
-            });
-
-            _ = Task.Run(async () =>
-            {
-                var weather = await weatherService.GetWeatherAsync();
-                weatherInfo.Set(weather);
             });
         }, []);
 
@@ -58,14 +50,6 @@ public class WallpaperApp : ViewBase
                     $"You're currently running v{versionInfo.Value.CurrentVersion}.\n\n" +
                     $"Update with: `tendril --version && dotnet tool update -g Ivy.Tendril`",
                     "Update Available"
-                )
-            ).Margin(2));
-
-        if (weatherInfo.Value != null)
-            elements.Insert(0, new Box(
-                Callout.Success(
-                    $"{weatherInfo.Value.Icon} **{weatherInfo.Value.Temperature}** · {weatherInfo.Value.Condition}",
-                    weatherInfo.Value.Location
                 )
             ).Margin(2));
 
