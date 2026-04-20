@@ -282,8 +282,12 @@ public class PlanController : ControllerBase
 
             return Ok(recs.Select(r => new
             {
-                title = r.Title, description = r.Description, state = r.State,
-                impact = r.Impact, risk = r.Risk, declineReason = r.DeclineReason
+                title = r.Title,
+                description = r.Description,
+                state = r.State,
+                impact = r.Impact,
+                risk = r.Risk,
+                declineReason = r.DeclineReason
             }));
         }
         catch (DirectoryNotFoundException)
@@ -475,8 +479,11 @@ public class PlanController : ControllerBase
             sourceUrl = plan.SourceUrl,
             recommendations = (plan.Recommendations ?? []).Select(r => new
             {
-                title = r.Title, description = r.Description, state = r.State,
-                impact = r.Impact, risk = r.Risk
+                title = r.Title,
+                description = r.Description,
+                state = r.State,
+                impact = r.Impact,
+                risk = r.Risk
             })
         };
     }
