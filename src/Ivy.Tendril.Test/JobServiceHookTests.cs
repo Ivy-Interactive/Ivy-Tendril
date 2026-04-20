@@ -80,7 +80,7 @@ public class JobServiceHookTests
 
         try
         {
-            var id = service.StartJob("MakePr", planFolder);
+            var id = service.StartJob("CreatePr", planFolder);
             var job = service.GetJob(id)!;
 
             Assert.Contains(job.OutputLines, l => l.Contains("[hook:Global Hook]"));
@@ -111,8 +111,8 @@ public class JobServiceHookTests
 
         try
         {
-            // Start a MakePr job — the hook should NOT match
-            var id = service.StartJob("MakePr", planFolder);
+            // Start a CreatePr job — the hook should NOT match
+            var id = service.StartJob("CreatePr", planFolder);
             var job = service.GetJob(id)!;
 
             Assert.DoesNotContain(job.OutputLines, l => l.Contains("[hook:Execute Only]"));

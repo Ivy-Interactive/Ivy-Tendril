@@ -10,11 +10,11 @@ Plans live under `planFolder` from `config.yaml`.
 ├── 01098-MakeAnEmptyAppCalledReview/
 │   ├── plan.yaml                     # Plan metadata
 │   ├── revisions/                    # Plan content versions
-│   │   ├── 001.md                    # Initial revision (created by MakePlan)
+│   │   ├── 001.md                    # Initial revision (created by CreatePlan)
 │   │   ├── 002.md                    # After ExpandPlan/UpdatePlan/SplitPlan
 │   │   └── ...
 │   ├── logs/                         # Execution logs per promptware run
-│   │   ├── 001-MakePlan.md
+│   │   ├── 001-CreatePlan.md
 │   │   ├── 002-ExpandPlan.md
 │   │   └── ...
 │   ├── artifacts/                    # Output artifacts from execution
@@ -70,7 +70,7 @@ priority: 0
 | `project`      | Project name matching a `projects` entry in `config.yaml` |
 | `level`        | One of the levels defined in `config.yaml`       |
 | `title`        | Human-readable plan title                        |
-| `sessionId`    | Claude session ID from MakePlan (for `claude --resume`) |
+| `sessionId`    | Claude session ID from CreatePlan (for `claude --resume`) |
 | `repos`        | Affected repository paths (plain strings, e.g. `- D:\Repos\Foo` on Windows or `- /home/user/repos/Foo` on Linux — NOT objects) |
 | `created`      | UTC timestamp when the plan was created (use `CurrentTime` from firmware header) |
 | `updated`      | UTC timestamp of last state change (use `CurrentTime` from firmware header)      |
@@ -82,15 +82,15 @@ priority: 0
 | `sourcePath`   | (Optional) Absolute path to the source that generated this plan (e.g. test working directory) |
 | `relatedPlans` | Paths to related plan folders (parent plans, split-from, follow-ups) |
 | `dependsOn`    | Plan folder names this plan depends on (e.g. `- 01478-WorktreeIsolation`). ExecutePlan will block until all dependencies are `Completed` and their PRs are merged. |
-| `priority`     | Integer priority (0 = normal). Higher values are executed first. Set by MakePlan launcher, not by agents. |
-| `executionProfile` | (Optional) Recommended execution profile for ExecutePlan: `deep`, `balanced`, or `quick`. If set, overrides config.yaml default. MakePlan sets this based on task complexity analysis. |
+| `priority`     | Integer priority (0 = normal). Higher values are executed first. Set by CreatePlan launcher, not by agents. |
+| `executionProfile` | (Optional) Recommended execution profile for ExecutePlan: `deep`, `balanced`, or `quick`. If set, overrides config.yaml default. CreatePlan sets this based on task complexity analysis. |
 
 **Do NOT add fields beyond those listed above.** Unknown fields (e.g. `tags`, `category`) will be stripped by the normalizer and may cause parse errors.
 
 ## State Lifecycle
 
 ```
-MakePlan ──► Draft
+CreatePlan ──► Draft
                │
                ├─ ExpandPlan ──► Building ──► Draft
                ├─ UpdatePlan ──► Updating ──► Draft
@@ -103,7 +103,7 @@ MakePlan ──► Draft
                │    Draft ──► Building ──► Executing ──► ReadyForReview
                │                                    └──► Failed
                │
-               ├─ MakePr (from Review app)
+               ├─ CreatePr (from Review app)
                │    ReadyForReview ──► Completed
                │
                ├─ (manual) ──► Skipped
@@ -127,7 +127,7 @@ MakePlan ──► Draft
 
 Markdown files in `revisions/` numbered sequentially (`001.md`, `002.md`, ...).
 
-The initial revision is created by MakePlan using the `planTemplate` from `config.yaml`.
+The initial revision is created by CreatePlan using the `planTemplate` from `config.yaml`.
 
 Subsequent revisions are written by ExpandPlan, UpdatePlan, or SplitPlan agents.
 
@@ -141,7 +141,7 @@ Scratch for clones, downloads, intermediates. Safe to delete after the plan fini
 
 ## .counter
 
-Single integer in `{planFolder}/.counter`; MakePlan reads and increments for new IDs.
+Single integer in `{planFolder}/.counter`; CreatePlan reads and increments for new IDs.
 
 ## Verifications
 

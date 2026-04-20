@@ -98,7 +98,7 @@ public class PlanDatabaseSyncServiceTests : IDisposable
         Directory.CreateDirectory(revisionsDir);
         File.WriteAllText(Path.Combine(revisionsDir, "001.md"), "# Cost Plan");
         File.WriteAllText(Path.Combine(dir, "costs.csv"),
-            "promptware,tokens,cost\nExecutePlan,50000,1.50\nMakePr,10000,0.30\n");
+            "promptware,tokens,cost\nExecutePlan,50000,1.50\nCreatePr,10000,0.30\n");
 
         _syncService.PerformInitialSync();
 

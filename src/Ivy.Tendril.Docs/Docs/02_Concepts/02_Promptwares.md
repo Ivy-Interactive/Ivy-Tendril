@@ -32,12 +32,12 @@ Tendril runs them through the configured AI stack (e.g. Claude Code) for focused
 
 | Job | Role |
 |-----|------|
-| **MakePlan** | Plan from a short brief or GitHub issue. |
+| **CreatePlan** | Plan from a short brief or GitHub issue. |
 | **ExecutePlan** | Worktree, implement, build, test. |
 | **UpdatePlan** | Change existing code from review feedback. |
 | **ExpandPlan** | Flesh out a thin plan. |
 | **SplitPlan** | Split a large plan into sub-plans. |
-| **MakePr** | GitHub PR from the worktree diff (`gh`). |
+| **CreatePr** | GitHub PR from the worktree diff (`gh`). |
 | **CreateIssue** | Push plan failure/state to GitHub for triage. |
 
 ## Execution Flow

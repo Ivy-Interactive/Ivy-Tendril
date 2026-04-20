@@ -21,7 +21,7 @@ public class InboxControllerTests
         var ok = Assert.IsType<OkObjectResult>(result);
         Assert.Equal(200, ok.StatusCode);
         Assert.Single(jobService.StartedJobs);
-        Assert.Equal("MakePlan", jobService.StartedJobs[0].Type);
+        Assert.Equal("CreatePlan", jobService.StartedJobs[0].Type);
     }
 
     [Fact]

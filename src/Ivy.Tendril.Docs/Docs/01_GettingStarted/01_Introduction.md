@@ -38,7 +38,7 @@ Layout.Grid().Columns(3).Gap(4)
 | new Card().Icon(Icons.IterationCcw.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Plan Lifecycle")).Description(Text.Muted("Draft – Execution – Review – PR.").Small()).Height(Size.Units(28)).OnClick(() => {})
 | new Card().Icon(Icons.Layers.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Multi-Project")).Description(Text.Muted("Several repos, per-project verification rules.").Small()).Height(Size.Units(28)).OnClick(() => {})
 | new Card().Icon(Icons.Activity.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Jobs")).Description(Text.Muted("Status, tokens, cost.").Small()).Height(Size.Units(28)).OnClick(() => {})
-| new Card().Icon(Icons.Bot.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Promptwares")).Description(Text.Muted("Modular agents: MakePlan, ExecutePlan, ExpandPlan, MakePr.").Small()).Height(Size.Units(28)).OnClick(() => {})
+| new Card().Icon(Icons.Bot.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Promptwares")).Description(Text.Muted("Modular agents: CreatePlan, ExecutePlan, ExpandPlan, CreatePr.").Small()).Height(Size.Units(28)).OnClick(() => {})
 | new Card().Icon(Icons.GitFork.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Git Worktrees")).Description(Text.Muted("Agent work stays off your main branch.").Small()).Height(Size.Units(28)).OnClick(() => {})
 | new Card().Icon(Icons.Terminal.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Terminal & File Viewer")).Description(Text.Muted("Embedded terminal and fast local file access.").Small()).Height(Size.Units(28)).OnClick(() => {})
 | new Card().Icon(Icons.BadgeCheck.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Verification")).Description(Text.Muted("Hook your build, test, and format checks.").Small()).Height(Size.Units(28)).OnClick(() => {})
@@ -62,7 +62,7 @@ flowchart LR
     Icebox:::iceboxStyle
     Skipped:::skippedStyle
 
-    Draft -->|MakePlan| Building
+    Draft -->|CreatePlan| Building
     Draft -->|Execute| Executing
     Draft -->|Missing Context| Blocked
     Blocked -->|Resolved| Draft

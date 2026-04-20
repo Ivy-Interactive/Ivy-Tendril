@@ -1189,6 +1189,8 @@ public class PlanReaderService(
     /// </summary>
     internal static string ExtractSafeTitle(string planFolderPath)
     {
+        if (string.IsNullOrEmpty(planFolderPath))
+            return "Unknown";
         var folderName = Path.GetFileName(planFolderPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
         var match = SafeTitleRegex.Match(folderName);
         return match.Success ? match.Groups[1].Value : "Unknown";

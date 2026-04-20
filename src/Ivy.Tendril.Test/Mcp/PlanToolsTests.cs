@@ -4,10 +4,12 @@ using Xunit;
 
 namespace Ivy.Tendril.Test.Mcp;
 
+[Collection("TendrilHome")]
 public class PlanToolsTests : IDisposable
 {
     private readonly string _tempDir;
     private readonly string _originalTendrilHome;
+    private readonly string? _originalTendrilPlans;
     private readonly string? _originalToken;
     private readonly PlanTools _planTools;
 
@@ -16,8 +18,10 @@ public class PlanToolsTests : IDisposable
         _tempDir = Path.Combine(Path.GetTempPath(), $"tendril-test-{Guid.NewGuid()}");
         Directory.CreateDirectory(_tempDir);
         _originalTendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? "";
+        _originalTendrilPlans = Environment.GetEnvironmentVariable("TENDRIL_PLANS");
         _originalToken = Environment.GetEnvironmentVariable("TENDRIL_MCP_TOKEN");
         Environment.SetEnvironmentVariable("TENDRIL_HOME", _tempDir);
+        Environment.SetEnvironmentVariable("TENDRIL_PLANS", null);
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", null); // No auth for tests
         _planTools = new PlanTools(new McpAuthenticationService());
     }
@@ -25,6 +29,7 @@ public class PlanToolsTests : IDisposable
     public void Dispose()
     {
         Environment.SetEnvironmentVariable("TENDRIL_HOME", _originalTendrilHome);
+        Environment.SetEnvironmentVariable("TENDRIL_PLANS", _originalTendrilPlans);
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", _originalToken);
         if (Directory.Exists(_tempDir))
             Directory.Delete(_tempDir, true);

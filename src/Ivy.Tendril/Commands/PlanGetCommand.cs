@@ -32,8 +32,37 @@ public class PlanGetCommand : Command<PlanGetSettings>
             }
             else
             {
-                // Output single field
-                var value = settings.Field.ToLower() switch
+                var field = settings.Field.ToLower();
+
+                // List fields — output one item per line
+                switch (field)
+                {
+                    case "repos":
+                        foreach (var r in plan.Repos) Console.WriteLine(r);
+                        return 0;
+                    case "prs":
+                        foreach (var pr in plan.Prs) Console.WriteLine(pr);
+                        return 0;
+                    case "commits":
+                        foreach (var c in plan.Commits) Console.WriteLine(c);
+                        return 0;
+                    case "verifications":
+                        foreach (var v in plan.Verifications) Console.WriteLine($"{v.Name}={v.Status}");
+                        return 0;
+                    case "dependson":
+                        foreach (var d in plan.DependsOn) Console.WriteLine(d);
+                        return 0;
+                    case "relatedplans":
+                        foreach (var rp in plan.RelatedPlans) Console.WriteLine(rp);
+                        return 0;
+                    case "recommendations":
+                        foreach (var rec in plan.Recommendations ?? [])
+                            Console.WriteLine($"{rec.Title}={rec.State}");
+                        return 0;
+                }
+
+                // Scalar fields
+                var value = field switch
                 {
                     "state" => plan.State,
                     "project" => plan.Project,

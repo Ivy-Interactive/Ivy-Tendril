@@ -28,7 +28,7 @@ public class InboxController(IJobService jobService, IConfigService configServic
             if (!string.IsNullOrEmpty(request.SourcePath))
                 args.AddRange(["-SourcePath", request.SourcePath]);
 
-            var jobId = jobService.StartJob("MakePlan", args.ToArray(), null);
+            var jobId = jobService.StartJob("CreatePlan", args.ToArray(), null);
             return Ok(new { jobId, status = "Started", message = "Plan creation job started successfully" });
         }
         catch (Exception ex)

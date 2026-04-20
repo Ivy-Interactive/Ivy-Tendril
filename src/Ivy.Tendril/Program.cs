@@ -45,13 +45,9 @@ public class Program
             {
                 config.PropagateExceptions();
 
-                // Doctor command and subcommands
-                config.AddBranch<DoctorSettings>("doctor", doctor =>
-                {
-                    doctor.SetDefaultCommand<DoctorCliCommand>();
-                    doctor.AddCommand<DoctorPlansCommand>("plans")
-                        .WithDescription("Check plan health");
-                });
+                // Doctor command
+                config.AddCommand<DoctorCliCommand>("doctor")
+                    .WithDescription("System health check");
 
                 // Database commands
                 config.AddCommand<DbVersionCommand>("db-version")
@@ -64,10 +60,14 @@ public class Program
                 // Other commands
                 config.AddCommand<UpdatePromptwaresCliCommand>("update-promptwares")
                     .WithDescription("Update embedded promptwares");
+                config.AddCommand<PromptwareRunCommand>("promptware")
+                    .WithDescription("Run a promptware directly");
 
                 // Plan management commands
                 config.AddBranch("plan", plan =>
                 {
+                    plan.AddCommand<PlanListCommand>("list")
+                        .WithDescription("List plans with optional filters");
                     plan.AddCommand<PlanCreateCommand>("create")
                         .WithDescription("Create a new plan");
                     plan.AddCommand<PlanUpdateCommand>("update")
@@ -86,8 +86,30 @@ public class Program
                         .WithDescription("Update verification status");
                     plan.AddCommand<PlanGetCommand>("get")
                         .WithDescription("Read plan or field");
+                    plan.AddCommand<PlanAddLogCommand>("add-log")
+                        .WithDescription("Write a log entry");
                     plan.AddCommand<PlanValidateCommand>("validate")
                         .WithDescription("Validate plan health");
+                    plan.AddCommand<PlanCleanupCommand>("cleanup")
+                        .WithDescription("Remove worktrees from a plan");
+                    plan.AddCommand<PlanDoctorCommand>("doctor")
+                        .WithDescription("Check plan health");
+
+                    plan.AddBranch("rec", rec =>
+                    {
+                        rec.AddCommand<PlanRecListCommand>("list")
+                            .WithDescription("List recommendations");
+                        rec.AddCommand<PlanRecAddCommand>("add")
+                            .WithDescription("Add a recommendation");
+                        rec.AddCommand<PlanRecRemoveCommand>("remove")
+                            .WithDescription("Remove a recommendation");
+                        rec.AddCommand<PlanRecSetCommand>("set")
+                            .WithDescription("Update a recommendation field");
+                        rec.AddCommand<PlanRecAcceptCommand>("accept")
+                            .WithDescription("Accept a recommendation");
+                        rec.AddCommand<PlanRecDeclineCommand>("decline")
+                            .WithDescription("Decline a recommendation");
+                    });
                 });
             });
 
@@ -96,7 +118,8 @@ public class Program
                 // Check if this is a recognized CLI command
                 var firstArg = filteredArgs[0];
                 if (firstArg == "doctor" || firstArg == "db-version" || firstArg == "db-migrate" ||
-                    firstArg == "db-reset" || firstArg == "update-promptwares" || firstArg == "plan")
+                    firstArg == "db-reset" || firstArg == "update-promptwares" || firstArg == "plan" ||
+                    firstArg == "promptware")
                 {
                     return app.Run(filteredArgs);
                 }

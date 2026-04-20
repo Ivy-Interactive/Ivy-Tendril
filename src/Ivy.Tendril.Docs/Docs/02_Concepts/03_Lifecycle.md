@@ -21,7 +21,7 @@ Each Promptware run is a **Job**: live status, cost, and telemetry for that agen
 ## What you see per job
 
 - **Status** — `Pending`, `Running`, `Completed`, `Failed`, `Timeout`, `Queued`, `Stopped`, `Blocked`
-- **Type** — e.g. `MakePlan`, `ExecutePlan`, `MakePr`
+- **Type** — e.g. `CreatePlan`, `ExecutePlan`, `CreatePr`
 - **Plan** — Which plan and branch context
 - **Cost** — Tokens and estimated spend
 - **Duration** — Wall time

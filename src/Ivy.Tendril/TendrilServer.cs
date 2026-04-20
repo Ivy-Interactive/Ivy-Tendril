@@ -53,6 +53,9 @@ public static class TendrilServer
         server.Services.AddSingleton<VersionCheckService>();
         server.Services.AddSingleton<IVersionCheckService>(sp => sp.GetRequiredService<VersionCheckService>());
 
+        server.Services.AddSingleton<WeatherService>();
+        server.Services.AddSingleton<IWeatherService>(sp => sp.GetRequiredService<WeatherService>());
+
         server.Services.AddSingleton<OnboardingSetupService>();
         server.Services.AddSingleton<IOnboardingSetupService>(sp => sp.GetRequiredService<OnboardingSetupService>());
         server.Services.AddSingleton<GithubService>();

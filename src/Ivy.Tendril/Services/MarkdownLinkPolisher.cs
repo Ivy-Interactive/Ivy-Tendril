@@ -9,7 +9,7 @@ public class MarkdownLinkPolisher
         RegexOptions.Compiled);
 
     private static readonly Regex FileLinkRegex = new(
-        @"^file:///(.+?)(?:#(\d+))?$",
+        @"^file:///(.+?)(?:#L?(\d+))?$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex PlanRevisionLinkRegex = new(

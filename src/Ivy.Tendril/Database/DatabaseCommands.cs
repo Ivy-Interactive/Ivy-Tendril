@@ -1,5 +1,4 @@
 using Microsoft.Data.Sqlite;
-using Spectre.Console;
 
 namespace Ivy.Tendril.Database;
 
@@ -16,7 +15,7 @@ public static class DatabaseCommands
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         if (string.IsNullOrEmpty(tendrilHome))
         {
-            AnsiConsole.MarkupLine("[red]Error: TENDRIL_HOME environment variable is not set.[/]");
+            Console.Error.WriteLine("Error: TENDRIL_HOME environment variable is not set.");
             return 1;
         }
 
@@ -41,10 +40,9 @@ public static class DatabaseCommands
             : current > latest ? "Newer than application"
             : "Needs migration";
 
-        AnsiConsole.MarkupLine($"[bold]Database version:[/] {current}");
-        AnsiConsole.MarkupLine($"[bold]Latest version:[/]   {latest}");
-        var statusColor = status == "Up to date" ? "green" : status == "Needs migration" ? "yellow" : "red";
-        AnsiConsole.MarkupLine($"[bold]Status:[/]           [{statusColor}]{status}[/]");
+        Console.WriteLine($"Database version: {current}");
+        Console.WriteLine($"Latest version:   {latest}");
+        Console.WriteLine($"Status:           {status}");
         return 0;
     }
 
@@ -58,17 +56,18 @@ public static class DatabaseCommands
 
     public static int DbResetInternal(string dbPath, bool force)
     {
-
         if (!force)
         {
-            if (!AnsiConsole.Confirm("[yellow]WARNING: This will delete all data in the database.[/] Are you sure?", false))
+            Console.Write("WARNING: This will delete all data in the database. Are you sure? [y/n] ");
+            var response = Console.ReadLine()?.Trim().ToLowerInvariant();
+            if (response != "y")
             {
-                AnsiConsole.MarkupLine("[dim]Aborted.[/]");
+                Console.WriteLine("Aborted.");
                 return 1;
             }
         }
 
-        AnsiConsole.MarkupLine("[bold]Resetting database...[/]");
+        Console.WriteLine("Resetting database...");
 
         using var connection = OpenConnection(dbPath);
 
@@ -83,7 +82,7 @@ public static class DatabaseCommands
         }
 
         // Drop all tables
-        AnsiConsole.MarkupLine("[dim]  Dropping existing tables[/]");
+        Console.WriteLine("  Dropping existing tables");
         foreach (var table in tables)
         {
             using var dropCmd = connection.CreateCommand();
