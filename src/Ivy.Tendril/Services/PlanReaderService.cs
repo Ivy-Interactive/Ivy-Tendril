@@ -94,6 +94,8 @@ public class PlanReaderService(
         {
             if (!Directory.Exists(PlansDirectory)) return;
 
+            var failedFolders = new List<string>();
+
             foreach (var dir in Directory.GetDirectories(PlansDirectory))
                 try
                 {
@@ -112,10 +114,14 @@ public class PlanReaderService(
                         _recommendationsCache.Invalidate();
                     }
                 }
-                catch (Exception ex)
+                catch
                 {
-                    _logger.LogWarning(ex, "Failed to repair plan in {Folder}", Path.GetFileName(dir));
+                    failedFolders.Add(Path.GetFileName(dir));
                 }
+
+            if (failedFolders.Count > 0)
+                _logger.LogWarning("Failed to repair {Count} plan(s) due to file access errors: {Folders}",
+                    failedFolders.Count, string.Join(", ", failedFolders));
         }
         catch
         {
