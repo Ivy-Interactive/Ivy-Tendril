@@ -16,6 +16,10 @@ public class PlanReaderService(
 {
     private static readonly Regex FolderNameRegex = new(@"^(\d{5})-(.+)$", RegexOptions.Compiled);
     private static readonly Regex SafeTitleRegex = new(@"^\d{5}-(.+)", RegexOptions.Compiled);
+    private static readonly Regex StateLineRegex = new(@"(?m)^state:\s*(.+)$", RegexOptions.Compiled);
+
+    private static readonly HashSet<string> TerminalStates = new(StringComparer.OrdinalIgnoreCase)
+        { "Completed", "Skipped" };
     private readonly IConfigService _config = config;
 
     private readonly ILogger<PlanReaderService> _logger = logger;
@@ -60,7 +64,7 @@ public class PlanReaderService(
                 if (!File.Exists(planYamlPath)) continue;
 
                 var yaml = FileHelper.ReadAllText(planYamlPath);
-                var stateMatch = Regex.Match(yaml, @"(?m)^state:\s*(.+)$");
+                var stateMatch = StateLineRegex.Match(yaml);
                 if (!stateMatch.Success) continue;
 
                 var state = stateMatch.Groups[1].Value.Trim();
@@ -103,6 +107,11 @@ public class PlanReaderService(
                     if (!File.Exists(planYamlPath)) continue;
 
                     var yaml = FileHelper.ReadAllText(planYamlPath);
+
+                    var stateMatch = StateLineRegex.Match(yaml);
+                    if (stateMatch.Success && TerminalStates.Contains(stateMatch.Groups[1].Value.Trim()))
+                        continue;
+
                     var repaired = RepairPlanYaml(yaml);
 
                     if (repaired != yaml)
@@ -1400,7 +1409,7 @@ public class PlanReaderService(
             {
                 total++;
                 var yaml = FileHelper.ReadAllText(planYamlPath);
-                var stateMatch = Regex.Match(yaml, @"(?m)^state:\s*(.+)$");
+                var stateMatch = StateLineRegex.Match(yaml);
                 if (stateMatch.Success)
                 {
                     var state = stateMatch.Groups[1].Value.Trim();
