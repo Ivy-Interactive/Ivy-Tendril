@@ -10,6 +10,7 @@ public class PlanCliCommandTests : IDisposable
     private readonly string _tempDir;
     private readonly string _plansDir;
     private readonly string _originalTendrilHome;
+    private readonly string? _originalTendrilPlans;
 
     public PlanCliCommandTests()
     {
@@ -18,12 +19,15 @@ public class PlanCliCommandTests : IDisposable
         Directory.CreateDirectory(_plansDir);
 
         _originalTendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? "";
+        _originalTendrilPlans = Environment.GetEnvironmentVariable("TENDRIL_PLANS");
         Environment.SetEnvironmentVariable("TENDRIL_HOME", _tempDir);
+        Environment.SetEnvironmentVariable("TENDRIL_PLANS", null);
     }
 
     public void Dispose()
     {
         Environment.SetEnvironmentVariable("TENDRIL_HOME", _originalTendrilHome);
+        Environment.SetEnvironmentVariable("TENDRIL_PLANS", _originalTendrilPlans);
         if (Directory.Exists(_tempDir))
             try { Directory.Delete(_tempDir, true); }
             catch { }
