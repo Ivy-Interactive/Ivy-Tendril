@@ -23,6 +23,7 @@ public class ReviewApp : ViewBase
         var textFilter = UseState<string?>("");
         var showCompleted = UseState(false);
         var refreshToken = UseRefreshToken();
+        var filtersOpen = UseState(false);
 
         UseEffect(() =>
         {
@@ -61,8 +62,6 @@ public class ReviewApp : ViewBase
         }
 
         previousPlans.Value = filteredPlans;
-
-        var filtersOpen = UseState(false);
 
         var levelFilteredPlans = plans.AsEnumerable();
         if (levelFilter.Value is { } level)

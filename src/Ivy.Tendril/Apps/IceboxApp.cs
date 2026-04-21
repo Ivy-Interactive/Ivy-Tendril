@@ -20,6 +20,7 @@ public class IceboxApp : ViewBase
         var levelFilter = UseState<string?>(null);
         var textFilter = UseState<string?>("");
         var refreshToken = UseRefreshToken();
+        var filtersOpen = UseState(false);
 
         UseEffect(() =>
         {
@@ -52,8 +53,6 @@ public class IceboxApp : ViewBase
         }
 
         previousPlans.Value = filteredPlans;
-
-        var filtersOpen = UseState(false);
 
         var levelFilteredPlans = plans.AsEnumerable();
         if (levelFilter.Value is { } level)

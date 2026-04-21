@@ -18,6 +18,7 @@ public class RecommendationsApp : ViewBase
         var textFilter = UseState<string?>("");
 
         UseInterval(() => refreshToken.Refresh(), TimeSpan.FromMinutes(1));
+        var filtersOpen = UseState(false);
 
         var recommendations = planService.GetRecommendations();
 
@@ -54,8 +55,6 @@ public class RecommendationsApp : ViewBase
         var hasActiveFilters = projectFilter.Value != null ||
                                impactFilter.Value != null || riskFilter.Value != null ||
                                !string.IsNullOrWhiteSpace(textFilter.Value);
-
-        var filtersOpen = UseState(false);
 
         var projectOptions = allPending
             .GroupBy(r => r.Project)

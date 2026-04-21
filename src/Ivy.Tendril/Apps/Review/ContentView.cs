@@ -592,16 +592,16 @@ public class ContentView(
         }
 
         // Dialogs
-        content |= new SuggestChangesDialog(suggestChangesOpen, suggestChangesText, _selectedPlan, _selectedPlanState, _jobService,
+        content |= new SuggestChangesDialog(suggestChangesOpen, suggestChangesText, _selectedPlan, _jobService,
             _planService, _refreshPlans);
-        content |= new CustomPrDialog(customPrOpen, _selectedPlan, _selectedPlanState, _jobService, _planService, _refreshPlans,
+        content |= new CustomPrDialog(customPrOpen, _selectedPlan, _jobService, _planService, _refreshPlans,
             assigneesQuery, assigneesError);
 
         // Discard confirmation dialog
-        content |= new DiscardPlanDialog(discardDialogOpen, _selectedPlan, _selectedPlanState, _planService, _refreshPlans);
+        content |= new DiscardPlanDialog(discardDialogOpen, _selectedPlan, _planService, _refreshPlans);
 
         // Rerun dialog
-        content |= new RerunDialog(rerunDialogOpen, _selectedPlan, _selectedPlanState, _jobService, _planService, _refreshPlans);
+        content |= new RerunDialog(rerunDialogOpen, _selectedPlan, _jobService, _planService, _refreshPlans);
 
         // Action bar
         var actionBar = Layout.Horizontal().AlignContent(Align.Center).Gap(2).Padding(1)
