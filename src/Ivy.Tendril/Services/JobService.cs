@@ -1571,32 +1571,15 @@ public class JobService : IJobService
         }
     }
 
+    private static readonly object PlanIdLock = new();
+
     private static string AllocatePlanId(string plansDir)
     {
         Directory.CreateDirectory(plansDir);
         var counterFile = Path.Combine(plansDir, ".counter");
-        var lockFile = Path.Combine(plansDir, ".counter.lock");
 
-        FileStream? lockStream = null;
-        try
+        lock (PlanIdLock)
         {
-            for (var i = 0; i < 20; i++)
-            {
-                try
-                {
-                    lockStream = new FileStream(lockFile, FileMode.OpenOrCreate, FileAccess.ReadWrite,
-                        FileShare.None);
-                    break;
-                }
-                catch (IOException)
-                {
-                    Thread.Sleep(500);
-                }
-            }
-
-            if (lockStream == null)
-                throw new InvalidOperationException("Could not acquire plan counter lock");
-
             var counter = 1;
             if (File.Exists(counterFile))
             {
@@ -1607,10 +1590,6 @@ public class JobService : IJobService
             var id = counter.ToString("D5");
             File.WriteAllText(counterFile, (counter + 1).ToString());
             return id;
-        }
-        finally
-        {
-            lockStream?.Dispose();
         }
     }
 
