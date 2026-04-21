@@ -16,9 +16,9 @@ public class RecommendationsApp : ViewBase
         var impactFilter = UseState<string?>(null);
         var riskFilter = UseState<string?>(null);
         var textFilter = UseState<string?>("");
+        var filtersOpen = UseState(false);
 
         UseInterval(() => refreshToken.Refresh(), TimeSpan.FromMinutes(1));
-        var filtersOpen = UseState(false);
 
         var recommendations = planService.GetRecommendations();
 

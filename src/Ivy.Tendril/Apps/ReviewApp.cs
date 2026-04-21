@@ -22,8 +22,8 @@ public class ReviewApp : ViewBase
         var levelFilter = UseState<string?>(null);
         var textFilter = UseState<string?>("");
         var showCompleted = UseState(false);
-        var refreshToken = UseRefreshToken();
         var filtersOpen = UseState(false);
+        var refreshToken = UseRefreshToken();
 
         UseEffect(() =>
         {

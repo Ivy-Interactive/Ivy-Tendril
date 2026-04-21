@@ -137,7 +137,7 @@ public class ContentView(
             header,
             new FooterLayout(
                 actionBar,
-                scrollableContent
+                Layout.Vertical() | scrollableContent
             ).Size(Size.Full())
         ).Scroll(Scroll.None).Size(Size.Full());
 

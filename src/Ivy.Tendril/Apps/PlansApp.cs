@@ -18,8 +18,8 @@ public class PlansApp : ViewBase
         var projectFilter = UseState<string?>(null);
         var levelFilter = UseState<string?>(null);
         var textFilter = UseState<string?>("");
-        var refreshToken = UseRefreshToken();
         var filtersOpen = UseState(false);
+        var refreshToken = UseRefreshToken();
 
         UseEffect(() =>
         {
@@ -59,6 +59,7 @@ public class PlansApp : ViewBase
 
         previousPlans.Value = filteredPlans;
 
+        // Compute project counts for filter dropdown
         var levelFilteredPlans = plans.AsEnumerable();
         if (levelFilter.Value is { } level)
             levelFilteredPlans = levelFilteredPlans.Where(p => p.Level == level);

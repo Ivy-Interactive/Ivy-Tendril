@@ -22,18 +22,18 @@ public class PromptwaresSetupView : ViewBase
         )).ToList();
 
         var table = new TableBuilder<PromptwareRow>(rows)
-            .Header(t => t.Index, "")
-            .Builder(t => t.Index, f => f.Func<PromptwareRow, PromptwareRow>(row =>
+            .Header(t => t.Name, "")
+            .Builder(t => t.Name, f => f.Func<PromptwareRow, string>(name =>
                 Layout.Horizontal().Gap(1)
                 | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit this promptware").OnClick(() =>
                 {
-                    editKey.Set(row.Name);
+                    editKey.Set(name);
                 })
                 | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete this promptware").OnClick(() =>
                 {
-                    promptwares.Remove(row.Name);
+                    promptwares.Remove(name);
                     config.SaveSettings();
-                    client.Toast($"Promptware '{row.Name}' deleted", "Deleted");
+                    client.Toast($"Promptware '{name}' deleted", "Deleted");
                     refreshToken.Refresh();
                 })
             ));
