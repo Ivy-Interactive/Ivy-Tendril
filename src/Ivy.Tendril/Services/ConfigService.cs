@@ -31,6 +31,7 @@ public record ProjectConfig
     public string Context { get; set; } = "";
     public List<ReviewActionConfig> ReviewActions { get; set; } = new();
     public List<PromptwareHookConfig> Hooks { get; set; } = new();
+    public List<string> BuildDependencies { get; set; } = new();
     public List<string> RepoPaths => Repos.Select(r => r.Path).ToList();
 
     public string? GetMeta(string key)
@@ -594,9 +595,14 @@ public class ConfigService : IConfigService
     {
         if (Settings.Projects != null)
             foreach (var proj in Settings.Projects)
+            {
                 if (proj.Repos != null)
                     foreach (var repo in proj.Repos)
                         repo.Path = VariableExpansion.ExpandVariables(repo.Path, TendrilHome);
+
+                for (var i = 0; i < proj.BuildDependencies.Count; i++)
+                    proj.BuildDependencies[i] = VariableExpansion.ExpandVariables(proj.BuildDependencies[i], TendrilHome);
+            }
     }
 
     internal static string? MigrateProjectColor(string? colorValue)
