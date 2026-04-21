@@ -89,13 +89,18 @@ public class JobsApp : ViewBase
 
         UseEffect(() =>
         {
-            void OnJobsStructureChanged()
+            void OnJobsChanged()
             {
                 refreshToken.Refresh();
             }
 
-            jobService.JobsStructureChanged += OnJobsStructureChanged;
-            return Disposable.Create(() => jobService.JobsStructureChanged -= OnJobsStructureChanged);
+            jobService.JobsStructureChanged += OnJobsChanged;
+            jobService.JobPropertyChanged += OnJobsChanged;
+            return Disposable.Create(() =>
+            {
+                jobService.JobsStructureChanged -= OnJobsChanged;
+                jobService.JobPropertyChanged -= OnJobsChanged;
+            });
         });
 
         UseInterval(() =>
@@ -119,7 +124,7 @@ public class JobsApp : ViewBase
                         .Where(j => j.Status == JobStatus.Running ||
                                     ((j.Status is JobStatus.Stopped or JobStatus.Failed or JobStatus.Timeout or JobStatus.Completed)
                                      && j.CompletedAt.HasValue
-                                     && DateTime.UtcNow - j.CompletedAt.Value < TimeSpan.FromSeconds(5)))
+                                     && DateTime.UtcNow - j.CompletedAt.Value < TimeSpan.FromMinutes(1)))
                         .SelectMany(j => new[]
                         {
                             new DataTableCellUpdate(j.Id, "Timer", FormatTimer(j)),

@@ -1,3 +1,4 @@
+using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps.Plans.Dialogs;
@@ -24,6 +25,13 @@ public class UpdatePlanDialog(
         var isCreating = UseState(false);
         if (!_dialogOpen.Value) return null;
 
+        // Check if there's already an UpdatePlan job running for this plan
+        var hasActiveJob = _jobService.GetJobs().Any(j =>
+            j.Type == "UpdatePlan" &&
+            j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
+            j.Args.Length > 0 &&
+            j.Args[0].Equals(_selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
+
         return new Dialog(
             _ =>
             {
@@ -34,6 +42,7 @@ public class UpdatePlanDialog(
             new DialogBody(
                 Layout.Vertical()
                 | Text.P("Provide instructions for revising this draft plan.")
+                | (hasActiveJob ? Text.P("⚠️ UpdatePlan is already running for this plan. Please wait...").Color(Colors.Warning) : null)
                 | _updateText.ToTextareaInput("Enter update instructions...").Rows(6).AutoFocus()
             ),
             new DialogFooter(
@@ -42,7 +51,7 @@ public class UpdatePlanDialog(
                     _updateText.Set("");
                     _dialogOpen.Set(false);
                 }),
-                new Button("Submit Update").Primary().Disabled(isCreating.Value || string.IsNullOrWhiteSpace(_updateText.Value)).ShortcutKey("Ctrl+Enter").OnClick(() =>
+                new Button("Submit Update").Primary().Disabled(hasActiveJob || isCreating.Value || string.IsNullOrWhiteSpace(_updateText.Value)).ShortcutKey("Ctrl+Enter").OnClick(() =>
                 {
                     if (!string.IsNullOrWhiteSpace(_updateText.Value) && !isCreating.Value)
                     {
