@@ -290,74 +290,21 @@ public class ContentView(
                 );
             }
 
-            // Git tab content (combines commits and PRs)
-            var gitLayout = Layout.Vertical().Gap(2);
-
-            var problematicCommits = planData.CommitRows
-                .Where(r => string.IsNullOrEmpty(r.Title) || r.FileCount == 0)
-                .ToList();
-
-            if (problematicCommits.Count > 0)
-            {
-                var warnings = problematicCommits.Select(r =>
+            // Git tab content (uses shared helper)
+            var gitData = GitTabHelper.BuildGitTabData(_selectedPlan!, _config, _gitService);
+            var gitLayout = GitTabHelper.RenderGitTab(
+                gitData,
+                _selectedPlan!,
+                client,
+                _config,
+                hash => openCommit.Set(hash),
+                path =>
                 {
-                    if (string.IsNullOrEmpty(r.Title))
-                        return $"`{r.ShortHash}` — commit not found or has no message";
-                    return $"`{r.ShortHash}` — commit has no file changes";
-                });
-                gitLayout |= Callout.Warning(
-                    string.Join("\n", warnings),
-                    "Potentially corrupted commits");
-            }
-
-            if (_selectedPlan.Commits.Count > 0)
-            {
-                gitLayout |= Text.Block("Commits").Bold();
-                var commitsTable = new Table(
-                    new TableRow(
-                            new TableCell("Commit").IsHeader(),
-                            new TableCell("Message").IsHeader(),
-                            new TableCell("Files").IsHeader()
-                        )
-                    { IsHeader = true }
-                );
-                foreach (var row in planData.CommitRows)
-                    commitsTable |= new TableRow(
-                        new TableCell(new Button(row.ShortHash).Inline().OnClick(() => openCommit.Set(row.Hash))),
-                        new TableCell(row.Title),
-                        new TableCell(row.FileCount?.ToString() ?? "–")
-                    );
-                gitLayout |= commitsTable;
-            }
-
-            if (_selectedPlan.Prs.Count > 0)
-            {
-                if (_selectedPlan.Commits.Count > 0)
-                    gitLayout |= new Separator();
-
-                gitLayout |= Text.Block("Pull Requests").Bold();
-                var prsTable = new Table(
-                    new TableRow(
-                            new TableCell("Repository").IsHeader(),
-                            new TableCell("PR").IsHeader()
-                        )
-                    { IsHeader = true }
-                );
-                foreach (var pr in _selectedPlan.Prs.Where(PullRequestApp.IsValidUrl))
-                {
-                    var prCapture = pr;
-                    prsTable |= new TableRow(
-                        new TableCell(PullRequestApp.ExtractRepo(pr)),
-                        new TableCell(new Button(pr).Link().OnClick(() => client.OpenUrl(prCapture)))
-                    );
+                    copyToClipboard(path);
+                    client.Toast("Copied path to clipboard", "Path Copied");
+                    return null!; // Return type doesn't matter, just need to satisfy Func
                 }
-                gitLayout |= prsTable;
-            }
-
-            if (_selectedPlan.Commits.Count == 0 && _selectedPlan.Prs.Count == 0)
-            {
-                gitLayout |= Text.Muted("No commits or pull requests yet.");
-            }
+            );
 
             // Changes tab content
             object changesTabContent;
