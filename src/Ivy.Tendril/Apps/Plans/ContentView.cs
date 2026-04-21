@@ -3,6 +3,7 @@ using Ivy.Core;
 using Ivy.Tendril.Apps.Plans.Dialogs;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Views;
+using Ivy.Widgets.DiffView;
 
 namespace Ivy.Tendril.Apps.Plans;
 
@@ -100,7 +101,7 @@ public class ContentView(
                     if (_selectedPlan is null)
                         return new PlanContentData(null,
                             new Dictionary<string, List<string>>(), new List<PlanContentHelpers.CommitRow>(),
-                            new Dictionary<string, bool>());
+                            new Dictionary<string, bool>(), null);
 
                     // Summary
                     var summPath = Path.Combine(folderPath, "artifacts", "summary.md");
@@ -112,16 +113,19 @@ public class ContentView(
                     // Commit rows
                     var commitRows = PlanContentHelpers.BuildCommitRows(_selectedPlan!, _config, _gitService);
 
+                    // All changes data
+                    var allChanges = PlanContentHelpers.GetAllChangesData(_selectedPlan!, _config, _gitService);
+
                     // Verification report existence
                     var verReports = _selectedPlan.Verifications.ToDictionary(
                         v => v.Name,
                         v => File.Exists(Path.Combine(folderPath, "verification", $"{v.Name}.md")));
 
-                    return new PlanContentData(summaryMd, artifacts, commitRows, verReports);
+                    return new PlanContentData(summaryMd, artifacts, commitRows, verReports, allChanges);
                 }, ct);
             },
             initialValue: new PlanContentData(null,
-                new Dictionary<string, List<string>>(), new List<PlanContentHelpers.CommitRow>(), new Dictionary<string, bool>())
+                new Dictionary<string, List<string>>(), new List<PlanContentHelpers.CommitRow>(), new Dictionary<string, bool>(), null)
         );
 
         UseEffect(() =>
@@ -286,31 +290,52 @@ public class ContentView(
                 );
             }
 
-            // Commits tab content
-            var commitsTable = new Table(
-                new TableRow(
-                        new TableCell("Commit").IsHeader(),
-                        new TableCell("Message").IsHeader(),
-                        new TableCell("Files").IsHeader()
-                    )
-                { IsHeader = true }
-            );
-            foreach (var row in planData.CommitRows)
-                commitsTable |= new TableRow(
-                    new TableCell(new Button(row.ShortHash).Inline().OnClick(() => openCommit.Set(row.Hash))),
-                    new TableCell(row.Title),
-                    new TableCell(row.FileCount?.ToString() ?? "–")
+            // Git tab content (combines commits and PRs)
+            var gitLayout = Layout.Vertical().Gap(2);
+
+            var problematicCommits = planData.CommitRows
+                .Where(r => string.IsNullOrEmpty(r.Title) || r.FileCount == 0)
+                .ToList();
+
+            if (problematicCommits.Count > 0)
+            {
+                var warnings = problematicCommits.Select(r =>
+                {
+                    if (string.IsNullOrEmpty(r.Title))
+                        return $"`{r.ShortHash}` — commit not found or has no message";
+                    return $"`{r.ShortHash}` — commit has no file changes";
+                });
+                gitLayout |= Callout.Warning(
+                    string.Join("\n", warnings),
+                    "Potentially corrupted commits");
+            }
+
+            if (_selectedPlan.Commits.Count > 0)
+            {
+                gitLayout |= Text.Block("Commits").Bold();
+                var commitsTable = new Table(
+                    new TableRow(
+                            new TableCell("Commit").IsHeader(),
+                            new TableCell("Message").IsHeader(),
+                            new TableCell("Files").IsHeader()
+                        )
+                    { IsHeader = true }
                 );
+                foreach (var row in planData.CommitRows)
+                    commitsTable |= new TableRow(
+                        new TableCell(new Button(row.ShortHash).Inline().OnClick(() => openCommit.Set(row.Hash))),
+                        new TableCell(row.Title),
+                        new TableCell(row.FileCount?.ToString() ?? "–")
+                    );
+                gitLayout |= commitsTable;
+            }
 
-            var commitWarning = PlanContentHelpers.BuildCommitWarningCallout(planData.CommitRows);
-            object commitsContent = commitWarning != null
-                ? Layout.Vertical().Gap(2) | commitWarning | commitsTable
-                : commitsTable;
-
-            // PRs tab content
-            object prsContent;
             if (_selectedPlan.Prs.Count > 0)
             {
+                if (_selectedPlan.Commits.Count > 0)
+                    gitLayout |= new Separator();
+
+                gitLayout |= Text.Block("Pull Requests").Bold();
                 var prsTable = new Table(
                     new TableRow(
                             new TableCell("Repository").IsHeader(),
@@ -326,12 +351,64 @@ public class ContentView(
                         new TableCell(new Button(pr).Link().OnClick(() => client.OpenUrl(prCapture)))
                     );
                 }
+                gitLayout |= prsTable;
+            }
 
-                prsContent = prsTable;
+            if (_selectedPlan.Commits.Count == 0 && _selectedPlan.Prs.Count == 0)
+            {
+                gitLayout |= Text.Muted("No commits or pull requests yet.");
+            }
+
+            // Changes tab content
+            object changesTabContent;
+            var changesData = planContentQuery.Value.AllChanges;
+            var changesFileCount = 0;
+
+            if (planContentQuery.Loading)
+            {
+                changesTabContent = Text.Muted("Loading...");
+            }
+            else if (changesData is null)
+            {
+                var errorMsg = planContentQuery.Error is { } err
+                    ? $"Failed to load changes: {err.Message}"
+                    : "No commits yet.";
+                changesTabContent = Text.Muted(errorMsg);
             }
             else
             {
-                prsContent = new Empty();
+                changesFileCount = changesData.Files.Count;
+                var changesLayout = Layout.Vertical().Gap(4).Padding(2);
+
+                var statsText =
+                    $"{changesData.Files.Count} files changed ({changesData.AddedCount} added, {changesData.ModifiedCount} modified, {changesData.DeletedCount} deleted)";
+                changesLayout |= Text.Block(statsText).Bold();
+
+                if (changesData.Files.Count > 0)
+                {
+                    var filesLayout = Layout.Vertical().Gap(1);
+                    foreach (var (status, filePath) in changesData.Files)
+                    {
+                        var (label, variant) = status switch
+                        {
+                            "A" => ("Added", BadgeVariant.Success),
+                            "D" => ("Deleted", BadgeVariant.Destructive),
+                            _ => ("Modified", BadgeVariant.Outline)
+                        };
+                        filesLayout |= Layout.Horizontal().Gap(2)
+                            | new Badge(label).Variant(variant).Small()
+                            | Text.Block(filePath);
+                    }
+
+                    changesLayout |= filesLayout;
+                }
+
+                if (!string.IsNullOrWhiteSpace(changesData.Diff))
+                {
+                    changesLayout |= new DiffView().Diff(changesData.Diff).Split();
+                }
+
+                changesTabContent = changesLayout;
             }
 
             // Artifacts tab content
@@ -346,8 +423,8 @@ public class ContentView(
                 new Tab("Plan", Cap(planTabContent)),
                 new Tab("Summary", Cap(summaryTabContent)),
                 new Tab("Verifications", Cap(verificationsTable)).Badge(_selectedPlan.Verifications.Count.ToString()),
-                new Tab("Commits", Cap(commitsContent)).Badge(_selectedPlan.Commits.Count.ToString()),
-                new Tab("PRs", Cap(prsContent)).Badge(_selectedPlan.Prs.Count.ToString()),
+                new Tab("Git", Cap(gitLayout)).Badge((_selectedPlan.Commits.Count + _selectedPlan.Prs.Count).ToString()),
+                new Tab("Changes", Cap(changesTabContent)).Badge(changesFileCount > 0 ? changesFileCount.ToString() : ""),
                 new Tab("Artifacts", Cap(artifactsLayout)).Badge(totalArtifacts.ToString())
             ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content);
 
@@ -573,5 +650,6 @@ public class ContentView(
         string? SummaryMarkdown,
         Dictionary<string, List<string>> Artifacts,
         List<PlanContentHelpers.CommitRow> CommitRows,
-        Dictionary<string, bool> VerificationReports);
+        Dictionary<string, bool> VerificationReports,
+        PlanContentHelpers.AllChangesData? AllChanges);
 }

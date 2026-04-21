@@ -426,7 +426,7 @@ public class JobsApp : ViewBase
                     outputContent = new ClaudeJsonRenderer()
                         .Stream(outputStream)
                         .ShowThinking(true)
-                        .ShowSystemEvents(true)
+                        .ShowSystemEvents(false)
                         .AutoScroll(true)
                         .Height(Size.Full());
                 }
@@ -583,7 +583,7 @@ public class JobsApp : ViewBase
             .Where(line => !string.IsNullOrWhiteSpace(line))
             .Take(10)
             .Reverse()
-            .Select(line => JobService.SanitizeForDisplay(line));
+            .Select(JobService.SanitizeForDisplay);
 
         return string.Join("\n", context);
     }
