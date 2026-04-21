@@ -257,6 +257,8 @@ public class PlanContentHelpersTests
 
         public List<(string Status, string FilePath)>? GetCombinedChangedFiles(string repoPath, string firstCommit,
             string lastCommit) => combinedFiles;
+
+        public List<WorktreeInfo>? GetWorktrees(string repoPath) => null;
     }
 
 }
