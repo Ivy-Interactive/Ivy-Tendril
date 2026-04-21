@@ -216,7 +216,7 @@ fi
 
 ### 2. Create Worktrees
 
-For each repo listed in `plan.yaml` `repos` (or the project's repos from `config.yaml` if empty):
+For each repo in `RepoConfigs` (this includes both the plan's repos AND any read-only build dependencies from the project config):
 
 1. Fetch latest from remote: `git fetch origin`
 2. Determine the base branch:
@@ -260,14 +260,22 @@ git worktree add "<PlanFolder>/worktrees/<RepoName>" -b "tendril/<PlanId>-<SafeT
 
 **Important:** Always branch from `origin/<resolved-base-branch>`, not local HEAD. This ensures the PR only contains the plan's commits, not any unpushed local work. The `<resolved-base-branch>` comes from either the `RepoConfigs` firmware header (if `baseBranch` is configured) or auto-detection.
 
-**Note on `RepoConfigs`:** The firmware header may include a `RepoConfigs` value injected by ExecutePlan.ps1. It contains per-repo configuration from `config.yaml`:
+**Note on `RepoConfigs`:** The firmware header may include a `RepoConfigs` value injected by Tendril. It contains per-repo configuration from `config.yaml`:
 ```yaml
 RepoConfigs: |
-  Ivy-Framework:
-    baseBranch: develop
-    syncStrategy: rebase
+  - path: D:\Repos\Ivy-Tendril
+    baseBranch: development
+    syncStrategy: fetch
+    prRule: yolo
+  - path: D:\Repos\Ivy-Framework
+    baseBranch: development
+    syncStrategy: fetch
+    prRule: default
+    readOnly: true
 ```
 If `baseBranch` is present for a repo, use it instead of auto-detecting. If absent, fall back to `git symbolic-ref refs/remotes/origin/HEAD`.
+
+**Read-only repos** (`readOnly: true`) are build dependencies — they need worktrees so that cross-repo project references resolve, but you must NOT make changes, commits, or PRs in them. Create their worktrees the same way (branching from `origin/<baseBranch>`), but skip them during implementation steps 3-5.
 
 4. After creating the worktree, **verify the `.git` file exists** and fail fast if it's missing:
 
