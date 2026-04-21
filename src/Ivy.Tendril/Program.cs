@@ -113,20 +113,13 @@ public class Program
                 });
             });
 
-            try
+            // Check if this is a recognized CLI command
+            var firstArg = filteredArgs[0];
+            if (firstArg == "doctor" || firstArg == "db-version" || firstArg == "db-migrate" ||
+                firstArg == "db-reset" || firstArg == "update-promptwares" || firstArg == "plan" ||
+                firstArg == "promptware")
             {
-                // Check if this is a recognized CLI command
-                var firstArg = filteredArgs[0];
-                if (firstArg == "doctor" || firstArg == "db-version" || firstArg == "db-migrate" ||
-                    firstArg == "db-reset" || firstArg == "update-promptwares" || firstArg == "plan" ||
-                    firstArg == "promptware")
-                {
-                    return app.Run(filteredArgs);
-                }
-            }
-            catch (Exception)
-            {
-                // If command parsing fails, fall through to legacy handlers
+                return app.Run(filteredArgs);
             }
         }
 
