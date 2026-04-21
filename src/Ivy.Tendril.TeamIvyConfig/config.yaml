@@ -13,8 +13,7 @@ projects:
     prRule: yolo
     baseBranch: development
   verifications:
-  - &o0
-    name: DotnetBuild
+  - name: FrameworkDotnetBuild
     required: true
   - &o1
     name: DotnetFormat
@@ -51,6 +50,12 @@ projects:
     - CreatePr
     condition: ''
     action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
+  - name: PlanEvaluator
+    when: after
+    promptwares:
+    - CreatePr
+    condition: ''
+    action: Start-Process -FilePath 'tendril' -ArgumentList 'promptware','PlanEvaluator',$PWD -WindowStyle Hidden
 - name: Tendril
   color: Emerald
   meta:
@@ -60,7 +65,8 @@ projects:
     prRule: yolo
     baseBranch: development
   verifications:
-  - *o0
+  - name: DotnetBuild
+    required: true
   - *o1
   - name: DotnetTest
   - *o3
@@ -80,6 +86,12 @@ projects:
     - CreatePr
     condition: ''
     action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
+  - name: PlanEvaluator
+    when: after
+    promptwares:
+    - CreatePr
+    condition: ''
+    action: Start-Process -FilePath 'tendril' -ArgumentList 'promptware','PlanEvaluator',$PWD -WindowStyle Hidden
   buildDependencies:
   - '%REPOS_HOME%\Ivy-Framework'
 - name: Rustino
@@ -91,7 +103,8 @@ projects:
     prRule: yolo
     baseBranch: development
   verifications:
-  - *o0
+  - name: DotnetBuild
+    required: true
   - *o1
   - *o2
   - name: RustBuild
@@ -120,7 +133,20 @@ projects:
     - CreatePr
     condition: ''
     action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
+  - name: PlanEvaluator
+    when: after
+    promptwares:
+    - CreatePr
+    condition: ''
+    action: Start-Process -FilePath 'tendril' -ArgumentList 'promptware','PlanEvaluator',$PWD -WindowStyle Hidden
 verifications:
+- name: FrameworkDotnetBuild
+  prompt: >
+    Run `dotnet build --warnaserror` in the plan's worktree directory (not the original repo) and verify it succeeds with zero errors and zero warnings.
+    Then also build the sample and documentation projects to catch breaking changes:
+    1. `dotnet build --warnaserror` in `src/Ivy.Samples`
+    2. `dotnet build --warnaserror` in `src/Ivy.Docs`
+    All three builds must pass.
 - name: DotnetBuild
   prompt: Run `dotnet build --warnaserror` in the plan's worktree directory (not the original repo) and verify it succeeds with zero errors and zero warnings.
 - name: DotnetTest
@@ -139,7 +165,14 @@ verifications:
 - name: FrameworkFrontendLint
   prompt: Run `cd src\frontend && npm run lint && npm run format:check` and verify no errors.
 - name: IvyFrameworkVerification
-  prompt: 'Run the IvyFrameworkVerification promptware to visually verify UI changes. Execute: `pwsh -NoProfile -File "$TENDRIL_HOME\Promptwares\IvyFrameworkVerification\IvyFrameworkVerification.ps1" -PlanPath "<PlanFolder>"`. Creates a temp project with demo apps, runs Playwright tests, and copies artifacts to <PlanFolder>\artifacts\. Write the verification report to <PlanFolder>\verification\IvyFrameworkVerification.md.'
+  prompt: >
+    Visually verify UI changes by delegating to the IvyFrameworkVerification promptware.
+    You MUST run this as an external process — do NOT attempt to do the verification yourself or write the report directly.
+    Execute: `tendril promptware IvyFrameworkVerification "<PlanFolder>" --value VerificationDir="<PlanFolder>\verification" --value ArtifactsDir="<PlanFolder>\artifacts" --value IvyFrameworkPath="<worktree path to Ivy-Framework>"`
+    Wait for the process to complete (it may take several minutes).
+    If exit code is 0, read `<PlanFolder>\verification\IvyFrameworkVerification.md` and set status based on the Result field.
+    If exit code is non-zero or the report file was not created, set status to Fail.
+    Do NOT write the verification report yourself — the promptware creates it.
 - name: CheckResult
   prompt: >
     Verify the implementation matches what was requested in the plan. 1. Read the plan revision from `<PlanFolder>\revisions\` (latest numbered .md file) 2. Read all commits made by this execution from `plan.yaml` `commits` list 3. For each commit, review the diff (`git show <hash>`) in the worktree 4. Compare the plan's **Problem** and **Solution** sections against the actual changes:
@@ -275,6 +308,14 @@ promptwares:
     - Read
     - Write
     - Bash
+  PlanEvaluator:
+    profile: balanced
+    allowedTools:
+    - Read
+    - Glob
+    - Grep
+    - Bash
+    - Write
 codingAgents:
 - name: claude
   arguments: ''
