@@ -28,6 +28,16 @@ public class Program
     {
         VelopackApp.Build().Run();
 
+        // Parse global flags before command routing
+        bool verbose = args.Contains("--verbose") || args.Contains("-v");
+        bool quiet = args.Contains("--quiet") || args.Contains("-q");
+
+        // Store verbosity in environment for child processes
+        if (verbose)
+            Environment.SetEnvironmentVariable("TENDRIL_VERBOSE", "1");
+        if (quiet)
+            Environment.SetEnvironmentVariable("TENDRIL_QUIET", "1");
+
         var fileName = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? "");
         bool isTool = fileName.Equals("tendril", StringComparison.OrdinalIgnoreCase);
         bool forceDesktop = args.Contains("--desktop") || args.Contains("--photino");
@@ -35,7 +45,11 @@ public class Program
 
         bool useDesktop = (isTool || forceDesktop) && !forceWeb;
 
-        var filteredArgs = args.Where(a => a != "--desktop" && a != "--photino" && a != "--web").ToArray();
+        var filteredArgs = args.Where(a =>
+            a != "--desktop" && a != "--photino" && a != "--web" &&
+            a != "--verbose" && a != "-v" &&
+            a != "--quiet" && a != "-q"
+        ).ToArray();
 
         // Handle CLI commands using Spectre.Console.Cli
         if (filteredArgs.Length > 0)

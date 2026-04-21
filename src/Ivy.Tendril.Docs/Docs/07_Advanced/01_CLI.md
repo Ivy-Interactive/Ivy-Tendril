@@ -49,6 +49,30 @@ tendril [command] [options]
 
 When invoked without a recognized command, Tendril starts the desktop application.
 
+## Global Options
+
+These flags can be used with any Tendril CLI command to control output verbosity:
+
+| Flag | Short | Effect |
+|------|-------|--------|
+| `--verbose` | `-v` | Enable detailed debug logging |
+| `--quiet` | `-q` | Suppress informational messages (errors/warnings only) |
+
+Examples:
+
+```bash
+# Show detailed debug output during plan creation
+tendril plan list --verbose
+
+# Run doctor with minimal output
+tendril doctor --quiet
+
+# Verbose promptware execution
+tendril promptware CreatePlan --verbose D:\Plans\00123-MyPlan
+```
+
+**Note:** Verbosity flags are inherited by child processes. When you run a promptware with `--verbose`, the spawned agent also runs in verbose mode.
+
 ## Commands at a Glance
 
 | Command | Purpose |
@@ -71,6 +95,8 @@ When invoked without a recognized command, Tendril starts the desktop applicatio
 |----------|---------|
 | `TENDRIL_HOME` | Root directory for config, database, inbox, and plans |
 | `TENDRIL_PLANS` | Override plans directory (defaults to `TENDRIL_HOME/Plans`) |
+| `TENDRIL_VERBOSE` | Enable verbose debug output (set to `1`) |
+| `TENDRIL_QUIET` | Suppress non-essential output (set to `1`) |
 
 ## doctor
 

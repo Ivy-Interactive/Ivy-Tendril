@@ -25,6 +25,9 @@ public static class TendrilServer
 
         server.Services.AddHttpClient();
 
+        // Register VerbosityService before other services
+        server.Services.AddSingleton<IVerbosityService, VerbosityService>();
+
         var configService = new ConfigService();
         server.Services.AddSingleton<IConfigService>(configService);
         server.Services.AddSingleton<ConfigService>(configService);
@@ -160,6 +163,27 @@ public static class TendrilServer
             return new PrStatusSyncService(database, githubService, planReader, logger);
         });
         server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<PrStatusSyncService>());
+
+        // Configure logging based on verbosity
+        server.UseBuilder(builder =>
+        {
+            builder.Logging.ClearProviders();
+            builder.Logging.AddConsole();
+
+            var verbosityService = new VerbosityService();
+            if (verbosityService.IsVerbose)
+            {
+                builder.Logging.SetMinimumLevel(LogLevel.Debug);
+            }
+            else if (verbosityService.IsQuiet)
+            {
+                builder.Logging.SetMinimumLevel(LogLevel.Warning);
+            }
+            else
+            {
+                builder.Logging.SetMinimumLevel(LogLevel.Information);
+            }
+        });
 
         server.UseWebApplication(app =>
         {
