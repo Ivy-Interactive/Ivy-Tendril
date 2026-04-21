@@ -5,6 +5,7 @@ namespace Ivy.Tendril.Apps.Plans.Dialogs;
 public class DeletePlanDialog(
     IState<bool> dialogOpen,
     PlanFile selectedPlan,
+    IState<PlanFile?> selectedPlanState,
     IPlanReaderService planService,
     Action refreshPlans) : ViewBase
 {
@@ -12,6 +13,7 @@ public class DeletePlanDialog(
     private readonly IPlanReaderService _planService = planService;
     private readonly Action _refreshPlans = refreshPlans;
     private readonly PlanFile _selectedPlan = selectedPlan;
+    private readonly IState<PlanFile?> _selectedPlanState = selectedPlanState;
 
     public override object? Build()
     {
@@ -29,12 +31,26 @@ public class DeletePlanDialog(
                    | new Button("Cancel").Outline().ShortcutKey("Escape").OnClick(() => _dialogOpen.Set(false))
                    | new Button("Move to Skipped").Outline().ShortcutKey("s").OnClick(() =>
                    {
+                       // Optimistically update UI state before disk I/O
+                       var optimisticPlan = _selectedPlan with
+                       {
+                           Metadata = _selectedPlan.Metadata with { State = PlanStatus.Skipped }
+                       };
+                       _selectedPlanState.Set(optimisticPlan);
+
                        _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Skipped);
                        _refreshPlans();
                        _dialogOpen.Set(false);
                    })
                    | new Button("Move to Icebox").Outline().ShortcutKey("b").OnClick(() =>
                    {
+                       // Optimistically update UI state before disk I/O
+                       var optimisticPlan = _selectedPlan with
+                       {
+                           Metadata = _selectedPlan.Metadata with { State = PlanStatus.Icebox }
+                       };
+                       _selectedPlanState.Set(optimisticPlan);
+
                        _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Icebox);
                        _refreshPlans();
                        _dialogOpen.Set(false);

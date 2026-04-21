@@ -6,6 +6,7 @@ public class UpdatePlanDialog(
     IState<bool> dialogOpen,
     IState<string> updateText,
     PlanFile selectedPlan,
+    IState<PlanFile?> selectedPlanState,
     IJobService jobService,
     IPlanReaderService planService,
     Action refreshPlans) : ViewBase
@@ -15,6 +16,7 @@ public class UpdatePlanDialog(
     private readonly IPlanReaderService _planService = planService;
     private readonly Action _refreshPlans = refreshPlans;
     private readonly PlanFile _selectedPlan = selectedPlan;
+    private readonly IState<PlanFile?> _selectedPlanState = selectedPlanState;
     private readonly IState<string> _updateText = updateText;
 
     public override object? Build()
@@ -45,6 +47,14 @@ public class UpdatePlanDialog(
                     if (!string.IsNullOrWhiteSpace(_updateText.Value) && !isCreating.Value)
                     {
                         isCreating.Set(true);
+
+                        // Optimistically update UI state before disk I/O
+                        var optimisticPlan = _selectedPlan with
+                        {
+                            Metadata = _selectedPlan.Metadata with { State = PlanStatus.Updating }
+                        };
+                        _selectedPlanState.Set(optimisticPlan);
+
                         // Append >> comments to the latest revision so UpdatePlan can process them
                         var currentContent = _planService.ReadLatestRevision(_selectedPlan.FolderName);
                         var comments = string.Join("\n", _updateText.Value
