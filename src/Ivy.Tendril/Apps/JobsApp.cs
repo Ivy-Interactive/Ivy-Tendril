@@ -25,6 +25,7 @@ public class JobsApp : ViewBase
         var outputStream = UseStream<string>();
         var lastProcessedIndex = UseState(0);
         var streamingJobId = UseState<string?>(null);
+        var hasStreamContent = UseState(false);
 
         UseInterval(() =>
         {
@@ -39,6 +40,7 @@ public class JobsApp : ViewBase
             {
                 streamingJobId.Set(activeJobId);
                 startIdx = 0;
+                hasStreamContent.Set(false);
 
                 // Immediately seed the stream with existing lines
                 var existingLines = activeJob.OutputLines.ToArray();
@@ -46,6 +48,12 @@ public class JobsApp : ViewBase
                 {
                     outputStream.Write(line);
                 }
+
+                if (existingLines.Length > 0 && !hasStreamContent.Value)
+                {
+                    hasStreamContent.Set(true);
+                }
+
                 lastProcessedIndex.Set(existingLines.Length);
             }
             else
@@ -56,6 +64,12 @@ public class JobsApp : ViewBase
                 {
                     outputStream.Write(currentLines[i]);
                 }
+
+                if (currentLines.Length > 0 && !hasStreamContent.Value)
+                {
+                    hasStreamContent.Set(true);
+                }
+
                 lastProcessedIndex.Set(currentLines.Length);
             }
         }, TimeSpan.FromMilliseconds(300));
@@ -403,12 +417,19 @@ public class JobsApp : ViewBase
 
             if (job is { Status: JobStatus.Running })
             {
-                outputContent = new ClaudeJsonRenderer()
-                    .Stream(outputStream)
-                    .ShowThinking(true)
-                    .ShowSystemEvents(true)
-                    .AutoScroll(true)
-                    .Height(Size.Full());
+                if (!hasStreamContent.Value)
+                {
+                    outputContent = Text.P("Loading Output...");
+                }
+                else
+                {
+                    outputContent = new ClaudeJsonRenderer()
+                        .Stream(outputStream)
+                        .ShowThinking(true)
+                        .ShowSystemEvents(true)
+                        .AutoScroll(true)
+                        .Height(Size.Full());
+                }
             }
             else if (job is not null && job.OutputLines.Count > 0)
             {
