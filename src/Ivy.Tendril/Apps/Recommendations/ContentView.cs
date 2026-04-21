@@ -66,10 +66,10 @@ public class ContentView(
                      });
 
         // Content
-        var scrollableContent = Layout.Vertical().Width(Size.Auto().Max(Size.Units(200))).Gap(4).Padding(2);
+        var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200))).Gap(4).Padding(2);
 
         // Source plan info and Impact/Risk badges
-        var metaRow = Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+        var metaRow = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
                       | Text.Muted($"Plan #{_selected.PlanId}: {_selected.PlanTitle}");
 
         if (_selected.Impact is { } impact)
@@ -137,7 +137,7 @@ public class ContentView(
             header,
             new FooterLayout(
                 actionBar,
-                Layout.Vertical() | scrollableContent
+                scrollableContent
             ).Size(Size.Full())
         ).Scroll(Scroll.None).Size(Size.Full());
 
