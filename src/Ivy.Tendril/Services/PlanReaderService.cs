@@ -242,7 +242,7 @@ public class PlanReaderService(
         WriteFileInBackground(() =>
         {
             var revisionsDir = Path.Combine(PlansDirectory, folderName, "revisions");
-            Directory.CreateDirectory(revisionsDir);
+            FileHelper.EnsureDirectory(revisionsDir);
 
             var nextNumber = GetNextRevisionNumber(revisionsDir);
             var revisionPath = Path.Combine(revisionsDir, $"{nextNumber:D3}.md");
@@ -313,7 +313,7 @@ public class PlanReaderService(
     public void AddLog(string folderName, string action, string content)
     {
         var logsDir = Path.Combine(PlansDirectory, folderName, "logs");
-        Directory.CreateDirectory(logsDir);
+        FileHelper.EnsureDirectory(logsDir);
 
         var nextNumber = 1;
         var existingLogs = Directory.GetFiles(logsDir, "*.md");
@@ -1068,14 +1068,21 @@ public class PlanReaderService(
     /// <summary>
     ///     Always reads plans from the file system. Used by the sync service to populate the database.
     /// </summary>
-    internal List<PlanFile> GetPlansFromFileSystem(PlanStatus? statusFilter = null)
+    internal List<PlanFile> GetPlansFromFileSystem(PlanStatus? statusFilter = null, HashSet<int>? skipIds = null)
     {
         try
         {
             var plans = new List<PlanFile>();
 
-            foreach (var (folderPath, _, _) in EnumerateValidPlanFolders())
+            foreach (var (folderPath, folderName, _) in EnumerateValidPlanFolders())
             {
+                if (skipIds != null)
+                {
+                    var match = FolderNameRegex.Match(folderName);
+                    if (match.Success && int.TryParse(match.Groups[1].Value, out var id) && skipIds.Contains(id))
+                        continue;
+                }
+
                 var plan = ParsePlanFolder(folderPath);
                 if (plan == null) continue;
 
