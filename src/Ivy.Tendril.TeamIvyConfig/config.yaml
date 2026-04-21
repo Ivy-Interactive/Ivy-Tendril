@@ -84,6 +84,7 @@ projects:
     action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
   repoPaths:
   - '%REPOS_HOME%\Ivy-Tendril'
+  - '%REPOS_HOME%\Ivy-Framework'
 - name: Rustino
   color: Orange
   meta:
