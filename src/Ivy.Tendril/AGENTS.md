@@ -108,3 +108,83 @@ Add to `~/.claude/mcp.json`:
 - `Mcp/Tools/PlanTools.cs` — Tool definitions for plan queries and inbox creation
 
 The MCP server reads plans directly from the filesystem via `TENDRIL_HOME/Plans/` and writes inbox items to `TENDRIL_HOME/Inbox/`. It does not require the Tendril web server to be running.
+
+## Debugging Plans on a Dev Machine
+
+### Key Directories
+
+All paths resolve from environment variables — check these first:
+
+| Variable | Purpose | Fallback |
+|----------|---------|----------|
+| `TENDRIL_HOME` | Config, database, hooks, trash, inbox | Required — onboarding triggers if unset |
+| `TENDRIL_PLANS` | Plans directory (overrides `TENDRIL_HOME/Plans`) | `TENDRIL_HOME/Plans` |
+| `REPOS_HOME` | Base path for `%REPOS_HOME%` expansion in config.yaml repo paths | None (optional) |
+
+Typical layout on a dev machine:
+
+```
+$TENDRIL_HOME/
+  config.yaml          # Project definitions, verifications, coding agents
+  tendril.db           # SQLite — plan metadata cache (rebuilt from filesystem on startup)
+  Plans/ or $TENDRIL_PLANS/
+    .counter           # Next plan ID (integer, incremented atomically)
+    03450-SomePlan/
+      plan.yaml        # Plan metadata (state, repos, commits, PRs)
+      revisions/       # 001.md, 002.md — plan revision history
+      logs/            # Per-plan execution logs
+      verification/    # Verification reports
+      artifacts/       # Build artifacts, screenshots
+      worktrees/       # Git worktree paths used during execution
+  Trash/               # Deleted/duplicate plans (PlanId-Title.md)
+  Inbox/               # Incoming plan requests (.md files, picked up by InboxWatcherService)
+  Logs/Jobs/           # Raw output for failed/timed-out jobs without a plan folder
+  Hooks/               # After-hooks (e.g., SlackNotify)
+```
+
+### Promptware Logs
+
+Each promptware keeps its own logs in `Promptwares/<Type>/Logs/`:
+
+- `{PlanId}.md` — Agent's execution summary (outcome, analysis, tools/memory changed)
+- `{PlanId}.raw.jsonl` — Full stream-json output from the Claude session
+
+These are the primary debugging artifacts. The `.md` log tells you what the agent decided; the `.raw.jsonl` has every tool call, thinking block, and API response.
+
+### Job Lifecycle and Failure Modes
+
+Jobs flow through: `Pending → Queued → Running → Completed/Failed/Timeout/Stopped`
+
+**CreatePlan verification** (`VerifyCreatePlanResult` in `JobService.cs`) runs after the agent exits with code 0 and can **change Completed → Failed** if:
+
+1. Agent output doesn't contain `"Plan created: <folder>"` marker
+2. No plan folder matching `AllocatedPlanId` exists on disk (`FindPlanFolderById`)
+3. No trash entry for that ID exists either (`FindTrashEntryById`)
+
+When debugging a failed CreatePlan, check in order:
+1. Does the plan folder exist in `$TENDRIL_PLANS/{PlanId}-*`?
+2. Does a trash entry exist in `$TENDRIL_HOME/Trash/{PlanId}-*.md`?
+3. Read the promptware log `Promptwares/CreatePlan/Logs/{PlanId}.md`
+4. Read the raw output `Promptwares/CreatePlan/Logs/{PlanId}.raw.jsonl`
+5. Check `$TENDRIL_HOME/Logs/Jobs/logs/` for failed job output dumps
+
+### CLI Commands
+
+Tendril exposes CLI commands via Spectre.Console.Cli for debugging:
+
+```bash
+tendril doctor              # Run system diagnostics
+tendril doctor plans        # Check plan health (--all, --fix)
+tendril db-version          # Show database schema version
+tendril db-migrate          # Apply pending migrations
+tendril db-reset --force    # Reset database (rebuilds from filesystem)
+tendril plan list           # List plans with filtering
+tendril plan get <id>       # Show plan details
+```
+
+### Common Issues
+
+- **Plan counter collisions**: `$TENDRIL_PLANS/.counter` is protected by an in-process lock. If plans get duplicate IDs, check that only one Tendril instance is running.
+- **Plans not appearing in UI**: Run `tendril doctor plans` to check for malformed `plan.yaml` files. `PlanReaderService.RepairPlans()` runs on startup but silently skips plans it can't fix.
+- **Build errors from locked files**: Tendril locks its own exe while running. Use `--no-dependencies` or stop the running instance before building.
+- **Missing `.raw.jsonl` logs**: These are written by `WriteRawOutputLog` in `JobService.cs` on job completion. If the Logs directory doesn't exist for a promptware, no raw log is written.
