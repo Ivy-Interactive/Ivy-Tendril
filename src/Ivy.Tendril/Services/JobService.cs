@@ -952,38 +952,51 @@ public class JobService : IJobService
     {
         if (plan.Repos.Count == 0) return null;
 
+        var projectConfig = _configService?.GetProject(project);
+        var planRepoNames = new HashSet<string>(
+            plan.Repos.Select(r => Path.GetFileName(Environment.ExpandEnvironmentVariables(r))),
+            StringComparer.OrdinalIgnoreCase);
+
         var lines = new List<string>();
-        foreach (var repoPath in plan.Repos)
+
+        void AddRepo(string expanded, string baseBranch, string syncStrategy, string prRule, bool readOnly)
         {
-            var expanded = Environment.ExpandEnvironmentVariables(repoPath);
-            var repoName = Path.GetFileName(expanded);
-
-            // Get repo-specific config from project settings
-            string baseBranch = "main";
-            string syncStrategy = "fetch";
-            string prRule = "default";
-
-            if (_configService != null)
-            {
-                var projectConfig = _configService.GetProject(project);
-                if (projectConfig != null)
-                {
-                    var repoRef = projectConfig.Repos.FirstOrDefault(r =>
-                        Path.GetFileName(Environment.ExpandEnvironmentVariables(r.Path))
-                            .Equals(repoName, StringComparison.OrdinalIgnoreCase));
-                    if (repoRef != null)
-                    {
-                        baseBranch = repoRef.BaseBranch ?? "main";
-                        syncStrategy = repoRef.SyncStrategy;
-                        prRule = repoRef.PrRule;
-                    }
-                }
-            }
-
             lines.Add($"- path: {expanded}");
             lines.Add($"  baseBranch: {baseBranch}");
             lines.Add($"  syncStrategy: {syncStrategy}");
             lines.Add($"  prRule: {prRule}");
+            if (readOnly)
+                lines.Add("  readOnly: true");
+        }
+
+        RepoRef? FindRepoRef(string repoName)
+        {
+            return projectConfig?.Repos.FirstOrDefault(r =>
+                Path.GetFileName(Environment.ExpandEnvironmentVariables(r.Path))
+                    .Equals(repoName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        foreach (var repoPath in plan.Repos)
+        {
+            var expanded = Environment.ExpandEnvironmentVariables(repoPath);
+            var repoRef = FindRepoRef(Path.GetFileName(expanded));
+            AddRepo(expanded,
+                repoRef?.BaseBranch ?? "main",
+                repoRef?.SyncStrategy ?? "fetch",
+                repoRef?.PrRule ?? "default",
+                false);
+        }
+
+        // Include build dependencies as read-only worktrees
+        if (projectConfig != null)
+        {
+            foreach (var depPath in projectConfig.BuildDependencies)
+            {
+                var expanded = Environment.ExpandEnvironmentVariables(depPath);
+                var repoName = Path.GetFileName(expanded);
+                if (!planRepoNames.Contains(repoName))
+                    AddRepo(expanded, "main", "fetch", "default", true);
+            }
         }
 
         return string.Join("\n", lines);
