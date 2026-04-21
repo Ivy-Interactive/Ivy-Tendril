@@ -220,7 +220,7 @@ public class ContentView(
         var currentIndex = _allPlans.FindIndex(p => p.FolderName == _selectedPlan.FolderName);
 
         // Header
-        var header = Layout.Horizontal().Width(Size.Full()).Padding(1).Gap(2)
+        var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(38)).Gap(2)
                      | Text.Block($"#{_selectedPlan.Id} {_selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis);
 
         if (!string.IsNullOrEmpty(_selectedPlan.SourceUrl))
@@ -242,6 +242,13 @@ public class ContentView(
 
             if (allYolo)
             {
+                // Optimistically update UI state before disk I/O
+                var optimisticPlan = _selectedPlan with
+                {
+                    Metadata = _selectedPlan.Metadata with { State = PlanStatus.Building }
+                };
+                _selectedPlanState.Set(optimisticPlan);
+
                 _jobService.StartJob("CreatePr", _selectedPlan.FolderPath);
                 _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Building);
                 _refreshPlans();
@@ -585,16 +592,16 @@ public class ContentView(
         }
 
         // Dialogs
-        content |= new SuggestChangesDialog(suggestChangesOpen, suggestChangesText, _selectedPlan, _jobService,
+        content |= new SuggestChangesDialog(suggestChangesOpen, suggestChangesText, _selectedPlan, _selectedPlanState, _jobService,
             _planService, _refreshPlans);
-        content |= new CustomPrDialog(customPrOpen, _selectedPlan, _jobService, _planService, _refreshPlans,
+        content |= new CustomPrDialog(customPrOpen, _selectedPlan, _selectedPlanState, _jobService, _planService, _refreshPlans,
             assigneesQuery, assigneesError);
 
         // Discard confirmation dialog
-        content |= new DiscardPlanDialog(discardDialogOpen, _selectedPlan, _planService, _refreshPlans);
+        content |= new DiscardPlanDialog(discardDialogOpen, _selectedPlan, _selectedPlanState, _planService, _refreshPlans);
 
         // Rerun dialog
-        content |= new RerunDialog(rerunDialogOpen, _selectedPlan, _jobService, _planService, _refreshPlans);
+        content |= new RerunDialog(rerunDialogOpen, _selectedPlan, _selectedPlanState, _jobService, _planService, _refreshPlans);
 
         // Action bar
         var actionBar = Layout.Horizontal().AlignContent(Align.Center).Gap(2).Padding(1)
@@ -621,6 +628,13 @@ public class ContentView(
                             }),
                             new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
                             {
+                                // Optimistically update UI state before disk I/O
+                                var optimisticPlan = _selectedPlan with
+                                {
+                                    Metadata = _selectedPlan.Metadata with { State = PlanStatus.Completed }
+                                };
+                                _selectedPlanState.Set(optimisticPlan);
+
                                 _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Completed);
                                 _refreshPlans();
                             }),

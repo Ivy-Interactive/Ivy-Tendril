@@ -82,7 +82,7 @@ public class ContentView(
 
         var currentIndex = _allPlans.FindIndex(p => p.FolderName == _selectedPlan.FolderName);
 
-        var header = Layout.Horizontal().Width(Size.Full()).Padding(1).Gap(2)
+        var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(38)).Gap(2)
                      | Text.Block($"#{_selectedPlan.Id} {_selectedPlan.Title}").Bold()
                      | isEditing.ToSwitchInput(Icons.Pencil).Label("Edit")
                      | new Spacer().Width(Size.Grow())
