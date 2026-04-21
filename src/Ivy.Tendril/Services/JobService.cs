@@ -1776,6 +1776,15 @@ public class JobService : IJobService
 
     internal void WriteJobLog(JobItem job)
     {
+        try
+        {
+            WriteRawOutputLog(job);
+        }
+        catch
+        {
+            // Don't let raw log writing failures block other logging
+        }
+
         if (_planReaderService == null || string.IsNullOrEmpty(job.PlanFile))
             return;
 
@@ -1801,12 +1810,11 @@ public class JobService : IJobService
 
             _planReaderService.AddLog(job.PlanFile, job.Type, logContent);
 
-            // Persist raw output for failed/timeout jobs (INCLUDING CreatePlan)
+            // Persist raw output for failed/timeout jobs
             if (job.Status is JobStatus.Failed or JobStatus.Timeout && job.OutputLines.Count > 0)
             {
                 var planFolder = job.Args.Length > 0 ? job.Args[0] : null;
 
-                // For CreatePlan jobs without a plan folder yet, use TENDRIL_HOME/Logs
                 if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder))
                 {
                     var logRoot = Path.Combine(
@@ -1828,5 +1836,20 @@ public class JobService : IJobService
         {
             // Don't let log writing failures crash the job completion
         }
+    }
+
+    private void WriteRawOutputLog(JobItem job)
+    {
+        if (job.OutputLines.Count == 0) return;
+
+        var logsDir = Path.Combine(PromptsRoot, job.Type, "Logs");
+        if (!Directory.Exists(logsDir)) return;
+
+        var logName = !string.IsNullOrEmpty(job.AllocatedPlanId)
+            ? job.AllocatedPlanId
+            : job.Id;
+
+        var rawFile = Path.Combine(logsDir, $"{logName}.raw.jsonl");
+        File.WriteAllLines(rawFile, job.OutputLines);
     }
 }
