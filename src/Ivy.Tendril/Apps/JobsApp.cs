@@ -520,7 +520,7 @@ public class JobsApp : ViewBase
         return $"{span.Minutes}m {span.Seconds:D2}s";
     }
 
-    private const int PromptDisplayMaxLength = 150;
+    private const int PromptDisplayMaxLength = 500;
 
     private static string CleanPromptText(string text)
     {
