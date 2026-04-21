@@ -263,22 +263,16 @@ Analyze the task complexity and set `executionProfile` in plan.yaml. Consider:
 - Plan involves new features with significant integration points
 - Plan description mentions "architecture", "refactor", "redesign", "complex"
 
-**Use `quick` (haiku/low effort) when:**
-- Plan is documentation-only (updating .md files)
-- Plan is simple typo/formatting fixes (< 5 lines changed)
-- Plan is adding/removing simple log statements
-- Plan is updating version numbers or package references
-- Plan description mentions "typo", "docs", "readme", "comment"
-
 **Use `balanced` (sonnet/high effort) for everything else:**
-- Most bug fixes (unless trivial)
+- Most bug fixes
 - Most new features (unless architectural)
 - Most refactoring (unless cross-cutting)
+- Simple changes (docs, typos, version bumps, log statements)
 - When in doubt, use balanced
 
 Add the field to plan.yaml:
 ```yaml
-executionProfile: balanced  # or deep, or quick
+executionProfile: balanced  # or deep
 ```
 
 If you cannot determine complexity (e.g., task is too vague), omit the field — ExecutePlan will use the config.yaml default.
