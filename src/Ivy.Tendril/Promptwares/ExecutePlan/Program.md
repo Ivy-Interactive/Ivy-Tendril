@@ -147,7 +147,7 @@ After reading the plan revision, scan it for code validation markers to detect s
    - A `<details><summary>Still relevant?</summary>` block whose body starts with `No.`
    - Phrases like *"Already applied"*, *"This plan is redundant"*, *"This plan is superseded"*, or *"previously attempted … was merged to main via PR #NNNN"* in the `## Problem` or `## Solution` sections.
 
-   If any marker is found, verify the claim: run `gh pr view <cited PR> --json state,mergeCommit` (must be `MERGED`), confirm the cited commit is in `git log origin/<default-branch>`, and byte-compare the plan's proposed code against the current file contents. If all three checks pass, write `verification/PreExecution.md` with `Result: Fail`, write `artifacts/summary.md` documenting the no-op, set every `plan.yaml` verification to `Skipped`, and fail the plan **without creating a worktree** — running verifications on unchanged code wastes the time budget and produces a 0-commit PR that CreatePr cannot process.
+   If any marker is found, verify the claim: run `gh pr view <cited PR> --json state,mergeCommit` (must be `MERGED`), confirm the cited commit is in `git log origin/<default-branch>`, and byte-compare the plan's proposed code against the current file contents. If all three checks pass, write `verification/PreExecution.md` with `Result: Fail`, write `artifacts/summary.md` documenting the no-op, set every verification to `Skipped` via `tendril plan set-verification <plan-id> <name> Skipped`, and fail the plan **without creating a worktree** — running verifications on unchanged code wastes the time budget and produces a 0-commit PR that CreatePr cannot process.
 
 ### 1.8. Auto-Commit Uncommitted Changes
 
@@ -473,21 +473,13 @@ Update the summary after verification fixes too — if verifications cause addit
 3. **Bugs** — Did you notice any unrelated bugs, broken tests, or incorrect behavior in surrounding code?
 4. **Optimizations** — Are there performance improvements, unnecessary complexity, or refactoring opportunities in the area you worked in?
 
-If you identified items in ANY category, append them to the `recommendations` field in `<PlanFolder>/plan.yaml`:
+If you identified items in ANY category, add them using the CLI:
 
-```yaml
-recommendations:
-  - title: "Short descriptive title"
-    description: |
-      Markdown description with context and location.
-    state: Pending
-    impact: Medium   # Optional: Small, Medium, or High
-    risk: Small      # Optional: Small, Medium, or High
+```bash
+tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact Medium --risk Small
 ```
 
-Optionally include `impact` and `risk` to help prioritize the recommendation. Impact indicates the value of implementing it; Risk indicates the potential for complications or bugs.
-
-**YAML quoting rules:** Titles containing backticks, colons, brackets, braces, or other YAML special characters MUST be double-quoted. Alternatively, use block scalar style (`>` or `|`) for values with special characters.
+`--impact` and `--risk` are optional (Small, Medium, or High). Impact indicates the value of implementing it; Risk indicates the potential for complications or bugs.
 
 Do NOT include items that are part of the current plan's scope.
 
@@ -497,32 +489,23 @@ If after genuine reflection you found nothing noteworthy, skip the file — but 
 
 ### 6. Document Commits
 
-Update `plan.yaml` in the plan folder (NOT in the worktree). Use the Edit tool on the original `plan.yaml` at the `PlanFolder` path.
+Use the CLI to record commits, verifications, and related plans — **never edit plan.yaml directly**.
 
-Append each commit hash to the `commits` list:
+Add each commit hash:
 
-```yaml
-commits:
-  - abc1234
-  - def5678
+```bash
+tendril plan add-commit <plan-id> abc1234
+tendril plan add-commit <plan-id> def5678
 ```
 
-Also populate the `verifications` list from the plan revision. Set checked items (`- [x]`) to `Pending` and unchecked items (`- [ ]`) to `Skipped`:
+Set verification statuses from the plan revision. Set checked items (`- [x]`) to `Pending` and unchecked items (`- [ ]`) to `Skipped`:
 
-```yaml
-verifications:
-  - name: DotnetBuild
-    status: Pending
-  - name: DotnetTest
-    status: Skipped
+```bash
+tendril plan set-verification <plan-id> DotnetBuild Pending
+tendril plan set-verification <plan-id> DotnetTest Skipped
 ```
 
-If the plan references other plans (e.g. split-from, follow-up), add them to `relatedPlans`:
-
-```yaml
-relatedPlans:
-  - <PlansDirectory>/01100-OriginalPlan
-```
+If the plan references other plans (e.g. split-from, follow-up), add them via CLI.
 
 ### 7. Run Verifications
 
@@ -536,8 +519,8 @@ For each checked verification:
 2. Look up its `prompt` in the `verifications` list in `config.yaml`
 3. Execute the prompt in the worktree directory
 4. If it fails: diagnose, fix the issue, **commit the fix** (e.g. `[01105] Fix lint errors from DotnetBuild`), and re-run. Repeat until it passes (fail the plan after 3+ failed attempts).
-5. Document all fix commits in `plan.yaml` just like implementation commits.
-6. Update the verification's `status` in `plan.yaml` to `Pass` or `Fail`.
+5. Document all fix commits via CLI: `tendril plan add-commit <plan-id> <sha>`
+6. Update the verification status via CLI: `tendril plan set-verification <plan-id> <Name> Pass` (or `Fail`)
 
 **!IMPORTANT: Every verification MUST produce a report** at `<PlanFolder>/verification/<VerificationName>.md`:
 
@@ -604,7 +587,7 @@ You are running in non-interactive mode and CANNOT ask questions. If you are uns
 - All work happens in worktree directories, never in the original repos
 - Make logically grouped commits — not one giant commit
 - Worktrees must be clean (no uncommitted files) when finished
-- Document all commit hashes in `plan.yaml`
+- Document all commit hashes via `tendril plan add-commit` — never edit plan.yaml directly
 - Follow the plan instructions exactly as written
 - Do NOT skip tests or pre-commit formatting
 - Commit messages must reference the plan ID

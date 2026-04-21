@@ -37,6 +37,100 @@ Plans live under `planFolder` from `config.yaml`.
 - **ID**: 5-digit value from `.counter`
 - **SafeTitle**: Title-cased, first 60 chars of description, alphanumeric only, no spaces (e.g. `"Fix login bug"` – `FixLoginBug`)
 
+## Modifying Plans — Use the CLI
+
+**IMPORTANT: Never read or write `plan.yaml` directly.** Always use `tendril plan` CLI commands. This ensures validation, atomic writes, timestamp updates, and database sync.
+
+Plan IDs can be provided in any of these forms:
+- Full path: `D:\Plans\00015-LogWarning`
+- Folder name: `00015-LogWarning`
+- Zero-padded ID: `00015`
+- Bare number: `15`
+
+### Reading plan data
+
+```bash
+# Full YAML
+tendril plan get <plan-id>
+
+# Individual scalar fields
+tendril plan get <plan-id> state
+tendril plan get <plan-id> project
+tendril plan get <plan-id> title
+tendril plan get <plan-id> level
+tendril plan get <plan-id> priority
+tendril plan get <plan-id> created
+tendril plan get <plan-id> updated
+tendril plan get <plan-id> executionProfile
+tendril plan get <plan-id> initialPrompt
+tendril plan get <plan-id> sourceUrl
+
+# List fields (one item per line)
+tendril plan get <plan-id> repos
+tendril plan get <plan-id> prs
+tendril plan get <plan-id> commits
+tendril plan get <plan-id> verifications      # Format: Name=Status
+tendril plan get <plan-id> dependsOn
+tendril plan get <plan-id> relatedPlans
+tendril plan get <plan-id> recommendations    # Format: Title=State
+```
+
+### Writing plan data
+
+```bash
+# Set scalar fields
+tendril plan set <plan-id> state <value>
+tendril plan set <plan-id> project <value>
+tendril plan set <plan-id> title <value>
+tendril plan set <plan-id> level <value>
+tendril plan set <plan-id> priority <value>
+tendril plan set <plan-id> executionProfile <value>
+
+# Manage repos
+tendril plan add-repo <plan-id> <repo-path>
+tendril plan remove-repo <plan-id> <repo-path>
+
+# Track PRs and commits
+tendril plan add-pr <plan-id> <pr-url>
+tendril plan add-commit <plan-id> <sha>
+
+# Verifications
+tendril plan set-verification <plan-id> <name> <status>
+# Valid statuses: Pending, Pass, Fail, Skipped
+
+# Recommendations
+tendril plan rec add <plan-id> <title> -d <description> [--impact Small|Medium|High] [--risk Small|Medium|High]
+tendril plan rec accept <plan-id> <title> [--notes <text>]
+tendril plan rec decline <plan-id> <title> [--reason <text>]
+tendril plan rec set <plan-id> <title> <field> <value>
+tendril plan rec remove <plan-id> <title>
+tendril plan rec list <plan-id> [--state Pending|Accepted|Declined]
+
+# Replace entire plan YAML (pipe from stdin)
+cat revised.yaml | tendril plan update <plan-id>
+
+# Validate plan health
+tendril plan validate <plan-id>
+```
+
+### Creating a plan
+
+```bash
+tendril plan create <plan-id> <title>
+```
+
+### Writing execution logs
+
+```bash
+tendril plan add-log <plan-id> <action> [--summary <text>]
+```
+
+### Cleaning up worktrees
+
+```bash
+tendril plan cleanup <plan-id> [--force]
+```
+
 ## plan.yaml
 
 ```yaml
@@ -83,7 +177,7 @@ priority: 0
 | `relatedPlans` | Paths to related plan folders (parent plans, split-from, follow-ups) |
 | `dependsOn`    | Plan folder names this plan depends on (e.g. `- 01478-WorktreeIsolation`). ExecutePlan will block until all dependencies are `Completed` and their PRs are merged. |
 | `priority`     | Integer priority (0 = normal). Higher values are executed first. Set by CreatePlan launcher, not by agents. |
-| `executionProfile` | (Optional) Recommended execution profile for ExecutePlan: `deep`, `balanced`, or `quick`. If set, overrides config.yaml default. CreatePlan sets this based on task complexity analysis. |
+| `executionProfile` | (Optional) Recommended execution profile for ExecutePlan: `deep` or `balanced`. If set, overrides config.yaml default. CreatePlan sets this based on task complexity analysis. |
 
 **Do NOT add fields beyond those listed above.** Unknown fields (e.g. `tags`, `category`) will be stripped by the normalizer and may cause parse errors.
 
