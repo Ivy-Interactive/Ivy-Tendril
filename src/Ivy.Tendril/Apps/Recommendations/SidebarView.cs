@@ -21,49 +21,7 @@ public class SidebarView(
     private readonly IState<string?> _textFilter = textFilter;
     private readonly int _totalCount = totalCount;
 
-    private object BuildHeader(IState<bool> filtersOpen)
-    {
-        var projectOptions = _recommendations
-            .GroupBy(r => r.Project)
-            .OrderByDescending(g => g.Count())
-            .Select(g => new Option<string>($"{g.Key} ({g.Count()})", g.Key))
-            .ToArray<IAnyOption>();
-
-        var searchInput = _textFilter.ToSearchInput()
-            .Placeholder("Search...")
-            .Suffix(
-                new Button()
-                    .Icon(filtersOpen.Value ? Icons.ChevronUp : Icons.ChevronDown)
-                    .Ghost()
-                    .Small()
-                    .OnClick(() => filtersOpen.Set(!filtersOpen.Value))
-            );
-
-        var header = Layout.Vertical() | searchInput;
-
-        if (filtersOpen.Value)
-        {
-            var impactLevelOptions = new[] { "Small", "Medium", "High" }
-                .Select(l => new Option<string>(l, l))
-                .ToArray<IAnyOption>();
-
-            var riskLevelOptions = new[] { "Small", "Medium", "High" }
-                .Select(l => new Option<string>(l, l))
-                .ToArray<IAnyOption>();
-
-            header |= Layout.Vertical()
-                      | _projectFilter.ToSelectInput(projectOptions).Placeholder("All Projects").Nullable()
-                          .WithField().Label("Project")
-                      | _impactFilter.ToSelectInput(impactLevelOptions).Placeholder("All Impacts").Nullable()
-                          .WithField().Label("Impact")
-                      | _riskFilter.ToSelectInput(riskLevelOptions).Placeholder("All Risk Levels").Nullable()
-                          .WithField().Label("Risk");
-        }
-
-        return header;
-    }
-
-    private object BuildContent()
+    public override object Build()
     {
         var filtered = _recommendations
             .Where(r => _projectFilter.Value == null || r.Project == _projectFilter.Value)
@@ -91,18 +49,11 @@ public class SidebarView(
             var clickableRec = rec;
 
             var preview = rec.Description.Length > 120
-                ? rec.Description[..120] + "…"
+                ? rec.Description[..120] + "..."
                 : rec.Description;
 
             return new ListItem($"#{rec.PlanId} {rec.Title}", preview)
                 .OnClick(() => _selectedState.Set(clickableRec));
         }));
-    }
-
-    public override object Build()
-    {
-        var filtersOpen = UseState(false);
-
-        return new HeaderLayout(BuildHeader(filtersOpen), BuildContent());
     }
 }
