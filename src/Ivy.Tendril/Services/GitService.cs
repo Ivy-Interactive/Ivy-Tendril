@@ -172,4 +172,67 @@ public class GitService : IGitService
             return null;
         }
     }
+
+    public List<WorktreeInfo>? GetWorktrees(string repoPath)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo("git", "worktree list --porcelain")
+            {
+                WorkingDirectory = repoPath,
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                StandardOutputEncoding = Encoding.UTF8
+            };
+            using var process = Process.Start(psi);
+            var output = process?.StandardOutput.ReadToEnd();
+            process.WaitForExitOrKill(_timeoutMs);
+            if (process?.ExitCode != 0 || output == null) return null;
+
+            var worktrees = new List<WorktreeInfo>();
+            var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+            string? currentPath = null;
+            string? currentBranch = null;
+            string? currentHash = null;
+
+            foreach (var line in lines)
+            {
+                if (line.StartsWith("worktree "))
+                {
+                    // Save previous worktree if complete
+                    if (currentPath != null && currentBranch != null && currentHash != null)
+                    {
+                        worktrees.Add(new WorktreeInfo(currentPath, currentBranch, currentHash));
+                    }
+
+                    currentPath = line.Substring(9).Trim();
+                    currentBranch = null;
+                    currentHash = null;
+                }
+                else if (line.StartsWith("HEAD "))
+                {
+                    currentHash = line.Substring(5).Trim();
+                }
+                else if (line.StartsWith("branch "))
+                {
+                    var branchRef = line.Substring(7).Trim();
+                    currentBranch = branchRef.Replace("refs/heads/", "");
+                }
+            }
+
+            // Save last worktree
+            if (currentPath != null && currentBranch != null && currentHash != null)
+            {
+                worktrees.Add(new WorktreeInfo(currentPath, currentBranch, currentHash));
+            }
+
+            return worktrees;
+        }
+        catch
+        {
+            return null; /* git may not be installed, or repo path invalid */
+        }
+    }
 }

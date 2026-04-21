@@ -8,4 +8,7 @@ public interface IGitService
     int? GetCommitFileCount(string repoPath, string commitHash);
     string? GetCombinedDiff(string repoPath, string firstCommit, string lastCommit);
     List<(string Status, string FilePath)>? GetCombinedChangedFiles(string repoPath, string firstCommit, string lastCommit);
+    List<WorktreeInfo>? GetWorktrees(string repoPath);
 }
+
+public record WorktreeInfo(string Path, string Branch, string CommitHash);
