@@ -865,6 +865,25 @@ public class PlanDatabaseService : IPlanDatabaseService
         }
     }
 
+    public HashSet<int> GetTerminalPlanIds()
+    {
+        _lock.EnterReadLock();
+        try
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = "SELECT Id FROM Plans WHERE State IN ('Completed', 'Skipped')";
+            using var reader = cmd.ExecuteReader();
+            var ids = new HashSet<int>();
+            while (reader.Read())
+                ids.Add(reader.GetInt32(0));
+            return ids;
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
+    }
+
     public void BulkUpsertPlans(List<PlanFile> plans, bool forceOverwrite = false)
     {
         _lock.EnterWriteLock();

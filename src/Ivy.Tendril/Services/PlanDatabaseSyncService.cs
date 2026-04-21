@@ -41,11 +41,16 @@ public class PlanDatabaseSyncService : IDisposable
             _logger.LogInformation("Starting initial database sync...");
             var stopwatch = Stopwatch.StartNew();
 
+            // Skip completed/skipped plans already in the DB — they never change,
+            // so re-parsing them from disk on every startup is wasted I/O.
+            var terminalIds = _database.GetTerminalPlanIds();
+
             // Read directly from file system to avoid circular dependency.
             // Force overwrite to ensure filesystem is source of truth on startup,
             // even if the DB has newer timestamps from prior state transitions.
-            var plans = _planReader.GetPlansFromFileSystem();
-            _logger.LogInformation("Filesystem returned {Count} plans for sync", plans.Count);
+            var plans = _planReader.GetPlansFromFileSystem(skipIds: terminalIds);
+            _logger.LogInformation("Filesystem returned {Count} plans for sync (skipped {Skipped} terminal)",
+                plans.Count, terminalIds.Count);
             _database.BulkUpsertPlans(plans, true);
             RecoverStuckPlansInDatabase(plans);
 

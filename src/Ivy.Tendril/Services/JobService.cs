@@ -568,7 +568,7 @@ public class JobService : IJobService
                 // Manual CreatePlan — write a .processing inbox file as a write-ahead log
                 try
                 {
-                    Directory.CreateDirectory(_inboxPath);
+                    FileHelper.EnsureDirectory(_inboxPath);
                     var description = GetNamedArg(args, "-Description") ?? "New Plan";
                     var inboxProject = GetNamedArg(args, "-Project") ?? "Auto";
                     var pendingFile = Path.Combine(_inboxPath, $"pending-{id}.md.processing");
@@ -1450,9 +1450,13 @@ public class JobService : IJobService
             {
                 var hasIncomplete = planYaml.Verifications?
                     .Any(v => v.Status is "Pending" or "Fail") ?? false;
-                var targetState = hasIncomplete ? "Failed" : "ReadyForReview";
+                var targetState = hasIncomplete ? PlanStatus.Failed : PlanStatus.ReadyForReview;
 
-                SetPlanStateByFolder(planFolder, targetState);
+                var folderName = Path.GetFileName(planFolder);
+                if (_planReaderService != null)
+                    _planReaderService.TransitionState(folderName, targetState);
+                else
+                    SetPlanStateByFolder(planFolder, targetState.ToString());
             }
         }
         catch
@@ -1466,7 +1470,10 @@ public class JobService : IJobService
         try
         {
             var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
-            SetPlanStateByFolder(planFolder, state);
+            if (_planReaderService != null && Enum.TryParse<PlanStatus>(state, true, out var status))
+                _planReaderService.TransitionState(Path.GetFileName(planFolder), status);
+            else
+                SetPlanStateByFolder(planFolder, state);
         }
         catch
         {
@@ -1727,12 +1734,12 @@ public class JobService : IJobService
                     var logRoot = Path.Combine(
                         Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? ".",
                         "Logs", "Jobs");
-                    Directory.CreateDirectory(logRoot);
+                    FileHelper.EnsureDirectory(logRoot);
                     planFolder = logRoot;
                 }
 
                 var logsDir = Path.Combine(planFolder, "logs");
-                Directory.CreateDirectory(logsDir);
+                FileHelper.EnsureDirectory(logsDir);
                 var outputFile = Path.Combine(logsDir, $"{job.Type}-{job.Id}.output.log");
                 File.WriteAllLines(outputFile, job.OutputLines);
 

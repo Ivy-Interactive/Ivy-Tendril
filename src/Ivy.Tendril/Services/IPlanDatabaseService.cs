@@ -41,6 +41,7 @@ public interface IPlanDatabaseService : IDisposable
         string planTitle, DateTime updated, PlanStatus status);
 
     void BulkUpsertPlans(List<PlanFile> plans, bool forceOverwrite = false);
+    HashSet<int> GetTerminalPlanIds();
 
     // Jobs
     void UpsertJob(JobItem job);
