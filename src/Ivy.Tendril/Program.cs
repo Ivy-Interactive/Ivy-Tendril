@@ -5,6 +5,7 @@ using Ivy.Helpers;
 using Ivy.Tendril.Commands;
 using Ivy.Tendril.Database;
 using Ivy.Tendril.Services;
+using Spectre.Console.Cli;
 using Velopack;
 
 namespace Ivy.Tendril;
@@ -36,19 +37,100 @@ public class Program
 
         var filteredArgs = args.Where(a => a != "--desktop" && a != "--photino" && a != "--web").ToArray();
 
-        // Handle database CLI commands before starting the server/GUI
-        var dbExitCode = DatabaseCommands.Handle(filteredArgs);
-        if (dbExitCode >= 0)
-            return dbExitCode;
+        // Handle CLI commands using Spectre.Console.Cli
+        if (filteredArgs.Length > 0)
+        {
+            var app = new CommandApp();
+            app.Configure(config =>
+            {
+                config.PropagateExceptions();
 
-        var pwExitCode = PromptwareCommands.Handle(filteredArgs);
-        if (pwExitCode >= 0)
-            return pwExitCode;
+                // Doctor command
+                config.AddCommand<DoctorCliCommand>("doctor")
+                    .WithDescription("System health check");
 
-        var doctorExitCode = DoctorCommand.Handle(filteredArgs);
-        if (doctorExitCode >= 0)
-            return doctorExitCode;
+                // Database commands
+                config.AddCommand<DbVersionCommand>("db-version")
+                    .WithDescription("Show database version");
+                config.AddCommand<DbMigrateCommand>("db-migrate")
+                    .WithDescription("Apply database migrations");
+                config.AddCommand<DbResetCommand>("db-reset")
+                    .WithDescription("Reset database");
 
+                // Other commands
+                config.AddCommand<UpdatePromptwaresCliCommand>("update-promptwares")
+                    .WithDescription("Update embedded promptwares");
+                config.AddCommand<PromptwareRunCommand>("promptware")
+                    .WithDescription("Run a promptware directly");
+
+                // Plan management commands
+                config.AddBranch("plan", plan =>
+                {
+                    plan.AddCommand<PlanListCommand>("list")
+                        .WithDescription("List plans with optional filters");
+                    plan.AddCommand<PlanCreateCommand>("create")
+                        .WithDescription("Create a new plan");
+                    plan.AddCommand<PlanUpdateCommand>("update")
+                        .WithDescription("Update plan from STDIN");
+                    plan.AddCommand<PlanSetCommand>("set")
+                        .WithDescription("Set a single field");
+                    plan.AddCommand<PlanAddRepoCommand>("add-repo")
+                        .WithDescription("Add a repository");
+                    plan.AddCommand<PlanRemoveRepoCommand>("remove-repo")
+                        .WithDescription("Remove a repository");
+                    plan.AddCommand<PlanAddPrCommand>("add-pr")
+                        .WithDescription("Add a PR URL");
+                    plan.AddCommand<PlanAddCommitCommand>("add-commit")
+                        .WithDescription("Add a commit hash");
+                    plan.AddCommand<PlanSetVerificationCommand>("set-verification")
+                        .WithDescription("Update verification status");
+                    plan.AddCommand<PlanGetCommand>("get")
+                        .WithDescription("Read plan or field");
+                    plan.AddCommand<PlanAddLogCommand>("add-log")
+                        .WithDescription("Write a log entry");
+                    plan.AddCommand<PlanValidateCommand>("validate")
+                        .WithDescription("Validate plan health");
+                    plan.AddCommand<PlanCleanupCommand>("cleanup")
+                        .WithDescription("Remove worktrees from a plan");
+                    plan.AddCommand<PlanDoctorCommand>("doctor")
+                        .WithDescription("Check plan health");
+
+                    plan.AddBranch("rec", rec =>
+                    {
+                        rec.AddCommand<PlanRecListCommand>("list")
+                            .WithDescription("List recommendations");
+                        rec.AddCommand<PlanRecAddCommand>("add")
+                            .WithDescription("Add a recommendation");
+                        rec.AddCommand<PlanRecRemoveCommand>("remove")
+                            .WithDescription("Remove a recommendation");
+                        rec.AddCommand<PlanRecSetCommand>("set")
+                            .WithDescription("Update a recommendation field");
+                        rec.AddCommand<PlanRecAcceptCommand>("accept")
+                            .WithDescription("Accept a recommendation");
+                        rec.AddCommand<PlanRecDeclineCommand>("decline")
+                            .WithDescription("Decline a recommendation");
+                    });
+                });
+            });
+
+            try
+            {
+                // Check if this is a recognized CLI command
+                var firstArg = filteredArgs[0];
+                if (firstArg == "doctor" || firstArg == "db-version" || firstArg == "db-migrate" ||
+                    firstArg == "db-reset" || firstArg == "update-promptwares" || firstArg == "plan" ||
+                    firstArg == "promptware")
+                {
+                    return app.Run(filteredArgs);
+                }
+            }
+            catch (Exception)
+            {
+                // If command parsing fails, fall through to legacy handlers
+            }
+        }
+
+        // Legacy handlers for commands not yet migrated to Spectre.Console.Cli
         var hashExitCode = HashPasswordCommand.Handle(filteredArgs);
         if (hashExitCode >= 0)
             return hashExitCode;

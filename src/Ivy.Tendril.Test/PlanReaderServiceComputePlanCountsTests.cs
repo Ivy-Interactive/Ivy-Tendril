@@ -39,11 +39,12 @@ public class PlanReaderServiceComputePlanCountsTests : IDisposable
         File.WriteAllText(Path.Combine(revisionsDir, "001.md"), "# Test");
     }
 
-    private void CreateRecommendations(string folderName, string yaml)
+    private void CreateRecommendations(string folderName, string recsYaml)
     {
-        var artifactsDir = Path.Combine(_plansDir, folderName, "artifacts");
-        Directory.CreateDirectory(artifactsDir);
-        File.WriteAllText(Path.Combine(artifactsDir, "recommendations.yaml"), yaml);
+        var planYamlPath = Path.Combine(_plansDir, folderName, "plan.yaml");
+        var existing = File.ReadAllText(planYamlPath);
+        var indented = string.Join("\n", recsYaml.Split('\n').Select(l => string.IsNullOrWhiteSpace(l) ? l : "  " + l));
+        File.WriteAllText(planYamlPath, existing.TrimEnd() + $"\nrecommendations:\n{indented}\n");
     }
 
     [Fact]

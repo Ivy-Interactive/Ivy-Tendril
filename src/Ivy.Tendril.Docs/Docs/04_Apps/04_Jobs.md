@@ -19,7 +19,7 @@ Running and past promptware runs: status, cost, duration, and live output.
 Any dispatched promptware (Execute from Drafts, Revise from Review, …) shows up as a job with:
 
 - **Status** — `Running`, `Completed`, `Failed`, `Pending`, …
-- **Type** — e.g. `MakePlan`, `ExecutePlan`, `UpdatePlan`, `MakePr`
+- **Type** — e.g. `CreatePlan`, `ExecutePlan`, `UpdatePlan`, `CreatePr`
 - **Tokens** — Usage vs. your provider quota
 
 ## Live output

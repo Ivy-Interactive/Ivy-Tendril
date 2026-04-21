@@ -140,19 +140,25 @@ public class ContentView(
                             new Dictionary<string, List<string>>(), new List<PlanContentHelpers.CommitRow>(),
                             new Dictionary<string, bool>(), new List<(string Name, bool ConditionMet)>(), null);
 
-                    // Recommendations
-                    var recsPath = Path.Combine(folderPath, "artifacts", "recommendations.yaml");
+                    // Recommendations from plan.yaml
                     List<RecommendationYaml> recs;
                     try
                     {
-                        recs = File.Exists(recsPath)
-                            ? YamlHelper.Deserializer.Deserialize<List<RecommendationYaml>>(
-                                FileHelper.ReadAllText(recsPath)) ?? new List<RecommendationYaml>()
-                            : new List<RecommendationYaml>();
+                        var planYamlPath = Path.Combine(folderPath, "plan.yaml");
+                        if (File.Exists(planYamlPath))
+                        {
+                            var yaml = FileHelper.ReadAllText(planYamlPath);
+                            var planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml);
+                            recs = planYaml?.Recommendations ?? new List<RecommendationYaml>();
+                        }
+                        else
+                        {
+                            recs = new List<RecommendationYaml>();
+                        }
                     }
                     catch (Exception ex)
                     {
-                        logger.LogWarning(ex, "Failed to parse recommendations.yaml for plan {FolderPath}", folderPath);
+                        logger.LogWarning(ex, "Failed to parse recommendations from plan.yaml for {FolderPath}", folderPath);
                         recs = new List<RecommendationYaml>();
                     }
 
@@ -236,7 +242,7 @@ public class ContentView(
 
             if (allYolo)
             {
-                _jobService.StartJob("MakePr", _selectedPlan.FolderPath);
+                _jobService.StartJob("CreatePr", _selectedPlan.FolderPath);
                 _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Building);
                 _refreshPlans();
             }

@@ -23,14 +23,14 @@ public static class DatabaseCommands
 
         return args[0] switch
         {
-            "db-version" => DbVersion(dbPath),
-            "db-migrate" => DbMigrate(dbPath),
-            "db-reset" => DbReset(dbPath, args),
+            "db-version" => DbVersionInternal(dbPath),
+            "db-migrate" => DbMigrateInternal(dbPath),
+            "db-reset" => DbResetInternal(dbPath, args.Contains("--force")),
             _ => -1
         };
     }
 
-    internal static int DbVersion(string dbPath)
+    public static int DbVersionInternal(string dbPath)
     {
         using var connection = OpenConnection(dbPath);
         var migrator = new DatabaseMigrator(connection);
@@ -46,7 +46,7 @@ public static class DatabaseCommands
         return 0;
     }
 
-    internal static int DbMigrate(string dbPath)
+    public static int DbMigrateInternal(string dbPath)
     {
         using var connection = OpenConnection(dbPath);
         var migrator = new DatabaseMigrator(connection);
@@ -54,15 +54,13 @@ public static class DatabaseCommands
         return 0;
     }
 
-    internal static int DbReset(string dbPath, string[] args)
+    public static int DbResetInternal(string dbPath, bool force)
     {
-        var force = args.Any(a => a == "--force");
-
         if (!force)
         {
-            Console.Write("WARNING: This will delete all data in the database.\nAre you sure? (y/N): ");
-            var response = Console.ReadLine();
-            if (!string.Equals(response?.Trim(), "y", StringComparison.OrdinalIgnoreCase))
+            Console.Write("WARNING: This will delete all data in the database. Are you sure? [y/n] ");
+            var response = Console.ReadLine()?.Trim().ToLowerInvariant();
+            if (response != "y")
             {
                 Console.WriteLine("Aborted.");
                 return 1;

@@ -57,7 +57,7 @@ internal static class FileHelper
                 using var reader = new StreamReader(stream);
                 return reader.ReadToEnd();
             }
-            catch (IOException) when (attempt < MaxRetries)
+            catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < MaxRetries)
             {
                 Thread.Sleep(RetryDelaysMs[attempt]);
             }
@@ -75,7 +75,7 @@ internal static class FileHelper
                     lines.Add(line);
                 return lines.ToArray();
             }
-            catch (IOException) when (attempt < MaxRetries)
+            catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < MaxRetries)
             {
                 Thread.Sleep(RetryDelaysMs[attempt]);
             }
@@ -83,6 +83,7 @@ internal static class FileHelper
 
     public static void WriteAllText(string path, string contents)
     {
+        ClearReadOnly(path);
         for (var attempt = 0; ; attempt++)
             try
             {
@@ -91,7 +92,7 @@ internal static class FileHelper
                 writer.Write(contents);
                 return;
             }
-            catch (IOException) when (attempt < MaxRetries)
+            catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < MaxRetries)
             {
                 Thread.Sleep(RetryDelaysMs[attempt]);
             }
@@ -110,7 +111,7 @@ internal static class FileHelper
                     return await reader.ReadToEndAsync().ConfigureAwait(false);
                 }
             }
-            catch (IOException) when (attempt < MaxRetries)
+            catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < MaxRetries)
             {
                 await Task.Delay(RetryDelaysMs[attempt]).ConfigureAwait(false);
             }
@@ -118,6 +119,7 @@ internal static class FileHelper
 
     public static async Task WriteAllTextAsync(string path, string contents)
     {
+        ClearReadOnly(path);
         for (var attempt = 0; ; attempt++)
             try
             {
@@ -129,7 +131,7 @@ internal static class FileHelper
                     return;
                 }
             }
-            catch (IOException) when (attempt < MaxRetries)
+            catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < MaxRetries)
             {
                 await Task.Delay(RetryDelaysMs[attempt]).ConfigureAwait(false);
             }
@@ -148,7 +150,7 @@ internal static class FileHelper
                 stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
                 break;
             }
-            catch (IOException) when (attempt < MaxRetries)
+            catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < MaxRetries)
             {
                 Thread.Sleep(RetryDelaysMs[attempt]);
             }
@@ -163,6 +165,7 @@ internal static class FileHelper
 
     public static void AppendAllText(string path, string contents)
     {
+        ClearReadOnly(path);
         for (var attempt = 0; ; attempt++)
             try
             {
@@ -171,9 +174,17 @@ internal static class FileHelper
                 writer.Write(contents);
                 return;
             }
-            catch (IOException) when (attempt < MaxRetries)
+            catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < MaxRetries)
             {
                 Thread.Sleep(RetryDelaysMs[attempt]);
             }
+    }
+
+    private static void ClearReadOnly(string path)
+    {
+        if (!File.Exists(path)) return;
+        var attrs = File.GetAttributes(path);
+        if ((attrs & FileAttributes.ReadOnly) != 0)
+            File.SetAttributes(path, attrs & ~FileAttributes.ReadOnly);
     }
 }

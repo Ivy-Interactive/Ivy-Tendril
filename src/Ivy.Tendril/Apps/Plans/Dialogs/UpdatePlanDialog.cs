@@ -40,7 +40,7 @@ public class UpdatePlanDialog(
                     _updateText.Set("");
                     _dialogOpen.Set(false);
                 }),
-                new Button("Submit Update").Primary().Disabled(isCreating.Value).ShortcutKey("Ctrl+Enter").OnClick(() =>
+                new Button("Submit Update").Primary().Disabled(isCreating.Value || string.IsNullOrWhiteSpace(_updateText.Value)).ShortcutKey("Ctrl+Enter").OnClick(() =>
                 {
                     if (!string.IsNullOrWhiteSpace(_updateText.Value) && !isCreating.Value)
                     {

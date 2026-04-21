@@ -75,12 +75,12 @@ public class UseStartJobTests
 
         // Act
         var (startJob, _) = ctx.UseStartJob();
-        startJob("MakePlan", new[] { "-Description", "Test Plan", "-Project", "TestProject" });
+        startJob("CreatePlan", new[] { "-Description", "Test Plan", "-Project", "TestProject" });
 
         // Assert
         Assert.Single(jobService.StartedJobs);
         var (type, args) = jobService.StartedJobs[0];
-        Assert.Equal("MakePlan", type);
+        Assert.Equal("CreatePlan", type);
         Assert.Equal(new[] { "-Description", "Test Plan", "-Project", "TestProject" }, args);
     }
 

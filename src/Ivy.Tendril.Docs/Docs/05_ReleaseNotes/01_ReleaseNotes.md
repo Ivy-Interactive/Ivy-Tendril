@@ -54,7 +54,7 @@ Version history, new features, improvements, and bug fixes for each Tendril rele
 
 - **Documentation overhaul** — Comprehensive rewrite of all Tendril documentation with improved structure, examples, and onboarding flow.
 - **Onboarding wizard polish** — Improved UI, copy, and step layout for the first-run experience.
-- **Stack-agnostic promptwares** — Removed stack-specific references from ExecutePlan, MakePlan, and other promptwares to support any tech stack via `config.yaml` verifications.
+- **Stack-agnostic promptwares** — Removed stack-specific references from ExecutePlan, CreatePlan, and other promptwares to support any tech stack via `config.yaml` verifications.
 - **Replaced FolderInput with TextInput** — Simplified path input across Tendril apps.
 
 ### Bug Fixes
@@ -84,7 +84,7 @@ Version history, new features, improvements, and bug fixes for each Tendril rele
 
 - **Initial release** of Tendril plan management system.
 - **Plan apps** — Dashboard, Review, Drafts, Jobs, Icebox, Pull Requests, Recommendations, and Trash views.
-- **Promptwares** — MakePlan, ExecutePlan, MakePr, UpdatePlan, SplitPlan, ExpandPlan, and CreateIssue.
+- **Promptwares** — CreatePlan, ExecutePlan, CreatePr, UpdatePlan, SplitPlan, ExpandPlan, and CreateIssue.
 - **Cross-platform support** — macOS and Windows with automatic platform detection.
 - **Worktree-based execution** — Plans execute in isolated git worktrees to keep the main repo clean.
 - **Configurable verifications** — DotnetBuild, DotnetTest, DotnetFormat, FrontendLint, and CheckResult.

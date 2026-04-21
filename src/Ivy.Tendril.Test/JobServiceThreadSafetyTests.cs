@@ -17,7 +17,7 @@ public class JobServiceThreadSafetyTests
         string id;
         try
         {
-            id = service.StartJob("MakePlan", "-Description", "Slot filler");
+            id = service.StartJob("CreatePlan", "-Description", "Slot filler");
         }
         catch
         {
@@ -172,7 +172,7 @@ public class JobServiceThreadSafetyTests
             int counter = 100;
             while (!cts.Token.IsCancellationRequested)
             {
-                var id = service.CreateTestJob("MakePlan", $"concurrent-{counter++}");
+                var id = service.CreateTestJob("CreatePlan", $"concurrent-{counter++}");
                 Thread.Sleep(1);
                 service.DeleteJob(id);
             }

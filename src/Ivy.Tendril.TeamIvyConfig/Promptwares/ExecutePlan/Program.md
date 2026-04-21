@@ -19,7 +19,7 @@ The launcher script sets the working directory to the project's primary repo.
 
 **Note:** Plans are often executed multiple times. For example, a reviewer may not be satisfied with the first execution and sends the plan back to Draft with comments (via UpdatePlan). When re-executing, the worktree branch from the previous run may already exist — handle this gracefully (delete old worktree first, or create with a new branch suffix). Check for existing artifacts and verification reports from prior runs.
 
-**Resume-vs-redo on re-execution:** Before deleting anything, run an integrity check on the prior run. If `plan.yaml` has commits populated and all verifications `Pass`, every `Pass` verification has a report, `artifacts/summary.md` exists, the worktree is clean with HEAD matching the last recorded commit, and the expected code changes are present in the files — then **resume** (log it and exit successfully) rather than redoing work. Redoing creates new commit hashes and breaks downstream MakePr references. Only fall back to the full re-execution flow if any of those checks fail.
+**Resume-vs-redo on re-execution:** Before deleting anything, run an integrity check on the prior run. If `plan.yaml` has commits populated and all verifications `Pass`, every `Pass` verification has a report, `artifacts/summary.md` exists, the worktree is clean with HEAD matching the last recorded commit, and the expected code changes are present in the files — then **resume** (log it and exit successfully) rather than redoing work. Redoing creates new commit hashes and breaks downstream CreatePr references. Only fall back to the full re-execution flow if any of those checks fail.
 
 ## Time Budget Awareness
 
@@ -147,7 +147,7 @@ After reading the plan revision, scan it for code validation markers to detect s
    - A `<details><summary>Still relevant?</summary>` block whose body starts with `No.`
    - Phrases like *"Already applied"*, *"This plan is redundant"*, *"This plan is superseded"*, or *"previously attempted … was merged to main via PR #NNNN"* in the `## Problem` or `## Solution` sections.
 
-   If any marker is found, verify the claim: run `gh pr view <cited PR> --json state,mergeCommit` (must be `MERGED`), confirm the cited commit is in `git log origin/<default-branch>`, and byte-compare the plan's proposed code against the current file contents. If all three checks pass, write `verification/PreExecution.md` with `Result: Fail`, write `artifacts/summary.md` documenting the no-op, set every `plan.yaml` verification to `Skipped`, and fail the plan **without creating a worktree** — running verifications on unchanged code wastes the time budget and produces a 0-commit PR that MakePr cannot process.
+   If any marker is found, verify the claim: run `gh pr view <cited PR> --json state,mergeCommit` (must be `MERGED`), confirm the cited commit is in `git log origin/<default-branch>`, and byte-compare the plan's proposed code against the current file contents. If all three checks pass, write `verification/PreExecution.md` with `Result: Fail`, write `artifacts/summary.md` documenting the no-op, set every `plan.yaml` verification to `Skipped`, and fail the plan **without creating a worktree** — running verifications on unchanged code wastes the time budget and produces a 0-commit PR that CreatePr cannot process.
 
 ### 1.8. Auto-Commit Uncommitted Changes
 
@@ -206,7 +206,7 @@ fi
 
 **Rationale:**
 - Worktrees branch from `origin/<default-branch>` (Step 2), so unpushed local changes won't be in the worktree base
-- When the PR merges and MakePr pulls main back, `git pull` would overwrite any uncommitted local changes
+- When the PR merges and CreatePr pulls main back, `git pull` would overwrite any uncommitted local changes
 - Auto-committing and pushing ensures all local work is preserved and visible to worktrees
 - The `WIP:` prefix makes auto-commits easily identifiable for later cleanup (squash/amend)
 - **Revert detection with auto-resolve:** Before committing, each dirty tracked file — whether unstaged (`git diff --name-only HEAD`) or staged (`git diff --cached --name-only`) — is checked against the last 5 commits. If the working tree version matches the file's state *before* a recent commit (i.e., it's stale), the file is automatically restored to its HEAD version via `git checkout HEAD -- <file>`. This prevents silent reverts while keeping the process fully autonomous. Any remaining non-stale dirty files are committed normally.
@@ -573,15 +573,15 @@ After all verifications pass:
 
 ### 8.5. Worktree Lifecycle
 
-Worktrees are **not** cleaned up by ExecutePlan. They remain on disk so that MakePr can push branches and create PRs directly from the worktree.
+Worktrees are **not** cleaned up by ExecutePlan. They remain on disk so that CreatePr can push branches and create PRs directly from the worktree.
 
 **Cleanup happens later, in two places:**
-1. **MakePr Step 5** — cleans up worktrees after PRs are created and (for yolo-rule repos) merged.
+1. **CreatePr Step 5** — cleans up worktrees after PRs are created and (for yolo-rule repos) merged.
 2. **WorktreeCleanupService** — safety net that runs every 30 minutes and removes worktrees for plans in terminal states (Completed, Failed, Skipped) after a 10-minute grace period.
 
-**Git branches are preserved** until MakePr consumes them — only the worktree filesystem directories are removed.
+**Git branches are preserved** until CreatePr consumes them — only the worktree filesystem directories are removed.
 
-**Manual inspection:** If you need to inspect worktrees after failure, check the plan folder's `worktrees/` directory before MakePr runs. After PR creation, worktrees are cleaned up automatically. You can also temporarily pause WorktreeCleanupService if needed for extended debugging.
+**Manual inspection:** If you need to inspect worktrees after failure, check the plan folder's `worktrees/` directory before CreatePr runs. After PR creation, worktrees are cleaned up automatically. You can also temporarily pause WorktreeCleanupService if needed for extended debugging.
 
 ### 9. Plan State
 
@@ -601,6 +601,6 @@ You are running in non-interactive mode and CANNOT ask questions. If you are uns
 - Do NOT skip tests or pre-commit formatting
 - Commit messages must reference the plan ID
 - All `file:///` paths in plans should be converted to Windows paths when needed
-- Do NOT commit artifact files (screenshots, images) to the repo. Test artifacts belong in `<PlanFolder>/artifacts/` only — MakePr handles uploading them to persistent storage.
+- Do NOT commit artifact files (screenshots, images) to the repo. Test artifacts belong in `<PlanFolder>/artifacts/` only — CreatePr handles uploading them to persistent storage.
 - Private npm packages (like `@ivy-interactive/ivy-design-system`) require authentication via `.npmrc`. The Setup-WorktreeFrontend.ps1 tool handles this automatically. Credentials come from NPM_TOKEN env var or .NET user secrets (Npm:RegistryToken).
 - Do NOT use `subst` to create drive letter mappings for worktree paths. The plans directory is already symlinked to a short path to avoid long-path issues. Using `subst` creates phantom drives that are never cleaned up.

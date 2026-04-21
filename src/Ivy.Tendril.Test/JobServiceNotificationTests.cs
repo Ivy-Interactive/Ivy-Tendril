@@ -15,14 +15,14 @@ public class JobServiceNotificationTests
     public void CompleteJob_Success_NotificationTitleIncludesJobType()
     {
         var service = CreateService();
-        var id = service.CreateTestJob("MakePr", Path.GetTempPath());
+        var id = service.CreateTestJob("CreatePr", Path.GetTempPath());
 
         JobNotification? notification = null;
         service.NotificationReady += n => notification = n;
         service.CompleteJob(id, 0);
 
         Assert.NotNull(notification);
-        Assert.Equal("MakePr Completed", notification.Title);
+        Assert.Equal("CreatePr Completed", notification.Title);
         Assert.True(notification.IsSuccess);
     }
 

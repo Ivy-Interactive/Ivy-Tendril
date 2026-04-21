@@ -60,7 +60,7 @@ public record JobItem
         set => _staleOutputDetected = value;
     }
 
-    // Path to the .processing inbox file for MakePlan job recovery
+    // Path to the .processing inbox file for CreatePlan job recovery
     public string? InboxFile { get; set; }
 
     public void EnqueueOutput(string line)

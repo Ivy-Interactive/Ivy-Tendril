@@ -41,7 +41,7 @@ public class SuggestChangesDialog(
                     _suggestText.Set("");
                     _dialogOpen.Set(false);
                 }),
-                new Button("Submit Suggestions").Primary().Disabled(isCreating.Value).ShortcutKey("Ctrl+Enter").OnClick(() =>
+                new Button("Submit Suggestions").Primary().Disabled(isCreating.Value || string.IsNullOrWhiteSpace(_suggestText.Value)).ShortcutKey("Ctrl+Enter").OnClick(() =>
                 {
                     if (!string.IsNullOrWhiteSpace(_suggestText.Value) && !isCreating.Value)
                     {

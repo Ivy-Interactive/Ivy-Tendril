@@ -13,23 +13,21 @@ public class InboxControllerTests
     public void PostPlan_ValidRequest_ReturnsOkWithJobId()
     {
         var jobService = new StubJobService();
-        var configService = new ConfigService(new TendrilSettings(), "/tmp");
-        var controller = CreateController(jobService, configService);
+        var controller = CreateController(jobService);
 
         var result = controller.PostPlan(new CreatePlanRequest("Fix a bug", "Tendril"));
 
         var ok = Assert.IsType<OkObjectResult>(result);
         Assert.Equal(200, ok.StatusCode);
         Assert.Single(jobService.StartedJobs);
-        Assert.Equal("MakePlan", jobService.StartedJobs[0].Type);
+        Assert.Equal("CreatePlan", jobService.StartedJobs[0].Type);
     }
 
     [Fact]
     public void PostPlan_EmptyDescription_ReturnsBadRequest()
     {
         var jobService = new StubJobService();
-        var configService = new ConfigService(new TendrilSettings(), "/tmp");
-        var controller = CreateController(jobService, configService);
+        var controller = CreateController(jobService);
 
         var result = controller.PostPlan(new CreatePlanRequest(""));
 
@@ -38,66 +36,10 @@ public class InboxControllerTests
     }
 
     [Fact]
-    public void PostPlan_WithAuthentication_ValidKey_ReturnsOk()
-    {
-        var jobService = new StubJobService();
-        var settings = new TendrilSettings { Api = new ApiSettings { ApiKey = "secret-123" } };
-        var configService = new ConfigService(settings, "/tmp");
-        var controller = CreateController(jobService, configService, apiKey: "secret-123");
-
-        var result = controller.PostPlan(new CreatePlanRequest("Add feature"));
-
-        Assert.IsType<OkObjectResult>(result);
-        Assert.Single(jobService.StartedJobs);
-    }
-
-    [Fact]
-    public void PostPlan_WithAuthentication_InvalidKey_ReturnsUnauthorized()
-    {
-        var jobService = new StubJobService();
-        var settings = new TendrilSettings { Api = new ApiSettings { ApiKey = "secret-123" } };
-        var configService = new ConfigService(settings, "/tmp");
-        var controller = CreateController(jobService, configService, apiKey: "wrong-key");
-
-        var result = controller.PostPlan(new CreatePlanRequest("Add feature"));
-
-        Assert.IsType<UnauthorizedObjectResult>(result);
-        Assert.Empty(jobService.StartedJobs);
-    }
-
-    [Fact]
-    public void PostPlan_WithAuthentication_MissingKey_ReturnsUnauthorized()
-    {
-        var jobService = new StubJobService();
-        var settings = new TendrilSettings { Api = new ApiSettings { ApiKey = "secret-123" } };
-        var configService = new ConfigService(settings, "/tmp");
-        var controller = CreateController(jobService, configService);
-
-        var result = controller.PostPlan(new CreatePlanRequest("Add feature"));
-
-        Assert.IsType<UnauthorizedObjectResult>(result);
-        Assert.Empty(jobService.StartedJobs);
-    }
-
-    [Fact]
-    public void PostPlan_NoAuthConfigured_AllowsAccess()
-    {
-        var jobService = new StubJobService();
-        var configService = new ConfigService(new TendrilSettings(), "/tmp");
-        var controller = CreateController(jobService, configService);
-
-        var result = controller.PostPlan(new CreatePlanRequest("Do something"));
-
-        Assert.IsType<OkObjectResult>(result);
-        Assert.Single(jobService.StartedJobs);
-    }
-
-    [Fact]
     public void PostPlan_WithSourcePath_PassesItToJobService()
     {
         var jobService = new StubJobService();
-        var configService = new ConfigService(new TendrilSettings(), "/tmp");
-        var controller = CreateController(jobService, configService);
+        var controller = CreateController(jobService);
 
         var result = controller.PostPlan(new CreatePlanRequest("Fix bug", "Tendril", @"D:\Tests\Session1"));
 
@@ -111,8 +53,7 @@ public class InboxControllerTests
     public void PostPlan_NullProject_DefaultsToAuto()
     {
         var jobService = new StubJobService();
-        var configService = new ConfigService(new TendrilSettings(), "/tmp");
-        var controller = CreateController(jobService, configService);
+        var controller = CreateController(jobService);
 
         var result = controller.PostPlan(new CreatePlanRequest("Some task"));
 
@@ -121,16 +62,13 @@ public class InboxControllerTests
         Assert.Contains("Auto", job.Args);
     }
 
-    private static InboxController CreateController(
-        IJobService jobService,
-        IConfigService configService,
-        string? apiKey = null)
+    private static InboxController CreateController(IJobService jobService)
     {
-        var controller = new InboxController(jobService, configService);
-        var httpContext = new DefaultHttpContext();
-        if (apiKey != null)
-            httpContext.Request.Headers["X-Api-Key"] = apiKey;
-        controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
+        var controller = new InboxController(jobService);
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext()
+        };
         return controller;
     }
 

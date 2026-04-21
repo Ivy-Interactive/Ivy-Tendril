@@ -62,7 +62,7 @@ codingAgents:
 # _default provides base values. Specific entries override only the fields they define;
 # unspecified fields are inherited from _default.
 promptwares:
-  MakePlan:
+  CreatePlan:
     profile: balanced
     allowedTools: [Read, Glob, Grep, Bash, Write, Edit]
   ExecutePlan:
@@ -77,7 +77,7 @@ promptwares:
   SplitPlan:
     profile: balanced
     allowedTools: [Read, Bash, Write]
-  MakePr:
+  CreatePr:
     profile: balanced
     allowedTools: [Read, Glob, Grep, Bash, Write, Edit]
   CreateIssue:
@@ -115,7 +115,7 @@ promptwares:
 #     hooks:
 #       - name: SlackNotify
 #         when: after
-#         promptwares: [MakePr]
+#         promptwares: [CreatePr]
 #         condition: ''
 #         action: pwsh -NoProfile -File %TENDRIL_HOME%/Hooks/NotifySlack.ps1
 projects: []

@@ -98,7 +98,7 @@ public class PlanDatabaseSyncServiceTests : IDisposable
         Directory.CreateDirectory(revisionsDir);
         File.WriteAllText(Path.Combine(revisionsDir, "001.md"), "# Cost Plan");
         File.WriteAllText(Path.Combine(dir, "costs.csv"),
-            "promptware,tokens,cost\nExecutePlan,50000,1.50\nMakePr,10000,0.30\n");
+            "promptware,tokens,cost\nExecutePlan,50000,1.50\nCreatePr,10000,0.30\n");
 
         _syncService.PerformInitialSync();
 
@@ -110,17 +110,13 @@ public class PlanDatabaseSyncServiceTests : IDisposable
     public void PerformInitialSync_SyncsRecommendations()
     {
         var yaml =
-            "state: Completed\nproject: Tendril\ntitle: Rec Plan\nlevel: NiceToHave\nrepos: []\ncommits: []\nprs: []\nverifications: []\nrelatedPlans: []\ndependsOn: []\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\n";
+            "state: Completed\nproject: Tendril\ntitle: Rec Plan\nlevel: NiceToHave\nrepos: []\ncommits: []\nprs: []\nverifications: []\nrelatedPlans: []\ndependsOn: []\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nrecommendations:\n  - title: Add tests\n    description: Need more tests\n    state: Pending\n";
         var dir = Path.Combine(_planReader.PlansDirectory, "01500-RecPlan");
         Directory.CreateDirectory(dir);
         File.WriteAllText(Path.Combine(dir, "plan.yaml"), yaml);
         var revisionsDir = Path.Combine(dir, "revisions");
         Directory.CreateDirectory(revisionsDir);
         File.WriteAllText(Path.Combine(revisionsDir, "001.md"), "# Rec Plan");
-        var artifactsDir = Path.Combine(dir, "artifacts");
-        Directory.CreateDirectory(artifactsDir);
-        File.WriteAllText(Path.Combine(artifactsDir, "recommendations.yaml"),
-            "- title: Add tests\n  description: Need more tests\n  state: Pending\n");
 
         _syncService.PerformInitialSync();
 
@@ -140,10 +136,6 @@ public class PlanDatabaseSyncServiceTests : IDisposable
         var revisionsDir = Path.Combine(dir, "revisions");
         Directory.CreateDirectory(revisionsDir);
         File.WriteAllText(Path.Combine(revisionsDir, "001.md"), "# Bad Recs Plan");
-        var artifactsDir = Path.Combine(dir, "artifacts");
-        Directory.CreateDirectory(artifactsDir);
-        File.WriteAllText(Path.Combine(artifactsDir, "recommendations.yaml"),
-            "- title: `Backtick title` causes parse failure\n  description: This breaks\n  state: Pending\n");
 
         _syncService.PerformInitialSync();
 

@@ -25,6 +25,7 @@ public class JobsApp : ViewBase
         var outputStream = UseStream<string>();
         var lastProcessedIndex = UseState(0);
         var streamingJobId = UseState<string?>(null);
+        var hasStreamContent = UseState(false);
 
         UseInterval(() =>
         {
@@ -39,6 +40,7 @@ public class JobsApp : ViewBase
             {
                 streamingJobId.Set(activeJobId);
                 startIdx = 0;
+                hasStreamContent.Set(false);
 
                 // Immediately seed the stream with existing lines
                 var existingLines = activeJob.OutputLines.ToArray();
@@ -46,6 +48,12 @@ public class JobsApp : ViewBase
                 {
                     outputStream.Write(line);
                 }
+
+                if (existingLines.Length > 0 && !hasStreamContent.Value)
+                {
+                    hasStreamContent.Set(true);
+                }
+
                 lastProcessedIndex.Set(existingLines.Length);
             }
             else
@@ -56,6 +64,12 @@ public class JobsApp : ViewBase
                 {
                     outputStream.Write(currentLines[i]);
                 }
+
+                if (currentLines.Length > 0 && !hasStreamContent.Value)
+                {
+                    hasStreamContent.Set(true);
+                }
+
                 lastProcessedIndex.Set(currentLines.Length);
             }
         }, TimeSpan.FromMilliseconds(300));
@@ -314,9 +328,9 @@ public class JobsApp : ViewBase
                     {
                         if (job.Status is JobStatus.Failed or JobStatus.Timeout or JobStatus.Stopped)
                         {
-                            if (job.Type == "MakePlan" && !job.Args.Contains("-Description"))
+                            if (job.Type == "CreatePlan" && !job.Args.Contains("-Description"))
                             {
-                                client.Toast("Cannot rerun MakePlan: original description was not preserved.", "Rerun Failed");
+                                client.Toast("Cannot rerun CreatePlan: original description was not preserved.", "Rerun Failed");
                                 return ValueTask.CompletedTask;
                             }
 
@@ -403,12 +417,19 @@ public class JobsApp : ViewBase
 
             if (job is { Status: JobStatus.Running })
             {
-                outputContent = new ClaudeJsonRenderer()
-                    .Stream(outputStream)
-                    .ShowThinking(true)
-                    .ShowSystemEvents(true)
-                    .AutoScroll(true)
-                    .Height(Size.Full());
+                if (!hasStreamContent.Value)
+                {
+                    outputContent = Text.P("Loading Output...");
+                }
+                else
+                {
+                    outputContent = new ClaudeJsonRenderer()
+                        .Stream(outputStream)
+                        .ShowThinking(true)
+                        .ShowSystemEvents(true)
+                        .AutoScroll(true)
+                        .Height(Size.Full());
+                }
             }
             else if (job is not null && job.OutputLines.Count > 0)
             {
@@ -450,7 +471,7 @@ public class JobsApp : ViewBase
 
     private static string? GetFullPrompt(JobItem job)
     {
-        if (job.Type == "MakePlan")
+        if (job.Type == "CreatePlan")
         {
             for (var i = 0; i < job.Args.Length - 1; i++)
                 if (job.Args[i].Equals("-Description", StringComparison.OrdinalIgnoreCase))
@@ -524,8 +545,8 @@ public class JobsApp : ViewBase
             }
         }
 
-        // MakePlan jobs: use the -Description arg for display when no title is available yet
-        if (j.Type == "MakePlan")
+        // CreatePlan jobs: use the -Description arg for display when no title is available yet
+        if (j.Type == "CreatePlan")
         {
             var desc = CleanPromptText(GetFullPrompt(j) ?? j.PlanFile);
             return desc.Length > PromptDisplayMaxLength ? desc[..PromptDisplayMaxLength] + "..." : desc;

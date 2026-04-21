@@ -31,11 +31,11 @@ public class DatabaseCommandsTests : IDisposable
     public void DbVersion_ShowsCurrentAndLatestVersion()
     {
         // Initialize DB with migrations first
-        DatabaseCommands.DbMigrate(_dbPath);
+        DatabaseCommands.DbMigrateInternal(_dbPath);
 
         var output = CaptureConsoleOutput(() =>
         {
-            var result = DatabaseCommands.DbVersion(_dbPath);
+            var result = DatabaseCommands.DbVersionInternal(_dbPath);
             Assert.Equal(0, result);
         });
 
@@ -50,12 +50,12 @@ public class DatabaseCommandsTests : IDisposable
     {
         var output = CaptureConsoleOutput(() =>
         {
-            var result = DatabaseCommands.DbMigrate(_dbPath);
+            var result = DatabaseCommands.DbMigrateInternal(_dbPath);
             Assert.Equal(0, result);
         });
 
         // Verify migrations were applied by checking version
-        var versionOutput = CaptureConsoleOutput(() => DatabaseCommands.DbVersion(_dbPath));
+        var versionOutput = CaptureConsoleOutput(() => DatabaseCommands.DbVersionInternal(_dbPath));
         Assert.Contains("Up to date", versionOutput);
     }
 
@@ -63,12 +63,12 @@ public class DatabaseCommandsTests : IDisposable
     public void DbMigrate_WhenUpToDate_ReportsUpToDate()
     {
         // Run migrations first
-        DatabaseCommands.DbMigrate(_dbPath);
+        DatabaseCommands.DbMigrateInternal(_dbPath);
 
         // Run again — should report up to date
         var output = CaptureConsoleOutput(() =>
         {
-            var result = DatabaseCommands.DbMigrate(_dbPath);
+            var result = DatabaseCommands.DbMigrateInternal(_dbPath);
             Assert.Equal(0, result);
         });
 
@@ -79,12 +79,12 @@ public class DatabaseCommandsTests : IDisposable
     public void DbReset_DropsTablesAndReappliesMigrations()
     {
         // Apply migrations to create tables
-        DatabaseCommands.DbMigrate(_dbPath);
+        DatabaseCommands.DbMigrateInternal(_dbPath);
 
         // Reset with --force to skip confirmation
         var output = CaptureConsoleOutput(() =>
         {
-            var result = DatabaseCommands.DbReset(_dbPath, ["db-reset", "--force"]);
+            var result = DatabaseCommands.DbResetInternal(_dbPath, true);
             Assert.Equal(0, result);
         });
 
@@ -92,18 +92,18 @@ public class DatabaseCommandsTests : IDisposable
         Assert.Contains("Dropping existing tables", output);
 
         // Verify migrations were re-applied
-        var versionOutput = CaptureConsoleOutput(() => DatabaseCommands.DbVersion(_dbPath));
+        var versionOutput = CaptureConsoleOutput(() => DatabaseCommands.DbVersionInternal(_dbPath));
         Assert.Contains("Up to date", versionOutput);
     }
 
     [Fact]
     public void DbReset_WithoutForce_AbortsOnNonYResponse()
     {
-        DatabaseCommands.DbMigrate(_dbPath);
+        DatabaseCommands.DbMigrateInternal(_dbPath);
 
         var output = CaptureConsoleOutputWithInput("n\n", () =>
         {
-            var result = DatabaseCommands.DbReset(_dbPath, ["db-reset"]);
+            var result = DatabaseCommands.DbResetInternal(_dbPath, false);
             Assert.Equal(1, result);
         });
 
@@ -127,21 +127,21 @@ public class DatabaseCommandsTests : IDisposable
     [Fact]
     public void Handle_DbVersion_ReturnsZero()
     {
-        DatabaseCommands.DbMigrate(_dbPath);
-        CaptureConsoleOutput(() => { Assert.Equal(0, DatabaseCommands.DbVersion(_dbPath)); });
+        DatabaseCommands.DbMigrateInternal(_dbPath);
+        CaptureConsoleOutput(() => { Assert.Equal(0, DatabaseCommands.DbVersionInternal(_dbPath)); });
     }
 
     [Fact]
     public void Handle_DbMigrate_ReturnsZero()
     {
-        CaptureConsoleOutput(() => { Assert.Equal(0, DatabaseCommands.DbMigrate(_dbPath)); });
+        CaptureConsoleOutput(() => { Assert.Equal(0, DatabaseCommands.DbMigrateInternal(_dbPath)); });
     }
 
     [Fact]
     public void Handle_DbReset_WithForce_ReturnsZero()
     {
-        DatabaseCommands.DbMigrate(_dbPath);
-        CaptureConsoleOutput(() => { Assert.Equal(0, DatabaseCommands.DbReset(_dbPath, ["db-reset", "--force"])); });
+        DatabaseCommands.DbMigrateInternal(_dbPath);
+        CaptureConsoleOutput(() => { Assert.Equal(0, DatabaseCommands.DbResetInternal(_dbPath, true)); });
     }
 
     private static string CaptureConsoleOutput(Action action)

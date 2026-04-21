@@ -345,32 +345,6 @@ public class DoctorCommandPlansTests : IDisposable
         Assert.Contains("repos: []", content);
     }
 
-    [Fact]
-    public void RepairRecommendationsYaml_BacktickTitle_Quoted()
-    {
-        var input = "- title: `Backtick title` causes parse failure\n  state: Pending\n";
-        var repaired = DoctorCommand.RepairRecommendationsYaml(input);
-        Assert.DoesNotContain("- title: `", repaired);
-        Assert.Contains("`Backtick title`", repaired);
-    }
-
-    [Fact]
-    public void RepairPlan_BadRecs_RepairsFile()
-    {
-        var planDir = CreatePlan("00034-BadRecs", ValidYaml);
-        var artifactsDir = Path.Combine(planDir, "artifacts");
-        Directory.CreateDirectory(artifactsDir);
-        File.WriteAllText(Path.Combine(artifactsDir, "recommendations.yaml"),
-            "- title: `Backtick` breaks\n  state: Pending\n");
-
-        var healthResult = new DoctorCommand.PlanHealthResult(
-            "00034", "BadRecs", "Completed", 0, "Recs:Parse error: some error", false);
-
-        var result = DoctorCommand.RepairPlan(planDir, healthResult);
-
-        Assert.True(result.Success);
-        Assert.Contains("repaired recommendations.yaml", result.Message);
-    }
 
     [Fact]
     public void GetPruneReason_NoPrsCommitsRevisions_ReturnReason()

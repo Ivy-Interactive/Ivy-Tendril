@@ -35,17 +35,14 @@ public class RecommendationServiceTests : IDisposable
         var dir = Path.Combine(_plansDir, folderName);
         Directory.CreateDirectory(dir);
 
+        var indented = string.Join("\n", recommendationsYaml.Split('\n').Select(l => string.IsNullOrWhiteSpace(l) ? l : "  " + l));
         var planYaml =
-            $"state: {state}\nproject: {project}\ntitle: Test Plan\nrepos: []\ncommits: []\nprs: []\nverifications: []\nrelatedPlans: []\ndependsOn: []\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\n";
+            $"state: {state}\nproject: {project}\ntitle: Test Plan\nrepos: []\ncommits: []\nprs: []\nverifications: []\nrelatedPlans: []\ndependsOn: []\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nrecommendations:\n{indented}\n";
         File.WriteAllText(Path.Combine(dir, "plan.yaml"), planYaml);
 
         var revisionsDir = Path.Combine(dir, "revisions");
         Directory.CreateDirectory(revisionsDir);
         File.WriteAllText(Path.Combine(revisionsDir, "001.md"), "# Test");
-
-        var artifactsDir = Path.Combine(dir, "artifacts");
-        Directory.CreateDirectory(artifactsDir);
-        File.WriteAllText(Path.Combine(artifactsDir, "recommendations.yaml"), recommendationsYaml);
 
         return dir;
     }
@@ -100,7 +97,7 @@ public class RecommendationServiceTests : IDisposable
         _service.UpdateRecommendationState("01603-PersistTest", "Item Two", "Declined");
         await _service.FlushPendingWritesAsync();
 
-        var filePath = Path.Combine(_plansDir, "01603-PersistTest", "artifacts", "recommendations.yaml");
+        var filePath = Path.Combine(_plansDir, "01603-PersistTest", "plan.yaml");
         var content = File.ReadAllText(filePath);
         Assert.Contains("Declined", content);
         Assert.Contains("Pending", content);
@@ -249,7 +246,7 @@ public class RecommendationServiceTests : IDisposable
         _service.UpdateRecommendationState("01640-DeclineReason", "Fix bug", "Declined", "Not relevant to our project");
         await _service.FlushPendingWritesAsync();
 
-        var filePath = Path.Combine(_plansDir, "01640-DeclineReason", "artifacts", "recommendations.yaml");
+        var filePath = Path.Combine(_plansDir, "01640-DeclineReason", "plan.yaml");
         var content = File.ReadAllText(filePath);
         Assert.Contains("Declined", content);
         Assert.Contains("Not relevant to our project", content);

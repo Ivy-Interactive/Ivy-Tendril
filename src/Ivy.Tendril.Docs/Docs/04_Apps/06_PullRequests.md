@@ -10,12 +10,12 @@ icon: GitPullRequest
 # Pull Requests
 
 <Ingress>
-Track and open GitHub PRs from Tendril after Review approves **MakePr**.
+Track and open GitHub PRs from Tendril after Review approves **CreatePr**.
 </Ingress>
 
 ## Flow
 
-Work stays on **branches / worktrees**, not your random dirty tree. After approval, **MakePr** builds the PR via `gh` from the diff.
+Work stays on **branches / worktrees**, not your random dirty tree. After approval, **CreatePr** builds the PR via `gh` from the diff.
 
 ## In the app
 

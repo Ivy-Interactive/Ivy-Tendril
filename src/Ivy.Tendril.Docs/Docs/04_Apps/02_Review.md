@@ -28,7 +28,7 @@ Queue of finished work: **ReadyForReview** or **Failed** plans. Nothing merges w
 
 | Action | Effect |
 |--------|--------|
-| **Approve (Make PR)** | Marks **Completed**, starts **MakePr** on GitHub. |
+| **Approve (Make PR)** | Marks **Completed**, starts **CreatePr** on GitHub. |
 | **Needs work (Revise)** | **UpdatePlan** on the same worktree with your feedback. |
 | **Decline (Discard)** | **Skipped**, worktree removed. |
 | **Manually resolve** | Edit files in the workspace for small fixes without another full agent loop. |

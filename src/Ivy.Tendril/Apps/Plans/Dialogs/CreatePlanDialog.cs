@@ -56,7 +56,7 @@ public class CreatePlanDialog(
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(onClose),
-                new Button("Create").Primary().Disabled(isCreating.Value).ShortcutKey("Ctrl+Enter").OnClick(() =>
+                new Button("Create").Primary().Disabled(isCreating.Value || string.IsNullOrWhiteSpace(createPlanText.Value)).ShortcutKey("Ctrl+Enter").OnClick(() =>
                 {
                     if (!string.IsNullOrWhiteSpace(createPlanText.Value) && !isCreating.Value)
                     {
