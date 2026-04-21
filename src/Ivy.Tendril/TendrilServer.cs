@@ -165,7 +165,7 @@ public static class TendrilServer
         server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<PrStatusSyncService>());
 
         // Configure logging based on verbosity
-        server.UseBuilder(builder =>
+        server.UseWebApplicationBuilder(builder =>
         {
             builder.Logging.ClearProviders();
             builder.Logging.AddConsole();
