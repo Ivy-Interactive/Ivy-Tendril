@@ -49,6 +49,10 @@ tendril doctor
 
 This checks your environment, required software, database, and agent connectivity. Fix any issues it reports before continuing.
 
+<Callout type="Tip">
+Use `tendril doctor --verbose` to see detailed diagnostics if something isn't working as expected.
+</Callout>
+
 ## Step 2 — Start Tendril
 
 ```bash

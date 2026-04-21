@@ -153,7 +153,11 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         psi.Environment["TENDRIL_CONFIG"] = configService.ConfigPath;
         psi.Environment["TENDRIL_URL"] = Environment.GetEnvironmentVariable("TENDRIL_URL") ?? "https://localhost:5010";
 
-        Console.Error.WriteLine($"Running {settings.Promptware} via {resolution.Provider.Name} (model={resolution.Model}, effort={resolution.Effort})");
+        var verbosityService = new VerbosityService();
+        if (verbosityService.Level != VerbosityLevel.Quiet)
+        {
+            Console.Error.WriteLine($"Running {settings.Promptware} via {resolution.Provider.Name} (model={resolution.Model}, effort={resolution.Effort})");
+        }
 
         using var process = Process.Start(psi);
         if (process == null)
