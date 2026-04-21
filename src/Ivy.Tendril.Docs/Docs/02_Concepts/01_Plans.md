@@ -10,8 +10,6 @@ searchHints:
   - states
 ---
 
-<Text Color="Green" Small Bold>Concepts</Text>
-
 
 # Plans
 

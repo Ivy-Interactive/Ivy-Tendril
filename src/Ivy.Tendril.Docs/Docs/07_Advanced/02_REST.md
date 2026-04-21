@@ -11,8 +11,6 @@ searchHints:
   - X-Api-Key
 ---
 
-<Text Color="Green" Small Bold>API</Text>
-
 # REST API
 
 <Ingress>

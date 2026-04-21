@@ -1,4 +1,4 @@
 ---
 groupExpanded: false
-icon: Terminal
+icon: Zap
 ---

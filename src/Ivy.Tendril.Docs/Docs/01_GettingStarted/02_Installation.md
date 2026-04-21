@@ -9,8 +9,6 @@ searchHints:
 icon: Download
 ---
 
-<Text Color="Green" Small Bold>Getting Started</Text>
-
 # Installation
 
 <Ingress>
@@ -43,7 +41,6 @@ dotnet tool install -g Ivy.Tendril
 
 <Callout type="Tip">
 Powershell 7, Git and gh CLI need to be present on your machine if you install using `dotnet tool` command
-
 </Callout>
 
 ## Run

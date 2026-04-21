@@ -10,8 +10,6 @@ searchHints:
   - tendril_plan_set
 ---
 
-<Text Color="Green" Small Bold>API</Text>
-
 # MCP Server
 
 <Ingress>

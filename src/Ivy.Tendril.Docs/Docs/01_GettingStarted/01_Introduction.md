@@ -9,8 +9,6 @@ searchHints:
 icon: Rocket
 ---
 
-<Text Color="Green" Small Bold>Getting Started</Text>
-
 # Welcome to Tendril
 
 We’re here to answer your questions. Can’t find what you’re looking for? Join our community on [Discord](https://discord.gg/FHgxkDga3y) to connect with the team.

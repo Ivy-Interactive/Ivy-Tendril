@@ -8,8 +8,6 @@ searchHints:
   - tools
 ---
 
-<Text Color="Green" Small Bold>Concepts</Text>
-
 # Promptwares
 
 <Ingress>
