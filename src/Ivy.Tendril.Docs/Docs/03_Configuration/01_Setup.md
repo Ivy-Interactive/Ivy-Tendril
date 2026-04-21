@@ -1,5 +1,5 @@
 ---
-icon: Wrench
+icon: Construction
 searchHints:
   - config
   - yaml
