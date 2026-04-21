@@ -54,6 +54,8 @@ public class TrashApp : ViewBase
 
         var selected = filteredList.FirstOrDefault(f => f.FilePath == selectedFile.Value);
 
+        var sidebarHeader = searchFilter.ToSearchInput().Placeholder("Search trash...");
+
         var sidebar = new SidebarView(files, selectedFile, searchFilter);
 
         // Main content
@@ -111,7 +113,8 @@ public class TrashApp : ViewBase
         {
             new SidebarLayout(
                 mainContent,
-                sidebar
+                sidebar,
+                sidebarHeader: sidebarHeader
             )
         };
 

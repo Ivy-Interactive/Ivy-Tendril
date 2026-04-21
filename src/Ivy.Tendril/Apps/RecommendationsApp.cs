@@ -55,6 +55,42 @@ public class RecommendationsApp : ViewBase
                                impactFilter.Value != null || riskFilter.Value != null ||
                                !string.IsNullOrWhiteSpace(textFilter.Value);
 
+        var filtersOpen = UseState(false);
+
+        var projectOptions = allPending
+            .GroupBy(r => r.Project)
+            .OrderByDescending(g => g.Count())
+            .Select(g => new Option<string>($"{g.Key} ({g.Count()})", g.Key))
+            .ToArray<IAnyOption>();
+
+        var searchInput = textFilter.ToSearchInput()
+            .Placeholder("Search...")
+            .Suffix(
+                new Button()
+                    .Icon(filtersOpen.Value ? Icons.ChevronUp : Icons.ChevronDown)
+                    .Ghost()
+                    .Small()
+                    .OnClick(() => filtersOpen.Set(!filtersOpen.Value))
+            );
+        var sidebarHeader = Layout.Vertical() | searchInput;
+        if (filtersOpen.Value)
+        {
+            var impactLevelOptions = new[] { "Small", "Medium", "High" }
+                .Select(l => new Option<string>(l, l))
+                .ToArray<IAnyOption>();
+            var riskLevelOptions = new[] { "Small", "Medium", "High" }
+                .Select(l => new Option<string>(l, l))
+                .ToArray<IAnyOption>();
+
+            sidebarHeader |= Layout.Vertical()
+                | projectFilter.ToSelectInput(projectOptions).Placeholder("All Projects").Nullable()
+                    .WithField().Label("Project")
+                | impactFilter.ToSelectInput(impactLevelOptions).Placeholder("All Impacts").Nullable()
+                    .WithField().Label("Impact")
+                | riskFilter.ToSelectInput(riskLevelOptions).Placeholder("All Risk Levels").Nullable()
+                    .WithField().Label("Risk");
+        }
+
         var sidebar = new SidebarView(
             allPending,
             selectedState,
@@ -68,7 +104,8 @@ public class RecommendationsApp : ViewBase
 
         return new SidebarLayout(
             new ContentView(selectedState.Value, filtered, selectedState, planService, jobService, Refresh),
-            sidebar
+            sidebar,
+            sidebarHeader: sidebarHeader
         );
     }
 }

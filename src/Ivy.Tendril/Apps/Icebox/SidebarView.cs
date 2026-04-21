@@ -20,45 +20,10 @@ public class SidebarView(
 
     public override object Build()
     {
-        var filtersOpen = UseState(false);
-
         var filteredPlans =
             PlanFilters.ApplyFilters(_plans, _projectFilter.Value, _levelFilter.Value, _textFilter.Value);
 
-        var levelOptions = _config.LevelNames;
-
-        var levelFilteredPlans = _plans.AsEnumerable();
-        if (_levelFilter.Value is { } level)
-            levelFilteredPlans = levelFilteredPlans.Where(p => p.Level == level);
-
-        var projectCounts = levelFilteredPlans
-            .GroupBy(p => p.Project)
-            .OrderByDescending(g => g.Count())
-            .Select(g => new Option<string>($"{g.Key} ({g.Count()})", g.Key))
-            .ToArray<IAnyOption>();
-
-        var searchInput = _textFilter.ToSearchInput()
-            .Placeholder("Search...")
-            .Suffix(
-                new Button()
-                    .Icon(filtersOpen.Value ? Icons.ChevronUp : Icons.ChevronDown)
-                    .Ghost()
-                    .Small()
-                    .OnClick(() => filtersOpen.Set(!filtersOpen.Value))
-            );
-
-        var header = Layout.Vertical() | searchInput;
-
-        if (filtersOpen.Value)
-        {
-            header |= Layout.Vertical()
-                      | _projectFilter.ToSelectInput(projectCounts).Placeholder("All Projects").Nullable()
-                          .WithField().Label("Project")
-                      | _levelFilter.ToSelectInput(levelOptions.ToOptions()).Placeholder("All Levels").Nullable()
-                          .WithField().Label("Level");
-        }
-
-        var content = new List(filteredPlans.Select(plan =>
+        return new List(filteredPlans.Select(plan =>
         {
             var clickablePlan = plan;
             return new ListItem($"#{plan.Id} {plan.Title}")
@@ -68,7 +33,5 @@ public class SidebarView(
                          | new Badge(plan.Level).Variant(_config.GetBadgeVariant(plan.Level)).Small())
                 .OnClick(() => _selectedPlanState.Set(clickablePlan));
         }));
-
-        return new HeaderLayout(header, content);
     }
 }

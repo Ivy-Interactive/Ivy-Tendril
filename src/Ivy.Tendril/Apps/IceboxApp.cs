@@ -53,12 +53,44 @@ public class IceboxApp : ViewBase
 
         previousPlans.Value = filteredPlans;
 
+        var filtersOpen = UseState(false);
+
+        var levelFilteredPlans = plans.AsEnumerable();
+        if (levelFilter.Value is { } level)
+            levelFilteredPlans = levelFilteredPlans.Where(p => p.Level == level);
+        var projectCounts = levelFilteredPlans
+            .GroupBy(p => p.Project)
+            .OrderByDescending(g => g.Count())
+            .Select(g => new Option<string>($"{g.Key} ({g.Count()})", g.Key))
+            .ToArray<IAnyOption>();
+        var levelOptions = configService.LevelNames;
+
+        var searchInput = textFilter.ToSearchInput()
+            .Placeholder("Search...")
+            .Suffix(
+                new Button()
+                    .Icon(filtersOpen.Value ? Icons.ChevronUp : Icons.ChevronDown)
+                    .Ghost()
+                    .Small()
+                    .OnClick(() => filtersOpen.Set(!filtersOpen.Value))
+            );
+        var sidebarHeader = Layout.Vertical() | searchInput;
+        if (filtersOpen.Value)
+        {
+            sidebarHeader |= Layout.Vertical()
+                | projectFilter.ToSelectInput(projectCounts).Placeholder("All Projects").Nullable()
+                    .WithField().Label("Project")
+                | levelFilter.ToSelectInput(levelOptions.ToOptions()).Placeholder("All Levels").Nullable()
+                    .WithField().Label("Level");
+        }
+
         var sidebar = new SidebarView(plans, selectedPlanState, projectFilter, levelFilter, textFilter, configService);
 
         return new SidebarLayout(
             new ContentView(selectedPlanState.Value, filteredPlans, selectedPlanState, planService, jobService,
                 RefreshPlans, configService),
-            sidebar
+            sidebar,
+            sidebarHeader: sidebarHeader
         );
 
         void RefreshPlans()
