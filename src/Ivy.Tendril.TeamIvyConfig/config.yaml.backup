@@ -51,8 +51,6 @@ projects:
     - CreatePr
     condition: ''
     action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
-  repoPaths:
-  - D:\Repos\_Ivy\Ivy-Framework
 - name: Tendril
   color: Emerald
   meta:
@@ -82,8 +80,7 @@ projects:
     - CreatePr
     condition: ''
     action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
-  repoPaths:
-  - '%REPOS_HOME%\Ivy-Tendril'
+  buildDependencies:
   - '%REPOS_HOME%\Ivy-Framework'
 - name: Rustino
   color: Orange
@@ -123,8 +120,6 @@ projects:
     - CreatePr
     condition: ''
     action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
-  repoPaths:
-  - D:\Repos\_Ivy\Rustino
 verifications:
 - name: DotnetBuild
   prompt: Run `dotnet build --warnaserror` in the plan's worktree directory (not the original repo) and verify it succeeds with zero errors and zero warnings.

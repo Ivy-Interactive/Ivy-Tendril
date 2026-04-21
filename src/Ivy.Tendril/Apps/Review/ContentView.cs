@@ -233,7 +233,7 @@ public class ContentView(
                          .Bold($"{currentIndex + 1}/{_allPlans.Count}", word: true)
                          .Muted("plans", word: true);
 
-        header |= new Button("Make PR").Icon(Icons.GitPullRequest).Primary().OnClick(() =>
+        header |= new Button("Create PR").Icon(Icons.GitPullRequest).Primary().OnClick(() =>
         {
             var repoPaths = _selectedPlan.GetEffectiveRepoPaths(_config);
             var project = _config.GetProject(_selectedPlan.Project);
