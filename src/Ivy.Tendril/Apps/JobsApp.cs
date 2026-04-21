@@ -385,24 +385,13 @@ public class JobsApp : ViewBase
 
         if (showPlan.Value is { } planPath)
         {
-            var folderName = Path.GetFileName(planPath);
-            var content = planService.ReadLatestRevision(folderName);
-            var plan = planService.GetPlanByFolder(planPath);
-
-            var sheetContent = string.IsNullOrEmpty(content)
-                ? Text.P("Plan not found or empty.")
-                : (object)new Markdown(MarkdownHelper.AnnotateAllBrokenLinks(content, planService.PlansDirectory))
-                    .DangerouslyAllowLocalFiles()
-                    .OnLinkClick(FileLinkHelper.CreateFileLinkClickHandler(openFile));
-
-            var repoPaths = plan?.GetEffectiveRepoPaths(config) ?? [];
-            var fileLinkSheet = FileLinkHelper.BuildFileLinkSheet(
-                openFile.Value, () => openFile.Set(null), repoPaths, config);
+            var planSheetView = new PlanSheet(planPath, planService, config, openFile);
+            var fileLinkSheet = planSheetView.BuildFileLinkSheet();
 
             var planSheet = new Sheet(
                 () => showPlan.Set(null),
-                sheetContent,
-                plan?.Title ?? folderName
+                planSheetView.Build(),
+                planSheetView.GetSheetTitle()
             ).Width(Size.Half()).Resizable();
 
             if (fileLinkSheet is not null) return layout | new Fragment(dataTable, planSheet, fileLinkSheet);
@@ -412,44 +401,12 @@ public class JobsApp : ViewBase
 
         if (showOutput.Value is { } jobId)
         {
-            var job = jobService.GetJob(jobId);
-            object outputContent;
-
-            if (job is { Status: JobStatus.Running })
-            {
-                if (!hasStreamContent.Value)
-                {
-                    outputContent = Text.P("Loading Output...");
-                }
-                else
-                {
-                    outputContent = new ClaudeJsonRenderer()
-                        .Stream(outputStream)
-                        .ShowThinking(true)
-                        .ShowSystemEvents(true)
-                        .AutoScroll(true)
-                        .Height(Size.Full());
-                }
-            }
-            else if (job is not null && job.OutputLines.Count > 0)
-            {
-                var jsonStream = string.Join("\n", job.OutputLines);
-                outputContent = new ClaudeJsonRenderer()
-                    .JsonStream(jsonStream)
-                    .ShowThinking(true)
-                    .ShowSystemEvents(true)
-                    .AutoScroll(false)
-                    .Height(Size.Full());
-            }
-            else
-            {
-                outputContent = Text.P("No output available.");
-            }
+            var outputSheetView = new OutputSheet(jobId, jobService, outputStream, hasStreamContent);
 
             var outputSheet = new Sheet(
                 () => showOutput.Set(null),
-                outputContent,
-                job is not null ? $"{job.Type} — {ExtractPlanId(job.PlanFile)}" : "Job Output"
+                outputSheetView.Build(),
+                outputSheetView.GetSheetTitle()
             ).Width(Size.Half()).Resizable();
 
             return layout | new Fragment(dataTable, outputSheet);
@@ -457,9 +414,11 @@ public class JobsApp : ViewBase
 
         if (showPrompt.Value is { } promptText)
         {
+            var promptSheetView = new PromptSheet(promptText);
+
             var promptSheet = new Sheet(
                 () => showPrompt.Set(null),
-                new Markdown($"```\n{promptText}\n```"),
+                promptSheetView.Build(),
                 "Full Prompt"
             ).Width(Size.Half()).Resizable();
 
