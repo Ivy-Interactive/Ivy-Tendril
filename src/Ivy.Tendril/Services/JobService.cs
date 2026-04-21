@@ -201,6 +201,10 @@ public class JobService : IJobService
             SetPlanState(job, "Completed");
             RetryBlockedDependents(job.Args.Length > 0 ? job.Args[0] : "");
         }
+        else if (isSuccess && job.Type is "UpdatePlan" or "ExpandPlan" or "SplitPlan")
+        {
+            SetPlanState(job, "Draft");
+        }
         else if (isSuccess && job.Type == "CreatePlan")
         {
             VerifyCreatePlanResult(job);
@@ -580,6 +584,34 @@ public class JobService : IJobService
                 {
                     /* Best-effort — don't fail the job if we can't write the recovery file */
                 }
+        }
+
+        // Check for concurrent plan-modifying jobs (UpdatePlan, ExpandPlan, SplitPlan)
+        // to prevent race conditions and state corruption
+        if (type is "UpdatePlan" or "ExpandPlan" or "SplitPlan")
+        {
+            var planFolder = args.Length > 0 ? args[0] : "";
+            var conflictingJob = _jobs.Values.FirstOrDefault(j =>
+                j.Type == type &&
+                j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
+                j.Args.Length > 0 &&
+                j.Args[0].Equals(planFolder, StringComparison.OrdinalIgnoreCase));
+
+            if (conflictingJob != null)
+            {
+                job.Status = JobStatus.Failed;
+                job.StatusMessage = $"{type} already in progress for this plan (job {conflictingJob.Id})";
+                job.CompletedAt = DateTime.UtcNow;
+                _jobs[id] = job;
+
+                var notification = new JobNotification(
+                    $"{type} Already Running",
+                    $"{planFile}: Cannot start {type} while another is in progress",
+                    false);
+                RaiseNotification(notification);
+                RaiseJobsStructureChanged();
+                return id;
+            }
         }
 
         _jobs[id] = job;
