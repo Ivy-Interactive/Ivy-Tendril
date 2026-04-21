@@ -5,7 +5,6 @@ using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
-using Ivy.Widgets.ClaudeJsonRenderer;
 
 namespace Ivy.Tendril.Apps;
 
@@ -339,7 +338,7 @@ public class JobsApp : ViewBase
                                 var folderName = Path.GetFileName(job.Args[0]);
                                 planService.TransitionState(folderName, PlanStatus.Building);
                             }
-                            else if (job.Type == "UpdatePlan" && job.Args.Length > 0)
+                            else if (job is { Type: "UpdatePlan", Args.Length: > 0 })
                             {
                                 var folderName = Path.GetFileName(job.Args[0]);
                                 planService.TransitionState(folderName, PlanStatus.Updating);

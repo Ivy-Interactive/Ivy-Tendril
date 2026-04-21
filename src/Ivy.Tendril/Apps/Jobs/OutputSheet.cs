@@ -9,26 +9,21 @@ public class OutputSheet(
     IWriteStream<string> outputStream,
     IState<bool> hasStreamContent) : ViewBase
 {
-    private readonly string _jobId = jobId;
-    private readonly IJobService _jobService = jobService;
-    private readonly IWriteStream<string> _outputStream = outputStream;
-    private readonly IState<bool> _hasStreamContent = hasStreamContent;
-
     public override object Build()
     {
-        var job = _jobService.GetJob(_jobId);
+        var job = jobService.GetJob(jobId);
         object outputContent;
 
         if (job is { Status: JobStatus.Running })
         {
-            if (!_hasStreamContent.Value)
+            if (!hasStreamContent.Value)
             {
                 outputContent = Text.P("Loading Output...");
             }
             else
             {
                 outputContent = new ClaudeJsonRenderer()
-                    .Stream(_outputStream)
+                    .Stream(outputStream)
                     .ShowThinking(true)
                     .ShowSystemEvents(false)
                     .AutoScroll(true)
@@ -41,7 +36,7 @@ public class OutputSheet(
             outputContent = new ClaudeJsonRenderer()
                 .JsonStream(jsonStream)
                 .ShowThinking(true)
-                .ShowSystemEvents(true)
+                .ShowSystemEvents(false)
                 .AutoScroll(false)
                 .Height(Size.Full());
         }
@@ -55,7 +50,7 @@ public class OutputSheet(
 
     public string GetSheetTitle()
     {
-        var job = _jobService.GetJob(_jobId);
+        var job = jobService.GetJob(jobId);
         return job is not null ? $"{job.Type} — {ExtractPlanId(job.PlanFile)}" : "Job Output";
     }
 

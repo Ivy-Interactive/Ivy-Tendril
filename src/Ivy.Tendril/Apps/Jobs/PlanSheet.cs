@@ -10,38 +10,33 @@ public class PlanSheet(
     IConfigService config,
     IState<string?> openFile) : ViewBase
 {
-    private readonly string _planPath = planPath;
-    private readonly IPlanReaderService _planService = planService;
-    private readonly IConfigService _config = config;
-    private readonly IState<string?> _openFile = openFile;
-
     public override object Build()
     {
-        var folderName = Path.GetFileName(_planPath);
-        var content = _planService.ReadLatestRevision(folderName);
-        var plan = _planService.GetPlanByFolder(_planPath);
+        var folderName = Path.GetFileName(planPath);
+        var content = planService.ReadLatestRevision(folderName);
+        var plan = planService.GetPlanByFolder(planPath);
 
         object sheetContent = string.IsNullOrEmpty(content)
             ? Text.P("Plan not found or empty.")
-            : new Markdown(MarkdownHelper.AnnotateAllBrokenLinks(content, _planService.PlansDirectory))
+            : new Markdown(MarkdownHelper.AnnotateAllBrokenLinks(content, planService.PlansDirectory))
                 .DangerouslyAllowLocalFiles()
-                .OnLinkClick(FileLinkHelper.CreateFileLinkClickHandler(_openFile));
+                .OnLinkClick(FileLinkHelper.CreateFileLinkClickHandler(openFile));
 
         return sheetContent;
     }
 
     public object? BuildFileLinkSheet()
     {
-        var plan = _planService.GetPlanByFolder(_planPath);
-        var repoPaths = plan?.GetEffectiveRepoPaths(_config) ?? [];
+        var plan = planService.GetPlanByFolder(planPath);
+        var repoPaths = plan?.GetEffectiveRepoPaths(config) ?? [];
         return FileLinkHelper.BuildFileLinkSheet(
-            _openFile.Value, () => _openFile.Set(null), repoPaths, _config);
+            openFile.Value, () => openFile.Set(null), repoPaths, config);
     }
 
     public string GetSheetTitle()
     {
-        var folderName = Path.GetFileName(_planPath);
-        var plan = _planService.GetPlanByFolder(_planPath);
+        var folderName = Path.GetFileName(planPath);
+        var plan = planService.GetPlanByFolder(planPath);
         return plan?.Title ?? folderName;
     }
 }
