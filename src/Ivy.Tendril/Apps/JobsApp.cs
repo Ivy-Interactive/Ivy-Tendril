@@ -479,7 +479,7 @@ public class JobsApp : ViewBase
         return $"{span.Minutes}m {span.Seconds:D2}s";
     }
 
-    private const int PromptDisplayMaxLength = 150;
+    private const int PromptDisplayMaxLength = 500;
 
     private static string CleanPromptText(string text)
     {
@@ -542,7 +542,7 @@ public class JobsApp : ViewBase
             .Where(line => !string.IsNullOrWhiteSpace(line))
             .Take(10)
             .Reverse()
-            .Select(line => JobService.SanitizeForDisplay(line));
+            .Select(JobService.SanitizeForDisplay);
 
         return string.Join("\n", context);
     }

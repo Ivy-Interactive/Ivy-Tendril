@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E \"\\\\.\\(cs|xaml\\)$\")",
+      "Bash(xargs grep *)"
+    ]
+  }
+}

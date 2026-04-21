@@ -166,7 +166,7 @@ public class DashboardApp : ViewBase
                 style: BarChartStyles.Default,
                 polish: chart => chart with
                 {
-                    Tooltip = new ChartTooltip(),
+                    Tooltip = new ChartTooltip().Animated(true),
                     Bars =
                     [
                         new Bar(costMeasureName).Radius(0).YAxisIndex(0),
