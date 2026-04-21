@@ -855,6 +855,10 @@ public class JobService : IJobService
             var description = GetNamedArg(job.Args, "-Description") ?? string.Join(" ", job.Args);
             values["Args"] = description;
             values["PlansDirectory"] = _configService.PlanFolder;
+
+            var planId = AllocatePlanId(_configService.PlanFolder);
+            values["PlanId"] = planId;
+            job.AllocatedPlanId = planId;
         }
         else
         {
@@ -1499,19 +1503,114 @@ public class JobService : IJobService
             }
             else if (!duplicate)
             {
-                // Agent exited 0 but didn't create a plan or detect a duplicate — flag it
-                job.EnqueueOutput(
-                    "[Tendril] WARNING: CreatePlan completed but no plan folder or trash entry was found.");
-                job.Status = JobStatus.Failed;
+                // Fallback: check filesystem for plan folder matching the allocated PlanId
+                var planFolder = FindPlanFolderById(plansDir, job.AllocatedPlanId);
+                if (planFolder != null)
+                {
+                    job.PlanFile = planFolder;
+                }
+                else
+                {
+                    // Check Trash directory for duplicate entries
+                    var trashDir = _configService != null
+                        ? Path.Combine(_configService.TendrilHome, "Trash")
+                        : null;
+                    var trashEntry = trashDir != null && !string.IsNullOrEmpty(job.AllocatedPlanId)
+                        ? FindTrashEntryById(trashDir, job.AllocatedPlanId)
+                        : null;
 
-                // Check for failure artifact to provide better diagnostics
-                var failureMessage = TryReadFailureArtifact(job.OutputLines.ToList());
-                job.StatusMessage = failureMessage ?? "No plan created";
+                    if (trashEntry != null)
+                    {
+                        // Agent trashed as duplicate but didn't output the marker text
+                    }
+                    else
+                    {
+                        job.EnqueueOutput(
+                            "[Tendril] WARNING: CreatePlan completed but no plan folder or trash entry was found.");
+                        job.Status = JobStatus.Failed;
+
+                        var failureMessage = TryReadFailureArtifact(job.OutputLines.ToList());
+                        job.StatusMessage = failureMessage ?? "No plan created";
+                    }
+                }
             }
         }
         catch
         {
             /* Don't let verification failures crash job completion */
+        }
+    }
+
+    private static string? FindPlanFolderById(string plansDir, string? planId)
+    {
+        if (string.IsNullOrEmpty(planId)) return null;
+
+        try
+        {
+            var matches = Directory.GetDirectories(plansDir, $"{planId}-*");
+            return matches.Length > 0 ? Path.GetFileName(matches[0]) : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string? FindTrashEntryById(string trashDir, string planId)
+    {
+        if (!Directory.Exists(trashDir)) return null;
+
+        try
+        {
+            var matches = Directory.GetFiles(trashDir, $"{planId}-*.md");
+            return matches.Length > 0 ? matches[0] : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string AllocatePlanId(string plansDir)
+    {
+        Directory.CreateDirectory(plansDir);
+        var counterFile = Path.Combine(plansDir, ".counter");
+        var lockFile = Path.Combine(plansDir, ".counter.lock");
+
+        FileStream? lockStream = null;
+        try
+        {
+            for (var i = 0; i < 20; i++)
+            {
+                try
+                {
+                    lockStream = new FileStream(lockFile, FileMode.OpenOrCreate, FileAccess.ReadWrite,
+                        FileShare.None);
+                    break;
+                }
+                catch (IOException)
+                {
+                    Thread.Sleep(500);
+                }
+            }
+
+            if (lockStream == null)
+                throw new InvalidOperationException("Could not acquire plan counter lock");
+
+            var counter = 1;
+            if (File.Exists(counterFile))
+            {
+                var text = File.ReadAllText(counterFile).Trim();
+                if (int.TryParse(text, out var parsed)) counter = parsed;
+            }
+
+            var id = counter.ToString("D5");
+            File.WriteAllText(counterFile, (counter + 1).ToString());
+            return id;
+        }
+        finally
+        {
+            lockStream?.Dispose();
         }
     }
 

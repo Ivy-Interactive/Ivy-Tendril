@@ -63,6 +63,9 @@ public record JobItem
     // Path to the .processing inbox file for CreatePlan job recovery
     public string? InboxFile { get; set; }
 
+    // Pre-allocated plan ID for CreatePlan jobs (used for filesystem verification)
+    public string? AllocatedPlanId { get; set; }
+
     public void EnqueueOutput(string line)
     {
         OutputLines.Enqueue(line);
