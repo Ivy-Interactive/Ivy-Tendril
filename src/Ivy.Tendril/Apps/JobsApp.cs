@@ -39,7 +39,6 @@ public class JobsApp : ViewBase
             if (streamingJobId.Value != activeJobId)
             {
                 streamingJobId.Set(activeJobId);
-                startIdx = 0;
                 hasStreamContent.Set(false);
 
                 // Immediately seed the stream with existing lines

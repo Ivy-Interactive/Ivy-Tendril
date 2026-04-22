@@ -531,7 +531,7 @@ public static class DoctorCommand
                 AnsiConsole.MarkupLine($"[yellow]Found {pruneCandidates.Count} plan(s) that appear to be test/junk data:[/]");
                 AnsiConsole.WriteLine();
 
-                foreach (var (dir, result, reason) in pruneCandidates)
+                foreach (var (_, result, reason) in pruneCandidates)
                 {
                     AnsiConsole.MarkupLine($"[grey]  {result.Id}-{result.Title}  ({reason})[/]");
                 }
@@ -828,12 +828,11 @@ public static class DoctorCommand
                 {
                     var content = File.ReadAllText(yamlPath);
                     var repaired = PlanReaderService.RepairPlanYaml(content);
-                    var changed = repaired != content;
 
                     var folderTitle = TitleFromFolderName(Path.GetFileName(planPath));
 
                     repaired = RepairYamlFields(repaired, folderTitle);
-                    changed = repaired != content;
+                    var changed = repaired != content;
 
                     if (changed)
                     {
@@ -888,7 +887,7 @@ public static class DoctorCommand
         var match = System.Text.RegularExpressions.Regex.Match(folderName, @"^\d{5}-(.+)$");
         if (!match.Success) return folderName;
         var raw = match.Groups[1].Value;
-        var spaced = System.Text.RegularExpressions.Regex.Replace(raw, @"(?<=[a-z])(?=[A-Z])", " ");
+        var spaced = System.Text.RegularExpressions.Regex.Replace(raw, "(?<=[a-z])(?=[A-Z])", " ");
         return spaced.Replace('-', ' ');
     }
 

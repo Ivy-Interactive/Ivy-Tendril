@@ -768,8 +768,8 @@ public class PlanReaderService(
         var seenKeys = new HashSet<string>();
         var structuredListKeys = new Dictionary<string, (string itemStartPattern, string subKeyPattern)>
         {
-            ["verifications"] = (@"^-\s+name:", @"^(name|status):"),
-            ["recommendations"] = (@"^-\s+title:", @"^(title|description|state|impact|risk|declineReason):")
+            ["verifications"] = (@"^-\s+name:", "^(name|status):"),
+            ["recommendations"] = (@"^-\s+title:", "^(title|description|state|impact|risk|declineReason):")
         };
 
         static bool IsBlockScalarValue(string value)
@@ -781,7 +781,7 @@ public class PlanReaderService(
         {
             normalizedLine = trimmedLine;
 
-            var keyMatch = Regex.Match(trimmedLine, @"^([A-Za-z][A-Za-z0-9]*):");
+            var keyMatch = Regex.Match(trimmedLine, "^([A-Za-z][A-Za-z0-9]*):");
             if (keyMatch.Success && topLevelKeys.Contains(keyMatch.Groups[1].Value))
                 return keyMatch.Groups[1].Value;
 
@@ -892,7 +892,7 @@ public class PlanReaderService(
                 }
                 else
                 {
-                    var strayKeyMatch = Regex.Match(trimmed, @"^([A-Za-z][A-Za-z0-9]+):");
+                    var strayKeyMatch = Regex.Match(trimmed, "^([A-Za-z][A-Za-z0-9]+):");
                     if (strayKeyMatch.Success && topLevelKeys.Contains(strayKeyMatch.Groups[1].Value))
                     {
                         var key = strayKeyMatch.Groups[1].Value;
@@ -916,7 +916,7 @@ public class PlanReaderService(
                 continue;
             }
 
-            var unknownKeyMatch = Regex.Match(trimmed, @"^([A-Za-z][A-Za-z0-9]+):");
+            var unknownKeyMatch = Regex.Match(trimmed, "^([A-Za-z][A-Za-z0-9]+):");
             if (unknownKeyMatch.Success)
             {
                 inUnknownKey = true;
@@ -1362,7 +1362,7 @@ public class PlanReaderService(
     {
         var recommendations = new List<Recommendation>();
 
-        foreach (var (folderPath, folderName, planYamlPath) in EnumerateValidPlanFolders())
+        foreach (var (_, folderName, planYamlPath) in EnumerateValidPlanFolders())
         {
             try
             {
@@ -1413,7 +1413,7 @@ public class PlanReaderService(
     {
         int drafts = 0, reviews = 0, failed = 0, icebox = 0, pendingRecs = 0, total = 0;
 
-        foreach (var (folderPath, _, planYamlPath) in EnumerateValidPlanFolders())
+        foreach (var (_, _, planYamlPath) in EnumerateValidPlanFolders())
             try
             {
                 total++;

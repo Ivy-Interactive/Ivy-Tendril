@@ -48,7 +48,7 @@ public class DatabaseCommandsTests : IDisposable
     [Fact]
     public void DbMigrate_AppliesPendingMigrations()
     {
-        var output = CaptureConsoleOutput(() =>
+        CaptureConsoleOutput(() =>
         {
             var result = DatabaseCommands.DbMigrateInternal(_dbPath);
             Assert.Equal(0, result);

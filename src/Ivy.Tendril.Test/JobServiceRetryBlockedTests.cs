@@ -10,13 +10,13 @@ public class JobServiceRetryBlockedTests
         var tempDir = Path.Combine(Path.GetTempPath(), $"tendril-test-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDir);
 
-        var depsYaml = "";
+        string depsYaml;
         if (dependsOn is { Count: > 0 })
             depsYaml = "dependsOn:\n" + string.Join("\n", dependsOn.Select(d => $"- {d}"));
         else
             depsYaml = "dependsOn: []";
 
-        var prsYaml = "";
+        string prsYaml;
         if (prs is { Count: > 0 })
             prsYaml = "prs:\n" + string.Join("\n", prs.Select(p => $"- {p}"));
         else

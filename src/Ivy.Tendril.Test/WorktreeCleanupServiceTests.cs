@@ -356,7 +356,7 @@ public class WorktreeCleanupServiceTests : IDisposable
         var logger = new CapturingLogger(logEntries);
 
         // Open the file with exclusive access to force Directory.Delete to fail.
-        using (var stream = new FileStream(lockedFile, FileMode.Open, FileAccess.Read, FileShare.None))
+        using (new FileStream(lockedFile, FileMode.Open, FileAccess.Read, FileShare.None))
         {
             // Expect IOException: Directory.Delete fails because of the lock, and
             // rmdir /s /q also can't delete the file while it's held open.
@@ -388,7 +388,7 @@ public class WorktreeCleanupServiceTests : IDisposable
         var logEntries = new List<string>();
         var logger = new CapturingLogger(logEntries);
 
-        using (var stream = new FileStream(lockedFile, FileMode.Open, FileAccess.Read, FileShare.None))
+        using (new FileStream(lockedFile, FileMode.Open, FileAccess.Read, FileShare.None))
         {
             var ex = Assert.Throws<IOException>(() =>
                 WorktreeCleanupService.ForceDeleteDirectory(testDir, logger));
@@ -537,7 +537,7 @@ public class WorktreeCleanupServiceTests : IDisposable
         var lockedFile = Path.Combine(nestedPlans, "locked.txt");
         File.WriteAllText(lockedFile, "content");
 
-        using (var stream = new FileStream(lockedFile, FileMode.Open, FileAccess.Read, FileShare.None))
+        using (new FileStream(lockedFile, FileMode.Open, FileAccess.Read, FileShare.None))
         {
             service.RunCleanup();
         }
@@ -564,10 +564,9 @@ public class WorktreeCleanupServiceTests : IDisposable
         File.WriteAllText(lockedFile, "content");
 
         var logEntries = new List<string>();
-        var logger = new CapturingLogger(logEntries);
         var service = new WorktreeCleanupService(_plansDir, new CapturingLogger<WorktreeCleanupService>(logEntries));
 
-        using (var stream = new FileStream(lockedFile, FileMode.Open, FileAccess.Read, FileShare.None))
+        using (new FileStream(lockedFile, FileMode.Open, FileAccess.Read, FileShare.None))
         {
             service.CleanupLegacyPromptwaresDirs();
         }
@@ -591,7 +590,7 @@ public class WorktreeCleanupServiceTests : IDisposable
             ("99999-Name_With_Underscores", "Name_With_Underscores")
         };
 
-        foreach (var (folderName, expectedSafeTitle) in testCases)
+        foreach (var (folderName, _) in testCases)
         {
             var dir = CreatePlan(folderName, "Failed", DateTime.UtcNow.AddHours(-2));
             var worktreeDir = Path.Combine(dir, "worktrees", "TestRepo");

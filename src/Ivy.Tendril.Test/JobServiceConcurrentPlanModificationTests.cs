@@ -77,7 +77,7 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
             TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
             null, 10);
 
-        var firstJobId = service.CreateTestJob("ExpandPlan", _planFolder);
+        _ = service.CreateTestJob("ExpandPlan", _planFolder);
         var secondJobId = service.StartJob("ExpandPlan", _planFolder);
         var secondJob = service.GetJob(secondJobId);
 
@@ -93,7 +93,7 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
             TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
             null, 10);
 
-        var firstJobId = service.CreateTestJob("SplitPlan", _planFolder);
+        _ = service.CreateTestJob("SplitPlan", _planFolder);
         var secondJobId = service.StartJob("SplitPlan", _planFolder);
         var secondJob = service.GetJob(secondJobId);
 
@@ -229,7 +229,7 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
             null, 10);
 
         // Start UpdatePlan
-        var updateJobId = service.CreateTestJob("UpdatePlan", _planFolder);
+        _ = service.CreateTestJob("UpdatePlan", _planFolder);
 
         // ExecutePlan should not be blocked by UpdatePlan (they're different job types)
         try
@@ -259,10 +259,10 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
         service.NotificationReady += n => receivedNotification = n;
 
         // Start first job
-        var firstJobId = service.CreateTestJob("UpdatePlan", _planFolder);
+        _ = service.CreateTestJob("UpdatePlan", _planFolder);
 
         // Try to start conflicting second job
-        var secondJobId = service.StartJob("UpdatePlan", _planFolder);
+        _ = service.StartJob("UpdatePlan", _planFolder);
 
         // Should have received a notification
         Assert.NotNull(receivedNotification);
