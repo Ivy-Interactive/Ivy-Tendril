@@ -236,6 +236,7 @@ public class Program
             var window = new DesktopWindow(server)
                 .Title("Ivy Tendril")
                 .Size(1400, 900)
+                .UseDpiScaling(false)  // Let the OS handle DPI scaling natively
                 .Icon(typeof(Program), iconResource);
 
             return window.Run();

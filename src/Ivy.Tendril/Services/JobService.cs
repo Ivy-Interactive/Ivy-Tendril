@@ -37,18 +37,6 @@ public class JobService : IJobService
         return sourceRoot;
     }
 
-    private static readonly Dictionary<string, string> ScriptPaths = new()
-    {
-        ["CreatePlan"] = Path.Combine(PromptsRoot, "CreatePlan", "CreatePlan.ps1"),
-        ["UpdatePlan"] = Path.Combine(PromptsRoot, "UpdatePlan", "UpdatePlan.ps1"),
-        ["SplitPlan"] = Path.Combine(PromptsRoot, "SplitPlan", "SplitPlan.ps1"),
-        ["ExpandPlan"] = Path.Combine(PromptsRoot, "ExpandPlan", "ExpandPlan.ps1"),
-        ["ExecutePlan"] = Path.Combine(PromptsRoot, "ExecutePlan", "ExecutePlan.ps1"),
-        ["IvyFrameworkVerification"] = Path.Combine(PromptsRoot, "IvyFrameworkVerification", "IvyFrameworkVerification.ps1"),
-        ["CreatePr"] = Path.Combine(PromptsRoot, "CreatePr", "CreatePr.ps1"),
-        ["CreateIssue"] = Path.Combine(PromptsRoot, "CreateIssue", "CreateIssue.ps1")
-    };
-
     private readonly IConfigService? _configService;
     private readonly IPlanDatabaseService? _database;
 
@@ -418,7 +406,6 @@ public class JobService : IJobService
 
     private JobItem BuildJobItem(string id, string type, string[] args, string? inboxFilePath)
     {
-        var scriptPath = ScriptPaths.GetValueOrDefault(type, "");
         var (planFile, project, priority) = ExtractJobMetadata(type, args);
 
         var job = new JobItem
@@ -428,7 +415,6 @@ public class JobService : IJobService
             PlanFile = planFile,
             Project = project,
             Status = JobStatus.Pending,
-            ScriptPath = scriptPath,
             Args = args,
             Provider = _configService?.Settings.CodingAgent ?? "claude",
             Priority = priority
@@ -547,7 +533,6 @@ public class JobService : IJobService
             PlanFile = args.Length > 0 ? args[0] : type,
             Status = JobStatus.Running,
             StartedAt = DateTime.UtcNow,
-            ScriptPath = "",
             Args = args,
             TimeoutCts = new CancellationTokenSource()
         };

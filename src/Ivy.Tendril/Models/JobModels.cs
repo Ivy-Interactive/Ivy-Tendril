@@ -37,7 +37,6 @@ public record JobItem
     public DateTime? StartedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public int? DurationSeconds { get; set; }
-    public string ScriptPath { get; init; } = "";
     public string[] Args { get; init; } = [];
     public bool CancellationRequested { get; set; }
     public string? SessionId { get; set; }

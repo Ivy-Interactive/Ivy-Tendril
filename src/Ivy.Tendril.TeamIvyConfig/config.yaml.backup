@@ -123,9 +123,9 @@ projects:
     - src/Rustino.Samples/ — demo applications
     Build: `cd src/Rustino.Native && cargo build --release`, then `dotnet build`
   reviewActions:
-  - name: HelloWorld Sample
-    condition: Test-Path "worktrees\Rustino\src\Rustino.Samples\Rustino.Samples.HelloWorld"
-    action: dotnet run --project worktrees\Rustino\src\Rustino.Samples\Rustino.Samples.HelloWorld
+  - name: Samples
+    condition: Test-Path "worktrees\Rustino\src\Rustino.Samples"
+    action: dotnet run --project worktrees\Rustino\src\Rustino.Samples
   hooks:
   - name: SlackNotify
     when: after
