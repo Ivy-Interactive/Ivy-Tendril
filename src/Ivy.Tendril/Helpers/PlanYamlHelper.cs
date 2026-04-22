@@ -73,6 +73,10 @@ internal static class PlanYamlHelper
                 if (int.TryParse(text, out var parsed)) counter = parsed;
             }
 
+            // Skip IDs that already have folders on disk to prevent collisions
+            while (Directory.GetDirectories(plansDir, $"{counter.ToString("D5")}-*").Length > 0)
+                counter++;
+
             var id = counter.ToString("D5");
             File.WriteAllText(counterFile, (counter + 1).ToString());
             return id;
