@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Text;
 using Ivy.Helpers;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
@@ -37,7 +36,6 @@ internal class JobLauncher
         var id = job.Id;
         var type = job.Type;
         var args = job.Args;
-        var scriptPath = job.ScriptPath;
 
         job.Status = JobStatus.Running;
         job.StartedAt = DateTime.UtcNow;
@@ -52,7 +50,14 @@ internal class JobLauncher
 
         if (psi == null)
         {
-            psi = BuildLegacyProcessStart(job, scriptPath);
+            var programFolder = Path.Combine(_promptsRoot, type);
+            _logger.LogError("Job {JobId}: No agent program found for '{Type}' in {Folder}", id, type, programFolder);
+            job.Status = JobStatus.Failed;
+            job.StatusMessage = $"No agent program found for '{type}' — ensure {programFolder}/Program.md exists and config is loaded";
+            job.CompletedAt = DateTime.UtcNow;
+            jobSlotSemaphore.Release();
+            raiseStructureChanged();
+            return;
         }
 
         var process = new Process { StartInfo = psi };
@@ -170,43 +175,6 @@ internal class JobLauncher
         catch (ObjectDisposedException)
         {
         }
-    }
-
-    private ProcessStartInfo BuildLegacyProcessStart(JobItem job, string scriptPath)
-    {
-        var processArgs = new List<string> { "-NoProfile", "-NonInteractive", "-File", scriptPath };
-        processArgs.AddRange(job.Args);
-
-        var workingDirectory = Path.GetFullPath(
-            Path.Combine(System.AppContext.BaseDirectory, "..", "..", ".."));
-
-        var psi = new ProcessStartInfo
-        {
-            FileName = "pwsh",
-            WorkingDirectory = workingDirectory,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            RedirectStandardInput = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8
-        };
-
-        psi.Environment["TENDRIL_JOB_ID"] = job.Id;
-        psi.Environment["TENDRIL_URL"] = Environment.GetEnvironmentVariable("TENDRIL_URL") ?? "https://localhost:5010";
-        psi.Environment["TENDRIL_SHARED"] = _sharedRoot;
-        psi.Environment["TENDRIL_SESSION_ID"] = job.SessionId;
-        if (_configService != null)
-            psi.Environment["TENDRIL_CONFIG"] = _configService.ConfigPath;
-
-        psi.Environment["CI"] = "true";
-        psi.Environment["TERM"] = "dumb";
-
-        foreach (var arg in processArgs)
-            psi.ArgumentList.Add(arg);
-
-        return psi;
     }
 
     private static void AttachOutputHandlers(Process process, JobItem job, string id)
