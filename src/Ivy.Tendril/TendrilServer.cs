@@ -182,8 +182,8 @@ public static class TendrilServer
             }
             else
             {
-                builder.Logging.SetMinimumLevel(LogLevel.Information);
-                builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
+                builder.Logging.SetMinimumLevel(LogLevel.Warning);
+                builder.Logging.AddFilter("Ivy.Tendril", LogLevel.Information);
             }
         });
 
