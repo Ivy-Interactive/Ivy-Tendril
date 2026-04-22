@@ -166,7 +166,7 @@ public class JobsApp : ViewBase
                     : null
             };
         })
-            .OrderBy(r => r.Id)
+            .OrderByDescending(r => r.Id)
             .ToList();
 
         var statusGroups = jobs
