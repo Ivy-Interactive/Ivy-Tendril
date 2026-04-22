@@ -72,10 +72,11 @@ public static class MarkdownHelper
 
     /// <summary>
     ///     Searches for files with the given filename in the specified repo directories.
+    ///     Returns distinct file paths (case-insensitive comparison on Windows).
     /// </summary>
     public static List<string> FindFilesInRepos(IEnumerable<string> repoPaths, string fileName)
     {
-        var results = new List<string>();
+        var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var repoPath in repoPaths)
         {
             if (!Directory.Exists(repoPath))
@@ -84,7 +85,8 @@ public static class MarkdownHelper
             try
             {
                 var matches = Directory.GetFiles(repoPath, fileName, SearchOption.AllDirectories);
-                results.AddRange(matches);
+                foreach (var match in matches)
+                    results.Add(match);
             }
             catch (UnauthorizedAccessException)
             {
@@ -92,6 +94,6 @@ public static class MarkdownHelper
             }
         }
 
-        return results;
+        return [.. results];
     }
 }
