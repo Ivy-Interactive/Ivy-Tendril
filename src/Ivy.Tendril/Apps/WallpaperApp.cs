@@ -12,6 +12,8 @@ public class WallpaperApp : ViewBase
         var countsService = UseService<IPlanCountsService>();
         var versionService = UseService<IVersionCheckService>();
         var versionInfo = UseState<VersionInfo?>(null);
+        var dismissedVersion = UseState<string?>(null);
+        var copyToClipboard = UseClipboard();
 
         UseEffect(() =>
         {
@@ -44,15 +46,27 @@ public class WallpaperApp : ViewBase
                 )
         };
 
-        if (versionInfo.Value?.HasUpdate == true)
-            elements.Insert(0, new Box(
-                Callout.Info(
-                    $"**Tendril v{versionInfo.Value.LatestVersion} is available!**\n\n" +
-                    $"You're currently running v{versionInfo.Value.CurrentVersion}.\n\n" +
-                    $"Update with: `tendril --version && dotnet tool update -g Ivy.Tendril`",
-                    "Update Available"
-                )
-            ).Margin(2));
+        if (versionInfo.Value?.HasUpdate == true && versionInfo.Value.LatestVersion != dismissedVersion.Value)
+        {
+            var updateCommand = "dotnet tool update -g Ivy.Tendril";
+            var notification = new FloatingPanel(
+                new Card(
+                    Layout.Vertical().Gap(1)
+                    | Text.P($"**v{versionInfo.Value.LatestVersion}** is available (you have v{versionInfo.Value.CurrentVersion})").Small()
+                    | (Layout.Horizontal().Gap(1)
+                        | new Button("Copy update command", () => copyToClipboard(updateCommand))
+                            .Variant(ButtonVariant.Secondary)
+                            .Small()
+                            .Icon(Icons.Clipboard)
+                        | new Button("Dismiss", () => dismissedVersion.Set(versionInfo.Value.LatestVersion))
+                            .Variant(ButtonVariant.Ghost)
+                            .Small())
+                ).Header("Update Available", null, Icons.CircleArrowUp),
+                Align.BottomRight
+            ).Offset(new Thickness(0, 0, 16, 16));
+
+            elements.Add(notification);
+        }
 
         return new Fragment(elements.ToArray());
     }
