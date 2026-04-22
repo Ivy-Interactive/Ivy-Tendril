@@ -77,7 +77,7 @@ public class AgentProviderFactoryTests
             {
                 ["_default"] = new() { Profile = "quick", AllowedTools = new List<string> { "Read" } },
                 ["ExecutePlan"] = new()
-                    { Profile = "deep", AllowedTools = new List<string> { "Read", "Write", "Bash" } }
+                { Profile = "deep", AllowedTools = new List<string> { "Read", "Write", "Bash" } }
             },
             codingAgents: new List<AgentConfig>
             {
