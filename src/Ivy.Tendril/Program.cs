@@ -229,10 +229,14 @@ public class Program
 
         if (useDesktop)
         {
+            var iconResource = OperatingSystem.IsWindows() ? "Ivy.Tendril.Assets.Tendril.ico"
+                : OperatingSystem.IsMacOS() ? "Ivy.Tendril.Assets.Tendril.icns"
+                : "Ivy.Tendril.Assets.Tendril.png";
+
             var window = new DesktopWindow(server)
                 .Title("Ivy Tendril")
                 .Size(1400, 900)
-                .Icon(typeof(Program), "Ivy.Tendril.Assets.Tendril.ico");
+                .Icon(typeof(Program), iconResource);
 
             return window.Run();
         }
