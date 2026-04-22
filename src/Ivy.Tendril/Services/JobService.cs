@@ -286,14 +286,15 @@ public class JobService : IJobService
     }
 
     /// <summary>
-    ///     Checks whether the given inbox file path is already tracked by a running CreatePlan job.
-    ///     Used by InboxWatcherService to avoid re-processing files.
+    ///     Checks whether the given inbox file path is already tracked by a
+    ///     pending, queued, or running CreatePlan job. Used by InboxWatcherService
+    ///     to avoid spawning duplicate CreatePlan jobs for the same inbox file.
     /// </summary>
     public bool IsInboxFileTracked(string filePath)
     {
         return _jobs.Values.Any(j =>
             j.Type == "CreatePlan" &&
-            j.Status == JobStatus.Running &&
+            j.Status is JobStatus.Pending or JobStatus.Queued or JobStatus.Running &&
             j.InboxFile != null &&
             j.InboxFile.Equals(filePath, StringComparison.OrdinalIgnoreCase));
     }

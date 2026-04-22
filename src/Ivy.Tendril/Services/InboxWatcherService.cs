@@ -112,6 +112,14 @@ public class InboxWatcherService : IInboxWatcherService
             if (!File.Exists(filePath))
                 return;
 
+            // Skip if a CreatePlan job is already tracking this inbox file.
+            // Guards against the FSW firing Created more than once for the same
+            // file, the 30s poll overlapping with an in-flight StartJob, and any
+            // future caller that re-writes an .md into Inbox while its
+            // .md.processing sibling is mid-job.
+            if (_jobService.IsInboxFileTracked(filePath + ".processing"))
+                return;
+
             try
             {
                 await ProcessInboxFileAsync(filePath);

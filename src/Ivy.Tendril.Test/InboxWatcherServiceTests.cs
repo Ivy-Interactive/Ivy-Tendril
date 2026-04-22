@@ -1,3 +1,5 @@
+using Ivy.Tendril.Apps.Jobs;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
@@ -137,6 +139,98 @@ public class InboxWatcherServiceTests
             if (Directory.Exists(tempDir))
                 Directory.Delete(tempDir, true);
         }
+    }
+
+    [Fact]
+    public void ProcessFileAsync_AlreadyTrackedByRunningJob_SkipsStartJob()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"inbox-test-{Guid.NewGuid():N}");
+        var inboxDir = Path.Combine(tempDir, "Inbox");
+        Directory.CreateDirectory(inboxDir);
+
+        try
+        {
+            var filePath = Path.Combine(inboxDir, "duplicate-entry.md");
+            File.WriteAllText(filePath, "Fix the bug");
+
+            var config = new ConfigService(new TendrilSettings(), tempDir);
+            var jobService = new TrackedStubJobService { TrackedReturnValue = true };
+            using var watcher = new InboxWatcherService(config, jobService);
+
+            Thread.Sleep(2000);
+
+            // When IsInboxFileTracked returns true, the watcher must not call StartJob
+            // and must leave the .md file untouched (no rename to .processing).
+            Assert.Empty(jobService.StartedJobs);
+            Assert.Single(Directory.GetFiles(inboxDir, "*.md"));
+            Assert.Empty(Directory.GetFiles(inboxDir, "*.md.processing"));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void ProcessFileAsync_NotTracked_StartsJobAndRenamesFile()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"inbox-test-{Guid.NewGuid():N}");
+        var inboxDir = Path.Combine(tempDir, "Inbox");
+        Directory.CreateDirectory(inboxDir);
+
+        try
+        {
+            var filePath = Path.Combine(inboxDir, "new-entry.md");
+            File.WriteAllText(filePath, "Fix the bug");
+
+            var config = new ConfigService(new TendrilSettings(), tempDir);
+            var jobService = new TrackedStubJobService { TrackedReturnValue = false };
+            using var watcher = new InboxWatcherService(config, jobService);
+
+            Thread.Sleep(2000);
+
+            Assert.Single(jobService.StartedJobs);
+            Assert.Empty(Directory.GetFiles(inboxDir, "*.md"));
+            Assert.Single(Directory.GetFiles(inboxDir, "*.md.processing"));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    private class TrackedStubJobService : IJobService
+    {
+        public bool TrackedReturnValue { get; set; }
+        public List<(string Type, string[] Args, string? InboxFilePath)> StartedJobs { get; } = new();
+
+        public string StartJob(string type, string[] args, string? inboxFilePath)
+        {
+            StartedJobs.Add((type, args, inboxFilePath));
+            return $"job-{StartedJobs.Count:D3}";
+        }
+
+        public string StartJob(string type, params string[] args) => StartJob(type, args, null);
+
+        public bool IsInboxFileTracked(string filePath) => TrackedReturnValue;
+
+        public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false) { }
+        public void StopJob(string id) { }
+        public void DeleteJob(string id) { }
+        public void ClearCompletedJobs() { }
+        public void ClearFailedJobs() { }
+        public List<JobItem> GetJobs() => new();
+        public JobItem? GetJob(string id) => null;
+        public void Dispose() { }
+
+#pragma warning disable CS0067
+        public event Action? JobsChanged;
+        public event Action? JobsStructureChanged;
+        public event Action? JobPropertyChanged;
+        public event Action<JobNotification>? NotificationReady;
+#pragma warning restore CS0067
     }
 
     [Fact]
