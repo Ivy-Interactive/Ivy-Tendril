@@ -105,7 +105,7 @@ public static class PlanCommandHelpers
         {
             // Serialize to temp file
             var yaml = YamlHelper.Serializer.Serialize(plan);
-            File.WriteAllText(tempPath, yaml);
+            FileHelper.WriteAllText(tempPath, yaml);
 
             // Read back and validate
             var content = File.ReadAllText(tempPath);
