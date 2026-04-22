@@ -146,7 +146,7 @@ public class ContentView(
 
         var currentIndex = _allPlans.FindIndex(p => p.FolderName == _selectedPlan.FolderName);
 
-        var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(38)).Gap(2)
+        var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(40)).Gap(2)
                      | Text.Block($"#{_selectedPlan.Id} {_selectedPlan.Title}").Bold();
         header |= Text.Muted($"rev:{_selectedPlan.RevisionCount}");
 

@@ -45,7 +45,7 @@ public class ContentView(
         var currentIndex = _all.FindIndex(r => r.PlanId == _selected.PlanId && r.Title == _selected.Title);
 
         // Header with Accept action at right edge
-        var header = Layout.Horizontal().Width(Size.Full()).Padding(1).Gap(2)
+        var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(40)).Gap(2)
                      | Text.Block($"#{_selected.PlanId} {_selected.Title}").Bold()
                      | new Badge(_selected.Project).Variant(BadgeVariant.Outline)
                          .WithProjectColor(config, _selected.Project)

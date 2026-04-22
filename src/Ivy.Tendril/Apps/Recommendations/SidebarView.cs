@@ -42,7 +42,8 @@ public class SidebarView(
                     .OnClick(() => _filtersOpen.Set(!_filtersOpen.Value))
             );
 
-        var header = Layout.Vertical() | searchInput;
+        var header = Layout.Vertical()
+            | (Layout.Vertical().Height(Size.Px(40)).AlignContent(Align.Center) | searchInput);
 
         if (_filtersOpen.Value)
         {

@@ -11,7 +11,8 @@ public class SidebarView(
 
     private object BuildHeader()
     {
-        return _searchFilter.ToSearchInput().Placeholder("Search trash...");
+        return Layout.Vertical().Height(Size.Px(40)).AlignContent(Align.Center)
+            | _searchFilter.ToSearchInput().Placeholder("Search trash...");
     }
 
     public override object Build()
