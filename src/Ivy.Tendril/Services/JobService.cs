@@ -1245,7 +1245,7 @@ public class JobService : IJobService
             @"At line:\d+",
             @"CategoryInfo\s+:",
             @"TerminatingError\(",
-            @"ScriptHalted",
+            "ScriptHalted",
             @"^\s*\+\s+CategoryInfo",  // PowerShell error location marker
         });
         if (psError != null) return psError;
@@ -1254,9 +1254,9 @@ public class JobService : IJobService
         var apiError = FindPattern(outputLines, new[] {
             @"""type"":\s*""error""",
             @"""error"":\s*\{",
-            @"rate_limit_error",
-            @"overloaded_error",
-            @"authentication_error",
+            "rate_limit_error",
+            "overloaded_error",
+            "authentication_error",
         });
         if (apiError != null) return ParseClaudeApiError(apiError);
 
@@ -1264,10 +1264,10 @@ public class JobService : IJobService
         if (jobType == "CreatePlan")
         {
             var makePlanError = FindPattern(outputLines, new[] {
-                @"ERROR: Plan",
-                @"WARNING: TENDRIL_HOME",
-                @"Failed to parse",
-                @"Repository path does not exist",
+                "ERROR: Plan",
+                "WARNING: TENDRIL_HOME",
+                "Failed to parse",
+                "Repository path does not exist",
             });
             if (makePlanError != null) return makePlanError;
 
@@ -1280,7 +1280,7 @@ public class JobService : IJobService
         var validationError = FindPattern(outputLines, new[] {
             @"validation\s+failed",
             @"assertion\s+failed",
-            @"Repository path does not exist",
+            "Repository path does not exist",
             @"\[stderr\].*(?-i)ERROR:",
         });
         if (validationError != null) return validationError;
@@ -1416,7 +1416,7 @@ public class JobService : IJobService
         text = Regex.Replace(text, @"[\x00-\x1F]", " ");
 
         // Collapse multiple consecutive spaces into one
-        text = Regex.Replace(text, @" {2,}", " ");
+        text = Regex.Replace(text, " {2,}", " ");
 
         text = text.Trim();
 
@@ -1542,7 +1542,7 @@ public class JobService : IJobService
 
             var outputText = string.Join("\n", job.OutputLines);
             var createdMatch = Regex.Match(outputText, @"Plan created:\s*(\S+)");
-            var duplicate = Regex.IsMatch(outputText, @"identified as duplicate:");
+            var duplicate = Regex.IsMatch(outputText, "identified as duplicate:");
 
             if (createdMatch.Success)
             {

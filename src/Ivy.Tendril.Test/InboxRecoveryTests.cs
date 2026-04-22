@@ -79,9 +79,6 @@ public class InboxRecoveryTests
             File.WriteAllText(processingFile, "---\nproject: Tendril\n---\nRunning task");
 
             // Also no .md files
-            var config = new ConfigService(new TendrilSettings(), tempDir);
-            var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
-
             // Don't use InboxWatcherService constructor (it calls RecoverProcessingFiles).
             // Instead, directly test ProcessExistingFiles won't pick up .processing files.
             // The watcher glob is *.md, so .processing files are inherently excluded.
@@ -280,7 +277,6 @@ public class InboxRecoveryTests
             // then picked up by ProcessExistingFiles, renamed back to .processing, and a job started.
             // After the job launches, the .md file should be gone (renamed to .processing by the watcher).
             var mdFiles = Directory.GetFiles(inboxDir, "*.md");
-            var processingFiles = Directory.GetFiles(inboxDir, "*.processing");
 
             // The file should either be .processing (job running) or gone (job completed/processed)
             Assert.Empty(mdFiles);

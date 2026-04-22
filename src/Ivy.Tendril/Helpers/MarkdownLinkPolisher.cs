@@ -150,7 +150,7 @@ public class MarkdownLinkPolisher
     internal static string NormalizePath(string path)
     {
         path = path.Replace('\\', '/');
-        path = Regex.Replace(path, @"/{2,}", "/");
+        path = Regex.Replace(path, "/{2,}", "/");
 
         if (path.Length >= 2 && path[1] == ':')
             path = path[0] + ":" + path.Substring(2);

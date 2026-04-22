@@ -29,7 +29,7 @@ public static class VariableExpansion
             var csprojContent = FileHelper.ReadAllText(csprojPath);
 
             // Extract UserSecretsId from .csproj
-            var match = Regex.Match(csprojContent, @"<UserSecretsId>([^<]+)</UserSecretsId>");
+            var match = Regex.Match(csprojContent, "<UserSecretsId>([^<]+)</UserSecretsId>");
             if (!match.Success) return;
 
             var userSecretsId = match.Groups[1].Value;
@@ -94,7 +94,7 @@ public static class VariableExpansion
         var sep = Path.DirectorySeparatorChar.ToString();
         var doubleSep = sep + sep;
         if (value.Contains(doubleSep))
-            value = Regex.Replace(value, @"(?<!:)(" + Regex.Escape(doubleSep) + @")", sep);
+            value = Regex.Replace(value, "(?<!:)(" + Regex.Escape(doubleSep) + ")", sep);
 
         return value;
     }

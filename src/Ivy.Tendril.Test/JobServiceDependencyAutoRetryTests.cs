@@ -33,7 +33,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         var folder = Path.Combine(_plansDir, name);
         Directory.CreateDirectory(folder);
 
-        var depsYaml = "";
+        string depsYaml;
         if (dependsOn is { Count: > 0 })
             depsYaml = "dependsOn:\n" + string.Join("\n", dependsOn.Select(d => $"- '{d}'"));
         else
@@ -82,7 +82,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
     public void RetryBlockedDependents_WhenNotAllDependenciesMet_DoesNotRequeue()
     {
         var planB = CreatePlanFolder("02200-PlanB", "Completed");
-        var planC = CreatePlanFolder("02201-PlanC", "Executing"); // Not completed
+        _ = CreatePlanFolder("02201-PlanC", "Executing"); // Not completed
         var planA = CreatePlanFolder("02202-PlanA", "Blocked", ["02200-PlanB", "02201-PlanC"]);
 
         var service = CreateService();
@@ -130,7 +130,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
     public void ResetPlanStateToBlocked_WritesBlockedState()
     {
         // Create a plan with an unmet dependency
-        var depPlan = CreatePlanFolder("02700-DepPlan", "Executing"); // Not completed
+        _ = CreatePlanFolder("02700-DepPlan", "Executing"); // Not completed
         var planA = CreatePlanFolder("02701-PlanA", "Draft", ["02700-DepPlan"]);
 
         var service = CreateService();
@@ -192,7 +192,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
     public void RetryBlockedDependents_SkipsDuplicateBlockedJobs()
     {
         // Create planC with an unmet dependency to generate a blocked job
-        var depPlan = CreatePlanFolder("02802-DepPlan", "Executing");
+        _ = CreatePlanFolder("02802-DepPlan", "Executing");
         var planB = CreatePlanFolder("02800-PlanB", "Completed");
         var planC = CreatePlanFolder("02803-PlanC", "Blocked", ["02802-DepPlan", "02800-PlanB"]);
 
@@ -227,7 +227,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
     public void RetryBlockedJobs_SuccessfulRetryDoesNotReBlock()
     {
         // Create a plan with a dependency that is completed (no PRs to check)
-        var depPlan = CreatePlanFolder("02900-DepPlan", "Completed");
+        _ = CreatePlanFolder("02900-DepPlan", "Completed");
         var planA = CreatePlanFolder("02901-PlanA", "Draft", ["02900-DepPlan"]);
 
         var service = CreateService();

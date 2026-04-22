@@ -299,7 +299,6 @@ public class PlanDatabaseService : IPlanDatabaseService
                 var days = new List<string>();
                 for (var i = 0; i < 7; i++)
                     days.Add(DateTime.UtcNow.Date.AddDays(-i).ToString("yyyy-MM-dd"));
-                var dayParams = string.Join(",", days.Select((_, idx) => $"@day{idx}"));
 
                 cmd.CommandText = $"""
                     WITH cte_created AS (

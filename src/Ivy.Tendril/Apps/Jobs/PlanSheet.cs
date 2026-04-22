@@ -15,7 +15,6 @@ public class PlanSheet(
     {
         var folderName = Path.GetFileName(planPath);
         var content = planService.ReadLatestRevision(folderName);
-        var plan = planService.GetPlanByFolder(planPath);
 
         object sheetContent = string.IsNullOrEmpty(content)
             ? Text.P("Plan not found or empty.")

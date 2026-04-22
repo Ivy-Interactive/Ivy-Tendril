@@ -1016,7 +1016,7 @@ public class PlanCliCommandTests : IDisposable
         CreatePlanFolder("30001", "TestLog");
         var planDir = Path.Combine(_plansDir, "30001-TestLog");
 
-        var logPath = PlanAddLogCommand.WriteLog(planDir, "CreatePlan");
+        _ = PlanAddLogCommand.WriteLog(planDir, "CreatePlan");
 
         var logsDir = Path.Combine(planDir, "logs");
         Assert.True(Directory.Exists(logsDir));

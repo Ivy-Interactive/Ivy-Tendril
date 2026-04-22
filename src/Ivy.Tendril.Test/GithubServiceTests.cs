@@ -259,8 +259,8 @@ public class GithubServiceTests
         var githubService = new GithubService(configService);
         var testRepo = "nonexistent-xyz-999";
 
-        var (assignees1, error1) = await githubService.GetAssigneesAsync(testRepo, testRepo);
-        var (assignees2, error2) = await githubService.GetAssigneesAsync(testRepo, testRepo);
+        var (_, error1) = await githubService.GetAssigneesAsync(testRepo, testRepo);
+        var (_, error2) = await githubService.GetAssigneesAsync(testRepo, testRepo);
 
         Assert.Equal(error1, error2);
     }
