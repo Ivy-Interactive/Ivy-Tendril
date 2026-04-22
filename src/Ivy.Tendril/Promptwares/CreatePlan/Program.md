@@ -347,6 +347,7 @@ If the YOLO flag was detected in Step 1, automatically execute the plan after cr
 - **!CRITICAL: Every CreatePlan execution MUST produce at least one plan folder. Even if the task is an analysis, review, or investigation — always create a plan with actionable steps. Never just analyze and report back without a plan.**
 - The plan must include all paths and information for an LLM coding agent to execute end-to-end without human intervention
 - **!IMPORTANT: Validate all file paths before writing `file:///` links in plans.** Use glob/search to confirm the actual path exists. Do NOT guess paths based on naming conventions — hallucinated paths cause "File not found" errors in the UI.
+- When referencing local files, use markdown links: `[FileName.cs:line](file:///path/to/FileName.cs)` for source files with line numbers, or `[FileName.cs](file:///path/to/FileName.cs)` without. Never use backticks in link text or `#L123` fragments in URLs. Use `![alt](path)` for images.
 - Keep the plan short and concise - the limiting factor of this system is a human that will have to read this.
 - **!IMPORTANT: ONE issue per plan file — if multiple issues, create multiple plan files with separate IDs**
 - **Multiple plans from one execution:** When args contain multiple issues, use the pre-allocated PlanId for the first plan. For additional plans, read `.counter`, use sequential IDs starting from it, and update `.counter` to the next available value after all plans are created.
