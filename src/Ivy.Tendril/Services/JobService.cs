@@ -272,7 +272,7 @@ public class JobService : IJobService
         => ClearJobsByStatus(j => j.Status == JobStatus.Completed);
 
     public void ClearFailedJobs()
-        => ClearJobsByStatus(j => j.Status is JobStatus.Failed or JobStatus.Timeout or JobStatus.Blocked);
+        => ClearJobsByStatus(j => j.Status is JobStatus.Failed or JobStatus.Timeout);
 
     private void ClearJobsByStatus(Func<JobItem, bool> predicate)
     {
