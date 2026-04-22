@@ -38,6 +38,7 @@ public class UpdatePlanDialog(
             _ =>
             {
                 _updateText.Set("");
+                isCreating.Set(false);
                 _dialogOpen.Set(false);
             },
             new DialogHeader($"Update Plan #{_selectedPlan.Id}"),
@@ -51,6 +52,7 @@ public class UpdatePlanDialog(
                 new Button("Cancel").Outline().OnClick(() =>
                 {
                     _updateText.Set("");
+                    isCreating.Set(false);
                     _dialogOpen.Set(false);
                 }),
                 new Button("Submit Update").Primary().Disabled(hasActiveJob || isCreating.Value || string.IsNullOrWhiteSpace(_updateText.Value)).ShortcutKey("Ctrl+Enter").OnClick(() =>
@@ -77,6 +79,7 @@ public class UpdatePlanDialog(
                         _jobService.StartJob("UpdatePlan", _selectedPlan.FolderPath);
                         _refreshPlans();
                         _updateText.Set("");
+                        isCreating.Set(false);
                         _dialogOpen.Set(false);
                     }
                 })
