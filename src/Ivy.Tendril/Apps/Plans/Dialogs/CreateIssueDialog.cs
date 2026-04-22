@@ -82,6 +82,7 @@ public class CreateIssueDialog(
         return new Dialog(
             _ =>
             {
+                isCreating.Set(false);
                 issueCommentState.Set("");
                 issueAssigneeState.Set(null);
                 issueLabelsState.Set(Array.Empty<string>());
@@ -109,6 +110,7 @@ public class CreateIssueDialog(
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() =>
                 {
+                    isCreating.Set(false);
                     issueCommentState.Set("");
                     issueAssigneeState.Set(null);
                     issueLabelsState.Set(Array.Empty<string>());
@@ -132,6 +134,7 @@ public class CreateIssueDialog(
                         }
                     }
 
+                    isCreating.Set(false);
                     issueCommentState.Set("");
                     issueAssigneeState.Set(null);
                     issueLabelsState.Set(Array.Empty<string>());

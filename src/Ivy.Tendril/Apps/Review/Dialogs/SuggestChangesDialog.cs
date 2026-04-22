@@ -28,6 +28,7 @@ public class SuggestChangesDialog(
         return new Dialog(
             _ =>
             {
+                isCreating.Set(false);
                 _suggestText.Set("");
                 _dialogOpen.Set(false);
             },
@@ -40,6 +41,7 @@ public class SuggestChangesDialog(
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() =>
                 {
+                    isCreating.Set(false);
                     _suggestText.Set("");
                     _dialogOpen.Set(false);
                 }),
@@ -57,6 +59,7 @@ public class SuggestChangesDialog(
                         _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Updating);
                         _jobService.StartJob("UpdatePlan", _selectedPlan.FolderPath);
                         _refreshPlans();
+                        isCreating.Set(false);
                         _suggestText.Set("");
                         _dialogOpen.Set(false);
                     }
