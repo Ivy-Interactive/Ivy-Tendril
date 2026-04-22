@@ -11,6 +11,8 @@ public class SidebarView(
     IState<string?> projectFilter,
     IState<string?> levelFilter,
     IState<string?> textFilter,
+    IState<bool> filtersOpen,
+    IState<bool> showCompleted,
     IConfigService config) : ViewBase
 {
     private readonly IConfigService _config = config;
@@ -19,12 +21,51 @@ public class SidebarView(
     private readonly IState<string?> _projectFilter = projectFilter;
     private readonly IState<string?> _levelFilter = levelFilter;
     private readonly IState<string?> _textFilter = textFilter;
+    private readonly IState<bool> _filtersOpen = filtersOpen;
+    private readonly IState<bool> _showCompleted = showCompleted;
+
+    private object BuildHeader()
+    {
+        var levelFilteredPlans = _plans.AsEnumerable();
+        if (_levelFilter.Value is { } level)
+            levelFilteredPlans = levelFilteredPlans.Where(p => p.Level == level);
+        var projectCounts = levelFilteredPlans
+            .GroupBy(p => p.Project)
+            .OrderByDescending(g => g.Count())
+            .Select(g => new Option<string>($"{g.Key} ({g.Count()})", g.Key))
+            .ToArray<IAnyOption>();
+        var levelOptions = _config.LevelNames;
+
+        var searchInput = _textFilter.ToSearchInput()
+            .Placeholder("Search...")
+            .Suffix(
+                new Button()
+                    .Icon(_filtersOpen.Value ? Icons.ChevronUp : Icons.ChevronDown)
+                    .Ghost()
+                    .Small()
+                    .OnClick(() => _filtersOpen.Set(!_filtersOpen.Value))
+            );
+
+        var header = Layout.Vertical() | searchInput;
+
+        if (_filtersOpen.Value)
+        {
+            header |= Layout.Vertical()
+                | _projectFilter.ToSelectInput(projectCounts).Placeholder("All Projects").Nullable()
+                    .WithField().Label("Project")
+                | _levelFilter.ToSelectInput(levelOptions.ToOptions()).Placeholder("All Levels").Nullable()
+                    .WithField().Label("Level")
+                | _showCompleted.ToBoolInput("Show Completed");
+        }
+
+        return header;
+    }
 
     public override object Build()
     {
         var filteredPlans = PlanFilters.ApplyFilters(_plans, _projectFilter.Value, _levelFilter.Value, _textFilter.Value);
 
-        return new List(filteredPlans.Select(plan =>
+        var content = new List(filteredPlans.Select(plan =>
         {
             var clickablePlan = plan;
             var verificationsPassed = plan.Verifications.Count > 0
@@ -40,5 +81,7 @@ public class SidebarView(
                 )
                 .OnClick(() => _selectedPlanState.Set(clickablePlan));
         }));
+
+        return new HeaderLayout(BuildHeader(), content);
     }
 }

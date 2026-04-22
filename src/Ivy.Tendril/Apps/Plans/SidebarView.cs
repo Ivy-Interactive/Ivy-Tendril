@@ -10,14 +10,51 @@ public class SidebarView(
     IState<string?> projectFilter,
     IState<string?> levelFilter,
     IState<string?> textFilter,
+    IState<bool> filtersOpen,
     IConfigService config) : ViewBase
 {
+    private object BuildHeader()
+    {
+        var levelFilteredPlans = plans.AsEnumerable();
+        if (levelFilter.Value is { } level)
+            levelFilteredPlans = levelFilteredPlans.Where(p => p.Level == level);
+        var projectCounts = levelFilteredPlans
+            .GroupBy(p => p.Project)
+            .OrderByDescending(g => g.Count())
+            .Select(g => new Option<string>($"{g.Key} ({g.Count()})", g.Key))
+            .ToArray<IAnyOption>();
+        var levelOptions = config.LevelNames;
+
+        var searchInput = textFilter.ToSearchInput()
+            .Placeholder("Search...")
+            .Suffix(
+                new Button()
+                    .Icon(filtersOpen.Value ? Icons.ChevronUp : Icons.ChevronDown)
+                    .Ghost()
+                    .Small()
+                    .OnClick(() => filtersOpen.Set(!filtersOpen.Value))
+            );
+
+        var header = Layout.Vertical() | searchInput;
+
+        if (filtersOpen.Value)
+        {
+            header |= Layout.Vertical()
+                | projectFilter.ToSelectInput(projectCounts).Placeholder("All Projects").Nullable()
+                    .WithField().Label("Project")
+                | levelFilter.ToSelectInput(levelOptions.ToOptions()).Placeholder("All Levels").Nullable()
+                    .WithField().Label("Level");
+        }
+
+        return header;
+    }
+
     public override object Build()
     {
         var filteredPlans =
             PlanFilters.ApplyFilters(plans, projectFilter.Value, levelFilter.Value, textFilter.Value);
 
-        return new List(filteredPlans.Select(plan =>
+        var content = new List(filteredPlans.Select(plan =>
         {
             var clickablePlan = plan;
             var stateBadgeVariant = StatusMappings.PlanStatusBadgeVariants.TryGetValue(plan.Status, out var variant)
@@ -39,5 +76,7 @@ public class SidebarView(
                 .Content(badges)
                 .OnClick(() => selectedPlanState.Set(clickablePlan));
         }));
+
+        return new HeaderLayout(BuildHeader(), content);
     }
 }

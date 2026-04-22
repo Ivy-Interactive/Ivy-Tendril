@@ -11,7 +11,8 @@ public class SidebarView(
     IState<string?> riskFilter,
     int totalCount,
     bool hasActiveFilters,
-    IState<string?> textFilter) : ViewBase
+    IState<string?> textFilter,
+    IState<bool> filtersOpen) : ViewBase
 {
     private readonly bool _hasActiveFilters = hasActiveFilters;
     private readonly IState<string?> _impactFilter = impactFilter;
@@ -21,6 +22,48 @@ public class SidebarView(
     private readonly IState<Recommendation?> _selectedState = selectedState;
     private readonly IState<string?> _textFilter = textFilter;
     private readonly int _totalCount = totalCount;
+    private readonly IState<bool> _filtersOpen = filtersOpen;
+
+    private object BuildHeader()
+    {
+        var projectOptions = _recommendations
+            .GroupBy(r => r.Project)
+            .OrderByDescending(g => g.Count())
+            .Select(g => new Option<string>($"{g.Key} ({g.Count()})", g.Key))
+            .ToArray<IAnyOption>();
+
+        var searchInput = _textFilter.ToSearchInput()
+            .Placeholder("Search...")
+            .Suffix(
+                new Button()
+                    .Icon(_filtersOpen.Value ? Icons.ChevronUp : Icons.ChevronDown)
+                    .Ghost()
+                    .Small()
+                    .OnClick(() => _filtersOpen.Set(!_filtersOpen.Value))
+            );
+
+        var header = Layout.Vertical() | searchInput;
+
+        if (_filtersOpen.Value)
+        {
+            var impactLevelOptions = new[] { "Small", "Medium", "High" }
+                .Select(l => new Option<string>(l, l))
+                .ToArray<IAnyOption>();
+            var riskLevelOptions = new[] { "Small", "Medium", "High" }
+                .Select(l => new Option<string>(l, l))
+                .ToArray<IAnyOption>();
+
+            header |= Layout.Vertical()
+                | _projectFilter.ToSelectInput(projectOptions).Placeholder("All Projects").Nullable()
+                    .WithField().Label("Project")
+                | _impactFilter.ToSelectInput(impactLevelOptions).Placeholder("All Impacts").Nullable()
+                    .WithField().Label("Impact")
+                | _riskFilter.ToSelectInput(riskLevelOptions).Placeholder("All Risk Levels").Nullable()
+                    .WithField().Label("Risk");
+        }
+
+        return header;
+    }
 
     public override object Build()
     {
@@ -40,12 +83,15 @@ public class SidebarView(
             .ToList();
 
         if (filtered.Count == 0 && _hasActiveFilters && _totalCount > 0)
-            return Layout.Vertical().AlignContent(Align.Center).Gap(2).Padding(4)
+        {
+            var emptyContent = Layout.Vertical().AlignContent(Align.Center).Gap(2).Padding(4)
                    | new Icon(Icons.ListFilterPlus).Size(Size.Units(6)).Color(Colors.Gray)
                    | Text.Muted("No matching recommendations")
                    | Text.Muted("Try adjusting your filters").Small();
+            return new HeaderLayout(BuildHeader(), emptyContent);
+        }
 
-        return new List(filtered.Select(rec =>
+        var content = new List(filtered.Select(rec =>
         {
             var clickableRec = rec;
 
@@ -56,5 +102,7 @@ public class SidebarView(
             return new ListItem($"#{rec.PlanId} {rec.Title}", preview)
                 .OnClick(() => _selectedState.Set(clickableRec));
         }));
+
+        return new HeaderLayout(BuildHeader(), content);
     }
 }

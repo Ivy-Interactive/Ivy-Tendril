@@ -9,6 +9,11 @@ public class SidebarView(
     private readonly IState<string?> _searchFilter = searchFilter;
     private readonly IState<string?> _selectedFile = selectedFile;
 
+    private object BuildHeader()
+    {
+        return _searchFilter.ToSearchInput().Placeholder("Search trash...");
+    }
+
     public override object Build()
     {
         var filteredFiles = _files.AsEnumerable();
@@ -26,12 +31,15 @@ public class SidebarView(
         var filteredList = filteredFiles.ToList();
 
         if (filteredList.Count == 0)
-            return Layout.Vertical().AlignContent(Align.Center).Gap(2).Padding(4)
+        {
+            var emptyContent = Layout.Vertical().AlignContent(Align.Center).Gap(2).Padding(4)
                    | new Icon(Icons.Trash2).Size(Size.Units(6)).Color(Colors.Gray)
                    | Text.Muted("No trash items")
                    | Text.Muted("Duplicate plans will appear here").Small();
+            return new HeaderLayout(BuildHeader(), emptyContent);
+        }
 
-        return new List(filteredList.Select(f =>
+        var content = new List(filteredList.Select(f =>
         {
             var item = f;
             return new ListItem(item.FileName.Replace(".md", ""))
@@ -40,5 +48,7 @@ public class SidebarView(
                          | Text.Muted(item.Date.ToString("yyyy-MM-dd")).Small())
                 .OnClick(() => _selectedFile.Set(item.FilePath));
         }));
+
+        return new HeaderLayout(BuildHeader(), content);
     }
 }
