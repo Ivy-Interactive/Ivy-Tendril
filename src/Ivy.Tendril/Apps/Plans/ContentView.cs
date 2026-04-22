@@ -264,11 +264,29 @@ public class ContentView(
         content |= new VerificationReportSheet(openVerification, _selectedPlan);
         content |= new CommitDetailSheet(openCommit, _selectedPlan, _config, _gitService);
 
+        // Check for active ExpandPlan job
+        var hasActiveExpandJob = _jobService.GetJobs().Any(j =>
+            j.Type == "ExpandPlan" &&
+            j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
+            j.Args.Length > 0 &&
+            j.Args[0].Equals(_selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
+
+        // Check for active SplitPlan job
+        var hasActiveSplitJob = _jobService.GetJobs().Any(j =>
+            j.Type == "SplitPlan" &&
+            j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
+            j.Args.Length > 0 &&
+            j.Args[0].Equals(_selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
+
         var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(1)
                         | new Button("Update").Icon(Icons.Pencil).Outline().ShortcutKey("u")
                             .OnClick(() => updateDialogOpen.Set(true))
-                        | new Button("Split").Icon(Icons.Scissors).Outline().ShortcutKey("s").OnClick(() =>
+                        | new Button("Split").Icon(Icons.Scissors).Outline().ShortcutKey("s")
+                            .Disabled(hasActiveSplitJob)
+                            .OnClick(() =>
                         {
+                            if (hasActiveSplitJob) return;
+
                             // Optimistically update UI state before disk I/O
                             var optimisticPlan = _selectedPlan with
                             {
@@ -280,8 +298,12 @@ public class ContentView(
                             _jobService.StartJob("SplitPlan", _selectedPlan.FolderPath);
                             _refreshPlans();
                         })
-                        | new Button("Expand").Icon(Icons.UnfoldVertical).Outline().ShortcutKey("x").OnClick(() =>
+                        | new Button("Expand").Icon(Icons.UnfoldVertical).Outline().ShortcutKey("x")
+                            .Disabled(hasActiveExpandJob)
+                            .OnClick(() =>
                         {
+                            if (hasActiveExpandJob) return;
+
                             // Optimistically update UI state before disk I/O
                             var optimisticPlan = _selectedPlan with
                             {
