@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
@@ -173,7 +174,7 @@ public class GithubServiceTests
     [Fact]
     public void ParseIssuesFromJson_Throws_JsonException_For_Invalid_Json()
     {
-        Assert.ThrowsAny<System.Text.Json.JsonException>(() =>
+        Assert.ThrowsAny<JsonException>(() =>
             GithubService.ParseIssuesFromJson("not valid json"));
     }
 

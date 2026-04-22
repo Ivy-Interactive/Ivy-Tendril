@@ -6,9 +6,9 @@ namespace Ivy.Tendril.Test;
 
 public class WorktreeCleanupServiceTests : IDisposable
 {
-    private readonly string _tempDir;
     private readonly string _plansDir;
     private readonly WorktreeCleanupService _service;
+    private readonly string _tempDir;
 
     public WorktreeCleanupServiceTests()
     {
@@ -62,7 +62,8 @@ public class WorktreeCleanupServiceTests : IDisposable
 
         foreach (var state in activeStates)
         {
-            var worktreesDir = Path.Combine(_plansDir, $"01{Array.IndexOf(activeStates, state):D3}-{state}Plan", "worktrees");
+            var worktreesDir = Path.Combine(_plansDir, $"01{Array.IndexOf(activeStates, state):D3}-{state}Plan",
+                "worktrees");
             Assert.True(Directory.Exists(worktreesDir), $"Worktrees for {state} plan should not be removed");
         }
     }
@@ -83,7 +84,8 @@ public class WorktreeCleanupServiceTests : IDisposable
 
         foreach (var state in terminalStates)
         {
-            var worktreesDir = Path.Combine(_plansDir, $"02{Array.IndexOf(terminalStates, state):D3}-{state}Plan", "worktrees");
+            var worktreesDir = Path.Combine(_plansDir, $"02{Array.IndexOf(terminalStates, state):D3}-{state}Plan",
+                "worktrees");
             Assert.False(Directory.Exists(worktreesDir), $"Empty worktrees dir for {state} plan should be removed");
         }
     }
@@ -540,7 +542,8 @@ public class WorktreeCleanupServiceTests : IDisposable
             service.RunCleanup();
         }
 
-        Assert.Contains(logEntries, e => e.Contains("Removing recursive Plans artifact") || e.Contains("Failed to delete nested Plans"));
+        Assert.Contains(logEntries,
+            e => e.Contains("Removing recursive Plans artifact") || e.Contains("Failed to delete nested Plans"));
 
         // Cleanup
         if (Directory.Exists(nestedPlans))
@@ -645,8 +648,15 @@ public class WorktreeCleanupServiceTests : IDisposable
 
     private class LoggerAdapter(ILogger inner) : ILogger<WorktreeCleanupService>
     {
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => inner.BeginScope(state);
-        public bool IsEnabled(LogLevel logLevel) => inner.IsEnabled(logLevel);
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+        {
+            return inner.BeginScope(state);
+        }
+
+        public bool IsEnabled(LogLevel logLevel)
+        {
+            return inner.IsEnabled(logLevel);
+        }
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
             Func<TState, Exception?, string> formatter)
@@ -657,8 +667,15 @@ public class WorktreeCleanupServiceTests : IDisposable
 
     private class CapturingLogger(List<string> entries) : ILogger
     {
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-        public bool IsEnabled(LogLevel logLevel) => true;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+        {
+            return null;
+        }
+
+        public bool IsEnabled(LogLevel logLevel)
+        {
+            return true;
+        }
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
             Func<TState, Exception?, string> formatter)
@@ -669,8 +686,15 @@ public class WorktreeCleanupServiceTests : IDisposable
 
     private class CapturingLogger<T>(List<string> entries) : ILogger<T>
     {
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-        public bool IsEnabled(LogLevel logLevel) => true;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+        {
+            return null;
+        }
+
+        public bool IsEnabled(LogLevel logLevel)
+        {
+            return true;
+        }
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
             Func<TState, Exception?, string> formatter)

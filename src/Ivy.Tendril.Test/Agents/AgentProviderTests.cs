@@ -11,10 +11,12 @@ public class AgentProviderTests
         string effort = "high",
         string sessionId = "sess-123",
         IReadOnlyList<string>? allowedTools = null,
-        IReadOnlyList<string>? extraArgs = null) =>
-        new(prompt, workDir, model, effort, sessionId,
+        IReadOnlyList<string>? extraArgs = null)
+    {
+        return new AgentInvocation(prompt, workDir, model, effort, sessionId,
             allowedTools ?? Array.Empty<string>(),
             extraArgs ?? Array.Empty<string>());
+    }
 
     // --- Claude Provider ---
 
@@ -85,7 +87,7 @@ public class AgentProviderTests
     public void Claude_BuildProcessStart_PromptAfterDoubleDash()
     {
         var provider = new ClaudeAgentProvider();
-        var psi = provider.BuildProcessStart(CreateInvocation(prompt: "hello world"));
+        var psi = provider.BuildProcessStart(CreateInvocation("hello world"));
 
         var args = psi.ArgumentList.ToList();
         var dashIdx = args.IndexOf("--");
@@ -145,7 +147,7 @@ public class AgentProviderTests
         var provider = new ClaudeAgentProvider();
         var lines = new List<string>
         {
-            "{\"type\":\"status\",\"message\":\"working\"}",
+            "{\"type\":\"status\",\"message\":\"working\"}"
         };
 
         Assert.Null(provider.ExtractResult(lines));
@@ -187,7 +189,7 @@ public class AgentProviderTests
     public void Codex_BuildProcessStart_PromptIsLastArg()
     {
         var provider = new CodexAgentProvider();
-        var psi = provider.BuildProcessStart(CreateInvocation(prompt: "do the thing"));
+        var psi = provider.BuildProcessStart(CreateInvocation("do the thing"));
 
         var args = psi.ArgumentList.ToList();
         Assert.Equal("do the thing", args[^1]);

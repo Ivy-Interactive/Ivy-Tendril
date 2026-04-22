@@ -1,5 +1,6 @@
-using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Commands;
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
@@ -7,10 +8,10 @@ namespace Ivy.Tendril.Test;
 [Collection("TendrilHome")]
 public class PlanCliCommandTests : IDisposable
 {
-    private readonly string _tempDir;
-    private readonly string _plansDir;
     private readonly string _originalTendrilHome;
     private readonly string? _originalTendrilPlans;
+    private readonly string _plansDir;
+    private readonly string _tempDir;
 
     public PlanCliCommandTests()
     {
@@ -29,8 +30,13 @@ public class PlanCliCommandTests : IDisposable
         Environment.SetEnvironmentVariable("TENDRIL_HOME", _originalTendrilHome);
         Environment.SetEnvironmentVariable("TENDRIL_PLANS", _originalTendrilPlans);
         if (Directory.Exists(_tempDir))
-            try { Directory.Delete(_tempDir, true); }
-            catch { }
+            try
+            {
+                Directory.Delete(_tempDir, true);
+            }
+            catch
+            {
+            }
     }
 
     private string CreatePlanFolder(string id, string title, PlanYaml? plan = null)
@@ -1057,8 +1063,15 @@ public class PlanCliCommandTests : IDisposable
         var original = Console.Out;
         using var writer = new StringWriter();
         Console.SetOut(writer);
-        try { action(); }
-        finally { Console.SetOut(original); }
+        try
+        {
+            action();
+        }
+        finally
+        {
+            Console.SetOut(original);
+        }
+
         return writer.ToString();
     }
 }

@@ -1,5 +1,4 @@
-using Ivy.Tendril.Apps.Jobs;
-using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
@@ -409,6 +408,9 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         {
         }
 
-        public Task FlushPendingWritesAsync() => Task.CompletedTask;
+        public Task FlushPendingWritesAsync()
+        {
+            return Task.CompletedTask;
+        }
     }
 }

@@ -1,5 +1,4 @@
 using Ivy.Tendril.Apps;
-using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -75,7 +74,7 @@ public class PrStatusSyncServiceTests : IDisposable
         {
             "https://github.com/owner/repo/pull/1",
             "https://github.com/Ivy-Interactive/Ivy.Releases (new repo — no PR needed)",
-            "https://github.com/owner/repo",  // repo URL, not a PR
+            "https://github.com/owner/repo" // repo URL, not a PR
         };
 
         // Simulate the CollectPrUrlsFromPlans filter
@@ -97,7 +96,8 @@ public class PrStatusSyncServiceTests : IDisposable
     public void IsValidUrl_RejectsInvalidUrls()
     {
         Assert.False(PullRequestApp.IsValidUrl("https://github.com/owner/repo"));
-        Assert.False(PullRequestApp.IsValidUrl("https://github.com/Ivy-Interactive/Ivy.Releases (new repo — no PR needed)"));
+        Assert.False(
+            PullRequestApp.IsValidUrl("https://github.com/Ivy-Interactive/Ivy.Releases (new repo — no PR needed)"));
         Assert.False(PullRequestApp.IsValidUrl("not a url"));
         Assert.False(PullRequestApp.IsValidUrl("https://example.com/page"));
     }
