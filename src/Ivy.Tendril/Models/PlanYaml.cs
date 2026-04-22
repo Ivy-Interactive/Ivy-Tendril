@@ -1,6 +1,6 @@
 using YamlDotNet.Serialization;
 
-namespace Ivy.Tendril.Apps.Plans;
+namespace Ivy.Tendril.Models;
 
 public class PlanVerificationEntry
 {

@@ -1,6 +1,7 @@
-using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
+using Ivy.Tendril.Services;
 
-namespace Ivy.Tendril.Services;
+namespace Ivy.Tendril.Helpers;
 
 /// <summary>
 ///     Shared utilities for plan CLI commands.

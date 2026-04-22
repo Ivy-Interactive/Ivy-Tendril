@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;

@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
 
-namespace Ivy.Tendril.Services;
+namespace Ivy.Tendril.Helpers;
 
 /// <summary>
 ///     Handles variable expansion in configuration values.

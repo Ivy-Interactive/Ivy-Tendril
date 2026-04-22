@@ -1,4 +1,6 @@
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 using Ivy.Widgets.ClaudeJsonRenderer;
 
 namespace Ivy.Tendril.Apps.Jobs;

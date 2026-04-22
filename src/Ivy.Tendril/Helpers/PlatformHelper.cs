@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Ivy.Helpers;
 
-namespace Ivy.Tendril.Services;
+namespace Ivy.Tendril.Helpers;
 
 public static class PlatformHelper
 {

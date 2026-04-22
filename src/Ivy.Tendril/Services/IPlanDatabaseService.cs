@@ -1,5 +1,6 @@
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 
 namespace Ivy.Tendril.Services;
 

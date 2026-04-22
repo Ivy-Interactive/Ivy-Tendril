@@ -1,9 +1,12 @@
+using Ivy.Tendril.Models;
 using System.Text.RegularExpressions;
 using Ivy.Core;
 using Ivy.Tendril.Apps.Plans.Dialogs;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Views;
-using Ivy.Widgets.DiffView;
+using Ivy.Tendril.Views.Sheets;
+using Ivy.Tendril.Views.Tabs;
 
 namespace Ivy.Tendril.Apps.Plans;
 
@@ -52,45 +55,6 @@ public class ContentView(
         var openCommit = UseState<string?>(null);
 
         var selectedPlanRef = UseRef(_selectedPlan);
-
-        var verificationReportQuery = UseQuery<string, string>(
-            openVerification.Value ?? "",
-            async (name, ct) =>
-            {
-                if (string.IsNullOrEmpty(name) || _selectedPlan is null) return "";
-                var verificationDir = Path.GetFullPath(Path.Combine(_selectedPlan.FolderPath, "verification"));
-                var resolvedPath = Path.GetFullPath(Path.Combine(verificationDir, $"{name}.md"));
-                if (!resolvedPath.StartsWith(verificationDir, StringComparison.OrdinalIgnoreCase))
-                    return "Access denied: file is outside the verification folder.";
-                return await Task.Run(() =>
-                    File.Exists(resolvedPath) ? FileHelper.ReadAllText(resolvedPath) : $"No report found for {name}.", ct);
-            },
-            initialValue: ""
-        );
-
-        var commitQuery = UseQuery<PlanContentHelpers.CommitDetailData?, string>(
-            openCommit.Value ?? "",
-            async (hash, ct) =>
-            {
-                if (string.IsNullOrEmpty(hash)) return null;
-                var repoPaths2 = _selectedPlan!.GetEffectiveRepoPaths(_config);
-                return await Task.Run(() =>
-                {
-                    foreach (var repo in repoPaths2)
-                    {
-                        var title = _gitService.GetCommitTitle(repo, hash);
-                        if (title != null)
-                        {
-                            var diff = _gitService.GetCommitDiff(repo, hash);
-                            var files = _gitService.GetCommitFiles(repo, hash);
-                            return new PlanContentHelpers.CommitDetailData(title, diff, files);
-                        }
-                    }
-                    return null;
-                }, ct);
-            },
-            initialValue: null
-        );
 
         var planContentQuery = UseQuery<PlanContentData, string>(
             _selectedPlan?.FolderPath ?? "",
@@ -258,38 +222,6 @@ public class ContentView(
         }
         else
         {
-            // Summary tab content
-            object summaryTabContent;
-            if (planData.SummaryMarkdown is { } summaryMd)
-                summaryTabContent = new Markdown(summaryMd).DangerouslyAllowLocalFiles();
-            else
-                summaryTabContent = Text.Muted("No summary available.");
-
-            // Verifications tab content
-            var verificationsTable = new Table(
-                new TableRow(
-                        new TableCell("Status").IsHeader(),
-                        new TableCell("Name").IsHeader()
-                    )
-                { IsHeader = true }
-            );
-            foreach (var v in _selectedPlan.Verifications)
-            {
-                var hasReport = planData.VerificationReports.TryGetValue(v.Name, out var exists) && exists;
-                var nameCapture = v.Name;
-                var nameCell = hasReport
-                    ? new Button(v.Name).Inline().OnClick(() => openVerification.Set(nameCapture))
-                    : (object)Text.Block(v.Name);
-
-                verificationsTable |= new TableRow(
-                    new TableCell(new Badge(v.Status).Variant(
-                        StatusMappings.VerificationStatusBadgeVariants.TryGetValue(v.Status, out var variant)
-                            ? variant
-                            : BadgeVariant.Outline)),
-                    new TableCell(nameCell)
-                );
-            }
-
             // Git tab content (uses shared helper)
             var gitData = GitTabHelper.BuildGitTabData(_selectedPlan!, _config, _gitService);
             var gitLayout = GitTabHelper.RenderGitTab(
@@ -306,96 +238,31 @@ public class ContentView(
                 }
             );
 
-            // Changes tab content
-            object changesTabContent;
-            var changesData = planContentQuery.Value.AllChanges;
-            var changesFileCount = 0;
-
-            if (planContentQuery.Loading)
-            {
-                changesTabContent = Text.Muted("Loading...");
-            }
-            else if (changesData is null)
-            {
-                var errorMsg = planContentQuery.Error is { } err
-                    ? $"Failed to load changes: {err.Message}"
-                    : "No commits yet.";
-                changesTabContent = Text.Muted(errorMsg);
-            }
-            else
-            {
-                changesFileCount = changesData.Files.Count;
-                var changesLayout = Layout.Vertical().Gap(4).Padding(2);
-
-                var statsText =
-                    $"{changesData.Files.Count} files changed ({changesData.AddedCount} added, {changesData.ModifiedCount} modified, {changesData.DeletedCount} deleted)";
-                changesLayout |= Text.Block(statsText).Bold();
-
-                if (changesData.Files.Count > 0)
-                {
-                    var filesLayout = Layout.Vertical().Gap(1);
-                    foreach (var (status, filePath) in changesData.Files)
-                    {
-                        var (label, variant) = status switch
-                        {
-                            "A" => ("Added", BadgeVariant.Success),
-                            "D" => ("Deleted", BadgeVariant.Destructive),
-                            _ => ("Modified", BadgeVariant.Outline)
-                        };
-                        filesLayout |= Layout.Horizontal().Gap(2)
-                            | new Badge(label).Variant(variant).Small()
-                            | Text.Block(filePath);
-                    }
-
-                    changesLayout |= filesLayout;
-                }
-
-                if (!string.IsNullOrWhiteSpace(changesData.Diff))
-                {
-                    changesLayout |= new DiffView().Diff(changesData.Diff).Split();
-                }
-
-                changesTabContent = changesLayout;
-            }
+            // Changes tab
+            var changesTabView = new ChangesTabView(planData.AllChanges, planContentQuery.Loading, planContentQuery.Error);
 
             // Artifacts tab content
-            var artifactsLayout = Layout.Vertical().Gap(2);
-            artifactsLayout |= PlanContentHelpers.RenderArtifactScreenshots(planData.Artifacts);
-
             var totalArtifacts = (planData.Artifacts.GetValueOrDefault("screenshots")?.Count ?? 0)
                                  + (planData.Artifacts.ContainsKey("sample") ? 1 : 0);
 
             // Build tabs
             var tabs = Layout.Tabs(
                 new Tab("Plan", Cap(planTabContent)),
-                new Tab("Summary", Cap(summaryTabContent)),
-                new Tab("Verifications", Cap(verificationsTable)).Badge(_selectedPlan.Verifications.Count.ToString()),
+                new Tab("Summary", Cap(new SummaryTabView(planData.SummaryMarkdown))),
+                new Tab("Verifications", Cap(new VerificationsTabView(
+                    _selectedPlan.Verifications, planData.VerificationReports,
+                    v => openVerification.Set(v)))).Badge(_selectedPlan.Verifications.Count.ToString()),
                 new Tab("Git", Cap(gitLayout)).Badge((_selectedPlan.Commits.Count + _selectedPlan.Prs.Count).ToString()),
-                new Tab("Changes", Cap(changesTabContent)).Badge(changesFileCount > 0 ? changesFileCount.ToString() : ""),
-                new Tab("Artifacts", Cap(artifactsLayout)).Badge(totalArtifacts.ToString())
+                new Tab("Changes", Cap(changesTabView)).Badge(changesTabView.FileCount > 0 ? changesTabView.FileCount.ToString() : ""),
+                new Tab("Artifacts", Cap(new ArtifactsTabView(planData.Artifacts))).Badge(totalArtifacts.ToString())
             ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content);
 
             content |= tabs;
         }
 
         // Sheet modals
-        if (openVerification.Value is { } verName)
-            content |= new Sheet(
-                () => openVerification.Set(null),
-                verificationReportQuery.Loading
-                    ? Text.Muted("Loading...")
-                    : new Markdown(verificationReportQuery.Value).DangerouslyAllowLocalFiles(),
-                verName
-            ).Width(Size.Half()).Resizable();
-
-        if (openCommit.Value is { } commitHash && _selectedPlan is not null)
-        {
-            content |= PlanContentHelpers.RenderCommitDetailSheet(
-                commitQuery.Value,
-                commitQuery.Loading || commitQuery.Value is null && !string.IsNullOrEmpty(openCommit.Value),
-                commitHash,
-                () => openCommit.Set(null));
-        }
+        content |= new VerificationReportSheet(openVerification, _selectedPlan);
+        content |= new CommitDetailSheet(openCommit, _selectedPlan, _config, _gitService);
 
         var actionBar = Layout.Horizontal().AlignContent(Align.Center).Gap(2).Padding(1)
                         | new Button("Update").Icon(Icons.Pencil).Outline().ShortcutKey("u")

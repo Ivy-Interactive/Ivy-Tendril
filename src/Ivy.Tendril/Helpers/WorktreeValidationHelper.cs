@@ -1,4 +1,4 @@
-namespace Ivy.Tendril.Services;
+namespace Ivy.Tendril.Helpers;
 
 public static class WorktreeValidationHelper
 {

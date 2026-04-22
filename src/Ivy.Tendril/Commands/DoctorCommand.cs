@@ -1,6 +1,8 @@
+using Ivy.Tendril.Models;
 using System.Diagnostics;
 using Ivy.Helpers;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 using Microsoft.Data.Sqlite;
 using Spectre.Console;
 
@@ -642,7 +644,7 @@ public static class DoctorCommand
             // Try strict deserialization first
             try
             {
-                var plan = Services.YamlHelper.Deserializer.Deserialize<Apps.Plans.PlanYaml>(content);
+                var plan = Helpers.YamlHelper.Deserializer.Deserialize<Models.PlanYaml>(content);
                 if (plan == null)
                     return (false, "Null after parse", "Unknown");
 
@@ -756,7 +758,7 @@ public static class DoctorCommand
         try
         {
             var content = File.ReadAllText(planYamlPath);
-            var plan = Services.YamlHelper.Deserializer.Deserialize<Apps.Plans.PlanYaml>(content);
+            var plan = Helpers.YamlHelper.Deserializer.Deserialize<Models.PlanYaml>(content);
             // Recommendations are optional — only validate if present
             if (plan?.Recommendations != null && plan.Recommendations.Count > 0)
                 return null;

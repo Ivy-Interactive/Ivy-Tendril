@@ -1,5 +1,6 @@
 using Ivy.Tendril.Apps.Recommendations;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps;
 
