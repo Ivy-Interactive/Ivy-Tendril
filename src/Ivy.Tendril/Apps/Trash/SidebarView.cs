@@ -5,22 +5,18 @@ public class SidebarView(
     IState<string?> selectedFile,
     IState<string?> searchFilter) : ViewBase
 {
-    private readonly List<TrashFileInfo> _files = files;
-    private readonly IState<string?> _searchFilter = searchFilter;
-    private readonly IState<string?> _selectedFile = selectedFile;
-
     private object BuildHeader()
     {
         return Layout.Vertical().Height(Size.Px(40)).AlignContent(Align.Center)
-            | _searchFilter.ToSearchInput().Placeholder("Search trash...");
+            | searchFilter.ToSearchInput().Placeholder("Search trash...");
     }
 
     public override object Build()
     {
-        var filteredFiles = _files.AsEnumerable();
-        if (!string.IsNullOrWhiteSpace(_searchFilter.Value))
+        var filteredFiles = files.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(searchFilter.Value))
         {
-            var searchTerm = _searchFilter.Value.ToLowerInvariant();
+            var searchTerm = searchFilter.Value.ToLowerInvariant();
             filteredFiles = filteredFiles.Where(f =>
                 f.FileName.ToLowerInvariant().Contains(searchTerm) ||
                 f.OriginalRequest.ToLowerInvariant().Contains(searchTerm) ||
@@ -47,7 +43,7 @@ public class SidebarView(
                 .Content(Layout.Horizontal().Gap(1)
                          | new Badge(item.Project).Variant(BadgeVariant.Outline).Small()
                          | Text.Muted(item.Date.ToString("yyyy-MM-dd")).Small())
-                .OnClick(() => _selectedFile.Set(item.FilePath));
+                .OnClick(() => selectedFile.Set(item.FilePath));
         }));
 
         return new HeaderLayout(BuildHeader(), content);

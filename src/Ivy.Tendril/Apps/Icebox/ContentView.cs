@@ -16,17 +16,9 @@ public class ContentView(
     Action refreshPlans,
     IConfigService config) : ViewBase
 {
-    private readonly List<PlanFile> _allPlans = allPlans;
-    private readonly IConfigService _config = config;
-    private readonly IJobService _jobService = jobService;
-    private readonly IPlanReaderService _planService = planService;
-    private readonly Action _refreshPlans = refreshPlans;
-    private readonly PlanFile? _selectedPlan = selectedPlan;
-    private readonly IState<PlanFile?> _selectedPlanState = selectedPlanState;
-
     public override object Build()
     {
-        var downloadUrl = PlanDownloadHelper.UsePlanDownload(Context, _planService, _selectedPlan);
+        var downloadUrl = PlanDownloadHelper.UsePlanDownload(Context, planService, selectedPlan);
         var client = UseService<IClientProvider>();
         var copyToClipboard = UseClipboard();
         var deleteDialogOpen = UseState(false);
@@ -36,9 +28,9 @@ public class ContentView(
         var editContent = UseState("");
         var originalContent = UseState("");
         var isEditingPrev = UseState(false);
-        var lastPlanId = UseState(_selectedPlan?.Id ?? -1);
+        var lastPlanId = UseState(selectedPlan?.Id ?? -1);
 
-        var selectedPlanRef = UseRef(_selectedPlan);
+        var selectedPlanRef = UseRef(selectedPlan);
 
         UseEffect(() =>
         {
@@ -47,7 +39,7 @@ public class ContentView(
             {
                 if (plan != null)
                 {
-                    var raw = _planService.ReadRawPlan(plan.FolderName);
+                    var raw = planService.ReadRawPlan(plan.FolderName);
                     editContent.Set(raw);
                     originalContent.Set(raw);
                 }
@@ -60,8 +52,8 @@ public class ContentView(
             {
                 if (plan != null && editContent.Value != originalContent.Value)
                 {
-                    _planService.SaveRevision(plan.FolderName, editContent.Value);
-                    _refreshPlans();
+                    planService.SaveRevision(plan.FolderName, editContent.Value);
+                    refreshPlans();
                 }
             }
 
@@ -69,27 +61,27 @@ public class ContentView(
         }, isEditing);
 
 #pragma warning disable CS8601
-        selectedPlanRef.Value = _selectedPlan;
+        selectedPlanRef.Value = selectedPlan;
 #pragma warning restore CS8601
 
-        if (lastPlanId.Value != (_selectedPlan?.Id ?? -1))
+        if (lastPlanId.Value != (selectedPlan?.Id ?? -1))
         {
-            lastPlanId.Set(_selectedPlan?.Id ?? -1);
+            lastPlanId.Set(selectedPlan?.Id ?? -1);
             isEditing.Set(false);
         }
 
-        if (_selectedPlan is null)
+        if (selectedPlan is null)
             return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
                    | Text.Muted("Select a plan from the sidebar");
 
-        var currentIndex = _allPlans.FindIndex(p => p.FolderName == _selectedPlan.FolderName);
+        var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan.FolderName);
 
         var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(40)).Gap(2)
-                     | Text.Block($"#{_selectedPlan.Id} {_selectedPlan.Title}").Bold()
+                     | Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold()
                      | isEditing.ToSwitchInput(Icons.Pencil).Label("Edit")
                      | new Spacer().Width(Size.Grow())
                      | Text.Rich()
-                         .Bold($"{currentIndex + 1}/{_allPlans.Count}", word: true)
+                         .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
                          .Muted("plans", word: true)
             ;
 
@@ -104,24 +96,24 @@ public class ContentView(
                     var plan = selectedPlanRef.Value;
                     if (plan != null && editContent.Value != originalContent.Value)
                     {
-                        _planService.SaveRevision(plan.FolderName, editContent.Value);
+                        planService.SaveRevision(plan.FolderName, editContent.Value);
                         originalContent.Set(editContent.Value);
-                        _refreshPlans();
+                        refreshPlans();
                     }
                 });
         else
             scrollableContent |=
-                new Markdown(MarkdownHelper.AnnotateAllBrokenLinks(_selectedPlan.LatestRevisionContent, _planService.PlansDirectory))
+                new Markdown(MarkdownHelper.AnnotateAllBrokenLinks(selectedPlan.LatestRevisionContent, planService.PlansDirectory))
                     .DangerouslyAllowLocalFiles()
                     .OnLinkClick(FileLinkHelper.CreateFileLinkClickHandler(openFile, planId =>
                     {
-                        var planFolder = Directory.GetDirectories(_planService.PlansDirectory, $"{planId:D5}-*")
+                        var planFolder = Directory.GetDirectories(planService.PlansDirectory, $"{planId:D5}-*")
                             .FirstOrDefault();
                         if (planFolder != null)
                         {
-                            var plan = _planService.GetPlanByFolder(planFolder);
+                            var plan = planService.GetPlanByFolder(planFolder);
                             if (plan != null)
-                                _selectedPlanState.Set(plan);
+                                selectedPlanState.Set(plan);
                         }
                     }));
 
@@ -133,14 +125,14 @@ public class ContentView(
                             .ShortcutKey("n")
                         | new Button("Thaw").Icon(Icons.Flame).Primary().OnClick(() =>
                         {
-                            _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Draft);
-                            _refreshPlans();
+                            planService.TransitionState(selectedPlan.FolderName, PlanStatus.Draft);
+                            refreshPlans();
                         })
                         | new Button("Execute").Icon(Icons.Rocket).Outline().ShortcutKey("e").OnClick(() =>
                         {
-                            _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Building);
-                            _jobService.StartJob("ExecutePlan", _selectedPlan.FolderPath);
-                            _refreshPlans();
+                            planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
+                            jobService.StartJob("ExecutePlan", selectedPlan.FolderPath);
+                            refreshPlans();
                         })
                         | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
                             new MenuItem("Download", Icon: Icons.Download, Tag: "Download").OnSelect(() =>
@@ -151,13 +143,13 @@ public class ContentView(
                             new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
                                 .OnSelect(() =>
                                 {
-                                    copyToClipboard(_selectedPlan.FolderPath);
+                                    copyToClipboard(selectedPlan.FolderPath);
                                     client.Toast("Copied path to clipboard", "Path Copied");
                                 }),
                             new MenuItem("Open plan.yaml", Icon: Icons.FileText, Tag: "OpenPlanYaml").OnSelect(() =>
                             {
-                                var yamlPath = Path.Combine(_selectedPlan.FolderPath, "plan.yaml");
-                                _config.OpenInEditor(yamlPath);
+                                var yamlPath = Path.Combine(selectedPlan.FolderPath, "plan.yaml");
+                                config.OpenInEditor(yamlPath);
                             })
                         );
 
@@ -170,17 +162,17 @@ public class ContentView(
                 actionBar,
                 mainContent
             ).Size(Size.Full())
-        ).Scroll(Scroll.None).Size(Size.Full()).Key(_selectedPlan.Id);
+        ).Scroll(Scroll.None).Size(Size.Full()).Key(selectedPlan.Id);
 
         var elements = new List<object>
         {
             mainLayout,
-            new DeletePlanDialog(deleteDialogOpen, _selectedPlan, _planService, _refreshPlans)
+            new DeletePlanDialog(deleteDialogOpen, selectedPlan, planService, refreshPlans)
         };
 
-        var repoPaths = _selectedPlan.GetEffectiveRepoPaths(_config);
+        var repoPaths = selectedPlan.GetEffectiveRepoPaths(config);
         var fileLinkSheet = FileLinkHelper.BuildFileLinkSheet(
-            openFile.Value, () => openFile.Set(null), repoPaths, _config);
+            openFile.Value, () => openFile.Set(null), repoPaths, config);
         if (fileLinkSheet is not null)
             elements.Add(fileLinkSheet);
 
@@ -189,17 +181,17 @@ public class ContentView(
 
     private void GoToNext()
     {
-        if (_allPlans.Count == 0) return;
-        var currentIndex = _allPlans.FindIndex(p => p.FolderName == _selectedPlan?.FolderName);
-        var nextIndex = (currentIndex + 1) % _allPlans.Count;
-        _selectedPlanState.Set(_allPlans[nextIndex]);
+        if (allPlans.Count == 0) return;
+        var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan?.FolderName);
+        var nextIndex = (currentIndex + 1) % allPlans.Count;
+        selectedPlanState.Set(allPlans[nextIndex]);
     }
 
     private void GoToPrevious()
     {
-        if (_allPlans.Count == 0) return;
-        var currentIndex = _allPlans.FindIndex(p => p.FolderName == _selectedPlan?.FolderName);
-        var prevIndex = (currentIndex - 1 + _allPlans.Count) % _allPlans.Count;
-        _selectedPlanState.Set(_allPlans[prevIndex]);
+        if (allPlans.Count == 0) return;
+        var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan?.FolderName);
+        var prevIndex = (currentIndex - 1 + allPlans.Count) % allPlans.Count;
+        selectedPlanState.Set(allPlans[prevIndex]);
     }
 }

@@ -14,13 +14,6 @@ public class ContentView(
     IJobService jobService,
     Action refresh) : ViewBase
 {
-    private readonly List<Recommendation> _all = allRecommendations;
-    private readonly IJobService _jobService = jobService;
-    private readonly IPlanReaderService _planService = planService;
-    private readonly Action _refresh = refresh;
-    private readonly Recommendation? _selected = selectedRecommendation;
-    private readonly IState<Recommendation?> _selectedState = selectedState;
-
     public override object Build()
     {
         var client = UseService<IClientProvider>();
@@ -31,9 +24,9 @@ public class ContentView(
         var showNotesDialog = UseState(false);
         var showDeclineDialog = UseState<bool>();
 
-        if (_selected is null)
+        if (selectedRecommendation is null)
         {
-            if (_all.Count == 0)
+            if (allRecommendations.Count == 0)
                 return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full()).Gap(2)
                        | new Icon(Icons.Inbox).Large().Color(Colors.Gray)
                        | Text.Muted("No recommendations yet");
@@ -42,16 +35,16 @@ public class ContentView(
                    | Text.Muted("Select a recommendation from the sidebar");
         }
 
-        var currentIndex = _all.FindIndex(r => r.PlanId == _selected.PlanId && r.Title == _selected.Title);
+        var currentIndex = allRecommendations.FindIndex(r => r.PlanId == selectedRecommendation.PlanId && r.Title == selectedRecommendation.Title);
 
         // Header with Accept action at right edge
         var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(40)).Gap(2)
-                     | Text.Block($"#{_selected.PlanId} {_selected.Title}").Bold()
-                     | new Badge(_selected.Project).Variant(BadgeVariant.Outline)
-                         .WithProjectColor(config, _selected.Project)
+                     | Text.Block($"#{selectedRecommendation.PlanId} {selectedRecommendation.Title}").Bold()
+                     | new Badge(selectedRecommendation.Project).Variant(BadgeVariant.Outline)
+                         .WithProjectColor(config, selectedRecommendation.Project)
                      | new Spacer().Width(Size.Grow())
                      | Text.Rich()
-                         .Bold($"{currentIndex + 1}/{_all.Count}", word: true)
+                         .Bold($"{currentIndex + 1}/{allRecommendations.Count}", word: true)
                          .Muted("recommendations", word: true)
                      | new Button("Decline").Icon(Icons.X).Outline().ShortcutKey("x").OnClick(() =>
                      {
@@ -59,11 +52,11 @@ public class ContentView(
                      })
                      | new Button("Accept").Icon(Icons.Check).Primary().ShortcutKey("a").OnClick(() =>
                      {
-                         _planService.UpdateRecommendationState(_selected.PlanFolderName, _selected.Title, "Accepted");
-                         _jobService.StartJob("CreatePlan", "-Description", _selected.Description, "-Project",
-                             _selected.Project);
-                         client.Toast($"Started CreatePlan: {_selected.Title}", "Recommendation Accepted");
-                         _refresh();
+                         planService.UpdateRecommendationState(selectedRecommendation.PlanFolderName, selectedRecommendation.Title, "Accepted");
+                         jobService.StartJob("CreatePlan", "-Description", selectedRecommendation.Description, "-Project",
+                             selectedRecommendation.Project);
+                         client.Toast($"Started CreatePlan: {selectedRecommendation.Title}", "Recommendation Accepted");
+                         refresh();
                          GoToNext();
                      });
 
@@ -72,9 +65,9 @@ public class ContentView(
 
         // Source plan info and Impact/Risk badges
         var metaRow = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                      | Text.Muted($"Plan #{_selected.PlanId}: {_selected.PlanTitle}");
+                      | Text.Muted($"Plan #{selectedRecommendation.PlanId}: {selectedRecommendation.PlanTitle}");
 
-        if (_selected.Impact is { } impact)
+        if (selectedRecommendation.Impact is { } impact)
             metaRow |= new Badge($"Impact: {impact}").Variant(impact switch
             {
                 "High" => BadgeVariant.Success,
@@ -82,7 +75,7 @@ public class ContentView(
                 _ => BadgeVariant.Outline
             });
 
-        if (_selected.Risk is { } risk)
+        if (selectedRecommendation.Risk is { } risk)
             metaRow |= new Badge($"Risk: {risk}").Variant(risk switch
             {
                 "High" => BadgeVariant.Destructive,
@@ -96,7 +89,7 @@ public class ContentView(
 
         // Description
         scrollableContent |= new Separator();
-        scrollableContent |= new Markdown(_selected.Description);
+        scrollableContent |= new Markdown(selectedRecommendation.Description);
 
         // Action bar (secondary actions)
         var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(1)
@@ -104,7 +97,7 @@ public class ContentView(
                             .OnClick(() => showNotesDialog.Set(true))
                         | new Button("View Plan").Icon(Icons.ExternalLink).Outline().ShortcutKey("d").OnClick(() =>
                         {
-                            var fullPath = Path.Combine(_planService.PlansDirectory, _selected.PlanFolderName);
+                            var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
                             if (Directory.Exists(fullPath))
                                 showPlan.Set(fullPath);
                         })
@@ -116,20 +109,20 @@ public class ContentView(
                             new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
                                 .OnSelect(() =>
                                 {
-                                    var fullPath = Path.Combine(_planService.PlansDirectory, _selected.PlanFolderName);
+                                    var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
                                     if (Directory.Exists(fullPath))
                                         PlatformHelper.OpenInFileManager(fullPath);
                                 }),
                             new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
                                 .OnSelect(() =>
                                 {
-                                    var fullPath = Path.Combine(_planService.PlansDirectory, _selected.PlanFolderName);
+                                    var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
                                     copyToClipboard(fullPath);
                                     client.Toast("Copied path to clipboard", "Path Copied");
                                 }),
                             new MenuItem("Open plan.yaml", Icon: Icons.FileText, Tag: "OpenPlanYaml").OnSelect(() =>
                             {
-                                var fullPath = Path.Combine(_planService.PlansDirectory, _selected.PlanFolderName);
+                                var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
                                 var yamlPath = Path.Combine(fullPath, "plan.yaml");
                                 config.OpenInEditor(yamlPath);
                             })
@@ -145,29 +138,29 @@ public class ContentView(
 
         var notesDialog = new AcceptWithNotesDialog(
             showNotesDialog,
-            _selected,
+            selectedRecommendation,
             notes =>
             {
-                var description = $"[ORIGINAL RECOMMENDATION]\n{_selected.Description}\n\n[NOTES]\n{notes}";
-                _planService.UpdateRecommendationState(_selected.PlanFolderName, _selected.Title, "AcceptedWithNotes");
-                _jobService.StartJob("CreatePlan", "-Description", description, "-Project", _selected.Project);
-                client.Toast($"Started CreatePlan: {_selected.Title}", "Recommendation Accepted with Notes");
-                _refresh();
+                var description = $"[ORIGINAL RECOMMENDATION]\n{selectedRecommendation.Description}\n\n[NOTES]\n{notes}";
+                planService.UpdateRecommendationState(selectedRecommendation.PlanFolderName, selectedRecommendation.Title, "AcceptedWithNotes");
+                jobService.StartJob("CreatePlan", "-Description", description, "-Project", selectedRecommendation.Project);
+                client.Toast($"Started CreatePlan: {selectedRecommendation.Title}", "Recommendation Accepted with Notes");
+                refresh();
                 GoToNext();
             });
 
         var declineDialog = new DeclineRecommendationDialog(
-            showDeclineDialog, _selected, _planService, _refresh, GoToNext);
+            showDeclineDialog, selectedRecommendation, planService, refresh, GoToNext);
 
         if (showPlan.Value is { } planPath)
         {
             var folderName = Path.GetFileName(planPath);
-            var content = _planService.ReadLatestRevision(folderName);
-            var plan = _planService.GetPlanByFolder(planPath);
+            var content = planService.ReadLatestRevision(folderName);
+            var plan = planService.GetPlanByFolder(planPath);
 
             var sheetContent = string.IsNullOrEmpty(content)
                 ? Text.P("Plan not found or empty.")
-                : (object)new Markdown(MarkdownHelper.AnnotateAllBrokenLinks(content, _planService.PlansDirectory))
+                : (object)new Markdown(MarkdownHelper.AnnotateAllBrokenLinks(content, planService.PlansDirectory))
                     .DangerouslyAllowLocalFiles()
                     .OnLinkClick(FileLinkHelper.CreateFileLinkClickHandler(openFile));
 
@@ -201,17 +194,17 @@ public class ContentView(
 
     private void GoToNext()
     {
-        if (_all.Count == 0) return;
-        var currentIndex = _all.FindIndex(r => r.PlanId == _selected?.PlanId && r.Title == _selected?.Title);
-        var nextIndex = (currentIndex + 1) % _all.Count;
-        _selectedState.Set(_all[nextIndex]);
+        if (allRecommendations.Count == 0) return;
+        var currentIndex = allRecommendations.FindIndex(r => r.PlanId == selectedRecommendation?.PlanId && r.Title == selectedRecommendation?.Title);
+        var nextIndex = (currentIndex + 1) % allRecommendations.Count;
+        selectedState.Set(allRecommendations[nextIndex]);
     }
 
     private void GoToPrevious()
     {
-        if (_all.Count == 0) return;
-        var currentIndex = _all.FindIndex(r => r.PlanId == _selected?.PlanId && r.Title == _selected?.Title);
-        var prevIndex = (currentIndex - 1 + _all.Count) % _all.Count;
-        _selectedState.Set(_all[prevIndex]);
+        if (allRecommendations.Count == 0) return;
+        var currentIndex = allRecommendations.FindIndex(r => r.PlanId == selectedRecommendation?.PlanId && r.Title == selectedRecommendation?.Title);
+        var prevIndex = (currentIndex - 1 + allRecommendations.Count) % allRecommendations.Count;
+        selectedState.Set(allRecommendations[prevIndex]);
     }
 }
