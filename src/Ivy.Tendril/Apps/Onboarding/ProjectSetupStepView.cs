@@ -26,7 +26,17 @@ public class ProjectSetupStepView(IState<int> stepperIndex) : ViewBase
         for (var i = 0; i < currentRepos.Count; i++)
         {
             var ri = i;
-            reposLayout |= new RepoPathInputView(repoPaths, ri);
+            reposLayout |= Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+                           | new RepoPathInputView(repoPaths, ri)
+                           | new Button().Icon(Icons.Trash).Ghost()
+                               .OnClick(() =>
+                               {
+                                   var list = new List<string>(repoPaths.Value);
+                                   if (ri < list.Count) list.RemoveAt(ri);
+                                   if (list.Count == 0) list.Add("");
+                                   repoPaths.Set(list);
+                               })
+                               .WithTooltip("Remove repository");
         }
 
         reposLayout |= new Button("Add").Outline().OnClick(() =>
