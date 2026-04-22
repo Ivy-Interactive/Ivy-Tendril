@@ -125,7 +125,7 @@ public class ContentView(
                         }
                     }));
 
-        var actionBar = Layout.Horizontal().AlignContent(Align.Center).Gap(2).Padding(1)
+        var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(1)
                         | new Button("Delete").Icon(Icons.Trash).Outline().OnClick(() => deleteDialogOpen.Set(true))
                         | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(() => GoToPrevious())
                             .ShortcutKey("p")
