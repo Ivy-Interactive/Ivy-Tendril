@@ -196,7 +196,7 @@ public class DashboardApp : ViewBase
 
         var header = Layout.Vertical()
                      | statsRow
-                     | projectProgress.Width(Size.Full()).WithLayout().Margin(2);
+                     | projectProgress.Width(Size.Full()).WithLayout();
 
         return new HeaderLayout(
             header,
