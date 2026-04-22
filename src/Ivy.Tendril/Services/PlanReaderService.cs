@@ -28,7 +28,7 @@ public class PlanReaderService(
     private readonly IWorktreeLifecycleLogger? _worktreeLifecycleLogger = worktreeLifecycleLogger;
     private readonly IPlanWatcherService? _planWatcherService = planWatcherService;
 
-    private readonly TimeCache<Dictionary<string, DashboardStats>> _dashboardCache =
+    private readonly TimeCache<Dictionary<string, DashboardModels>> _dashboardCache =
         new(TimeSpan.FromSeconds(10));
 
     private readonly TimeCache<Dictionary<string, List<HourlyTokenBurn>>> _hourlyBurnCache =
@@ -430,11 +430,11 @@ public class PlanReaderService(
     ///     Returns pre-aggregated dashboard data. Delegates to database when available,
     ///     otherwise returns empty stats.
     /// </summary>
-    public DashboardStats GetDashboardData(string? projectFilter)
+    public DashboardModels GetDashboardData(string? projectFilter)
     {
         if (_useDatabaseForReads && _database != null)
         {
-            var cache = _dashboardCache.GetOrCompute(() => new Dictionary<string, DashboardStats>());
+            var cache = _dashboardCache.GetOrCompute(() => new Dictionary<string, DashboardModels>());
             var key = projectFilter ?? "__all__";
             if (!cache.TryGetValue(key, out var stats))
             {
@@ -445,7 +445,7 @@ public class PlanReaderService(
             return stats;
         }
 
-        return new DashboardStats(0, 0, 0, 0, 0, 0, 0, [], []);
+        return new DashboardModels(0, 0, 0, 0, 0, 0, 0, [], []);
     }
 
     /// <summary>

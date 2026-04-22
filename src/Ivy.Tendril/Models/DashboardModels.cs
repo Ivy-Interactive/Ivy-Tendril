@@ -1,6 +1,6 @@
 namespace Ivy.Tendril.Models;
 
-public record DashboardStats(
+public record DashboardModels(
     int TotalCount,
     int DraftCount,
     int InProgressCount,

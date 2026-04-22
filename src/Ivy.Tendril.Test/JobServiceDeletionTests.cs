@@ -135,9 +135,9 @@ public class JobServiceDeletionTests
             return new PlanReaderService.PlanCountSnapshot(0, 0, 0, 0, 0, 0);
         }
 
-        public DashboardStats GetDashboardData(string? projectFilter)
+        public DashboardModels GetDashboardData(string? projectFilter)
         {
-            return new DashboardStats(0, 0, 0, 0, 0, 0, 0, new List<DashboardDayStats>(), new List<ProjectCount>());
+            return new DashboardModels(0, 0, 0, 0, 0, 0, 0, new List<DashboardDayStats>(), new List<ProjectCount>());
         }
 
         public decimal GetPlanTotalCost(int planId)

@@ -364,9 +364,9 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         {
         }
 
-        public DashboardStats GetDashboardData(string? projectFilter)
+        public DashboardModels GetDashboardData(string? projectFilter)
         {
-            return new DashboardStats(0, 0, 0, 0, 0, 0, 0, [], []);
+            return new DashboardModels(0, 0, 0, 0, 0, 0, 0, [], []);
         }
 
         public decimal GetPlanTotalCost(string folderPath)
