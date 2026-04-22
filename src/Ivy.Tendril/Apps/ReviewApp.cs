@@ -71,7 +71,7 @@ public class ReviewApp : ViewBase
             new ContentView(selectedPlanState.Value, filteredPlans, selectedPlanState, planService, jobService,
                 RefreshPlans, configService, gitService),
             sidebar
-        );
+        ).SidebarContentScroll(Scroll.None);
 
         void RefreshPlans()
         {

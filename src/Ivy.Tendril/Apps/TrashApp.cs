@@ -113,7 +113,7 @@ public class TrashApp : ViewBase
             new SidebarLayout(
                 mainContent,
                 sidebar
-            )
+            ).SidebarContentScroll(Scroll.None)
         };
 
         if (openFile.Value is { } filePath)
