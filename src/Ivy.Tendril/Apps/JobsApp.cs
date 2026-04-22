@@ -71,7 +71,7 @@ public class JobsApp : ViewBase
 
                 lastProcessedIndex.Set(currentLines.Length);
             }
-        }, TimeSpan.FromMilliseconds(300));
+        }, TimeSpan.FromMilliseconds(100));
         var config = UseService<IConfigService>();
         UseEffect(() =>
         {
