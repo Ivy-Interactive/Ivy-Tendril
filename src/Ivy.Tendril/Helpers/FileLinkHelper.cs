@@ -65,12 +65,7 @@ public static class FileLinkHelper
             }
             else
             {
-                var fileName = Path.GetFileName(filePath);
-                var suggestions = MarkdownHelper.FindFilesInRepos(repoPaths, fileName);
-                var content = suggestions.Count > 0
-                    ? $"File not found.\n\nDid you mean:\n{string.Join("\n", suggestions.Select(s => $"- `{s}`"))}"
-                    : "File not found.";
-                sheetContent = new Markdown(content);
+                sheetContent = new Markdown("File not found.");
             }
         }
 
