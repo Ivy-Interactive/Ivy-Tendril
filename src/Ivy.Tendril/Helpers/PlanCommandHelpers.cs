@@ -81,7 +81,7 @@ public static class PlanCommandHelpers
         if (!File.Exists(yamlPath))
             throw new FileNotFoundException($"plan.yaml not found at {yamlPath}");
 
-        var content = File.ReadAllText(yamlPath);
+        var content = FileHelper.ReadAllText(yamlPath);
         var plan = YamlHelper.Deserializer.Deserialize<PlanYaml>(content);
         if (plan == null)
             throw new InvalidOperationException($"Failed to deserialize plan.yaml at {yamlPath}");
@@ -108,7 +108,7 @@ public static class PlanCommandHelpers
             FileHelper.WriteAllText(tempPath, yaml);
 
             // Read back and validate
-            var content = File.ReadAllText(tempPath);
+            var content = FileHelper.ReadAllText(tempPath);
             var roundTrip = YamlHelper.Deserializer.Deserialize<PlanYaml>(content);
             if (roundTrip == null)
                 throw new InvalidOperationException("Failed to deserialize temp file after writing");
