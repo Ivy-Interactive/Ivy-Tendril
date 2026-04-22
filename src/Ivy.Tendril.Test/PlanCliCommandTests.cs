@@ -798,7 +798,9 @@ public class PlanCliCommandTests : IDisposable
         CreatePlanFolder("20130", "DraftPlan");
         CreatePlanFolder("20131", "FailedPlan", new PlanYaml
         {
-            State = "Failed", Project = "Test", Title = "FailedPlan",
+            State = "Failed",
+            Project = "Test",
+            Title = "FailedPlan",
             Repos = [_tempDir],
             Created = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
@@ -815,14 +817,18 @@ public class PlanCliCommandTests : IDisposable
     {
         CreatePlanFolder("20140", "ProjA", new PlanYaml
         {
-            State = "Draft", Project = "Alpha", Title = "ProjA",
+            State = "Draft",
+            Project = "Alpha",
+            Title = "ProjA",
             Repos = [_tempDir],
             Created = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
         });
         CreatePlanFolder("20141", "ProjB", new PlanYaml
         {
-            State = "Draft", Project = "Beta", Title = "ProjB",
+            State = "Draft",
+            Project = "Beta",
+            Title = "ProjB",
             Repos = [_tempDir],
             Created = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
@@ -839,7 +845,10 @@ public class PlanCliCommandTests : IDisposable
     {
         CreatePlanFolder("20150", "CritPlan", new PlanYaml
         {
-            State = "Draft", Project = "Test", Title = "CritPlan", Level = "Critical",
+            State = "Draft",
+            Project = "Test",
+            Title = "CritPlan",
+            Level = "Critical",
             Repos = [_tempDir],
             Created = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
@@ -857,8 +866,11 @@ public class PlanCliCommandTests : IDisposable
     {
         CreatePlanFolder("20160", "WithPr", new PlanYaml
         {
-            State = "Completed", Project = "Test", Title = "WithPr",
-            Repos = [_tempDir], Prs = ["https://github.com/org/repo/pull/1"],
+            State = "Completed",
+            Project = "Test",
+            Title = "WithPr",
+            Repos = [_tempDir],
+            Prs = ["https://github.com/org/repo/pull/1"],
             Created = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
         });
@@ -890,14 +902,20 @@ public class PlanCliCommandTests : IDisposable
     {
         CreatePlanFolder("20180", "Match", new PlanYaml
         {
-            State = "Draft", Project = "Tendril", Title = "Match", Level = "Bug",
+            State = "Draft",
+            Project = "Tendril",
+            Title = "Match",
+            Level = "Bug",
             Repos = [_tempDir],
             Created = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
         });
         CreatePlanFolder("20181", "NoMatch", new PlanYaml
         {
-            State = "Draft", Project = "Other", Title = "NoMatch", Level = "Bug",
+            State = "Draft",
+            Project = "Other",
+            Title = "NoMatch",
+            Level = "Bug",
             Repos = [_tempDir],
             Created = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
