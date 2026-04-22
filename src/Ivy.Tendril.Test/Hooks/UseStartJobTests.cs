@@ -1,7 +1,7 @@
 using Ivy.Core.Exceptions;
 using Ivy.Core.Hooks;
-using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Hooks;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -9,40 +9,6 @@ namespace Ivy.Tendril.Test.Hooks;
 
 public class UseStartJobTests
 {
-    private class TestJobService : IJobService
-    {
-        public List<(string Type, string[] Args)> StartedJobs { get; } = new();
-#pragma warning disable CS0067
-        public event Action? JobsChanged;
-        public event Action? JobsStructureChanged;
-        public event Action? JobPropertyChanged;
-        public event Action<JobNotification>? NotificationReady;
-#pragma warning restore CS0067
-
-        public string StartJob(string type, string[] args, string? inboxFilePath)
-        {
-            StartedJobs.Add((type, args));
-            return Guid.NewGuid().ToString();
-        }
-
-        public string StartJob(string type, params string[] args)
-        {
-            StartedJobs.Add((type, args));
-            return Guid.NewGuid().ToString();
-        }
-
-        public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false) { }
-        public void StopJob(string id) { }
-        public void DeleteJob(string id) { }
-        public void ClearCompletedJobs() { }
-        public void ClearFailedJobs() { }
-        public JobItem? GetJob(string id) => null;
-        public List<JobItem> GetJobs() => new();
-        public List<JobItem> GetRecentlyCompletedJobs(int count = 10) => new();
-        public bool IsInboxFileTracked(string filePath) => false;
-        public void Dispose() { }
-    }
-
     private static ViewContext CreateViewContext(TestJobService jobService)
     {
         var services = new ServiceCollection();
@@ -123,8 +89,78 @@ public class UseStartJobTests
         Assert.True(isStartingAfter);
     }
 
+    private class TestJobService : IJobService
+    {
+        public List<(string Type, string[] Args)> StartedJobs { get; } = new();
+
+        public string StartJob(string type, string[] args, string? inboxFilePath)
+        {
+            StartedJobs.Add((type, args));
+            return Guid.NewGuid().ToString();
+        }
+
+        public string StartJob(string type, params string[] args)
+        {
+            StartedJobs.Add((type, args));
+            return Guid.NewGuid().ToString();
+        }
+
+        public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false)
+        {
+        }
+
+        public void StopJob(string id)
+        {
+        }
+
+        public void DeleteJob(string id)
+        {
+        }
+
+        public void ClearCompletedJobs()
+        {
+        }
+
+        public void ClearFailedJobs()
+        {
+        }
+
+        public JobItem? GetJob(string id)
+        {
+            return null;
+        }
+
+        public List<JobItem> GetJobs()
+        {
+            return new List<JobItem>();
+        }
+
+        public bool IsInboxFileTracked(string filePath)
+        {
+            return false;
+        }
+
+        public void Dispose()
+        {
+        }
+
+        public List<JobItem> GetRecentlyCompletedJobs(int count = 10)
+        {
+            return new List<JobItem>();
+        }
+#pragma warning disable CS0067
+        public event Action? JobsChanged;
+        public event Action? JobsStructureChanged;
+        public event Action? JobPropertyChanged;
+        public event Action<JobNotification>? NotificationReady;
+#pragma warning restore CS0067
+    }
+
     private class StubExceptionHandler : IExceptionHandler
     {
-        public bool HandleException(Exception exception) => false;
+        public bool HandleException(Exception exception)
+        {
+            return false;
+        }
     }
 }

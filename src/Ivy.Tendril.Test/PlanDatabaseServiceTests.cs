@@ -1,5 +1,5 @@
-using Ivy.Tendril.Apps.Jobs;
-using Ivy.Tendril.Apps.Plans;
+using System.Collections.Concurrent;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -424,8 +424,8 @@ public class PlanDatabaseServiceTests : IDisposable
         _db.UpsertPlan(CreateTestPlan(1601, "Plan B", project: "Framework"));
 
         var now = DateTime.UtcNow;
-        _db.UpsertCosts(1600, [new("ExecutePlan", 50000, 1.50m, now)]);
-        _db.UpsertCosts(1601, [new("ExecutePlan", 30000, 0.90m, now)]);
+        _db.UpsertCosts(1600, [new CostEntry("ExecutePlan", 50000, 1.50m, now)]);
+        _db.UpsertCosts(1601, [new CostEntry("ExecutePlan", 30000, 0.90m, now)]);
 
         var burn = _db.GetHourlyTokenBurn(projectFilter: "Tendril");
         Assert.NotEmpty(burn);
@@ -440,8 +440,8 @@ public class PlanDatabaseServiceTests : IDisposable
         _db.UpsertPlan(CreateTestPlan(1701, "Plan B", project: "Framework"));
 
         var now = DateTime.UtcNow;
-        _db.UpsertCosts(1700, [new("ExecutePlan", 50000, 1.50m, now)]);
-        _db.UpsertCosts(1701, [new("ExecutePlan", 30000, 0.90m, now)]);
+        _db.UpsertCosts(1700, [new CostEntry("ExecutePlan", 50000, 1.50m, now)]);
+        _db.UpsertCosts(1701, [new CostEntry("ExecutePlan", 30000, 0.90m, now)]);
 
         var burn = _db.GetHourlyTokenBurn(projectFilter: null);
         Assert.NotEmpty(burn);
@@ -454,7 +454,7 @@ public class PlanDatabaseServiceTests : IDisposable
     public void GetHourlyTokenBurn_NullLogTimestamp_FallsBackToPlanUpdated()
     {
         _db.UpsertPlan(CreateTestPlan(1750, "Test", project: "Tendril"));
-        _db.UpsertCosts(1750, [new("ExecutePlan", 50000, 1.50m, null)]);
+        _db.UpsertCosts(1750, [new CostEntry("ExecutePlan", 50000, 1.50m, null)]);
 
         var burn = _db.GetHourlyTokenBurn();
         Assert.NotEmpty(burn);
@@ -468,8 +468,8 @@ public class PlanDatabaseServiceTests : IDisposable
 
         var now = DateTime.UtcNow;
         _db.UpsertCosts(1760, [
-            new("ExecutePlan", 40000, 1.00m, now),
-            new("CreatePr", 20000, 0.50m, null)
+            new CostEntry("ExecutePlan", 40000, 1.00m, now),
+            new CostEntry("CreatePr", 20000, 0.50m, null)
         ]);
 
         var burn = _db.GetHourlyTokenBurn();
@@ -494,16 +494,16 @@ public class PlanDatabaseServiceTests : IDisposable
     public void GetDashboardData_FilteredStats_ReturnsCorrectCounts()
     {
         // Arrange: plans across two projects with varied statuses
-        _db.UpsertPlan(CreateTestPlan(1900, "Draft Tendril", status: PlanStatus.Draft, project: "Tendril"));
-        _db.UpsertPlan(CreateTestPlan(1901, "Completed Tendril", status: PlanStatus.Completed, project: "Tendril"));
-        _db.UpsertPlan(CreateTestPlan(1902, "Failed Tendril", status: PlanStatus.Failed, project: "Tendril"));
-        _db.UpsertPlan(CreateTestPlan(1903, "Review Framework", status: PlanStatus.ReadyForReview,
-            project: "Framework"));
-        _db.UpsertPlan(CreateTestPlan(1904, "InProgress Tendril", status: PlanStatus.Executing, project: "Tendril"));
+        _db.UpsertPlan(CreateTestPlan(1900, "Draft Tendril"));
+        _db.UpsertPlan(CreateTestPlan(1901, "Completed Tendril", PlanStatus.Completed));
+        _db.UpsertPlan(CreateTestPlan(1902, "Failed Tendril", PlanStatus.Failed));
+        _db.UpsertPlan(CreateTestPlan(1903, "Review Framework", PlanStatus.ReadyForReview,
+            "Framework"));
+        _db.UpsertPlan(CreateTestPlan(1904, "InProgress Tendril", PlanStatus.Executing));
 
         // Add costs for avg cost calculation
-        _db.UpsertCosts(1901, [new("ExecutePlan", 50000, 2.00m, DateTime.UtcNow)]);
-        _db.UpsertCosts(1902, [new("ExecutePlan", 30000, 1.00m, DateTime.UtcNow)]);
+        _db.UpsertCosts(1901, [new CostEntry("ExecutePlan", 50000, 2.00m, DateTime.UtcNow)]);
+        _db.UpsertCosts(1902, [new CostEntry("ExecutePlan", 30000, 1.00m, DateTime.UtcNow)]);
 
         // Act: filter to Tendril project
         var stats = _db.GetDashboardData("Tendril");
@@ -992,11 +992,11 @@ public class PlanDatabaseServiceTests : IDisposable
         // Seed some data so reads return non-empty results
         for (var i = 0; i < 10; i++)
             _db.UpsertPlan(CreateTestPlan(2000 + i, $"Concurrent Plan {i}",
-                status: i % 2 == 0 ? PlanStatus.Draft : PlanStatus.Completed));
+                i % 2 == 0 ? PlanStatus.Draft : PlanStatus.Completed));
 
         const int threadCount = 10;
         var barrier = new Barrier(threadCount);
-        var exceptions = new System.Collections.Concurrent.ConcurrentBag<Exception>();
+        var exceptions = new ConcurrentBag<Exception>();
         var threads = new Thread[threadCount];
 
         for (var t = 0; t < threadCount; t++)
@@ -1027,7 +1027,8 @@ public class PlanDatabaseServiceTests : IDisposable
         }
 
         foreach (var t in threads) t.Start();
-        foreach (var t in threads) Assert.True(t.Join(TimeSpan.FromSeconds(10)), "Thread timed out — possible deadlock");
+        foreach (var t in threads)
+            Assert.True(t.Join(TimeSpan.FromSeconds(10)), "Thread timed out — possible deadlock");
 
         Assert.Empty(exceptions);
     }
@@ -1104,8 +1105,8 @@ public class PlanDatabaseServiceTests : IDisposable
         _db.UpsertPlan(CreateTestPlan(3101, "Plan B", project: "ConsoleApp"));
 
         var now = DateTime.UtcNow;
-        _db.UpsertCosts(3100, [new("ExecutePlan", 50000, 1.50m, now)]);
-        _db.UpsertCosts(3101, [new("ExecutePlan", 30000, 0.90m, now)]);
+        _db.UpsertCosts(3100, [new CostEntry("ExecutePlan", 50000, 1.50m, now)]);
+        _db.UpsertCosts(3101, [new CostEntry("ExecutePlan", 30000, 0.90m, now)]);
 
         var burn = _db.GetHourlyTokenBurn(projectFilter: "Console");
 
@@ -1165,15 +1166,15 @@ public class PlanDatabaseServiceTests : IDisposable
             "# Content", "D:\\Plans\\03202-OldFrameworkPlan", "state: Draft"));
 
         // Add costs for recent plans to test avg cost calculation
-        _db.UpsertCosts(3200, [new("ExecutePlan", 50000, 2.00m, today)]);
+        _db.UpsertCosts(3200, [new CostEntry("ExecutePlan", 50000, 2.00m, today)]);
 
         // Act
         var stats = _db.GetDashboardData(null);
 
         // Assert: Status counts should exclude old plans
-        Assert.Equal(1, stats.TotalCount);  // Only 3200 (recent), not 3201 or 3202
-        Assert.Equal(0, stats.DraftCount);  // Old Framework plan is excluded
-        Assert.Equal(1, stats.CompletedCount);  // Only recent completed plan
+        Assert.Equal(1, stats.TotalCount); // Only 3200 (recent), not 3201 or 3202
+        Assert.Equal(0, stats.DraftCount); // Old Framework plan is excluded
+        Assert.Equal(1, stats.CompletedCount); // Only recent completed plan
 
         // Assert: Avg cost should reflect only recent plans
         Assert.Equal(2.00m, stats.AvgCostPerPlan);
@@ -1181,11 +1182,11 @@ public class PlanDatabaseServiceTests : IDisposable
         // Assert: Daily stats should reflect only recent plans within 7-day window
         Assert.Equal(7, stats.DailyStats.Count);
         var todayStats = stats.DailyStats.First(d => d.Date == today);
-        Assert.Equal(1, todayStats.Created);  // Only recent plan
+        Assert.Equal(1, todayStats.Created); // Only recent plan
 
         // Verify 8 days ago has no data even though old plans exist
         var eightDaysAgoStats = stats.DailyStats.FirstOrDefault(d => d.Date == today.AddDays(-8));
-        Assert.Null(eightDaysAgoStats);  // Not in 7-day window
+        Assert.Null(eightDaysAgoStats); // Not in 7-day window
 
         // Assert: Project counts should exclude old plans
         // Tendril should have only 1 (recent plan 3200), not 2 (3200 + 3201)
@@ -1195,6 +1196,6 @@ public class PlanDatabaseServiceTests : IDisposable
 
         // Framework should have 0 (3202 is excluded), not 1
         var frameworkCount = stats.ProjectCounts.FirstOrDefault(pc => pc.Project == "Framework");
-        Assert.Null(frameworkCount);  // Framework has no plans in 7-day window
+        Assert.Null(frameworkCount); // Framework has no plans in 7-day window
     }
 }

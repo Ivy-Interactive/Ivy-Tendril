@@ -1,4 +1,4 @@
-using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Test.TestHelpers;
 using Microsoft.Extensions.Logging;
@@ -7,29 +7,6 @@ namespace Ivy.Tendril.Test.Services;
 
 public class PlanReaderServiceTests
 {
-    private class TestPlanWatcherService : IPlanWatcherService
-    {
-        public List<string> NotifiedFolders { get; } = new();
-#pragma warning disable CS0067
-        public event Action<string?>? PlansChanged;
-#pragma warning restore CS0067
-
-        public void NotifyChanged(string? folderName = null)
-        {
-            if (folderName != null)
-                NotifiedFolders.Add(folderName);
-        }
-
-        public void Dispose() { }
-    }
-
-    private class TestLogger : ILogger<PlanReaderService>
-    {
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-        public bool IsEnabled(LogLevel logLevel) => false;
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) { }
-    }
-
     [Fact]
     public void TransitionState_NotifiesPlanWatcher()
     {
@@ -105,6 +82,42 @@ public class PlanReaderServiceTests
             // Cleanup
             if (Directory.Exists(planFolder))
                 Directory.Delete(planFolder, true);
+        }
+    }
+
+    private class TestPlanWatcherService : IPlanWatcherService
+    {
+        public List<string> NotifiedFolders { get; } = new();
+#pragma warning disable CS0067
+        public event Action<string?>? PlansChanged;
+#pragma warning restore CS0067
+
+        public void NotifyChanged(string? folderName = null)
+        {
+            if (folderName != null)
+                NotifiedFolders.Add(folderName);
+        }
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private class TestLogger : ILogger<PlanReaderService>
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+        {
+            return null;
+        }
+
+        public bool IsEnabled(LogLevel logLevel)
+        {
+            return false;
+        }
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
         }
     }
 }

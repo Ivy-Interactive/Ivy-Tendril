@@ -1,5 +1,4 @@
 using Ivy.Tendril.Commands;
-using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Agents;
 
 namespace Ivy.Tendril.Test.Commands;
@@ -84,7 +83,7 @@ public class PromptwareRunCommandTests : IDisposable
         };
 
         var logFile = FirmwareCompiler.GetNextLogFile(promptwareDir);
-        var context = new FirmwareContext(promptwareDir, logFile, values, new());
+        var context = new FirmwareContext(promptwareDir, logFile, values, new List<(string Name, string Content)>());
         var prompt = FirmwareCompiler.Compile(context);
 
         // Firmware references ProgramFolder for the agent to read at runtime
@@ -110,7 +109,7 @@ public class PromptwareRunCommandTests : IDisposable
         };
 
         var logFile = FirmwareCompiler.GetNextLogFile(promptwareDir);
-        var context = new FirmwareContext(promptwareDir, logFile, values, new());
+        var context = new FirmwareContext(promptwareDir, logFile, values, new List<(string Name, string Content)>());
         var prompt = FirmwareCompiler.Compile(context);
 
         Assert.Contains("IvyFrameworkPath: /repos/Ivy-Framework", prompt);

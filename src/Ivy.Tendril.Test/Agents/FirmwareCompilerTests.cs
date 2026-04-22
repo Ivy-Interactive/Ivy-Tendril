@@ -22,10 +22,10 @@ public class FirmwareCompilerTests : IDisposable
     public void Compile_InjectsHeaderValues()
     {
         var context = new FirmwareContext(
-            ProgramFolder: "/programs/CreatePlan",
-            LogFile: "/programs/CreatePlan/Logs/00001.md",
-            Values: new() { ["PlanId"] = "03456", ["Project"] = "Tendril" },
-            SharedDocuments: new());
+            "/programs/CreatePlan",
+            "/programs/CreatePlan/Logs/00001.md",
+            new Dictionary<string, string> { ["PlanId"] = "03456", ["Project"] = "Tendril" },
+            new List<(string Name, string Content)>());
 
         var result = FirmwareCompiler.Compile(context);
 
@@ -37,10 +37,10 @@ public class FirmwareCompilerTests : IDisposable
     public void Compile_InjectsCurrentTimeIfMissing()
     {
         var context = new FirmwareContext(
-            ProgramFolder: "/programs/Test",
-            LogFile: "/programs/Test/Logs/00001.md",
-            Values: new(),
-            SharedDocuments: new());
+            "/programs/Test",
+            "/programs/Test/Logs/00001.md",
+            new Dictionary<string, string>(),
+            new List<(string Name, string Content)>());
 
         var result = FirmwareCompiler.Compile(context);
 
@@ -51,10 +51,10 @@ public class FirmwareCompilerTests : IDisposable
     public void Compile_DoesNotOverrideExplicitCurrentTime()
     {
         var context = new FirmwareContext(
-            ProgramFolder: "/programs/Test",
-            LogFile: "/programs/Test/Logs/00001.md",
-            Values: new() { ["CurrentTime"] = "2026-01-01T00:00:00Z" },
-            SharedDocuments: new());
+            "/programs/Test",
+            "/programs/Test/Logs/00001.md",
+            new Dictionary<string, string> { ["CurrentTime"] = "2026-01-01T00:00:00Z" },
+            new List<(string Name, string Content)>());
 
         var result = FirmwareCompiler.Compile(context);
 
@@ -65,10 +65,10 @@ public class FirmwareCompilerTests : IDisposable
     public void Compile_ReplacesProgramFolder()
     {
         var context = new FirmwareContext(
-            ProgramFolder: "/my/programs/ExecutePlan",
-            LogFile: "/my/programs/ExecutePlan/Logs/00003.md",
-            Values: new(),
-            SharedDocuments: new());
+            "/my/programs/ExecutePlan",
+            "/my/programs/ExecutePlan/Logs/00003.md",
+            new Dictionary<string, string>(),
+            new List<(string Name, string Content)>());
 
         var result = FirmwareCompiler.Compile(context);
 
@@ -80,10 +80,10 @@ public class FirmwareCompilerTests : IDisposable
     public void Compile_ReplacesLogFile()
     {
         var context = new FirmwareContext(
-            ProgramFolder: "/programs/Test",
-            LogFile: "/programs/Test/Logs/00042.md",
-            Values: new(),
-            SharedDocuments: new());
+            "/programs/Test",
+            "/programs/Test/Logs/00042.md",
+            new Dictionary<string, string>(),
+            new List<(string Name, string Content)>());
 
         var result = FirmwareCompiler.Compile(context);
 
@@ -95,10 +95,10 @@ public class FirmwareCompilerTests : IDisposable
     public void Compile_AppendsSharedDocuments()
     {
         var context = new FirmwareContext(
-            ProgramFolder: "/programs/Test",
-            LogFile: "/programs/Test/Logs/00001.md",
-            Values: new(),
-            SharedDocuments: new()
+            "/programs/Test",
+            "/programs/Test/Logs/00001.md",
+            new Dictionary<string, string>(),
+            new List<(string Name, string Content)>
             {
                 ("Plans", "# Plans\n\nPlan documentation here."),
                 ("Config", "# Config\n\nConfig documentation here.")
@@ -117,10 +117,10 @@ public class FirmwareCompilerTests : IDisposable
     public void Compile_HeaderValuesSortedAlphabetically()
     {
         var context = new FirmwareContext(
-            ProgramFolder: "/programs/Test",
-            LogFile: "/programs/Test/Logs/00001.md",
-            Values: new() { ["Zebra"] = "last", ["Alpha"] = "first" },
-            SharedDocuments: new());
+            "/programs/Test",
+            "/programs/Test/Logs/00001.md",
+            new Dictionary<string, string> { ["Zebra"] = "last", ["Alpha"] = "first" },
+            new List<(string Name, string Content)>());
 
         var result = FirmwareCompiler.Compile(context);
 
@@ -133,10 +133,10 @@ public class FirmwareCompilerTests : IDisposable
     public void Compile_ContainsCoreInstructions()
     {
         var context = new FirmwareContext(
-            ProgramFolder: "/programs/Test",
-            LogFile: "/programs/Test/Logs/00001.md",
-            Values: new(),
-            SharedDocuments: new());
+            "/programs/Test",
+            "/programs/Test/Logs/00001.md",
+            new Dictionary<string, string>(),
+            new List<(string Name, string Content)>());
 
         var result = FirmwareCompiler.Compile(context);
 

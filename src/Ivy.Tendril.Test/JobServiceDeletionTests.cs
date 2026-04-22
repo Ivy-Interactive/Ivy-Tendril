@@ -1,5 +1,6 @@
-using Ivy.Tendril.Apps.Jobs;
-using Ivy.Tendril.Apps.Plans;
+using System.Collections.Concurrent;
+using System.Reflection;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
@@ -17,8 +18,8 @@ public class JobServiceDeletionTests
     private static void AddJobDirectly(JobService service, JobItem job)
     {
         var field = typeof(JobService).GetField("_jobs",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        var jobs = (System.Collections.Concurrent.ConcurrentDictionary<string, JobItem>)field!.GetValue(service)!;
+            BindingFlags.NonPublic | BindingFlags.Instance);
+        var jobs = (ConcurrentDictionary<string, JobItem>)field!.GetValue(service)!;
         jobs[job.Id] = job;
     }
 
@@ -110,36 +111,147 @@ public class JobServiceDeletionTests
             DeletedJobIds.Add(id);
         }
 
-        public void Dispose() { }
-        public List<PlanFile> GetPlans(PlanStatus? statusFilter = null) => new();
-        public PlanFile? GetPlanByFolder(string folderPath) => null;
-        public PlanFile? GetPlanById(int planId) => null;
-        public PlanReaderService.PlanCountSnapshot ComputePlanCounts() => new(0, 0, 0, 0, 0, 0);
-        public DashboardStats GetDashboardData(string? projectFilter) => new(0, 0, 0, 0, 0, 0, 0, new(), new());
-        public decimal GetPlanTotalCost(int planId) => 0;
-        public int GetPlanTotalTokens(int planId) => 0;
-        public List<HourlyTokenBurn> GetHourlyTokenBurn(int days = 7, string? projectFilter = null) => new();
-        public List<Recommendation> GetRecommendations() => new();
-        public int GetPendingRecommendationsCount() => 0;
-        public List<PlanFile> SearchPlans(string query) => new();
-        public void RebuildFtsIndex() { }
-        public void UpdatePlanState(int planId, PlanStatus state) { }
-        public void UpdatePlanContent(int planId, string latestRevisionContent, int revisionCount) { }
-        public void UpdateRecommendationState(int planId, string recommendationTitle, string newState, string? declineReason) { }
-        public void UpsertPlan(PlanFile plan) { }
-        public void DeletePlan(int planId) { }
-        public void UpsertCosts(int planId, List<CostEntry> costs) { }
-        public void UpsertRecommendations(int planId, string folderName, List<RecommendationYaml> recommendations, string project, string planTitle, DateTime updated, PlanStatus status) { }
-        public void BulkUpsertPlans(List<PlanFile> plans, bool forceOverwrite = false) { }
-        public HashSet<int> GetTerminalPlanIds() => new();
-        public void UpsertJob(JobItem job) { }
-        public List<JobItem> GetRecentJobs(int limit = 100) => new();
-        public void PurgeOldJobs(int keepCount = 500) { }
-        public Dictionary<string, string> GetAllPrStatuses() => new();
-        public void UpsertPrStatus(string prUrl, string owner, string repo, string status, DateTime lastChecked) { }
-        public List<string> GetNonMergedPrUrls() => new();
-        public long GetDatabaseSize() => 0;
-        public DateTime GetLastSyncTime() => DateTime.MinValue;
-        public void SetLastSyncTime(DateTime time) { }
+        public void Dispose()
+        {
+        }
+
+        public List<PlanFile> GetPlans(PlanStatus? statusFilter = null)
+        {
+            return new List<PlanFile>();
+        }
+
+        public PlanFile? GetPlanByFolder(string folderPath)
+        {
+            return null;
+        }
+
+        public PlanFile? GetPlanById(int planId)
+        {
+            return null;
+        }
+
+        public PlanReaderService.PlanCountSnapshot ComputePlanCounts()
+        {
+            return new PlanReaderService.PlanCountSnapshot(0, 0, 0, 0, 0, 0);
+        }
+
+        public DashboardStats GetDashboardData(string? projectFilter)
+        {
+            return new DashboardStats(0, 0, 0, 0, 0, 0, 0, new List<DashboardDayStats>(), new List<ProjectCount>());
+        }
+
+        public decimal GetPlanTotalCost(int planId)
+        {
+            return 0;
+        }
+
+        public int GetPlanTotalTokens(int planId)
+        {
+            return 0;
+        }
+
+        public List<HourlyTokenBurn> GetHourlyTokenBurn(int days = 7, string? projectFilter = null)
+        {
+            return new List<HourlyTokenBurn>();
+        }
+
+        public List<Recommendation> GetRecommendations()
+        {
+            return new List<Recommendation>();
+        }
+
+        public int GetPendingRecommendationsCount()
+        {
+            return 0;
+        }
+
+        public List<PlanFile> SearchPlans(string query)
+        {
+            return new List<PlanFile>();
+        }
+
+        public void RebuildFtsIndex()
+        {
+        }
+
+        public void UpdatePlanState(int planId, PlanStatus state)
+        {
+        }
+
+        public void UpdatePlanContent(int planId, string latestRevisionContent, int revisionCount)
+        {
+        }
+
+        public void UpdateRecommendationState(int planId, string recommendationTitle, string newState,
+            string? declineReason)
+        {
+        }
+
+        public void UpsertPlan(PlanFile plan)
+        {
+        }
+
+        public void DeletePlan(int planId)
+        {
+        }
+
+        public void UpsertCosts(int planId, List<CostEntry> costs)
+        {
+        }
+
+        public void UpsertRecommendations(int planId, string folderName, List<RecommendationYaml> recommendations,
+            string project, string planTitle, DateTime updated, PlanStatus status)
+        {
+        }
+
+        public void BulkUpsertPlans(List<PlanFile> plans, bool forceOverwrite = false)
+        {
+        }
+
+        public HashSet<int> GetTerminalPlanIds()
+        {
+            return new HashSet<int>();
+        }
+
+        public void UpsertJob(JobItem job)
+        {
+        }
+
+        public List<JobItem> GetRecentJobs(int limit = 100)
+        {
+            return new List<JobItem>();
+        }
+
+        public void PurgeOldJobs(int keepCount = 500)
+        {
+        }
+
+        public Dictionary<string, string> GetAllPrStatuses()
+        {
+            return new Dictionary<string, string>();
+        }
+
+        public void UpsertPrStatus(string prUrl, string owner, string repo, string status, DateTime lastChecked)
+        {
+        }
+
+        public List<string> GetNonMergedPrUrls()
+        {
+            return new List<string>();
+        }
+
+        public long GetDatabaseSize()
+        {
+            return 0;
+        }
+
+        public DateTime GetLastSyncTime()
+        {
+            return DateTime.MinValue;
+        }
+
+        public void SetLastSyncTime(DateTime time)
+        {
+        }
     }
 }

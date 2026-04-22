@@ -1,4 +1,5 @@
-using Ivy.Tendril.Apps.Jobs;
+using System.Collections.Concurrent;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
@@ -142,17 +143,16 @@ public class JobServiceThreadSafetyTests
             null, 10);
 
         // Pre-populate with some jobs
-        for (int i = 0; i < 5; i++)
+        for (var i = 0; i < 5; i++)
             service.CreateTestJob("ExecutePlan", $"plan-{i}");
 
         var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        var exceptions = new System.Collections.Concurrent.ConcurrentBag<Exception>();
+        var exceptions = new ConcurrentBag<Exception>();
 
         // Thread 1: Continuously enumerate GetJobs()
         var enumerateTask = Task.Run(() =>
         {
             while (!cts.Token.IsCancellationRequested)
-            {
                 try
                 {
                     var jobs = service.GetJobs();
@@ -163,13 +163,12 @@ public class JobServiceThreadSafetyTests
                 {
                     exceptions.Add(ex);
                 }
-            }
         });
 
         // Thread 2: Continuously add/remove jobs
         var modifyTask = Task.Run(() =>
         {
-            int counter = 100;
+            var counter = 100;
             while (!cts.Token.IsCancellationRequested)
             {
                 var id = service.CreateTestJob("CreatePlan", $"concurrent-{counter++}");

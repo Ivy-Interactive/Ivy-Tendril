@@ -1,6 +1,7 @@
 using Ivy.Core.Exceptions;
 using Ivy.Core.Hooks;
-using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;

@@ -1,5 +1,4 @@
 using Ivy.Tendril.Mcp;
-using Xunit;
 
 namespace Ivy.Tendril.Test.Mcp;
 

@@ -1,17 +1,17 @@
-using Ivy.Helpers;
-using Ivy.Tendril.Apps.Jobs;
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
 
 /// <summary>
-/// Tests for preventing concurrent plan-modifying jobs (UpdatePlan, ExpandPlan, SplitPlan)
-/// that would cause race conditions and state corruption.
+///     Tests for preventing concurrent plan-modifying jobs (UpdatePlan, ExpandPlan, SplitPlan)
+///     that would cause race conditions and state corruption.
 /// </summary>
 public class JobServiceConcurrentPlanModificationTests : IDisposable
 {
-    private readonly string _testDir;
     private readonly string _planFolder;
+    private readonly string _testDir;
 
     public JobServiceConcurrentPlanModificationTests()
     {
@@ -21,15 +21,15 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
 
         // Create a minimal plan.yaml
         var planYaml = """
-            state: Draft
-            project: Test
-            level: Bug
-            title: Test Plan
-            repos: []
-            created: 2026-04-21T00:00:00Z
-            updated: 2026-04-21T00:00:00Z
-            verifications: []
-            """;
+                       state: Draft
+                       project: Test
+                       level: Bug
+                       title: Test Plan
+                       repos: []
+                       created: 2026-04-21T00:00:00Z
+                       updated: 2026-04-21T00:00:00Z
+                       verifications: []
+                       """;
         FileHelper.WriteAllText(Path.Combine(_planFolder, "plan.yaml"), planYaml);
     }
 
@@ -124,7 +124,8 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
             Assert.NotNull(secondJob);
             // Should not be Failed due to conflict (might be Failed due to process launch, but that's OK)
             if (secondJob.Status == JobStatus.Failed)
-                Assert.DoesNotContain("already in progress", secondJob.StatusMessage ?? "", StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain("already in progress", secondJob.StatusMessage ?? "",
+                    StringComparison.OrdinalIgnoreCase);
         }
         catch
         {
@@ -182,15 +183,15 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
         var otherPlanFolder = Path.Combine(_testDir, "Plans", "00002-OtherPlan");
         Directory.CreateDirectory(otherPlanFolder);
         var planYaml = """
-            state: Draft
-            project: Test
-            level: Bug
-            title: Other Plan
-            repos: []
-            created: 2026-04-21T00:00:00Z
-            updated: 2026-04-21T00:00:00Z
-            verifications: []
-            """;
+                       state: Draft
+                       project: Test
+                       level: Bug
+                       title: Other Plan
+                       repos: []
+                       created: 2026-04-21T00:00:00Z
+                       updated: 2026-04-21T00:00:00Z
+                       verifications: []
+                       """;
         FileHelper.WriteAllText(Path.Combine(otherPlanFolder, "plan.yaml"), planYaml);
 
         var service = new JobService(
@@ -211,7 +212,8 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
             Assert.NotNull(secondJob);
             // Should not fail due to conflict
             if (secondJob.Status == JobStatus.Failed)
-                Assert.DoesNotContain("already in progress", secondJob.StatusMessage ?? "", StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain("already in progress", secondJob.StatusMessage ?? "",
+                    StringComparison.OrdinalIgnoreCase);
         }
         catch
         {
@@ -237,7 +239,8 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
             Assert.NotNull(executeJob);
             // Should not fail due to plan modification conflict
             if (executeJob.Status == JobStatus.Failed)
-                Assert.DoesNotContain("already in progress", executeJob.StatusMessage ?? "", StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain("already in progress", executeJob.StatusMessage ?? "",
+                    StringComparison.OrdinalIgnoreCase);
         }
         catch
         {

@@ -1,6 +1,5 @@
 using Ivy.Tendril.Services;
 using Microsoft.Extensions.Logging;
-using Xunit;
 
 namespace Ivy.Tendril.Test;
 
