@@ -237,7 +237,7 @@ public class PlanDatabaseService : IPlanDatabaseService
         }
     }
 
-    public DashboardStats GetDashboardData(string? projectFilter)
+    public DashboardModels GetDashboardData(string? projectFilter)
     {
         _lock.EnterReadLock();
         try
@@ -391,7 +391,7 @@ public class PlanDatabaseService : IPlanDatabaseService
                     projectCounts.Add(new ProjectCount(r.GetString(0), r.GetInt32(1)));
             }
 
-            return new DashboardStats(
+            return new DashboardModels(
                 totalCount, draftCount, inProgressCount, reviewCount, completedCount, failedCount,
                 avgCost, dailyStats, projectCounts);
         }

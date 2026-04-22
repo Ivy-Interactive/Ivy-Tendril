@@ -9,7 +9,7 @@ using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps;
 
-[App(title: "Pull Requests", icon: Icons.GitPullRequest, group: ["Apps"], order: MenuOrder.PullRequests)]
+[App(title: "Pull Requests", icon: Icons.GitPullRequest, group: ["Apps"], order: Constants.PullRequests)]
 public class PullRequestApp : ViewBase
 {
     public override object Build()

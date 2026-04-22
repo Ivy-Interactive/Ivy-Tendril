@@ -14,7 +14,7 @@ public record TrashFileInfo(
     string Project,
     string Content);
 
-[App(title: "Trash", icon: Icons.Trash2, group: ["Apps"], order: MenuOrder.Trash, isVisible: false)]
+[App(title: "Trash", icon: Icons.Trash2, group: ["Apps"], order: Constants.Trash, isVisible: false)]
 public class TrashApp : ViewBase
 {
     public override object Build()

@@ -22,7 +22,7 @@ public interface IPlanReaderService
     string ReadRawPlan(string folderName);
     void SavePlan(string folderName, string fullContent);
     void UpdateLatestRevision(string folderName, string content);
-    DashboardStats GetDashboardData(string? projectFilter);
+    DashboardModels GetDashboardData(string? projectFilter);
     decimal GetPlanTotalCost(string folderPath);
     int GetPlanTotalTokens(string folderPath);
     List<HourlyTokenBurn> GetHourlyTokenBurn(int days = 7, string? projectFilter = null);

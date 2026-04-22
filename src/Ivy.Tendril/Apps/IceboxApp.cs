@@ -8,7 +8,7 @@ using SidebarView = Ivy.Tendril.Apps.Icebox.SidebarView;
 
 namespace Ivy.Tendril.Apps;
 
-[App(title: "Icebox", icon: Icons.Snowflake, group: ["Apps"], order: MenuOrder.Icebox)]
+[App(title: "Icebox", icon: Icons.Snowflake, group: ["Apps"], order: Constants.Icebox)]
 public class IceboxApp : ViewBase
 {
     public override object Build()

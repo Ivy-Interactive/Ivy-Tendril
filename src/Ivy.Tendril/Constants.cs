@@ -4,7 +4,7 @@ namespace Ivy.Tendril;
 ///     Defines the menu ordering for Tendril apps.
 ///     Lower values appear first in the menu.
 /// </summary>
-public static class MenuOrder
+public static class Constants
 {
     public const int Dashboard = 10;
     public const int Recommendations = 20;
