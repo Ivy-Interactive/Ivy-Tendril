@@ -1,7 +1,8 @@
 using System.Diagnostics;
 using Ivy.Tendril.Apps;
 
-namespace Ivy.Tendril.Services;
+using Ivy.Tendril.Services;
+namespace Ivy.Tendril.Helpers;
 
 public static class FileLinkHelper
 {

@@ -2,6 +2,7 @@ using System.Text;
 using Isopoh.Cryptography.Argon2;
 using Ivy.Core;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 

@@ -1,4 +1,5 @@
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 

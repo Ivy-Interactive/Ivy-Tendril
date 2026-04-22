@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services.Agents;
 using Spectre.Console.Cli;
 

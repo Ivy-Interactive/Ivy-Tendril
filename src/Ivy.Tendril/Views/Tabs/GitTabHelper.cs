@@ -1,7 +1,10 @@
 using Ivy.Core;
+using Ivy.Tendril.Apps;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 
-namespace Ivy.Tendril.Apps.Plans;
+namespace Ivy.Tendril.Views.Tabs;
 
 public static class GitTabHelper
 {

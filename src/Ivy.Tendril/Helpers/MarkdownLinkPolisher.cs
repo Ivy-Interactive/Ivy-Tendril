@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace Ivy.Tendril.Services;
+namespace Ivy.Tendril.Helpers;
 
 public class MarkdownLinkPolisher
 {

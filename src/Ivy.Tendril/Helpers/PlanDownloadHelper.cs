@@ -1,6 +1,7 @@
-using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 
-namespace Ivy.Tendril.Services;
+using Ivy.Tendril.Services;
+namespace Ivy.Tendril.Helpers;
 
 public static class PlanDownloadHelper
 {

@@ -1,4 +1,4 @@
-namespace Ivy.Tendril.Services;
+namespace Ivy.Tendril.Models;
 
 public record DashboardStats(
     int TotalCount,

@@ -1,6 +1,8 @@
 using System.Reactive.Disposables;
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 using ContentView = Ivy.Tendril.Apps.Review.ContentView;
 using SidebarView = Ivy.Tendril.Apps.Review.SidebarView;
 

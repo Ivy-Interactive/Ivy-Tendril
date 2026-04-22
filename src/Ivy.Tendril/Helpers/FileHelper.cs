@@ -3,7 +3,7 @@ using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text.RegularExpressions;
 
-namespace Ivy.Tendril.Services;
+namespace Ivy.Tendril.Helpers;
 
 /// <summary>
 ///     File I/O helpers that use FileShare.ReadWrite and retry on transient lock errors.

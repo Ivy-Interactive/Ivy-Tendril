@@ -5,6 +5,7 @@ using Ivy.Helpers;
 using Ivy.Tendril.Commands;
 using Ivy.Tendril.Database;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 using Spectre.Console.Cli;
 using Velopack;
 

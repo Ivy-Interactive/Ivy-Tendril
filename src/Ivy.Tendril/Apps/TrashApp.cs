@@ -1,6 +1,7 @@
 using Ivy.Tendril.Apps.Trash;
 using Ivy.Tendril.Apps.Trash.Dialogs;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps;
 

@@ -3,6 +3,7 @@ using System.Reactive.Linq;
 using System.Text.RegularExpressions;
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 

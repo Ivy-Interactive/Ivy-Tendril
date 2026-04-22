@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 
-namespace Ivy.Tendril.Apps.Jobs;
+namespace Ivy.Tendril.Models;
 
 public enum JobStatus
 {

@@ -1,3 +1,4 @@
+using Ivy.Tendril.Helpers;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
@@ -6,6 +7,7 @@ using Ivy.Helpers;
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services.Agents;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;

@@ -1,6 +1,6 @@
 using Ivy.Tendril.Helpers;
 
-namespace Ivy.Tendril.Apps.Plans;
+namespace Ivy.Tendril.Models;
 
 public enum PlanStatus
 {

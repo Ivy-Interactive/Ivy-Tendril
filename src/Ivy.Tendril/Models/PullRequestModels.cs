@@ -1,4 +1,4 @@
-namespace Ivy.Tendril.Apps.PullRequest;
+namespace Ivy.Tendril.Models;
 
 public record PrRow
 {

@@ -1,6 +1,8 @@
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 
-namespace Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
+namespace Ivy.Tendril.Helpers;
 
 public static class PlanFileExtensions
 {

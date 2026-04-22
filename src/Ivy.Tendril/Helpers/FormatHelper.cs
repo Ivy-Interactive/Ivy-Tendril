@@ -1,4 +1,4 @@
-namespace Ivy.Tendril.Services;
+namespace Ivy.Tendril.Helpers;
 
 /// <summary>
 ///     Shared formatting utilities for human-readable display values.

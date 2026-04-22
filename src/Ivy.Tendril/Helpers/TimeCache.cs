@@ -1,4 +1,4 @@
-namespace Ivy.Tendril.Services;
+namespace Ivy.Tendril.Helpers;
 
 /// <summary>
 ///     Generic time-based cache that stores a value with an expiration time.
