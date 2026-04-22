@@ -183,6 +183,7 @@ public static class TendrilServer
             else
             {
                 builder.Logging.SetMinimumLevel(LogLevel.Information);
+                builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
             }
         });
 
