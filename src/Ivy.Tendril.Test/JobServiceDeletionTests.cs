@@ -80,11 +80,11 @@ public class JobServiceDeletionTests
 
         Assert.Null(service.GetJob("failed-1"));
         Assert.Null(service.GetJob("timeout-1"));
-        Assert.Null(service.GetJob("blocked-1"));
+        Assert.NotNull(service.GetJob("blocked-1"));
         Assert.NotNull(service.GetJob("completed-1"));
         Assert.Contains("failed-1", db.DeletedJobIds);
         Assert.Contains("timeout-1", db.DeletedJobIds);
-        Assert.Contains("blocked-1", db.DeletedJobIds);
+        Assert.DoesNotContain("blocked-1", db.DeletedJobIds);
         Assert.DoesNotContain("completed-1", db.DeletedJobIds);
     }
 
