@@ -7,6 +7,7 @@ using Ivy.Tendril.Helpers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using OpenAI;
 
@@ -165,26 +166,23 @@ public static class TendrilServer
         });
         server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<PrStatusSyncService>());
 
-        // Configure logging based on verbosity
+        // Configure logging based on verbosity.
+        // We set levels via configuration (not SetMinimumLevel) because the Ivy framework
+        // calls SetMinimumLevel after UseWebApplicationBuilder mods, which would override ours.
+        // Configuration-based rules take precedence over SetMinimumLevel.
+        var verbosityService = new VerbosityService();
+        var logLevel = verbosityService.Level switch
+        {
+            VerbosityLevel.Verbose => "Debug",
+            VerbosityLevel.Quiet => "Warning",
+            _ => "Error"
+        };
         server.UseWebApplicationBuilder(builder =>
         {
-            builder.Logging.ClearProviders();
-            builder.Logging.AddConsole();
-
-            var verbosityService = new VerbosityService();
-            if (verbosityService.IsVerbose)
+            builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                builder.Logging.SetMinimumLevel(LogLevel.Debug);
-            }
-            else if (verbosityService.IsQuiet)
-            {
-                builder.Logging.SetMinimumLevel(LogLevel.Warning);
-            }
-            else
-            {
-                builder.Logging.SetMinimumLevel(LogLevel.Warning);
-                builder.Logging.AddFilter("Ivy.Tendril", LogLevel.Information);
-            }
+                ["Logging:LogLevel:Default"] = logLevel,
+            });
         });
 
         server.UseWebApplication(app =>
