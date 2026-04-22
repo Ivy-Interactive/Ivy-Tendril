@@ -43,6 +43,7 @@ public class CustomPrDialog(
         return new Dialog(
             _ =>
             {
+                isCreating.Set(false);
                 customPrMerge.Set(true);
                 customPrDeleteBranch.Set(true);
                 customPrIncludeArtifacts.Set(true);
@@ -67,6 +68,7 @@ public class CustomPrDialog(
             new DialogFooter(
                 new Button("Cancel").Outline().ShortcutKey("Escape").OnClick(() =>
                 {
+                    isCreating.Set(false);
                     customPrMerge.Set(true);
                     customPrDeleteBranch.Set(true);
                     customPrIncludeArtifacts.Set(true);
@@ -95,6 +97,7 @@ public class CustomPrDialog(
                         _jobService.StartJob("CreatePr", _selectedPlan.FolderPath);
                         _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Building);
                         _refreshPlans();
+                        isCreating.Set(false);
                         customPrMerge.Set(true);
                         customPrDeleteBranch.Set(true);
                         customPrIncludeArtifacts.Set(true);
