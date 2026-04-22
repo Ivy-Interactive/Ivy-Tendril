@@ -77,6 +77,8 @@ public class Program
                     .WithDescription("Update embedded promptwares");
                 config.AddCommand<PromptwareRunCommand>("promptware")
                     .WithDescription("Run a promptware directly");
+                config.AddCommand<VersionCommand>("version")
+                    .WithDescription("Show version information");
 
                 // Plan management commands
                 config.AddBranch("plan", plan =>
@@ -130,9 +132,16 @@ public class Program
 
             // Check if this is a recognized CLI command
             var firstArg = filteredArgs[0];
+
+            // Handle --version flag by converting it to "version" command
+            if (firstArg == "--version")
+            {
+                filteredArgs = new[] { "version" };
+            }
+
             if (firstArg == "doctor" || firstArg == "db-version" || firstArg == "db-migrate" ||
                 firstArg == "db-reset" || firstArg == "update-promptwares" || firstArg == "plan" ||
-                firstArg == "promptware")
+                firstArg == "promptware" || firstArg == "version" || firstArg == "--version")
             {
                 return app.Run(filteredArgs);
             }
