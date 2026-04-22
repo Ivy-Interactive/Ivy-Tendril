@@ -185,7 +185,7 @@ public class ContentView(
         });
 
         // Build tab contents
-        var content = Layout.Vertical();
+        var content = Layout.Vertical().Height(Size.Full());
         var planData = planContentQuery.Value;
 
         // Plan tab content
@@ -264,7 +264,7 @@ public class ContentView(
         content |= new VerificationReportSheet(openVerification, _selectedPlan);
         content |= new CommitDetailSheet(openCommit, _selectedPlan, _config, _gitService);
 
-        var actionBar = Layout.Horizontal().AlignContent(Align.Center).Gap(2).Padding(1)
+        var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(1)
                         | new Button("Update").Icon(Icons.Pencil).Outline().ShortcutKey("u")
                             .OnClick(() => updateDialogOpen.Set(true))
                         | new Button("Split").Icon(Icons.Scissors).Outline().ShortcutKey("s").OnClick(() =>
@@ -347,7 +347,7 @@ public class ContentView(
             new FooterLayout(
                 actionBar,
                 content
-            ).Size(Size.Full())
+            ).Scroll(Scroll.None).Size(Size.Full())
         ).Scroll(Scroll.None).Size(Size.Full()).Key(_selectedPlan.Id);
 
         var elements = new List<object>

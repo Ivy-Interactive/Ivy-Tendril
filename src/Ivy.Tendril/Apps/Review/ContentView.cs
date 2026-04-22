@@ -223,7 +223,7 @@ public class ContentView(
         }).ShortcutKey("m").WithConfetti(AnimationTrigger.Click);
 
         // Content sections
-        var content = Layout.Vertical();
+        var content = Layout.Vertical().Height(Size.Full());
 
         var planData = planContentQuery.Value;
 
@@ -410,7 +410,7 @@ public class ContentView(
         content |= new RerunDialog(rerunDialogOpen, _selectedPlan, _jobService, _planService, _refreshPlans);
 
         // Action bar
-        var actionBar = Layout.Horizontal().AlignContent(Align.Center).Gap(2).Padding(1)
+        var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(1)
                         | new Button("Rerun").Icon(Icons.RotateCw).Outline().ShortcutKey("r").OnClick(() =>
                         {
                             rerunDialogOpen.Set(true);
@@ -470,7 +470,7 @@ public class ContentView(
             new FooterLayout(
                 actionBar,
                 content
-            ).Size(Size.Full())
+            ).Scroll(Scroll.None).Size(Size.Full())
         ).Scroll(Scroll.None).Size(Size.Full()).Key(_selectedPlan.Id);
 
         object Cap(object inner)
