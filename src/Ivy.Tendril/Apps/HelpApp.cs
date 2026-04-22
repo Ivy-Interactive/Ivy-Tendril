@@ -10,27 +10,25 @@ public class HelpApp : ViewBase
         return Layout.TopCenter()
                | (Layout.Vertical().Margin(0, 20).Width(150).Gap(3)
                   | Text.H1("Help")
-                  | Text.Muted("View documentation at https://tendril.ivy.app or join us on Discord for help.")
+                  | Text.Muted($"View documentation at {Constants.DocsUrl} or join us on Discord for help.")
                   | (Layout.Horizontal()
                      | new Button("Open Documentation")
                          .Primary()
                          .Large()
                          .Icon(Icons.ExternalLink, Align.Right)
-                         .OnClick(() => client.OpenUrl("https://tendril.ivy.app"))
+                         .OnClick(() => client.OpenUrl(Constants.DocsUrl))
                      | new Button("Join Discord")
                          .Primary()
                          .Large()
                          .Icon(Icons.Discord, Align.Right)
-                         .OnClick(() => client.OpenUrl("https://discord.gg/FHgxkDga3y")))
+                         .OnClick(() => client.OpenUrl(Constants.DiscordUrl)))
                   | new Separator()
                   | Text.Muted("Found a bug? Submit an issue on GitHub.")
                   | new Button("Submit Issue")
                       .Secondary()
                       .Large()
                       .Icon(Icons.Bug, Align.Right)
-                      .OnClick(() =>
-                          client.OpenUrl(
-                              "https://github.com/Ivy-Interactive/Ivy-Tendril/issues/new"))
+                      .OnClick(() => client.OpenUrl(Constants.IssuesUrl))
                );
     }
 }

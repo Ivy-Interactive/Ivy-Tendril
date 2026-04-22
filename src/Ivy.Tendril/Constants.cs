@@ -17,4 +17,8 @@ public static class Constants
     public const int Trash = 90;
     public const int Help = 100;
     public const int Onboarding = 110;
+
+    public const string DocsUrl = "https://tendril.ivy.app";
+    public const string DiscordUrl = "https://discord.gg/FHgxkDga3y";
+    public const string IssuesUrl = "https://github.com/Ivy-Interactive/Ivy-Tendril/issues/new";
 }
