@@ -75,10 +75,9 @@ public class SidebarView(
 
         if (filtered.Count == 0 && hasActiveFilters && totalCount > 0)
         {
-            var emptyContent = Layout.Vertical().AlignContent(Align.Center).Gap(2).Padding(4)
-                   | new Icon(Icons.ListFilterPlus).Size(Size.Units(6)).Color(Colors.Gray)
-                   | Text.Muted("No matching recommendations")
-                   | Text.Muted("Try adjusting your filters").Small();
+            var emptyContent = Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(4)
+                   | new Icon(Icons.SearchX).Color(Colors.Gray)
+                   | Text.Muted("No results. Try adjusting your filters.");
             return new HeaderLayout(BuildHeader(), emptyContent);
         }
 

@@ -66,7 +66,17 @@ public class SidebarView(
     {
         var filteredPlans = PlanFilters.ApplyFilters(_plans, _projectFilter.Value, _levelFilter.Value, _textFilter.Value);
 
-        var content = new List(filteredPlans.Select(plan =>
+        var filteredList = filteredPlans.ToList();
+
+        if (filteredList.Count == 0 && (_projectFilter.Value != null || _levelFilter.Value != null || !string.IsNullOrWhiteSpace(_textFilter.Value)))
+        {
+            var emptyContent = Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(4)
+                   | new Icon(Icons.SearchX).Color(Colors.Gray)
+                   | Text.Muted("No results. Try adjusting your filters.");
+            return new HeaderLayout(BuildHeader(), emptyContent);
+        }
+
+        var content = new List(filteredList.Select(plan =>
         {
             var clickablePlan = plan;
             var verificationsPassed = plan.Verifications.Count > 0

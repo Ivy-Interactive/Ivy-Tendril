@@ -55,7 +55,17 @@ public class SidebarView(
         var filteredPlans =
             PlanFilters.ApplyFilters(plans, projectFilter.Value, levelFilter.Value, textFilter.Value);
 
-        var content = new List(filteredPlans.Select(plan =>
+        var filteredList = filteredPlans.ToList();
+
+        if (filteredList.Count == 0 && (projectFilter.Value != null || levelFilter.Value != null || !string.IsNullOrWhiteSpace(textFilter.Value)))
+        {
+            var emptyContent = Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(4)
+                   | new Icon(Icons.SearchX).Color(Colors.Gray)
+                   | Text.Muted("No results. Try adjusting your filters.");
+            return new HeaderLayout(BuildHeader(), emptyContent);
+        }
+
+        var content = new List(filteredList.Select(plan =>
         {
             var clickablePlan = plan;
             var stateBadgeVariant = StatusMappings.PlanStatusBadgeVariants.TryGetValue(plan.Status, out var variant)

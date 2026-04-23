@@ -27,6 +27,14 @@ public class SidebarView(
 
         var filteredList = filteredFiles.ToList();
 
+        if (filteredList.Count == 0 && !string.IsNullOrWhiteSpace(searchFilter.Value))
+        {
+            var emptyContent = Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(4)
+                   | new Icon(Icons.SearchX).Color(Colors.Gray)
+                   | Text.Muted("No results. Try adjusting your filters.");
+            return new HeaderLayout(BuildHeader(), emptyContent);
+        }
+
         if (filteredList.Count == 0)
         {
             var emptyContent = Layout.Vertical().AlignContent(Align.Center).Gap(2).Padding(4)
