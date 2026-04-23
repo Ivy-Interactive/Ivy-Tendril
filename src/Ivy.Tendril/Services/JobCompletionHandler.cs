@@ -324,41 +324,56 @@ internal class JobCompletionHandler
             var plansDir = _planReaderService.PlansDirectory;
             if (!Directory.Exists(plansDir)) return;
 
+            var planId = job.ReportedPlanId ?? job.AllocatedPlanId;
+
+            // 1. Agent reported a plan ID via the status API
+            if (!string.IsNullOrEmpty(job.ReportedPlanId))
+            {
+                var reportedFolder = PlanYamlHelper.FindPlanFolderById(plansDir, job.ReportedPlanId);
+                if (reportedFolder != null)
+                {
+                    job.PlanFile = reportedFolder;
+                    return;
+                }
+            }
+
+            // 2. Check output regex (backward compat)
             var outputText = string.Join("\n", job.OutputLines);
             var createdMatch = Regex.Match(outputText, @"Plan created:\s*(\S+)");
-            var duplicate = Regex.IsMatch(outputText, "identified as duplicate:");
-
             if (createdMatch.Success)
             {
                 job.PlanFile = createdMatch.Groups[1].Value;
+                return;
             }
-            else if (!duplicate)
+
+            // 3. Duplicate detection
+            var duplicate = Regex.IsMatch(outputText, "identified as duplicate:");
+            if (duplicate) return;
+
+            // 4. Filesystem fallback using allocated or reported ID
+            var planFolder = PlanYamlHelper.FindPlanFolderById(plansDir, planId);
+            if (planFolder != null)
             {
-                var planFolder = PlanYamlHelper.FindPlanFolderById(plansDir, job.AllocatedPlanId);
-                if (planFolder != null)
-                {
-                    job.PlanFile = planFolder;
-                }
-                else
-                {
-                    var trashDir = _configService != null
-                        ? Path.Combine(_configService.TendrilHome, "Trash")
-                        : null;
-                    var trashEntry = trashDir != null && !string.IsNullOrEmpty(job.AllocatedPlanId)
-                        ? PlanYamlHelper.FindTrashEntryById(trashDir, job.AllocatedPlanId)
-                        : null;
-
-                    if (trashEntry == null)
-                    {
-                        job.EnqueueOutput(
-                            "[Tendril] WARNING: CreatePlan completed but no plan folder or trash entry was found.");
-                        job.Status = JobStatus.Failed;
-
-                        var failureMessage = JobFailureAnalyzer.TryReadFailureArtifact(job.OutputLines.ToList());
-                        job.StatusMessage = failureMessage ?? "No plan created";
-                    }
-                }
+                job.PlanFile = planFolder;
+                return;
             }
+
+            // 5. Check trash
+            var trashDir = _configService != null
+                ? Path.Combine(_configService.TendrilHome, "Trash")
+                : null;
+            var trashEntry = trashDir != null && !string.IsNullOrEmpty(planId)
+                ? PlanYamlHelper.FindTrashEntryById(trashDir, planId)
+                : null;
+            if (trashEntry != null) return;
+
+            // 6. Nothing found — mark as failed
+            job.EnqueueOutput(
+                "[Tendril] WARNING: CreatePlan completed but no plan folder or trash entry was found.");
+            job.Status = JobStatus.Failed;
+
+            var failureMessage = JobFailureAnalyzer.TryReadFailureArtifact(job.OutputLines.ToList());
+            job.StatusMessage = failureMessage ?? "No plan created";
         }
         catch
         {
