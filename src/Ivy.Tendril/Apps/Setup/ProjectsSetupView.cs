@@ -30,7 +30,7 @@ public class ProjectsSetupView : ViewBase
                 | new Button().Icon(Icons.Trash).Outline().Small().OnClick(() => { deleteIndex.Set(idx); })
             ));
 
-        return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(120)))
+        return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(200)))
                | Text.Block("Projects").Bold()
                | Text.Block("Manage projects, their repositories, and verification assignments.").Muted().Small()
                | table
