@@ -476,7 +476,7 @@ public class JobService : IJobService
 
     private bool TryRejectConflictingJob(JobItem job)
     {
-        if (job.Type is not ("UpdatePlan" or "ExpandPlan" or "SplitPlan"))
+        if (job.Type is not ("ExecutePlan" or "UpdatePlan" or "ExpandPlan" or "SplitPlan"))
             return false;
 
         var planFolder = job.Args.Length > 0 ? job.Args[0] : "";

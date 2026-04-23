@@ -222,7 +222,7 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
     }
 
     [Fact]
-    public void StartJob_ExecutePlan_NotAffectedByConcurrentPlanModificationCheck()
+    public void StartJob_ExecutePlan_WhenUpdatePlanRunning_AllowsBothJobs()
     {
         var service = new JobService(
             TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
@@ -246,6 +246,30 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
         {
             // Process launch or dependency check failures are acceptable
         }
+    }
+
+    [Fact]
+    public void StartJob_ExecutePlan_WhenAnotherExecutePlanRunning_FailsWithConflictMessage()
+    {
+        var service = new JobService(
+            TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
+            null, 10);
+
+        // Start first ExecutePlan job
+        var firstJobId = service.CreateTestJob("ExecutePlan", _planFolder);
+        var firstJob = service.GetJob(firstJobId);
+        Assert.NotNull(firstJob);
+        Assert.Equal(JobStatus.Running, firstJob.Status);
+
+        // Try to start second ExecutePlan job for the same plan
+        var secondJobId = service.StartJob("ExecutePlan", _planFolder);
+        var secondJob = service.GetJob(secondJobId);
+
+        // Second job should fail immediately with conflict message
+        Assert.NotNull(secondJob);
+        Assert.Equal(JobStatus.Failed, secondJob.Status);
+        Assert.Contains("already in progress", secondJob.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(firstJobId, secondJob.StatusMessage);
     }
 
     [Fact]
