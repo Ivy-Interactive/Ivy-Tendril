@@ -464,29 +464,6 @@ Focus on **what changed** (past tense), not what the plan said to do. Emphasize 
 
 Update the summary after verification fixes too — if verifications cause additional commits, append those changes to the summary.
 
-### 5.7. Generate Recommendations
-
-**REQUIRED STEP** — After implementation, actively reflect on what you observed during this plan's execution. Consider each of the following categories and write down any findings:
-
-1. **Follow-up work** — Did you notice functionality that should be extended, edge cases not covered, or related features that would complement this change?
-2. **Code quality** — Did you encounter confusing code, missing documentation, inconsistent patterns, or technical debt in the files you touched or read?
-3. **Bugs** — Did you notice any unrelated bugs, broken tests, or incorrect behavior in surrounding code?
-4. **Optimizations** — Are there performance improvements, unnecessary complexity, or refactoring opportunities in the area you worked in?
-
-If you identified items in ANY category, add them using the CLI:
-
-```bash
-tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact Medium --risk Small
-```
-
-`--impact` and `--risk` are optional (Small, Medium, or High). Impact indicates the value of implementing it; Risk indicates the potential for complications or bugs.
-
-Do NOT include items that are part of the current plan's scope.
-
-Do NOT include recommendations about code formatting, linting, or style issues (e.g., line wrapping, indentation, trailing whitespace, import ordering). These are handled automatically by DotnetFormat and FrontendLint verifications.
-
-If after genuine reflection you found nothing noteworthy, skip the file — but this should be rare. Most plans touch enough code to surface at least one observation.
-
 ### 6. Document Commits
 
 Use the CLI to record commits, verifications, and related plans — **never edit plan.yaml directly**.
@@ -546,6 +523,40 @@ For each checked verification:
 
 A verification is not complete without its report. If the report file does not exist after running a verification, the plan should fail.
 
+### 7.5. Generate Recommendations
+
+After all verifications pass, reflect on what you observed during this plan's execution. Write down anything you noticed that isn't part of this plan's scope:
+
+- Follow-up work, edge cases not covered, or related features
+- Confusing code, inconsistent patterns, or technical debt in the files you touched or read
+- Unrelated bugs, broken tests, or incorrect behavior in surrounding code
+- Performance improvements, unnecessary complexity, or refactoring opportunities
+
+For each item, register it via the CLI:
+
+```bash
+tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact Medium --risk Small
+```
+
+`--impact` and `--risk` are optional (Small, Medium, or High). Impact indicates the value of implementing it; Risk indicates the potential for complications or bugs.
+
+Do NOT include items that are part of the current plan's scope. Do NOT include recommendations about code formatting, linting, or style issues — those are handled by verifications.
+
+**After registering any recommendations via the CLI**, create `<PlanFolder>/artifacts/recommendations.md`. Having zero recommendations is fine — but the file must still be created:
+
+~~~markdown
+# Recommendations
+
+## Items
+
+- **<Title>** — <one-line summary>
+- **<Title>** — <one-line summary>
+
+*Or: "None — <one sentence explaining why>"*
+~~~
+
+**This file is mandatory.** Step 8 will verify it exists and fail the plan if it is missing.
+
 ### 8. Final Clean Check
 
 After all verifications pass:
@@ -561,6 +572,8 @@ After all verifications pass:
    ```
 
 3. Run `git status` in every worktree. If there are any uncommitted files (from verification fixes, generated files, etc.), commit or discard them. The worktrees must be completely clean before finishing.
+
+4. Verify `<PlanFolder>/artifacts/recommendations.md` exists. If missing, the plan **must fail** — go back to Step 7.5.
 
 ### 8.5. Worktree Lifecycle
 
