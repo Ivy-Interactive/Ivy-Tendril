@@ -201,9 +201,6 @@ public class ContentView(
         {
             var planLayout = Layout.Vertical().Scroll(Scroll.Auto).Height(Size.Full());
             if (selectedPlan.Status == PlanStatus.Failed) planLayout |= BuildFailureCallout(selectedPlan);
-            var editButton = Layout.Horizontal().Padding(0, 0, 2, 0)
-                             | new Button("Edit").Icon(Icons.Pencil).Outline().OnClick(() => isEditing.Set(true));
-            planLayout |= editButton;
             var annotatedContent = MarkdownHelper.AnnotateAllBrokenLinks(selectedPlan.LatestRevisionContent, planService.PlansDirectory);
             planLayout |= new Markdown(annotatedContent)
                 .DangerouslyAllowLocalFiles()
@@ -218,6 +215,9 @@ public class ContentView(
                             selectedPlanState.Set(plan);
                     }
                 }));
+            var editButton = Layout.Horizontal().Padding(0, 0, 2, 0)
+                             | new Button("Edit").Icon(Icons.Pencil).Outline().ShortcutKey("E").OnClick(() => isEditing.Set(true));
+            planLayout |= editButton;
             planTabContent = planLayout;
         }
 
