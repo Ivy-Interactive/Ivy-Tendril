@@ -3,6 +3,7 @@ using Ivy.Tendril.Apps;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Views.Tabs;
 
@@ -74,7 +75,8 @@ public static class GitTabHelper
         IClientProvider client,
         IConfigService config,
         Action<string?> setOpenCommit,
-        Func<string, object> copyToClipboard)
+        Func<string, object> copyToClipboard,
+        ILogger? logger = null)
     {
         var gitLayout = Layout.Vertical().Gap(2);
 
@@ -98,9 +100,9 @@ public static class GitTabHelper
                 var actionsMenu = new Button().Icon(Icons.EllipsisVertical).Ghost().Small()
                     .WithDropDown(
                         new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
-                            .OnSelect(() => PlatformHelper.OpenInFileManager(pathCapture)),
+                            .OnSelect(() => PlatformHelper.OpenInFileManager(pathCapture, logger)),
                         new MenuItem("Open in Terminal", Icon: Icons.Terminal, Tag: "OpenInTerminal")
-                            .OnSelect(() => PlatformHelper.OpenInTerminal(pathCapture)),
+                            .OnSelect(() => PlatformHelper.OpenInTerminal(pathCapture, logger)),
                         new MenuItem($"Open in {config.Editor.Label}", Icon: Icons.Code, Tag: "OpenInEditor")
                             .OnSelect(() => config.OpenInEditor(pathCapture)),
                         new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")

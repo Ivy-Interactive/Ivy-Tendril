@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.AppShell.Dialogs;
 
@@ -13,6 +14,7 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
     {
         var githubService = UseService<IGithubService>();
         var client = UseService<IClientProvider>();
+        var logger = UseService<ILogger<ImportIssuesDialog>>();
 
         var selectedRepo = UseState<string?>(null);
         var searchQuery = UseState("");
@@ -115,7 +117,7 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
             catch (Exception ex)
             {
                 reposError.Set($"Failed to load repositories: {ex.Message}");
-                Console.Error.WriteLine($"[ImportIssuesDialog] Exception loading repos: {ex}");
+                logger.LogWarning(ex, "Exception loading repos");
             }
         }, _dialogOpen);
 
@@ -230,7 +232,7 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"[ImportIssuesDialog] Import failed: {ex.Message}");
+                logger.LogWarning(ex, "Import failed");
                 client.Toast($"Import failed: {ex.Message}", "Error");
             }
             finally

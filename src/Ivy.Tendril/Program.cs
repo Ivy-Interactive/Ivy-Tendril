@@ -4,8 +4,11 @@ using Ivy.Desktop;
 using Ivy.Helpers;
 using Ivy.Tendril.Commands;
 using Ivy.Tendril.Database;
+using Ivy.Tendril.Infrastructure;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 using Velopack;
 
@@ -55,7 +58,11 @@ public class Program
         // Handle CLI commands using Spectre.Console.Cli
         if (filteredArgs.Length > 0)
         {
-            var app = new CommandApp();
+            var cliServices = new ServiceCollection();
+            cliServices.AddLogging(builder => builder.AddConsole());
+            var registrar = new TypeRegistrar(cliServices);
+
+            var app = new CommandApp(registrar);
             app.Configure(config =>
             {
                 config.PropagateExceptions();

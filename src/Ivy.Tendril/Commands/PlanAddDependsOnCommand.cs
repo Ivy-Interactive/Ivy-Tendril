@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using Ivy.Tendril.Helpers;
+using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -17,6 +18,10 @@ public class PlanAddDependsOnSettings : CommandSettings
 
 public class PlanAddDependsOnCommand : Command<PlanAddDependsOnSettings>
 {
+    private readonly ILogger<PlanAddDependsOnCommand> _logger;
+
+    public PlanAddDependsOnCommand(ILogger<PlanAddDependsOnCommand> logger) => _logger = logger;
+
     protected override int Execute(CommandContext context, PlanAddDependsOnSettings settings, CancellationToken cancellationToken)
     {
         try
@@ -26,7 +31,7 @@ public class PlanAddDependsOnCommand : Command<PlanAddDependsOnSettings>
 
             if (plan.DependsOn.Contains(settings.DependsOn, StringComparer.OrdinalIgnoreCase))
             {
-                Console.WriteLine($"Dependency already present: {settings.DependsOn}");
+                _logger.LogInformation("Dependency already present: {DependsOn}", settings.DependsOn);
                 return 0;
             }
 
@@ -35,12 +40,12 @@ public class PlanAddDependsOnCommand : Command<PlanAddDependsOnSettings>
 
             PlanCommandHelpers.WritePlan(planFolder, plan);
 
-            Console.WriteLine($"Added dependency: {settings.DependsOn}");
+            _logger.LogInformation("Added dependency: {DependsOn}", settings.DependsOn);
             return 0;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            _logger.LogError(ex, "Failed to add dependency to plan {PlanId}", settings.PlanId);
             return 1;
         }
     }

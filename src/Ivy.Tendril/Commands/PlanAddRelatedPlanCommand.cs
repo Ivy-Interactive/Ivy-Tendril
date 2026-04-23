@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using Ivy.Tendril.Helpers;
+using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -17,6 +18,10 @@ public class PlanAddRelatedPlanSettings : CommandSettings
 
 public class PlanAddRelatedPlanCommand : Command<PlanAddRelatedPlanSettings>
 {
+    private readonly ILogger<PlanAddRelatedPlanCommand> _logger;
+
+    public PlanAddRelatedPlanCommand(ILogger<PlanAddRelatedPlanCommand> logger) => _logger = logger;
+
     protected override int Execute(CommandContext context, PlanAddRelatedPlanSettings settings, CancellationToken cancellationToken)
     {
         try
@@ -26,7 +31,7 @@ public class PlanAddRelatedPlanCommand : Command<PlanAddRelatedPlanSettings>
 
             if (plan.RelatedPlans.Contains(settings.RelatedPlan, StringComparer.OrdinalIgnoreCase))
             {
-                Console.WriteLine($"Related plan already present: {settings.RelatedPlan}");
+                _logger.LogInformation("Related plan already present: {RelatedPlan}", settings.RelatedPlan);
                 return 0;
             }
 
@@ -35,12 +40,12 @@ public class PlanAddRelatedPlanCommand : Command<PlanAddRelatedPlanSettings>
 
             PlanCommandHelpers.WritePlan(planFolder, plan);
 
-            Console.WriteLine($"Added related plan: {settings.RelatedPlan}");
+            _logger.LogInformation("Added related plan: {RelatedPlan}", settings.RelatedPlan);
             return 0;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            _logger.LogError(ex, "Failed to add related plan to plan {PlanId}", settings.PlanId);
             return 1;
         }
     }

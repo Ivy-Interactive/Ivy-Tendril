@@ -53,7 +53,7 @@ public class ContentView(
                     assigneesError.Set(null);
                     return Array.Empty<string>();
                 }
-                var repoConfig = GithubService.GetRepoConfigFromPath(repoPath);
+                var repoConfig = githubService.GetRepoConfigFromPathCached(repoPath);
                 if (repoConfig is null)
                 {
                     assigneesError.Set(null);
@@ -146,7 +146,7 @@ public class ContentView(
                             actionStates[i] = (action.Name, true);
                             return;
                         }
-                        actionStates[i] = (action.Name, PlatformHelper.EvaluatePowerShellCondition(action.Condition, folderPath));
+                        actionStates[i] = (action.Name, PlatformHelper.EvaluatePowerShellCondition(action.Condition, folderPath, logger: logger));
                     });
 
                     return new PlanContentData(recs, summaryMd, artifacts, commitRows, verReports, actionStates.ToList(), allChanges);
@@ -268,7 +268,8 @@ public class ContentView(
                     copyToClipboard(path);
                     client.Toast("Copied path to clipboard", "Path Copied");
                     return null!; // Return type doesn't matter, just need to satisfy Func
-                }
+                },
+                logger
             );
 
             // Artifacts tab content
@@ -297,9 +298,9 @@ public class ContentView(
                         var actionCapture = action;
                         btn = btn.OnClick(() =>
                         {
-                            if (!PlatformHelper.RunPowerShellAction(actionCapture.Action, selectedPlan.FolderPath))
+                            if (!PlatformHelper.RunPowerShellAction(actionCapture.Action, selectedPlan.FolderPath, logger))
                             {
-                                Console.Error.WriteLine($"Failed to run review action '{actionCapture.Name}': pwsh not found");
+                                logger.LogWarning("Failed to run review action {ActionName}: pwsh not found", actionCapture.Name);
                             }
                         });
                     }
@@ -436,10 +437,10 @@ public class ContentView(
                                 refreshPlans();
                             }),
                             new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
-                                .OnSelect(() => { PlatformHelper.OpenInFileManager(selectedPlan.FolderPath); }),
+                                .OnSelect(() => { PlatformHelper.OpenInFileManager(selectedPlan.FolderPath, logger); }),
                             new MenuItem("Open in Terminal", Icon: Icons.Terminal, Tag: "OpenInTerminal").OnSelect(() =>
                             {
-                                PlatformHelper.OpenInTerminal(selectedPlan.FolderPath);
+                                PlatformHelper.OpenInTerminal(selectedPlan.FolderPath, logger);
                             }),
                             new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
                                 .OnSelect(() =>

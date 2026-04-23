@@ -141,8 +141,10 @@ public class JobService : IJobService
         if (!_jobs.TryGetValue(id, out var job)) return;
         if (!job.TryClaimCompletion()) return;
 
+        var wasRunning = job.Status == JobStatus.Running;
         SetCompletionStatus(job, exitCode, timedOut, staleOutput);
-        _jobSlotSemaphore.Release();
+        if (wasRunning)
+            _jobSlotSemaphore.Release();
 
         _completionHandler.HandleCompletion(
             job, _jobs, PersistJob, RaiseNotification, RaiseJobsPropertyChanged, StartJobSkipDepCheck);

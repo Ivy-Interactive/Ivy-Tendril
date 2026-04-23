@@ -54,7 +54,7 @@ public class BackgroundServiceActivatorTests : IAsyncLifetime
         {
             var cfg = sp.GetRequiredService<IConfigService>();
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
-            return new InboxWatcherService(cfg, jobService);
+            return new InboxWatcherService(cfg, jobService, NullLogger<InboxWatcherService>.Instance);
         });
         services.AddSingleton<WorktreeCleanupService>(sp =>
             new WorktreeCleanupService(Path.Combine(_tempDir, "Plans"), NullLogger<WorktreeCleanupService>.Instance));
@@ -180,7 +180,7 @@ public class BackgroundServiceActivatorTests : IAsyncLifetime
         {
             var cfg = sp.GetRequiredService<IConfigService>();
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
-            return new InboxWatcherService(cfg, jobService);
+            return new InboxWatcherService(cfg, jobService, NullLogger<InboxWatcherService>.Instance);
         });
         services.AddSingleton<WorktreeCleanupService>(sp =>
             new WorktreeCleanupService(Path.Combine(_tempDir, "Plans"), NullLogger<WorktreeCleanupService>.Instance));

@@ -30,7 +30,7 @@ public static class TendrilServer
         // Register VerbosityService before other services
         server.Services.AddSingleton<IVerbosityService, VerbosityService>();
 
-        var configService = new ConfigService();
+        var configService = new ConfigService(Microsoft.Extensions.Logging.Abstractions.NullLogger<ConfigService>.Instance);
         server.Services.AddSingleton<IConfigService>(configService);
         server.Services.AddSingleton<ConfigService>(configService);
 
@@ -145,7 +145,7 @@ public static class TendrilServer
         {
             var config = sp.GetRequiredService<IConfigService>();
             var jobService = sp.GetRequiredService<IJobService>();
-            return new InboxWatcherService(config, jobService);
+            return new InboxWatcherService(config, jobService, sp.GetRequiredService<ILogger<InboxWatcherService>>());
         });
         server.Services.AddSingleton<IInboxWatcherService>(sp => sp.GetRequiredService<InboxWatcherService>());
         server.Services.AddSingleton<WorktreeCleanupService>(sp =>

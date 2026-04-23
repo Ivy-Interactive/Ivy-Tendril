@@ -2,6 +2,7 @@ using Ivy.Tendril.Models;
 using System.ComponentModel;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -23,6 +24,10 @@ public class PlanAddLogSettings : CommandSettings
 
 public class PlanAddLogCommand : Command<PlanAddLogSettings>
 {
+    private readonly ILogger<PlanAddLogCommand> _logger;
+
+    public PlanAddLogCommand(ILogger<PlanAddLogCommand> logger) => _logger = logger;
+
     protected override int Execute(CommandContext context, PlanAddLogSettings settings, CancellationToken cancellationToken)
     {
         try
@@ -34,7 +39,7 @@ public class PlanAddLogCommand : Command<PlanAddLogSettings>
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            _logger.LogError(ex, "Failed to add log to plan {PlanId}", settings.PlanId);
             return 1;
         }
     }

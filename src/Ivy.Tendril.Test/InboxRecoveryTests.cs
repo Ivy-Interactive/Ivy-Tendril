@@ -1,4 +1,5 @@
 using Ivy.Tendril.Services;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test;
 
@@ -21,7 +22,7 @@ public class InboxRecoveryTests
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
 
             // Create InboxWatcherService — constructor calls RecoverProcessingFiles
-            using var watcher = new InboxWatcherService(config, jobService);
+            using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
 
             // .processing file should be gone, .md file should exist
             Assert.False(File.Exists(processingFile));
@@ -51,7 +52,7 @@ public class InboxRecoveryTests
 
             var config = new ConfigService(new TendrilSettings(), tempDir);
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
-            using var watcher = new InboxWatcherService(config, jobService);
+            using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
 
             // .processing should be deleted, .md preserved
             Assert.False(File.Exists(processingFile));
@@ -268,7 +269,7 @@ public class InboxRecoveryTests
             // Step 2: Create services (simulating restart)
             var config = new ConfigService(new TendrilSettings(), tempDir);
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
-            using var watcher = new InboxWatcherService(config, jobService);
+            using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
 
             // Step 3: Wait for async processing
             Thread.Sleep(2000);

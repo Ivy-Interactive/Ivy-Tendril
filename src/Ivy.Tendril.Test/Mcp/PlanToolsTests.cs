@@ -1,5 +1,6 @@
 using Ivy.Tendril.Mcp;
 using Ivy.Tendril.Mcp.Tools;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test.Mcp;
 
@@ -25,7 +26,7 @@ public class PlanToolsTests : IDisposable
         Environment.SetEnvironmentVariable("TENDRIL_HOME", _tempDir);
         Environment.SetEnvironmentVariable("TENDRIL_PLANS", null);
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", null);
-        _planTools = new PlanTools(new McpAuthenticationService());
+        _planTools = new PlanTools(new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance));
     }
 
     public void Dispose()
@@ -421,7 +422,7 @@ public class PlanToolsTests : IDisposable
     public void AuthEnabled_WithoutToken_ReturnsError()
     {
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", "secret-token");
-        var authedService = new McpAuthenticationService();
+        var authedService = new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance);
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", null);
 
         var authedTools = new PlanTools(authedService);

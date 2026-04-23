@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Mcp;
 
@@ -10,22 +11,24 @@ public sealed class McpAuthenticationService
 {
     private readonly string? _expectedTokenHash;
     private readonly bool _authenticationEnabled;
+    private readonly ILogger<McpAuthenticationService> _logger;
 
-    public McpAuthenticationService()
+    public McpAuthenticationService(ILogger<McpAuthenticationService> logger)
     {
+        _logger = logger;
         var token = GetTokenFromEnvironment();
 
         if (string.IsNullOrWhiteSpace(token))
         {
             _authenticationEnabled = false;
             _expectedTokenHash = null;
-            Console.WriteLine("[MCP Auth] Authentication disabled - TENDRIL_MCP_TOKEN not set");
+            _logger.LogInformation("Authentication disabled - TENDRIL_MCP_TOKEN not set");
         }
         else
         {
             _authenticationEnabled = true;
             _expectedTokenHash = HashToken(token);
-            Console.WriteLine("[MCP Auth] Authentication enabled - token validation active");
+            _logger.LogInformation("Authentication enabled - token validation active");
         }
     }
 
@@ -48,7 +51,7 @@ public sealed class McpAuthenticationService
         // If auth is enabled but no token provided, reject
         if (string.IsNullOrWhiteSpace(providedToken))
         {
-            Console.Error.WriteLine("[MCP Auth] Authentication failed - no token provided");
+            _logger.LogWarning("Authentication failed - no token provided");
             return false;
         }
 
@@ -58,7 +61,7 @@ public sealed class McpAuthenticationService
 
         if (!isValid)
         {
-            Console.Error.WriteLine("[MCP Auth] Authentication failed - invalid token");
+            _logger.LogWarning("Authentication failed - invalid token");
         }
 
         return isValid;

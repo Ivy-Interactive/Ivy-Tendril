@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Ivy.Helpers;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Helpers;
 
@@ -10,7 +11,7 @@ public static class PlatformHelper
     /// <summary>
     /// Returns true if condition evaluates to exit code 0, false otherwise.
     /// </summary>
-    public static bool EvaluatePowerShellCondition(string condition, string workingDirectory, int timeoutMs = 5000)
+    public static bool EvaluatePowerShellCondition(string condition, string workingDirectory, int timeoutMs = 5000, ILogger? logger = null)
     {
         try
         {
@@ -35,7 +36,7 @@ public static class PlatformHelper
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Failed to evaluate PowerShell condition: {ex.Message}");
+            logger?.LogWarning(ex, "Failed to evaluate PowerShell condition");
             return false;
         }
     }
@@ -43,7 +44,7 @@ public static class PlatformHelper
     /// <summary>
     /// Launches a PowerShell action. Returns false if pwsh is not found or the launch fails.
     /// </summary>
-    public static bool RunPowerShellAction(string action, string workingDirectory)
+    public static bool RunPowerShellAction(string action, string workingDirectory, ILogger? logger = null)
     {
         try
         {
@@ -58,17 +59,17 @@ public static class PlatformHelper
         }
         catch (Win32Exception ex)
         {
-            Console.Error.WriteLine($"Failed to run PowerShell action: {ex.Message}");
+            logger?.LogWarning(ex, "Failed to run PowerShell action");
             return false;
         }
         catch (FileNotFoundException ex)
         {
-            Console.Error.WriteLine($"Failed to run PowerShell action: {ex.Message}");
+            logger?.LogWarning(ex, "Failed to run PowerShell action");
             return false;
         }
     }
 
-    public static bool OpenInTerminal(string workingDirectory)
+    public static bool OpenInTerminal(string workingDirectory, ILogger? logger = null)
     {
         try
         {
@@ -94,12 +95,12 @@ public static class PlatformHelper
         }
         catch (Win32Exception ex)
         {
-            Console.Error.WriteLine($"Failed to open terminal: {ex.Message}");
+            logger?.LogWarning(ex, "Failed to open terminal");
             return false;
         }
         catch (FileNotFoundException ex)
         {
-            Console.Error.WriteLine($"Failed to open terminal: {ex.Message}");
+            logger?.LogWarning(ex, "Failed to open terminal");
             return false;
         }
     }
@@ -137,7 +138,7 @@ public static class PlatformHelper
         }
     }
 
-    public static bool OpenInFileManager(string folderPath)
+    public static bool OpenInFileManager(string folderPath, ILogger? logger = null)
     {
         try
         {
@@ -163,12 +164,12 @@ public static class PlatformHelper
         }
         catch (Win32Exception ex)
         {
-            Console.Error.WriteLine($"Failed to open file manager: {ex.Message}");
+            logger?.LogWarning(ex, "Failed to open file manager");
             return false;
         }
         catch (FileNotFoundException ex)
         {
-            Console.Error.WriteLine($"Failed to open file manager: {ex.Message}");
+            logger?.LogWarning(ex, "Failed to open file manager");
             return false;
         }
     }

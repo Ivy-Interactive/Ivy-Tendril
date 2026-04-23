@@ -8,6 +8,7 @@ using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Views;
 using Ivy.Widgets.Internal;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.AppShell;
 
@@ -44,6 +45,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     {
         // All hooks must be at the top level of Build()
         var config = UseService<IConfigService>();
+        var logger = UseService<ILogger<TendrilAppShell>>();
         var tabs = UseState(ImmutableArray.Create<TabState>);
         var selectedIndex = UseState<int?>();
         var appRepository = UseService<IAppRepository>();
@@ -233,7 +235,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ERROR] TendrilAppShell.OpenApp failed for {navigateArgs.AppId}: {ex}");
+                logger.LogError(ex, "TendrilAppShell.OpenApp failed for {AppId}", navigateArgs.AppId);
             }
         }
 
@@ -410,7 +412,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             }
             catch (Exception ex)
             {
-                await Console.Error.WriteLineAsync($"Logout failed: {ex}");
+                logger.LogWarning(ex, "Logout failed");
             }
         }
 
