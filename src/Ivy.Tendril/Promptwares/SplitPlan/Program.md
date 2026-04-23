@@ -20,6 +20,7 @@ The plans directory path can be derived from the plan folder's parent directory.
 - Read `plan.yaml` via `tendril plan get <plan-id>` from the plan folder
 - Read the latest revision from `revisions/` (highest numbered .md file)
 - Identify distinct issues/tasks that should be separate plans
+- Report plan context to Jobs UI: `tendril job status $env:TENDRIL_JOB_ID --message "Splitting plan..." --plan-id <plan-id> --plan-title "<title>"`
 
 ### 2. Allocate Plan IDs
 

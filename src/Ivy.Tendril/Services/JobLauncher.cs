@@ -131,6 +131,9 @@ internal class JobLauncher
         if (staleOutputTimeout > TimeSpan.Zero)
             _ = RunStaleOutputWatchdog(id, cts, jobs, staleOutputTimeout);
 
+        if (!string.IsNullOrEmpty(job.StatusFilePath))
+            _ = RunStatusFilePoller(id, cts, jobs);
+
         raiseStructureChanged();
     }
 
@@ -178,6 +181,39 @@ internal class JobLauncher
         catch (ObjectDisposedException)
         {
         }
+    }
+
+    internal static async Task RunStatusFilePoller(
+        string id,
+        CancellationTokenSource timeoutCts,
+        ConcurrentDictionary<string, JobItem> jobs)
+    {
+        try
+        {
+            while (!timeoutCts.Token.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(1), timeoutCts.Token);
+                }
+                catch (OperationCanceledException) { return; }
+
+                if (!jobs.TryGetValue(id, out var job) || job.Status != JobStatus.Running)
+                    break;
+
+                if (string.IsNullOrEmpty(job.StatusFilePath)) break;
+
+                var payload = JobStatusFile.Read(job.StatusFilePath);
+                if (payload == null) continue;
+
+                job.StatusMessage = payload.Message;
+                if (!string.IsNullOrEmpty(payload.PlanId))
+                    job.ReportedPlanId = payload.PlanId;
+                if (!string.IsNullOrEmpty(payload.PlanTitle))
+                    job.ReportedPlanTitle = payload.PlanTitle;
+            }
+        }
+        catch (ObjectDisposedException) { }
     }
 
     private static void AttachOutputHandlers(Process process, JobItem job, string id)
@@ -354,12 +390,15 @@ internal class JobLauncher
     private void SetTendrilEnvironment(ProcessStartInfo psi, JobItem job)
     {
         psi.Environment["TENDRIL_JOB_ID"] = job.Id;
-        psi.Environment["TENDRIL_URL"] = Environment.GetEnvironmentVariable("TENDRIL_URL") ?? "https://localhost:5010";
         psi.Environment["TENDRIL_SESSION_ID"] = job.SessionId;
         var tendrilHome = _configService!.TendrilHome;
         if (!string.IsNullOrEmpty(tendrilHome))
             psi.Environment["TENDRIL_HOME"] = tendrilHome;
         psi.Environment["TENDRIL_CONFIG"] = _configService.ConfigPath;
+
+        var statusFile = JobStatusFile.GetStatusFilePath(job.Id);
+        psi.Environment["TENDRIL_STATUS_FILE"] = statusFile;
+        job.StatusFilePath = statusFile;
     }
 
     private string? BuildRepoConfigsYaml(PlanYaml plan, string project)

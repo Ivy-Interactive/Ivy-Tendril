@@ -8,8 +8,7 @@ public class ApiKeyAuthMiddleware(RequestDelegate next, IConfigService configSer
 {
     public async Task InvokeAsync(HttpContext context)
     {
-        if (context.Request.Path.StartsWithSegments("/api")
-            && !context.Request.Path.StartsWithSegments("/api/jobs"))
+        if (context.Request.Path.StartsWithSegments("/api"))
         {
             var apiKey = configService.Settings.Api?.ApiKey;
             if (!string.IsNullOrEmpty(apiKey))

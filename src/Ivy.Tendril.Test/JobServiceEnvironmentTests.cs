@@ -42,12 +42,11 @@ maxConcurrentJobs: 1
                 CreateNoWindow = true
             };
 
-            // Simulate JobService's environment setup (from JobService.cs:719-728)
+            // Simulate JobService's environment setup
             psi.Environment["TENDRIL_JOB_ID"] = "test-job";
-            psi.Environment["TENDRIL_URL"] = "https://localhost:5010";
-            psi.Environment["TENDRIL_SHARED"] = tempDir;
             psi.Environment["TENDRIL_SESSION_ID"] = Guid.NewGuid().ToString();
             psi.Environment["TENDRIL_CONFIG"] = Path.Combine(tempDir, "config.yaml");
+            psi.Environment["TENDRIL_STATUS_FILE"] = Path.Combine(tempDir, "jobs", "test-job.status");
 
             // Force non-interactive mode for Claude Code CLI to prevent TTY detection issues
             psi.Environment["CI"] = "true";

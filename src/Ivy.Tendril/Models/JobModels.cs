@@ -65,9 +65,12 @@ public record JobItem
     // Pre-allocated plan ID for CreatePlan jobs (used for filesystem verification)
     public string? AllocatedPlanId { get; set; }
 
-    // Reported by the agent via the status API during execution
+    // Reported by the agent via the status file during execution
     public string? ReportedPlanId { get; set; }
     public string? ReportedPlanTitle { get; set; }
+
+    // Path to the status file used for cross-process status updates
+    public string? StatusFilePath { get; set; }
 
     public void EnqueueOutput(string line)
     {
@@ -80,6 +83,7 @@ public record JobItem
     {
         try { Process?.Dispose(); } catch { }
         try { TimeoutCts?.Dispose(); } catch { }
+        try { if (StatusFilePath != null && File.Exists(StatusFilePath)) File.Delete(StatusFilePath); } catch { }
         Process = null;
         TimeoutCts = null;
     }

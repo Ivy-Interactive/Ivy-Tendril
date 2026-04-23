@@ -157,7 +157,6 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         if (!string.IsNullOrEmpty(tendrilHome))
             psi.Environment["TENDRIL_HOME"] = tendrilHome;
         psi.Environment["TENDRIL_CONFIG"] = configService.ConfigPath;
-        psi.Environment["TENDRIL_URL"] = Environment.GetEnvironmentVariable("TENDRIL_URL") ?? "https://localhost:5010";
 
         var verbosityService = new VerbosityService();
         if (verbosityService.Level != VerbosityLevel.Quiet)
