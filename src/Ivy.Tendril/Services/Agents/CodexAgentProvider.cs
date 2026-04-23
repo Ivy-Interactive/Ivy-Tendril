@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 
 namespace Ivy.Tendril.Services.Agents;
 
@@ -35,6 +36,12 @@ public class CodexAgentProvider : IAgentProvider
             psi.ArgumentList.Add(invocation.Effort);
         }
 
+        foreach (var dir in ExtractWritableDirs(invocation.AllowedTools))
+        {
+            psi.ArgumentList.Add("--add-dir");
+            psi.ArgumentList.Add(dir);
+        }
+
         foreach (var arg in invocation.ExtraArgs)
             psi.ArgumentList.Add(arg);
 
@@ -44,6 +51,18 @@ public class CodexAgentProvider : IAgentProvider
         psi.Environment["TERM"] = "dumb";
 
         return psi;
+    }
+
+    internal static IEnumerable<string> ExtractWritableDirs(IReadOnlyList<string> allowedTools)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var tool in allowedTools)
+        {
+            var match = Regex.Match(tool, @"^(?:Write|Edit)\((.+?)(?:/\*\*?)?\)$", RegexOptions.IgnoreCase);
+            if (!match.Success) continue;
+            var dir = match.Groups[1].Value;
+            if (seen.Add(dir)) yield return dir;
+        }
     }
 
     public string? ExtractResult(IReadOnlyList<string> outputLines)

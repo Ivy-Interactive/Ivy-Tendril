@@ -268,4 +268,70 @@ public class AgentProviderFactoryTests
         var resolution = AgentProviderFactory.Resolve(settings, "Test");
         Assert.Equal("gemini-2.5-pro", resolution.Model);
     }
+
+    [Fact]
+    public void Resolve_ExpandsJobContextVariables()
+    {
+        var settings = CreateSettings(
+            promptwares: new Dictionary<string, PromptwareConfig>
+            {
+                ["CreatePlan"] = new()
+                {
+                    Profile = "balanced",
+                    AllowedTools = new List<string>
+                    {
+                        "Read", "Bash", "Write(%PLANS_DIR%/**)", "Edit(%PLAN_FOLDER%/**)"
+                    }
+                }
+            });
+
+        var jobContext = new Dictionary<string, string>
+        {
+            ["PLANS_DIR"] = @"D:\Tendril\Plans",
+            ["PLAN_FOLDER"] = @"D:\Tendril\Plans\01234-MyPlan"
+        };
+
+        var resolution = AgentProviderFactory.Resolve(settings, "CreatePlan", jobContext: jobContext);
+
+        Assert.Contains("Read", resolution.AllowedTools);
+        Assert.Contains("Bash", resolution.AllowedTools);
+        Assert.Contains("Write(D:/Tendril/Plans/**)", resolution.AllowedTools);
+        Assert.Contains("Edit(D:/Tendril/Plans/01234-MyPlan/**)", resolution.AllowedTools);
+    }
+
+    [Fact]
+    public void Resolve_JobContextExpansionIsCaseInsensitive()
+    {
+        var settings = CreateSettings(
+            promptwares: new Dictionary<string, PromptwareConfig>
+            {
+                ["Test"] = new()
+                {
+                    AllowedTools = new List<string> { "Write(%plans_dir%/**)" }
+                }
+            });
+
+        var jobContext = new Dictionary<string, string> { ["PLANS_DIR"] = "/home/plans" };
+
+        var resolution = AgentProviderFactory.Resolve(settings, "Test", jobContext: jobContext);
+
+        Assert.Contains("Write(/home/plans/**)", resolution.AllowedTools);
+    }
+
+    [Fact]
+    public void Resolve_NoJobContextLeavesVariablesForEnvExpansion()
+    {
+        var settings = CreateSettings(
+            promptwares: new Dictionary<string, PromptwareConfig>
+            {
+                ["Test"] = new()
+                {
+                    AllowedTools = new List<string> { "Read", "Bash" }
+                }
+            });
+
+        var resolution = AgentProviderFactory.Resolve(settings, "Test");
+
+        Assert.Equal(new[] { "Read", "Bash" }, resolution.AllowedTools);
+    }
 }
