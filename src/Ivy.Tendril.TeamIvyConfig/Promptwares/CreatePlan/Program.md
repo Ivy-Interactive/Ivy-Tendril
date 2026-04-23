@@ -156,23 +156,47 @@ This catches stale plans before they enter the review queue, reducing wasted rev
 
 ### 4. Create Plan
 
-Create the plan folder, `plan.yaml`, and `revisions/001.md` according to the structure in `../.shared/Plans.md`.
+Create the plan using CLI commands according to the structure in `../.shared/Plans.md`. **Never write `plan.yaml` directly** — use `tendril plan` commands for all plan metadata.
 
-In `plan.yaml`, populate the `verifications` list with each verification from the project's config, all set to `Pending`:
+#### 4.1. Create the plan folder and revision
 
-```yaml
-verifications:
-  - name: Build
-    status: Pending
-  - name: Test
-    status: Pending
+Create the folder `PlansDirectory/<PlanId>-<SafeTitle>/` and write `revisions/001.md` with the plan content.
+
+#### 4.2. Create plan.yaml via CLI
+
+Use `tendril plan create` with all known fields in a single command:
+
+```bash
+tendril plan create <PlanId> "<Title>" \
+  --project "<Project>" \
+  --level "NiceToHave" \
+  --initial-prompt "<cleaned args text>" \
+  --execution-profile "balanced" \
+  --repo "<repo-path-1>" \
+  --repo "<repo-path-2>" \
+  --verification "Build=Pending" \
+  --verification "Test=Pending"
 ```
 
-If `SourcePath` is present in the firmware header, copy it to `plan.yaml` as `sourcePath`.
+Include optional flags as needed:
+- `--source-url "<url>"` — if a source URL was extracted in Step 1
+- `--related-plan "<folder-name>"` — for each plan referenced via `[number]` syntax in args
+- `--depends-on "<folder-name>"` — for blocking dependencies (see Section 4.4)
+- `--priority <number>` — if non-default priority
 
-If a source URL was extracted in Step 1, add `sourceUrl: "<url>"` to plan.yaml.
+Populate `--verification` flags from the project's `verifications` in config.yaml, all set to `Pending`.
 
-If the plan references other plans (from `[number]` syntax in args), add them to `relatedPlans`.
+#### 4.3. Post-creation adjustments
+
+For any fields that need to be set after initial creation, use individual CLI commands:
+
+```bash
+tendril plan set <PlanId> initialPrompt "<text>"
+tendril plan add-repo <PlanId> "<repo-path>"
+tendril plan set-verification <PlanId> Build Pending
+tendril plan add-related-plan <PlanId> "<folder-name>"
+tendril plan add-depends-on <PlanId> "<folder-name>"
+```
 
 **Validate repo paths**: After determining the project and repos from config.yaml, verify each repo path exists locally:
 - For each repo in the plan's repos list, check `Test-Path <repo-path>`
@@ -188,7 +212,7 @@ If the plan references other plans (from `[number]` syntax in args), add them to
 
 ### 4.5. Recommend Execution Profile
 
-Analyze the task complexity and set `executionProfile` in plan.yaml. Consider:
+Analyze the task complexity and choose an `executionProfile`. This is passed via `--execution-profile` on `tendril plan create` (see Step 4.2).
 
 **Use `deep` (opus/max effort) when:**
 - Plan involves complex cross-cutting changes affecting 10+ files
@@ -203,12 +227,7 @@ Analyze the task complexity and set `executionProfile` in plan.yaml. Consider:
 - Simple changes (docs, typos, version bumps, log statements)
 - When in doubt, use balanced
 
-Add the field to plan.yaml:
-```yaml
-executionProfile: balanced  # or deep
-```
-
-If you cannot determine complexity (e.g., task is too vague), omit the field — ExecutePlan will use the config.yaml default.
+If you cannot determine complexity (e.g., task is too vague), omit `--execution-profile` — ExecutePlan will use the config.yaml default.
 
 ### 4.6. Questions Section
 
@@ -264,7 +283,7 @@ The user can edit the checklist before execution — unchecking a required verif
 If the YOLO flag was detected in Step 1, automatically execute the plan after creation:
 
 1. **Verify plan was created**: Confirm the plan folder exists at `PlansDirectory/<PlanId>-<SafeTitle>/`
-2. **Update plan state**: Change the plan's state from `Draft` to `Building` in `plan.yaml`
+2. **Update plan state**: `tendril plan set <PlanId> state Building`
 3. **Invoke ExecutePlan**: Use `Tools/Invoke-ExecutePlan.ps1` to trigger plan execution:
    ```powershell
    & Tools/Invoke-ExecutePlan.ps1 -PlanPath "PlansDirectory/<PlanId>-<SafeTitle>"
