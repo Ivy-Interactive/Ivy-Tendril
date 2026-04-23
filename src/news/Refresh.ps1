@@ -1,6 +1,6 @@
 # Refresh News CDN
-# Uploads news.json and images to Azure Blob Storage (public/tendril/news/*)
-# Available at https://cdn.ivy.app/tendril/news/*
+# Uploads news.json and images to Azure Blob Storage (public/tendril/*)
+# Available at https://cdn.ivy.app/tendril/*
 
 $ErrorActionPreference = "Stop"
 
@@ -25,7 +25,7 @@ if ([string]::IsNullOrWhiteSpace($connectionString)) {
 
 $scriptDir = $PSScriptRoot
 $container = "public"
-$destPrefix = "tendril/news"
+$destPrefix = "tendril"
 
 # Upload news.json
 Write-Host "Uploading news.json..." -ForegroundColor Yellow
@@ -82,4 +82,4 @@ if (Test-Path $imagesDir) {
     }
 }
 
-Write-Host "`nRefresh complete. Content available at https://cdn.ivy.app/tendril/news/" -ForegroundColor Cyan
+Write-Host "`nRefresh complete. Content available at https://cdn.ivy.app/tendril/" -ForegroundColor Cyan
