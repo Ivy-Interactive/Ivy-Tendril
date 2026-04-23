@@ -103,9 +103,13 @@ internal class JobCompletionHandler
         {
             SetPlanState(job, "Completed");
         }
-        else if (isSuccess && job.Type is "UpdatePlan" or "ExpandPlan" or "SplitPlan")
+        else if (isSuccess && job.Type is "UpdatePlan" or "ExpandPlan")
         {
             SetPlanState(job, "Draft");
+        }
+        else if (isSuccess && job.Type == "SplitPlan")
+        {
+            SetPlanState(job, "Skipped");
         }
         else if (isSuccess && job.Type == "CreatePlan")
         {
