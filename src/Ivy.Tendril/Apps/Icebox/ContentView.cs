@@ -53,6 +53,8 @@ public class ContentView(
                 if (plan != null && editContent.Value != originalContent.Value)
                 {
                     planService.SaveRevision(plan.FolderName, editContent.Value);
+                    var updated = planService.GetPlanByFolder(plan.FolderPath);
+                    if (updated != null) selectedPlanState.Set(updated);
                     refreshPlans();
                 }
             }
