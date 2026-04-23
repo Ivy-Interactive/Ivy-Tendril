@@ -42,6 +42,7 @@ public class PlanDownloadHelperTests
         services.AddSingleton<IConfigService>(testConfig);
         services.AddSingleton<ConfigService>(testConfig);
         services.AddSingleton<ILogger<PlanReaderService>>(NullLogger<PlanReaderService>.Instance);
+        services.AddSingleton<ILogger<PlanPdfService>>(NullLogger<PlanPdfService>.Instance);
         services.AddSingleton<PlanReaderService>();
         var provider = services.BuildServiceProvider();
         var context = new ViewContext(() => { }, null, provider);

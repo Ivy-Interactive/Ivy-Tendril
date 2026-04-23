@@ -4,6 +4,7 @@ using System.Text;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services.Agents;
+using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -33,6 +34,10 @@ public class PromptwareRunSettings : CommandSettings
 
 public class PromptwareRunCommand : Command<PromptwareRunSettings>
 {
+    private readonly ILogger<PromptwareRunCommand> _logger;
+
+    public PromptwareRunCommand(ILogger<PromptwareRunCommand> logger) => _logger = logger;
+
     protected override int Execute(CommandContext context, PromptwareRunSettings settings, CancellationToken cancellationToken)
     {
         try
@@ -41,7 +46,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            _logger.LogError(ex, "Failed to run promptware {Promptware}", settings.Promptware);
             return 1;
         }
     }
@@ -76,7 +81,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         return (sourceFolder, sourceShared);
     }
 
-    internal static int Run(PromptwareRunSettings settings, CancellationToken cancellationToken = default)
+    internal int Run(PromptwareRunSettings settings, CancellationToken cancellationToken = default)
     {
         var configService = new ConfigService();
         var tendrilSettings = configService.Settings;
@@ -86,7 +91,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
 
         if (!File.Exists(programMd))
         {
-            Console.Error.WriteLine($"Error: Program.md not found at {programMd}");
+            _logger.LogError("Program.md not found at {ProgramMdPath}", programMd);
             return 1;
         }
 
@@ -157,13 +162,13 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         var verbosityService = new VerbosityService();
         if (verbosityService.Level != VerbosityLevel.Quiet)
         {
-            Console.Error.WriteLine($"Running {settings.Promptware} via {resolution.Provider.Name} (model={resolution.Model}, effort={resolution.Effort})");
+            _logger.LogInformation("Running {Promptware} via {ProviderName} (model={Model}, effort={Effort})", settings.Promptware, resolution.Provider.Name, resolution.Model, resolution.Effort);
         }
 
         using var process = Process.Start(psi);
         if (process == null)
         {
-            Console.Error.WriteLine("Error: Failed to start agent process");
+            _logger.LogError("Failed to start agent process");
             return 1;
         }
 

@@ -1267,7 +1267,7 @@ public class PlanReaderService(
             catch (Exception ex)
             {
                 // Fall back to the repair pass for malformed agent-generated YAML.
-                Console.Error.WriteLine($"Failed to parse plan YAML '{planYamlPath}', attempting repair: {ex.Message}");
+                _logger.LogWarning(ex, "Failed to parse plan YAML {PlanYamlPath}, attempting repair", planYamlPath);
                 var repaired = RepairPlanYaml(yamlContent);
                 if (repaired != yamlContent)
                     FileHelper.WriteAllText(planYamlPath, repaired);

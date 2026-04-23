@@ -1,6 +1,7 @@
 using Ivy.Tendril.Database;
 using Ivy.Tendril.Database.Migrations;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Test;
 
@@ -372,7 +373,7 @@ public class DatabaseMigratorTests : IDisposable
         public int Version { get; }
         public string Description { get; }
 
-        public void Apply(SqliteConnection connection)
+        public void Apply(SqliteConnection connection, ILogger? logger = null)
         {
             _tracker?.Add(Version);
             using var cmd = connection.CreateCommand();
@@ -392,7 +393,7 @@ public class DatabaseMigratorTests : IDisposable
         public int Version { get; }
         public string Description { get; }
 
-        public void Apply(SqliteConnection connection)
+        public void Apply(SqliteConnection connection, ILogger? logger = null)
         {
             throw new InvalidOperationException("Intentional migration failure");
         }

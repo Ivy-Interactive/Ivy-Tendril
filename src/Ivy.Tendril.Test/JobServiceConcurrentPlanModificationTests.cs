@@ -251,23 +251,32 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
     [Fact]
     public void StartJob_RaisesNotificationWhenConcurrentJobBlocked()
     {
-        var service = new JobService(
-            TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
-            null, 10);
+        var previousContext = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(null);
+        try
+        {
+            var service = new JobService(
+                TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
+                null, 10);
 
-        JobNotification? receivedNotification = null;
-        service.NotificationReady += n => receivedNotification = n;
+            JobNotification? receivedNotification = null;
+            service.NotificationReady += n => receivedNotification = n;
 
-        // Start first job
-        _ = service.CreateTestJob("UpdatePlan", _planFolder);
+            // Start first job
+            _ = service.CreateTestJob("UpdatePlan", _planFolder);
 
-        // Try to start conflicting second job
-        _ = service.StartJob("UpdatePlan", _planFolder);
+            // Try to start conflicting second job
+            _ = service.StartJob("UpdatePlan", _planFolder);
 
-        // Should have received a notification
-        Assert.NotNull(receivedNotification);
-        Assert.Contains("Already Running", receivedNotification.Title);
-        Assert.False(receivedNotification.IsSuccess);
-        Assert.Contains("Cannot start", receivedNotification.Message);
+            // Should have received a notification
+            Assert.NotNull(receivedNotification);
+            Assert.Contains("Already Running", receivedNotification.Title);
+            Assert.False(receivedNotification.IsSuccess);
+            Assert.Contains("Cannot start", receivedNotification.Message);
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previousContext);
+        }
     }
 }

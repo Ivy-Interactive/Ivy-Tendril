@@ -1,22 +1,27 @@
 using System.Reflection;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Database;
 
 public class DatabaseMigrator
 {
     private readonly SqliteConnection _connection;
+    private readonly ILogger _logger;
     private readonly List<IMigration> _migrations;
 
-    public DatabaseMigrator(SqliteConnection connection)
+    public DatabaseMigrator(SqliteConnection connection, ILogger? logger = null)
     {
         _connection = connection;
+        _logger = logger ?? NullLogger<DatabaseMigrator>.Instance;
         _migrations = LoadMigrations();
     }
 
-    internal DatabaseMigrator(SqliteConnection connection, List<IMigration> migrations)
+    internal DatabaseMigrator(SqliteConnection connection, List<IMigration> migrations, ILogger? logger = null)
     {
         _connection = connection;
+        _logger = logger ?? NullLogger<DatabaseMigrator>.Instance;
         _migrations = migrations;
         ValidateMigrationSequence(_migrations);
     }
@@ -41,7 +46,7 @@ public class DatabaseMigrator
 
         if (currentVersion == latestVersion)
         {
-            Console.WriteLine($"Database is up to date (version {currentVersion})");
+            _logger.LogInformation("Database is up to date (version {CurrentVersion})", currentVersion);
             return;
         }
 
@@ -50,7 +55,7 @@ public class DatabaseMigrator
                 $"Database version ({currentVersion}) is newer than application version ({latestVersion}). " +
                 "Please update the application.");
 
-        Console.WriteLine($"Migrating database from version {currentVersion} to {latestVersion}...");
+        _logger.LogInformation("Migrating database from version {CurrentVersion} to {LatestVersion}...", currentVersion, latestVersion);
 
         var pendingMigrations = _migrations
             .Where(m => m.Version > currentVersion)
@@ -63,8 +68,8 @@ public class DatabaseMigrator
         {
             foreach (var migration in pendingMigrations)
             {
-                Console.WriteLine($"  Applying migration {migration.Version}: {migration.Description}");
-                migration.Apply(_connection);
+                _logger.LogInformation("  Applying migration {MigrationVersion}: {MigrationDescription}", migration.Version, migration.Description);
+                migration.Apply(_connection, _logger);
 
                 var newVersion = GetCurrentVersion();
                 if (newVersion != migration.Version)
@@ -74,11 +79,11 @@ public class DatabaseMigrator
             }
 
             transaction.Commit();
-            Console.WriteLine($"Migration complete. Database is now at version {latestVersion}");
+            _logger.LogInformation("Migration complete. Database is now at version {LatestVersion}", latestVersion);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Migration failed: {ex.Message}");
+            _logger.LogError("Migration failed: {ErrorMessage}", ex.Message);
             transaction.Rollback();
             throw;
         }

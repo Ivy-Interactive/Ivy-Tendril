@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Helpers;
 
@@ -17,7 +18,7 @@ public static class VariableExpansion
     /// <summary>
     ///     Initialize user secrets from the directory containing a .csproj with UserSecretsId.
     /// </summary>
-    public static void InitializeUserSecrets(string configDirectory)
+    public static void InitializeUserSecrets(string configDirectory, ILogger? logger = null)
     {
         try
         {
@@ -43,7 +44,7 @@ public static class VariableExpansion
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Failed to initialize user secrets from '{configDirectory}': {ex.Message}");
+            logger?.LogWarning(ex, "Failed to initialize user secrets from {ConfigDirectory}", configDirectory);
             _userSecretsConfig = null;
         }
     }

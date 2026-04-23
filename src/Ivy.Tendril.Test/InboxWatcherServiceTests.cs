@@ -1,6 +1,7 @@
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test;
 
@@ -125,7 +126,7 @@ public class InboxWatcherServiceTests
 
             var config = new ConfigService(new TendrilSettings(), tempDir);
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
-            using var watcher = new InboxWatcherService(config, jobService);
+            using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
 
             // Wait for async processing
             Thread.Sleep(2000);
@@ -155,7 +156,7 @@ public class InboxWatcherServiceTests
 
             var config = new ConfigService(new TendrilSettings(), tempDir);
             var jobService = new TrackedStubJobService { TrackedReturnValue = true };
-            using var watcher = new InboxWatcherService(config, jobService);
+            using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
 
             Thread.Sleep(2000);
 
@@ -186,7 +187,7 @@ public class InboxWatcherServiceTests
 
             var config = new ConfigService(new TendrilSettings(), tempDir);
             var jobService = new TrackedStubJobService { TrackedReturnValue = false };
-            using var watcher = new InboxWatcherService(config, jobService);
+            using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
 
             Thread.Sleep(2000);
 
@@ -247,7 +248,7 @@ public class InboxWatcherServiceTests
 
             var config = new ConfigService(new TendrilSettings(), tempDir);
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
-            using var watcher = new InboxWatcherService(config, jobService);
+            using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
 
             // The constructor calls ProcessExistingFiles, which dispatches async processing.
             // Wait briefly for the async task to pick up and rename the file to .processing.

@@ -3,6 +3,7 @@ using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -60,6 +61,10 @@ public class PlanCreateSettings : CommandSettings
 
 public class PlanCreateCommand : Command<PlanCreateSettings>
 {
+    private readonly ILogger<PlanCreateCommand> _logger;
+
+    public PlanCreateCommand(ILogger<PlanCreateCommand> logger) => _logger = logger;
+
     protected override int Execute(CommandContext context, PlanCreateSettings settings, CancellationToken cancellationToken)
     {
         try
@@ -70,7 +75,7 @@ public class PlanCreateCommand : Command<PlanCreateSettings>
             var yamlPath = Path.Combine(planFolder, "plan.yaml");
             if (File.Exists(yamlPath))
             {
-                Console.Error.WriteLine($"Error: plan.yaml already exists at {yamlPath}");
+                _logger.LogError("Plan already exists at {YamlPath}", yamlPath);
                 return 1;
             }
 
@@ -115,12 +120,12 @@ public class PlanCreateCommand : Command<PlanCreateSettings>
 
             PlanCommandHelpers.WritePlan(planFolder, plan);
 
-            Console.WriteLine($"Created plan {settings.PlanId}: {settings.Title}");
+            _logger.LogInformation("Created plan {PlanId}: {Title}", settings.PlanId, settings.Title);
             return 0;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            _logger.LogError(ex, "Failed to create plan {PlanId}", settings.PlanId);
             return 1;
         }
     }

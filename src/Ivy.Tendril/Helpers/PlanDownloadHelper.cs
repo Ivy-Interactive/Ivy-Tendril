@@ -1,13 +1,14 @@
 using Ivy.Tendril.Models;
-
 using Ivy.Tendril.Services;
+using Microsoft.Extensions.Logging;
+
 namespace Ivy.Tendril.Helpers;
 
 public static class PlanDownloadHelper
 {
     public static IState<string?> UsePlanDownload(IViewContext context, IPlanReaderService planService, PlanFile? plan)
     {
-        var pdfService = new PlanPdfService();
+        var pdfService = new PlanPdfService(context.UseService<ILogger<PlanPdfService>>());
         var planRef = context.UseRef<PlanFile?>(plan);
         planRef.Value = plan;
 
