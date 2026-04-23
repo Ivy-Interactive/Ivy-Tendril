@@ -257,8 +257,8 @@ promptwares:
     - Glob
     - Grep
     - Bash
-    - Write
-    - Edit
+    - 'Write(%PLANS_DIR%/**)'
+    - 'Edit(%PLANS_DIR%/**)'
   ExecutePlan:
     profile: deep
     allowedTools:
@@ -275,14 +275,16 @@ promptwares:
     - Glob
     - Grep
     - Bash
-    - Write
+    - 'Write(%PLAN_FOLDER%/**)'
   CreatePr:
     profile: balanced
     allowedTools:
     - Read
+    - Glob
+    - Grep
     - Bash
-    - Write
-    - Edit
+    - 'Write(%PLAN_FOLDER%/**)'
+    - 'Edit(%PLAN_FOLDER%/**)'
   UpdatePlan:
     profile: balanced
     allowedTools:
@@ -290,13 +292,13 @@ promptwares:
     - Glob
     - Grep
     - Bash
-    - Write
+    - 'Write(%PLAN_FOLDER%/**)'
   SplitPlan:
     profile: balanced
     allowedTools:
     - Read
     - Bash
-    - Write
+    - 'Write(%PLANS_DIR%/**)'
   CreateIssue:
     profile: balanced
     allowedTools:
@@ -306,7 +308,8 @@ promptwares:
     profile: balanced
     allowedTools:
     - Read
-    - Write
+    - 'Write(%PLAN_FOLDER%/**)'
+    - 'Edit(%PLAN_FOLDER%/**)'
     - Bash
   PlanEvaluator:
     profile: balanced
@@ -315,7 +318,7 @@ promptwares:
     - Glob
     - Grep
     - Bash
-    - Write
+    - 'Write(%TENDRIL_HOME%/Inbox/**)'
 codingAgents:
 - name: claude
   arguments: ''
