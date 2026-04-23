@@ -24,6 +24,7 @@ public class SidebarView(
 
         var filteredPlans =
             PlanFilters.ApplyFilters(_plans, _projectFilter.Value, _levelFilter.Value, _textFilter.Value);
+        var filteredList = filteredPlans.ToList();
 
         var levelOptions = _config.LevelNames;
 
@@ -58,7 +59,15 @@ public class SidebarView(
                           .WithField().Label("Level");
         }
 
-        var content = new List(filteredPlans.Select(plan =>
+        if (filteredList.Count == 0 && (_projectFilter.Value != null || _levelFilter.Value != null || !string.IsNullOrWhiteSpace(_textFilter.Value)))
+        {
+            var emptyContent = Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(4)
+                   | new Icon(Icons.SearchX).Color(Colors.Gray)
+                   | Text.Muted("No results. Try adjusting your filters.");
+            return new HeaderLayout(header, emptyContent);
+        }
+
+        var content = new List(filteredList.Select(plan =>
         {
             var clickablePlan = plan;
             return new ListItem($"#{plan.Id} {plan.Title}")

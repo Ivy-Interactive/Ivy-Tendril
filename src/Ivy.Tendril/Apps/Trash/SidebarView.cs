@@ -28,11 +28,21 @@ public class SidebarView(
         var header = _searchFilter.ToSearchInput().Placeholder("Search trash...");
 
         object content;
-        if (filteredList.Count == 0)
+        if (filteredList.Count == 0 && !string.IsNullOrWhiteSpace(_searchFilter.Value))
+        {
+            // Search active but no results
+            content = Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(4)
+                      | new Icon(Icons.SearchX).Color(Colors.Gray)
+                      | Text.Muted("No results. Try adjusting your filters.");
+        }
+        else if (filteredList.Count == 0)
+        {
+            // Genuinely no trash items
             content = Layout.Vertical().AlignContent(Align.Center).Gap(2).Padding(4)
                       | new Icon(Icons.Trash2).Size(Size.Units(6)).Color(Colors.Gray)
                       | Text.Muted("No trash items")
                       | Text.Muted("Duplicate plans will appear here").Small();
+        }
         else
             content = new List(filteredList.Select(f =>
             {

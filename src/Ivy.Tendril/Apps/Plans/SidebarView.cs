@@ -18,6 +18,8 @@ public class SidebarView(
         var filteredPlans =
             PlanFilters.ApplyFilters(plans, projectFilter.Value, levelFilter.Value, textFilter.Value);
 
+        var filteredList = filteredPlans.ToList();
+
         var levelOptions = config.LevelNames;
 
         var levelFilteredPlans = plans.AsEnumerable();
@@ -51,7 +53,15 @@ public class SidebarView(
                           .WithField().Label("Level");
         }
 
-        var content = new List(filteredPlans.Select(plan =>
+        if (filteredList.Count == 0 && (projectFilter.Value != null || levelFilter.Value != null || !string.IsNullOrWhiteSpace(textFilter.Value)))
+        {
+            var emptyContent = Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(4)
+                   | new Icon(Icons.SearchX).Color(Colors.Gray)
+                   | Text.Muted("No results. Try adjusting your filters.");
+            return new HeaderLayout(header, emptyContent);
+        }
+
+        var content = new List(filteredList.Select(plan =>
         {
             var clickablePlan = plan;
             var stateBadgeVariant = StatusMappings.PlanStatusBadgeVariants.TryGetValue(plan.Status, out var variant)
