@@ -283,16 +283,35 @@ public class JobsApp : ViewBase
 
                 return ValueTask.CompletedTask;
             })
-            .RowActions(
-                new MenuItem("View Plan", Icon: Icons.FileText, Tag: "view-plan").Tooltip("Open the associated plan"),
-                new MenuItem("View Output", Icon: Icons.Terminal, Tag: "view-output").Tooltip(
-                    "View job output with Claude JSON rendering"),
-                new MenuItem("Show Prompt", Icon: Icons.MessageSquare, Tag: "show-prompt").Tooltip(
-                    "Show the full prompt text"),
-                new MenuItem("Stop", Icon: Icons.Square, Tag: "stop-job").Tooltip("Stop this running job"),
-                new MenuItem("Rerun", Icon: Icons.RotateCw, Tag: "rerun-job").Tooltip("Rerun this job"),
-                new MenuItem("Delete", Icon: Icons.Trash, Tag: "delete-job").Tooltip("Delete this job")
-            )
+            .RowActions(row =>
+            {
+                var job = jobs.FirstOrDefault(j => j.Id == row.Id);
+                var actions = new List<MenuItem>
+                {
+                    new MenuItem("View Plan", Icon: Icons.FileText, Tag: "view-plan").Tooltip("Open the associated plan"),
+                    new MenuItem("View Output", Icon: Icons.Terminal, Tag: "view-output").Tooltip(
+                        "View job output with Claude JSON rendering"),
+                    new MenuItem("Show Prompt", Icon: Icons.MessageSquare, Tag: "show-prompt").Tooltip(
+                        "Show the full prompt text"),
+                };
+
+                if (job?.Status is JobStatus.Running or JobStatus.Queued)
+                {
+                    actions.Add(new MenuItem("Stop", Icon: Icons.Square, Tag: "stop-job")
+                        .Tooltip("Stop this running job"));
+                }
+
+                if (job?.Status is JobStatus.Failed or JobStatus.Timeout or JobStatus.Stopped)
+                {
+                    actions.Add(new MenuItem("Rerun", Icon: Icons.RotateCw, Tag: "rerun-job")
+                        .Tooltip("Rerun this job"));
+                }
+
+                actions.Add(new MenuItem("Delete", Icon: Icons.Trash, Tag: "delete-job")
+                    .Tooltip("Delete this job"));
+
+                return actions.ToArray();
+            })
             .OnRowAction(e =>
             {
                 var tag = e.Value.Tag?.ToString();
