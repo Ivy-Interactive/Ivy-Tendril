@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using Ivy.Helpers;
-using Ivy.Tendril.Apps.Jobs;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -33,7 +33,7 @@ public class JobServiceTimeoutTests
         JobNotification? notification = null;
         service.NotificationReady += n => notification = n;
 
-        service.CompleteJob(id, null, true, false);
+        service.CompleteJob(id, null, true);
 
         job = service.GetJob(id);
         Assert.NotNull(job);
@@ -352,8 +352,15 @@ codingAgent: claude
 
 internal sealed class CapturingLogger<T>(List<(LogLevel Level, string Message)> entries) : ILogger<T>
 {
-    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-    public bool IsEnabled(LogLevel logLevel) => true;
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+    {
+        return null;
+    }
+
+    public bool IsEnabled(LogLevel logLevel)
+    {
+        return true;
+    }
 
     public void Log<TState>(
         LogLevel logLevel,

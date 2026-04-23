@@ -1,5 +1,5 @@
 using Ivy.Tendril.Mcp;
-using Xunit;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test.Mcp;
 
@@ -26,7 +26,7 @@ public class McpAuthenticationServiceTests : IDisposable
     {
         // Arrange
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", null);
-        var authService = new McpAuthenticationService();
+        var authService = new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance);
 
         // Act & Assert
         Assert.False(authService.IsAuthenticationEnabled);
@@ -42,7 +42,7 @@ public class McpAuthenticationServiceTests : IDisposable
         // Arrange
         var testToken = "test-secure-token-123";
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", testToken);
-        var authService = new McpAuthenticationService();
+        var authService = new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance);
 
         // Act & Assert
         Assert.True(authService.IsAuthenticationEnabled);
@@ -55,7 +55,7 @@ public class McpAuthenticationServiceTests : IDisposable
     {
         // Arrange
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", "correct-token");
-        var authService = new McpAuthenticationService();
+        var authService = new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance);
 
         // Act & Assert
         Assert.True(authService.IsAuthenticationEnabled);
@@ -69,7 +69,7 @@ public class McpAuthenticationServiceTests : IDisposable
     {
         // Arrange
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", "required-token");
-        var authService = new McpAuthenticationService();
+        var authService = new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance);
 
         // Act & Assert
         Assert.True(authService.IsAuthenticationEnabled);
@@ -84,7 +84,7 @@ public class McpAuthenticationServiceTests : IDisposable
         // Arrange
         var plainToken = "unquoted-token";
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", $"\"{plainToken}\"");
-        var authService = new McpAuthenticationService();
+        var authService = new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance);
 
         // Act & Assert - both quoted and unquoted should work since service strips quotes
         Assert.True(authService.IsAuthenticationEnabled);
@@ -96,7 +96,7 @@ public class McpAuthenticationServiceTests : IDisposable
     {
         // Arrange
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", "CaseSensitiveToken");
-        var authService = new McpAuthenticationService();
+        var authService = new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance);
 
         // Act & Assert
         Assert.True(authService.ValidateToken("CaseSensitiveToken"));
@@ -109,7 +109,7 @@ public class McpAuthenticationServiceTests : IDisposable
     {
         // Arrange
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", "initial-token");
-        var authService = new McpAuthenticationService();
+        var authService = new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance);
 
         // Act - Change environment variable after service creation
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", "changed-token");

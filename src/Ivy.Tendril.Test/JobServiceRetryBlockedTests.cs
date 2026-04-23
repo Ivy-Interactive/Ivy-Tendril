@@ -1,5 +1,4 @@
-using Ivy.Tendril.Apps.Jobs;
-using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
@@ -11,13 +10,13 @@ public class JobServiceRetryBlockedTests
         var tempDir = Path.Combine(Path.GetTempPath(), $"tendril-test-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDir);
 
-        var depsYaml = "";
+        string depsYaml;
         if (dependsOn is { Count: > 0 })
             depsYaml = "dependsOn:\n" + string.Join("\n", dependsOn.Select(d => $"- {d}"));
         else
             depsYaml = "dependsOn: []";
 
-        var prsYaml = "";
+        string prsYaml;
         if (prs is { Count: > 0 })
             prsYaml = "prs:\n" + string.Join("\n", prs.Select(p => $"- {p}"));
         else
@@ -175,7 +174,8 @@ public class JobServiceRetryBlockedTests
 
         // Since the blocked job was already removed, no new ExecutePlan job should be created for it
         var jobs = service.GetJobs();
-        var executePlanJobs = jobs.Where(j => j.Type == "ExecutePlan" && j.Args.Length > 0 && j.Args[0] == dependentPlan1).ToList();
+        var executePlanJobs =
+            jobs.Where(j => j.Type == "ExecutePlan" && j.Args.Length > 0 && j.Args[0] == dependentPlan1).ToList();
         Assert.Empty(executePlanJobs);
 
         // Cleanup
@@ -306,9 +306,9 @@ public class JobServiceRetryBlockedTests
         {
         }
 
-        public DashboardStats GetDashboardData(string? projectFilter)
+        public DashboardModels GetDashboardData(string? projectFilter)
         {
-            return new DashboardStats(0, 0, 0, 0, 0, 0, 0, [], []);
+            return new DashboardModels(0, 0, 0, 0, 0, 0, 0, [], []);
         }
 
         public decimal GetPlanTotalCost(string folderPath)
@@ -350,6 +350,9 @@ public class JobServiceRetryBlockedTests
         {
         }
 
-        public Task FlushPendingWritesAsync() => Task.CompletedTask;
+        public Task FlushPendingWritesAsync()
+        {
+            return Task.CompletedTask;
+        }
     }
 }

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Mcp;
 
@@ -10,6 +11,8 @@ public class TendrilMcpServer
         try
         {
             var builder = Host.CreateEmptyApplicationBuilder(settings: null);
+
+            builder.Services.AddLogging(logging => logging.AddConsole());
 
             // Register authentication service
             builder.Services.AddSingleton<McpAuthenticationService>();
@@ -27,12 +30,13 @@ public class TendrilMcpServer
                 .WithToolsFromAssembly();
 
             var host = builder.Build();
+            var logger = host.Services.GetRequiredService<ILogger<TendrilMcpServer>>();
 
             // Validate authentication on startup
             var authService = host.Services.GetRequiredService<McpAuthenticationService>();
             if (!authService.ValidateEnvironmentToken())
             {
-                Console.Error.WriteLine("MCP server authentication failed. Ensure TENDRIL_MCP_TOKEN is set correctly.");
+                logger.LogError("MCP server authentication failed. Ensure TENDRIL_MCP_TOKEN is set correctly");
                 return 1;
             }
 
@@ -41,6 +45,7 @@ public class TendrilMcpServer
         }
         catch (Exception ex)
         {
+            // Logger may not be available if host build itself failed; fall back is acceptable
             Console.Error.WriteLine($"MCP server error: {ex.Message}");
             return 1;
         }

@@ -1,5 +1,7 @@
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Apps.Review.Dialogs;
@@ -26,7 +28,12 @@ public class RerunDialog(
         if (!_dialogOpen.Value) return null;
 
         return new Dialog(
-            _ => _dialogOpen.Set(false),
+            _ =>
+            {
+                isRerunningClean.Set(false);
+                isRerunningCurrent.Set(false);
+                _dialogOpen.Set(false);
+            },
             new DialogHeader($"Rerun Plan #{_selectedPlan.Id}"),
             new DialogBody(
                 Text.P("How would you like to rerun this plan?")

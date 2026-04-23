@@ -147,7 +147,7 @@ After reading the plan revision, scan it for code validation markers to detect s
    - A `<details><summary>Still relevant?</summary>` block whose body starts with `No.`
    - Phrases like *"Already applied"*, *"This plan is redundant"*, *"This plan is superseded"*, or *"previously attempted … was merged to main via PR #NNNN"* in the `## Problem` or `## Solution` sections.
 
-   If any marker is found, verify the claim: run `gh pr view <cited PR> --json state,mergeCommit` (must be `MERGED`), confirm the cited commit is in `git log origin/<default-branch>`, and byte-compare the plan's proposed code against the current file contents. If all three checks pass, write `verification/PreExecution.md` with `Result: Fail`, write `artifacts/summary.md` documenting the no-op, set every `plan.yaml` verification to `Skipped`, and fail the plan **without creating a worktree** — running verifications on unchanged code wastes the time budget and produces a 0-commit PR that CreatePr cannot process.
+   If any marker is found, verify the claim: run `gh pr view <cited PR> --json state,mergeCommit` (must be `MERGED`), confirm the cited commit is in `git log origin/<default-branch>`, and byte-compare the plan's proposed code against the current file contents. If all three checks pass, write `verification/PreExecution.md` with `Result: Fail`, write `artifacts/summary.md` documenting the no-op, set every verification to `Skipped` via `tendril plan set-verification <plan-id> <name> Skipped`, and fail the plan **without creating a worktree** — running verifications on unchanged code wastes the time budget and produces a 0-commit PR that CreatePr cannot process.
 
 ### 1.8. Auto-Commit Uncommitted Changes
 
@@ -216,7 +216,7 @@ fi
 
 ### 2. Create Worktrees
 
-For each repo listed in `plan.yaml` `repos` (or the project's repos from `config.yaml` if empty):
+For each repo in `RepoConfigs` (this includes both the plan's repos AND any read-only build dependencies from the project config):
 
 1. Fetch latest from remote: `git fetch origin`
 2. Determine the base branch:
@@ -260,14 +260,22 @@ git worktree add "<PlanFolder>/worktrees/<RepoName>" -b "tendril/<PlanId>-<SafeT
 
 **Important:** Always branch from `origin/<resolved-base-branch>`, not local HEAD. This ensures the PR only contains the plan's commits, not any unpushed local work. The `<resolved-base-branch>` comes from either the `RepoConfigs` firmware header (if `baseBranch` is configured) or auto-detection.
 
-**Note on `RepoConfigs`:** The firmware header may include a `RepoConfigs` value injected by ExecutePlan.ps1. It contains per-repo configuration from `config.yaml`:
+**Note on `RepoConfigs`:** The firmware header may include a `RepoConfigs` value injected by Tendril. It contains per-repo configuration from `config.yaml`:
 ```yaml
 RepoConfigs: |
-  Ivy-Framework:
-    baseBranch: develop
-    syncStrategy: rebase
+  - path: D:\Repos\Ivy-Tendril
+    baseBranch: development
+    syncStrategy: fetch
+    prRule: yolo
+  - path: D:\Repos\Ivy-Framework
+    baseBranch: development
+    syncStrategy: fetch
+    prRule: default
+    readOnly: true
 ```
 If `baseBranch` is present for a repo, use it instead of auto-detecting. If absent, fall back to `git symbolic-ref refs/remotes/origin/HEAD`.
+
+**Read-only repos** (`readOnly: true`) are build dependencies — they need worktrees so that cross-repo project references resolve, but you must NOT make changes, commits, or PRs in them. Create their worktrees the same way (branching from `origin/<baseBranch>`), but skip them during implementation steps 3-5.
 
 4. After creating the worktree, **verify the `.git` file exists** and fail fast if it's missing:
 
@@ -456,65 +464,25 @@ Focus on **what changed** (past tense), not what the plan said to do. Emphasize 
 
 Update the summary after verification fixes too — if verifications cause additional commits, append those changes to the summary.
 
-### 5.7. Generate Recommendations
-
-**REQUIRED STEP** — After implementation, actively reflect on what you observed during this plan's execution. Consider each of the following categories and write down any findings:
-
-1. **Follow-up work** — Did you notice functionality that should be extended, edge cases not covered, or related features that would complement this change?
-2. **Code quality** — Did you encounter confusing code, missing documentation, inconsistent patterns, or technical debt in the files you touched or read?
-3. **Bugs** — Did you notice any unrelated bugs, broken tests, or incorrect behavior in surrounding code?
-4. **Optimizations** — Are there performance improvements, unnecessary complexity, or refactoring opportunities in the area you worked in?
-
-If you identified items in ANY category, append them to the `recommendations` field in `<PlanFolder>/plan.yaml`:
-
-```yaml
-recommendations:
-  - title: "Short descriptive title"
-    description: |
-      Markdown description with context and location.
-    state: Pending
-    impact: Medium   # Optional: Small, Medium, or High
-    risk: Small      # Optional: Small, Medium, or High
-```
-
-Optionally include `impact` and `risk` to help prioritize the recommendation. Impact indicates the value of implementing it; Risk indicates the potential for complications or bugs.
-
-**YAML quoting rules:** Titles containing backticks, colons, brackets, braces, or other YAML special characters MUST be double-quoted. Alternatively, use block scalar style (`>` or `|`) for values with special characters.
-
-Do NOT include items that are part of the current plan's scope.
-
-Do NOT include recommendations about code formatting, linting, or style issues (e.g., line wrapping, indentation, trailing whitespace, import ordering). These are handled automatically by DotnetFormat and FrontendLint verifications.
-
-If after genuine reflection you found nothing noteworthy, skip the file — but this should be rare. Most plans touch enough code to surface at least one observation.
-
 ### 6. Document Commits
 
-Update `plan.yaml` in the plan folder (NOT in the worktree). Use the Edit tool on the original `plan.yaml` at the `PlanFolder` path.
+Use the CLI to record commits, verifications, and related plans — **never edit plan.yaml directly**.
 
-Append each commit hash to the `commits` list:
+Add each commit hash:
 
-```yaml
-commits:
-  - abc1234
-  - def5678
+```bash
+tendril plan add-commit <plan-id> abc1234
+tendril plan add-commit <plan-id> def5678
 ```
 
-Also populate the `verifications` list from the plan revision. Set checked items (`- [x]`) to `Pending` and unchecked items (`- [ ]`) to `Skipped`:
+Set verification statuses from the plan revision. Set checked items (`- [x]`) to `Pending` and unchecked items (`- [ ]`) to `Skipped`:
 
-```yaml
-verifications:
-  - name: DotnetBuild
-    status: Pending
-  - name: DotnetTest
-    status: Skipped
+```bash
+tendril plan set-verification <plan-id> DotnetBuild Pending
+tendril plan set-verification <plan-id> DotnetTest Skipped
 ```
 
-If the plan references other plans (e.g. split-from, follow-up), add them to `relatedPlans`:
-
-```yaml
-relatedPlans:
-  - <PlansDirectory>/01100-OriginalPlan
-```
+If the plan references other plans (e.g. split-from, follow-up), add them via CLI.
 
 ### 7. Run Verifications
 
@@ -528,8 +496,8 @@ For each checked verification:
 2. Look up its `prompt` in the `verifications` list in `config.yaml`
 3. Execute the prompt in the worktree directory
 4. If it fails: diagnose, fix the issue, **commit the fix** (e.g. `[01105] Fix lint errors from DotnetBuild`), and re-run. Repeat until it passes (fail the plan after 3+ failed attempts).
-5. Document all fix commits in `plan.yaml` just like implementation commits.
-6. Update the verification's `status` in `plan.yaml` to `Pass` or `Fail`.
+5. Document all fix commits via CLI: `tendril plan add-commit <plan-id> <sha>`
+6. Update the verification status via CLI: `tendril plan set-verification <plan-id> <Name> Pass` (or `Fail`)
 
 **!IMPORTANT: Every verification MUST produce a report** at `<PlanFolder>/verification/<VerificationName>.md`:
 
@@ -555,6 +523,40 @@ For each checked verification:
 
 A verification is not complete without its report. If the report file does not exist after running a verification, the plan should fail.
 
+### 7.5. Generate Recommendations
+
+After all verifications pass, reflect on what you observed during this plan's execution. Write down anything you noticed that isn't part of this plan's scope:
+
+- Follow-up work, edge cases not covered, or related features
+- Confusing code, inconsistent patterns, or technical debt in the files you touched or read
+- Unrelated bugs, broken tests, or incorrect behavior in surrounding code
+- Performance improvements, unnecessary complexity, or refactoring opportunities
+
+For each item, register it via the CLI:
+
+```bash
+tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact Medium --risk Small
+```
+
+`--impact` and `--risk` are optional (Small, Medium, or High). Impact indicates the value of implementing it; Risk indicates the potential for complications or bugs.
+
+Do NOT include items that are part of the current plan's scope. Do NOT include recommendations about code formatting, linting, or style issues — those are handled by verifications.
+
+**After registering any recommendations via the CLI**, create `<PlanFolder>/artifacts/recommendations.md`. Having zero recommendations is fine — but the file must still be created:
+
+~~~markdown
+# Recommendations
+
+## Items
+
+- **<Title>** — <one-line summary>
+- **<Title>** — <one-line summary>
+
+*Or: "None — <one sentence explaining why>"*
+~~~
+
+**This file is mandatory.** Step 8 will verify it exists and fail the plan if it is missing.
+
 ### 8. Final Clean Check
 
 After all verifications pass:
@@ -570,6 +572,8 @@ After all verifications pass:
    ```
 
 3. Run `git status` in every worktree. If there are any uncommitted files (from verification fixes, generated files, etc.), commit or discard them. The worktrees must be completely clean before finishing.
+
+4. Verify `<PlanFolder>/artifacts/recommendations.md` exists. If missing, the plan **must fail** — go back to Step 7.5.
 
 ### 8.5. Worktree Lifecycle
 
@@ -596,7 +600,7 @@ You are running in non-interactive mode and CANNOT ask questions. If you are uns
 - All work happens in worktree directories, never in the original repos
 - Make logically grouped commits — not one giant commit
 - Worktrees must be clean (no uncommitted files) when finished
-- Document all commit hashes in `plan.yaml`
+- Document all commit hashes via `tendril plan add-commit` — never edit plan.yaml directly
 - Follow the plan instructions exactly as written
 - Do NOT skip tests or pre-commit formatting
 - Commit messages must reference the plan ID

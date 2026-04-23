@@ -1,6 +1,8 @@
+using Ivy.Tendril.Models;
 using System.Diagnostics;
 using Ivy.Helpers;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 using Microsoft.Data.Sqlite;
 using Spectre.Console;
 
@@ -529,7 +531,7 @@ public static class DoctorCommand
                 AnsiConsole.MarkupLine($"[yellow]Found {pruneCandidates.Count} plan(s) that appear to be test/junk data:[/]");
                 AnsiConsole.WriteLine();
 
-                foreach (var (dir, result, reason) in pruneCandidates)
+                foreach (var (_, result, reason) in pruneCandidates)
                 {
                     AnsiConsole.MarkupLine($"[grey]  {result.Id}-{result.Title}  ({reason})[/]");
                 }
@@ -642,7 +644,7 @@ public static class DoctorCommand
             // Try strict deserialization first
             try
             {
-                var plan = Services.YamlHelper.Deserializer.Deserialize<Apps.Plans.PlanYaml>(content);
+                var plan = Helpers.YamlHelper.Deserializer.Deserialize<Models.PlanYaml>(content);
                 if (plan == null)
                     return (false, "Null after parse", "Unknown");
 
@@ -756,7 +758,7 @@ public static class DoctorCommand
         try
         {
             var content = File.ReadAllText(planYamlPath);
-            var plan = Services.YamlHelper.Deserializer.Deserialize<Apps.Plans.PlanYaml>(content);
+            var plan = Helpers.YamlHelper.Deserializer.Deserialize<Models.PlanYaml>(content);
             // Recommendations are optional — only validate if present
             if (plan?.Recommendations != null && plan.Recommendations.Count > 0)
                 return null;
@@ -826,12 +828,11 @@ public static class DoctorCommand
                 {
                     var content = File.ReadAllText(yamlPath);
                     var repaired = PlanReaderService.RepairPlanYaml(content);
-                    var changed = repaired != content;
 
                     var folderTitle = TitleFromFolderName(Path.GetFileName(planPath));
 
                     repaired = RepairYamlFields(repaired, folderTitle);
-                    changed = repaired != content;
+                    var changed = repaired != content;
 
                     if (changed)
                     {
@@ -886,7 +887,7 @@ public static class DoctorCommand
         var match = System.Text.RegularExpressions.Regex.Match(folderName, @"^\d{5}-(.+)$");
         if (!match.Success) return folderName;
         var raw = match.Groups[1].Value;
-        var spaced = System.Text.RegularExpressions.Regex.Replace(raw, @"(?<=[a-z])(?=[A-Z])", " ");
+        var spaced = System.Text.RegularExpressions.Regex.Replace(raw, "(?<=[a-z])(?=[A-Z])", " ");
         return spaced.Replace('-', ' ');
     }
 

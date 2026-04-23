@@ -98,6 +98,12 @@ tendril plan add-commit <plan-id> <sha>
 tendril plan set-verification <plan-id> <name> <status>
 # Valid statuses: Pending, Pass, Fail, Skipped
 
+# Related plans
+tendril plan add-related-plan <plan-id> <folder-name>
+
+# Dependencies
+tendril plan add-depends-on <plan-id> <folder-name>
+
 # Recommendations
 tendril plan rec add <plan-id> <title> -d <description> [--impact Small|Medium|High] [--risk Small|Medium|High]
 tendril plan rec accept <plan-id> <title> [--notes <text>]
@@ -116,8 +122,20 @@ tendril plan validate <plan-id>
 ### Creating a plan
 
 ```bash
-tendril plan create <plan-id> <title>
+tendril plan create <plan-id> <title> [options]
 ```
+
+Options:
+- `--project <name>` — Project name (default: Auto)
+- `--level <level>` — Priority level (default: NiceToHave)
+- `--initial-prompt <text>` — Original user description
+- `--source-url <url>` — GitHub issue or PR URL
+- `--execution-profile <profile>` — deep or balanced
+- `--priority <number>` — Priority (default: 0)
+- `--repo <path>` — Repository path (repeatable)
+- `--verification <Name=Status>` — Verification entry (repeatable)
+- `--related-plan <folder>` — Related plan folder name (repeatable)
+- `--depends-on <folder>` — Dependency plan folder name (repeatable)
 
 ### Writing execution logs
 
@@ -203,7 +221,7 @@ recommendations:
 | `relatedPlans` | Paths to related plan folders (parent plans, split-from, follow-ups) |
 | `dependsOn`    | Plan folder names this plan depends on (e.g. `- 01478-WorktreeIsolation`). ExecutePlan will block until all dependencies are `Completed` and their PRs are merged. |
 | `priority`     | Integer priority (0 = normal). Higher values are executed first. Set by CreatePlan launcher, not by agents. |
-| `executionProfile` | (Optional) Recommended execution profile for ExecutePlan: `deep`, `balanced`, or `quick`. If set, overrides config.yaml default. CreatePlan sets this based on task complexity analysis. |
+| `executionProfile` | (Optional) Recommended execution profile for ExecutePlan: `deep` or `balanced`. If set, overrides config.yaml default. CreatePlan sets this based on task complexity analysis. |
 | `recommendations` | (Optional) List of recommendations discovered during ExecutePlan. Each entry has `title`, `description`, `state` (Pending/Accepted/AcceptedWithNotes/Declined), `declineReason`, `impact` (Small/Medium/High), and `risk` (Small/Medium/High). |
 
 **Do NOT add fields beyond those listed above.** Unknown fields (e.g. `tags`, `category`) will be stripped by the normalizer and may cause parse errors.

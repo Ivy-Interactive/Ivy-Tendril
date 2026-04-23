@@ -2,7 +2,9 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Ivy.Helpers;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services;
@@ -26,7 +28,7 @@ public class PlanReaderService(
     private readonly IWorktreeLifecycleLogger? _worktreeLifecycleLogger = worktreeLifecycleLogger;
     private readonly IPlanWatcherService? _planWatcherService = planWatcherService;
 
-    private readonly TimeCache<Dictionary<string, DashboardStats>> _dashboardCache =
+    private readonly TimeCache<Dictionary<string, DashboardModels>> _dashboardCache =
         new(TimeSpan.FromSeconds(10));
 
     private readonly TimeCache<Dictionary<string, List<HourlyTokenBurn>>> _hourlyBurnCache =
@@ -428,11 +430,11 @@ public class PlanReaderService(
     ///     Returns pre-aggregated dashboard data. Delegates to database when available,
     ///     otherwise returns empty stats.
     /// </summary>
-    public DashboardStats GetDashboardData(string? projectFilter)
+    public DashboardModels GetDashboardData(string? projectFilter)
     {
         if (_useDatabaseForReads && _database != null)
         {
-            var cache = _dashboardCache.GetOrCompute(() => new Dictionary<string, DashboardStats>());
+            var cache = _dashboardCache.GetOrCompute(() => new Dictionary<string, DashboardModels>());
             var key = projectFilter ?? "__all__";
             if (!cache.TryGetValue(key, out var stats))
             {
@@ -443,7 +445,7 @@ public class PlanReaderService(
             return stats;
         }
 
-        return new DashboardStats(0, 0, 0, 0, 0, 0, 0, [], []);
+        return new DashboardModels(0, 0, 0, 0, 0, 0, 0, [], []);
     }
 
     /// <summary>
@@ -766,8 +768,8 @@ public class PlanReaderService(
         var seenKeys = new HashSet<string>();
         var structuredListKeys = new Dictionary<string, (string itemStartPattern, string subKeyPattern)>
         {
-            ["verifications"] = (@"^-\s+name:", @"^(name|status):"),
-            ["recommendations"] = (@"^-\s+title:", @"^(title|description|state|impact|risk|declineReason):")
+            ["verifications"] = (@"^-\s+name:", "^(name|status):"),
+            ["recommendations"] = (@"^-\s+title:", "^(title|description|state|impact|risk|declineReason):")
         };
 
         static bool IsBlockScalarValue(string value)
@@ -779,7 +781,7 @@ public class PlanReaderService(
         {
             normalizedLine = trimmedLine;
 
-            var keyMatch = Regex.Match(trimmedLine, @"^([A-Za-z][A-Za-z0-9]*):");
+            var keyMatch = Regex.Match(trimmedLine, "^([A-Za-z][A-Za-z0-9]*):");
             if (keyMatch.Success && topLevelKeys.Contains(keyMatch.Groups[1].Value))
                 return keyMatch.Groups[1].Value;
 
@@ -890,7 +892,7 @@ public class PlanReaderService(
                 }
                 else
                 {
-                    var strayKeyMatch = Regex.Match(trimmed, @"^([A-Za-z][A-Za-z0-9]+):");
+                    var strayKeyMatch = Regex.Match(trimmed, "^([A-Za-z][A-Za-z0-9]+):");
                     if (strayKeyMatch.Success && topLevelKeys.Contains(strayKeyMatch.Groups[1].Value))
                     {
                         var key = strayKeyMatch.Groups[1].Value;
@@ -914,7 +916,7 @@ public class PlanReaderService(
                 continue;
             }
 
-            var unknownKeyMatch = Regex.Match(trimmed, @"^([A-Za-z][A-Za-z0-9]+):");
+            var unknownKeyMatch = Regex.Match(trimmed, "^([A-Za-z][A-Za-z0-9]+):");
             if (unknownKeyMatch.Success)
             {
                 inUnknownKey = true;
@@ -1265,7 +1267,7 @@ public class PlanReaderService(
             catch (Exception ex)
             {
                 // Fall back to the repair pass for malformed agent-generated YAML.
-                Console.Error.WriteLine($"Failed to parse plan YAML '{planYamlPath}', attempting repair: {ex.Message}");
+                _logger.LogWarning(ex, "Failed to parse plan YAML {PlanYamlPath}, attempting repair", planYamlPath);
                 var repaired = RepairPlanYaml(yamlContent);
                 if (repaired != yamlContent)
                     FileHelper.WriteAllText(planYamlPath, repaired);
@@ -1360,7 +1362,7 @@ public class PlanReaderService(
     {
         var recommendations = new List<Recommendation>();
 
-        foreach (var (folderPath, folderName, planYamlPath) in EnumerateValidPlanFolders())
+        foreach (var (_, folderName, planYamlPath) in EnumerateValidPlanFolders())
         {
             try
             {
@@ -1411,7 +1413,7 @@ public class PlanReaderService(
     {
         int drafts = 0, reviews = 0, failed = 0, icebox = 0, pendingRecs = 0, total = 0;
 
-        foreach (var (folderPath, _, planYamlPath) in EnumerateValidPlanFolders())
+        foreach (var (_, _, planYamlPath) in EnumerateValidPlanFolders())
             try
             {
                 total++;

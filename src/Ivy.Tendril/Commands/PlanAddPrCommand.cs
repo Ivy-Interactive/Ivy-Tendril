@@ -1,5 +1,8 @@
+using Ivy.Tendril.Models;
 using System.ComponentModel;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
+using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -17,6 +20,10 @@ public class PlanAddPrSettings : CommandSettings
 
 public class PlanAddPrCommand : Command<PlanAddPrSettings>
 {
+    private readonly ILogger<PlanAddPrCommand> _logger;
+
+    public PlanAddPrCommand(ILogger<PlanAddPrCommand> logger) => _logger = logger;
+
     protected override int Execute(CommandContext context, PlanAddPrSettings settings, CancellationToken cancellationToken)
     {
         try
@@ -27,7 +34,7 @@ public class PlanAddPrCommand : Command<PlanAddPrSettings>
             // Check if already present
             if (plan.Prs.Contains(settings.PrUrl))
             {
-                Console.WriteLine($"PR already in plan: {settings.PrUrl}");
+                _logger.LogInformation("PR already in plan: {PrUrl}", settings.PrUrl);
                 return 0;
             }
 
@@ -37,12 +44,12 @@ public class PlanAddPrCommand : Command<PlanAddPrSettings>
 
             PlanCommandHelpers.WritePlan(planFolder, plan);
 
-            Console.WriteLine($"Added PR: {settings.PrUrl}");
+            _logger.LogInformation("Added PR: {PrUrl}", settings.PrUrl);
             return 0;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            _logger.LogError(ex, "Failed to add PR to plan {PlanId}", settings.PlanId);
             return 1;
         }
     }

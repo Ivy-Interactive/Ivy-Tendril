@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Agents;
 
@@ -6,8 +5,8 @@ namespace Ivy.Tendril.Test.Agents;
 
 public class TryBuildAgentProcessStartTests : IDisposable
 {
-    private readonly string _tempDir;
     private readonly string _promptsDir;
+    private readonly string _tempDir;
 
     public TryBuildAgentProcessStartTests()
     {
@@ -31,10 +30,10 @@ public class TryBuildAgentProcessStartTests : IDisposable
     public void FirmwareCompiler_Compile_IncludesReflection()
     {
         var context = new FirmwareContext(
-            ProgramFolder: "/programs/Test",
-            LogFile: "/programs/Test/Logs/00001.md",
-            Values: new(),
-            SharedDocuments: new());
+            "/programs/Test",
+            "/programs/Test/Logs/00001.md",
+            new Dictionary<string, string>(),
+            new List<(string Name, string Content)>());
 
         var result = FirmwareCompiler.Compile(context);
 
@@ -47,10 +46,10 @@ public class TryBuildAgentProcessStartTests : IDisposable
     public void FirmwareCompiler_Compile_IncludesToolsInstructions()
     {
         var context = new FirmwareContext(
-            ProgramFolder: "/programs/Test",
-            LogFile: "/programs/Test/Logs/00001.md",
-            Values: new(),
-            SharedDocuments: new());
+            "/programs/Test",
+            "/programs/Test/Logs/00001.md",
+            new Dictionary<string, string>(),
+            new List<(string Name, string Content)>());
 
         var result = FirmwareCompiler.Compile(context);
 
@@ -64,14 +63,14 @@ public class TryBuildAgentProcessStartTests : IDisposable
         var settings = new TendrilSettings
         {
             CodingAgent = "claude",
-            Promptwares = new()
+            Promptwares = new Dictionary<string, PromptwareConfig>
             {
-                ["_default"] = new PromptwareConfig
+                ["_default"] = new()
                 {
-                    AllowedTools = new() { @"D:\Repos\Tools\script.ps1" }
+                    AllowedTools = new List<string> { @"D:\Repos\Tools\script.ps1" }
                 }
             },
-            CodingAgents = new()
+            CodingAgents = new List<AgentConfig>()
         };
 
         var resolution = AgentProviderFactory.Resolve(settings, "Test");
@@ -134,28 +133,28 @@ public class TryBuildAgentProcessStartTests : IDisposable
         var settings = new TendrilSettings
         {
             CodingAgent = "claude",
-            Promptwares = new()
+            Promptwares = new Dictionary<string, PromptwareConfig>
             {
-                ["_default"] = new PromptwareConfig
+                ["_default"] = new()
                 {
                     Profile = "balanced",
-                    AllowedTools = new() { "Read", "Write", "Bash" }
+                    AllowedTools = new List<string> { "Read", "Write", "Bash" }
                 },
-                ["SimpleTask"] = new PromptwareConfig
+                ["SimpleTask"] = new()
                 {
                     Profile = "quick",
-                    AllowedTools = new() // empty — should NOT override
+                    AllowedTools = new List<string>() // empty — should NOT override
                 }
             },
-            CodingAgents = new()
+            CodingAgents = new List<AgentConfig>
             {
-                new AgentConfig
+                new()
                 {
                     Name = "claude",
-                    Profiles = new()
+                    Profiles = new List<AgentProfileConfig>
                     {
-                        new AgentProfileConfig { Name = "balanced", Model = "sonnet" },
-                        new AgentProfileConfig { Name = "quick", Model = "haiku" }
+                        new() { Name = "balanced", Model = "sonnet" },
+                        new() { Name = "quick", Model = "haiku" }
                     }
                 }
             }

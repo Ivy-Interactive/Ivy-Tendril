@@ -49,7 +49,7 @@ Check `<PlanFolder>/worktrees/` for each repo worktree.
 
 > **Worktree already removed:** If the worktrees/ directory is empty (worktree was already cleaned up), fall back to `plan.yaml` to get the repo path and branch name (format: `tendril/<planId>-<SafeTitle>`, where SafeTitle is extracted from the plan folder name: e.g. `03158-ChangeBranchNaming` → `ChangeBranchNaming`). The commit objects may still exist in the original repo's object store. Use `git cat-file -t <sha>` to verify, then create or force-update the local branch: `git branch -f <branch-name> <sha>` (use `-f` because the branch may already exist from a WIP auto-commit) and push from the original repo path.
 >
-> **Commit lost (object GC'd):** If `git cat-file -t <sha>` fails, the commit was garbage-collected after worktree removal. In this case: (1) check if the change is already on main, (2) if not, recreate the change from the plan revision — create a new branch from main, apply the changes as described in the revision, commit with the standard `[<planId>] <title>` message, and push. Update `plan.yaml` commits list with the new commit hash.
+> **Commit lost (object GC'd):** If `git cat-file -t <sha>` fails, the commit was garbage-collected after worktree removal. In this case: (1) check if the change is already on main, (2) if not, recreate the change from the plan revision — create a new branch from main, apply the changes as described in the revision, commit with the standard `[<planId>] <title>` message, and push. Update commits via CLI: `tendril plan add-commit <plan-id> <new-sha>`.
 
 For each worktree:
 
@@ -215,21 +215,29 @@ rm -rf "<PlanFolder>/worktrees"
 
 If cleanup fails (e.g. locked files on Windows), log a warning but do not fail the overall CreatePr execution.
 
-### 6. Update plan.yaml
+### 6. Update Plan via CLI
 
-Append each PR URL to the `prs` list in `plan.yaml`.
+Use the CLI to update the plan — **never edit plan.yaml directly**.
 
-**Update state to Completed:** If ALL repos in the plan used the `yolo` prRule (or custom options with `merge: true`) and ALL PRs were successfully merged, update the `state` field from `Building` to `Completed`. This marks the plan as fully processed.
+Add each PR URL:
+
+```bash
+tendril plan add-pr <plan-id> <pr-url>
+```
+
+**Update state to Completed:** If ALL repos in the plan used the `yolo` prRule (or custom options with `merge: true`) and ALL PRs were successfully merged, update the state:
+
+```bash
+tendril plan set <plan-id> state Completed
+```
 
 If ANY repo used the `default` prRule (or custom options with `merge: false`), do NOT update the state — the plan remains open for manual review and potential revisions.
-
-> If merge conflict resolution was performed (Step 4), the resolution commit hash should already be on the pushed branch. No additional plan.yaml update needed beyond the PR URL.
 
 ### Edge Case: Direct-to-Main (No PR Needed)
 
 Some plans create new repos and push directly to main (e.g., repo scaffolding). These have `repos: []`, no worktrees, and commits already on `origin/main`. When detected:
 1. Verify the commit(s) exist on the remote default branch
-2. Mark plan.yaml state as `Completed`
+2. Mark state as Completed: `tendril plan set <plan-id> state Completed`
 3. Log outcome as "No PR Required — Direct-to-Main"
 4. Skip steps 2–5 entirely
 

@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Database.Migrations;
 
@@ -7,7 +8,7 @@ public class Migration_008_PrStatusTable : IMigration
     public int Version => 8;
     public string Description => "Add PR status cache table";
 
-    public void Apply(SqliteConnection connection)
+    public void Apply(SqliteConnection connection, ILogger? logger = null)
     {
         using var cmd = connection.CreateCommand();
         cmd.CommandText = """

@@ -1,3 +1,4 @@
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
@@ -787,7 +788,7 @@ maxConcurrentJobs: 10
     [Fact]
     public void Constructor_WithNull_FallsBackToEnvVar()
     {
-        var service = new ConfigService(new TendrilSettings(), null);
+        var service = new ConfigService(new TendrilSettings());
         var expected = Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? "";
         Assert.Equal(expected, service.TendrilHome);
     }

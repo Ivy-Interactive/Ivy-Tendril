@@ -35,8 +35,8 @@ internal class EditOnboardingVerificationDialog(
             new DialogHeader(isNew ? "Add Verification" : "Edit Verification"),
             new DialogBody(
                 Layout.Vertical().Gap(2)
-                | editName.ToTextInput("Verification name...").WithField().Label("Name")
-                | editPrompt.ToTextareaInput("Verification prompt...").Rows(6).WithField().Label("Prompt")
+                | editName.ToTextInput().WithField().Label("Name")
+                | editPrompt.ToTextareaInput().Rows(6).WithField().Label("Prompt")
                 | editRequired.ToBoolInput("Required")
             ),
             new DialogFooter(

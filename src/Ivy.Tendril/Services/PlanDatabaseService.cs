@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Database;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
@@ -236,7 +237,7 @@ public class PlanDatabaseService : IPlanDatabaseService
         }
     }
 
-    public DashboardStats GetDashboardData(string? projectFilter)
+    public DashboardModels GetDashboardData(string? projectFilter)
     {
         _lock.EnterReadLock();
         try
@@ -298,7 +299,6 @@ public class PlanDatabaseService : IPlanDatabaseService
                 var days = new List<string>();
                 for (var i = 0; i < 7; i++)
                     days.Add(DateTime.UtcNow.Date.AddDays(-i).ToString("yyyy-MM-dd"));
-                var dayParams = string.Join(",", days.Select((_, idx) => $"@day{idx}"));
 
                 cmd.CommandText = $"""
                     WITH cte_created AS (
@@ -391,7 +391,7 @@ public class PlanDatabaseService : IPlanDatabaseService
                     projectCounts.Add(new ProjectCount(r.GetString(0), r.GetInt32(1)));
             }
 
-            return new DashboardStats(
+            return new DashboardModels(
                 totalCount, draftCount, inProgressCount, reviewCount, completedCount, failedCount,
                 avgCost, dailyStats, projectCounts);
         }

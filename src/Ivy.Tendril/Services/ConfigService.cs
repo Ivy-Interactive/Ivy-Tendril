@@ -1,6 +1,8 @@
+using Ivy.Tendril.Helpers;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 using YamlDotNet.Serialization;
 
 namespace Ivy.Tendril.Services;
@@ -31,6 +33,7 @@ public record ProjectConfig
     public string Context { get; set; } = "";
     public List<ReviewActionConfig> ReviewActions { get; set; } = new();
     public List<PromptwareHookConfig> Hooks { get; set; } = new();
+    public List<string> BuildDependencies { get; set; } = new();
     public List<string> RepoPaths => Repos.Select(r => r.Path).ToList();
 
     public string? GetMeta(string key)
@@ -157,14 +160,16 @@ public record ConfigParseError(string Message, string FilePath, Exception? Inner
 public class ConfigService : IConfigService
 {
     private readonly bool _explicitHome;
+    private readonly ILogger<ConfigService> _logger;
     private string[]? _levelNamesCache;
     private string? _pendingCodingAgent;
     private ProjectConfig? _pendingProject;
     private string? _pendingTendrilHome;
     private List<VerificationConfig>? _pendingVerificationDefinitions;
 
-    internal ConfigService(TendrilSettings settings, string? tendrilHome = null)
+    internal ConfigService(TendrilSettings settings, string? tendrilHome = null, ILogger<ConfigService>? logger = null)
     {
+        _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<ConfigService>.Instance;
         Settings = settings;
         TendrilHome = tendrilHome ?? Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? "";
         _explicitHome = tendrilHome != null;
@@ -173,8 +178,9 @@ public class ConfigService : IConfigService
             : Path.Combine(System.AppContext.BaseDirectory, "config.yaml");
     }
 
-    public ConfigService()
+    public ConfigService(ILogger<ConfigService>? logger = null)
     {
+        _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<ConfigService>.Instance;
         var tendrilHomeEnv = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
 
         // Remove quotes if present
@@ -208,7 +214,7 @@ public class ConfigService : IConfigService
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Failed to load Tendril config '{ConfigPath}': {ex}");
+                _logger.LogError(ex, "Failed to load Tendril config {ConfigPath}", ConfigPath);
                 ParseError = new ConfigParseError(ex.Message, ConfigPath, ex);
                 BackupBrokenConfig();
                 Settings = new TendrilSettings();
@@ -230,7 +236,7 @@ public class ConfigService : IConfigService
 
         if (Settings != null && !NeedsOnboarding)
         {
-            VariableExpansion.InitializeUserSecrets(TendrilHome);
+            VariableExpansion.InitializeUserSecrets(TendrilHome, _logger);
             ExpandSettingsVariables();
             ExpandRepoPaths();
 
@@ -330,14 +336,14 @@ public class ConfigService : IConfigService
 
             MigrateProjectColors();
             _levelNamesCache = null;
-            VariableExpansion.InitializeUserSecrets(TendrilHome);
+            VariableExpansion.InitializeUserSecrets(TendrilHome, _logger);
             ExpandSettingsVariables();
 
             SettingsReloaded?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Failed to reload settings: {ex}");
+            _logger.LogWarning(ex, "Failed to reload settings");
         }
     }
 
@@ -439,10 +445,11 @@ public class ConfigService : IConfigService
 
                 if (WorktreeValidationHelper.IsWorktree(repo.Path))
                 {
-                    Console.Error.WriteLine(
-                        $"CRITICAL: Project '{project.Name}' repo path is a worktree, not a main repository: {repo.Path}. " +
+                    _logger.LogError(
+                        "CRITICAL: Project {ProjectName} repo path is a worktree, not a main repository: {RepoPath}. " +
                         "This will cause nested worktrees during plan execution. " +
-                        "Update config.yaml to point to the main repo, not a worktree.");
+                        "Update config.yaml to point to the main repo, not a worktree.",
+                        project.Name, repo.Path);
                 }
             }
         }
@@ -486,7 +493,7 @@ public class ConfigService : IConfigService
                     FileHelper.WriteAllText(ConfigPath, backupYaml);
                     Settings = restored;
                     MigrateProjectColors();
-                    VariableExpansion.InitializeUserSecrets(TendrilHome);
+                    VariableExpansion.InitializeUserSecrets(TendrilHome, _logger);
                     ExpandSettingsVariables();
                     ExpandRepoPaths();
                     return true;
@@ -530,7 +537,7 @@ public class ConfigService : IConfigService
             ParseError = null;
             NeedsOnboarding = false;
             _levelNamesCache = null;
-            VariableExpansion.InitializeUserSecrets(TendrilHome);
+            VariableExpansion.InitializeUserSecrets(TendrilHome, _logger);
             ExpandSettingsVariables();
             ExpandRepoPaths();
             SettingsReloaded?.Invoke(this, EventArgs.Empty);
@@ -594,9 +601,14 @@ public class ConfigService : IConfigService
     {
         if (Settings.Projects != null)
             foreach (var proj in Settings.Projects)
+            {
                 if (proj.Repos != null)
                     foreach (var repo in proj.Repos)
                         repo.Path = VariableExpansion.ExpandVariables(repo.Path, TendrilHome);
+
+                for (var i = 0; i < proj.BuildDependencies.Count; i++)
+                    proj.BuildDependencies[i] = VariableExpansion.ExpandVariables(proj.BuildDependencies[i], TendrilHome);
+            }
     }
 
     internal static string? MigrateProjectColor(string? colorValue)
@@ -649,7 +661,7 @@ public class ConfigService : IConfigService
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Failed to load Tendril config from new path '{ConfigPath}': {ex}");
+                _logger.LogError(ex, "Failed to load Tendril config from new path {ConfigPath}", ConfigPath);
                 ParseError = new ConfigParseError(ex.Message, ConfigPath, ex);
                 BackupBrokenConfig();
 
@@ -662,7 +674,7 @@ public class ConfigService : IConfigService
 
         MigrateProjectColors();
         _levelNamesCache = null;
-        VariableExpansion.InitializeUserSecrets(TendrilHome);
+        VariableExpansion.InitializeUserSecrets(TendrilHome, _logger);
         ExpandSettingsVariables();
     }
 

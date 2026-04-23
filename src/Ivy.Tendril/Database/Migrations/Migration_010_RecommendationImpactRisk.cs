@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Database.Migrations;
 
@@ -7,7 +8,7 @@ public class Migration_010_RecommendationImpactRisk : IMigration
     public int Version => 10;
     public string Description => "Add Impact and Risk columns to Recommendations table";
 
-    public void Apply(SqliteConnection connection)
+    public void Apply(SqliteConnection connection, ILogger? logger = null)
     {
         using var cmd1 = connection.CreateCommand();
         cmd1.CommandText = "ALTER TABLE Recommendations ADD COLUMN Impact TEXT;";

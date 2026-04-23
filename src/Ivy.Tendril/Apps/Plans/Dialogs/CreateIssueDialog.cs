@@ -1,4 +1,6 @@
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps.Plans.Dialogs;
 
@@ -80,6 +82,7 @@ public class CreateIssueDialog(
         return new Dialog(
             _ =>
             {
+                isCreating.Set(false);
                 issueCommentState.Set("");
                 issueAssigneeState.Set(null);
                 issueLabelsState.Set(Array.Empty<string>());
@@ -107,6 +110,7 @@ public class CreateIssueDialog(
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() =>
                 {
+                    isCreating.Set(false);
                     issueCommentState.Set("");
                     issueAssigneeState.Set(null);
                     issueLabelsState.Set(Array.Empty<string>());
@@ -130,6 +134,7 @@ public class CreateIssueDialog(
                         }
                     }
 
+                    isCreating.Set(false);
                     issueCommentState.Set("");
                     issueAssigneeState.Set(null);
                     issueLabelsState.Set(Array.Empty<string>());

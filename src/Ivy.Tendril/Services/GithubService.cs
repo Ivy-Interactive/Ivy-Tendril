@@ -4,15 +4,17 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Ivy.Helpers;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services;
 
-public class GithubService(IConfigService config) : IGithubService
+public class GithubService(IConfigService config, ILogger<GithubService> logger) : IGithubService
 {
     // ConcurrentDictionary required: multiple UseQuery calls from different views/dialogs
     // can fetch different repos simultaneously, causing concurrent writes to different keys.
     private readonly ConcurrentDictionary<string, List<string>> _assigneeCache = new();
     private readonly IConfigService _config = config;
+    private readonly ILogger<GithubService> _logger = logger;
     private readonly ConcurrentDictionary<string, List<string>> _labelCache = new();
     private readonly ConcurrentDictionary<string, RepoConfig?> _repoPathCache = new();
     private List<RepoConfig>? _repoCache;
@@ -111,7 +113,7 @@ public class GithubService(IConfigService config) : IGithubService
 
             if (process.ExitCode != 0)
             {
-                Console.Error.WriteLine($"[GithubService] gh issue list failed for {owner}/{repo}: {stderr}");
+                _logger.LogWarning("gh issue list failed for {Owner}/{Repo}: {Stderr}", owner, repo, stderr);
                 var errorMsg = !string.IsNullOrWhiteSpace(stderr)
                     ? stderr.Trim()
                     : $"GitHub CLI exited with code {process.ExitCode}";
@@ -123,12 +125,12 @@ public class GithubService(IConfigService config) : IGithubService
         }
         catch (JsonException ex)
         {
-            Console.Error.WriteLine($"[GithubService] Failed to parse issues for {owner}/{repo}: {ex.Message}");
+            _logger.LogWarning(ex, "Failed to parse issues for {Owner}/{Repo}", owner, repo);
             return ([], "Invalid response from GitHub CLI. The output could not be parsed.");
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[GithubService] Failed to search issues for {owner}/{repo}: {ex.Message}");
+            _logger.LogWarning(ex, "Failed to search issues for {Owner}/{Repo}", owner, repo);
             return ([], $"Failed to fetch issues: {ex.Message}");
         }
     }
@@ -159,13 +161,13 @@ public class GithubService(IConfigService config) : IGithubService
         return _repoPathCache.GetOrAdd(repoPath, path => GetRepoConfigFromPath(path));
     }
 
-    internal static RepoConfig? GetRepoConfigFromPath(string repoPath)
+    internal RepoConfig? GetRepoConfigFromPath(string repoPath)
     {
         try
         {
             if (!Directory.Exists(repoPath))
             {
-                Console.Error.WriteLine($"[GithubService] Repository path does not exist: {repoPath}");
+                _logger.LogWarning("Repository path does not exist: {RepoPath}", repoPath);
                 return null;
             }
 
@@ -183,7 +185,7 @@ public class GithubService(IConfigService config) : IGithubService
             using var process = Process.Start(psi);
             if (process is null)
             {
-                Console.Error.WriteLine($"[GithubService] Failed to start git process for {repoPath}");
+                _logger.LogWarning("Failed to start git process for {RepoPath}", repoPath);
                 return null;
             }
 
@@ -193,20 +195,20 @@ public class GithubService(IConfigService config) : IGithubService
 
             if (process.ExitCode != 0)
             {
-                Console.Error.WriteLine($"[GithubService] git remote get-url failed for {repoPath}: {stderr}");
+                _logger.LogWarning("git remote get-url failed for {RepoPath}: {Stderr}", repoPath, stderr);
                 return null;
             }
 
             var config = ParseRepoConfigFromUrl(url);
             if (config is null)
             {
-                Console.Error.WriteLine($"[GithubService] Failed to parse remote URL for {repoPath}: {url}");
+                _logger.LogWarning("Failed to parse remote URL for {RepoPath}: {Url}", repoPath, url);
             }
             return config;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[GithubService] Exception getting repo config for {repoPath}: {ex.Message}");
+            _logger.LogWarning(ex, "Exception getting repo config for {RepoPath}", repoPath);
             return null;
         }
     }
@@ -223,7 +225,7 @@ public class GithubService(IConfigService config) : IGithubService
         };
     }
 
-    private static async Task<(List<string> labels, string? error)> FetchLabelsFromGhCliAsync(string owner, string repo)
+    private async Task<(List<string> labels, string? error)> FetchLabelsFromGhCliAsync(string owner, string repo)
     {
         try
         {
@@ -247,7 +249,7 @@ public class GithubService(IConfigService config) : IGithubService
 
             if (process.ExitCode != 0)
             {
-                Console.Error.WriteLine($"[GithubService] gh api labels failed for {owner}/{repo}: {stderr}");
+                _logger.LogWarning("gh api labels failed for {Owner}/{Repo}: {Stderr}", owner, repo, stderr);
                 var errorMsg = !string.IsNullOrWhiteSpace(stderr)
                     ? stderr.Trim()
                     : $"GitHub CLI exited with code {process.ExitCode}";
@@ -261,12 +263,12 @@ public class GithubService(IConfigService config) : IGithubService
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[GithubService] Failed to fetch labels for {owner}/{repo}: {ex.Message}");
+            _logger.LogWarning(ex, "Failed to fetch labels for {Owner}/{Repo}", owner, repo);
             return ([], $"Failed to fetch labels: {ex.Message}");
         }
     }
 
-    private static async Task<(Dictionary<string, string> statuses, string? error)> FetchPrStatusesFromGhCliAsync(string owner, string repo)
+    private async Task<(Dictionary<string, string> statuses, string? error)> FetchPrStatusesFromGhCliAsync(string owner, string repo)
     {
         try
         {
@@ -292,7 +294,7 @@ public class GithubService(IConfigService config) : IGithubService
 
             if (process.ExitCode != 0)
             {
-                Console.Error.WriteLine($"[GithubService] gh pr list failed for {owner}/{repo}: {stderr}");
+                _logger.LogWarning("gh pr list failed for {Owner}/{Repo}: {Stderr}", owner, repo, stderr);
                 var errorMsg = !string.IsNullOrWhiteSpace(stderr)
                     ? stderr.Trim()
                     : $"GitHub CLI exited with code {process.ExitCode}";
@@ -322,13 +324,13 @@ public class GithubService(IConfigService config) : IGithubService
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[GithubService] Failed to fetch PR statuses for {owner}/{repo}: {ex.Message}");
+            _logger.LogWarning(ex, "Failed to fetch PR statuses for {Owner}/{Repo}", owner, repo);
             return (new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
                     $"Failed to fetch PR statuses: {ex.Message}");
         }
     }
 
-    private static async Task<(List<string> assignees, string? error)> FetchAssigneesFromGhCliAsync(string owner, string repo)
+    private async Task<(List<string> assignees, string? error)> FetchAssigneesFromGhCliAsync(string owner, string repo)
     {
         try
         {
@@ -352,7 +354,7 @@ public class GithubService(IConfigService config) : IGithubService
 
             if (process.ExitCode != 0)
             {
-                Console.Error.WriteLine($"[GithubService] gh api assignees failed for {owner}/{repo}: {stderr}");
+                _logger.LogWarning("gh api assignees failed for {Owner}/{Repo}: {Stderr}", owner, repo, stderr);
                 var errorMsg = !string.IsNullOrWhiteSpace(stderr)
                     ? stderr.Trim()
                     : $"GitHub CLI exited with code {process.ExitCode}";
@@ -366,7 +368,7 @@ public class GithubService(IConfigService config) : IGithubService
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[GithubService] Failed to fetch assignees for {owner}/{repo}: {ex.Message}");
+            _logger.LogWarning(ex, "Failed to fetch assignees for {Owner}/{Repo}", owner, repo);
             return ([], $"Failed to fetch assignees: {ex.Message}");
         }
     }

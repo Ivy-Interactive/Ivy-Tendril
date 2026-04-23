@@ -1,14 +1,14 @@
-using Ivy.Tendril.Services;
 using System.Diagnostics;
+using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
 
 public class JobServiceEnvironmentTests
 {
     /// <summary>
-    /// Verifies that JobService sets CI and TERM environment variables when spawning processes.
-    /// This test uses reflection to inspect the ProcessStartInfo before process launch,
-    /// avoiding the complexity of mocking the full job execution pipeline.
+    ///     Verifies that JobService sets CI and TERM environment variables when spawning processes.
+    ///     This test uses reflection to inspect the ProcessStartInfo before process launch,
+    ///     avoiding the complexity of mocking the full job execution pipeline.
     /// </summary>
     [Fact]
     public void JobService_SetsCIAndTERMEnvironmentVariables()
