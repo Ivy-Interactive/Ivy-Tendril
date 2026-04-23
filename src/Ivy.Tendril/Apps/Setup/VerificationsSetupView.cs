@@ -38,7 +38,7 @@ public class VerificationsSetupView : ViewBase
             .ColumnWidth(t => t.Prompt, Size.Auto())
             .ColumnWidth(t => t.Index, Size.Px(80));
 
-        return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(200)))
+        return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(400)))
                | Text.Block("Verification Definitions").Bold()
                | Text.Block("Define verification steps that run after plan execution.").Muted().Small()
                | table
