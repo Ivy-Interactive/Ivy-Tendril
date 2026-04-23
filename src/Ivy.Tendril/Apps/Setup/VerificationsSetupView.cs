@@ -36,6 +36,7 @@ public class VerificationsSetupView : ViewBase
 
         return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(120)))
                | Text.Block("Verification Definitions").Bold()
+               | Text.Block("Define verification steps that run after plan execution.").Muted().Small()
                | table
                | new Button("Add Verification").Icon(Icons.Plus).Outline().OnClick(() =>
                {

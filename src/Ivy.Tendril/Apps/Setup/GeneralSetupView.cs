@@ -23,6 +23,7 @@ public class GeneralSetupView : ViewBase
 
         var form = Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(120)))
                    | Text.Block("General Settings").Bold()
+                   | Text.Block("Configure the default coding agent and plan template.").Muted().Small()
                    | codingAgent.ToSelectInput(CodingAgentOptions)
                        .WithField().Label("Coding Agent")
                    | planTemplate.ToCodeInput("Plan template...")
