@@ -99,14 +99,6 @@ public class ContentView(
                     isEditing.Set(false);
                 }
             }
-            else if (!isEditing.Value && isEditingPrev.Value)
-            {
-                if (plan != null && editContent.Value != originalContent.Value)
-                {
-                    planService.SaveRevision(plan.FolderName, editContent.Value);
-                    refreshPlans();
-                }
-            }
 
             isEditingPrev.Set(isEditing.Value);
         }, isEditing);
@@ -156,7 +148,6 @@ public class ContentView(
             header |= new Badge($"Depends on: {depIds}").Variant(BadgeVariant.Secondary);
         }
 
-        header |= isEditing.ToSwitchInput(Icons.Code);
         header |= new Spacer().Width(Size.Grow());
         header |= Text.Rich()
             .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
@@ -182,13 +173,35 @@ public class ContentView(
         // Plan tab content
         object planTabContent;
         if (isEditing.Value)
-            planTabContent = editContent.ToCodeInput()
-                .Language(Languages.Markdown)
-                .Width(Size.Full());
+        {
+            var editBar = Layout.Horizontal().Gap(2).Padding(0, 0, 2, 0)
+                          | new Button("Save Revision").Icon(Icons.Save).Primary().OnClick(() =>
+                          {
+                              if (selectedPlan != null && editContent.Value != originalContent.Value)
+                              {
+                                  planService.SaveRevision(selectedPlan.FolderName, editContent.Value);
+                                  refreshPlans();
+                              }
+                              isEditing.Set(false);
+                          })
+                          | new Button("Cancel").Outline().OnClick(() =>
+                          {
+                              editContent.Set(originalContent.Value);
+                              isEditing.Set(false);
+                          });
+            planTabContent = Layout.Vertical()
+                            | editBar
+                            | editContent.ToCodeInput()
+                                .Language(Languages.Markdown)
+                                .Width(Size.Full());
+        }
         else
         {
             var planLayout = Layout.Vertical().Scroll(Scroll.Vertical);
             if (selectedPlan.Status == PlanStatus.Failed) planLayout |= BuildFailureCallout(selectedPlan);
+            var editButton = Layout.Horizontal().Padding(0, 0, 2, 0)
+                             | new Button("Edit").Icon(Icons.Pencil).Outline().OnClick(() => isEditing.Set(true));
+            planLayout |= editButton;
             var annotatedContent = MarkdownHelper.AnnotateAllBrokenLinks(selectedPlan.LatestRevisionContent, planService.PlansDirectory);
             planLayout |= new Markdown(annotatedContent)
                 .DangerouslyAllowLocalFiles()
