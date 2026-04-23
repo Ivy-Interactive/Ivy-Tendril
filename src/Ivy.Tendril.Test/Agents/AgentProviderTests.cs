@@ -225,4 +225,96 @@ public class AgentProviderTests
         Assert.DoesNotContain("--effort", psi.ArgumentList.ToList());
         Assert.DoesNotContain("--reasoning-effort", psi.ArgumentList.ToList());
     }
+
+    // --- ExtractWritableDirs ---
+
+    [Fact]
+    public void ExtractWritableDirs_ParsesWriteAndEditPatterns()
+    {
+        var tools = new[] { "Read", "Bash", "Write(/plans/**)", "Edit(/plans/01234/**)" };
+        var dirs = CodexAgentProvider.ExtractWritableDirs(tools).ToList();
+
+        Assert.Equal(2, dirs.Count);
+        Assert.Equal("/plans", dirs[0]);
+        Assert.Equal("/plans/01234", dirs[1]);
+    }
+
+    [Fact]
+    public void ExtractWritableDirs_DeduplicatesSamePath()
+    {
+        var tools = new[] { "Write(/plans/**)", "Edit(/plans/**)" };
+        var dirs = CodexAgentProvider.ExtractWritableDirs(tools).ToList();
+
+        Assert.Single(dirs);
+        Assert.Equal("/plans", dirs[0]);
+    }
+
+    [Fact]
+    public void ExtractWritableDirs_IgnoresUnscopedTools()
+    {
+        var tools = new[] { "Read", "Write", "Edit", "Bash", "Glob", "Grep" };
+        var dirs = CodexAgentProvider.ExtractWritableDirs(tools).ToList();
+
+        Assert.Empty(dirs);
+    }
+
+    [Fact]
+    public void ExtractWritableDirs_HandlesSingleStar()
+    {
+        var tools = new[] { "Write(/inbox/*)" };
+        var dirs = CodexAgentProvider.ExtractWritableDirs(tools).ToList();
+
+        Assert.Single(dirs);
+        Assert.Equal("/inbox", dirs[0]);
+    }
+
+    // --- Codex writable dirs ---
+
+    [Fact]
+    public void Codex_BuildProcessStart_PassesAddDirForWritableTools()
+    {
+        var provider = new CodexAgentProvider();
+        var psi = provider.BuildProcessStart(CreateInvocation(
+            allowedTools: new[] { "Read", "Write(/plans/**)", "Bash" }));
+
+        var args = psi.ArgumentList.ToList();
+        var idx = args.IndexOf("--add-dir");
+        Assert.True(idx >= 0);
+        Assert.Equal("/plans", args[idx + 1]);
+    }
+
+    [Fact]
+    public void Codex_BuildProcessStart_NoAddDirForUnscopedWrite()
+    {
+        var provider = new CodexAgentProvider();
+        var psi = provider.BuildProcessStart(CreateInvocation(
+            allowedTools: new[] { "Read", "Write", "Bash" }));
+
+        var args = psi.ArgumentList.ToList();
+        Assert.DoesNotContain("--add-dir", args);
+    }
+
+    // --- Gemini writable dirs ---
+
+    [Fact]
+    public void Gemini_BuildProcessStart_PassesIncludeDirectories()
+    {
+        var provider = new GeminiAgentProvider();
+        var psi = provider.BuildProcessStart(CreateInvocation(
+            allowedTools: new[] { "Read", "Edit(/plans/01234/**)", "Bash" }));
+
+        var args = psi.ArgumentList.ToList();
+        var idx = args.IndexOf("--include-directories");
+        Assert.True(idx >= 0);
+        Assert.Equal("/plans/01234", args[idx + 1]);
+    }
+
+    [Fact]
+    public void Gemini_BuildProcessStart_IncludesYoloFlag()
+    {
+        var provider = new GeminiAgentProvider();
+        var psi = provider.BuildProcessStart(CreateInvocation());
+
+        Assert.Contains("--yolo", psi.ArgumentList.ToList());
+    }
 }

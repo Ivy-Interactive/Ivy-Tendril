@@ -223,7 +223,8 @@ internal class JobLauncher
 
         values["Project"] = job.Project;
 
-        var resolution = AgentProviderFactory.Resolve(settings, job.Type, profileOverride);
+        var jobContext = BuildJobContext(job, values);
+        var resolution = AgentProviderFactory.Resolve(settings, job.Type, profileOverride, jobContext);
         var workDir = ResolveWorkingDirectory(job, programFolder);
 
         var logFile = FirmwareCompiler.GetNextLogFile(programFolder);
@@ -314,6 +315,22 @@ internal class JobLauncher
         }
 
         return (values, planYaml, profileOverride);
+    }
+
+    private static Dictionary<string, string> BuildJobContext(JobItem job, Dictionary<string, string> firmwareValues)
+    {
+        var ctx = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        if (firmwareValues.TryGetValue("PlansDirectory", out var plansDir))
+            ctx["PLANS_DIR"] = plansDir;
+        if (firmwareValues.TryGetValue("PlanFolder", out var planFolder))
+            ctx["PLAN_FOLDER"] = planFolder;
+
+        var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
+        if (!string.IsNullOrEmpty(tendrilHome))
+            ctx["TENDRIL_HOME"] = tendrilHome;
+
+        return ctx;
     }
 
     private string ResolveWorkingDirectory(JobItem job, string programFolder)
