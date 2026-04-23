@@ -35,7 +35,7 @@ public class VerificationsSetupView : ViewBase
                 })
             ));
 
-        return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(120)))
+        return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(200)))
                | Text.Block("Verification Definitions").Bold()
                | table
                | new Button("Add Verification").Icon(Icons.Plus).Outline().OnClick(() =>
