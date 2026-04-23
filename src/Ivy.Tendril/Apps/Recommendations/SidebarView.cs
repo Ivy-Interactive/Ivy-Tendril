@@ -1,5 +1,6 @@
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Views;
 
 namespace Ivy.Tendril.Apps.Recommendations;
 
@@ -75,10 +76,7 @@ public class SidebarView(
 
         if (filtered.Count == 0 && hasActiveFilters && totalCount > 0)
         {
-            var emptyContent = Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(4)
-                   | new Icon(Icons.SearchX).Color(Colors.Gray)
-                   | Text.Muted("No results. Try adjusting your filters.");
-            return new HeaderLayout(BuildHeader(), emptyContent);
+            return new HeaderLayout(BuildHeader(), new NoResultsView());
         }
 
         var content = new List(filtered.Select(rec =>

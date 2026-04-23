@@ -1,3 +1,5 @@
+using Ivy.Tendril.Views;
+
 namespace Ivy.Tendril.Apps.Trash;
 
 public class SidebarView(
@@ -29,10 +31,7 @@ public class SidebarView(
 
         if (filteredList.Count == 0 && !string.IsNullOrWhiteSpace(searchFilter.Value))
         {
-            var emptyContent = Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(4)
-                   | new Icon(Icons.SearchX).Color(Colors.Gray)
-                   | Text.Muted("No results. Try adjusting your filters.");
-            return new HeaderLayout(BuildHeader(), emptyContent);
+            return new HeaderLayout(BuildHeader(), new NoResultsView());
         }
 
         if (filteredList.Count == 0)

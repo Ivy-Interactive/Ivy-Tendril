@@ -1,6 +1,7 @@
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Views;
 
 namespace Ivy.Tendril.Apps.Plans;
 
@@ -59,10 +60,7 @@ public class SidebarView(
 
         if (filteredList.Count == 0 && (projectFilter.Value != null || levelFilter.Value != null || !string.IsNullOrWhiteSpace(textFilter.Value)))
         {
-            var emptyContent = Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(4)
-                   | new Icon(Icons.SearchX).Color(Colors.Gray)
-                   | Text.Muted("No results. Try adjusting your filters.");
-            return new HeaderLayout(BuildHeader(), emptyContent);
+            return new HeaderLayout(BuildHeader(), new NoResultsView());
         }
 
         var content = new List(filteredList.Select(plan =>
