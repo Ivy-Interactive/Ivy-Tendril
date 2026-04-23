@@ -37,7 +37,8 @@ public class PromptwaresSetupView : ViewBase
                     client.Toast($"Promptware '{name}' deleted", "Deleted");
                     refreshToken.Refresh();
                 })
-            ));
+            ))
+            .ColumnWidth(t => t.AllowedTools, Size.Fraction(0.5f));
 
         return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(120)))
                | Text.Block("Promptware Configuration").Bold()
