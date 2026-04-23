@@ -87,8 +87,7 @@ public static class GitTabHelper
             var worktreesTable = new Table(
                 new TableRow(
                     new TableCell("Name").IsHeader(),
-                    new TableCell("Branch").IsHeader(),
-                    new TableCell("Commit").IsHeader(),
+                    new TableCell("Branch:Commit").IsHeader(),
                     new TableCell("Actions").IsHeader()
                 )
                 { IsHeader = true }
@@ -111,8 +110,7 @@ public static class GitTabHelper
 
                 worktreesTable |= new TableRow(
                     new TableCell(row.Name),
-                    new TableCell(row.Branch),
-                    new TableCell(row.ShortHash),
+                    new TableCell($"{row.Branch}:{row.ShortHash}"),
                     new TableCell(actionsMenu)
                 );
             }
