@@ -118,10 +118,7 @@ public class ContentView(
         if (selectedPlan is null)
         {
             if (allPlans.Count == 0)
-                return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full()).Gap(4).Padding(8)
-                       | new Icon(Icons.Feather).Large().Color(Colors.Gray)
-                       | Text.H3("No draft plans")
-                       | new NewPlanButton().Width(Size.Fit());
+                return new NoContentView("No draft plans", "Plans you create will appear here.", new NewPlanButton().Width(Size.Fit()));
 
             return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
                    | Text.Muted("Select a plan from the sidebar");

@@ -1,5 +1,6 @@
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Views;
 
 namespace Ivy.Tendril.Apps;
 
@@ -40,16 +41,7 @@ public class DashboardApp : ViewBase
 
         if (stats.TotalCount == 0)
         {
-            return Layout.Vertical()
-                .Padding(16)
-                .Gap(8)
-                .AlignContent(Align.Center)
-                .Height(Size.Full())
-                | Text.Block("No plans yet")
-                    .Large()
-                    .Color(Colors.Muted)
-                | Text.Block("Create your first plan to get started with Tendril.")
-                    .Color(Colors.Muted);
+            return new NoContentView("No plans yet", "Create your first plan to get started.", new NewPlanButton().Width(Size.Fit()));
         }
 
         // Statistics cards
