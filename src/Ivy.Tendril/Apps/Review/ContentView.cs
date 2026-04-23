@@ -214,7 +214,7 @@ public class ContentView(
         }).ShortcutKey("m").WithConfetti(AnimationTrigger.Click);
 
         // Content sections
-        var content = Layout.Vertical().Height(Size.Full());
+        var content = Layout.Vertical().Height(Size.Full()).Gap(1);
 
         var planData = planContentQuery.Value;
 
@@ -281,7 +281,7 @@ public class ContentView(
             var reviewActions = projectConfig?.ReviewActions ?? new List<ReviewActionConfig>();
             if (reviewActions.Count > 0)
             {
-                var actionsBar = Layout.Horizontal().Gap(2).Padding(1);
+                var actionsBar = Layout.Horizontal().Gap(2).Padding(2).Height(Size.Fit());
                 for (var i = 0; i < reviewActions.Count; i++)
                 {
                     var action = reviewActions[i];
@@ -359,7 +359,7 @@ public class ContentView(
                 new Tab("Plan", Cap(planTabContent))
             ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content);
 
-            content |= tabs;
+            content |= (Layout.Vertical().Padding(2, 0) | tabs);
         }
 
         // Sheet modals (outside TabsLayout so they render as overlays)
