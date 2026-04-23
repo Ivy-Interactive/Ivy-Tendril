@@ -248,7 +248,7 @@ public class ContentView(
                 new Tab("Artifacts", Cap(new ArtifactsTabView(planData.Artifacts))).Badge(totalArtifacts.ToString())
             ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content);
 
-            content |= tabs;
+            content |= (Layout.Vertical().Padding(2) | tabs);
         }
 
         // Sheet modals
