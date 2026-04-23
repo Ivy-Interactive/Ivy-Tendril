@@ -47,7 +47,7 @@ public class DashboardApp : ViewBase
         // Statistics cards
         var statsRow = Layout.Horizontal().Gap(2).Padding(2)
                        | BuildStatCard(stats.TotalCount.ToString(), "Total Plans")
-                       | BuildStatCard(stats.DraftCount.ToString(), "Draft")
+                       | BuildStatCard(stats.DraftCount.ToString(), "Drafts")
                        | BuildStatCard(stats.InProgressCount.ToString(), "In Progress")
                        | BuildStatCard(stats.ReviewCount.ToString(), "Ready for Review")
                        | BuildStatCard(stats.CompletedCount.ToString(), "Completed")
@@ -125,15 +125,16 @@ public class DashboardApp : ViewBase
                         p.Project
                     )).ToArray()
                 )
-                .Selected(selectedProject.Value != null
-                    ? projectData.FindIndex(p => p.Project == selectedProject.Value)
-                    : null)
-                .OnSelect(e =>
-                {
-                    var clickedProject = projectData[e.Value].Project;
-                    selectedProject.Set(selectedProject.Value == clickedProject ? null : clickedProject);
-                    return ValueTask.CompletedTask;
-                });
+                // .Selected(selectedProject.Value != null
+                //     ? projectData.FindIndex(p => p.Project == selectedProject.Value)
+                //     : null)
+                // .OnSelect(e =>
+                // {
+                //     var clickedProject = projectData[e.Value].Project;
+                //     selectedProject.Set(selectedProject.Value == clickedProject ? null : clickedProject);
+                //     return ValueTask.CompletedTask;
+                // })
+            ;
 
         // Hourly cost & tokens combined bar chart
         var hourlyBurn = planService.GetHourlyTokenBurn(projectFilter: selectedProject.Value);
@@ -188,7 +189,7 @@ public class DashboardApp : ViewBase
 
         var header = Layout.Vertical()
                      | statsRow
-                     | projectProgress.Width(Size.Full()).WithLayout();
+                     | projectProgress.Width(Size.Full()).WithLayout().Margin(4,0,4,4);
 
         return new HeaderLayout(
             header,
