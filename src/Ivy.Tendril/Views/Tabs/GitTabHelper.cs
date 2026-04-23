@@ -78,7 +78,7 @@ public static class GitTabHelper
         Func<string, object> copyToClipboard,
         ILogger? logger = null)
     {
-        var gitLayout = Layout.Vertical().Gap(2);
+        var gitLayout = Layout.Vertical().Gap(4);
 
         // Worktrees section (new)
         if (gitData.WorktreeRows.Count > 0)
@@ -118,7 +118,6 @@ public static class GitTabHelper
             }
 
             gitLayout |= worktreesTable;
-            gitLayout |= new Separator();
         }
 
         // Problematic commits warning
