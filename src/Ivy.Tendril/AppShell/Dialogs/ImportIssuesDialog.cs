@@ -254,12 +254,33 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
             }
             else
             {
+                var repo = repos.FirstOrDefault(r => r.DisplayName == selectedRepo.Value);
+                var issueRows = issues.Select(i => new
+                {
+                    Number = repo != null ? $"[#{i.Number}](https://github.com/{repo.Owner}/{repo.Name}/issues/{i.Number})" : $"#{i.Number}",
+                    i.Title,
+                    Labels = string.Join(", ", i.Labels),
+                    Assignees = string.Join(", ", i.Assignees)
+                }).ToList();
+
                 issuesList = Layout.Vertical().Gap(1)
-                             | Text.Label($"Found {issues.Count} issue{(issues.Count == 1 ? "" : "s")}")
-                             | (Layout.Vertical().Gap(1)
-                                | issues.Select(i =>
-                                    (object)Text.Muted($"#{i.Number} — {i.Title}")
-                                ).ToArray());
+                    | Text.Label($"Found {issues.Count} issue{(issues.Count == 1 ? "" : "s")}")
+                    | issueRows.AsQueryable()
+                        .ToDataTable(i => i.Number)
+                        .Width(Size.Full())
+                        .Height(Size.Rem(20))
+                        .Header(i => i.Number, "#")
+                        .Header(i => i.Title, "Title")
+                        .Header(i => i.Labels, "Labels")
+                        .Header(i => i.Assignees, "Assignees")
+                        .Width(i => i.Number, Size.Px(80))
+                        .Width(i => i.Title, Size.Auto())
+                        .Width(i => i.Labels, Size.Px(200))
+                        .Width(i => i.Assignees, Size.Px(150))
+                        .Renderer(i => i.Number, new LinkDisplayRenderer())
+                        .Renderer(i => i.Title, new TextDisplayRenderer())
+                        .Renderer(i => i.Labels, new TextDisplayRenderer())
+                        .Renderer(i => i.Assignees, new TextDisplayRenderer());
             }
         }
 
