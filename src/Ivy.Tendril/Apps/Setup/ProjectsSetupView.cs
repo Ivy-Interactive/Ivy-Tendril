@@ -20,7 +20,7 @@ public class ProjectsSetupView : ViewBase
         var rows = projects.Select((p, i) => new ProjectRow(p.Name, p.Color, p.Repos.Count, p.Verifications.Count, i)).ToList();
 
         var table = new TableBuilder<ProjectRow>(rows)
-            .Header(t => t.Index, "Actions")
+            .Header(t => t.Index, "")
             .Builder(t => t.Index, f => f.Func<ProjectRow, int>(idx =>
                 Layout.Horizontal().Gap(1)
                 | new Button().Icon(Icons.Pencil).Outline().Small().OnClick(() =>
