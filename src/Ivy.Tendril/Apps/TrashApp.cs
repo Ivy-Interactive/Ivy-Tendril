@@ -1,6 +1,7 @@
 using Ivy.Tendril.Apps.Trash;
 using Ivy.Tendril.Apps.Trash.Dialogs;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps;
 
@@ -13,7 +14,7 @@ public record TrashFileInfo(
     string Project,
     string Content);
 
-[App(title: "Trash", icon: Icons.Trash2, group: ["Apps"], order: MenuOrder.Trash, isVisible: false)]
+[App(title: "Trash", icon: Icons.Trash2, group: ["Apps"], order: Constants.Trash, isVisible: false)]
 public class TrashApp : ViewBase
 {
     public override object Build()
@@ -72,7 +73,7 @@ public class TrashApp : ViewBase
         }
         else
         {
-            var header = Layout.Horizontal().Width(Size.Full()).Padding(1).Gap(2)
+            var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(40)).Gap(2)
                          | Text.Block(selected.FileName).Bold()
                          | new Badge(selected.Project).Variant(BadgeVariant.Outline)
                          | (string.IsNullOrEmpty(selected.DuplicateOf)
@@ -112,7 +113,7 @@ public class TrashApp : ViewBase
             new SidebarLayout(
                 mainContent,
                 sidebar
-            )
+            ).SidebarContentScroll(Scroll.None)
         };
 
         if (openFile.Value is { } filePath)

@@ -1,37 +1,14 @@
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Database;
 
 public static class DatabaseCommands
 {
-    /// <summary>
-    ///     Handles database CLI commands. Returns exit code (0 = success, 1 = error),
-    ///     or -1 if the args don't match a database command.
-    /// </summary>
-    public static int Handle(string[] args)
+    public static int DbVersionInternal(string dbPath, ILogger? logger = null)
     {
-        if (args.Length == 0) return -1;
-
-        var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
-        if (string.IsNullOrEmpty(tendrilHome))
-        {
-            Console.Error.WriteLine("Error: TENDRIL_HOME environment variable is not set.");
-            return 1;
-        }
-
-        var dbPath = Path.Combine(tendrilHome, "tendril.db");
-
-        return args[0] switch
-        {
-            "db-version" => DbVersionInternal(dbPath),
-            "db-migrate" => DbMigrateInternal(dbPath),
-            "db-reset" => DbResetInternal(dbPath, args.Contains("--force")),
-            _ => -1
-        };
-    }
-
-    public static int DbVersionInternal(string dbPath)
-    {
+        logger ??= NullLogger.Instance;
         using var connection = OpenConnection(dbPath);
         var migrator = new DatabaseMigrator(connection);
         var current = migrator.GetCurrentVersion();
@@ -40,34 +17,38 @@ public static class DatabaseCommands
             : current > latest ? "Newer than application"
             : "Needs migration";
 
-        Console.WriteLine($"Database version: {current}");
-        Console.WriteLine($"Latest version:   {latest}");
-        Console.WriteLine($"Status:           {status}");
+        logger.LogInformation("Database version: {CurrentVersion}", current);
+        logger.LogInformation("Latest version:   {LatestVersion}", latest);
+        logger.LogInformation("Status:           {Status}", status);
         return 0;
     }
 
-    public static int DbMigrateInternal(string dbPath)
+    public static int DbMigrateInternal(string dbPath, ILogger? logger = null)
     {
         using var connection = OpenConnection(dbPath);
-        var migrator = new DatabaseMigrator(connection);
+        var migrator = new DatabaseMigrator(connection, logger);
         migrator.ApplyMigrations();
         return 0;
     }
 
-    public static int DbResetInternal(string dbPath, bool force)
+    public static int DbResetInternal(string dbPath, bool force, ILogger? logger = null)
     {
+        logger ??= NullLogger.Instance;
+
         if (!force)
         {
+            // Interactive UI prompt - keep as Console
             Console.Write("WARNING: This will delete all data in the database. Are you sure? [y/n] ");
             var response = Console.ReadLine()?.Trim().ToLowerInvariant();
             if (response != "y")
             {
+                // Interactive UI feedback - keep as Console
                 Console.WriteLine("Aborted.");
                 return 1;
             }
         }
 
-        Console.WriteLine("Resetting database...");
+        logger.LogInformation("Resetting database...");
 
         using var connection = OpenConnection(dbPath);
 
@@ -82,7 +63,7 @@ public static class DatabaseCommands
         }
 
         // Drop all tables
-        Console.WriteLine("  Dropping existing tables");
+        logger.LogInformation("  Dropping existing tables");
         foreach (var table in tables)
         {
             using var dropCmd = connection.CreateCommand();

@@ -1,6 +1,9 @@
 using System.ComponentModel;
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
+using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -14,10 +17,54 @@ public class PlanCreateSettings : CommandSettings
     [Description("Plan title")]
     [CommandArgument(1, "<title>")]
     public string Title { get; set; } = "";
+
+    [Description("Project name (default: Auto)")]
+    [CommandOption("--project")]
+    public string? Project { get; set; }
+
+    [Description("Priority level (default: NiceToHave)")]
+    [CommandOption("--level")]
+    public string? Level { get; set; }
+
+    [Description("Initial prompt text")]
+    [CommandOption("--initial-prompt")]
+    public string? InitialPrompt { get; set; }
+
+    [Description("Source URL (GitHub issue or PR)")]
+    [CommandOption("--source-url")]
+    public string? SourceUrl { get; set; }
+
+    [Description("Execution profile (deep or balanced)")]
+    [CommandOption("--execution-profile")]
+    public string? ExecutionProfile { get; set; }
+
+    [Description("Priority number (default: 0)")]
+    [CommandOption("--priority")]
+    public int? Priority { get; set; }
+
+    [Description("Repository paths (repeatable)")]
+    [CommandOption("--repo")]
+    public string[]? Repos { get; set; }
+
+    [Description("Verifications in Name=Status format (repeatable)")]
+    [CommandOption("--verification")]
+    public string[]? Verifications { get; set; }
+
+    [Description("Related plan folder names (repeatable)")]
+    [CommandOption("--related-plan")]
+    public string[]? RelatedPlans { get; set; }
+
+    [Description("Dependency plan folder names (repeatable)")]
+    [CommandOption("--depends-on")]
+    public string[]? DependsOn { get; set; }
 }
 
 public class PlanCreateCommand : Command<PlanCreateSettings>
 {
+    private readonly ILogger<PlanCreateCommand> _logger;
+
+    public PlanCreateCommand(ILogger<PlanCreateCommand> logger) => _logger = logger;
+
     protected override int Execute(CommandContext context, PlanCreateSettings settings, CancellationToken cancellationToken)
     {
         try
@@ -28,29 +75,57 @@ public class PlanCreateCommand : Command<PlanCreateSettings>
             var yamlPath = Path.Combine(planFolder, "plan.yaml");
             if (File.Exists(yamlPath))
             {
-                Console.Error.WriteLine($"Error: plan.yaml already exists at {yamlPath}");
+                _logger.LogError("Plan already exists at {YamlPath}", yamlPath);
                 return 1;
             }
 
-            // Create new plan with minimal required fields
             var plan = new PlanYaml
             {
                 State = "Draft",
-                Project = "Auto",
-                Level = "NiceToHave",
+                Project = settings.Project ?? "Auto",
+                Level = settings.Level ?? "NiceToHave",
                 Title = settings.Title,
                 Created = DateTime.UtcNow,
-                Updated = DateTime.UtcNow
+                Updated = DateTime.UtcNow,
+                InitialPrompt = settings.InitialPrompt,
+                SourceUrl = settings.SourceUrl,
+                ExecutionProfile = settings.ExecutionProfile,
+                Priority = settings.Priority ?? 0
             };
+
+            if (settings.Repos != null)
+                foreach (var repo in settings.Repos)
+                    plan.Repos.Add(repo);
+
+            if (settings.Verifications != null)
+                foreach (var v in settings.Verifications)
+                {
+                    var eqIdx = v.IndexOf('=');
+                    if (eqIdx < 0)
+                        throw new ArgumentException($"Invalid verification format '{v}'. Expected Name=Status.");
+                    plan.Verifications.Add(new PlanVerificationEntry
+                    {
+                        Name = v[..eqIdx],
+                        Status = v[(eqIdx + 1)..]
+                    });
+                }
+
+            if (settings.RelatedPlans != null)
+                foreach (var rp in settings.RelatedPlans)
+                    plan.RelatedPlans.Add(rp);
+
+            if (settings.DependsOn != null)
+                foreach (var dep in settings.DependsOn)
+                    plan.DependsOn.Add(dep);
 
             PlanCommandHelpers.WritePlan(planFolder, plan);
 
-            Console.WriteLine($"Created plan {settings.PlanId}: {settings.Title}");
+            _logger.LogInformation("Created plan {PlanId}: {Title}", settings.PlanId, settings.Title);
             return 0;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            _logger.LogError(ex, "Failed to create plan {PlanId}", settings.PlanId);
             return 1;
         }
     }

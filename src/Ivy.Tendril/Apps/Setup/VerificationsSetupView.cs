@@ -1,5 +1,6 @@
 using Ivy.Tendril.Apps.Setup.Dialogs;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps.Setup;
 
@@ -32,10 +33,14 @@ public class VerificationsSetupView : ViewBase
                     client.Toast($"Verification '{name}' deleted", "Deleted");
                     refreshToken.Refresh();
                 })
-            ));
+            ))
+            .ColumnWidth(t => t.Name, Size.Px(150))
+            .ColumnWidth(t => t.Prompt, Size.Auto())
+            .ColumnWidth(t => t.Index, Size.Px(80));
 
-        return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(120)))
+        return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(400)))
                | Text.Block("Verification Definitions").Bold()
+               | Text.Block("Define verification steps that run after plan execution.").Muted().Small()
                | table
                | new Button("Add Verification").Icon(Icons.Plus).Outline().OnClick(() =>
                {

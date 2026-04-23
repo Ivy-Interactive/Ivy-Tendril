@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Database.Migrations;
 
@@ -7,7 +8,7 @@ public class Migration_009_JobsArgs : IMigration
     public int Version => 9;
     public string Description => "Add Args column to Jobs table";
 
-    public void Apply(SqliteConnection connection)
+    public void Apply(SqliteConnection connection, ILogger? logger = null)
     {
         using var cmd = connection.CreateCommand();
         cmd.CommandText = "ALTER TABLE Jobs ADD COLUMN Args TEXT;";

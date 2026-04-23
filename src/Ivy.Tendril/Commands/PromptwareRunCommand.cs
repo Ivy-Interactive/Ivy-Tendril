@@ -2,7 +2,9 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services.Agents;
+using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -32,6 +34,10 @@ public class PromptwareRunSettings : CommandSettings
 
 public class PromptwareRunCommand : Command<PromptwareRunSettings>
 {
+    private readonly ILogger<PromptwareRunCommand> _logger;
+
+    public PromptwareRunCommand(ILogger<PromptwareRunCommand> logger) => _logger = logger;
+
     protected override int Execute(CommandContext context, PromptwareRunSettings settings, CancellationToken cancellationToken)
     {
         try
@@ -40,23 +46,52 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            _logger.LogError(ex, "Failed to run promptware {Promptware}", settings.Promptware);
             return 1;
         }
     }
 
-    internal static int Run(PromptwareRunSettings settings, CancellationToken cancellationToken = default)
+    /// <summary>
+    ///     Resolves the promptware folder by checking the source root first,
+    ///     then falling back to TENDRIL_HOME/Promptwares/ for promptwares that
+    ///     only exist in the deployed location (e.g. team config promptwares).
+    /// </summary>
+    private static (string ProgramFolder, string SharedRoot) ResolvePromptwareFolder(string promptwareName)
+    {
+        var sourceRoot = JobService.ResolvePromptsRoot();
+        var sourceFolder = Path.Combine(sourceRoot, promptwareName);
+        var sourceShared = Path.Combine(sourceRoot, ".shared");
+
+        if (File.Exists(Path.Combine(sourceFolder, "Program.md")))
+            return (sourceFolder, sourceShared);
+
+        var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
+        if (!string.IsNullOrEmpty(tendrilHome))
+        {
+            var deployedRoot = Path.Combine(tendrilHome, "Promptwares");
+            var deployedFolder = Path.Combine(deployedRoot, promptwareName);
+            var deployedShared = Path.Combine(deployedRoot, ".shared");
+            if (File.Exists(Path.Combine(deployedFolder, "Program.md")))
+            {
+                var shared = Directory.Exists(deployedShared) ? deployedShared : sourceShared;
+                return (deployedFolder, shared);
+            }
+        }
+
+        return (sourceFolder, sourceShared);
+    }
+
+    internal int Run(PromptwareRunSettings settings, CancellationToken cancellationToken = default)
     {
         var configService = new ConfigService();
         var tendrilSettings = configService.Settings;
 
-        var promptsRoot = JobService.ResolvePromptsRoot();
-        var programFolder = Path.Combine(promptsRoot, settings.Promptware);
+        var (programFolder, sharedRoot) = ResolvePromptwareFolder(settings.Promptware);
         var programMd = Path.Combine(programFolder, "Program.md");
 
         if (!File.Exists(programMd))
         {
-            Console.Error.WriteLine($"Error: Program.md not found at {programMd}");
+            _logger.LogError("Program.md not found at {ProgramMdPath}", programMd);
             return 1;
         }
 
@@ -98,7 +133,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         // Compile firmware
         var logFile = FirmwareCompiler.GetNextLogFile(programFolder);
         var sharedDocs = new List<(string Name, string Content)>();
-        var plansMdPath = Path.Combine(JobService.SharedRoot, "Plans.md");
+        var plansMdPath = Path.Combine(sharedRoot, "Plans.md");
         if (File.Exists(plansMdPath))
             sharedDocs.Add(("Plans", File.ReadAllText(plansMdPath)));
 
@@ -124,12 +159,16 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         psi.Environment["TENDRIL_CONFIG"] = configService.ConfigPath;
         psi.Environment["TENDRIL_URL"] = Environment.GetEnvironmentVariable("TENDRIL_URL") ?? "https://localhost:5010";
 
-        Console.Error.WriteLine($"Running {settings.Promptware} via {resolution.Provider.Name} (model={resolution.Model}, effort={resolution.Effort})");
+        var verbosityService = new VerbosityService();
+        if (verbosityService.Level != VerbosityLevel.Quiet)
+        {
+            _logger.LogInformation("Running {Promptware} via {ProviderName} (model={Model}, effort={Effort})", settings.Promptware, resolution.Provider.Name, resolution.Model, resolution.Effort);
+        }
 
         using var process = Process.Start(psi);
         if (process == null)
         {
-            Console.Error.WriteLine("Error: Failed to start agent process");
+            _logger.LogError("Failed to start agent process");
             return 1;
         }
 

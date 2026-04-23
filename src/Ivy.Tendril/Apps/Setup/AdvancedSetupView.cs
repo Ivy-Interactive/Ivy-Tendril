@@ -1,4 +1,5 @@
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps.Setup;
 
@@ -22,6 +23,8 @@ public class AdvancedSetupView : ViewBase
                          || editorLabel.Value != config.Settings.Editor.Label;
 
         var form = Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(120)))
+                   | Text.Block("Advanced Settings").Bold()
+                   | Text.Block("Configure timeouts, concurrency limits, and editor preferences.").Muted().Small()
                    | Text.Block("Timeouts").Bold()
                    | jobTimeout.ToNumberInput().Min(1).Max(120).Suffix("min")
                        .WithField().Label("Job Timeout")

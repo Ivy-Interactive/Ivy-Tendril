@@ -1,8 +1,11 @@
 using Ivy.Core;
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Apps.Review.Dialogs;
 using Ivy.Tendril.Services;
-using Ivy.Widgets.DiffView;
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Views.Sheets;
+using Ivy.Tendril.Views.Tabs;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Apps.Review;
@@ -17,15 +20,6 @@ public class ContentView(
     IConfigService config,
     IGitService gitService) : ViewBase
 {
-    private readonly List<PlanFile> _allPlans = allPlans;
-    private readonly IConfigService _config = config;
-    private readonly IGitService _gitService = gitService;
-    private readonly IJobService _jobService = jobService;
-    private readonly IPlanReaderService _planService = planService;
-    private readonly Action _refreshPlans = refreshPlans;
-    private readonly PlanFile? _selectedPlan = selectedPlan;
-    private readonly IState<PlanFile?> _selectedPlanState = selectedPlanState;
-
     public override object Build()
     {
         var client = UseService<IClientProvider>();
@@ -44,22 +38,22 @@ public class ContentView(
         var githubService = UseService<IGithubService>();
         var assigneesError = UseState<string?>(null);
         var assigneesQuery = UseQuery<string[], string>(
-            _selectedPlan?.Project ?? "",
+            selectedPlan?.Project ?? "",
             async (_, _) =>
             {
-                if (_selectedPlan is null)
+                if (selectedPlan is null)
                 {
                     assigneesError.Set(null);
                     return Array.Empty<string>();
                 }
-                var repos = _selectedPlan.GetEffectiveRepoPaths(_config);
+                var repos = selectedPlan.GetEffectiveRepoPaths(config);
                 var repoPath = repos.FirstOrDefault();
                 if (repoPath is null)
                 {
                     assigneesError.Set(null);
                     return Array.Empty<string>();
                 }
-                var repoConfig = GithubService.GetRepoConfigFromPath(repoPath);
+                var repoConfig = githubService.GetRepoConfigFromPathCached(repoPath);
                 if (repoConfig is null)
                 {
                     assigneesError.Set(null);
@@ -73,28 +67,13 @@ public class ContentView(
         );
         var selectedTab = UseState(0);
 
-        var verificationReportQuery = UseQuery<string, string>(
-            openVerification.Value ?? "",
-            async (name, ct) =>
-            {
-                if (string.IsNullOrEmpty(name) || _selectedPlan is null) return "";
-                var verificationDir = Path.GetFullPath(Path.Combine(_selectedPlan.FolderPath, "verification"));
-                var resolvedPath = Path.GetFullPath(Path.Combine(verificationDir, $"{name}.md"));
-                if (!resolvedPath.StartsWith(verificationDir, StringComparison.OrdinalIgnoreCase))
-                    return "Access denied: file is outside the verification folder.";
-                return await Task.Run(() =>
-                    File.Exists(resolvedPath) ? FileHelper.ReadAllText(resolvedPath) : $"No report found for {name}.", ct);
-            },
-            initialValue: ""
-        );
-
         var artifactContentQuery = UseQuery<string, string>(
             openArtifact.Value ?? "",
             async (filePath, ct) =>
             {
                 if (string.IsNullOrEmpty(filePath)) return "";
-                if (_selectedPlan is null) return "";
-                var artifactsDir = Path.GetFullPath(Path.Combine(_selectedPlan.FolderPath, "artifacts"));
+                if (selectedPlan is null) return "";
+                var artifactsDir = Path.GetFullPath(Path.Combine(selectedPlan.FolderPath, "artifacts"));
                 var resolvedPath = Path.GetFullPath(filePath);
                 if (!resolvedPath.StartsWith(artifactsDir, StringComparison.OrdinalIgnoreCase))
                     return "Access denied: file is outside the artifacts folder.";
@@ -104,38 +83,13 @@ public class ContentView(
             initialValue: ""
         );
 
-        var commitQuery = UseQuery<PlanContentHelpers.CommitDetailData?, string>(
-            openCommit.Value ?? "",
-            async (hash, ct) =>
-            {
-                if (string.IsNullOrEmpty(hash)) return null;
-                if (_selectedPlan is null) return null;
-                var repoPaths2 = _selectedPlan.GetEffectiveRepoPaths(_config);
-                return await Task.Run(() =>
-                {
-                    foreach (var repo in repoPaths2)
-                    {
-                        var title = _gitService.GetCommitTitle(repo, hash);
-                        if (title != null)
-                        {
-                            var diff = _gitService.GetCommitDiff(repo, hash);
-                            var files = _gitService.GetCommitFiles(repo, hash);
-                            return new PlanContentHelpers.CommitDetailData(title, diff, files);
-                        }
-                    }
-                    return null;
-                }, ct);
-            },
-            initialValue: null
-        );
-
         var planContentQuery = UseQuery<PlanContentData, string>(
-            _selectedPlan?.FolderPath ?? "",
+            selectedPlan?.FolderPath ?? "",
             async (folderPath, ct) =>
             {
                 return await Task.Run(() =>
                 {
-                    if (_selectedPlan is null)
+                    if (selectedPlan is null)
                         return new PlanContentData(new List<RecommendationYaml>(), null,
                             new Dictionary<string, List<string>>(), new List<PlanContentHelpers.CommitRow>(),
                             new Dictionary<string, bool>(), new List<(string Name, bool ConditionMet)>(), null);
@@ -170,18 +124,18 @@ public class ContentView(
                     var artifacts = PlanContentHelpers.GetArtifacts(folderPath);
 
                     // Commit rows
-                    var commitRows = PlanContentHelpers.BuildCommitRows(_selectedPlan!, _config, _gitService);
+                    var commitRows = PlanContentHelpers.BuildCommitRows(selectedPlan!, config, gitService);
 
                     // All changes data
-                    var allChanges = PlanContentHelpers.GetAllChangesData(_selectedPlan!, _config, _gitService);
+                    var allChanges = PlanContentHelpers.GetAllChangesData(selectedPlan!, config, gitService);
 
                     // Verification report existence
-                    var verReports = _selectedPlan.Verifications.ToDictionary(
+                    var verReports = selectedPlan.Verifications.ToDictionary(
                         v => v.Name,
                         v => File.Exists(Path.Combine(folderPath, "verification", $"{v.Name}.md")));
 
                     // Review action conditions
-                    var projectConfig = _config.GetProject(_selectedPlan.Project);
+                    var projectConfig = config.GetProject(selectedPlan.Project);
                     var reviewActions = projectConfig?.ReviewActions ?? [];
                     var actionStates = new (string Name, bool ConditionMet)[reviewActions.Count];
                     Parallel.For(0, reviewActions.Count, i =>
@@ -192,7 +146,7 @@ public class ContentView(
                             actionStates[i] = (action.Name, true);
                             return;
                         }
-                        actionStates[i] = (action.Name, PlatformHelper.EvaluatePowerShellCondition(action.Condition, folderPath));
+                        actionStates[i] = (action.Name, PlatformHelper.EvaluatePowerShellCondition(action.Condition, folderPath, logger: logger));
                     });
 
                     return new PlanContentData(recs, summaryMd, artifacts, commitRows, verReports, actionStates.ToList(), allChanges);
@@ -204,11 +158,11 @@ public class ContentView(
                 new List<(string Name, bool ConditionMet)>(), null)
         );
 
-        UseEffect(() => { selectedTab.Set(0); }, _selectedPlanState);
+        UseEffect(() => { selectedTab.Set(0); }, selectedPlanState);
 
-        if (_selectedPlan is null)
+        if (selectedPlan is null)
         {
-            if (_allPlans.Count == 0)
+            if (allPlans.Count == 0)
                 return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full()).Gap(2)
                        | new Icon(Icons.Inbox).Large().Color(Colors.Gray)
                        | Text.Muted("No plans to review");
@@ -217,34 +171,41 @@ public class ContentView(
                    | Text.Muted("Select a completed plan to review");
         }
 
-        var currentIndex = _allPlans.FindIndex(p => p.FolderName == _selectedPlan.FolderName);
+        var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan.FolderName);
 
         // Header
-        var header = Layout.Horizontal().Width(Size.Full()).Padding(1).Gap(2)
-                     | Text.Block($"#{_selectedPlan.Id} {_selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis);
+        var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(40)).Gap(2)
+                     | Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis);
 
-        if (!string.IsNullOrEmpty(_selectedPlan.SourceUrl))
-            header |= new Button(_selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
-                .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(_selectedPlan.SourceUrl));
+        if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
+            header |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
+                .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
 
         header |= new Spacer().Width(Size.Grow());
 
         header |= Text.Rich()
-                         .Bold($"{currentIndex + 1}/{_allPlans.Count}", word: true)
+                         .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
                          .Muted("plans", word: true);
 
-        header |= new Button("Make PR").Icon(Icons.GitPullRequest).Primary().OnClick(() =>
+        header |= new Button("Create PR").Icon(Icons.GitPullRequest).Primary().OnClick(() =>
         {
-            var repoPaths = _selectedPlan.GetEffectiveRepoPaths(_config);
-            var project = _config.GetProject(_selectedPlan.Project);
+            var repoPaths = selectedPlan.GetEffectiveRepoPaths(config);
+            var project = config.GetProject(selectedPlan.Project);
             var allYolo = repoPaths.All(rp =>
                 project?.GetRepoRef(rp)?.PrRule == "yolo");
 
             if (allYolo)
             {
-                _jobService.StartJob("CreatePr", _selectedPlan.FolderPath);
-                _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Building);
-                _refreshPlans();
+                // Optimistically update UI state before disk I/O
+                var optimisticPlan = selectedPlan with
+                {
+                    Metadata = selectedPlan.Metadata with { State = PlanStatus.Building }
+                };
+                selectedPlanState.Set(optimisticPlan);
+
+                jobService.StartJob("CreatePr", selectedPlan.FolderPath);
+                planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
+                refreshPlans();
             }
             else
             {
@@ -253,31 +214,32 @@ public class ContentView(
         }).ShortcutKey("m").WithConfetti(AnimationTrigger.Click);
 
         // Content sections
-        var content = Layout.Vertical();
+        var content = Layout.Vertical().Height(Size.Full()).Gap(1);
 
         var planData = planContentQuery.Value;
 
         // Early null guard: _selectedPlan may become null due to state updates
-        if (_selectedPlan is null)
+        if (selectedPlan is null)
         {
             return Text.Muted("No plan selected");
         }
 
         // Plan tab content (not dependent on query — uses in-memory data)
-        var reviewAnnotated = MarkdownHelper.AnnotateAllBrokenLinks(_selectedPlan.LatestRevisionContent, _planService.PlansDirectory);
-        var planTabContent = new Markdown(reviewAnnotated)
-            .DangerouslyAllowLocalFiles()
-            .OnLinkClick(FileLinkHelper.CreateFileLinkClickHandler(openFile, planId =>
-            {
-                var planFolder = Directory.GetDirectories(_planService.PlansDirectory, $"{planId:D5}-*")
-                    .FirstOrDefault();
-                if (planFolder != null)
+        var reviewAnnotated = MarkdownHelper.AnnotateAllBrokenLinks(selectedPlan.LatestRevisionContent, planService.PlansDirectory);
+        var planTabContent = Layout.Vertical().Scroll(Scroll.Vertical)
+            | new Markdown(reviewAnnotated)
+                .DangerouslyAllowLocalFiles()
+                .OnLinkClick(FileLinkHelper.CreateFileLinkClickHandler(openFile, planId =>
                 {
-                    var plan = _planService.GetPlanByFolder(planFolder);
-                    if (plan != null)
-                        _selectedPlanState.Set(plan);
-                }
-            }));
+                    var planFolder = Directory.GetDirectories(planService.PlansDirectory, $"{planId:D5}-*")
+                        .FirstOrDefault();
+                    if (planFolder != null)
+                    {
+                        var plan = planService.GetPlanByFolder(planFolder);
+                        if (plan != null)
+                            selectedPlanState.Set(plan);
+                    }
+                }));
 
         if (planContentQuery.Loading)
         {
@@ -294,126 +256,34 @@ public class ContentView(
         }
         else
         {
-            // Summary tab content
-            object summaryTabContent;
-            if (planData.SummaryMarkdown is { } summaryMd)
-            {
-                var summaryLayout = Layout.Vertical().Gap(2);
-                summaryLayout |= new Markdown(summaryMd).DangerouslyAllowLocalFiles();
-                summaryTabContent = summaryLayout;
-            }
-            else
-            {
-                summaryTabContent = Text.Muted("No summary available.");
-            }
-
-            // Verifications tab content
-            var verificationsTable = new Table(
-                new TableRow(
-                        new TableCell("Status").IsHeader(),
-                        new TableCell("Name").IsHeader()
-                    )
-                { IsHeader = true }
+            // Git tab content (uses shared helper)
+            var gitData = GitTabHelper.BuildGitTabData(selectedPlan!, config, gitService);
+            var gitLayout = GitTabHelper.RenderGitTab(
+                gitData,
+                selectedPlan!,
+                client,
+                config,
+                hash => openCommit.Set(hash),
+                path =>
+                {
+                    copyToClipboard(path);
+                    client.Toast("Copied path to clipboard", "Path Copied");
+                    return null!; // Return type doesn't matter, just need to satisfy Func
+                },
+                logger
             );
-            foreach (var v in _selectedPlan.Verifications)
-            {
-                var hasReport = planData.VerificationReports.TryGetValue(v.Name, out var exists) && exists;
-                var nameCapture = v.Name;
-                var nameCell = hasReport
-                    ? new Button(v.Name).Inline().OnClick(() => openVerification.Set(nameCapture))
-                    : (object)Text.Block(v.Name);
-
-                verificationsTable |= new TableRow(
-                    new TableCell(new Badge(v.Status).Variant(
-                        StatusMappings.VerificationStatusBadgeVariants.TryGetValue(v.Status, out var variant)
-                            ? variant
-                            : BadgeVariant.Outline)),
-                    new TableCell(nameCell)
-                );
-            }
-
-            // Git tab content (combines commits and PRs)
-            var gitLayout = Layout.Vertical().Gap(2);
-
-            var problematicCommits = planData.CommitRows
-                .Where(r => string.IsNullOrEmpty(r.Title) || r.FileCount == 0)
-                .ToList();
-
-            if (problematicCommits.Count > 0)
-            {
-                var warnings = problematicCommits.Select(r =>
-                {
-                    if (string.IsNullOrEmpty(r.Title))
-                        return $"`{r.ShortHash}` — commit not found or has no message";
-                    return $"`{r.ShortHash}` — commit has no file changes";
-                });
-                gitLayout |= Callout.Warning(
-                    string.Join("\n", warnings),
-                    "Potentially corrupted commits");
-            }
-
-            if (_selectedPlan.Commits.Count > 0)
-            {
-                gitLayout |= Text.Block("Commits").Bold();
-                var commitsTable = new Table(
-                    new TableRow(
-                            new TableCell("Commit").IsHeader(),
-                            new TableCell("Message").IsHeader(),
-                            new TableCell("Files").IsHeader()
-                        )
-                    { IsHeader = true }
-                );
-                foreach (var row in planData.CommitRows)
-                    commitsTable |= new TableRow(
-                        new TableCell(new Button(row.ShortHash).Inline().OnClick(() => openCommit.Set(row.Hash))),
-                        new TableCell(row.Title),
-                        new TableCell(row.FileCount?.ToString() ?? "–")
-                    );
-                gitLayout |= commitsTable;
-            }
-            if (_selectedPlan.Prs.Count > 0)
-            {
-                if (_selectedPlan.Commits.Count > 0)
-                    gitLayout |= new Separator();
-
-                gitLayout |= Text.Block("Pull Requests").Bold();
-                var prsTable = new Table(
-                    new TableRow(
-                            new TableCell("Repository").IsHeader(),
-                            new TableCell("PR").IsHeader()
-                        )
-                    { IsHeader = true }
-                );
-                foreach (var pr in _selectedPlan.Prs.Where(PullRequestApp.IsValidUrl))
-                {
-                    var prCapture = pr;
-                    prsTable |= new TableRow(
-                        new TableCell(PullRequestApp.ExtractRepo(pr)),
-                        new TableCell(new Button(pr).Link().OnClick(() => client.OpenUrl(prCapture)))
-                    );
-                }
-                gitLayout |= prsTable;
-            }
-
-            if (_selectedPlan.Commits.Count == 0 && _selectedPlan.Prs.Count == 0)
-            {
-                gitLayout |= Text.Muted("No commits or pull requests yet.");
-            }
 
             // Artifacts tab content
-            var artifactsLayout = Layout.Vertical().Gap(2);
-            artifactsLayout |= PlanContentHelpers.RenderArtifactScreenshots(planData.Artifacts);
-
             var totalArtifacts = (planData.Artifacts.GetValueOrDefault("screenshots")?.Count ?? 0)
                                  + (planData.Artifacts.ContainsKey("sample") ? 1 : 0);
 
             // Review actions
             var reviewActionStates = planData.ReviewActionStates;
-            var projectConfig = _config.GetProject(_selectedPlan.Project);
+            var projectConfig = config.GetProject(selectedPlan.Project);
             var reviewActions = projectConfig?.ReviewActions ?? new List<ReviewActionConfig>();
             if (reviewActions.Count > 0)
             {
-                var actionsBar = Layout.Horizontal().Gap(2).Padding(1);
+                var actionsBar = Layout.Horizontal().Gap(2).Padding(2).Height(Size.Fit());
                 for (var i = 0; i < reviewActions.Count; i++)
                 {
                     var action = reviewActions[i];
@@ -429,9 +299,9 @@ public class ContentView(
                         var actionCapture = action;
                         btn = btn.OnClick(() =>
                         {
-                            if (!PlatformHelper.RunPowerShellAction(actionCapture.Action, _selectedPlan.FolderPath))
+                            if (!PlatformHelper.RunPowerShellAction(actionCapture.Action, selectedPlan.FolderPath, logger))
                             {
-                                Console.Error.WriteLine($"Failed to run review action '{actionCapture.Name}': pwsh not found");
+                                logger.LogWarning("Failed to run review action {ActionName}: pwsh not found", actionCapture.Name);
                             }
                         });
                     }
@@ -475,92 +345,28 @@ public class ContentView(
                     recommendationsLayout |= new Separator();
                 }
 
-            // Changes tab content
-            object changesTabContent;
-            var changesData = planContentQuery.Value.AllChanges;
-            var changesFileCount = 0;
-            if (planContentQuery.Loading)
-            {
-                changesTabContent = Text.Muted("Loading...");
-            }
-            else if (changesData is null)
-            {
-                var errorMsg = planContentQuery.Error is { } err
-                    ? $"Failed to load changes: {err.Message}"
-                    : "No commits yet.";
-                changesTabContent = Text.Muted(errorMsg);
-            }
-            else
-            {
-                changesFileCount = changesData.Files.Count;
-                var changesLayout = Layout.Vertical().Gap(4).Padding(2);
-
-                var statsText =
-                    $"{changesData.Files.Count} files changed ({changesData.AddedCount} added, {changesData.ModifiedCount} modified, {changesData.DeletedCount} deleted)";
-                changesLayout |= Text.Block(statsText).Bold();
-
-                if (changesData.Files.Count > 0)
-                {
-                    var filesLayout = Layout.Vertical().Gap(1);
-                    foreach (var (status, filePath) in changesData.Files)
-                    {
-                        var (label, variant) = status switch
-                        {
-                            "A" => ("Added", BadgeVariant.Success),
-                            "D" => ("Deleted", BadgeVariant.Destructive),
-                            _ => ("Modified", BadgeVariant.Outline)
-                        };
-                        filesLayout |= Layout.Horizontal().Gap(2)
-                            | new Badge(label).Variant(variant).Small()
-                            | Text.Block(filePath);
-                    }
-
-                    changesLayout |= filesLayout;
-                }
-
-                if (!string.IsNullOrWhiteSpace(changesData.Diff))
-                {
-                    changesLayout |= new DiffView().Diff(changesData.Diff).Split();
-                }
-
-                changesTabContent = changesLayout;
-            }
+            // Changes tab
+            var changesTabView = new ChangesTabView(planData.AllChanges, planContentQuery.Loading, planContentQuery.Error);
 
             // Build tabs
             var tabs = Layout.Tabs(
-                new Tab("Summary", Cap(summaryTabContent)),
-                new Tab("Verifications", Cap(verificationsTable)).Badge(_selectedPlan.Verifications.Count.ToString()),
-                new Tab("Git", Cap(gitLayout)).Badge((_selectedPlan.Commits.Count + _selectedPlan.Prs.Count).ToString()),
-                new Tab("Changes", Cap(changesTabContent)).Badge(changesFileCount > 0 ? changesFileCount.ToString() : ""),
-                new Tab("Artifacts", Cap(artifactsLayout)).Badge(totalArtifacts.ToString()),
+                new Tab("Summary", Cap(new SummaryTabView(planData.SummaryMarkdown))),
+                new Tab("Verifications", Cap(new VerificationsTabView(
+                    selectedPlan.Verifications, planData.VerificationReports,
+                    v => openVerification.Set(v)))).Badge(selectedPlan.Verifications.Count.ToString()),
+                new Tab("Git", Cap(gitLayout)).Badge((gitData.WorktreeRows.Count + selectedPlan.Commits.Count + selectedPlan.Prs.Count).ToString()),
+                new Tab("Changes", Cap(changesTabView)).Badge(changesTabView.FileCount > 0 ? changesTabView.FileCount.ToString() : ""),
+                new Tab("Artifacts", Cap(new ArtifactsTabView(planData.Artifacts))).Badge(totalArtifacts.ToString()),
                 new Tab("Recommendations", Cap(recommendationsLayout)).Badge(planData.Recommendations.Count.ToString()),
                 new Tab("Plan", Cap(planTabContent))
             ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content);
 
-            content |= tabs;
+            content |= (Layout.Vertical().Padding(2, 0) | tabs);
         }
 
         // Sheet modals (outside TabsLayout so they render as overlays)
-        if (openVerification.Value is { } verName)
-            content |= new Sheet(
-                () => openVerification.Set(null),
-                verificationReportQuery.Loading
-                    ? Text.Muted("Loading...")
-                    : verificationReportQuery.Error is { } err
-                        ? Text.Muted($"Failed to load verification report: {err.Message}")
-                        : new Markdown(verificationReportQuery.Value).DangerouslyAllowLocalFiles(),
-                verName
-            ).Width(Size.Half()).Resizable();
-
-        if (openCommit.Value is { } commitHash && _selectedPlan is not null)
-        {
-            content |= PlanContentHelpers.RenderCommitDetailSheet(
-                commitQuery.Value,
-                commitQuery.Loading || commitQuery.Value is null && !string.IsNullOrEmpty(openCommit.Value),
-                commitHash,
-                () => openCommit.Set(null),
-                commitQuery.Error);
-        }
+        content |= new VerificationReportSheet(openVerification, selectedPlan);
+        content |= new CommitDetailSheet(openCommit, selectedPlan, config, gitService);
 
         if (openArtifact.Value is { } artifactPath)
         {
@@ -576,28 +382,28 @@ public class ContentView(
             ).Width(Size.Half()).Resizable();
         }
 
-        if (_selectedPlan is not null)
+        if (selectedPlan is not null)
         {
-            var fileRepoPaths = _selectedPlan.GetEffectiveRepoPaths(_config);
+            var fileRepoPaths = selectedPlan.GetEffectiveRepoPaths(config);
             var fileLinkSheet =
-                FileLinkHelper.BuildFileLinkSheet(openFile.Value, () => openFile.Set(null), fileRepoPaths, _config);
+                FileLinkHelper.BuildFileLinkSheet(openFile.Value, () => openFile.Set(null), fileRepoPaths, config);
             if (fileLinkSheet != null) content |= fileLinkSheet;
         }
 
         // Dialogs
-        content |= new SuggestChangesDialog(suggestChangesOpen, suggestChangesText, _selectedPlan, _jobService,
-            _planService, _refreshPlans);
-        content |= new CustomPrDialog(customPrOpen, _selectedPlan, _jobService, _planService, _refreshPlans,
+        content |= new SuggestChangesDialog(suggestChangesOpen, suggestChangesText, selectedPlan, jobService,
+            planService, refreshPlans);
+        content |= new CustomPrDialog(customPrOpen, selectedPlan, jobService, planService, refreshPlans,
             assigneesQuery, assigneesError);
 
         // Discard confirmation dialog
-        content |= new DiscardPlanDialog(discardDialogOpen, _selectedPlan, _planService, _refreshPlans);
+        content |= new DiscardPlanDialog(discardDialogOpen, selectedPlan, planService, refreshPlans);
 
         // Rerun dialog
-        content |= new RerunDialog(rerunDialogOpen, _selectedPlan, _jobService, _planService, _refreshPlans);
+        content |= new RerunDialog(rerunDialogOpen, selectedPlan, jobService, planService, refreshPlans);
 
         // Action bar
-        var actionBar = Layout.Horizontal().AlignContent(Align.Center).Gap(2).Padding(1)
+        var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(1)
                         | new Button("Rerun").Icon(Icons.RotateCw).Outline().ShortcutKey("r").OnClick(() =>
                         {
                             rerunDialogOpen.Set(true);
@@ -621,27 +427,34 @@ public class ContentView(
                             }),
                             new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
                             {
-                                _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Completed);
-                                _refreshPlans();
+                                // Optimistically update UI state before disk I/O
+                                var optimisticPlan = selectedPlan with
+                                {
+                                    Metadata = selectedPlan.Metadata with { State = PlanStatus.Completed }
+                                };
+                                selectedPlanState.Set(optimisticPlan);
+
+                                planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+                                refreshPlans();
                             }),
                             new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
-                                .OnSelect(() => { PlatformHelper.OpenInFileManager(_selectedPlan.FolderPath); }),
+                                .OnSelect(() => { PlatformHelper.OpenInFileManager(selectedPlan.FolderPath, logger); }),
                             new MenuItem("Open in Terminal", Icon: Icons.Terminal, Tag: "OpenInTerminal").OnSelect(() =>
                             {
-                                PlatformHelper.OpenInTerminal(_selectedPlan.FolderPath);
+                                PlatformHelper.OpenInTerminal(selectedPlan.FolderPath, logger);
                             }),
                             new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
                                 .OnSelect(() =>
                                 {
-                                    copyToClipboard(_selectedPlan.FolderPath);
+                                    copyToClipboard(selectedPlan.FolderPath);
                                     client.Toast("Copied path to clipboard", "Path Copied");
                                 }),
-                            new MenuItem($"Open in {_config.Editor.Label}", Icon: Icons.Code, Tag: "OpenInEditor")
-                                .OnSelect(() => { _config.OpenInEditor(_selectedPlan.FolderPath); }),
+                            new MenuItem($"Open in {config.Editor.Label}", Icon: Icons.Code, Tag: "OpenInEditor")
+                                .OnSelect(() => { config.OpenInEditor(selectedPlan.FolderPath); }),
                             new MenuItem("Open plan.yaml", Icon: Icons.FileText, Tag: "OpenPlanYaml").OnSelect(() =>
                             {
-                                var yamlPath = Path.Combine(_selectedPlan.FolderPath, "plan.yaml");
-                                _config.OpenInEditor(yamlPath);
+                                var yamlPath = Path.Combine(selectedPlan.FolderPath, "plan.yaml");
+                                config.OpenInEditor(yamlPath);
                             })
                         );
 
@@ -650,8 +463,8 @@ public class ContentView(
             new FooterLayout(
                 actionBar,
                 content
-            ).Size(Size.Full())
-        ).Scroll(Scroll.None).Size(Size.Full()).Key(_selectedPlan.Id);
+            ).Scroll(Scroll.None).Size(Size.Full())
+        ).Scroll(Scroll.None).Size(Size.Full()).Key(selectedPlan.Id);
 
         object Cap(object inner)
         {
@@ -675,18 +488,18 @@ public class ContentView(
 
     private void GoToNext()
     {
-        if (_allPlans.Count == 0) return;
-        var currentIndex = _allPlans.FindIndex(p => p.FolderName == _selectedPlan?.FolderName);
-        var nextIndex = (currentIndex + 1) % _allPlans.Count;
-        _selectedPlanState.Set(_allPlans[nextIndex]);
+        if (allPlans.Count == 0) return;
+        var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan?.FolderName);
+        var nextIndex = (currentIndex + 1) % allPlans.Count;
+        selectedPlanState.Set(allPlans[nextIndex]);
     }
 
     private void GoToPrevious()
     {
-        if (_allPlans.Count == 0) return;
-        var currentIndex = _allPlans.FindIndex(p => p.FolderName == _selectedPlan?.FolderName);
-        var prevIndex = (currentIndex - 1 + _allPlans.Count) % _allPlans.Count;
-        _selectedPlanState.Set(_allPlans[prevIndex]);
+        if (allPlans.Count == 0) return;
+        var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan?.FolderName);
+        var prevIndex = (currentIndex - 1 + allPlans.Count) % allPlans.Count;
+        selectedPlanState.Set(allPlans[prevIndex]);
     }
 
     private record PlanContentData(

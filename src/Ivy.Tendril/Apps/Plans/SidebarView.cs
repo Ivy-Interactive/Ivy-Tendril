@@ -1,3 +1,4 @@
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 
@@ -9,28 +10,20 @@ public class SidebarView(
     IState<string?> projectFilter,
     IState<string?> levelFilter,
     IState<string?> textFilter,
+    IState<bool> filtersOpen,
     IConfigService config) : ViewBase
 {
-    public override object Build()
+    private object BuildHeader()
     {
-        var filtersOpen = UseState(false);
-
-        var filteredPlans =
-            PlanFilters.ApplyFilters(plans, projectFilter.Value, levelFilter.Value, textFilter.Value);
-
-        var filteredList = filteredPlans.ToList();
-
-        var levelOptions = config.LevelNames;
-
         var levelFilteredPlans = plans.AsEnumerable();
         if (levelFilter.Value is { } level)
             levelFilteredPlans = levelFilteredPlans.Where(p => p.Level == level);
-
         var projectCounts = levelFilteredPlans
             .GroupBy(p => p.Project)
             .OrderByDescending(g => g.Count())
             .Select(g => new Option<string>($"{g.Key} ({g.Count()})", g.Key))
             .ToArray<IAnyOption>();
+        var levelOptions = config.LevelNames;
 
         var searchInput = textFilter.ToSearchInput()
             .Placeholder("Search...")
@@ -42,23 +35,34 @@ public class SidebarView(
                     .OnClick(() => filtersOpen.Set(!filtersOpen.Value))
             );
 
-        var header = Layout.Vertical() | searchInput;
+        var header = Layout.Vertical()
+            | (Layout.Vertical().Height(Size.Px(40)).AlignContent(Align.Center) | searchInput);
 
         if (filtersOpen.Value)
         {
             header |= Layout.Vertical()
-                      | projectFilter.ToSelectInput(projectCounts).Placeholder("All Projects").Nullable()
-                          .WithField().Label("Project")
-                      | levelFilter.ToSelectInput(levelOptions.ToOptions()).Placeholder("All Levels").Nullable()
-                          .WithField().Label("Level");
+                | projectFilter.ToSelectInput(projectCounts).Placeholder("All Projects").Nullable()
+                    .WithField().Label("Project")
+                | levelFilter.ToSelectInput(levelOptions.ToOptions()).Placeholder("All Levels").Nullable()
+                    .WithField().Label("Level");
         }
+
+        return header;
+    }
+
+    public override object Build()
+    {
+        var filteredPlans =
+            PlanFilters.ApplyFilters(plans, projectFilter.Value, levelFilter.Value, textFilter.Value);
+
+        var filteredList = filteredPlans.ToList();
 
         if (filteredList.Count == 0 && (projectFilter.Value != null || levelFilter.Value != null || !string.IsNullOrWhiteSpace(textFilter.Value)))
         {
             var emptyContent = Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(4)
                    | new Icon(Icons.SearchX).Color(Colors.Gray)
                    | Text.Muted("No results. Try adjusting your filters.");
-            return new HeaderLayout(header, emptyContent);
+            return new HeaderLayout(BuildHeader(), emptyContent);
         }
 
         var content = new List(filteredList.Select(plan =>
@@ -84,6 +88,6 @@ public class SidebarView(
                 .OnClick(() => selectedPlanState.Set(clickablePlan));
         }));
 
-        return new HeaderLayout(header, content);
+        return new HeaderLayout(BuildHeader(), content);
     }
 }

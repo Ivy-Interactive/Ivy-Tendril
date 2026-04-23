@@ -70,7 +70,16 @@ function Get-RepoConfig {
         throw "Project '$ProjectName' not found in config"
     }
 
-    $repo = $project.repos | Where-Object { $_.path -eq $RepoPath }
+    # Normalize the input path for comparison
+    $normalizedRepoPath = [System.IO.Path]::GetFullPath($RepoPath).TrimEnd('\', '/')
+
+    $repo = $project.repos | Where-Object {
+        $configPath = $_.path
+        # Expand environment variables in config path
+        $configPath = [System.Environment]::ExpandEnvironmentVariables($configPath)
+        $configPath = [System.IO.Path]::GetFullPath($configPath).TrimEnd('\', '/')
+        $configPath -eq $normalizedRepoPath
+    }
 
     if (-not $repo) {
         throw "Repo '$RepoPath' not found in project '$ProjectName'"

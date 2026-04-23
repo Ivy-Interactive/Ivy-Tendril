@@ -1,5 +1,6 @@
 using Ivy.Tendril.Apps.Setup.Dialogs;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps.Setup;
 
@@ -40,8 +41,9 @@ public class LevelsSetupView : ViewBase
                 })
             ));
 
-        return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(120)))
+        return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(200)))
                | Text.Block("Priority Levels").Bold()
+               | Text.Block("Define priority levels used to categorize plans.").Muted().Small()
                | table
                | new Button("Add Level").Icon(Icons.Plus).Outline().OnClick(() =>
                {

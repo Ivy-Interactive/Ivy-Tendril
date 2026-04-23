@@ -1,4 +1,5 @@
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps;
 
@@ -16,7 +17,7 @@ public class DashboardDayRow
 }
 
 
-[App(title: "Dashboard", icon: Icons.ChartBar, group: ["Apps"], order: MenuOrder.Dashboard)]
+[App(title: "Dashboard", icon: Icons.ChartBar, group: ["Apps"], order: Constants.Dashboard)]
 public class DashboardApp : ViewBase
 {
     public override object Build()
@@ -166,7 +167,7 @@ public class DashboardApp : ViewBase
                 style: BarChartStyles.Default,
                 polish: chart => chart with
                 {
-                    Tooltip = new ChartTooltip(),
+                    Tooltip = new ChartTooltip().Animated(true),
                     Bars =
                     [
                         new Bar(costMeasureName).Radius(0).YAxisIndex(0),
@@ -195,7 +196,7 @@ public class DashboardApp : ViewBase
 
         var header = Layout.Vertical()
                      | statsRow
-                     | projectProgress.Width(Size.Full()).WithLayout().Margin(2);
+                     | projectProgress.Width(Size.Full()).WithLayout();
 
         return new HeaderLayout(
             header,

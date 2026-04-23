@@ -1,6 +1,8 @@
+using Ivy.Tendril.Helpers;
 using System.Diagnostics;
 using System.Globalization;
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Microsoft.Extensions.Logging;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
@@ -199,6 +201,7 @@ public class WorktreeCleanupService : IStartable, IDisposable
     {
         const int maxRetries = 3;
         int[] delaysMs = [500, 1000, 1500];
+        bool buildServersShutdown = false;
 
         for (int attempt = 0; attempt <= maxRetries; attempt++)
         {
@@ -219,6 +222,12 @@ public class WorktreeCleanupService : IStartable, IDisposable
             {
                 if (!OperatingSystem.IsWindows()) throw;
 
+                if (!buildServersShutdown)
+                {
+                    TryShutdownBuildServers(logger);
+                    buildServersShutdown = true;
+                }
+
                 logger?.LogInformation("Directory.Delete failed for {Dir}, falling back to rmdir /s /q",
                     Path.GetFileName(path));
 
@@ -234,6 +243,9 @@ public class WorktreeCleanupService : IStartable, IDisposable
 
                 if (!Directory.Exists(path))
                     return;
+
+                if (attempt == maxRetries - 1)
+                    TryKillLockingProcesses(path, logger);
 
                 if (attempt < maxRetries)
                     continue;
@@ -266,6 +278,72 @@ public class WorktreeCleanupService : IStartable, IDisposable
         catch
         {
             // handle.exe not installed or failed — silently skip
+        }
+    }
+
+    private static void TryShutdownBuildServers(ILogger? logger)
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        try
+        {
+            logger?.LogInformation("Shutting down .NET build servers to release file locks");
+            var psi = new ProcessStartInfo("dotnet", "build-server shutdown")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using var proc = Process.Start(psi);
+            proc?.WaitForExit(15000);
+        }
+        catch
+        {
+            // dotnet not available or failed — continue with retry
+        }
+    }
+
+    private static void TryKillLockingProcesses(string path, ILogger? logger)
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        try
+        {
+            var psi = new ProcessStartInfo("handle.exe", $"-accepteula -nobanner -p VBCSCompiler \"{path}\"")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using var proc = Process.Start(psi);
+            if (proc == null) return;
+            var output = proc.StandardOutput.ReadToEnd();
+            proc.WaitForExit(5000);
+
+            if (string.IsNullOrWhiteSpace(output)) return;
+
+            // Parse handle.exe output for PIDs: "VBCSCompiler.exe pid: 1234 ..."
+            foreach (System.Text.RegularExpressions.Match match in
+                System.Text.RegularExpressions.Regex.Matches(output, @"pid:\s*(\d+)"))
+            {
+                if (!int.TryParse(match.Groups[1].Value, out var pid)) continue;
+                try
+                {
+                    var target = Process.GetProcessById(pid);
+                    if (!target.ProcessName.Equals("VBCSCompiler", StringComparison.OrdinalIgnoreCase)) continue;
+                    logger?.LogInformation("Killing VBCSCompiler (PID {Pid}) holding lock on {Dir}", pid, Path.GetFileName(path));
+                    target.Kill();
+                    target.WaitForExit(5000);
+                }
+                catch
+                {
+                    // Process already exited or access denied — continue
+                }
+            }
+        }
+        catch
+        {
+            // handle.exe not installed or failed — continue
         }
     }
 

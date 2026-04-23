@@ -4,7 +4,11 @@ using Ivy.Desktop;
 using Ivy.Helpers;
 using Ivy.Tendril.Commands;
 using Ivy.Tendril.Database;
+using Ivy.Tendril.Infrastructure;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 using Velopack;
 
@@ -28,6 +32,16 @@ public class Program
     {
         VelopackApp.Build().Run();
 
+        // Parse global flags before command routing
+        bool verbose = args.Contains("--verbose") || args.Contains("-v");
+        bool quiet = args.Contains("--quiet") || args.Contains("-q");
+
+        // Store verbosity in environment for child processes
+        if (verbose)
+            Environment.SetEnvironmentVariable("TENDRIL_VERBOSE", "1");
+        if (quiet)
+            Environment.SetEnvironmentVariable("TENDRIL_QUIET", "1");
+
         var fileName = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? "");
         bool isTool = fileName.Equals("tendril", StringComparison.OrdinalIgnoreCase);
         bool forceDesktop = args.Contains("--desktop") || args.Contains("--photino");
@@ -35,12 +49,20 @@ public class Program
 
         bool useDesktop = (isTool || forceDesktop) && !forceWeb;
 
-        var filteredArgs = args.Where(a => a != "--desktop" && a != "--photino" && a != "--web").ToArray();
+        var filteredArgs = args.Where(a =>
+            a != "--desktop" && a != "--photino" && a != "--web" &&
+            a != "--verbose" && a != "-v" &&
+            a != "--quiet" && a != "-q"
+        ).ToArray();
 
         // Handle CLI commands using Spectre.Console.Cli
         if (filteredArgs.Length > 0)
         {
-            var app = new CommandApp();
+            var cliServices = new ServiceCollection();
+            cliServices.AddLogging(builder => builder.AddConsole());
+            var registrar = new TypeRegistrar(cliServices);
+
+            var app = new CommandApp(registrar);
             app.Configure(config =>
             {
                 config.PropagateExceptions();
@@ -62,6 +84,8 @@ public class Program
                     .WithDescription("Update embedded promptwares");
                 config.AddCommand<PromptwareRunCommand>("promptware")
                     .WithDescription("Run a promptware directly");
+                config.AddCommand<VersionCommand>("version")
+                    .WithDescription("Show version information");
 
                 // Plan management commands
                 config.AddBranch("plan", plan =>
@@ -82,6 +106,10 @@ public class Program
                         .WithDescription("Add a PR URL");
                     plan.AddCommand<PlanAddCommitCommand>("add-commit")
                         .WithDescription("Add a commit hash");
+                    plan.AddCommand<PlanAddRelatedPlanCommand>("add-related-plan")
+                        .WithDescription("Add a related plan");
+                    plan.AddCommand<PlanAddDependsOnCommand>("add-depends-on")
+                        .WithDescription("Add a plan dependency");
                     plan.AddCommand<PlanSetVerificationCommand>("set-verification")
                         .WithDescription("Update verification status");
                     plan.AddCommand<PlanGetCommand>("get")
@@ -113,20 +141,20 @@ public class Program
                 });
             });
 
-            try
+            // Check if this is a recognized CLI command
+            var firstArg = filteredArgs[0];
+
+            // Handle --version flag by converting it to "version" command
+            if (firstArg == "--version")
             {
-                // Check if this is a recognized CLI command
-                var firstArg = filteredArgs[0];
-                if (firstArg == "doctor" || firstArg == "db-version" || firstArg == "db-migrate" ||
-                    firstArg == "db-reset" || firstArg == "update-promptwares" || firstArg == "plan" ||
-                    firstArg == "promptware")
-                {
-                    return app.Run(filteredArgs);
-                }
+                filteredArgs = new[] { "version" };
             }
-            catch (Exception)
+
+            if (firstArg == "doctor" || firstArg == "db-version" || firstArg == "db-migrate" ||
+                firstArg == "db-reset" || firstArg == "update-promptwares" || firstArg == "plan" ||
+                firstArg == "promptware" || firstArg == "version" || firstArg == "--version")
             {
-                // If command parsing fails, fall through to legacy handlers
+                return app.Run(filteredArgs);
             }
         }
 
@@ -212,10 +240,15 @@ public class Program
 
         if (useDesktop)
         {
+            var iconResource = OperatingSystem.IsWindows() ? "Ivy.Tendril.Assets.Tendril.ico"
+                : OperatingSystem.IsMacOS() ? "Ivy.Tendril.Assets.Tendril.icns"
+                : "Ivy.Tendril.Assets.Tendril.png";
+
             var window = new DesktopWindow(server)
                 .Title("Ivy Tendril")
                 .Size(1400, 900)
-                .Icon(typeof(Program), "Ivy.Tendril.Assets.Tendril.ico");
+                .UseDpiScaling(false)  // Let the OS handle DPI scaling natively
+                .Icon(typeof(Program), iconResource);
 
             return window.Run();
         }

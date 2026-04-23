@@ -1,4 +1,5 @@
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps.Setup;
 
@@ -23,11 +24,12 @@ public class GeneralSetupView : ViewBase
 
         var form = Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(120)))
                    | Text.Block("General Settings").Bold()
+                   | Text.Block("Configure the default coding agent and plan template.").Muted().Small()
                    | codingAgent.ToSelectInput(CodingAgentOptions)
                        .WithField().Label("Coding Agent")
                    | planTemplate.ToCodeInput("Plan template...")
                        .Language(Languages.Markdown)
-                       .Height(Size.Units(40))
+                       .Height(Size.Units(80))
                        .WithField().Label("Plan Template")
                    | new Button("Save").Primary()
                        .Disabled(!hasChanges)

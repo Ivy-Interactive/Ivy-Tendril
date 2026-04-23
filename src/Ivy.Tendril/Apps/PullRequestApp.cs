@@ -1,18 +1,22 @@
 using System.Text.RegularExpressions;
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Apps.Plans.Dialogs;
 using Ivy.Tendril.Apps.PullRequest;
 using Ivy.Tendril.Apps.PullRequest.Dialogs;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Apps;
 
-[App(title: "Pull Requests", icon: Icons.GitPullRequest, group: ["Apps"], order: MenuOrder.PullRequests)]
+[App(title: "Pull Requests", icon: Icons.GitPullRequest, group: ["Apps"], order: Constants.PullRequests)]
 public class PullRequestApp : ViewBase
 {
     public override object Build()
     {
         var planService = UseService<IPlanReaderService>();
+        var logger = UseService<ILogger<PullRequestApp>>();
         var refreshToken = UseRefreshToken();
         var nav = UseNavigation();
         var showPlan = UseState<string?>(null);
@@ -41,7 +45,7 @@ public class PullRequestApp : ViewBase
             {
                 Id = $"{plan.Id}-{i}",
                 PlanId = $"{plan.Id:D5}",
-                Repository = ExtractRepo(pr),
+                Repository = ExtractRepo(pr, logger),
                 Status = prStatuses.GetValueOrDefault(pr, ""),
                 Pr = pr,
                 Plan = $"#{plan.Id:D5} {plan.Title}",
@@ -213,7 +217,7 @@ public class PullRequestApp : ViewBase
     internal static bool IsValidUrl(string? value) =>
         value is not null && GitHubPrPattern.IsMatch(value);
 
-    internal static string ExtractRepo(string prUrl)
+    internal static string ExtractRepo(string prUrl, ILogger? logger = null)
     {
         try
         {
@@ -224,7 +228,7 @@ public class PullRequestApp : ViewBase
         }
         catch (UriFormatException ex)
         {
-            Console.Error.WriteLine($"Failed to parse PR URL '{prUrl}': {ex.Message}");
+            logger?.LogWarning(ex, "Failed to parse PR URL {PrUrl}", prUrl);
         }
 
         return prUrl;

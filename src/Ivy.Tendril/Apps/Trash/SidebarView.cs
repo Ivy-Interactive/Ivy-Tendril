@@ -5,16 +5,18 @@ public class SidebarView(
     IState<string?> selectedFile,
     IState<string?> searchFilter) : ViewBase
 {
-    private readonly List<TrashFileInfo> _files = files;
-    private readonly IState<string?> _searchFilter = searchFilter;
-    private readonly IState<string?> _selectedFile = selectedFile;
+    private object BuildHeader()
+    {
+        return Layout.Vertical().Height(Size.Px(40)).AlignContent(Align.Center)
+            | searchFilter.ToSearchInput().Placeholder("Search trash...");
+    }
 
     public override object Build()
     {
-        var filteredFiles = _files.AsEnumerable();
-        if (!string.IsNullOrWhiteSpace(_searchFilter.Value))
+        var filteredFiles = files.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(searchFilter.Value))
         {
-            var searchTerm = _searchFilter.Value.ToLowerInvariant();
+            var searchTerm = searchFilter.Value.ToLowerInvariant();
             filteredFiles = filteredFiles.Where(f =>
                 f.FileName.ToLowerInvariant().Contains(searchTerm) ||
                 f.OriginalRequest.ToLowerInvariant().Contains(searchTerm) ||
@@ -25,35 +27,33 @@ public class SidebarView(
 
         var filteredList = filteredFiles.ToList();
 
-        var header = _searchFilter.ToSearchInput().Placeholder("Search trash...");
-
-        object content;
-        if (filteredList.Count == 0 && !string.IsNullOrWhiteSpace(_searchFilter.Value))
+        if (filteredList.Count == 0 && !string.IsNullOrWhiteSpace(searchFilter.Value))
         {
-            // Search active but no results
-            content = Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(4)
-                      | new Icon(Icons.SearchX).Color(Colors.Gray)
-                      | Text.Muted("No results. Try adjusting your filters.");
+            var emptyContent = Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(4)
+                   | new Icon(Icons.SearchX).Color(Colors.Gray)
+                   | Text.Muted("No results. Try adjusting your filters.");
+            return new HeaderLayout(BuildHeader(), emptyContent);
         }
-        else if (filteredList.Count == 0)
-        {
-            // Genuinely no trash items
-            content = Layout.Vertical().AlignContent(Align.Center).Gap(2).Padding(4)
-                      | new Icon(Icons.Trash2).Size(Size.Units(6)).Color(Colors.Gray)
-                      | Text.Muted("No trash items")
-                      | Text.Muted("Duplicate plans will appear here").Small();
-        }
-        else
-            content = new List(filteredList.Select(f =>
-            {
-                var item = f;
-                return new ListItem(item.FileName.Replace(".md", ""))
-                    .Content(Layout.Horizontal().Gap(1)
-                             | new Badge(item.Project).Variant(BadgeVariant.Outline).Small()
-                             | Text.Muted(item.Date.ToString("yyyy-MM-dd")).Small())
-                    .OnClick(() => _selectedFile.Set(item.FilePath));
-            }));
 
-        return new HeaderLayout(header, content);
+        if (filteredList.Count == 0)
+        {
+            var emptyContent = Layout.Vertical().AlignContent(Align.Center).Gap(2).Padding(4)
+                   | new Icon(Icons.Trash2).Size(Size.Units(6)).Color(Colors.Gray)
+                   | Text.Muted("No trash items")
+                   | Text.Muted("Duplicate plans will appear here").Small();
+            return new HeaderLayout(BuildHeader(), emptyContent);
+        }
+
+        var content = new List(filteredList.Select(f =>
+        {
+            var item = f;
+            return new ListItem(item.FileName.Replace(".md", ""))
+                .Content(Layout.Horizontal().Gap(1)
+                         | new Badge(item.Project).Variant(BadgeVariant.Outline).Small()
+                         | Text.Muted(item.Date.ToString("yyyy-MM-dd")).Small())
+                .OnClick(() => selectedFile.Set(item.FilePath));
+        }));
+
+        return new HeaderLayout(BuildHeader(), content);
     }
 }

@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using Ivy.Tendril.Apps.Jobs;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -228,6 +228,10 @@ public class PlanCountsServiceTests : IDisposable
             throw new NotImplementedException();
         }
 
+        public void Dispose()
+        {
+        }
+
         public void AddJob(string id, JobStatus status)
         {
             _jobs.Add(new JobItem { Id = id, Status = status });
@@ -239,8 +243,6 @@ public class PlanCountsServiceTests : IDisposable
         public event Action? JobPropertyChanged;
         public event Action<JobNotification>? NotificationReady;
 #pragma warning restore CS0067
-
-        public void Dispose() { }
     }
 
     private class FakePlanWatcherService : IPlanWatcherService

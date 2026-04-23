@@ -6,9 +6,9 @@ namespace Ivy.Tendril.Test;
 
 public class WorktreeCleanupServiceTests : IDisposable
 {
-    private readonly string _tempDir;
     private readonly string _plansDir;
     private readonly WorktreeCleanupService _service;
+    private readonly string _tempDir;
 
     public WorktreeCleanupServiceTests()
     {
@@ -62,7 +62,8 @@ public class WorktreeCleanupServiceTests : IDisposable
 
         foreach (var state in activeStates)
         {
-            var worktreesDir = Path.Combine(_plansDir, $"01{Array.IndexOf(activeStates, state):D3}-{state}Plan", "worktrees");
+            var worktreesDir = Path.Combine(_plansDir, $"01{Array.IndexOf(activeStates, state):D3}-{state}Plan",
+                "worktrees");
             Assert.True(Directory.Exists(worktreesDir), $"Worktrees for {state} plan should not be removed");
         }
     }
@@ -83,7 +84,8 @@ public class WorktreeCleanupServiceTests : IDisposable
 
         foreach (var state in terminalStates)
         {
-            var worktreesDir = Path.Combine(_plansDir, $"02{Array.IndexOf(terminalStates, state):D3}-{state}Plan", "worktrees");
+            var worktreesDir = Path.Combine(_plansDir, $"02{Array.IndexOf(terminalStates, state):D3}-{state}Plan",
+                "worktrees");
             Assert.False(Directory.Exists(worktreesDir), $"Empty worktrees dir for {state} plan should be removed");
         }
     }
@@ -354,7 +356,7 @@ public class WorktreeCleanupServiceTests : IDisposable
         var logger = new CapturingLogger(logEntries);
 
         // Open the file with exclusive access to force Directory.Delete to fail.
-        using (var stream = new FileStream(lockedFile, FileMode.Open, FileAccess.Read, FileShare.None))
+        using (new FileStream(lockedFile, FileMode.Open, FileAccess.Read, FileShare.None))
         {
             // Expect IOException: Directory.Delete fails because of the lock, and
             // rmdir /s /q also can't delete the file while it's held open.
@@ -386,7 +388,7 @@ public class WorktreeCleanupServiceTests : IDisposable
         var logEntries = new List<string>();
         var logger = new CapturingLogger(logEntries);
 
-        using (var stream = new FileStream(lockedFile, FileMode.Open, FileAccess.Read, FileShare.None))
+        using (new FileStream(lockedFile, FileMode.Open, FileAccess.Read, FileShare.None))
         {
             var ex = Assert.Throws<IOException>(() =>
                 WorktreeCleanupService.ForceDeleteDirectory(testDir, logger));
@@ -535,12 +537,13 @@ public class WorktreeCleanupServiceTests : IDisposable
         var lockedFile = Path.Combine(nestedPlans, "locked.txt");
         File.WriteAllText(lockedFile, "content");
 
-        using (var stream = new FileStream(lockedFile, FileMode.Open, FileAccess.Read, FileShare.None))
+        using (new FileStream(lockedFile, FileMode.Open, FileAccess.Read, FileShare.None))
         {
             service.RunCleanup();
         }
 
-        Assert.Contains(logEntries, e => e.Contains("Removing recursive Plans artifact") || e.Contains("Failed to delete nested Plans"));
+        Assert.Contains(logEntries,
+            e => e.Contains("Removing recursive Plans artifact") || e.Contains("Failed to delete nested Plans"));
 
         // Cleanup
         if (Directory.Exists(nestedPlans))
@@ -561,10 +564,9 @@ public class WorktreeCleanupServiceTests : IDisposable
         File.WriteAllText(lockedFile, "content");
 
         var logEntries = new List<string>();
-        var logger = new CapturingLogger(logEntries);
         var service = new WorktreeCleanupService(_plansDir, new CapturingLogger<WorktreeCleanupService>(logEntries));
 
-        using (var stream = new FileStream(lockedFile, FileMode.Open, FileAccess.Read, FileShare.None))
+        using (new FileStream(lockedFile, FileMode.Open, FileAccess.Read, FileShare.None))
         {
             service.CleanupLegacyPromptwaresDirs();
         }
@@ -588,7 +590,7 @@ public class WorktreeCleanupServiceTests : IDisposable
             ("99999-Name_With_Underscores", "Name_With_Underscores")
         };
 
-        foreach (var (folderName, expectedSafeTitle) in testCases)
+        foreach (var (folderName, _) in testCases)
         {
             var dir = CreatePlan(folderName, "Failed", DateTime.UtcNow.AddHours(-2));
             var worktreeDir = Path.Combine(dir, "worktrees", "TestRepo");
@@ -645,8 +647,15 @@ public class WorktreeCleanupServiceTests : IDisposable
 
     private class LoggerAdapter(ILogger inner) : ILogger<WorktreeCleanupService>
     {
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => inner.BeginScope(state);
-        public bool IsEnabled(LogLevel logLevel) => inner.IsEnabled(logLevel);
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+        {
+            return inner.BeginScope(state);
+        }
+
+        public bool IsEnabled(LogLevel logLevel)
+        {
+            return inner.IsEnabled(logLevel);
+        }
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
             Func<TState, Exception?, string> formatter)
@@ -657,8 +666,15 @@ public class WorktreeCleanupServiceTests : IDisposable
 
     private class CapturingLogger(List<string> entries) : ILogger
     {
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-        public bool IsEnabled(LogLevel logLevel) => true;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+        {
+            return null;
+        }
+
+        public bool IsEnabled(LogLevel logLevel)
+        {
+            return true;
+        }
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
             Func<TState, Exception?, string> formatter)
@@ -669,8 +685,15 @@ public class WorktreeCleanupServiceTests : IDisposable
 
     private class CapturingLogger<T>(List<string> entries) : ILogger<T>
     {
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-        public bool IsEnabled(LogLevel logLevel) => true;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+        {
+            return null;
+        }
+
+        public bool IsEnabled(LogLevel logLevel)
+        {
+            return true;
+        }
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
             Func<TState, Exception?, string> formatter)

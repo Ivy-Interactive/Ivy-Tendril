@@ -1,5 +1,6 @@
 using System.Text;
 using Ivy.Tendril.Services;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test;
 
@@ -9,7 +10,7 @@ public class PlanPdfServiceTests
     public void GeneratePdf_ShouldReturnNonEmptyBytes()
     {
         // Arrange
-        var service = new PlanPdfService();
+        var service = new PlanPdfService(NullLogger<PlanPdfService>.Instance);
         var title = "Test Plan";
         var planId = 1;
         var markdown = "# Test\n\nThis is a test plan.";
@@ -26,7 +27,7 @@ public class PlanPdfServiceTests
     public void GeneratePdf_ShouldReturnValidPdfHeader()
     {
         // Arrange
-        var service = new PlanPdfService();
+        var service = new PlanPdfService(NullLogger<PlanPdfService>.Instance);
         var title = "Test Plan";
         var planId = 1;
         var markdown = "# Test\n\nThis is a test plan.";
@@ -44,7 +45,7 @@ public class PlanPdfServiceTests
     public void GeneratePdf_ShouldHandleEmptyMarkdown()
     {
         // Arrange
-        var service = new PlanPdfService();
+        var service = new PlanPdfService(NullLogger<PlanPdfService>.Instance);
         var title = "Empty Plan";
         var planId = 1;
         var markdown = "";

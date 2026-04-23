@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Database;
 
@@ -19,5 +20,5 @@ public interface IMigration
     ///     Should be idempotent if possible (use IF NOT EXISTS, IF EXISTS, etc.).
     ///     MUST set PRAGMA user_version = {Version} at the end.
     /// </summary>
-    void Apply(SqliteConnection connection);
+    void Apply(SqliteConnection connection, ILogger? logger = null);
 }

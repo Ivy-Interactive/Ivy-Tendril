@@ -1,5 +1,7 @@
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps.Review;
 
@@ -9,6 +11,7 @@ public class SidebarView(
     IState<string?> projectFilter,
     IState<string?> levelFilter,
     IState<string?> textFilter,
+    IState<bool> filtersOpen,
     IState<bool> showCompleted,
     IConfigService config) : ViewBase
 {
@@ -18,55 +21,59 @@ public class SidebarView(
     private readonly IState<string?> _projectFilter = projectFilter;
     private readonly IState<string?> _levelFilter = levelFilter;
     private readonly IState<string?> _textFilter = textFilter;
+    private readonly IState<bool> _filtersOpen = filtersOpen;
     private readonly IState<bool> _showCompleted = showCompleted;
 
-    public override object Build()
+    private object BuildHeader()
     {
-        var filtersOpen = UseState(false);
-
-        var filteredPlans = PlanFilters.ApplyFilters(_plans, _projectFilter.Value, _levelFilter.Value, _textFilter.Value);
-        var filteredList = filteredPlans.ToList();
-
-        var levelOptions = _config.LevelNames;
-
         var levelFilteredPlans = _plans.AsEnumerable();
         if (_levelFilter.Value is { } level)
             levelFilteredPlans = levelFilteredPlans.Where(p => p.Level == level);
-
         var projectCounts = levelFilteredPlans
             .GroupBy(p => p.Project)
             .OrderByDescending(g => g.Count())
             .Select(g => new Option<string>($"{g.Key} ({g.Count()})", g.Key))
             .ToArray<IAnyOption>();
+        var levelOptions = _config.LevelNames;
 
         var searchInput = _textFilter.ToSearchInput()
             .Placeholder("Search...")
             .Suffix(
                 new Button()
-                    .Icon(filtersOpen.Value ? Icons.ChevronUp : Icons.ChevronDown)
+                    .Icon(_filtersOpen.Value ? Icons.ChevronUp : Icons.ChevronDown)
                     .Ghost()
                     .Small()
-                    .OnClick(() => filtersOpen.Set(!filtersOpen.Value))
+                    .OnClick(() => _filtersOpen.Set(!_filtersOpen.Value))
             );
 
-        var header = Layout.Vertical() | searchInput;
+        var header = Layout.Vertical()
+            | (Layout.Vertical().Height(Size.Px(40)).AlignContent(Align.Center) | searchInput);
 
-        if (filtersOpen.Value)
+        if (_filtersOpen.Value)
         {
             header |= Layout.Vertical()
-                      | _projectFilter.ToSelectInput(projectCounts).Placeholder("All Projects").Nullable()
-                          .WithField().Label("Project")
-                      | _levelFilter.ToSelectInput(levelOptions.ToOptions()).Placeholder("All Levels").Nullable()
-                          .WithField().Label("Level")
-                      | _showCompleted.ToBoolInput("Show Completed");
+                | _projectFilter.ToSelectInput(projectCounts).Placeholder("All Projects").Nullable()
+                    .WithField().Label("Project")
+                | _levelFilter.ToSelectInput(levelOptions.ToOptions()).Placeholder("All Levels").Nullable()
+                    .WithField().Label("Level")
+                | _showCompleted.ToBoolInput("Show Completed");
         }
+
+        return header;
+    }
+
+    public override object Build()
+    {
+        var filteredPlans = PlanFilters.ApplyFilters(_plans, _projectFilter.Value, _levelFilter.Value, _textFilter.Value);
+
+        var filteredList = filteredPlans.ToList();
 
         if (filteredList.Count == 0 && (_projectFilter.Value != null || _levelFilter.Value != null || !string.IsNullOrWhiteSpace(_textFilter.Value)))
         {
             var emptyContent = Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(4)
                    | new Icon(Icons.SearchX).Color(Colors.Gray)
                    | Text.Muted("No results. Try adjusting your filters.");
-            return new HeaderLayout(header, emptyContent);
+            return new HeaderLayout(BuildHeader(), emptyContent);
         }
 
         var content = new List(filteredList.Select(plan =>
@@ -86,6 +93,6 @@ public class SidebarView(
                 .OnClick(() => _selectedPlanState.Set(clickablePlan));
         }));
 
-        return new HeaderLayout(header, content);
+        return new HeaderLayout(BuildHeader(), content);
     }
 }

@@ -37,3 +37,7 @@ x86/
 .ivy/
 **/tmp_out/
 msbuild.binlog
+
+## Test results
+TestResults/
+**/TestResults/

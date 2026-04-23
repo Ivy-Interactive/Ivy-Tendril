@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using Isopoh.Cryptography.Argon2;
 using Ivy.Tendril.Auth;
@@ -7,12 +8,13 @@ namespace Ivy.Tendril.Test.Auth;
 
 public class TendrilAuthProviderTests
 {
-    private static AuthConfig CreateAuthConfig(string password = "test-password", LoginRateLimitConfig? rateLimit = null)
+    private static AuthConfig CreateAuthConfig(string password = "test-password",
+        LoginRateLimitConfig? rateLimit = null)
     {
         var secret = GenerateSecret();
         var secretBytes = Convert.FromBase64String(secret);
         var salt = new byte[16];
-        System.Security.Cryptography.RandomNumberGenerator.Fill(salt);
+        RandomNumberGenerator.Fill(salt);
         var hash = Argon2.Hash(new Argon2Config
         {
             Type = Argon2Type.DataIndependentAddressing,
@@ -33,7 +35,7 @@ public class TendrilAuthProviderTests
     private static string GenerateSecret()
     {
         var bytes = new byte[32];
-        System.Security.Cryptography.RandomNumberGenerator.Fill(bytes);
+        RandomNumberGenerator.Fill(bytes);
         return Convert.ToBase64String(bytes);
     }
 
@@ -116,7 +118,7 @@ public class TendrilAuthProviderTests
         var options = provider.GetAuthOptions();
 
         Assert.Single(options);
-        Assert.Equal(Ivy.AuthFlow.EmailPassword, options[0].Flow);
+        Assert.Equal(AuthFlow.EmailPassword, options[0].Flow);
     }
 
     [Fact]

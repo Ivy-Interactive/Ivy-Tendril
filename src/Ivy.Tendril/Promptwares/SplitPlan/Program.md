@@ -17,7 +17,7 @@ The plans directory path can be derived from the plan folder's parent directory.
 
 ### 1. Read the Plan
 
-- Read `plan.yaml` from the plan folder
+- Read `plan.yaml` via `tendril plan get <plan-id>` from the plan folder
 - Read the latest revision from `revisions/` (highest numbered .md file)
 - Identify distinct issues/tasks that should be separate plans
 
@@ -30,27 +30,64 @@ The plans directory path can be derived from the plan folder's parent directory.
 
 ### 3. Create Split Plans
 
-For each distinct issue, create a new plan folder following the structure in `../.shared/Plans.md`:
+For each distinct issue:
+
+#### 3.1 Create the plan folder and revision
+
 - Create folder `{ID:D5}-{SafeTitle}/` (title-cased, no spaces)
-- Create `plan.yaml` with appropriate project, level, title, and `CurrentTime` timestamps
 - Create `revisions/001.md` using the `planTemplate` from `config.yaml`
 - Fill in Problem, Solution, Remaining Design Questions, Tests sections
 - Each plan must be fully self-contained
 
-#### 3.1 Project Assignment
+#### 3.2 Create plan.yaml via CLI
+
+**Never write `plan.yaml` directly** — use `tendril plan create` with all known fields:
+
+```bash
+tendril plan create <PlanId> "<Title>" \
+  --project "<Project>" \
+  --level "<Level>" \
+  --initial-prompt "<original plan's initialPrompt>" \
+  --execution-profile "balanced" \
+  --repo "<repo-path>" \
+  --verification "Build=Pending" \
+  --verification "Test=Pending" \
+  --related-plan "<original-plan-folder-name>"
+```
+
+Include optional flags as needed:
+- `--source-url "<url>"` — if the original plan had a sourceUrl
+- `--depends-on "<sibling-plan-folder>"` — only when a sibling plan has a true blocking dependency (see Section 4)
+- `--priority <number>` — if non-default priority
+
+Populate `--verification` flags from the project's verifications in config.yaml, all set to `Pending`.
+
+#### 3.3 Project Assignment
 
 Each new plan may belong to a different project than the original. For each split plan:
 - Analyze which project(s) from `config.yaml` are relevant based on the files/repos involved
-- Set `project` in `plan.yaml` to the matching project name
-- Set `repos` from that project's repo list in `config.yaml`
-- Populate `verifications` from that project's verification list (all set to `Pending`)
-- Generate the `## Verification` checklist using that project's required/optional verifications
+- Use the matching project's repos and verifications in the `tendril plan create` command
+- If a sub-plan spans multiple projects, prefer the primary project (where most changes occur)
 
-If a sub-plan spans multiple projects, prefer the primary project (where most changes occur).
+### 4. Dependencies Between Split Plans
 
-### 4. Original Plan
+Add `--depends-on` between sibling plans **only** when one plan would fail to compile or run without the other's changes being merged first. This is rare — most split plans are independent.
 
-Do NOT modify the original plan's `plan.yaml` — the launcher script handles state and timestamps.
+**Use `dependsOn` when:**
+- Plan A renames a function/type that Plan B needs to call
+- Plan A creates infrastructure (interface, table, service) that Plan B builds on
+- Plan A and Plan B modify the same method signature incompatibly
+
+**Do NOT use `dependsOn` when:**
+- Plans modify different files (git handles this)
+- Plans modify different parts of the same file (git auto-merges)
+- Plans touch the same area but changes don't conflict semantically
+
+Ask: "Will Plan B fail to compile/run if Plan A's changes aren't merged first?" — if no, skip `dependsOn`.
+
+### 5. Original Plan
+
+Do NOT modify the original plan — the launcher transitions it to `Skipped` automatically on success.
 
 ### Rules
 

@@ -13,8 +13,8 @@ public class AgentProviderFactoryTests
         return new TendrilSettings
         {
             CodingAgent = codingAgent,
-            Promptwares = promptwares ?? new(),
-            CodingAgents = codingAgents ?? new()
+            Promptwares = promptwares ?? new Dictionary<string, PromptwareConfig>(),
+            CodingAgents = codingAgents ?? new List<AgentConfig>()
         };
     }
 
@@ -45,18 +45,18 @@ public class AgentProviderFactoryTests
     public void Resolve_UsesDefaultProfile()
     {
         var settings = CreateSettings(
-            promptwares: new()
+            promptwares: new Dictionary<string, PromptwareConfig>
             {
-                ["_default"] = new PromptwareConfig { Profile = "balanced", AllowedTools = new() { "Read", "Write" } }
+                ["_default"] = new() { Profile = "balanced", AllowedTools = new List<string> { "Read", "Write" } }
             },
-            codingAgents: new()
+            codingAgents: new List<AgentConfig>
             {
-                new AgentConfig
+                new()
                 {
                     Name = "claude",
-                    Profiles = new()
+                    Profiles = new List<AgentProfileConfig>
                     {
-                        new AgentProfileConfig { Name = "balanced", Model = "sonnet", Effort = "high" }
+                        new() { Name = "balanced", Model = "sonnet", Effort = "high" }
                     }
                 }
             });
@@ -73,20 +73,21 @@ public class AgentProviderFactoryTests
     public void Resolve_SpecificPromptwareOverridesDefault()
     {
         var settings = CreateSettings(
-            promptwares: new()
+            promptwares: new Dictionary<string, PromptwareConfig>
             {
-                ["_default"] = new PromptwareConfig { Profile = "quick", AllowedTools = new() { "Read" } },
-                ["ExecutePlan"] = new PromptwareConfig { Profile = "deep", AllowedTools = new() { "Read", "Write", "Bash" } }
+                ["_default"] = new() { Profile = "quick", AllowedTools = new List<string> { "Read" } },
+                ["ExecutePlan"] = new()
+                { Profile = "deep", AllowedTools = new List<string> { "Read", "Write", "Bash" } }
             },
-            codingAgents: new()
+            codingAgents: new List<AgentConfig>
             {
-                new AgentConfig
+                new()
                 {
                     Name = "claude",
-                    Profiles = new()
+                    Profiles = new List<AgentProfileConfig>
                     {
-                        new AgentProfileConfig { Name = "quick", Model = "haiku", Effort = "low" },
-                        new AgentProfileConfig { Name = "deep", Model = "opus", Effort = "max" }
+                        new() { Name = "quick", Model = "haiku", Effort = "low" },
+                        new() { Name = "deep", Model = "opus", Effort = "max" }
                     }
                 }
             });
@@ -102,24 +103,24 @@ public class AgentProviderFactoryTests
     public void Resolve_ProfileOverrideTakesPrecedence()
     {
         var settings = CreateSettings(
-            promptwares: new()
+            promptwares: new Dictionary<string, PromptwareConfig>
             {
-                ["CreatePlan"] = new PromptwareConfig { Profile = "balanced" }
+                ["CreatePlan"] = new() { Profile = "balanced" }
             },
-            codingAgents: new()
+            codingAgents: new List<AgentConfig>
             {
-                new AgentConfig
+                new()
                 {
                     Name = "claude",
-                    Profiles = new()
+                    Profiles = new List<AgentProfileConfig>
                     {
-                        new AgentProfileConfig { Name = "balanced", Model = "sonnet", Effort = "high" },
-                        new AgentProfileConfig { Name = "deep", Model = "opus", Effort = "max" }
+                        new() { Name = "balanced", Model = "sonnet", Effort = "high" },
+                        new() { Name = "deep", Model = "opus", Effort = "max" }
                     }
                 }
             });
 
-        var resolution = AgentProviderFactory.Resolve(settings, "CreatePlan", profileOverride: "deep");
+        var resolution = AgentProviderFactory.Resolve(settings, "CreatePlan", "deep");
 
         Assert.Equal("opus", resolution.Model);
         Assert.Equal("max", resolution.Effort);
@@ -129,19 +130,19 @@ public class AgentProviderFactoryTests
     public void Resolve_IncludesBaseAgentArguments()
     {
         var settings = CreateSettings(
-            promptwares: new()
+            promptwares: new Dictionary<string, PromptwareConfig>
             {
-                ["_default"] = new PromptwareConfig { Profile = "balanced" }
+                ["_default"] = new() { Profile = "balanced" }
             },
-            codingAgents: new()
+            codingAgents: new List<AgentConfig>
             {
-                new AgentConfig
+                new()
                 {
                     Name = "claude",
                     Arguments = "--skip-confirm --verbose",
-                    Profiles = new()
+                    Profiles = new List<AgentProfileConfig>
                     {
-                        new AgentProfileConfig { Name = "balanced", Model = "sonnet", Arguments = "--max-turns 50" }
+                        new() { Name = "balanced", Model = "sonnet", Arguments = "--max-turns 50" }
                     }
                 }
             });
@@ -171,21 +172,21 @@ public class AgentProviderFactoryTests
     public void Resolve_CodexProvider()
     {
         var settings = CreateSettings(
-            codingAgent: "codex",
-            codingAgents: new()
+            "codex",
+            codingAgents: new List<AgentConfig>
             {
-                new AgentConfig
+                new()
                 {
                     Name = "codex",
-                    Profiles = new()
+                    Profiles = new List<AgentProfileConfig>
                     {
-                        new AgentProfileConfig { Name = "default", Model = "o4-mini", Effort = "medium" }
+                        new() { Name = "default", Model = "o4-mini", Effort = "medium" }
                     }
                 }
             },
-            promptwares: new()
+            promptwares: new Dictionary<string, PromptwareConfig>
             {
-                ["_default"] = new PromptwareConfig { Profile = "default" }
+                ["_default"] = new() { Profile = "default" }
             });
 
         var resolution = AgentProviderFactory.Resolve(settings, "Test");
@@ -198,22 +199,20 @@ public class AgentProviderFactoryTests
     [Fact]
     public void Resolve_MatchesCapitalizedAgentName_ClaudeCode()
     {
-        var settings = CreateSettings(
-            codingAgent: "claude",
-            codingAgents: new()
+        var settings = CreateSettings(codingAgents: new List<AgentConfig>
             {
-                new AgentConfig
+                new()
                 {
                     Name = "ClaudeCode",
-                    Profiles = new()
+                    Profiles = new List<AgentProfileConfig>
                     {
-                        new AgentProfileConfig { Name = "balanced", Model = "sonnet", Effort = "high" }
+                        new() { Name = "balanced", Model = "sonnet", Effort = "high" }
                     }
                 }
             },
-            promptwares: new()
+            promptwares: new Dictionary<string, PromptwareConfig>
             {
-                ["_default"] = new PromptwareConfig { Profile = "balanced" }
+                ["_default"] = new() { Profile = "balanced" }
             });
 
         var resolution = AgentProviderFactory.Resolve(settings, "Test");
@@ -224,21 +223,21 @@ public class AgentProviderFactoryTests
     public void Resolve_MatchesCapitalizedAgentName_Codex()
     {
         var settings = CreateSettings(
-            codingAgent: "codex",
-            codingAgents: new()
+            "codex",
+            codingAgents: new List<AgentConfig>
             {
-                new AgentConfig
+                new()
                 {
                     Name = "Codex",
-                    Profiles = new()
+                    Profiles = new List<AgentProfileConfig>
                     {
-                        new AgentProfileConfig { Name = "default", Model = "o4-mini", Effort = "medium" }
+                        new() { Name = "default", Model = "o4-mini", Effort = "medium" }
                     }
                 }
             },
-            promptwares: new()
+            promptwares: new Dictionary<string, PromptwareConfig>
             {
-                ["_default"] = new PromptwareConfig { Profile = "default" }
+                ["_default"] = new() { Profile = "default" }
             });
 
         var resolution = AgentProviderFactory.Resolve(settings, "Test");
@@ -249,24 +248,90 @@ public class AgentProviderFactoryTests
     public void Resolve_MatchesCapitalizedAgentName_Gemini()
     {
         var settings = CreateSettings(
-            codingAgent: "gemini",
-            codingAgents: new()
+            "gemini",
+            codingAgents: new List<AgentConfig>
             {
-                new AgentConfig
+                new()
                 {
                     Name = "Gemini",
-                    Profiles = new()
+                    Profiles = new List<AgentProfileConfig>
                     {
-                        new AgentProfileConfig { Name = "default", Model = "gemini-2.5-pro" }
+                        new() { Name = "default", Model = "gemini-2.5-pro" }
                     }
                 }
             },
-            promptwares: new()
+            promptwares: new Dictionary<string, PromptwareConfig>
             {
-                ["_default"] = new PromptwareConfig { Profile = "default" }
+                ["_default"] = new() { Profile = "default" }
             });
 
         var resolution = AgentProviderFactory.Resolve(settings, "Test");
         Assert.Equal("gemini-2.5-pro", resolution.Model);
+    }
+
+    [Fact]
+    public void Resolve_ExpandsJobContextVariables()
+    {
+        var settings = CreateSettings(
+            promptwares: new Dictionary<string, PromptwareConfig>
+            {
+                ["CreatePlan"] = new()
+                {
+                    Profile = "balanced",
+                    AllowedTools = new List<string>
+                    {
+                        "Read", "Bash", "Write(%PLANS_DIR%/**)", "Edit(%PLAN_FOLDER%/**)"
+                    }
+                }
+            });
+
+        var jobContext = new Dictionary<string, string>
+        {
+            ["PLANS_DIR"] = @"D:\Tendril\Plans",
+            ["PLAN_FOLDER"] = @"D:\Tendril\Plans\01234-MyPlan"
+        };
+
+        var resolution = AgentProviderFactory.Resolve(settings, "CreatePlan", jobContext: jobContext);
+
+        Assert.Contains("Read", resolution.AllowedTools);
+        Assert.Contains("Bash", resolution.AllowedTools);
+        Assert.Contains("Write(D:/Tendril/Plans/**)", resolution.AllowedTools);
+        Assert.Contains("Edit(D:/Tendril/Plans/01234-MyPlan/**)", resolution.AllowedTools);
+    }
+
+    [Fact]
+    public void Resolve_JobContextExpansionIsCaseInsensitive()
+    {
+        var settings = CreateSettings(
+            promptwares: new Dictionary<string, PromptwareConfig>
+            {
+                ["Test"] = new()
+                {
+                    AllowedTools = new List<string> { "Write(%plans_dir%/**)" }
+                }
+            });
+
+        var jobContext = new Dictionary<string, string> { ["PLANS_DIR"] = "/home/plans" };
+
+        var resolution = AgentProviderFactory.Resolve(settings, "Test", jobContext: jobContext);
+
+        Assert.Contains("Write(/home/plans/**)", resolution.AllowedTools);
+    }
+
+    [Fact]
+    public void Resolve_NoJobContextLeavesVariablesForEnvExpansion()
+    {
+        var settings = CreateSettings(
+            promptwares: new Dictionary<string, PromptwareConfig>
+            {
+                ["Test"] = new()
+                {
+                    AllowedTools = new List<string> { "Read", "Bash" }
+                }
+            });
+
+        var resolution = AgentProviderFactory.Resolve(settings, "Test");
+
+        Assert.Equal(new[] { "Read", "Bash" }, resolution.AllowedTools);
     }
 }

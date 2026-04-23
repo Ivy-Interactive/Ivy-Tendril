@@ -22,11 +22,18 @@ public class GeminiAgentProvider : IAgentProvider
         };
 
         psi.ArgumentList.Add("--sandbox");
+        psi.ArgumentList.Add("--yolo");
 
         if (!string.IsNullOrEmpty(invocation.Model))
         {
             psi.ArgumentList.Add("--model");
             psi.ArgumentList.Add(invocation.Model);
+        }
+
+        foreach (var dir in CodexAgentProvider.ExtractWritableDirs(invocation.AllowedTools))
+        {
+            psi.ArgumentList.Add("--include-directories");
+            psi.ArgumentList.Add(dir);
         }
 
         foreach (var arg in invocation.ExtraArgs)

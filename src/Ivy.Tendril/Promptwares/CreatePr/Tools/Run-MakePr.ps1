@@ -6,8 +6,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 # Dot-source Utils.ps1
-$sharedFolder = Join-Path $PSScriptRoot "../../.shared"
-. "$sharedFolder/Utils.ps1"
+. "$PSScriptRoot/Utils.ps1"
 
 Write-Host "=== CreatePr Execution ===" -ForegroundColor Cyan
 Write-Host "Plan: $PlanFolder" -ForegroundColor Cyan
@@ -97,7 +96,7 @@ if (Test-Path $worktreesDir) {
                 $repoPathForConfig = $planYaml.repos[0]
             }
 
-            $repoConfig = GetRepoConfig -RepoPath $repoPathForConfig -Project $project
+            $repoConfig = Get-RepoConfig -ProjectName $project -RepoPath $repoPathForConfig
 
             $checkBaseBranch = if ($repoConfig.BaseBranch) {
                 $repoConfig.BaseBranch

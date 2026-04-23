@@ -1,5 +1,6 @@
 using Ivy.Tendril.Apps.Setup.Dialogs;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps.Setup;
 
@@ -22,23 +23,24 @@ public class PromptwaresSetupView : ViewBase
         )).ToList();
 
         var table = new TableBuilder<PromptwareRow>(rows)
-            .Header(t => t.Index, "")
-            .Builder(t => t.Index, f => f.Func<PromptwareRow, PromptwareRow>(row =>
+            .Header(t => t.Name, "")
+            .Builder(t => t.Name, f => f.Func<PromptwareRow, string>(name =>
                 Layout.Horizontal().Gap(1)
                 | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit this promptware").OnClick(() =>
                 {
-                    editKey.Set(row.Name);
+                    editKey.Set(name);
                 })
                 | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete this promptware").OnClick(() =>
                 {
-                    promptwares.Remove(row.Name);
+                    promptwares.Remove(name);
                     config.SaveSettings();
-                    client.Toast($"Promptware '{row.Name}' deleted", "Deleted");
+                    client.Toast($"Promptware '{name}' deleted", "Deleted");
                     refreshToken.Refresh();
                 })
-            ));
+            ))
+            .ColumnWidth(t => t.AllowedTools, Size.Fraction(0.5f));
 
-        return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(120)))
+        return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(200)))
                | Text.Block("Promptware Configuration").Bold()
                | Text.Block("Configure agent profile and tool permissions for each promptware.")
                    .Muted().Small()
