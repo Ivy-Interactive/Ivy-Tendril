@@ -226,19 +226,20 @@ public class ContentView(
 
         // Plan tab content (not dependent on query — uses in-memory data)
         var reviewAnnotated = MarkdownHelper.AnnotateAllBrokenLinks(selectedPlan.LatestRevisionContent, planService.PlansDirectory);
-        var planTabContent = new Markdown(reviewAnnotated)
-            .DangerouslyAllowLocalFiles()
-            .OnLinkClick(FileLinkHelper.CreateFileLinkClickHandler(openFile, planId =>
-            {
-                var planFolder = Directory.GetDirectories(planService.PlansDirectory, $"{planId:D5}-*")
-                    .FirstOrDefault();
-                if (planFolder != null)
+        var planTabContent = Layout.Vertical().Scroll(Scroll.Vertical)
+            | new Markdown(reviewAnnotated)
+                .DangerouslyAllowLocalFiles()
+                .OnLinkClick(FileLinkHelper.CreateFileLinkClickHandler(openFile, planId =>
                 {
-                    var plan = planService.GetPlanByFolder(planFolder);
-                    if (plan != null)
-                        selectedPlanState.Set(plan);
-                }
-            }));
+                    var planFolder = Directory.GetDirectories(planService.PlansDirectory, $"{planId:D5}-*")
+                        .FirstOrDefault();
+                    if (planFolder != null)
+                    {
+                        var plan = planService.GetPlanByFolder(planFolder);
+                        if (plan != null)
+                            selectedPlanState.Set(plan);
+                    }
+                }));
 
         if (planContentQuery.Loading)
         {

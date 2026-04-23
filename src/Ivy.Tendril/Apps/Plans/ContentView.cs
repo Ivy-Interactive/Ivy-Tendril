@@ -187,7 +187,7 @@ public class ContentView(
                 .Width(Size.Full());
         else
         {
-            var planLayout = Layout.Vertical();
+            var planLayout = Layout.Vertical().Scroll(Scroll.Vertical);
             if (selectedPlan.Status == PlanStatus.Failed) planLayout |= BuildFailureCallout(selectedPlan);
             var annotatedContent = MarkdownHelper.AnnotateAllBrokenLinks(selectedPlan.LatestRevisionContent, planService.PlansDirectory);
             planLayout |= new Markdown(annotatedContent)
