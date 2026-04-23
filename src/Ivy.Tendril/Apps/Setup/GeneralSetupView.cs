@@ -27,7 +27,7 @@ public class GeneralSetupView : ViewBase
                        .WithField().Label("Coding Agent")
                    | planTemplate.ToCodeInput("Plan template...")
                        .Language(Languages.Markdown)
-                       .Height(Size.Units(40))
+                       .Height(Size.Units(80))
                        .WithField().Label("Plan Template")
                    | new Button("Save").Primary()
                        .Disabled(!hasChanges)
