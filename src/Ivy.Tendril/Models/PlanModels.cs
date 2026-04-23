@@ -88,15 +88,17 @@ public static class PlanFilters
 
         if (!string.IsNullOrWhiteSpace(textFilter))
         {
-            var search = textFilter.ToLowerInvariant();
+            var search = textFilter.Trim().TrimStart('#').ToLowerInvariant();
+            var isNumericSearch = int.TryParse(search, out var searchId);
             filtered = filtered.Where(p =>
+                (isNumericSearch && p.Id == searchId) ||
                 p.Title.ToLowerInvariant().Contains(search) ||
                 p.Id.ToString().Contains(search) ||
                 p.Project.ToLowerInvariant().Contains(search) ||
                 p.LatestRevisionContent.ToLowerInvariant().Contains(search));
         }
 
-        return filtered;
+        return filtered.OrderByDescending(p => p.Id);
     }
 }
 
