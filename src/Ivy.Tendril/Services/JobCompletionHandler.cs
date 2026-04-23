@@ -283,7 +283,7 @@ internal class JobCompletionHandler
             var planYaml = PlanYamlHelper.ReadPlanYaml(planFolder);
             if (planYaml == null) return;
 
-            if (planYaml.State is "Executing" or "Building")
+            if (planYaml.State is "Executing" or "Building" or "Draft")
             {
                 var hasIncomplete = planYaml.Verifications?
                     .Any(v => v.Status is "Pending" or "Fail") ?? false;

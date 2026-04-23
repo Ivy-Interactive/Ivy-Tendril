@@ -568,7 +568,7 @@ Worktrees are **not** cleaned up by ExecutePlan. They remain on disk so that Cre
 
 ### 9. Plan State
 
-The launcher script handles state transitions (Completed/Failed) based on exit code.
+The JobCompletionHandler in the C# host handles state transitions (ReadyForReview/Failed) based on exit code and verification results.
 
 ### Ambiguity Handling
 

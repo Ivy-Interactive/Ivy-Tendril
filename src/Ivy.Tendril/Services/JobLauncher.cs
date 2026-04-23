@@ -44,6 +44,9 @@ internal class JobLauncher
         var planFolderForHooks = type != "CreatePlan" && args.Length > 0 ? args[0] : "";
         runHooks("before", type, planFolderForHooks, job.Project, job);
 
+        if (type == "ExecutePlan" && args.Length > 0)
+            PlanYamlHelper.SetPlanStateByFolder(args[0], "Executing");
+
         job.SessionId = Guid.NewGuid().ToString();
 
         var psi = TryBuildAgentProcessStart(job);
