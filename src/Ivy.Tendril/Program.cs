@@ -87,6 +87,13 @@ public class Program
                 config.AddCommand<VersionCommand>("version")
                     .WithDescription("Show version information");
 
+                // Job management commands
+                config.AddBranch("job", job =>
+                {
+                    job.AddCommand<JobStatusCommand>("status")
+                        .WithDescription("Report job status (message, planId, planTitle)");
+                });
+
                 // Plan management commands
                 config.AddBranch("plan", plan =>
                 {
@@ -151,8 +158,8 @@ public class Program
             }
 
             if (firstArg == "doctor" || firstArg == "db-version" || firstArg == "db-migrate" ||
-                firstArg == "db-reset" || firstArg == "update-promptwares" || firstArg == "plan" ||
-                firstArg == "promptware" || firstArg == "version" || firstArg == "--version")
+                firstArg == "db-reset" || firstArg == "update-promptwares" || firstArg == "job" ||
+                firstArg == "plan" || firstArg == "promptware" || firstArg == "version" || firstArg == "--version")
             {
                 return app.Run(filteredArgs);
             }

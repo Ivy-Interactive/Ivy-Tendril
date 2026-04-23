@@ -155,6 +155,12 @@ Create the plan using CLI commands according to the structure in `../.shared/Pla
 
 Create the folder `PlansDirectory/<PlanId>-<SafeTitle>/` and write `revisions/001.md` with the plan content.
 
+After creating the folder, report the plan ID and title to the Jobs UI so it can display progress:
+
+```bash
+tendril job status $env:TENDRIL_JOB_ID --message "Creating plan..." --plan-id <PlanId> --plan-title "<Title>"
+```
+
 #### 4.2. Create plan.yaml via CLI
 
 Use `tendril plan create` with all known fields in a single command:

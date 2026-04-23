@@ -19,7 +19,7 @@ Tendril exposes a REST API for programmatic plan management. All endpoints are a
 
 ## Authentication
 
-When `api.apiKey` is set in `config.yaml`, all API requests (except `/api/jobs/*`) require the `X-Api-Key` header:
+When `api.apiKey` is set in `config.yaml`, all API requests require the `X-Api-Key` header:
 
 ```yaml
 # config.yaml
@@ -32,8 +32,6 @@ curl -H "X-Api-Key: your-secret-key" https://localhost:5010/api/plans
 ```
 
 If no `apiKey` is configured, all routes are open.
-
-The `/api/jobs/*` endpoints are intentionally unprotected so agent processes can post status updates without credentials.
 
 ## Plans
 
@@ -180,15 +178,13 @@ Content-Type: application/json
 
 Starts a `CreatePlan` job and returns the job ID.
 
-## Jobs
+## Job Status
 
-### Post Status
+Job status is reported via the CLI (not the REST API). Promptware agents use the `tendril job status` command to update progress:
 
-```
-POST /api/jobs/{jobId}/status
-Content-Type: application/json
-
-{ "message": "Running verifications..." }
+```bash
+tendril job status <job-id> --message "Running verifications..."
+tendril job status <job-id> --message "Planning..." --plan-id 01234 --plan-title "My Plan"
 ```
 
-Updates the status message for a running job. This endpoint does **not** require authentication.
+The `<job-id>` is available as `$TENDRIL_JOB_ID` in all promptware processes.

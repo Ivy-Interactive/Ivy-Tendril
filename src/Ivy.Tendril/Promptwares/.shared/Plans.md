@@ -169,6 +169,17 @@ Example — run a verification promptware from within ExecutePlan:
 tendril promptware IvyFrameworkVerification D:\Plans\01234-MyPlan --value VerificationDir=D:\Plans\01234-MyPlan\verification --value ArtifactsDir=D:\Plans\01234-MyPlan\artifacts
 ```
 
+### Reporting job status
+
+Report progress from a running job (updates the Jobs UI in real time):
+
+```bash
+tendril job status <job-id> --message "Verifying: DotnetBuild"
+tendril job status <job-id> --message "Planning..." --plan-id 01234 --plan-title "My Plan"
+```
+
+The `<job-id>` is available as `$env:TENDRIL_JOB_ID` in all promptware processes. The `--plan-id` and `--plan-title` options are optional and used to associate the job with a plan in the UI before the plan folder exists on disk.
+
 ## plan.yaml
 
 ```yaml

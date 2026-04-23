@@ -18,6 +18,7 @@ Use the `Get-ConfigYaml` helper from Utils.ps1 to read project configuration wit
 - Read `plan.yaml` from the plan folder
 - Read the latest revision from `revisions/` (highest numbered .md file)
 - Identify sections with investigative/exploratory language ("Investigate...", "Check if...", "Research...", "Explore...")
+- Report plan context to Jobs UI: `tendril job status $env:TENDRIL_JOB_ID --message "Expanding plan..." --plan-id <plan-id> --plan-title "<title>"`
 
 ### 2. Research and Resolve
 

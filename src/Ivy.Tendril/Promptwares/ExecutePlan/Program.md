@@ -40,6 +40,7 @@ Focus on making progress, not achieving perfect understanding. A working impleme
 - Read `plan.yaml` from the plan folder (project, repos, title)
 - Read the latest revision from `revisions/` (highest numbered .md file)
 - Extract the plan ID from the folder name (e.g. `01105` from `01105-TestPlan`)
+- Report plan context to Jobs UI: `tendril job status $env:TENDRIL_JOB_ID --message "Reading plan..." --plan-id <plan-id> --plan-title "<title>"`
 
 ### 1.5. Verify Dependencies
 
@@ -492,7 +493,7 @@ Check the `## Verification` section in the plan revision for checked items (`- [
 
 For each checked verification:
 
-1. Send a status message: `Invoke-RestMethod -Uri "$env:TENDRIL_URL/api/jobs/$env:TENDRIL_JOB_ID/status" -Method Post -Body ('{"message":"Verifying: <Name>"}') -ContentType "application/json" -ErrorAction SilentlyContinue`
+1. Send a status message: `tendril job status $env:TENDRIL_JOB_ID --message "Verifying: <Name>"`
 2. Look up its `prompt` in the `verifications` list in `config.yaml`
 3. Execute the prompt in the worktree directory
 4. If it fails: diagnose, fix the issue, **commit the fix** (e.g. `[01105] Fix lint errors from DotnetBuild`), and re-run. Repeat until it passes (fail the plan after 3+ failed attempts).
