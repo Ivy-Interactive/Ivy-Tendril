@@ -478,7 +478,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 | new NewPlanButton()
                 ,
                 Layout.Vertical(
-                    new SidebarNews("/api/news", Constants.NewsImageBaseUrl),
+                    new SidebarNews("/api/news", Constants.NewsBaseUrl),
                     settings.Footer,
                     footer
                 ),

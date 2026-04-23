@@ -13,7 +13,7 @@ public class NewsController : ControllerBase
     {
         try
         {
-            var json = await Http.GetStringAsync(Constants.NewsUrl);
+            var json = await Http.GetStringAsync(Constants.NewsBaseUrl + "news.json");
             return Content(json, "application/json");
         }
         catch

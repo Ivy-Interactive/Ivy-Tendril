@@ -21,6 +21,5 @@ public static class Constants
     public const string DocsUrl = "https://tendril.ivy.app";
     public const string DiscordUrl = "https://discord.gg/FHgxkDga3y";
     public const string IssuesUrl = "https://github.com/Ivy-Interactive/Ivy-Tendril/issues/new";
-    public const string NewsUrl = "https://cdn.ivy.app/tendril/news.json";
-    public const string NewsImageBaseUrl = "https://cdn.ivy.app/tendril/";
+    public const string NewsBaseUrl = "https://cdn.ivy.app/tendril/";
 }
