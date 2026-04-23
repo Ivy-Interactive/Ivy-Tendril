@@ -145,13 +145,14 @@ public class JobsApp : ViewBase
         var rows = jobs.Select(j =>
         {
             var planId = ExtractPlanId(j.PlanFile);
-            var displayPlanId = planId;
+            if (string.IsNullOrEmpty(planId) && !string.IsNullOrEmpty(j.ReportedPlanId))
+                planId = j.ReportedPlanId;
 
             return new JobItemRow
             {
                 Id = j.Id,
                 Status = j.Status,
-                PlanId = displayPlanId,
+                PlanId = planId,
                 Plan = GetPromptDisplay(j, planService),
                 Type = j.Type,
                 Project = string.Join(", ", ProjectHelper.ParseProjects(j.Project)),
@@ -525,6 +526,13 @@ public class JobsApp : ViewBase
                 var title = CleanPromptText(plan.Title);
                 return title.Length > PromptDisplayMaxLength ? title[..PromptDisplayMaxLength] + "..." : title;
             }
+        }
+
+        // Agent reported a plan title via the status API
+        if (!string.IsNullOrEmpty(j.ReportedPlanTitle))
+        {
+            var title = CleanPromptText(j.ReportedPlanTitle);
+            return title.Length > PromptDisplayMaxLength ? title[..PromptDisplayMaxLength] + "..." : title;
         }
 
         // CreatePlan jobs: use the -Description arg for display when no title is available yet

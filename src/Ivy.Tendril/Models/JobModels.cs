@@ -65,6 +65,10 @@ public record JobItem
     // Pre-allocated plan ID for CreatePlan jobs (used for filesystem verification)
     public string? AllocatedPlanId { get; set; }
 
+    // Reported by the agent via the status API during execution
+    public string? ReportedPlanId { get; set; }
+    public string? ReportedPlanTitle { get; set; }
+
     public void EnqueueOutput(string line)
     {
         OutputLines.Enqueue(line);

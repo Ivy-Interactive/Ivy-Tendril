@@ -14,8 +14,12 @@ public class StatusController(IJobService jobService) : ControllerBase
         var job = jobService.GetJob(jobId);
         if (job == null) return NotFound();
         job.StatusMessage = request.Message;
+        if (!string.IsNullOrEmpty(request.PlanId))
+            job.ReportedPlanId = request.PlanId;
+        if (!string.IsNullOrEmpty(request.PlanTitle))
+            job.ReportedPlanTitle = request.PlanTitle;
         return Ok();
     }
 }
 
-public record StatusRequest(string Message);
+public record StatusRequest(string Message, string? PlanId = null, string? PlanTitle = null);

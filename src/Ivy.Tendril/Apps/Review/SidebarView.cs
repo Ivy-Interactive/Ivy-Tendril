@@ -37,7 +37,7 @@ public class SidebarView(
         var levelOptions = _config.LevelNames;
 
         var searchInput = _textFilter.ToSearchInput()
-            .Placeholder("Search...")
+            .Placeholder("Search")
             .Suffix(
                 new Button()
                     .Icon(_filtersOpen.Value ? Icons.ChevronUp : Icons.ChevronDown)
