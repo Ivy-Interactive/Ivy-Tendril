@@ -2,6 +2,7 @@ using Ivy.Tendril.Apps.Trash;
 using Ivy.Tendril.Apps.Trash.Dialogs;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Views;
 
 namespace Ivy.Tendril.Apps;
 
@@ -61,10 +62,7 @@ public class TrashApp : ViewBase
         object mainContent;
         if (files.Count == 0)
         {
-            mainContent = Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
-                          | new Icon(Icons.Trash2).Size(Size.Units(8)).Color(Colors.Gray)
-                          | Text.Muted("No trash files yet")
-                          | Text.Muted("Duplicate plans will appear here").Small();
+            mainContent = new NoContentView("No trash", "Duplicate plans will appear here.");
         }
         else if (selected is null)
         {

@@ -1,5 +1,6 @@
 using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Views;
 using Ivy.Tendril.Apps.Recommendations.Dialogs;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
@@ -27,9 +28,7 @@ public class ContentView(
         if (selectedRecommendation is null)
         {
             if (allRecommendations.Count == 0)
-                return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full()).Gap(2)
-                       | new Icon(Icons.Inbox).Large().Color(Colors.Gray)
-                       | Text.Muted("No recommendations yet");
+                return new NoContentView("No recommendations", "Recommendations from completed plans will appear here.");
 
             return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
                    | Text.Muted("Select a recommendation from the sidebar");

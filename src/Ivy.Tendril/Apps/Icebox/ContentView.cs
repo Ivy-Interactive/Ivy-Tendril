@@ -1,6 +1,7 @@
 using Ivy.Core;
 using Ivy.Tendril.Apps.Icebox.Dialogs;
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Views;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
@@ -73,8 +74,13 @@ public class ContentView(
         }
 
         if (selectedPlan is null)
+        {
+            if (allPlans.Count == 0)
+                return new NoContentView("Icebox is empty", "Plans you put on ice will appear here.");
+
             return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
                    | Text.Muted("Select a plan from the sidebar");
+        }
 
         var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan.FolderName);
 

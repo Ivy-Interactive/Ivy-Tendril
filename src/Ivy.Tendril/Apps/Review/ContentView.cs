@@ -4,6 +4,7 @@ using Ivy.Tendril.Models;
 using Ivy.Tendril.Apps.Review.Dialogs;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Views;
 using Ivy.Tendril.Views.Sheets;
 using Ivy.Tendril.Views.Tabs;
 using Microsoft.Extensions.Logging;
@@ -163,9 +164,7 @@ public class ContentView(
         if (selectedPlan is null)
         {
             if (allPlans.Count == 0)
-                return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full()).Gap(2)
-                       | new Icon(Icons.Inbox).Large().Color(Colors.Gray)
-                       | Text.Muted("No plans to review");
+                return new NoContentView("No plans to review", "Completed plans will appear here for review.");
 
             return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
                    | Text.Muted("Select a completed plan to review");
