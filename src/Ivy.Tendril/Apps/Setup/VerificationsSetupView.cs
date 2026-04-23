@@ -34,9 +34,9 @@ public class VerificationsSetupView : ViewBase
                     refreshToken.Refresh();
                 })
             ))
-            .Width(t => t.Name, Size.Px(150))
-            .Width(t => t.Prompt, Size.Auto())
-            .Width(t => t.Index, Size.Px(80));
+            .ColumnWidth(t => t.Name, Size.Px(150))
+            .ColumnWidth(t => t.Prompt, Size.Auto())
+            .ColumnWidth(t => t.Index, Size.Px(80));
 
         return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(200)))
                | Text.Block("Verification Definitions").Bold()
