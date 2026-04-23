@@ -26,7 +26,7 @@ public class OutputSheet(
             {
                 outputContent = new ClaudeJsonRenderer()
                     .Stream(outputStream)
-                    .ShowThinking(true)
+                    .ShowThinking(false)
                     .ShowSystemEvents(false)
                     .AutoScroll(true)
                     .Height(Size.Full());
@@ -37,7 +37,7 @@ public class OutputSheet(
             var jsonStream = string.Join("\n", job.OutputLines);
             outputContent = new ClaudeJsonRenderer()
                 .JsonStream(jsonStream)
-                .ShowThinking(true)
+                .ShowThinking(false)
                 .ShowSystemEvents(false)
                 .AutoScroll(false)
                 .Height(Size.Full());
