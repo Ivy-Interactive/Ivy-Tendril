@@ -199,7 +199,7 @@ public class ContentView(
         }
         else
         {
-            var planLayout = Layout.Vertical().Scroll(Scroll.Vertical);
+            var planLayout = Layout.Vertical().Scroll(Scroll.Auto).Height(Size.Full());
             if (selectedPlan.Status == PlanStatus.Failed) planLayout |= BuildFailureCallout(selectedPlan);
             var editButton = Layout.Horizontal().Padding(0, 0, 2, 0)
                              | new Button("Edit").Icon(Icons.Pencil).Outline().OnClick(() => isEditing.Set(true));
@@ -263,7 +263,7 @@ public class ContentView(
                 new Tab("Artifacts", Cap(new ArtifactsTabView(planData.Artifacts))).Badge(totalArtifacts.ToString())
             ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content);
 
-            content |= (Layout.Vertical().Padding(2) | tabs);
+            content |= (Layout.Vertical().Padding(2).Height(Size.Full()) | tabs);
         }
 
         // Sheet modals
@@ -395,7 +395,7 @@ public class ContentView(
 
         return new Fragment(elements.ToArray());
 
-        object Cap(object inner) => Layout.Vertical().Width(Size.Auto().Max(Size.Units(200))) | inner;
+        object Cap(object inner) => Layout.Vertical().Width(Size.Auto().Max(Size.Units(200))).Height(Size.Full()) | inner;
     }
 
     internal static object BuildFailureCallout(PlanFile plan)

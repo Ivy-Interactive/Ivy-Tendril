@@ -226,7 +226,7 @@ public class ContentView(
 
         // Plan tab content (not dependent on query — uses in-memory data)
         var reviewAnnotated = MarkdownHelper.AnnotateAllBrokenLinks(selectedPlan.LatestRevisionContent, planService.PlansDirectory);
-        var planTabContent = Layout.Vertical().Scroll(Scroll.Vertical)
+        var planTabContent = Layout.Vertical().Scroll(Scroll.Vertical).Height(Size.Full())
             | new Markdown(reviewAnnotated)
                 .DangerouslyAllowLocalFiles()
                 .OnLinkClick(FileLinkHelper.CreateFileLinkClickHandler(openFile, planId =>
@@ -361,7 +361,7 @@ public class ContentView(
                 new Tab("Plan", Cap(planTabContent))
             ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content);
 
-            content |= (Layout.Vertical().Padding(2, 0) | tabs);
+            content |= (Layout.Vertical().Padding(2, 0).Height(Size.Full()) | tabs);
         }
 
         // Sheet modals (outside TabsLayout so they render as overlays)
@@ -468,7 +468,7 @@ public class ContentView(
 
         object Cap(object inner)
         {
-            return Layout.Vertical().Width(Size.Auto().Max(Size.Units(200))) | inner;
+            return Layout.Vertical().Width(Size.Auto().Max(Size.Units(200))).Height(Size.Full()) | inner;
         }
     }
 
