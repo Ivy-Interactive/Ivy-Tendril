@@ -98,6 +98,12 @@ tendril plan add-commit <plan-id> <sha>
 tendril plan set-verification <plan-id> <name> <status>
 # Valid statuses: Pending, Pass, Fail, Skipped
 
+# Related plans
+tendril plan add-related-plan <plan-id> <folder-name>
+
+# Dependencies
+tendril plan add-depends-on <plan-id> <folder-name>
+
 # Recommendations
 tendril plan rec add <plan-id> <title> -d <description> [--impact Small|Medium|High] [--risk Small|Medium|High]
 tendril plan rec accept <plan-id> <title> [--notes <text>]
@@ -116,8 +122,20 @@ tendril plan validate <plan-id>
 ### Creating a plan
 
 ```bash
-tendril plan create <plan-id> <title>
+tendril plan create <plan-id> <title> [options]
 ```
+
+Options:
+- `--project <name>` — Project name (default: Auto)
+- `--level <level>` — Priority level (default: NiceToHave)
+- `--initial-prompt <text>` — Original user description
+- `--source-url <url>` — GitHub issue or PR URL
+- `--execution-profile <profile>` — deep or balanced
+- `--priority <number>` — Priority (default: 0)
+- `--repo <path>` — Repository path (repeatable)
+- `--verification <Name=Status>` — Verification entry (repeatable)
+- `--related-plan <folder>` — Related plan folder name (repeatable)
+- `--depends-on <folder>` — Dependency plan folder name (repeatable)
 
 ### Writing execution logs
 

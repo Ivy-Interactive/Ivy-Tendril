@@ -99,6 +99,10 @@ public class Program
                         .WithDescription("Add a PR URL");
                     plan.AddCommand<PlanAddCommitCommand>("add-commit")
                         .WithDescription("Add a commit hash");
+                    plan.AddCommand<PlanAddRelatedPlanCommand>("add-related-plan")
+                        .WithDescription("Add a related plan");
+                    plan.AddCommand<PlanAddDependsOnCommand>("add-depends-on")
+                        .WithDescription("Add a plan dependency");
                     plan.AddCommand<PlanSetVerificationCommand>("set-verification")
                         .WithDescription("Update verification status");
                     plan.AddCommand<PlanGetCommand>("get")

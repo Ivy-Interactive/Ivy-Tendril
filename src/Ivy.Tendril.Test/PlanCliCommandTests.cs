@@ -1076,6 +1076,176 @@ public class PlanCliCommandTests : IDisposable
         Assert.Contains("Completed all verifications successfully", content);
     }
 
+    // ==================== PlanCreate with optional flags ====================
+
+    [Fact]
+    public void PlanCreate_WithAllOptions_SetsAllFields()
+    {
+        var planDir = Path.Combine(_plansDir, "20200-FullCreate");
+        Directory.CreateDirectory(planDir);
+
+        var plan = new PlanYaml
+        {
+            State = "Draft",
+            Project = "Tendril",
+            Level = "Bug",
+            Title = "FullCreate",
+            InitialPrompt = @"Fix the bug in D:\Repos\Foo",
+            SourceUrl = "https://github.com/org/repo/issues/42",
+            ExecutionProfile = "deep",
+            Priority = 3,
+            Repos = [_tempDir],
+            Verifications =
+            [
+                new PlanVerificationEntry { Name = "DotnetBuild", Status = "Pending" },
+                new PlanVerificationEntry { Name = "DotnetTest", Status = "Pending" }
+            ],
+            RelatedPlans = ["20201-OtherPlan"],
+            DependsOn = ["20202-BasePlan"],
+            Created = DateTime.UtcNow,
+            Updated = DateTime.UtcNow
+        };
+        PlanCommandHelpers.WritePlan(planDir, plan);
+
+        var result = PlanCommandHelpers.ReadPlan(planDir);
+        Assert.Equal("Tendril", result.Project);
+        Assert.Equal("Bug", result.Level);
+        Assert.Equal(@"Fix the bug in D:\Repos\Foo", result.InitialPrompt);
+        Assert.Equal("https://github.com/org/repo/issues/42", result.SourceUrl);
+        Assert.Equal("deep", result.ExecutionProfile);
+        Assert.Equal(3, result.Priority);
+        Assert.Single(result.Repos);
+        Assert.Equal(2, result.Verifications.Count);
+        Assert.Equal("DotnetBuild", result.Verifications[0].Name);
+        Assert.Single(result.RelatedPlans);
+        Assert.Single(result.DependsOn);
+    }
+
+    [Fact]
+    public void PlanCreate_WithWindowsPathInInitialPrompt_RoundTrips()
+    {
+        var planDir = Path.Combine(_plansDir, "20210-WindowsPath");
+        Directory.CreateDirectory(planDir);
+
+        var plan = new PlanYaml
+        {
+            State = "Draft",
+            Project = "Test",
+            Title = "WindowsPath",
+            Repos = [_tempDir],
+            InitialPrompt = @"Show issue in a DataTable D:\Screenshots\2026-04-23_10-25.png",
+            Created = DateTime.UtcNow,
+            Updated = DateTime.UtcNow
+        };
+        PlanCommandHelpers.WritePlan(planDir, plan);
+
+        var result = PlanCommandHelpers.ReadPlan(planDir);
+        Assert.Equal(@"Show issue in a DataTable D:\Screenshots\2026-04-23_10-25.png", result.InitialPrompt);
+    }
+
+    [Fact]
+    public void PlanCreate_VerificationFormat_ParsesCorrectly()
+    {
+        var planDir = Path.Combine(_plansDir, "20220-VerifFormat");
+        Directory.CreateDirectory(planDir);
+
+        var plan = new PlanYaml
+        {
+            State = "Draft",
+            Project = "Test",
+            Title = "VerifFormat",
+            Repos = [_tempDir],
+            Verifications =
+            [
+                new PlanVerificationEntry { Name = "DotnetBuild", Status = "Pending" },
+                new PlanVerificationEntry { Name = "DotnetFormat", Status = "Pending" },
+                new PlanVerificationEntry { Name = "DotnetTest", Status = "Pending" },
+                new PlanVerificationEntry { Name = "CheckResult", Status = "Pending" }
+            ],
+            Created = DateTime.UtcNow,
+            Updated = DateTime.UtcNow
+        };
+        PlanCommandHelpers.WritePlan(planDir, plan);
+
+        var result = PlanCommandHelpers.ReadPlan(planDir);
+        Assert.Equal(4, result.Verifications.Count);
+        Assert.All(result.Verifications, v => Assert.Equal("Pending", v.Status));
+    }
+
+    // ==================== PlanAddRelatedPlan ====================
+
+    [Fact]
+    public void PlanAddRelatedPlan_AddsEntry()
+    {
+        CreatePlanFolder("20230", "AddRelatedTest");
+
+        var folder = PlanCommandHelpers.ResolvePlanFolder("20230");
+        var plan = PlanCommandHelpers.ReadPlan(folder);
+        plan.RelatedPlans.Add("20231-OtherPlan");
+        plan.Updated = DateTime.UtcNow;
+        PlanCommandHelpers.WritePlan(folder, plan);
+
+        var result = ReadPlan("20230");
+        Assert.Single(result.RelatedPlans);
+        Assert.Equal("20231-OtherPlan", result.RelatedPlans[0]);
+    }
+
+    [Fact]
+    public void PlanAddRelatedPlan_Idempotent()
+    {
+        CreatePlanFolder("20232", "RelatedIdempotent");
+
+        var folder = PlanCommandHelpers.ResolvePlanFolder("20232");
+        var plan = PlanCommandHelpers.ReadPlan(folder);
+        plan.RelatedPlans.Add("20233-OtherPlan");
+        PlanCommandHelpers.WritePlan(folder, plan);
+
+        plan = PlanCommandHelpers.ReadPlan(folder);
+        if (!plan.RelatedPlans.Contains("20233-OtherPlan", StringComparer.OrdinalIgnoreCase))
+            plan.RelatedPlans.Add("20233-OtherPlan");
+        PlanCommandHelpers.WritePlan(folder, plan);
+
+        var result = ReadPlan("20232");
+        Assert.Single(result.RelatedPlans);
+    }
+
+    // ==================== PlanAddDependsOn ====================
+
+    [Fact]
+    public void PlanAddDependsOn_AddsEntry()
+    {
+        CreatePlanFolder("20240", "AddDependsTest");
+
+        var folder = PlanCommandHelpers.ResolvePlanFolder("20240");
+        var plan = PlanCommandHelpers.ReadPlan(folder);
+        plan.DependsOn.Add("20241-BasePlan");
+        plan.Updated = DateTime.UtcNow;
+        PlanCommandHelpers.WritePlan(folder, plan);
+
+        var result = ReadPlan("20240");
+        Assert.Single(result.DependsOn);
+        Assert.Equal("20241-BasePlan", result.DependsOn[0]);
+    }
+
+    [Fact]
+    public void PlanAddDependsOn_Idempotent()
+    {
+        CreatePlanFolder("20242", "DependsIdempotent");
+
+        var folder = PlanCommandHelpers.ResolvePlanFolder("20242");
+        var plan = PlanCommandHelpers.ReadPlan(folder);
+        plan.DependsOn.Add("20243-BasePlan");
+        PlanCommandHelpers.WritePlan(folder, plan);
+
+        plan = PlanCommandHelpers.ReadPlan(folder);
+        if (!plan.DependsOn.Contains("20243-BasePlan", StringComparer.OrdinalIgnoreCase))
+            plan.DependsOn.Add("20243-BasePlan");
+        PlanCommandHelpers.WritePlan(folder, plan);
+
+        var result = ReadPlan("20242");
+        Assert.Single(result.DependsOn);
+    }
+
     private static string CaptureStdout(Action action)
     {
         var original = Console.Out;

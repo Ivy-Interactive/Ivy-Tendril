@@ -410,7 +410,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Logout failed: {ex}");
+                await Console.Error.WriteLineAsync($"Logout failed: {ex}");
             }
         }
 

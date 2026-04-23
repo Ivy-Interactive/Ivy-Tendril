@@ -78,7 +78,7 @@ public class ContentView(
 
         var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(40)).Gap(2)
                      | Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold()
-                     | isEditing.ToSwitchInput(Icons.Pencil).Label("Edit")
+                     | isEditing.ToSwitchInput(Icons.Code).Label("Edit")
                      | new Spacer().Width(Size.Grow())
                      | Text.Rich()
                          .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
