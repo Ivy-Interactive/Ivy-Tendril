@@ -6,6 +6,7 @@ namespace Ivy.Tendril.Services.Agents;
 public class CodexAgentProvider : IAgentProvider
 {
     public string Name => "codex";
+    public bool UsesStdinPrompt => true;
 
     public ProcessStartInfo BuildProcessStart(AgentInvocation invocation)
     {
@@ -18,22 +19,19 @@ public class CodexAgentProvider : IAgentProvider
             RedirectStandardInput = true,
             UseShellExecute = false,
             CreateNoWindow = true,
+            StandardInputEncoding = System.Text.Encoding.UTF8,
             StandardOutputEncoding = System.Text.Encoding.UTF8,
             StandardErrorEncoding = System.Text.Encoding.UTF8
         };
 
+        psi.ArgumentList.Add("exec");
         psi.ArgumentList.Add("--full-auto");
+        psi.ArgumentList.Add("--json");
 
         if (!string.IsNullOrEmpty(invocation.Model))
         {
             psi.ArgumentList.Add("--model");
             psi.ArgumentList.Add(invocation.Model);
-        }
-
-        if (!string.IsNullOrEmpty(invocation.Effort))
-        {
-            psi.ArgumentList.Add("--reasoning-effort");
-            psi.ArgumentList.Add(invocation.Effort);
         }
 
         foreach (var dir in ExtractWritableDirs(invocation.AllowedTools))
@@ -45,7 +43,9 @@ public class CodexAgentProvider : IAgentProvider
         foreach (var arg in invocation.ExtraArgs)
             psi.ArgumentList.Add(arg);
 
-        psi.ArgumentList.Add(invocation.PromptContent);
+        // Prompt is read from stdin to avoid Windows command line length limits.
+        // "codex exec" reads from stdin when no positional prompt is given.
+        psi.ArgumentList.Add("-");
 
         psi.Environment["CI"] = "true";
         psi.Environment["TERM"] = "dumb";

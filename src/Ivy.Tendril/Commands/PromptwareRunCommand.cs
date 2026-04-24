@@ -171,6 +171,13 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             return 1;
         }
 
+        if (resolution.Provider.UsesStdinPrompt && psi.RedirectStandardInput)
+        {
+            process.StandardInput.Write(prompt);
+            process.StandardInput.Flush();
+            process.StandardInput.Close();
+        }
+
         // Stream stdout to our stdout
         var outputTask = Task.Run(() =>
         {

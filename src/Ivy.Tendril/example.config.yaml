@@ -53,9 +53,9 @@ codingAgents:
   - name: deep
     model: gemini-3-flash-preview
   - name: balanced
-    model: gemini-2.5-flash
+    model: gemini-3-flash-preview
   - name: quick
-    model: gemini-2.5-flash-lite
+    model: gemini-3-flash-preview
 
 # Each promptware is connected to a profile (deep/balanced/quick).
 # The profile determines model and effort from the active coding agent above.

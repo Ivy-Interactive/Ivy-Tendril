@@ -49,7 +49,7 @@ internal class JobLauncher
 
         job.SessionId = Guid.NewGuid().ToString();
 
-        var psi = TryBuildAgentProcessStart(job);
+        var (psi, stdinContent) = TryBuildAgentProcessStart(job);
 
         if (psi == null)
         {
@@ -62,6 +62,8 @@ internal class JobLauncher
             raiseStructureChanged();
             return;
         }
+
+        ResolveCommandShim(psi);
 
         var process = new Process { StartInfo = psi };
         AttachOutputHandlers(process, job, id);
@@ -79,6 +81,23 @@ internal class JobLauncher
             jobSlotSemaphore.Release();
             raiseStructureChanged();
             return;
+        }
+
+        if (psi.RedirectStandardInput)
+        {
+            try
+            {
+                if (stdinContent != null)
+                {
+                    process.StandardInput.Write(stdinContent);
+                    process.StandardInput.Flush();
+                }
+                process.StandardInput.Close();
+            }
+            catch (IOException)
+            {
+                // Process exited before stdin could be written — safe to ignore.
+            }
         }
 
         process.BeginOutputReadLine();
@@ -250,12 +269,12 @@ internal class JobLauncher
         };
     }
 
-    private ProcessStartInfo? TryBuildAgentProcessStart(JobItem job)
+    private (ProcessStartInfo? Psi, string? StdinContent) TryBuildAgentProcessStart(JobItem job)
     {
-        if (_configService == null) return null;
+        if (_configService == null) return (null, null);
 
         var programFolder = Path.Combine(_promptsRoot, job.Type);
-        if (!HasAgentDirectProgram(programFolder, job.Type)) return null;
+        if (!HasAgentDirectProgram(programFolder, job.Type)) return (null, null);
 
         var settings = _configService.Settings;
         var (values, planYaml, profileOverride) = BuildFirmwareValues(job, programFolder);
@@ -287,11 +306,13 @@ internal class JobLauncher
         var psi = resolution.Provider.BuildProcessStart(invocation);
         SetTendrilEnvironment(psi, job);
 
+        var stdinContent = resolution.Provider.UsesStdinPrompt ? prompt : null;
+
         _logger.LogInformation(
             "Job {JobId}: Agent-direct launch ({Provider}, model={Model}, effort={Effort})",
             job.Id, resolution.Provider.Name, resolution.Model, resolution.Effort);
 
-        return psi;
+        return (psi, stdinContent);
     }
 
     private static bool HasAgentDirectProgram(string programFolder, string jobType)
@@ -430,6 +451,27 @@ internal class JobLauncher
                 File.WriteAllText(bashShim, $"#!/usr/bin/env bash\ndotnet run --project \"{projectPath}\" --no-build -- \"$@\"\n");
 
             PrependToPath(psi, shimDir);
+        }
+    }
+
+    private static void ResolveCommandShim(ProcessStartInfo psi)
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        var fileName = psi.FileName;
+        if (Path.IsPathRooted(fileName) || Path.HasExtension(fileName)) return;
+
+        var pathDirs = (psi.Environment.TryGetValue("PATH", out var p) ? p : Environment.GetEnvironmentVariable("PATH"))
+            ?.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries) ?? [];
+
+        foreach (var dir in pathDirs)
+        {
+            var cmdPath = Path.Combine(dir, fileName + ".cmd");
+            if (File.Exists(cmdPath))
+            {
+                psi.FileName = cmdPath;
+                return;
+            }
         }
     }
 

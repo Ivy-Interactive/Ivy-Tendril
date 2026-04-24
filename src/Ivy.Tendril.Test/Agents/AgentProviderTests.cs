@@ -165,34 +165,38 @@ public class AgentProviderTests
     }
 
     [Fact]
-    public void Codex_BuildProcessStart_IncludesFullAuto()
+    public void Codex_BuildProcessStart_UsesExecSubcommand()
     {
         var provider = new CodexAgentProvider();
         var psi = provider.BuildProcessStart(CreateInvocation());
 
-        Assert.Contains("--full-auto", psi.ArgumentList.ToList());
+        var args = psi.ArgumentList.ToList();
+        Assert.Equal("exec", args[0]);
+        Assert.Contains("--full-auto", args);
+        Assert.Contains("--json", args);
     }
 
     [Fact]
-    public void Codex_BuildProcessStart_UsesReasoningEffort()
+    public void Codex_BuildProcessStart_DoesNotIncludeEffort()
     {
         var provider = new CodexAgentProvider();
         var psi = provider.BuildProcessStart(CreateInvocation(effort: "medium"));
 
         var args = psi.ArgumentList.ToList();
-        var idx = args.IndexOf("--reasoning-effort");
-        Assert.True(idx >= 0);
-        Assert.Equal("medium", args[idx + 1]);
+        Assert.DoesNotContain("--reasoning-effort", args);
+        Assert.DoesNotContain("--effort", args);
     }
 
     [Fact]
-    public void Codex_BuildProcessStart_PromptIsLastArg()
+    public void Codex_BuildProcessStart_UsesStdinForPrompt()
     {
         var provider = new CodexAgentProvider();
         var psi = provider.BuildProcessStart(CreateInvocation("do the thing"));
 
+        Assert.True(provider.UsesStdinPrompt);
         var args = psi.ArgumentList.ToList();
-        Assert.Equal("do the thing", args[^1]);
+        Assert.Equal("-", args[^1]);
+        Assert.DoesNotContain("do the thing", args);
     }
 
     // --- Gemini Provider ---
@@ -207,12 +211,15 @@ public class AgentProviderTests
     }
 
     [Fact]
-    public void Gemini_BuildProcessStart_IncludesSandbox()
+    public void Gemini_BuildProcessStart_UsesStdinForPrompt()
     {
         var provider = new GeminiAgentProvider();
-        var psi = provider.BuildProcessStart(CreateInvocation());
+        var psi = provider.BuildProcessStart(CreateInvocation("my long prompt"));
 
-        Assert.Contains("--sandbox", psi.ArgumentList.ToList());
+        Assert.True(provider.UsesStdinPrompt);
+        var args = psi.ArgumentList.ToList();
+        Assert.Contains("--prompt", args);
+        Assert.DoesNotContain("my long prompt", args);
     }
 
     [Fact]
