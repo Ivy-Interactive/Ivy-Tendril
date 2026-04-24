@@ -28,7 +28,8 @@ public class ProjectsSetupView : ViewBase
                     editIndex.Set(idx);
                 })
                 | new Button().Icon(Icons.Trash).Outline().Small().OnClick(() => { deleteIndex.Set(idx); })
-            ));
+            ))
+            .ColumnWidth(t => t.Index, Size.Px(88));
 
         return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(200)))
                | Text.Block("Projects").Bold()
