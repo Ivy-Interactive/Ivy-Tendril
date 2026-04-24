@@ -33,6 +33,20 @@ public class EditProjectDialog(
         var editingRepoPath = UseState<string?>(null);
         var editingRepoError = UseState<string?>(null);
 
+        var (folderDialogView, showFolderDialog, selectedPath) = UseFolderDialog();
+        var browseTarget = UseState<string?>(null);
+
+        UseEffect(() =>
+        {
+            if (selectedPath.Value != null)
+            {
+                if (browseTarget.Value == "new")
+                    newRepoPath.Set(selectedPath.Value);
+                else if (browseTarget.Value == "editing")
+                    editingRepoPath.Set(selectedPath.Value);
+            }
+        }, selectedPath);
+
         UseEffect(() =>
         {
             if (_editIndex.Value == null)
@@ -88,9 +102,13 @@ public class EditProjectDialog(
                                            ? $"Path does not exist: {expandedPath}"
                                            : $"Not a git repository: {expandedPath}")
                                    : new Spacer().Width(Size.Units(4)))
-                               | editingRepoPath
-                                   .ToTextInput("Select repository folder...")
-                                   .Width(Size.Grow())
+                               | (Layout.Horizontal().Gap(2).AlignContent(Align.Center).Width(Size.Grow())
+                                  | Text.Block(editingRepoPath.Value ?? "").Width(Size.Grow())
+                                  | new Button("Browse", _ =>
+                                  {
+                                      browseTarget.Set("editing");
+                                      showFolderDialog(_ => { });
+                                  }, icon: Icons.Folder).Outline().Small())
                                | new Badge(repo.PrRule).Variant(BadgeVariant.Outline)
                                | new Button().Icon(Icons.Check).Ghost().Small().OnClick(() =>
                                {
@@ -162,8 +180,15 @@ public class EditProjectDialog(
         if (repoPathError.Value != null) reposLayout |= Text.Danger(repoPathError.Value);
 
         reposLayout |= Layout.Horizontal().Gap(2).AlignContent(Align.Center)
-                       | newRepoPath.ToTextInput("Select repository folder...")
-                           .Width(Size.Grow())
+                       | (Layout.Horizontal().Gap(2).AlignContent(Align.Center).Width(Size.Grow())
+                          | (newRepoPath.Value != null
+                              ? Text.Block(newRepoPath.Value).Width(Size.Grow())
+                              : Text.Block("No folder selected").Width(Size.Grow()).Color(Colors.Muted))
+                          | new Button("Browse", _ =>
+                          {
+                              browseTarget.Set("new");
+                              showFolderDialog(_ => { });
+                          }, icon: Icons.Folder).Outline().Small())
                        | newRepoPrRule.ToSelectInput(new List<string> { "default", "yolo" }).Width(Size.Units(20))
                        | new Button("Add").Outline().Small().OnClick(() =>
                        {
@@ -246,6 +271,7 @@ public class EditProjectDialog(
             new DialogHeader(isNew ? "Add Project" : $"Edit Project: {editName.Value}"),
             new DialogBody(
                 Layout.Vertical().Gap(4)
+                | folderDialogView
                 | editName.ToTextInput("Project name...").WithField().Label("Name")
                 | editColor.ToColorInput().WithField().Label("Color")
                 | editContext.ToTextareaInput("Project context or prompt for AI agents (optional)...").Rows(4)
