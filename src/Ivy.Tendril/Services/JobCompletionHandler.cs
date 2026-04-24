@@ -596,7 +596,8 @@ internal class JobCompletionHandler
                        ?? _configService?.PlanFolder;
         if (string.IsNullOrEmpty(plansDir)) return null;
 
-        return PlanYamlHelper.FindPlanFolderById(plansDir, planId);
+        var folderName = PlanYamlHelper.FindPlanFolderById(plansDir, planId);
+        return folderName != null ? Path.Combine(plansDir, folderName) : null;
     }
 
     internal void WriteJobLog(JobItem job)
