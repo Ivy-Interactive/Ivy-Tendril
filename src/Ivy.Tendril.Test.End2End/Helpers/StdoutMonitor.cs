@@ -20,9 +20,10 @@ public static class StdoutMonitor
     public static async Task WaitForJobExit(
         TendrilProcessFixture tendril,
         TimeSpan timeout,
+        int fromLine = -1,
         CancellationToken cancellation = default)
     {
-        var seenCount = tendril.StdoutLines.Count;
+        var seenCount = fromLine >= 0 ? fromLine : tendril.StdoutLines.Count;
         var deadline = DateTime.UtcNow + timeout;
 
         while (DateTime.UtcNow < deadline)
