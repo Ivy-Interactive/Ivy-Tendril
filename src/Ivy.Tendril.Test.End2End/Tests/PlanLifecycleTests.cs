@@ -60,11 +60,11 @@ public class PlanLifecycleTests : IAsyncLifetime
         await dashboard.WaitForLoaded();
         await dashboard.NavigateToDrafts();
 
-        await plans.CreatePlan("Add a README.md file with project description");
+        await plans.CreatePlan("Uppercase all string literals in Program.cs");
 
-        await WaitForPlanWithYaml("README", timeout);
+        await WaitForPlanWithYaml("Uppercase", timeout);
 
-        FileSystemAssertions.AssertPlanExists(_fixture.Tendril.TendrilPlans, "README");
+        FileSystemAssertions.AssertPlanExists(_fixture.Tendril.TendrilPlans, "Uppercase");
     }
 
     [Fact]
@@ -78,16 +78,16 @@ public class PlanLifecycleTests : IAsyncLifetime
         await dashboard.WaitForLoaded();
         await dashboard.NavigateToDrafts();
 
-        await plans.CreatePlan("First test plan for listing");
-        await WaitForPlanWithYaml("First", timeout);
+        await plans.CreatePlan("Uppercase all string literals in GlobalUsings.cs");
+        await WaitForPlanWithYaml("GlobalUsings", timeout);
 
-        var firstFolder = FileSystemAssertions.FindPlanFolder(_fixture.Tendril.TendrilPlans, "First")!;
+        var firstFolder = FileSystemAssertions.FindPlanFolder(_fixture.Tendril.TendrilPlans, "GlobalUsings")!;
         var firstId = FileSystemAssertions.GetPlanId(firstFolder)!;
 
-        await plans.CreatePlan("Second test plan for listing");
-        await WaitForPlanWithYaml("Second", timeout);
+        await plans.CreatePlan("Add XML documentation comments to Program.cs");
+        await WaitForPlanWithYaml("Documentation", timeout);
 
-        var secondFolder = FileSystemAssertions.FindPlanFolder(_fixture.Tendril.TendrilPlans, "Second")!;
+        var secondFolder = FileSystemAssertions.FindPlanFolder(_fixture.Tendril.TendrilPlans, "Documentation")!;
         var secondId = FileSystemAssertions.GetPlanId(secondFolder)!;
 
         // Reload to pick up both plans in the sidebar
@@ -102,19 +102,9 @@ public class PlanLifecycleTests : IAsyncLifetime
 
     private async Task WaitForPlanWithYaml(string titleFragment, int timeoutSeconds)
     {
-        var plansDir = _fixture.Tendril.TendrilPlans;
-
-        await RetryHelper.WaitUntilAsync(
-            () =>
-            {
-                var folder = FileSystemAssertions.FindPlanFolder(plansDir, titleFragment);
-                if (folder == null) return Task.FromResult(false);
-                return Task.FromResult(File.Exists(Path.Combine(folder, "plan.yaml")));
-            },
+        using var watcher = new PlanCreationWatcher(_fixture.Tendril.TendrilPlans, titleFragment);
+        await watcher.WaitAsync(
             TimeSpan.FromSeconds(timeoutSeconds),
-            pollInterval: TimeSpan.FromSeconds(2),
-            failureMessage: $"Plan folder containing '{titleFragment}' with plan.yaml was not created within {timeoutSeconds}s.\n" +
-                $"Plans dir contents: {string.Join(", ", Directory.Exists(plansDir) ? Directory.GetFileSystemEntries(plansDir).Select(Path.GetFileName) : [])}\n" +
-                $"Tendril stdout (last 20 lines):\n{string.Join("\n", _fixture.Tendril.StdoutLines.TakeLast(20))}");
+            _fixture.Tendril.StdoutLines);
     }
 }

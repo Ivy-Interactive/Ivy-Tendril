@@ -70,18 +70,18 @@ public class AgentExecutionTests : IAsyncLifetime
         await dashboard.NavigateToDrafts();
         await Task.Delay(1000);
 
-        var planDescription = $"Create a file called {agent}-lifecycle.txt containing 'Hello from {agent}'";
+        var planDescription = "Uppercase all string literals in Program.cs";
         await plans.CreatePlan(planDescription);
 
-        await WaitForPlanWithYaml($"{agent}-lifecycle", timeout,
+        await WaitForPlanWithYaml("Uppercase", timeout,
             $"Step 1 (CreatePlan) failed: agent={agent}");
 
-        var planFolder = FileSystemAssertions.FindPlanFolder(plansDir, $"{agent}-lifecycle")!;
+        var planFolder = FileSystemAssertions.FindPlanFolder(plansDir, "Uppercase")!;
         var planId = FileSystemAssertions.GetPlanId(planFolder)!;
-        FileSystemAssertions.AssertPlanExists(plansDir, $"{agent}-lifecycle");
+        FileSystemAssertions.AssertPlanExists(plansDir, "Uppercase");
 
-        // Wait for the CreatePlan job to fully complete (Jobs badge → 0)
-        await WaitForNoActiveJobs(timeout);
+        // Wait for the CreatePlan job to finish (detect via stdout)
+        await WaitForJobExit(timeout);
 
         // --- Step 2: Execute Plan ---
         await _page!.ReloadAsync(new() { WaitUntil = WaitUntilState.NetworkIdle });
@@ -95,11 +95,11 @@ public class AgentExecutionTests : IAsyncLifetime
         await Task.Delay(1000);
         await plans.ClickExecute();
 
-        await WaitForPlanState($"{agent}-lifecycle", "ReadyForReview", timeout,
+        await WaitForPlanState("Uppercase", "ReadyForReview", timeout,
             $"Step 2 (ExecutePlan) failed: plan #{planId} did not reach ReadyForReview, agent={agent}");
 
-        // Wait for the ExecutePlan job to complete
-        await WaitForNoActiveJobs(timeout);
+        // Wait for the ExecutePlan job to finish (detect via stdout)
+        await WaitForJobExit(timeout);
 
         // --- Step 3: Create PR ---
         await _page!.ReloadAsync(new() { WaitUntil = WaitUntilState.NetworkIdle });
@@ -119,74 +119,56 @@ public class AgentExecutionTests : IAsyncLifetime
 
     private async Task WaitForPlanWithYaml(string titleFragment, int timeoutSeconds, string context)
     {
-        var plansDir = _fixture.Tendril.TendrilPlans;
-
-        await RetryHelper.WaitUntilAsync(
-            () =>
-            {
-                var folder = FileSystemAssertions.FindPlanFolder(plansDir, titleFragment);
-                if (folder == null) return Task.FromResult(false);
-                return Task.FromResult(File.Exists(Path.Combine(folder, "plan.yaml")));
-            },
-            TimeSpan.FromSeconds(timeoutSeconds),
-            pollInterval: TimeSpan.FromSeconds(3),
-            failureMessage: $"{context}\n" +
-                $"Plan '{titleFragment}' with plan.yaml not found within {timeoutSeconds}s.\n" +
-                $"Plans dir: {string.Join(", ", Directory.Exists(plansDir) ? Directory.GetFileSystemEntries(plansDir).Select(Path.GetFileName) : [])}\n" +
-                $"Tendril stdout (last 30):\n{string.Join("\n", _fixture.Tendril.StdoutLines.TakeLast(30))}");
+        using var watcher = new PlanCreationWatcher(_fixture.Tendril.TendrilPlans, titleFragment);
+        try
+        {
+            await watcher.WaitAsync(
+                TimeSpan.FromSeconds(timeoutSeconds),
+                _fixture.Tendril.StdoutLines);
+        }
+        catch (TimeoutException ex)
+        {
+            throw new TimeoutException($"{context}\n{ex.Message}", ex);
+        }
     }
 
     private async Task WaitForPlanState(string titleFragment, string expectedState, int timeoutSeconds, string context)
     {
-        var plansDir = _fixture.Tendril.TendrilPlans;
-
-        await RetryHelper.WaitUntilAsync(
-            async () =>
-            {
-                var folder = FileSystemAssertions.FindPlanFolder(plansDir, titleFragment);
-                if (folder == null) return false;
-
-                var yamlPath = Path.Combine(folder, "plan.yaml");
-                if (!File.Exists(yamlPath)) return false;
-
-                var content = await File.ReadAllTextAsync(yamlPath);
-                return content.Contains($"state: {expectedState}", StringComparison.OrdinalIgnoreCase);
-            },
-            TimeSpan.FromSeconds(timeoutSeconds),
-            pollInterval: TimeSpan.FromSeconds(3),
-            failureMessage: $"{context}\n" +
-                $"Tendril stdout (last 30):\n{string.Join("\n", _fixture.Tendril.StdoutLines.TakeLast(30))}");
+        using var watcher = new PlanStateWatcher(_fixture.Tendril.TendrilPlans, titleFragment, expectedState);
+        try
+        {
+            await watcher.WaitAsync(
+                TimeSpan.FromSeconds(timeoutSeconds),
+                _fixture.Tendril.StdoutLines);
+        }
+        catch (TimeoutException ex)
+        {
+            throw new TimeoutException($"{context}\n{ex.Message}", ex);
+        }
     }
 
     private async Task WaitForPRCreated(string planFolder, int timeoutSeconds, string context)
     {
-        await RetryHelper.WaitUntilAsync(
-            async () =>
-            {
-                var yamlPath = Path.Combine(planFolder, "plan.yaml");
-                if (!File.Exists(yamlPath)) return false;
-
-                var content = await File.ReadAllTextAsync(yamlPath);
-                return content.Contains("github.com", StringComparison.OrdinalIgnoreCase) &&
-                       content.Contains("pull", StringComparison.OrdinalIgnoreCase);
-            },
-            TimeSpan.FromSeconds(timeoutSeconds),
-            pollInterval: TimeSpan.FromSeconds(3),
-            failureMessage: $"{context}\n" +
-                $"Tendril stdout (last 30):\n{string.Join("\n", _fixture.Tendril.StdoutLines.TakeLast(30))}");
+        using var watcher = new PlanStateWatcher(
+            Path.GetDirectoryName(planFolder)!, Path.GetFileName(planFolder), "Completed");
+        try
+        {
+            // PR creation sets state to Completed and writes the PR URL
+            await watcher.WaitAsync(
+                TimeSpan.FromSeconds(timeoutSeconds),
+                _fixture.Tendril.StdoutLines);
+        }
+        catch (TimeoutException ex)
+        {
+            throw new TimeoutException($"{context}\n{ex.Message}", ex);
+        }
     }
 
-    private async Task WaitForNoActiveJobs(int timeoutSeconds)
+    private async Task WaitForJobExit(int timeoutSeconds)
     {
-        var dashboard = new DashboardPage(_page!);
-
-        await _page!.GotoAsync(_fixture.Tendril.TendrilUrl);
-        await dashboard.WaitForLoaded();
-        await dashboard.NavigateToJobs();
-        await Task.Delay(2000);
-
-        var jobs = new JobsPage(_page!);
-        await jobs.WaitForNoActiveJobs(timeoutSeconds);
+        await StdoutMonitor.WaitForJobExit(
+            _fixture.Tendril,
+            TimeSpan.FromSeconds(timeoutSeconds));
     }
 
     private async Task WaitForPlanInSidebar(string planId, string tabName)
@@ -208,15 +190,7 @@ public class AgentExecutionTests : IAsyncLifetime
                         await dashboard.NavigateToDrafts();
                     else if (tabName == "Review")
                         await dashboard.NavigateToReview();
-                    await Task.Delay(5000);
-
-                    // Take a screenshot on first and last attempts for debugging
-                    if (attempt == 1 || attempt % 5 == 0)
-                    {
-                        var screenshotPath = Path.Combine(Path.GetTempPath(),
-                            $"tendril-e2e-sidebar-{tabName}-attempt{attempt}.png");
-                        await _page!.ScreenshotAsync(new() { Path = screenshotPath, FullPage = true });
-                    }
+                    await Task.Delay(3000);
 
                     var visible = await _page!.GetByText($"#{planId}").First.IsVisibleAsync();
                     return visible;
@@ -228,7 +202,7 @@ public class AgentExecutionTests : IAsyncLifetime
                 }
             },
             TimeSpan.FromSeconds(120),
-            pollInterval: TimeSpan.FromSeconds(10),
+            pollInterval: TimeSpan.FromSeconds(5),
             failureMessage: $"Plan #{planId} not visible in {tabName} sidebar after 120s (attempts: {attempt}).\n" +
                 $"Last error: {lastError}\n" +
                 $"Plans dir: {string.Join(", ", Directory.Exists(_fixture.Tendril.TendrilPlans) ? Directory.GetDirectories(_fixture.Tendril.TendrilPlans).Select(Path.GetFileName) : [])}\n" +

@@ -62,7 +62,8 @@ public static class FileSystemAssertions
     {
         var folderName = Path.GetFileName(planFolderPath);
         var dashIndex = folderName.IndexOf('-');
-        return dashIndex > 0 ? folderName[..dashIndex] : folderName;
+        var raw = dashIndex > 0 ? folderName[..dashIndex] : folderName;
+        return int.TryParse(raw, out var id) ? id.ToString() : raw;
     }
 
     public static void AssertConfigContains(string tendrilHome, string expectedText)

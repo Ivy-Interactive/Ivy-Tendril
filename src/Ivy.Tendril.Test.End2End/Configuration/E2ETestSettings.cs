@@ -3,7 +3,7 @@ namespace Ivy.Tendril.Test.End2End.Configuration;
 public class E2ETestSettings
 {
     public string Agent { get; set; } = "claude";
-    public string TestRepo { get; set; } = "octocat/Hello-World";
+    public string TestRepo { get; set; } = "Ivy-Interactive/Ivy-Templates";
     public string TendrilProjectPath { get; set; } = "../Ivy.Tendril/Ivy.Tendril.csproj";
     public int StartupTimeoutSeconds { get; set; } = 60;
     public int PlanExecutionTimeoutSeconds { get; set; } = 600;
