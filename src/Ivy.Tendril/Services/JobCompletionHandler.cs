@@ -594,6 +594,14 @@ internal class JobCompletionHandler
         {
         }
 
+        try
+        {
+            var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
+            if (!string.IsNullOrEmpty(job.StatusFilePath) && !string.IsNullOrEmpty(planFolder) && Directory.Exists(planFolder))
+                JobStatusFile.MoveLogToPlanFolder(job.StatusFilePath, planFolder, job.Type);
+        }
+        catch { }
+
         if (_planReaderService == null || string.IsNullOrEmpty(job.PlanFile))
             return;
 

@@ -2,6 +2,11 @@ namespace Ivy.Tendril.Test.End2End.Helpers;
 
 public static class LogAssertions
 {
+    private static readonly System.Text.Json.JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+    };
+
     public static void AssertNoErrors(string tendrilHome)
     {
         var logFiles = FindLogFiles(tendrilHome);
@@ -53,6 +58,63 @@ public static class LogAssertions
         Assert.NotNull(log);
         Assert.Contains(expectedText, log!, StringComparison.OrdinalIgnoreCase);
     }
+
+    // --- CLI job log (NNN-{jobType}-job.jsonl) ---
+
+    public static List<CliLogEntry> GetCliLogEntries(string planFolder, string jobType)
+    {
+        var logsDir = Path.Combine(planFolder, "logs");
+        if (!Directory.Exists(logsDir))
+            return [];
+
+        var entries = new List<CliLogEntry>();
+        foreach (var file in Directory.GetFiles(logsDir, $"*-{jobType}-job.jsonl"))
+        {
+            foreach (var line in File.ReadAllLines(file))
+            {
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                try
+                {
+                    var entry = System.Text.Json.JsonSerializer.Deserialize<CliLogEntry>(line, JsonOptions);
+                    if (entry != null) entries.Add(entry);
+                }
+                catch { }
+            }
+        }
+        return entries;
+    }
+
+    public static void AssertCliLogHasEntries(string planFolder, string jobType, int minEntries = 1)
+    {
+        var entries = GetCliLogEntries(planFolder, jobType);
+        Assert.True(entries.Count >= minEntries,
+            $"Expected at least {minEntries} CLI log entries for {jobType} in {planFolder}, found {entries.Count}");
+    }
+
+    public static void AssertCliLogContainsCommand(string planFolder, string jobType, string commandFragment)
+    {
+        var entries = GetCliLogEntries(planFolder, jobType);
+        Assert.True(entries.Count > 0,
+            $"No CLI log entries found for {jobType} in {planFolder}");
+        Assert.Contains(entries, e =>
+            e.Command != null && e.Command.Contains(commandFragment, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public static void AssertAllCliCallsSucceeded(string planFolder, string jobType)
+    {
+        var failures = GetCliLogEntries(planFolder, jobType)
+            .Where(e => e.ExitCode != 0)
+            .ToList();
+        Assert.True(failures.Count == 0,
+            $"CLI calls failed for {jobType}:\n" +
+            string.Join("\n", failures.Select(f => $"  [{f.ExitCode}] {f.Command}")));
+    }
+
+    public record CliLogEntry(
+        string? Timestamp,
+        string? Command,
+        int ExitCode,
+        double DurationMs);
 
     private static IEnumerable<string> FindLogFiles(string tendrilHome)
     {
