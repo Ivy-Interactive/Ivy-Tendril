@@ -39,7 +39,8 @@ public class PromptwaresSetupView : ViewBase
                     refreshToken.Refresh();
                 })
             ))
-            .ColumnWidth(t => t.AllowedTools, Size.Fraction(0.5f));
+            .ColumnWidth(t => t.AllowedTools, Size.Fraction(0.5f))
+            .ColumnWidth(t => t.Index, Size.Px(88));
 
         return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(200)))
                | Text.Block("Promptware Configuration").Bold()

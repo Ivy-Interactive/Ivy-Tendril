@@ -39,7 +39,8 @@ public class LevelsSetupView : ViewBase
                     client.Toast($"Level '{name}' deleted", "Deleted");
                     refreshToken.Refresh();
                 })
-            ));
+            ))
+            .ColumnWidth(t => t.Index, Size.Px(88));
 
         return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(200)))
                | Text.Block("Priority Levels").Bold()

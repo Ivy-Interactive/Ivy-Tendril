@@ -36,7 +36,7 @@ public class VerificationsSetupView : ViewBase
             ))
             .ColumnWidth(t => t.Name, Size.Units(32))
             .ColumnWidth(t => t.Prompt, Size.Units(100))
-            .ColumnWidth(t => t.Index, Size.Units(20));
+            .ColumnWidth(t => t.Index, Size.Px(88));
 
         return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(400)))
                | Text.Block("Verification Definitions").Bold()
