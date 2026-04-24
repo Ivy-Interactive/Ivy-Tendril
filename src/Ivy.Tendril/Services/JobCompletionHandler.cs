@@ -584,6 +584,21 @@ internal class JobCompletionHandler
             j.Args[0].Equals(planFolder, StringComparison.OrdinalIgnoreCase));
     }
 
+    private string? ResolvePlanFolder(JobItem job)
+    {
+        if (job.Type != "CreatePlan")
+            return job.Args.Length > 0 ? job.Args[0] : null;
+
+        var planId = job.ReportedPlanId ?? job.AllocatedPlanId;
+        if (string.IsNullOrEmpty(planId)) return null;
+
+        var plansDir = _planReaderService?.PlansDirectory
+                       ?? _configService?.PlanFolder;
+        if (string.IsNullOrEmpty(plansDir)) return null;
+
+        return PlanYamlHelper.FindPlanFolderById(plansDir, planId);
+    }
+
     internal void WriteJobLog(JobItem job)
     {
         try
@@ -596,9 +611,12 @@ internal class JobCompletionHandler
 
         try
         {
-            var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
-            if (!string.IsNullOrEmpty(job.StatusFilePath) && !string.IsNullOrEmpty(planFolder) && Directory.Exists(planFolder))
-                JobStatusFile.MoveLogToPlanFolder(job.StatusFilePath, planFolder, job.Type);
+            if (!string.IsNullOrEmpty(job.StatusFilePath))
+            {
+                var planFolder = ResolvePlanFolder(job);
+                if (!string.IsNullOrEmpty(planFolder) && Directory.Exists(planFolder))
+                    JobStatusFile.MoveLogToPlanFolder(job.StatusFilePath, planFolder, job.Type);
+            }
         }
         catch { }
 

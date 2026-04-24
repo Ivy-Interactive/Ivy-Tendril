@@ -71,6 +71,7 @@ public class AgentExecutionTests : IAsyncLifetime
         await Task.Delay(1000);
 
         var planDescription = "Uppercase all string literals in Program.cs";
+        var step1StartLine = _fixture.Tendril.StdoutLines.Count;
         await plans.CreatePlan(planDescription);
 
         await WaitForPlanWithYaml("Uppercase", timeout,
@@ -81,9 +82,13 @@ public class AgentExecutionTests : IAsyncLifetime
         FileSystemAssertions.AssertPlanExists(plansDir, "Uppercase");
 
         // Wait for the CreatePlan job to finish (detect via stdout)
-        await WaitForJobExit(timeout);
+        await WaitForJobExit(timeout, step1StartLine);
 
-        // CreatePlan writes files directly — no CLI calls to verify
+        // Verify CreatePlan CLI log
+        LogAssertions.AssertCliLogHasEntries(planFolder, "CreatePlan");
+        LogAssertions.AssertCliLogContainsCommand(planFolder, "CreatePlan", "job status");
+        LogAssertions.AssertCliLogContainsCommand(planFolder, "CreatePlan", "plan create");
+        LogAssertions.AssertAllCliCallsSucceeded(planFolder, "CreatePlan");
 
         // --- Step 2: Execute Plan ---
         await _page!.ReloadAsync(new() { WaitUntil = WaitUntilState.NetworkIdle });
@@ -95,13 +100,14 @@ public class AgentExecutionTests : IAsyncLifetime
 
         await plans.SelectPlanById(planId);
         await Task.Delay(1000);
+        var step2StartLine = _fixture.Tendril.StdoutLines.Count;
         await plans.ClickExecute();
 
         await WaitForPlanState("Uppercase", "ReadyForReview", timeout,
             $"Step 2 (ExecutePlan) failed: plan #{planId} did not reach ReadyForReview, agent={agent}");
 
         // Wait for the ExecutePlan job to finish (detect via stdout)
-        await WaitForJobExit(timeout);
+        await WaitForJobExit(timeout, step2StartLine);
 
         // Verify ExecutePlan CLI log
         LogAssertions.AssertCliLogHasEntries(planFolder, "ExecutePlan");
@@ -178,11 +184,12 @@ public class AgentExecutionTests : IAsyncLifetime
         }
     }
 
-    private async Task WaitForJobExit(int timeoutSeconds)
+    private async Task WaitForJobExit(int timeoutSeconds, int fromLine = -1)
     {
         await StdoutMonitor.WaitForJobExit(
             _fixture.Tendril,
-            TimeSpan.FromSeconds(timeoutSeconds));
+            TimeSpan.FromSeconds(timeoutSeconds),
+            fromLine);
     }
 
     private async Task WaitForPlanInSidebar(string planId, string tabName)
