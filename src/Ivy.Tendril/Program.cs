@@ -161,6 +161,16 @@ public class Program
                 firstArg == "db-reset" || firstArg == "update-promptwares" || firstArg == "job" ||
                 firstArg == "plan" || firstArg == "promptware" || firstArg == "version" || firstArg == "--version")
             {
+                var statusFile = Environment.GetEnvironmentVariable("TENDRIL_STATUS_FILE");
+                if (!string.IsNullOrEmpty(statusFile))
+                {
+                    var commandLine = string.Join(" ", filteredArgs);
+                    var sw = Stopwatch.StartNew();
+                    var exitCode = app.Run(filteredArgs);
+                    sw.Stop();
+                    JobStatusFile.AppendCliInvocation(statusFile, commandLine, exitCode, sw.Elapsed.TotalMilliseconds);
+                    return exitCode;
+                }
                 return app.Run(filteredArgs);
             }
         }
