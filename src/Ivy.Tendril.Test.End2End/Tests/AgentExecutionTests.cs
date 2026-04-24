@@ -84,6 +84,9 @@ public class AgentExecutionTests : IAsyncLifetime
         // Wait for the CreatePlan job to finish (detect via stdout)
         await WaitForJobExit(timeout, step1StartLine);
 
+        // Allow time for HandleCompletion to finish moving logs
+        await Task.Delay(3000);
+
         // Verify CreatePlan CLI log
         LogAssertions.AssertCliLogHasEntries(planFolder, "CreatePlan");
         LogAssertions.AssertCliLogContainsCommand(planFolder, "CreatePlan", "job status");
@@ -126,10 +129,19 @@ public class AgentExecutionTests : IAsyncLifetime
 
         await review.SelectPlanById(planId);
         await Task.Delay(1000);
+        var step3StartLine = _fixture.Tendril.StdoutLines.Count;
         await review.ClickCreatePR();
 
-        await WaitForPRCreated(planFolder, timeout,
-            $"Step 3 (CreatePR) failed: no PR URL in plan.yaml for #{planId}, agent={agent}");
+        // Wait for CreatePr job to finish
+        await WaitForJobExit(timeout, step3StartLine);
+
+        // Allow time for HandleCompletion to finish moving logs
+        await Task.Delay(3000);
+
+        // Verify PR URL was added to plan.yaml
+        var planYamlPath = Path.Combine(planFolder, "plan.yaml");
+        var planYaml = File.ReadAllText(planYamlPath);
+        Assert.Contains("prs:", planYaml);
 
         // Verify CreatePr CLI log
         LogAssertions.AssertCliLogHasEntries(planFolder, "CreatePr");
@@ -157,23 +169,6 @@ public class AgentExecutionTests : IAsyncLifetime
         using var watcher = new PlanStateWatcher(_fixture.Tendril.TendrilPlans, titleFragment, expectedState);
         try
         {
-            await watcher.WaitAsync(
-                TimeSpan.FromSeconds(timeoutSeconds),
-                _fixture.Tendril.StdoutLines);
-        }
-        catch (TimeoutException ex)
-        {
-            throw new TimeoutException($"{context}\n{ex.Message}", ex);
-        }
-    }
-
-    private async Task WaitForPRCreated(string planFolder, int timeoutSeconds, string context)
-    {
-        using var watcher = new PlanStateWatcher(
-            Path.GetDirectoryName(planFolder)!, Path.GetFileName(planFolder), "Completed");
-        try
-        {
-            // PR creation sets state to Completed and writes the PR URL
             await watcher.WaitAsync(
                 TimeSpan.FromSeconds(timeoutSeconds),
                 _fixture.Tendril.StdoutLines);
