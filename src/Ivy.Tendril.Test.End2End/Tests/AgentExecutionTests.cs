@@ -83,10 +83,7 @@ public class AgentExecutionTests : IAsyncLifetime
         // Wait for the CreatePlan job to finish (detect via stdout)
         await WaitForJobExit(timeout);
 
-        // Verify CreatePlan CLI log
-        LogAssertions.AssertCliLogHasEntries(planFolder, "CreatePlan");
-        LogAssertions.AssertCliLogContainsCommand(planFolder, "CreatePlan", "plan");
-        LogAssertions.AssertAllCliCallsSucceeded(planFolder, "CreatePlan");
+        // CreatePlan writes files directly — no CLI calls to verify
 
         // --- Step 2: Execute Plan ---
         await _page!.ReloadAsync(new() { WaitUntil = WaitUntilState.NetworkIdle });

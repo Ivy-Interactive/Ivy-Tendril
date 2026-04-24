@@ -40,7 +40,7 @@ public class PlansPage
     {
         try
         {
-            await _page.GetByText(titleFragment).WaitForAsync(
+            await _page.GetByText(titleFragment).First.WaitForAsync(
                 new() { State = WaitForSelectorState.Visible, Timeout = 10_000 });
             return true;
         }

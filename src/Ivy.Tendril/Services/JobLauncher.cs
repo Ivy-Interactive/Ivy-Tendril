@@ -399,6 +399,38 @@ internal class JobLauncher
         var statusFile = JobStatusFile.GetStatusFilePath(job.Id);
         psi.Environment["TENDRIL_STATUS_FILE"] = statusFile;
         job.StatusFilePath = statusFile;
+
+        EnsureTendrilOnPath(psi);
+    }
+
+    private static void EnsureTendrilOnPath(ProcessStartInfo psi)
+    {
+        var processPath = Environment.ProcessPath;
+        if (!string.IsNullOrEmpty(processPath) &&
+            Path.GetFileNameWithoutExtension(processPath).Equals("tendril", StringComparison.OrdinalIgnoreCase))
+        {
+            var dir = Path.GetDirectoryName(processPath)!;
+            PrependToPath(psi, dir);
+            return;
+        }
+
+        var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        var projectPath = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "Ivy.Tendril.csproj"));
+        if (File.Exists(projectPath))
+        {
+            var shimDir = Path.Combine(Path.GetTempPath(), "tendril-shim");
+            FileHelper.EnsureDirectory(shimDir);
+            var shimPath = Path.Combine(shimDir, "tendril.cmd");
+            if (!File.Exists(shimPath))
+                File.WriteAllText(shimPath, $"@dotnet run --project \"{projectPath}\" --no-build -- %*\r\n");
+            PrependToPath(psi, shimDir);
+        }
+    }
+
+    private static void PrependToPath(ProcessStartInfo psi, string dir)
+    {
+        var current = psi.Environment.TryGetValue("PATH", out var p) ? p : Environment.GetEnvironmentVariable("PATH");
+        psi.Environment["PATH"] = $"{dir}{Path.PathSeparator}{current}";
     }
 
     private string? BuildRepoConfigsYaml(PlanYaml plan, string project)
