@@ -1,3 +1,4 @@
+using Ivy.Core.Hooks;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 
@@ -193,39 +194,45 @@ public class EditProjectDialog(
                            }
                        });
 
-        // Verifications checklist
+        // Verifications switches
         var verificationsLayout = Layout.Vertical().Gap(1);
         foreach (var vName in _allVerifications)
         {
-            var existing = editVerifications.Value.FirstOrDefault(v => v.Name == vName);
-            var isChecked = existing != null;
-            var isRequired = existing?.Required ?? false;
             var capturedName = vName;
 
+            var enabledState = new ConvertedState<List<ProjectVerificationRef>, bool>(
+                editVerifications,
+                list => list.Any(v => v.Name == capturedName),
+                enabled =>
+                {
+                    var list = new List<ProjectVerificationRef>(editVerifications.Value);
+                    if (enabled)
+                        list.Add(new ProjectVerificationRef { Name = capturedName, Required = false });
+                    else
+                        list.RemoveAll(v => v.Name == capturedName);
+                    return list;
+                }
+            );
+
+            var requiredState = new ConvertedState<List<ProjectVerificationRef>, bool>(
+                editVerifications,
+                list => list.FirstOrDefault(v => v.Name == capturedName)?.Required ?? false,
+                required =>
+                {
+                    var list = new List<ProjectVerificationRef>(editVerifications.Value);
+                    var item = list.FirstOrDefault(v => v.Name == capturedName);
+                    if (item != null) item.Required = required;
+                    return list;
+                }
+            );
+
+            var isEnabled = enabledState.Value;
+
             verificationsLayout |= Layout.Horizontal().Gap(2).AlignContent(Align.Center)
-                                   | new Button(isChecked ? "x" : " ")
-                                       .Ghost().Small().OnClick(() =>
-                                       {
-                                           var list = new List<ProjectVerificationRef>(editVerifications.Value);
-                                           if (isChecked)
-                                               list.RemoveAll(v => v.Name == capturedName);
-                                           else
-                                               list.Add(new ProjectVerificationRef
-                                               { Name = capturedName, Required = false });
-                                           editVerifications.Set(list);
-                                       })
-                                   | Text.Block(capturedName).Width(Size.Grow())
-                                   | (isChecked
-                                       ? new Button(isRequired ? "Required" : "Optional")
-                                           .Small()
-                                           .Variant(isRequired ? ButtonVariant.Primary : ButtonVariant.Outline)
-                                           .OnClick(() =>
-                                           {
-                                               var list = new List<ProjectVerificationRef>(editVerifications.Value);
-                                               var item = list.First(v => v.Name == capturedName);
-                                               item.Required = !item.Required;
-                                               editVerifications.Set(list);
-                                           })
+                                   | enabledState.ToSwitchInput(label: capturedName)
+                                   | new Spacer().Width(Size.Grow())
+                                   | (isEnabled
+                                       ? (object)requiredState.ToSwitchInput(label: "Required")
                                        : new Spacer());
         }
 
@@ -240,7 +247,7 @@ public class EditProjectDialog(
             new DialogBody(
                 Layout.Vertical().Gap(4)
                 | editName.ToTextInput("Project name...").WithField().Label("Name")
-                | editColor.ToSelectInput().WithField().Label("Color")
+                | editColor.ToColorInput().WithField().Label("Color")
                 | editContext.ToTextareaInput("Project context or prompt for AI agents (optional)...").Rows(4)
                     .WithField().Label("Context / Prompt (Optional)")
                 | (Layout.Vertical().Gap(2)

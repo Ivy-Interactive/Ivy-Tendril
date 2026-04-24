@@ -83,6 +83,11 @@ public class AgentExecutionTests : IAsyncLifetime
         // Wait for the CreatePlan job to finish (detect via stdout)
         await WaitForJobExit(timeout);
 
+        // Verify CreatePlan CLI log
+        LogAssertions.AssertCliLogHasEntries(planFolder, "CreatePlan");
+        LogAssertions.AssertCliLogContainsCommand(planFolder, "CreatePlan", "plan");
+        LogAssertions.AssertAllCliCallsSucceeded(planFolder, "CreatePlan");
+
         // --- Step 2: Execute Plan ---
         await _page!.ReloadAsync(new() { WaitUntil = WaitUntilState.NetworkIdle });
         await dashboard.WaitForLoaded();
@@ -101,6 +106,13 @@ public class AgentExecutionTests : IAsyncLifetime
         // Wait for the ExecutePlan job to finish (detect via stdout)
         await WaitForJobExit(timeout);
 
+        // Verify ExecutePlan CLI log
+        LogAssertions.AssertCliLogHasEntries(planFolder, "ExecutePlan");
+        LogAssertions.AssertCliLogContainsCommand(planFolder, "ExecutePlan", "job status");
+        LogAssertions.AssertCliLogContainsCommand(planFolder, "ExecutePlan", "--plan-id");
+        LogAssertions.AssertCliLogContainsCommand(planFolder, "ExecutePlan", "--plan-title");
+        LogAssertions.AssertAllCliCallsSucceeded(planFolder, "ExecutePlan");
+
         // --- Step 3: Create PR ---
         await _page!.ReloadAsync(new() { WaitUntil = WaitUntilState.NetworkIdle });
         await dashboard.WaitForLoaded();
@@ -115,6 +127,11 @@ public class AgentExecutionTests : IAsyncLifetime
 
         await WaitForPRCreated(planFolder, timeout,
             $"Step 3 (CreatePR) failed: no PR URL in plan.yaml for #{planId}, agent={agent}");
+
+        // Verify CreatePr CLI log
+        LogAssertions.AssertCliLogHasEntries(planFolder, "CreatePr");
+        LogAssertions.AssertCliLogContainsCommand(planFolder, "CreatePr", "plan add-pr");
+        LogAssertions.AssertAllCliCallsSucceeded(planFolder, "CreatePr");
     }
 
     private async Task WaitForPlanWithYaml(string titleFragment, int timeoutSeconds, string context)
