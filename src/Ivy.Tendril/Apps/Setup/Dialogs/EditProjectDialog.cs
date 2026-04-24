@@ -232,7 +232,7 @@ public class EditProjectDialog(
                                    | enabledState.ToSwitchInput(label: capturedName)
                                    | new Spacer().Width(Size.Grow())
                                    | (isEnabled
-                                       ? (object)requiredState.ToSwitchInput(label: "Required")
+                                       ? (object)requiredState.ToBoolInput("Required")
                                        : new Spacer());
         }
 
