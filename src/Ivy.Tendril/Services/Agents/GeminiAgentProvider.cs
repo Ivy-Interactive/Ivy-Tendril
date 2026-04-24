@@ -5,6 +5,7 @@ namespace Ivy.Tendril.Services.Agents;
 public class GeminiAgentProvider : IAgentProvider
 {
     public string Name => "gemini";
+    public bool UsesStdinPrompt => true;
 
     public ProcessStartInfo BuildProcessStart(AgentInvocation invocation)
     {
@@ -17,11 +18,11 @@ public class GeminiAgentProvider : IAgentProvider
             RedirectStandardInput = true,
             UseShellExecute = false,
             CreateNoWindow = true,
+            StandardInputEncoding = System.Text.Encoding.UTF8,
             StandardOutputEncoding = System.Text.Encoding.UTF8,
             StandardErrorEncoding = System.Text.Encoding.UTF8
         };
 
-        psi.ArgumentList.Add("--sandbox");
         psi.ArgumentList.Add("--yolo");
 
         if (!string.IsNullOrEmpty(invocation.Model))
@@ -39,7 +40,10 @@ public class GeminiAgentProvider : IAgentProvider
         foreach (var arg in invocation.ExtraArgs)
             psi.ArgumentList.Add(arg);
 
-        psi.ArgumentList.Add(invocation.PromptContent);
+        // Prompt is piped via stdin to avoid Windows command line length limits.
+        // --prompt triggers headless mode; stdin content is read first.
+        psi.ArgumentList.Add("--prompt");
+        psi.ArgumentList.Add(" ");
 
         psi.Environment["CI"] = "true";
         psi.Environment["TERM"] = "dumb";

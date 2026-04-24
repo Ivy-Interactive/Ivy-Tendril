@@ -77,9 +77,9 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
                               "  - name: deep\n" +
                               "    model: gemini-3-flash-preview\n" +
                               "  - name: balanced\n" +
-                              "    model: gemini-2.5-flash\n" +
+                              "    model: gemini-3-flash-preview\n" +
                               "  - name: quick\n" +
-                              "    model: gemini-2.5-flash-lite\n" +
+                              "    model: gemini-3-flash-preview\n" +
                               "projects: []\n" +
                               "verifications: []\n";
             await FileHelper.WriteAllTextAsync(configPath, basicConfig);
