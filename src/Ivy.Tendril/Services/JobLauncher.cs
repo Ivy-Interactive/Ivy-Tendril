@@ -440,15 +440,16 @@ internal class JobLauncher
         if (File.Exists(projectPath))
         {
             var shimDir = Path.Combine(Path.GetTempPath(), "tendril-shim");
+            var shimOutputDir = Path.Combine(Path.GetTempPath(), "tendril-shim-build");
             FileHelper.EnsureDirectory(shimDir);
 
+            var outputArg = $"-p:BaseOutputPath=\"{shimOutputDir}{Path.DirectorySeparatorChar}\"";
+
             var cmdShim = Path.Combine(shimDir, "tendril.cmd");
-            if (!File.Exists(cmdShim))
-                File.WriteAllText(cmdShim, $"@dotnet run --project \"{projectPath}\" --no-build -- %*\r\n");
+            File.WriteAllText(cmdShim, $"@dotnet run --project \"{projectPath}\" {outputArg} -- %*\r\n");
 
             var bashShim = Path.Combine(shimDir, "tendril");
-            if (!File.Exists(bashShim))
-                File.WriteAllText(bashShim, $"#!/usr/bin/env bash\ndotnet run --project \"{projectPath}\" --no-build -- \"$@\"\n");
+            File.WriteAllText(bashShim, $"#!/usr/bin/env bash\ndotnet run --project \"{projectPath}\" {outputArg} -- \"$@\"\n");
 
             PrependToPath(psi, shimDir);
         }
