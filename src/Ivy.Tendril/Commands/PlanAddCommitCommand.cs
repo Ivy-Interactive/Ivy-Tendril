@@ -21,8 +21,13 @@ public class PlanAddCommitSettings : CommandSettings
 public class PlanAddCommitCommand : Command<PlanAddCommitSettings>
 {
     private readonly ILogger<PlanAddCommitCommand> _logger;
+    private readonly IPlanWatcherService _planWatcher;
 
-    public PlanAddCommitCommand(ILogger<PlanAddCommitCommand> logger) => _logger = logger;
+    public PlanAddCommitCommand(ILogger<PlanAddCommitCommand> logger, IPlanWatcherService planWatcher)
+    {
+        _logger = logger;
+        _planWatcher = planWatcher;
+    }
 
     protected override int Execute(CommandContext context, PlanAddCommitSettings settings, CancellationToken cancellationToken)
     {
@@ -42,7 +47,7 @@ public class PlanAddCommitCommand : Command<PlanAddCommitSettings>
             plan.Commits.Add(settings.Sha);
             plan.Updated = DateTime.UtcNow;
 
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
             _logger.LogInformation("Added commit: {Sha}", settings.Sha);
             return 0;

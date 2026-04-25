@@ -153,8 +153,13 @@ public class PlanRecListCommand : Command<PlanRecListSettings>
 public class PlanRecAddCommand : Command<PlanRecAddSettings>
 {
     private readonly ILogger<PlanRecAddCommand> _logger;
+    private readonly IPlanWatcherService _planWatcher;
 
-    public PlanRecAddCommand(ILogger<PlanRecAddCommand> logger) => _logger = logger;
+    public PlanRecAddCommand(ILogger<PlanRecAddCommand> logger, IPlanWatcherService planWatcher)
+    {
+        _logger = logger;
+        _planWatcher = planWatcher;
+    }
 
     protected override int Execute(CommandContext context, PlanRecAddSettings settings, CancellationToken cancellationToken)
     {
@@ -192,7 +197,7 @@ public class PlanRecAddCommand : Command<PlanRecAddSettings>
             });
 
             plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
             _logger.LogInformation("Added recommendation: {Title}", settings.Title);
             return 0;
@@ -208,8 +213,13 @@ public class PlanRecAddCommand : Command<PlanRecAddSettings>
 public class PlanRecRemoveCommand : Command<PlanRecRemoveSettings>
 {
     private readonly ILogger<PlanRecRemoveCommand> _logger;
+    private readonly IPlanWatcherService _planWatcher;
 
-    public PlanRecRemoveCommand(ILogger<PlanRecRemoveCommand> logger) => _logger = logger;
+    public PlanRecRemoveCommand(ILogger<PlanRecRemoveCommand> logger, IPlanWatcherService planWatcher)
+    {
+        _logger = logger;
+        _planWatcher = planWatcher;
+    }
 
     protected override int Execute(CommandContext context, PlanRecRemoveSettings settings, CancellationToken cancellationToken)
     {
@@ -229,7 +239,7 @@ public class PlanRecRemoveCommand : Command<PlanRecRemoveSettings>
 
             recs.Remove(match);
             plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
             _logger.LogInformation("Removed recommendation: {Title}", settings.Title);
             return 0;
@@ -245,8 +255,13 @@ public class PlanRecRemoveCommand : Command<PlanRecRemoveSettings>
 public class PlanRecAcceptCommand : Command<PlanRecAcceptSettings>
 {
     private readonly ILogger<PlanRecAcceptCommand> _logger;
+    private readonly IPlanWatcherService _planWatcher;
 
-    public PlanRecAcceptCommand(ILogger<PlanRecAcceptCommand> logger) => _logger = logger;
+    public PlanRecAcceptCommand(ILogger<PlanRecAcceptCommand> logger, IPlanWatcherService planWatcher)
+    {
+        _logger = logger;
+        _planWatcher = planWatcher;
+    }
 
     protected override int Execute(CommandContext context, PlanRecAcceptSettings settings, CancellationToken cancellationToken)
     {
@@ -268,7 +283,7 @@ public class PlanRecAcceptCommand : Command<PlanRecAcceptSettings>
             rec.DeclineReason = null;
 
             plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
             _logger.LogInformation("Accepted recommendation: {Title}", settings.Title);
             return 0;
@@ -284,8 +299,13 @@ public class PlanRecAcceptCommand : Command<PlanRecAcceptSettings>
 public class PlanRecDeclineCommand : Command<PlanRecDeclineSettings>
 {
     private readonly ILogger<PlanRecDeclineCommand> _logger;
+    private readonly IPlanWatcherService _planWatcher;
 
-    public PlanRecDeclineCommand(ILogger<PlanRecDeclineCommand> logger) => _logger = logger;
+    public PlanRecDeclineCommand(ILogger<PlanRecDeclineCommand> logger, IPlanWatcherService planWatcher)
+    {
+        _logger = logger;
+        _planWatcher = planWatcher;
+    }
 
     protected override int Execute(CommandContext context, PlanRecDeclineSettings settings, CancellationToken cancellationToken)
     {
@@ -307,7 +327,7 @@ public class PlanRecDeclineCommand : Command<PlanRecDeclineSettings>
             rec.DeclineReason = settings.Reason;
 
             plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
             _logger.LogInformation("Declined recommendation: {Title}", settings.Title);
             return 0;
@@ -323,8 +343,13 @@ public class PlanRecDeclineCommand : Command<PlanRecDeclineSettings>
 public class PlanRecSetCommand : Command<PlanRecSetSettings>
 {
     private readonly ILogger<PlanRecSetCommand> _logger;
+    private readonly IPlanWatcherService _planWatcher;
 
-    public PlanRecSetCommand(ILogger<PlanRecSetCommand> logger) => _logger = logger;
+    public PlanRecSetCommand(ILogger<PlanRecSetCommand> logger, IPlanWatcherService planWatcher)
+    {
+        _logger = logger;
+        _planWatcher = planWatcher;
+    }
 
     protected override int Execute(CommandContext context, PlanRecSetSettings settings, CancellationToken cancellationToken)
     {
@@ -367,7 +392,7 @@ public class PlanRecSetCommand : Command<PlanRecSetSettings>
             }
 
             plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
             _logger.LogInformation("Updated recommendation {Field} to '{Value}'", settings.Field, settings.Value);
             return 0;

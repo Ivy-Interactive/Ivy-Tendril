@@ -21,8 +21,13 @@ public class PlanAddRepoSettings : CommandSettings
 public class PlanAddRepoCommand : Command<PlanAddRepoSettings>
 {
     private readonly ILogger<PlanAddRepoCommand> _logger;
+    private readonly IPlanWatcherService _planWatcher;
 
-    public PlanAddRepoCommand(ILogger<PlanAddRepoCommand> logger) => _logger = logger;
+    public PlanAddRepoCommand(ILogger<PlanAddRepoCommand> logger, IPlanWatcherService planWatcher)
+    {
+        _logger = logger;
+        _planWatcher = planWatcher;
+    }
 
     protected override int Execute(CommandContext context, PlanAddRepoSettings settings, CancellationToken cancellationToken)
     {
@@ -42,7 +47,7 @@ public class PlanAddRepoCommand : Command<PlanAddRepoSettings>
             plan.Repos.Add(settings.RepoPath);
             plan.Updated = DateTime.UtcNow;
 
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
             _logger.LogInformation("Added repository: {RepoPath}", settings.RepoPath);
             return 0;

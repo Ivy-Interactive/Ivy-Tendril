@@ -21,8 +21,13 @@ public class PlanRemoveRepoSettings : CommandSettings
 public class PlanRemoveRepoCommand : Command<PlanRemoveRepoSettings>
 {
     private readonly ILogger<PlanRemoveRepoCommand> _logger;
+    private readonly IPlanWatcherService _planWatcher;
 
-    public PlanRemoveRepoCommand(ILogger<PlanRemoveRepoCommand> logger) => _logger = logger;
+    public PlanRemoveRepoCommand(ILogger<PlanRemoveRepoCommand> logger, IPlanWatcherService planWatcher)
+    {
+        _logger = logger;
+        _planWatcher = planWatcher;
+    }
 
     protected override int Execute(CommandContext context, PlanRemoveRepoSettings settings, CancellationToken cancellationToken)
     {
@@ -41,7 +46,7 @@ public class PlanRemoveRepoCommand : Command<PlanRemoveRepoSettings>
 
             plan.Updated = DateTime.UtcNow;
 
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
             _logger.LogInformation("Removed repository: {RepoPath}", settings.RepoPath);
             return 0;
