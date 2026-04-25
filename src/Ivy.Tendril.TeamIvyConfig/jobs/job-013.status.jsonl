@@ -1,0 +1,2 @@
+{"timestamp":"2026-04-25T11:23:05.0819537Z","command":"plan get D:\\Plans\\03534-DataTableOutsideClickDeselection","exitCode":0,"durationMs":134.5613}
+{"timestamp":"2026-04-25T11:23:09.3863300Z","command":"job status job-013 --message Reading plan... --plan-id 03534 --plan-title DataTable Outside Click Deselection","exitCode":0,"durationMs":82.2589}
