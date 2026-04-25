@@ -18,7 +18,7 @@ Get-ChildItem $staging -Recurse -Directory | Where-Object { $_.Name -in 'Logs','
 $shippedTools = @{
     'CreatePlan'  = @('Validate-CodeAssertion.ps1', 'Find-DuplicatePlans.ps1', 'Find-ActivePlans.ps1')
     'CreatePr'    = @('Remove-PlanWorktree.ps1')
-    'ExecutePlan' = @('Apply-SyncStrategy.ps1', 'Cleanup-Worktrees.ps1', 'Log-WorktreeEvent.ps1')
+    'ExecutePlan' = @('Apply-SyncStrategy.ps1', 'Cleanup-Worktrees.ps1')
     'ExpandPlan'  = @()
     'SplitPlan'   = @()
     'UpdatePlan'  = @()
