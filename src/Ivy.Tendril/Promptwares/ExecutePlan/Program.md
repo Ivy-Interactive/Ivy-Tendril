@@ -445,6 +445,8 @@ tendril plan set-verification <plan-id> Test Skipped
 
 If the plan references other plans (e.g. split-from, follow-up), add them via CLI.
 
+**CRITICAL:** The `tendril plan add-commit` and `tendril plan set-verification` CLI commands are the ONLY mechanism that updates plan.yaml. If you skip them, the plan will be marked as Failed even if all verifications pass. You MUST call these commands — do not assume writing verification report files is sufficient.
+
 ### 7. Run Verifications
 
 Create a `verification/` directory in the plan folder if it doesn't exist.
@@ -460,14 +462,17 @@ For each checked verification:
 5. Document all fix commits via CLI: `tendril plan add-commit <plan-id> <sha>`
 6. Update the verification status via CLI: `tendril plan set-verification <plan-id> <Name> Pass` (or `Fail`)
 
-**!IMPORTANT: Every verification MUST produce a report** at `<PlanFolder>/verification/<VerificationName>.md`:
+**CRITICAL:** You MUST call `tendril plan set-verification` after EACH verification. The verification report file alone is NOT sufficient — plan.yaml must also be updated via the CLI. Failing to call this command will result in the plan being marked as Failed.
+
+**!IMPORTANT: Every verification MUST produce a report** at `<PlanFolder>/verification/<VerificationName>.md` using YAML frontmatter:
 
 ```markdown
+---
+result: Pass
+date: <CurrentTime>
+attempts: <number>
+---
 # <VerificationName>
-
-- **Date:** <CurrentTime>
-- **Result:** Pass / Fail
-- **Attempts:** <number>
 
 ## Output
 
@@ -482,7 +487,7 @@ For each checked verification:
 <any remaining issues, or "None">
 ```
 
-A verification is not complete without its report. If the report file does not exist after running a verification, the plan should fail.
+The `result` field in the frontmatter MUST be one of: `Pass`, `Fail`, or `Skipped`. A verification is not complete without both its report file AND the `tendril plan set-verification` CLI call.
 
 ### 7.5. Generate Recommendations
 

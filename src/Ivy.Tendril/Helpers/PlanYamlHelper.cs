@@ -123,4 +123,50 @@ internal static class PlanYamlHelper
         var line = $"{jobType},{tokens},{cost:F4}\n";
         FileHelper.AppendAllText(csvPath, line);
     }
+
+    /// <summary>
+    ///     Parses the result status from a verification report file.
+    ///     Supports YAML frontmatter format (preferred) and legacy markdown format (fallback).
+    /// </summary>
+    internal static string? ParseVerificationResultFromReport(string reportContent)
+    {
+        if (string.IsNullOrWhiteSpace(reportContent)) return null;
+
+        // Try YAML frontmatter first: ---\nresult: Pass\n---
+        if (reportContent.StartsWith("---"))
+        {
+            var endIndex = reportContent.IndexOf("---", 3, StringComparison.Ordinal);
+            if (endIndex > 0)
+            {
+                var frontmatter = reportContent.Substring(3, endIndex - 3);
+                foreach (var line in frontmatter.Split('\n'))
+                {
+                    var trimmed = line.Trim();
+                    if (trimmed.StartsWith("result:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var value = trimmed["result:".Length..].Trim();
+                        if (value is "Pass" or "Fail" or "Skipped") return value;
+                    }
+                }
+            }
+        }
+
+        // Fallback: legacy markdown format  - **Result:** Pass
+        var match = Regex.Match(reportContent, @"^-\s+\*\*Result:\*\*\s+(Pass|Fail|Skipped)", RegexOptions.Multiline);
+        return match.Success ? match.Groups[1].Value : null;
+    }
+
+    internal static string? ExtractPlanIdFromFolder(string planFolder)
+    {
+        var folderName = Path.GetFileName(planFolder);
+        var dashIdx = folderName.IndexOf('-');
+        return dashIdx > 0 ? folderName[..dashIdx] : null;
+    }
+
+    internal static string? ExtractSafeTitleFromFolder(string planFolder)
+    {
+        var folderName = Path.GetFileName(planFolder);
+        var dashIdx = folderName.IndexOf('-');
+        return dashIdx > 0 ? folderName[(dashIdx + 1)..] : null;
+    }
 }

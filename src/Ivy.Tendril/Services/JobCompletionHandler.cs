@@ -97,6 +97,7 @@ internal class JobCompletionHandler
         }
         else if (isSuccess && job.Type == "ExecutePlan")
         {
+            SyncPlanArtifacts(job);
             EnsurePlanStateTransitioned(job);
         }
         else if (isSuccess && job.Type == "CreateIssue")
@@ -273,6 +274,171 @@ internal class JobCompletionHandler
     {
         var bytes = Encoding.Unicode.GetBytes(command);
         return Convert.ToBase64String(bytes);
+    }
+
+    private void SyncPlanArtifacts(JobItem job)
+    {
+        var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
+        if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder)) return;
+
+        try
+        {
+            var plan = PlanCommandHelpers.ReadPlan(planFolder);
+            var changed = false;
+
+            changed |= SyncVerificationsFromReports(planFolder, plan);
+            changed |= SyncCommitsFromWorktrees(planFolder, plan);
+
+            if (changed)
+            {
+                plan.Updated = DateTime.UtcNow;
+                PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcherService);
+                _logger.LogInformation(
+                    "Synced plan artifacts from disk for {PlanFolder} (agent did not call CLI commands)",
+                    Path.GetFileName(planFolder));
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to sync plan artifacts for {PlanFolder}", planFolder);
+        }
+    }
+
+    private bool SyncVerificationsFromReports(string planFolder, PlanYaml plan)
+    {
+        var verificationDir = Path.Combine(planFolder, "verification");
+        if (!Directory.Exists(verificationDir)) return false;
+        if (plan.Verifications == null || plan.Verifications.Count == 0) return false;
+
+        var changed = false;
+
+        foreach (var reportFile in Directory.GetFiles(verificationDir, "*.md"))
+        {
+            var reportName = Path.GetFileNameWithoutExtension(reportFile);
+            if (reportName.Equals("PreExecution", StringComparison.OrdinalIgnoreCase)) continue;
+
+            var verification = plan.Verifications.FirstOrDefault(v =>
+                v.Name.Equals(reportName, StringComparison.OrdinalIgnoreCase));
+            if (verification == null) continue;
+            if (verification.Status != "Pending") continue;
+
+            try
+            {
+                var content = FileHelper.ReadAllText(reportFile);
+                var result = PlanYamlHelper.ParseVerificationResultFromReport(content);
+                if (result != null)
+                {
+                    verification.Status = result;
+                    changed = true;
+                }
+            }
+            catch
+            {
+                // Skip unreadable report files
+            }
+        }
+
+        return changed;
+    }
+
+    private bool SyncCommitsFromWorktrees(string planFolder, PlanYaml plan)
+    {
+        if (plan.Commits.Count > 0) return false;
+
+        var worktreesDir = Path.Combine(planFolder, "worktrees");
+        if (!Directory.Exists(worktreesDir)) return false;
+
+        var planId = PlanYamlHelper.ExtractPlanIdFromFolder(planFolder);
+        var safeTitle = PlanYamlHelper.ExtractSafeTitleFromFolder(planFolder);
+        if (planId == null || safeTitle == null) return false;
+
+        var branchName = $"tendril/{planId}-{safeTitle}";
+        var changed = false;
+
+        foreach (var wtDir in Directory.GetDirectories(worktreesDir))
+        {
+            try
+            {
+                var gitFile = Path.Combine(wtDir, ".git");
+                if (!File.Exists(gitFile)) continue;
+
+                var gitContent = FileHelper.ReadAllText(gitFile).Trim();
+                var gitDirMatch = Regex.Match(gitContent, @"gitdir:\s*(.+)");
+                if (!gitDirMatch.Success) continue;
+
+                var gitDir = gitDirMatch.Groups[1].Value.Trim();
+                var repoGitDir = Path.GetFullPath(Path.Combine(gitDir, "..", ".."));
+                var repoRoot = Path.GetDirectoryName(repoGitDir);
+                if (repoRoot == null || !Directory.Exists(repoRoot)) continue;
+
+                // Detect base branch
+                var baseBranch = DetectBaseBranch(repoRoot);
+
+                var psi = new ProcessStartInfo("git",
+                    $"log --format=%H \"{baseBranch}..{branchName}\"")
+                {
+                    WorkingDirectory = repoRoot,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using var process = Process.Start(psi);
+                if (process == null) continue;
+                var output = process.StandardOutput.ReadToEnd().Trim();
+                process.WaitForExitOrKill(10000);
+                if (process.ExitCode != 0 || string.IsNullOrEmpty(output)) continue;
+
+                foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var hash = line.Trim();
+                    if (hash.Length < 7) continue;
+                    var shortHash = hash.Length > 9 ? hash[..9] : hash;
+                    if (!plan.Commits.Contains(shortHash))
+                    {
+                        plan.Commits.Add(shortHash);
+                        changed = true;
+                    }
+                }
+            }
+            catch
+            {
+                // Skip worktrees that can't be read
+            }
+        }
+
+        return changed;
+    }
+
+    private static string DetectBaseBranch(string repoRoot)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo("git",
+                "symbolic-ref refs/remotes/origin/HEAD")
+            {
+                WorkingDirectory = repoRoot,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(psi);
+            if (process == null) return "origin/main";
+            var output = process.StandardOutput.ReadToEnd().Trim();
+            process.WaitForExitOrKill(5000);
+
+            if (process.ExitCode == 0 && !string.IsNullOrEmpty(output))
+                return output.Replace("refs/remotes/", "");
+        }
+        catch
+        {
+            // Fall through to default
+        }
+
+        return "origin/main";
     }
 
     private void EnsurePlanStateTransitioned(JobItem job)
