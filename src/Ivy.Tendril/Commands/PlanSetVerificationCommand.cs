@@ -26,8 +26,13 @@ public class PlanSetVerificationSettings : CommandSettings
 public class PlanSetVerificationCommand : Command<PlanSetVerificationSettings>
 {
     private readonly ILogger<PlanSetVerificationCommand> _logger;
+    private readonly IPlanWatcherService _planWatcher;
 
-    public PlanSetVerificationCommand(ILogger<PlanSetVerificationCommand> logger) => _logger = logger;
+    public PlanSetVerificationCommand(ILogger<PlanSetVerificationCommand> logger, IPlanWatcherService planWatcher)
+    {
+        _logger = logger;
+        _planWatcher = planWatcher;
+    }
 
     protected override int Execute(CommandContext context, PlanSetVerificationSettings settings, CancellationToken cancellationToken)
     {
@@ -57,7 +62,7 @@ public class PlanSetVerificationCommand : Command<PlanSetVerificationSettings>
 
             plan.Updated = DateTime.UtcNow;
 
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
             _logger.LogInformation("Set verification '{Name}' to '{Status}'", settings.Name, settings.Status);
             return 0;

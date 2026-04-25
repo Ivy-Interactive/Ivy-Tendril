@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Services;
 using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
@@ -19,8 +20,13 @@ public class PlanAddRelatedPlanSettings : CommandSettings
 public class PlanAddRelatedPlanCommand : Command<PlanAddRelatedPlanSettings>
 {
     private readonly ILogger<PlanAddRelatedPlanCommand> _logger;
+    private readonly IPlanWatcherService _planWatcher;
 
-    public PlanAddRelatedPlanCommand(ILogger<PlanAddRelatedPlanCommand> logger) => _logger = logger;
+    public PlanAddRelatedPlanCommand(ILogger<PlanAddRelatedPlanCommand> logger, IPlanWatcherService planWatcher)
+    {
+        _logger = logger;
+        _planWatcher = planWatcher;
+    }
 
     protected override int Execute(CommandContext context, PlanAddRelatedPlanSettings settings, CancellationToken cancellationToken)
     {
@@ -38,7 +44,7 @@ public class PlanAddRelatedPlanCommand : Command<PlanAddRelatedPlanSettings>
             plan.RelatedPlans.Add(settings.RelatedPlan);
             plan.Updated = DateTime.UtcNow;
 
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
             _logger.LogInformation("Added related plan: {RelatedPlan}", settings.RelatedPlan);
             return 0;

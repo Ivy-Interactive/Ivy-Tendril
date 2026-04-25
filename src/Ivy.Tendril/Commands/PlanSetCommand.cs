@@ -25,8 +25,13 @@ public class PlanSetSettings : CommandSettings
 public class PlanSetCommand : Command<PlanSetSettings>
 {
     private readonly ILogger<PlanSetCommand> _logger;
+    private readonly IPlanWatcherService _planWatcher;
 
-    public PlanSetCommand(ILogger<PlanSetCommand> logger) => _logger = logger;
+    public PlanSetCommand(ILogger<PlanSetCommand> logger, IPlanWatcherService planWatcher)
+    {
+        _logger = logger;
+        _planWatcher = planWatcher;
+    }
 
     protected override int Execute(CommandContext context, PlanSetSettings settings, CancellationToken cancellationToken)
     {
@@ -78,7 +83,7 @@ public class PlanSetCommand : Command<PlanSetSettings>
             if (settings.Field.ToLower() != "updated")
                 plan.Updated = DateTime.UtcNow;
 
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
             _logger.LogInformation("Updated {Field} to '{Value}'", settings.Field, settings.Value);
             return 0;

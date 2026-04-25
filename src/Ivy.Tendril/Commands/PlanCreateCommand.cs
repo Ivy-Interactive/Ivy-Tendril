@@ -62,8 +62,13 @@ public class PlanCreateSettings : CommandSettings
 public class PlanCreateCommand : Command<PlanCreateSettings>
 {
     private readonly ILogger<PlanCreateCommand> _logger;
+    private readonly IPlanWatcherService _planWatcher;
 
-    public PlanCreateCommand(ILogger<PlanCreateCommand> logger) => _logger = logger;
+    public PlanCreateCommand(ILogger<PlanCreateCommand> logger, IPlanWatcherService planWatcher)
+    {
+        _logger = logger;
+        _planWatcher = planWatcher;
+    }
 
     protected override int Execute(CommandContext context, PlanCreateSettings settings, CancellationToken cancellationToken)
     {
@@ -118,7 +123,7 @@ public class PlanCreateCommand : Command<PlanCreateSettings>
                 foreach (var dep in settings.DependsOn)
                     plan.DependsOn.Add(dep);
 
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
             _logger.LogInformation("Created plan {PlanId}: {Title}", settings.PlanId, settings.Title);
             return 0;

@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Services;
 using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
@@ -19,8 +20,13 @@ public class PlanAddDependsOnSettings : CommandSettings
 public class PlanAddDependsOnCommand : Command<PlanAddDependsOnSettings>
 {
     private readonly ILogger<PlanAddDependsOnCommand> _logger;
+    private readonly IPlanWatcherService _planWatcher;
 
-    public PlanAddDependsOnCommand(ILogger<PlanAddDependsOnCommand> logger) => _logger = logger;
+    public PlanAddDependsOnCommand(ILogger<PlanAddDependsOnCommand> logger, IPlanWatcherService planWatcher)
+    {
+        _logger = logger;
+        _planWatcher = planWatcher;
+    }
 
     protected override int Execute(CommandContext context, PlanAddDependsOnSettings settings, CancellationToken cancellationToken)
     {
@@ -38,7 +44,7 @@ public class PlanAddDependsOnCommand : Command<PlanAddDependsOnSettings>
             plan.DependsOn.Add(settings.DependsOn);
             plan.Updated = DateTime.UtcNow;
 
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
             _logger.LogInformation("Added dependency: {DependsOn}", settings.DependsOn);
             return 0;

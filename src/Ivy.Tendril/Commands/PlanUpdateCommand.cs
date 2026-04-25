@@ -18,8 +18,13 @@ public class PlanUpdateSettings : CommandSettings
 public class PlanUpdateCommand : Command<PlanUpdateSettings>
 {
     private readonly ILogger<PlanUpdateCommand> _logger;
+    private readonly IPlanWatcherService _planWatcher;
 
-    public PlanUpdateCommand(ILogger<PlanUpdateCommand> logger) => _logger = logger;
+    public PlanUpdateCommand(ILogger<PlanUpdateCommand> logger, IPlanWatcherService planWatcher)
+    {
+        _logger = logger;
+        _planWatcher = planWatcher;
+    }
 
     protected override int Execute(CommandContext context, PlanUpdateSettings settings, CancellationToken cancellationToken)
     {
@@ -38,7 +43,7 @@ public class PlanUpdateCommand : Command<PlanUpdateSettings>
                 throw new InvalidOperationException("Failed to deserialize YAML from STDIN");
 
             // Write with validation
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
             _logger.LogInformation("Updated plan {PlanId}", settings.PlanId);
             return 0;
