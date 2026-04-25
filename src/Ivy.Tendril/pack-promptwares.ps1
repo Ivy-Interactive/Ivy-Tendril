@@ -16,12 +16,12 @@ Get-ChildItem $staging -Recurse -Directory | Where-Object { $_.Name -in 'Logs','
 # Only tools listed in $shippedTools are included in the package.
 # All others (debugging, ops, migration scripts) are stripped.
 $shippedTools = @{
-    'CreatePlan'  = @('Utils.ps1', 'Validate-CodeAssertion.ps1', 'Find-DuplicatePlans.ps1', 'Find-ActivePlans.ps1')
-    'CreatePr'    = @('Utils.ps1', 'Remove-PlanWorktree.ps1')
+    'CreatePlan'  = @('Validate-CodeAssertion.ps1', 'Find-DuplicatePlans.ps1', 'Find-ActivePlans.ps1')
+    'CreatePr'    = @('Remove-PlanWorktree.ps1')
     'ExecutePlan' = @('Apply-SyncStrategy.ps1', 'Cleanup-Worktrees.ps1', 'Log-WorktreeEvent.ps1')
     'ExpandPlan'  = @()
     'SplitPlan'   = @()
-    'UpdatePlan'  = @('Utils.ps1')
+    'UpdatePlan'  = @()
     'CreateIssue' = @()
 }
 

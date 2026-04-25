@@ -13,7 +13,7 @@ The firmware header contains:
 - **CurrentTime** — current UTC timestamp
 
 Read the plan structure in `../.shared/Plans.md`.
-Use the `Get-ConfigYaml` helper from Utils.ps1 to read project configuration (project repos and their `prRule` setting) with caching.
+Project configuration (repos, `prRule` settings) is available from the firmware header.
 
 ## PR Rules (from config.yaml per repo)
 
@@ -32,7 +32,7 @@ Before processing, read `plan.yaml` and check the `state` field. After reading, 
 
 - Read `plan.yaml` from the plan folder (project, commits, repos)
 - Read the latest revision for the plan title and description
-- Use `Get-ConfigYaml` to find the `prRule` for each repo
+- Find the `prRule` for each repo from the firmware header
 - **Check for custom options:** If `<PlanFolder>/.custom-pr-options.yaml` exists, read it. The file contains:
   ```yaml
   merge: true/false
@@ -87,7 +87,7 @@ EOF
 
 - **Base branch:**
   1. Read plan.yaml and get the project name
-  2. For each repo, call `GetRepoConfig` (from Utils.ps1) to check if `baseBranch` is configured
+  2. For each repo, check the firmware header for `baseBranch` configuration
   3. If configured, use that value
   4. Otherwise, auto-detect via: `gh repo view <owner/repo> --json defaultBranchRef -q .defaultBranchRef.name`
 - **Title:** `[<planId>] <plan title>`
