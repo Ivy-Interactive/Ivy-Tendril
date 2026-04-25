@@ -10,6 +10,8 @@ internal static class PromptwareDeployer
     /// </summary>
     private const string ResourceName = "Ivy.Tendril.promptwares.zip";
 
+    private const string VersionFileName = ".version";
+
     /// <summary>
     ///     Extracts embedded promptwares.zip to targetDir, preserving existing Logs/ and Memory/ directories.
     /// </summary>
@@ -73,6 +75,9 @@ internal static class PromptwareDeployer
                 var targetFile = Path.Combine(targetDir, Path.GetFileName(sourceFile));
                 File.Copy(sourceFile, targetFile, true);
             }
+
+            // Stamp the deployed version
+            File.WriteAllText(Path.Combine(targetDir, VersionFileName), GetCurrentVersion());
         }
         finally
         {
@@ -85,9 +90,27 @@ internal static class PromptwareDeployer
         }
     }
 
+    public static bool NeedsUpdate(string targetDir)
+    {
+        if (!IsEmbeddedAvailable())
+            return false;
+
+        var versionFile = Path.Combine(targetDir, VersionFileName);
+        if (!File.Exists(versionFile))
+            return true;
+
+        var deployed = File.ReadAllText(versionFile).Trim();
+        return deployed != GetCurrentVersion();
+    }
+
     public static bool IsEmbeddedAvailable()
     {
         var assembly = typeof(PromptwareDeployer).Assembly;
         return assembly.GetManifestResourceNames().Contains(ResourceName);
+    }
+
+    private static string GetCurrentVersion()
+    {
+        return typeof(PromptwareDeployer).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
     }
 }
