@@ -9,7 +9,7 @@ The firmware header contains:
 - **CurrentTime** — current UTC timestamp
 
 Read the plan structure in `../.shared/Plans.md`.
-Use the `Get-ConfigYaml` helper from Utils.ps1 to read project configuration (available projects and their repos) with caching.
+Project configuration (projects, repos) is available from the firmware header.
 
 The plans directory path can be derived from the plan folder's parent directory.
 
