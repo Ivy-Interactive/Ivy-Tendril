@@ -121,9 +121,9 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         var id = service.StartJob("CreateIssue", planB, "-Repo", "owner/repo", "-Assignee", "", "-Labels", "");
         service.CompleteJob(id, 0);
 
-        // Verify plan.yaml was updated to Building
+        // Verify plan.yaml was updated — Building then immediately Executing when job launches
         var planYamlContent = File.ReadAllText(Path.Combine(planA, "plan.yaml"));
-        Assert.Contains("state: Building", planYamlContent);
+        Assert.Contains("state: Executing", planYamlContent);
     }
 
     [Fact]

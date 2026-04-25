@@ -361,12 +361,13 @@ public class PlanRecCommandTests : IDisposable
     }
 
     [Fact]
-    public void NullRecommendations_DeserializesAsNull()
+    public void NullRecommendations_DeserializesAsEmpty()
     {
         CreatePlan("10061", "NullRecsTest");
 
         var result = ReadPlan("10061");
-        Assert.Null(result.Recommendations);
+        Assert.NotNull(result.Recommendations);
+        Assert.Empty(result.Recommendations);
     }
 
     [Fact]
