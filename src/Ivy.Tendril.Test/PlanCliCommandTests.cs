@@ -66,6 +66,30 @@ public class PlanCliCommandTests : IDisposable
         return PlanCommandHelpers.ReadPlan(folder);
     }
 
+    private string CreatePlanWithNullLists(string planId)
+    {
+        var yaml = """
+            state: Draft
+            project: Tendril
+            title: Test Plan
+            commits:
+            prs:
+            repos:
+            verifications:
+            relatedPlans:
+            dependsOn:
+            recommendations:
+            created: 2026-04-25T00:00:00Z
+            updated: 2026-04-25T00:00:00Z
+            """;
+
+        var folder = Path.Combine(_plansDir, $"{planId}-TestPlan");
+        Directory.CreateDirectory(Path.Combine(folder, "revisions"));
+        File.WriteAllText(Path.Combine(folder, "plan.yaml"), yaml);
+        File.WriteAllText(Path.Combine(folder, "revisions", "001.md"), "# Test Plan");
+        return folder;
+    }
+
     // ==================== ResolvePlanFolder ====================
 
     [Fact]
@@ -574,6 +598,21 @@ public class PlanCliCommandTests : IDisposable
 
         var result = ReadPlan("20064");
         Assert.Single(result.Commits);
+    }
+
+    [Fact]
+    public void PlanAddCommit_WithNullCommitsList_Succeeds()
+    {
+        var folder = CreatePlanWithNullLists("20099");
+
+        var plan = PlanCommandHelpers.ReadPlan(folder);
+        plan.Commits.Add("abc1234");
+        plan.Updated = DateTime.UtcNow;
+        PlanCommandHelpers.WritePlan(folder, plan);
+
+        var result = ReadPlan("20099");
+        Assert.Single(result.Commits);
+        Assert.Contains("abc1234", result.Commits);
     }
 
     // ==================== PlanSetVerification ====================

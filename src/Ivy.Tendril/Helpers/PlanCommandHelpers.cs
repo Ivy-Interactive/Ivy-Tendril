@@ -86,6 +86,16 @@ public static class PlanCommandHelpers
         if (plan == null)
             throw new InvalidOperationException($"Failed to deserialize plan.yaml at {yamlPath}");
 
+        // Initialize null list properties to empty lists
+        // This handles cases where YAML has "commits:" with no items or "commits: null"
+        plan.Commits ??= new();
+        plan.Prs ??= new();
+        plan.Repos ??= new();
+        plan.Verifications ??= new();
+        plan.RelatedPlans ??= new();
+        plan.DependsOn ??= new();
+        plan.Recommendations ??= new();
+
         return plan;
     }
 
