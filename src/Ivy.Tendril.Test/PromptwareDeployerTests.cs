@@ -39,4 +39,12 @@ public class PromptwareDeployerTests : IDisposable
         var targetDir = Path.Combine(_tempDir, "Promptwares");
         Assert.Throws<InvalidOperationException>(() => PromptwareDeployer.Deploy(targetDir));
     }
+
+    [Fact]
+    public void NeedsUpdate_ReturnsFalse_WhenNoEmbeddedResource()
+    {
+        var targetDir = Path.Combine(_tempDir, "Promptwares");
+        Directory.CreateDirectory(targetDir);
+        Assert.False(PromptwareDeployer.NeedsUpdate(targetDir));
+    }
 }

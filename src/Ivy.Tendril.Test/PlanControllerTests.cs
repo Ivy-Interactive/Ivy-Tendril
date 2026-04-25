@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Text.Json;
 using Ivy.Tendril.Controllers;
+using Ivy.Tendril.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -63,7 +64,7 @@ public class PlanControllerTests : IDisposable
 
     private static PlanController CreateController()
     {
-        var controller = new PlanController();
+        var controller = new PlanController(new NullPlanWatcherService());
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()
@@ -583,4 +584,11 @@ public class PlanControllerTests : IDisposable
         Assert.Contains("Rec1", json2);
         Assert.DoesNotContain("Rec2", json2);
     }
+}
+
+file class NullPlanWatcherService : IPlanWatcherService
+{
+    public event Action<string?>? PlansChanged;
+    public void NotifyChanged(string? changedPlanFolder = null) => PlansChanged?.Invoke(changedPlanFolder);
+    public void Dispose() { }
 }

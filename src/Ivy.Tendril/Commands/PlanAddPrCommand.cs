@@ -21,8 +21,13 @@ public class PlanAddPrSettings : CommandSettings
 public class PlanAddPrCommand : Command<PlanAddPrSettings>
 {
     private readonly ILogger<PlanAddPrCommand> _logger;
+    private readonly IPlanWatcherService _planWatcher;
 
-    public PlanAddPrCommand(ILogger<PlanAddPrCommand> logger) => _logger = logger;
+    public PlanAddPrCommand(ILogger<PlanAddPrCommand> logger, IPlanWatcherService planWatcher)
+    {
+        _logger = logger;
+        _planWatcher = planWatcher;
+    }
 
     protected override int Execute(CommandContext context, PlanAddPrSettings settings, CancellationToken cancellationToken)
     {
@@ -42,7 +47,7 @@ public class PlanAddPrCommand : Command<PlanAddPrSettings>
             plan.Prs.Add(settings.PrUrl);
             plan.Updated = DateTime.UtcNow;
 
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
             _logger.LogInformation("Added PR: {PrUrl}", settings.PrUrl);
             return 0;

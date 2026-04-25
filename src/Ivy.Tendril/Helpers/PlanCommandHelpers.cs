@@ -86,6 +86,16 @@ public static class PlanCommandHelpers
         if (plan == null)
             throw new InvalidOperationException($"Failed to deserialize plan.yaml at {yamlPath}");
 
+        // Initialize null list properties to empty lists
+        // This handles cases where YAML has "commits:" with no items or "commits: null"
+        plan.Commits ??= new();
+        plan.Prs ??= new();
+        plan.Repos ??= new();
+        plan.Verifications ??= new();
+        plan.RelatedPlans ??= new();
+        plan.DependsOn ??= new();
+        plan.Recommendations ??= new();
+
         return plan;
     }
 
@@ -93,7 +103,7 @@ public static class PlanCommandHelpers
     ///     Writes a plan.yaml file atomically.
     ///     Validates the plan, writes to temp file, reads back for verification, then atomically moves to target.
     /// </summary>
-    public static void WritePlan(string planFolder, PlanYaml plan)
+    public static void WritePlan(string planFolder, PlanYaml plan, IPlanWatcherService? watcher = null)
     {
         // Validate before writing
         PlanValidationService.Validate(plan);
@@ -117,6 +127,9 @@ public static class PlanCommandHelpers
 
             // Atomic move
             File.Move(tempPath, yamlPath, overwrite: true);
+
+            // Notify watcher after successful write
+            watcher?.NotifyChanged(Path.GetFileName(planFolder));
         }
         catch
         {

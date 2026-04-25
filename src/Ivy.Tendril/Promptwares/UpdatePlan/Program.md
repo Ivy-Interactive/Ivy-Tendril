@@ -9,7 +9,7 @@ The firmware header contains:
 - **CurrentTime** — current UTC timestamp
 
 Read the plan structure in `../.shared/Plans.md`.
-Use the `Get-ConfigYaml` helper from Utils.ps1 to read project configuration with caching.
+Project configuration is available from the firmware header.
 
 ## Execution Steps
 
@@ -32,7 +32,7 @@ If no `>>` lines exist, report "No comments found" and stop.
 
 For each question in the `>>` lines:
 1. Read relevant source files to find the answer
-2. Use `Get-ConfigYaml` for project context if needed
+2. Use the firmware header for project context if needed
 
 ### 3.5. Resolve Answered Questions
 
@@ -67,4 +67,4 @@ If all questions are resolved and no new questions arose, omit the `## Questions
 - Do NOT modify `plan.yaml` — the launcher script handles state and timestamps
 - The plan must remain self-contained with all paths and information for an LLM coding agent
 - Keep the plan short and concise — the limiting factor is a human reading it
-- When referencing local files, use markdown links: `[FileName.cs:line](file:///path/to/FileName.cs)` for source files with line numbers, or `[FileName.cs](file:///path/to/FileName.cs)` without. Never use backticks in link text or `#L123` fragments in URLs. Use `![alt](path)` for images.
+- When referencing local files, use markdown links: `[filename:line](file:///path/to/filename)` for source files with line numbers, or `[filename](file:///path/to/filename)` without. Never use backticks in link text or `#L123` fragments in URLs. Use `![alt](path)` for images.

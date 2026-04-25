@@ -195,7 +195,18 @@ public static class TendrilServer
                 Environment.SetEnvironmentVariable("TENDRIL_URL", serverUrl);
 
             if (!configService.NeedsOnboarding)
+            {
+                // Auto-update promptwares if the running version is newer than what's deployed
+                var promptwaresDir = Path.Combine(configService.TendrilHome, "Promptwares");
+                if (PromptwareDeployer.NeedsUpdate(promptwaresDir))
+                {
+                    var logger = app.Services.GetRequiredService<ILogger<Server>>();
+                    logger.LogInformation("Promptware update detected, deploying new version");
+                    PromptwareDeployer.Deploy(promptwaresDir);
+                }
+
                 BackgroundServiceActivator.Start(app.Services);
+            }
 
             var telemetryService = app.Services.GetRequiredService<TelemetryService>();
             var appVersion = typeof(TendrilAppShell).Assembly.GetName().Version!.ToString(3);

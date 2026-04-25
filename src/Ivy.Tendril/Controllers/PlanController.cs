@@ -11,6 +11,13 @@ namespace Ivy.Tendril.Controllers;
 [Route("api/plans")]
 public class PlanController : ControllerBase
 {
+    private readonly IPlanWatcherService _planWatcher;
+
+    public PlanController(IPlanWatcherService planWatcher)
+    {
+        _planWatcher = planWatcher;
+    }
+
     [HttpGet("{planId}")]
     public IActionResult GetPlan(string planId, [FromQuery] string? field = null)
     {
@@ -104,7 +111,7 @@ public class PlanController : ControllerBase
             if (request.Field.ToLower() != "updated")
                 plan.Updated = DateTime.UtcNow;
 
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
             return Ok(new { message = $"Updated {request.Field} to '{request.Value}'" });
         }
         catch (DirectoryNotFoundException)
@@ -130,7 +137,7 @@ public class PlanController : ControllerBase
 
             plan.Repos.Add(request.RepoPath);
             plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
             return Ok(new { message = $"Added repository: {request.RepoPath}" });
         }
         catch (DirectoryNotFoundException)
@@ -156,7 +163,7 @@ public class PlanController : ControllerBase
                 return NotFound(new { error = $"Repository not found in plan: {request.RepoPath}" });
 
             plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
             return Ok(new { message = $"Removed repository: {request.RepoPath}" });
         }
         catch (DirectoryNotFoundException)
@@ -182,7 +189,7 @@ public class PlanController : ControllerBase
 
             plan.Prs.Add(request.PrUrl);
             plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
             return Ok(new { message = $"Added PR: {request.PrUrl}" });
         }
         catch (DirectoryNotFoundException)
@@ -208,7 +215,7 @@ public class PlanController : ControllerBase
 
             plan.Commits.Add(request.Sha);
             plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
             return Ok(new { message = $"Added commit: {request.Sha}" });
         }
         catch (DirectoryNotFoundException)
@@ -238,7 +245,7 @@ public class PlanController : ControllerBase
                 plan.Verifications.Add(new PlanVerificationEntry { Name = request.Name, Status = request.Status });
 
             plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
             return Ok(new { message = $"Set verification '{request.Name}' to '{request.Status}'" });
         }
         catch (DirectoryNotFoundException)
@@ -324,7 +331,7 @@ public class PlanController : ControllerBase
             });
 
             plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
             return Ok(new { message = $"Added recommendation '{request.Title}'" });
         }
         catch (DirectoryNotFoundException)
@@ -354,7 +361,7 @@ public class PlanController : ControllerBase
             rec.DeclineReason = null;
 
             plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
             return Ok(new { message = $"Accepted recommendation '{title}'" });
         }
         catch (DirectoryNotFoundException)
@@ -384,7 +391,7 @@ public class PlanController : ControllerBase
             rec.DeclineReason = request?.Reason;
 
             plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
             return Ok(new { message = $"Declined recommendation '{title}'" });
         }
         catch (DirectoryNotFoundException)
@@ -412,7 +419,7 @@ public class PlanController : ControllerBase
 
             recs.Remove(match);
             plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
             return Ok(new { message = $"Removed recommendation '{title}'" });
         }
         catch (DirectoryNotFoundException)

@@ -212,9 +212,6 @@ public class ContentView(
                             selectedPlanState.Set(plan);
                     }
                 }));
-            var editButton = Layout.Horizontal().Padding(0, 0, 2, 0)
-                             | new Button("Edit").Icon(Icons.Pencil).Outline().ShortcutKey("E").OnClick(() => isEditing.Set(true));
-            planLayout |= editButton;
             planTabContent = planLayout;
         }
 
@@ -282,8 +279,10 @@ public class ContentView(
             j.Args[0].Equals(selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
 
         var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(1)
-                        | new Button("Update").Icon(Icons.Pencil).Outline().ShortcutKey("u")
+                        | new Button("Update").Icon(Icons.WandSparkles).Outline().ShortcutKey("u")
                             .OnClick(() => updateDialogOpen.Set(true))
+                        | new Button("Edit").Icon(Icons.Pencil).Outline().ShortcutKey("E")
+                            .OnClick(() => isEditing.Set(true))
                         | new Button("Split").Icon(Icons.Scissors).Outline().ShortcutKey("s")
                             .Disabled(hasActiveSplitJob)
                             .OnClick(() =>

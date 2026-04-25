@@ -13,7 +13,7 @@ The firmware header contains:
 - **CurrentTime** — current UTC timestamp
 
 Read the plan structure in `../.shared/Plans.md`.
-Use the `Get-ConfigYaml` helper from Utils.ps1 to read project configuration (project repos and their `prRule` setting) with caching.
+Project configuration (repos, `prRule` settings) is available from the firmware header.
 
 ## PR Rules (from config.yaml per repo)
 
@@ -32,7 +32,7 @@ Before processing, read `plan.yaml` and check the `state` field. After reading, 
 
 - Read `plan.yaml` from the plan folder (project, commits, repos)
 - Read the latest revision for the plan title and description
-- Use `Get-ConfigYaml` to find the `prRule` for each repo
+- Find the `prRule` for each repo from the firmware header
 - **Check for custom options:** If `<PlanFolder>/.custom-pr-options.yaml` exists, read it. The file contains:
   ```yaml
   merge: true/false
@@ -64,15 +64,11 @@ For each worktree:
 
 ### 2.5. Upload Artifacts
 
-**If custom options exist and `includeArtifacts` is `false`, skip this step entirely** (set `$artifactMarkdown` to empty).
+**If custom options exist and `includeArtifacts` is `false`, skip this step entirely** (set artifact markdown to empty).
 
-Otherwise, run the `Upload-Artifacts.ps1` tool to upload screenshots and videos from `<PlanFolder>/artifacts/` to Azure storage:
+Otherwise, if an artifact upload tool is available in `Tools/`, run it to upload screenshots and videos from `<PlanFolder>/artifacts/` to persistent storage.
 
-```powershell
-$artifactMarkdown = pwsh -NoProfile -File Promptwares/CreatePr/Tools/Upload-Artifacts.ps1 -PlanFolder <PlanFolder>
-```
-
-Capture the returned markdown. If non-empty, it will be appended to the PR body under an `## Artifacts` heading in the next step.
+Capture the returned markdown. If non-empty, it will be appended to the PR body under an `## Artifacts` heading in the next step. If no upload tool is available, skip this step.
 
 ### 3. Create PR
 
@@ -87,7 +83,7 @@ EOF
 
 - **Base branch:**
   1. Read plan.yaml and get the project name
-  2. For each repo, call `GetRepoConfig` (from Utils.ps1) to check if `baseBranch` is configured
+  2. For each repo, check the firmware header for `baseBranch` configuration
   3. If configured, use that value
   4. Otherwise, auto-detect via: `gh repo view <owner/repo> --json defaultBranchRef -q .defaultBranchRef.name`
 - **Title:** `[<planId>] <plan title>`
@@ -147,7 +143,7 @@ When the PR status is `CONFLICTING`, resolve the conflict locally before retryin
    git merge origin/<default-branch>
    ```
 
-4. **Resolve conflicts**: Read each conflicted file (`git diff --name-only --diff-filter=U`), understand both sides, and resolve using the Edit tool. Prioritize:
+4. **Resolve conflicts**: Read each conflicted file (`git diff --name-only --diff-filter=U`), understand both sides, and edit to resolve. Prioritize:
    - Keep the plan's intentional changes
    - Accept base branch changes for unrelated code
    - When both sides changed the same lines, merge intelligently based on the plan's intent
@@ -161,10 +157,6 @@ When the PR status is `CONFLICTING`, resolve the conflict locally before retryin
 6. **Quick build check** (if build-critical files were involved in conflicts):
    ```bash
    # Run your project's build command from config.yaml verifications
-   # Examples:
-   # - .NET: dotnet build --warnaserror
-   # - JavaScript: npm run build
-   # - Go: go build ./...
    ```
    If the build fails, fix the issue and amend the merge commit.
 
@@ -213,7 +205,7 @@ rm -rf "<PlanFolder>/worktrees"
 
 **Skip cleanup** for repos using the `default` PR rule (or custom options with `merge: false`) — the worktree is still needed for potential review revisions.
 
-If cleanup fails (e.g. locked files on Windows), log a warning but do not fail the overall CreatePr execution.
+If cleanup fails (e.g. locked files), log a warning but do not fail the overall CreatePr execution.
 
 ### 6. Update Plan via CLI
 
@@ -247,4 +239,4 @@ Some plans create new repos and push directly to main (e.g., repo scaffolding). 
 - One PR per repo worktree that has commits
 - Skip worktrees with no commits ahead of the base branch
 - Use `gh` CLI for all GitHub operations
-- NEVER embed images via GitHub branch URLs (`github.com/blob/<branch>/...`) — these 404 after branch deletion. All screenshots/images in PR bodies must use storage URLs from Upload-Artifacts.ps1.
+- NEVER embed images via GitHub branch URLs (`github.com/blob/<branch>/...`) — these 404 after branch deletion. All screenshots/images in PR bodies must use persistent storage URLs (from the artifact upload tool, if available).
