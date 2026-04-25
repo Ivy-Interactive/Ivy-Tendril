@@ -68,13 +68,14 @@ public class PlanCliCommandTests : IDisposable
 
     private string CreatePlanWithNullLists(string planId)
     {
-        var yaml = """
+        var yaml = $"""
             state: Draft
             project: Tendril
             title: Test Plan
             commits:
             prs:
             repos:
+              - {_tempDir}
             verifications:
             relatedPlans:
             dependsOn:
