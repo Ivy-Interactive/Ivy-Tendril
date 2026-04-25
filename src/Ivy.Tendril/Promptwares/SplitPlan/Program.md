@@ -97,4 +97,4 @@ Do NOT modify the original plan — the launcher transitions it to `Skipped` aut
 - Each plan must include all paths and info for an LLM coding agent to execute end-to-end
 - Keep each plan short and concise — the limiting factor is a human reading it
 - Do NOT modify any source code — only read files and create plan folders
-- When referencing local files, use markdown links: `[FileName.cs:line](file:///path/to/FileName.cs)` for source files with line numbers, or `[FileName.cs](file:///path/to/FileName.cs)` without. Never use backticks in link text or `#L123` fragments in URLs. Use `![alt](path)` for images.
+- When referencing local files, use markdown links: `[filename:line](file:///path/to/filename)` for source files with line numbers, or `[filename](file:///path/to/filename)` without. Never use backticks in link text or `#L123` fragments in URLs. Use `![alt](path)` for images.

@@ -67,4 +67,4 @@ If all questions are resolved and no new questions arose, omit the `## Questions
 - Do NOT modify `plan.yaml` — the launcher script handles state and timestamps
 - The plan must remain self-contained with all paths and information for an LLM coding agent
 - Keep the plan short and concise — the limiting factor is a human reading it
-- When referencing local files, use markdown links: `[FileName.cs:line](file:///path/to/FileName.cs)` for source files with line numbers, or `[FileName.cs](file:///path/to/FileName.cs)` without. Never use backticks in link text or `#L123` fragments in URLs. Use `![alt](path)` for images.
+- When referencing local files, use markdown links: `[filename:line](file:///path/to/filename)` for source files with line numbers, or `[filename](file:///path/to/filename)` without. Never use backticks in link text or `#L123` fragments in URLs. Use `![alt](path)` for images.

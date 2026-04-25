@@ -9,3 +9,4 @@
 **/*.md
 !**/Program.md
 !.shared/*.md
+!AGENTS.md

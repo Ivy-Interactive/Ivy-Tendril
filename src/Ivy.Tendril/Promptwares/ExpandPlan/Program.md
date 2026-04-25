@@ -40,8 +40,8 @@ Example:
 **After:**
 ```
 1. Fix dialog content initialization race condition:
-   - In `Dialog.cs`, add immediate content rendering before animation
-   - In `FormBuilder.cs`, ensure UseState hooks execute synchronously in dialog context
+   - In `dialog_component`, add immediate content rendering before animation
+   - In `form_builder`, ensure state hooks execute synchronously in dialog context
 ```
 
 ### 3. Create Expanded Revision
@@ -62,4 +62,4 @@ Example:
 - Do NOT modify any source code — only read files and update the plan
 - Do NOT modify `plan.yaml` — the launcher script handles state and timestamps
 - Keep the plan short and concise — the limiting factor is a human reading it
-- When referencing local files, use markdown links: `[FileName.cs:line](file:///path/to/FileName.cs)` for source files with line numbers, or `[FileName.cs](file:///path/to/FileName.cs)` without. Never use backticks in link text or `#L123` fragments in URLs. Use `![alt](path)` for images.
+- When referencing local files, use markdown links: `[filename:line](file:///path/to/filename)` for source files with line numbers, or `[filename](file:///path/to/filename)` without. Never use backticks in link text or `#L123` fragments in URLs. Use `![alt](path)` for images.
