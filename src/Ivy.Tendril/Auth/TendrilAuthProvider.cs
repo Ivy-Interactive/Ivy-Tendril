@@ -10,6 +10,7 @@ namespace Ivy.Tendril.Auth;
 
 public class TendrilAuthProvider : BasicAuthTokenHandler, IAuthProvider
 {
+    private readonly string? _username;
     private readonly string _passwordHash;
     private readonly byte[] _hashSecret;
     private readonly LoginRateLimiter _rateLimiter;
@@ -21,6 +22,7 @@ public class TendrilAuthProvider : BasicAuthTokenHandler, IAuthProvider
         var auth = configService.Settings.Auth
             ?? throw new InvalidOperationException("Auth configuration is missing");
 
+        _username = auth.Username;
         _passwordHash = auth.Password;
 
         try
@@ -44,6 +46,12 @@ public class TendrilAuthProvider : BasicAuthTokenHandler, IAuthProvider
         {
             var retryAfter = _rateLimiter.GetRequiredDelay(ipAddress);
             return Task.FromResult(LoginResult.RateLimited(retryAfter));
+        }
+
+        if (!string.IsNullOrEmpty(_username) && !string.Equals(user, _username, StringComparison.OrdinalIgnoreCase))
+        {
+            _rateLimiter.RecordFailedAttempt(ipAddress);
+            return Task.FromResult(LoginResult.InvalidCredentials());
         }
 
         if (!PasswordMatches(password))

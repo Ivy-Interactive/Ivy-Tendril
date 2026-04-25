@@ -118,6 +118,7 @@ public record LlmConfig
 
 public record AuthConfig
 {
+    public string? Username { get; set; }
     public string Password { get; set; } = "";
     public string HashSecret { get; set; } = "";
     public Auth.LoginRateLimitConfig? RateLimit { get; set; }
