@@ -11,7 +11,7 @@ using ModelContextProtocol.Server;
 namespace Ivy.Tendril.Mcp.Tools;
 
 [McpServerToolType]
-public sealed class PlanTools(McpAuthenticationService authService)
+public sealed class PlanTools(McpAuthenticationService authService) : AuthenticatedToolBase(authService)
 {
     private static readonly Regex FolderNameRegex = new(@"^(\d{5})-(.+)$", RegexOptions.Compiled);
 
@@ -20,23 +20,23 @@ public sealed class PlanTools(McpAuthenticationService authService)
         [Description("Plan ID (e.g., '03228') or full folder path")] string planId,
         [Description("Optional field name to return a single value (state, project, level, title, repos, prs, commits, verifications, recommendations, etc.)")] string? field = null)
     {
-        if (!authService.ValidateEnvironmentToken())
-            return "Error: Authentication failed. Access denied.";
-
-        try
+        return ExecuteAuthenticated(() =>
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
+            try
+            {
+                var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
+                var plan = PlanCommandHelpers.ReadPlan(planFolder);
 
-            if (!string.IsNullOrEmpty(field))
-                return GetPlanField(plan, planFolder, field);
+                if (!string.IsNullOrEmpty(field))
+                    return GetPlanField(plan, planFolder, field);
 
-            return ReadPlanSummary(plan, planFolder);
-        }
-        catch (Exception ex)
-        {
-            return $"Error: {ex.Message}";
-        }
+                return ReadPlanSummary(plan, planFolder);
+            }
+            catch (Exception ex)
+            {
+                return $"Error: {ex.Message}";
+            }
+        });
     }
 
     [McpServerTool(Name = "tendril_list_plans"), Description("Query plans by state, project, or date range")]
@@ -45,62 +45,62 @@ public sealed class PlanTools(McpAuthenticationService authService)
         [Description("Filter by project name")] string? project = null,
         [Description("Filter plans created after this date (ISO 8601, e.g., 2026-04-01)")] string? since = null)
     {
-        if (!authService.ValidateEnvironmentToken())
-            return "Error: Authentication failed. Access denied.";
-
-        try
+        return ExecuteAuthenticated(() =>
         {
-            var plansDir = PlanCommandHelpers.GetPlansDirectory();
-
-            DateTime? sinceDate = null;
-            if (!string.IsNullOrEmpty(since) && DateTime.TryParse(since, out var parsed))
-                sinceDate = parsed;
-
-            var sb = new StringBuilder();
-            var count = 0;
-
-            foreach (var dir in Directory.GetDirectories(plansDir).OrderByDescending(d => Path.GetFileName(d)))
+            try
             {
-                var folderName = Path.GetFileName(dir);
-                var match = FolderNameRegex.Match(folderName);
-                if (!match.Success) continue;
+                var plansDir = PlanCommandHelpers.GetPlansDirectory();
 
-                PlanYaml yaml;
-                try { yaml = PlanCommandHelpers.ReadPlan(dir); }
-                catch { continue; }
+                DateTime? sinceDate = null;
+                if (!string.IsNullOrEmpty(since) && DateTime.TryParse(since, out var parsed))
+                    sinceDate = parsed;
 
-                if (!string.IsNullOrEmpty(state) &&
-                    !string.Equals(yaml.State, state, StringComparison.OrdinalIgnoreCase))
-                    continue;
+                var sb = new StringBuilder();
+                var count = 0;
 
-                if (!string.IsNullOrEmpty(project) &&
-                    !string.Equals(yaml.Project, project, StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                if (sinceDate.HasValue && yaml.Created < sinceDate.Value)
-                    continue;
-
-                var id = match.Groups[1].Value;
-                sb.AppendLine($"- [{id}] {yaml.Title} | State: {yaml.State} | Project: {yaml.Project} | Level: {yaml.Level}");
-                count++;
-
-                if (count >= 50)
+                foreach (var dir in Directory.GetDirectories(plansDir).OrderByDescending(d => Path.GetFileName(d)))
                 {
-                    sb.AppendLine("... (showing first 50 of potentially more results)");
-                    break;
+                    var folderName = Path.GetFileName(dir);
+                    var match = FolderNameRegex.Match(folderName);
+                    if (!match.Success) continue;
+
+                    PlanYaml yaml;
+                    try { yaml = PlanCommandHelpers.ReadPlan(dir); }
+                    catch { continue; }
+
+                    if (!string.IsNullOrEmpty(state) &&
+                        !string.Equals(yaml.State, state, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    if (!string.IsNullOrEmpty(project) &&
+                        !string.Equals(yaml.Project, project, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    if (sinceDate.HasValue && yaml.Created < sinceDate.Value)
+                        continue;
+
+                    var id = match.Groups[1].Value;
+                    sb.AppendLine($"- [{id}] {yaml.Title} | State: {yaml.State} | Project: {yaml.Project} | Level: {yaml.Level}");
+                    count++;
+
+                    if (count >= 50)
+                    {
+                        sb.AppendLine("... (showing first 50 of potentially more results)");
+                        break;
+                    }
                 }
+
+                if (count == 0)
+                    return "No plans found matching the specified criteria.";
+
+                sb.Insert(0, $"Found {count} plan(s):\n");
+                return sb.ToString();
             }
-
-            if (count == 0)
-                return "No plans found matching the specified criteria.";
-
-            sb.Insert(0, $"Found {count} plan(s):\n");
-            return sb.ToString();
-        }
-        catch (Exception ex)
-        {
-            return $"Error: {ex.Message}";
-        }
+            catch (Exception ex)
+            {
+                return $"Error: {ex.Message}";
+            }
+        });
     }
 
     [McpServerTool(Name = "tendril_inbox"), Description("Create a new plan by writing to the Tendril inbox")]
@@ -110,44 +110,44 @@ public sealed class PlanTools(McpAuthenticationService authService)
         [Description("Priority level: Critical, Important, NiceToHave (optional)")] string? level = null,
         [Description("Detailed prompt/description for plan creation (optional)")] string? prompt = null)
     {
-        if (!authService.ValidateEnvironmentToken())
-            return "Error: Authentication failed. Access denied.";
-
-        var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
-        if (string.IsNullOrEmpty(tendrilHome))
-            return "Error: TENDRIL_HOME is not set.";
-
-        var inboxDir = Path.Combine(tendrilHome, "Inbox");
-        if (!Directory.Exists(inboxDir))
-            Directory.CreateDirectory(inboxDir);
-
-        var safeName = Regex.Replace(title, @"[^a-zA-Z0-9\s-]", "").Trim();
-        safeName = Regex.Replace(safeName, @"\s+", "-");
-        if (safeName.Length > 60) safeName = safeName[..60];
-        var fileName = $"{safeName}-{DateTime.UtcNow:yyyyMMddHHmmss}.md";
-
-        var sb = new StringBuilder();
-        if (!string.IsNullOrEmpty(project) || !string.IsNullOrEmpty(level))
+        return ExecuteAuthenticated(() =>
         {
-            sb.AppendLine("---");
-            if (!string.IsNullOrEmpty(project))
-                sb.AppendLine($"project: {project}");
-            if (!string.IsNullOrEmpty(level))
-                sb.AppendLine($"level: {level}");
-            sb.AppendLine("---");
-        }
+            var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
+            if (string.IsNullOrEmpty(tendrilHome))
+                return "Error: TENDRIL_HOME is not set.";
 
-        sb.AppendLine(title);
-        if (!string.IsNullOrEmpty(prompt))
-        {
-            sb.AppendLine();
-            sb.AppendLine(prompt);
-        }
+            var inboxDir = Path.Combine(tendrilHome, "Inbox");
+            if (!Directory.Exists(inboxDir))
+                Directory.CreateDirectory(inboxDir);
 
-        var filePath = Path.Combine(inboxDir, fileName);
-        File.WriteAllText(filePath, sb.ToString());
+            var safeName = Regex.Replace(title, @"[^a-zA-Z0-9\s-]", "").Trim();
+            safeName = Regex.Replace(safeName, @"\s+", "-");
+            if (safeName.Length > 60) safeName = safeName[..60];
+            var fileName = $"{safeName}-{DateTime.UtcNow:yyyyMMddHHmmss}.md";
 
-        return $"Plan submitted to inbox: {fileName}\nThe InboxWatcher will pick it up and create a plan automatically.";
+            var sb = new StringBuilder();
+            if (!string.IsNullOrEmpty(project) || !string.IsNullOrEmpty(level))
+            {
+                sb.AppendLine("---");
+                if (!string.IsNullOrEmpty(project))
+                    sb.AppendLine($"project: {project}");
+                if (!string.IsNullOrEmpty(level))
+                    sb.AppendLine($"level: {level}");
+                sb.AppendLine("---");
+            }
+
+            sb.AppendLine(title);
+            if (!string.IsNullOrEmpty(prompt))
+            {
+                sb.AppendLine();
+                sb.AppendLine(prompt);
+            }
+
+            var filePath = Path.Combine(inboxDir, fileName);
+            File.WriteAllText(filePath, sb.ToString());
+
+            return $"Plan submitted to inbox: {fileName}\nThe InboxWatcher will pick it up and create a plan automatically.";
+        });
     }
 
     [McpServerTool(Name = "tendril_plan_set"), Description("Set a scalar field on a plan")]
@@ -156,42 +156,42 @@ public sealed class PlanTools(McpAuthenticationService authService)
         [Description("Field name (state, project, level, title, executionProfile, initialPrompt, sourceUrl, priority)")] string field,
         [Description("New value")] string value)
     {
-        if (!authService.ValidateEnvironmentToken())
-            return "Error: Authentication failed. Access denied.";
-
-        try
+        return ExecuteAuthenticated(() =>
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
-
-            switch (field.ToLower())
+            try
             {
-                case "state": plan.State = value; break;
-                case "project": plan.Project = value; break;
-                case "level": plan.Level = value; break;
-                case "title": plan.Title = value; break;
-                case "executionprofile": plan.ExecutionProfile = value; break;
-                case "initialprompt": plan.InitialPrompt = value; break;
-                case "sourceurl": plan.SourceUrl = value; break;
-                case "priority":
-                    if (!int.TryParse(value, out var priority))
-                        return $"Error: Invalid priority value: {value}. Must be an integer.";
-                    plan.Priority = priority;
-                    break;
-                default:
-                    return $"Error: Unknown field '{field}'. Valid: state, project, level, title, executionProfile, initialPrompt, sourceUrl, priority";
+                var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
+                var plan = PlanCommandHelpers.ReadPlan(planFolder);
+
+                switch (field.ToLower())
+                {
+                    case "state": plan.State = value; break;
+                    case "project": plan.Project = value; break;
+                    case "level": plan.Level = value; break;
+                    case "title": plan.Title = value; break;
+                    case "executionprofile": plan.ExecutionProfile = value; break;
+                    case "initialprompt": plan.InitialPrompt = value; break;
+                    case "sourceurl": plan.SourceUrl = value; break;
+                    case "priority":
+                        if (!int.TryParse(value, out var priority))
+                            return $"Error: Invalid priority value: {value}. Must be an integer.";
+                        plan.Priority = priority;
+                        break;
+                    default:
+                        return $"Error: Unknown field '{field}'. Valid: state, project, level, title, executionProfile, initialPrompt, sourceUrl, priority";
+                }
+
+                if (field.ToLower() != "updated")
+                    plan.Updated = DateTime.UtcNow;
+
+                PlanCommandHelpers.WritePlan(planFolder, plan);
+                return $"Updated {field} to '{value}'";
             }
-
-            if (field.ToLower() != "updated")
-                plan.Updated = DateTime.UtcNow;
-
-            PlanCommandHelpers.WritePlan(planFolder, plan);
-            return $"Updated {field} to '{value}'";
-        }
-        catch (Exception ex)
-        {
-            return $"Error: {ex.Message}";
-        }
+            catch (Exception ex)
+            {
+                return $"Error: {ex.Message}";
+            }
+        });
     }
 
     [McpServerTool(Name = "tendril_plan_add_repo"), Description("Add a repository path to a plan")]
@@ -199,26 +199,26 @@ public sealed class PlanTools(McpAuthenticationService authService)
         [Description("Plan ID")] string planId,
         [Description("Repository path")] string repoPath)
     {
-        if (!authService.ValidateEnvironmentToken())
-            return "Error: Authentication failed. Access denied.";
-
-        try
+        return ExecuteAuthenticated(() =>
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
+            try
+            {
+                var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
+                var plan = PlanCommandHelpers.ReadPlan(planFolder);
 
-            if (plan.Repos.Contains(repoPath, StringComparer.OrdinalIgnoreCase))
-                return $"Repository already in plan: {repoPath}";
+                if (plan.Repos.Contains(repoPath, StringComparer.OrdinalIgnoreCase))
+                    return $"Repository already in plan: {repoPath}";
 
-            plan.Repos.Add(repoPath);
-            plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
-            return $"Added repository: {repoPath}";
-        }
-        catch (Exception ex)
-        {
-            return $"Error: {ex.Message}";
-        }
+                plan.Repos.Add(repoPath);
+                plan.Updated = DateTime.UtcNow;
+                PlanCommandHelpers.WritePlan(planFolder, plan);
+                return $"Added repository: {repoPath}";
+            }
+            catch (Exception ex)
+            {
+                return $"Error: {ex.Message}";
+            }
+        });
     }
 
     [McpServerTool(Name = "tendril_plan_remove_repo"), Description("Remove a repository path from a plan")]
@@ -226,26 +226,26 @@ public sealed class PlanTools(McpAuthenticationService authService)
         [Description("Plan ID")] string planId,
         [Description("Repository path")] string repoPath)
     {
-        if (!authService.ValidateEnvironmentToken())
-            return "Error: Authentication failed. Access denied.";
-
-        try
+        return ExecuteAuthenticated(() =>
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
+            try
+            {
+                var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
+                var plan = PlanCommandHelpers.ReadPlan(planFolder);
 
-            var removed = plan.Repos.RemoveAll(r => r.Equals(repoPath, StringComparison.OrdinalIgnoreCase));
-            if (removed == 0)
-                return $"Error: Repository not found in plan: {repoPath}";
+                var removed = plan.Repos.RemoveAll(r => r.Equals(repoPath, StringComparison.OrdinalIgnoreCase));
+                if (removed == 0)
+                    return $"Error: Repository not found in plan: {repoPath}";
 
-            plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
-            return $"Removed repository: {repoPath}";
-        }
-        catch (Exception ex)
-        {
-            return $"Error: {ex.Message}";
-        }
+                plan.Updated = DateTime.UtcNow;
+                PlanCommandHelpers.WritePlan(planFolder, plan);
+                return $"Removed repository: {repoPath}";
+            }
+            catch (Exception ex)
+            {
+                return $"Error: {ex.Message}";
+            }
+        });
     }
 
     [McpServerTool(Name = "tendril_plan_add_pr"), Description("Add a PR URL to a plan")]
@@ -253,26 +253,26 @@ public sealed class PlanTools(McpAuthenticationService authService)
         [Description("Plan ID")] string planId,
         [Description("PR URL")] string prUrl)
     {
-        if (!authService.ValidateEnvironmentToken())
-            return "Error: Authentication failed. Access denied.";
-
-        try
+        return ExecuteAuthenticated(() =>
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
+            try
+            {
+                var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
+                var plan = PlanCommandHelpers.ReadPlan(planFolder);
 
-            if (plan.Prs.Contains(prUrl))
-                return $"PR already in plan: {prUrl}";
+                if (plan.Prs.Contains(prUrl))
+                    return $"PR already in plan: {prUrl}";
 
-            plan.Prs.Add(prUrl);
-            plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
-            return $"Added PR: {prUrl}";
-        }
-        catch (Exception ex)
-        {
-            return $"Error: {ex.Message}";
-        }
+                plan.Prs.Add(prUrl);
+                plan.Updated = DateTime.UtcNow;
+                PlanCommandHelpers.WritePlan(planFolder, plan);
+                return $"Added PR: {prUrl}";
+            }
+            catch (Exception ex)
+            {
+                return $"Error: {ex.Message}";
+            }
+        });
     }
 
     [McpServerTool(Name = "tendril_plan_add_commit"), Description("Add a commit SHA to a plan")]
@@ -280,26 +280,26 @@ public sealed class PlanTools(McpAuthenticationService authService)
         [Description("Plan ID")] string planId,
         [Description("Commit SHA")] string sha)
     {
-        if (!authService.ValidateEnvironmentToken())
-            return "Error: Authentication failed. Access denied.";
-
-        try
+        return ExecuteAuthenticated(() =>
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
+            try
+            {
+                var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
+                var plan = PlanCommandHelpers.ReadPlan(planFolder);
 
-            if (plan.Commits.Contains(sha))
-                return $"Commit already in plan: {sha}";
+                if (plan.Commits.Contains(sha))
+                    return $"Commit already in plan: {sha}";
 
-            plan.Commits.Add(sha);
-            plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
-            return $"Added commit: {sha}";
-        }
-        catch (Exception ex)
-        {
-            return $"Error: {ex.Message}";
-        }
+                plan.Commits.Add(sha);
+                plan.Updated = DateTime.UtcNow;
+                PlanCommandHelpers.WritePlan(planFolder, plan);
+                return $"Added commit: {sha}";
+            }
+            catch (Exception ex)
+            {
+                return $"Error: {ex.Message}";
+            }
+        });
     }
 
     [McpServerTool(Name = "tendril_plan_set_verification"), Description("Set a verification status on a plan")]
@@ -308,30 +308,30 @@ public sealed class PlanTools(McpAuthenticationService authService)
         [Description("Verification name (e.g., DotnetBuild, DotnetTest)")] string name,
         [Description("Status: Pending, Pass, Fail, Skipped")] string status)
     {
-        if (!authService.ValidateEnvironmentToken())
-            return "Error: Authentication failed. Access denied.";
-
-        try
+        return ExecuteAuthenticated(() =>
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
+            try
+            {
+                var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
+                var plan = PlanCommandHelpers.ReadPlan(planFolder);
 
-            var verification = plan.Verifications.FirstOrDefault(v =>
-                v.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+                var verification = plan.Verifications.FirstOrDefault(v =>
+                    v.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 
-            if (verification != null)
-                verification.Status = status;
-            else
-                plan.Verifications.Add(new PlanVerificationEntry { Name = name, Status = status });
+                if (verification != null)
+                    verification.Status = status;
+                else
+                    plan.Verifications.Add(new PlanVerificationEntry { Name = name, Status = status });
 
-            plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
-            return $"Set verification '{name}' to '{status}'";
-        }
-        catch (Exception ex)
-        {
-            return $"Error: {ex.Message}";
-        }
+                plan.Updated = DateTime.UtcNow;
+                PlanCommandHelpers.WritePlan(planFolder, plan);
+                return $"Set verification '{name}' to '{status}'";
+            }
+            catch (Exception ex)
+            {
+                return $"Error: {ex.Message}";
+            }
+        });
     }
 
     [McpServerTool(Name = "tendril_plan_add_log"), Description("Write an execution log entry to a plan")]
@@ -340,19 +340,19 @@ public sealed class PlanTools(McpAuthenticationService authService)
         [Description("Action name (e.g., CreatePlan, ExecutePlan)")] string action,
         [Description("Optional summary text")] string? summary = null)
     {
-        if (!authService.ValidateEnvironmentToken())
-            return "Error: Authentication failed. Access denied.";
-
-        try
+        return ExecuteAuthenticated(() =>
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var logPath = PlanAddLogCommand.WriteLog(planFolder, action, summary);
-            return $"Log written: {Path.GetFileName(logPath)}";
-        }
-        catch (Exception ex)
-        {
-            return $"Error: {ex.Message}";
-        }
+            try
+            {
+                var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
+                var logPath = PlanAddLogCommand.WriteLog(planFolder, action, summary);
+                return $"Log written: {Path.GetFileName(logPath)}";
+            }
+            catch (Exception ex)
+            {
+                return $"Error: {ex.Message}";
+            }
+        });
     }
 
     [McpServerTool(Name = "tendril_plan_rec_add"), Description("Add a recommendation to a plan")]
@@ -363,35 +363,35 @@ public sealed class PlanTools(McpAuthenticationService authService)
         [Description("Impact level: Small, Medium, High (optional)")] string? impact = null,
         [Description("Risk level: Small, Medium, High (optional)")] string? risk = null)
     {
-        if (!authService.ValidateEnvironmentToken())
-            return "Error: Authentication failed. Access denied.";
-
-        try
+        return ExecuteAuthenticated(() =>
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
-
-            plan.Recommendations ??= [];
-            if (plan.Recommendations.Any(r => r.Title.Equals(title, StringComparison.OrdinalIgnoreCase)))
-                return $"Error: Recommendation '{title}' already exists";
-
-            plan.Recommendations.Add(new RecommendationYaml
+            try
             {
-                Title = title,
-                Description = description,
-                State = "Pending",
-                Impact = impact,
-                Risk = risk
-            });
+                var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
+                var plan = PlanCommandHelpers.ReadPlan(planFolder);
 
-            plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
-            return $"Added recommendation '{title}'";
-        }
-        catch (Exception ex)
-        {
-            return $"Error: {ex.Message}";
-        }
+                plan.Recommendations ??= [];
+                if (plan.Recommendations.Any(r => r.Title.Equals(title, StringComparison.OrdinalIgnoreCase)))
+                    return $"Error: Recommendation '{title}' already exists";
+
+                plan.Recommendations.Add(new RecommendationYaml
+                {
+                    Title = title,
+                    Description = description,
+                    State = "Pending",
+                    Impact = impact,
+                    Risk = risk
+                });
+
+                plan.Updated = DateTime.UtcNow;
+                PlanCommandHelpers.WritePlan(planFolder, plan);
+                return $"Added recommendation '{title}'";
+            }
+            catch (Exception ex)
+            {
+                return $"Error: {ex.Message}";
+            }
+        });
     }
 
     [McpServerTool(Name = "tendril_plan_rec_accept"), Description("Accept a recommendation")]
@@ -400,30 +400,30 @@ public sealed class PlanTools(McpAuthenticationService authService)
         [Description("Recommendation title")] string title,
         [Description("Optional notes")] string? notes = null)
     {
-        if (!authService.ValidateEnvironmentToken())
-            return "Error: Authentication failed. Access denied.";
-
-        try
+        return ExecuteAuthenticated(() =>
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
+            try
+            {
+                var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
+                var plan = PlanCommandHelpers.ReadPlan(planFolder);
 
-            var rec = (plan.Recommendations ?? [])
-                .FirstOrDefault(r => r.Title.Equals(title, StringComparison.OrdinalIgnoreCase));
-            if (rec == null)
-                return $"Error: Recommendation '{title}' not found";
+                var rec = (plan.Recommendations ?? [])
+                    .FirstOrDefault(r => r.Title.Equals(title, StringComparison.OrdinalIgnoreCase));
+                if (rec == null)
+                    return $"Error: Recommendation '{title}' not found";
 
-            rec.State = string.IsNullOrEmpty(notes) ? "Accepted" : "AcceptedWithNotes";
-            rec.DeclineReason = null;
+                rec.State = string.IsNullOrEmpty(notes) ? "Accepted" : "AcceptedWithNotes";
+                rec.DeclineReason = null;
 
-            plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
-            return $"Accepted recommendation '{title}'";
-        }
-        catch (Exception ex)
-        {
-            return $"Error: {ex.Message}";
-        }
+                plan.Updated = DateTime.UtcNow;
+                PlanCommandHelpers.WritePlan(planFolder, plan);
+                return $"Accepted recommendation '{title}'";
+            }
+            catch (Exception ex)
+            {
+                return $"Error: {ex.Message}";
+            }
+        });
     }
 
     [McpServerTool(Name = "tendril_plan_rec_decline"), Description("Decline a recommendation")]
@@ -432,30 +432,30 @@ public sealed class PlanTools(McpAuthenticationService authService)
         [Description("Recommendation title")] string title,
         [Description("Decline reason (optional)")] string? reason = null)
     {
-        if (!authService.ValidateEnvironmentToken())
-            return "Error: Authentication failed. Access denied.";
-
-        try
+        return ExecuteAuthenticated(() =>
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
+            try
+            {
+                var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
+                var plan = PlanCommandHelpers.ReadPlan(planFolder);
 
-            var rec = (plan.Recommendations ?? [])
-                .FirstOrDefault(r => r.Title.Equals(title, StringComparison.OrdinalIgnoreCase));
-            if (rec == null)
-                return $"Error: Recommendation '{title}' not found";
+                var rec = (plan.Recommendations ?? [])
+                    .FirstOrDefault(r => r.Title.Equals(title, StringComparison.OrdinalIgnoreCase));
+                if (rec == null)
+                    return $"Error: Recommendation '{title}' not found";
 
-            rec.State = "Declined";
-            rec.DeclineReason = reason;
+                rec.State = "Declined";
+                rec.DeclineReason = reason;
 
-            plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
-            return $"Declined recommendation '{title}'";
-        }
-        catch (Exception ex)
-        {
-            return $"Error: {ex.Message}";
-        }
+                plan.Updated = DateTime.UtcNow;
+                PlanCommandHelpers.WritePlan(planFolder, plan);
+                return $"Declined recommendation '{title}'";
+            }
+            catch (Exception ex)
+            {
+                return $"Error: {ex.Message}";
+            }
+        });
     }
 
     [McpServerTool(Name = "tendril_plan_rec_remove"), Description("Remove a recommendation from a plan")]
@@ -463,28 +463,28 @@ public sealed class PlanTools(McpAuthenticationService authService)
         [Description("Plan ID")] string planId,
         [Description("Recommendation title")] string title)
     {
-        if (!authService.ValidateEnvironmentToken())
-            return "Error: Authentication failed. Access denied.";
-
-        try
+        return ExecuteAuthenticated(() =>
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
+            try
+            {
+                var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
+                var plan = PlanCommandHelpers.ReadPlan(planFolder);
 
-            var recs = plan.Recommendations ?? [];
-            var match = recs.FirstOrDefault(r => r.Title.Equals(title, StringComparison.OrdinalIgnoreCase));
-            if (match == null)
-                return $"Error: Recommendation '{title}' not found";
+                var recs = plan.Recommendations ?? [];
+                var match = recs.FirstOrDefault(r => r.Title.Equals(title, StringComparison.OrdinalIgnoreCase));
+                if (match == null)
+                    return $"Error: Recommendation '{title}' not found";
 
-            recs.Remove(match);
-            plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
-            return $"Removed recommendation '{title}'";
-        }
-        catch (Exception ex)
-        {
-            return $"Error: {ex.Message}";
-        }
+                recs.Remove(match);
+                plan.Updated = DateTime.UtcNow;
+                PlanCommandHelpers.WritePlan(planFolder, plan);
+                return $"Removed recommendation '{title}'";
+            }
+            catch (Exception ex)
+            {
+                return $"Error: {ex.Message}";
+            }
+        });
     }
 
     [McpServerTool(Name = "tendril_plan_rec_list"), Description("List recommendations on a plan")]
@@ -492,32 +492,32 @@ public sealed class PlanTools(McpAuthenticationService authService)
         [Description("Plan ID")] string planId,
         [Description("Filter by state: Pending, Accepted, Declined (optional)")] string? state = null)
     {
-        if (!authService.ValidateEnvironmentToken())
-            return "Error: Authentication failed. Access denied.";
-
-        try
+        return ExecuteAuthenticated(() =>
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
-            var recs = plan.Recommendations ?? [];
+            try
+            {
+                var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
+                var plan = PlanCommandHelpers.ReadPlan(planFolder);
+                var recs = plan.Recommendations ?? [];
 
-            if (!string.IsNullOrEmpty(state))
-                recs = recs.Where(r => r.State.Equals(state, StringComparison.OrdinalIgnoreCase)).ToList();
+                if (!string.IsNullOrEmpty(state))
+                    recs = recs.Where(r => r.State.Equals(state, StringComparison.OrdinalIgnoreCase)).ToList();
 
-            if (recs.Count == 0)
-                return "No recommendations found.";
+                if (recs.Count == 0)
+                    return "No recommendations found.";
 
-            var sb = new StringBuilder();
-            sb.AppendLine($"Found {recs.Count} recommendation(s):");
-            foreach (var rec in recs)
-                sb.AppendLine($"- {rec.Title} | State: {rec.State} | Impact: {rec.Impact ?? "-"} | Risk: {rec.Risk ?? "-"}");
+                var sb = new StringBuilder();
+                sb.AppendLine($"Found {recs.Count} recommendation(s):");
+                foreach (var rec in recs)
+                    sb.AppendLine($"- {rec.Title} | State: {rec.State} | Impact: {rec.Impact ?? "-"} | Risk: {rec.Risk ?? "-"}");
 
-            return sb.ToString();
-        }
-        catch (Exception ex)
-        {
-            return $"Error: {ex.Message}";
-        }
+                return sb.ToString();
+            }
+            catch (Exception ex)
+            {
+                return $"Error: {ex.Message}";
+            }
+        });
     }
 
     private static string GetPlanField(PlanYaml plan, string planFolder, string field)
