@@ -1200,7 +1200,7 @@ public class PlanDatabaseServiceTests : IDisposable
     }
 
     [Fact]
-    public void ConcurrentOperations_DoNotDeadlock()
+    public async Task ConcurrentOperations_DoNotDeadlock()
     {
         // Setup: Insert initial plans
         _db.UpsertPlan(CreateTestPlan(1500, "Plan A"));
@@ -1215,7 +1215,8 @@ public class PlanDatabaseServiceTests : IDisposable
         }
 
         // Verify: All operations complete without deadlock (5 second timeout)
-        var allCompleted = Task.WaitAll(tasks.ToArray(), TimeSpan.FromSeconds(5));
-        Assert.True(allCompleted, "Operations deadlocked");
+        var allCompletedTask = Task.WhenAll(tasks);
+        var completedInTime = await Task.WhenAny(allCompletedTask, Task.Delay(TimeSpan.FromSeconds(5))) == allCompletedTask;
+        Assert.True(completedInTime, "Operations deadlocked");
     }
 }
