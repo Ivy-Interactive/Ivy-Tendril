@@ -63,11 +63,10 @@ Patterns observed from past PlanEvaluator runs and debugging sessions.
 ## CLI / Shim Failures
 
 ### Bash Shim Broken Quotes (Fixed 2026-04-26)
-- **Symptom**: Every `tendril` CLI call fails with `unexpected EOF while looking for matching '"'`. Agent falls back to PowerShell tools (`Update-PlanYaml.ps1`) for everything.
-- **Where to look**: Check JSONL for repeated bash errors mentioning the tendril command. Look for the agent switching from CLI to PowerShell fallbacks mid-session.
+- **Symptom**: Every `tendril` CLI call fails with `unexpected EOF while looking for matching '"'`. The entire execution should fail since there is no fallback — the CLI is required.
+- **Where to look**: Check JSONL for repeated bash errors mentioning the tendril command.
 - **Root cause**: The bash shim at `/tmp/tendril-shim/tendril` was generated with Windows backslash paths in double quotes. A trailing `\"` was interpreted as an escaped quote by bash.
 - **Fix area**: `Services/JobLauncher.cs` — shim generation. Bash shim now uses single quotes and forward slashes.
-- **Cascading effect**: When the CLI breaks, the agent uses `Update-PlanYaml.ps1` directly, which previously had no guardrails against self-certifying delegated verifications. This was the root cause of the 03534 self-certification incident.
 
 ### CLI Process File Lock
 - **Symptom**: `dotnet run --project` fails because another process holds a lock on the output directory
@@ -80,9 +79,9 @@ Patterns observed from past PlanEvaluator runs and debugging sessions.
 ### Delegated Verification Self-Certification (Fixed 2026-04-26)
 - **Symptom**: A verification that has its own dedicated promptware (e.g., `IvyFrameworkVerification`) is marked Pass by the ExecutePlan agent without actually running the separate promptware. The verification report contains only a code review, not actual test execution.
 - **Where to look**: Check `verification/{Name}.md` — does it show actual test execution or just a code review? Cross-reference with config.yaml promptwares section.
-- **Root cause**: When the tendril CLI was broken, the agent wrote the verification report manually and called `Update-PlanYaml.ps1 -SetVerification Name=Pass`. There was no enforcement preventing this.
-- **Detection**: If a verification name matches a directory under `Promptwares/`, it's delegated and should NOT be self-certified. The `Update-PlanYaml.ps1` script now blocks this.
-- **Fix area**: `Promptwares/ExecutePlan/Program.md` (instruction-level) + `Promptwares/ExecutePlan/Tools/Update-PlanYaml.ps1` (code-level enforcement)
+- **Root cause**: When the tendril CLI was broken, the agent wrote the verification report manually and bypassed the CLI to update plan.yaml directly. The fallback tool (`Update-PlanYaml.ps1`) has since been removed — the CLI is now the only path.
+- **Detection**: If a verification name matches a directory under `Promptwares/`, it's delegated and should NOT be self-certified.
+- **Fix area**: `Promptwares/ExecutePlan/Program.md` (instruction-level). The CLI is the only supported mechanism for setting verification status.
 
 ### Commit Hash Display Mismatch (Fixed 2026-04-26)
 - **Symptom**: All commits show "Potentially corrupted commits" in the UI with no messages or file counts, even though the commits exist.

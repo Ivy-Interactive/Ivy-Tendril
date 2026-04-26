@@ -85,9 +85,9 @@ Verifications come in two forms:
 - Examples: `IvyFrameworkVerification` (creates a sample app, runs Playwright tests)
 
 ### How to detect delegation
-Check if a directory exists at `Promptwares/{VerificationName}/` — if it does, it's delegated. This is enforced in:
-- `Update-PlanYaml.ps1` — blocks `-SetVerification Name=Pass` when a matching promptware directory exists
-- `Promptwares/ExecutePlan/Program.md` — instructs the agent to check config.yaml's promptwares section
+Check if a directory exists at `Promptwares/{VerificationName}/` — if it does, it's delegated. This is enforced by:
+- `Promptwares/ExecutePlan/Program.md` — instructs the agent that delegated verifications must be run via `tendril promptware <Name>` and cannot be self-certified
+- The tendril CLI itself — the only supported path for setting verification status
 
 ### Self-certification red flags
 When debugging, if you see a delegated verification marked Pass:
