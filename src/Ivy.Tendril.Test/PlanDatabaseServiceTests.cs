@@ -1198,4 +1198,24 @@ public class PlanDatabaseServiceTests : IDisposable
         var frameworkCount = stats.ProjectCounts.FirstOrDefault(pc => pc.Project == "Framework");
         Assert.Null(frameworkCount); // Framework has no plans in 7-day window
     }
+
+    [Fact]
+    public void ConcurrentOperations_DoNotDeadlock()
+    {
+        // Setup: Insert initial plans
+        _db.UpsertPlan(CreateTestPlan(1500, "Plan A"));
+        _db.UpsertPlan(CreateTestPlan(1501, "Plan B"));
+
+        // Execute: Run 100 concurrent read/write operations
+        var tasks = new List<Task>();
+        for (int i = 0; i < 50; i++)
+        {
+            tasks.Add(Task.Run(() => _db.GetPlans()));
+            tasks.Add(Task.Run(() => _db.UpdatePlanState(1500, PlanStatus.Building)));
+        }
+
+        // Verify: All operations complete without deadlock (5 second timeout)
+        var allCompleted = Task.WaitAll(tasks.ToArray(), TimeSpan.FromSeconds(5));
+        Assert.True(allCompleted, "Operations deadlocked");
+    }
 }
