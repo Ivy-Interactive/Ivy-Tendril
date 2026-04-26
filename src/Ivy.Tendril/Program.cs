@@ -225,9 +225,25 @@ public class Program
             e.SetObserved();
         };
 
+        IServiceProvider? serviceProvider = null;
+
         AppDomain.CurrentDomain.ProcessExit += (_, _) =>
         {
             CrashLog.Write($"[{DateTime.UtcNow:O}] ProcessExit event fired (PID {Environment.ProcessId}) | {GetMemoryStats()}");
+
+            // Clean up tracked temp files
+            if (serviceProvider != null)
+            {
+                try
+                {
+                    var configService = serviceProvider.GetService<ConfigService>();
+                    configService?.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    CrashLog.Write($"[{DateTime.UtcNow:O}] Failed to dispose ConfigService: {ex}");
+                }
+            }
         };
 
         // Periodic memory watchdog — logs a warning when working set exceeds 1 GB
@@ -255,6 +271,7 @@ public class Program
         }
 
         var server = TendrilServer.Create(filteredArgs);
+        serviceProvider = server.Services;
 
         if (useDesktop)
         {
