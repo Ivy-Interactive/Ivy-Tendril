@@ -6,6 +6,7 @@ using Ivy.Helpers;
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Services.Agents;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using YamlDotNet.Serialization;
@@ -44,13 +45,13 @@ public class JobService : IJobService
 
     private static readonly Dictionary<string, string> ScriptPaths = new()
     {
-        ["MakePlan"] = Path.Combine(PromptsRoot, "MakePlan", "MakePlan.ps1"),
+        ["CreatePlan"] = Path.Combine(PromptsRoot, "CreatePlan", "CreatePlan.ps1"),
         ["UpdatePlan"] = Path.Combine(PromptsRoot, "UpdatePlan", "UpdatePlan.ps1"),
         ["SplitPlan"] = Path.Combine(PromptsRoot, "SplitPlan", "SplitPlan.ps1"),
         ["ExpandPlan"] = Path.Combine(PromptsRoot, "ExpandPlan", "ExpandPlan.ps1"),
         ["ExecutePlan"] = Path.Combine(PromptsRoot, "ExecutePlan", "ExecutePlan.ps1"),
         ["IvyFrameworkVerification"] = Path.Combine(PromptsRoot, "IvyFrameworkVerification", "IvyFrameworkVerification.ps1"),
-        ["MakePr"] = Path.Combine(PromptsRoot, "MakePr", "MakePr.ps1"),
+        ["CreatePr"] = Path.Combine(PromptsRoot, "CreatePr", "CreatePr.ps1"),
         ["CreateIssue"] = Path.Combine(PromptsRoot, "CreateIssue", "CreateIssue.ps1")
     };
 
@@ -200,9 +201,9 @@ public class JobService : IJobService
             SetPlanState(job, "Completed");
             RetryBlockedDependents(job.Args.Length > 0 ? job.Args[0] : "");
         }
-        else if (isSuccess && job.Type == "MakePlan")
+        else if (isSuccess && job.Type == "CreatePlan")
         {
-            VerifyMakePlanResult(job);
+            VerifyCreatePlanResult(job);
             if (job.Status == JobStatus.Completed)
             {
                 var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
@@ -219,7 +220,7 @@ public class JobService : IJobService
             }
         }
 
-        if (isSuccess && job.Type == "MakePr")
+        if (isSuccess && job.Type == "CreatePr")
         {
             _telemetryService?.TrackPrCreated(new PrCreatedContext(
                 job.DurationSeconds));
@@ -291,7 +292,7 @@ public class JobService : IJobService
         RaiseJobsStructureChanged();
 
         // After successful completion of jobs that may unblock dependencies
-        if (isSuccess && job.Type is "ExecutePlan" or "MakePr") RetryBlockedJobs();
+        if (isSuccess && job.Type is "ExecutePlan" or "CreatePr") RetryBlockedJobs();
 
         // Try to start queued jobs now that a slot is free
         ProcessJobQueue();
@@ -419,13 +420,13 @@ public class JobService : IJobService
     }
 
     /// <summary>
-    ///     Checks whether the given inbox file path is already tracked by a running MakePlan job.
+    ///     Checks whether the given inbox file path is already tracked by a running CreatePlan job.
     ///     Used by InboxWatcherService to avoid re-processing files.
     /// </summary>
     public bool IsInboxFileTracked(string filePath)
     {
         return _jobs.Values.Any(j =>
-            j.Type == "MakePlan" &&
+            j.Type == "CreatePlan" &&
             j.Status == JobStatus.Running &&
             j.InboxFile != null &&
             j.InboxFile.Equals(filePath, StringComparison.OrdinalIgnoreCase));
@@ -517,10 +518,10 @@ public class JobService : IJobService
         var planFile = "";
         var project = "Auto";
 
-        // For MakePlan: args are named params like -Description "..." -Project "..."
+        // For CreatePlan: args are named params like -Description "..." -Project "..."
         // For others: args[0] is the plan folder path
         var priority = 0;
-        if (type == "MakePlan")
+        if (type == "CreatePlan")
         {
             planFile = GetNamedArg(args, "-Description") is { Length: > 0 } desc
                 ? desc.Length > 50 ? desc[..50] + "..." : desc
@@ -557,17 +558,17 @@ public class JobService : IJobService
             Priority = priority
         };
 
-        // For MakePlan jobs: track the inbox file for crash recovery
-        if (type == "MakePlan")
+        // For CreatePlan jobs: track the inbox file for crash recovery
+        if (type == "CreatePlan")
         {
             if (inboxFilePath != null)
                 // Inbox-originated job — file already renamed to .processing by InboxWatcherService
                 job.InboxFile = inboxFilePath;
             else if (_inboxPath != null)
-                // Manual MakePlan — write a .processing inbox file as a write-ahead log
+                // Manual CreatePlan — write a .processing inbox file as a write-ahead log
                 try
                 {
-                    Directory.CreateDirectory(_inboxPath);
+                    FileHelper.EnsureDirectory(_inboxPath);
                     var description = GetNamedArg(args, "-Description") ?? "New Plan";
                     var inboxProject = GetNamedArg(args, "-Project") ?? "Auto";
                     var pendingFile = Path.Combine(_inboxPath, $"pending-{id}.md.processing");
@@ -678,44 +679,50 @@ public class JobService : IJobService
         job.StatusMessage = null;
 
         // Run before-hooks
-        var planFolderForHooks = type != "MakePlan" && args.Length > 0 ? args[0] : "";
+        var planFolderForHooks = type != "CreatePlan" && args.Length > 0 ? args[0] : "";
         RunHooks("before", type, planFolderForHooks, job.Project, job);
 
-        // Launch process
-        var processArgs = new List<string> { "-NoProfile", "-NonInteractive", "-File", scriptPath };
-        processArgs.AddRange(args);
-
-        var workingDirectory = Path.GetFullPath(
-            Path.Combine(System.AppContext.BaseDirectory, "..", "..", ".."));
-
-        var psi = new ProcessStartInfo
-        {
-            FileName = "pwsh",
-            WorkingDirectory = workingDirectory,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            RedirectStandardInput = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8
-        };
         // Generate session ID for cost tracking — passed to child process so both sides share the same ID
         job.SessionId = Guid.NewGuid().ToString();
 
-        psi.Environment["TENDRIL_JOB_ID"] = id;
-        psi.Environment["TENDRIL_URL"] = Environment.GetEnvironmentVariable("TENDRIL_URL") ?? "https://localhost:5010";
-        psi.Environment["TENDRIL_SHARED"] = SharedRoot;
-        psi.Environment["TENDRIL_SESSION_ID"] = job.SessionId;
-        if (_configService != null)
-            psi.Environment["TENDRIL_CONFIG"] = _configService.ConfigPath;
+        // Try agent-direct launch (new path: Program.md exists, no .ps1 needed)
+        var psi = TryBuildAgentProcessStart(job);
 
-        // Force non-interactive mode for Claude Code CLI to prevent TTY detection issues
-        psi.Environment["CI"] = "true";
-        psi.Environment["TERM"] = "dumb";
+        if (psi == null)
+        {
+            // Legacy path: launch via pwsh script
+            var processArgs = new List<string> { "-NoProfile", "-NonInteractive", "-File", scriptPath };
+            processArgs.AddRange(args);
 
-        foreach (var arg in processArgs)
-            psi.ArgumentList.Add(arg);
+            var workingDirectory = Path.GetFullPath(
+                Path.Combine(System.AppContext.BaseDirectory, "..", "..", ".."));
+
+            psi = new ProcessStartInfo
+            {
+                FileName = "pwsh",
+                WorkingDirectory = workingDirectory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                RedirectStandardInput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8
+            };
+
+            psi.Environment["TENDRIL_JOB_ID"] = id;
+            psi.Environment["TENDRIL_URL"] = Environment.GetEnvironmentVariable("TENDRIL_URL") ?? "https://localhost:5010";
+            psi.Environment["TENDRIL_SHARED"] = SharedRoot;
+            psi.Environment["TENDRIL_SESSION_ID"] = job.SessionId;
+            if (_configService != null)
+                psi.Environment["TENDRIL_CONFIG"] = _configService.ConfigPath;
+
+            psi.Environment["CI"] = "true";
+            psi.Environment["TERM"] = "dumb";
+
+            foreach (var arg in processArgs)
+                psi.ArgumentList.Add(arg);
+        }
 
         var process = new Process { StartInfo = psi };
         process.OutputDataReceived += (_, e) =>
@@ -749,7 +756,21 @@ public class JobService : IJobService
             }
         };
 
-        process.Start();
+        try
+        {
+            process.Start();
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            _logger.LogError(ex, "Job {JobId}: Failed to start process '{FileName}'", id, psi.FileName);
+            job.Status = JobStatus.Failed;
+            job.StatusMessage = $"Agent binary not found: {psi.FileName}";
+            job.CompletedAt = DateTime.UtcNow;
+            _jobSlotSemaphore.Release();
+            RaiseJobsStructureChanged();
+            return;
+        }
+
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
         job.Process = process;
@@ -802,6 +823,166 @@ public class JobService : IJobService
         if (_staleOutputTimeout > TimeSpan.Zero) _ = RunStaleOutputWatchdog(id, cts);
 
         RaiseJobsStructureChanged();
+    }
+
+    private ProcessStartInfo? TryBuildAgentProcessStart(JobItem job)
+    {
+        if (_configService == null) return null;
+
+        var programFolder = Path.Combine(PromptsRoot, job.Type);
+        var programMd = Path.Combine(programFolder, "Program.md");
+
+        // Only use agent-direct if Program.md exists AND no .ps1 script is present
+        if (!File.Exists(programMd)) return null;
+        var scriptFile = Path.Combine(programFolder, $"{job.Type}.ps1");
+        if (File.Exists(scriptFile)) return null;
+
+        var settings = _configService.Settings;
+        string? profileOverride = null;
+
+        // Build firmware values
+        var values = new Dictionary<string, string>
+        {
+            ["ClaudeSessionId"] = job.SessionId ?? ""
+        };
+
+        var planFolder = "";
+        PlanYaml? planYaml = null;
+
+        if (job.Type == "CreatePlan")
+        {
+            // CreatePlan: Args is the description text, not raw parameters
+            var description = GetNamedArg(job.Args, "-Description") ?? string.Join(" ", job.Args);
+            values["Args"] = description;
+            values["PlansDirectory"] = _configService.PlanFolder;
+        }
+        else
+        {
+            // Plan-based jobs: first arg is the plan folder path
+            planFolder = job.Args.Length > 0 ? job.Args[0] : "";
+            values["Args"] = planFolder;
+
+            if (!string.IsNullOrEmpty(planFolder) && Directory.Exists(planFolder))
+            {
+                var folderName = Path.GetFileName(planFolder);
+                var dashIdx = folderName.IndexOf('-');
+                if (dashIdx > 0) values["PlanId"] = folderName[..dashIdx];
+                values["PlanFolder"] = planFolder;
+                values["PlansDirectory"] = Path.GetDirectoryName(planFolder) ?? "";
+
+                planYaml = ReadPlanYaml(planFolder);
+
+                // ExecutePlan: use plan's executionProfile as profile override
+                if (job.Type == "ExecutePlan" && planYaml != null &&
+                    !string.IsNullOrEmpty(planYaml.ExecutionProfile))
+                {
+                    profileOverride = planYaml.ExecutionProfile;
+                }
+
+                // ExecutePlan/CreatePr: build RepoConfigs YAML for firmware
+                if ((job.Type == "ExecutePlan" || job.Type == "CreatePr") && planYaml != null)
+                {
+                    var repoConfigs = BuildRepoConfigsYaml(planYaml, job.Project);
+                    if (!string.IsNullOrEmpty(repoConfigs))
+                        values["RepoConfigs"] = repoConfigs;
+                }
+            }
+        }
+
+        values["Project"] = job.Project;
+
+        var resolution = AgentProviderFactory.Resolve(settings, job.Type, profileOverride);
+
+        // Resolve working directory
+        var workDir = programFolder;
+        if (!string.IsNullOrEmpty(job.Project) && job.Project != "Auto")
+        {
+            var projectConfig = _configService.GetProject(job.Project);
+            if (projectConfig?.Repos.Count > 0)
+            {
+                var repoPath = Environment.ExpandEnvironmentVariables(projectConfig.Repos[0].Path);
+                if (Directory.Exists(repoPath)) workDir = repoPath;
+            }
+        }
+
+        // Prepare firmware + Program.md
+        var logFile = FirmwareCompiler.GetNextLogFile(programFolder);
+        var sharedDocs = new List<(string Name, string Content)>();
+
+        var plansMdPath = Path.Combine(SharedRoot, "Plans.md");
+        if (File.Exists(plansMdPath))
+            sharedDocs.Add(("Plans", File.ReadAllText(plansMdPath)));
+
+        var context = new FirmwareContext(programFolder, logFile, values, sharedDocs);
+        var prompt = FirmwareCompiler.Compile(context);
+
+        // Build agent invocation
+        var invocation = new AgentInvocation(
+            PromptContent: prompt,
+            WorkingDirectory: workDir,
+            Model: resolution.Model,
+            Effort: resolution.Effort,
+            SessionId: job.SessionId ?? "",
+            AllowedTools: resolution.AllowedTools,
+            ExtraArgs: resolution.ExtraArgs);
+
+        var psi = resolution.Provider.BuildProcessStart(invocation);
+
+        // Set environment for Tendril CLI access from within the agent
+        psi.Environment["TENDRIL_JOB_ID"] = job.Id;
+        psi.Environment["TENDRIL_URL"] = Environment.GetEnvironmentVariable("TENDRIL_URL") ?? "https://localhost:5010";
+        psi.Environment["TENDRIL_SESSION_ID"] = job.SessionId;
+        var tendrilHome = _configService.TendrilHome;
+        if (!string.IsNullOrEmpty(tendrilHome))
+            psi.Environment["TENDRIL_HOME"] = tendrilHome;
+        psi.Environment["TENDRIL_CONFIG"] = _configService.ConfigPath;
+
+        _logger.LogInformation(
+            "Job {JobId}: Agent-direct launch ({Provider}, model={Model}, effort={Effort})",
+            job.Id, resolution.Provider.Name, resolution.Model, resolution.Effort);
+
+        return psi;
+    }
+
+    private string? BuildRepoConfigsYaml(PlanYaml plan, string project)
+    {
+        if (plan.Repos.Count == 0) return null;
+
+        var lines = new List<string>();
+        foreach (var repoPath in plan.Repos)
+        {
+            var expanded = Environment.ExpandEnvironmentVariables(repoPath);
+            var repoName = Path.GetFileName(expanded);
+
+            // Get repo-specific config from project settings
+            string baseBranch = "main";
+            string syncStrategy = "fetch";
+            string prRule = "default";
+
+            if (_configService != null)
+            {
+                var projectConfig = _configService.GetProject(project);
+                if (projectConfig != null)
+                {
+                    var repoRef = projectConfig.Repos.FirstOrDefault(r =>
+                        Path.GetFileName(Environment.ExpandEnvironmentVariables(r.Path))
+                            .Equals(repoName, StringComparison.OrdinalIgnoreCase));
+                    if (repoRef != null)
+                    {
+                        baseBranch = repoRef.BaseBranch ?? "main";
+                        syncStrategy = repoRef.SyncStrategy;
+                        prRule = repoRef.PrRule;
+                    }
+                }
+            }
+
+            lines.Add($"- path: {expanded}");
+            lines.Add($"  baseBranch: {baseBranch}");
+            lines.Add($"  syncStrategy: {syncStrategy}");
+            lines.Add($"  prRule: {prRule}");
+        }
+
+        return string.Join("\n", lines);
     }
 
     internal void RunHooks(string when, string jobType, string planFolder, string project, JobItem job)
@@ -1028,8 +1209,8 @@ public class JobService : IJobService
         });
         if (apiError != null) return ParseClaudeApiError(apiError);
 
-        // 3. Check for MakePlan-specific failures and failure artifacts
-        if (jobType == "MakePlan")
+        // 3. Check for CreatePlan-specific failures and failure artifacts
+        if (jobType == "CreatePlan")
         {
             var makePlanError = FindPattern(outputLines, new[] {
                 @"ERROR: Plan",
@@ -1044,12 +1225,12 @@ public class JobService : IJobService
             if (failureArtifactMessage != null) return failureArtifactMessage;
         }
 
-        // 4. Check for validation/assertion failures (from MakePlan/ExecutePlan)
+        // 4. Check for validation/assertion failures (from CreatePlan/ExecutePlan)
         var validationError = FindPattern(outputLines, new[] {
             @"validation\s+failed",
             @"assertion\s+failed",
             @"Repository path does not exist",
-            @"\[stderr\].*ERROR:",
+            @"\[stderr\].*(?-i)ERROR:",
         });
         if (validationError != null) return validationError;
 
@@ -1186,7 +1367,12 @@ public class JobService : IJobService
         // Collapse multiple consecutive spaces into one
         text = Regex.Replace(text, @" {2,}", " ");
 
-        return text.Trim();
+        text = text.Trim();
+
+        if (text.Length > 200)
+            text = text[..200] + "...";
+
+        return text;
     }
 
     internal static string? ReadPlanYamlRaw(string planFolder)
@@ -1264,9 +1450,13 @@ public class JobService : IJobService
             {
                 var hasIncomplete = planYaml.Verifications?
                     .Any(v => v.Status is "Pending" or "Fail") ?? false;
-                var targetState = hasIncomplete ? "Failed" : "ReadyForReview";
+                var targetState = hasIncomplete ? PlanStatus.Failed : PlanStatus.ReadyForReview;
 
-                SetPlanStateByFolder(planFolder, targetState);
+                var folderName = Path.GetFileName(planFolder);
+                if (_planReaderService != null)
+                    _planReaderService.TransitionState(folderName, targetState);
+                else
+                    SetPlanStateByFolder(planFolder, targetState.ToString());
             }
         }
         catch
@@ -1280,7 +1470,10 @@ public class JobService : IJobService
         try
         {
             var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
-            SetPlanStateByFolder(planFolder, state);
+            if (_planReaderService != null && Enum.TryParse<PlanStatus>(state, true, out var status))
+                _planReaderService.TransitionState(Path.GetFileName(planFolder), status);
+            else
+                SetPlanStateByFolder(planFolder, state);
         }
         catch
         {
@@ -1288,7 +1481,7 @@ public class JobService : IJobService
         }
     }
 
-    private void VerifyMakePlanResult(JobItem job)
+    private void VerifyCreatePlanResult(JobItem job)
     {
         try
         {
@@ -1308,7 +1501,7 @@ public class JobService : IJobService
             {
                 // Agent exited 0 but didn't create a plan or detect a duplicate — flag it
                 job.EnqueueOutput(
-                    "[Tendril] WARNING: MakePlan completed but no plan folder or trash entry was found.");
+                    "[Tendril] WARNING: CreatePlan completed but no plan folder or trash entry was found.");
                 job.Status = JobStatus.Failed;
 
                 // Check for failure artifact to provide better diagnostics
@@ -1326,7 +1519,7 @@ public class JobService : IJobService
     {
         try
         {
-            if (job.Type is "MakePlan" or "MakePr" or "CreateIssue") return;
+            if (job.Type is "CreatePlan" or "CreatePr" or "CreateIssue") return;
 
             var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
             var newState = job.Type == "ExecutePlan" ? "Failed" : "Draft";
@@ -1508,9 +1701,9 @@ public class JobService : IJobService
         if (_planReaderService == null || string.IsNullOrEmpty(job.PlanFile))
             return;
 
-        // MakePlan jobs use the description as PlanFile (no folder exists yet) —
+        // CreatePlan jobs use the description as PlanFile (no folder exists yet) —
         // the agent writes its own logs inside the properly-named plan folder.
-        if (job.Type == "MakePlan")
+        if (job.Type == "CreatePlan")
             return;
 
         try
@@ -1530,23 +1723,23 @@ public class JobService : IJobService
 
             _planReaderService.AddLog(job.PlanFile, job.Type, logContent);
 
-            // Persist raw output for failed/timeout jobs (INCLUDING MakePlan)
+            // Persist raw output for failed/timeout jobs (INCLUDING CreatePlan)
             if (job.Status is JobStatus.Failed or JobStatus.Timeout && job.OutputLines.Count > 0)
             {
                 var planFolder = job.Args.Length > 0 ? job.Args[0] : null;
 
-                // For MakePlan jobs without a plan folder yet, use TENDRIL_HOME/Logs
+                // For CreatePlan jobs without a plan folder yet, use TENDRIL_HOME/Logs
                 if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder))
                 {
                     var logRoot = Path.Combine(
                         Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? ".",
                         "Logs", "Jobs");
-                    Directory.CreateDirectory(logRoot);
+                    FileHelper.EnsureDirectory(logRoot);
                     planFolder = logRoot;
                 }
 
                 var logsDir = Path.Combine(planFolder, "logs");
-                Directory.CreateDirectory(logsDir);
+                FileHelper.EnsureDirectory(logsDir);
                 var outputFile = Path.Combine(logsDir, $"{job.Type}-{job.Id}.output.log");
                 File.WriteAllLines(outputFile, job.OutputLines);
 

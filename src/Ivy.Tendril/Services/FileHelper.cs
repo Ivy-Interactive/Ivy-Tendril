@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text.RegularExpressions;
 
 namespace Ivy.Tendril.Services;
@@ -57,7 +59,7 @@ internal static class FileHelper
                 using var reader = new StreamReader(stream);
                 return reader.ReadToEnd();
             }
-            catch (IOException) when (attempt < MaxRetries)
+            catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < MaxRetries)
             {
                 Thread.Sleep(RetryDelaysMs[attempt]);
             }
@@ -75,7 +77,7 @@ internal static class FileHelper
                     lines.Add(line);
                 return lines.ToArray();
             }
-            catch (IOException) when (attempt < MaxRetries)
+            catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < MaxRetries)
             {
                 Thread.Sleep(RetryDelaysMs[attempt]);
             }
@@ -83,6 +85,7 @@ internal static class FileHelper
 
     public static void WriteAllText(string path, string contents)
     {
+        ClearReadOnly(path);
         for (var attempt = 0; ; attempt++)
             try
             {
@@ -90,6 +93,11 @@ internal static class FileHelper
                 using var writer = new StreamWriter(stream);
                 writer.Write(contents);
                 return;
+            }
+            catch (UnauthorizedAccessException) when (attempt < MaxRetries)
+            {
+                if (attempt == 0) TryGrantCurrentUserAccess(path);
+                Thread.Sleep(RetryDelaysMs[attempt]);
             }
             catch (IOException) when (attempt < MaxRetries)
             {
@@ -110,7 +118,7 @@ internal static class FileHelper
                     return await reader.ReadToEndAsync().ConfigureAwait(false);
                 }
             }
-            catch (IOException) when (attempt < MaxRetries)
+            catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < MaxRetries)
             {
                 await Task.Delay(RetryDelaysMs[attempt]).ConfigureAwait(false);
             }
@@ -118,6 +126,7 @@ internal static class FileHelper
 
     public static async Task WriteAllTextAsync(string path, string contents)
     {
+        ClearReadOnly(path);
         for (var attempt = 0; ; attempt++)
             try
             {
@@ -128,6 +137,11 @@ internal static class FileHelper
                     await writer.WriteAsync(contents).ConfigureAwait(false);
                     return;
                 }
+            }
+            catch (UnauthorizedAccessException) when (attempt < MaxRetries)
+            {
+                if (attempt == 0) TryGrantCurrentUserAccess(path);
+                await Task.Delay(RetryDelaysMs[attempt]).ConfigureAwait(false);
             }
             catch (IOException) when (attempt < MaxRetries)
             {
@@ -148,7 +162,7 @@ internal static class FileHelper
                 stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
                 break;
             }
-            catch (IOException) when (attempt < MaxRetries)
+            catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < MaxRetries)
             {
                 Thread.Sleep(RetryDelaysMs[attempt]);
             }
@@ -163,6 +177,7 @@ internal static class FileHelper
 
     public static void AppendAllText(string path, string contents)
     {
+        ClearReadOnly(path);
         for (var attempt = 0; ; attempt++)
             try
             {
@@ -171,9 +186,83 @@ internal static class FileHelper
                 writer.Write(contents);
                 return;
             }
+            catch (UnauthorizedAccessException) when (attempt < MaxRetries)
+            {
+                if (attempt == 0) TryGrantCurrentUserAccess(path);
+                Thread.Sleep(RetryDelaysMs[attempt]);
+            }
             catch (IOException) when (attempt < MaxRetries)
             {
                 Thread.Sleep(RetryDelaysMs[attempt]);
             }
+    }
+
+    private static void ClearReadOnly(string path)
+    {
+        if (!File.Exists(path)) return;
+        var attrs = File.GetAttributes(path);
+        if ((attrs & FileAttributes.ReadOnly) != 0)
+            File.SetAttributes(path, attrs & ~FileAttributes.ReadOnly);
+    }
+
+    /// <summary>
+    ///     Creates a directory and ensures the current user has write access.
+    ///     Handles the case where an existing directory was created by an elevated process.
+    /// </summary>
+    public static void EnsureDirectory(string path)
+    {
+        Directory.CreateDirectory(path);
+        if (!OperatingSystem.IsWindows()) return;
+        try
+        {
+            var testFile = Path.Combine(path, ".tendril-write-test");
+            using (File.Create(testFile)) { }
+            File.Delete(testFile);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            TryGrantCurrentUserAccess(path);
+        }
+    }
+
+    /// <summary>
+    ///     Attempts to grant the current user full control on a file or directory.
+    ///     This handles the case where a plan folder was created by an elevated process
+    ///     (e.g. Tendril running as Administrator) and the current non-elevated user
+    ///     only has read access via BUILTIN\Users.
+    /// </summary>
+    private static void TryGrantCurrentUserAccess(string path)
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        try
+        {
+            var identity = WindowsIdentity.GetCurrent();
+            var user = identity.User;
+            if (user == null) return;
+
+            if (File.Exists(path))
+            {
+                var info = new FileInfo(path);
+                var security = info.GetAccessControl();
+                security.AddAccessRule(new FileSystemAccessRule(
+                    user, FileSystemRights.FullControl, AccessControlType.Allow));
+                info.SetAccessControl(security);
+            }
+            else if (Directory.Exists(path))
+            {
+                var info = new DirectoryInfo(path);
+                var security = info.GetAccessControl();
+                security.AddAccessRule(new FileSystemAccessRule(
+                    user, FileSystemRights.FullControl,
+                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                    PropagationFlags.None, AccessControlType.Allow));
+                info.SetAccessControl(security);
+            }
+        }
+        catch
+        {
+            // Best-effort: if we can't fix the ACL (e.g. not owner), the caller will
+            // get the original UnauthorizedAccessException on the next retry.
+        }
     }
 }

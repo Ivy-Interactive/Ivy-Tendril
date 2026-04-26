@@ -644,7 +644,7 @@ promptwares:
     allowedTools:
       - Read
       - Bash
-  MakePlan:
+  CreatePlan:
     profile: balanced
     allowedTools:
       - Read
@@ -660,7 +660,7 @@ promptwares:
             var execute = service.Settings.Promptwares["ExecutePlan"];
             Assert.Equal("deep", execute.Profile);
 
-            var make = service.Settings.Promptwares["MakePlan"];
+            var make = service.Settings.Promptwares["CreatePlan"];
             Assert.Equal("balanced", make.Profile);
         }
         finally

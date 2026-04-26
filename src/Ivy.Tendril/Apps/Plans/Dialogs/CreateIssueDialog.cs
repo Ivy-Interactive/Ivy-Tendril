@@ -114,7 +114,7 @@ public class CreateIssueDialog(
                     labelsError.Set(null);
                     dialogOpen.Set(false);
                 }),
-                new Button("Create Issue").Primary().Disabled(isCreating.Value).OnClick(() =>
+                new Button("Create Issue").Primary().Disabled(isCreating.Value || selectedRepoState.Value is null).OnClick(() =>
                 {
                     if (selectedRepoState.Value is { } repo && !isCreating.Value)
                     {

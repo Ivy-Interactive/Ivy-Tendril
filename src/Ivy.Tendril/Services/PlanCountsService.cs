@@ -2,7 +2,7 @@ using Ivy.Tendril.Apps.Jobs;
 
 namespace Ivy.Tendril.Services;
 
-public record PlanCounts(int Drafts, int ActiveJobs, int Reviews, int Icebox, int Recommendations);
+public record PlanCounts(int Drafts, int ActiveJobs, int Reviews, int Icebox, int Recommendations, int TotalPlans);
 
 public class PlanCountsService : IPlanCountsService
 {
@@ -70,7 +70,8 @@ public class PlanCountsService : IPlanCountsService
             jobs.Count(j => j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Blocked),
             snapshot.ReadyForReview + snapshot.Failed,
             snapshot.Icebox,
-            snapshot.PendingRecommendations
+            snapshot.PendingRecommendations,
+            snapshot.TotalPlans
         );
     }
 }

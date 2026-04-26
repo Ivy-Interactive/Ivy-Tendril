@@ -203,7 +203,8 @@ public class PlanDatabaseService : IPlanDatabaseService
                                   COALESCE(SUM(CASE WHEN State = 'ReadyForReview' THEN 1 ELSE 0 END), 0) AS ReadyForReviewCount,
                                   COALESCE(SUM(CASE WHEN State = 'Failed' THEN 1 ELSE 0 END), 0) AS FailedCount,
                                   COALESCE(SUM(CASE WHEN State = 'Icebox' THEN 1 ELSE 0 END), 0) AS IceboxCount,
-                                  (SELECT COUNT(*) FROM Recommendations WHERE State = 'Pending') AS PendingRecommendationsCount
+                                  (SELECT COUNT(*) FROM Recommendations WHERE State = 'Pending') AS PendingRecommendationsCount,
+                                  COUNT(*) AS TotalPlans
                               FROM Plans
                               """;
 
@@ -215,17 +216,19 @@ public class PlanDatabaseService : IPlanDatabaseService
                 var failedOrdinal = reader.GetOrdinal("FailedCount");
                 var iceboxOrdinal = reader.GetOrdinal("IceboxCount");
                 var pendingRecsOrdinal = reader.GetOrdinal("PendingRecommendationsCount");
+                var totalOrdinal = reader.GetOrdinal("TotalPlans");
 
                 return new PlanReaderService.PlanCountSnapshot(
                     reader.GetInt32(draftOrdinal),
                     reader.GetInt32(readyForReviewOrdinal),
                     reader.GetInt32(failedOrdinal),
                     reader.GetInt32(iceboxOrdinal),
-                    reader.GetInt32(pendingRecsOrdinal)
+                    reader.GetInt32(pendingRecsOrdinal),
+                    reader.GetInt32(totalOrdinal)
                 );
             }
 
-            return new PlanReaderService.PlanCountSnapshot(0, 0, 0, 0, 0);
+            return new PlanReaderService.PlanCountSnapshot(0, 0, 0, 0, 0, 0);
         }
         finally
         {
@@ -859,6 +862,25 @@ public class PlanDatabaseService : IPlanDatabaseService
         finally
         {
             _lock.ExitWriteLock();
+        }
+    }
+
+    public HashSet<int> GetTerminalPlanIds()
+    {
+        _lock.EnterReadLock();
+        try
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = "SELECT Id FROM Plans WHERE State IN ('Completed', 'Skipped')";
+            using var reader = cmd.ExecuteReader();
+            var ids = new HashSet<int>();
+            while (reader.Read())
+                ids.Add(reader.GetInt32(0));
+            return ids;
+        }
+        finally
+        {
+            _lock.ExitReadLock();
         }
     }
 

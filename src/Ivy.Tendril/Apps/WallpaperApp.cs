@@ -23,7 +23,7 @@ public class WallpaperApp : ViewBase
 
         var counts = countsService.Current;
 
-        var hasActivity = counts.Drafts > 0 || counts.ActiveJobs > 0 || counts.Reviews > 0;
+        var hasActivity = counts.TotalPlans > 0;
 
         var heading = hasActivity ? "What are we making next?" : "Welcome to Ivy Tendril";
         var subtitle = hasActivity ? BuildSummary(counts) : "Manage your plans, track jobs, and review pull requests.";
@@ -44,14 +44,14 @@ public class WallpaperApp : ViewBase
         };
 
         if (versionInfo.Value?.HasUpdate == true)
-            elements.Insert(0, new Card(
-                Layout.Horizontal().Gap(2).AlignContent(Align.Center)
-                    | Icons.Info
-                    | (Layout.Vertical().Gap(1)
-                        | Text.Block($"Tendril v{versionInfo.Value.LatestVersion} is available!")
-                        | Text.Muted($"You're running v{versionInfo.Value.CurrentVersion}")
-                        | Text.Muted("Run: tendril --version && dotnet tool update -g Ivy.Tendril"))
-            ));
+            elements.Insert(0, new Box(
+                Callout.Info(
+                    $"**Tendril v{versionInfo.Value.LatestVersion} is available!**\n\n" +
+                    $"You're currently running v{versionInfo.Value.CurrentVersion}.\n\n" +
+                    $"Update with: `tendril --version && dotnet tool update -g Ivy.Tendril`",
+                    "Update Available"
+                )
+            ).Margin(2));
 
         return new Fragment(elements.ToArray());
     }

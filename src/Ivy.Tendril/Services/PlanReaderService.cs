@@ -16,6 +16,10 @@ public class PlanReaderService(
 {
     private static readonly Regex FolderNameRegex = new(@"^(\d{5})-(.+)$", RegexOptions.Compiled);
     private static readonly Regex SafeTitleRegex = new(@"^\d{5}-(.+)", RegexOptions.Compiled);
+    private static readonly Regex StateLineRegex = new(@"(?m)^state:\s*(.+)$", RegexOptions.Compiled);
+
+    private static readonly HashSet<string> TerminalStates = new(StringComparer.OrdinalIgnoreCase)
+        { "Completed", "Skipped" };
     private readonly IConfigService _config = config;
 
     private readonly ILogger<PlanReaderService> _logger = logger;
@@ -60,7 +64,7 @@ public class PlanReaderService(
                 if (!File.Exists(planYamlPath)) continue;
 
                 var yaml = FileHelper.ReadAllText(planYamlPath);
-                var stateMatch = Regex.Match(yaml, @"(?m)^state:\s*(.+)$");
+                var stateMatch = StateLineRegex.Match(yaml);
                 if (!stateMatch.Success) continue;
 
                 var state = stateMatch.Groups[1].Value.Trim();
@@ -94,6 +98,8 @@ public class PlanReaderService(
         {
             if (!Directory.Exists(PlansDirectory)) return;
 
+            var failedFolders = new List<string>();
+
             foreach (var dir in Directory.GetDirectories(PlansDirectory))
                 try
                 {
@@ -101,6 +107,11 @@ public class PlanReaderService(
                     if (!File.Exists(planYamlPath)) continue;
 
                     var yaml = FileHelper.ReadAllText(planYamlPath);
+
+                    var stateMatch = StateLineRegex.Match(yaml);
+                    if (stateMatch.Success && TerminalStates.Contains(stateMatch.Groups[1].Value.Trim()))
+                        continue;
+
                     var repaired = RepairPlanYaml(yaml);
 
                     if (repaired != yaml)
@@ -112,10 +123,14 @@ public class PlanReaderService(
                         _recommendationsCache.Invalidate();
                     }
                 }
-                catch (Exception ex)
+                catch
                 {
-                    _logger.LogWarning(ex, "Failed to repair plan in {Folder}", Path.GetFileName(dir));
+                    failedFolders.Add(Path.GetFileName(dir));
                 }
+
+            if (failedFolders.Count > 0)
+                _logger.LogWarning("Failed to repair {Count} plan(s) due to file access errors: {Folders}",
+                    failedFolders.Count, string.Join(", ", failedFolders));
         }
         catch
         {
@@ -227,7 +242,7 @@ public class PlanReaderService(
         WriteFileInBackground(() =>
         {
             var revisionsDir = Path.Combine(PlansDirectory, folderName, "revisions");
-            Directory.CreateDirectory(revisionsDir);
+            FileHelper.EnsureDirectory(revisionsDir);
 
             var nextNumber = GetNextRevisionNumber(revisionsDir);
             var revisionPath = Path.Combine(revisionsDir, $"{nextNumber:D3}.md");
@@ -298,7 +313,7 @@ public class PlanReaderService(
     public void AddLog(string folderName, string action, string content)
     {
         var logsDir = Path.Combine(PlansDirectory, folderName, "logs");
-        Directory.CreateDirectory(logsDir);
+        FileHelper.EnsureDirectory(logsDir);
 
         var nextNumber = 1;
         var existingLogs = Directory.GetFiles(logsDir, "*.md");
@@ -564,14 +579,16 @@ public class PlanReaderService(
         // Without a backing database, writes need to complete before the next read.
         WriteFile(() =>
         {
-            var recommendationsPath = Path.Combine(PlansDirectory, planFolderName, "artifacts", "recommendations.yaml");
-            if (!File.Exists(recommendationsPath)) return;
+            var planYamlPath = Path.Combine(PlansDirectory, planFolderName, "plan.yaml");
+            if (!File.Exists(planYamlPath)) return;
 
-            var yaml = FileHelper.ReadAllText(recommendationsPath);
-            var items = YamlHelper.Deserializer.Deserialize<List<RecommendationYaml>>(yaml);
-            if (items == null) return;
+            var yaml = FileHelper.ReadAllText(planYamlPath);
+            var plan = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml);
+            if (plan == null) return;
 
-            var item = items.FirstOrDefault(r => r.Title == recommendationTitle);
+            if (plan.Recommendations == null || plan.Recommendations.Count == 0) return;
+
+            var item = plan.Recommendations.FirstOrDefault(r => r.Title == recommendationTitle);
             if (item == null) return;
 
             item.State = newState;
@@ -580,7 +597,7 @@ public class PlanReaderService(
             else
                 item.DeclineReason = null;
 
-            FileHelper.WriteAllText(recommendationsPath, YamlHelper.Serializer.Serialize(items));
+            FileHelper.WriteAllText(planYamlPath, YamlHelper.Serializer.Serialize(plan));
         });
     }
 
@@ -714,6 +731,12 @@ public class PlanReaderService(
             @"(?m)^(\s*)(repos|commits|prs|verifications|relatedPlans|dependsOn):[ \t]*$",
             "$1$2: []");
 
+        // 13. Fix priority field with non-numeric values (e.g. "priority: NiceToHave" should be "priority: 0")
+        repaired = Regex.Replace(
+            repaired,
+            @"(?m)^priority:\s*(?!\d).*$",
+            "priority: 0");
+
         return NormalizePlanYamlStructure(repaired);
     }
 
@@ -724,21 +747,28 @@ public class PlanReaderService(
             "state", "project", "level", "title", "sessionId",
             "repos", "created", "updated", "initialPrompt", "sourceUrl",
             "prs", "commits", "verifications", "relatedPlans", "dependsOn",
-            "priority", "executionProfile"
+            "priority", "executionProfile", "recommendations"
         };
         var listKeys = new HashSet<string>(StringComparer.Ordinal)
         {
-            "repos", "prs", "commits", "verifications", "relatedPlans", "dependsOn"
+            "repos", "prs", "commits", "verifications", "relatedPlans", "dependsOn",
+            "recommendations"
         };
 
         var normalized = yaml.Replace("\r\n", "\n");
         var lines = normalized.Split('\n');
         var output = new List<string>(lines.Length);
         string? currentListKey = null;
-        var inVerificationItem = false;
+        var inStructuredListItem = false;
+        var inListItemBlockScalar = false;
         var inBlockScalar = false;
         var inUnknownKey = false;
         var seenKeys = new HashSet<string>();
+        var structuredListKeys = new Dictionary<string, (string itemStartPattern, string subKeyPattern)>
+        {
+            ["verifications"] = (@"^-\s+name:", @"^(name|status):"),
+            ["recommendations"] = (@"^-\s+title:", @"^(title|description|state|impact|risk|declineReason):")
+        };
 
         static bool IsBlockScalarValue(string value)
         {
@@ -788,7 +818,8 @@ public class PlanReaderService(
 
                 var key = detectedKey;
                 currentListKey = listKeys.Contains(key) ? key : null;
-                inVerificationItem = false;
+                inStructuredListItem = false;
+                inListItemBlockScalar = false;
                 inBlockScalar = false;
                 inUnknownKey = false;
 
@@ -820,21 +851,42 @@ public class PlanReaderService(
 
             if (currentListKey != null)
             {
+                var isStructured = structuredListKeys.TryGetValue(currentListKey, out var patterns);
+
                 if (trimmed.StartsWith("-"))
                 {
-                    if (currentListKey == "verifications" && !Regex.IsMatch(trimmed, @"^-\s+name:"))
+                    if (isStructured && !Regex.IsMatch(trimmed, patterns.itemStartPattern))
                     {
-                        inVerificationItem = false;
+                        inStructuredListItem = false;
+                        inListItemBlockScalar = false;
                         continue;
                     }
 
                     output.Add($"  {trimmed}");
-                    inVerificationItem = currentListKey == "verifications";
+                    inStructuredListItem = isStructured;
+                    inListItemBlockScalar = false;
                 }
-                else if (currentListKey == "verifications" && inVerificationItem)
+                else if (isStructured && inStructuredListItem)
                 {
-                    if (Regex.IsMatch(trimmed, @"^(name|status):"))
+                    if (inListItemBlockScalar)
+                    {
+                        if (Regex.IsMatch(trimmed, patterns.subKeyPattern))
+                        {
+                            inListItemBlockScalar = false;
+                            output.Add($"    {trimmed}");
+                        }
+                        else
+                        {
+                            output.Add($"      {trimmed}");
+                        }
+                    }
+                    else if (Regex.IsMatch(trimmed, patterns.subKeyPattern))
+                    {
                         output.Add($"    {trimmed}");
+                        var subValue = trimmed[(trimmed.IndexOf(':') + 1)..].Trim();
+                        if (IsBlockScalarValue(subValue))
+                            inListItemBlockScalar = true;
+                    }
                 }
                 else
                 {
@@ -843,13 +895,15 @@ public class PlanReaderService(
                     {
                         var key = strayKeyMatch.Groups[1].Value;
                         currentListKey = listKeys.Contains(key) ? key : null;
-                        inVerificationItem = false;
+                        inStructuredListItem = false;
+                        inListItemBlockScalar = false;
                         output.Add(trimmed);
                     }
                     else if (strayKeyMatch.Success)
                     {
                         currentListKey = null;
                         inUnknownKey = true;
+                        inListItemBlockScalar = false;
                     }
                     else
                     {
@@ -1014,14 +1068,21 @@ public class PlanReaderService(
     /// <summary>
     ///     Always reads plans from the file system. Used by the sync service to populate the database.
     /// </summary>
-    internal List<PlanFile> GetPlansFromFileSystem(PlanStatus? statusFilter = null)
+    internal List<PlanFile> GetPlansFromFileSystem(PlanStatus? statusFilter = null, HashSet<int>? skipIds = null)
     {
         try
         {
             var plans = new List<PlanFile>();
 
-            foreach (var (folderPath, _, _) in EnumerateValidPlanFolders())
+            foreach (var (folderPath, folderName, _) in EnumerateValidPlanFolders())
             {
+                if (skipIds != null)
+                {
+                    var match = FolderNameRegex.Match(folderName);
+                    if (match.Success && int.TryParse(match.Groups[1].Value, out var id) && skipIds.Contains(id))
+                        continue;
+                }
+
                 var plan = ParsePlanFolder(folderPath);
                 if (plan == null) continue;
 
@@ -1150,6 +1211,8 @@ public class PlanReaderService(
     /// </summary>
     internal static string ExtractSafeTitle(string planFolderPath)
     {
+        if (string.IsNullOrEmpty(planFolderPath))
+            return "Unknown";
         var folderName = Path.GetFileName(planFolderPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
         var match = SafeTitleRegex.Match(folderName);
         return match.Success ? match.Groups[1].Value : "Unknown";
@@ -1299,18 +1362,11 @@ public class PlanReaderService(
 
         foreach (var (folderPath, folderName, planYamlPath) in EnumerateValidPlanFolders())
         {
-            var recommendationsPath = Path.Combine(folderPath, "artifacts", "recommendations.yaml");
-            if (!File.Exists(recommendationsPath)) continue;
-
             try
             {
                 var planYaml = FileHelper.ReadAllText(planYamlPath);
                 var plan = YamlHelper.Deserializer.Deserialize<PlanYaml>(planYaml);
                 if (plan == null) continue;
-
-                var yaml = FileHelper.ReadAllText(recommendationsPath);
-                var items = YamlHelper.Deserializer.Deserialize<List<RecommendationYaml>>(yaml);
-                if (items == null) continue;
 
                 var match = FolderNameRegex.Match(folderName);
                 var planId = match.Groups[1].Value;
@@ -1318,27 +1374,32 @@ public class PlanReaderService(
                 if (!Enum.TryParse<PlanStatus>(plan.State, true, out var status))
                     status = PlanStatus.Draft;
 
-                foreach (var item in items)
-                    recommendations.Add(new Recommendation(
-                        item.Title,
-                        item.Description,
-                        string.IsNullOrWhiteSpace(item.State) ? "Pending" : item.State,
-                        planId,
-                        plan.Title ?? "",
-                        folderName,
-                        plan.Project ?? "",
-                        plan.Updated,
-                        status,
-                        item.DeclineReason,
-                        item.Impact,
-                        item.Risk
-                    ));
+                var items = plan.Recommendations;
+
+                if (items != null)
+                {
+                    foreach (var item in items)
+                        recommendations.Add(new Recommendation(
+                            item.Title,
+                            item.Description,
+                            string.IsNullOrWhiteSpace(item.State) ? "Pending" : item.State,
+                            planId,
+                            plan.Title ?? "",
+                            folderName,
+                            plan.Project ?? "",
+                            plan.Updated,
+                            status,
+                            item.DeclineReason,
+                            item.Impact,
+                            item.Risk
+                        ));
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(
-                    "Failed to load recommendations from {RecommendationsPath}: {Message}",
-                    recommendationsPath,
+                    "Failed to load recommendations from {PlanFolder}: {Message}",
+                    folderName,
                     ex.Message);
             }
         }
@@ -1348,13 +1409,14 @@ public class PlanReaderService(
 
     private PlanCountSnapshot ComputePlanCountsInternal()
     {
-        int drafts = 0, reviews = 0, failed = 0, icebox = 0, pendingRecs = 0;
+        int drafts = 0, reviews = 0, failed = 0, icebox = 0, pendingRecs = 0, total = 0;
 
         foreach (var (folderPath, _, planYamlPath) in EnumerateValidPlanFolders())
             try
             {
+                total++;
                 var yaml = FileHelper.ReadAllText(planYamlPath);
-                var stateMatch = Regex.Match(yaml, @"(?m)^state:\s*(.+)$");
+                var stateMatch = StateLineRegex.Match(yaml);
                 if (stateMatch.Success)
                 {
                     var state = stateMatch.Groups[1].Value.Trim();
@@ -1368,26 +1430,23 @@ public class PlanReaderService(
                     }
                 }
 
-                var recommendationsPath = Path.Combine(folderPath, "artifacts", "recommendations.yaml");
-                if (File.Exists(recommendationsPath))
-                {
-                    var recYaml = FileHelper.ReadAllText(recommendationsPath);
-                    var items = YamlHelper.Deserializer.Deserialize<List<RecommendationYaml>>(recYaml);
-                    if (items != null)
-                        foreach (var item in items)
-                        {
-                            var state = string.IsNullOrWhiteSpace(item.State) ? "Pending" : item.State;
-                            if (state.Equals("Pending", StringComparison.OrdinalIgnoreCase))
-                                pendingRecs++;
-                        }
-                }
+                var plan = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml);
+                var items = plan?.Recommendations;
+
+                if (items != null)
+                    foreach (var item in items)
+                    {
+                        var state = string.IsNullOrWhiteSpace(item.State) ? "Pending" : item.State;
+                        if (state.Equals("Pending", StringComparison.OrdinalIgnoreCase))
+                            pendingRecs++;
+                    }
             }
             catch
             {
                 // Skip malformed plans
             }
 
-        return new PlanCountSnapshot(drafts, reviews, failed, icebox, pendingRecs);
+        return new PlanCountSnapshot(drafts, reviews, failed, icebox, pendingRecs, total);
     }
 
     /// <summary>
@@ -1457,7 +1516,8 @@ public class PlanReaderService(
         int ReadyForReview,
         int Failed,
         int Icebox,
-        int PendingRecommendations
+        int PendingRecommendations,
+        int TotalPlans
     );
 }
 

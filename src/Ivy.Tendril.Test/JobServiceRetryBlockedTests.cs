@@ -68,13 +68,13 @@ public class JobServiceRetryBlockedTests
         var blockedJob = service.GetJob(blockedId)!;
         blockedJob.Status = JobStatus.Blocked;
 
-        // Create a completing MakePr job to trigger RetryBlockedJobs
-        var completingId = service.CreateTestJob("MakePr", Path.GetTempPath());
+        // Create a completing CreatePr job to trigger RetryBlockedJobs
+        var completingId = service.CreateTestJob("CreatePr", Path.GetTempPath());
 
         var notifications = new List<JobNotification>();
         service.NotificationReady += n => notifications.Add(n);
 
-        // Complete the MakePr job successfully — this should trigger RetryBlockedJobs
+        // Complete the CreatePr job successfully — this should trigger RetryBlockedJobs
         service.CompleteJob(completingId, 0);
 
         // The blocked job should have been removed
@@ -119,12 +119,12 @@ public class JobServiceRetryBlockedTests
         blockedJob.Status = JobStatus.Blocked;
 
         // Create a completing job
-        var completingId = service.CreateTestJob("MakePr", Path.GetTempPath());
+        var completingId = service.CreateTestJob("CreatePr", Path.GetTempPath());
 
         var notifications = new List<JobNotification>();
         service.NotificationReady += n => notifications.Add(n);
 
-        // Complete the MakePr job
+        // Complete the CreatePr job
         service.CompleteJob(completingId, 0);
 
         // The blocked job should still exist and still be blocked
@@ -170,7 +170,7 @@ public class JobServiceRetryBlockedTests
         Assert.True(removed);
 
         // Create a completing job to trigger RetryBlockedJobs
-        var completingId = service.CreateTestJob("MakePr", Path.GetTempPath());
+        var completingId = service.CreateTestJob("CreatePr", Path.GetTempPath());
         service.CompleteJob(completingId, 0);
 
         // Since the blocked job was already removed, no new ExecutePlan job should be created for it
@@ -211,7 +211,7 @@ public class JobServiceRetryBlockedTests
         blockedJob.Status = JobStatus.Blocked;
 
         // Create a completing job to trigger RetryBlockedJobs
-        var completingId = service.CreateTestJob("MakePr", Path.GetTempPath());
+        var completingId = service.CreateTestJob("CreatePr", Path.GetTempPath());
         service.CompleteJob(completingId, 0);
 
         // The blocked job should have been removed (TryRemove succeeds)
@@ -338,7 +338,7 @@ public class JobServiceRetryBlockedTests
 
         public PlanReaderService.PlanCountSnapshot ComputePlanCounts()
         {
-            return new PlanReaderService.PlanCountSnapshot(0, 0, 0, 0, 0);
+            return new PlanReaderService.PlanCountSnapshot(0, 0, 0, 0, 0, 0);
         }
 
         public void UpdateRecommendationState(string planFolderName, string recommendationTitle, string newState,

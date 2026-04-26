@@ -10,11 +10,15 @@ searchHints:
   - states
 ---
 
+<Text Color="Green" Small Bold>Concepts</Text>
+
+
 # Plans
 
 <Ingress>
-Plans are the core unit of work in Tendril. Each plan moves through a rigorous series of states from creation to completion, representing the lifecycle of an AI development task.
+*Plans* are the core unit of work in Tendril. Each plan moves through a rigorous series of states from creation to completion, representing the lifecycle of an AI development task.
 </Ingress>
+
 
 ## Plan States
 
@@ -33,7 +37,7 @@ flowchart LR
     Icebox:::iceboxStyle
     Skipped:::skippedStyle
 
-    Draft -->|MakePlan| Building
+    Draft -->|CreatePlan| Building
     Draft -->|Execute| Executing
     Draft -->|Missing Context| Blocked
     Blocked -->|Resolved| Draft
@@ -66,7 +70,7 @@ flowchart LR
 |-------|-------------|
 | **Draft** | Initial state. The plan has been created/drafted but execution has not started. |
 | **Blocked** | The plan cannot proceed due to missing context, credentials, or user intervention. |
-| **Building** | The `MakePlan` or `ExpandPlan` agent is actively drafting the technical details of the plan. |
+| **Building** | The `CreatePlan` or `ExpandPlan` agent is actively drafting the technical details of the plan. |
 | **Executing** | The `ExecutePlan` agent is actively implementing the plan in a worktree. |
 | **Updating** | The `UpdatePlan` agent is refining an existing, already-executed plan. |
 | **ReadyForReview** | Execution is complete, automated verifications passed. Ready for human review. |
@@ -79,7 +83,7 @@ flowchart LR
 
 Plans can be created via multiple pathways:
 
-1. **Dashboard / Drafts** — Write a description manually in the UI to spawn `MakePlan`.
+1. **Dashboard / Drafts** — Write a description manually in the UI to spawn `CreatePlan`.
 2. **Inbox** — Drop a markdown file into the `Inbox/` folder in `TENDRIL_HOME`.
 3. **Recommendations** — Accept a generative recommendation from the system.
 4. **Duplicate** — Restore an old or discarded plan from the **Trash**.

@@ -11,7 +11,7 @@ This document defines what data Tendril may and may not send to third-party tele
 **Safe to track:**
 - **Counts**: Number of projects, plans, jobs (aggregate totals only)
 - **Durations**: Time taken to complete operations (in seconds)
-- **States/Types**: Enum values, state names, job types (e.g., "MakePlan", "ExecutePlan")
+- **States/Types**: Enum values, state names, job types (e.g., "CreatePlan", "ExecutePlan")
 - **Levels**: Plan levels (e.g., "Bug", "Critical", "NiceToHave")
 - **Versions**: Application version strings
 - **Booleans**: Feature flags, configuration states (e.g., llm_configured: true)

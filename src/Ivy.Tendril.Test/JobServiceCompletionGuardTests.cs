@@ -131,14 +131,14 @@ public class JobServiceCompletionGuardTests
     }
 
     [Fact]
-    public void CompleteJob_MakePlan_UpdatesPlanFileWhenOutputContainsPlanCreated()
+    public void CompleteJob_CreatePlan_UpdatesPlanFileWhenOutputContainsPlanCreated()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"tendril-test-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDir);
         try
         {
             var service = CreateServiceWithPlanReader(tempDir);
-            var id = service.CreateTestJob("MakePlan", "-Description", "Fix login bug", "-Project", "Tendril");
+            var id = service.CreateTestJob("CreatePlan", "-Description", "Fix login bug", "-Project", "Tendril");
 
             var job = service.GetJob(id);
             Assert.NotNull(job);
@@ -158,14 +158,14 @@ public class JobServiceCompletionGuardTests
     }
 
     [Fact]
-    public void CompleteJob_MakePlan_LeavesPlanFileUnchangedOnDuplicate()
+    public void CompleteJob_CreatePlan_LeavesPlanFileUnchangedOnDuplicate()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"tendril-test-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDir);
         try
         {
             var service = CreateServiceWithPlanReader(tempDir);
-            var id = service.CreateTestJob("MakePlan", "-Description", "Fix login bug", "-Project", "Tendril");
+            var id = service.CreateTestJob("CreatePlan", "-Description", "Fix login bug", "-Project", "Tendril");
 
             var job = service.GetJob(id);
             Assert.NotNull(job);
@@ -210,7 +210,7 @@ public class JobServiceCompletionGuardTests
         public List<HourlyTokenBurn> GetHourlyTokenBurn(int days = 7, string? projectFilter = null) => [];
         public List<Recommendation> GetRecommendations() => [];
         public int GetPendingRecommendationsCount() => 0;
-        public PlanReaderService.PlanCountSnapshot ComputePlanCounts() => new(0, 0, 0, 0, 0);
+        public PlanReaderService.PlanCountSnapshot ComputePlanCounts() => new(0, 0, 0, 0, 0, 0);
         public void UpdateRecommendationState(string planFolderName, string recommendationTitle, string newState, string? declineReason = null) { }
         public void InvalidateCaches() { }
         public Task FlushPendingWritesAsync() => Task.CompletedTask;

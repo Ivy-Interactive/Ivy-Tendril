@@ -35,8 +35,13 @@ public class GithubService(IConfigService config) : IGithubService
                 repos.Add(repoConfig);
         }
 
-        _repoCache = repos;
-        return repos;
+        // Deduplicate by FullName (owner/name)
+        _repoCache = repos
+            .GroupBy(r => r.FullName, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .ToList();
+
+        return _repoCache;
     }
 
     public async Task<(List<string> assignees, string? error)> GetAssigneesAsync(string owner, string repo)

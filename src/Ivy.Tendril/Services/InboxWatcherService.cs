@@ -19,7 +19,7 @@ public class InboxWatcherService : IInboxWatcherService
         if (!Directory.Exists(_inboxPath))
             Directory.CreateDirectory(_inboxPath);
 
-        // Recover crashed MakePlan jobs: rename .processing files back to .md
+        // Recover crashed CreatePlan jobs: rename .processing files back to .md
         RecoverProcessingFiles();
 
         ProcessExistingFiles();
@@ -157,7 +157,7 @@ public class InboxWatcherService : IInboxWatcherService
         var args = new List<string> { "-Description", description, "-Project", project };
         if (!string.IsNullOrEmpty(sourcePath))
             args.AddRange(["-SourcePath", sourcePath]);
-        _jobService.StartJob("MakePlan", args.ToArray(), processingPath);
+        _jobService.StartJob("CreatePlan", args.ToArray(), processingPath);
     }
 
     internal static (string project, string description, string? sourcePath) ParseContent(string content)

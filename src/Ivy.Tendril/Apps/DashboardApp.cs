@@ -37,6 +37,20 @@ public class DashboardApp : ViewBase
 
         var stats = planService.GetDashboardData(selectedProject.Value);
 
+        if (stats.TotalCount == 0)
+        {
+            return Layout.Vertical()
+                .Padding(16)
+                .Gap(8)
+                .AlignContent(Align.Center)
+                .Height(Size.Full())
+                | Text.Block("No plans yet")
+                    .Large()
+                    .Color(Colors.Muted)
+                | Text.Block("Create your first plan to get started with Tendril.")
+                    .Color(Colors.Muted);
+        }
+
         // Statistics cards
         var statsRow = Layout.Horizontal().Gap(2).Padding(2)
                        | BuildStatCard(stats.TotalCount.ToString(), "Total Plans")

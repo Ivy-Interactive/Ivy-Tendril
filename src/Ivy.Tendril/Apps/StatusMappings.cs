@@ -56,12 +56,12 @@ internal static class StatusMappings
     /// </summary>
     public static readonly Dictionary<string, Colors> JobTypeColors = new()
     {
-        ["MakePlan"] = Colors.Purple,
+        ["CreatePlan"] = Colors.Purple,
         ["ExecutePlan"] = Colors.Blue,
         ["UpdatePlan"] = Colors.Cyan,
         ["ExpandPlan"] = Colors.Teal,
         ["SplitPlan"] = Colors.Indigo,
-        ["MakePr"] = Colors.Green,
+        ["CreatePr"] = Colors.Green,
         ["CreateIssue"] = Colors.Rose
     };
 }

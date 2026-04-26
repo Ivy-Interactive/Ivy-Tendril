@@ -34,14 +34,14 @@ public class JobServiceLogCostTests
         try
         {
             JobService.LogCostToCsv(tempDir, "ExecutePlan", 150000, 0.4500);
-            JobService.LogCostToCsv(tempDir, "MakePlan", 25000, 0.0750);
+            JobService.LogCostToCsv(tempDir, "CreatePlan", 25000, 0.0750);
 
             var csvPath = Path.Combine(tempDir, "costs.csv");
             var lines = File.ReadAllLines(csvPath);
             Assert.Equal(3, lines.Length);
             Assert.Equal("Promptware,Tokens,Cost", lines[0]);
             Assert.Equal("ExecutePlan,150000,0.4500", lines[1]);
-            Assert.Equal("MakePlan,25000,0.0750", lines[2]);
+            Assert.Equal("CreatePlan,25000,0.0750", lines[2]);
         }
         finally
         {
@@ -63,12 +63,12 @@ public class JobServiceLogCostTests
         Directory.CreateDirectory(tempDir);
         try
         {
-            JobService.LogCostToCsv(tempDir, "MakePr", 99999, 1.23456789);
+            JobService.LogCostToCsv(tempDir, "CreatePr", 99999, 1.23456789);
 
             var csvPath = Path.Combine(tempDir, "costs.csv");
             var lines = File.ReadAllLines(csvPath);
             // Cost should be formatted to 4 decimal places
-            Assert.Equal("MakePr,99999,1.2346", lines[1]);
+            Assert.Equal("CreatePr,99999,1.2346", lines[1]);
         }
         finally
         {

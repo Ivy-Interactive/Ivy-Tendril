@@ -1,3 +1,5 @@
+using Spectre.Console;
+
 namespace Ivy.Tendril.Services;
 
 public static class PromptwareCommands
@@ -12,30 +14,30 @@ public static class PromptwareCommands
 
         return args[0] switch
         {
-            "update-promptwares" => UpdatePromptwaresCommand(),
+            "update-promptwares" => UpdatePromptwaresCommandInternal(),
             _ => -1
         };
     }
 
-    private static int UpdatePromptwaresCommand()
+    public static int UpdatePromptwaresCommandInternal()
     {
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         if (string.IsNullOrEmpty(tendrilHome))
         {
-            Console.Error.WriteLine("Error: TENDRIL_HOME environment variable is not set.");
+            AnsiConsole.MarkupLine("[red]Error: TENDRIL_HOME environment variable is not set.[/]");
             return 1;
         }
 
         if (!PromptwareDeployer.IsEmbeddedAvailable())
         {
-            Console.Error.WriteLine("Error: No embedded promptwares found in this build.");
+            AnsiConsole.MarkupLine("[red]Error: No embedded promptwares found in this build.[/]");
             return 1;
         }
 
         var target = Path.Combine(tendrilHome, "Promptwares");
-        Console.WriteLine($"Updating promptwares in {target}...");
+        AnsiConsole.MarkupLine($"[bold]Updating promptwares in[/] [blue]{target}[/]...");
         PromptwareDeployer.Deploy(target);
-        Console.WriteLine("Done.");
+        AnsiConsole.MarkupLine("[green]✓[/] Done.");
         return 0;
     }
 }

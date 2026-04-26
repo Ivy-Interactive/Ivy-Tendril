@@ -27,4 +27,5 @@ public class PlanYaml
     public string? ExecutionProfile { get; set; }
     public string? InitialPrompt { get; set; }
     public string? SourceUrl { get; set; }
+    public List<RecommendationYaml>? Recommendations { get; set; }
 }

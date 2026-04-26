@@ -1,0 +1,161 @@
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Text;
+using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Agents;
+using Spectre.Console.Cli;
+
+namespace Ivy.Tendril.Commands;
+
+public class PromptwareRunSettings : CommandSettings
+{
+    [Description("Promptware name (e.g., IvyFrameworkVerification)")]
+    [CommandArgument(0, "<promptware>")]
+    public string Promptware { get; set; } = "";
+
+    [Description("Remaining arguments passed to the promptware as firmware values")]
+    [CommandArgument(1, "[args]")]
+    public string[] Args { get; set; } = [];
+
+    [CommandOption("--profile")]
+    [Description("Override the agent profile (e.g., deep, balanced, quick)")]
+    public string? Profile { get; init; }
+
+    [CommandOption("--working-dir")]
+    [Description("Working directory for the agent process")]
+    public string? WorkingDir { get; init; }
+
+    [CommandOption("--value")]
+    [Description("Additional firmware header values (key=value, repeatable)")]
+    public string[]? Values { get; init; }
+}
+
+public class PromptwareRunCommand : Command<PromptwareRunSettings>
+{
+    protected override int Execute(CommandContext context, PromptwareRunSettings settings, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Run(settings, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 1;
+        }
+    }
+
+    internal static int Run(PromptwareRunSettings settings, CancellationToken cancellationToken = default)
+    {
+        var configService = new ConfigService();
+        var tendrilSettings = configService.Settings;
+
+        var promptsRoot = JobService.ResolvePromptsRoot();
+        var programFolder = Path.Combine(promptsRoot, settings.Promptware);
+        var programMd = Path.Combine(programFolder, "Program.md");
+
+        if (!File.Exists(programMd))
+        {
+            Console.Error.WriteLine($"Error: Program.md not found at {programMd}");
+            return 1;
+        }
+
+        // Build firmware values from args
+        var values = new Dictionary<string, string>();
+        if (settings.Args.Length > 0)
+        {
+            values["Args"] = settings.Args[0];
+
+            // If first arg looks like a plan folder, populate plan-related values
+            var firstArg = settings.Args[0];
+            if (Directory.Exists(firstArg))
+            {
+                values["PlanFolder"] = firstArg;
+                values["PlansDirectory"] = Path.GetDirectoryName(firstArg) ?? "";
+                var folderName = Path.GetFileName(firstArg);
+                var dashIdx = folderName.IndexOf('-');
+                if (dashIdx > 0) values["PlanId"] = folderName[..dashIdx];
+            }
+        }
+
+        // Parse --value key=value pairs
+        if (settings.Values != null)
+        {
+            foreach (var kv in settings.Values)
+            {
+                var eqIdx = kv.IndexOf('=');
+                if (eqIdx > 0)
+                    values[kv[..eqIdx]] = kv[(eqIdx + 1)..];
+            }
+        }
+
+        // Resolve agent provider and profile
+        var resolution = AgentProviderFactory.Resolve(tendrilSettings, settings.Promptware, settings.Profile);
+
+        // Determine working directory
+        var workDir = settings.WorkingDir ?? programFolder;
+
+        // Compile firmware
+        var logFile = FirmwareCompiler.GetNextLogFile(programFolder);
+        var sharedDocs = new List<(string Name, string Content)>();
+        var plansMdPath = Path.Combine(JobService.SharedRoot, "Plans.md");
+        if (File.Exists(plansMdPath))
+            sharedDocs.Add(("Plans", File.ReadAllText(plansMdPath)));
+
+        var firmwareContext = new FirmwareContext(programFolder, logFile, values, sharedDocs);
+        var prompt = FirmwareCompiler.Compile(firmwareContext);
+
+        // Build invocation
+        var invocation = new AgentInvocation(
+            PromptContent: prompt,
+            WorkingDirectory: workDir,
+            Model: resolution.Model,
+            Effort: resolution.Effort,
+            SessionId: "",
+            AllowedTools: resolution.AllowedTools,
+            ExtraArgs: resolution.ExtraArgs);
+
+        var psi = resolution.Provider.BuildProcessStart(invocation);
+
+        // Set environment
+        var tendrilHome = configService.TendrilHome;
+        if (!string.IsNullOrEmpty(tendrilHome))
+            psi.Environment["TENDRIL_HOME"] = tendrilHome;
+        psi.Environment["TENDRIL_CONFIG"] = configService.ConfigPath;
+        psi.Environment["TENDRIL_URL"] = Environment.GetEnvironmentVariable("TENDRIL_URL") ?? "https://localhost:5010";
+
+        Console.Error.WriteLine($"Running {settings.Promptware} via {resolution.Provider.Name} (model={resolution.Model}, effort={resolution.Effort})");
+
+        using var process = Process.Start(psi);
+        if (process == null)
+        {
+            Console.Error.WriteLine("Error: Failed to start agent process");
+            return 1;
+        }
+
+        // Stream stdout to our stdout
+        var outputTask = Task.Run(() =>
+        {
+            while (!process.StandardOutput.EndOfStream)
+            {
+                var line = process.StandardOutput.ReadLine();
+                if (line != null) Console.WriteLine(line);
+            }
+        }, cancellationToken);
+
+        // Stream stderr to our stderr
+        var errorTask = Task.Run(() =>
+        {
+            while (!process.StandardError.EndOfStream)
+            {
+                var line = process.StandardError.ReadLine();
+                if (line != null) Console.Error.WriteLine(line);
+            }
+        }, cancellationToken);
+
+        process.WaitForExit();
+        Task.WaitAll([outputTask, errorTask], TimeSpan.FromSeconds(5));
+
+        return process.ExitCode;
+    }
+}

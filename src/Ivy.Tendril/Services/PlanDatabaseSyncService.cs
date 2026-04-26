@@ -41,12 +41,18 @@ public class PlanDatabaseSyncService : IDisposable
             _logger.LogInformation("Starting initial database sync...");
             var stopwatch = Stopwatch.StartNew();
 
+            // Skip completed/skipped plans already in the DB — they never change,
+            // so re-parsing them from disk on every startup is wasted I/O.
+            var terminalIds = _database.GetTerminalPlanIds();
+
             // Read directly from file system to avoid circular dependency.
             // Force overwrite to ensure filesystem is source of truth on startup,
             // even if the DB has newer timestamps from prior state transitions.
-            var plans = _planReader.GetPlansFromFileSystem();
-            _logger.LogInformation("Filesystem returned {Count} plans for sync", plans.Count);
+            var plans = _planReader.GetPlansFromFileSystem(skipIds: terminalIds);
+            _logger.LogInformation("Filesystem returned {Count} plans for sync (skipped {Skipped} terminal)",
+                plans.Count, terminalIds.Count);
             _database.BulkUpsertPlans(plans, true);
+            RecoverStuckPlansInDatabase(plans);
 
             foreach (var plan in plans)
             {
@@ -90,6 +96,25 @@ public class PlanDatabaseSyncService : IDisposable
         {
             _logger.LogError(ex, "Incremental sync failed");
         }
+    }
+
+    private void RecoverStuckPlansInDatabase(List<PlanFile> plans)
+    {
+        var stuckStates = new HashSet<PlanStatus>
+            { PlanStatus.Building, PlanStatus.Executing, PlanStatus.Updating, PlanStatus.Blocked };
+
+        var recovered = 0;
+        foreach (var plan in plans)
+        {
+            if (!stuckStates.Contains(plan.Status)) continue;
+
+            var newState = plan.Status == PlanStatus.Executing ? PlanStatus.Failed : PlanStatus.Draft;
+            _database.UpdatePlanState(plan.Id, newState);
+            recovered++;
+        }
+
+        if (recovered > 0)
+            _logger.LogInformation("Recovered {Count} stuck plan(s) in database", recovered);
     }
 
     private void SyncSinglePlan(string planFolder)
@@ -184,17 +209,20 @@ public class PlanDatabaseSyncService : IDisposable
 
     private void SyncPlanRecommendations(PlanFile plan)
     {
-        var recommendationsPath = Path.Combine(plan.FolderPath, "artifacts", "recommendations.yaml");
-        if (!File.Exists(recommendationsPath)) return;
-
         try
         {
-            var yaml = FileHelper.ReadAllText(recommendationsPath);
-            var items = YamlHelper.Deserializer.Deserialize<List<RecommendationYaml>>(yaml);
-            if (items == null) return;
+            var planYamlPath = Path.Combine(plan.FolderPath, "plan.yaml");
+            if (!File.Exists(planYamlPath)) return;
 
-            _database.UpsertRecommendations(plan.Id, plan.FolderName, items,
-                plan.Project, plan.Title, plan.Updated, plan.Status);
+            var yaml = FileHelper.ReadAllText(planYamlPath);
+            var planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml);
+            var items = planYaml?.Recommendations;
+
+            if (items != null && items.Count > 0)
+            {
+                _database.UpsertRecommendations(plan.Id, plan.FolderName, items,
+                    plan.Project, plan.Title, plan.Updated, plan.Status);
+            }
         }
         catch (Exception ex)
         {

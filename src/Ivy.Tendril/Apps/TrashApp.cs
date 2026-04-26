@@ -86,9 +86,9 @@ public class TrashApp : ViewBase
                                 if (!string.IsNullOrEmpty(selected.OriginalRequest))
                                 {
                                     var project = string.IsNullOrEmpty(selected.Project) ? "Auto" : selected.Project;
-                                    jobService.StartJob("MakePlan", "-Description",
+                                    jobService.StartJob("CreatePlan", "-Description",
                                         $"{selected.OriginalRequest} [FORCE]", "-Project", project);
-                                    client.Toast("MakePlan job started", "Force Plan");
+                                    client.Toast("CreatePlan job started", "Force Plan");
                                 }
                             });
 

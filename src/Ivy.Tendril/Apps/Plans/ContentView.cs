@@ -204,6 +204,13 @@ public class ContentView(
             .Muted("plans", word: true);
         header |= new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("e").OnClick(() =>
         {
+            // Optimistically update UI state before disk I/O
+            var optimisticPlan = _selectedPlan with
+            {
+                Metadata = _selectedPlan.Metadata with { State = PlanStatus.Building }
+            };
+            _selectedPlanState.Set(optimisticPlan);
+
             _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Building);
             _jobService.StartJob("ExecutePlan", _selectedPlan.FolderPath);
             _refreshPlans();
@@ -371,12 +378,26 @@ public class ContentView(
                             .OnClick(() => updateDialogOpen.Set(true))
                         | new Button("Split").Icon(Icons.Scissors).Outline().ShortcutKey("s").OnClick(() =>
                         {
+                            // Optimistically update UI state before disk I/O
+                            var optimisticPlan = _selectedPlan with
+                            {
+                                Metadata = _selectedPlan.Metadata with { State = PlanStatus.Updating }
+                            };
+                            _selectedPlanState.Set(optimisticPlan);
+
                             _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Updating);
                             _jobService.StartJob("SplitPlan", _selectedPlan.FolderPath);
                             _refreshPlans();
                         })
                         | new Button("Expand").Icon(Icons.UnfoldVertical).Outline().ShortcutKey("x").OnClick(() =>
                         {
+                            // Optimistically update UI state before disk I/O
+                            var optimisticPlan = _selectedPlan with
+                            {
+                                Metadata = _selectedPlan.Metadata with { State = PlanStatus.Building }
+                            };
+                            _selectedPlanState.Set(optimisticPlan);
+
                             _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Building);
                             var planPath = _selectedPlan.FolderPath;
                             _jobService.StartJob("ExpandPlan", planPath);
@@ -441,8 +462,8 @@ public class ContentView(
         var elements = new List<object>
         {
             mainLayout,
-            new UpdatePlanDialog(updateDialogOpen, updateText, _selectedPlan, _jobService, _planService, _refreshPlans),
-            new DeletePlanDialog(deleteDialogOpen, _selectedPlan, _planService, _refreshPlans),
+            new UpdatePlanDialog(updateDialogOpen, updateText, _selectedPlan, _selectedPlanState, _jobService, _planService, _refreshPlans),
+            new DeletePlanDialog(deleteDialogOpen, _selectedPlan, _selectedPlanState, _planService, _refreshPlans),
             new CreateIssueDialog(createIssueDialogOpen, selectedRepoState, issueAssigneeState, issueLabelsState,
                 issueCommentState, _selectedPlan, _jobService)
         };

@@ -1,7 +1,9 @@
 using System.ClientModel;
 using Ivy.Helpers;
 using Ivy.Tendril.AppShell;
+using Ivy.Tendril.Controllers;
 using Ivy.Tendril.Services;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -52,6 +54,7 @@ public static class TendrilServer
 
         server.Services.AddSingleton<VersionCheckService>();
         server.Services.AddSingleton<IVersionCheckService>(sp => sp.GetRequiredService<VersionCheckService>());
+
 
         server.Services.AddSingleton<OnboardingSetupService>();
         server.Services.AddSingleton<IOnboardingSetupService>(sp => sp.GetRequiredService<OnboardingSetupService>());
@@ -160,6 +163,8 @@ public static class TendrilServer
 
         server.UseWebApplication(app =>
         {
+            app.UseMiddleware<ApiKeyAuthMiddleware>();
+
             // Publish the actual bound URL so child processes can reach this server
             var serverUrl = app.Urls.FirstOrDefault();
             if (serverUrl != null)

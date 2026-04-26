@@ -114,7 +114,7 @@ public class JobServiceDeletionTests
         public List<PlanFile> GetPlans(PlanStatus? statusFilter = null) => new();
         public PlanFile? GetPlanByFolder(string folderPath) => null;
         public PlanFile? GetPlanById(int planId) => null;
-        public PlanReaderService.PlanCountSnapshot ComputePlanCounts() => new(0, 0, 0, 0, 0);
+        public PlanReaderService.PlanCountSnapshot ComputePlanCounts() => new(0, 0, 0, 0, 0, 0);
         public DashboardStats GetDashboardData(string? projectFilter) => new(0, 0, 0, 0, 0, 0, 0, new(), new());
         public decimal GetPlanTotalCost(int planId) => 0;
         public int GetPlanTotalTokens(int planId) => 0;
@@ -131,6 +131,7 @@ public class JobServiceDeletionTests
         public void UpsertCosts(int planId, List<CostEntry> costs) { }
         public void UpsertRecommendations(int planId, string folderName, List<RecommendationYaml> recommendations, string project, string planTitle, DateTime updated, PlanStatus status) { }
         public void BulkUpsertPlans(List<PlanFile> plans, bool forceOverwrite = false) { }
+        public HashSet<int> GetTerminalPlanIds() => new();
         public void UpsertJob(JobItem job) { }
         public List<JobItem> GetRecentJobs(int limit = 100) => new();
         public void PurgeOldJobs(int keepCount = 500) { }

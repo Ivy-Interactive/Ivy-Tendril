@@ -1,5 +1,7 @@
-**/Logs/
+**/Logs/*
+!**/Logs/.gitkeep
 **/Memory/*
+!**/Memory/.gitkeep
 # Exception for shipped guidance files:
 !**/Memory/PlanExpansionPatterns.md
 
