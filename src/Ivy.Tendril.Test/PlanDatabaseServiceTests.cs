@@ -1198,4 +1198,82 @@ public class PlanDatabaseServiceTests : IDisposable
         var frameworkCount = stats.ProjectCounts.FirstOrDefault(pc => pc.Project == "Framework");
         Assert.Null(frameworkCount); // Framework has no plans in 7-day window
     }
+
+    [Fact]
+    public void BatchGetList_WithLargePlanIdList_ReturnsMergedResults()
+    {
+        // Create 1200 plans to test batching (>500 batch size)
+        for (int i = 4000; i < 5200; i++)
+        {
+            var plan = CreateTestPlan(i, $"Plan {i}");
+            _db.UpsertPlan(plan);
+        }
+
+        var planIds = Enumerable.Range(4000, 1200).ToList();
+        var result = _db.GetPlans(planIds);
+
+        Assert.Equal(1200, result.Count);
+        Assert.All(result, plan => Assert.Contains(plan.Id, planIds));
+    }
+
+    [Fact]
+    public void BatchGetList_WithEmptyList_ReturnsEmptyDictionary()
+    {
+        var result = _db.GetPlans(new List<int>());
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void BatchGetVerifications_WithLargePlanIdList_ReturnsMergedResults()
+    {
+        // Create 1200 plans with multiple verifications to test batching
+        for (int i = 5200; i < 6400; i++)
+        {
+            var metadata = new PlanMetadata(
+                i, "Tendril", "NiceToHave", $"Plan {i}", PlanStatus.Draft,
+                new List<string>(),
+                new List<string>(),
+                new List<string>(),
+                new List<PlanVerificationEntry>
+                {
+                    new() { Name = "DotnetBuild", Status = "Pass" },
+                    new() { Name = "DotnetTest", Status = "Pass" },
+                    new() { Name = "DotnetFormat", Status = "Pass" }
+                },
+                new List<string>(),
+                new List<string>(),
+                DateTime.UtcNow.AddDays(-1),
+                DateTime.UtcNow,
+                null,
+                null
+            );
+            var plan = new PlanFile(metadata, "# Content", $"D:\\Plans\\{i:D5}-Plan{i}", "state: Draft");
+            _db.UpsertPlan(plan);
+        }
+
+        var planIds = Enumerable.Range(5200, 1200).ToList();
+        var result = _db.GetPlans(planIds);
+
+        Assert.Equal(1200, result.Count);
+        Assert.All(result, plan =>
+        {
+            Assert.Equal(3, plan.Verifications.Count);
+            Assert.Contains(plan.Verifications, v => v.Name == "DotnetBuild");
+            Assert.Contains(plan.Verifications, v => v.Name == "DotnetTest");
+            Assert.Contains(plan.Verifications, v => v.Name == "DotnetFormat");
+        });
+    }
+
+    [Fact]
+    public void BatchGetList_WithSinglePlanId_ReturnsCorrectResult()
+    {
+        var plan = CreateTestPlan(6400, "Single Plan");
+        _db.UpsertPlan(plan);
+
+        var result = _db.GetPlans(new List<int> { 6400 });
+
+        Assert.Single(result);
+        Assert.Equal(6400, result[0].Id);
+        Assert.Equal("Single Plan", result[0].Title);
+    }
 }
