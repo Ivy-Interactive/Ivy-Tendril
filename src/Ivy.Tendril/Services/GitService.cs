@@ -203,6 +203,9 @@ public class GitService : IGitService
             process.WaitForExitOrKill(_timeoutMs);
             if (process.ExitCode != 0) return null;
 
+            // Build a lookup from full hash prefix back to the original input hashes
+            var inputHashSet = new HashSet<string>(hashes, StringComparer.OrdinalIgnoreCase);
+
             // Parse: each commit block starts with "hash\0title" followed by numstat lines, separated by empty lines
             string? currentHash = null;
             string? currentTitle = null;
@@ -212,9 +215,8 @@ public class GitService : IGitService
             {
                 if (line.Contains('\0'))
                 {
-                    // Save previous commit
                     if (currentHash != null)
-                        result[currentHash] = (currentTitle!, currentFileCount);
+                        StoreCommitResult(result, inputHashSet, currentHash, currentTitle!, currentFileCount);
 
                     var parts = line.Split('\0', 2);
                     currentHash = parts[0].Trim();
@@ -228,13 +230,34 @@ public class GitService : IGitService
             }
 
             if (currentHash != null)
-                result[currentHash] = (currentTitle!, currentFileCount);
+                StoreCommitResult(result, inputHashSet, currentHash, currentTitle!, currentFileCount);
 
             return result;
         }
         catch
         {
             return null;
+        }
+    }
+
+    private static void StoreCommitResult(
+        Dictionary<string, (string Title, int FileCount)> result,
+        HashSet<string> inputHashes,
+        string fullHash,
+        string title,
+        int fileCount)
+    {
+        var value = (title, fileCount);
+        result[fullHash] = value;
+
+        // Also store under any abbreviated input hash that matches this full hash
+        foreach (var input in inputHashes)
+        {
+            if (input.Length < fullHash.Length &&
+                fullHash.StartsWith(input, StringComparison.OrdinalIgnoreCase))
+            {
+                result[input] = value;
+            }
         }
     }
 

@@ -131,7 +131,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         var workDir = settings.WorkingDir ?? programFolder;
 
         // Compile firmware
-        var logFile = FirmwareCompiler.GetNextLogFile(programFolder);
+        var logFile = FirmwareCompiler.GetNextLogFile(programFolder, values);
         var sharedDocs = new List<(string Name, string Content)>();
         var plansMdPath = Path.Combine(sharedRoot, "Plans.md");
         if (File.Exists(plansMdPath))

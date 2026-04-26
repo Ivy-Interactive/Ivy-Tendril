@@ -285,7 +285,7 @@ internal class JobLauncher
         var resolution = AgentProviderFactory.Resolve(settings, job.Type, profileOverride, jobContext);
         var workDir = ResolveWorkingDirectory(job, programFolder);
 
-        var logFile = FirmwareCompiler.GetNextLogFile(programFolder);
+        var logFile = FirmwareCompiler.GetNextLogFile(programFolder, values);
         var sharedDocs = new List<(string Name, string Content)>();
         var plansMdPath = Path.Combine(_sharedRoot, "Plans.md");
         if (File.Exists(plansMdPath))
@@ -353,7 +353,12 @@ internal class JobLauncher
             {
                 var folderName = Path.GetFileName(planFolder);
                 var dashIdx = folderName.IndexOf('-');
-                if (dashIdx > 0) values["PlanId"] = folderName[..dashIdx];
+                if (dashIdx > 0)
+                {
+                    var planId = folderName[..dashIdx];
+                    values["PlanId"] = planId;
+                    job.AllocatedPlanId ??= planId;
+                }
                 values["PlanFolder"] = planFolder;
                 values["PlansDirectory"] = Path.GetDirectoryName(planFolder) ?? "";
 
@@ -448,8 +453,11 @@ internal class JobLauncher
             var cmdShim = Path.Combine(shimDir, "tendril.cmd");
             File.WriteAllText(cmdShim, $"@dotnet run --project \"{projectPath}\" {outputArg} -- %*\r\n");
 
+            var bashProjectPath = projectPath.Replace('\\', '/');
+            var bashOutputArg = $"-p:BaseOutputPath='{shimOutputDir.Replace('\\', '/')}/'";
+
             var bashShim = Path.Combine(shimDir, "tendril");
-            File.WriteAllText(bashShim, $"#!/usr/bin/env bash\ndotnet run --project \"{projectPath}\" {outputArg} -- \"$@\"\n");
+            File.WriteAllText(bashShim, $"#!/usr/bin/env bash\ndotnet run --project '{bashProjectPath}' {bashOutputArg} -- \"$@\"\n");
 
             PrependToPath(psi, shimDir);
         }

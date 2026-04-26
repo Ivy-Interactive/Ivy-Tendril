@@ -185,4 +185,29 @@ public class FirmwareCompilerTests : IDisposable
 
         Assert.True(Directory.Exists(Path.Combine(programFolder, "Logs")));
     }
+
+    [Fact]
+    public void GetNextLogFile_ReservesFileOnDisk()
+    {
+        var programFolder = Path.Combine(_tempDir, "ReserveTest");
+        Directory.CreateDirectory(programFolder);
+
+        var logFile = FirmwareCompiler.GetNextLogFile(programFolder);
+
+        Assert.True(File.Exists(logFile));
+    }
+
+    [Fact]
+    public void GetNextLogFile_ConcurrentCalls_ProduceDifferentNumbers()
+    {
+        var programFolder = Path.Combine(_tempDir, "ConcurrentTest");
+        Directory.CreateDirectory(programFolder);
+
+        var first = FirmwareCompiler.GetNextLogFile(programFolder);
+        var second = FirmwareCompiler.GetNextLogFile(programFolder);
+
+        Assert.EndsWith("00001.md", first);
+        Assert.EndsWith("00002.md", second);
+        Assert.NotEqual(first, second);
+    }
 }
