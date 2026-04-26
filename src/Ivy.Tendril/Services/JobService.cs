@@ -117,6 +117,7 @@ public class JobService : IJobService
         _completionHandler = new JobCompletionHandler(
             null, _logger, null, planReaderService, telemetryService,
             null, null, PromptsRoot);
+        LoadHistoricalJobs();
     }
 
     public event Action? JobsChanged;
