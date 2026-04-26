@@ -12,7 +12,7 @@ public static class JobStatusFile
     public static string GetStatusFilePath(string jobId)
     {
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? "";
-        return Path.Combine(tendrilHome, "jobs", $"{jobId}.status");
+        return Path.Combine(tendrilHome, "Jobs", $"{jobId}.status");
     }
 
     public static void Write(string statusFilePath, string message, string? planId = null, string? planTitle = null)
