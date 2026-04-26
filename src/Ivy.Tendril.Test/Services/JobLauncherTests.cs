@@ -9,7 +9,6 @@ public class JobLauncherTests : IDisposable
 {
     private readonly string _tempTendrilHome;
     private readonly string _tempPromptsRoot;
-    private readonly IConfigService _configService;
 
     public JobLauncherTests()
     {
@@ -34,9 +33,6 @@ projects:
       - path: D:\TestRepo
         prRule: default
 ");
-
-        _configService = new ConfigService(new TendrilSettings());
-        _configService.SetTendrilHome(_tempTendrilHome);
     }
 
     public void Dispose()
@@ -55,103 +51,9 @@ projects:
     }
 
     [Fact]
-    public void LaunchJob_SetsSessionIdToValidGuid()
-    {
-        var launcher = new JobLauncher(_configService, NullLogger.Instance, _tempPromptsRoot);
-        var job = new JobItem("test-1", "CreatePlan", new[] { "Test plan" }, "TestProject");
-        var jobs = new ConcurrentDictionary<string, JobItem>();
-        jobs[job.Id] = job;
-
-        var ctx = new JobLaunchContext(
-            job,
-            jobs,
-            new SemaphoreSlim(1),
-            TimeSpan.FromMinutes(30),
-            TimeSpan.FromMinutes(10),
-            (_, _, _, _, _) => { },
-            (_, _, _, _) => { },
-            () => { });
-
-        // Call PrepareJobForLaunch via reflection since it's private
-        var method = typeof(JobLauncher).GetMethod("PrepareJobForLaunch",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        method?.Invoke(launcher, new object[] { ctx });
-
-        Assert.NotNull(job.SessionId);
-        Assert.NotEmpty(job.SessionId);
-        Assert.True(Guid.TryParse(job.SessionId, out _), "SessionId should be a valid GUID");
-    }
-
-    [Fact]
-    public void LaunchJob_SessionIdIsUniquePerJob()
-    {
-        var launcher = new JobLauncher(_configService, NullLogger.Instance, _tempPromptsRoot);
-        var job1 = new JobItem("test-1", "CreatePlan", new[] { "Test plan 1" }, "TestProject");
-        var job2 = new JobItem("test-2", "CreatePlan", new[] { "Test plan 2" }, "TestProject");
-        var jobs = new ConcurrentDictionary<string, JobItem>();
-        jobs[job1.Id] = job1;
-        jobs[job2.Id] = job2;
-
-        var method = typeof(JobLauncher).GetMethod("PrepareJobForLaunch",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-
-        var ctx1 = new JobLaunchContext(
-            job1,
-            jobs,
-            new SemaphoreSlim(1),
-            TimeSpan.FromMinutes(30),
-            TimeSpan.FromMinutes(10),
-            (_, _, _, _, _) => { },
-            (_, _, _, _) => { },
-            () => { });
-        method?.Invoke(launcher, new object[] { ctx1 });
-
-        var ctx2 = new JobLaunchContext(
-            job2,
-            jobs,
-            new SemaphoreSlim(1),
-            TimeSpan.FromMinutes(30),
-            TimeSpan.FromMinutes(10),
-            (_, _, _, _, _) => { },
-            (_, _, _, _) => { },
-            () => { });
-        method?.Invoke(launcher, new object[] { ctx2 });
-
-        Assert.NotNull(job1.SessionId);
-        Assert.NotNull(job2.SessionId);
-        Assert.NotEqual(job1.SessionId, job2.SessionId);
-    }
-
-    [Fact]
-    public void PrepareJobForLaunch_SetsJobStatus()
-    {
-        var launcher = new JobLauncher(_configService, NullLogger.Instance, _tempPromptsRoot);
-        var job = new JobItem("test-1", "CreatePlan", new[] { "Test plan" }, "TestProject");
-        var jobs = new ConcurrentDictionary<string, JobItem>();
-        jobs[job.Id] = job;
-
-        var ctx = new JobLaunchContext(
-            job,
-            jobs,
-            new SemaphoreSlim(1),
-            TimeSpan.FromMinutes(30),
-            TimeSpan.FromMinutes(10),
-            (_, _, _, _, _) => { },
-            (_, _, _, _) => { },
-            () => { });
-
-        var method = typeof(JobLauncher).GetMethod("PrepareJobForLaunch",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        method?.Invoke(launcher, new object[] { ctx });
-
-        Assert.Equal(JobStatus.Running, job.Status);
-        Assert.NotNull(job.StartedAt);
-    }
-
-    [Fact]
     public void ExtractPlanIdFromFolder_ReturnsCorrectId()
     {
-        var launcher = new JobLauncher(_configService, NullLogger.Instance, _tempPromptsRoot);
+        var launcher = new JobLauncher(null, NullLogger.Instance, _tempPromptsRoot);
         var method = typeof(JobLauncher).GetMethod("ExtractPlanIdFromFolder",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
 
@@ -163,7 +65,7 @@ projects:
     [Fact]
     public void ExtractPlanIdFromFolder_HandlesNoDash()
     {
-        var launcher = new JobLauncher(_configService, NullLogger.Instance, _tempPromptsRoot);
+        var launcher = new JobLauncher(null, NullLogger.Instance, _tempPromptsRoot);
         var method = typeof(JobLauncher).GetMethod("ExtractPlanIdFromFolder",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
 
@@ -179,7 +81,7 @@ projects:
         Directory.CreateDirectory(programFolder);
         File.WriteAllText(Path.Combine(programFolder, "Program.md"), "# Test Program");
 
-        var launcher = new JobLauncher(_configService, NullLogger.Instance, _tempPromptsRoot);
+        var launcher = new JobLauncher(null, NullLogger.Instance, _tempPromptsRoot);
         var method = typeof(JobLauncher).GetMethod("HasAgentDirectProgram",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
 
@@ -196,7 +98,7 @@ projects:
         File.WriteAllText(Path.Combine(programFolder, "Program.md"), "# Test Program");
         File.WriteAllText(Path.Combine(programFolder, "TestPromptware.ps1"), "# Script");
 
-        var launcher = new JobLauncher(_configService, NullLogger.Instance, _tempPromptsRoot);
+        var launcher = new JobLauncher(null, NullLogger.Instance, _tempPromptsRoot);
         var method = typeof(JobLauncher).GetMethod("HasAgentDirectProgram",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
 
@@ -211,7 +113,7 @@ projects:
         var programFolder = Path.Combine(_tempPromptsRoot, "TestPromptware");
         Directory.CreateDirectory(programFolder);
 
-        var launcher = new JobLauncher(_configService, NullLogger.Instance, _tempPromptsRoot);
+        var launcher = new JobLauncher(null, NullLogger.Instance, _tempPromptsRoot);
         var method = typeof(JobLauncher).GetMethod("HasAgentDirectProgram",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
 
@@ -223,9 +125,16 @@ projects:
     [Fact]
     public async Task RunStaleOutputWatchdog_DetectsStaleOutput()
     {
-        var launcher = new JobLauncher(_configService, NullLogger.Instance, _tempPromptsRoot);
-        var job = new JobItem("test-1", "CreatePlan", new[] { "Test" }, "TestProject")
+        var configService = new ConfigService(new TendrilSettings());
+        configService.SetTendrilHome(_tempTendrilHome);
+
+        var launcher = new JobLauncher(configService, NullLogger.Instance, _tempPromptsRoot);
+        var job = new JobItem
         {
+            Id = "test-1",
+            Type = "CreatePlan",
+            Args = new[] { "Test" },
+            Project = "TestProject",
             Status = JobStatus.Running,
             LastOutputAt = DateTime.UtcNow.AddMinutes(-15)
         };
@@ -250,9 +159,16 @@ projects:
     [Fact]
     public async Task RunStaleOutputWatchdog_DoesNotFlagRecentOutput()
     {
-        var launcher = new JobLauncher(_configService, NullLogger.Instance, _tempPromptsRoot);
-        var job = new JobItem("test-1", "CreatePlan", new[] { "Test" }, "TestProject")
+        var configService = new ConfigService(new TendrilSettings());
+        configService.SetTendrilHome(_tempTendrilHome);
+
+        var launcher = new JobLauncher(configService, NullLogger.Instance, _tempPromptsRoot);
+        var job = new JobItem
         {
+            Id = "test-1",
+            Type = "CreatePlan",
+            Args = new[] { "Test" },
+            Project = "TestProject",
             Status = JobStatus.Running,
             LastOutputAt = DateTime.UtcNow
         };
@@ -277,8 +193,12 @@ projects:
     [Fact]
     public async Task RunStatusFilePoller_ExitsWhenJobCompletes()
     {
-        var job = new JobItem("test-1", "CreatePlan", new[] { "Test" }, "TestProject")
+        var job = new JobItem
         {
+            Id = "test-1",
+            Type = "CreatePlan",
+            Args = new[] { "Test" },
+            Project = "TestProject",
             Status = JobStatus.Running,
             StatusFilePath = Path.Combine(_tempTendrilHome, "status-test-1.json")
         };

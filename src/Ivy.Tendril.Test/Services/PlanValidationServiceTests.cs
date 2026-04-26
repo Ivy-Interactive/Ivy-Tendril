@@ -41,7 +41,7 @@ public class PlanValidationServiceTests : IDisposable
             Repos = new List<string> { _tempRepoPath },
             Prs = new List<string>(),
             Commits = new List<string>(),
-            Verifications = new List<VerificationEntry>(),
+            Verifications = new List<PlanVerificationEntry>(),
             RelatedPlans = new List<string>(),
             DependsOn = new List<string>()
         };
@@ -297,9 +297,9 @@ public class PlanValidationServiceTests : IDisposable
     public void Validate_ThrowsForVerificationWithEmptyName()
     {
         var plan = CreateValidPlan();
-        plan.Verifications = new List<VerificationEntry>
+        plan.Verifications = new List<PlanVerificationEntry>
         {
-            new VerificationEntry { Name = "", Status = "Pending" }
+            new PlanVerificationEntry { Name = "", Status = "Pending" }
         };
 
         var ex = Assert.Throws<ArgumentException>(() => PlanValidationService.Validate(plan));
@@ -311,9 +311,9 @@ public class PlanValidationServiceTests : IDisposable
     public void Validate_ThrowsForVerificationWithEmptyStatus()
     {
         var plan = CreateValidPlan();
-        plan.Verifications = new List<VerificationEntry>
+        plan.Verifications = new List<PlanVerificationEntry>
         {
-            new VerificationEntry { Name = "Build", Status = "" }
+            new PlanVerificationEntry { Name = "Build", Status = "" }
         };
 
         var ex = Assert.Throws<ArgumentException>(() => PlanValidationService.Validate(plan));
@@ -325,9 +325,9 @@ public class PlanValidationServiceTests : IDisposable
     public void Validate_ThrowsForVerificationWithInvalidStatus()
     {
         var plan = CreateValidPlan();
-        plan.Verifications = new List<VerificationEntry>
+        plan.Verifications = new List<PlanVerificationEntry>
         {
-            new VerificationEntry { Name = "Build", Status = "InvalidStatus" }
+            new PlanVerificationEntry { Name = "Build", Status = "InvalidStatus" }
         };
 
         var ex = Assert.Throws<ArgumentException>(() => PlanValidationService.Validate(plan));
@@ -344,9 +344,9 @@ public class PlanValidationServiceTests : IDisposable
         foreach (var status in validStatuses)
         {
             var plan = CreateValidPlan();
-            plan.Verifications = new List<VerificationEntry>
+            plan.Verifications = new List<PlanVerificationEntry>
             {
-                new VerificationEntry { Name = "Build", Status = status }
+                new PlanVerificationEntry { Name = "Build", Status = status }
             };
 
             var exception = Record.Exception(() => PlanValidationService.Validate(plan));
