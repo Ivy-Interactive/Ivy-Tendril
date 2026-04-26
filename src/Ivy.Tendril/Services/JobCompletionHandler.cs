@@ -353,99 +353,127 @@ internal class JobCompletionHandler
         if (planId == null || safeTitle == null) return false;
 
         var branchName = $"tendril/{planId}-{safeTitle}";
-        var changed = false;
-
-        // Only scan worktrees for repos explicitly listed in the plan.
-        // Build dependency worktrees (read-only) should never contribute commits.
         var planRepoNames = new HashSet<string>(
             plan.Repos.Select(r => Path.GetFileName(Environment.ExpandEnvironmentVariables(r))),
             StringComparer.OrdinalIgnoreCase);
 
-        foreach (var wtDir in Directory.GetDirectories(worktreesDir))
+        var changed = false;
+        foreach (var wtDir in IterateWorktrees(worktreesDir, planRepoNames))
         {
-            try
-            {
-                var wtName = Path.GetFileName(wtDir);
-                if (planRepoNames.Count > 0 && !planRepoNames.Contains(wtName))
-                    continue;
-
-                var gitFile = Path.Combine(wtDir, ".git");
-                if (!File.Exists(gitFile)) continue;
-
-                var gitContent = FileHelper.ReadAllText(gitFile).Trim();
-                var gitDirMatch = Regex.Match(gitContent, @"gitdir:\s*(.+)");
-                if (!gitDirMatch.Success) continue;
-
-                var gitDir = gitDirMatch.Groups[1].Value.Trim();
-                var repoGitDir = Path.GetFullPath(Path.Combine(gitDir, "..", ".."));
-                var repoRoot = Path.GetDirectoryName(repoGitDir);
-                if (repoRoot == null || !Directory.Exists(repoRoot)) continue;
-
-                // Use configured baseBranch from project config, fall back to auto-detect
-                var baseBranch = ResolveBaseBranch(repoRoot, plan);
-
-                var psi = new ProcessStartInfo("git",
-                    $"log --format=%H \"{baseBranch}..{branchName}\"")
-                {
-                    WorkingDirectory = repoRoot,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-
-                using var process = Process.Start(psi);
-                if (process == null) continue;
-                var output = process.StandardOutput.ReadToEnd().Trim();
-                process.WaitForExitOrKill(10000);
-                if (process.ExitCode != 0 || string.IsNullOrEmpty(output)) continue;
-
-                foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-                {
-                    var hash = line.Trim();
-                    if (hash.Length < 7) continue;
-                    var shortHash = hash.Length > 9 ? hash[..9] : hash;
-                    if (!plan.Commits.Contains(shortHash))
-                    {
-                        plan.Commits.Add(shortHash);
-                        changed = true;
-                    }
-                }
-            }
-            catch
-            {
-                // Skip worktrees that can't be read
-            }
+            var commits = ExtractCommitsFromWorktree(wtDir, branchName, plan);
+            changed |= AddCommitsToPlan(plan, commits);
         }
 
         return changed;
     }
 
-    private string ResolveBaseBranch(string repoRoot, PlanYaml plan)
+    private IEnumerable<string> IterateWorktrees(string worktreesDir, HashSet<string> planRepoNames)
     {
-        if (_configService != null)
+        foreach (var wtDir in Directory.GetDirectories(worktreesDir))
         {
-            // First try the plan's own project
-            if (!string.IsNullOrEmpty(plan.Project))
-            {
-                var project = _configService.GetProject(plan.Project);
-                var repoRef = project?.Repos.FirstOrDefault(r =>
-                    Path.GetFullPath(r.Path).Equals(Path.GetFullPath(repoRoot), StringComparison.OrdinalIgnoreCase));
-                if (repoRef?.BaseBranch is { Length: > 0 } configured)
-                    return $"origin/{configured}";
-            }
+            var wtName = Path.GetFileName(wtDir);
+            if (planRepoNames.Count > 0 && !planRepoNames.Contains(wtName))
+                continue;
 
-            // Fall back to searching all projects (handles build dependency repos)
-            foreach (var proj in _configService.Projects)
+            var gitFile = Path.Combine(wtDir, ".git");
+            if (File.Exists(gitFile))
+                yield return wtDir;
+        }
+    }
+
+    private List<string> ExtractCommitsFromWorktree(string wtDir, string branchName, PlanYaml plan)
+    {
+        var commits = new List<string>();
+        try
+        {
+            var gitFile = Path.Combine(wtDir, ".git");
+            var gitContent = FileHelper.ReadAllText(gitFile).Trim();
+            var gitDirMatch = Regex.Match(gitContent, @"gitdir:\s*(.+)");
+            if (!gitDirMatch.Success) return commits;
+
+            var gitDir = gitDirMatch.Groups[1].Value.Trim();
+            var repoGitDir = Path.GetFullPath(Path.Combine(gitDir, "..", ".."));
+            var repoRoot = Path.GetDirectoryName(repoGitDir);
+            if (repoRoot == null || !Directory.Exists(repoRoot)) return commits;
+
+            var baseBranch = ResolveBaseBranch(repoRoot, plan);
+
+            var psi = new ProcessStartInfo("git",
+                $"log --format=%H \"{baseBranch}..{branchName}\"")
             {
-                var repoRef = proj.Repos.FirstOrDefault(r =>
-                    Path.GetFullPath(r.Path).Equals(Path.GetFullPath(repoRoot), StringComparison.OrdinalIgnoreCase));
-                if (repoRef?.BaseBranch is { Length: > 0 } found)
-                    return $"origin/{found}";
+                WorkingDirectory = repoRoot,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(psi);
+            if (process == null) return commits;
+            var output = process.StandardOutput.ReadToEnd().Trim();
+            process.WaitForExitOrKill(10000);
+            if (process.ExitCode != 0 || string.IsNullOrEmpty(output)) return commits;
+
+            foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var hash = line.Trim();
+                if (hash.Length >= 7)
+                {
+                    var shortHash = hash.Length > 9 ? hash[..9] : hash;
+                    commits.Add(shortHash);
+                }
             }
         }
+        catch
+        {
+            // Skip worktrees that can't be read
+        }
 
-        return DetectBaseBranch(repoRoot);
+        return commits;
+    }
+
+    private static bool AddCommitsToPlan(PlanYaml plan, IEnumerable<string> commits)
+    {
+        var changed = false;
+        foreach (var commit in commits)
+        {
+            if (!plan.Commits.Contains(commit))
+            {
+                plan.Commits.Add(commit);
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    private string ResolveBaseBranch(string repoRoot, PlanYaml plan)
+    {
+        var configured = TryGetConfiguredBaseBranch(repoRoot, plan);
+        return configured ?? DetectBaseBranch(repoRoot);
+    }
+
+    private string? TryGetConfiguredBaseBranch(string repoRoot, PlanYaml plan)
+    {
+        if (_configService == null) return null;
+
+        if (!string.IsNullOrEmpty(plan.Project))
+        {
+            var project = _configService.GetProject(plan.Project);
+            var repoRef = project?.Repos.FirstOrDefault(r =>
+                Path.GetFullPath(r.Path).Equals(Path.GetFullPath(repoRoot), StringComparison.OrdinalIgnoreCase));
+            if (repoRef?.BaseBranch is { Length: > 0 } configured)
+                return $"origin/{configured}";
+        }
+
+        foreach (var proj in _configService.Projects)
+        {
+            var repoRef = proj.Repos.FirstOrDefault(r =>
+                Path.GetFullPath(r.Path).Equals(Path.GetFullPath(repoRoot), StringComparison.OrdinalIgnoreCase));
+            if (repoRef?.BaseBranch is { Length: > 0 } found)
+                return $"origin/{found}";
+        }
+
+        return null;
     }
 
     private static string DetectBaseBranch(string repoRoot)
@@ -822,12 +850,7 @@ internal class JobCompletionHandler
 
         try
         {
-            if (!string.IsNullOrEmpty(job.StatusFilePath))
-            {
-                var planFolder = ResolvePlanFolder(job);
-                if (!string.IsNullOrEmpty(planFolder) && Directory.Exists(planFolder))
-                    JobStatusFile.MoveLogToPlanFolder(job.StatusFilePath, planFolder, job.Type);
-            }
+            MoveStatusFileIfNeeded(job);
         }
         catch { }
 
@@ -839,54 +862,73 @@ internal class JobCompletionHandler
 
         try
         {
-            var duration = job.DurationSeconds.HasValue ? $"{job.DurationSeconds}s" : "unknown";
-            var logContent = $"# {job.Type}\n\n" +
-                             $"- **Status:** {job.Status}\n" +
-                             $"- **Started:** {job.StartedAt:u}\n" +
-                             $"- **Completed:** {job.CompletedAt:u}\n" +
-                             $"- **Duration:** {duration}\n" +
-                             $"- **Provider:** {job.Provider}\n";
-
-            if (!string.IsNullOrEmpty(job.SessionId))
-                logContent += $"- **SessionId:** {job.SessionId}\n";
-
-            if (job.Cost.HasValue)
-                logContent += $"- **Cost:** ${job.Cost:F4}\n";
-
-            if (job.Tokens.HasValue)
-                logContent += $"- **Tokens:** {job.Tokens:N0}\n";
-
-            if (job.Status == JobStatus.Timeout && job.StatusMessage != null)
-                logContent += $"- **Timeout Reason:** {job.StatusMessage}\n";
-
-            logContent += BuildPlanOutcomeSummary(job);
-
+            var logContent = BuildJobLogContent(job);
             _planReaderService.AddLog(job.PlanFile, job.Type, logContent);
-
-            if (job.Status is JobStatus.Failed or JobStatus.Timeout && job.OutputLines.Count > 0)
-            {
-                var planFolder = job.Args.Length > 0 ? job.Args[0] : null;
-
-                if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder))
-                {
-                    var logRoot = Path.Combine(
-                        Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? ".",
-                        "Logs", "Jobs");
-                    FileHelper.EnsureDirectory(logRoot);
-                    planFolder = logRoot;
-                }
-
-                var logsDir = Path.Combine(planFolder, "logs");
-                FileHelper.EnsureDirectory(logsDir);
-                var outputFile = Path.Combine(logsDir, $"{job.Type}-{job.Id}.output.log");
-                File.WriteAllLines(outputFile, job.OutputLines);
-
-                job.EnqueueOutput($"[Tendril] Full output saved to: {outputFile}");
-            }
+            WriteFailedJobOutputIfNeeded(job);
         }
         catch
         {
         }
+    }
+
+    private void MoveStatusFileIfNeeded(JobItem job)
+    {
+        if (string.IsNullOrEmpty(job.StatusFilePath)) return;
+
+        var planFolder = ResolvePlanFolder(job);
+        if (!string.IsNullOrEmpty(planFolder) && Directory.Exists(planFolder))
+            JobStatusFile.MoveLogToPlanFolder(job.StatusFilePath, planFolder, job.Type);
+    }
+
+    private string BuildJobLogContent(JobItem job)
+    {
+        var duration = job.DurationSeconds.HasValue ? $"{job.DurationSeconds}s" : "unknown";
+        var logContent = $"# {job.Type}\n\n" +
+                         $"- **Status:** {job.Status}\n" +
+                         $"- **Started:** {job.StartedAt:u}\n" +
+                         $"- **Completed:** {job.CompletedAt:u}\n" +
+                         $"- **Duration:** {duration}\n" +
+                         $"- **Provider:** {job.Provider}\n";
+
+        if (!string.IsNullOrEmpty(job.SessionId))
+            logContent += $"- **SessionId:** {job.SessionId}\n";
+
+        if (job.Cost.HasValue)
+            logContent += $"- **Cost:** ${job.Cost:F4}\n";
+
+        if (job.Tokens.HasValue)
+            logContent += $"- **Tokens:** {job.Tokens:N0}\n";
+
+        if (job.Status == JobStatus.Timeout && job.StatusMessage != null)
+            logContent += $"- **Timeout Reason:** {job.StatusMessage}\n";
+
+        logContent += BuildPlanOutcomeSummary(job);
+
+        return logContent;
+    }
+
+    private void WriteFailedJobOutputIfNeeded(JobItem job)
+    {
+        if (job.Status is not JobStatus.Failed and not JobStatus.Timeout || job.OutputLines.Count == 0)
+            return;
+
+        var planFolder = job.Args.Length > 0 ? job.Args[0] : null;
+
+        if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder))
+        {
+            var logRoot = Path.Combine(
+                Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? ".",
+                "Logs", "Jobs");
+            FileHelper.EnsureDirectory(logRoot);
+            planFolder = logRoot;
+        }
+
+        var logsDir = Path.Combine(planFolder, "logs");
+        FileHelper.EnsureDirectory(logsDir);
+        var outputFile = Path.Combine(logsDir, $"{job.Type}-{job.Id}.output.log");
+        File.WriteAllLines(outputFile, job.OutputLines);
+
+        job.EnqueueOutput($"[Tendril] Full output saved to: {outputFile}");
     }
 
     private static string BuildPlanOutcomeSummary(JobItem job)
@@ -907,25 +949,8 @@ internal class JobCompletionHandler
             var sb = new StringBuilder();
             sb.AppendLine("\n## Outcome\n");
 
-            if (plan.Commits.Count > 0)
-            {
-                sb.AppendLine($"**Commits:** {plan.Commits.Count}");
-                foreach (var commit in plan.Commits)
-                    sb.AppendLine($"- `{commit}`");
-                sb.AppendLine();
-            }
-            else
-            {
-                sb.AppendLine("**Commits:** none\n");
-            }
-
-            if (plan.Verifications.Count > 0)
-            {
-                sb.AppendLine("**Verifications:**");
-                foreach (var v in plan.Verifications)
-                    sb.AppendLine($"- {v.Name}: {v.Status}");
-                sb.AppendLine();
-            }
+            AppendCommitsSummary(sb, plan);
+            AppendVerificationsSummary(sb, plan);
 
             sb.AppendLine($"**Final State:** {plan.State}");
 
@@ -935,6 +960,31 @@ internal class JobCompletionHandler
         {
             return "";
         }
+    }
+
+    private static void AppendCommitsSummary(StringBuilder sb, PlanYaml plan)
+    {
+        if (plan.Commits.Count > 0)
+        {
+            sb.AppendLine($"**Commits:** {plan.Commits.Count}");
+            foreach (var commit in plan.Commits)
+                sb.AppendLine($"- `{commit}`");
+            sb.AppendLine();
+        }
+        else
+        {
+            sb.AppendLine("**Commits:** none\n");
+        }
+    }
+
+    private static void AppendVerificationsSummary(StringBuilder sb, PlanYaml plan)
+    {
+        if (plan.Verifications.Count == 0) return;
+
+        sb.AppendLine("**Verifications:**");
+        foreach (var v in plan.Verifications)
+            sb.AppendLine($"- {v.Name}: {v.Status}");
+        sb.AppendLine();
     }
 
     private void WriteRawOutputLog(JobItem job)
