@@ -1204,4 +1204,34 @@ projects:
             Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public void Should_Handle_Pathological_Yaml_Without_Timeout()
+    {
+        // Crafted YAML that would trigger backtracking with the old pattern
+        var pathologicalYaml = @"
+projects:
+  - name: Test
+    repos:
+      - path: " + string.Concat(Enumerable.Repeat("%VAR", 100)) + @"
+";
+
+        var tempDir = CreateTempConfigFile(pathologicalYaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            service.SetTendrilHome(tempDir);
+            sw.Stop();
+
+            // Should complete quickly (< 1s) even with pathological input
+            Assert.True(sw.ElapsedMilliseconds < 1000,
+                $"ReDoS detected: processing took {sw.ElapsedMilliseconds}ms");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
 }
