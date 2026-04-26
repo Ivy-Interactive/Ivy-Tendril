@@ -134,14 +134,17 @@ public class WorktreeCleanupService : IStartable, IDisposable
     }
 
     /// <summary>
-    ///     Recursively deletes a directory, falling back to <c>cmd /c rmdir /s /q</c> on
-    ///     Windows when <see cref="Directory.Delete(string, bool)"/> fails with
+    ///     Recursively deletes a directory with retry logic, clearing read-only attributes
+    ///     and attempting to release file locks by shutting down build servers and killing
+    ///     VBCSCompiler processes when <see cref="Directory.Delete(string, bool)"/> fails with
     ///     <see cref="UnauthorizedAccessException"/> or <see cref="IOException"/>.
     /// </summary>
     /// <remarks>
     ///     Windows <c>Directory.Delete</c> can fail on deeply nested paths (such as
     ///     <c>node_modules</c>) due to long-path limits, transient file locks, or
-    ///     NTFS permission quirks. <c>rmdir /s /q</c> handles these cases more robustly.
+    ///     NTFS permission quirks. This method retries with exponential backoff and
+    ///     applies mitigations (clear read-only attributes, shutdown build servers,
+    ///     kill locking processes) before throwing.
     /// </remarks>
     internal static void ForceDeleteDirectory(string path, ILogger? logger = null)
     {
@@ -174,22 +177,6 @@ public class WorktreeCleanupService : IStartable, IDisposable
                     buildServersShutdown = true;
                 }
 
-                logger?.LogInformation("Directory.Delete failed for {Dir}, falling back to rmdir /s /q",
-                    Path.GetFileName(path));
-
-                var psi = new ProcessStartInfo("cmd.exe", $"/c rmdir /s /q \"{path}\"")
-                {
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                using var process = Process.Start(psi);
-                process?.WaitForExit(30000);
-
-                if (!Directory.Exists(path))
-                    return;
-
                 if (attempt == maxRetries - 1)
                     TryKillLockingProcesses(path, logger);
 
@@ -197,7 +184,7 @@ public class WorktreeCleanupService : IStartable, IDisposable
                     continue;
 
                 TryLogHandleHolders(path, logger);
-                throw new IOException($"rmdir /s /q also failed to delete '{Path.GetFileName(path)}' after {maxRetries} retries", ex);
+                throw new IOException($"Failed to delete '{Path.GetFileName(path)}' after {maxRetries} retries", ex);
             }
         }
     }
@@ -207,8 +194,9 @@ public class WorktreeCleanupService : IStartable, IDisposable
         if (logger == null || !OperatingSystem.IsWindows()) return;
         try
         {
-            var psi = new ProcessStartInfo("handle.exe", $"-accepteula -nobanner \"{path}\"")
+            var psi = new ProcessStartInfo("handle.exe")
             {
+                ArgumentList = { "-accepteula", "-nobanner", path },
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -254,8 +242,9 @@ public class WorktreeCleanupService : IStartable, IDisposable
         if (!OperatingSystem.IsWindows()) return;
         try
         {
-            var psi = new ProcessStartInfo("handle.exe", $"-accepteula -nobanner -p VBCSCompiler \"{path}\"")
+            var psi = new ProcessStartInfo("handle.exe")
             {
+                ArgumentList = { "-accepteula", "-nobanner", "-p", "VBCSCompiler", path },
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
