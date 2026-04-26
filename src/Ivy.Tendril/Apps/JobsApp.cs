@@ -236,6 +236,7 @@ public class JobsApp : ViewBase
             .Hidden(t => t.Id)
             .Hidden(t => t.LastOutputTimestamp)
             .Hidden(t => t.ErrorContext)
+            .SortDirection(t => t.Id, SortDirection.Descending)
             .Filterable(t => t.Timer, false)
             .Filterable(t => t.LastOutput, false)
             .Config(c =>
