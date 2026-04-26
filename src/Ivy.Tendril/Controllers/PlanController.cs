@@ -7,6 +7,61 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Ivy.Tendril.Controllers;
 
+internal static class PlanFieldAccessors
+{
+    private static readonly Dictionary<string, Func<PlanYaml, string?>> Getters = new()
+    {
+        ["state"] = p => p.State,
+        ["project"] = p => p.Project,
+        ["level"] = p => p.Level,
+        ["title"] = p => p.Title,
+        ["created"] = p => p.Created.ToString("O"),
+        ["updated"] = p => p.Updated.ToString("O"),
+        ["executionprofile"] = p => p.ExecutionProfile,
+        ["initialprompt"] = p => p.InitialPrompt,
+        ["sourceurl"] = p => p.SourceUrl,
+        ["priority"] = p => p.Priority.ToString()
+    };
+
+    private static readonly Dictionary<string, Action<PlanYaml, string>> Setters = new()
+    {
+        ["state"] = (p, v) => p.State = v,
+        ["project"] = (p, v) => p.Project = v,
+        ["level"] = (p, v) => p.Level = v,
+        ["title"] = (p, v) => p.Title = v,
+        ["executionprofile"] = (p, v) => p.ExecutionProfile = v,
+        ["initialprompt"] = (p, v) => p.InitialPrompt = v,
+        ["sourceurl"] = (p, v) => p.SourceUrl = v,
+        ["priority"] = (p, v) => p.Priority = int.Parse(v)
+    };
+
+    public static string? GetField(PlanYaml plan, string field) =>
+        Getters.TryGetValue(field.ToLower(), out var getter)
+            ? getter(plan)
+            : null;
+
+    public static bool TrySetField(PlanYaml plan, string field, string value, out string? error)
+    {
+        if (!Setters.TryGetValue(field.ToLower(), out var setter))
+        {
+            error = $"Unknown field: {field}";
+            return false;
+        }
+
+        try
+        {
+            setter(plan, value);
+            error = null;
+            return true;
+        }
+        catch (FormatException)
+        {
+            error = $"Invalid value for {field}: {value}";
+            return false;
+        }
+    }
+}
+
 [ApiController]
 [Route("api/plans")]
 public class PlanController : ControllerBase
@@ -18,6 +73,35 @@ public class PlanController : ControllerBase
         _planWatcher = planWatcher;
     }
 
+    private IActionResult ModifyPlanEndpoint(
+        string planId,
+        Func<PlanYaml, (bool success, string message, int statusCode)> modifier)
+    {
+        try
+        {
+            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
+            var plan = PlanCommandHelpers.ReadPlan(planFolder);
+
+            var (success, message, statusCode) = modifier(plan);
+
+            if (success)
+            {
+                plan.Updated = DateTime.UtcNow;
+                PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
+            }
+
+            return StatusCode(statusCode, new { message });
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return NotFound(new { error = $"Plan '{planId}' not found" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     [HttpGet("{planId}")]
     public IActionResult GetPlan(string planId, [FromQuery] string? field = null)
     {
@@ -27,7 +111,7 @@ public class PlanController : ControllerBase
             var plan = PlanCommandHelpers.ReadPlan(planFolder);
 
             if (!string.IsNullOrEmpty(field))
-                return Ok(new { value = GetField(plan, planFolder, field) });
+                return Ok(new { value = PlanFieldAccessors.GetField(plan, field) });
 
             return Ok(PlanToDto(plan, planFolder));
         }
@@ -90,23 +174,8 @@ public class PlanController : ControllerBase
             var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
             var plan = PlanCommandHelpers.ReadPlan(planFolder);
 
-            switch (request.Field.ToLower())
-            {
-                case "state": plan.State = request.Value; break;
-                case "project": plan.Project = request.Value; break;
-                case "level": plan.Level = request.Value; break;
-                case "title": plan.Title = request.Value; break;
-                case "executionprofile": plan.ExecutionProfile = request.Value; break;
-                case "initialprompt": plan.InitialPrompt = request.Value; break;
-                case "sourceurl": plan.SourceUrl = request.Value; break;
-                case "priority":
-                    if (!int.TryParse(request.Value, out var priority))
-                        return BadRequest(new { error = $"Invalid priority: {request.Value}" });
-                    plan.Priority = priority;
-                    break;
-                default:
-                    return BadRequest(new { error = $"Unknown field: {request.Field}" });
-            }
+            if (!PlanFieldAccessors.TrySetField(plan, request.Field, request.Value, out var error))
+                return BadRequest(new { error });
 
             if (request.Field.ToLower() != "updated")
                 plan.Updated = DateTime.UtcNow;
@@ -125,117 +194,53 @@ public class PlanController : ControllerBase
     }
 
     [HttpPost("{planId}/repos")]
-    public IActionResult AddRepo(string planId, [FromBody] AddRepoRequest request)
-    {
-        try
+    public IActionResult AddRepo(string planId, [FromBody] AddRepoRequest request) =>
+        ModifyPlanEndpoint(planId, plan =>
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
-
             if (plan.Repos.Contains(request.RepoPath, StringComparer.OrdinalIgnoreCase))
-                return Ok(new { message = $"Repository already in plan: {request.RepoPath}" });
+                return (true, $"Repository already in plan: {request.RepoPath}", 200);
 
             plan.Repos.Add(request.RepoPath);
-            plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
-            return Ok(new { message = $"Added repository: {request.RepoPath}" });
-        }
-        catch (DirectoryNotFoundException)
-        {
-            return NotFound(new { error = $"Plan '{planId}' not found" });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
-    }
+            return (true, $"Added repository: {request.RepoPath}", 200);
+        });
 
     [HttpDelete("{planId}/repos")]
-    public IActionResult RemoveRepo(string planId, [FromBody] RemoveRepoRequest request)
-    {
-        try
+    public IActionResult RemoveRepo(string planId, [FromBody] RemoveRepoRequest request) =>
+        ModifyPlanEndpoint(planId, plan =>
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
-
             var removed = plan.Repos.RemoveAll(r => r.Equals(request.RepoPath, StringComparison.OrdinalIgnoreCase));
             if (removed == 0)
-                return NotFound(new { error = $"Repository not found in plan: {request.RepoPath}" });
+                return (false, $"Repository not found in plan: {request.RepoPath}", 404);
 
-            plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
-            return Ok(new { message = $"Removed repository: {request.RepoPath}" });
-        }
-        catch (DirectoryNotFoundException)
-        {
-            return NotFound(new { error = $"Plan '{planId}' not found" });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
-    }
+            return (true, $"Removed repository: {request.RepoPath}", 200);
+        });
 
     [HttpPost("{planId}/prs")]
-    public IActionResult AddPr(string planId, [FromBody] AddPrRequest request)
-    {
-        try
+    public IActionResult AddPr(string planId, [FromBody] AddPrRequest request) =>
+        ModifyPlanEndpoint(planId, plan =>
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
-
             if (plan.Prs.Contains(request.PrUrl))
-                return Ok(new { message = $"PR already in plan: {request.PrUrl}" });
+                return (true, $"PR already in plan: {request.PrUrl}", 200);
 
             plan.Prs.Add(request.PrUrl);
-            plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
-            return Ok(new { message = $"Added PR: {request.PrUrl}" });
-        }
-        catch (DirectoryNotFoundException)
-        {
-            return NotFound(new { error = $"Plan '{planId}' not found" });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
-    }
+            return (true, $"Added PR: {request.PrUrl}", 200);
+        });
 
     [HttpPost("{planId}/commits")]
-    public IActionResult AddCommit(string planId, [FromBody] AddCommitRequest request)
-    {
-        try
+    public IActionResult AddCommit(string planId, [FromBody] AddCommitRequest request) =>
+        ModifyPlanEndpoint(planId, plan =>
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
-
             if (plan.Commits.Contains(request.Sha))
-                return Ok(new { message = $"Commit already in plan: {request.Sha}" });
+                return (true, $"Commit already in plan: {request.Sha}", 200);
 
             plan.Commits.Add(request.Sha);
-            plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
-            return Ok(new { message = $"Added commit: {request.Sha}" });
-        }
-        catch (DirectoryNotFoundException)
-        {
-            return NotFound(new { error = $"Plan '{planId}' not found" });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
-    }
+            return (true, $"Added commit: {request.Sha}", 200);
+        });
 
     [HttpPut("{planId}/verifications")]
-    public IActionResult SetVerification(string planId, [FromBody] SetVerificationRequest request)
-    {
-        try
+    public IActionResult SetVerification(string planId, [FromBody] SetVerificationRequest request) =>
+        ModifyPlanEndpoint(planId, plan =>
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
-
             var verification = plan.Verifications.FirstOrDefault(v =>
                 v.Name.Equals(request.Name, StringComparison.OrdinalIgnoreCase));
 
@@ -244,19 +249,8 @@ public class PlanController : ControllerBase
             else
                 plan.Verifications.Add(new PlanVerificationEntry { Name = request.Name, Status = request.Status });
 
-            plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
-            return Ok(new { message = $"Set verification '{request.Name}' to '{request.Status}'" });
-        }
-        catch (DirectoryNotFoundException)
-        {
-            return NotFound(new { error = $"Plan '{planId}' not found" });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
-    }
+            return (true, $"Set verification '{request.Name}' to '{request.Status}'", 200);
+        });
 
     [HttpPost("{planId}/logs")]
     public IActionResult AddLog(string planId, [FromBody] AddLogRequest request)
@@ -310,16 +304,12 @@ public class PlanController : ControllerBase
     }
 
     [HttpPost("{planId}/recommendations")]
-    public IActionResult AddRecommendation(string planId, [FromBody] AddRecRequest request)
-    {
-        try
+    public IActionResult AddRecommendation(string planId, [FromBody] AddRecRequest request) =>
+        ModifyPlanEndpoint(planId, plan =>
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
-
             plan.Recommendations ??= [];
             if (plan.Recommendations.Any(r => r.Title.Equals(request.Title, StringComparison.OrdinalIgnoreCase)))
-                return Conflict(new { error = $"Recommendation '{request.Title}' already exists" });
+                return (false, $"Recommendation '{request.Title}' already exists", 409);
 
             plan.Recommendations.Add(new RecommendationYaml
             {
@@ -330,107 +320,51 @@ public class PlanController : ControllerBase
                 Risk = request.Risk
             });
 
-            plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
-            return Ok(new { message = $"Added recommendation '{request.Title}'" });
-        }
-        catch (DirectoryNotFoundException)
-        {
-            return NotFound(new { error = $"Plan '{planId}' not found" });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
-    }
+            return (true, $"Added recommendation '{request.Title}'", 200);
+        });
 
     [HttpPut("{planId}/recommendations/{title}/accept")]
-    public IActionResult AcceptRecommendation(string planId, string title, [FromBody] AcceptRecRequest? request = null)
-    {
-        try
+    public IActionResult AcceptRecommendation(string planId, string title, [FromBody] AcceptRecRequest? request = null) =>
+        ModifyPlanEndpoint(planId, plan =>
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
-
             var rec = (plan.Recommendations ?? [])
                 .FirstOrDefault(r => r.Title.Equals(title, StringComparison.OrdinalIgnoreCase));
             if (rec == null)
-                return NotFound(new { error = $"Recommendation '{title}' not found" });
+                return (false, $"Recommendation '{title}' not found", 404);
 
             rec.State = string.IsNullOrEmpty(request?.Notes) ? "Accepted" : "AcceptedWithNotes";
             rec.DeclineReason = null;
 
-            plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
-            return Ok(new { message = $"Accepted recommendation '{title}'" });
-        }
-        catch (DirectoryNotFoundException)
-        {
-            return NotFound(new { error = $"Plan '{planId}' not found" });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
-    }
+            return (true, $"Accepted recommendation '{title}'", 200);
+        });
 
     [HttpPut("{planId}/recommendations/{title}/decline")]
-    public IActionResult DeclineRecommendation(string planId, string title, [FromBody] DeclineRecRequest? request = null)
-    {
-        try
+    public IActionResult DeclineRecommendation(string planId, string title, [FromBody] DeclineRecRequest? request = null) =>
+        ModifyPlanEndpoint(planId, plan =>
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
-
             var rec = (plan.Recommendations ?? [])
                 .FirstOrDefault(r => r.Title.Equals(title, StringComparison.OrdinalIgnoreCase));
             if (rec == null)
-                return NotFound(new { error = $"Recommendation '{title}' not found" });
+                return (false, $"Recommendation '{title}' not found", 404);
 
             rec.State = "Declined";
             rec.DeclineReason = request?.Reason;
 
-            plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
-            return Ok(new { message = $"Declined recommendation '{title}'" });
-        }
-        catch (DirectoryNotFoundException)
-        {
-            return NotFound(new { error = $"Plan '{planId}' not found" });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
-    }
+            return (true, $"Declined recommendation '{title}'", 200);
+        });
 
     [HttpDelete("{planId}/recommendations/{title}")]
-    public IActionResult RemoveRecommendation(string planId, string title)
-    {
-        try
+    public IActionResult RemoveRecommendation(string planId, string title) =>
+        ModifyPlanEndpoint(planId, plan =>
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
-
             var recs = plan.Recommendations ?? [];
             var match = recs.FirstOrDefault(r => r.Title.Equals(title, StringComparison.OrdinalIgnoreCase));
             if (match == null)
-                return NotFound(new { error = $"Recommendation '{title}' not found" });
+                return (false, $"Recommendation '{title}' not found", 404);
 
             recs.Remove(match);
-            plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
-            return Ok(new { message = $"Removed recommendation '{title}'" });
-        }
-        catch (DirectoryNotFoundException)
-        {
-            return NotFound(new { error = $"Plan '{planId}' not found" });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
-    }
+            return (true, $"Removed recommendation '{title}'", 200);
+        });
 
     private static bool ExtractPlanId(string folderName, out string id)
     {
@@ -441,24 +375,6 @@ public class PlanController : ControllerBase
         if (!int.TryParse(prefix, out _)) return false;
         id = prefix;
         return true;
-    }
-
-    private static string? GetField(PlanYaml plan, string planFolder, string field)
-    {
-        return field.ToLower() switch
-        {
-            "state" => plan.State,
-            "project" => plan.Project,
-            "level" => plan.Level,
-            "title" => plan.Title,
-            "created" => plan.Created.ToString("O"),
-            "updated" => plan.Updated.ToString("O"),
-            "executionprofile" => plan.ExecutionProfile,
-            "initialprompt" => plan.InitialPrompt,
-            "sourceurl" => plan.SourceUrl,
-            "priority" => plan.Priority.ToString(),
-            _ => null
-        };
     }
 
     private static object PlanToDto(PlanYaml plan, string planFolder)
