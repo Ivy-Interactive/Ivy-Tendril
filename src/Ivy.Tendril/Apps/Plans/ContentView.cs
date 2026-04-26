@@ -171,26 +171,7 @@ public class ContentView(
         object planTabContent;
         if (isEditing.Value)
         {
-            var editBar = Layout.Horizontal().Gap(2).Padding(0, 0, 2, 0)
-                          | new Button("Save Revision").Icon(Icons.Save).Primary().OnClick(() =>
-                          {
-                              if (selectedPlan != null && editContent.Value != originalContent.Value)
-                              {
-                                  planService.SaveRevision(selectedPlan.FolderName, editContent.Value);
-                                  var updated = planService.GetPlanByFolder(selectedPlan.FolderPath);
-                                  if (updated != null) selectedPlanState.Set(updated);
-                                  refreshPlans();
-                              }
-                              isEditing.Set(false);
-                          })
-                          | new Button("Cancel").Outline().OnClick(() =>
-                          {
-                              editContent.Set(originalContent.Value);
-                              isEditing.Set(false);
-                          });
-            planTabContent = Layout.Vertical()
-                            | editBar
-                            | editContent.ToCodeInput()
+            planTabContent = editContent.ToCodeInput()
                                 .Language(Languages.Markdown)
                                 .Width(Size.Full());
         }
@@ -278,11 +259,36 @@ public class ContentView(
             j.Args.Length > 0 &&
             j.Args[0].Equals(selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
 
-        var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(1)
-                        | new Button("Update").Icon(Icons.WandSparkles).Outline().ShortcutKey("u")
-                            .OnClick(() => updateDialogOpen.Set(true))
+        object actionBar;
+        if (isEditing.Value)
+        {
+            // Edit mode: show only Save and Cancel buttons
+            actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(1)
+                        | new Button("Save Revision").Icon(Icons.Save).Primary().ShortcutKey("S").OnClick(() =>
+                        {
+                            if (selectedPlan != null && editContent.Value != originalContent.Value)
+                            {
+                                planService.SaveRevision(selectedPlan.FolderName, editContent.Value);
+                                var updated = planService.GetPlanByFolder(selectedPlan.FolderPath);
+                                if (updated != null) selectedPlanState.Set(updated);
+                                refreshPlans();
+                            }
+                            isEditing.Set(false);
+                        })
+                        | new Button("Cancel").Outline().ShortcutKey("Escape").OnClick(() =>
+                        {
+                            editContent.Set(originalContent.Value);
+                            isEditing.Set(false);
+                        });
+        }
+        else
+        {
+            // Normal mode: show all action buttons (Edit first)
+            actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(1)
                         | new Button("Edit").Icon(Icons.Pencil).Outline().ShortcutKey("E")
                             .OnClick(() => isEditing.Set(true))
+                        | new Button("Update").Icon(Icons.WandSparkles).Outline().ShortcutKey("u")
+                            .OnClick(() => updateDialogOpen.Set(true))
                         | new Button("Split").Icon(Icons.Scissors).Outline().ShortcutKey("s")
                             .Disabled(hasActiveSplitJob)
                             .OnClick(() =>
@@ -365,6 +371,7 @@ public class ContentView(
                                 config.OpenInEditor(yamlPath);
                             })
                         );
+        }
 
         var mainLayout = new HeaderLayout(
             header,
