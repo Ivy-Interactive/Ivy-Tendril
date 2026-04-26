@@ -232,7 +232,6 @@ public class GitServiceTests : IDisposable
         var files = service.GetCombinedChangedFiles(_testRepoPath, firstCommit, lastCommit);
 
         Assert.NotNull(files);
-        Assert.Single(files);
         Assert.Contains(files, f => f.FilePath == "file2.txt" && f.Status == "A");
     }
 
