@@ -814,13 +814,22 @@ internal class JobCompletionHandler
                              $"- **Status:** {job.Status}\n" +
                              $"- **Started:** {job.StartedAt:u}\n" +
                              $"- **Completed:** {job.CompletedAt:u}\n" +
-                             $"- **Duration:** {duration}\n";
+                             $"- **Duration:** {duration}\n" +
+                             $"- **Provider:** {job.Provider}\n";
 
             if (!string.IsNullOrEmpty(job.SessionId))
                 logContent += $"- **SessionId:** {job.SessionId}\n";
 
+            if (job.Cost.HasValue)
+                logContent += $"- **Cost:** ${job.Cost:F4}\n";
+
+            if (job.Tokens.HasValue)
+                logContent += $"- **Tokens:** {job.Tokens:N0}\n";
+
             if (job.Status == JobStatus.Timeout && job.StatusMessage != null)
                 logContent += $"- **Timeout Reason:** {job.StatusMessage}\n";
+
+            logContent += BuildPlanOutcomeSummary(job);
 
             _planReaderService.AddLog(job.PlanFile, job.Type, logContent);
 
@@ -847,6 +856,54 @@ internal class JobCompletionHandler
         }
         catch
         {
+        }
+    }
+
+    private static string BuildPlanOutcomeSummary(JobItem job)
+    {
+        if (job.Type != "ExecutePlan")
+            return "";
+
+        var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
+        if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder))
+            return "";
+
+        try
+        {
+            var plan = PlanYamlHelper.ReadPlanYaml(planFolder);
+            if (plan == null)
+                return "";
+
+            var sb = new StringBuilder();
+            sb.AppendLine("\n## Outcome\n");
+
+            if (plan.Commits.Count > 0)
+            {
+                sb.AppendLine($"**Commits:** {plan.Commits.Count}");
+                foreach (var commit in plan.Commits)
+                    sb.AppendLine($"- `{commit}`");
+                sb.AppendLine();
+            }
+            else
+            {
+                sb.AppendLine("**Commits:** none\n");
+            }
+
+            if (plan.Verifications.Count > 0)
+            {
+                sb.AppendLine("**Verifications:**");
+                foreach (var v in plan.Verifications)
+                    sb.AppendLine($"- {v.Name}: {v.Status}");
+                sb.AppendLine();
+            }
+
+            sb.AppendLine($"**Final State:** {plan.State}");
+
+            return sb.ToString();
+        }
+        catch
+        {
+            return "";
         }
     }
 

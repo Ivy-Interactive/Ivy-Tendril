@@ -90,7 +90,7 @@ public class FirmwareCompiler
         return firmware;
     }
 
-    public static string GetNextLogFile(string programFolder)
+    public static string GetNextLogFile(string programFolder, Dictionary<string, string>? initialValues = null)
     {
         var logsFolder = Path.Combine(programFolder, "Logs");
         Directory.CreateDirectory(logsFolder);
@@ -106,7 +106,22 @@ public class FirmwareCompiler
             }
         }
 
-        return Path.Combine(logsFolder, $"{maxNumber + 1:D5}.md");
+        var logFile = Path.Combine(logsFolder, $"{maxNumber + 1:D5}.md");
+
+        // Reserve the slot immediately to prevent race conditions with concurrent jobs
+        var header = $"# Execution Log {maxNumber + 1:D5}\n\n## Args\n";
+        if (initialValues != null)
+        {
+            foreach (var kv in initialValues.OrderBy(kv => kv.Key))
+            {
+                var value = kv.Value.Length > 200 ? kv.Value[..200] + "..." : kv.Value;
+                header += $"- **{kv.Key}:** {value}\n";
+            }
+        }
+        header += "\n*Execution in progress...*\n";
+        File.WriteAllText(logFile, header);
+
+        return logFile;
     }
 
     public static string ResolveProgramFolder(string promptsRoot, string promptwareName)

@@ -89,6 +89,24 @@ if ($SetVerification) {
     $name = $parts[0]
     $status = $parts[1]
 
+    # Block self-certification of delegated verifications (those that have their own promptware)
+    if ($status -eq "Pass") {
+        $promptsRoots = @()
+        # From script location: Tools/ -> ExecutePlan/ -> Promptwares/
+        $promptsRoots += Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+        # From TENDRIL_HOME
+        if ($env:TENDRIL_HOME) {
+            $promptsRoots += Join-Path $env:TENDRIL_HOME "Promptwares"
+        }
+        foreach ($root in $promptsRoots) {
+            $promptwareDir = Join-Path $root $name
+            if (Test-Path $promptwareDir) {
+                Write-Error "BLOCKED: '$name' is a delegated verification (has its own promptware at $promptwareDir). It must be run via 'tendril promptware $name' — ExecutePlan cannot self-certify it as Pass. Set it to Fail if the CLI is unavailable."
+                exit 1
+            }
+        }
+    }
+
     # Find the verification entry and update its status
     $updated = $false
     for ($i = 0; $i -lt $lines.Count; $i++) {
