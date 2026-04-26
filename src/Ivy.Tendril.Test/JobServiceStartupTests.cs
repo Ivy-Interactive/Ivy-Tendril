@@ -126,16 +126,69 @@ public class JobServiceStartupTests
             return 0;
         }
 
-        public List<LatestJobsPerType> GetLatestJobsByType(int limit = 10)
+        public List<HourlyTokenBurn> GetHourlyTokenBurn(int days = 7, string? projectFilter = null)
         {
-            return new List<LatestJobsPerType>();
+            return new List<HourlyTokenBurn>();
         }
 
-        public void UpsertJob(JobItem job)
+        public List<Recommendation> GetRecommendations()
+        {
+            return new List<Recommendation>();
+        }
+
+        public int GetPendingRecommendationsCount()
+        {
+            return 0;
+        }
+
+        public List<PlanFile> SearchPlans(string query)
+        {
+            return new List<PlanFile>();
+        }
+
+        public void RebuildFtsIndex()
+        {
+        }
+
+        public void UpdatePlanState(int planId, PlanStatus state)
+        {
+        }
+
+        public void UpdatePlanContent(int planId, string latestRevisionContent, int revisionCount)
+        {
+        }
+
+        public void UpdateRecommendationState(int planId, string recommendationTitle, string newState, string? declineReason)
         {
         }
 
         public void UpsertPlan(PlanFile plan)
+        {
+        }
+
+        public void DeletePlan(int planId)
+        {
+        }
+
+        public void UpsertCosts(int planId, List<CostEntry> costs)
+        {
+        }
+
+        public void UpsertRecommendations(int planId, string folderName, List<RecommendationYaml> recommendations,
+            string project, string planTitle, DateTime updated, PlanStatus status)
+        {
+        }
+
+        public void BulkUpsertPlans(List<PlanFile> plans, bool forceOverwrite = false)
+        {
+        }
+
+        public HashSet<int> GetTerminalPlanIds()
+        {
+            return new HashSet<int>();
+        }
+
+        public void UpsertJob(JobItem job)
         {
         }
 
@@ -148,21 +201,27 @@ public class JobServiceStartupTests
             return new Dictionary<string, string>();
         }
 
-        public void UpsertPrStatus(string prUrl, string status)
+        public void UpsertPrStatus(string prUrl, string owner, string repo, string status, DateTime lastChecked)
         {
         }
 
-        public void RemovePrStatus(string prUrl)
+        public List<string> GetNonMergedPrUrls()
         {
+            return new List<string>();
         }
 
-        public void LogCostEntry(string jobId, decimal inputCost, decimal outputCost, int inputTokens, int outputTokens)
+        public long GetDatabaseSize()
         {
+            return 0;
         }
 
-        public List<JobCostEntry> GetJobCostEntries(string jobId)
+        public DateTime GetLastSyncTime()
         {
-            return new List<JobCostEntry>();
+            return DateTime.UtcNow;
+        }
+
+        public void SetLastSyncTime(DateTime time)
+        {
         }
     }
 }
