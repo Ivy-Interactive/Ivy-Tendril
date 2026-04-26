@@ -168,33 +168,13 @@ public class ContentView(
         var planData = planContentQuery.Value;
 
         // Plan tab content
-        object planTabContent;
-        if (isEditing.Value)
-        {
-            planTabContent = editContent.ToCodeInput()
-                                .Language(Languages.Markdown)
-                                .Width(Size.Full());
-        }
-        else
-        {
-            var planLayout = Layout.Vertical().Scroll(Scroll.Auto).Height(Size.Full());
-            if (selectedPlan.Status == PlanStatus.Failed) planLayout |= BuildFailureCallout(selectedPlan);
-            var annotatedContent = MarkdownHelper.AnnotateAllBrokenLinks(selectedPlan.LatestRevisionContent, planService.PlansDirectory);
-            planLayout |= new Markdown(annotatedContent)
-                .DangerouslyAllowLocalFiles()
-                .OnLinkClick(FileLinkHelper.CreateFileLinkClickHandler(openFile, planId =>
-                {
-                    var planFolder = Directory.GetDirectories(planService.PlansDirectory, $"{planId:D5}-*")
-                        .FirstOrDefault();
-                    if (planFolder != null)
-                    {
-                        var plan = planService.GetPlanByFolder(planFolder);
-                        if (plan != null)
-                            selectedPlanState.Set(plan);
-                    }
-                }));
-            planTabContent = planLayout;
-        }
+        var planTabContent = new PlanTabView(
+            selectedPlan,
+            selectedPlanState,
+            isEditing.Value,
+            editContent,
+            openFile,
+            planService);
 
         if (planContentQuery.Loading)
         {
@@ -259,119 +239,26 @@ public class ContentView(
             j.Args.Length > 0 &&
             j.Args[0].Equals(selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
 
-        object actionBar;
-        if (isEditing.Value)
-        {
-            // Edit mode: show only Save and Cancel buttons
-            actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(1)
-                        | new Button("Save Revision").Icon(Icons.Save).Primary().ShortcutKey("S").OnClick(() =>
-                        {
-                            if (selectedPlan != null && editContent.Value != originalContent.Value)
-                            {
-                                planService.SaveRevision(selectedPlan.FolderName, editContent.Value);
-                                var updated = planService.GetPlanByFolder(selectedPlan.FolderPath);
-                                if (updated != null) selectedPlanState.Set(updated);
-                                refreshPlans();
-                            }
-                            isEditing.Set(false);
-                        })
-                        | new Button("Cancel").Outline().ShortcutKey("Escape").OnClick(() =>
-                        {
-                            editContent.Set(originalContent.Value);
-                            isEditing.Set(false);
-                        });
-        }
-        else
-        {
-            // Normal mode: show all action buttons (Edit first)
-            actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(1)
-                        | new Button("Edit").Icon(Icons.Pencil).Outline().ShortcutKey("E")
-                            .OnClick(() => isEditing.Set(true))
-                        | new Button("Update").Icon(Icons.WandSparkles).Outline().ShortcutKey("u")
-                            .OnClick(() => updateDialogOpen.Set(true))
-                        | new Button("Split").Icon(Icons.Scissors).Outline().ShortcutKey("s")
-                            .Disabled(hasActiveSplitJob)
-                            .OnClick(() =>
-                        {
-                            if (hasActiveSplitJob) return;
-
-                            // Optimistically update UI state before disk I/O
-                            var optimisticPlan = selectedPlan with
-                            {
-                                Metadata = selectedPlan.Metadata with { State = PlanStatus.Updating }
-                            };
-                            selectedPlanState.Set(optimisticPlan);
-
-                            planService.TransitionState(selectedPlan.FolderName, PlanStatus.Updating);
-                            jobService.StartJob("SplitPlan", selectedPlan.FolderPath);
-                            refreshPlans();
-                        })
-                        | new Button("Expand").Icon(Icons.UnfoldVertical).Outline().ShortcutKey("x")
-                            .Disabled(hasActiveExpandJob)
-                            .OnClick(() =>
-                        {
-                            if (hasActiveExpandJob) return;
-
-                            // Optimistically update UI state before disk I/O
-                            var optimisticPlan = selectedPlan with
-                            {
-                                Metadata = selectedPlan.Metadata with { State = PlanStatus.Building }
-                            };
-                            selectedPlanState.Set(optimisticPlan);
-
-                            planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
-                            var planPath = selectedPlan.FolderPath;
-                            jobService.StartJob("ExpandPlan", planPath);
-                            refreshPlans();
-                        })
-                        | new Button("Delete").Icon(Icons.Trash).Outline().ShortcutKey("Backspace")
-                            .OnClick(() => deleteDialogOpen.Set(true))
-                        | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(() => GoToPrevious())
-                            .ShortcutKey("p")
-                        | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().OnClick(() => GoToNext())
-                            .ShortcutKey("n")
-                        | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
-                            new MenuItem("Create Issue", Icon: Icons.Github, Tag: "CreateIssue").OnSelect(() =>
-                                createIssueDialogOpen.Set(true)),
-                            new MenuItem("Download", Icon: Icons.Download, Tag: "Download").OnSelect(() =>
-                            {
-                                var url = downloadUrl.Value;
-                                if (!string.IsNullOrEmpty(url)) client.OpenUrl(url);
-                            }),
-                            new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
-                                .OnSelect(() => { PlatformHelper.OpenInFileManager(selectedPlan.FolderPath); }),
-                            new MenuItem("Open in Terminal", Icon: Icons.Terminal, Tag: "OpenInTerminal").OnSelect(() =>
-                            {
-                                PlatformHelper.OpenInTerminal(selectedPlan.FolderPath);
-                            }),
-                            new MenuItem($"Open in {config.Editor.Label}", Icon: Icons.Code, Tag: "OpenInEditor")
-                                .OnSelect(() => { config.OpenInEditor(selectedPlan.FolderPath); }),
-                            new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
-                                .OnSelect(() =>
-                                {
-                                    copyToClipboard(selectedPlan.FolderPath);
-                                    client.Toast("Copied path to clipboard", "Path Copied");
-                                }),
-                            new MenuItem("Copy Plan to Clipboard", Icon: Icons.Share, Tag: "CopyPlan")
-                                .OnSelect(() =>
-                                {
-                                    var exported = PlanExportHelper.ExportToClipboard(selectedPlan);
-                                    copyToClipboard(exported);
-                                    client.Toast("Plan copied to clipboard", "Plan Exported");
-                                }),
-                            new MenuItem("Mark as Completed", Icon: Icons.CircleCheck, Tag: "MarkCompleted")
-                                .OnSelect(() =>
-                                {
-                                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
-                                    refreshPlans();
-                                }),
-                            new MenuItem("Open plan.yaml", Icon: Icons.FileText, Tag: "OpenPlanYaml").OnSelect(() =>
-                            {
-                                var yamlPath = Path.Combine(selectedPlan.FolderPath, "plan.yaml");
-                                config.OpenInEditor(yamlPath);
-                            })
-                        );
-        }
+        var actionBar = new ActionBarView(
+            selectedPlan,
+            allPlans,
+            selectedPlanState,
+            isEditing,
+            editContent,
+            originalContent,
+            updateDialogOpen,
+            deleteDialogOpen,
+            createIssueDialogOpen,
+            planService,
+            jobService,
+            config,
+            refreshPlans,
+            copyToClipboard,
+            hasActiveExpandJob,
+            hasActiveSplitJob,
+            GoToNext,
+            GoToPrevious,
+            downloadUrl.Value);
 
         var mainLayout = new HeaderLayout(
             header,
