@@ -177,7 +177,7 @@ public class ModelPricingService : IModelPricingService
                 using var doc = JsonDocument.Parse(line);
                 var root = doc.RootElement;
 
-                var entryType = root.TryGetProperty("type", out var t) ? t.GetString() : null;
+                var entryType = TryGetStringProperty(root, "type");
 
                 if (entryType == "turn_context" &&
                     root.TryGetProperty("payload", out var turnPayload) &&
@@ -186,17 +186,15 @@ public class ModelPricingService : IModelPricingService
 
                 if (entryType == "event_msg" &&
                     root.TryGetProperty("payload", out var payload) &&
-                    payload.TryGetProperty("type", out var payloadType) &&
-                    payloadType.GetString() == "token_count" &&
+                    TryGetStringProperty(payload, "type") == "token_count" &&
                     payload.TryGetProperty("info", out var info) &&
                     info.ValueKind != JsonValueKind.Null &&
                     info.TryGetProperty("total_token_usage", out var usage))
                 {
-                    totalInputTokens = usage.TryGetProperty("input_tokens", out var it) ? it.GetInt32() : 0;
-                    totalOutputTokens = usage.TryGetProperty("output_tokens", out var ot) ? ot.GetInt32() : 0;
-                    totalCachedTokens = usage.TryGetProperty("cached_input_tokens", out var ct) ? ct.GetInt32() : 0;
-                    var reasoningTokens =
-                        usage.TryGetProperty("reasoning_output_tokens", out var rt) ? rt.GetInt32() : 0;
+                    totalInputTokens = TryGetInt32Property(usage, "input_tokens");
+                    totalOutputTokens = TryGetInt32Property(usage, "output_tokens");
+                    totalCachedTokens = TryGetInt32Property(usage, "cached_input_tokens");
+                    var reasoningTokens = TryGetInt32Property(usage, "reasoning_output_tokens");
                     totalOutputTokens += reasoningTokens;
                 }
             }
@@ -207,12 +205,7 @@ public class ModelPricingService : IModelPricingService
         }
 
         var pricing = GetPricing(model);
-        var totalTokens = totalInputTokens + totalOutputTokens;
-        var totalCost = totalInputTokens * pricing.Input * 1e-6
-                        + totalOutputTokens * pricing.Output * 1e-6
-                        + totalCachedTokens * pricing.CacheRead * 1e-6;
-
-        return new CostCalculation { TotalTokens = totalTokens, TotalCost = totalCost };
+        return CalculateCostFromTokens(totalInputTokens, totalOutputTokens, totalCachedTokens, pricing);
     }
 
     internal CostCalculation ParseGeminiSessionFile(string filePath)
@@ -230,23 +223,20 @@ public class ModelPricingService : IModelPricingService
 
             foreach (var msg in messages.EnumerateArray())
             {
-                var msgType = msg.TryGetProperty("type", out var mt) ? mt.GetString() : null;
+                var msgType = TryGetStringProperty(msg, "type");
                 if (msgType != "gemini") continue;
                 if (!msg.TryGetProperty("tokens", out var tokens)) continue;
 
-                var model = msg.TryGetProperty("model", out var m)
-                    ? m.GetString() ?? "gemini-3-flash-preview"
-                    : "gemini-3-flash-preview";
+                var model = TryGetStringProperty(msg, "model") ?? "gemini-3-flash-preview";
                 var pricing = GetPricing(model);
 
-                var inputTokens = tokens.TryGetProperty("input", out var it) ? it.GetInt32() : 0;
-                var outputTokens = tokens.TryGetProperty("output", out var ot) ? ot.GetInt32() : 0;
-                var cachedTokens = tokens.TryGetProperty("cached", out var ct) ? ct.GetInt32() : 0;
+                var inputTokens = TryGetInt32Property(tokens, "input");
+                var outputTokens = TryGetInt32Property(tokens, "output");
+                var cachedTokens = TryGetInt32Property(tokens, "cached");
 
-                totalTokens += inputTokens + outputTokens;
-                totalCost += inputTokens * pricing.Input * 1e-6;
-                totalCost += outputTokens * pricing.Output * 1e-6;
-                totalCost += cachedTokens * pricing.CacheRead * 1e-6;
+                var cost = CalculateCostFromTokens(inputTokens, outputTokens, cachedTokens, pricing);
+                totalTokens += cost.TotalTokens;
+                totalCost += cost.TotalCost;
             }
         }
         catch
@@ -343,5 +333,29 @@ public class ModelPricingService : IModelPricingService
                 /* Skip malformed lines */
             }
         }
+    }
+
+    private static CostCalculation CalculateCostFromTokens(
+        int inputTokens,
+        int outputTokens,
+        int cachedTokens,
+        ModelPricing pricing)
+    {
+        var totalTokens = inputTokens + outputTokens;
+        var totalCost = inputTokens * pricing.Input * 1e-6
+                        + outputTokens * pricing.Output * 1e-6
+                        + cachedTokens * pricing.CacheRead * 1e-6;
+
+        return new CostCalculation { TotalTokens = totalTokens, TotalCost = totalCost };
+    }
+
+    private static string? TryGetStringProperty(JsonElement element, string propertyName)
+    {
+        return element.TryGetProperty(propertyName, out var prop) ? prop.GetString() : null;
+    }
+
+    private static int TryGetInt32Property(JsonElement element, string propertyName)
+    {
+        return element.TryGetProperty(propertyName, out var prop) ? prop.GetInt32() : 0;
     }
 }
