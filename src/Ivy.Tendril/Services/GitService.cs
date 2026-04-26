@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using System.Text.RegularExpressions;
 using Ivy.Helpers;
 
 namespace Ivy.Tendril.Services;
@@ -13,11 +14,20 @@ public class GitService : IGitService
         _timeoutMs = config.Settings.GitTimeout * 1000;
     }
 
+    public static bool IsValidCommitHash(string hash)
+    {
+        return !string.IsNullOrEmpty(hash) &&
+               Regex.IsMatch(hash, "^[a-fA-F0-9]{7,40}$");
+    }
+
     public string? GetCommitTitle(string repoPath, string commitHash)
     {
+        if (!IsValidCommitHash(commitHash))
+            return null;
+
         try
         {
-            var psi = new ProcessStartInfo("git", $"log -1 --format=%s {commitHash}")
+            var psi = new ProcessStartInfo("git", $"log -1 --format=%s -- {commitHash}")
             {
                 WorkingDirectory = repoPath,
                 RedirectStandardOutput = true,
@@ -38,9 +48,12 @@ public class GitService : IGitService
 
     public string? GetCommitDiff(string repoPath, string commitHash)
     {
+        if (!IsValidCommitHash(commitHash))
+            return null;
+
         try
         {
-            var psi = new ProcessStartInfo("git", $"show --format=\"\" --patch {commitHash}")
+            var psi = new ProcessStartInfo("git", $"show --format=\"\" --patch -- {commitHash}")
             {
                 WorkingDirectory = repoPath,
                 RedirectStandardOutput = true,
@@ -61,9 +74,12 @@ public class GitService : IGitService
 
     public int? GetCommitFileCount(string repoPath, string commitHash)
     {
+        if (!IsValidCommitHash(commitHash))
+            return null;
+
         try
         {
-            var psi = new ProcessStartInfo("git", $"diff-tree --no-commit-id --name-only -r {commitHash}")
+            var psi = new ProcessStartInfo("git", $"diff-tree --no-commit-id --name-only -r -- {commitHash}")
             {
                 WorkingDirectory = repoPath,
                 RedirectStandardOutput = true,
@@ -86,9 +102,12 @@ public class GitService : IGitService
 
     public List<(string Status, string FilePath)>? GetCommitFiles(string repoPath, string commitHash)
     {
+        if (!IsValidCommitHash(commitHash))
+            return null;
+
         try
         {
-            var psi = new ProcessStartInfo("git", $"diff-tree --no-commit-id --name-status -r {commitHash}")
+            var psi = new ProcessStartInfo("git", $"diff-tree --no-commit-id --name-status -r -- {commitHash}")
             {
                 WorkingDirectory = repoPath,
                 RedirectStandardOutput = true,
@@ -119,9 +138,12 @@ public class GitService : IGitService
 
     public string? GetCombinedDiff(string repoPath, string firstCommit, string lastCommit)
     {
+        if (!IsValidCommitHash(firstCommit) || !IsValidCommitHash(lastCommit))
+            return null;
+
         try
         {
-            var psi = new ProcessStartInfo("git", $"diff {firstCommit}^..{lastCommit}")
+            var psi = new ProcessStartInfo("git", $"diff -- {firstCommit}^..{lastCommit}")
             {
                 WorkingDirectory = repoPath,
                 RedirectStandardOutput = true,
@@ -142,9 +164,12 @@ public class GitService : IGitService
 
     public List<(string Status, string FilePath)>? GetCombinedChangedFiles(string repoPath, string firstCommit, string lastCommit)
     {
+        if (!IsValidCommitHash(firstCommit) || !IsValidCommitHash(lastCommit))
+            return null;
+
         try
         {
-            var psi = new ProcessStartInfo("git", $"diff --name-status {firstCommit}^..{lastCommit}")
+            var psi = new ProcessStartInfo("git", $"diff --name-status -- {firstCommit}^..{lastCommit}")
             {
                 WorkingDirectory = repoPath,
                 RedirectStandardOutput = true,
@@ -177,6 +202,10 @@ public class GitService : IGitService
     {
         var hashes = commitHashes.ToList();
         if (hashes.Count == 0) return new Dictionary<string, (string, int)>();
+
+        // Validate all hashes first
+        if (hashes.Any(hash => !IsValidCommitHash(hash)))
+            return null;
 
         try
         {
