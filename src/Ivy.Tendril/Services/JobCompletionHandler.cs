@@ -141,7 +141,17 @@ internal class JobCompletionHandler
         _telemetryService?.TrackJobCompleted(job.Type, job.Status, job.DurationSeconds);
 
         if (_telemetryService != null)
-            _ = Task.Run(async () => { try { await _telemetryService.FlushAsync(); } catch { /* best-effort */ } });
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _telemetryService.FlushAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Failed to flush telemetry (best-effort)");
+                }
+            });
     }
 
     private void NotifyPlanWatcher(JobItem job)
@@ -332,8 +342,9 @@ internal class JobCompletionHandler
                     changed = true;
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogDebug(ex, "Failed to read verification report {ReportPath}", reportFile);
                 // Skip unreadable report files
             }
         }
@@ -424,8 +435,9 @@ internal class JobCompletionHandler
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogDebug(ex, "Failed to read commits from worktree {Worktree}", wtDir);
             // Skip worktrees that can't be read
         }
 
