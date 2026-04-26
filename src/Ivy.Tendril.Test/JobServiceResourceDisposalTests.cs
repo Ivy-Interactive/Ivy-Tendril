@@ -23,7 +23,6 @@ public class JobServiceResourceDisposalTests
         {
             Id = "test-job",
             Type = "ExecutePlan",
-            PlanId = "00001",
             Status = JobStatus.Running
         };
 
@@ -42,7 +41,6 @@ public class JobServiceResourceDisposalTests
         {
             Id = "test-job",
             Type = "ExecutePlan",
-            PlanId = "00001",
             Status = JobStatus.Running
         };
 
@@ -70,7 +68,6 @@ public class JobServiceResourceDisposalTests
         {
             Id = "test-job",
             Type = "ExecutePlan",
-            PlanId = "00001",
             Status = JobStatus.Running
         };
 
@@ -181,7 +178,7 @@ internal class TestLogger : ILogger
         _messages = messages;
     }
 
-    public IDisposable BeginScope<TState>(TState state) => NullScope.Instance;
+    IDisposable ILogger.BeginScope<TState>(TState state) where TState : default => NullScope.Instance;
 
     public bool IsEnabled(LogLevel logLevel) => true;
 
