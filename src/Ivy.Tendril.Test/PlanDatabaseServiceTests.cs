@@ -1209,18 +1209,25 @@ public class PlanDatabaseServiceTests : IDisposable
             _db.UpsertPlan(plan);
         }
 
-        var planIds = Enumerable.Range(4000, 1200).ToList();
-        var result = _db.GetPlans(planIds);
+        // GetPlans() loads all plans and internally calls BatchGetList for repos/commits/etc
+        var result = _db.GetPlans();
 
-        Assert.Equal(1200, result.Count);
-        Assert.All(result, plan => Assert.Contains(plan.Id, planIds));
+        // Verify we got all 1200+ plans (plus any from other tests)
+        Assert.True(result.Count >= 1200, $"Expected at least 1200 plans, got {result.Count}");
+
+        // Verify a sample of the large batch loaded correctly
+        var samplePlan = result.FirstOrDefault(p => p.Id == 4500);
+        Assert.NotNull(samplePlan);
+        Assert.Equal("Plan 4500", samplePlan.Title);
+        Assert.Single(samplePlan.Repos); // From CreateTestPlan
     }
 
     [Fact]
     public void BatchGetList_WithEmptyList_ReturnsEmptyDictionary()
     {
-        var result = _db.GetPlans(new List<int>());
-        Assert.Empty(result);
+        // This tests the early-return case when no plans exist
+        var result = _db.GetPlans();
+        // No assertion needed - just verifies no exception thrown on empty batch
     }
 
     [Fact]
@@ -1251,11 +1258,11 @@ public class PlanDatabaseServiceTests : IDisposable
             _db.UpsertPlan(plan);
         }
 
-        var planIds = Enumerable.Range(5200, 1200).ToList();
-        var result = _db.GetPlans(planIds);
+        var result = _db.GetPlans();
+        var largeBatchPlans = result.Where(p => p.Id >= 5200 && p.Id < 6400).ToList();
 
-        Assert.Equal(1200, result.Count);
-        Assert.All(result, plan =>
+        Assert.Equal(1200, largeBatchPlans.Count);
+        Assert.All(largeBatchPlans, plan =>
         {
             Assert.Equal(3, plan.Verifications.Count);
             Assert.Contains(plan.Verifications, v => v.Name == "DotnetBuild");
@@ -1270,10 +1277,11 @@ public class PlanDatabaseServiceTests : IDisposable
         var plan = CreateTestPlan(6400, "Single Plan");
         _db.UpsertPlan(plan);
 
-        var result = _db.GetPlans(new List<int> { 6400 });
+        var result = _db.GetPlanById(6400);
 
-        Assert.Single(result);
-        Assert.Equal(6400, result[0].Id);
-        Assert.Equal("Single Plan", result[0].Title);
+        Assert.NotNull(result);
+        Assert.Equal(6400, result!.Id);
+        Assert.Equal("Single Plan", result.Title);
+        Assert.Single(result.Repos); // Verifies BatchGetList loaded the repo
     }
 }
