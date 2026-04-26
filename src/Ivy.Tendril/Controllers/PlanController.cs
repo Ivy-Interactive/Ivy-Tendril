@@ -90,7 +90,13 @@ public class PlanController : ControllerBase
                 PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
             }
 
-            return StatusCode(statusCode, new { message });
+            return statusCode switch
+            {
+                200 => Ok(new { message }),
+                404 => NotFound(new { error = message }),
+                409 => Conflict(new { error = message }),
+                _ => StatusCode(statusCode, new { message })
+            };
         }
         catch (DirectoryNotFoundException)
         {
