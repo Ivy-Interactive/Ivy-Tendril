@@ -14,10 +14,6 @@ public class TryBuildAgentProcessStartTests : IDisposable
         _promptsDir = Path.Combine(_tempDir, "Promptwares");
         Directory.CreateDirectory(_promptsDir);
 
-        // Create .shared/Plans.md
-        var sharedDir = Path.Combine(_promptsDir, ".shared");
-        Directory.CreateDirectory(sharedDir);
-        File.WriteAllText(Path.Combine(sharedDir, "Plans.md"), "# Plans reference doc");
     }
 
     public void Dispose()
@@ -32,8 +28,7 @@ public class TryBuildAgentProcessStartTests : IDisposable
         var context = new FirmwareContext(
             "/programs/Test",
             "/programs/Test/Logs/00001.md",
-            new Dictionary<string, string>(),
-            new List<(string Name, string Content)>());
+            new Dictionary<string, string>());
 
         var result = FirmwareCompiler.Compile(context);
 
@@ -48,8 +43,7 @@ public class TryBuildAgentProcessStartTests : IDisposable
         var context = new FirmwareContext(
             "/programs/Test",
             "/programs/Test/Logs/00001.md",
-            new Dictionary<string, string>(),
-            new List<(string Name, string Content)>());
+            new Dictionary<string, string>());
 
         var result = FirmwareCompiler.Compile(context);
 

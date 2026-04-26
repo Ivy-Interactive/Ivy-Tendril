@@ -14,8 +14,6 @@ public class JobService : IJobService
 {
     private static readonly string PromptsRoot = ResolvePromptsRoot();
 
-    internal static readonly string SharedRoot = Path.Combine(PromptsRoot, ".shared");
-
     internal static string ResolvePromptsRoot()
     {
         // 1. Debug/source mode: check if Promptwares exists relative to BaseDirectory
@@ -85,7 +83,7 @@ public class JobService : IJobService
             ? new SemaphoreSlim(_maxConcurrentJobs, _maxConcurrentJobs)
             : new SemaphoreSlim(0, 1);
         _inboxPath = Path.Combine(configService.TendrilHome, "Inbox");
-        _jobLauncher = new JobLauncher(configService, _logger, PromptsRoot, SharedRoot);
+        _jobLauncher = new JobLauncher(configService, _logger, PromptsRoot);
         _completionHandler = new JobCompletionHandler(
             configService, _logger, modelPricingService, planReaderService,
             telemetryService, planWatcherService, worktreeLifecycleLogger, PromptsRoot);
@@ -115,7 +113,7 @@ public class JobService : IJobService
         _planReaderService = planReaderService;
         _telemetryService = telemetryService;
         _database = database;
-        _jobLauncher = new JobLauncher(null, _logger, PromptsRoot, SharedRoot);
+        _jobLauncher = new JobLauncher(null, _logger, PromptsRoot);
         _completionHandler = new JobCompletionHandler(
             null, _logger, null, planReaderService, telemetryService,
             null, null, PromptsRoot);

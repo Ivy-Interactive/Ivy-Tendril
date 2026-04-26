@@ -69,7 +69,7 @@ internal static class PromptwareDeployer
                 }
             }
 
-            // Copy any root-level files (e.g., .shared directory contents)
+            // Copy any root-level files
             foreach (var sourceFile in Directory.GetFiles(tempDir))
             {
                 var targetFile = Path.Combine(targetDir, Path.GetFileName(sourceFile));

@@ -1,7 +1,18 @@
+using System.Reflection;
+
 namespace Ivy.Tendril.Services.Agents;
 
 public class FirmwareCompiler
 {
+    private static readonly Lazy<string?> PlansReference = new(() =>
+    {
+        var asm = Assembly.GetExecutingAssembly();
+        using var stream = asm.GetManifestResourceStream("Ivy.Tendril.Assets.Plans.md");
+        if (stream == null) return null;
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
+    });
+
     private const string FirmwareTemplate = """
         ---
         {HEADER}
@@ -77,14 +88,11 @@ public class FirmwareCompiler
             .Replace("{LOGFILE}", context.LogFile)
             .Replace("{PROGRAMFOLDER}", context.ProgramFolder);
 
-        // Append shared reference documents
-        if (context.SharedDocuments.Count > 0)
+        var plansContent = PlansReference.Value;
+        if (plansContent != null)
         {
             firmware += "\n\n## Reference Documents\n";
-            foreach (var (name, content) in context.SharedDocuments)
-            {
-                firmware += $"\n### {name}\n\n{content}\n";
-            }
+            firmware += $"\n### Plans\n\n{plansContent}\n";
         }
 
         return firmware;
@@ -133,5 +141,4 @@ public class FirmwareCompiler
 public record FirmwareContext(
     string ProgramFolder,
     string LogFile,
-    Dictionary<string, string> Values,
-    List<(string Name, string Content)> SharedDocuments);
+    Dictionary<string, string> Values);
