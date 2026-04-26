@@ -65,20 +65,19 @@ public class SoftwareCheckStepView(
                             .Loading(isChecking.Value)
                             .Disabled(isChecking.Value)
                             .OnClick(async () => await CheckSoftware()))
-                     | new Table(
-                         new TableRow(
-                             new TableCell("Software").IsHeader(),
-                             new TableCell("Status").IsHeader(),
-                             new TableCell("Instructions").IsHeader()
-                         ).IsHeader(),
-                         MakeSoftwareRow(checkResults.Value, healthResults.Value, "GitHub CLI", "gh", "https://cli.github.com/", true),
-                         MakeSoftwareRow(checkResults.Value, healthResults.Value, "Claude CLI", "claude", "https://docs.anthropic.com/en/docs/claude-code", false),
-                         MakeSoftwareRow(checkResults.Value, healthResults.Value, "Codex CLI", "codex", "https://openai.com/index/codex/", false),
-                         MakeSoftwareRow(checkResults.Value, healthResults.Value, "Gemini CLI", "gemini", "https://github.com/google-gemini/gemini-cli", false),
-                         MakeSoftwareRow(checkResults.Value, healthResults.Value, "Git", "git", "https://git-scm.com/downloads", true),
-                         MakeSoftwareRow(checkResults.Value, healthResults.Value, "PowerShell", "powershell", "https://github.com/PowerShell/PowerShell", true),
-                         MakeSoftwareRow(checkResults.Value, healthResults.Value, "Pandoc (Optional)", "pandoc", "https://pandoc.org/installing.html", false)
-                     ).Width(Size.Full())
+                     | new TableBuilder<SoftwareRow>(new[]
+                         {
+                             MakeSoftwareRow(checkResults.Value, healthResults.Value, "GitHub CLI", "gh", "https://cli.github.com/", true),
+                             MakeSoftwareRow(checkResults.Value, healthResults.Value, "Claude CLI", "claude", "https://docs.anthropic.com/en/docs/claude-code", false),
+                             MakeSoftwareRow(checkResults.Value, healthResults.Value, "Codex CLI", "codex", "https://openai.com/index/codex/", false),
+                             MakeSoftwareRow(checkResults.Value, healthResults.Value, "Gemini CLI", "gemini", "https://github.com/google-gemini/gemini-cli", false),
+                             MakeSoftwareRow(checkResults.Value, healthResults.Value, "Git", "git", "https://git-scm.com/downloads", true),
+                             MakeSoftwareRow(checkResults.Value, healthResults.Value, "PowerShell", "powershell", "https://github.com/PowerShell/PowerShell", true),
+                             MakeSoftwareRow(checkResults.Value, healthResults.Value, "Pandoc (Optional)", "pandoc", "https://pandoc.org/installing.html", false)
+                         })
+                         .Builder(t => t.Instructions, f => f.Func<SoftwareRow, string>(value =>
+                             value.StartsWith("http") ? new Button("Install").Inline().Url(value) : (object)value))
+                         .Width(Size.Full())
                    : null!)
                | (checkResults.Value == null
                    ? new Button("Check Software")
@@ -161,7 +160,7 @@ public class SoftwareCheckStepView(
         }
     }
 
-    private static TableRow MakeSoftwareRow(
+    private static SoftwareRow MakeSoftwareRow(
         Dictionary<string, bool> results,
         Dictionary<string, HealthCheckStatus?>? health,
         string displayName,
@@ -184,22 +183,20 @@ public class SoftwareCheckStepView(
         else
             statusText = "✅ Installed";
 
-        TableCell notesCell;
+        string instructions;
         if (!installed)
-            notesCell = new TableCell(new Button("Install").Inline().Url(installUrl));
+            instructions = installUrl;
         else if (healthStatus == HealthCheckStatus.NotAuthenticated && HealthCheckHints.TryGetValue(key, out var hint))
-            notesCell = new TableCell(hint);
+            instructions = hint;
         else if (healthStatus == HealthCheckStatus.CheckFailed)
-            notesCell = new TableCell("Try clicking Recheck");
+            instructions = "Try clicking Recheck";
         else
-            notesCell = new TableCell("");
+            instructions = "";
 
-        return new TableRow(
-            new TableCell(displayName),
-            new TableCell(statusText),
-            notesCell
-        );
+        return new SoftwareRow(displayName, statusText, instructions);
     }
+
+    private record SoftwareRow(string Software, string Status, string Instructions);
 
     private static async Task<bool> CheckPowerShell()
     {
