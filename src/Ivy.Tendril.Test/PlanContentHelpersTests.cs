@@ -285,5 +285,11 @@ public class PlanContentHelpersTests
         {
             return null;
         }
+
+        public Dictionary<string, (string Title, int FileCount)>? GetCommitSummaries(string repoPath, IEnumerable<string> commitHashes)
+        {
+            if (commitTitle == null) return null;
+            return commitHashes.ToDictionary(h => h, _ => (commitTitle, commitFiles?.Count ?? 0));
+        }
     }
 }

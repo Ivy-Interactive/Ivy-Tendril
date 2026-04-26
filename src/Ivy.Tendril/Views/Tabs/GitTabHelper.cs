@@ -32,6 +32,16 @@ public static class GitTabHelper
         return new GitTabData(commitRows, worktreeRows);
     }
 
+    public static GitTabData BuildGitTabData(
+        List<PlanContentHelpers.CommitRow> precomputedCommitRows,
+        PlanFile plan,
+        IConfigService config,
+        IGitService gitService)
+    {
+        var worktreeRows = BuildWorktreeRows(plan, config, gitService);
+        return new GitTabData(precomputedCommitRows, worktreeRows);
+    }
+
     private static List<WorktreeRow> BuildWorktreeRows(
         PlanFile plan,
         IConfigService config,

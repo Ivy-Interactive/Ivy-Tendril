@@ -371,8 +371,8 @@ internal class JobCompletionHandler
                 var repoRoot = Path.GetDirectoryName(repoGitDir);
                 if (repoRoot == null || !Directory.Exists(repoRoot)) continue;
 
-                // Detect base branch
-                var baseBranch = DetectBaseBranch(repoRoot);
+                // Use configured baseBranch from project config, fall back to auto-detect
+                var baseBranch = ResolveBaseBranch(repoRoot, plan);
 
                 var psi = new ProcessStartInfo("git",
                     $"log --format=%H \"{baseBranch}..{branchName}\"")
@@ -409,6 +409,20 @@ internal class JobCompletionHandler
         }
 
         return changed;
+    }
+
+    private string ResolveBaseBranch(string repoRoot, PlanYaml plan)
+    {
+        if (_configService != null && !string.IsNullOrEmpty(plan.Project))
+        {
+            var project = _configService.GetProject(plan.Project);
+            var repoRef = project?.Repos.FirstOrDefault(r =>
+                Path.GetFullPath(r.Path).Equals(Path.GetFullPath(repoRoot), StringComparison.OrdinalIgnoreCase));
+            if (repoRef?.BaseBranch is { Length: > 0 } configured)
+                return $"origin/{configured}";
+        }
+
+        return DetectBaseBranch(repoRoot);
     }
 
     private static string DetectBaseBranch(string repoRoot)

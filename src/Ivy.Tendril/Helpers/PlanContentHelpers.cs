@@ -37,7 +37,26 @@ public static class PlanContentHelpers
 
     public static List<CommitRow> BuildCommitRows(PlanFile plan, IConfigService config, IGitService gitService)
     {
+        if (plan.Commits.Count == 0) return [];
+
         var repoPaths = plan.GetEffectiveRepoPaths(config);
+
+        // Try batch lookup: single git process for all commits per repo
+        foreach (var repo in repoPaths)
+        {
+            var summaries = gitService.GetCommitSummaries(repo, plan.Commits);
+            if (summaries == null || summaries.Count == 0) continue;
+
+            return plan.Commits.Select(commit =>
+            {
+                var shortHash = commit.Length > 7 ? commit[..7] : commit;
+                if (summaries.TryGetValue(commit, out var info))
+                    return new CommitRow(commit, shortHash, info.Title, info.FileCount);
+                return new CommitRow(commit, shortHash, "", null);
+            }).ToList();
+        }
+
+        // Fallback: individual lookups if batch fails
         return plan.Commits.Select(commit =>
         {
             string? title = null;
