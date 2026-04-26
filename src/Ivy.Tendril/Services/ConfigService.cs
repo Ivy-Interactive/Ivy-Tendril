@@ -160,6 +160,17 @@ public record ConfigParseError(string Message, string FilePath, Exception? Inner
 
 public class ConfigService : IConfigService
 {
+    // Cached regex patterns to prevent ReDoS and avoid recompilation
+    private static readonly Regex YamlVariableValuePattern = new(
+        @"(?m)(?<=:\s+)(%\w+%.*)$",
+        RegexOptions.NonBacktracking | RegexOptions.Compiled
+    );
+
+    private static readonly Regex YamlVariableListPattern = new(
+        @"(?m)^(\s*-\s+)(%\w+%.*)$",
+        RegexOptions.NonBacktracking | RegexOptions.Compiled
+    );
+
     private readonly bool _explicitHome;
     private readonly ILogger<ConfigService> _logger;
     private string[]? _levelNamesCache;
@@ -167,6 +178,17 @@ public class ConfigService : IConfigService
     private ProjectConfig? _pendingProject;
     private string? _pendingTendrilHome;
     private List<VerificationConfig>? _pendingVerificationDefinitions;
+
+    /// <summary>
+    /// Preprocesses YAML to quote unquoted %VAR% patterns that YAML rejects (% is a directive indicator).
+    /// Uses cached, non-backtracking regexes to prevent ReDoS attacks.
+    /// </summary>
+    private static string PreprocessYamlVariables(string yaml)
+    {
+        yaml = YamlVariableValuePattern.Replace(yaml, "'$1'");
+        yaml = YamlVariableListPattern.Replace(yaml, "$1'$2'");
+        return yaml;
+    }
 
     internal ConfigService(TendrilSettings settings, string? tendrilHome = null, ILogger<ConfigService>? logger = null)
     {
@@ -205,9 +227,7 @@ public class ConfigService : IConfigService
             try
             {
                 var yaml = FileHelper.ReadAllText(ConfigPath);
-                // Quote unquoted %VAR% patterns that YAML rejects (% is a directive indicator)
-                yaml = Regex.Replace(yaml, @"(?m)(?<=:\s+)(%\w+%.*)$", "'$1'");
-                yaml = Regex.Replace(yaml, @"(?m)^(\s*-\s+)(%\w+%.*)$", "$1'$2'");
+                yaml = PreprocessYamlVariables(yaml);
                 Settings = YamlHelper.Deserializer.Deserialize<TendrilSettings>(yaml) ?? new TendrilSettings();
                 MigrateProjectColors();
                 CreateConfigBackup();
@@ -331,8 +351,7 @@ public class ConfigService : IConfigService
         try
         {
             var yaml = FileHelper.ReadAllText(ConfigPath);
-            yaml = Regex.Replace(yaml, @"(?m)(?<=:\s+)(%\w+%.*)$", "'$1'");
-            yaml = Regex.Replace(yaml, @"(?m)^(\s*-\s+)(%\w+%.*)$", "$1'$2'");
+            yaml = PreprocessYamlVariables(yaml);
             Settings = YamlHelper.Deserializer.Deserialize<TendrilSettings>(yaml) ?? new TendrilSettings();
 
             MigrateProjectColors();
@@ -530,8 +549,7 @@ public class ConfigService : IConfigService
         try
         {
             var yaml = FileHelper.ReadAllText(ConfigPath);
-            yaml = Regex.Replace(yaml, @"(?m)(?<=:\s+)(%\w+%.*)$", "'$1'");
-            yaml = Regex.Replace(yaml, @"(?m)^(\s*-\s+)(%\w+%.*)$", "$1'$2'");
+            yaml = PreprocessYamlVariables(yaml);
             Settings = YamlHelper.Deserializer.Deserialize<TendrilSettings>(yaml) ?? new TendrilSettings();
             MigrateProjectColors();
             CreateConfigBackup();
