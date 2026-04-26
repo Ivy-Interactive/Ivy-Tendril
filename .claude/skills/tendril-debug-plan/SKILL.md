@@ -1,8 +1,7 @@
-***
-
+---
 name: tendril-debug-plan
 description: Debug a Tendril plan by analyzing its execution logs, session JSONL, verification results, and checking infrastructure. Produces actionable bugfix and improvement recommendations. Use when the user wants to investigate why a plan failed, behaved unexpectedly, or to audit plan execution quality.
---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+---
 
 # tendril-debug-plan
 
