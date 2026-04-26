@@ -202,7 +202,7 @@ public class ContentView(
                 };
                 selectedPlanState.Set(optimisticPlan);
 
-                jobService.StartJob("CreatePr", selectedPlan.FolderPath);
+                jobService.StartJob(Constants.JobTypes.CreatePr, selectedPlan.FolderPath);
                 planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
                 refreshPlans();
             }

@@ -39,10 +39,10 @@ internal class JobLauncher
         job.StartedAt = DateTime.UtcNow;
         job.StatusMessage = null;
 
-        var planFolderForHooks = type != "CreatePlan" && args.Length > 0 ? args[0] : "";
+        var planFolderForHooks = type != Constants.JobTypes.CreatePlan && args.Length > 0 ? args[0] : "";
         runHooks("before", type, planFolderForHooks, job.Project, job);
 
-        if (type == "ExecutePlan" && args.Length > 0)
+        if (type == Constants.JobTypes.ExecutePlan && args.Length > 0)
             PlanYamlHelper.SetPlanStateByFolder(args[0], "Executing");
 
         job.SessionId = Guid.NewGuid().ToString();
@@ -327,7 +327,7 @@ internal class JobLauncher
         string? profileOverride = null;
         PlanYaml? planYaml = null;
 
-        if (job.Type == "CreatePlan")
+        if (job.Type == Constants.JobTypes.CreatePlan)
         {
             var description = PlanYamlHelper.GetNamedArg(job.Args, "-Description") ?? string.Join(" ", job.Args);
             values["Args"] = description;
@@ -357,13 +357,13 @@ internal class JobLauncher
 
                 planYaml = PlanYamlHelper.ReadPlanYaml(planFolder);
 
-                if (job.Type == "ExecutePlan" && planYaml != null &&
+                if (job.Type == Constants.JobTypes.ExecutePlan && planYaml != null &&
                     !string.IsNullOrEmpty(planYaml.ExecutionProfile))
                 {
                     profileOverride = planYaml.ExecutionProfile;
                 }
 
-                if (job.Type is "ExecutePlan" or "CreatePr" && planYaml != null)
+                if (job.Type is Constants.JobTypes.ExecutePlan or Constants.JobTypes.CreatePr && planYaml != null)
                 {
                     var repoConfigs = BuildRepoConfigsYaml(planYaml, job.Project);
                     if (!string.IsNullOrEmpty(repoConfigs))

@@ -170,7 +170,7 @@ public class InboxWatcherService : IInboxWatcherService
         var args = new List<string> { "-Description", description, "-Project", project };
         if (!string.IsNullOrEmpty(sourcePath))
             args.AddRange(["-SourcePath", sourcePath]);
-        _jobService.StartJob("CreatePlan", args.ToArray(), processingPath);
+        _jobService.StartJob(Constants.JobTypes.CreatePlan, args.ToArray(), processingPath);
     }
 
     internal static (string project, string description, string? sourcePath) ParseContent(string content)
