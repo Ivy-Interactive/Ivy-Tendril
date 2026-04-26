@@ -66,7 +66,9 @@ public static class TendrilServer
         server.Services.AddSingleton<GithubService>();
         server.Services.AddSingleton<IGithubService>(sp => sp.GetRequiredService<GithubService>());
         server.Services.AddSingleton<IGitService>(sp =>
-            new GitService(sp.GetRequiredService<IConfigService>()));
+            new GitService(
+                sp.GetRequiredService<IConfigService>(),
+                sp.GetRequiredService<ILogger<GitService>>()));
         server.Services.AddSingleton<IWorktreeLifecycleLogger>(sp =>
         {
             var config = sp.GetRequiredService<IConfigService>();
