@@ -11,7 +11,7 @@ public class PlanReaderServiceTests
     [InlineData("99999-Name_With_Underscores", "Name_With_Underscores")]
     public void ExtractSafeTitle_StandardFormat_ReturnsTitle(string folderName, string expectedTitle)
     {
-        var result = PlanReaderService.ExtractSafeTitle(folderName);
+        var result = WorktreeCleanupService.ExtractSafeTitle(folderName);
         Assert.Equal(expectedTitle, result);
     }
 
@@ -21,7 +21,7 @@ public class PlanReaderServiceTests
     [InlineData("03314-MyPlan\\/", "MyPlan")]
     public void ExtractSafeTitle_WithTrailingSeparators_TrimsAndReturnsTitle(string folderPath, string expectedTitle)
     {
-        var result = PlanReaderService.ExtractSafeTitle(folderPath);
+        var result = WorktreeCleanupService.ExtractSafeTitle(folderPath);
         Assert.Equal(expectedTitle, result);
     }
 
@@ -32,7 +32,7 @@ public class PlanReaderServiceTests
     [InlineData("12345-Über-Cool-Feature", "Über-Cool-Feature")]
     public void ExtractSafeTitle_WithNonAsciiCharacters_PreservesCharacters(string folderName, string expectedTitle)
     {
-        var result = PlanReaderService.ExtractSafeTitle(folderName);
+        var result = WorktreeCleanupService.ExtractSafeTitle(folderName);
         Assert.Equal(expectedTitle, result);
     }
 
@@ -44,14 +44,14 @@ public class PlanReaderServiceTests
     public void ExtractSafeTitle_WithLongFolderName_ReturnsFullTitle(string folderName)
     {
         var expectedTitle = folderName.Substring(6); // Skip "03314-"
-        var result = PlanReaderService.ExtractSafeTitle(folderName);
+        var result = WorktreeCleanupService.ExtractSafeTitle(folderName);
         Assert.Equal(expectedTitle, result);
     }
 
     [Fact]
     public void ExtractSafeTitle_WithEmptyString_ReturnsUnknown()
     {
-        var result = PlanReaderService.ExtractSafeTitle("");
+        var result = WorktreeCleanupService.ExtractSafeTitle("");
         Assert.Equal("Unknown", result);
     }
 
@@ -59,7 +59,7 @@ public class PlanReaderServiceTests
     public void ExtractSafeTitle_WithNullInput_ReturnsUnknown()
     {
         // Path.GetFileName(null) returns an empty string, which won't match the regex
-        var result = PlanReaderService.ExtractSafeTitle(null!);
+        var result = WorktreeCleanupService.ExtractSafeTitle(null!);
         Assert.Equal("Unknown", result);
     }
 
@@ -71,7 +71,7 @@ public class PlanReaderServiceTests
     [InlineData("ABCDE-InvalidIdFormat", "Unknown")]
     public void ExtractSafeTitle_WithInvalidFormat_ReturnsUnknown(string folderName, string expectedResult)
     {
-        var result = PlanReaderService.ExtractSafeTitle(folderName);
+        var result = WorktreeCleanupService.ExtractSafeTitle(folderName);
         Assert.Equal(expectedResult, result);
     }
 
@@ -81,7 +81,7 @@ public class PlanReaderServiceTests
     [InlineData("D:\\Repos\\_Ivy\\03314-TestPlan", "TestPlan")]
     public void ExtractSafeTitle_WithFullPath_ExtractsTitleOnly(string fullPath, string expectedTitle)
     {
-        var result = PlanReaderService.ExtractSafeTitle(fullPath);
+        var result = WorktreeCleanupService.ExtractSafeTitle(fullPath);
         Assert.Equal(expectedTitle, result);
     }
 }

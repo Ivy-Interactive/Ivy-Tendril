@@ -674,7 +674,7 @@ internal class JobCompletionHandler
             await Task.Delay(TimeSpan.FromSeconds(30));
             try
             {
-                PlanReaderService.RemoveWorktrees(planFolder, lifecycleLogger: lifecycleLogger);
+                WorktreeCleanupService.RemoveWorktrees(planFolder, lifecycleLogger: lifecycleLogger);
 
                 if (Directory.Exists(worktreesDir) && Directory.GetDirectories(worktreesDir).Length == 0)
                     Directory.Delete(worktreesDir, false);
