@@ -51,7 +51,7 @@ public static class PlatformHelper
             Process.Start(new ProcessStartInfo
             {
                 FileName = "pwsh",
-                Arguments = $"-NoProfile -Command \"{action}\"",
+                Arguments = $"-NoExit -NoProfile -Command \"{action}\"",
                 WorkingDirectory = workingDirectory,
                 UseShellExecute = true
             });
