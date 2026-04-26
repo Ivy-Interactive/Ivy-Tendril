@@ -123,9 +123,11 @@ public class SoftwareCheckStepView(
             var installTasks = SoftwareChecks.Select(s => s.InstallCheck()).ToList();
             await Task.WhenAll(installTasks);
 
-            var results = SoftwareChecks
-                .Zip(installTasks, (check, task) => (check, installed: task.Result))
-                .ToDictionary(x => x.check.Key, x => x.installed);
+            var results = new Dictionary<string, bool>();
+            for (int i = 0; i < SoftwareChecks.Count; i++)
+            {
+                results[SoftwareChecks[i].Key] = await installTasks[i];
+            }
 
             checkResults.Set(results);
 
