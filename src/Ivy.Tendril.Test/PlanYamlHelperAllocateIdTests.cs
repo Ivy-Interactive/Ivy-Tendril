@@ -69,7 +69,7 @@ public class PlanYamlHelperAllocateIdTests
     }
 
     [Fact]
-    public void AllocatePlanId_ConcurrentProcesses_NoDuplicateIds()
+    public async Task AllocatePlanId_ConcurrentProcesses_NoDuplicateIds()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"tendril-test-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDir);
@@ -98,13 +98,13 @@ public class PlanYamlHelperAllocateIdTests
             }
 
             // Wait for all tasks to complete
-            Task.WaitAll(tasks.ToArray(), TimeSpan.FromSeconds(30));
+            var results = await Task.WhenAll(tasks);
 
             // Collect all allocated IDs
             var allocatedIds = new HashSet<string>();
-            foreach (var task in tasks)
+            foreach (var ids in results)
             {
-                foreach (var id in task.Result)
+                foreach (var id in ids)
                 {
                     Assert.True(allocatedIds.Add(id), $"Duplicate ID found: {id}");
                 }
