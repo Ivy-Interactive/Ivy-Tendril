@@ -221,7 +221,6 @@ These are the files most likely to contain the root cause of issues:
 | `Services/GitService.cs`                           | Worktree creation/cleanup, commit operations                |
 | `Services/Agents/FirmwareCompiler.cs`              | Prompt compilation, log file allocation                     |
 | `Promptwares/ExecutePlan/Program.md`               | Main execution flow, all verification steps                 |
-| `Promptwares/ExecutePlan/Tools/Update-PlanYaml.ps1`| Fallback plan.yaml updater when CLI unavailable             |
 | `Promptwares/CreatePlan/Program.md`                | Plan creation, folder setup                                 |
 | `Promptwares/.shared/Plans.md`                     | Plan schema, CLI commands, state lifecycle                  |
 | `Promptwares/{Type}/Memory/`                       | Agent knowledge base per promptware                         |
