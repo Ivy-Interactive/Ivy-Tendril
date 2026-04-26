@@ -475,7 +475,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 | new NewPlanButton()
                 ,
                 Layout.Vertical(
-                    new SidebarNews("https://ivy.app/news.json"),
+                    new SidebarNews(Array.Empty<SidebarNewsArticle>()),
                     settings.Footer,
                     footer
                 ),
