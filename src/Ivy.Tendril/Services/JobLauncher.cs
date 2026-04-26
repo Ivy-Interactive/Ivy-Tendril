@@ -529,10 +529,29 @@ internal class JobLauncher
                 var expanded = Environment.ExpandEnvironmentVariables(depPath);
                 var repoName = Path.GetFileName(expanded);
                 if (!planRepoNames.Contains(repoName))
-                    AddRepo(expanded, "main", "fetch", "default", true);
+                {
+                    var depBaseBranch = FindBaseBranchAcrossProjects(repoName);
+                    AddRepo(expanded, depBaseBranch, "fetch", "default", true);
+                }
             }
         }
 
         return string.Join("\n", lines);
+    }
+
+    private string FindBaseBranchAcrossProjects(string repoName)
+    {
+        if (_configService == null) return "main";
+
+        foreach (var proj in _configService.Projects)
+        {
+            var repoRef = proj.Repos.FirstOrDefault(r =>
+                Path.GetFileName(Environment.ExpandEnvironmentVariables(r.Path))
+                    .Equals(repoName, StringComparison.OrdinalIgnoreCase));
+            if (repoRef?.BaseBranch is { Length: > 0 } configured)
+                return configured;
+        }
+
+        return "main";
     }
 }
