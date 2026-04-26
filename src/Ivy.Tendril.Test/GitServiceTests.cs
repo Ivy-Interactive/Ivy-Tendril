@@ -1,30 +1,65 @@
 using Ivy.Tendril.Services;
 using Microsoft.Extensions.Logging;
-using NSubstitute;
 using Xunit;
 
 namespace Ivy.Tendril.Test;
 
 public class GitServiceTests
 {
-    private readonly ILogger<GitService> _logger;
-    private readonly IConfigService _config;
-
-    public GitServiceTests()
+    private GitService CreateGitService()
     {
-        _logger = Substitute.For<ILogger<GitService>>();
-        _config = Substitute.For<IConfigService>();
-        _config.Settings.Returns(new SettingsFile
-        {
-            GitTimeout = 5 // 5 seconds timeout
-        });
+        var config = new TestConfigService();
+        var logger = new TestLogger();
+        return new GitService(config, logger);
+    }
+
+    private class TestLogger : ILogger<GitService>
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => false;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) { }
+    }
+
+    private class TestConfigService : IConfigService
+    {
+        public TendrilSettings Settings => new() { GitTimeout = 5, Projects = [] };
+        public string TendrilHome => "";
+        public string ConfigPath => "";
+        public string PlanFolder => "";
+        public List<ProjectConfig> Projects => [];
+        public List<LevelConfig> Levels => [];
+        public string[] LevelNames => [];
+        public EditorConfig Editor => new();
+        public bool NeedsOnboarding => false;
+        public ConfigParseError? ParseError => null;
+        public event EventHandler? SettingsReloaded;
+
+        public ProjectConfig? GetProject(string name) => null;
+        public bool TryAutoHeal() => false;
+        public void ResetToDefaults() { }
+        public void RetryLoadConfig() { }
+        public BadgeVariant GetBadgeVariant(string level) => BadgeVariant.Info;
+        public Colors? GetProjectColor(string projectName) => null;
+        public void SaveSettings() { }
+        public void ReloadSettings() { }
+        public void SetPendingTendrilHome(string path) { }
+        public string? GetPendingTendrilHome() => null;
+        public void SetPendingProject(ProjectConfig project) { }
+        public ProjectConfig? GetPendingProject() => null;
+        public void SetPendingCodingAgent(string name) { }
+        public string? GetPendingCodingAgent() => null;
+        public void SetPendingVerificationDefinitions(List<VerificationConfig> definitions) { }
+        public List<VerificationConfig>? GetPendingVerificationDefinitions() => null;
+        public void CompleteOnboarding(string tendrilHome) { }
+        public void OpenInEditor(string path) { }
+        public string PreprocessForEditing(string path) => path;
     }
 
     [Fact]
     public void GetCommitTitle_WithInvalidRepo_ReturnsInvalidRepoPathError()
     {
         // Arrange
-        var gitService = new GitService(_config, _logger);
+        var gitService = CreateGitService();
         var invalidRepoPath = "D:\\NonExistent\\Repo\\Path";
 
         // Act
@@ -40,7 +75,7 @@ public class GitServiceTests
     public void GetCommitDiff_WithInvalidRepo_ReturnsInvalidRepoPathError()
     {
         // Arrange
-        var gitService = new GitService(_config, _logger);
+        var gitService = CreateGitService();
         var invalidRepoPath = "D:\\NonExistent\\Repo\\Path";
 
         // Act
@@ -56,7 +91,7 @@ public class GitServiceTests
     public void GetCommitFileCount_WithInvalidRepo_ReturnsInvalidRepoPathError()
     {
         // Arrange
-        var gitService = new GitService(_config, _logger);
+        var gitService = CreateGitService();
         var invalidRepoPath = "D:\\NonExistent\\Repo\\Path";
 
         // Act
@@ -72,7 +107,7 @@ public class GitServiceTests
     public void GetCommitFiles_WithInvalidRepo_ReturnsInvalidRepoPathError()
     {
         // Arrange
-        var gitService = new GitService(_config, _logger);
+        var gitService = CreateGitService();
         var invalidRepoPath = "D:\\NonExistent\\Repo\\Path";
 
         // Act
@@ -88,7 +123,7 @@ public class GitServiceTests
     public void GetCombinedDiff_WithInvalidRepo_ReturnsInvalidRepoPathError()
     {
         // Arrange
-        var gitService = new GitService(_config, _logger);
+        var gitService = CreateGitService();
         var invalidRepoPath = "D:\\NonExistent\\Repo\\Path";
 
         // Act
@@ -104,7 +139,7 @@ public class GitServiceTests
     public void GetCombinedChangedFiles_WithInvalidRepo_ReturnsInvalidRepoPathError()
     {
         // Arrange
-        var gitService = new GitService(_config, _logger);
+        var gitService = CreateGitService();
         var invalidRepoPath = "D:\\NonExistent\\Repo\\Path";
 
         // Act
@@ -120,7 +155,7 @@ public class GitServiceTests
     public void GetWorktrees_WithInvalidRepo_ReturnsInvalidRepoPathError()
     {
         // Arrange
-        var gitService = new GitService(_config, _logger);
+        var gitService = CreateGitService();
         var invalidRepoPath = "D:\\NonExistent\\Repo\\Path";
 
         // Act
@@ -136,7 +171,7 @@ public class GitServiceTests
     public void GetCommitSummaries_WithInvalidRepo_ReturnsInvalidRepoPathError()
     {
         // Arrange
-        var gitService = new GitService(_config, _logger);
+        var gitService = CreateGitService();
         var invalidRepoPath = "D:\\NonExistent\\Repo\\Path";
         var commits = new[] { "abc123", "def456" };
 
@@ -153,7 +188,7 @@ public class GitServiceTests
     public void GetCommitSummaries_WithEmptyCommits_ReturnsEmptyDictionary()
     {
         // Arrange
-        var gitService = new GitService(_config, _logger);
+        var gitService = CreateGitService();
         var validRepoPath = System.IO.Path.GetTempPath(); // Use temp path as a valid directory
 
         // Act
