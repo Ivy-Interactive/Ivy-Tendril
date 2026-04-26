@@ -34,6 +34,9 @@ public static class TendrilServer
         server.Services.AddSingleton<IConfigService>(configService);
         server.Services.AddSingleton<ConfigService>(configService);
 
+        // Store reference for cleanup on process exit
+        Program.SetConfigServiceForCleanup(configService);
+
         if (configService.Settings.Auth != null)
         {
             server.Services.AddHttpContextAccessor();
