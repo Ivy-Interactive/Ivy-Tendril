@@ -1,3 +1,4 @@
+using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Services;
 
@@ -5,7 +6,7 @@ namespace Ivy.Tendril.Apps;
 
 public partial class JobsApp
 {
-    private object RenderWithSheets(
+    private static object RenderWithSheets(
         object dataTable,
         IState<string?> showPlan,
         IState<string?> showOutput,
@@ -14,9 +15,9 @@ public partial class JobsApp
         IConfigService config,
         IState<string?> openFile,
         IJobService jobService,
-        IStream<string> outputStream,
+        IWriteStream<string> outputStream,
         IState<bool> hasStreamContent,
-        object layout)
+        LayoutView layout)
     {
         if (showPlan.Value is { } planPath)
         {

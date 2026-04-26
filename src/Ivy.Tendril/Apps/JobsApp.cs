@@ -1,3 +1,4 @@
+using System.Reactive.Linq;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps;
@@ -21,12 +22,15 @@ public partial class JobsApp : ViewBase
         var streamingJobId = UseState<string?>(null);
         var hasStreamContent = UseState(false);
 
-        SetupOutputStreaming(jobService, showOutput, streamingJobId, lastProcessedIndex, hasStreamContent, outputStream);
-        SetupNotificationHooks(jobService, client);
-        SetupJobChangeHooks(jobService, refreshToken);
-        SetupAutoRefresh(jobService, refreshToken);
+        UseInterval(() => StreamOutputLines(jobService, showOutput, streamingJobId, lastProcessedIndex, hasStreamContent, outputStream),
+            TimeSpan.FromMilliseconds(100));
+        UseEffect(() => NotificationHookDisposable(jobService, client));
+        UseEffect(() => JobChangeHookDisposable(jobService, refreshToken));
+        UseInterval(() => AutoRefreshCheck(jobService, refreshToken), TimeSpan.FromSeconds(5));
 
-        var updateStream = BuildUpdateStream(jobService);
+        var updateStream = UseDataTableUpdates(
+            Observable.Interval(TimeSpan.FromSeconds(1))
+                .SelectMany(_ => BuildDataTableUpdates(jobService)));
 
         var jobs = jobService.GetJobs();
         var projectColors = BuildProjectColorMapping(config);
@@ -34,7 +38,7 @@ public partial class JobsApp : ViewBase
         var jobsProgress = BuildStatusProgress(jobs, config);
 
         var dataTable = BuildDataTable(rows, refreshToken, updateStream, config, planService,
-            jobService, showPlan, showOutput, showPrompt, jobs, projectColors, jobsProgress);
+            jobService, client, showPlan, showOutput, showPrompt, jobs, projectColors, jobsProgress);
 
         var layout = Layout.Vertical().Height(Size.Full());
 

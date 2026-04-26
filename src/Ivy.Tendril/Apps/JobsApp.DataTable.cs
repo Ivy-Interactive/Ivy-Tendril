@@ -6,13 +6,14 @@ namespace Ivy.Tendril.Apps;
 
 public partial class JobsApp
 {
-    private object BuildDataTable(
+    private static object BuildDataTable(
         List<JobItemRow> rows,
-        IRefreshToken refreshToken,
-        IObservable<DataTableCellUpdate> updateStream,
+        RefreshToken refreshToken,
+        IWriteStream<DataTableCellUpdate> updateStream,
         IConfigService config,
         IPlanReaderService planService,
         IJobService jobService,
+        IClientProvider client,
         IState<string?> showPlan,
         IState<string?> showOutput,
         IState<string?> showPrompt,
@@ -20,8 +21,6 @@ public partial class JobsApp
         Dictionary<string, string> projectColors,
         StackedProgress jobsProgress)
     {
-        var client = UseService<IClientProvider>();
-
         return rows.AsQueryable()
             .ToDataTable(t => t.Id)
             .RefreshToken(refreshToken)

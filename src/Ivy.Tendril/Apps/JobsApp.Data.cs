@@ -1,5 +1,6 @@
 using System.Reactive.Linq;
 using Ivy.Tendril.Apps.Jobs;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
@@ -65,27 +66,22 @@ public partial class JobsApp
         return new StackedProgress(statusSegments).ShowLabels();
     }
 
-    private IObservable<DataTableCellUpdate> BuildUpdateStream(IJobService jobService)
+    private static IEnumerable<DataTableCellUpdate> BuildDataTableUpdates(IJobService jobService)
     {
-        return UseDataTableUpdates(
-            Observable.Interval(TimeSpan.FromSeconds(1))
-                .SelectMany(_ =>
-                {
-                    var currentJobs = jobService.GetJobs();
-                    return currentJobs
-                        .Where(j => j.Status == JobStatus.Running ||
-                                    ((j.Status is JobStatus.Stopped or JobStatus.Failed or JobStatus.Timeout or JobStatus.Completed)
-                                     && j.CompletedAt.HasValue
-                                     && DateTime.UtcNow - j.CompletedAt.Value < TimeSpan.FromMinutes(1)))
-                        .SelectMany(j => new[]
-                        {
-                            new DataTableCellUpdate(j.Id, "Timer", FormatTimer(j)),
-                            new DataTableCellUpdate(j.Id, "Cost", j.Cost.HasValue ? $"${j.Cost.Value:F2}" : ""),
-                            new DataTableCellUpdate(j.Id, "Tokens", j.Tokens.HasValue ? FormatHelper.FormatTokens(j.Tokens.Value) : ""),
-                            new DataTableCellUpdate(j.Id, "LastOutput", FormatLastOutput(j)),
-                            new DataTableCellUpdate(j.Id, "Status", j.Status),
-                            new DataTableCellUpdate(j.Id, "StatusMessage", GetStatusMessage(j))
-                        });
-                }));
+        var currentJobs = jobService.GetJobs();
+        return currentJobs
+            .Where(j => j.Status == JobStatus.Running ||
+                        ((j.Status is JobStatus.Stopped or JobStatus.Failed or JobStatus.Timeout or JobStatus.Completed)
+                         && j.CompletedAt.HasValue
+                         && DateTime.UtcNow - j.CompletedAt.Value < TimeSpan.FromMinutes(1)))
+            .SelectMany(j => new[]
+            {
+                new DataTableCellUpdate(j.Id, "Timer", FormatTimer(j)),
+                new DataTableCellUpdate(j.Id, "Cost", j.Cost.HasValue ? $"${j.Cost.Value:F2}" : ""),
+                new DataTableCellUpdate(j.Id, "Tokens", j.Tokens.HasValue ? FormatHelper.FormatTokens(j.Tokens.Value) : ""),
+                new DataTableCellUpdate(j.Id, "LastOutput", FormatLastOutput(j)),
+                new DataTableCellUpdate(j.Id, "Status", j.Status),
+                new DataTableCellUpdate(j.Id, "StatusMessage", GetStatusMessage(j))
+            });
     }
 }

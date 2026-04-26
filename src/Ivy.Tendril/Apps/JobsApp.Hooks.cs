@@ -6,107 +6,96 @@ namespace Ivy.Tendril.Apps;
 
 public partial class JobsApp
 {
-    private void SetupOutputStreaming(
+    private static void StreamOutputLines(
         IJobService jobService,
         IState<string?> showOutput,
         IState<string?> streamingJobId,
         IState<int> lastProcessedIndex,
         IState<bool> hasStreamContent,
-        IStream<string> outputStream)
+        IWriteStream<string> outputStream)
     {
-        UseInterval(() =>
+        if (showOutput.Value is not { } activeJobId) return;
+
+        var activeJob = jobService.GetJob(activeJobId);
+        if (activeJob is not { Status: JobStatus.Running }) return;
+
+        var startIdx = lastProcessedIndex.Value;
+
+        if (streamingJobId.Value != activeJobId)
         {
-            if (showOutput.Value is not { } activeJobId) return;
+            streamingJobId.Set(activeJobId);
+            hasStreamContent.Set(false);
 
-            var activeJob = jobService.GetJob(activeJobId);
-            if (activeJob is not { Status: JobStatus.Running }) return;
-
-            var startIdx = lastProcessedIndex.Value;
-
-            if (streamingJobId.Value != activeJobId)
+            var existingLines = activeJob.OutputLines.ToArray();
+            foreach (var line in existingLines)
             {
-                streamingJobId.Set(activeJobId);
-                hasStreamContent.Set(false);
-
-                var existingLines = activeJob.OutputLines.ToArray();
-                foreach (var line in existingLines)
-                {
-                    outputStream.Write(line);
-                }
-
-                if (existingLines.Length > 0 && !hasStreamContent.Value)
-                {
-                    hasStreamContent.Set(true);
-                }
-
-                lastProcessedIndex.Set(existingLines.Length);
+                outputStream.Write(line);
             }
+
+            if (existingLines.Length > 0 && !hasStreamContent.Value)
+            {
+                hasStreamContent.Set(true);
+            }
+
+            lastProcessedIndex.Set(existingLines.Length);
+        }
+        else
+        {
+            var currentLines = activeJob.OutputLines.ToArray();
+            for (var i = startIdx; i < currentLines.Length; i++)
+            {
+                outputStream.Write(currentLines[i]);
+            }
+
+            if (currentLines.Length > 0 && !hasStreamContent.Value)
+            {
+                hasStreamContent.Set(true);
+            }
+
+            lastProcessedIndex.Set(currentLines.Length);
+        }
+    }
+
+    private static IDisposable NotificationHookDisposable(IJobService jobService, IClientProvider client)
+    {
+        void OnNotification(JobNotification notification)
+        {
+            if (notification.IsSuccess)
+                client.Toast(notification.Message, notification.Title);
             else
-            {
-                var currentLines = activeJob.OutputLines.ToArray();
-                for (var i = startIdx; i < currentLines.Length; i++)
-                {
-                    outputStream.Write(currentLines[i]);
-                }
+                client.Toast(notification.Message, notification.Title).Destructive();
+        }
 
-                if (currentLines.Length > 0 && !hasStreamContent.Value)
-                {
-                    hasStreamContent.Set(true);
-                }
-
-                lastProcessedIndex.Set(currentLines.Length);
-            }
-        }, TimeSpan.FromMilliseconds(100));
+        jobService.NotificationReady += OnNotification;
+        return Disposable.Create(() => jobService.NotificationReady -= OnNotification);
     }
 
-    private void SetupNotificationHooks(IJobService jobService, IClientProvider client)
+    private static IDisposable JobChangeHookDisposable(IJobService jobService, RefreshToken refreshToken)
     {
-        UseEffect(() =>
+        void OnJobsChanged()
         {
-            void OnNotification(JobNotification notification)
-            {
-                if (notification.IsSuccess)
-                    client.Toast(notification.Message, notification.Title);
-                else
-                    client.Toast(notification.Message, notification.Title).Destructive();
-            }
+            refreshToken.Refresh();
+        }
 
-            jobService.NotificationReady += OnNotification;
-            return Disposable.Create(() => jobService.NotificationReady -= OnNotification);
+        jobService.JobsStructureChanged += OnJobsChanged;
+        jobService.JobPropertyChanged += OnJobsChanged;
+        return Disposable.Create(() =>
+        {
+            jobService.JobsStructureChanged -= OnJobsChanged;
+            jobService.JobPropertyChanged -= OnJobsChanged;
         });
     }
 
-    private void SetupJobChangeHooks(IJobService jobService, IRefreshToken refreshToken)
+    private static void AutoRefreshCheck(IJobService jobService, RefreshToken refreshToken)
     {
-        UseEffect(() =>
-        {
-            void OnJobsChanged()
-            {
-                refreshToken.Refresh();
-            }
+        var hasActiveOrRecentJobs = jobService.GetJobs().Any(j =>
+            j.Status == JobStatus.Running ||
+            (j.Status is JobStatus.Stopped or JobStatus.Failed or JobStatus.Timeout or JobStatus.Completed
+             && j.CompletedAt.HasValue
+             && DateTime.UtcNow - j.CompletedAt.Value < TimeSpan.FromSeconds(5)));
 
-            jobService.JobsStructureChanged += OnJobsChanged;
-            jobService.JobPropertyChanged += OnJobsChanged;
-            return Disposable.Create(() =>
-            {
-                jobService.JobsStructureChanged -= OnJobsChanged;
-                jobService.JobPropertyChanged -= OnJobsChanged;
-            });
-        });
-    }
-
-    private void SetupAutoRefresh(IJobService jobService, IRefreshToken refreshToken)
-    {
-        UseInterval(() =>
-        {
-            var hasActiveOrRecentJobs = jobService.GetJobs().Any(j =>
-                j.Status == JobStatus.Running ||
-                (j.Status is JobStatus.Stopped or JobStatus.Failed or JobStatus.Timeout or JobStatus.Completed
-                 && j.CompletedAt.HasValue
-                 && DateTime.UtcNow - j.CompletedAt.Value < TimeSpan.FromSeconds(5)));
-
-            if (hasActiveOrRecentJobs)
-                refreshToken.Refresh();
-        }, TimeSpan.FromSeconds(5));
+        if (hasActiveOrRecentJobs)
+            refreshToken.Refresh();
     }
 }
+
