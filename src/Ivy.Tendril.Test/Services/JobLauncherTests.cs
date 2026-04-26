@@ -136,7 +136,7 @@ projects:
             Args = new[] { "Test" },
             Project = "TestProject",
             Status = JobStatus.Running,
-            LastOutputAt = DateTime.UtcNow.AddMinutes(-15)
+            LastOutputAt = DateTime.UtcNow.AddSeconds(-11)
         };
         var jobs = new ConcurrentDictionary<string, JobItem>();
         jobs[job.Id] = job;
@@ -146,14 +146,13 @@ projects:
             job.Id,
             cts,
             jobs,
-            TimeSpan.FromMinutes(10));
+            TimeSpan.FromSeconds(10));
 
-        await Task.Delay(TimeSpan.FromSeconds(2));
-        cts.Cancel();
-
-        await watchdogTask;
+        await Task.Delay(TimeSpan.FromSeconds(3));
 
         Assert.True(job.StaleOutputDetected);
+        cts.Cancel();
+        await watchdogTask;
     }
 
     [Fact]

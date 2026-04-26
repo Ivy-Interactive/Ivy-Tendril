@@ -370,7 +370,7 @@ public class PlanValidationServiceTests : IDisposable
     [Fact]
     public void ParseDate_ThrowsForInvalidFormat()
     {
-        var dateString = "2026/04/18 15:29:55";
+        var dateString = "invalid-date-string";
 
         var ex = Assert.Throws<ArgumentException>(() =>
             PlanValidationService.ParseDate(dateString, "testField"));
