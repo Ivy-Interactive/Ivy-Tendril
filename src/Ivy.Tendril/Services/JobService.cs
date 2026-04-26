@@ -117,6 +117,7 @@ public class JobService : IJobService
         _completionHandler = new JobCompletionHandler(
             null, _logger, null, planReaderService, telemetryService,
             null, null, PromptsRoot);
+        LoadHistoricalJobs();
     }
 
     public event Action? JobsChanged;
@@ -304,7 +305,11 @@ public class JobService : IJobService
         if (_database == null) return;
         try
         {
-            var historicalJobs = _database.GetRecentJobs();
+            var historicalJobs = _database.GetRecentJobs()
+                .Where(j => j.Status != JobStatus.Completed
+                         && j.Status != JobStatus.Failed
+                         && j.Status != JobStatus.Timeout
+                         && j.Status != JobStatus.Stopped);
             foreach (var job in historicalJobs) _jobs.TryAdd(job.Id, job);
         }
         catch
