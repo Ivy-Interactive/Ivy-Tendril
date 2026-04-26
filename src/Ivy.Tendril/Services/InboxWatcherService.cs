@@ -165,7 +165,20 @@ public class InboxWatcherService : IInboxWatcherService
 
         // Rename to .processing so the watcher/poller ignores it while the job runs
         var processingPath = filePath + ".processing";
-        File.Move(filePath, processingPath);
+        try
+        {
+            File.Move(filePath, processingPath);
+        }
+        catch (FileNotFoundException)
+        {
+            _logger.LogWarning("Inbox file {FilePath} was deleted before processing — skipping.", filePath);
+            return;
+        }
+        catch (IOException ex)
+        {
+            _logger.LogWarning(ex, "Failed to rename inbox file {FilePath} to {ProcessingPath} — skipping.", filePath, processingPath);
+            return;
+        }
 
         var args = new List<string> { "-Description", description, "-Project", project };
         if (!string.IsNullOrEmpty(sourcePath))
