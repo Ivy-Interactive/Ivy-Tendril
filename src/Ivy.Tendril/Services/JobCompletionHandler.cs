@@ -355,10 +355,20 @@ internal class JobCompletionHandler
         var branchName = $"tendril/{planId}-{safeTitle}";
         var changed = false;
 
+        // Only scan worktrees for repos explicitly listed in the plan.
+        // Build dependency worktrees (read-only) should never contribute commits.
+        var planRepoNames = new HashSet<string>(
+            plan.Repos.Select(r => Path.GetFileName(Environment.ExpandEnvironmentVariables(r))),
+            StringComparer.OrdinalIgnoreCase);
+
         foreach (var wtDir in Directory.GetDirectories(worktreesDir))
         {
             try
             {
+                var wtName = Path.GetFileName(wtDir);
+                if (planRepoNames.Count > 0 && !planRepoNames.Contains(wtName))
+                    continue;
+
                 var gitFile = Path.Combine(wtDir, ".git");
                 if (!File.Exists(gitFile)) continue;
 
@@ -413,13 +423,26 @@ internal class JobCompletionHandler
 
     private string ResolveBaseBranch(string repoRoot, PlanYaml plan)
     {
-        if (_configService != null && !string.IsNullOrEmpty(plan.Project))
+        if (_configService != null)
         {
-            var project = _configService.GetProject(plan.Project);
-            var repoRef = project?.Repos.FirstOrDefault(r =>
-                Path.GetFullPath(r.Path).Equals(Path.GetFullPath(repoRoot), StringComparison.OrdinalIgnoreCase));
-            if (repoRef?.BaseBranch is { Length: > 0 } configured)
-                return $"origin/{configured}";
+            // First try the plan's own project
+            if (!string.IsNullOrEmpty(plan.Project))
+            {
+                var project = _configService.GetProject(plan.Project);
+                var repoRef = project?.Repos.FirstOrDefault(r =>
+                    Path.GetFullPath(r.Path).Equals(Path.GetFullPath(repoRoot), StringComparison.OrdinalIgnoreCase));
+                if (repoRef?.BaseBranch is { Length: > 0 } configured)
+                    return $"origin/{configured}";
+            }
+
+            // Fall back to searching all projects (handles build dependency repos)
+            foreach (var proj in _configService.Projects)
+            {
+                var repoRef = proj.Repos.FirstOrDefault(r =>
+                    Path.GetFullPath(r.Path).Equals(Path.GetFullPath(repoRoot), StringComparison.OrdinalIgnoreCase));
+                if (repoRef?.BaseBranch is { Length: > 0 } found)
+                    return $"origin/{found}";
+            }
         }
 
         return DetectBaseBranch(repoRoot);

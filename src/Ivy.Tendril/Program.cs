@@ -60,6 +60,7 @@ public class Program
         {
             var cliServices = new ServiceCollection();
             cliServices.AddLogging(builder => builder.AddConsole());
+            cliServices.AddSingleton<IPlanWatcherService, NullPlanWatcherService>();
             var registrar = new TypeRegistrar(cliServices);
 
             var app = new CommandApp(registrar);
