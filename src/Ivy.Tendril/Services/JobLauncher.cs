@@ -13,14 +13,12 @@ internal class JobLauncher
     private readonly IConfigService? _configService;
     private readonly ILogger _logger;
     private readonly string _promptsRoot;
-    private readonly string _sharedRoot;
 
-    internal JobLauncher(IConfigService? configService, ILogger logger, string promptsRoot, string sharedRoot)
+    internal JobLauncher(IConfigService? configService, ILogger logger, string promptsRoot)
     {
         _configService = configService;
         _logger = logger;
         _promptsRoot = promptsRoot;
-        _sharedRoot = sharedRoot;
     }
 
     internal void LaunchJob(
@@ -286,12 +284,7 @@ internal class JobLauncher
         var workDir = ResolveWorkingDirectory(job, programFolder);
 
         var logFile = FirmwareCompiler.GetNextLogFile(programFolder, values);
-        var sharedDocs = new List<(string Name, string Content)>();
-        var plansMdPath = Path.Combine(_sharedRoot, "Plans.md");
-        if (File.Exists(plansMdPath))
-            sharedDocs.Add(("Plans", File.ReadAllText(plansMdPath)));
-
-        var context = new FirmwareContext(programFolder, logFile, values, sharedDocs);
+        var context = new FirmwareContext(programFolder, logFile, values);
         var prompt = FirmwareCompiler.Compile(context);
 
         var invocation = new AgentInvocation(

@@ -130,7 +130,7 @@ Cross-reference each finding with:
 * `Promptwares/{Type}/Memory/` — is knowledge missing or ignored?
 * `Services/JobService.cs` — job lifecycle issues
 * `Services/PlanReaderService.cs` — plan state/repair issues
-* `Promptwares/.shared/Plans.md` — schema/CLI issues
+* `Ivy.Tendril/Assets/Plans.md` — plan schema/CLI reference (embedded in assembly, injected into firmware)
 
 ### Phase 4 — Produce Recommendations Report
 
@@ -221,7 +221,7 @@ These are the files most likely to contain the root cause of issues:
 | `Services/Agents/FirmwareCompiler.cs`              | Prompt compilation, log file allocation                     |
 | `Promptwares/ExecutePlan/Program.md`               | Main execution flow, all verification steps                 |
 | `Promptwares/CreatePlan/Program.md`                | Plan creation, folder setup                                 |
-| `Promptwares/.shared/Plans.md`                     | Plan schema, CLI commands, state lifecycle                  |
+| `Ivy.Tendril/Assets/Plans.md`                      | Plan schema, CLI commands, state lifecycle (embedded resource) |
 | `Promptwares/{Type}/Memory/`                       | Agent knowledge base per promptware                         |
 | `Models/PlanModels.cs`                             | Plan deserialization model                                  |
 | `Helpers/PlanContentHelpers.cs`                    | Commit row building, plan content rendering                 |

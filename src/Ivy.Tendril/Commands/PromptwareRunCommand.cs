@@ -56,29 +56,24 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
     ///     then falling back to TENDRIL_HOME/Promptwares/ for promptwares that
     ///     only exist in the deployed location (e.g. team config promptwares).
     /// </summary>
-    private static (string ProgramFolder, string SharedRoot) ResolvePromptwareFolder(string promptwareName)
+    private static string ResolvePromptwareFolder(string promptwareName)
     {
         var sourceRoot = JobService.ResolvePromptsRoot();
         var sourceFolder = Path.Combine(sourceRoot, promptwareName);
-        var sourceShared = Path.Combine(sourceRoot, ".shared");
 
         if (File.Exists(Path.Combine(sourceFolder, "Program.md")))
-            return (sourceFolder, sourceShared);
+            return sourceFolder;
 
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         if (!string.IsNullOrEmpty(tendrilHome))
         {
             var deployedRoot = Path.Combine(tendrilHome, "Promptwares");
             var deployedFolder = Path.Combine(deployedRoot, promptwareName);
-            var deployedShared = Path.Combine(deployedRoot, ".shared");
             if (File.Exists(Path.Combine(deployedFolder, "Program.md")))
-            {
-                var shared = Directory.Exists(deployedShared) ? deployedShared : sourceShared;
-                return (deployedFolder, shared);
-            }
+                return deployedFolder;
         }
 
-        return (sourceFolder, sourceShared);
+        return sourceFolder;
     }
 
     internal int Run(PromptwareRunSettings settings, CancellationToken cancellationToken = default)
@@ -86,7 +81,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         var configService = new ConfigService();
         var tendrilSettings = configService.Settings;
 
-        var (programFolder, sharedRoot) = ResolvePromptwareFolder(settings.Promptware);
+        var programFolder = ResolvePromptwareFolder(settings.Promptware);
         var programMd = Path.Combine(programFolder, "Program.md");
 
         if (!File.Exists(programMd))
@@ -132,12 +127,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
 
         // Compile firmware
         var logFile = FirmwareCompiler.GetNextLogFile(programFolder, values);
-        var sharedDocs = new List<(string Name, string Content)>();
-        var plansMdPath = Path.Combine(sharedRoot, "Plans.md");
-        if (File.Exists(plansMdPath))
-            sharedDocs.Add(("Plans", File.ReadAllText(plansMdPath)));
-
-        var firmwareContext = new FirmwareContext(programFolder, logFile, values, sharedDocs);
+        var firmwareContext = new FirmwareContext(programFolder, logFile, values);
         var prompt = FirmwareCompiler.Compile(firmwareContext);
 
         // Build invocation

@@ -8,4 +8,4 @@
 # Ignore stray generated markdown files (e.g. corrupted log names, temp outputs)
 **/*.md
 !**/Program.md
-!.shared/*.md
+

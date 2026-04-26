@@ -14,7 +14,7 @@ The firmware header contains these key values:
 - **Project** — selected project name, or `Auto` if not specified
 - **SourcePath** (optional) — absolute path to the source that generated this plan (e.g. test working directory)
 
-Read the plan folder structure in `../.shared/Plans.md`.
+The plan folder structure and CLI commands are in the **Reference Documents** section of your firmware.
 Project configuration is available from `config.yaml` (referenced via `$TENDRIL_CONFIG` env var).
 
 ## Execution Steps
@@ -148,7 +148,7 @@ This catches stale plans before they enter the review queue, reducing wasted rev
 
 ### 4. Create Plan
 
-Create the plan using CLI commands according to the structure in `../.shared/Plans.md`. **Never write `plan.yaml` directly** — use `tendril plan` commands for all plan metadata.
+Create the plan using CLI commands according to the plan structure in the **Reference Documents** section. **Never write `plan.yaml` directly** — use `tendril plan` commands for all plan metadata.
 
 #### 4.1. Create the plan folder and revision
 

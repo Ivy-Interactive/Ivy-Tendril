@@ -12,7 +12,7 @@ The firmware header contains:
 - **CurrentTime** — current UTC timestamp
 - **Note** (optional) — Additional instructions from the reviewer. If present, follow these instructions in addition to the plan.
 
-Read the plan structure in `../.shared/Plans.md`.
+The plan structure and CLI commands are in the **Reference Documents** section of your firmware.
 Read the project configuration from `config.yaml` (referenced via `$TENDRIL_CONFIG` env var) for project repos and context.
 
 The launcher sets the working directory to the project's primary repo.
