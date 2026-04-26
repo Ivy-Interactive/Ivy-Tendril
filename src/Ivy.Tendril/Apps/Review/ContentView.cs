@@ -255,8 +255,8 @@ public class ContentView(
         }
         else
         {
-            // Git tab content (uses shared helper)
-            var gitData = GitTabHelper.BuildGitTabData(selectedPlan!, config, gitService);
+            // Git tab content (uses shared helper — reuse precomputed commit rows from planContentQuery)
+            var gitData = GitTabHelper.BuildGitTabData(planData.CommitRows, selectedPlan!, config, gitService);
             var gitLayout = GitTabHelper.RenderGitTab(
                 gitData,
                 selectedPlan!,

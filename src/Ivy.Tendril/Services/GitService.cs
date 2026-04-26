@@ -173,6 +173,71 @@ public class GitService : IGitService
         }
     }
 
+    public Dictionary<string, (string Title, int FileCount)>? GetCommitSummaries(string repoPath, IEnumerable<string> commitHashes)
+    {
+        var hashes = commitHashes.ToList();
+        if (hashes.Count == 0) return new Dictionary<string, (string, int)>();
+
+        try
+        {
+            var result = new Dictionary<string, (string Title, int FileCount)>();
+
+            // Single git log call: --stdin reads hashes from stdin, --format outputs hash + title, --numstat gives file counts
+            var psi = new ProcessStartInfo("git", "log --stdin --no-walk --format=%H%x00%s --numstat")
+            {
+                WorkingDirectory = repoPath,
+                RedirectStandardOutput = true,
+                RedirectStandardInput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                StandardOutputEncoding = Encoding.UTF8
+            };
+            using var process = Process.Start(psi);
+            if (process == null) return null;
+
+            foreach (var hash in hashes)
+                process.StandardInput.WriteLine(hash);
+            process.StandardInput.Close();
+
+            var output = process.StandardOutput.ReadToEnd();
+            process.WaitForExitOrKill(_timeoutMs);
+            if (process.ExitCode != 0) return null;
+
+            // Parse: each commit block starts with "hash\0title" followed by numstat lines, separated by empty lines
+            string? currentHash = null;
+            string? currentTitle = null;
+            int currentFileCount = 0;
+
+            foreach (var line in output.Split('\n'))
+            {
+                if (line.Contains('\0'))
+                {
+                    // Save previous commit
+                    if (currentHash != null)
+                        result[currentHash] = (currentTitle!, currentFileCount);
+
+                    var parts = line.Split('\0', 2);
+                    currentHash = parts[0].Trim();
+                    currentTitle = parts.Length > 1 ? parts[1].Trim() : "";
+                    currentFileCount = 0;
+                }
+                else if (currentHash != null && line.Trim().Length > 0)
+                {
+                    currentFileCount++;
+                }
+            }
+
+            if (currentHash != null)
+                result[currentHash] = (currentTitle!, currentFileCount);
+
+            return result;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public List<WorktreeInfo>? GetWorktrees(string repoPath)
     {
         try
