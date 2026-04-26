@@ -55,11 +55,11 @@ public static class GitTabHelper
         var repoDirs = Directory.GetDirectories(worktreesDir);
         foreach (var repoDir in repoDirs)
         {
-            var worktrees = gitService.GetWorktrees(repoDir);
-            if (worktrees == null) continue;
+            var worktreesResult = gitService.GetWorktrees(repoDir);
+            if (!worktreesResult.IsSuccess || worktreesResult.Value == null) continue;
 
             // Find the worktree that matches this directory (not the main repo)
-            var worktree = worktrees.FirstOrDefault(w =>
+            var worktree = worktreesResult.Value.FirstOrDefault(w =>
                 Path.GetFullPath(w.Path).Equals(Path.GetFullPath(repoDir), StringComparison.OrdinalIgnoreCase));
 
             if (worktree == null) continue;
