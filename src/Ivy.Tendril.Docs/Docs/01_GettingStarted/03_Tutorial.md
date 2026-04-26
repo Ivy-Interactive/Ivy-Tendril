@@ -21,13 +21,13 @@ A complete end-to-end walkthrough: install Tendril, configure a local repository
 ### macOS / Linux
 
 ```bash
-curl -sSf https://raw.githubusercontent.com/Ivy-Interactive/Ivy-Tendril/main/src/install.sh | sh
+curl -sSf https://cdn.ivy.app/install-tendril.sh | sh
 ```
 
 ### Windows
 
 ```powershell
-Invoke-RestMethod -Uri https://raw.githubusercontent.com/Ivy-Interactive/Ivy-Tendril/main/src/install.ps1 | Invoke-Expression
+Invoke-RestMethod -Uri https://cdn.ivy.app/install-tendril.ps1 | Invoke-Expression
 ```
 
 The installer sets up the `tendril` binary and required dependencies. You can also install via .NET:
