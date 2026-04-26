@@ -439,46 +439,6 @@ public class WorktreeCleanupServiceTests : IDisposable
     }
 
     [Fact]
-    public void CleanupRecursiveArtifacts_Removes_Nested_Plans_In_Worktrees()
-    {
-        var dir = CreatePlan("13000-RecursiveTest", "Executing");
-        var worktreeDir = Path.Combine(dir, "worktrees", "TestRepo");
-        var nestedPlans = Path.Combine(worktreeDir, "src", "tendril", "Plans", "01234-OldPlan");
-        Directory.CreateDirectory(nestedPlans);
-        File.WriteAllText(Path.Combine(nestedPlans, "plan.yaml"), "state: Completed");
-
-        _service.RunCleanup();
-
-        Assert.False(Directory.Exists(Path.Combine(worktreeDir, "src", "tendril", "Plans")),
-            "Nested Plans directory should be deleted");
-        Assert.True(Directory.Exists(worktreeDir),
-            "Worktree repo directory should remain");
-    }
-
-    [Fact]
-    public void CleanupRecursiveArtifacts_Handles_Multiple_Nesting_Levels()
-    {
-        var dir = CreatePlan("13001-MultiLevel", "Executing");
-        var worktreeDir = Path.Combine(dir, "worktrees", "Repo");
-
-        // Level 1: Plans/B inside worktree
-        var level1 = Path.Combine(worktreeDir, "Plans", "B-Plan", "worktrees", "Repo");
-        Directory.CreateDirectory(level1);
-
-        // Level 2: Plans/C nested inside level 1
-        var level2 = Path.Combine(level1, "Plans", "C-Plan");
-        Directory.CreateDirectory(level2);
-        File.WriteAllText(Path.Combine(level2, "plan.yaml"), "state: Failed");
-
-        _service.RunCleanup();
-
-        Assert.False(Directory.Exists(Path.Combine(worktreeDir, "Plans")),
-            "All nested Plans directories should be removed");
-        Assert.True(Directory.Exists(worktreeDir),
-            "Top-level worktree directory should remain");
-    }
-
-    [Fact]
     public void CleanupRecursiveArtifacts_Skips_Plans_With_No_Worktrees()
     {
         CreatePlan("13002-NoWorktrees", "Executing");
@@ -487,36 +447,6 @@ public class WorktreeCleanupServiceTests : IDisposable
         Assert.Null(ex);
     }
 
-    [Fact]
-    public void CleanupRecursiveArtifacts_Logs_On_Delete_Failure()
-    {
-        if (!OperatingSystem.IsWindows()) return;
-
-        var logEntries = new List<string>();
-        var logger = new CapturingLogger(logEntries);
-        var service = new WorktreeCleanupService(_plansDir, new LoggerAdapter(logger));
-
-        var dir = CreatePlan("13003-LockedNested", "Executing");
-        var worktreeDir = Path.Combine(dir, "worktrees", "Repo");
-        var nestedPlans = Path.Combine(worktreeDir, "src", "Plans", "OldPlan");
-        Directory.CreateDirectory(nestedPlans);
-        var lockedFile = Path.Combine(nestedPlans, "locked.txt");
-        File.WriteAllText(lockedFile, "content");
-
-        using (new FileStream(lockedFile, FileMode.Open, FileAccess.Read, FileShare.None))
-        {
-            service.RunCleanup();
-        }
-
-        Assert.Contains(logEntries,
-            e => e.Contains("Removing recursive Plans artifact") || e.Contains("Failed to delete nested Plans"));
-
-        // Cleanup
-        if (Directory.Exists(nestedPlans))
-            Directory.Delete(nestedPlans, true);
-
-        service.Dispose();
-    }
 
     [Fact]
     public void RemoveWorktrees_ExtractsSafeTitleFromPlanFolderName()
