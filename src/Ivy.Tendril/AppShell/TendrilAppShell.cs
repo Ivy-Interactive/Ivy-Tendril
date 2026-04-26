@@ -21,6 +21,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     internal AppShellSettings Settings => settings;
 
     private static readonly HttpClient NewsHttp = new();
+    private static readonly HashSet<string> OnboardingAppIds =
+        new(StringComparer.OrdinalIgnoreCase) { "onboarding", "OnboardingApp", "onboarding-app" };
 
     private static async Task<SidebarNewsArticle[]> FetchNewsAsync()
     {
@@ -46,10 +48,21 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         }
     }
 
+    private static bool ShouldShowBadge(MenuItem item, Dictionary<string, int> badges, out string badgeText)
+    {
+        badgeText = string.Empty;
+        if (item.Tag is string tag && badges.TryGetValue(tag, out var count) && count > 0)
+        {
+            badgeText = count.ToString();
+            return true;
+        }
+        return false;
+    }
+
     private static MenuItem AddBadge(MenuItem item, Dictionary<string, int> badges)
     {
-        if (item.Tag is string tag && badges.TryGetValue(tag, out var count) && count > 0)
-            item = item.Badge(count.ToString());
+        if (ShouldShowBadge(item, badges, out var badgeText))
+            item = item.Badge(badgeText);
         if (item.Children is { Length: > 0 })
             item = item with { Children = item.Children.Select(c => AddBadge(c, badges)).ToArray() };
         return item;
@@ -89,7 +102,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var navigate = Context.UseSignal<NavigateSignal, NavigateArgs, Unit>();
         var navigator = UseNavigation();
         var importIssuesDialogOpen = UseState(false);
-        var newsArticles = UseState(Array.Empty<SidebarNewsArticle>);
+        var newsArticles = UseState(Array.Empty<SidebarNewsArticle>());
         UseEffect(async () =>
         {
             newsArticles.Set(await FetchNewsAsync());
@@ -132,11 +145,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             if (!string.IsNullOrWhiteSpace(targetAppId))
             {
                 // Force redirect from onboarding if it's already done
-                if (!config.NeedsOnboarding && (targetAppId.Equals("onboarding", StringComparison.OrdinalIgnoreCase) ||
-                                                targetAppId.Equals("OnboardingApp",
-                                                    StringComparison.OrdinalIgnoreCase) ||
-                                                targetAppId.Equals("onboarding-app",
-                                                    StringComparison.OrdinalIgnoreCase)))
+                if (!config.NeedsOnboarding && OnboardingAppIds.Contains(targetAppId))
                     targetAppId = settings.DefaultAppId;
 
                 var appArgs = args.GetArgs<object>();
