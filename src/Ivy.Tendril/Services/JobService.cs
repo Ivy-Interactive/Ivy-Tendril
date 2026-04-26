@@ -590,22 +590,24 @@ public class JobService : IJobService
             if (!_jobSlotSemaphore.Wait(0))
                 break;
 
-            string? queuedId;
+            JobItem? queuedJob = null;
             lock (_queueLock)
             {
-                if (!_jobQueue.TryDequeue(out queuedId, out _))
+                if (!_jobQueue.TryDequeue(out var queuedId, out _))
                 {
                     _jobSlotSemaphore.Release();
                     break;
                 }
+
+                // Check status INSIDE the lock, immediately after dequeue
+                if (!_jobs.TryGetValue(queuedId, out queuedJob) || queuedJob.Status != JobStatus.Queued)
+                {
+                    _jobSlotSemaphore.Release();
+                    continue;
+                }
             }
 
-            if (!_jobs.TryGetValue(queuedId, out var queuedJob) || queuedJob.Status != JobStatus.Queued)
-            {
-                _jobSlotSemaphore.Release();
-                continue;
-            }
-
+            // Launch outside the lock (launching is expensive)
             LaunchJob(queuedJob);
         }
     }
