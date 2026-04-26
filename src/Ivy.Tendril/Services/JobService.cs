@@ -148,7 +148,7 @@ public class JobService : IJobService
         _completionHandler.HandleCompletion(
             job, _jobs, PersistJob, RaiseNotification, RaiseJobsPropertyChanged, StartJobSkipDepCheck);
 
-        job.DisposeResources();
+        job.DisposeResources(_logger);
         PersistJob(job);
         EvictStaleJobs();
         RaiseJobsStructureChanged();
@@ -204,7 +204,7 @@ public class JobService : IJobService
             /* Process may have already exited */
         }
 
-        job.DisposeResources();
+        job.DisposeResources(_logger);
 
         job.Status = JobStatus.Stopped;
         job.CompletedAt = DateTime.UtcNow;
@@ -228,7 +228,7 @@ public class JobService : IJobService
     {
         if (_jobs.TryRemove(id, out var removed))
         {
-            removed.DisposeResources();
+            removed.DisposeResources(_logger);
             try { _database?.DeleteJob(id); } catch { /* Best-effort */ }
         }
         RaiseJobsStructureChanged();
@@ -254,7 +254,7 @@ public class JobService : IJobService
 
         foreach (var id in staleJobs)
             if (_jobs.TryRemove(id, out var removed))
-                removed.DisposeResources();
+                removed.DisposeResources(_logger);
     }
 
     public void ClearCompletedJobs()
@@ -269,7 +269,7 @@ public class JobService : IJobService
         foreach (var id in ids)
         {
             if (_jobs.TryRemove(id, out var removed))
-                removed.DisposeResources();
+                removed.DisposeResources(_logger);
             try { _database?.DeleteJob(id); } catch { /* Best-effort */ }
         }
         if (ids.Count > 0)
