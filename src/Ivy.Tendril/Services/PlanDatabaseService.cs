@@ -21,6 +21,7 @@ public class PlanDatabaseService : IPlanDatabaseService
     private readonly SqliteConnection _connection;
     private readonly ILogger<PlanDatabaseService> _logger;
     private readonly ReaderWriterLockSlim _lock = new();
+    private bool _disposed;
 
     public PlanDatabaseService(string databasePath, ILogger<PlanDatabaseService> logger)
     {
@@ -1180,8 +1181,27 @@ public class PlanDatabaseService : IPlanDatabaseService
 
     public void Dispose()
     {
-        _connection.Dispose();
-        _lock.Dispose();
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (_disposed)
+            return;
+
+        if (disposing)
+        {
+            _connection?.Dispose();
+            _lock?.Dispose();
+        }
+
+        _disposed = true;
+    }
+
+    ~PlanDatabaseService()
+    {
+        Dispose(disposing: false);
     }
 
     private static void ValidateIdentifier(string name)
