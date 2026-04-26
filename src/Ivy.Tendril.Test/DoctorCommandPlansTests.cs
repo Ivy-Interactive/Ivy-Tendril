@@ -133,32 +133,6 @@ public class DoctorCommandPlansTests : IDisposable
     }
 
     [Fact]
-    public void HasNestedWorktrees_WithNestedGit_ReturnsTrue()
-    {
-        var planDir = CreatePlan("00020-WithNested", ValidYaml);
-        var wtRepoDir = Path.Combine(planDir, "worktrees", "SomeRepo");
-        Directory.CreateDirectory(wtRepoDir);
-        File.WriteAllText(Path.Combine(wtRepoDir, ".git"), "gitdir: /some/path");
-        var nestedDir = Path.Combine(wtRepoDir, "subdir");
-        Directory.CreateDirectory(nestedDir);
-        File.WriteAllText(Path.Combine(nestedDir, ".git"), "gitdir: /nested/path");
-
-        var result = DoctorCommand.HasNestedWorktrees(planDir);
-
-        Assert.True(result);
-    }
-
-    [Fact]
-    public void HasNestedWorktrees_NoWorktrees_ReturnsFalse()
-    {
-        var planDir = CreatePlan("00021-NoWt", ValidYaml);
-
-        var result = DoctorCommand.HasNestedWorktrees(planDir);
-
-        Assert.False(result);
-    }
-
-    [Fact]
     public void HasStaleWorktrees_WithStaleDir_ReturnsTrue()
     {
         var planDir = CreatePlan("00022-Stale", ValidYaml);

@@ -488,40 +488,6 @@ public class WorktreeCleanupServiceTests : IDisposable
     }
 
     [Fact]
-    public void CleanupLegacyPromptwaresDirs_Removes_DotPromptwaresInWorktrees()
-    {
-        var dir = CreatePlan("13010-LegacyCleanup", "Executing");
-        var promptwaresDir = Path.Combine(dir, "worktrees", "TestRepo", ".promptwares");
-        Directory.CreateDirectory(promptwaresDir);
-
-        _service.CleanupLegacyPromptwaresDirs();
-
-        Assert.False(Directory.Exists(promptwaresDir), ".promptwares directory should be removed");
-    }
-
-    [Fact]
-    public void CleanupLegacyPromptwaresDirs_Handles_Nested_DotPromptwaresDirs()
-    {
-        var dir = CreatePlan("13011-NestedLegacy", "Executing");
-        var nestedDir = Path.Combine(dir, "worktrees", "Repo", "src", "tendril", ".promptwares");
-        Directory.CreateDirectory(nestedDir);
-        File.WriteAllText(Path.Combine(nestedDir, "leftover.md"), "old content");
-
-        _service.CleanupLegacyPromptwaresDirs();
-
-        Assert.False(Directory.Exists(nestedDir), "Nested .promptwares directory should be removed");
-    }
-
-    [Fact]
-    public void CleanupLegacyPromptwaresDirs_Skips_Plans_With_No_Worktrees()
-    {
-        CreatePlan("13012-NoWorktrees", "Executing");
-
-        var ex = Record.Exception(() => _service.CleanupLegacyPromptwaresDirs());
-        Assert.Null(ex);
-    }
-
-    [Fact]
     public void CleanupRecursiveArtifacts_Logs_On_Delete_Failure()
     {
         if (!OperatingSystem.IsWindows()) return;
@@ -550,32 +516,6 @@ public class WorktreeCleanupServiceTests : IDisposable
             Directory.Delete(nestedPlans, true);
 
         service.Dispose();
-    }
-
-    [Fact]
-    public void CleanupLegacyPromptwaresDirs_Logs_On_Delete_Failure()
-    {
-        if (!OperatingSystem.IsWindows()) return;
-
-        var dir = CreatePlan("13013-LockedLegacy", "Executing");
-        var promptwaresDir = Path.Combine(dir, "worktrees", "TestRepo", ".promptwares");
-        Directory.CreateDirectory(promptwaresDir);
-        var lockedFile = Path.Combine(promptwaresDir, "locked.txt");
-        File.WriteAllText(lockedFile, "content");
-
-        var logEntries = new List<string>();
-        var service = new WorktreeCleanupService(_plansDir, new CapturingLogger<WorktreeCleanupService>(logEntries));
-
-        using (new FileStream(lockedFile, FileMode.Open, FileAccess.Read, FileShare.None))
-        {
-            service.CleanupLegacyPromptwaresDirs();
-        }
-
-        Assert.Contains(logEntries, e => e.Contains("Failed to delete legacy .promptwares"));
-
-        // Cleanup
-        if (Directory.Exists(promptwaresDir))
-            Directory.Delete(promptwaresDir, true);
     }
 
     [Fact]
