@@ -226,14 +226,14 @@ public class GitServiceTests : IDisposable
     public void GetCombinedChangedFiles_ReturnsCorrectFiles()
     {
         var service = new GitService(_configService);
-        var firstCommit = GetCommitHash(1); // Add file2 commit
-        var lastCommit = GetCommitHash(); // Modify file1
+        var firstCommit = GetCommitHash(2); // Initial commit
+        var lastCommit = GetCommitHash(1); // Add file2 commit
 
         var files = service.GetCombinedChangedFiles(_testRepoPath, firstCommit, lastCommit);
 
         Assert.NotNull(files);
         Assert.Single(files);
-        Assert.Contains(files, f => f.FilePath == "file1.txt" && f.Status == "M");
+        Assert.Contains(files, f => f.FilePath == "file2.txt" && f.Status == "A");
     }
 
     [Fact]

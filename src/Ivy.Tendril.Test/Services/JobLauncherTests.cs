@@ -136,7 +136,7 @@ projects:
             Args = new[] { "Test" },
             Project = "TestProject",
             Status = JobStatus.Running,
-            LastOutputAt = DateTime.UtcNow.AddSeconds(-11)
+            LastOutputAt = DateTime.UtcNow.AddSeconds(-70)
         };
         var jobs = new ConcurrentDictionary<string, JobItem>();
         jobs[job.Id] = job;
