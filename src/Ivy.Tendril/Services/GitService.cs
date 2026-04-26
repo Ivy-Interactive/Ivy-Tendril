@@ -14,7 +14,7 @@ public class GitService : IGitService
         _timeoutMs = config.Settings.GitTimeout * 1000;
     }
 
-    public static bool IsValidCommitHash(string hash)
+    public static bool IsValidCommitHash(string? hash)
     {
         return !string.IsNullOrEmpty(hash) &&
                Regex.IsMatch(hash, "^[a-fA-F0-9]{7,40}$");

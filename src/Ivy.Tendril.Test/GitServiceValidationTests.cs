@@ -16,7 +16,7 @@ public class GitServiceValidationTests
     [InlineData("abc\n123", false)]                  // newline
     [InlineData("", false)]                          // empty
     [InlineData(null, false)]                        // null
-    public void IsValidCommitHash_ValidatesFormat(string hash, bool expected)
+    public void IsValidCommitHash_ValidatesFormat(string? hash, bool expected)
     {
         var result = GitService.IsValidCommitHash(hash);
         Assert.Equal(expected, result);
