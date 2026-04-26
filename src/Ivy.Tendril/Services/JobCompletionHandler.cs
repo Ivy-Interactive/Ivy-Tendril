@@ -476,8 +476,9 @@ internal class JobCompletionHandler
                     PlanYamlHelper.SetPlanStateByFolder(planFolder, targetState.ToString());
             }
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Failed to ensure plan state transition for job {JobId}", job.Id);
         }
     }
 
@@ -491,8 +492,9 @@ internal class JobCompletionHandler
             else
                 PlanYamlHelper.SetPlanStateByFolder(planFolder, state);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Failed to set plan state to {State} for job {JobId}", state, job.Id);
         }
     }
 
@@ -555,8 +557,9 @@ internal class JobCompletionHandler
             var failureMessage = JobFailureAnalyzer.TryReadFailureArtifact(job.OutputLines.ToList());
             job.StatusMessage = failureMessage ?? "No plan created";
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Failed to verify CreatePlan result for job {JobId}", job.Id);
         }
     }
 
@@ -570,8 +573,9 @@ internal class JobCompletionHandler
             var newState = job.Type == "ExecutePlan" ? "Failed" : "Draft";
             PlanYamlHelper.SetPlanStateByFolder(planFolder, newState);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Failed to reset plan state for job {JobId}", job.Id);
         }
     }
 
@@ -582,8 +586,9 @@ internal class JobCompletionHandler
             var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
             PlanYamlHelper.SetPlanStateByFolder(planFolder, "Blocked");
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Failed to reset plan state to Blocked for job {JobId}", job.Id);
         }
     }
 
@@ -611,6 +616,7 @@ internal class JobCompletionHandler
         if (!Directory.Exists(worktreesDir)) return;
 
         var lifecycleLogger = _worktreeLifecycleLogger;
+        var logger = _logger;
 
         Task.Run(async () =>
         {
@@ -622,8 +628,9 @@ internal class JobCompletionHandler
                 if (Directory.Exists(worktreesDir) && Directory.GetDirectories(worktreesDir).Length == 0)
                     Directory.Delete(worktreesDir, false);
             }
-            catch
+            catch (Exception ex)
             {
+                logger.LogWarning(ex, "Failed to cleanup worktrees for {PlanFolder}", Path.GetFileName(planFolder));
             }
         });
     }

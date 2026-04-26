@@ -607,7 +607,6 @@ public static class DoctorCommand
             var yamlPath = Path.Combine(dir, "plan.yaml");
             var (yamlHealthy, yamlError, state) = CheckYamlHealth(yamlPath);
             var worktreeCount = CountWorktrees(dir);
-            var hasNestedWorktrees = HasNestedWorktrees(dir);
             var hasStaleWorktrees = HasStaleWorktrees(dir);
 
             var recsError = CheckRecommendationsHealth(dir);
@@ -617,8 +616,6 @@ public static class DoctorCommand
                 healthIssues.Add($"YAML:{yamlError}");
             if (recsError != null)
                 healthIssues.Add($"Recs:{recsError}");
-            if (hasNestedWorktrees)
-                healthIssues.Add("NestedWorktree");
             if (hasStaleWorktrees)
                 healthIssues.Add("StaleWorktree");
 
@@ -702,28 +699,6 @@ public static class DoctorCommand
             return 0;
 
         return Directory.GetDirectories(worktreesPath).Length;
-    }
-
-    internal static bool HasNestedWorktrees(string planPath)
-    {
-        var worktreesPath = Path.Combine(planPath, "worktrees");
-        if (!Directory.Exists(worktreesPath))
-            return false;
-
-        try
-        {
-            foreach (var wtDir in Directory.GetDirectories(worktreesPath))
-            {
-                var nestedGit = Directory.EnumerateFileSystemEntries(wtDir, ".git", SearchOption.AllDirectories).ToList();
-                if (nestedGit.Count > 1 || (nestedGit.Count == 1 && nestedGit[0] != Path.Combine(wtDir, ".git")))
-                    return true;
-            }
-            return false;
-        }
-        catch
-        {
-            return false;
-        }
     }
 
     internal static bool HasStaleWorktrees(string planPath)
@@ -853,21 +828,6 @@ public static class DoctorCommand
                             Directory.Delete(wtDir, true);
                     }
                     repairs.Add("removed stale worktrees");
-                }
-            }
-
-            if (healthResult.Health.Contains("NestedWorktree"))
-            {
-                var worktreesPath = Path.Combine(planPath, "worktrees");
-                if (Directory.Exists(worktreesPath))
-                {
-                    foreach (var wtDir in Directory.GetDirectories(worktreesPath))
-                    {
-                        var plansSubDir = Path.Combine(wtDir, "Plans");
-                        if (Directory.Exists(plansSubDir))
-                            Directory.Delete(plansSubDir, true);
-                    }
-                    repairs.Add("cleaned nested worktrees");
                 }
             }
 
