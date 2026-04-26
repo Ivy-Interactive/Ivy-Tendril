@@ -1204,4 +1204,110 @@ projects:
             Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public void ValidateSettings_JobTimeout_TooLow_UsesDefault()
+    {
+        var yaml = @"
+jobTimeout: 0
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+            Assert.Equal(30, service.Settings.JobTimeout);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void ValidateSettings_JobTimeout_TooHigh_UsesDefault()
+    {
+        var yaml = @"
+jobTimeout: 9999
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+            Assert.Equal(30, service.Settings.JobTimeout);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void ValidateSettings_MaxConcurrentJobs_Zero_UsesDefault()
+    {
+        var yaml = @"
+maxConcurrentJobs: 0
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+            Assert.Equal(5, service.Settings.MaxConcurrentJobs);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void ValidateSettings_GitTimeout_Negative_UsesDefault()
+    {
+        var yaml = @"
+gitTimeout: -1
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+            Assert.Equal(10, service.Settings.GitTimeout);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void ValidateSettings_AllValid_NoChanges()
+    {
+        var yaml = @"
+jobTimeout: 60
+staleOutputTimeout: 15
+gitTimeout: 20
+maxConcurrentJobs: 10
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+            Assert.Equal(60, service.Settings.JobTimeout);
+            Assert.Equal(15, service.Settings.StaleOutputTimeout);
+            Assert.Equal(20, service.Settings.GitTimeout);
+            Assert.Equal(10, service.Settings.MaxConcurrentJobs);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
 }
