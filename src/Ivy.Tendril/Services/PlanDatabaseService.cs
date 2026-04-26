@@ -1326,28 +1326,43 @@ public class PlanDatabaseService : IPlanDatabaseService
         var result = new Dictionary<int, List<string>>();
         if (planIds.Count == 0) return result;
 
-        using var cmd = _connection.CreateCommand();
-        var idList = string.Join(",", planIds);
-        cmd.CommandText = $"SELECT PlanId, {column} FROM {table} WHERE PlanId IN ({idList})";
-
-        using var reader = cmd.ExecuteReader();
-        int planIdOrdinal = -1, columnOrdinal = -1;
-        while (reader.Read())
+        const int batchSize = 500;
+        for (int i = 0; i < planIds.Count; i += batchSize)
         {
-            if (planIdOrdinal == -1)
+            var batch = planIds.Skip(i).Take(batchSize).ToList();
+            using var cmd = _connection.CreateCommand();
+
+            // Build parameterized IN clause
+            var parameters = new List<string>();
+            for (int j = 0; j < batch.Count; j++)
             {
-                planIdOrdinal = reader.GetOrdinal("PlanId");
-                columnOrdinal = reader.GetOrdinal(column);
+                var paramName = $"@p{j}";
+                parameters.Add(paramName);
+                cmd.Parameters.AddWithValue(paramName, batch[j]);
             }
 
-            var planId = reader.GetInt32(planIdOrdinal);
-            if (!result.TryGetValue(planId, out var list))
-            {
-                list = new List<string>();
-                result[planId] = list;
-            }
+            var inClause = string.Join(", ", parameters);
+            cmd.CommandText = $"SELECT PlanId, {column} FROM {table} WHERE PlanId IN ({inClause})";
 
-            list.Add(reader.GetString(columnOrdinal));
+            using var reader = cmd.ExecuteReader();
+            int planIdOrdinal = -1, columnOrdinal = -1;
+            while (reader.Read())
+            {
+                if (planIdOrdinal == -1)
+                {
+                    planIdOrdinal = reader.GetOrdinal("PlanId");
+                    columnOrdinal = reader.GetOrdinal(column);
+                }
+
+                var planId = reader.GetInt32(planIdOrdinal);
+                if (!result.TryGetValue(planId, out var list))
+                {
+                    list = new List<string>();
+                    result[planId] = list;
+                }
+
+                list.Add(reader.GetString(columnOrdinal));
+            }
         }
 
         return result;
@@ -1358,33 +1373,48 @@ public class PlanDatabaseService : IPlanDatabaseService
         var result = new Dictionary<int, List<PlanVerificationEntry>>();
         if (planIds.Count == 0) return result;
 
-        using var cmd = _connection.CreateCommand();
-        var idList = string.Join(",", planIds);
-        cmd.CommandText = $"SELECT PlanId, Name, Status FROM Verifications WHERE PlanId IN ({idList})";
-
-        using var reader = cmd.ExecuteReader();
-        int planIdOrdinal = -1, nameOrdinal = -1, statusOrdinal = -1;
-        while (reader.Read())
+        const int batchSize = 500;
+        for (int i = 0; i < planIds.Count; i += batchSize)
         {
-            if (planIdOrdinal == -1)
+            var batch = planIds.Skip(i).Take(batchSize).ToList();
+            using var cmd = _connection.CreateCommand();
+
+            // Build parameterized IN clause
+            var parameters = new List<string>();
+            for (int j = 0; j < batch.Count; j++)
             {
-                planIdOrdinal = reader.GetOrdinal("PlanId");
-                nameOrdinal = reader.GetOrdinal("Name");
-                statusOrdinal = reader.GetOrdinal("Status");
+                var paramName = $"@p{j}";
+                parameters.Add(paramName);
+                cmd.Parameters.AddWithValue(paramName, batch[j]);
             }
 
-            var planId = reader.GetInt32(planIdOrdinal);
-            if (!result.TryGetValue(planId, out var list))
-            {
-                list = new List<PlanVerificationEntry>();
-                result[planId] = list;
-            }
+            var inClause = string.Join(", ", parameters);
+            cmd.CommandText = $"SELECT PlanId, Name, Status FROM Verifications WHERE PlanId IN ({inClause})";
 
-            list.Add(new PlanVerificationEntry
+            using var reader = cmd.ExecuteReader();
+            int planIdOrdinal = -1, nameOrdinal = -1, statusOrdinal = -1;
+            while (reader.Read())
             {
-                Name = reader.GetString(nameOrdinal),
-                Status = reader.GetString(statusOrdinal)
-            });
+                if (planIdOrdinal == -1)
+                {
+                    planIdOrdinal = reader.GetOrdinal("PlanId");
+                    nameOrdinal = reader.GetOrdinal("Name");
+                    statusOrdinal = reader.GetOrdinal("Status");
+                }
+
+                var planId = reader.GetInt32(planIdOrdinal);
+                if (!result.TryGetValue(planId, out var list))
+                {
+                    list = new List<PlanVerificationEntry>();
+                    result[planId] = list;
+                }
+
+                list.Add(new PlanVerificationEntry
+                {
+                    Name = reader.GetString(nameOrdinal),
+                    Status = reader.GetString(statusOrdinal)
+                });
+            }
         }
 
         return result;

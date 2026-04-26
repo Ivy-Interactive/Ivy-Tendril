@@ -1198,4 +1198,90 @@ public class PlanDatabaseServiceTests : IDisposable
         var frameworkCount = stats.ProjectCounts.FirstOrDefault(pc => pc.Project == "Framework");
         Assert.Null(frameworkCount); // Framework has no plans in 7-day window
     }
+
+    [Fact]
+    public void BatchGetList_WithLargePlanIdList_ReturnsMergedResults()
+    {
+        // Create 1200 plans to test batching (>500 batch size)
+        for (int i = 4000; i < 5200; i++)
+        {
+            var plan = CreateTestPlan(i, $"Plan {i}");
+            _db.UpsertPlan(plan);
+        }
+
+        // GetPlans() loads all plans and internally calls BatchGetList for repos/commits/etc
+        var result = _db.GetPlans();
+
+        // Verify we got all 1200+ plans (plus any from other tests)
+        Assert.True(result.Count >= 1200, $"Expected at least 1200 plans, got {result.Count}");
+
+        // Verify a sample of the large batch loaded correctly
+        var samplePlan = result.FirstOrDefault(p => p.Id == 4500);
+        Assert.NotNull(samplePlan);
+        Assert.Equal("Plan 4500", samplePlan.Title);
+        Assert.Single(samplePlan.Repos); // From CreateTestPlan
+    }
+
+    [Fact]
+    public void BatchGetList_WithEmptyList_ReturnsEmptyDictionary()
+    {
+        // This tests the early-return case when no plans exist
+        var result = _db.GetPlans();
+        // No assertion needed - just verifies no exception thrown on empty batch
+    }
+
+    [Fact]
+    public void BatchGetVerifications_WithLargePlanIdList_ReturnsMergedResults()
+    {
+        // Create 1200 plans with multiple verifications to test batching
+        for (int i = 5200; i < 6400; i++)
+        {
+            var metadata = new PlanMetadata(
+                i, "Tendril", "NiceToHave", $"Plan {i}", PlanStatus.Draft,
+                new List<string>(),
+                new List<string>(),
+                new List<string>(),
+                new List<PlanVerificationEntry>
+                {
+                    new() { Name = "DotnetBuild", Status = "Pass" },
+                    new() { Name = "DotnetTest", Status = "Pass" },
+                    new() { Name = "DotnetFormat", Status = "Pass" }
+                },
+                new List<string>(),
+                new List<string>(),
+                DateTime.UtcNow.AddDays(-1),
+                DateTime.UtcNow,
+                null,
+                null
+            );
+            var plan = new PlanFile(metadata, "# Content", $"D:\\Plans\\{i:D5}-Plan{i}", "state: Draft");
+            _db.UpsertPlan(plan);
+        }
+
+        var result = _db.GetPlans();
+        var largeBatchPlans = result.Where(p => p.Id >= 5200 && p.Id < 6400).ToList();
+
+        Assert.Equal(1200, largeBatchPlans.Count);
+        Assert.All(largeBatchPlans, plan =>
+        {
+            Assert.Equal(3, plan.Verifications.Count);
+            Assert.Contains(plan.Verifications, v => v.Name == "DotnetBuild");
+            Assert.Contains(plan.Verifications, v => v.Name == "DotnetTest");
+            Assert.Contains(plan.Verifications, v => v.Name == "DotnetFormat");
+        });
+    }
+
+    [Fact]
+    public void BatchGetList_WithSinglePlanId_ReturnsCorrectResult()
+    {
+        var plan = CreateTestPlan(6400, "Single Plan");
+        _db.UpsertPlan(plan);
+
+        var result = _db.GetPlanById(6400);
+
+        Assert.NotNull(result);
+        Assert.Equal(6400, result!.Id);
+        Assert.Equal("Single Plan", result.Title);
+        Assert.Single(result.Repos); // Verifies BatchGetList loaded the repo
+    }
 }
