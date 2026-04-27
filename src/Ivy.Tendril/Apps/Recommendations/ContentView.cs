@@ -43,7 +43,7 @@ public class ContentView(
                          .WithProjectColor(config, selectedRecommendation.Project)
                      | new Spacer().Width(Size.Grow())
                      | Text.Rich()
-                         .Bold($"{currentIndex + 1}/{allRecommendations.Count}", word: true)
+                         .Bold($"{(currentIndex == -1 ? "?" : (currentIndex + 1).ToString())}/{allRecommendations.Count}", word: true)
                          .Muted("recommendations", word: true)
                      | new Button("Decline").Icon(Icons.X).Outline().ShortcutKey("x").OnClick(() =>
                      {
@@ -195,6 +195,7 @@ public class ContentView(
     {
         if (allRecommendations.Count == 0) return;
         var currentIndex = allRecommendations.FindIndex(r => r.PlanId == selectedRecommendation?.PlanId && r.Title == selectedRecommendation?.Title);
+        if (currentIndex == -1) return; // Prevent navigation if not found
         var nextIndex = (currentIndex + 1) % allRecommendations.Count;
         selectedState.Set(allRecommendations[nextIndex]);
     }
@@ -203,6 +204,7 @@ public class ContentView(
     {
         if (allRecommendations.Count == 0) return;
         var currentIndex = allRecommendations.FindIndex(r => r.PlanId == selectedRecommendation?.PlanId && r.Title == selectedRecommendation?.Title);
+        if (currentIndex == -1) return; // Prevent navigation if not found
         var prevIndex = (currentIndex - 1 + allRecommendations.Count) % allRecommendations.Count;
         selectedState.Set(allRecommendations[prevIndex]);
     }
