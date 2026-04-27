@@ -94,7 +94,11 @@ public class PlanDatabaseService : IPlanDatabaseService
         migrator.ApplyMigrations();
         _logger.LogInformation("Database migrations applied");
 
-        _dashboardRepository = new DashboardRepository(_connection, _lock, _logger);
+        // Create a logger adapter for DashboardRepository
+        // In practice, DashboardRepository should accept ILogger (non-generic) or use ILoggerFactory
+        // but for now we create a simple adapter
+        var dashboardLogger = new DashboardLoggerAdapter(logger);
+        _dashboardRepository = new DashboardRepository(_connection, _lock, dashboardLogger);
     }
 
     public List<PlanFile> GetPlans(PlanStatus? statusFilter = null)
@@ -147,8 +151,8 @@ public class PlanDatabaseService : IPlanDatabaseService
 
             foreach (var row in rawPlans)
             {
-                var plan = BuildPlanFileFromRow(row.Id, row.Title, row.Project, row.Level, row.State,
-                    row.FolderPath, row.FolderName, row.YamlRaw, row.RevisionCount, row.LatestContent,
+                var plan = BuildPlanFileFromRowData(row.Id, row.Title, row.Project, row.Level, row.State,
+                    row.FolderPath, row.YamlRaw, row.RevisionCount, row.LatestContent,
                     row.Created, row.Updated, row.InitialPrompt, row.SourceUrl,
                     allRepos.GetValueOrDefault(row.Id, []),
                     allCommits.GetValueOrDefault(row.Id, []),
@@ -915,16 +919,13 @@ public class PlanDatabaseService : IPlanDatabaseService
     private PlanFile? BuildPlanFile(SqliteDataReader reader)
     {
         var ordinals = GetPlanRowOrdinals(reader);
-        var row = ReadPlanRow(reader, ordinals);
-        return BuildPlanFileFromRow(row.Id, row.Title, row.Project, row.Level, row.State,
-            row.FolderPath, row.FolderName, row.YamlRaw, row.RevisionCount, row.LatestContent,
-            row.Created, row.Updated, row.InitialPrompt, row.SourceUrl,
-            GetListForPlan(row.Id, "Repos", "RepoPath"),
-            GetListForPlan(row.Id, "Commits", "CommitHash"),
-            GetListForPlan(row.Id, "PullRequests", "PrUrl"),
-            GetVerificationsForPlan(row.Id),
-            GetListForPlan(row.Id, "RelatedPlans", "RelatedPlanPath"),
-            GetListForPlan(row.Id, "DependsOn", "DependsOnPlanPath"));
+        return BuildPlanFileFromRow(reader, ordinals,
+            GetListForPlan(reader.GetInt32(ordinals.Id), "Repos", "RepoPath"),
+            GetListForPlan(reader.GetInt32(ordinals.Id), "Commits", "CommitHash"),
+            GetListForPlan(reader.GetInt32(ordinals.Id), "PullRequests", "PrUrl"),
+            GetVerificationsForPlan(reader.GetInt32(ordinals.Id)),
+            GetListForPlan(reader.GetInt32(ordinals.Id), "RelatedPlans", "RelatedPlanPath"),
+            GetListForPlan(reader.GetInt32(ordinals.Id), "DependsOn", "DependsOnPlanPath"));
     }
 
     private static PlanRowOrdinals GetPlanRowOrdinals(SqliteDataReader reader)
@@ -970,9 +971,39 @@ public class PlanDatabaseService : IPlanDatabaseService
         );
     }
 
-    private static PlanFile? BuildPlanFileFromRow(int planId, string title, string project, string level,
-        string state, string folderPath, string folderName, string yamlRaw, int revisionCount,
-        string latestContent, string createdStr, string updatedStr, string? initialPrompt, string? sourceUrl,
+    private static PlanFile? BuildPlanFileFromRow(
+        SqliteDataReader reader,
+        PlanRowOrdinals ordinals,
+        List<string> repos,
+        List<string> commits,
+        List<string> prs,
+        List<PlanVerificationEntry> verifications,
+        List<string> relatedPlans,
+        List<string> dependsOn)
+    {
+        var planId = reader.GetInt32(ordinals.Id);
+        var title = reader.GetString(ordinals.Title);
+        var project = reader.GetString(ordinals.Project);
+        var level = reader.GetString(ordinals.Level);
+        var state = reader.GetString(ordinals.State);
+        var folderPath = reader.GetString(ordinals.FolderPath);
+        var yamlRaw = reader.GetString(ordinals.YamlRaw);
+        var revisionCount = reader.GetInt32(ordinals.RevisionCount);
+        var latestContent = reader.GetString(ordinals.LatestContent);
+        var createdStr = reader.GetString(ordinals.Created);
+        var updatedStr = reader.GetString(ordinals.Updated);
+        var initialPrompt = reader.GetStringOrNull(ordinals.InitialPrompt);
+        var sourceUrl = reader.GetStringOrNull(ordinals.SourceUrl);
+
+        return BuildPlanFileFromRowData(planId, title, project, level, state, folderPath,
+            yamlRaw, revisionCount, latestContent, createdStr, updatedStr, initialPrompt, sourceUrl,
+            repos, commits, prs, verifications, relatedPlans, dependsOn);
+    }
+
+    private static PlanFile? BuildPlanFileFromRowData(
+        int planId, string title, string project, string level, string state,
+        string folderPath, string yamlRaw, int revisionCount, string latestContent,
+        string createdStr, string updatedStr, string? initialPrompt, string? sourceUrl,
         List<string> repos, List<string> commits, List<string> prs,
         List<PlanVerificationEntry> verifications, List<string> relatedPlans, List<string> dependsOn)
     {
@@ -1167,8 +1198,8 @@ public class PlanDatabaseService : IPlanDatabaseService
         var plans = new List<PlanFile>();
         foreach (var row in rawPlans)
         {
-            var plan = BuildPlanFileFromRow(row.Id, row.Title, row.Project, row.Level, row.State,
-                row.FolderPath, row.FolderName, row.YamlRaw, row.RevisionCount, row.LatestContent,
+            var plan = BuildPlanFileFromRowData(row.Id, row.Title, row.Project, row.Level, row.State,
+                row.FolderPath, row.YamlRaw, row.RevisionCount, row.LatestContent,
                 row.Created, row.Updated, row.InitialPrompt, row.SourceUrl,
                 allRepos.GetValueOrDefault(row.Id, []),
                 allCommits.GetValueOrDefault(row.Id, []),
@@ -1299,4 +1330,28 @@ public class PlanDatabaseService : IPlanDatabaseService
         int Updated,
         int InitialPrompt,
         int SourceUrl);
+
+    /// <summary>
+    /// Adapter to bridge ILogger&lt;PlanDatabaseService&gt; to ILogger&lt;DashboardRepository&gt;.
+    /// This is a workaround for the constructor type mismatch.
+    /// </summary>
+    private sealed class DashboardLoggerAdapter : ILogger<DashboardRepository>
+    {
+        private readonly ILogger _innerLogger;
+
+        public DashboardLoggerAdapter(ILogger innerLogger)
+        {
+            _innerLogger = innerLogger;
+        }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+            => _innerLogger.BeginScope(state);
+
+        public bool IsEnabled(LogLevel logLevel)
+            => _innerLogger.IsEnabled(logLevel);
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
+            Exception? exception, Func<TState, Exception?, string> formatter)
+            => _innerLogger.Log(logLevel, eventId, state, exception, formatter);
+    }
 }
