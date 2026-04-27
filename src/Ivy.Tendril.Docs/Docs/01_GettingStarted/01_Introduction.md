@@ -38,48 +38,28 @@ In Tendril, work is organized into **Plans**—structured units of work like bug
 
 ## The Tendril Loop: From Idea to PR.
 
-A plan progresses through the following comprehensive set of states:
+Plans flow through the following pipeline:
 
 ```mermaid
 flowchart LR
-    Draft:::defaultStyle
-    Blocked:::blockedStyle
-    Building:::buildingStyle
-    Executing:::executingStyle
-    Updating:::executingStyle
-    ReadyForReview:::readyStyle
-    Failed:::failedStyle
-    Completed:::completedStyle
-    Icebox:::iceboxStyle
-    Skipped:::skippedStyle
+    GitHub((GitHub)):::inputStyle
+    Human((Human)):::inputStyle
+    Console((Console)):::inputStyle
 
-    Draft -->|CreatePlan| Building
-    Draft -->|Execute| Executing
-    Draft -->|Missing Context| Blocked
-    Blocked -->|Resolved| Draft
-    Building -->|Drafted| Draft
-    Draft -->|Shelve| Icebox
-    Icebox -->|Restore| Draft
+    GitHub -- Tickets --> Inbox:::stageStyle
+    Human -- Ideas --> Inbox
+    Console -- API/MCP/CLI --> Inbox
 
-    Executing -->|Iterate| Updating
-    Updating -->|Continue| Executing
-    Executing -->|Success| ReadyForReview
-    Executing -->|Error/Timeout| Failed
-    Failed -->|Retry| Executing
+    Inbox -- CreatePlan --> Drafts:::stageStyle
+    Drafts -- "Update-/Split-/ExpandPlan" --> Drafts
+    Drafts <--> Icebox:::iceboxStyle
+    Drafts -- ExecutePlan --> Review:::stageStyle
+    Review -- Recommendations --> Inbox
+    Review -- CreatePr --> GitHubOut((GitHub)):::inputStyle
 
-    ReadyForReview -->|Approve| Completed
-    ReadyForReview -->|Revise| Draft
-    ReadyForReview -->|Discard| Skipped
-
-    classDef defaultStyle fill:#E8F0FE,stroke:#4285F4,color:#000
-    classDef blockedStyle fill:#FFF9C4,stroke:#4285F4,color:#000
-    classDef buildingStyle fill:#E1F5FE,stroke:#4285F4,color:#000
-    classDef executingStyle fill:#FFF3E0,stroke:#4285F4,color:#000
-    classDef readyStyle fill:#E8F5E9,stroke:#4285F4,color:#000
-    classDef failedStyle fill:#FFEBEE,stroke:#E53935,color:#000
-    classDef completedStyle fill:#C8E6C9,stroke:#4285F4,color:#000
+    classDef inputStyle fill:#fff,stroke:#666,color:#000
+    classDef stageStyle fill:#E8F0FE,stroke:#4285F4,color:#000
     classDef iceboxStyle fill:#F3E5F5,stroke:#4285F4,color:#000
-    classDef skippedStyle fill:#F5F5F5,stroke:#9E9E9E,color:#000
 ```
 
 
