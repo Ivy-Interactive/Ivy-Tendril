@@ -94,7 +94,11 @@ public class PlanDatabaseService : IPlanDatabaseService
         migrator.ApplyMigrations();
         _logger.LogInformation("Database migrations applied");
 
-        _dashboardRepository = new DashboardRepository(_connection, _lock, _logger);
+        // Create a logger adapter for DashboardRepository
+        // In practice, DashboardRepository should accept ILogger (non-generic) or use ILoggerFactory
+        // but for now we create a simple adapter
+        var dashboardLogger = new DashboardLoggerAdapter(logger);
+        _dashboardRepository = new DashboardRepository(_connection, _lock, dashboardLogger);
     }
 
     public List<PlanFile> GetPlans(PlanStatus? statusFilter = null)
@@ -1326,4 +1330,28 @@ public class PlanDatabaseService : IPlanDatabaseService
         int Updated,
         int InitialPrompt,
         int SourceUrl);
+
+    /// <summary>
+    /// Adapter to bridge ILogger&lt;PlanDatabaseService&gt; to ILogger&lt;DashboardRepository&gt;.
+    /// This is a workaround for the constructor type mismatch.
+    /// </summary>
+    private sealed class DashboardLoggerAdapter : ILogger<DashboardRepository>
+    {
+        private readonly ILogger _innerLogger;
+
+        public DashboardLoggerAdapter(ILogger innerLogger)
+        {
+            _innerLogger = innerLogger;
+        }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+            => _innerLogger.BeginScope(state);
+
+        public bool IsEnabled(LogLevel logLevel)
+            => _innerLogger.IsEnabled(logLevel);
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
+            Exception? exception, Func<TState, Exception?, string> formatter)
+            => _innerLogger.Log(logLevel, eventId, state, exception, formatter);
+    }
 }
