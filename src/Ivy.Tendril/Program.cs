@@ -27,6 +27,9 @@ public class Program
     // Must be a static field to prevent GC from collecting the delegate
     private static ConsoleCtrlHandlerDelegate? _consoleCtrlHandler;
 
+    // ConfigService reference for cleanup on exit
+    private static ConfigService? _configService;
+
     [STAThread]
     public static async Task<int> Main(string[] args)
     {
@@ -228,6 +231,16 @@ public class Program
         AppDomain.CurrentDomain.ProcessExit += (_, _) =>
         {
             CrashLog.Write($"[{DateTime.UtcNow:O}] ProcessExit event fired (PID {Environment.ProcessId}) | {GetMemoryStats()}");
+
+            // Clean up tracked temp files
+            try
+            {
+                _configService?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                CrashLog.Write($"[{DateTime.UtcNow:O}] Failed to dispose ConfigService: {ex}");
+            }
         };
 
         // Periodic memory watchdog — logs a warning when working set exceeds 1 GB
@@ -275,6 +288,11 @@ public class Program
             await server.RunAsync();
             return 0;
         }
+    }
+
+    internal static void SetConfigServiceForCleanup(ConfigService configService)
+    {
+        _configService = configService;
     }
 
     private static string GetMemoryStats()

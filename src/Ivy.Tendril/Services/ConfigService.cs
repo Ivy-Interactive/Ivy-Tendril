@@ -158,15 +158,18 @@ public class TendrilSettings
 
 public record ConfigParseError(string Message, string FilePath, Exception? InnerException);
 
-public class ConfigService : IConfigService
+public class ConfigService : IConfigService, IDisposable
 {
     private readonly bool _explicitHome;
     private readonly ILogger<ConfigService> _logger;
+    private readonly HashSet<string> _tempFiles = new();
+    private readonly object _tempFilesLock = new();
     private string[]? _levelNamesCache;
     private string? _pendingCodingAgent;
     private ProjectConfig? _pendingProject;
     private string? _pendingTendrilHome;
     private List<VerificationConfig>? _pendingVerificationDefinitions;
+    private bool _disposed;
 
     internal ConfigService(TendrilSettings settings, string? tendrilHome = null, ILogger<ConfigService>? logger = null)
     {
@@ -448,6 +451,12 @@ public class ConfigService : IConfigService
 
         var tempPath = Path.Combine(Path.GetTempPath(), $"tendril-edit-{Guid.NewGuid()}.md");
         File.WriteAllText(tempPath, polished);
+
+        lock (_tempFilesLock)
+        {
+            _tempFiles.Add(tempPath);
+        }
+
         return tempPath;
     }
 
@@ -792,6 +801,35 @@ public class ConfigService : IConfigService
         if (Settings.Verifications == null) return;
         foreach (var verification in Settings.Verifications)
             verification.Prompt = ExpandVar(verification.Prompt);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+
+        lock (_tempFilesLock)
+        {
+            foreach (var tempFile in _tempFiles)
+            {
+                try
+                {
+                    if (File.Exists(tempFile))
+                    {
+                        File.Delete(tempFile);
+                        _logger.LogDebug("Deleted temp file: {TempFile}", tempFile);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to delete temp file: {TempFile}", tempFile);
+                }
+            }
+
+            _tempFiles.Clear();
+        }
     }
 }
 
