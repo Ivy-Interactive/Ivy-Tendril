@@ -239,8 +239,7 @@ public class EditProjectDialog(
                                .Width(Size.Percent(100))
                                .OnClick(() => showFolderDialog(_ => { }))
                            | newRepoPrRule.ToSelectInput(new List<string> { "default", "yolo" })
-                               .Width(Size.Units(20))
-                           | new Button("Add").Outline().Small().OnClick(addRepoAction))
+                               .Width(Size.Units(20)))
                            | (Layout.Horizontal().Gap(2).AlignContent(Align.Center)
                            | newRepoBaseBranch.ToTextInput("Base branch (optional)")
                                .Width(Size.Grow()));
@@ -251,8 +250,7 @@ public class EditProjectDialog(
                            | (Layout.Horizontal().Gap(2).AlignContent(Align.Center)
                            | newRepoPath.ToTextInput("Your repository folder")
                                .Suffix(newRepoPrRule.ToSelectInput(new List<string> { "default", "yolo" }).Ghost())
-                               .Width(Size.Grow())
-                           | new Button("Add").Outline().Small().OnClick(addRepoAction))
+                               .Width(Size.Grow()))
                            | (Layout.Horizontal().Gap(2).AlignContent(Align.Center)
                            | newRepoBaseBranch.ToTextInput("Base branch (optional)")
                                .Width(Size.Grow()));
@@ -339,6 +337,7 @@ public class EditProjectDialog(
                 }),
                 new Button(isNew ? "Add" : "Save").Primary().OnClick(() =>
                 {
+                    addRepoAction();
                     if (string.IsNullOrWhiteSpace(editName.Value)) return;
                     var project = isNew ? new ProjectConfig() : _projects[_editIndex.Value!.Value];
                     project.Name = editName.Value;
