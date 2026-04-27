@@ -20,14 +20,11 @@ public class GitService : IGitService
                Regex.IsMatch(hash, "^[a-fA-F0-9]{7,40}$");
     }
 
-    public string? GetCommitTitle(string repoPath, string commitHash)
+    private T? RunGitCommand<T>(string repoPath, string args, Func<string, T?> parser)
     {
-        if (!IsValidCommitHash(commitHash))
-            return null;
-
         try
         {
-            var psi = new ProcessStartInfo("git", $"log -1 --format=%s -- {commitHash}")
+            var psi = new ProcessStartInfo("git", args)
             {
                 WorkingDirectory = repoPath,
                 RedirectStandardOutput = true,
@@ -36,14 +33,23 @@ public class GitService : IGitService
                 StandardOutputEncoding = Encoding.UTF8
             };
             using var process = Process.Start(psi);
-            var title = process?.StandardOutput.ReadLine();
+            var output = process?.StandardOutput.ReadToEnd();
             process.WaitForExitOrKill(_timeoutMs);
-            return process?.ExitCode == 0 ? title : null;
+            return process?.ExitCode == 0 ? parser(output ?? "") : default;
         }
         catch
         {
-            return null; /* git may not be installed, or repo path invalid */
+            return default;
         }
+    }
+
+    public string? GetCommitTitle(string repoPath, string commitHash)
+    {
+        if (!IsValidCommitHash(commitHash))
+            return null;
+
+        return RunGitCommand(repoPath, $"log -1 --format=%s -- {commitHash}",
+            output => output.Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault());
     }
 
     public string? GetCommitDiff(string repoPath, string commitHash)
@@ -51,25 +57,7 @@ public class GitService : IGitService
         if (!IsValidCommitHash(commitHash))
             return null;
 
-        try
-        {
-            var psi = new ProcessStartInfo("git", $"show --format=\"\" --patch -- {commitHash}")
-            {
-                WorkingDirectory = repoPath,
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                StandardOutputEncoding = Encoding.UTF8
-            };
-            using var process = Process.Start(psi);
-            var output = process?.StandardOutput.ReadToEnd();
-            process.WaitForExitOrKill(_timeoutMs);
-            return process?.ExitCode == 0 ? output : null;
-        }
-        catch
-        {
-            return null; /* git may not be installed, or repo path invalid */
-        }
+        return RunGitCommand(repoPath, $"show --format=\"\" --patch -- {commitHash}", output => output);
     }
 
     public int? GetCommitFileCount(string repoPath, string commitHash)
@@ -77,27 +65,8 @@ public class GitService : IGitService
         if (!IsValidCommitHash(commitHash))
             return null;
 
-        try
-        {
-            var psi = new ProcessStartInfo("git", $"diff-tree --no-commit-id --name-only -r -- {commitHash}")
-            {
-                WorkingDirectory = repoPath,
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                StandardOutputEncoding = Encoding.UTF8
-            };
-            using var process = Process.Start(psi);
-            var output = process?.StandardOutput.ReadToEnd();
-            process.WaitForExitOrKill(_timeoutMs);
-            if (process?.ExitCode != 0 || output == null) return null;
-
-            return output.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
-        }
-        catch
-        {
-            return null;
-        }
+        return RunGitCommand(repoPath, $"diff-tree --no-commit-id --name-only -r -- {commitHash}",
+            output => output.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length);
     }
 
     public List<(string Status, string FilePath)>? GetCommitFiles(string repoPath, string commitHash)
@@ -105,35 +74,8 @@ public class GitService : IGitService
         if (!IsValidCommitHash(commitHash))
             return null;
 
-        try
-        {
-            var psi = new ProcessStartInfo("git", $"diff-tree --no-commit-id --name-status -r -- {commitHash}")
-            {
-                WorkingDirectory = repoPath,
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                StandardOutputEncoding = Encoding.UTF8
-            };
-            using var process = Process.Start(psi);
-            var output = process?.StandardOutput.ReadToEnd();
-            process.WaitForExitOrKill(_timeoutMs);
-            if (process?.ExitCode != 0 || output == null) return null;
-
-            var files = new List<(string Status, string FilePath)>();
-            foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-            {
-                var parts = line.Split('\t', 2);
-                if (parts.Length == 2)
-                    files.Add((parts[0].Trim(), parts[1].Trim()));
-            }
-
-            return files;
-        }
-        catch
-        {
-            return null; /* git may not be installed, or repo path invalid */
-        }
+        return RunGitCommand(repoPath, $"diff-tree --no-commit-id --name-status -r -- {commitHash}",
+            GitOutputParser.ParseNameStatusOutput);
     }
 
     public string? GetCombinedDiff(string repoPath, string firstCommit, string lastCommit)
@@ -141,25 +83,7 @@ public class GitService : IGitService
         if (!IsValidCommitHash(firstCommit) || !IsValidCommitHash(lastCommit))
             return null;
 
-        try
-        {
-            var psi = new ProcessStartInfo("git", $"diff -- {firstCommit}^..{lastCommit}")
-            {
-                WorkingDirectory = repoPath,
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                StandardOutputEncoding = Encoding.UTF8
-            };
-            using var process = Process.Start(psi);
-            var output = process?.StandardOutput.ReadToEnd();
-            process.WaitForExitOrKill(_timeoutMs);
-            return process?.ExitCode == 0 ? output : null;
-        }
-        catch
-        {
-            return null;
-        }
+        return RunGitCommand(repoPath, $"diff -- {firstCommit}^..{lastCommit}", output => output);
     }
 
     public List<(string Status, string FilePath)>? GetCombinedChangedFiles(string repoPath, string firstCommit, string lastCommit)
@@ -167,35 +91,8 @@ public class GitService : IGitService
         if (!IsValidCommitHash(firstCommit) || !IsValidCommitHash(lastCommit))
             return null;
 
-        try
-        {
-            var psi = new ProcessStartInfo("git", $"diff --name-status -- {firstCommit}^..{lastCommit}")
-            {
-                WorkingDirectory = repoPath,
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                StandardOutputEncoding = Encoding.UTF8
-            };
-            using var process = Process.Start(psi);
-            var output = process?.StandardOutput.ReadToEnd();
-            process.WaitForExitOrKill(_timeoutMs);
-            if (process?.ExitCode != 0 || output == null) return null;
-
-            var files = new List<(string Status, string FilePath)>();
-            foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-            {
-                var parts = line.Split('\t', 2);
-                if (parts.Length == 2)
-                    files.Add((parts[0].Trim(), parts[1].Trim()));
-            }
-
-            return files;
-        }
-        catch
-        {
-            return null;
-        }
+        return RunGitCommand(repoPath, $"diff --name-status -- {firstCommit}^..{lastCommit}",
+            GitOutputParser.ParseNameStatusOutput);
     }
 
     public Dictionary<string, (string Title, int FileCount)>? GetCommitSummaries(string repoPath, IEnumerable<string> commitHashes)
@@ -209,9 +106,6 @@ public class GitService : IGitService
 
         try
         {
-            var result = new Dictionary<string, (string Title, int FileCount)>();
-
-            // Single git log call: --stdin reads hashes from stdin, --format outputs hash + title, --numstat gives file counts
             var psi = new ProcessStartInfo("git", "log --stdin --no-walk --format=%H%x00%s --numstat")
             {
                 WorkingDirectory = repoPath,
@@ -232,36 +126,8 @@ public class GitService : IGitService
             process.WaitForExitOrKill(_timeoutMs);
             if (process.ExitCode != 0) return null;
 
-            // Build a lookup from full hash prefix back to the original input hashes
             var inputHashSet = new HashSet<string>(hashes, StringComparer.OrdinalIgnoreCase);
-
-            // Parse: each commit block starts with "hash\0title" followed by numstat lines, separated by empty lines
-            string? currentHash = null;
-            string? currentTitle = null;
-            int currentFileCount = 0;
-
-            foreach (var line in output.Split('\n'))
-            {
-                if (line.Contains('\0'))
-                {
-                    if (currentHash != null)
-                        StoreCommitResult(result, inputHashSet, currentHash, currentTitle!, currentFileCount);
-
-                    var parts = line.Split('\0', 2);
-                    currentHash = parts[0].Trim();
-                    currentTitle = parts.Length > 1 ? parts[1].Trim() : "";
-                    currentFileCount = 0;
-                }
-                else if (currentHash != null && line.Trim().Length > 0)
-                {
-                    currentFileCount++;
-                }
-            }
-
-            if (currentHash != null)
-                StoreCommitResult(result, inputHashSet, currentHash, currentTitle!, currentFileCount);
-
-            return result;
+            return GitOutputParser.ParseCommitSummaries(output, inputHashSet);
         }
         catch
         {
@@ -269,87 +135,6 @@ public class GitService : IGitService
         }
     }
 
-    private static void StoreCommitResult(
-        Dictionary<string, (string Title, int FileCount)> result,
-        HashSet<string> inputHashes,
-        string fullHash,
-        string title,
-        int fileCount)
-    {
-        var value = (title, fileCount);
-        result[fullHash] = value;
-
-        // Also store under any abbreviated input hash that matches this full hash
-        foreach (var input in inputHashes)
-        {
-            if (input.Length < fullHash.Length &&
-                fullHash.StartsWith(input, StringComparison.OrdinalIgnoreCase))
-            {
-                result[input] = value;
-            }
-        }
-    }
-
     public List<WorktreeInfo>? GetWorktrees(string repoPath)
-    {
-        try
-        {
-            var psi = new ProcessStartInfo("git", "worktree list --porcelain")
-            {
-                WorkingDirectory = repoPath,
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                StandardOutputEncoding = Encoding.UTF8
-            };
-            using var process = Process.Start(psi);
-            var output = process?.StandardOutput.ReadToEnd();
-            process.WaitForExitOrKill(_timeoutMs);
-            if (process?.ExitCode != 0 || output == null) return null;
-
-            var worktrees = new List<WorktreeInfo>();
-            var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-
-            string? currentPath = null;
-            string? currentBranch = null;
-            string? currentHash = null;
-
-            foreach (var line in lines)
-            {
-                if (line.StartsWith("worktree "))
-                {
-                    // Save previous worktree if complete
-                    if (currentPath != null && currentBranch != null && currentHash != null)
-                    {
-                        worktrees.Add(new WorktreeInfo(currentPath, currentBranch, currentHash));
-                    }
-
-                    currentPath = line.Substring(9).Trim();
-                    currentBranch = null;
-                    currentHash = null;
-                }
-                else if (line.StartsWith("HEAD "))
-                {
-                    currentHash = line.Substring(5).Trim();
-                }
-                else if (line.StartsWith("branch "))
-                {
-                    var branchRef = line.Substring(7).Trim();
-                    currentBranch = branchRef.Replace("refs/heads/", "");
-                }
-            }
-
-            // Save last worktree
-            if (currentPath != null && currentBranch != null && currentHash != null)
-            {
-                worktrees.Add(new WorktreeInfo(currentPath, currentBranch, currentHash));
-            }
-
-            return worktrees;
-        }
-        catch
-        {
-            return null; /* git may not be installed, or repo path invalid */
-        }
-    }
+        => RunGitCommand(repoPath, "worktree list --porcelain", GitOutputParser.ParseWorktreeList);
 }
