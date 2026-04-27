@@ -486,7 +486,7 @@ public static class DoctorCommand
                 else
                 {
                     var content = File.ReadAllText(yamlPath);
-                    var repaired = PlanReaderService.RepairPlanYaml(content);
+                    var repaired = PlanYamlRepairService.RepairPlanYaml(content);
 
                     var folderTitle = TitleFromFolderName(Path.GetFileName(planPath));
 

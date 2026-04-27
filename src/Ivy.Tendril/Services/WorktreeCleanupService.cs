@@ -1,7 +1,9 @@
-using Ivy.Tendril.Helpers;
 using System.Diagnostics;
 using System.Globalization;
+using System.Text.RegularExpressions;
+using Ivy.Helpers;
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Microsoft.Extensions.Logging;
 using YamlDotNet.Serialization;
@@ -11,6 +13,7 @@ namespace Ivy.Tendril.Services;
 
 public class WorktreeCleanupService : IStartable, IDisposable
 {
+    private static readonly Regex SafeTitleRegex = new(@"^\d{5}-(.+)", RegexOptions.Compiled);
     private static readonly HashSet<string> TerminalStates = new(StringComparer.OrdinalIgnoreCase)
         { "Completed", "Failed", "Skipped", "Icebox" };
 
@@ -98,7 +101,7 @@ public class WorktreeCleanupService : IStartable, IDisposable
         logger?.LogInformation("Cleaning up worktrees for plan {PlanFolder} (state: {State}, updated: {Updated})",
             Path.GetFileName(planFolderPath), planYaml.State, planYaml.Updated.ToString("o", CultureInfo.InvariantCulture));
 
-        PlanReaderService.RemoveWorktrees(planFolderPath, logger, lifecycleLogger);
+        RemoveWorktrees(planFolderPath, logger, lifecycleLogger);
 
         // Safety net: RemoveWorktrees should have removed all directories
         foreach (var wtDir in Directory.GetDirectories(worktreesDir))
@@ -161,7 +164,7 @@ public class WorktreeCleanupService : IStartable, IDisposable
                 Thread.Sleep(delaysMs[attempt - 1]);
             }
 
-            PlanReaderService.ClearReadOnlyAttributes(path);
+            ClearReadOnlyAttributes(path);
             try
             {
                 Directory.Delete(path, true);
@@ -279,6 +282,117 @@ public class WorktreeCleanupService : IStartable, IDisposable
         catch
         {
             // handle.exe not installed or failed — continue
+        }
+    }
+
+    internal static void RemoveWorktrees(string planFolderPath, ILogger? logger = null, IWorktreeLifecycleLogger? lifecycleLogger = null)
+    {
+        var worktreesDir = Path.Combine(planFolderPath, "worktrees");
+        if (!Directory.Exists(worktreesDir)) return;
+
+        var planId = WorktreeLifecycleLogger.ExtractPlanId(planFolderPath);
+
+        var safeTitle = ExtractSafeTitle(planFolderPath);
+        var branchName = $"tendril/{planId}-{safeTitle}";
+
+        foreach (var wtDir in Directory.GetDirectories(worktreesDir))
+        {
+            var gitFile = Path.Combine(wtDir, ".git");
+            if (!File.Exists(gitFile))
+            {
+                var dirAge = DateTime.UtcNow - new DirectoryInfo(wtDir).CreationTimeUtc;
+                logger?.LogInformation(
+                    "Worktree directory has no .git file (created {Age} ago), force-deleting: {Path}",
+                    dirAge, Path.GetFileName(wtDir));
+                lifecycleLogger?.LogCleanupAttempt(planId, wtDir, "RemoveWorktrees(force)", gitFileExists: false);
+
+                try
+                {
+                    ForceDeleteDirectory(wtDir, logger);
+                    lifecycleLogger?.LogCleanupSuccess(planId, wtDir);
+                }
+                catch (Exception ex)
+                {
+                    lifecycleLogger?.LogCleanupFailed(planId, wtDir, ex.Message);
+                    logger?.LogWarning(ex, "Failed to force-delete worktree directory {Dir}", Path.GetFileName(wtDir));
+                }
+                continue;
+            }
+
+            var gitContent = FileHelper.ReadAllText(gitFile).Trim();
+            var match = Regex.Match(gitContent, @"gitdir:\s*(.+)");
+            if (!match.Success) continue;
+
+            var gitDir = match.Groups[1].Value.Trim();
+            var repoGitDir = Path.GetFullPath(Path.Combine(gitDir, "..", ".."));
+            var repoRoot = Path.GetDirectoryName(repoGitDir);
+            if (repoRoot == null || !Directory.Exists(repoRoot)) continue;
+
+            lifecycleLogger?.LogCleanupAttempt(planId, wtDir, "RemoveWorktrees", gitFileExists: true);
+
+            try
+            {
+                var psi = new ProcessStartInfo("git", $"worktree remove --force \"{wtDir}\"")
+                {
+                    WorkingDirectory = repoRoot,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var process = Process.Start(psi);
+                process.WaitForExitOrKill(10000);
+                lifecycleLogger?.LogCleanupSuccess(planId, wtDir);
+
+                try
+                {
+                    var branchPsi = new ProcessStartInfo("git", $"branch -D \"{branchName}\"")
+                    {
+                        WorkingDirectory = repoRoot,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+                    using var branchProcess = Process.Start(branchPsi);
+                    branchProcess.WaitForExitOrKill(10000);
+                    logger?.LogInformation("Deleted branch {BranchName} for worktree {WorktreeDir}", branchName, Path.GetFileName(wtDir));
+                }
+                catch (Exception branchEx)
+                {
+                    logger?.LogWarning(branchEx, "Failed to delete branch {BranchName} for worktree {WorktreeDir}", branchName, Path.GetFileName(wtDir));
+                }
+            }
+            catch (Exception ex)
+            {
+                lifecycleLogger?.LogCleanupFailed(planId, wtDir, ex.Message);
+            }
+        }
+    }
+
+    internal static string ExtractSafeTitle(string planFolderPath)
+    {
+        if (string.IsNullOrEmpty(planFolderPath))
+            return "Unknown";
+        var folderName = Path.GetFileName(planFolderPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        var match = SafeTitleRegex.Match(folderName);
+        return match.Success ? match.Groups[1].Value : "Unknown";
+    }
+
+    internal static void ClearReadOnlyAttributes(string directoryPath)
+    {
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(directoryPath, "*", SearchOption.AllDirectories))
+            {
+                var attrs = File.GetAttributes(file);
+                if ((attrs & FileAttributes.ReadOnly) != 0)
+                    File.SetAttributes(file, attrs & ~FileAttributes.ReadOnly);
+            }
+        }
+        catch
+        {
+            // Best-effort
         }
     }
 

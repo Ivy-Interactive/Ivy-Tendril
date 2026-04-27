@@ -158,7 +158,7 @@ public class WorktreeCleanupServiceTests : IDisposable
         Directory.CreateDirectory(worktreeDir);
         File.WriteAllText(Path.Combine(worktreeDir, "file.txt"), "test");
 
-        PlanReaderService.RemoveWorktrees(dir);
+        WorktreeCleanupService.RemoveWorktrees(dir);
 
         Assert.False(Directory.Exists(worktreeDir), "Directory without .git file should be force-deleted");
     }
@@ -283,7 +283,7 @@ public class WorktreeCleanupServiceTests : IDisposable
         var logEntries = new List<string>();
         var logger = new CapturingLogger(logEntries);
 
-        PlanReaderService.RemoveWorktrees(dir, logger);
+        WorktreeCleanupService.RemoveWorktrees(dir, logger);
 
         Assert.Contains(logEntries, e => e.Contains("force-deleting"));
         Assert.Contains(logEntries, e => e.Contains("TestRepo"));
@@ -470,7 +470,7 @@ public class WorktreeCleanupServiceTests : IDisposable
 
             // RemoveWorktrees will attempt to delete the branch (will fail since no git repo exists)
             // but we can verify it doesn't crash and handles the safe title extraction
-            PlanReaderService.RemoveWorktrees(dir, logger);
+            WorktreeCleanupService.RemoveWorktrees(dir, logger);
 
             // Verify directory is cleaned up (since no .git file exists, it's force-deleted)
             Assert.False(Directory.Exists(worktreeDir), $"Worktree should be cleaned for {folderName}");
@@ -488,7 +488,7 @@ public class WorktreeCleanupServiceTests : IDisposable
         var logger = new CapturingLogger(logEntries);
 
         // RemoveWorktrees will try to delete the branch, which should be logged
-        PlanReaderService.RemoveWorktrees(dir, logger);
+        WorktreeCleanupService.RemoveWorktrees(dir, logger);
 
         // Since there's no git repo, the branch deletion will fail
         // but we should see a warning log about it
@@ -509,7 +509,7 @@ public class WorktreeCleanupServiceTests : IDisposable
         var logger = new CapturingLogger(logEntries);
 
         // Should not throw even if branch deletion fails
-        var ex = Record.Exception(() => PlanReaderService.RemoveWorktrees(dir, logger));
+        var ex = Record.Exception(() => WorktreeCleanupService.RemoveWorktrees(dir, logger));
         Assert.Null(ex);
         Assert.False(Directory.Exists(worktreeDir), "Worktree should still be cleaned up");
     }
