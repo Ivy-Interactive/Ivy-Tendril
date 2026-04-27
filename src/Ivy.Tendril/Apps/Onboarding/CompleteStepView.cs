@@ -37,7 +37,7 @@ public class CompleteStepView(IState<int> stepperIndex) : ViewBase
                 // which prevents client.Redirect from delivering the WebSocket message.
                 _ = setupService.StartBackgroundServicesAsync();
 
-                client.Redirect("/", true);
+                client.ReloadPage();
             }
             catch (Exception ex)
             {
