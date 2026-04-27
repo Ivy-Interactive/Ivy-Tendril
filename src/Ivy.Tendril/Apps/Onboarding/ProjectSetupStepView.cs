@@ -165,6 +165,8 @@ internal class RepoPathInputView(IState<List<string>> repoPaths, int index) : Vi
     public override object Build()
     {
         var repoPath = UseState(repoPaths.Value[index]);
+        var (folderDialogView, showFolderDialog, selectedFolderPath) = UseFolderDialog();
+
         UseEffect(() =>
         {
             var list = new List<string>(repoPaths.Value);
@@ -172,7 +174,28 @@ internal class RepoPathInputView(IState<List<string>> repoPaths, int index) : Vi
             repoPaths.Set(list);
         }, repoPath);
 
-        return repoPath.ToTextInput("Select repository folder...")
-            .Width(Size.Grow());
+        UseEffect(() =>
+        {
+            if (selectedFolderPath.Value != null)
+                repoPath.Set(selectedFolderPath.Value);
+        }, selectedFolderPath);
+
+        var isDesktop = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? "")
+            .Equals("tendril", StringComparison.OrdinalIgnoreCase);
+
+        if (isDesktop)
+        {
+            return Layout.Horizontal().Gap(0)
+                   | new Button(repoPath.Value ?? "Your repository folder")
+                       .Outline()
+                       .Width(Size.Percent(100))
+                       .OnClick(() => showFolderDialog(_ => { }))
+                   | folderDialogView;
+        }
+
+        return Layout.Horizontal().Gap(0)
+               | repoPath.ToTextInput("Your repository folder")
+                   .Width(Size.Grow())
+               | folderDialogView;
     }
 }

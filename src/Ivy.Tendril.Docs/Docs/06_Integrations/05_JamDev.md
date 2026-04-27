@@ -26,7 +26,7 @@ Configure jam.dev to POST to:
 http://localhost:5000/api/inbox
 ```
 
-Replace `localhost:5000` with your Tendril host and port if configured differently.
+Replace `localhost:5000` with your Tendril host and port if configured differently. 
 
 ## Request Format
 

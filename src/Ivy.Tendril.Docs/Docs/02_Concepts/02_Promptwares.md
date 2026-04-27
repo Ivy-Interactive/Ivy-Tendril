@@ -24,8 +24,6 @@ They are located in a folder under `TENDRIL_HOME/Promptwares/`:
 
 Tendril runs them through the configured AI stack (e.g. Claude Code) for focused automation.
 
-
-
 ## Core Jobs
 
 | Job | Role |

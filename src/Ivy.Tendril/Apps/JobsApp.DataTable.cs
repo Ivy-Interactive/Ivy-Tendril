@@ -65,7 +65,6 @@ public partial class JobsApp
             {
                 BadgeColorMapping = projectColors
             })
-            .Renderer(t => t.PlanId, new LinkDisplayRenderer())
             .Renderer(t => t.Plan, new TextDisplayRenderer())
             .Renderer(t => t.StatusMessage, new TextDisplayRenderer())
             .Hidden(t => t.Id)

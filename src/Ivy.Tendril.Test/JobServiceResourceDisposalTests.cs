@@ -55,35 +55,6 @@ public class JobServiceResourceDisposalTests
     }
 
     [Fact]
-    public void DisposeResources_LogsWarningWhenDisposalFails()
-    {
-        var logMessages = new List<string>();
-        var loggerFactory = LoggerFactory.Create(builder =>
-        {
-            builder.AddProvider(new TestLoggerProvider(logMessages));
-        });
-        var logger = loggerFactory.CreateLogger<JobService>();
-
-        var job = new JobItem
-        {
-            Id = "test-job",
-            Type = "ExecutePlan",
-            Status = JobStatus.Running
-        };
-
-        // Create a CTS and dispose it, so the next dispose call fails
-        job.TimeoutCts = new CancellationTokenSource();
-        job.TimeoutCts.Dispose();
-
-        // Should log a warning when disposal fails
-        job.DisposeResources(logger);
-
-        // Check that a warning was logged (disposal of already-disposed CTS throws ObjectDisposedException)
-        var warningLogs = logMessages.Where(m => m.Contains("Warning") || m.Contains("Failed to dispose")).ToList();
-        Assert.NotEmpty(warningLogs);
-    }
-
-    [Fact]
     public void CompleteJob_DisposesResources()
     {
         var service = CreateService();

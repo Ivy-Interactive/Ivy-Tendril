@@ -77,7 +77,7 @@ The tests use `Ivy-Interactive/Ivy-Templates` — a real dotnet project with `Pr
 |---|---|---|
 | OnboardingTests | 1 | Full onboarding wizard: welcome → software check → agent selection → home setup → project setup → complete |
 | VerificationTests | 4 | Directory structure, config.yaml, tendril.db, dashboard loads |
-| PlanLifecycleTests | 2 | Plan creation via UI creates plan folder with plan.yaml; multiple plans appear in sidebar |
+| PlanLifecycleTests | 1 | Plan creation via UI creates plan folder with plan.yaml |
 | AgentExecutionTests | 1 | Full lifecycle: CreatePlan → Execute → CreatePR (plan reaches ReadyForReview, PR URL in plan.yaml) |
 | CleanupTests | 2 | Fixture teardown, GitHub fork deletion |
 

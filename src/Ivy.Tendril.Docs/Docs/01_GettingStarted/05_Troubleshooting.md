@@ -57,5 +57,4 @@ Common issues and how to fix them. If you're still stuck, run <code>tendril doct
 
 <Callout type="Tip">
 When reporting an issue, include the output of `tendril doctor` and `tendril version` — it helps the team diagnose problems faster.
-
 </Callout>

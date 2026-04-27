@@ -1,5 +1,5 @@
 ---
-icon: Bot
+icon: OpenAI
 searchHints:
   - codex
   - openai

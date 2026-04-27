@@ -66,16 +66,11 @@ public class JobServiceLogTests : IDisposable
 
             jobService.WriteJobLog(job);
 
-            var logsDir = Path.Combine(tempDir, "Plans", "00002-TestPlan", "logs");
+            var logsDir = Path.Combine(_tempDir.Path, "Plans", "00002-TestPlan", "logs");
             var logFiles = Directory.GetFiles(logsDir, "*.md");
             Assert.Single(logFiles);
 
             var logContent = File.ReadAllText(logFiles[0]);
             Assert.DoesNotContain("**SessionId:**", logContent);
-        }
-        finally
-        {
-            Directory.Delete(tempDir, true);
-        }
     }
 }

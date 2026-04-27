@@ -1,5 +1,5 @@
 ---
-icon: Bot
+icon: Gemini
 searchHints:
   - gemini
   - google
