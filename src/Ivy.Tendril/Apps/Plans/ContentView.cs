@@ -83,8 +83,39 @@ public class ContentView(
                 new Dictionary<string, List<string>>(), new List<PlanContentHelpers.CommitRow>(), new Dictionary<string, bool>(), null)
         );
 
-        UseAuthenticationEffects(isEditing, isEditingPrev, editContent, originalContent, selectedPlanRef, planService);
-        UseNavigationEffects(selectedTab, selectedPlanState, isEditing, lastPlanId, selectedPlanRef, selectedPlan);
+        // Authentication effects (was UseAuthenticationEffects)
+        UseEffect(() =>
+        {
+            var plan = selectedPlanRef.Value;
+            if (isEditing.Value && !isEditingPrev.Value)
+            {
+                if (plan != null)
+                {
+                    var raw = planService.ReadRawPlan(plan.FolderName);
+                    editContent.Set(raw);
+                    originalContent.Set(raw);
+                }
+                else
+                {
+                    isEditing.Set(false);
+                }
+            }
+
+            isEditingPrev.Set(isEditing.Value);
+        }, isEditing);
+
+        // Navigation effects (was UseNavigationEffects)
+        UseEffect(() => { selectedTab.Set(0); }, selectedPlanState);
+
+#pragma warning disable CS8601
+        selectedPlanRef.Value = selectedPlan;
+#pragma warning restore CS8601
+
+        if (lastPlanId.Value != (selectedPlan?.Id ?? -1))
+        {
+            lastPlanId.Set(selectedPlan?.Id ?? -1);
+            isEditing.Set(false);
+        }
 
         if (selectedPlan is null)
         {
@@ -349,55 +380,6 @@ public class ContentView(
         selectedPlanState.Set(allPlans[prevIndex]);
     }
 
-    private void UseAuthenticationEffects(
-        IState<bool> isEditing,
-        IState<bool> isEditingPrev,
-        IState<string> editContent,
-        IState<string> originalContent,
-        IRef<PlanFile?> selectedPlanRef,
-        IPlanReaderService planService)
-    {
-        UseEffect(() =>
-        {
-            var plan = selectedPlanRef.Value;
-            if (isEditing.Value && !isEditingPrev.Value)
-            {
-                if (plan != null)
-                {
-                    var raw = planService.ReadRawPlan(plan.FolderName);
-                    editContent.Set(raw);
-                    originalContent.Set(raw);
-                }
-                else
-                {
-                    isEditing.Set(false);
-                }
-            }
-
-            isEditingPrev.Set(isEditing.Value);
-        }, isEditing);
-    }
-
-    private void UseNavigationEffects(
-        IState<int> selectedTab,
-        IState<PlanFile?> selectedPlanState,
-        IState<bool> isEditing,
-        IState<int> lastPlanId,
-        IRef<PlanFile?> selectedPlanRef,
-        PlanFile? selectedPlan)
-    {
-        UseEffect(() => { selectedTab.Set(0); }, selectedPlanState);
-
-#pragma warning disable CS8601
-        selectedPlanRef.Value = selectedPlan;
-#pragma warning restore CS8601
-
-        if (lastPlanId.Value != (selectedPlan?.Id ?? -1))
-        {
-            lastPlanId.Set(selectedPlan?.Id ?? -1);
-            isEditing.Set(false);
-        }
-    }
 
     private record PlanContentData(
         string? SummaryMarkdown,
