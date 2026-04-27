@@ -63,7 +63,7 @@ internal class JobCompletionHandler
         if (job.Status is JobStatus.Failed or JobStatus.Timeout)
             ScheduleWorktreeCleanup(job);
 
-        if (isSuccess && job.Type is Constants.JobTypes.ExecutePlan or Constants.JobTypes.CreatePr)
+        if (job.Type is Constants.JobTypes.ExecutePlan or Constants.JobTypes.CreatePr)
             RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck);
 
         if (isSuccess && job.Type is Constants.JobTypes.ExecutePlan or Constants.JobTypes.CreatePr or Constants.JobTypes.CreateIssue)

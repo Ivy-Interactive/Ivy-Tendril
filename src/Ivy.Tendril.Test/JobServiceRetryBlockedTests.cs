@@ -238,6 +238,169 @@ public class JobServiceRetryBlockedTests : IDisposable
         Directory.Delete(plansDir, true);
     }
 
+    [Fact]
+    public void RetryBlockedJobs_WhenBlockingJobFails_AutoRetriesBlockedJob()
+    {
+        SynchronizationContext.SetSynchronizationContext(null);
+
+        // Create two plan folders that will compete for the same repo
+        var planA = Path.Combine(_tempDir.Path, "plan-A");
+        var planB = Path.Combine(_tempDir.Path, "plan-B");
+        Directory.CreateDirectory(planA);
+        Directory.CreateDirectory(planB);
+
+        // Both plans target the same repo
+        var repo = Path.Combine(_tempDir.Path, "shared-repo");
+        Directory.CreateDirectory(repo);
+
+        var planYaml = $"state: Draft\nproject: TestProject\nlevel: NiceToHave\ntitle: Test\nupdated: 2026-01-01T00:00:00Z\nrepos:\n- {repo}\ndependsOn: []\nprs: []\ncommits: []\nverifications: []\nrelatedPlans: []\n";
+        File.WriteAllText(Path.Combine(planA, "plan.yaml"), planYaml);
+        File.WriteAllText(Path.Combine(planB, "plan.yaml"), planYaml);
+
+        var planReader = new FakePlanReaderService(_tempDir.Path);
+        var service = new JobService(
+            TimeSpan.FromMinutes(30),
+            TimeSpan.FromMinutes(10),
+            planReaderService: planReader);
+
+        // Start job A (this will hold the repo lock)
+        var jobAId = service.CreateTestJob("ExecutePlan", planA);
+        Assert.Equal(JobStatus.Running, service.GetJob(jobAId)!.Status);
+
+        // Attempt to start job B (should get blocked due to repo concurrency)
+        var jobBId = service.CreateTestJob("ExecutePlan", planB);
+        var blockedJob = service.GetJob(jobBId)!;
+        blockedJob.Status = JobStatus.Blocked;
+
+        var notifications = new List<JobNotification>();
+        service.NotificationReady += n => notifications.Add(n);
+
+        // Fail job A — this should release the lock and auto-retry job B
+        service.CompleteJob(jobAId, 1);
+
+        // Job B should have been removed from blocked state
+        Assert.Null(service.GetJob(jobBId));
+
+        // A new job should have been created (the restarted job B)
+        var jobs = service.GetJobs();
+        var restartedJob = jobs.FirstOrDefault(j => j.Id != jobAId && j.Type == "ExecutePlan" && j.Args.Length > 0 && j.Args[0] == planB);
+        Assert.NotNull(restartedJob);
+        Assert.NotEqual(JobStatus.Blocked, restartedJob.Status);
+
+        // Should have received an "unblocked" notification
+        Assert.Contains(notifications, n => n.Title == "Job Unblocked");
+    }
+
+    [Fact]
+    public void RetryBlockedJobs_WhenBlockingJobCancelled_AutoRetriesBlockedJob()
+    {
+        SynchronizationContext.SetSynchronizationContext(null);
+
+        // Create two plan folders that will compete for the same repo
+        var planA = Path.Combine(_tempDir.Path, "plan-A-cancel");
+        var planB = Path.Combine(_tempDir.Path, "plan-B-cancel");
+        Directory.CreateDirectory(planA);
+        Directory.CreateDirectory(planB);
+
+        // Both plans target the same repo
+        var repo = Path.Combine(_tempDir.Path, "shared-repo-cancel");
+        Directory.CreateDirectory(repo);
+
+        var planYaml = $"state: Draft\nproject: TestProject\nlevel: NiceToHave\ntitle: Test\nupdated: 2026-01-01T00:00:00Z\nrepos:\n- {repo}\ndependsOn: []\nprs: []\ncommits: []\nverifications: []\nrelatedPlans: []\n";
+        File.WriteAllText(Path.Combine(planA, "plan.yaml"), planYaml);
+        File.WriteAllText(Path.Combine(planB, "plan.yaml"), planYaml);
+
+        var planReader = new FakePlanReaderService(_tempDir.Path);
+        var service = new JobService(
+            TimeSpan.FromMinutes(30),
+            TimeSpan.FromMinutes(10),
+            planReaderService: planReader);
+
+        // Start job A (this will hold the repo lock)
+        var jobAId = service.CreateTestJob("ExecutePlan", planA);
+        Assert.Equal(JobStatus.Running, service.GetJob(jobAId)!.Status);
+
+        // Attempt to start job B (should get blocked due to repo concurrency)
+        var jobBId = service.CreateTestJob("ExecutePlan", planB);
+        var blockedJob = service.GetJob(jobBId)!;
+        blockedJob.Status = JobStatus.Blocked;
+
+        var notifications = new List<JobNotification>();
+        service.NotificationReady += n => notifications.Add(n);
+
+        // Cancel job A — this should release the lock and auto-retry job B
+        service.CancelJob(jobAId);
+
+        // Job B should have been removed from blocked state
+        Assert.Null(service.GetJob(jobBId));
+
+        // A new job should have been created (the restarted job B)
+        var jobs = service.GetJobs();
+        var restartedJob = jobs.FirstOrDefault(j => j.Id != jobAId && j.Type == "ExecutePlan" && j.Args.Length > 0 && j.Args[0] == planB);
+        Assert.NotNull(restartedJob);
+        Assert.NotEqual(JobStatus.Blocked, restartedJob.Status);
+
+        // Should have received an "unblocked" notification
+        Assert.Contains(notifications, n => n.Title == "Job Unblocked");
+    }
+
+    [Fact]
+    public void RetryBlockedJobs_WhenNewJobStartsBeforeRetry_DoesNotRetryBlockedJob()
+    {
+        SynchronizationContext.SetSynchronizationContext(null);
+
+        // Create three plan folders that will compete for the same repo
+        var planA = Path.Combine(_tempDir.Path, "plan-A-new");
+        var planB = Path.Combine(_tempDir.Path, "plan-B-new");
+        var planC = Path.Combine(_tempDir.Path, "plan-C-new");
+        Directory.CreateDirectory(planA);
+        Directory.CreateDirectory(planB);
+        Directory.CreateDirectory(planC);
+
+        // All plans target the same repo
+        var repo = Path.Combine(_tempDir.Path, "shared-repo-new");
+        Directory.CreateDirectory(repo);
+
+        var planYaml = $"state: Draft\nproject: TestProject\nlevel: NiceToHave\ntitle: Test\nupdated: 2026-01-01T00:00:00Z\nrepos:\n- {repo}\ndependsOn: []\nprs: []\ncommits: []\nverifications: []\nrelatedPlans: []\n";
+        File.WriteAllText(Path.Combine(planA, "plan.yaml"), planYaml);
+        File.WriteAllText(Path.Combine(planB, "plan.yaml"), planYaml);
+        File.WriteAllText(Path.Combine(planC, "plan.yaml"), planYaml);
+
+        var planReader = new FakePlanReaderService(_tempDir.Path);
+        var service = new JobService(
+            TimeSpan.FromMinutes(30),
+            TimeSpan.FromMinutes(10),
+            planReaderService: planReader);
+
+        // Start job A (this will hold the repo lock)
+        var jobAId = service.CreateTestJob("ExecutePlan", planA);
+        Assert.Equal(JobStatus.Running, service.GetJob(jobAId)!.Status);
+
+        // Attempt to start job B (should get blocked due to repo concurrency)
+        var jobBId = service.CreateTestJob("ExecutePlan", planB);
+        var blockedJob = service.GetJob(jobBId)!;
+        blockedJob.Status = JobStatus.Blocked;
+
+        // Start job C on the same repo (simulating a new job starting before job A completes)
+        var jobCId = service.CreateTestJob("ExecutePlan", planC);
+        Assert.Equal(JobStatus.Running, service.GetJob(jobCId)!.Status);
+
+        var notifications = new List<JobNotification>();
+        service.NotificationReady += n => notifications.Add(n);
+
+        // Fail job A — this should trigger RetryBlockedJobs
+        service.CompleteJob(jobAId, 1);
+
+        // Job B should NOT be retried because job C is still running on the same repo
+        // Job B should still be blocked
+        var stillBlocked = service.GetJob(jobBId);
+        Assert.NotNull(stillBlocked);
+        Assert.Equal(JobStatus.Blocked, stillBlocked.Status);
+
+        // Should NOT have received an "unblocked" notification for job B
+        Assert.DoesNotContain(notifications, n => n.Title == "Job Unblocked");
+    }
+
     /// <summary>
     ///     Minimal fake that provides PlansDirectory for dependency checking.
     /// </summary>
