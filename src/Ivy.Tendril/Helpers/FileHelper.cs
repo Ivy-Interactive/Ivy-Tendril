@@ -20,6 +20,46 @@ internal static class FileHelper
     private static readonly int[] RetryDelaysMs = [50, 150, 350, 750, 1500];
 
     /// <summary>
+    ///     Checks if the given path is a symbolic link.
+    ///     On Windows: checks FileAttributes.ReparsePoint.
+    ///     On Linux/macOS: checks FileInfo.LinkTarget.
+    /// </summary>
+    private static bool IsSymbolicLink(string path)
+    {
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                var attrs = File.GetAttributes(path);
+                return (attrs & FileAttributes.ReparsePoint) == FileAttributes.ReparsePoint;
+            }
+
+            var fileInfo = new FileInfo(path);
+            return fileInfo.LinkTarget != null;
+        }
+        catch
+        {
+            // If we can't determine, assume it's not a symlink and let the file operation
+            // fail with its natural error
+            return false;
+        }
+    }
+
+    /// <summary>
+    ///     Validates that a path is fully qualified and not a symbolic link.
+    ///     Throws ArgumentException for relative paths.
+    ///     Throws UnauthorizedAccessException for symbolic links.
+    /// </summary>
+    private static void ValidatePath(string path)
+    {
+        if (!Path.IsPathFullyQualified(path))
+            throw new ArgumentException($"Path must be fully qualified: {path}", nameof(path));
+
+        if (IsSymbolicLink(path))
+            throw new UnauthorizedAccessException($"Refusing to operate on symbolic link: {path}");
+    }
+
+    /// <summary>
     ///     Extracts the "**Completed:** &lt;timestamp&gt;" value from a log file.
     ///     Returns null if the file doesn't exist, can't be read, or has no completed timestamp.
     /// </summary>
@@ -52,6 +92,7 @@ internal static class FileHelper
     /// </summary>
     public static string ReadAllText(string path)
     {
+        ValidatePath(path);
         for (var attempt = 0; ; attempt++)
             try
             {
@@ -67,6 +108,7 @@ internal static class FileHelper
 
     public static string[] ReadAllLines(string path)
     {
+        ValidatePath(path);
         for (var attempt = 0; ; attempt++)
             try
             {
@@ -85,6 +127,7 @@ internal static class FileHelper
 
     public static void WriteAllText(string path, string contents)
     {
+        ValidatePath(path);
         ClearReadOnly(path);
         for (var attempt = 0; ; attempt++)
             try
@@ -108,6 +151,7 @@ internal static class FileHelper
     /// <inheritdoc cref="ReadAllText"/>
     public static async Task<string> ReadAllTextAsync(string path)
     {
+        ValidatePath(path);
         for (var attempt = 0; ; attempt++)
             try
             {
@@ -126,6 +170,7 @@ internal static class FileHelper
 
     public static async Task WriteAllTextAsync(string path, string contents)
     {
+        ValidatePath(path);
         ClearReadOnly(path);
         for (var attempt = 0; ; attempt++)
             try
@@ -155,6 +200,7 @@ internal static class FileHelper
     /// </summary>
     public static IEnumerable<string> EnumerateLines(string path)
     {
+        ValidatePath(path);
         FileStream? stream = null;
         for (var attempt = 0; ; attempt++)
             try
@@ -177,6 +223,7 @@ internal static class FileHelper
 
     public static void AppendAllText(string path, string contents)
     {
+        ValidatePath(path);
         ClearReadOnly(path);
         for (var attempt = 0; ; attempt++)
             try
@@ -259,10 +306,11 @@ internal static class FileHelper
                 info.SetAccessControl(security);
             }
         }
-        catch
+        catch (Exception ex)
         {
             // Best-effort: if we can't fix the ACL (e.g. not owner), the caller will
             // get the original UnauthorizedAccessException on the next retry.
+            Console.Error.WriteLine($"Failed to grant access to {path}: {ex.Message}");
         }
     }
 }

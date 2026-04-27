@@ -1,4 +1,5 @@
 using Ivy.Helpers;
+using Microsoft.Extensions.Logging;
 using Timer = System.Timers.Timer;
 
 namespace Ivy.Tendril.Services;
@@ -8,10 +9,12 @@ public class PlanWatcherService : IPlanWatcherService
     private readonly Timer _debounceTimer;
     private readonly FileSystemWatcher? _watcher;
     private readonly System.Threading.Timer? _pollTimer;
+    private readonly ILogger<PlanWatcherService>? _logger;
     private string? _pendingPlanFolder;
 
-    public PlanWatcherService(IConfigService config)
+    public PlanWatcherService(IConfigService config, ILogger<PlanWatcherService>? logger = null)
     {
+        _logger = logger;
         _debounceTimer = new Timer(500);
         _debounceTimer.AutoReset = false;
         _debounceTimer.Elapsed += (_, _) =>
@@ -22,8 +25,9 @@ public class PlanWatcherService : IPlanWatcherService
                 _pendingPlanFolder = null;
                 PlansChanged?.Invoke(folder);
             }
-            catch
+            catch (Exception ex)
             {
+                _logger?.LogWarning(ex, "Failed to invoke PlansChanged event");
                 // Swallow to prevent unhandled exceptions on the timer's thread-pool
                 // thread from terminating the process.
             }
@@ -61,8 +65,9 @@ public class PlanWatcherService : IPlanWatcherService
             {
                 ScheduleDebounce(null);
             }
-            catch
+            catch (Exception ex)
             {
+                _logger?.LogDebug(ex, "Failed to schedule debounce during poll");
                 // Best-effort polling
             }
         }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
