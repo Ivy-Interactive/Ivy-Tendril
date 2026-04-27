@@ -187,97 +187,92 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         {
             try
             {
-                if (settings.Navigation == AppShellNavigation.Pages)
+                var router = new AppShellRouter();
+                var appDescriptor = navigateArgs.AppId != null
+                    ? appRepository.GetApp(navigateArgs.AppId)
+                    : null;
+
+                var routeResult = router.Route(
+                    navigateArgs,
+                    settings.Navigation,
+                    settings.DefaultAppId,
+                    tabs.Value,
+                    appDescriptor,
+                    settings.PreventTabDuplicates);
+
+                switch (routeResult.Action)
                 {
-                    var previousApp = currentApp.Value?.AppId;
-                    var effectiveNavigateArgs = navigateArgs.AppId == null
-                        ? navigateArgs with { AppId = settings.DefaultAppId }
-                        : navigateArgs;
+                    case AppShellRouter.RouteAction.OpenPage:
+                        HandleOpenPage(navigateArgs, routeResult.EffectiveAppId, replaceHistory);
+                        break;
 
-                    var appHost = effectiveNavigateArgs.AppId != null
-                        ? effectiveNavigateArgs.ToAppHost(args.ConnectionId)
-                        : null;
+                    case AppShellRouter.RouteAction.SwitchToExistingTab:
+                        HandleSwitchToExistingTab(navigateArgs, routeResult.TabIndex!.Value,
+                            routeResult.TabId!, replaceHistory);
+                        break;
 
-                    currentApp.Set(appHost);
+                    case AppShellRouter.RouteAction.CreateNewTab:
+                        HandleCreateNewTab(navigateArgs, routeResult.EffectiveAppId!, replaceHistory);
+                        break;
 
-                    if (effectiveNavigateArgs.AppId != null) SetAppTitle(effectiveNavigateArgs.AppId);
+                    case AppShellRouter.RouteAction.Error:
+                        client.Error(new InvalidOperationException(routeResult.ErrorMessage));
+                        break;
 
-                    if (effectiveNavigateArgs.HistoryOp is HistoryOp.Push && previousApp != effectiveNavigateArgs.AppId)
-                        RedirectToAppIfNotError(effectiveNavigateArgs, replaceHistory);
-                }
-                else
-                {
-                    if (!string.IsNullOrEmpty(navigateArgs.TabId))
-                    {
-                        var tabIndex = tabs.Value.ToList().FindIndex(t => t.Id == navigateArgs.TabId);
-                        if (tabIndex >= 0)
-                        {
-                            selectedIndex.Set(tabIndex);
-                            var tab = tabs.Value[tabIndex];
-                            SetAppTitle(tab.AppId);
-
-                            if (navigateArgs.HistoryOp is HistoryOp.Push)
-                                RedirectToAppIfNotError(navigateArgs, replaceHistory, tab.Id);
-                            return;
-                        }
-
-                        if (navigateArgs.HistoryOp is HistoryOp.Pop)
-                        {
-                            client.Error(new InvalidOperationException("Tab no longer exists."));
-                            return;
-                        }
-                    }
-
-                    if (navigateArgs.AppId == null) return;
-
-                    var tabId = Guid.NewGuid().ToString();
-                    var appHost = navigateArgs.ToAppHost(args.ConnectionId);
-
-                    if (settings.PreventTabDuplicates)
-                    {
-                        var targetAppId = navigateArgs.AppId;
-                        var appDescriptor = appRepository.GetApp(targetAppId);
-                        if (appDescriptor?.AllowDuplicateTabs != true)
-                        {
-                            var existingTabIndex = -1;
-                            for (var i = 0; i < tabs.Value.Length; i++)
-                                if (tabs.Value[i].AppId == targetAppId)
-                                {
-                                    existingTabIndex = i;
-                                    break;
-                                }
-
-                            if (existingTabIndex >= 0)
-                            {
-                                var previousSelectedIndex = selectedIndex.Value;
-                                selectedIndex.Set(existingTabIndex);
-                                var existingTabId = tabs.Value[existingTabIndex].Id;
-                                SetAppTitle(targetAppId);
-
-                                if (navigateArgs.HistoryOp is HistoryOp.Push &&
-                                    previousSelectedIndex != existingTabIndex)
-                                    RedirectToAppIfNotError(navigateArgs, replaceHistory, existingTabId);
-                                return;
-                            }
-                        }
-                    }
-
-                    if (navigateArgs.HistoryOp is HistoryOp.Push)
-                    {
-                        var app = appRepository!.GetAppOrDefault(navigateArgs.AppId);
-                        var newTabs = tabs.Value.Add(new TabState(tabId, app.Id, app.Title, appHost, app.Icon,
-                            Guid.NewGuid().ToString()));
-                        tabs.Set(newTabs);
-                        selectedIndex.Set(newTabs.Length - 1);
-                        SetAppTitle(app.Id);
-                        RedirectToAppIfNotError(navigateArgs, replaceHistory, tabId);
-                    }
+                    case AppShellRouter.RouteAction.Noop:
+                        break;
                 }
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "TendrilAppShell.OpenApp failed for {AppId}", navigateArgs.AppId);
             }
+        }
+
+        private void HandleOpenPage(NavigateArgs navigateArgs, string? effectiveAppId, bool replaceHistory)
+        {
+            var previousApp = currentApp.Value?.AppId;
+            var effectiveNavigateArgs = navigateArgs with { AppId = effectiveAppId };
+
+            var appHost = effectiveAppId != null
+                ? effectiveNavigateArgs.ToAppHost(args.ConnectionId)
+                : null;
+
+            currentApp.Set(appHost);
+
+            if (effectiveAppId != null) SetAppTitle(effectiveAppId);
+
+            if (navigateArgs.HistoryOp is HistoryOp.Push && previousApp != effectiveAppId)
+                RedirectToAppIfNotError(effectiveNavigateArgs, replaceHistory);
+        }
+
+        private void HandleSwitchToExistingTab(NavigateArgs navigateArgs, int tabIndex,
+            string tabId, bool replaceHistory)
+        {
+            var previousSelectedIndex = selectedIndex.Value;
+            selectedIndex.Set(tabIndex);
+            var tab = tabs.Value[tabIndex];
+            SetAppTitle(tab.AppId);
+
+            if (navigateArgs.HistoryOp is HistoryOp.Push && previousSelectedIndex != tabIndex)
+                RedirectToAppIfNotError(navigateArgs, replaceHistory, tabId);
+        }
+
+        private void HandleCreateNewTab(NavigateArgs navigateArgs, string effectiveAppId,
+            bool replaceHistory)
+        {
+            if (navigateArgs.HistoryOp is not HistoryOp.Push) return;
+
+            var tabId = Guid.NewGuid().ToString();
+            var appHost = navigateArgs.ToAppHost(args.ConnectionId);
+            var app = appRepository.GetAppOrDefault(effectiveAppId);
+
+            var newTabs = tabs.Value.Add(new TabState(tabId, app.Id, app.Title, appHost,
+                app.Icon, Guid.NewGuid().ToString()));
+            tabs.Set(newTabs);
+            selectedIndex.Set(newTabs.Length - 1);
+            SetAppTitle(app.Id);
+            RedirectToAppIfNotError(navigateArgs, replaceHistory, tabId);
         }
 
         bool CheckTabExists(int tabId)
@@ -529,7 +524,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         );
     }
 
-    private record TabState(string Id, string AppId, string Title, AppHost AppHost, Icons? Icon, string RefreshToken)
+    internal record TabState(string Id, string AppId, string Title, AppHost AppHost, Icons? Icon, string RefreshToken)
     {
         public Tab ToTab()
         {
