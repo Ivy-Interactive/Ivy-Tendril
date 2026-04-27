@@ -23,7 +23,8 @@ RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
 # Install pnpm + vite-plus (Ivy.csproj MSBuild targets run "vp install/build")
 RUN npm install -g pnpm@latest vite-plus@latest
 
-
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+RUN git clone --depth 1 --branch main https://github.com/Ivy-Interactive/Ivy-Framework.git /src/Ivy-Framework
 
 COPY . /src/Ivy-Tendril
 
@@ -42,7 +43,7 @@ RUN --mount=type=cache,id=nuget-tendril-docs,target=/root/.nuget/packages \
     -o /app/publish \
     /p:UseAppHost=false \
     /p:PublishReadyToRun=true \
-    /p:IvySource=false
+    /p:IvySource=true
 
 FROM base AS final
 WORKDIR /app
