@@ -31,7 +31,7 @@ internal static class JobFailureAnalyzer
         if (apiError != null) return ParseClaudeApiError(apiError);
 
         // 3. Check for CreatePlan-specific failures and failure artifacts
-        if (jobType == "CreatePlan")
+        if (jobType == Constants.JobTypes.CreatePlan)
         {
             var makePlanError = FindPattern(outputLines, new[] {
                 "ERROR: Plan",

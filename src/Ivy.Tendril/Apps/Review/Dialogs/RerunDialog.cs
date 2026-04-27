@@ -53,7 +53,7 @@ public class RerunDialog(
                         Task.Run(() =>
                         {
                             CleanPlanState(folderPath, logger);
-                            _jobService.StartJob("ExecutePlan", folderPath, "-Note",
+                            _jobService.StartJob(Constants.JobTypes.ExecutePlan, folderPath, "-Note",
                                 "User requested a clean rerun. All artifacts, logs, and worktrees have been cleaned. Execute this plan from scratch.");
                         });
                     }
@@ -65,7 +65,7 @@ public class RerunDialog(
                         isRerunningCurrent.Set(true);
                         _dialogOpen.Set(false);
                         _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Building);
-                        _jobService.StartJob("ExecutePlan", _selectedPlan.FolderPath, "-Note",
+                        _jobService.StartJob(Constants.JobTypes.ExecutePlan, _selectedPlan.FolderPath, "-Note",
                             "User requested you to execute this plan another time. Go through all code, verifications and artifacts one more time.");
                         _refreshPlans();
                     }

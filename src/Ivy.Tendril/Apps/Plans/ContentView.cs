@@ -159,7 +159,7 @@ public class ContentView(
             selectedPlanState.Set(optimisticPlan);
 
             planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
-            jobService.StartJob("ExecutePlan", selectedPlan.FolderPath);
+            jobService.StartJob(Constants.JobTypes.ExecutePlan, selectedPlan.FolderPath);
             refreshPlans();
         });
 
@@ -247,14 +247,14 @@ public class ContentView(
 
         // Check for active ExpandPlan job
         var hasActiveExpandJob = jobService.GetJobs().Any(j =>
-            j.Type == "ExpandPlan" &&
+            j.Type == Constants.JobTypes.ExpandPlan &&
             j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
             j.Args.Length > 0 &&
             j.Args[0].Equals(selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
 
         // Check for active SplitPlan job
         var hasActiveSplitJob = jobService.GetJobs().Any(j =>
-            j.Type == "SplitPlan" &&
+            j.Type == Constants.JobTypes.SplitPlan &&
             j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
             j.Args.Length > 0 &&
             j.Args[0].Equals(selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
@@ -303,7 +303,7 @@ public class ContentView(
                             selectedPlanState.Set(optimisticPlan);
 
                             planService.TransitionState(selectedPlan.FolderName, PlanStatus.Updating);
-                            jobService.StartJob("SplitPlan", selectedPlan.FolderPath);
+                            jobService.StartJob(Constants.JobTypes.SplitPlan, selectedPlan.FolderPath);
                             refreshPlans();
                         })
                         | new Button("Expand").Icon(Icons.UnfoldVertical).Outline().ShortcutKey("x")
@@ -321,7 +321,7 @@ public class ContentView(
 
                             planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
                             var planPath = selectedPlan.FolderPath;
-                            jobService.StartJob("ExpandPlan", planPath);
+                            jobService.StartJob(Constants.JobTypes.ExpandPlan, planPath);
                             refreshPlans();
                         })
                         | new Button("Delete").Icon(Icons.Trash).Outline().ShortcutKey("Backspace")
@@ -331,7 +331,7 @@ public class ContentView(
                         | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().OnClick(() => GoToNext())
                             .ShortcutKey("n")
                         | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
-                            new MenuItem("Create Issue", Icon: Icons.Github, Tag: "CreateIssue").OnSelect(() =>
+                            new MenuItem("Create Issue", Icon: Icons.Github, Tag: Constants.JobTypes.CreateIssue).OnSelect(() =>
                                 createIssueDialogOpen.Set(true)),
                             new MenuItem("Download", Icon: Icons.Download, Tag: "Download").OnSelect(() =>
                             {
