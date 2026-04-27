@@ -244,8 +244,19 @@ internal class JobLauncher
                     {
                         return;
                     }
+                    catch (ObjectDisposedException)
+                    {
+                        return;
+                    }
 
-                    if (timeoutCts.Token.IsCancellationRequested) return;
+                    try
+                    {
+                        if (timeoutCts.Token.IsCancellationRequested) return;
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        return;
+                    }
                 }
 
                 if (!jobs.TryGetValue(id, out var job) || job.Status != JobStatus.Running)
@@ -282,6 +293,7 @@ internal class JobLauncher
                     await Task.Delay(TimeSpan.FromSeconds(1), timeoutCts.Token);
                 }
                 catch (OperationCanceledException) { return; }
+                catch (ObjectDisposedException) { return; }
 
                 if (!jobs.TryGetValue(id, out var job) || job.Status != JobStatus.Running)
                     break;
