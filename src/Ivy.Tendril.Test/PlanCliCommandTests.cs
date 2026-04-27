@@ -807,12 +807,11 @@ public class PlanCliCommandTests : IDisposable
         CreatePlanFolder("20100", "TimestampTest");
         var before = ReadPlan("20100").Updated;
 
-        Thread.Sleep(50);
-
+        // Explicitly set a later timestamp to avoid timing races
         var folder = PlanCommandHelpers.ResolvePlanFolder("20100");
         var plan = PlanCommandHelpers.ReadPlan(folder);
         plan.Project = "Changed";
-        plan.Updated = DateTime.UtcNow;
+        plan.Updated = before.AddSeconds(1);
         PlanCommandHelpers.WritePlan(folder, plan);
 
         var after = ReadPlan("20100").Updated;
