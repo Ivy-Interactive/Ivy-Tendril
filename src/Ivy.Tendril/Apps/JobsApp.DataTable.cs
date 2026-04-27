@@ -117,6 +117,20 @@ public partial class JobsApp
                         }
                     }
                 }
+                else if (e.Value.ColumnName == "Prompt/Title")
+                {
+                    var id = e.Value.RowId?.ToString();
+                    if (!string.IsNullOrEmpty(id))
+                    {
+                        var job = jobs.FirstOrDefault(j => j.Id == id);
+                        if (job != null)
+                        {
+                            var fullPrompt = GetFullPrompt(job);
+                            if (!string.IsNullOrEmpty(fullPrompt))
+                                showPrompt.Set(fullPrompt);
+                        }
+                    }
+                }
 
                 return ValueTask.CompletedTask;
             })
@@ -224,21 +238,6 @@ public partial class JobsApp
                 }
 
                 return ValueTask.CompletedTask;
-            })
-            .HeaderRight(_ => Layout.Horizontal().Gap(2)
-                              | jobsProgress
-                              | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
-                                  new MenuItem("Clear Completed", Icon: Icons.Trash, Tag: "ClearCompleted")
-                                      .OnSelect(() =>
-                                      {
-                                          jobService.ClearCompletedJobs();
-                                          refreshToken.Refresh();
-                                      }),
-                                  new MenuItem("Clear Failed", Icon: Icons.Trash, Tag: "ClearFailed").OnSelect(() =>
-                                  {
-                                      jobService.ClearFailedJobs();
-                                      refreshToken.Refresh();
-                                  })
-                              ));
+            });
     }
 }
