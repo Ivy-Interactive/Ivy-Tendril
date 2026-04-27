@@ -1,12 +1,13 @@
 using System.Diagnostics;
+using System.Reflection;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
 
 public class ExecutePlanWorktreeCleanupTests : IDisposable
 {
-    private readonly string _tempDir;
     private readonly string _scriptPath;
+    private readonly string _tempDir;
 
     public ExecutePlanWorktreeCleanupTests()
     {
@@ -57,10 +58,8 @@ public class ExecutePlanWorktreeCleanupTests : IDisposable
         };
 
         if (envVars != null)
-        {
             foreach (var kv in envVars)
                 psi.EnvironmentVariables[kv.Key] = kv.Value;
-        }
 
         using var process = Process.Start(psi)!;
         var stdout = process.StandardOutput.ReadToEnd();
@@ -101,7 +100,7 @@ public class ExecutePlanWorktreeCleanupTests : IDisposable
     public void CleanupScript_Handles_Stale_GitFile()
     {
         var planDir = CreateFakePlan("03000-StaleGitTest");
-        var wtDir = CreateWorktreeDir(planDir, "StaleRepo", withGitFile: true);
+        var wtDir = CreateWorktreeDir(planDir, "StaleRepo", true);
 
         var (exitCode, _) = RunCleanupScript(planDir);
 
@@ -138,7 +137,7 @@ public class ExecutePlanWorktreeCleanupTests : IDisposable
     public void GracePeriod_Is_Ten_Minutes()
     {
         var field = typeof(WorktreeCleanupService)
-            .GetField("GracePeriod", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            .GetField("GracePeriod", BindingFlags.NonPublic | BindingFlags.Static);
         Assert.NotNull(field);
         var value = (TimeSpan)field!.GetValue(null)!;
         Assert.Equal(TimeSpan.FromMinutes(10), value);

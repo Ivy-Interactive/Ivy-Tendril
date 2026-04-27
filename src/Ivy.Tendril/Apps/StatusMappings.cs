@@ -1,5 +1,6 @@
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 
 namespace Ivy.Tendril.Apps;
 
@@ -56,12 +57,12 @@ internal static class StatusMappings
     /// </summary>
     public static readonly Dictionary<string, Colors> JobTypeColors = new()
     {
-        ["CreatePlan"] = Colors.Purple,
-        ["ExecutePlan"] = Colors.Blue,
-        ["UpdatePlan"] = Colors.Cyan,
-        ["ExpandPlan"] = Colors.Teal,
-        ["SplitPlan"] = Colors.Indigo,
-        ["CreatePr"] = Colors.Green,
-        ["CreateIssue"] = Colors.Rose
+        [Constants.JobTypes.CreatePlan] = Colors.Purple,
+        [Constants.JobTypes.ExecutePlan] = Colors.Blue,
+        [Constants.JobTypes.UpdatePlan] = Colors.Cyan,
+        [Constants.JobTypes.ExpandPlan] = Colors.Teal,
+        [Constants.JobTypes.SplitPlan] = Colors.Indigo,
+        [Constants.JobTypes.CreatePr] = Colors.Green,
+        [Constants.JobTypes.CreateIssue] = Colors.Rose
     };
 }

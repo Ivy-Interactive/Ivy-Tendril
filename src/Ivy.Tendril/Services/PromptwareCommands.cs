@@ -35,6 +35,12 @@ public static class PromptwareCommands
         }
 
         var target = Path.Combine(tendrilHome, "Promptwares");
+        if (!PromptwareDeployer.NeedsUpdate(target))
+        {
+            AnsiConsole.MarkupLine("[green]✓[/] Promptwares are already up to date.");
+            return 0;
+        }
+
         AnsiConsole.MarkupLine($"[bold]Updating promptwares in[/] [blue]{target}[/]...");
         PromptwareDeployer.Deploy(target);
         AnsiConsole.MarkupLine("[green]✓[/] Done.");

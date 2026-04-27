@@ -1,6 +1,8 @@
+using Ivy.Tendril.Helpers;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 using YamlDotNet.Serialization;
 
 namespace Ivy.Tendril.Services;
@@ -31,6 +33,7 @@ public record ProjectConfig
     public string Context { get; set; } = "";
     public List<ReviewActionConfig> ReviewActions { get; set; } = new();
     public List<PromptwareHookConfig> Hooks { get; set; } = new();
+    public List<string> BuildDependencies { get; set; } = new();
     public List<string> RepoPaths => Repos.Select(r => r.Path).ToList();
 
     public string? GetMeta(string key)
@@ -115,6 +118,7 @@ public record LlmConfig
 
 public record AuthConfig
 {
+    public string? Username { get; set; }
     public string Password { get; set; } = "";
     public string HashSecret { get; set; } = "";
     public Auth.LoginRateLimitConfig? RateLimit { get; set; }
@@ -154,17 +158,22 @@ public class TendrilSettings
 
 public record ConfigParseError(string Message, string FilePath, Exception? InnerException);
 
-public class ConfigService : IConfigService
+public class ConfigService : IConfigService, IDisposable
 {
     private readonly bool _explicitHome;
+    private readonly ILogger<ConfigService> _logger;
+    private readonly HashSet<string> _tempFiles = new();
+    private readonly object _tempFilesLock = new();
     private string[]? _levelNamesCache;
     private string? _pendingCodingAgent;
     private ProjectConfig? _pendingProject;
     private string? _pendingTendrilHome;
     private List<VerificationConfig>? _pendingVerificationDefinitions;
+    private bool _disposed;
 
-    internal ConfigService(TendrilSettings settings, string? tendrilHome = null)
+    internal ConfigService(TendrilSettings settings, string? tendrilHome = null, ILogger<ConfigService>? logger = null)
     {
+        _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<ConfigService>.Instance;
         Settings = settings;
         TendrilHome = tendrilHome ?? Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? "";
         _explicitHome = tendrilHome != null;
@@ -173,15 +182,12 @@ public class ConfigService : IConfigService
             : Path.Combine(System.AppContext.BaseDirectory, "config.yaml");
     }
 
-    public ConfigService()
+    public ConfigService(ILogger<ConfigService>? logger = null)
     {
-        var tendrilHomeEnv = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
+        _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<ConfigService>.Instance;
 
-        // Remove quotes if present
-        if (!string.IsNullOrEmpty(tendrilHomeEnv) && tendrilHomeEnv.StartsWith("\"") && tendrilHomeEnv.EndsWith("\""))
-            tendrilHomeEnv = tendrilHomeEnv.Substring(1, tendrilHomeEnv.Length - 2);
-
-        if (string.IsNullOrEmpty(tendrilHomeEnv))
+        var tendrilHomeResult = InitializeTendrilHome();
+        if (!tendrilHomeResult.Success)
         {
             NeedsOnboarding = true;
             Settings = new TendrilSettings();
@@ -190,60 +196,95 @@ public class ConfigService : IConfigService
             return;
         }
 
-        TendrilHome = tendrilHomeEnv;
+        TendrilHome = tendrilHomeResult.Path;
         ConfigPath = Path.Combine(TendrilHome, "config.yaml");
 
-        if (File.Exists(ConfigPath))
-        {
-            try
-            {
-                var yaml = FileHelper.ReadAllText(ConfigPath);
-                // Quote unquoted %VAR% patterns that YAML rejects (% is a directive indicator)
-                yaml = Regex.Replace(yaml, @"(?m)(?<=:\s+)(%\w+%.*)$", "'$1'");
-                yaml = Regex.Replace(yaml, @"(?m)^(\s*-\s+)(%\w+%.*)$", "$1'$2'");
-                Settings = YamlHelper.Deserializer.Deserialize<TendrilSettings>(yaml) ?? new TendrilSettings();
-                MigrateProjectColors();
-                CreateConfigBackup();
-                NeedsOnboarding = false;
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine($"Failed to load Tendril config '{ConfigPath}': {ex}");
-                ParseError = new ConfigParseError(ex.Message, ConfigPath, ex);
-                BackupBrokenConfig();
-                Settings = new TendrilSettings();
-                NeedsOnboarding = true;
-
-                if (TryAutoHeal())
-                {
-                    ParseError = null;
-                    NeedsOnboarding = false;
-                }
-            }
-        }
-        else
+        var loadResult = TryLoadConfig();
+        if (!loadResult.Success)
         {
             NeedsOnboarding = true;
             Settings = new TendrilSettings();
             return;
         }
 
-        if (Settings != null && !NeedsOnboarding)
+        Settings = loadResult.Config;
+        FinalizeConfiguration();
+    }
+
+    private (bool Success, string Path) InitializeTendrilHome()
+    {
+        var tendrilHomeEnv = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
+
+        // Remove quotes if present
+        if (!string.IsNullOrEmpty(tendrilHomeEnv) &&
+            tendrilHomeEnv.StartsWith("\"") &&
+            tendrilHomeEnv.EndsWith("\""))
         {
-            VariableExpansion.InitializeUserSecrets(TendrilHome);
-            ExpandSettingsVariables();
-            ExpandRepoPaths();
-
-            // Validate repo paths are not worktrees
-            ValidateRepoPathsAreNotWorktrees();
-
-            Directory.CreateDirectory(TendrilHome);
-            Directory.CreateDirectory(Path.Combine(TendrilHome, "Inbox"));
-            Directory.CreateDirectory(PlanFolder);
-            Directory.CreateDirectory(Path.Combine(TendrilHome, "Trash"));
-            Directory.CreateDirectory(Path.Combine(TendrilHome, "Promptwares"));
-            Directory.CreateDirectory(Path.Combine(TendrilHome, "Hooks"));
+            tendrilHomeEnv = tendrilHomeEnv[1..^1];
         }
+
+        return string.IsNullOrEmpty(tendrilHomeEnv)
+            ? (false, "")
+            : (true, tendrilHomeEnv);
+    }
+
+    private (bool Success, TendrilSettings Config) TryLoadConfig()
+    {
+        if (!File.Exists(ConfigPath))
+            return (false, new TendrilSettings());
+
+        try
+        {
+            var yaml = FileHelper.ReadAllText(ConfigPath);
+            yaml = QuoteUnquotedVariablePatterns(yaml);
+            var settings = YamlHelper.Deserializer.Deserialize<TendrilSettings>(yaml)
+                           ?? new TendrilSettings();
+
+            MigrateProjectColors();
+            CreateConfigBackup();
+
+            return (true, settings);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load Tendril config {ConfigPath}", ConfigPath);
+            ParseError = new ConfigParseError(ex.Message, ConfigPath, ex);
+            BackupBrokenConfig();
+
+            if (TryAutoHeal())
+            {
+                ParseError = null;
+                return (true, Settings);
+            }
+
+            return (false, new TendrilSettings());
+        }
+    }
+
+    private string QuoteUnquotedVariablePatterns(string yaml)
+    {
+        yaml = Regex.Replace(yaml, @"(?m)(?<=:\s+)(%\w+%.*)$", "'$1'");
+        yaml = Regex.Replace(yaml, @"(?m)^(\s*-\s+)(%\w+%.*)$", "$1'$2'");
+        return yaml;
+    }
+
+    private void FinalizeConfiguration()
+    {
+        VariableExpansion.InitializeUserSecrets(TendrilHome, _logger);
+        ExpandSettingsVariables();
+        ExpandRepoPaths();
+        ValidateRepoPathsAreNotWorktrees();
+        CreateRequiredDirectories();
+    }
+
+    private void CreateRequiredDirectories()
+    {
+        Directory.CreateDirectory(TendrilHome);
+        Directory.CreateDirectory(Path.Combine(TendrilHome, "Inbox"));
+        Directory.CreateDirectory(PlanFolder);
+        Directory.CreateDirectory(Path.Combine(TendrilHome, "Trash"));
+        Directory.CreateDirectory(Path.Combine(TendrilHome, "Promptwares"));
+        Directory.CreateDirectory(Path.Combine(TendrilHome, "Hooks"));
     }
 
     public TendrilSettings Settings { get; private set; }
@@ -330,14 +371,14 @@ public class ConfigService : IConfigService
 
             MigrateProjectColors();
             _levelNamesCache = null;
-            VariableExpansion.InitializeUserSecrets(TendrilHome);
+            VariableExpansion.InitializeUserSecrets(TendrilHome, _logger);
             ExpandSettingsVariables();
 
             SettingsReloaded?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Failed to reload settings: {ex}");
+            _logger.LogWarning(ex, "Failed to reload settings");
         }
     }
 
@@ -410,6 +451,12 @@ public class ConfigService : IConfigService
 
         var tempPath = Path.Combine(Path.GetTempPath(), $"tendril-edit-{Guid.NewGuid()}.md");
         File.WriteAllText(tempPath, polished);
+
+        lock (_tempFilesLock)
+        {
+            _tempFiles.Add(tempPath);
+        }
+
         return tempPath;
     }
 
@@ -428,22 +475,20 @@ public class ConfigService : IConfigService
     {
         if (Settings?.Projects == null) return;
 
-        foreach (var project in Settings.Projects)
+        var allRepos = Settings.Projects
+            .Where(p => p.Repos != null)
+            .SelectMany(p => p.Repos.Select(r => new { p.Name, Repo = r }))
+            .Where(x => !string.IsNullOrEmpty(x.Repo.Path) && Directory.Exists(x.Repo.Path));
+
+        foreach (var item in allRepos)
         {
-            if (project.Repos == null) continue;
-
-            foreach (var repo in project.Repos)
+            if (WorktreeValidationHelper.IsWorktree(item.Repo.Path))
             {
-                if (string.IsNullOrEmpty(repo.Path) || !Directory.Exists(repo.Path))
-                    continue;
-
-                if (WorktreeValidationHelper.IsWorktree(repo.Path))
-                {
-                    Console.Error.WriteLine(
-                        $"CRITICAL: Project '{project.Name}' repo path is a worktree, not a main repository: {repo.Path}. " +
-                        "This will cause nested worktrees during plan execution. " +
-                        "Update config.yaml to point to the main repo, not a worktree.");
-                }
+                _logger.LogError(
+                    "CRITICAL: Project {ProjectName} repo path is a worktree, not a main repository: {RepoPath}. " +
+                    "This will cause nested worktrees during plan execution. " +
+                    "Update config.yaml to point to the main repo, not a worktree.",
+                    item.Name, item.Repo.Path);
             }
         }
     }
@@ -486,7 +531,7 @@ public class ConfigService : IConfigService
                     FileHelper.WriteAllText(ConfigPath, backupYaml);
                     Settings = restored;
                     MigrateProjectColors();
-                    VariableExpansion.InitializeUserSecrets(TendrilHome);
+                    VariableExpansion.InitializeUserSecrets(TendrilHome, _logger);
                     ExpandSettingsVariables();
                     ExpandRepoPaths();
                     return true;
@@ -530,7 +575,7 @@ public class ConfigService : IConfigService
             ParseError = null;
             NeedsOnboarding = false;
             _levelNamesCache = null;
-            VariableExpansion.InitializeUserSecrets(TendrilHome);
+            VariableExpansion.InitializeUserSecrets(TendrilHome, _logger);
             ExpandSettingsVariables();
             ExpandRepoPaths();
             SettingsReloaded?.Invoke(this, EventArgs.Empty);
@@ -594,9 +639,14 @@ public class ConfigService : IConfigService
     {
         if (Settings.Projects != null)
             foreach (var proj in Settings.Projects)
+            {
                 if (proj.Repos != null)
                     foreach (var repo in proj.Repos)
                         repo.Path = VariableExpansion.ExpandVariables(repo.Path, TendrilHome);
+
+                for (var i = 0; i < proj.BuildDependencies.Count; i++)
+                    proj.BuildDependencies[i] = VariableExpansion.ExpandVariables(proj.BuildDependencies[i], TendrilHome);
+            }
     }
 
     internal static string? MigrateProjectColor(string? colorValue)
@@ -649,7 +699,7 @@ public class ConfigService : IConfigService
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Failed to load Tendril config from new path '{ConfigPath}': {ex}");
+                _logger.LogError(ex, "Failed to load Tendril config from new path {ConfigPath}", ConfigPath);
                 ParseError = new ConfigParseError(ex.Message, ConfigPath, ex);
                 BackupBrokenConfig();
 
@@ -662,7 +712,7 @@ public class ConfigService : IConfigService
 
         MigrateProjectColors();
         _levelNamesCache = null;
-        VariableExpansion.InitializeUserSecrets(TendrilHome);
+        VariableExpansion.InitializeUserSecrets(TendrilHome, _logger);
         ExpandSettingsVariables();
     }
 
@@ -673,67 +723,113 @@ public class ConfigService : IConfigService
     {
         if (Settings == null) return;
 
-        // Expand coding agent
-        Settings.CodingAgent = VariableExpansion.ExpandVariables(Settings.CodingAgent, TendrilHome);
+        // Scalar expansions
+        Settings.CodingAgent = ExpandVar(Settings.CodingAgent);
+        Settings.PlanTemplate = ExpandVar(Settings.PlanTemplate);
 
-        // Expand plan template
-        Settings.PlanTemplate = VariableExpansion.ExpandVariables(Settings.PlanTemplate, TendrilHome);
+        // Expand nested objects
+        ExpandLlmConfig();
+        ExpandEditorConfig();
+        ExpandPromptwareConfigs();
+        ExpandProjectConfigs();
+        ExpandVerificationPrompts();
+    }
 
-        // Expand LLM config
-        if (Settings.Llm != null)
+    private string ExpandVar(string value) =>
+        VariableExpansion.ExpandVariables(value, TendrilHome);
+
+    private void ExpandLlmConfig()
+    {
+        if (Settings.Llm == null) return;
+        Settings.Llm.Endpoint = ExpandVar(Settings.Llm.Endpoint);
+        Settings.Llm.ApiKey = ExpandVar(Settings.Llm.ApiKey);
+        Settings.Llm.Model = ExpandVar(Settings.Llm.Model);
+    }
+
+    private void ExpandEditorConfig()
+    {
+        if (Settings.Editor == null) return;
+        Settings.Editor.Command = ExpandVar(Settings.Editor.Command);
+        Settings.Editor.Label = ExpandVar(Settings.Editor.Label);
+        Settings.Editor.IsAvailable = IsCommandAvailable(Settings.Editor.Command);
+    }
+
+    private void ExpandPromptwareConfigs()
+    {
+        if (Settings.Promptwares == null) return;
+        foreach (var config in Settings.Promptwares.Values)
         {
-            Settings.Llm.Endpoint = VariableExpansion.ExpandVariables(Settings.Llm.Endpoint, TendrilHome);
-            Settings.Llm.ApiKey = VariableExpansion.ExpandVariables(Settings.Llm.ApiKey, TendrilHome);
-            Settings.Llm.Model = VariableExpansion.ExpandVariables(Settings.Llm.Model, TendrilHome);
+            if (config.AllowedTools == null) continue;
+            for (var i = 0; i < config.AllowedTools.Count; i++)
+                config.AllowedTools[i] = ExpandVar(config.AllowedTools[i]);
         }
+    }
 
-        // Expand editor config
-        if (Settings.Editor != null)
+    private void ExpandProjectConfigs()
+    {
+        if (Settings.Projects == null) return;
+        foreach (var project in Settings.Projects)
         {
-            Settings.Editor.Command = VariableExpansion.ExpandVariables(Settings.Editor.Command, TendrilHome);
-            Settings.Editor.Label = VariableExpansion.ExpandVariables(Settings.Editor.Label, TendrilHome);
-
-            // Validate editor command exists on PATH (non-blocking)
-            Settings.Editor.IsAvailable = IsCommandAvailable(Settings.Editor.Command);
+            project.Context = ExpandVar(project.Context);
+            ExpandReviewActions(project.ReviewActions);
+            ExpandHooks(project.Hooks);
         }
+    }
 
-        // Expand promptware configs
-        if (Settings.Promptwares != null)
-            foreach (var kvp in Settings.Promptwares.ToList())
+    private void ExpandReviewActions(List<ReviewActionConfig>? actions)
+    {
+        if (actions == null) return;
+        foreach (var action in actions)
+        {
+            action.Condition = ExpandVar(action.Condition);
+            action.Action = ExpandVar(action.Action);
+        }
+    }
+
+    private void ExpandHooks(List<PromptwareHookConfig>? hooks)
+    {
+        if (hooks == null) return;
+        foreach (var hook in hooks)
+        {
+            hook.Condition = ExpandVar(hook.Condition);
+            hook.Action = ExpandVar(hook.Action);
+        }
+    }
+
+    private void ExpandVerificationPrompts()
+    {
+        if (Settings.Verifications == null) return;
+        foreach (var verification in Settings.Verifications)
+            verification.Prompt = ExpandVar(verification.Prompt);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+
+        lock (_tempFilesLock)
+        {
+            foreach (var tempFile in _tempFiles)
             {
-                var config = kvp.Value;
-                if (config.AllowedTools != null)
-                    for (var i = 0; i < config.AllowedTools.Count; i++)
-                        config.AllowedTools[i] = VariableExpansion.ExpandVariables(config.AllowedTools[i], TendrilHome);
+                try
+                {
+                    if (File.Exists(tempFile))
+                    {
+                        File.Delete(tempFile);
+                        _logger.LogDebug("Deleted temp file: {TempFile}", tempFile);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to delete temp file: {TempFile}", tempFile);
+                }
             }
 
-        // Expand project configs
-        if (Settings.Projects != null)
-            foreach (var project in Settings.Projects)
-            {
-                project.Context = VariableExpansion.ExpandVariables(project.Context, TendrilHome);
-
-                // Expand review actions
-                if (project.ReviewActions != null)
-                    foreach (var action in project.ReviewActions)
-                    {
-                        action.Condition = VariableExpansion.ExpandVariables(action.Condition, TendrilHome);
-                        action.Action = VariableExpansion.ExpandVariables(action.Action, TendrilHome);
-                    }
-
-                // Expand hook actions
-                if (project.Hooks != null)
-                    foreach (var hook in project.Hooks)
-                    {
-                        hook.Condition = VariableExpansion.ExpandVariables(hook.Condition, TendrilHome);
-                        hook.Action = VariableExpansion.ExpandVariables(hook.Action, TendrilHome);
-                    }
-            }
-
-        // Expand verification prompts
-        if (Settings.Verifications != null)
-            foreach (var verification in Settings.Verifications)
-                verification.Prompt = VariableExpansion.ExpandVariables(verification.Prompt, TendrilHome);
+            _tempFiles.Clear();
+        }
     }
 }
 

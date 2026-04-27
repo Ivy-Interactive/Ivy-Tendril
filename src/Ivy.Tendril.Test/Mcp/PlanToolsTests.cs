@@ -1,18 +1,18 @@
 using Ivy.Tendril.Mcp;
 using Ivy.Tendril.Mcp.Tools;
-using Xunit;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test.Mcp;
 
 [Collection("TendrilHome")]
 public class PlanToolsTests : IDisposable
 {
-    private readonly string _tempDir;
-    private readonly string _repoDir;
     private readonly string _originalTendrilHome;
     private readonly string? _originalTendrilPlans;
     private readonly string? _originalToken;
     private readonly PlanTools _planTools;
+    private readonly string _repoDir;
+    private readonly string _tempDir;
 
     public PlanToolsTests()
     {
@@ -26,7 +26,7 @@ public class PlanToolsTests : IDisposable
         Environment.SetEnvironmentVariable("TENDRIL_HOME", _tempDir);
         Environment.SetEnvironmentVariable("TENDRIL_PLANS", null);
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", null);
-        _planTools = new PlanTools(new McpAuthenticationService());
+        _planTools = new PlanTools(new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance));
     }
 
     public void Dispose()
@@ -45,21 +45,21 @@ public class PlanToolsTests : IDisposable
         Directory.CreateDirectory(planFolder);
 
         var planYaml = $"""
-            state: {state}
-            project: TestProject
-            level: NiceToHave
-            title: {title}
-            repos:
-            - {_repoDir}
-            commits: []
-            prs: []
-            created: 2026-04-01T10:00:00.0000000Z
-            updated: 2026-04-01T10:00:00.0000000Z
-            verifications: []
-            relatedPlans: []
-            dependsOn: []
-            priority: 0
-            """;
+                        state: {state}
+                        project: TestProject
+                        level: NiceToHave
+                        title: {title}
+                        repos:
+                        - {_repoDir}
+                        commits: []
+                        prs: []
+                        created: 2026-04-01T10:00:00.0000000Z
+                        updated: 2026-04-01T10:00:00.0000000Z
+                        verifications: []
+                        relatedPlans: []
+                        dependsOn: []
+                        priority: 0
+                        """;
 
         File.WriteAllText(Path.Combine(planFolder, "plan.yaml"), planYaml);
         return planFolder;
@@ -100,7 +100,7 @@ public class PlanToolsTests : IDisposable
     [Fact]
     public void ListPlans_ReturnsMatchingPlans()
     {
-        CreateTestPlan("00001", "First Plan", "Draft");
+        CreateTestPlan("00001", "First Plan");
         CreateTestPlan("00002", "Second Plan", "Executing");
 
         var result = _planTools.ListPlans();
@@ -112,10 +112,10 @@ public class PlanToolsTests : IDisposable
     [Fact]
     public void ListPlans_FilterByState()
     {
-        CreateTestPlan("00001", "Draft Plan", "Draft");
+        CreateTestPlan("00001", "Draft Plan");
         CreateTestPlan("00002", "Executing Plan", "Executing");
 
-        var result = _planTools.ListPlans(state: "Draft");
+        var result = _planTools.ListPlans("Draft");
         Assert.Contains("Draft Plan", result);
         Assert.DoesNotContain("Executing Plan", result);
     }
@@ -422,12 +422,40 @@ public class PlanToolsTests : IDisposable
     public void AuthEnabled_WithoutToken_ReturnsError()
     {
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", "secret-token");
-        var authedService = new McpAuthenticationService();
+        var authedService = new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance);
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", null);
 
         var authedTools = new PlanTools(authedService);
         var result = authedTools.GetPlan("00001");
         Assert.Contains("Error: Authentication failed", result);
+    }
+
+    [Fact]
+    public void AllToolMethods_RequireAuthentication()
+    {
+        // Arrange - enable auth but clear token
+        CreateTestPlan();
+        Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", "secret-token");
+        var authedService = new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance);
+        Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", null);
+        var authedTools = new PlanTools(authedService);
+
+        // Act & Assert - verify all 15 tool methods return auth error
+        Assert.Contains("Error: Authentication failed", authedTools.GetPlan("00001"));
+        Assert.Contains("Error: Authentication failed", authedTools.ListPlans());
+        Assert.Contains("Error: Authentication failed", authedTools.CreatePlan("Test"));
+        Assert.Contains("Error: Authentication failed", authedTools.SetField("00001", "state", "Draft"));
+        Assert.Contains("Error: Authentication failed", authedTools.AddRepo("00001", _repoDir));
+        Assert.Contains("Error: Authentication failed", authedTools.RemoveRepo("00001", _repoDir));
+        Assert.Contains("Error: Authentication failed", authedTools.AddPr("00001", "https://github.com/test/pr/1"));
+        Assert.Contains("Error: Authentication failed", authedTools.AddCommit("00001", "abc123"));
+        Assert.Contains("Error: Authentication failed", authedTools.SetVerification("00001", "Build", "Pass"));
+        Assert.Contains("Error: Authentication failed", authedTools.AddLog("00001", "Test"));
+        Assert.Contains("Error: Authentication failed", authedTools.RecAdd("00001", "Title", "Desc"));
+        Assert.Contains("Error: Authentication failed", authedTools.RecAccept("00001", "Title"));
+        Assert.Contains("Error: Authentication failed", authedTools.RecDecline("00001", "Title"));
+        Assert.Contains("Error: Authentication failed", authedTools.RecRemove("00001", "Title"));
+        Assert.Contains("Error: Authentication failed", authedTools.RecList("00001"));
     }
 
     // --- TENDRIL_HOME not set ---

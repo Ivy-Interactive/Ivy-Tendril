@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Database.Migrations;
 
@@ -8,7 +9,7 @@ public class Migration_007_FtsSourceUrl : IMigration
     public int Version => 7;
     public string Description => "Add SourceUrl to FTS5 PlanSearch index";
 
-    public void Apply(SqliteConnection connection)
+    public void Apply(SqliteConnection connection, ILogger? logger = null)
     {
         using var cmd = connection.CreateCommand();
         cmd.CommandText = """
@@ -53,7 +54,7 @@ public class Migration_007_FtsSourceUrl : IMigration
 
         if (planCount > 0)
         {
-            Console.WriteLine($"  Repopulating FTS5 index with {planCount} plans (now includes SourceUrl)...");
+            logger?.LogInformation("  Repopulating FTS5 index with {PlanCount} plans (now includes SourceUrl)...", planCount);
             using var populateCmd = connection.CreateCommand();
             populateCmd.CommandText = """
                 INSERT INTO PlanSearch(rowid, Title, LatestRevisionContent, Project, InitialPrompt, SourceUrl)

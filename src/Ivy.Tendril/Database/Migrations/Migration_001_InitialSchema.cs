@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Database.Migrations;
 
@@ -7,7 +8,7 @@ public class Migration_001_InitialSchema : IMigration
     public int Version => 1;
     public string Description => "Initial schema from plan 01967";
 
-    public void Apply(SqliteConnection connection)
+    public void Apply(SqliteConnection connection, ILogger? logger = null)
     {
         bool databaseExists;
         using (var checkCmd = connection.CreateCommand())
@@ -18,7 +19,7 @@ public class Migration_001_InitialSchema : IMigration
 
         if (databaseExists)
         {
-            Console.WriteLine("  Existing schema detected, setting version to 1");
+            logger?.LogInformation("  Existing schema detected, setting version to 1");
             using var versionCmd = connection.CreateCommand();
             versionCmd.CommandText = "PRAGMA user_version = 1;";
             versionCmd.ExecuteNonQuery();

@@ -4,8 +4,8 @@ namespace Ivy.Tendril.Test;
 
 public class WorktreeLifecycleLoggerTests : IDisposable
 {
-    private readonly string _tempDir;
     private readonly WorktreeLifecycleLogger _logger;
+    private readonly string _tempDir;
 
     public WorktreeLifecycleLoggerTests()
     {
@@ -81,7 +81,7 @@ public class WorktreeLifecycleLoggerTests : IDisposable
     {
         const int threadCount = 10;
         var tasks = new Task[threadCount];
-        for (int i = 0; i < threadCount; i++)
+        for (var i = 0; i < threadCount; i++)
         {
             var planId = $"{i:D5}";
             tasks[i] = Task.Run(() =>

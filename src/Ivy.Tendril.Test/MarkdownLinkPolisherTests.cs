@@ -1,13 +1,13 @@
-using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Test;
 
 public class MarkdownLinkPolisherTests : IDisposable
 {
-    private readonly string _tempDir;
-    private readonly string _repoDir;
     private readonly string _planFolder;
     private readonly string _plansDir;
+    private readonly string _repoDir;
+    private readonly string _tempDir;
 
     public MarkdownLinkPolisherTests()
     {

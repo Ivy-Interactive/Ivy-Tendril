@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Database.Migrations;
 
@@ -7,7 +8,7 @@ public class Migration_003_JobsTable : IMigration
     public int Version => 3;
     public string Description => "Add Jobs table for persisting job history";
 
-    public void Apply(SqliteConnection connection)
+    public void Apply(SqliteConnection connection, ILogger? logger = null)
     {
         using var cmd = connection.CreateCommand();
         cmd.CommandText = """

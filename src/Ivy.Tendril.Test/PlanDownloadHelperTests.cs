@@ -1,6 +1,7 @@
 using Ivy.Core.Exceptions;
 using Ivy.Core.Hooks;
-using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -41,6 +42,7 @@ public class PlanDownloadHelperTests
         services.AddSingleton<IConfigService>(testConfig);
         services.AddSingleton<ConfigService>(testConfig);
         services.AddSingleton<ILogger<PlanReaderService>>(NullLogger<PlanReaderService>.Instance);
+        services.AddSingleton<ILogger<PlanPdfService>>(NullLogger<PlanPdfService>.Instance);
         services.AddSingleton<PlanReaderService>();
         var provider = services.BuildServiceProvider();
         var context = new ViewContext(() => { }, null, provider);

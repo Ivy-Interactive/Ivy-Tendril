@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Microsoft.Extensions.Logging;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using Ivy.Tendril.Database;
@@ -22,6 +23,13 @@ public class DbResetSettings : CommandSettings
 
 public class DbVersionCommand : Command<DbVersionSettings>
 {
+    private readonly ILogger<DbVersionCommand> _logger;
+
+    public DbVersionCommand(ILogger<DbVersionCommand> logger)
+    {
+        _logger = logger;
+    }
+
     protected override int Execute(CommandContext context, DbVersionSettings settings, CancellationToken cancellationToken)
     {
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
@@ -32,12 +40,19 @@ public class DbVersionCommand : Command<DbVersionSettings>
         }
 
         var dbPath = Path.Combine(tendrilHome, "tendril.db");
-        return DatabaseCommands.DbVersionInternal(dbPath);
+        return DatabaseCommands.DbVersionInternal(dbPath, _logger);
     }
 }
 
 public class DbMigrateCommand : Command<DbMigrateSettings>
 {
+    private readonly ILogger<DbMigrateCommand> _logger;
+
+    public DbMigrateCommand(ILogger<DbMigrateCommand> logger)
+    {
+        _logger = logger;
+    }
+
     protected override int Execute(CommandContext context, DbMigrateSettings settings, CancellationToken cancellationToken)
     {
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
@@ -48,12 +63,19 @@ public class DbMigrateCommand : Command<DbMigrateSettings>
         }
 
         var dbPath = Path.Combine(tendrilHome, "tendril.db");
-        return DatabaseCommands.DbMigrateInternal(dbPath);
+        return DatabaseCommands.DbMigrateInternal(dbPath, _logger);
     }
 }
 
 public class DbResetCommand : Command<DbResetSettings>
 {
+    private readonly ILogger<DbResetCommand> _logger;
+
+    public DbResetCommand(ILogger<DbResetCommand> logger)
+    {
+        _logger = logger;
+    }
+
     protected override int Execute(CommandContext context, DbResetSettings settings, CancellationToken cancellationToken)
     {
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
@@ -64,6 +86,6 @@ public class DbResetCommand : Command<DbResetSettings>
         }
 
         var dbPath = Path.Combine(tendrilHome, "tendril.db");
-        return DatabaseCommands.DbResetInternal(dbPath, settings.Force);
+        return DatabaseCommands.DbResetInternal(dbPath, settings.Force, _logger);
     }
 }

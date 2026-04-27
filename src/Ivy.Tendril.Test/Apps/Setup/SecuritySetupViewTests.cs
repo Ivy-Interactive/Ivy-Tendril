@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using Isopoh.Cryptography.Argon2;
 using Ivy.Tendril.Apps.Setup;
@@ -11,7 +12,7 @@ public class SecuritySetupViewTests
     {
         var secretBytes = Convert.FromBase64String(secret);
         var salt = new byte[16];
-        System.Security.Cryptography.RandomNumberGenerator.Fill(salt);
+        RandomNumberGenerator.Fill(salt);
         var hash = Argon2.Hash(new Argon2Config
         {
             Type = Argon2Type.DataIndependentAddressing,
@@ -106,7 +107,7 @@ public class SecuritySetupViewTests
         var secretBytes = Convert.FromBase64String(secret);
 
         var salt = new byte[16];
-        System.Security.Cryptography.RandomNumberGenerator.Fill(salt);
+        RandomNumberGenerator.Fill(salt);
         var hash = Argon2.Hash(new Argon2Config
         {
             Type = Argon2Type.DataIndependentAddressing,
@@ -124,7 +125,7 @@ public class SecuritySetupViewTests
         var verified = Argon2.Verify(hash, new Argon2Config
         {
             Password = Encoding.UTF8.GetBytes(password),
-            Secret = secretBytes,
+            Secret = secretBytes
         });
 
         Assert.True(verified);

@@ -3,7 +3,7 @@ searchHints:
   - icebox
   - shelving
   - backlog
-icon: Archive
+icon: Snowflake
 ---
 
 # Icebox

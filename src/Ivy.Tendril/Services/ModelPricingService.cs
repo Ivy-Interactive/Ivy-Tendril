@@ -1,3 +1,4 @@
+using Ivy.Tendril.Helpers;
 using System.Reflection;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -234,8 +235,8 @@ public class ModelPricingService : IModelPricingService
                 if (!msg.TryGetProperty("tokens", out var tokens)) continue;
 
                 var model = msg.TryGetProperty("model", out var m)
-                    ? m.GetString() ?? "gemini-2.5-flash"
-                    : "gemini-2.5-flash";
+                    ? m.GetString() ?? "gemini-3-flash-preview"
+                    : "gemini-3-flash-preview";
                 var pricing = GetPricing(model);
 
                 var inputTokens = tokens.TryGetProperty("input", out var it) ? it.GetInt32() : 0;

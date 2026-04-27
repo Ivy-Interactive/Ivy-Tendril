@@ -1,4 +1,5 @@
-using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Test.TestHelpers;
 
@@ -73,7 +74,7 @@ public class PlanContentHelpersTests
     [Fact]
     public void BuildCommitRows_WithNullTitle_SetsEmptyTitleAndNullFileCount()
     {
-        var gitService = new StubGitService(null, null);
+        var gitService = new StubGitService();
         var config = new StubConfigService();
 
         var metadata = new PlanMetadata(
@@ -111,7 +112,7 @@ public class PlanContentHelpersTests
     {
         var rows = new List<PlanContentHelpers.CommitRow>
         {
-            new("abc123", "abc123", "", 5),
+            new("abc123", "abc123", "", 5)
         };
 
         var result = PlanContentHelpers.BuildCommitWarningCallout(rows);
@@ -125,7 +126,7 @@ public class PlanContentHelpersTests
     {
         var rows = new List<PlanContentHelpers.CommitRow>
         {
-            new("abc123", "abc123", "Some commit", 0),
+            new("abc123", "abc123", "Some commit", 0)
         };
 
         var result = PlanContentHelpers.BuildCommitWarningCallout(rows);
@@ -139,7 +140,7 @@ public class PlanContentHelpersTests
     {
         var rows = new List<PlanContentHelpers.CommitRow>
         {
-            new("abc123", "abc123", "Some commit", null),
+            new("abc123", "abc123", "Some commit", null)
         };
 
         var result = PlanContentHelpers.BuildCommitWarningCallout(rows);
@@ -153,7 +154,7 @@ public class PlanContentHelpersTests
         var rows = new List<PlanContentHelpers.CommitRow>
         {
             new("abc123", "abc123", "First commit", 3),
-            new("def456", "def456", "Second commit", 1),
+            new("def456", "def456", "Second commit", 1)
         };
 
         var result = PlanContentHelpers.BuildCommitWarningCallout(rows);
@@ -193,7 +194,7 @@ public class PlanContentHelpersTests
         var gitService = new StubGitService(
             "Single commit",
             [("A", "file.cs")],
-            commitDiff: "diff --git a/file.cs b/file.cs\n+added"
+            "diff --git a/file.cs b/file.cs\n+added"
         );
         var config = new StubConfigService();
 
@@ -229,7 +230,7 @@ public class PlanContentHelpersTests
     [Fact]
     public void GetAllChangesData_WithCommitsNotInRepo_ReturnsNull()
     {
-        var gitService = new StubGitService(null, null);
+        var gitService = new StubGitService();
         var config = new StubConfigService();
 
         var metadata = new PlanMetadata(
@@ -249,14 +250,46 @@ public class PlanContentHelpersTests
         string? combinedDiff = null,
         List<(string Status, string FilePath)>? combinedFiles = null) : IGitService
     {
-        public string? GetCommitTitle(string repoPath, string commitHash) => commitTitle;
-        public string? GetCommitDiff(string repoPath, string commitHash) => commitDiff;
-        public List<(string Status, string FilePath)>? GetCommitFiles(string repoPath, string commitHash) => commitFiles;
-        public int? GetCommitFileCount(string repoPath, string commitHash) => commitFiles?.Count;
-        public string? GetCombinedDiff(string repoPath, string firstCommit, string lastCommit) => combinedDiff;
+        public string? GetCommitTitle(string repoPath, string commitHash)
+        {
+            return commitTitle;
+        }
+
+        public string? GetCommitDiff(string repoPath, string commitHash)
+        {
+            return commitDiff;
+        }
+
+        public List<(string Status, string FilePath)>? GetCommitFiles(string repoPath, string commitHash)
+        {
+            return commitFiles;
+        }
+
+        public int? GetCommitFileCount(string repoPath, string commitHash)
+        {
+            return commitFiles?.Count;
+        }
+
+        public string? GetCombinedDiff(string repoPath, string firstCommit, string lastCommit)
+        {
+            return combinedDiff;
+        }
 
         public List<(string Status, string FilePath)>? GetCombinedChangedFiles(string repoPath, string firstCommit,
-            string lastCommit) => combinedFiles;
-    }
+            string lastCommit)
+        {
+            return combinedFiles;
+        }
 
+        public List<WorktreeInfo>? GetWorktrees(string repoPath)
+        {
+            return null;
+        }
+
+        public Dictionary<string, (string Title, int FileCount)>? GetCommitSummaries(string repoPath, IEnumerable<string> commitHashes)
+        {
+            if (commitTitle == null) return null;
+            return commitHashes.ToDictionary(h => h, _ => (commitTitle, commitFiles?.Count ?? 0));
+        }
+    }
 }

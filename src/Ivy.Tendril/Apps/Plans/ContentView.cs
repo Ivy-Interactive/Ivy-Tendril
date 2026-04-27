@@ -1,9 +1,12 @@
+using Ivy.Tendril.Models;
 using System.Text.RegularExpressions;
 using Ivy.Core;
 using Ivy.Tendril.Apps.Plans.Dialogs;
-using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Views;
+using Ivy.Tendril.Views.Sheets;
+using Ivy.Tendril.Views.Tabs;
 
 namespace Ivy.Tendril.Apps.Plans;
 

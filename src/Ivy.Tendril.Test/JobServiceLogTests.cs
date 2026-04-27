@@ -1,4 +1,4 @@
-using Ivy.Tendril.Apps.Jobs;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 

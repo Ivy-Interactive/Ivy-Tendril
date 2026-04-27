@@ -1,4 +1,6 @@
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Test.Helpers;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test;
 
@@ -21,7 +23,7 @@ public class InboxRecoveryTests
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
 
             // Create InboxWatcherService — constructor calls RecoverProcessingFiles
-            using var watcher = new InboxWatcherService(config, jobService);
+            using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
 
             // .processing file should be gone, .md file should exist
             Assert.False(File.Exists(processingFile));
@@ -51,7 +53,7 @@ public class InboxRecoveryTests
 
             var config = new ConfigService(new TendrilSettings(), tempDir);
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
-            using var watcher = new InboxWatcherService(config, jobService);
+            using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
 
             // .processing should be deleted, .md preserved
             Assert.False(File.Exists(processingFile));
@@ -79,9 +81,6 @@ public class InboxRecoveryTests
             File.WriteAllText(processingFile, "---\nproject: Tendril\n---\nRunning task");
 
             // Also no .md files
-            var config = new ConfigService(new TendrilSettings(), tempDir);
-            var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
-
             // Don't use InboxWatcherService constructor (it calls RecoverProcessingFiles).
             // Instead, directly test ProcessExistingFiles won't pick up .processing files.
             // The watcher glob is *.md, so .processing files are inherently excluded.
@@ -256,7 +255,7 @@ public class InboxRecoveryTests
     }
 
     [Fact]
-    public void CrashRecovery_EndToEnd_ProcessingFileReprocessedOnStartup()
+    public async Task CrashRecovery_EndToEnd_ProcessingFileReprocessedOnStartup()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"inbox-e2e-{Guid.NewGuid():N}");
         var inboxDir = Path.Combine(tempDir, "Inbox");
@@ -271,16 +270,24 @@ public class InboxRecoveryTests
             // Step 2: Create services (simulating restart)
             var config = new ConfigService(new TendrilSettings(), tempDir);
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
-            using var watcher = new InboxWatcherService(config, jobService);
+            using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
 
-            // Step 3: Wait for async processing
-            Thread.Sleep(2000);
+            // Step 3: Wait for recovery and processing to complete
+            await RetryHelper.WaitUntilAsync(
+                async () =>
+                {
+                    await Task.Yield();
+                    var jobs = jobService.GetJobs();
+                    return jobs.Any(j => j.Type == "CreatePlan" && j.PlanFile.Contains("Crashed task description"));
+                },
+                TimeSpan.FromSeconds(5),
+                TimeSpan.FromMilliseconds(100),
+                "Recovered file was not processed within timeout");
 
             // The .processing file should have been renamed to .md by RecoverProcessingFiles,
             // then picked up by ProcessExistingFiles, renamed back to .processing, and a job started.
             // After the job launches, the .md file should be gone (renamed to .processing by the watcher).
             var mdFiles = Directory.GetFiles(inboxDir, "*.md");
-            var processingFiles = Directory.GetFiles(inboxDir, "*.processing");
 
             // The file should either be .processing (job running) or gone (job completed/processed)
             Assert.Empty(mdFiles);

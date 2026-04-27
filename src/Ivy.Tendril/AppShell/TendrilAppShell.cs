@@ -1,12 +1,15 @@
 using System.Collections.Immutable;
 using System.Reactive.Disposables;
+using System.Text.Json;
 using Ivy.Core;
 using Ivy.Core.Apps;
 using Ivy.Tendril.AppShell.Dialogs;
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Views;
 using Ivy.Widgets.Internal;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.AppShell;
 
@@ -16,6 +19,32 @@ namespace Ivy.Tendril.AppShell;
 public class TendrilAppShell(AppShellSettings settings) : ViewBase
 {
     internal AppShellSettings Settings => settings;
+
+    private static readonly HttpClient NewsHttp = new();
+
+    private static async Task<SidebarNewsArticle[]> FetchNewsAsync()
+    {
+        try
+        {
+            var json = await NewsHttp.GetStringAsync(Constants.NewsBaseUrl + "news.json");
+            var items = JsonSerializer.Deserialize<JsonElement[]>(json) ?? [];
+            return items.Select(e =>
+            {
+                var id = e.GetProperty("id").GetString() ?? "";
+                var href = e.GetProperty("href").GetString() ?? "";
+                var title = e.GetProperty("title").GetString() ?? "";
+                var summary = e.GetProperty("summary").GetString() ?? "";
+                var image = e.GetProperty("image").GetString() ?? "";
+                if (!image.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                    image = Constants.NewsBaseUrl + image;
+                return new SidebarNewsArticle(id, href, title, summary, image);
+            }).ToArray();
+        }
+        catch
+        {
+            return [];
+        }
+    }
 
     private static MenuItem AddBadge(MenuItem item, Dictionary<string, int> badges)
     {
@@ -43,6 +72,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     {
         // All hooks must be at the top level of Build()
         var config = UseService<IConfigService>();
+        var logger = UseService<ILogger<TendrilAppShell>>();
         var tabs = UseState(ImmutableArray.Create<TabState>);
         var selectedIndex = UseState<int?>();
         var appRepository = UseService<IAppRepository>();
@@ -59,6 +89,11 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var navigate = Context.UseSignal<NavigateSignal, NavigateArgs, Unit>();
         var navigator = UseNavigation();
         var importIssuesDialogOpen = UseState(false);
+        var newsArticles = UseState(Array.Empty<SidebarNewsArticle>);
+        UseEffect(async () =>
+        {
+            newsArticles.Set(await FetchNewsAsync());
+        });
         UseEffect(() =>
         {
             void OnChanged()
@@ -232,7 +267,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ERROR] TendrilAppShell.OpenApp failed for {navigateArgs.AppId}: {ex}");
+                logger.LogError(ex, "TendrilAppShell.OpenApp failed for {AppId}", navigateArgs.AppId);
             }
         }
 
@@ -409,7 +444,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Logout failed: {ex}");
+                logger.LogWarning(ex, "Logout failed");
             }
         }
 
@@ -475,7 +510,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 | new NewPlanButton()
                 ,
                 Layout.Vertical(
-                    new SidebarNews(Array.Empty<SidebarNewsArticle>()),
+                    new SidebarNews(newsArticles.Value),
                     settings.Footer,
                     footer
                 ),
