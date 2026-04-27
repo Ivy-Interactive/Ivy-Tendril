@@ -1305,4 +1305,84 @@ public class PlanDatabaseServiceTests : IDisposable
         Assert.Equal("Single Plan", result.Title);
         Assert.Single(result.Repos); // Verifies BatchGetList loaded the repo
     }
+
+    [Fact]
+    public void BatchReadList_WithEmptyPlanIds_ReturnsEmptyDictionary()
+    {
+        // Test that the generic BatchReadList handles empty input correctly
+        var plans = _db.GetPlans();
+        Assert.Empty(plans);
+    }
+
+    [Fact]
+    public void BatchReadList_WithSingleBatch_GroupsResultsByPlanId()
+    {
+        // Create 10 plans with multiple repos each to verify batching logic
+        for (int i = 7000; i < 7010; i++)
+        {
+            var metadata = new PlanMetadata(
+                i, "Tendril", "NiceToHave", $"Plan {i}", PlanStatus.Draft,
+                new List<string> { "D:\\Repos\\Test1", "D:\\Repos\\Test2" },
+                new List<string>(),
+                new List<string>(),
+                new List<PlanVerificationEntry>(),
+                new List<string>(),
+                new List<string>(),
+                DateTime.UtcNow.AddDays(-1),
+                DateTime.UtcNow,
+                null,
+                null
+            );
+            var plan = new PlanFile(metadata, "# Test", $"D:\\Plans\\{i:D5}-Test", "state: Draft");
+            _db.UpsertPlan(plan);
+        }
+
+        // Retrieve all plans and verify repos were loaded correctly
+        var plans = _db.GetPlans().Where(p => p.Id >= 7000 && p.Id < 7010).ToList();
+
+        Assert.Equal(10, plans.Count);
+        foreach (var plan in plans)
+        {
+            Assert.Equal(2, plan.Repos.Count);
+            Assert.Contains("D:\\Repos\\Test1", plan.Repos);
+            Assert.Contains("D:\\Repos\\Test2", plan.Repos);
+        }
+    }
+
+    [Fact]
+    public void BatchReadList_WithMultipleBatches_HandlesLargeSets()
+    {
+        // Create 1200 plans to test batching (batch size is 500)
+        for (int i = 8000; i < 9200; i++)
+        {
+            var metadata = new PlanMetadata(
+                i, "Tendril", "NiceToHave", $"Plan {i}", PlanStatus.Draft,
+                new List<string> { $"D:\\Repos\\Repo{i}" },
+                new List<string>(),
+                new List<string>(),
+                new List<PlanVerificationEntry> { new() { Name = "DotnetBuild", Status = "Pass" } },
+                new List<string>(),
+                new List<string>(),
+                DateTime.UtcNow.AddDays(-1),
+                DateTime.UtcNow,
+                null,
+                null
+            );
+            var plan = new PlanFile(metadata, "# Test", $"D:\\Plans\\{i:D5}-Test", "state: Draft");
+            _db.UpsertPlan(plan);
+        }
+
+        // Retrieve all plans and verify batching worked correctly
+        var plans = _db.GetPlans().Where(p => p.Id >= 8000 && p.Id < 9200).ToList();
+
+        Assert.Equal(1200, plans.Count);
+        foreach (var plan in plans)
+        {
+            Assert.Single(plan.Repos);
+            Assert.Equal($"D:\\Repos\\Repo{plan.Id}", plan.Repos[0]);
+            Assert.Single(plan.Verifications);
+            Assert.Equal("DotnetBuild", plan.Verifications[0].Name);
+            Assert.Equal("Pass", plan.Verifications[0].Status);
+        }
+    }
 }
