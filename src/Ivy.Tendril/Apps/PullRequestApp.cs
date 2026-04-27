@@ -82,7 +82,6 @@ public class PullRequestApp : ViewBase
                     ["Closed"] = nameof(Colors.Zinc)
                 }
             })
-            .Renderer(t => t.Plan, new LinkDisplayRenderer())
             .Renderer(t => t.Pr, new LinkDisplayRenderer())
             .SortDirection(t => t.PlanId, SortDirection.Descending)
             .Hidden(t => t.Id)
