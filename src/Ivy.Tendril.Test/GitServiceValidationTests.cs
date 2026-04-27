@@ -10,7 +10,7 @@ public class GitServiceValidationTests
 
     [Theory]
     [InlineData("abc1234", true)]                    // 7-char short hash
-    [InlineData("abc1234567890abcdef1234567890abcdef12345678", true)] // 40-char full hash
+    [InlineData("abc1234567890abcdef1234567890abcdef12345", true)] // 40-char full hash
     [InlineData("ABC1234", true)]                    // uppercase (git accepts)
     [InlineData("abc123", false)]                    // too short
     [InlineData("g123456", false)]                   // invalid character
