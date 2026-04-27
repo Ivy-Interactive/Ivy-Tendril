@@ -29,14 +29,14 @@ public class CompleteStepView(IState<int> stepperIndex) : ViewBase
                     return;
                 }
 
-                // Step 1: Create directory structure and config
                 await setupService.CompleteSetupAsync(tendrilHome);
 
-                // Step 2: Start background services asynchronously (may take time)
-                // This now runs in a background thread without blocking DI resolution
-                await setupService.StartBackgroundServicesAsync();
+                // Fire-and-forget: services start in background (~100ms) and will be
+                // ready before the browser finishes the full-page reload below.
+                // Awaiting Task.Run shifts the continuation to a thread-pool thread,
+                // which prevents client.Redirect from delivering the WebSocket message.
+                _ = setupService.StartBackgroundServicesAsync();
 
-                // Step 3: Reload the page to transition to the main app shell
                 client.ReloadPage();
             }
             catch (Exception ex)
