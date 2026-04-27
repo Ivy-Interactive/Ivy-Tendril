@@ -1,5 +1,6 @@
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Abstractions;
 
 namespace Ivy.Tendril.Test;
 
@@ -86,5 +87,139 @@ public class JobServiceConcurrencyTests
         var job = service.GetJob(id);
         Assert.NotNull(job);
         Assert.Equal(JobStatus.Stopped, job.Status);
+    }
+
+    [Fact]
+    public void SettingsReload_IncreasedConcurrency_StartsQueuedJobs()
+    {
+        // Arrange: Start with max=2, queue 4 jobs
+        var configService = new TestConfigService { MaxConcurrentJobs = 2 };
+        var jobService = new JobService(
+            configService,
+            TimeSpan.FromMinutes(60),
+            TimeSpan.FromMinutes(5),
+            2);
+
+        var job1Id = jobService.StartJob("CreatePlan", "-Description", "Job1");
+        var job2Id = jobService.StartJob("CreatePlan", "-Description", "Job2");
+        // Small delay to ensure first 2 jobs start running
+        Thread.Sleep(100);
+        var job3Id = jobService.StartJob("CreatePlan", "-Description", "Job3");
+        var job4Id = jobService.StartJob("CreatePlan", "-Description", "Job4");
+
+        Assert.Equal(JobStatus.Queued, jobService.GetJob(job3Id)!.Status);
+        Assert.Equal(JobStatus.Queued, jobService.GetJob(job4Id)!.Status);
+
+        // Act: Increase max to 4
+        configService.MaxConcurrentJobs = 4;
+        configService.TriggerSettingsReloaded();
+
+        // Small delay for ProcessJobQueue to run
+        Thread.Sleep(100);
+
+        // Assert: Queued jobs should now be running
+        Assert.Equal(JobStatus.Running, jobService.GetJob(job3Id)!.Status);
+        Assert.Equal(JobStatus.Running, jobService.GetJob(job4Id)!.Status);
+    }
+
+    [Fact]
+    public void SettingsReload_DecreasedConcurrency_PreventsNewJobsUntilSlotsFree()
+    {
+        // Arrange: Start with max=4, launch 4 jobs
+        var configService = new TestConfigService { MaxConcurrentJobs = 4 };
+        var jobService = new JobService(
+            configService,
+            TimeSpan.FromMinutes(60),
+            TimeSpan.FromMinutes(5),
+            4);
+
+        var job1Id = jobService.StartJob("CreatePlan", "-Description", "Job1");
+        var job2Id = jobService.StartJob("CreatePlan", "-Description", "Job2");
+        var job3Id = jobService.StartJob("CreatePlan", "-Description", "Job3");
+        var job4Id = jobService.StartJob("CreatePlan", "-Description", "Job4");
+
+        // Small delay to ensure jobs start running
+        Thread.Sleep(100);
+
+        // Act: Decrease max to 2
+        configService.MaxConcurrentJobs = 2;
+        configService.TriggerSettingsReloaded();
+
+        // Try to start new job
+        var job5Id = jobService.StartJob("CreatePlan", "-Description", "Job5");
+
+        // Assert: New job should be queued (all 4 running jobs continue, but no new slots)
+        Assert.Equal(JobStatus.Queued, jobService.GetJob(job5Id)!.Status);
+
+        // Complete 2 jobs
+        jobService.CompleteJob(job1Id, 0);
+        jobService.CompleteJob(job2Id, 0);
+
+        // Small delay for ProcessJobQueue
+        Thread.Sleep(100);
+
+        // New job should still be queued (2 jobs still running == new limit)
+        Assert.Equal(JobStatus.Queued, jobService.GetJob(job5Id)!.Status);
+
+        // Complete 1 more job
+        jobService.CompleteJob(job3Id, 0);
+
+        // Small delay for ProcessJobQueue
+        Thread.Sleep(100);
+
+        // Now job5 should start (only 1 running < limit of 2)
+        Assert.Equal(JobStatus.Running, jobService.GetJob(job5Id)!.Status);
+    }
+
+    [Fact]
+    public void SettingsReload_NoChange_DoesNotRecreateSemaphore()
+    {
+        // Arrange
+        var configService = new TestConfigService { MaxConcurrentJobs = 5 };
+        var jobService = new JobService(
+            configService,
+            TimeSpan.FromMinutes(60),
+            TimeSpan.FromMinutes(5),
+            5);
+
+        var job1Id = jobService.StartJob("CreatePlan", "-Description", "Job1");
+
+        // Small delay to ensure job starts
+        Thread.Sleep(100);
+        Assert.Equal(JobStatus.Running, jobService.GetJob(job1Id)!.Status);
+
+        // Act: Reload with same value
+        configService.TriggerSettingsReloaded();
+
+        // Small delay
+        Thread.Sleep(50);
+
+        // Assert: Job continues running (semaphore not disrupted)
+        Assert.Equal(JobStatus.Running, jobService.GetJob(job1Id)!.Status);
+
+        // Can still start new jobs
+        var job2Id = jobService.StartJob("CreatePlan", "-Description", "Job2");
+        Thread.Sleep(100);
+        Assert.Equal(JobStatus.Running, jobService.GetJob(job2Id)!.Status);
+    }
+
+    private class TestConfigService : IConfigService
+    {
+        public int MaxConcurrentJobs { get; set; } = 5;
+
+        public TendrilSettings Settings => new()
+        {
+            MaxConcurrentJobs = MaxConcurrentJobs,
+            JobTimeout = 60,
+            StaleOutputTimeout = 5,
+            Projects = []
+        };
+
+        public event EventHandler? SettingsReloaded;
+
+        public void TriggerSettingsReloaded()
+        {
+            SettingsReloaded?.Invoke(this, EventArgs.Empty);
+        }
     }
 }

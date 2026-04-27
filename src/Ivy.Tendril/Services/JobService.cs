@@ -41,7 +41,7 @@ public class JobService : IJobService
     private readonly string? _inboxPath;
     private readonly PriorityQueue<string, int> _jobQueue = new();
     private readonly object _queueLock = new();
-    private readonly SemaphoreSlim _jobSlotSemaphore;
+    private SemaphoreSlim _jobSlotSemaphore;
     private TimeSpan _jobTimeout;
     private readonly ConcurrentDictionary<string, JobItem> _jobs = new();
     private int _maxConcurrentJobs;
@@ -568,7 +568,30 @@ public class JobService : IJobService
         if (_configService == null) return;
         _jobTimeout = TimeSpan.FromMinutes(_configService.Settings.JobTimeout);
         _staleOutputTimeout = TimeSpan.FromMinutes(_configService.Settings.StaleOutputTimeout);
-        _maxConcurrentJobs = _configService.Settings.MaxConcurrentJobs;
+
+        var newMaxConcurrent = _configService.Settings.MaxConcurrentJobs;
+        if (newMaxConcurrent != _maxConcurrentJobs)
+        {
+            var oldSemaphore = _jobSlotSemaphore;
+            var runningCount = _jobs.Values.Count(j => j.Status == JobStatus.Running);
+            var availableSlots = Math.Max(0, newMaxConcurrent - runningCount);
+
+            // Create new semaphore with correct capacity
+            var newSemaphore = newMaxConcurrent > 0
+                ? new SemaphoreSlim(availableSlots, newMaxConcurrent)
+                : new SemaphoreSlim(0, 1);
+
+            // Replace semaphore (field assignment is atomic)
+            _jobSlotSemaphore = newSemaphore;
+            _maxConcurrentJobs = newMaxConcurrent;
+
+            // Dispose old semaphore
+            oldSemaphore.Dispose();
+
+            // Process queue in case new capacity allows more jobs to run
+            if (newMaxConcurrent > runningCount)
+                ProcessJobQueue();
+        }
     }
 
     private void LaunchJob(JobItem job)
