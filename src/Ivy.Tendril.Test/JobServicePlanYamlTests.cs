@@ -83,7 +83,7 @@ public class JobServicePlanYamlTests : IDisposable
     public void ReadPlanYaml_ReturnsNullWhenFileDoesNotExist()
     {
         var tempDir = _tempDir.Path;
-        
+
         {
             var result = JobService.ReadPlanYaml(tempDir);
             Assert.Null(result);
@@ -94,7 +94,7 @@ public class JobServicePlanYamlTests : IDisposable
     public void ReadPlanYaml_HandlesInvalidYaml()
     {
         var tempDir = _tempDir.Path;
-        
+
         {
             File.WriteAllText(Path.Combine(tempDir, "plan.yaml"), "{{{{not valid yaml: [[[");
 
@@ -107,7 +107,7 @@ public class JobServicePlanYamlTests : IDisposable
     public void UpdatePlanYamlFields_UpdatesSingleField()
     {
         var tempDir = _tempDir.Path;
-        
+
         {
             var yamlContent = "state: Draft\nproject: TestProject\nupdated: 2026-01-01T00:00:00Z\n";
             File.WriteAllText(Path.Combine(tempDir, "plan.yaml"), yamlContent);
@@ -125,7 +125,7 @@ public class JobServicePlanYamlTests : IDisposable
     public void UpdatePlanYamlFields_UpdatesMultipleFields()
     {
         var tempDir = _tempDir.Path;
-        
+
         {
             var yamlContent = "state: Draft\nproject: TestProject\nupdated: 2026-01-01T00:00:00Z\n";
             File.WriteAllText(Path.Combine(tempDir, "plan.yaml"), yamlContent);
@@ -145,7 +145,7 @@ public class JobServicePlanYamlTests : IDisposable
     public void UpdatePlanYamlFields_HandlesNonExistentFile()
     {
         var tempDir = _tempDir.Path;
-        
+
         {
             // Should not throw — just returns early
             JobService.UpdatePlanYamlFields(tempDir, ("state", "Executing"));
@@ -158,7 +158,7 @@ public class JobServicePlanYamlTests : IDisposable
     public void UpdatePlanYamlFields_PreservesOtherContent()
     {
         var tempDir = _tempDir.Path;
-        
+
         {
             var yamlContent =
                 "state: Draft\nproject: TestProject\nlevel: Critical\ntitle: My Plan\nupdated: 2026-01-01T00:00:00Z\nrepos:\n- D:\\Repos\\Test\n";
@@ -180,7 +180,7 @@ public class JobServicePlanYamlTests : IDisposable
     public void SetPlanStateByFolder_UpdatesStateAndTimestamp()
     {
         var tempDir = _tempDir.Path;
-        
+
         {
             var yamlContent = "state: Draft\nproject: TestProject\nupdated: 2026-01-01T00:00:00Z\n";
             File.WriteAllText(Path.Combine(tempDir, "plan.yaml"), yamlContent);
@@ -197,7 +197,7 @@ public class JobServicePlanYamlTests : IDisposable
     public void SetPlanStateByFolder_UsesCorrectTimestampFormat()
     {
         var tempDir = _tempDir.Path;
-        
+
         {
             var yamlContent = "state: Draft\nproject: TestProject\nupdated: 2026-01-01T00:00:00Z\n";
             File.WriteAllText(Path.Combine(tempDir, "plan.yaml"), yamlContent);

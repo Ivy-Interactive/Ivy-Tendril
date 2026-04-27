@@ -32,29 +32,29 @@ maxConcurrentJobs: 1
 
         var config = new ConfigService(new TendrilSettings());
         config.SetTendrilHome(_tempDir.Path);
-            // Act: Create a ProcessStartInfo the same way JobService does
-            var psi = new ProcessStartInfo
-            {
-                FileName = "pwsh",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                RedirectStandardInput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
+        // Act: Create a ProcessStartInfo the same way JobService does
+        var psi = new ProcessStartInfo
+        {
+            FileName = "pwsh",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            RedirectStandardInput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
 
-            // Simulate JobService's environment setup
-            psi.Environment["TENDRIL_JOB_ID"] = "test-job";
-            psi.Environment["TENDRIL_SESSION_ID"] = Guid.NewGuid().ToString();
-            psi.Environment["TENDRIL_CONFIG"] = Path.Combine(_tempDir.Path, "config.yaml");
-            psi.Environment["TENDRIL_STATUS_FILE"] = Path.Combine(_tempDir.Path, "Jobs", "test-job.status");
+        // Simulate JobService's environment setup
+        psi.Environment["TENDRIL_JOB_ID"] = "test-job";
+        psi.Environment["TENDRIL_SESSION_ID"] = Guid.NewGuid().ToString();
+        psi.Environment["TENDRIL_CONFIG"] = Path.Combine(_tempDir.Path, "config.yaml");
+        psi.Environment["TENDRIL_STATUS_FILE"] = Path.Combine(_tempDir.Path, "Jobs", "test-job.status");
 
-            // Force non-interactive mode for Claude Code CLI to prevent TTY detection issues
-            psi.Environment["CI"] = "true";
-            psi.Environment["TERM"] = "dumb";
+        // Force non-interactive mode for Claude Code CLI to prevent TTY detection issues
+        psi.Environment["CI"] = "true";
+        psi.Environment["TERM"] = "dumb";
 
-            // Assert: Verify environment variables are set
-            Assert.Equal("true", psi.Environment["CI"]);
-            Assert.Equal("dumb", psi.Environment["TERM"]);
+        // Assert: Verify environment variables are set
+        Assert.Equal("true", psi.Environment["CI"]);
+        Assert.Equal("dumb", psi.Environment["TERM"]);
     }
 }
