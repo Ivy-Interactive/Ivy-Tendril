@@ -33,6 +33,8 @@ public class EditProjectDialog(
         var editingRepoPath = UseState<string?>(null);
         var editingRepoError = UseState<string?>(null);
 
+        var (folderDialogView, showFolderDialog, selectedFolderPath) = UseFolderDialog();
+
         UseEffect(() =>
         {
             if (_editIndex.Value == null)
@@ -64,7 +66,16 @@ public class EditProjectDialog(
             editingRepoError.Set(null);
         }, _editIndex);
 
+        UseEffect(() =>
+        {
+            if (selectedFolderPath.Value != null)
+                newRepoPath.Set(selectedFolderPath.Value);
+        }, selectedFolderPath);
+
         if (_editIndex.Value == -1) return null;
+
+        var isDesktop = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? "")
+            .Equals("tendril", StringComparison.OrdinalIgnoreCase);
 
         var isNew = _editIndex.Value == null;
 
@@ -89,7 +100,7 @@ public class EditProjectDialog(
                                            : $"Not a git repository: {expandedPath}")
                                    : new Spacer().Width(Size.Units(4)))
                                | editingRepoPath
-                                   .ToTextInput("Select repository folder...")
+                                   .ToTextInput("Your repository folder")
                                    .Width(Size.Grow())
                                | new Badge(repo.PrRule).Variant(BadgeVariant.Outline)
                                | new Button().Icon(Icons.Check).Ghost().Small().OnClick(() =>
@@ -161,38 +172,54 @@ public class EditProjectDialog(
 
         if (repoPathError.Value != null) reposLayout |= Text.Danger(repoPathError.Value);
 
-        reposLayout |= Layout.Horizontal().Gap(2).AlignContent(Align.Center)
-                       | newRepoPath.ToTextInput("Select repository folder...")
-                           .Width(Size.Grow())
-                       | newRepoPrRule.ToSelectInput(new List<string> { "default", "yolo" }).Width(Size.Units(20))
-                       | new Button("Add").Outline().Small().OnClick(() =>
-                       {
-                           if (!string.IsNullOrWhiteSpace(newRepoPath.Value))
-                           {
-                               var expandedNewPath = VariableExpansion.ExpandVariables(newRepoPath.Value, _config.TendrilHome);
+        Action addRepoAction = () =>
+        {
+            if (!string.IsNullOrWhiteSpace(newRepoPath.Value))
+            {
+                var expandedNewPath = VariableExpansion.ExpandVariables(newRepoPath.Value, _config.TendrilHome);
 
-                               if (!Directory.Exists(expandedNewPath))
-                               {
-                                   repoPathError.Set($"Directory does not exist: {expandedNewPath}");
-                                   return;
-                               }
+                if (!Directory.Exists(expandedNewPath))
+                {
+                    repoPathError.Set($"Directory does not exist: {expandedNewPath}");
+                    return;
+                }
 
-                               if (!Path.Exists(Path.Combine(expandedNewPath, ".git")))
-                               {
-                                   repoPathError.Set($"Directory is not a git repository: {expandedNewPath}");
-                                   return;
-                               }
+                if (!Path.Exists(Path.Combine(expandedNewPath, ".git")))
+                {
+                    repoPathError.Set($"Directory is not a git repository: {expandedNewPath}");
+                    return;
+                }
 
-                               var list = new List<RepoRef>(editRepos.Value)
-                               {
-                                   new() { Path = newRepoPath.Value, PrRule = newRepoPrRule.Value }
-                               };
-                               editRepos.Set(list);
-                               newRepoPath.Set(null);
-                               newRepoPrRule.Set("default");
-                               repoPathError.Set(null);
-                           }
-                       });
+                var list = new List<RepoRef>(editRepos.Value)
+                {
+                    new() { Path = newRepoPath.Value, PrRule = newRepoPrRule.Value }
+                };
+                editRepos.Set(list);
+                newRepoPath.Set(null);
+                newRepoPrRule.Set("default");
+                repoPathError.Set(null);
+            }
+        };
+
+        if (isDesktop)
+        {
+            reposLayout |= Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+                           | new Button(newRepoPath.Value ?? "Your repository folder")
+                               .Outline()
+                               .Width(Size.Percent(100))
+                               .OnClick(() => showFolderDialog(_ => { }))
+                           | newRepoPrRule.ToSelectInput(new List<string> { "default", "yolo" })
+                               .Width(Size.Units(20))
+                           | new Button("Add").Outline().Small().OnClick(addRepoAction);
+        }
+        else
+        {
+            reposLayout |= Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+                           | newRepoPath.ToTextInput("Your repository folder")
+                               .Suffix(newRepoPrRule.ToSelectInput(new List<string> { "default", "yolo" }))
+                               .Width(Size.Grow())
+                           | new Button("Add").Outline().Small().OnClick(addRepoAction);
+        }
 
         // Verifications switches
         var verificationsLayout = Layout.Vertical().Gap(1);
@@ -256,6 +283,7 @@ public class EditProjectDialog(
                 | (Layout.Vertical().Gap(2)
                    | Text.Block("Verifications").Bold()
                    | verificationsLayout)
+                | folderDialogView
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() =>
