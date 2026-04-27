@@ -37,7 +37,7 @@ public class CompleteStepView(IState<int> stepperIndex) : ViewBase
                 await setupService.StartBackgroundServicesAsync();
 
                 // Step 3: Only redirect after services are ready
-                client.Redirect("/", true);
+                client.Redirect("/");
             }
             catch (Exception ex)
             {
