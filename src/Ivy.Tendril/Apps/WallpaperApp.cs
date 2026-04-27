@@ -51,11 +51,11 @@ public class WallpaperApp : ViewBase
             var updateCommand = "dotnet tool update -g Ivy.Tendril";
             var notification = new FloatingPanel(
                 new Card(
-                    Layout.Vertical().Gap(1)
-                    | Text.P($"**v{versionInfo.Value.LatestVersion}** is available (you have v{versionInfo.Value.CurrentVersion})").Small()
+                    Layout.Vertical().Gap(false)
+                    | Text.P($"v{versionInfo.Value.LatestVersion} available").Small()
                     | (Layout.Horizontal().Gap(1)
                         | new Button("Copy update command", () => copyToClipboard(updateCommand))
-                            .Variant(ButtonVariant.Secondary)
+                            .Variant(ButtonVariant.Primary)
                             .Small()
                             .Icon(Icons.Clipboard)
                         | new Button("Dismiss", () => dismissedVersion.Set(versionInfo.Value.LatestVersion))
@@ -63,7 +63,7 @@ public class WallpaperApp : ViewBase
                             .Small())
                 ).Header("Update Available", null, Icons.CircleArrowUp),
                 Align.BottomRight
-            ).Offset(new Thickness(0, 0, 16, 16));
+            ).Offset(new Thickness(0, 0, 20, 20));
 
             elements.Add(notification);
         }
