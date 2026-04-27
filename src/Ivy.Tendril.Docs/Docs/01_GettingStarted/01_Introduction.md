@@ -23,7 +23,8 @@ Tendril is an Open Source AI Orchestrator designed for real-world agentic softwa
 
 In Tendril, work is organized into **Plans**—structured units of work like bug fixes, refactors, or new features. Instead of a "black box" that outputs code and hopes for the best, Tendril moves your Plan through a defined lifecycle using Promptwares: isolated, single-purpose agents that specialize in specific stages of the SDLC. Whether it’s generating code, verifying builds, or opening PRs, you have total visibility. Tendril doesn't just autocomplete your lines; it orchestrates your workflow.
 
- <Image Src="../../../assets/Make-Plan-2.gif" />
+<Image Src="../../assets/Make-Plan-2.gif" />
+
 
 ## Key Features
 
@@ -36,7 +37,7 @@ In Tendril, work is organized into **Plans**—structured units of work like bug
 - **Verification** - Hook your build, test, and format checks.
 
 
-## The Tendril Loop: From Idea to PR.
+## The Tendril Loop: From Idea to PR
 
 Plans flow through the following pipeline:
 
