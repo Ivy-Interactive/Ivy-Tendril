@@ -134,26 +134,6 @@ public class ApiKeyAuthMiddlewareTests
     }
 
     [Fact]
-    public async Task ApiRoute_JobsEndpoint_SkipsAuth()
-    {
-        var settings = new TendrilSettings { Api = new ApiSettings { ApiKey = "secret-123" } };
-        var configService = new ConfigService(settings, "/tmp");
-        var nextCalled = false;
-        var middleware = new ApiKeyAuthMiddleware(_ =>
-        {
-            nextCalled = true;
-            return Task.CompletedTask;
-        }, configService);
-
-        var context = new DefaultHttpContext();
-        context.Request.Path = "/api/jobs/job-1/status";
-
-        await middleware.InvokeAsync(context);
-
-        Assert.True(nextCalled);
-    }
-
-    [Fact]
     public async Task ApiRoute_ProtectsInboxEndpoint()
     {
         var settings = new TendrilSettings { Api = new ApiSettings { ApiKey = "secret-123" } };

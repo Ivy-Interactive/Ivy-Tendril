@@ -1,5 +1,6 @@
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 
 namespace Ivy.Tendril.Services;
 
@@ -12,7 +13,7 @@ public interface IPlanDatabaseService : IDisposable
 
     // Aggregates
     PlanReaderService.PlanCountSnapshot ComputePlanCounts();
-    DashboardStats GetDashboardData(string? projectFilter);
+    DashboardModels GetDashboardData(string? projectFilter);
 
     // Costs and tokens
     decimal GetPlanTotalCost(int planId);

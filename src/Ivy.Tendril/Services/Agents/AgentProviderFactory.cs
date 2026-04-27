@@ -24,7 +24,11 @@ public class AgentProviderFactory
         throw new ArgumentException($"Unknown agent provider: {name}. Available: {string.Join(", ", Providers.Keys)}");
     }
 
-    public static AgentResolution Resolve(TendrilSettings settings, string promptwareName, string? profileOverride = null)
+    public static AgentResolution Resolve(
+        TendrilSettings settings,
+        string promptwareName,
+        string? profileOverride = null,
+        IReadOnlyDictionary<string, string>? jobContext = null)
     {
         var codingAgent = settings.CodingAgent;
         var provider = GetProvider(codingAgent);
@@ -52,10 +56,16 @@ public class AgentProviderFactory
         if (!string.IsNullOrEmpty(profileOverride))
             profileName = profileOverride;
 
-        // Expand environment variables in allowed tools
+        // Expand job context variables (%PLAN_FOLDER%, %PLANS_DIR%, etc.) then env vars
         for (var i = 0; i < allowedTools.Count; i++)
         {
-            allowedTools[i] = Environment.ExpandEnvironmentVariables(allowedTools[i])
+            var tool = allowedTools[i];
+            if (jobContext != null)
+            {
+                foreach (var (key, value) in jobContext)
+                    tool = tool.Replace($"%{key}%", value, StringComparison.OrdinalIgnoreCase);
+            }
+            allowedTools[i] = Environment.ExpandEnvironmentVariables(tool)
                 .Replace('\\', '/');
         }
 

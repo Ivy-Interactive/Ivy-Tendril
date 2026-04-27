@@ -21,7 +21,9 @@ The firmware header contains:
 - Read the latest revision from `revisions/` to understand what changed
 - Determine if the changes affect visual/UI behavior
 
-If the changes are non-visual (docs, analyzers, refactoring, code-only fixes), write a report noting "No visual verification needed" and exit successfully.
+**What counts as visual:** Any change that adds, removes, or modifies something that renders in the browser. This includes new icon mappings, new enum values that appear in the UI, new CSS classes, new component variants, new props with visual effects, etc. When in doubt, treat it as visual — a sample app that confirms "yes, this renders correctly" is always more valuable than skipping verification.
+
+If the changes are strictly non-visual (docs, analyzers, refactoring, internal code-only fixes with no render path), write a report noting "No visual verification needed" and exit successfully.
 
 ### 2. Research
 

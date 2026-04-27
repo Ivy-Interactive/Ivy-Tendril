@@ -4,15 +4,17 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Ivy.Helpers;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services;
 
-public class GithubService(IConfigService config) : IGithubService
+public class GithubService(IConfigService config, ILogger<GithubService> logger) : IGithubService
 {
     // ConcurrentDictionary required: multiple UseQuery calls from different views/dialogs
     // can fetch different repos simultaneously, causing concurrent writes to different keys.
     private readonly ConcurrentDictionary<string, List<string>> _assigneeCache = new();
     private readonly IConfigService _config = config;
+    private readonly ILogger<GithubService> _logger = logger;
     private readonly ConcurrentDictionary<string, List<string>> _labelCache = new();
     private readonly ConcurrentDictionary<string, RepoConfig?> _repoPathCache = new();
     private List<RepoConfig>? _repoCache;
@@ -45,51 +47,28 @@ public class GithubService(IConfigService config) : IGithubService
     }
 
     public async Task<(List<string> assignees, string? error)> GetAssigneesAsync(string owner, string repo)
-    {
-        var key = $"{owner}/{repo}";
-        if (_assigneeCache.TryGetValue(key, out var cached))
-            return (cached, null);
-
-        var (assignees, error) = await FetchAssigneesFromGhCliAsync(owner, repo);
-
-        if (error is null)
-            _assigneeCache[key] = assignees;
-
-        return (assignees, error);
-    }
+        => await GetCachedListAsync(_assigneeCache, owner, repo, FetchAssigneesFromGhCliAsync);
 
     public async Task<(List<string> labels, string? error)> GetLabelsAsync(string owner, string repo)
-    {
-        var key = $"{owner}/{repo}";
-        if (_labelCache.TryGetValue(key, out var cached))
-            return (cached, null);
-
-        var (labels, error) = await FetchLabelsFromGhCliAsync(owner, repo);
-
-        if (error is null)
-            _labelCache[key] = labels;
-
-        return (labels, error);
-    }
+        => await GetCachedListAsync(_labelCache, owner, repo, FetchLabelsFromGhCliAsync);
 
     public async Task<(Dictionary<string, string> statuses, string? error)> GetPrStatusesAsync(string owner, string repo)
     {
         return await FetchPrStatusesFromGhCliAsync(owner, repo);
     }
 
-    public async Task<(List<GitHubIssue> issues, string? error)> SearchIssuesAsync(string owner, string repo,
-        string? query, string? assignee, string[]? labels)
+    public async Task<(List<GitHubIssue> issues, string? error)> SearchIssuesAsync(IssueSearchRequest request)
     {
         try
         {
             var args =
-                $"issue list --repo {owner}/{repo} --state open --limit 100 --json number,title,body,labels,assignees";
-            if (!string.IsNullOrWhiteSpace(query))
-                args += $" --search \"{query}\"";
-            if (!string.IsNullOrWhiteSpace(assignee))
-                args += $" --assignee {assignee}";
-            if (labels is { Length: > 0 })
-                args += $" --label \"{string.Join(",", labels)}\"";
+                $"issue list --repo {request.Owner}/{request.Repo} --state open --limit 100 --json number,title,body,labels,assignees";
+            if (!string.IsNullOrWhiteSpace(request.Query))
+                args += $" --search \"{request.Query}\"";
+            if (!string.IsNullOrWhiteSpace(request.Assignee))
+                args += $" --assignee {request.Assignee}";
+            if (request.Labels is { Length: > 0 })
+                args += $" --label \"{string.Join(",", request.Labels)}\"";
 
             var psi = new ProcessStartInfo("gh", args)
             {
@@ -111,7 +90,7 @@ public class GithubService(IConfigService config) : IGithubService
 
             if (process.ExitCode != 0)
             {
-                Console.Error.WriteLine($"[GithubService] gh issue list failed for {owner}/{repo}: {stderr}");
+                _logger.LogWarning("gh issue list failed for {Owner}/{Repo}: {Stderr}", request.Owner, request.Repo, stderr);
                 var errorMsg = !string.IsNullOrWhiteSpace(stderr)
                     ? stderr.Trim()
                     : $"GitHub CLI exited with code {process.ExitCode}";
@@ -123,12 +102,12 @@ public class GithubService(IConfigService config) : IGithubService
         }
         catch (JsonException ex)
         {
-            Console.Error.WriteLine($"[GithubService] Failed to parse issues for {owner}/{repo}: {ex.Message}");
+            _logger.LogWarning(ex, "Failed to parse issues for {Owner}/{Repo}", request.Owner, request.Repo);
             return ([], "Invalid response from GitHub CLI. The output could not be parsed.");
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[GithubService] Failed to search issues for {owner}/{repo}: {ex.Message}");
+            _logger.LogWarning(ex, "Failed to search issues for {Owner}/{Repo}", request.Owner, request.Repo);
             return ([], $"Failed to fetch issues: {ex.Message}");
         }
     }
@@ -159,13 +138,13 @@ public class GithubService(IConfigService config) : IGithubService
         return _repoPathCache.GetOrAdd(repoPath, path => GetRepoConfigFromPath(path));
     }
 
-    internal static RepoConfig? GetRepoConfigFromPath(string repoPath)
+    internal RepoConfig? GetRepoConfigFromPath(string repoPath)
     {
         try
         {
             if (!Directory.Exists(repoPath))
             {
-                Console.Error.WriteLine($"[GithubService] Repository path does not exist: {repoPath}");
+                _logger.LogWarning("Repository path does not exist: {RepoPath}", repoPath);
                 return null;
             }
 
@@ -183,7 +162,7 @@ public class GithubService(IConfigService config) : IGithubService
             using var process = Process.Start(psi);
             if (process is null)
             {
-                Console.Error.WriteLine($"[GithubService] Failed to start git process for {repoPath}");
+                _logger.LogWarning("Failed to start git process for {RepoPath}", repoPath);
                 return null;
             }
 
@@ -193,20 +172,20 @@ public class GithubService(IConfigService config) : IGithubService
 
             if (process.ExitCode != 0)
             {
-                Console.Error.WriteLine($"[GithubService] git remote get-url failed for {repoPath}: {stderr}");
+                _logger.LogWarning("git remote get-url failed for {RepoPath}: {Stderr}", repoPath, stderr);
                 return null;
             }
 
             var config = ParseRepoConfigFromUrl(url);
             if (config is null)
             {
-                Console.Error.WriteLine($"[GithubService] Failed to parse remote URL for {repoPath}: {url}");
+                _logger.LogWarning("Failed to parse remote URL for {RepoPath}: {Url}", repoPath, url);
             }
             return config;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[GithubService] Exception getting repo config for {repoPath}: {ex.Message}");
+            _logger.LogWarning(ex, "Exception getting repo config for {RepoPath}", repoPath);
             return null;
         }
     }
@@ -223,11 +202,14 @@ public class GithubService(IConfigService config) : IGithubService
         };
     }
 
-    private static async Task<(List<string> labels, string? error)> FetchLabelsFromGhCliAsync(string owner, string repo)
+    private async Task<(T result, string? error)> ExecuteGhCliAsync<T>(
+        string args,
+        Func<string, T> parseOutput,
+        T emptyResult)
     {
         try
         {
-            var psi = new ProcessStartInfo("gh", $"api repos/{owner}/{repo}/labels --jq \".[].name\"")
+            var psi = new ProcessStartInfo("gh", args)
             {
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -239,7 +221,7 @@ public class GithubService(IConfigService config) : IGithubService
 
             using var process = Process.Start(psi);
             if (process is null)
-                return ([], "GitHub CLI (gh) is not available. Please install it from https://cli.github.com/");
+                return (emptyResult, "GitHub CLI (gh) is not available. Please install it from https://cli.github.com/");
 
             var output = await process.StandardOutput.ReadToEndAsync();
             var stderr = await process.StandardError.ReadToEndAsync();
@@ -247,127 +229,111 @@ public class GithubService(IConfigService config) : IGithubService
 
             if (process.ExitCode != 0)
             {
-                Console.Error.WriteLine($"[GithubService] gh api labels failed for {owner}/{repo}: {stderr}");
                 var errorMsg = !string.IsNullOrWhiteSpace(stderr)
                     ? stderr.Trim()
                     : $"GitHub CLI exited with code {process.ExitCode}";
-                return ([], errorMsg);
+                return (emptyResult, errorMsg);
             }
 
-            var labels = output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .OrderBy(x => x)
-                .ToList();
-            return (labels, null);
+            return (parseOutput(output), null);
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[GithubService] Failed to fetch labels for {owner}/{repo}: {ex.Message}");
-            return ([], $"Failed to fetch labels: {ex.Message}");
+            _logger.LogWarning(ex, "Failed to execute gh CLI: {Args}", args);
+            return (emptyResult, $"Failed to execute gh CLI: {ex.Message}");
         }
     }
 
-    private static async Task<(Dictionary<string, string> statuses, string? error)> FetchPrStatusesFromGhCliAsync(string owner, string repo)
+    private async Task<(List<string> items, string? error)> GetCachedListAsync(
+        ConcurrentDictionary<string, List<string>> cache,
+        string owner,
+        string repo,
+        Func<string, string, Task<(List<string>, string?)>> fetchFunc)
     {
-        try
+        var key = $"{owner}/{repo}";
+        if (cache.TryGetValue(key, out var cached))
+            return (cached, null);
+
+        var (items, error) = await fetchFunc(owner, repo);
+
+        if (error is null)
+            cache[key] = items;
+
+        return (items, error);
+    }
+
+    private Dictionary<string, string> ParsePrStatuses(string json)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        using var doc = JsonDocument.Parse(json);
+
+        foreach (var element in doc.RootElement.EnumerateArray())
         {
-            var psi = new ProcessStartInfo("gh",
-                $"pr list --repo {owner}/{repo} --limit 100 --state all --json url,state")
+            var url = element.GetProperty("url").GetString();
+            var state = element.GetProperty("state").GetString();
+
+            if (url is not null && state is not null)
             {
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                StandardOutputEncoding = Encoding.UTF8,
-                StandardErrorEncoding = Encoding.UTF8
-            };
-
-            using var process = Process.Start(psi);
-            if (process is null)
-                return (new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
-                        "GitHub CLI (gh) is not available. Please install it from https://cli.github.com/");
-
-            var output = await process.StandardOutput.ReadToEndAsync();
-            var stderr = await process.StandardError.ReadToEndAsync();
-            await process.WaitForExitOrKillAsync(60000);
-
-            if (process.ExitCode != 0)
-            {
-                Console.Error.WriteLine($"[GithubService] gh pr list failed for {owner}/{repo}: {stderr}");
-                var errorMsg = !string.IsNullOrWhiteSpace(stderr)
-                    ? stderr.Trim()
-                    : $"GitHub CLI exited with code {process.ExitCode}";
-                return (new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), errorMsg);
-            }
-
-            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            using var doc = JsonDocument.Parse(output);
-            foreach (var element in doc.RootElement.EnumerateArray())
-            {
-                var url = element.GetProperty("url").GetString();
-                var state = element.GetProperty("state").GetString();
-                if (url is not null && state is not null)
+                result[url] = state switch
                 {
-                    var titleCase = state switch
-                    {
-                        "OPEN" => "Open",
-                        "CLOSED" => "Closed",
-                        "MERGED" => "Merged",
-                        _ => state
-                    };
-                    result[url] = titleCase;
-                }
+                    "OPEN" => "Open",
+                    "CLOSED" => "Closed",
+                    "MERGED" => "Merged",
+                    _ => state
+                };
             }
+        }
 
-            return (result, null);
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"[GithubService] Failed to fetch PR statuses for {owner}/{repo}: {ex.Message}");
-            return (new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
-                    $"Failed to fetch PR statuses: {ex.Message}");
-        }
+        return result;
     }
 
-    private static async Task<(List<string> assignees, string? error)> FetchAssigneesFromGhCliAsync(string owner, string repo)
+    private async Task<(List<string> labels, string? error)> FetchLabelsFromGhCliAsync(string owner, string repo)
     {
-        try
-        {
-            var psi = new ProcessStartInfo("gh", $"api repos/{owner}/{repo}/assignees --jq \".[].login\"")
-            {
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                StandardOutputEncoding = Encoding.UTF8,
-                StandardErrorEncoding = Encoding.UTF8
-            };
+        var (labels, error) = await ExecuteGhCliAsync(
+            $"api repos/{owner}/{repo}/labels --jq \".[].name\"",
+            output => output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                            .OrderBy(x => x)
+                            .ToList(),
+            new List<string>());
 
-            using var process = Process.Start(psi);
-            if (process is null)
-                return ([], "GitHub CLI (gh) is not available. Please install it from https://cli.github.com/");
+        if (error is not null)
+            _logger.LogWarning("gh api labels failed for {Owner}/{Repo}", owner, repo);
 
-            var output = await process.StandardOutput.ReadToEndAsync();
-            var stderr = await process.StandardError.ReadToEndAsync();
-            await process.WaitForExitOrKillAsync(60000);
+        return (labels, error);
+    }
 
-            if (process.ExitCode != 0)
-            {
-                Console.Error.WriteLine($"[GithubService] gh api assignees failed for {owner}/{repo}: {stderr}");
-                var errorMsg = !string.IsNullOrWhiteSpace(stderr)
-                    ? stderr.Trim()
-                    : $"GitHub CLI exited with code {process.ExitCode}";
-                return ([], errorMsg);
-            }
+    private async Task<(Dictionary<string, string> statuses, string? error)> FetchPrStatusesFromGhCliAsync(string owner, string repo)
+    {
+        var (statuses, error) = await ExecuteGhCliAsync(
+            $"pr list --repo {owner}/{repo} --limit 100 --state all --json url,state",
+            ParsePrStatuses,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
 
-            var assignees = output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .OrderBy(x => x)
-                .ToList();
-            return (assignees, null);
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"[GithubService] Failed to fetch assignees for {owner}/{repo}: {ex.Message}");
-            return ([], $"Failed to fetch assignees: {ex.Message}");
-        }
+        if (error is not null)
+            _logger.LogWarning("gh pr list failed for {Owner}/{Repo}", owner, repo);
+
+        return (statuses, error);
+    }
+
+    private async Task<(List<string> assignees, string? error)> FetchAssigneesFromGhCliAsync(string owner, string repo)
+    {
+        var (assignees, error) = await ExecuteGhCliAsync(
+            $"api repos/{owner}/{repo}/assignees --jq \".[].login\"",
+            output => output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                            .OrderBy(x => x)
+                            .ToList(),
+            new List<string>());
+
+        if (error is not null)
+            _logger.LogWarning("gh api assignees failed for {Owner}/{Repo}", owner, repo);
+
+        return (assignees, error);
     }
 }
+
+public record IssueSearchRequest(
+    string Owner,
+    string Repo,
+    string? Query = null,
+    string? Assignee = null,
+    string[]? Labels = null);

@@ -1,5 +1,7 @@
+using Ivy.Tendril.Helpers;
 using System.Collections.Concurrent;
 using Ivy.Helpers;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services;
 
@@ -7,13 +9,15 @@ public class InboxWatcherService : IInboxWatcherService
 {
     private readonly string _inboxPath;
     private readonly IJobService _jobService;
+    private readonly ILogger<InboxWatcherService> _logger;
     private readonly Timer _pollTimer;
     private readonly ConcurrentDictionary<string, byte> _processing = new();
     private readonly FileSystemWatcher? _watcher;
 
-    public InboxWatcherService(IConfigService config, IJobService jobService)
+    public InboxWatcherService(IConfigService config, IJobService jobService, ILogger<InboxWatcherService> logger)
     {
         _jobService = jobService;
+        _logger = logger;
         _inboxPath = Path.Combine(config.TendrilHome, "Inbox");
 
         if (!Directory.Exists(_inboxPath))
@@ -85,7 +89,7 @@ public class InboxWatcherService : IInboxWatcherService
             }
             catch
             {
-                Console.Error.WriteLine($"Failed to recover inbox file '{file}'. It will be retried on next startup.");
+                _logger.LogWarning("Failed to recover inbox file {File}. It will be retried on next startup.", file);
             }
     }
 
@@ -111,6 +115,14 @@ public class InboxWatcherService : IInboxWatcherService
             if (!File.Exists(filePath))
                 return;
 
+            // Skip if a CreatePlan job is already tracking this inbox file.
+            // Guards against the FSW firing Created more than once for the same
+            // file, the 30s poll overlapping with an in-flight StartJob, and any
+            // future caller that re-writes an .md into Inbox while its
+            // .md.processing sibling is mid-job.
+            if (_jobService.IsInboxFileTracked(filePath + ".processing"))
+                return;
+
             try
             {
                 await ProcessInboxFileAsync(filePath);
@@ -125,8 +137,9 @@ public class InboxWatcherService : IInboxWatcherService
                 }
                 catch (Exception retryEx)
                 {
-                    Console.Error.WriteLine(
-                        $"Failed to process inbox file '{filePath}' after retry. Initial error: {ex.Message}. Retry error: {retryEx.Message}");
+                    _logger.LogError(retryEx,
+                        "Failed to process inbox file {FilePath} after retry. Initial error: {InitialError}",
+                        filePath, ex.Message);
                 }
             }
         }
@@ -146,18 +159,31 @@ public class InboxWatcherService : IInboxWatcherService
 
         if (string.IsNullOrWhiteSpace(description))
         {
-            Console.Error.WriteLine($"Skipping inbox file '{filePath}' — empty description.");
+            _logger.LogWarning("Skipping inbox file {FilePath} — empty description.", filePath);
             return;
         }
 
         // Rename to .processing so the watcher/poller ignores it while the job runs
         var processingPath = filePath + ".processing";
-        File.Move(filePath, processingPath);
+        try
+        {
+            File.Move(filePath, processingPath);
+        }
+        catch (FileNotFoundException)
+        {
+            _logger.LogWarning("Inbox file {FilePath} was deleted before processing — skipping.", filePath);
+            return;
+        }
+        catch (IOException ex)
+        {
+            _logger.LogWarning(ex, "Failed to rename inbox file {FilePath} to {ProcessingPath} — skipping.", filePath, processingPath);
+            return;
+        }
 
         var args = new List<string> { "-Description", description, "-Project", project };
         if (!string.IsNullOrEmpty(sourcePath))
             args.AddRange(["-SourcePath", sourcePath]);
-        _jobService.StartJob("CreatePlan", args.ToArray(), processingPath);
+        _jobService.StartJob(Constants.JobTypes.CreatePlan, args.ToArray(), processingPath);
     }
 
     internal static (string project, string description, string? sourcePath) ParseContent(string content)

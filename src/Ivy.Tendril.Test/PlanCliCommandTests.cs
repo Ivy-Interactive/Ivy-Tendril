@@ -1,5 +1,6 @@
-using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Commands;
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
@@ -7,20 +8,19 @@ namespace Ivy.Tendril.Test;
 [Collection("TendrilHome")]
 public class PlanCliCommandTests : IDisposable
 {
-    private readonly string _tempDir;
-    private readonly string _plansDir;
+    private readonly TempDirectoryFixture _tempDir = new();
     private readonly string _originalTendrilHome;
     private readonly string? _originalTendrilPlans;
+    private readonly string _plansDir;
 
     public PlanCliCommandTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), $"tendril-cli-test-{Guid.NewGuid():N}");
-        _plansDir = Path.Combine(_tempDir, "Plans");
+        _plansDir = Path.Combine(_tempDir.Path, "Plans");
         Directory.CreateDirectory(_plansDir);
 
         _originalTendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? "";
         _originalTendrilPlans = Environment.GetEnvironmentVariable("TENDRIL_PLANS");
-        Environment.SetEnvironmentVariable("TENDRIL_HOME", _tempDir);
+        Environment.SetEnvironmentVariable("TENDRIL_HOME", _tempDir.Path);
         Environment.SetEnvironmentVariable("TENDRIL_PLANS", null);
     }
 
@@ -28,9 +28,7 @@ public class PlanCliCommandTests : IDisposable
     {
         Environment.SetEnvironmentVariable("TENDRIL_HOME", _originalTendrilHome);
         Environment.SetEnvironmentVariable("TENDRIL_PLANS", _originalTendrilPlans);
-        if (Directory.Exists(_tempDir))
-            try { Directory.Delete(_tempDir, true); }
-            catch { }
+        _tempDir.Dispose();
     }
 
     private string CreatePlanFolder(string id, string title, PlanYaml? plan = null)
@@ -58,6 +56,31 @@ public class PlanCliCommandTests : IDisposable
     {
         var folder = PlanCommandHelpers.ResolvePlanFolder(planId);
         return PlanCommandHelpers.ReadPlan(folder);
+    }
+
+    private string CreatePlanWithNullLists(string planId)
+    {
+        var yaml = $"""
+            state: Draft
+            project: Tendril
+            title: Test Plan
+            commits:
+            prs:
+            repos:
+              - {_tempDir}
+            verifications:
+            relatedPlans:
+            dependsOn:
+            recommendations:
+            created: 2026-04-25T00:00:00Z
+            updated: 2026-04-25T00:00:00Z
+            """;
+
+        var folder = Path.Combine(_plansDir, $"{planId}-TestPlan");
+        Directory.CreateDirectory(Path.Combine(folder, "revisions"));
+        File.WriteAllText(Path.Combine(folder, "plan.yaml"), yaml);
+        File.WriteAllText(Path.Combine(folder, "revisions", "001.md"), "# Test Plan");
+        return folder;
     }
 
     // ==================== ResolvePlanFolder ====================
@@ -570,6 +593,21 @@ public class PlanCliCommandTests : IDisposable
         Assert.Single(result.Commits);
     }
 
+    [Fact]
+    public void PlanAddCommit_WithNullCommitsList_Succeeds()
+    {
+        var folder = CreatePlanWithNullLists("20099");
+
+        var plan = PlanCommandHelpers.ReadPlan(folder);
+        plan.Commits.Add("abc1234");
+        plan.Updated = DateTime.UtcNow;
+        PlanCommandHelpers.WritePlan(folder, plan);
+
+        var result = ReadPlan("20099");
+        Assert.Single(result.Commits);
+        Assert.Contains("abc1234", result.Commits);
+    }
+
     // ==================== PlanSetVerification ====================
 
     [Fact]
@@ -761,12 +799,11 @@ public class PlanCliCommandTests : IDisposable
         CreatePlanFolder("20100", "TimestampTest");
         var before = ReadPlan("20100").Updated;
 
-        Thread.Sleep(50);
-
+        // Explicitly set a later timestamp to avoid timing races
         var folder = PlanCommandHelpers.ResolvePlanFolder("20100");
         var plan = PlanCommandHelpers.ReadPlan(folder);
         plan.Project = "Changed";
-        plan.Updated = DateTime.UtcNow;
+        plan.Updated = before.AddSeconds(1);
         PlanCommandHelpers.WritePlan(folder, plan);
 
         var after = ReadPlan("20100").Updated;
@@ -792,7 +829,9 @@ public class PlanCliCommandTests : IDisposable
         CreatePlanFolder("20130", "DraftPlan");
         CreatePlanFolder("20131", "FailedPlan", new PlanYaml
         {
-            State = "Failed", Project = "Test", Title = "FailedPlan",
+            State = "Failed",
+            Project = "Test",
+            Title = "FailedPlan",
             Repos = [_tempDir],
             Created = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
@@ -809,14 +848,18 @@ public class PlanCliCommandTests : IDisposable
     {
         CreatePlanFolder("20140", "ProjA", new PlanYaml
         {
-            State = "Draft", Project = "Alpha", Title = "ProjA",
+            State = "Draft",
+            Project = "Alpha",
+            Title = "ProjA",
             Repos = [_tempDir],
             Created = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
         });
         CreatePlanFolder("20141", "ProjB", new PlanYaml
         {
-            State = "Draft", Project = "Beta", Title = "ProjB",
+            State = "Draft",
+            Project = "Beta",
+            Title = "ProjB",
             Repos = [_tempDir],
             Created = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
@@ -833,7 +876,10 @@ public class PlanCliCommandTests : IDisposable
     {
         CreatePlanFolder("20150", "CritPlan", new PlanYaml
         {
-            State = "Draft", Project = "Test", Title = "CritPlan", Level = "Critical",
+            State = "Draft",
+            Project = "Test",
+            Title = "CritPlan",
+            Level = "Critical",
             Repos = [_tempDir],
             Created = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
@@ -851,8 +897,11 @@ public class PlanCliCommandTests : IDisposable
     {
         CreatePlanFolder("20160", "WithPr", new PlanYaml
         {
-            State = "Completed", Project = "Test", Title = "WithPr",
-            Repos = [_tempDir], Prs = ["https://github.com/org/repo/pull/1"],
+            State = "Completed",
+            Project = "Test",
+            Title = "WithPr",
+            Repos = [_tempDir],
+            Prs = ["https://github.com/org/repo/pull/1"],
             Created = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
         });
@@ -884,14 +933,20 @@ public class PlanCliCommandTests : IDisposable
     {
         CreatePlanFolder("20180", "Match", new PlanYaml
         {
-            State = "Draft", Project = "Tendril", Title = "Match", Level = "Bug",
+            State = "Draft",
+            Project = "Tendril",
+            Title = "Match",
+            Level = "Bug",
             Repos = [_tempDir],
             Created = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
         });
         CreatePlanFolder("20181", "NoMatch", new PlanYaml
         {
-            State = "Draft", Project = "Other", Title = "NoMatch", Level = "Bug",
+            State = "Draft",
+            Project = "Other",
+            Title = "NoMatch",
+            Level = "Bug",
             Repos = [_tempDir],
             Created = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
@@ -1010,7 +1065,7 @@ public class PlanCliCommandTests : IDisposable
         CreatePlanFolder("30001", "TestLog");
         var planDir = Path.Combine(_plansDir, "30001-TestLog");
 
-        var logPath = PlanAddLogCommand.WriteLog(planDir, "CreatePlan");
+        _ = PlanAddLogCommand.WriteLog(planDir, "CreatePlan");
 
         var logsDir = Path.Combine(planDir, "logs");
         Assert.True(Directory.Exists(logsDir));
@@ -1052,13 +1107,190 @@ public class PlanCliCommandTests : IDisposable
         Assert.Contains("Completed all verifications successfully", content);
     }
 
+    // ==================== PlanCreate with optional flags ====================
+
+    [Fact]
+    public void PlanCreate_WithAllOptions_SetsAllFields()
+    {
+        var planDir = Path.Combine(_plansDir, "20200-FullCreate");
+        Directory.CreateDirectory(planDir);
+
+        var plan = new PlanYaml
+        {
+            State = "Draft",
+            Project = "Tendril",
+            Level = "Bug",
+            Title = "FullCreate",
+            InitialPrompt = @"Fix the bug in D:\Repos\Foo",
+            SourceUrl = "https://github.com/org/repo/issues/42",
+            ExecutionProfile = "deep",
+            Priority = 3,
+            Repos = [_tempDir],
+            Verifications =
+            [
+                new PlanVerificationEntry { Name = "DotnetBuild", Status = "Pending" },
+                new PlanVerificationEntry { Name = "DotnetTest", Status = "Pending" }
+            ],
+            RelatedPlans = ["20201-OtherPlan"],
+            DependsOn = ["20202-BasePlan"],
+            Created = DateTime.UtcNow,
+            Updated = DateTime.UtcNow
+        };
+        PlanCommandHelpers.WritePlan(planDir, plan);
+
+        var result = PlanCommandHelpers.ReadPlan(planDir);
+        Assert.Equal("Tendril", result.Project);
+        Assert.Equal("Bug", result.Level);
+        Assert.Equal(@"Fix the bug in D:\Repos\Foo", result.InitialPrompt);
+        Assert.Equal("https://github.com/org/repo/issues/42", result.SourceUrl);
+        Assert.Equal("deep", result.ExecutionProfile);
+        Assert.Equal(3, result.Priority);
+        Assert.Single(result.Repos);
+        Assert.Equal(2, result.Verifications.Count);
+        Assert.Equal("DotnetBuild", result.Verifications[0].Name);
+        Assert.Single(result.RelatedPlans);
+        Assert.Single(result.DependsOn);
+    }
+
+    [Fact]
+    public void PlanCreate_WithWindowsPathInInitialPrompt_RoundTrips()
+    {
+        var planDir = Path.Combine(_plansDir, "20210-WindowsPath");
+        Directory.CreateDirectory(planDir);
+
+        var plan = new PlanYaml
+        {
+            State = "Draft",
+            Project = "Test",
+            Title = "WindowsPath",
+            Repos = [_tempDir],
+            InitialPrompt = @"Show issue in a DataTable D:\Screenshots\2026-04-23_10-25.png",
+            Created = DateTime.UtcNow,
+            Updated = DateTime.UtcNow
+        };
+        PlanCommandHelpers.WritePlan(planDir, plan);
+
+        var result = PlanCommandHelpers.ReadPlan(planDir);
+        Assert.Equal(@"Show issue in a DataTable D:\Screenshots\2026-04-23_10-25.png", result.InitialPrompt);
+    }
+
+    [Fact]
+    public void PlanCreate_VerificationFormat_ParsesCorrectly()
+    {
+        var planDir = Path.Combine(_plansDir, "20220-VerifFormat");
+        Directory.CreateDirectory(planDir);
+
+        var plan = new PlanYaml
+        {
+            State = "Draft",
+            Project = "Test",
+            Title = "VerifFormat",
+            Repos = [_tempDir],
+            Verifications =
+            [
+                new PlanVerificationEntry { Name = "DotnetBuild", Status = "Pending" },
+                new PlanVerificationEntry { Name = "DotnetFormat", Status = "Pending" },
+                new PlanVerificationEntry { Name = "DotnetTest", Status = "Pending" },
+                new PlanVerificationEntry { Name = "CheckResult", Status = "Pending" }
+            ],
+            Created = DateTime.UtcNow,
+            Updated = DateTime.UtcNow
+        };
+        PlanCommandHelpers.WritePlan(planDir, plan);
+
+        var result = PlanCommandHelpers.ReadPlan(planDir);
+        Assert.Equal(4, result.Verifications.Count);
+        Assert.All(result.Verifications, v => Assert.Equal("Pending", v.Status));
+    }
+
+    // ==================== PlanAddRelatedPlan ====================
+
+    [Fact]
+    public void PlanAddRelatedPlan_AddsEntry()
+    {
+        CreatePlanFolder("20230", "AddRelatedTest");
+
+        var folder = PlanCommandHelpers.ResolvePlanFolder("20230");
+        var plan = PlanCommandHelpers.ReadPlan(folder);
+        plan.RelatedPlans.Add("20231-OtherPlan");
+        plan.Updated = DateTime.UtcNow;
+        PlanCommandHelpers.WritePlan(folder, plan);
+
+        var result = ReadPlan("20230");
+        Assert.Single(result.RelatedPlans);
+        Assert.Equal("20231-OtherPlan", result.RelatedPlans[0]);
+    }
+
+    [Fact]
+    public void PlanAddRelatedPlan_Idempotent()
+    {
+        CreatePlanFolder("20232", "RelatedIdempotent");
+
+        var folder = PlanCommandHelpers.ResolvePlanFolder("20232");
+        var plan = PlanCommandHelpers.ReadPlan(folder);
+        plan.RelatedPlans.Add("20233-OtherPlan");
+        PlanCommandHelpers.WritePlan(folder, plan);
+
+        plan = PlanCommandHelpers.ReadPlan(folder);
+        if (!plan.RelatedPlans.Contains("20233-OtherPlan", StringComparer.OrdinalIgnoreCase))
+            plan.RelatedPlans.Add("20233-OtherPlan");
+        PlanCommandHelpers.WritePlan(folder, plan);
+
+        var result = ReadPlan("20232");
+        Assert.Single(result.RelatedPlans);
+    }
+
+    // ==================== PlanAddDependsOn ====================
+
+    [Fact]
+    public void PlanAddDependsOn_AddsEntry()
+    {
+        CreatePlanFolder("20240", "AddDependsTest");
+
+        var folder = PlanCommandHelpers.ResolvePlanFolder("20240");
+        var plan = PlanCommandHelpers.ReadPlan(folder);
+        plan.DependsOn.Add("20241-BasePlan");
+        plan.Updated = DateTime.UtcNow;
+        PlanCommandHelpers.WritePlan(folder, plan);
+
+        var result = ReadPlan("20240");
+        Assert.Single(result.DependsOn);
+        Assert.Equal("20241-BasePlan", result.DependsOn[0]);
+    }
+
+    [Fact]
+    public void PlanAddDependsOn_Idempotent()
+    {
+        CreatePlanFolder("20242", "DependsIdempotent");
+
+        var folder = PlanCommandHelpers.ResolvePlanFolder("20242");
+        var plan = PlanCommandHelpers.ReadPlan(folder);
+        plan.DependsOn.Add("20243-BasePlan");
+        PlanCommandHelpers.WritePlan(folder, plan);
+
+        plan = PlanCommandHelpers.ReadPlan(folder);
+        if (!plan.DependsOn.Contains("20243-BasePlan", StringComparer.OrdinalIgnoreCase))
+            plan.DependsOn.Add("20243-BasePlan");
+        PlanCommandHelpers.WritePlan(folder, plan);
+
+        var result = ReadPlan("20242");
+        Assert.Single(result.DependsOn);
+    }
+
     private static string CaptureStdout(Action action)
     {
         var original = Console.Out;
         using var writer = new StringWriter();
         Console.SetOut(writer);
-        try { action(); }
-        finally { Console.SetOut(original); }
+        try
+        {
+            action();
+        }
+        finally
+        {
+            Console.SetOut(original);
+        }
+
         return writer.ToString();
     }
 }

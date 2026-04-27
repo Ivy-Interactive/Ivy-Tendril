@@ -6,22 +6,19 @@ namespace Ivy.Tendril.Test;
 
 public class PlanDatabaseSyncServiceTests : IDisposable
 {
+    private readonly TempDirectoryFixture _tempDir = new();
     private readonly PlanDatabaseService _database;
     private readonly string _dbPath;
     private readonly PlanReaderService _planReader;
     private readonly PlanDatabaseSyncService _syncService;
-    private readonly string _tempDir;
     private readonly PlanWatcherService _watcher;
 
     public PlanDatabaseSyncServiceTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), $"tendril-sync-test-{Guid.NewGuid()}");
-        Directory.CreateDirectory(_tempDir);
-
-        _dbPath = Path.Combine(_tempDir, "tendril.db");
+        _dbPath = Path.Combine(_tempDir.Path, "tendril.db");
 
         var settings = new TendrilSettings();
-        var configService = new ConfigService(settings, _tempDir);
+        var configService = new ConfigService(settings, _tempDir.Path);
         _planReader = new PlanReaderService(configService, NullLogger<PlanReaderService>.Instance);
         _database = new PlanDatabaseService(_dbPath, NullLogger<PlanDatabaseService>.Instance);
         _watcher = new PlanWatcherService(configService);
@@ -36,9 +33,7 @@ public class PlanDatabaseSyncServiceTests : IDisposable
         _watcher.Dispose();
         _database.Dispose();
         SqliteConnection.ClearAllPools();
-
-        if (Directory.Exists(_tempDir))
-            Directory.Delete(_tempDir, true);
+        _tempDir.Dispose();
     }
 
     private void CreatePlan(string folderName, string yaml, string? revisionContent = null)

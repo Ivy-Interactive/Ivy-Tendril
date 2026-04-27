@@ -1,5 +1,8 @@
+using Ivy.Tendril.Models;
 using System.ComponentModel;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
+using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -13,6 +16,10 @@ public class PlanValidateSettings : CommandSettings
 
 public class PlanValidateCommand : Command<PlanValidateSettings>
 {
+    private readonly ILogger<PlanValidateCommand> _logger;
+
+    public PlanValidateCommand(ILogger<PlanValidateCommand> logger) => _logger = logger;
+
     protected override int Execute(CommandContext context, PlanValidateSettings settings, CancellationToken cancellationToken)
     {
         try
@@ -23,12 +30,12 @@ public class PlanValidateCommand : Command<PlanValidateSettings>
             // Validate the plan
             PlanValidationService.Validate(plan);
 
-            Console.WriteLine($"Plan {settings.PlanId} is valid");
+            _logger.LogInformation("Plan {PlanId} is valid", settings.PlanId);
             return 0;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Validation failed: {ex.Message}");
+            _logger.LogError(ex, "Validation failed for plan {PlanId}", settings.PlanId);
             return 1;
         }
     }

@@ -1,5 +1,8 @@
+using Ivy.Tendril.Models;
 using System.ComponentModel;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
+using Microsoft.Extensions.Logging;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -18,6 +21,10 @@ public class PlanCleanupSettings : CommandSettings
 
 public class PlanCleanupCommand : Command<PlanCleanupSettings>
 {
+    private readonly ILogger<PlanCleanupCommand> _logger;
+
+    public PlanCleanupCommand(ILogger<PlanCleanupCommand> logger) => _logger = logger;
+
     protected override int Execute(CommandContext context, PlanCleanupSettings settings, CancellationToken cancellationToken)
     {
         try
@@ -41,7 +48,7 @@ public class PlanCleanupCommand : Command<PlanCleanupSettings>
                 return 0;
             }
 
-            PlanReaderService.RemoveWorktrees(planFolder);
+            WorktreeCleanupService.RemoveWorktrees(planFolder);
 
             var remaining = Directory.Exists(worktreesDir) ? Directory.GetDirectories(worktreesDir).Length : 0;
             if (remaining == 0)
@@ -58,7 +65,7 @@ public class PlanCleanupCommand : Command<PlanCleanupSettings>
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            _logger.LogError(ex, "Failed to clean up plan {PlanId}", settings.PlanId);
             return 1;
         }
     }

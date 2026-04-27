@@ -1,12 +1,14 @@
 using System.Reactive.Disposables;
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 using ContentView = Ivy.Tendril.Apps.Review.ContentView;
 using SidebarView = Ivy.Tendril.Apps.Review.SidebarView;
 
 namespace Ivy.Tendril.Apps;
 
-[App(title: "Review", icon: Icons.ThumbsUp, group: ["Apps"], order: MenuOrder.Review,
+[App(title: "Review", icon: Icons.ThumbsUp, group: ["Apps"], order: Constants.Review,
     allowDuplicateTabs: false)]
 public class ReviewApp : ViewBase
 {
@@ -22,6 +24,7 @@ public class ReviewApp : ViewBase
         var levelFilter = UseState<string?>(null);
         var textFilter = UseState<string?>("");
         var showCompleted = UseState(false);
+        var filtersOpen = UseState(false);
         var refreshToken = UseRefreshToken();
 
         UseEffect(() =>
@@ -62,13 +65,13 @@ public class ReviewApp : ViewBase
 
         previousPlans.Value = filteredPlans;
 
-        var sidebar = new SidebarView(plans, selectedPlanState, projectFilter, levelFilter, textFilter, showCompleted, configService);
+        var sidebar = new SidebarView(plans, selectedPlanState, projectFilter, levelFilter, textFilter, filtersOpen, showCompleted, configService);
 
         return new SidebarLayout(
             new ContentView(selectedPlanState.Value, filteredPlans, selectedPlanState, planService, jobService,
                 RefreshPlans, configService, gitService),
             sidebar
-        );
+        ).SidebarContentScroll(Scroll.None);
 
         void RefreshPlans()
         {

@@ -1,5 +1,8 @@
+using Ivy.Tendril.Models;
 using System.ComponentModel;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
+using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -17,6 +20,15 @@ public class PlanRemoveRepoSettings : CommandSettings
 
 public class PlanRemoveRepoCommand : Command<PlanRemoveRepoSettings>
 {
+    private readonly ILogger<PlanRemoveRepoCommand> _logger;
+    private readonly IPlanWatcherService _planWatcher;
+
+    public PlanRemoveRepoCommand(ILogger<PlanRemoveRepoCommand> logger, IPlanWatcherService planWatcher)
+    {
+        _logger = logger;
+        _planWatcher = planWatcher;
+    }
+
     protected override int Execute(CommandContext context, PlanRemoveRepoSettings settings, CancellationToken cancellationToken)
     {
         try
@@ -28,20 +40,20 @@ public class PlanRemoveRepoCommand : Command<PlanRemoveRepoSettings>
             var removed = plan.Repos.RemoveAll(r => r.Equals(settings.RepoPath, StringComparison.OrdinalIgnoreCase));
             if (removed == 0)
             {
-                Console.Error.WriteLine($"Repository not found in plan: {settings.RepoPath}");
+                _logger.LogError("Repository not found in plan: {RepoPath}", settings.RepoPath);
                 return 1;
             }
 
             plan.Updated = DateTime.UtcNow;
 
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
-            Console.WriteLine($"Removed repository: {settings.RepoPath}");
+            _logger.LogInformation("Removed repository: {RepoPath}", settings.RepoPath);
             return 0;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            _logger.LogError(ex, "Failed to remove repository from plan {PlanId}", settings.PlanId);
             return 1;
         }
     }

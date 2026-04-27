@@ -1,4 +1,6 @@
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Test;
 
@@ -70,25 +72,15 @@ projects:
         Directory.CreateDirectory(configDir);
         File.WriteAllText(Path.Combine(configDir, "config.yaml"), yaml);
 
-        var writer = new StringWriter();
-        var originalErr = Console.Error;
-        Console.SetError(writer);
+        var testLogger = new TestLogger<ConfigService>();
+        var service = new ConfigService(logger: testLogger);
+        service.SetTendrilHome(configDir);
 
-        try
-        {
-            var service = new ConfigService(new TendrilSettings());
-            service.SetTendrilHome(configDir);
+        service.ValidateRepoPathsAreNotWorktrees();
 
-            service.ValidateRepoPathsAreNotWorktrees();
-
-            var output = writer.ToString();
-            Assert.Contains("CRITICAL", output);
-            Assert.Contains("worktree", output, StringComparison.OrdinalIgnoreCase);
-        }
-        finally
-        {
-            Console.SetError(originalErr);
-        }
+        var output = testLogger.GetOutput();
+        Assert.Contains("CRITICAL", output);
+        Assert.Contains("worktree", output, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -109,23 +101,30 @@ projects:
         Directory.CreateDirectory(configDir);
         File.WriteAllText(Path.Combine(configDir, "config.yaml"), yaml);
 
-        var writer = new StringWriter();
-        var originalErr = Console.Error;
-        Console.SetError(writer);
+        var testLogger = new TestLogger<ConfigService>();
+        var service = new ConfigService(logger: testLogger);
+        service.SetTendrilHome(configDir);
 
-        try
+        service.ValidateRepoPathsAreNotWorktrees();
+
+        var output = testLogger.GetOutput();
+        Assert.DoesNotContain("CRITICAL", output);
+    }
+
+    private class TestLogger<T> : ILogger<T>
+    {
+        private readonly List<string> _messages = [];
+
+        public string GetOutput() => string.Join(Environment.NewLine, _messages);
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
         {
-            var service = new ConfigService(new TendrilSettings());
-            service.SetTendrilHome(configDir);
-
-            service.ValidateRepoPathsAreNotWorktrees();
-
-            var output = writer.ToString();
-            Assert.DoesNotContain("CRITICAL", output);
+            _messages.Add(formatter(state, exception));
         }
-        finally
-        {
-            Console.SetError(originalErr);
-        }
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
     }
 }

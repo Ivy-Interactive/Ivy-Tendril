@@ -1,4 +1,5 @@
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.SessionParsers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -6,7 +7,9 @@ namespace Ivy.Tendril.Test;
 
 public class ModelPricingServiceTests
 {
-    private readonly ModelPricingService _service = new(NullLogger<ModelPricingService>.Instance);
+    private readonly ModelPricingService _service = new(
+        NullLogger<ModelPricingService>.Instance,
+        new ISessionParser[] { new ClaudeSessionParser(), new CodexSessionParser(), new GeminiSessionParser() });
 
     [Fact]
     public void LoadsEmbeddedModelsYaml()
@@ -429,7 +432,8 @@ public class ModelPricingServiceTests
     public void GetPricing_LogsWarning_WhenModelNotFound()
     {
         var logger = new CapturingLogger<ModelPricingService>();
-        var service = new ModelPricingService(logger);
+        var service = new ModelPricingService(logger,
+            new ISessionParser[] { new ClaudeSessionParser(), new CodexSessionParser(), new GeminiSessionParser() });
 
         service.GetPricing("totally-unknown-model");
 
@@ -443,7 +447,8 @@ public class ModelPricingServiceTests
     public void GetPricing_DoesNotLogWarning_WhenModelFound()
     {
         var logger = new CapturingLogger<ModelPricingService>();
-        var service = new ModelPricingService(logger);
+        var service = new ModelPricingService(logger,
+            new ISessionParser[] { new ClaudeSessionParser(), new CodexSessionParser(), new GeminiSessionParser() });
 
         service.GetPricing("claude-opus-4");
 
@@ -454,9 +459,15 @@ public class ModelPricingServiceTests
     {
         public List<(LogLevel Level, string Message)> Entries { get; } = new();
 
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+        {
+            return null;
+        }
 
-        public bool IsEnabled(LogLevel logLevel) => true;
+        public bool IsEnabled(LogLevel logLevel)
+        {
+            return true;
+        }
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
             Func<TState, Exception?, string> formatter)

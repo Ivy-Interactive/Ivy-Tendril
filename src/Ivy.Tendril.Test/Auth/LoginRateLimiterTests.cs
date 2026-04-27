@@ -17,7 +17,7 @@ public class LoginRateLimiterTests
     [Fact]
     public void IsLoginAllowed_UnderThreshold_ReturnsTrue()
     {
-        var limiter = CreateLimiter(threshold: 3);
+        var limiter = CreateLimiter(3);
 
         limiter.RecordFailedAttempt("192.168.1.1");
         Assert.True(limiter.IsLoginAllowed("192.168.1.1"));
@@ -32,7 +32,7 @@ public class LoginRateLimiterTests
     [Fact]
     public void IsLoginAllowed_OverThreshold_RequiresDelay()
     {
-        var limiter = CreateLimiter(threshold: 3, baseDelay: 10.0);
+        var limiter = CreateLimiter(3, 10.0);
 
         for (var i = 0; i < 4; i++)
             limiter.RecordFailedAttempt("192.168.1.1");
@@ -43,7 +43,7 @@ public class LoginRateLimiterTests
     [Fact]
     public void RecordFailedAttempt_IncrementsCounter()
     {
-        var limiter = CreateLimiter(threshold: 1, baseDelay: 100.0);
+        var limiter = CreateLimiter(1, 100.0);
 
         limiter.RecordFailedAttempt("10.0.0.1");
         Assert.True(limiter.IsLoginAllowed("10.0.0.1"));
@@ -55,7 +55,7 @@ public class LoginRateLimiterTests
     [Fact]
     public void RecordSuccessfulLogin_ResetsCounter()
     {
-        var limiter = CreateLimiter(threshold: 1, baseDelay: 100.0);
+        var limiter = CreateLimiter(1, 100.0);
 
         limiter.RecordFailedAttempt("10.0.0.1");
         limiter.RecordFailedAttempt("10.0.0.1");
@@ -68,7 +68,7 @@ public class LoginRateLimiterTests
     [Fact]
     public void GetRequiredDelay_ExponentialBackoff()
     {
-        var limiter = CreateLimiter(threshold: 3, baseDelay: 1.0, maxDelay: 60.0);
+        var limiter = CreateLimiter(3, 1.0, 60.0);
 
         for (var i = 0; i < 4; i++)
             limiter.RecordFailedAttempt("10.0.0.1");
@@ -96,7 +96,7 @@ public class LoginRateLimiterTests
     [Fact]
     public void GetRequiredDelay_MaxCapRespected()
     {
-        var limiter = CreateLimiter(threshold: 1, baseDelay: 1.0, maxDelay: 5.0);
+        var limiter = CreateLimiter(1, 1.0, 5.0);
 
         for (var i = 0; i < 20; i++)
             limiter.RecordFailedAttempt("10.0.0.1");
@@ -109,7 +109,7 @@ public class LoginRateLimiterTests
     [Fact]
     public void CleanupOldEntries_RemovesStaleRecords()
     {
-        var limiter = CreateLimiter(threshold: 1, baseDelay: 1.0, maxDelay: 1.0);
+        var limiter = CreateLimiter(1, 1.0, 1.0);
 
         limiter.RecordFailedAttempt("10.0.0.1");
         limiter.RecordFailedAttempt("10.0.0.1");
@@ -125,7 +125,7 @@ public class LoginRateLimiterTests
     [Fact]
     public void MultipleIPs_IndependentTracking()
     {
-        var limiter = CreateLimiter(threshold: 1, baseDelay: 100.0);
+        var limiter = CreateLimiter(1, 100.0);
 
         limiter.RecordFailedAttempt("10.0.0.1");
         limiter.RecordFailedAttempt("10.0.0.1");

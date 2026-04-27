@@ -1,3 +1,5 @@
+using System.Collections;
+using System.Text.Json;
 using Ivy.Tendril.Controllers;
 using Ivy.Tendril.Services;
 using Microsoft.AspNetCore.Http;
@@ -8,20 +10,18 @@ namespace Ivy.Tendril.Test;
 [Collection("TendrilHome")]
 public class PlanControllerTests : IDisposable
 {
-    private readonly string _tempDir;
-    private readonly string _repoDir;
+    private readonly TempDirectoryFixture _tempDir = new();
     private readonly string _originalTendrilHome;
     private readonly string? _originalTendrilPlans;
+    private readonly string _repoDir;
 
     public PlanControllerTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), $"tendril-api-test-{Guid.NewGuid()}");
-        Directory.CreateDirectory(_tempDir);
-        _repoDir = Path.Combine(_tempDir, "repos", "TestRepo");
+        _repoDir = Path.Combine(_tempDir.Path, "repos", "TestRepo");
         Directory.CreateDirectory(_repoDir);
         _originalTendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? "";
         _originalTendrilPlans = Environment.GetEnvironmentVariable("TENDRIL_PLANS");
-        Environment.SetEnvironmentVariable("TENDRIL_HOME", _tempDir);
+        Environment.SetEnvironmentVariable("TENDRIL_HOME", _tempDir.Path);
         Environment.SetEnvironmentVariable("TENDRIL_PLANS", null);
     }
 
@@ -29,8 +29,7 @@ public class PlanControllerTests : IDisposable
     {
         Environment.SetEnvironmentVariable("TENDRIL_HOME", _originalTendrilHome);
         Environment.SetEnvironmentVariable("TENDRIL_PLANS", _originalTendrilPlans);
-        if (Directory.Exists(_tempDir))
-            Directory.Delete(_tempDir, true);
+        _tempDir.Dispose();
     }
 
     private string CreateTestPlan(string id = "00001", string title = "Test Plan", string state = "Draft")
@@ -40,21 +39,21 @@ public class PlanControllerTests : IDisposable
         Directory.CreateDirectory(planFolder);
 
         var planYaml = $"""
-            state: {state}
-            project: TestProject
-            level: NiceToHave
-            title: {title}
-            repos:
-            - {_repoDir}
-            commits: []
-            prs: []
-            created: 2026-04-01T10:00:00.0000000Z
-            updated: 2026-04-01T10:00:00.0000000Z
-            verifications: []
-            relatedPlans: []
-            dependsOn: []
-            priority: 0
-            """;
+                        state: {state}
+                        project: TestProject
+                        level: NiceToHave
+                        title: {title}
+                        repos:
+                        - {_repoDir}
+                        commits: []
+                        prs: []
+                        created: 2026-04-01T10:00:00.0000000Z
+                        updated: 2026-04-01T10:00:00.0000000Z
+                        verifications: []
+                        relatedPlans: []
+                        dependsOn: []
+                        priority: 0
+                        """;
 
         File.WriteAllText(Path.Combine(planFolder, "plan.yaml"), planYaml);
         return planFolder;
@@ -62,7 +61,7 @@ public class PlanControllerTests : IDisposable
 
     private static PlanController CreateController()
     {
-        var controller = new PlanController();
+        var controller = new PlanController(new NullPlanWatcherService());
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()
@@ -82,7 +81,7 @@ public class PlanControllerTests : IDisposable
 
         var ok = Assert.IsType<OkObjectResult>(result);
         Assert.NotNull(ok.Value);
-        var json = System.Text.Json.JsonSerializer.Serialize(ok.Value);
+        var json = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("\"title\":\"Test Plan\"", json);
         Assert.Contains("\"state\":\"Draft\"", json);
         Assert.Contains("\"project\":\"TestProject\"", json);
@@ -97,7 +96,7 @@ public class PlanControllerTests : IDisposable
         var result = controller.GetPlan("00001", "state");
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var json = System.Text.Json.JsonSerializer.Serialize(ok.Value);
+        var json = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("\"value\":\"Draft\"", json);
     }
 
@@ -117,14 +116,14 @@ public class PlanControllerTests : IDisposable
     [Fact]
     public void ListPlans_ReturnsAllPlans()
     {
-        CreateTestPlan("00001", "First Plan", "Draft");
+        CreateTestPlan("00001", "First Plan");
         CreateTestPlan("00002", "Second Plan", "Executing");
         var controller = CreateController();
 
         var result = controller.ListPlans();
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var json = System.Text.Json.JsonSerializer.Serialize(ok.Value);
+        var json = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("First Plan", json);
         Assert.Contains("Second Plan", json);
     }
@@ -132,14 +131,14 @@ public class PlanControllerTests : IDisposable
     [Fact]
     public void ListPlans_FilterByState()
     {
-        CreateTestPlan("00001", "DraftPlan", "Draft");
+        CreateTestPlan("00001", "DraftPlan");
         CreateTestPlan("00002", "ExecPlan", "Executing");
         var controller = CreateController();
 
-        var result = controller.ListPlans(state: "Draft");
+        var result = controller.ListPlans("Draft");
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var json = System.Text.Json.JsonSerializer.Serialize(ok.Value);
+        var json = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("DraftPlan", json);
         Assert.DoesNotContain("ExecPlan", json);
     }
@@ -153,7 +152,7 @@ public class PlanControllerTests : IDisposable
         var result = controller.ListPlans(project: "TestProject");
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var json = System.Text.Json.JsonSerializer.Serialize(ok.Value);
+        var json = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("MyPlan", json);
     }
 
@@ -166,7 +165,7 @@ public class PlanControllerTests : IDisposable
         var result = controller.ListPlans(project: "OtherProject");
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var json = System.Text.Json.JsonSerializer.Serialize(ok.Value);
+        var json = JsonSerializer.Serialize(ok.Value);
         Assert.Equal("[]", json);
     }
 
@@ -181,8 +180,8 @@ public class PlanControllerTests : IDisposable
         var result = controller.ListPlans(limit: 2);
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var list = ok.Value as System.Collections.IList
-            ?? (ok.Value as System.Collections.IEnumerable)?.Cast<object>().ToList();
+        var list = ok.Value as IList
+                   ?? (ok.Value as IEnumerable)?.Cast<object>().ToList();
         Assert.NotNull(list);
         Assert.Equal(2, list.Count);
     }
@@ -201,7 +200,7 @@ public class PlanControllerTests : IDisposable
 
         var getResult = controller.GetPlan("00001", "state");
         var ok = Assert.IsType<OkObjectResult>(getResult);
-        var json = System.Text.Json.JsonSerializer.Serialize(ok.Value);
+        var json = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("Icebox", json);
     }
 
@@ -217,7 +216,7 @@ public class PlanControllerTests : IDisposable
 
         var getResult = controller.GetPlan("00001", "title");
         var ok = Assert.IsType<OkObjectResult>(getResult);
-        var json = System.Text.Json.JsonSerializer.Serialize(ok.Value);
+        var json = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("New Title", json);
     }
 
@@ -233,7 +232,7 @@ public class PlanControllerTests : IDisposable
 
         var getResult = controller.GetPlan("00001", "priority");
         var ok = Assert.IsType<OkObjectResult>(getResult);
-        var json = System.Text.Json.JsonSerializer.Serialize(ok.Value);
+        var json = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("5", json);
     }
 
@@ -286,7 +285,7 @@ public class PlanControllerTests : IDisposable
 
         var getResult = controller.GetPlan("00001");
         var ok = Assert.IsType<OkObjectResult>(getResult);
-        var json = System.Text.Json.JsonSerializer.Serialize(ok.Value);
+        var json = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("AnotherRepo", json);
     }
 
@@ -299,7 +298,7 @@ public class PlanControllerTests : IDisposable
         var result = controller.AddRepo("00001", new AddRepoRequest(_repoDir));
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var json = System.Text.Json.JsonSerializer.Serialize(ok.Value);
+        var json = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("already in plan", json);
     }
 
@@ -342,7 +341,7 @@ public class PlanControllerTests : IDisposable
 
         var getResult = controller.GetPlan("00001");
         var ok = Assert.IsType<OkObjectResult>(getResult);
-        var json = System.Text.Json.JsonSerializer.Serialize(ok.Value);
+        var json = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("https://github.com/owner/repo/pull/1", json);
     }
 
@@ -356,7 +355,7 @@ public class PlanControllerTests : IDisposable
         var result = controller.AddPr("00001", new AddPrRequest("https://github.com/owner/repo/pull/1"));
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var json = System.Text.Json.JsonSerializer.Serialize(ok.Value);
+        var json = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("already in plan", json);
     }
 
@@ -374,7 +373,7 @@ public class PlanControllerTests : IDisposable
 
         var getResult = controller.GetPlan("00001");
         var ok = Assert.IsType<OkObjectResult>(getResult);
-        var json = System.Text.Json.JsonSerializer.Serialize(ok.Value);
+        var json = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("abc123def456", json);
     }
 
@@ -388,7 +387,7 @@ public class PlanControllerTests : IDisposable
         var result = controller.AddCommit("00001", new AddCommitRequest("abc123def456"));
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var json = System.Text.Json.JsonSerializer.Serialize(ok.Value);
+        var json = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("already in plan", json);
     }
 
@@ -406,7 +405,7 @@ public class PlanControllerTests : IDisposable
 
         var getResult = controller.GetPlan("00001");
         var ok = Assert.IsType<OkObjectResult>(getResult);
-        var json = System.Text.Json.JsonSerializer.Serialize(ok.Value);
+        var json = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("DotnetBuild", json);
         Assert.Contains("Pass", json);
     }
@@ -448,13 +447,14 @@ public class PlanControllerTests : IDisposable
         CreateTestPlan();
         var controller = CreateController();
 
-        var result = controller.AddRecommendation("00001", new AddRecRequest("Add tests", "Need unit tests", "Medium", "Small"));
+        var result = controller.AddRecommendation("00001",
+            new AddRecRequest("Add tests", "Need unit tests", "Medium", "Small"));
 
         Assert.IsType<OkObjectResult>(result);
 
         var listResult = controller.ListRecommendations("00001");
         var ok = Assert.IsType<OkObjectResult>(listResult);
-        var json = System.Text.Json.JsonSerializer.Serialize(ok.Value);
+        var json = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("Add tests", json);
     }
 
@@ -483,7 +483,7 @@ public class PlanControllerTests : IDisposable
 
         var listResult = controller.ListRecommendations("00001");
         var ok = Assert.IsType<OkObjectResult>(listResult);
-        var json = System.Text.Json.JsonSerializer.Serialize(ok.Value);
+        var json = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("Accepted", json);
     }
 
@@ -500,7 +500,7 @@ public class PlanControllerTests : IDisposable
 
         var listResult = controller.ListRecommendations("00001");
         var ok = Assert.IsType<OkObjectResult>(listResult);
-        var json = System.Text.Json.JsonSerializer.Serialize(ok.Value);
+        var json = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("AcceptedWithNotes", json);
     }
 
@@ -528,7 +528,7 @@ public class PlanControllerTests : IDisposable
 
         var listResult = controller.ListRecommendations("00001");
         var ok = Assert.IsType<OkObjectResult>(listResult);
-        var json = System.Text.Json.JsonSerializer.Serialize(ok.Value);
+        var json = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("Declined", json);
     }
 
@@ -545,7 +545,7 @@ public class PlanControllerTests : IDisposable
 
         var listResult = controller.ListRecommendations("00001");
         var ok = Assert.IsType<OkObjectResult>(listResult);
-        var json = System.Text.Json.JsonSerializer.Serialize(ok.Value);
+        var json = JsonSerializer.Serialize(ok.Value);
         Assert.DoesNotContain("Add tests", json);
     }
 
@@ -571,14 +571,21 @@ public class PlanControllerTests : IDisposable
 
         var pendingResult = controller.ListRecommendations("00001", "Pending");
         var ok1 = Assert.IsType<OkObjectResult>(pendingResult);
-        var json1 = System.Text.Json.JsonSerializer.Serialize(ok1.Value);
+        var json1 = JsonSerializer.Serialize(ok1.Value);
         Assert.Contains("Rec2", json1);
         Assert.DoesNotContain("Rec1", json1);
 
         var acceptedResult = controller.ListRecommendations("00001", "Accepted");
         var ok2 = Assert.IsType<OkObjectResult>(acceptedResult);
-        var json2 = System.Text.Json.JsonSerializer.Serialize(ok2.Value);
+        var json2 = JsonSerializer.Serialize(ok2.Value);
         Assert.Contains("Rec1", json2);
         Assert.DoesNotContain("Rec2", json2);
     }
+}
+
+file class NullPlanWatcherService : IPlanWatcherService
+{
+    public event Action<string?>? PlansChanged;
+    public void NotifyChanged(string? changedPlanFolder = null) => PlansChanged?.Invoke(changedPlanFolder);
+    public void Dispose() { }
 }

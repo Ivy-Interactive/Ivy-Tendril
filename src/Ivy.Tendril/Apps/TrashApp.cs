@@ -1,6 +1,8 @@
 using Ivy.Tendril.Apps.Trash;
 using Ivy.Tendril.Apps.Trash.Dialogs;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Views;
 
 namespace Ivy.Tendril.Apps;
 
@@ -13,7 +15,7 @@ public record TrashFileInfo(
     string Project,
     string Content);
 
-[App(title: "Trash", icon: Icons.Trash2, group: ["Apps"], order: MenuOrder.Trash, isVisible: false)]
+[App(title: "Trash", icon: Icons.Trash2, group: ["Apps"], order: Constants.Trash, isVisible: false)]
 public class TrashApp : ViewBase
 {
     public override object Build()
@@ -60,10 +62,7 @@ public class TrashApp : ViewBase
         object mainContent;
         if (files.Count == 0)
         {
-            mainContent = Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
-                          | new Icon(Icons.Trash2).Size(Size.Units(8)).Color(Colors.Gray)
-                          | Text.Muted("No trash files yet")
-                          | Text.Muted("Duplicate plans will appear here").Small();
+            mainContent = new NoContentView("No trash", "Duplicate plans will appear here.");
         }
         else if (selected is null)
         {
@@ -72,7 +71,7 @@ public class TrashApp : ViewBase
         }
         else
         {
-            var header = Layout.Horizontal().Width(Size.Full()).Padding(1).Gap(2)
+            var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(40)).Gap(2)
                          | Text.Block(selected.FileName).Bold()
                          | new Badge(selected.Project).Variant(BadgeVariant.Outline)
                          | (string.IsNullOrEmpty(selected.DuplicateOf)
@@ -86,7 +85,7 @@ public class TrashApp : ViewBase
                                 if (!string.IsNullOrEmpty(selected.OriginalRequest))
                                 {
                                     var project = string.IsNullOrEmpty(selected.Project) ? "Auto" : selected.Project;
-                                    jobService.StartJob("CreatePlan", "-Description",
+                                    jobService.StartJob(Constants.JobTypes.CreatePlan, "-Description",
                                         $"{selected.OriginalRequest} [FORCE]", "-Project", project);
                                     client.Toast("CreatePlan job started", "Force Plan");
                                 }
@@ -112,7 +111,7 @@ public class TrashApp : ViewBase
             new SidebarLayout(
                 mainContent,
                 sidebar
-            )
+            ).SidebarContentScroll(Scroll.None)
         };
 
         if (openFile.Value is { } filePath)

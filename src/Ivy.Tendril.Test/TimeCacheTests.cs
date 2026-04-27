@@ -1,4 +1,5 @@
-using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Test.Helpers;
 
 namespace Ivy.Tendril.Test;
 
@@ -42,7 +43,7 @@ public class TimeCacheTests
     }
 
     [Fact]
-    public void GetOrCompute_RecomputesAfterExpiration()
+    public async Task GetOrCompute_RecomputesAfterExpiration()
     {
         var cache = new TimeCache<int>(TimeSpan.FromMilliseconds(100));
         var callCount = 0;
@@ -52,7 +53,18 @@ public class TimeCacheTests
             callCount++;
             return 42;
         });
-        Thread.Sleep(150);
+
+        // Wait for cache to expire by polling IsValid
+        await RetryHelper.WaitUntilAsync(
+            async () =>
+            {
+                await Task.Yield();
+                return !cache.IsValid;
+            },
+            TimeSpan.FromSeconds(2),
+            TimeSpan.FromMilliseconds(50),
+            "Cache did not expire within timeout");
+
         var result = cache.GetOrCompute(() =>
         {
             callCount++;
@@ -95,11 +107,21 @@ public class TimeCacheTests
     }
 
     [Fact]
-    public void IsValid_ReturnsFalseForExpiredCache()
+    public async Task IsValid_ReturnsFalseForExpiredCache()
     {
         var cache = new TimeCache<int>(TimeSpan.FromMilliseconds(50));
         cache.GetOrCompute(() => 42);
-        Thread.Sleep(100);
+
+        // Wait for cache to expire
+        await RetryHelper.WaitUntilAsync(
+            async () =>
+            {
+                await Task.Yield();
+                return !cache.IsValid;
+            },
+            TimeSpan.FromSeconds(2),
+            TimeSpan.FromMilliseconds(25),
+            "Cache did not expire within timeout");
 
         Assert.False(cache.IsValid);
     }
@@ -158,7 +180,16 @@ public class TimeCacheTests
             return 42;
         });
 
-        await Task.Delay(150);
+        // Wait for cache to expire by polling IsValid
+        await RetryHelper.WaitUntilAsync(
+            async () =>
+            {
+                await Task.Yield();
+                return !cache.IsValid;
+            },
+            TimeSpan.FromSeconds(2),
+            TimeSpan.FromMilliseconds(50),
+            "Cache did not expire within timeout");
 
         var result = await cache.GetOrComputeAsync(async () =>
         {

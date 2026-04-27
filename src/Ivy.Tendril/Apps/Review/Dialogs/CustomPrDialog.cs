@@ -1,5 +1,7 @@
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -41,6 +43,7 @@ public class CustomPrDialog(
         return new Dialog(
             _ =>
             {
+                isCreating.Set(false);
                 customPrMerge.Set(true);
                 customPrDeleteBranch.Set(true);
                 customPrIncludeArtifacts.Set(true);
@@ -65,6 +68,7 @@ public class CustomPrDialog(
             new DialogFooter(
                 new Button("Cancel").Outline().ShortcutKey("Escape").OnClick(() =>
                 {
+                    isCreating.Set(false);
                     customPrMerge.Set(true);
                     customPrDeleteBranch.Set(true);
                     customPrIncludeArtifacts.Set(true);
@@ -90,9 +94,10 @@ public class CustomPrDialog(
                             .Build();
                         var optionsPath = Path.Combine(_selectedPlan.FolderPath, ".custom-pr-options.yaml");
                         FileHelper.WriteAllText(optionsPath, serializer.Serialize(options));
-                        _jobService.StartJob("CreatePr", _selectedPlan.FolderPath);
+                        _jobService.StartJob(Constants.JobTypes.CreatePr, _selectedPlan.FolderPath);
                         _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Building);
                         _refreshPlans();
+                        isCreating.Set(false);
                         customPrMerge.Set(true);
                         customPrDeleteBranch.Set(true);
                         customPrIncludeArtifacts.Set(true);

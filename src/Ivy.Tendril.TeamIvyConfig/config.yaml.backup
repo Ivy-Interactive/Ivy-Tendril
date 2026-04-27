@@ -9,13 +9,11 @@ projects:
   meta:
     slackEmoji: ':hammer_and_wrench:'
   repos:
-  - &o5
-    path: D:\Repos\_Ivy\Ivy-Framework
+  - path: D:\Repos\_Ivy\Ivy-Framework
     prRule: yolo
     baseBranch: development
   verifications:
-  - &o0
-    name: DotnetBuild
+  - name: FrameworkDotnetBuild
     required: true
   - &o1
     name: DotnetFormat
@@ -52,101 +50,12 @@ projects:
     - CreatePr
     condition: ''
     action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
-  repoPaths:
-  - D:\Repos\_Ivy\Ivy-Framework
-- name: Agent
-  color: Purple
-  meta:
-    slackEmoji: ':robot_face:'
-  repos:
-  - path: D:\Repos\_Ivy\Ivy-Agent
-    prRule: yolo
-    baseBranch: development
-  - &o4
-    path: D:\Repos\_Ivy\Ivy
-    prRule: yolo
-    baseBranch: development
-  verifications:
-  - *o0
-  - *o1
-  - *o2
-  - *o3
-  context: >
-    Ivy Agent is the AI agent server. Key folders: - Ivy.Agent.Server\ — agent server - Ivy.Agent\Agents\Personas\Prompts\ — persona prompts - Ivy.Internals\Workflows\ — workflow definitions - Ivy.Agent\Tools\ — tool implementations
-  reviewActions:
-  - name: Agent Server
-    condition: Test-Path "worktrees\Ivy-Agent\Ivy.Agent.Server"
-    action: dotnet run --project worktrees\Ivy-Agent\Ivy.Agent.Server
-  hooks:
-  - name: SlackNotify
+  - name: PlanEvaluator
     when: after
     promptwares:
     - CreatePr
     condition: ''
-    action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
-  repoPaths:
-  - D:\Repos\_Ivy\Ivy-Agent
-  - D:\Repos\_Ivy\Ivy
-- name: TestManager
-  color: Rose
-  meta:
-    slackEmoji: ':test_tube:'
-  repos:
-  - path: D:\Repos\_Ivy\Ivy-Agent\Ivy.Agent.Test.Studio
-    prRule: yolo
-    baseBranch: development
-  - path: D:\Repos\_Ivy\Ivy-Agent\Ivy.Agent.Test.Manager
-    prRule: yolo
-    baseBranch: development
-  verifications:
-  - *o0
-  - *o1
-  - *o2
-  - *o3
-  context: >
-    Test Manager for Ivy Agent. Key folders: - Ivy.Agent.Test.Manager\ — CLI for managing test cases, runs, and scoring - Ivy.Agent.Test.Studio\ — TUI app for test management UI See AGENTS.md in Ivy.Agent.Test.Manager folder for CLI reference.
-  reviewActions:
-  - name: Test Studio
-    condition: Test-Path "worktrees\Ivy-Agent\Ivy.Agent.Test.Studio"
-    action: dotnet run --project worktrees\Ivy-Agent\Ivy.Agent.Test.Studio
-  hooks:
-  - name: SlackNotify
-    when: after
-    promptwares:
-    - CreatePr
-    condition: ''
-    action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
-  repoPaths:
-  - D:\Repos\_Ivy\Ivy-Agent\Ivy.Agent.Test.Studio
-  - D:\Repos\_Ivy\Ivy-Agent\Ivy.Agent.Test.Manager
-- name: Console
-  color: Teal
-  meta:
-    slackEmoji: ':desktop_computer:'
-  repos:
-  - *o4
-  verifications:
-  - *o0
-  - *o1
-  - *o2
-  - name: VitePlusCheck
-    required: true
-  - *o3
-  context: >
-    - Ivy.Console\ — desktop CLI and TUI client - Ivy.Internals\ — shared internals - Ivy.Studio\ — vibe-coding agent
-  reviewActions:
-  - name: Console
-    condition: Test-Path "worktrees\Ivy\Ivy.Console"
-    action: dotnet run --project worktrees\Ivy\Ivy.Console
-  hooks:
-  - name: SlackNotify
-    when: after
-    promptwares:
-    - CreatePr
-    condition: ''
-    action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
-  repoPaths:
-  - D:\Repos\_Ivy\Ivy
+    action: Start-Process -FilePath 'tendril' -ArgumentList 'promptware','PlanEvaluator',$PWD -WindowStyle Hidden
 - name: Tendril
   color: Emerald
   meta:
@@ -156,7 +65,8 @@ projects:
     prRule: yolo
     baseBranch: development
   verifications:
-  - *o0
+  - name: DotnetBuild
+    required: true
   - *o1
   - name: DotnetTest
   - *o3
@@ -165,7 +75,7 @@ projects:
   reviewActions:
   - name: Tendril
     condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril"
-    action: dotnet run --project worktrees\Ivy-Tendril\src\Ivy.Tendril
+    action: dotnet run --project worktrees\Ivy-Tendril\src\Ivy.Tendril --browse --find-available-port
   - name: Docs
     condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril.Docs"
     action: dotnet run --project worktrees\Ivy-Tendril\src\Ivy.Tendril.Docs --browse --find-available-port
@@ -176,70 +86,14 @@ projects:
     - CreatePr
     condition: ''
     action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
-  repoPaths:
-  - '%REPOS_HOME%\Ivy-Tendril'
-- name: Mcp
-  color: Sky
-  meta:
-    slackEmoji: ':electric_plug:'
-  repos:
-  - path: D:\Repos\_Ivy\Ivy-Mcp
-    prRule: yolo
-    baseBranch: development
-  verifications:
-  - *o0
-  - *o1
-  - *o2
-  - *o3
-  context: >
-    MCP service for IvyQuestions and IvyDocs.
-  reviewActions: []
-  hooks:
-  - name: SlackNotify
+  - name: PlanEvaluator
     when: after
     promptwares:
     - CreatePr
     condition: ''
-    action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
-  repoPaths:
-  - D:\Repos\_Ivy\Ivy-Mcp
-- name: Services
-  color: Pink
-  meta:
-    slackEmoji: ':cloud:'
-  repos:
-  - path: D:\Repos\_Ivy\Ivy-Services
-    prRule: yolo
-    baseBranch: development
-  verifications:
-  - *o0
-  - *o1
-  - *o2
-  - *o3
-  - name: GoBuild
-    required: true
-  - name: GoVet
-    required: true
-  - name: GoTest
-  context: >
-    Ivy Services — backoffice .NET monorepo. Key folders:
-    - Ivy.Admin/ — Admin web app (Ivy Framework)
-    - Ivy.Billing/ — Billing API with Stripe integration
-    - Ivy.Data/ — Shared EF Core database layer
-    - Ivy.Services.Automation/ — Azure Functions
-    - Ivy.Email/ — Email templating (Resend API)
-    - ivy-proxy/ — Go reverse proxy
-    Instructions: See CLAUDE.md in repo root
-  reviewActions: []
-  hooks:
-  - name: SlackNotify
-    when: after
-    promptwares:
-    - CreatePr
-    condition: ''
-    action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
-  repoPaths:
-  - D:\Repos\_Ivy\Ivy-Services
+    action: Start-Process -FilePath 'tendril' -ArgumentList 'promptware','PlanEvaluator',$PWD -WindowStyle Hidden
+  buildDependencies:
+  - '%REPOS_HOME%\Ivy-Framework'
 - name: Rustino
   color: Orange
   meta:
@@ -249,7 +103,8 @@ projects:
     prRule: yolo
     baseBranch: development
   verifications:
-  - *o0
+  - name: DotnetBuild
+    required: true
   - *o1
   - *o2
   - name: RustBuild
@@ -268,9 +123,9 @@ projects:
     - src/Rustino.Samples/ — demo applications
     Build: `cd src/Rustino.Native && cargo build --release`, then `dotnet build`
   reviewActions:
-  - name: HelloWorld Sample
-    condition: Test-Path "worktrees\Rustino\src\Rustino.Samples\Rustino.Samples.HelloWorld"
-    action: dotnet run --project worktrees\Rustino\src\Rustino.Samples\Rustino.Samples.HelloWorld
+  - name: Samples
+    condition: Test-Path "worktrees\Rustino\src\Rustino.Samples"
+    action: dotnet run --project worktrees\Rustino\src\Rustino.Samples
   hooks:
   - name: SlackNotify
     when: after
@@ -278,9 +133,20 @@ projects:
     - CreatePr
     condition: ''
     action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
-  repoPaths:
-  - D:\Repos\_Ivy\Rustino
+  - name: PlanEvaluator
+    when: after
+    promptwares:
+    - CreatePr
+    condition: ''
+    action: Start-Process -FilePath 'tendril' -ArgumentList 'promptware','PlanEvaluator',$PWD -WindowStyle Hidden
 verifications:
+- name: FrameworkDotnetBuild
+  prompt: >
+    Run `dotnet build --warnaserror` in the plan's worktree directory (not the original repo) and verify it succeeds with zero errors and zero warnings.
+    Then also build the sample and documentation projects to catch breaking changes:
+    1. `dotnet build --warnaserror` in `src/Ivy.Samples`
+    2. `dotnet build --warnaserror` in `src/Ivy.Docs`
+    All three builds must pass.
 - name: DotnetBuild
   prompt: Run `dotnet build --warnaserror` in the plan's worktree directory (not the original repo) and verify it succeeds with zero errors and zero warnings.
 - name: DotnetTest
@@ -299,7 +165,14 @@ verifications:
 - name: FrameworkFrontendLint
   prompt: Run `cd src\frontend && npm run lint && npm run format:check` and verify no errors.
 - name: IvyFrameworkVerification
-  prompt: 'Run the IvyFrameworkVerification promptware to visually verify UI changes. Execute: `pwsh -NoProfile -File "$TENDRIL_HOME\Promptwares\IvyFrameworkVerification\IvyFrameworkVerification.ps1" -PlanPath "<PlanFolder>"`. Creates a temp project with demo apps, runs Playwright tests, and copies artifacts to <PlanFolder>\artifacts\. Write the verification report to <PlanFolder>\verification\IvyFrameworkVerification.md.'
+  prompt: >
+    Visually verify UI changes by delegating to the IvyFrameworkVerification promptware.
+    You MUST run this as an external process — do NOT attempt to do the verification yourself or write the report directly.
+    Execute: `tendril promptware IvyFrameworkVerification "<PlanFolder>" --value VerificationDir="<PlanFolder>\verification" --value ArtifactsDir="<PlanFolder>\artifacts" --value IvyFrameworkPath="<worktree path to Ivy-Framework>"`
+    Wait for the process to complete (it may take several minutes).
+    If exit code is 0, read `<PlanFolder>\verification\IvyFrameworkVerification.md` and set status based on the Result field.
+    If exit code is non-zero or the report file was not created, set status to Fail.
+    Do NOT write the verification report yourself — the promptware creates it.
 - name: CheckResult
   prompt: >
     Verify the implementation matches what was requested in the plan. 1. Read the plan revision from `<PlanFolder>\revisions\` (latest numbered .md file) 2. Read all commits made by this execution from `plan.yaml` `commits` list 3. For each commit, review the diff (`git show <hash>`) in the worktree 4. Compare the plan's **Problem** and **Solution** sections against the actual changes:
@@ -330,21 +203,6 @@ verifications:
 - name: NewWidgetChecklist
   prompt: >
     Verify all 6 required elements exist for any new widget created by this plan: 1. Backend widget class — src\Ivy\Widgets\<WidgetName>.cs with [Prop]\[Event] attributes, [JsonIgnore] on delegates, Has* booleans 2. Frontend React component — src\frontend\src\widgets\<widgetName>\<WidgetName>Widget.tsx 3. Index export — src\frontend\src\widgets\<widgetName>\index.ts 4. Widget map registration — import + entry in src\frontend\src\widgets\widgetMap.ts 5. Sample app — src\Ivy.Samples.Shared\Apps\Widgets\<WidgetName>App.cs 6. Documentation page — src\Ivy.Docs.Shared\Docs\02_Widgets\<category>\<WidgetName>.md Check each file exists and follows conventions. Report which elements are present vs missing.
-- name: GoBuild
-  prompt: >
-    Run `go build ./...` in the Go source directory of the project repo.
-    For Services: `cd ivy-proxy && go build ./...`
-    Verify the build completes with zero errors.
-- name: GoTest
-  prompt: >
-    Run `go test ./...` in the Go source directory of the project repo.
-    For Services: `cd ivy-proxy && go test ./...`
-    Verify all tests pass. If no test files exist, report "No tests found" and pass.
-- name: GoVet
-  prompt: >
-    Run `go vet ./...` in the Go source directory of the project repo.
-    For Services: `cd ivy-proxy && go vet ./...`
-    Verify no issues are reported.
 - name: RustBuild
   prompt: >
     Run `cargo build --release` in the Rust source directory (src/Rustino.Native).
@@ -399,8 +257,8 @@ promptwares:
     - Glob
     - Grep
     - Bash
-    - Write
-    - Edit
+    - 'Write(%PLANS_DIR%/**)'
+    - 'Edit(%PLANS_DIR%/**)'
   ExecutePlan:
     profile: deep
     allowedTools:
@@ -417,14 +275,16 @@ promptwares:
     - Glob
     - Grep
     - Bash
-    - Write
+    - 'Write(%PLAN_FOLDER%/**)'
   CreatePr:
     profile: balanced
     allowedTools:
     - Read
+    - Glob
+    - Grep
     - Bash
-    - Write
-    - Edit
+    - 'Write(%PLAN_FOLDER%/**)'
+    - 'Edit(%PLAN_FOLDER%/**)'
   UpdatePlan:
     profile: balanced
     allowedTools:
@@ -432,13 +292,13 @@ promptwares:
     - Glob
     - Grep
     - Bash
-    - Write
+    - 'Write(%PLAN_FOLDER%/**)'
   SplitPlan:
     profile: balanced
     allowedTools:
     - Read
     - Bash
-    - Write
+    - 'Write(%PLANS_DIR%/**)'
   CreateIssue:
     profile: balanced
     allowedTools:
@@ -448,8 +308,17 @@ promptwares:
     profile: balanced
     allowedTools:
     - Read
-    - Write
+    - 'Write(%PLAN_FOLDER%/**)'
+    - 'Edit(%PLAN_FOLDER%/**)'
     - Bash
+  PlanEvaluator:
+    profile: balanced
+    allowedTools:
+    - Read
+    - Glob
+    - Grep
+    - Bash
+    - 'Write(%TENDRIL_HOME%/Inbox/**)'
 codingAgents:
 - name: claude
   arguments: ''

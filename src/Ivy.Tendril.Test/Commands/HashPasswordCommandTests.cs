@@ -65,7 +65,7 @@ public class HashPasswordCommandTests
         var verified = Argon2.Verify(hashLine, new Argon2Config
         {
             Password = Encoding.UTF8.GetBytes(password),
-            Secret = secretBytes,
+            Secret = secretBytes
         });
 
         Assert.True(verified);

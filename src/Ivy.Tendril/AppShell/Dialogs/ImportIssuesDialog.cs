@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.AppShell.Dialogs;
 
@@ -12,6 +14,7 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
     {
         var githubService = UseService<IGithubService>();
         var client = UseService<IClientProvider>();
+        var logger = UseService<ILogger<ImportIssuesDialog>>();
 
         var selectedRepo = UseState<string?>(null);
         var searchQuery = UseState("");
@@ -114,7 +117,7 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
             catch (Exception ex)
             {
                 reposError.Set($"Failed to load repositories: {ex.Message}");
-                Console.Error.WriteLine($"[ImportIssuesDialog] Exception loading repos: {ex}");
+                logger.LogWarning(ex, "Exception loading repos");
             }
         }, _dialogOpen);
 
@@ -160,11 +163,11 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
             try
             {
                 var labels = selectedLabels.Value.Length > 0 ? selectedLabels.Value : null;
-                var (issues, error) = await githubService.SearchIssuesAsync(
+                var (issues, error) = await githubService.SearchIssuesAsync(new IssueSearchRequest(
                     repo.Owner, repo.Name,
                     string.IsNullOrWhiteSpace(searchQuery.Value) ? null : searchQuery.Value,
                     selectedAssignee.Value,
-                    labels);
+                    labels));
 
                 if (error is not null)
                 {
@@ -229,7 +232,7 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"[ImportIssuesDialog] Import failed: {ex.Message}");
+                logger.LogWarning(ex, "Import failed");
                 client.Toast($"Import failed: {ex.Message}", "Error");
             }
             finally
@@ -251,12 +254,31 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
             }
             else
             {
+                var repo = repos.FirstOrDefault(r => r.DisplayName == selectedRepo.Value);
+                var issueRows = issues.Select(i => new
+                {
+                    Title = repo != null
+                        ? $"[#{i.Number} - {i.Title}](https://github.com/{repo.Owner}/{repo.Name}/issues/{i.Number})"
+                        : $"#{i.Number} - {i.Title}",
+                    Labels = string.Join(", ", i.Labels),
+                    Assignees = string.Join(", ", i.Assignees)
+                }).ToList();
+
                 issuesList = Layout.Vertical().Gap(1)
-                             | Text.Label($"Found {issues.Count} issue{(issues.Count == 1 ? "" : "s")}")
-                             | (Layout.Vertical().Gap(1)
-                                | issues.Select(i =>
-                                    (object)Text.Muted($"#{i.Number} — {i.Title}")
-                                ).ToArray());
+                    | Text.Label($"Found {issues.Count} issue{(issues.Count == 1 ? "" : "s")}")
+                    | issueRows.AsQueryable()
+                        .ToDataTable(i => i.Title)
+                        .Width(Size.Full())
+                        .Height(Size.Rem(20))
+                        .Header(i => i.Title, "Issue")
+                        .Header(i => i.Labels, "Labels")
+                        .Header(i => i.Assignees, "Assignees")
+                        .Width(i => i.Title, Size.Auto())
+                        .Width(i => i.Labels, Size.Px(200))
+                        .Width(i => i.Assignees, Size.Px(150))
+                        .Renderer(i => i.Title, new LinkDisplayRenderer())
+                        .Renderer(i => i.Labels, new TextDisplayRenderer())
+                        .Renderer(i => i.Assignees, new TextDisplayRenderer());
             }
         }
 
@@ -276,7 +298,7 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
                 Layout.Vertical().Gap(3)
                 | selectedRepo.ToSelectInput(repositoryOptions.ToOptions())
                     .AutoFocus().WithField().Label("Repository").Required()
-                | searchQuery.ToTextInput().Placeholder("Search...").WithField().Label("Search")
+                | searchQuery.ToTextInput().Placeholder("Search").WithField().Label("Search")
                 | selectedAssignee.ToSelectInput(assigneesQuery.Value.ToOptions())
                     .Nullable().WithField().Label("Assignee")
                 | selectedLabels.ToSelectInput(labelsQuery.Value.ToOptions())

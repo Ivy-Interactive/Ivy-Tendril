@@ -1,30 +1,22 @@
 using Ivy.Tendril.Database;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Test;
 
 public class DatabaseCommandsTests : IDisposable
 {
+    private readonly TempDirectoryFixture _tempDir = new();
     private readonly string _dbPath;
+    private readonly TestLogger _logger = new();
 
     public DatabaseCommandsTests()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"tendril-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
-        _dbPath = Path.Combine(tempDir, "tendril.db");
+        _dbPath = Path.Combine(_tempDir.Path, "tendril.db");
     }
 
     public void Dispose()
     {
-        var dir = Path.GetDirectoryName(_dbPath)!;
-        if (Directory.Exists(dir))
-            try
-            {
-                Directory.Delete(dir, true);
-            }
-            catch
-            {
-                /* best effort cleanup */
-            }
+        _tempDir.Dispose();
     }
 
     [Fact]
@@ -33,12 +25,11 @@ public class DatabaseCommandsTests : IDisposable
         // Initialize DB with migrations first
         DatabaseCommands.DbMigrateInternal(_dbPath);
 
-        var output = CaptureConsoleOutput(() =>
-        {
-            var result = DatabaseCommands.DbVersionInternal(_dbPath);
-            Assert.Equal(0, result);
-        });
+        _logger.Clear();
+        var result = DatabaseCommands.DbVersionInternal(_dbPath, _logger);
+        Assert.Equal(0, result);
 
+        var output = _logger.GetOutput();
         Assert.Contains("Database version:", output);
         Assert.Contains("Latest version:", output);
         Assert.Contains("Status:", output);
@@ -48,14 +39,13 @@ public class DatabaseCommandsTests : IDisposable
     [Fact]
     public void DbMigrate_AppliesPendingMigrations()
     {
-        var output = CaptureConsoleOutput(() =>
-        {
-            var result = DatabaseCommands.DbMigrateInternal(_dbPath);
-            Assert.Equal(0, result);
-        });
+        var result = DatabaseCommands.DbMigrateInternal(_dbPath, _logger);
+        Assert.Equal(0, result);
 
         // Verify migrations were applied by checking version
-        var versionOutput = CaptureConsoleOutput(() => DatabaseCommands.DbVersionInternal(_dbPath));
+        _logger.Clear();
+        DatabaseCommands.DbVersionInternal(_dbPath, _logger);
+        var versionOutput = _logger.GetOutput();
         Assert.Contains("Up to date", versionOutput);
     }
 
@@ -66,12 +56,11 @@ public class DatabaseCommandsTests : IDisposable
         DatabaseCommands.DbMigrateInternal(_dbPath);
 
         // Run again — should report up to date
-        var output = CaptureConsoleOutput(() =>
-        {
-            var result = DatabaseCommands.DbMigrateInternal(_dbPath);
-            Assert.Equal(0, result);
-        });
+        _logger.Clear();
+        var result = DatabaseCommands.DbMigrateInternal(_dbPath, _logger);
+        Assert.Equal(0, result);
 
+        var output = _logger.GetOutput();
         Assert.Contains("up to date", output, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -82,17 +71,18 @@ public class DatabaseCommandsTests : IDisposable
         DatabaseCommands.DbMigrateInternal(_dbPath);
 
         // Reset with --force to skip confirmation
-        var output = CaptureConsoleOutput(() =>
-        {
-            var result = DatabaseCommands.DbResetInternal(_dbPath, true);
-            Assert.Equal(0, result);
-        });
+        _logger.Clear();
+        var result = DatabaseCommands.DbResetInternal(_dbPath, true, _logger);
+        Assert.Equal(0, result);
 
+        var output = _logger.GetOutput();
         Assert.Contains("Resetting database", output);
         Assert.Contains("Dropping existing tables", output);
 
         // Verify migrations were re-applied
-        var versionOutput = CaptureConsoleOutput(() => DatabaseCommands.DbVersionInternal(_dbPath));
+        _logger.Clear();
+        DatabaseCommands.DbVersionInternal(_dbPath, _logger);
+        var versionOutput = _logger.GetOutput();
         Assert.Contains("Up to date", versionOutput);
     }
 
@@ -103,61 +93,32 @@ public class DatabaseCommandsTests : IDisposable
 
         var output = CaptureConsoleOutputWithInput("n\n", () =>
         {
-            var result = DatabaseCommands.DbResetInternal(_dbPath, false);
+            var result = DatabaseCommands.DbResetInternal(_dbPath, false, _logger);
             Assert.Equal(1, result);
         });
 
+        // "Aborted" is still written to Console (interactive UI)
         Assert.Contains("Aborted", output);
     }
 
     [Fact]
-    public void Handle_UnknownCommand_ReturnsNegativeOne()
-    {
-        var result = DatabaseCommands.Handle(["unknown-command"]);
-        Assert.Equal(-1, result);
-    }
-
-    [Fact]
-    public void Handle_EmptyArgs_ReturnsNegativeOne()
-    {
-        var result = DatabaseCommands.Handle([]);
-        Assert.Equal(-1, result);
-    }
-
-    [Fact]
-    public void Handle_DbVersion_ReturnsZero()
+    public void DbVersion_ReturnsZero()
     {
         DatabaseCommands.DbMigrateInternal(_dbPath);
-        CaptureConsoleOutput(() => { Assert.Equal(0, DatabaseCommands.DbVersionInternal(_dbPath)); });
+        Assert.Equal(0, DatabaseCommands.DbVersionInternal(_dbPath, _logger));
     }
 
     [Fact]
-    public void Handle_DbMigrate_ReturnsZero()
+    public void DbMigrate_ReturnsZero()
     {
-        CaptureConsoleOutput(() => { Assert.Equal(0, DatabaseCommands.DbMigrateInternal(_dbPath)); });
+        Assert.Equal(0, DatabaseCommands.DbMigrateInternal(_dbPath, _logger));
     }
 
     [Fact]
-    public void Handle_DbReset_WithForce_ReturnsZero()
+    public void DbReset_WithForce_ReturnsZero()
     {
         DatabaseCommands.DbMigrateInternal(_dbPath);
-        CaptureConsoleOutput(() => { Assert.Equal(0, DatabaseCommands.DbResetInternal(_dbPath, true)); });
-    }
-
-    private static string CaptureConsoleOutput(Action action)
-    {
-        var originalOut = Console.Out;
-        using var writer = new StringWriter();
-        Console.SetOut(writer);
-        try
-        {
-            action();
-            return writer.ToString();
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-        }
+        Assert.Equal(0, DatabaseCommands.DbResetInternal(_dbPath, true, _logger));
     }
 
     private static string CaptureConsoleOutputWithInput(string input, Action action)
@@ -178,5 +139,27 @@ public class DatabaseCommandsTests : IDisposable
             Console.SetOut(originalOut);
             Console.SetIn(originalIn);
         }
+    }
+
+    /// <summary>
+    /// Simple test logger that captures log messages for assertions.
+    /// </summary>
+    private class TestLogger : ILogger
+    {
+        private readonly List<string> _messages = [];
+
+        public void Clear() => _messages.Clear();
+
+        public string GetOutput() => string.Join(Environment.NewLine, _messages);
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            _messages.Add(formatter(state, exception));
+        }
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
     }
 }

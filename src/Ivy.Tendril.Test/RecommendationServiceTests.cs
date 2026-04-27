@@ -1,5 +1,5 @@
 using System.Reflection;
-using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -35,7 +35,8 @@ public class RecommendationServiceTests : IDisposable
         var dir = Path.Combine(_plansDir, folderName);
         Directory.CreateDirectory(dir);
 
-        var indented = string.Join("\n", recommendationsYaml.Split('\n').Select(l => string.IsNullOrWhiteSpace(l) ? l : "  " + l));
+        var indented = string.Join("\n",
+            recommendationsYaml.Split('\n').Select(l => string.IsNullOrWhiteSpace(l) ? l : "  " + l));
         var planYaml =
             $"state: {state}\nproject: {project}\ntitle: Test Plan\nrepos: []\ncommits: []\nprs: []\nverifications: []\nrelatedPlans: []\ndependsOn: []\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nrecommendations:\n{indented}\n";
         File.WriteAllText(Path.Combine(dir, "plan.yaml"), planYaml);
@@ -177,7 +178,7 @@ public class RecommendationServiceTests : IDisposable
     public void GetRecommendations_PopulatesSourcePlanStatus()
     {
         var yaml = "- title: Item\n  description: Desc\n  state: Pending\n";
-        CreatePlanWithRecommendations("01620-StatusTest", yaml, "Framework", "Completed");
+        CreatePlanWithRecommendations("01620-StatusTest", yaml, "Framework");
 
         var recommendations = _service.GetRecommendations();
 
@@ -190,7 +191,7 @@ public class RecommendationServiceTests : IDisposable
     {
         var yaml = "- title: Rec A\n  description: Desc\n  state: Pending\n";
         CreatePlanWithRecommendations("01621-Framework", yaml, "Framework");
-        CreatePlanWithRecommendations("01622-Tendril", yaml, "Tendril");
+        CreatePlanWithRecommendations("01622-Tendril", yaml);
         CreatePlanWithRecommendations("01623-Agent", yaml, "Agent");
 
         var recommendations = _service.GetRecommendations();
@@ -221,9 +222,9 @@ public class RecommendationServiceTests : IDisposable
     public void GetRecommendations_CombinedFilters_ApplyAndLogic()
     {
         var yaml = "- title: Rec\n  description: Desc\n  state: Pending\n";
-        CreatePlanWithRecommendations("01627-FwCompleted", yaml, "Framework", "Completed");
+        CreatePlanWithRecommendations("01627-FwCompleted", yaml, "Framework");
         CreatePlanWithRecommendations("01628-FwFailed", yaml, "Framework", "Failed");
-        CreatePlanWithRecommendations("01629-TdCompleted", yaml, "Tendril", "Completed");
+        CreatePlanWithRecommendations("01629-TdCompleted", yaml);
 
         var recommendations = _service.GetRecommendations();
         var filtered = recommendations
@@ -297,7 +298,7 @@ public class RecommendationServiceTests : IDisposable
     public void GetRecommendations_NullFilters_ReturnsAll()
     {
         var yaml = "- title: Rec\n  description: Desc\n  state: Pending\n";
-        CreatePlanWithRecommendations("01630-All1", yaml, "Framework", "Completed");
+        CreatePlanWithRecommendations("01630-All1", yaml, "Framework");
         CreatePlanWithRecommendations("01631-All2", yaml, "Tendril", "Failed");
 
         var recommendations = _service.GetRecommendations();

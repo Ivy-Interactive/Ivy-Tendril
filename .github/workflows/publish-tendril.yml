@@ -321,3 +321,23 @@ jobs:
               --name ${{ env.APP_SERVICE_NAME }} \
               --slot preproduction \
               --target-slot production
+
+  upload-install-scripts:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 'Az login with OIDC'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: 'Upload install scripts to CDN'
+        continue-on-error: true
+        run: |
+          az storage blob upload --account-name ivycdn --container-name public --name install-tendril.sh --file src/install.sh --content-type "text/x-shellscript" --auth-mode login
+          az storage blob upload --account-name ivycdn --container-name public --name install-tendril.ps1 --file src/install.ps1 --content-type "text/plain" --auth-mode login

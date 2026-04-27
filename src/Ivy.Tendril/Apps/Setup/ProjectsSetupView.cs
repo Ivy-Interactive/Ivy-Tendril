@@ -1,5 +1,6 @@
 using Ivy.Tendril.Apps.Setup.Dialogs;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps.Setup;
 
@@ -19,7 +20,7 @@ public class ProjectsSetupView : ViewBase
         var rows = projects.Select((p, i) => new ProjectRow(p.Name, p.Color, p.Repos.Count, p.Verifications.Count, i)).ToList();
 
         var table = new TableBuilder<ProjectRow>(rows)
-            .Header(t => t.Index, "Actions")
+            .Header(t => t.Index, "")
             .Builder(t => t.Index, f => f.Func<ProjectRow, int>(idx =>
                 Layout.Horizontal().Gap(1)
                 | new Button().Icon(Icons.Pencil).Outline().Small().OnClick(() =>
@@ -27,10 +28,12 @@ public class ProjectsSetupView : ViewBase
                     editIndex.Set(idx);
                 })
                 | new Button().Icon(Icons.Trash).Outline().Small().OnClick(() => { deleteIndex.Set(idx); })
-            ));
+            ))
+            .ColumnWidth(t => t.Index, Size.Px(88));
 
-        return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(120)))
+        return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(200)))
                | Text.Block("Projects").Bold()
+               | Text.Block("Manage projects, their repositories, and verification assignments.").Muted().Small()
                | table
                | new Button("Add Project").Icon(Icons.Plus).Outline().OnClick(() =>
                {

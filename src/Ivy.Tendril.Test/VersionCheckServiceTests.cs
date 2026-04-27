@@ -32,8 +32,8 @@ public class VersionCheckServiceTests
     {
         var currentVersion = VersionCheckService.GetCurrentVersion();
         var factory = new FakeHttpClientFactory($$"""
-            {"versions":["{{currentVersion}}"]}
-            """);
+                                                  {"versions":["{{currentVersion}}"]}
+                                                  """);
         var service = new VersionCheckService(factory);
 
         var result = await service.CheckForUpdatesAsync();
@@ -80,18 +80,24 @@ public class VersionCheckServiceTests
     private class FakeHttpClientFactory : IHttpClientFactory
     {
         private readonly HttpMessageHandler _handler;
-        public int CallCount { get; private set; }
 
         public FakeHttpClientFactory(string? responseBody = null, HttpStatusCode statusCode = HttpStatusCode.OK)
         {
             _handler = new FakeHandler(this, responseBody ?? "", statusCode);
         }
 
-        public HttpClient CreateClient(string name) => new(_handler, disposeHandler: false);
+        public int CallCount { get; private set; }
 
-        private class FakeHandler(FakeHttpClientFactory owner, string body, HttpStatusCode statusCode) : HttpMessageHandler
+        public HttpClient CreateClient(string name)
         {
-            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            return new HttpClient(_handler, false);
+        }
+
+        private class FakeHandler(FakeHttpClientFactory owner, string body, HttpStatusCode statusCode)
+            : HttpMessageHandler
+        {
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
+                CancellationToken cancellationToken)
             {
                 owner.CallCount++;
                 return Task.FromResult(new HttpResponseMessage(statusCode)

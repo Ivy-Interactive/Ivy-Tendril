@@ -1,4 +1,7 @@
+using System.Reflection;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.SessionParsers;
+using Ivy.Tendril.Test.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -16,14 +19,40 @@ public class BackgroundServiceActivatorTests : IAsyncLifetime
         Directory.CreateDirectory(Path.Combine(_tempDir, "Plans"));
     }
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    public Task InitializeAsync()
+    {
+        return Task.CompletedTask;
+    }
 
     public async Task DisposeAsync()
     {
         if (_serviceProvider != null)
         {
             await _serviceProvider.DisposeAsync();
-            await Task.Delay(100);
+
+            // Give services time to complete disposal - use polling instead of fixed delay
+            await RetryHelper.WaitUntilAsync(
+                async () =>
+                {
+                    await Task.Yield();
+                    // Check if temp directory can be safely deleted (no file locks)
+                    try
+                    {
+                        if (Directory.Exists(_tempDir))
+                        {
+                            // Try to enumerate - will fail if services still have locks
+                            _ = Directory.GetFiles(_tempDir, "*", SearchOption.AllDirectories);
+                        }
+                        return true;
+                    }
+                    catch
+                    {
+                        return false;
+                    }
+                },
+                TimeSpan.FromSeconds(2),
+                TimeSpan.FromMilliseconds(50),
+                "Services did not fully dispose within timeout");
         }
 
         try
@@ -50,7 +79,7 @@ public class BackgroundServiceActivatorTests : IAsyncLifetime
         {
             var cfg = sp.GetRequiredService<IConfigService>();
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
-            return new InboxWatcherService(cfg, jobService);
+            return new InboxWatcherService(cfg, jobService, NullLogger<InboxWatcherService>.Instance);
         });
         services.AddSingleton<WorktreeCleanupService>(sp =>
             new WorktreeCleanupService(Path.Combine(_tempDir, "Plans"), NullLogger<WorktreeCleanupService>.Instance));
@@ -116,7 +145,10 @@ public class BackgroundServiceActivatorTests : IAsyncLifetime
 
         var services = new ServiceCollection();
         services.AddSingleton<IConfigService>(config);
-        services.AddSingleton(new ModelPricingService(NullLogger<ModelPricingService>.Instance));
+        services.AddSingleton<ISessionParser, ClaudeSessionParser>();
+        services.AddSingleton<ISessionParser, CodexSessionParser>();
+        services.AddSingleton<ISessionParser, GeminiSessionParser>();
+        services.AddSingleton<ModelPricingService>();
         services.AddSingleton<IPlanReaderService>(sp =>
             new PlanReaderService(sp.GetRequiredService<IConfigService>(), NullLogger<PlanReaderService>.Instance));
         services.AddSingleton<ITelemetryService>(sp => new TelemetryService(false));
@@ -127,7 +159,8 @@ public class BackgroundServiceActivatorTests : IAsyncLifetime
         {
             var cfg = sp.GetRequiredService<IConfigService>();
             if (string.IsNullOrEmpty(cfg.TendrilHome))
-                throw new InvalidOperationException("Cannot create PlanDatabaseService: TendrilHome is not configured. Complete onboarding first.");
+                throw new InvalidOperationException(
+                    "Cannot create PlanDatabaseService: TendrilHome is not configured. Complete onboarding first.");
             throw new InvalidOperationException("Test should not reach database construction.");
         });
 
@@ -137,12 +170,12 @@ public class BackgroundServiceActivatorTests : IAsyncLifetime
             var cfg = sp.GetRequiredService<IConfigService>();
             return new JobService(
                 cfg,
-                logger: null,
-                modelPricingService: sp.GetRequiredService<ModelPricingService>(),
-                planReaderService: sp.GetRequiredService<IPlanReaderService>(),
-                telemetryService: sp.GetRequiredService<ITelemetryService>(),
-                planWatcherService: sp.GetRequiredService<IPlanWatcherService>(),
-                database: string.IsNullOrEmpty(cfg.TendrilHome) ? null : sp.GetRequiredService<IPlanDatabaseService>());
+                null,
+                sp.GetRequiredService<ModelPricingService>(),
+                sp.GetRequiredService<IPlanReaderService>(),
+                sp.GetRequiredService<ITelemetryService>(),
+                sp.GetRequiredService<IPlanWatcherService>(),
+                string.IsNullOrEmpty(cfg.TendrilHome) ? null : sp.GetRequiredService<IPlanDatabaseService>());
         });
 
         _serviceProvider = services.BuildServiceProvider();
@@ -153,51 +186,9 @@ public class BackgroundServiceActivatorTests : IAsyncLifetime
 
         // Verify the database field is null so JobService won't crash at runtime.
         var databaseField = typeof(JobService).GetField("_database",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            BindingFlags.NonPublic | BindingFlags.Instance);
         Assert.NotNull(databaseField);
         Assert.Null(databaseField!.GetValue(jobService));
-    }
-
-    private sealed class FreshInstallConfigService : IConfigService
-    {
-        public FreshInstallConfigService(TendrilSettings settings)
-        {
-            Settings = settings;
-        }
-
-        public TendrilSettings Settings { get; }
-        public string TendrilHome => "";
-        public string ConfigPath => "";
-        public string PlanFolder => "";
-        public List<ProjectConfig> Projects => Settings.Projects;
-        public List<LevelConfig> Levels => Settings.Levels;
-        public string[] LevelNames => Array.Empty<string>();
-        public EditorConfig Editor => Settings.Editor ?? new EditorConfig();
-        public bool NeedsOnboarding => true;
-        public ConfigParseError? ParseError => null;
-
-        public ProjectConfig? GetProject(string name) => null;
-        public BadgeVariant GetBadgeVariant(string level) => BadgeVariant.Outline;
-        public Colors? GetProjectColor(string projectName) => null;
-        public void SaveSettings() { }
-        public void ReloadSettings() { }
-        public bool TryAutoHeal() => false;
-        public void ResetToDefaults() { }
-        public void RetryLoadConfig() { }
-#pragma warning disable CS0067
-        public event EventHandler? SettingsReloaded;
-#pragma warning restore CS0067
-        public void SetPendingCodingAgent(string name) { }
-        public string? GetPendingCodingAgent() => null;
-        public void SetPendingTendrilHome(string path) { }
-        public string? GetPendingTendrilHome() => null;
-        public void SetPendingProject(ProjectConfig project) { }
-        public ProjectConfig? GetPendingProject() => null;
-        public void SetPendingVerificationDefinitions(List<VerificationConfig> definitions) { }
-        public List<VerificationConfig>? GetPendingVerificationDefinitions() => null;
-        public void CompleteOnboarding(string tendrilHome) { }
-        public void OpenInEditor(string path) { }
-        public string PreprocessForEditing(string path) => path;
     }
 
     [Fact]
@@ -217,7 +208,7 @@ public class BackgroundServiceActivatorTests : IAsyncLifetime
         {
             var cfg = sp.GetRequiredService<IConfigService>();
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
-            return new InboxWatcherService(cfg, jobService);
+            return new InboxWatcherService(cfg, jobService, NullLogger<InboxWatcherService>.Instance);
         });
         services.AddSingleton<WorktreeCleanupService>(sp =>
             new WorktreeCleanupService(Path.Combine(_tempDir, "Plans"), NullLogger<WorktreeCleanupService>.Instance));
@@ -245,9 +236,119 @@ public class BackgroundServiceActivatorTests : IAsyncLifetime
         Assert.True(startable2.Started);
     }
 
+    private sealed class FreshInstallConfigService : IConfigService
+    {
+        public FreshInstallConfigService(TendrilSettings settings)
+        {
+            Settings = settings;
+        }
+
+        public TendrilSettings Settings { get; }
+        public string TendrilHome => "";
+        public string ConfigPath => "";
+        public string PlanFolder => "";
+        public List<ProjectConfig> Projects => Settings.Projects;
+        public List<LevelConfig> Levels => Settings.Levels;
+        public string[] LevelNames => Array.Empty<string>();
+        public EditorConfig Editor => Settings.Editor ?? new EditorConfig();
+        public bool NeedsOnboarding => true;
+        public ConfigParseError? ParseError => null;
+
+        public ProjectConfig? GetProject(string name)
+        {
+            return null;
+        }
+
+        public BadgeVariant GetBadgeVariant(string level)
+        {
+            return BadgeVariant.Outline;
+        }
+
+        public Colors? GetProjectColor(string projectName)
+        {
+            return null;
+        }
+
+        public void SaveSettings()
+        {
+        }
+
+        public void ReloadSettings()
+        {
+        }
+
+        public bool TryAutoHeal()
+        {
+            return false;
+        }
+
+        public void ResetToDefaults()
+        {
+        }
+
+        public void RetryLoadConfig()
+        {
+        }
+#pragma warning disable CS0067
+        public event EventHandler? SettingsReloaded;
+#pragma warning restore CS0067
+        public void SetPendingCodingAgent(string name)
+        {
+        }
+
+        public string? GetPendingCodingAgent()
+        {
+            return null;
+        }
+
+        public void SetPendingTendrilHome(string path)
+        {
+        }
+
+        public string? GetPendingTendrilHome()
+        {
+            return null;
+        }
+
+        public void SetPendingProject(ProjectConfig project)
+        {
+        }
+
+        public ProjectConfig? GetPendingProject()
+        {
+            return null;
+        }
+
+        public void SetPendingVerificationDefinitions(List<VerificationConfig> definitions)
+        {
+        }
+
+        public List<VerificationConfig>? GetPendingVerificationDefinitions()
+        {
+            return null;
+        }
+
+        public void CompleteOnboarding(string tendrilHome)
+        {
+        }
+
+        public void OpenInEditor(string path)
+        {
+        }
+
+        public string PreprocessForEditing(string path)
+        {
+            return path;
+        }
+    }
+
     private class MockStartable : IStartable
     {
         public bool Started { get; private set; }
-        public void Start() => Started = true;
+
+        public void Start()
+        {
+            Started = true;
+        }
     }
 }

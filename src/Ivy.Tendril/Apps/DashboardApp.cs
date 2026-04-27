@@ -1,4 +1,6 @@
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Views;
 
 namespace Ivy.Tendril.Apps;
 
@@ -16,7 +18,7 @@ public class DashboardDayRow
 }
 
 
-[App(title: "Dashboard", icon: Icons.ChartBar, group: ["Apps"], order: MenuOrder.Dashboard)]
+[App(title: "Dashboard", icon: Icons.ChartBar, group: ["Apps"], order: Constants.Dashboard)]
 public class DashboardApp : ViewBase
 {
     public override object Build()
@@ -39,22 +41,13 @@ public class DashboardApp : ViewBase
 
         if (stats.TotalCount == 0)
         {
-            return Layout.Vertical()
-                .Padding(16)
-                .Gap(8)
-                .AlignContent(Align.Center)
-                .Height(Size.Full())
-                | Text.Block("No plans yet")
-                    .Large()
-                    .Color(Colors.Muted)
-                | Text.Block("Create your first plan to get started with Tendril.")
-                    .Color(Colors.Muted);
+            return new NoContentView("No plans yet", "Create your first plan to get started.", new NewPlanButton().Width(Size.Fit()));
         }
 
         // Statistics cards
         var statsRow = Layout.Horizontal().Gap(2).Padding(2)
                        | BuildStatCard(stats.TotalCount.ToString(), "Total Plans")
-                       | BuildStatCard(stats.DraftCount.ToString(), "Draft")
+                       | BuildStatCard(stats.DraftCount.ToString(), "Drafts")
                        | BuildStatCard(stats.InProgressCount.ToString(), "In Progress")
                        | BuildStatCard(stats.ReviewCount.ToString(), "Ready for Review")
                        | BuildStatCard(stats.CompletedCount.ToString(), "Completed")
@@ -132,15 +125,16 @@ public class DashboardApp : ViewBase
                         p.Project
                     )).ToArray()
                 )
-                .Selected(selectedProject.Value != null
-                    ? projectData.FindIndex(p => p.Project == selectedProject.Value)
-                    : null)
-                .OnSelect(e =>
-                {
-                    var clickedProject = projectData[e.Value].Project;
-                    selectedProject.Set(selectedProject.Value == clickedProject ? null : clickedProject);
-                    return ValueTask.CompletedTask;
-                });
+            // .Selected(selectedProject.Value != null
+            //     ? projectData.FindIndex(p => p.Project == selectedProject.Value)
+            //     : null)
+            // .OnSelect(e =>
+            // {
+            //     var clickedProject = projectData[e.Value].Project;
+            //     selectedProject.Set(selectedProject.Value == clickedProject ? null : clickedProject);
+            //     return ValueTask.CompletedTask;
+            // })
+            ;
 
         // Hourly cost & tokens combined bar chart
         var hourlyBurn = planService.GetHourlyTokenBurn(projectFilter: selectedProject.Value);
@@ -166,7 +160,7 @@ public class DashboardApp : ViewBase
                 style: BarChartStyles.Default,
                 polish: chart => chart with
                 {
-                    Tooltip = new ChartTooltip(),
+                    Tooltip = new ChartTooltip().Animated(true),
                     Bars =
                     [
                         new Bar(costMeasureName).Radius(0).YAxisIndex(0),
@@ -195,7 +189,7 @@ public class DashboardApp : ViewBase
 
         var header = Layout.Vertical()
                      | statsRow
-                     | projectProgress.Width(Size.Full()).WithLayout().Margin(2);
+                     | projectProgress;
 
         return new HeaderLayout(
             header,

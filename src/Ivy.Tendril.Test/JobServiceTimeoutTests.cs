@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using Ivy.Helpers;
-using Ivy.Tendril.Apps.Jobs;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -9,7 +9,14 @@ using YamlDotNet.Serialization.NamingConventions;
 
 namespace Ivy.Tendril.Test;
 
-public class JobServiceTimeoutTests
+public class JobServiceTimeoutTests : IDisposable
+{
+    private readonly TempDirectoryFixture _tempDir = new();
+
+    public void Dispose()
+    {
+        _tempDir.Dispose();
+    }
 {
     private static JobService CreateService(
         TimeSpan jobTimeout,
@@ -25,7 +32,7 @@ public class JobServiceTimeoutTests
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
 
-        var id = service.CreateTestJob("ExecutePlan", Path.GetTempPath());
+        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
         var job = service.GetJob(id);
         Assert.NotNull(job);
         Assert.Equal(JobStatus.Running, job.Status);
@@ -33,7 +40,7 @@ public class JobServiceTimeoutTests
         JobNotification? notification = null;
         service.NotificationReady += n => notification = n;
 
-        service.CompleteJob(id, null, true, false);
+        service.CompleteJob(id, null, true);
 
         job = service.GetJob(id);
         Assert.NotNull(job);
@@ -51,7 +58,7 @@ public class JobServiceTimeoutTests
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
 
-        var id = service.CreateTestJob("ExecutePlan", Path.GetTempPath());
+        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
 
         JobNotification? notification = null;
         service.NotificationReady += n => notification = n;
@@ -72,7 +79,7 @@ public class JobServiceTimeoutTests
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
 
-        var id = service.CreateTestJob("ExecutePlan", Path.GetTempPath());
+        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
 
         JobNotification? notification = null;
         service.NotificationReady += n => notification = n;
@@ -93,7 +100,7 @@ public class JobServiceTimeoutTests
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
 
-        var id = service.CreateTestJob("ExecutePlan", Path.GetTempPath());
+        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
 
         JobNotification? notification = null;
         service.NotificationReady += n => notification = n;
@@ -113,7 +120,7 @@ public class JobServiceTimeoutTests
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
 
-        var id = service.CreateTestJob("ExecutePlan", Path.GetTempPath());
+        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
 
         service.CompleteJob(id, 0);
         var job = service.GetJob(id);
@@ -131,7 +138,7 @@ public class JobServiceTimeoutTests
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
 
-        var id = service.CreateTestJob("ExecutePlan", Path.GetTempPath());
+        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
         var job = service.GetJob(id);
         var cts = job!.TimeoutCts;
         Assert.NotNull(cts);
@@ -147,10 +154,10 @@ public class JobServiceTimeoutTests
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
 
-        var runningId = service.CreateTestJob("ExecutePlan", Path.GetTempPath());
-        var completedId = service.CreateTestJob("ExecutePlan", Path.GetTempPath());
-        var failedId = service.CreateTestJob("ExecutePlan", Path.GetTempPath());
-        var timeoutId = service.CreateTestJob("ExecutePlan", Path.GetTempPath());
+        var runningId = service.CreateTestJob("ExecutePlan", _tempDir.Path);
+        var completedId = service.CreateTestJob("ExecutePlan", _tempDir.Path);
+        var failedId = service.CreateTestJob("ExecutePlan", _tempDir.Path);
+        var timeoutId = service.CreateTestJob("ExecutePlan", _tempDir.Path);
 
         service.CompleteJob(completedId, 0);
         service.CompleteJob(failedId, 1);
@@ -169,7 +176,7 @@ public class JobServiceTimeoutTests
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
 
-        var id = service.CreateTestJob("ExecutePlan", Path.GetTempPath());
+        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
         service.CompleteJob(id, 0);
 
         service.ClearFailedJobs();
@@ -216,7 +223,7 @@ codingAgent: claude
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
 
-        var id = service.CreateTestJob("ExecutePlan", Path.GetTempPath());
+        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
         var job = service.GetJob(id);
         Assert.NotNull(job);
 
@@ -236,7 +243,7 @@ codingAgent: claude
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
 
-        var id = service.CreateTestJob("ExecutePlan", Path.GetTempPath());
+        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
         var job = service.GetJob(id);
         Assert.NotNull(job);
 
@@ -278,7 +285,7 @@ codingAgent: claude
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromSeconds(5));
 
-        var id = service.CreateTestJob("ExecutePlan", Path.GetTempPath());
+        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
         var job = service.GetJob(id);
         Assert.NotNull(job);
 
@@ -297,7 +304,7 @@ codingAgent: claude
     public void ProcessId_CapturedOnJobItem()
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
-        var id = service.CreateTestJob("ExecutePlan", Path.GetTempPath());
+        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
         var job = service.GetJob(id);
         Assert.NotNull(job);
 
@@ -326,7 +333,7 @@ codingAgent: claude
         var logger = NullLogger<JobService>.Instance;
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), logger);
 
-        var id = service.CreateTestJob("ExecutePlan", Path.GetTempPath());
+        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
         service.CompleteJob(id, 0);
 
         var job = service.GetJob(id);
@@ -341,7 +348,7 @@ codingAgent: claude
         var logger = new CapturingLogger<JobService>(logEntries);
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), logger);
 
-        var id = service.CreateTestJob("ExecutePlan", Path.GetTempPath());
+        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
         service.CompleteJob(id, 0);
 
         var job = service.GetJob(id);
@@ -352,8 +359,15 @@ codingAgent: claude
 
 internal sealed class CapturingLogger<T>(List<(LogLevel Level, string Message)> entries) : ILogger<T>
 {
-    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-    public bool IsEnabled(LogLevel logLevel) => true;
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+    {
+        return null;
+    }
+
+    public bool IsEnabled(LogLevel logLevel)
+    {
+        return true;
+    }
 
     public void Log<TState>(
         LogLevel logLevel,
