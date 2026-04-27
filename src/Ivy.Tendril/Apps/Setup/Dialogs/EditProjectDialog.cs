@@ -98,7 +98,7 @@ public class EditProjectDialog(
                                        .WithTooltip(!pathExists
                                            ? $"Path does not exist: {expandedPath}"
                                            : $"Not a git repository: {expandedPath}")
-                                   : new Spacer().Width(Size.Units(4)))
+                                   : null!)
                                | editingRepoPath
                                    .ToTextInput("Your repository folder")
                                    .Width(Size.Grow())
@@ -139,7 +139,7 @@ public class EditProjectDialog(
             }
             else
             {
-                var pathText = Text.Block(repo.Path).Width(Size.Grow());
+                var pathText = Text.Block(repo.Path);
                 if (!isGitRepo) pathText = pathText.Color(Colors.Red);
 
                 reposLayout |= Layout.Horizontal().Gap(2).AlignContent(Align.Center)
@@ -148,9 +148,10 @@ public class EditProjectDialog(
                                        .WithTooltip(!pathExists
                                            ? $"Path does not exist: {expandedPath}"
                                            : $"Not a git repository: {expandedPath}")
-                                   : new Spacer().Width(Size.Units(4)))
+                                   : null!)
                                | pathText
                                | new Badge(repo.PrRule).Variant(BadgeVariant.Outline)
+                               | new Spacer().Width(Size.Grow())
                                | new Button().Icon(Icons.Pencil).Ghost().Small()
                                    .OnClick(() =>
                                    {
