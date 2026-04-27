@@ -302,4 +302,82 @@ public class InboxWatcherServiceTests
                 Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public void ProcessFileAsync_FileDeletedBeforeRename_SkipsGracefully()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"inbox-test-{Guid.NewGuid():N}");
+        var inboxDir = Path.Combine(tempDir, "Inbox");
+        Directory.CreateDirectory(inboxDir);
+
+        try
+        {
+            // Create a file, then immediately delete it to simulate a race condition
+            var filePath = Path.Combine(inboxDir, "race-condition-test.md");
+            File.WriteAllText(filePath, "Test content for race condition");
+
+            var config = new ConfigService(new TendrilSettings(), tempDir);
+            var jobService = new DeleteBeforeRenameJobService(filePath);
+            using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
+
+            // Wait for async processing
+            Thread.Sleep(2000);
+
+            // No job should have been started, and no .processing file should exist
+            Assert.Empty(jobService.StartedJobs);
+            Assert.Empty(Directory.GetFiles(inboxDir, "*.md"));
+            Assert.Empty(Directory.GetFiles(inboxDir, "*.processing"));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    private class DeleteBeforeRenameJobService : IJobService
+    {
+        private readonly string _fileToDelete;
+        public List<(string Type, string[] Args, string? InboxFilePath)> StartedJobs { get; } = new();
+
+        public DeleteBeforeRenameJobService(string fileToDelete)
+        {
+            _fileToDelete = fileToDelete;
+        }
+
+        public string StartJob(string type, string[] args, string? inboxFilePath)
+        {
+            StartedJobs.Add((type, args, inboxFilePath));
+            return $"job-{StartedJobs.Count:D3}";
+        }
+
+        public string StartJob(string type, params string[] args) => StartJob(type, args, null);
+
+        public bool IsInboxFileTracked(string filePath)
+        {
+            // Delete the file when InboxWatcherService checks if it's tracked
+            // This simulates the race condition between the existence check and File.Move
+            if (File.Exists(_fileToDelete))
+            {
+                File.Delete(_fileToDelete);
+            }
+            return false;
+        }
+
+        public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false) { }
+        public void StopJob(string id) { }
+        public void DeleteJob(string id) { }
+        public void ClearCompletedJobs() { }
+        public void ClearFailedJobs() { }
+        public List<JobItem> GetJobs() => new();
+        public JobItem? GetJob(string id) => null;
+        public void Dispose() { }
+
+#pragma warning disable CS0067
+        public event Action? JobsChanged;
+        public event Action? JobsStructureChanged;
+        public event Action? JobPropertyChanged;
+        public event Action<JobNotification>? NotificationReady;
+#pragma warning restore CS0067
+    }
 }
