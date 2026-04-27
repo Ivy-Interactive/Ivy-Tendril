@@ -17,37 +17,38 @@ public class ProjectsSetupView : ViewBase
         var projects = config.Settings.Projects;
         var allVerifications = config.Settings.Verifications.Select(v => v.Name).ToList();
 
-        var projectList = Layout.Vertical().Gap(2);
-        for (var i = 0; i < projects.Count; i++)
-        {
-            var idx = i;
-            var project = projects[idx];
+        var rows = projects.Select((p, i) => new ProjectRow(p.Name, p.Repos, i)).ToList();
 
-            var repoInfo = Layout.Horizontal().Gap(2).AlignContent(Align.Center);
-            foreach (var repo in project.Repos)
+        var table = new TableBuilder<ProjectRow>(rows)
+            .Builder(t => t.Repos, f => f.Func<ProjectRow, List<RepoRef>>(repos =>
             {
-                repoInfo |= Text.Block(repo.Path).Muted().Small();
-                repoInfo |= new Badge(repo.PrRule).Variant(BadgeVariant.Outline).Small();
-            }
-
-            var row = Layout.Horizontal().Gap(2).AlignContent(Align.Center)
-                      | Text.Block(project.Name).Bold()
-                      | repoInfo
-                      | new Spacer().Width(Size.Grow())
-                      | new Button().Icon(Icons.Pencil).Ghost().Small()
-                          .OnClick(() => editIndex.Set(idx))
-                          .WithTooltip("Edit project")
-                      | new Button().Icon(Icons.Trash).Ghost().Small()
-                          .OnClick(() => deleteIndex.Set(idx));
-
-            projectList |= new Button().Inline().OnClick(() => editIndex.Set(idx))
-                               .Content(row);
-        }
+                var layout = Layout.Horizontal().Gap(2).AlignContent(Align.Left);
+                foreach (var repo in repos)
+                {
+                    layout |= Text.Block(repo.Path).Muted().Small();
+                    layout |= new Badge(repo.PrRule).Variant(BadgeVariant.Outline).Small();
+                }
+                return layout;
+            }))
+            .Header(t => t.Index, "")
+            .Builder(t => t.Index, f => f.Func<ProjectRow, int>(idx =>
+                Layout.Horizontal().Gap(1)
+                | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit this project").OnClick(() =>
+                {
+                    editIndex.Set(idx);
+                })
+                | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete this project").OnClick(() =>
+                {
+                    deleteIndex.Set(idx);
+                })
+            ))
+            .ColumnWidth(t => t.Repos, Size.Grow())
+            .ColumnWidth(t => t.Index, Size.Px(88));
 
         return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(200)))
                | Text.Block("Projects").Bold()
                | Text.Block("Manage projects, their repositories, and verification assignments.").Muted().Small()
-               | projectList
+               | table
                | new Button("Add Project").Icon(Icons.Plus).Outline().OnClick(() =>
                {
                    editIndex.Set(null);
@@ -55,4 +56,6 @@ public class ProjectsSetupView : ViewBase
                | new EditProjectDialog(editIndex, projects, allVerifications, config, client, refreshToken)
                | new DeleteProjectDialog(deleteIndex, projects, config, client, refreshToken);
     }
+
+    private record ProjectRow(string Name, List<RepoRef> Repos, int Index);
 }
