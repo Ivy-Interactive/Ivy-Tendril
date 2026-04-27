@@ -27,33 +27,19 @@ public class Program
     // Must be a static field to prevent GC from collecting the delegate
     private static ConsoleCtrlHandlerDelegate? _consoleCtrlHandler;
 
+    // ConfigService reference for cleanup on exit
+    private static ConfigService? _configService;
+
     [STAThread]
     public static async Task<int> Main(string[] args)
     {
         VelopackApp.Build().Run();
 
-        // Parse global flags before command routing
-        bool verbose = args.Contains("--verbose") || args.Contains("-v");
-        bool quiet = args.Contains("--quiet") || args.Contains("-q");
-
-        // Store verbosity in environment for child processes
-        if (verbose)
-            Environment.SetEnvironmentVariable("TENDRIL_VERBOSE", "1");
-        if (quiet)
-            Environment.SetEnvironmentVariable("TENDRIL_QUIET", "1");
+        var (verbose, quiet, forceDesktop, forceWeb, filteredArgs) = ParseGlobalFlags(args);
 
         var fileName = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? "");
         bool isTool = fileName.Equals("tendril", StringComparison.OrdinalIgnoreCase);
-        bool forceDesktop = args.Contains("--desktop") || args.Contains("--photino");
-        bool forceWeb = args.Contains("--web");
-
         bool useDesktop = (isTool || forceDesktop) && !forceWeb;
-
-        var filteredArgs = args.Where(a =>
-            a != "--desktop" && a != "--photino" && a != "--web" &&
-            a != "--verbose" && a != "-v" &&
-            a != "--quiet" && a != "-q"
-        ).ToArray();
 
         // Handle CLI commands using Spectre.Console.Cli
         if (filteredArgs.Length > 0)
@@ -61,106 +47,15 @@ public class Program
             var cliServices = new ServiceCollection();
             cliServices.AddLogging(builder => builder.AddConsole());
             cliServices.AddSingleton<IPlanWatcherService, NullPlanWatcherService>();
-            var registrar = new TypeRegistrar(cliServices);
 
-            var app = new CommandApp(registrar);
-            app.Configure(config =>
-            {
-                config.PropagateExceptions();
-
-                // Doctor command
-                config.AddCommand<DoctorCliCommand>("doctor")
-                    .WithDescription("System health check");
-
-                // Database commands
-                config.AddCommand<DbVersionCommand>("db-version")
-                    .WithDescription("Show database version");
-                config.AddCommand<DbMigrateCommand>("db-migrate")
-                    .WithDescription("Apply database migrations");
-                config.AddCommand<DbResetCommand>("db-reset")
-                    .WithDescription("Reset database");
-
-                // Other commands
-                config.AddCommand<UpdatePromptwaresCliCommand>("update-promptwares")
-                    .WithDescription("Update embedded promptwares");
-                config.AddCommand<PromptwareRunCommand>("promptware")
-                    .WithDescription("Run a promptware directly");
-                config.AddCommand<VersionCommand>("version")
-                    .WithDescription("Show version information");
-
-                // Job management commands
-                config.AddBranch("job", job =>
-                {
-                    job.AddCommand<JobStatusCommand>("status")
-                        .WithDescription("Report job status (message, planId, planTitle)");
-                });
-
-                // Plan management commands
-                config.AddBranch("plan", plan =>
-                {
-                    plan.AddCommand<PlanListCommand>("list")
-                        .WithDescription("List plans with optional filters");
-                    plan.AddCommand<PlanCreateCommand>("create")
-                        .WithDescription("Create a new plan");
-                    plan.AddCommand<PlanUpdateCommand>("update")
-                        .WithDescription("Update plan from STDIN");
-                    plan.AddCommand<PlanSetCommand>("set")
-                        .WithDescription("Set a single field");
-                    plan.AddCommand<PlanAddRepoCommand>("add-repo")
-                        .WithDescription("Add a repository");
-                    plan.AddCommand<PlanRemoveRepoCommand>("remove-repo")
-                        .WithDescription("Remove a repository");
-                    plan.AddCommand<PlanAddPrCommand>("add-pr")
-                        .WithDescription("Add a PR URL");
-                    plan.AddCommand<PlanAddCommitCommand>("add-commit")
-                        .WithDescription("Add a commit hash");
-                    plan.AddCommand<PlanAddRelatedPlanCommand>("add-related-plan")
-                        .WithDescription("Add a related plan");
-                    plan.AddCommand<PlanAddDependsOnCommand>("add-depends-on")
-                        .WithDescription("Add a plan dependency");
-                    plan.AddCommand<PlanSetVerificationCommand>("set-verification")
-                        .WithDescription("Update verification status");
-                    plan.AddCommand<PlanGetCommand>("get")
-                        .WithDescription("Read plan or field");
-                    plan.AddCommand<PlanAddLogCommand>("add-log")
-                        .WithDescription("Write a log entry");
-                    plan.AddCommand<PlanValidateCommand>("validate")
-                        .WithDescription("Validate plan health");
-                    plan.AddCommand<PlanCleanupCommand>("cleanup")
-                        .WithDescription("Remove worktrees from a plan");
-                    plan.AddCommand<PlanDoctorCommand>("doctor")
-                        .WithDescription("Check plan health");
-
-                    plan.AddBranch("rec", rec =>
-                    {
-                        rec.AddCommand<PlanRecListCommand>("list")
-                            .WithDescription("List recommendations");
-                        rec.AddCommand<PlanRecAddCommand>("add")
-                            .WithDescription("Add a recommendation");
-                        rec.AddCommand<PlanRecRemoveCommand>("remove")
-                            .WithDescription("Remove a recommendation");
-                        rec.AddCommand<PlanRecSetCommand>("set")
-                            .WithDescription("Update a recommendation field");
-                        rec.AddCommand<PlanRecAcceptCommand>("accept")
-                            .WithDescription("Accept a recommendation");
-                        rec.AddCommand<PlanRecDeclineCommand>("decline")
-                            .WithDescription("Decline a recommendation");
-                    });
-                });
-            });
-
-            // Check if this is a recognized CLI command
+            var app = ConfigureCliCommands(cliServices);
             var firstArg = filteredArgs[0];
 
             // Handle --version flag by converting it to "version" command
             if (firstArg == "--version")
-            {
                 filteredArgs = new[] { "version" };
-            }
 
-            if (firstArg == "doctor" || firstArg == "db-version" || firstArg == "db-migrate" ||
-                firstArg == "db-reset" || firstArg == "update-promptwares" || firstArg == "job" ||
-                firstArg == "plan" || firstArg == "promptware" || firstArg == "version" || firstArg == "--version")
+            if (ShouldHandleAsCliCommand(firstArg))
             {
                 var statusFile = Environment.GetEnvironmentVariable("TENDRIL_STATUS_FILE");
                 if (!string.IsNullOrEmpty(statusFile))
@@ -210,6 +105,161 @@ public class Program
             SetConsoleCtrlHandler(_consoleCtrlHandler, true);
         }
 
+        ConfigureExceptionHandlers();
+        StartMemoryWatchdog();
+
+        if (useDesktop && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("IVY_TLS")))
+            Environment.SetEnvironmentVariable("IVY_TLS", "0");
+
+        var server = TendrilServer.Create(filteredArgs);
+
+        if (useDesktop)
+        {
+            var iconResource = OperatingSystem.IsWindows() ? "Ivy.Tendril.Assets.Tendril.ico"
+                : OperatingSystem.IsMacOS() ? "Ivy.Tendril.Assets.Tendril.icns"
+                : "Ivy.Tendril.Assets.Tendril.png";
+
+            var window = new DesktopWindow(server)
+                .Title("Ivy Tendril")
+                .Size(1400, 900)
+                .UseDpiScaling(false)
+                .Icon(typeof(Program), iconResource);
+
+            return window.Run();
+        }
+        else
+        {
+            await server.RunAsync();
+            return 0;
+        }
+    }
+
+    private static (bool verbose, bool quiet, bool forceDesktop, bool forceWeb, string[] filtered)
+        ParseGlobalFlags(string[] args)
+    {
+        bool verbose = args.Contains("--verbose") || args.Contains("-v");
+        bool quiet = args.Contains("--quiet") || args.Contains("-q");
+        bool forceDesktop = args.Contains("--desktop") || args.Contains("--photino");
+        bool forceWeb = args.Contains("--web");
+
+        if (verbose)
+            Environment.SetEnvironmentVariable("TENDRIL_VERBOSE", "1");
+        if (quiet)
+            Environment.SetEnvironmentVariable("TENDRIL_QUIET", "1");
+
+        var filtered = args.Where(a =>
+            a != "--desktop" && a != "--photino" && a != "--web" &&
+            a != "--verbose" && a != "-v" &&
+            a != "--quiet" && a != "-q"
+        ).ToArray();
+
+        return (verbose, quiet, forceDesktop, forceWeb, filtered);
+    }
+
+    private static bool ShouldHandleAsCliCommand(string firstArg)
+    {
+        string[] cliCommands = new[]
+        {
+            "doctor", "db-version", "db-migrate", "db-reset",
+            "update-promptwares", "job", "plan", "promptware",
+            "version", "--version"
+        };
+        return cliCommands.Contains(firstArg);
+    }
+
+    private static CommandApp ConfigureCliCommands(ServiceCollection cliServices)
+    {
+        var registrar = new TypeRegistrar(cliServices);
+        var app = new CommandApp(registrar);
+        app.Configure(config =>
+        {
+            config.PropagateExceptions();
+
+            // Doctor command
+            config.AddCommand<DoctorCliCommand>("doctor")
+                .WithDescription("System health check");
+
+            // Database commands
+            config.AddCommand<DbVersionCommand>("db-version")
+                .WithDescription("Show database version");
+            config.AddCommand<DbMigrateCommand>("db-migrate")
+                .WithDescription("Apply database migrations");
+            config.AddCommand<DbResetCommand>("db-reset")
+                .WithDescription("Reset database");
+
+            // Other commands
+            config.AddCommand<UpdatePromptwaresCliCommand>("update-promptwares")
+                .WithDescription("Update embedded promptwares");
+            config.AddCommand<PromptwareRunCommand>("promptware")
+                .WithDescription("Run a promptware directly");
+            config.AddCommand<VersionCommand>("version")
+                .WithDescription("Show version information");
+
+            // Job management commands
+            config.AddBranch("job", job =>
+            {
+                job.AddCommand<JobStatusCommand>("status")
+                    .WithDescription("Report job status (message, planId, planTitle)");
+            });
+
+            // Plan management commands
+            config.AddBranch("plan", plan =>
+            {
+                plan.AddCommand<PlanListCommand>("list")
+                    .WithDescription("List plans with optional filters");
+                plan.AddCommand<PlanCreateCommand>("create")
+                    .WithDescription("Create a new plan");
+                plan.AddCommand<PlanUpdateCommand>("update")
+                    .WithDescription("Update plan from STDIN");
+                plan.AddCommand<PlanSetCommand>("set")
+                    .WithDescription("Set a single field");
+                plan.AddCommand<PlanAddRepoCommand>("add-repo")
+                    .WithDescription("Add a repository");
+                plan.AddCommand<PlanRemoveRepoCommand>("remove-repo")
+                    .WithDescription("Remove a repository");
+                plan.AddCommand<PlanAddPrCommand>("add-pr")
+                    .WithDescription("Add a PR URL");
+                plan.AddCommand<PlanAddCommitCommand>("add-commit")
+                    .WithDescription("Add a commit hash");
+                plan.AddCommand<PlanAddRelatedPlanCommand>("add-related-plan")
+                    .WithDescription("Add a related plan");
+                plan.AddCommand<PlanAddDependsOnCommand>("add-depends-on")
+                    .WithDescription("Add a plan dependency");
+                plan.AddCommand<PlanSetVerificationCommand>("set-verification")
+                    .WithDescription("Update verification status");
+                plan.AddCommand<PlanGetCommand>("get")
+                    .WithDescription("Read plan or field");
+                plan.AddCommand<PlanAddLogCommand>("add-log")
+                    .WithDescription("Write a log entry");
+                plan.AddCommand<PlanValidateCommand>("validate")
+                    .WithDescription("Validate plan health");
+                plan.AddCommand<PlanCleanupCommand>("cleanup")
+                    .WithDescription("Remove worktrees from a plan");
+                plan.AddCommand<PlanDoctorCommand>("doctor")
+                    .WithDescription("Check plan health");
+
+                plan.AddBranch("rec", rec =>
+                {
+                    rec.AddCommand<PlanRecListCommand>("list")
+                        .WithDescription("List recommendations");
+                    rec.AddCommand<PlanRecAddCommand>("add")
+                        .WithDescription("Add a recommendation");
+                    rec.AddCommand<PlanRecRemoveCommand>("remove")
+                        .WithDescription("Remove a recommendation");
+                    rec.AddCommand<PlanRecSetCommand>("set")
+                        .WithDescription("Update a recommendation field");
+                    rec.AddCommand<PlanRecAcceptCommand>("accept")
+                        .WithDescription("Accept a recommendation");
+                    rec.AddCommand<PlanRecDeclineCommand>("decline")
+                        .WithDescription("Decline a recommendation");
+                });
+            });
+        });
+        return app;
+    }
+
+    private static void ConfigureExceptionHandlers()
+    {
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {
             var msg = $"[{DateTime.UtcNow:O}] FATAL UnhandledException (IsTerminating={e.IsTerminating}) | {GetMemoryStats()}\n  {e.ExceptionObject}";
@@ -228,9 +278,21 @@ public class Program
         AppDomain.CurrentDomain.ProcessExit += (_, _) =>
         {
             CrashLog.Write($"[{DateTime.UtcNow:O}] ProcessExit event fired (PID {Environment.ProcessId}) | {GetMemoryStats()}");
-        };
 
-        // Periodic memory watchdog — logs a warning when working set exceeds 1 GB
+            // Clean up tracked temp files
+            try
+            {
+                _configService?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                CrashLog.Write($"[{DateTime.UtcNow:O}] Failed to dispose ConfigService: {ex}");
+            }
+        };
+    }
+
+    private static void StartMemoryWatchdog()
+    {
         _ = Task.Run(async () =>
         {
             const long warningThresholdBytes = 1L * 1024 * 1024 * 1024; // 1 GB
@@ -246,35 +308,11 @@ public class Program
                 catch { /* best-effort */ }
             }
         });
+    }
 
-        if (useDesktop && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("IVY_TLS")))
-        {
-            // WKWebView on macOS does not support ignoring invalid developer certificates natively.
-            // When running bundled in the Desktop container, simply fall back to HTTP to bypass cert issues.
-            Environment.SetEnvironmentVariable("IVY_TLS", "0");
-        }
-
-        var server = TendrilServer.Create(filteredArgs);
-
-        if (useDesktop)
-        {
-            var iconResource = OperatingSystem.IsWindows() ? "Ivy.Tendril.Assets.Tendril.ico"
-                : OperatingSystem.IsMacOS() ? "Ivy.Tendril.Assets.Tendril.icns"
-                : "Ivy.Tendril.Assets.Tendril.png";
-
-            var window = new DesktopWindow(server)
-                .Title("Ivy Tendril")
-                .Size(1400, 900)
-                .UseDpiScaling(false)  // Let the OS handle DPI scaling natively
-                .Icon(typeof(Program), iconResource);
-
-            return window.Run();
-        }
-        else
-        {
-            await server.RunAsync();
-            return 0;
-        }
+    internal static void SetConfigServiceForCleanup(ConfigService configService)
+    {
+        _configService = configService;
     }
 
     private static string GetMemoryStats()

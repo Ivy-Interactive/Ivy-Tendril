@@ -73,10 +73,14 @@ internal class JobLauncher
         job.StartedAt = DateTime.UtcNow;
         job.StatusMessage = null;
 
+<<<<<<< HEAD
         var planFolderForHooks = type != "CreatePlan" && args.Length > 0 ? args[0] : "";
+=======
+        var planFolderForHooks = type != Constants.JobTypes.CreatePlan && args.Length > 0 ? args[0] : "";
+>>>>>>> origin/development
         ctx.RunHooks("before", type, planFolderForHooks, job.Project, job);
 
-        if (type == "ExecutePlan" && args.Length > 0)
+        if (type == Constants.JobTypes.ExecutePlan && args.Length > 0)
             PlanYamlHelper.SetPlanStateByFolder(args[0], "Executing");
 
         job.SessionId = Guid.NewGuid().ToString();
@@ -392,7 +396,44 @@ internal class JobLauncher
             ["ClaudeSessionId"] = job.SessionId ?? ""
         };
 
+<<<<<<< HEAD
         if (job.Type == "CreatePlan")
+        {
+            BuildCreatePlanFirmware(job, values);
+            return (values, null, null);
+        }
+
+        return BuildNonCreatePlanFirmware(job, values);
+    }
+
+    private void BuildCreatePlanFirmware(JobItem job, Dictionary<string, string> values)
+    {
+        var description = PlanYamlHelper.GetNamedArg(job.Args, "-Description") ?? string.Join(" ", job.Args);
+        values["Args"] = description;
+        values["PlansDirectory"] = _configService!.PlanFolder;
+
+        var planId = PlanYamlHelper.AllocatePlanId(_configService.PlanFolder);
+        values["PlanId"] = planId;
+        job.AllocatedPlanId = planId;
+    }
+
+    private (Dictionary<string, string> Values, PlanYaml? PlanYaml, string? ProfileOverride)
+        BuildNonCreatePlanFirmware(JobItem job, Dictionary<string, string> values)
+    {
+        var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
+        values["Args"] = planFolder;
+
+        if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder))
+            return (values, null, null);
+
+        var planId = ExtractPlanIdFromFolder(planFolder);
+        if (planId != null)
+        {
+            values["PlanId"] = planId;
+            job.AllocatedPlanId ??= planId;
+        }
+=======
+        if (job.Type == Constants.JobTypes.CreatePlan)
         {
             BuildCreatePlanFirmware(job, values);
             return (values, null, null);
@@ -437,6 +478,17 @@ internal class JobLauncher
 
         var profileOverride = ExtractExecutionProfile(job, planYaml);
         AddRepoConfigsIfNeeded(job, planYaml, values);
+>>>>>>> origin/development
+
+        values["PlanFolder"] = planFolder;
+        values["PlansDirectory"] = Path.GetDirectoryName(planFolder) ?? "";
+
+        var planYaml = PlanYamlHelper.ReadPlanYaml(planFolder);
+        if (planYaml == null)
+            return (values, null, null);
+
+        var profileOverride = ExtractExecutionProfile(job, planYaml);
+        AddRepoConfigsIfNeeded(job, planYaml, values);
 
         return (values, planYaml, profileOverride);
     }
@@ -450,14 +502,22 @@ internal class JobLauncher
 
     private static string? ExtractExecutionProfile(JobItem job, PlanYaml planYaml)
     {
+<<<<<<< HEAD
         if (job.Type == "ExecutePlan" && !string.IsNullOrEmpty(planYaml.ExecutionProfile))
+=======
+        if (job.Type == Constants.JobTypes.ExecutePlan && !string.IsNullOrEmpty(planYaml.ExecutionProfile))
+>>>>>>> origin/development
             return planYaml.ExecutionProfile;
         return null;
     }
 
     private void AddRepoConfigsIfNeeded(JobItem job, PlanYaml planYaml, Dictionary<string, string> values)
     {
+<<<<<<< HEAD
         if (job.Type is not ("ExecutePlan" or "CreatePr"))
+=======
+        if (job.Type is not (Constants.JobTypes.ExecutePlan or Constants.JobTypes.CreatePr))
+>>>>>>> origin/development
             return;
 
         var repoConfigs = BuildRepoConfigsYaml(planYaml, job.Project);

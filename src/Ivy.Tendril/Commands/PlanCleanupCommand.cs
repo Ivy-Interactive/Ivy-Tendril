@@ -48,7 +48,7 @@ public class PlanCleanupCommand : Command<PlanCleanupSettings>
                 return 0;
             }
 
-            PlanReaderService.RemoveWorktrees(planFolder);
+            WorktreeCleanupService.RemoveWorktrees(planFolder);
 
             var remaining = Directory.Exists(worktreesDir) ? Directory.GetDirectories(worktreesDir).Length : 0;
             if (remaining == 0)
