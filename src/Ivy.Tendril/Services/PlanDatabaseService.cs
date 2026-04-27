@@ -21,6 +21,7 @@ public class PlanDatabaseService : IPlanDatabaseService
     private readonly SqliteConnection _connection;
     private readonly ILogger<PlanDatabaseService> _logger;
     private readonly ReaderWriterLockSlim _lock = new();
+    private bool _disposed;
 
     public PlanDatabaseService(string databasePath, ILogger<PlanDatabaseService> logger)
     {
@@ -633,8 +634,9 @@ public class PlanDatabaseService : IPlanDatabaseService
                 {
                     plans = ExecuteSearchQuery(ftsCmd);
                 }
-                catch (Microsoft.Data.Sqlite.SqliteException)
+                catch (Microsoft.Data.Sqlite.SqliteException ex)
                 {
+                    _logger?.LogDebug(ex, "FTS5 query syntax error for query '{Query}', falling back to LIKE", sanitizedQuery);
                     // FTS5 syntax error — safety net for edge cases the sanitizer doesn't handle
                     plans = [];
                 }
@@ -1180,8 +1182,27 @@ public class PlanDatabaseService : IPlanDatabaseService
 
     public void Dispose()
     {
-        _connection.Dispose();
-        _lock.Dispose();
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (_disposed)
+            return;
+
+        if (disposing)
+        {
+            _connection?.Dispose();
+            _lock?.Dispose();
+        }
+
+        _disposed = true;
+    }
+
+    ~PlanDatabaseService()
+    {
+        Dispose(disposing: false);
     }
 
     private static void ValidateIdentifier(string name)

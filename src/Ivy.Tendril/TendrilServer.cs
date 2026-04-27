@@ -34,6 +34,9 @@ public static class TendrilServer
         server.Services.AddSingleton<IConfigService>(configService);
         server.Services.AddSingleton<ConfigService>(configService);
 
+        // Store reference for cleanup on process exit
+        Program.SetConfigServiceForCleanup(configService);
+
         if (configService.Settings.Auth != null)
         {
             server.Services.AddHttpContextAccessor();
@@ -130,7 +133,8 @@ public static class TendrilServer
         server.Services.AddSingleton<PlanWatcherService>(sp =>
         {
             var config = sp.GetRequiredService<IConfigService>();
-            return new PlanWatcherService(config);
+            var logger = sp.GetService<ILogger<PlanWatcherService>>();
+            return new PlanWatcherService(config, logger);
         });
         server.Services.AddSingleton<IPlanWatcherService>(sp => sp.GetRequiredService<PlanWatcherService>());
         server.Services.AddSingleton<PlanCountsService>(sp =>

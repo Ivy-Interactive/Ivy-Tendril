@@ -1,5 +1,6 @@
 using System.Reflection;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Test.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -27,7 +28,30 @@ public class BackgroundServiceActivatorTests : IAsyncLifetime
         if (_serviceProvider != null)
         {
             await _serviceProvider.DisposeAsync();
-            await Task.Delay(100);
+
+            // Give services time to complete disposal - use polling instead of fixed delay
+            await RetryHelper.WaitUntilAsync(
+                async () =>
+                {
+                    await Task.Yield();
+                    // Check if temp directory can be safely deleted (no file locks)
+                    try
+                    {
+                        if (Directory.Exists(_tempDir))
+                        {
+                            // Try to enumerate - will fail if services still have locks
+                            _ = Directory.GetFiles(_tempDir, "*", SearchOption.AllDirectories);
+                        }
+                        return true;
+                    }
+                    catch
+                    {
+                        return false;
+                    }
+                },
+                TimeSpan.FromSeconds(2),
+                TimeSpan.FromMilliseconds(50),
+                "Services did not fully dispose within timeout");
         }
 
         try
