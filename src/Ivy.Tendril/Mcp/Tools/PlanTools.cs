@@ -11,8 +11,15 @@ using ModelContextProtocol.Server;
 namespace Ivy.Tendril.Mcp.Tools;
 
 [McpServerToolType]
-public sealed class PlanTools(McpAuthenticationService authService) : AuthenticatedToolBase(authService)
+public sealed class PlanTools : AuthenticatedToolBase
 {
+    private readonly McpAuthenticationService _authService;
+
+    public PlanTools(McpAuthenticationService authService) : base(authService)
+    {
+        _authService = authService;
+    }
+
     private static readonly Regex FolderNameRegex = new(@"^(\d{5})-(.+)$", RegexOptions.Compiled);
 
     [McpServerTool(Name = "tendril_get_plan"), Description("Fetch plan metadata by ID or folder path")]
@@ -102,7 +109,7 @@ public sealed class PlanTools(McpAuthenticationService authService) : Authentica
         [Description("Priority level: Critical, Important, NiceToHave (optional)")] string? level = null,
         [Description("Detailed prompt/description for plan creation (optional)")] string? prompt = null)
     {
-        if (!authService.ValidateEnvironmentToken())
+        if (!_authService.ValidateEnvironmentToken())
             return "Error: Authentication failed. Access denied.";
 
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
@@ -148,7 +155,7 @@ public sealed class PlanTools(McpAuthenticationService authService) : Authentica
         [Description("Field name (state, project, level, title, executionProfile, initialPrompt, sourceUrl, priority)")] string field,
         [Description("New value")] string value)
     {
-        if (!authService.ValidateEnvironmentToken())
+        if (!_authService.ValidateEnvironmentToken())
             return "Error: Authentication failed. Access denied.";
 
         try
@@ -244,7 +251,7 @@ public sealed class PlanTools(McpAuthenticationService authService) : Authentica
         [Description("Verification name (e.g., DotnetBuild, DotnetTest)")] string name,
         [Description("Status: Pending, Pass, Fail, Skipped")] string status)
     {
-        if (!authService.ValidateEnvironmentToken())
+        if (!_authService.ValidateEnvironmentToken())
             return "Error: Authentication failed. Access denied.";
 
         try
@@ -276,7 +283,7 @@ public sealed class PlanTools(McpAuthenticationService authService) : Authentica
         [Description("Action name (e.g., CreatePlan, ExecutePlan)")] string action,
         [Description("Optional summary text")] string? summary = null)
     {
-        if (!authService.ValidateEnvironmentToken())
+        if (!_authService.ValidateEnvironmentToken())
             return "Error: Authentication failed. Access denied.";
 
         try
@@ -299,7 +306,7 @@ public sealed class PlanTools(McpAuthenticationService authService) : Authentica
         [Description("Impact level: Small, Medium, High (optional)")] string? impact = null,
         [Description("Risk level: Small, Medium, High (optional)")] string? risk = null)
     {
-        if (!authService.ValidateEnvironmentToken())
+        if (!_authService.ValidateEnvironmentToken())
             return "Error: Authentication failed. Access denied.";
 
         try
@@ -386,7 +393,7 @@ public sealed class PlanTools(McpAuthenticationService authService) : Authentica
         [Description("Plan ID")] string planId,
         [Description("Filter by state: Pending, Accepted, Declined (optional)")] string? state = null)
     {
-        if (!authService.ValidateEnvironmentToken())
+        if (!_authService.ValidateEnvironmentToken())
             return "Error: Authentication failed. Access denied.";
 
         try
@@ -416,7 +423,7 @@ public sealed class PlanTools(McpAuthenticationService authService) : Authentica
 
     private string ModifyPlan(string planId, Action<PlanYaml> modifier, string successMessage)
     {
-        if (!authService.ValidateEnvironmentToken())
+        if (!_authService.ValidateEnvironmentToken())
             return "Error: Authentication failed. Access denied.";
 
         try

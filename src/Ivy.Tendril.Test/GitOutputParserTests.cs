@@ -61,15 +61,15 @@ branch refs/heads/another-branch
         Assert.Equal(3, result.Count);
         Assert.Equal("/path/to/main", result[0].Path);
         Assert.Equal("main", result[0].Branch);
-        Assert.Equal("abc123", result[0].Hash);
+        Assert.Equal("abc123", result[0].CommitHash);
 
         Assert.Equal("/path/to/feature", result[1].Path);
         Assert.Equal("feature/test", result[1].Branch);
-        Assert.Equal("def456", result[1].Hash);
+        Assert.Equal("def456", result[1].CommitHash);
 
         Assert.Equal("/path/to/another", result[2].Path);
         Assert.Equal("another-branch", result[2].Branch);
-        Assert.Equal("ghi789", result[2].Hash);
+        Assert.Equal("ghi789", result[2].CommitHash);
     }
 
     [Fact]
@@ -88,7 +88,7 @@ branch refs/heads/feature
         Assert.Single(result);
         Assert.Equal("/path/to/feature", result[0].Path);
         Assert.Equal("feature", result[0].Branch);
-        Assert.Equal("def456", result[0].Hash);
+        Assert.Equal("def456", result[0].CommitHash);
     }
 
     [Fact]

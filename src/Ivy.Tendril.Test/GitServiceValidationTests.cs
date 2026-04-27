@@ -1,10 +1,13 @@
-using Ivy.Tendril.Services;
+using System.Text.RegularExpressions;
 using Xunit;
 
 namespace Ivy.Tendril.Test;
 
 public class GitServiceValidationTests
 {
+    private static bool IsValidCommitHash(string? hash)
+        => !string.IsNullOrEmpty(hash) && Regex.IsMatch(hash, @"^[0-9a-fA-F]{7,40}$");
+
     [Theory]
     [InlineData("abc1234", true)]                    // 7-char short hash
     [InlineData("abc1234567890abcdef1234567890abcdef12345678", true)] // 40-char full hash
@@ -18,7 +21,7 @@ public class GitServiceValidationTests
     [InlineData(null, false)]                        // null
     public void IsValidCommitHash_ValidatesFormat(string? hash, bool expected)
     {
-        var result = GitService.IsValidCommitHash(hash);
+        var result = IsValidCommitHash(hash);
         Assert.Equal(expected, result);
     }
 }

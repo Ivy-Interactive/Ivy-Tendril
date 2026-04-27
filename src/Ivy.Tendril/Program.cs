@@ -282,7 +282,7 @@ public class Program
             // Clean up tracked temp files
             try
             {
-                _configService?.Dispose();
+                (_configService as IDisposable)?.Dispose();
             }
             catch (Exception ex)
             {

@@ -81,12 +81,12 @@ public class ContentView(
                 {
                     foreach (var repo in repoPaths2)
                     {
-                        var title = _gitService.GetCommitTitle(repo, hash);
-                        if (title != null)
+                        var titleResult = _gitService.GetCommitTitle(repo, hash);
+                        if (titleResult.IsSuccess)
                         {
-                            var diff = _gitService.GetCommitDiff(repo, hash);
-                            var files = _gitService.GetCommitFiles(repo, hash);
-                            return new PlanContentHelpers.CommitDetailData(title, diff, files);
+                            var diff = _gitService.GetCommitDiff(repo, hash).GetValueOrDefault();
+                            var files = _gitService.GetCommitFiles(repo, hash).GetValueOrDefault();
+                            return new PlanContentHelpers.CommitDetailData(titleResult.Value!, diff, files);
                         }
                     }
                     return null;

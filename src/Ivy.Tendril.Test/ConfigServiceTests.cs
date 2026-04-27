@@ -1262,7 +1262,7 @@ projects:
             Assert.Contains("tendril-edit-", processedPath);
 
             // Clean up the temp file
-            service.Dispose();
+            (service as IDisposable)?.Dispose();
             Assert.False(File.Exists(processedPath));
         }
         finally
@@ -1301,7 +1301,7 @@ projects:
             Assert.True(File.Exists(tempPath2));
 
             // Dispose should delete both temp files
-            service.Dispose();
+            (service as IDisposable)?.Dispose();
 
             Assert.False(File.Exists(tempPath1));
             Assert.False(File.Exists(tempPath2));
@@ -1338,10 +1338,10 @@ projects:
             File.Delete(tempPath);
 
             // Dispose should not throw even if file is already deleted
-            service.Dispose();
+            (service as IDisposable)?.Dispose();
 
             // Calling Dispose again should also not throw
-            service.Dispose();
+            (service as IDisposable)?.Dispose();
         }
         finally
         {
@@ -1385,7 +1385,7 @@ projects:
             }
 
             // Dispose should clean up all temp files
-            service.Dispose();
+            (service as IDisposable)?.Dispose();
 
             foreach (var tempPath in tempPaths)
             {

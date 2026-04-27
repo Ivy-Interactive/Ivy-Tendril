@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test.Services;
 
@@ -96,155 +97,160 @@ public class GitServiceTests : IDisposable
         return config;
     }
 
+    private GitService CreateService() => new(_configService, NullLogger<GitService>.Instance);
+
     [Fact]
     public void GetCommitTitle_ReturnsCorrectTitle()
     {
-        var service = new GitService(_configService);
+        var service = CreateService();
         var hash = GetCommitHash();
 
-        var title = service.GetCommitTitle(_testRepoPath, hash);
+        var result = service.GetCommitTitle(_testRepoPath, hash);
 
-        Assert.Equal("Modify file1", title);
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Modify file1", result.Value);
     }
 
     [Fact]
-    public void GetCommitTitle_ReturnsNullForInvalidCommit()
+    public void GetCommitTitle_ReturnsFailureForInvalidCommit()
     {
-        var service = new GitService(_configService);
+        var service = CreateService();
 
-        var title = service.GetCommitTitle(_testRepoPath, "invalid123456");
+        var result = service.GetCommitTitle(_testRepoPath, "invalid123456");
 
-        Assert.Null(title);
+        Assert.False(result.IsSuccess);
     }
 
     [Fact]
-    public void GetCommitTitle_ReturnsNullForInvalidRepo()
+    public void GetCommitTitle_ReturnsFailureForInvalidRepo()
     {
-        var service = new GitService(_configService);
+        var service = CreateService();
 
-        var title = service.GetCommitTitle("/nonexistent/path", "abc1234");
+        var result = service.GetCommitTitle("/nonexistent/path", "abc1234");
 
-        Assert.Null(title);
+        Assert.False(result.IsSuccess);
     }
 
     [Fact]
     public void GetCommitDiff_ReturnsValidDiff()
     {
-        var service = new GitService(_configService);
+        var service = CreateService();
         var hash = GetCommitHash();
 
-        var diff = service.GetCommitDiff(_testRepoPath, hash);
+        var result = service.GetCommitDiff(_testRepoPath, hash);
 
-        Assert.NotNull(diff);
-        Assert.Contains("file1.txt", diff);
-        Assert.Contains("Modified content", diff);
+        Assert.True(result.IsSuccess);
+        Assert.Contains("file1.txt", result.Value);
+        Assert.Contains("Modified content", result.Value);
     }
 
     [Fact]
-    public void GetCommitDiff_ReturnsNullForInvalidCommit()
+    public void GetCommitDiff_ReturnsFailureForInvalidCommit()
     {
-        var service = new GitService(_configService);
+        var service = CreateService();
 
-        var diff = service.GetCommitDiff(_testRepoPath, "invalid123456");
+        var result = service.GetCommitDiff(_testRepoPath, "invalid123456");
 
-        Assert.Null(diff);
+        Assert.False(result.IsSuccess);
     }
 
     [Fact]
     public void GetCommitFileCount_ReturnsCorrectCount()
     {
-        var service = new GitService(_configService);
+        var service = CreateService();
         var hash = GetCommitHash();
 
-        var count = service.GetCommitFileCount(_testRepoPath, hash);
+        var result = service.GetCommitFileCount(_testRepoPath, hash);
 
-        Assert.Equal(1, count);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, result.Value);
     }
 
     [Fact]
-    public void GetCommitFileCount_ReturnsNullForInvalidCommit()
+    public void GetCommitFileCount_ReturnsFailureForInvalidCommit()
     {
-        var service = new GitService(_configService);
+        var service = CreateService();
 
-        var count = service.GetCommitFileCount(_testRepoPath, "invalid123456");
+        var result = service.GetCommitFileCount(_testRepoPath, "invalid123456");
 
-        Assert.Null(count);
+        Assert.False(result.IsSuccess);
     }
 
     [Fact]
     public void GetCommitFiles_ReturnsCorrectFiles()
     {
-        var service = new GitService(_configService);
+        var service = CreateService();
         var hash = GetCommitHash(1); // "Add file2" commit
 
-        var files = service.GetCommitFiles(_testRepoPath, hash);
+        var result = service.GetCommitFiles(_testRepoPath, hash);
 
-        Assert.NotNull(files);
-        Assert.Single(files);
-        Assert.Equal("A", files[0].Status);
-        Assert.Equal("file2.txt", files[0].FilePath);
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value!);
+        Assert.Equal("A", result.Value![0].Status);
+        Assert.Equal("file2.txt", result.Value![0].FilePath);
     }
 
     [Fact]
     public void GetCommitFiles_ParsesModifiedStatus()
     {
-        var service = new GitService(_configService);
+        var service = CreateService();
         var hash = GetCommitHash(); // "Modify file1" commit
 
-        var files = service.GetCommitFiles(_testRepoPath, hash);
+        var result = service.GetCommitFiles(_testRepoPath, hash);
 
-        Assert.NotNull(files);
-        Assert.Single(files);
-        Assert.Equal("M", files[0].Status);
-        Assert.Equal("file1.txt", files[0].FilePath);
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value!);
+        Assert.Equal("M", result.Value![0].Status);
+        Assert.Equal("file1.txt", result.Value![0].FilePath);
     }
 
     [Fact]
-    public void GetCommitFiles_ReturnsNullForInvalidCommit()
+    public void GetCommitFiles_ReturnsFailureForInvalidCommit()
     {
-        var service = new GitService(_configService);
+        var service = CreateService();
 
-        var files = service.GetCommitFiles(_testRepoPath, "invalid123456");
+        var result = service.GetCommitFiles(_testRepoPath, "invalid123456");
 
-        Assert.Null(files);
+        Assert.False(result.IsSuccess);
     }
 
     [Fact]
     public void GetCombinedDiff_ReturnsValidDiff()
     {
-        var service = new GitService(_configService);
+        var service = CreateService();
         var firstCommit = GetCommitHash(1); // Add file2 commit
         var lastCommit = GetCommitHash(); // Modify file1
 
-        var diff = service.GetCombinedDiff(_testRepoPath, firstCommit, lastCommit);
+        var result = service.GetCombinedDiff(_testRepoPath, firstCommit, lastCommit);
 
-        Assert.NotNull(diff);
-        Assert.Contains("file1.txt", diff);
+        Assert.True(result.IsSuccess);
+        Assert.Contains("file1.txt", result.Value);
     }
 
     [Fact(Skip = "Git diff range behavior varies - test is environment-dependent")]
     public void GetCombinedChangedFiles_ReturnsCorrectFiles()
     {
-        var service = new GitService(_configService);
+        var service = CreateService();
         var firstCommit = GetCommitHash(2); // Initial commit
         var lastCommit = GetCommitHash(1); // Add file2 commit
 
-        var files = service.GetCombinedChangedFiles(_testRepoPath, firstCommit, lastCommit);
+        var result = service.GetCombinedChangedFiles(_testRepoPath, firstCommit, lastCommit);
 
-        Assert.NotNull(files);
-        Assert.Contains(files, f => f.FilePath == "file2.txt" && f.Status == "A");
+        Assert.True(result.IsSuccess);
+        Assert.Contains(result.Value!, f => f.FilePath == "file2.txt" && f.Status == "A");
     }
 
     [Fact]
     public void GetCommitSummaries_ReturnsCorrectSummaries()
     {
-        var service = new GitService(_configService);
+        var service = CreateService();
         var hash1 = GetCommitHash();
         var hash2 = GetCommitHash(1);
 
-        var summaries = service.GetCommitSummaries(_testRepoPath, new[] { hash1, hash2 });
+        var result = service.GetCommitSummaries(_testRepoPath, new[] { hash1, hash2 });
 
-        Assert.NotNull(summaries);
+        Assert.True(result.IsSuccess);
+        var summaries = result.Value!;
         Assert.Equal(2, summaries.Count);
         Assert.Equal("Modify file1", summaries[hash1].Title);
         Assert.Equal(1, summaries[hash1].FileCount);
@@ -255,13 +261,14 @@ public class GitServiceTests : IDisposable
     [Fact]
     public void GetCommitSummaries_HandlesShortHashes()
     {
-        var service = new GitService(_configService);
+        var service = CreateService();
         var fullHash = GetCommitHash();
         var shortHash = fullHash.Substring(0, 7);
 
-        var summaries = service.GetCommitSummaries(_testRepoPath, new[] { shortHash });
+        var result = service.GetCommitSummaries(_testRepoPath, new[] { shortHash });
 
-        Assert.NotNull(summaries);
+        Assert.True(result.IsSuccess);
+        var summaries = result.Value!;
         Assert.True(summaries.ContainsKey(shortHash));
         Assert.Equal("Modify file1", summaries[shortHash].Title);
     }
@@ -269,32 +276,33 @@ public class GitServiceTests : IDisposable
     [Fact]
     public void GetCommitSummaries_ReturnsEmptyForEmptyInput()
     {
-        var service = new GitService(_configService);
+        var service = CreateService();
 
-        var summaries = service.GetCommitSummaries(_testRepoPath, Array.Empty<string>());
+        var result = service.GetCommitSummaries(_testRepoPath, Array.Empty<string>());
 
-        Assert.NotNull(summaries);
-        Assert.Empty(summaries);
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value!);
     }
 
     [Fact]
-    public void GetCommitSummaries_ReturnsNullForInvalidRepo()
+    public void GetCommitSummaries_ReturnsFailureForInvalidRepo()
     {
-        var service = new GitService(_configService);
+        var service = CreateService();
 
-        var summaries = service.GetCommitSummaries("/nonexistent/path", new[] { "abc1234" });
+        var result = service.GetCommitSummaries("/nonexistent/path", new[] { "abc1234" });
 
-        Assert.Null(summaries);
+        Assert.False(result.IsSuccess);
     }
 
     [Fact]
     public void GetWorktrees_ReturnsMainWorktree()
     {
-        var service = new GitService(_configService);
+        var service = CreateService();
 
-        var worktrees = service.GetWorktrees(_testRepoPath);
+        var result = service.GetWorktrees(_testRepoPath);
 
-        Assert.NotNull(worktrees);
+        Assert.True(result.IsSuccess);
+        var worktrees = result.Value!;
         Assert.NotEmpty(worktrees);
         // Git on Windows uses forward slashes in paths, normalize for comparison
         var normalizedTestPath = _testRepoPath.Replace('\\', '/');
@@ -302,12 +310,12 @@ public class GitServiceTests : IDisposable
     }
 
     [Fact]
-    public void GetWorktrees_ReturnsNullForInvalidRepo()
+    public void GetWorktrees_ReturnsFailureForInvalidRepo()
     {
-        var service = new GitService(_configService);
+        var service = CreateService();
 
-        var worktrees = service.GetWorktrees("/nonexistent/path");
+        var result = service.GetWorktrees("/nonexistent/path");
 
-        Assert.Null(worktrees);
+        Assert.False(result.IsSuccess);
     }
 }

@@ -32,7 +32,9 @@ public class GitServiceTests
         public EditorConfig Editor => new();
         public bool NeedsOnboarding => false;
         public ConfigParseError? ParseError => null;
+#pragma warning disable CS0067
         public event EventHandler? SettingsReloaded;
+#pragma warning restore CS0067
 
         public ProjectConfig? GetProject(string name) => null;
         public bool TryAutoHeal() => false;
