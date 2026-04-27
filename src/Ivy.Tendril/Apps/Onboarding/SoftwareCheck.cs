@@ -1,3 +1,5 @@
+using Ivy.Tendril.Models;
+
 namespace Ivy.Tendril.Apps.Onboarding;
 
 public record SoftwareCheck(

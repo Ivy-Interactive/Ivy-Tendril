@@ -5,28 +5,18 @@ namespace Ivy.Tendril.Test;
 
 public class DatabaseCommandsTests : IDisposable
 {
+    private readonly TempDirectoryFixture _tempDir = new();
     private readonly string _dbPath;
     private readonly TestLogger _logger = new();
 
     public DatabaseCommandsTests()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"tendril-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
-        _dbPath = Path.Combine(tempDir, "tendril.db");
+        _dbPath = Path.Combine(_tempDir.Path, "tendril.db");
     }
 
     public void Dispose()
     {
-        var dir = Path.GetDirectoryName(_dbPath)!;
-        if (Directory.Exists(dir))
-            try
-            {
-                Directory.Delete(dir, true);
-            }
-            catch
-            {
-                /* best effort cleanup */
-            }
+        _tempDir.Dispose();
     }
 
     [Fact]

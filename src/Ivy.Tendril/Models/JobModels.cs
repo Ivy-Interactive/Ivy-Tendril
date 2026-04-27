@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Models;
 
@@ -79,11 +80,41 @@ public record JobItem
             OutputLines.TryDequeue(out _);
     }
 
-    public void DisposeResources()
+    public void DisposeResources(ILogger? logger = null)
     {
-        try { Process?.Dispose(); } catch { }
-        try { TimeoutCts?.Dispose(); } catch { }
-        try { if (StatusFilePath != null && File.Exists(StatusFilePath)) File.Delete(StatusFilePath); } catch { }
+        try
+        {
+            Process?.Dispose();
+            logger?.LogDebug("Job {JobId}: Process disposed successfully", Id);
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Job {JobId}: Failed to dispose Process", Id);
+        }
+
+        try
+        {
+            TimeoutCts?.Dispose();
+            logger?.LogDebug("Job {JobId}: TimeoutCts disposed successfully", Id);
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Job {JobId}: Failed to dispose TimeoutCts", Id);
+        }
+
+        try
+        {
+            if (StatusFilePath != null && File.Exists(StatusFilePath))
+            {
+                File.Delete(StatusFilePath);
+                logger?.LogDebug("Job {JobId}: Status file deleted successfully", Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Job {JobId}: Failed to delete status file at {StatusFilePath}", Id, StatusFilePath);
+        }
+
         Process = null;
         TimeoutCts = null;
     }
