@@ -158,10 +158,12 @@ public class TendrilSettings
 
 public record ConfigParseError(string Message, string FilePath, Exception? InnerException);
 
-public class ConfigService : IConfigService
+public class ConfigService : IConfigService, IDisposable
 {
     private readonly bool _explicitHome;
     private readonly ILogger<ConfigService> _logger;
+    private readonly List<string> _trackedTempFiles = new();
+    private readonly object _tempFileLock = new();
     private string[]? _levelNamesCache;
     private string? _pendingCodingAgent;
     private ProjectConfig? _pendingProject;
@@ -485,7 +487,20 @@ public class ConfigService : IConfigService
 
         var tempPath = Path.Combine(Path.GetTempPath(), $"tendril-edit-{Guid.NewGuid()}.md");
         File.WriteAllText(tempPath, polished);
+        lock (_tempFileLock) { _trackedTempFiles.Add(tempPath); }
         return tempPath;
+    }
+
+    public void Dispose()
+    {
+        lock (_tempFileLock)
+        {
+            foreach (var path in _trackedTempFiles)
+            {
+                try { if (File.Exists(path)) File.Delete(path); } catch { }
+            }
+            _trackedTempFiles.Clear();
+        }
     }
 
     public void CompleteOnboarding(string tendrilHome)
@@ -738,6 +753,7 @@ public class ConfigService : IConfigService
             }
         }
 
+        ValidateSettings();
         MigrateProjectColors();
         _levelNamesCache = null;
         VariableExpansion.InitializeUserSecrets(TendrilHome, _logger);

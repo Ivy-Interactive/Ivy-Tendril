@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test.Mcp;
 
+[Collection("EnvironmentVariableTests")]
 public class AuthenticatedToolBaseTests : IDisposable
 {
     private readonly string? _originalToken;

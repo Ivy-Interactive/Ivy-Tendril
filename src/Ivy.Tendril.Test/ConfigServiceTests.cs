@@ -884,9 +884,13 @@ editor:
     [Fact]
     public void SetTendrilHome_Should_Handle_Malformed_Config_Gracefully()
     {
-        var validYaml = "codingAgent: testAgent\njobTimeout: 99";
-        var validDir = CreateTempConfigFile(validYaml);
-        var malformedDir = CreateTempConfigFile("invalid: yaml: [unclosed");
+        var validDir = Path.Combine(Path.GetTempPath(), $"ivy-config-test-valid-{Guid.NewGuid():N}");
+        var malformedDir = Path.Combine(Path.GetTempPath(), $"ivy-config-test-malformed-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(validDir);
+        Directory.CreateDirectory(malformedDir);
+        File.WriteAllText(Path.Combine(validDir, "config.yaml"), "codingAgent: testAgent\njobTimeout: 99");
+        File.WriteAllText(Path.Combine(malformedDir, "config.yaml"), "projects:\n  - name: [invalid");
+
         var service = new ConfigService(new TendrilSettings());
 
         try
@@ -905,8 +909,8 @@ editor:
         }
         finally
         {
-            Directory.Delete(validDir, true);
-            Directory.Delete(malformedDir, true);
+            if (Directory.Exists(validDir)) Directory.Delete(validDir, true);
+            if (Directory.Exists(malformedDir)) Directory.Delete(malformedDir, true);
         }
     }
 
@@ -1250,9 +1254,9 @@ projects:
         {
             service.SetTendrilHome(tempDir);
 
-            // Create a markdown file that needs polishing
+            // Create a markdown file that needs polishing (backtick link text gets polished)
             var mdPath = Path.Combine(tempDir, "test.md");
-            File.WriteAllText(mdPath, "[Plan 12345](plan://12345)");
+            File.WriteAllText(mdPath, "[`Button.cs`](file:///D:/Repos/Test/Button.cs)");
 
             var processedPath = service.PreprocessForEditing(mdPath);
 
@@ -1291,8 +1295,8 @@ projects:
             // Create multiple temp files
             var mdPath1 = Path.Combine(tempDir, "test1.md");
             var mdPath2 = Path.Combine(tempDir, "test2.md");
-            File.WriteAllText(mdPath1, "[Plan 1](plan://1)");
-            File.WriteAllText(mdPath2, "[Plan 2](plan://2)");
+            File.WriteAllText(mdPath1, "[`File1.cs`](file:///D:/Repos/Test/File1.cs)");
+            File.WriteAllText(mdPath2, "[`File2.cs`](file:///D:/Repos/Test/File2.cs)");
 
             var tempPath1 = service.PreprocessForEditing(mdPath1);
             var tempPath2 = service.PreprocessForEditing(mdPath2);
@@ -1330,7 +1334,7 @@ projects:
             service.SetTendrilHome(tempDir);
 
             var mdPath = Path.Combine(tempDir, "test.md");
-            File.WriteAllText(mdPath, "[Plan 1](plan://1)");
+            File.WriteAllText(mdPath, "[`Button.cs`](file:///D:/Repos/Test/Button.cs)");
 
             var tempPath = service.PreprocessForEditing(mdPath);
 
@@ -1372,7 +1376,7 @@ projects:
             Parallel.For(0, 10, i =>
             {
                 var mdPath = Path.Combine(tempDir, $"test{i}.md");
-                File.WriteAllText(mdPath, $"[Plan {i}](plan://{i})");
+                File.WriteAllText(mdPath, $"[`File{i}.cs`](file:///D:/Repos/Test/File{i}.cs)");
                 var tempPath = service.PreprocessForEditing(mdPath);
                 tempPaths.Add(tempPath);
             });

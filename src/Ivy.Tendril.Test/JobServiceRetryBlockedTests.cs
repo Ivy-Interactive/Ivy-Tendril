@@ -221,17 +221,19 @@ public class JobServiceRetryBlockedTests : IDisposable
         var completingId = service.CreateTestJob("CreatePr", Path.GetTempPath());
         service.CompleteJob(completingId, 0);
 
-        // The blocked job should have been removed (TryRemove succeeds)
-        Assert.Null(service.GetJob(blockedId));
+        // The blocked job should remain because an active job exists for the same plan
+        var stillBlocked = service.GetJob(blockedId);
+        Assert.NotNull(stillBlocked);
+        Assert.Equal(JobStatus.Blocked, stillBlocked.Status);
 
-        // But no NEW ExecutePlan job should be created because HasActiveJobForPlan returns true
+        // The active job should still be running
         var executePlanJobs = service.GetJobs()
             .Where(j => j.Type == "ExecutePlan" && j.Args.Length > 0 && j.Args[0] == dependentPlan)
             .ToList();
 
-        // Only the original active job should exist
-        Assert.Single(executePlanJobs);
-        Assert.Equal(activeId, executePlanJobs[0].Id);
+        Assert.Equal(2, executePlanJobs.Count);
+        Assert.Contains(executePlanJobs, j => j.Id == activeId && j.Status == JobStatus.Running);
+        Assert.Contains(executePlanJobs, j => j.Id == blockedId && j.Status == JobStatus.Blocked);
 
         // Cleanup
         Directory.Delete(dependentPlan, true);

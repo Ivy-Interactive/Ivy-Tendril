@@ -887,13 +887,13 @@ public class PlanDatabaseService : IPlanDatabaseService
         if (_disposed)
             return;
 
+        _disposed = true;
+
         if (disposing)
         {
-            _connection?.Dispose();
-            _lock?.Dispose();
+            try { _connection?.Dispose(); } catch { }
+            try { _lock?.Dispose(); } catch { }
         }
-
-        _disposed = true;
     }
 
     ~PlanDatabaseService()
