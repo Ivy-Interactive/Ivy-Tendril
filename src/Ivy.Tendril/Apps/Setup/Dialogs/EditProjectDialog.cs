@@ -276,8 +276,10 @@ public class EditProjectDialog(
             new DialogBody(
                 Layout.Vertical().Gap(4)
                 | editName.ToTextInput("Project name...").WithField().Label("Name")
-                | new Button(editColor.Value?.ToString() ?? "Select Color").Outline()
-                    .OnClick(() => showColorPicker.Set(true)).WithField().Label("Color")
+                | (Layout.Vertical().Gap(1)
+                   | Text.Block("Color").Small()
+                   | new Button(editColor.Value?.ToString() ?? "Select Color").Outline()
+                       .OnClick(() => showColorPicker.Set(true)))
                 | editColor.ToColorInput().ToDialog(showColorPicker, title: "Select Color")
                 | editContext.ToTextareaInput("Project context or prompt for AI agents (optional)...").Rows(4)
                     .WithField().Label("Context / Prompt (Optional)")
