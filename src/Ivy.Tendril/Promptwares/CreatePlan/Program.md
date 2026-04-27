@@ -2,20 +2,19 @@
 
 **Note:** This promptware is stack-agnostic. Stack-specific operations (build, format, test) are defined in `config.yaml` under `verifications`. Examples in this document use multiple tech stacks for illustration.
 
-**🚫 FORBIDDEN: Do NOT modify, create, or delete any source code files (.cs, .ts, .ps1, etc.). Do NOT implement the plan. You are a PLANNER, not an executor. Your ONLY output is plan files (plan.yaml, revisions/*.md) inside PlansDirectory. If you catch yourself writing code to a repo, STOP IMMEDIATELY.**
+**🚫 FORBIDDEN: Do NOT modify, create, or delete any source code files. Do NOT implement the plan. You are a PLANNER, not an executor. Your ONLY output is plan files (plan.yaml, revisions/*.md) inside PlansDirectory. If you catch yourself writing code to a repo, STOP IMMEDIATELY.**
 
 Create an implementation plan for a task described in args.
 
 ## Context
 
 The firmware header contains these key values:
-- **PlanId** — pre-allocated 5-digit plan ID (e.g. `01127`). Use this — do NOT read `.counter`.
 - **PlansDirectory** — where plan folders are created
 - **Project** — selected project name, or `Auto` if not specified
 - **SourcePath** (optional) — absolute path to the source that generated this plan (e.g. test working directory)
 
-Read the plan folder structure in `../.shared/Plans.md`.
-Use the `Get-ConfigYaml` helper from Utils.ps1 to read project configuration with caching.
+The plan folder structure and CLI commands are in the **Reference Documents** section of your firmware.
+Project configuration is available from `config.yaml` (referenced via `$TENDRIL_CONFIG` env var).
 
 ## Execution Steps
 
@@ -26,15 +25,14 @@ Args contains the user's task description. If it references related plans with `
 **Extract Flags**: Check for special flags at the end of args:
 
 - **Force Flag**: If args ends with ` [FORCE]`, set an internal flag to skip duplicate detection (see Step 3), then strip ` [FORCE]` from the description.
-- **YOLO Flag**: If args ends with ` [YOLO]` (or appears before ` [FORCE]`), set an internal flag to auto-execute the plan after creation (see Step 6), then strip ` [YOLO]` from the description.
 
-Flags can be combined (e.g., `task description [YOLO] [FORCE]` or `task description [FORCE] [YOLO]`). Strip all flags. The cleaned description should be used for all subsequent steps (title, plan.yaml, etc.). Never let flags appear in any plan field or title.
+Strip all flags. The cleaned description should be used for all subsequent steps (title, plan.yaml, etc.). Never let flags appear in any plan field or title.
 
 **Extract Source URL**: Check if the args contain a GitHub PR URL (`https://github.com/{owner}/{repo}/pull/{number}`) or issue URL (`https://github.com/{owner}/{repo}/issues/{number}`). If found, store it as `sourceUrl` in plan.yaml. Use `gh pr view <url> --json title,body` or `gh issue view <url> --json title,body` to fetch the title and body for additional context when writing the plan.
 
 ### 1.5. Load Project Context
 
-Use `Get-ConfigYaml` to understand all available projects, their repos, and context.
+Read `config.yaml` to understand all available projects, their repos, and context.
 
 **If `Project` is set to a specific project name** (not `Auto`):
 - Find that project in `config.yaml` and use its repos and context to scope your research
@@ -47,7 +45,7 @@ Use `Get-ConfigYaml` to understand all available projects, their repos, and cont
 
 ### 2. Plan ID
 
-The plan ID is pre-allocated by the launcher script and provided in the firmware header as `PlanId`. Use it directly — do NOT read or modify `.counter`.
+Do NOT read or modify `.counter` directly. Plan IDs are allocated by the `tendril plan create` CLI command (see Step 4).
 
 ### 3. Research
 
@@ -74,7 +72,7 @@ The plan ID is pre-allocated by the launcher script and provided in the firmware
 
   - **Verify the fix commit exists on main**: Read the existing plan's `commits` list and run `git log --oneline <hash>` to confirm the commit is on the main branch. If the commit is not on main, do NOT trash — create the plan.
   - **Check commit date vs observation time**: If the inbox item describes an issue observed at a specific time, compare against the fix commit date (`git log -1 --format=%ci <hash>`). If the observation is **after** the fix was committed, the fix may not have worked — create the plan instead of trashing.
-  - **Verify in code**: For code fixes, use `Tools/Validate-CodeAssertion.ps1` or grep the actual source to confirm the fix is still present.
+  - **Verify in code**: For code fixes, grep the actual source to confirm the fix is still present.
 
   #### Step 4: Regression detection (for Completed plans)
 
@@ -89,7 +87,7 @@ The plan ID is pre-allocated by the launcher script and provided in the firmware
 
   #### Step 5: Write trash file (when trashing)
 
-  Write a file to `$env:TENDRIL_HOME/Trash/<PlanId>-<SafeTitle>.md` (where `<SafeTitle>` is the title with spaces replaced by hyphens and special characters removed) with the following format, then exit without creating a plan folder:
+  Write a file to `$env:TENDRIL_HOME/Trash/<SafeTitle>.md` (where `<SafeTitle>` is the title with spaces replaced by hyphens and special characters removed) with the following format, then exit without creating a plan folder:
 
   ```markdown
   ---
@@ -114,7 +112,7 @@ The plan ID is pre-allocated by the launcher script and provided in the firmware
 
   The Trash directory is at `$env:TENDRIL_HOME/Trash`.
 
-  **Note:** When writing trash files, use `-Force` with `Set-Content` or `Out-File` to ensure synchronous writes, as the parent process checks for the file immediately after exit.
+  **Note:** When writing trash files, ensure the write is flushed/synchronous, as the parent process checks for the file immediately after exit.
 
 - Read relevant source files to understand the codebase areas involved
 - **Search GitHub issues** before creating plans to avoid duplicates or workaround plans for features already being built. Example:
@@ -135,7 +133,7 @@ Before creating the plan, scan the task description (args) for code state assert
 
 For each assertion found:
 1. Extract the referenced file path and optional line range
-2. Use `Tools/Validate-CodeAssertion.ps1` to check if the described code actually exists
+2. Use `Tools/Validate-CodeAssertion` to check if the described code actually exists
 3. If validation fails, investigate:
    - Check `git log --oneline -10 --all -- <file>` for recent changes
    - Check `git blame <file>` to find who/when the code changed
@@ -143,29 +141,68 @@ For each assertion found:
 
 **Decision:**
 - **All validations pass** → Proceed to Step 4, include validated code blocks in plan with `**Current implementation**` headers
-- **Any validation fails** → Write trash file to `$env:TENDRIL_HOME/Trash/<PlanId>-<SafeTitle>.md` explaining the validation failure, then exit without creating a plan
+- **Any validation fails** → Write trash file to `$env:TENDRIL_HOME/Trash/<SafeTitle>.md` explaining the validation failure, then exit without creating a plan
 
 This catches stale plans before they enter the review queue, reducing wasted review time.
 
 ### 4. Create Plan
 
-Create the plan folder, `plan.yaml`, and `revisions/001.md` according to the structure in `../.shared/Plans.md`.
+Create the plan using CLI commands according to the plan structure in the **Reference Documents** section. **Never write `plan.yaml` directly** — use `tendril plan` commands for all plan metadata.
 
-In `plan.yaml`, populate the `verifications` list with each verification from the project's config, all set to `Pending`:
+#### 4.1. Create plan folder and plan.yaml via CLI
 
-```yaml
-verifications:
-  - name: Build
-    status: Pending
-  - name: Test
-    status: Pending
+Use `tendril plan create` to allocate a plan ID, create the folder, and write `plan.yaml` in a single command:
+
+```bash
+tendril plan create "<Title>" \
+  --project "<Project>" \
+  --level "NiceToHave" \
+  --initial-prompt "<cleaned args text>" \
+  --execution-profile "balanced" \
+  --repo "<repo-path-1>" \
+  --repo "<repo-path-2>" \
+  --verification "Build=Pending" \
+  --verification "Test=Pending"
 ```
 
-If `SourcePath` is present in the firmware header, copy it to `plan.yaml` as `sourcePath`.
+The command outputs:
+```
+PlanId: 01234
+Directory: /path/to/Plans/01234-SafeTitle
+Plan created: 01234-SafeTitle
+```
 
-If a source URL was extracted in Step 1, add `sourceUrl: "<url>"` to plan.yaml.
+Parse `PlanId` and `Directory` from the output — use these for all subsequent operations.
 
-If the plan references other plans (from `[number]` syntax in args), add them to `relatedPlans`.
+Include optional flags as needed:
+- `--source-url "<url>"` — if a source URL was extracted in Step 1
+- `--related-plan "<folder-name>"` — for each plan referenced via `[number]` syntax in args
+- `--depends-on "<folder-name>"` — for blocking dependencies (see Section 4.4)
+- `--priority <number>` — if non-default priority
+
+Populate `--verification` flags from the project's `verifications` in config.yaml, all set to `Pending`.
+
+#### 4.2. Write the revision
+
+Write `revisions/001.md` with the plan content into the directory returned by `tendril plan create`.
+
+After creating the plan, report the plan ID and title to the Jobs UI so it can display progress:
+
+```bash
+tendril job status $env:TENDRIL_JOB_ID --message "Creating plan..." --plan-id <PlanId> --plan-title "<Title>"
+```
+
+#### 4.3. Post-creation adjustments
+
+For any fields that need to be set after initial creation, use individual CLI commands:
+
+```bash
+tendril plan set <PlanId> initialPrompt "<text>"
+tendril plan add-repo <PlanId> "<repo-path>"
+tendril plan set-verification <PlanId> Build Pending
+tendril plan add-related-plan <PlanId> "<folder-name>"
+tendril plan add-depends-on <PlanId> "<folder-name>"
+```
 
 **Validate repo paths**: After determining the project and repos from config.yaml, verify each repo path exists locally:
 - For each repo in the plan's repos list, check `Test-Path <repo-path>`
@@ -173,8 +210,8 @@ If the plan references other plans (from `[number]` syntax in args), add them to
 - This prevents creating plans targeting non-existent repo paths
 
 **Rename/refactor plans (caller enumeration)**: When creating plans that rename functions, change method signatures, extract interfaces, or otherwise require updating callers:
-1. Use `Grep` to search the **entire repo root** (not just the expected directory) for all usage patterns of the symbol being changed
-2. For interface extractions, also search DI-specific patterns: `UseService<ConcreteType>()`, constructor parameter injection, field/property declarations
+1. Search the **entire repo root** (not just the expected directory) for all usage patterns of the symbol being changed
+2. For interface extractions, also search for dependency injection patterns specific to the project's stack (e.g. constructor injection, service registration)
 3. List EVERY caller with file path and line number in the plan revision
 4. Validate count: grep results must match documented callers
 5. Incomplete caller lists cause follow-up fixes during execution (see Memory/caller-audit-pattern.md)
@@ -191,8 +228,8 @@ The `dependsOn` field in plan.yaml declares **true blocking dependencies** betwe
    - Without `dependsOn`, Plan B will fail to compile (symbol doesn't exist yet)
 
 2. **Building on new infrastructure**
-   - Plan A adds a new `IAuthService` interface and implementation
-   - Plan B creates a new feature that depends on `IAuthService`
+   - Plan A adds a new `AuthService` interface and implementation
+   - Plan B creates a new feature that depends on `AuthService`
    - Without `dependsOn`, Plan B references non-existent types
 
 3. **Database schema migrations with data dependencies**
@@ -202,26 +239,26 @@ The `dependsOn` field in plan.yaml declares **true blocking dependencies** betwe
 
 4. **Semantic conflicts (same change, different approaches)**
    - Plan A implements error handling using exceptions
-   - Plan B implements error handling using Result<T> pattern
-   - Both modify the same method signature incompatibly
+   - Plan B implements error handling using a result type pattern
+   - Both modify the same function signature incompatibly
    - Without `dependsOn`, merge conflict is guaranteed but semantically broken
 
 **Do NOT use `dependsOn` when:**
 
 1. **Plans modify different files in same repository**
-   - Plan A: changes `Services/AuthService.cs`
-   - Plan B: changes `Controllers/UserController.cs`
+   - Plan A: changes `services/auth_service`
+   - Plan B: changes `controllers/user_controller`
    - Git handles these independently — no conflict
 
 2. **Plans modify different parts of same file**
-   - Plan A: adds method `GetUserById()` to `UserService.cs`
-   - Plan B: adds method `CreateUser()` to `UserService.cs`
+   - Plan A: adds function `getUserById()` to `user_service`
+   - Plan B: adds function `createUser()` to `user_service`
    - Git auto-merges these changes (different line ranges)
 
 3. **Plans share common ancestor but diverge**
-   - Plan A: adds logging to `ProcessOrder()`
-   - Plan B: adds metrics to `ProcessOrder()`
-   - Both touch same method, but git 3-way merge handles this correctly
+   - Plan A: adds logging to `processOrder()`
+   - Plan B: adds metrics to `processOrder()`
+   - Both touch same function, but git 3-way merge handles this correctly
 
 4. **Hypothetical conflicts (might overlap)**
    - Plan A: "refactor authentication flow"
@@ -255,33 +292,22 @@ When in doubt, **don't use `dependsOn`** — git will surface real conflicts dur
 
 ### 4.5. Recommend Execution Profile
 
-Analyze the task complexity and set `executionProfile` in plan.yaml. Consider:
+Analyze the task complexity and choose an `executionProfile`. This is passed via `--execution-profile` on `tendril plan create` (see Step 4.2).
 
-**Use `deep` (opus/max effort) when:**
+**Use `deep` (max effort) when:**
 - Plan involves complex cross-cutting changes affecting 10+ files
 - Plan requires architectural decisions or complex refactoring
 - Plan involves new features with significant integration points
 - Plan description mentions "architecture", "refactor", "redesign", "complex"
 
-**Use `quick` (haiku/low effort) when:**
-- Plan is documentation-only (updating .md files)
-- Plan is simple typo/formatting fixes (< 5 lines changed)
-- Plan is adding/removing simple log statements
-- Plan is updating version numbers or package references
-- Plan description mentions "typo", "docs", "readme", "comment"
-
-**Use `balanced` (sonnet/high effort) for everything else:**
-- Most bug fixes (unless trivial)
+**Use `balanced` (standard effort) for everything else:**
+- Most bug fixes
 - Most new features (unless architectural)
 - Most refactoring (unless cross-cutting)
+- Simple changes (docs, typos, version bumps, log statements)
 - When in doubt, use balanced
 
-Add the field to plan.yaml:
-```yaml
-executionProfile: balanced  # or deep, or quick
-```
-
-If you cannot determine complexity (e.g., task is too vague), omit the field — ExecutePlan will use the config.yaml default.
+If you cannot determine complexity (e.g., task is too vague), omit `--execution-profile` — ExecutePlan will use the config.yaml default.
 
 ### 4.6. Questions Section
 
@@ -297,12 +323,7 @@ The `## Tests` section MUST include two parts:
    To determine scope:
    - Identify the modules/classes being modified
    - Search for existing test classes that cover those areas
-   - **Filters MUST target specific test classes, not broad namespaces/directories.** 
-     Examples:
-     - .NET: `dotnet test --filter "FullyQualifiedName~MyApp.Tests.CommandParserTests"`
-     - JavaScript: `jest --testPathPattern=CommandParser.test.ts`
-     - Python: `pytest tests/test_command_parser.py`
-     - Go: `go test ./pkg/parser/...`
+   - **Filters MUST target specific test classes, not broad namespaces/directories.** Use the project's test runner syntax from config.yaml verifications.
    - **Exclude E2E/integration test classes** unless the plan specifically changes E2E-level behavior. E2E tests are environment-dependent and should only run when explicitly needed.
    - If no existing tests cover the changed code, state: "No existing test coverage for this area."
    - If the change is so broad that all tests are genuinely needed, explicitly state: "Run all tests (broad cross-cutting change)." and justify why.
@@ -332,20 +353,6 @@ If the project has no verifications (e.g. `Auto`), leave the section empty or om
 
 The user can edit the checklist before execution — unchecking a required verification or checking an optional one. ExecutePlan will run only the checked items.
 
-### 6. Auto-Execute Plan (YOLO Mode)
-
-If the YOLO flag was detected in Step 1, automatically execute the plan after creation:
-
-1. **Verify plan was created**: Confirm the plan folder exists at `PlansDirectory/<PlanId>-<SafeTitle>/`
-2. **Update plan state**: Change the plan's state from `Draft` to `Building` in `plan.yaml`
-3. **Invoke ExecutePlan**: Use `Tools/Invoke-ExecutePlan.ps1` to trigger plan execution:
-   ```powershell
-   & Tools/Invoke-ExecutePlan.ps1 -PlanPath "PlansDirectory/<PlanId>-<SafeTitle>"
-   ```
-4. **Report execution status**: Include the result of ExecutePlan in your summary to the user
-
-**Note**: If the plan was trashed in Step 3 (duplicate detection), skip this step entirely — there is no plan to execute.
-
 ### Rules
 
 - **Diagrams**: Markdown supports Graphviz/DOT (```dot or ```graphviz code blocks) and Mermaid (```mermaid code blocks). **Prefer Graphviz/DOT over Mermaid** — it produces cleaner layouts for architecture and flow diagrams. Use diagrams sparingly — only when a visual genuinely clarifies the concept. Most plans don't need diagrams.
@@ -353,6 +360,7 @@ If the YOLO flag was detected in Step 1, automatically execute the plan after cr
 - **!CRITICAL: Every CreatePlan execution MUST produce at least one plan folder. Even if the task is an analysis, review, or investigation — always create a plan with actionable steps. Never just analyze and report back without a plan.**
 - The plan must include all paths and information for an LLM coding agent to execute end-to-end without human intervention
 - **!IMPORTANT: Validate all file paths before writing `file:///` links in plans.** Use glob/search to confirm the actual path exists. Do NOT guess paths based on naming conventions — hallucinated paths cause "File not found" errors in the UI.
+- When referencing local files, use markdown links: `[filename:line](file:///path/to/filename)` for source files with line numbers, or `[filename](file:///path/to/filename)` without. Never use backticks in link text or `#L123` fragments in URLs. Use `![alt](path)` for images.
 - Keep the plan short and concise - the limiting factor of this system is a human that will have to read this.
 - **!IMPORTANT: ONE issue per plan file — if multiple issues, create multiple plan files with separate IDs**
-- **Multiple plans from one execution:** When args contain multiple issues, use the pre-allocated PlanId for the first plan. For additional plans, read `.counter`, use sequential IDs starting from it, and update `.counter` to the next available value after all plans are created.
+- **Multiple plans from one execution:** When args contain multiple issues, call `tendril plan create` once per plan. Each call auto-allocates a unique ID. Do NOT read or modify `.counter` directly.

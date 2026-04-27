@@ -1,9 +1,10 @@
 using Ivy.Tendril.Apps.Recommendations;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps;
 
-[App(title: "Recommendations", icon: Icons.Lightbulb, group: ["Apps"], order: MenuOrder.Recommendations)]
+[App(title: "Recommendations", icon: Icons.Lightbulb, group: ["Apps"], order: Constants.Recommendations)]
 public class RecommendationsApp : ViewBase
 {
     public override object Build()
@@ -16,6 +17,7 @@ public class RecommendationsApp : ViewBase
         var impactFilter = UseState<string?>(null);
         var riskFilter = UseState<string?>(null);
         var textFilter = UseState<string?>("");
+        var filtersOpen = UseState(false);
 
         UseInterval(() => refreshToken.Refresh(), TimeSpan.FromMinutes(1));
 
@@ -63,12 +65,13 @@ public class RecommendationsApp : ViewBase
             riskFilter,
             totalPendingCount,
             hasActiveFilters,
-            textFilter
+            textFilter,
+            filtersOpen
         );
 
         return new SidebarLayout(
             new ContentView(selectedState.Value, filtered, selectedState, planService, jobService, Refresh),
             sidebar
-        );
+        ).SidebarContentScroll(Scroll.None);
     }
 }

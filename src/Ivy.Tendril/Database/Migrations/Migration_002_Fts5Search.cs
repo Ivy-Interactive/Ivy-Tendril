@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Database.Migrations;
 
@@ -8,7 +9,7 @@ public class Migration_002_Fts5Search : IMigration
     public int Version => 2;
     public string Description => "Add FTS5 full-text search for plans";
 
-    public void Apply(SqliteConnection connection)
+    public void Apply(SqliteConnection connection, ILogger? logger = null)
     {
         using var cmd = connection.CreateCommand();
         cmd.CommandText = """
@@ -47,7 +48,7 @@ public class Migration_002_Fts5Search : IMigration
 
         if (planCount > 0)
         {
-            Console.WriteLine($"  Populating FTS5 index with {planCount} existing plans...");
+            logger?.LogInformation("  Populating FTS5 index with {PlanCount} existing plans...", planCount);
             using var populateCmd = connection.CreateCommand();
             populateCmd.CommandText = """
                 INSERT INTO PlanSearch(rowid, Title, LatestRevisionContent, Project, InitialPrompt)

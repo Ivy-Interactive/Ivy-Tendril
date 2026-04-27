@@ -8,8 +8,6 @@ searchHints:
   - tools
 ---
 
-<Text Color="Green" Small Bold>Concepts</Text>
-
 # Promptwares
 
 <Ingress>
@@ -25,8 +23,6 @@ They are located in a folder under `TENDRIL_HOME/Promptwares/`:
 - **Memory/** — Long-lived notes across runs.
 
 Tendril runs them through the configured AI stack (e.g. Claude Code) for focused automation.
-
-
 
 ## Core Jobs
 

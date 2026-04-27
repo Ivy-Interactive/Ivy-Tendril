@@ -8,8 +8,8 @@ The firmware header contains:
 - **Args** / **PlanFolder** — path to the plan folder
 - **CurrentTime** — current UTC timestamp
 
-Read the plan structure in `../.shared/Plans.md`.
-Use the `Get-ConfigYaml` helper from Utils.ps1 to read project configuration with caching.
+The plan structure and CLI commands are in the **Reference Documents** section of your firmware.
+Project configuration is available from the firmware header.
 
 ## Execution Steps
 
@@ -18,6 +18,7 @@ Use the `Get-ConfigYaml` helper from Utils.ps1 to read project configuration wit
 - Read `plan.yaml` from the plan folder
 - Read the latest revision from `revisions/` (highest numbered .md file)
 - Identify sections with investigative/exploratory language ("Investigate...", "Check if...", "Research...", "Explore...")
+- Report plan context to Jobs UI: `tendril job status $env:TENDRIL_JOB_ID --message "Expanding plan..." --plan-id <plan-id> --plan-title "<title>"`
 
 ### 2. Research and Resolve
 
@@ -39,8 +40,8 @@ Example:
 **After:**
 ```
 1. Fix dialog content initialization race condition:
-   - In `Dialog.cs`, add immediate content rendering before animation
-   - In `FormBuilder.cs`, ensure UseState hooks execute synchronously in dialog context
+   - In `dialog_component`, add immediate content rendering before animation
+   - In `form_builder`, ensure state hooks execute synchronously in dialog context
 ```
 
 ### 3. Create Expanded Revision
@@ -61,4 +62,4 @@ Example:
 - Do NOT modify any source code — only read files and update the plan
 - Do NOT modify `plan.yaml` — the launcher script handles state and timestamps
 - Keep the plan short and concise — the limiting factor is a human reading it
-- When referencing local files, use markdown links: `[FileName.cs:line](file:///path/to/FileName.cs)` for source files with line numbers, or `[FileName.cs](file:///path/to/FileName.cs)` without. Never use backticks in link text or `#L123` fragments in URLs. Use `![alt](path)` for images.
+- When referencing local files, use markdown links: `[filename:line](file:///path/to/filename)` for source files with line numbers, or `[filename](file:///path/to/filename)` without. Never use backticks in link text or `#L123` fragments in URLs. Use `![alt](path)` for images.

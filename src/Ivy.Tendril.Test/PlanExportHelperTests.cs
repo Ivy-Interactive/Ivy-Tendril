@@ -1,5 +1,5 @@
-using Ivy.Tendril.Apps.Plans;
-using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 
 namespace Ivy.Tendril.Test;
 

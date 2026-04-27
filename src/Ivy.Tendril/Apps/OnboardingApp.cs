@@ -1,11 +1,12 @@
 using Ivy.Tendril.Apps.Onboarding;
+using Ivy.Tendril.Models;
 
 namespace Ivy.Tendril.Apps;
 
 #if DEBUG
-[App(title: "Onboarding", icon: Icons.Rocket, group: ["Debug"], isVisible: true, order: MenuOrder.Onboarding)]
+[App(title: "Onboarding", icon: Icons.Rocket, group: ["Debug"], isVisible: true, order: Constants.Onboarding)]
 #else
-[App(icon: Icons.Rocket, isVisible: false, order: MenuOrder.Onboarding)]
+[App(icon: Icons.Rocket, isVisible: false, order: Constants.Onboarding)]
 #endif
 public class OnboardingApp : ViewBase
 {

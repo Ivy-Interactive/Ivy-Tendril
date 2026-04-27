@@ -1,6 +1,8 @@
+using Ivy.Tendril.Helpers;
 using System.Diagnostics;
 using System.Globalization;
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services;
@@ -12,6 +14,7 @@ public class PlanDatabaseSyncService : IDisposable
     private readonly PlanReaderService _planReader;
     private readonly IPlanWatcherService _watcher;
     private volatile bool _isInitialSyncComplete;
+    private volatile bool _isDatabaseAvailable;
 
     public PlanDatabaseSyncService(
         PlanReaderService planReader,
@@ -66,6 +69,7 @@ public class PlanDatabaseSyncService : IDisposable
 
             // Enable database-backed reads in PlanReaderService
             _planReader.EnableDatabaseReads(_database);
+            _isDatabaseAvailable = true;
 
             stopwatch.Stop();
             _logger.LogInformation("Initial sync complete. Synced {Count} plans in {Ms}ms",
@@ -81,7 +85,7 @@ public class PlanDatabaseSyncService : IDisposable
 
     private void OnPlansChanged(string? changedPlanFolder)
     {
-        if (!_isInitialSyncComplete) return;
+        if (!_isInitialSyncComplete || !_isDatabaseAvailable) return;
 
         try
         {

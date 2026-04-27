@@ -1,6 +1,7 @@
 using Ivy.Tendril.Database;
 using Ivy.Tendril.Database.Migrations;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Test;
 
@@ -295,19 +296,19 @@ public class DatabaseMigratorTests : IDisposable
         // Insert a plan
         using var insertPlan = _connection.CreateCommand();
         insertPlan.CommandText = """
-            INSERT INTO Plans (Id, Title, Project, Level, State, FolderPath, FolderName,
-                               YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated)
-            VALUES (1, 'Test', 'Tendril', 'NiceToHave', 'Draft', '/test', 'test',
-                    'yaml', 1, 'content', '2026-01-01', '2026-01-01')
-            """;
+                                 INSERT INTO Plans (Id, Title, Project, Level, State, FolderPath, FolderName,
+                                                    YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated)
+                                 VALUES (1, 'Test', 'Tendril', 'NiceToHave', 'Draft', '/test', 'test',
+                                         'yaml', 1, 'content', '2026-01-01', '2026-01-01')
+                                 """;
         insertPlan.ExecuteNonQuery();
 
         // Insert costs for that plan
         using var insertCost = _connection.CreateCommand();
         insertCost.CommandText = """
-            INSERT INTO Costs (PlanId, Promptware, Cost, Tokens, LogTimestamp)
-            VALUES (1, 'TestPW', 0.50, 1000, '2026-01-01T12:00:00Z')
-            """;
+                                 INSERT INTO Costs (PlanId, Promptware, Cost, Tokens, LogTimestamp)
+                                 VALUES (1, 'TestPW', 0.50, 1000, '2026-01-01T12:00:00Z')
+                                 """;
         insertCost.ExecuteNonQuery();
 
         // PlanId-only lookup should work (composite index leftmost prefix)
@@ -335,19 +336,19 @@ public class DatabaseMigratorTests : IDisposable
 
         using var insertCmd = _connection.CreateCommand();
         insertCmd.CommandText = """
-            INSERT INTO Plans (Id, Title, Project, Level, State, FolderPath, FolderName,
-                               YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated)
-            VALUES (1, 'Test', 'Tendril', 'NiceToHave', 'Draft', '/test', 'test',
-                    'yaml', 1, 'content', '2026-01-01', '2026-01-01')
-            """;
+                                INSERT INTO Plans (Id, Title, Project, Level, State, FolderPath, FolderName,
+                                                   YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated)
+                                VALUES (1, 'Test', 'Tendril', 'NiceToHave', 'Draft', '/test', 'test',
+                                        'yaml', 1, 'content', '2026-01-01', '2026-01-01')
+                                """;
         insertCmd.ExecuteNonQuery();
 
         using var recCmd = _connection.CreateCommand();
         recCmd.CommandText = """
-            INSERT INTO Recommendations (PlanId, Title, Description, State, PlanTitle,
-                                         PlanFolderName, Project, Date, SourcePlanStatus, Impact, Risk)
-            VALUES (1, 'Test Rec', 'Desc', 'Pending', 'Test', 'test', 'Tendril', '2026-01-01', 'Draft', 'High', 'Small')
-            """;
+                             INSERT INTO Recommendations (PlanId, Title, Description, State, PlanTitle,
+                                                          PlanFolderName, Project, Date, SourcePlanStatus, Impact, Risk)
+                             VALUES (1, 'Test Rec', 'Desc', 'Pending', 'Test', 'test', 'Tendril', '2026-01-01', 'Draft', 'High', 'Small')
+                             """;
         recCmd.ExecuteNonQuery();
 
         using var selectCmd = _connection.CreateCommand();
@@ -372,7 +373,7 @@ public class DatabaseMigratorTests : IDisposable
         public int Version { get; }
         public string Description { get; }
 
-        public void Apply(SqliteConnection connection)
+        public void Apply(SqliteConnection connection, ILogger? logger = null)
         {
             _tracker?.Add(Version);
             using var cmd = connection.CreateCommand();
@@ -392,7 +393,7 @@ public class DatabaseMigratorTests : IDisposable
         public int Version { get; }
         public string Description { get; }
 
-        public void Apply(SqliteConnection connection)
+        public void Apply(SqliteConnection connection, ILogger? logger = null)
         {
             throw new InvalidOperationException("Intentional migration failure");
         }

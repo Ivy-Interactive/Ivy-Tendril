@@ -1,15 +1,15 @@
-using Ivy.Tendril.Apps.Plans;
-using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 
 namespace Ivy.Tendril.Test;
 
 [Collection("TendrilHome")]
 public class PlanRecCommandTests : IDisposable
 {
-    private readonly string _tempDir;
-    private readonly string _plansDir;
     private readonly string _originalTendrilHome;
     private readonly string? _originalTendrilPlans;
+    private readonly string _plansDir;
+    private readonly string _tempDir;
 
     public PlanRecCommandTests()
     {
@@ -28,8 +28,13 @@ public class PlanRecCommandTests : IDisposable
         Environment.SetEnvironmentVariable("TENDRIL_HOME", _originalTendrilHome);
         Environment.SetEnvironmentVariable("TENDRIL_PLANS", _originalTendrilPlans);
         if (Directory.Exists(_tempDir))
-            try { Directory.Delete(_tempDir, true); }
-            catch { }
+            try
+            {
+                Directory.Delete(_tempDir, true);
+            }
+            catch
+            {
+            }
     }
 
     private void CreatePlan(string id, string title, List<RecommendationYaml>? recs = null)
@@ -356,12 +361,13 @@ public class PlanRecCommandTests : IDisposable
     }
 
     [Fact]
-    public void NullRecommendations_DeserializesAsNull()
+    public void NullRecommendations_DeserializesAsEmpty()
     {
         CreatePlan("10061", "NullRecsTest");
 
         var result = ReadPlan("10061");
-        Assert.Null(result.Recommendations);
+        Assert.NotNull(result.Recommendations);
+        Assert.Empty(result.Recommendations);
     }
 
     [Fact]

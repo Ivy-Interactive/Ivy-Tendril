@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using Ivy.Tendril.Apps.Jobs;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -7,20 +7,19 @@ namespace Ivy.Tendril.Test;
 
 public class PlanCountsServiceTests : IDisposable
 {
+    private readonly TempDirectoryFixture _tempDir = new();
     private readonly FakeJobService _jobService;
     private readonly PlanReaderService _planReader;
     private readonly FakePlanWatcherService _planWatcher;
     private readonly string _plansDir;
-    private readonly string _tempDir;
 
     public PlanCountsServiceTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), $"tendril-counts-test-{Guid.NewGuid()}");
-        _plansDir = Path.Combine(_tempDir, "Plans");
+        _plansDir = Path.Combine(_tempDir.Path, "Plans");
         Directory.CreateDirectory(_plansDir);
 
         var settings = new TendrilSettings();
-        var configService = new ConfigService(settings, _tempDir);
+        var configService = new ConfigService(settings, _tempDir.Path);
         _planReader = new PlanReaderService(configService, NullLogger<PlanReaderService>.Instance);
         _jobService = new FakeJobService();
         _planWatcher = new FakePlanWatcherService();
@@ -28,8 +27,7 @@ public class PlanCountsServiceTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_tempDir))
-            Directory.Delete(_tempDir, true);
+        _tempDir.Dispose();
     }
 
     private void CreatePlan(string folderName, string state)
@@ -228,6 +226,10 @@ public class PlanCountsServiceTests : IDisposable
             throw new NotImplementedException();
         }
 
+        public void Dispose()
+        {
+        }
+
         public void AddJob(string id, JobStatus status)
         {
             _jobs.Add(new JobItem { Id = id, Status = status });
@@ -239,8 +241,6 @@ public class PlanCountsServiceTests : IDisposable
         public event Action? JobPropertyChanged;
         public event Action<JobNotification>? NotificationReady;
 #pragma warning restore CS0067
-
-        public void Dispose() { }
     }
 
     private class FakePlanWatcherService : IPlanWatcherService

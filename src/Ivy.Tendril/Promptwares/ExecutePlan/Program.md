@@ -12,7 +12,7 @@ The firmware header contains:
 - **CurrentTime** — current UTC timestamp
 - **Note** (optional) — Additional instructions from the reviewer. If present, follow these instructions in addition to the plan.
 
-Read the plan structure in `../.shared/Plans.md`.
+The plan structure and CLI commands are in the **Reference Documents** section of your firmware.
 Read the project configuration from `config.yaml` (referenced via `$TENDRIL_CONFIG` env var) for project repos and context.
 
 The launcher sets the working directory to the project's primary repo.
@@ -40,6 +40,7 @@ Focus on making progress, not achieving perfect understanding. A working impleme
 - Read `plan.yaml` from the plan folder (project, repos, title)
 - Read the latest revision from `revisions/` (highest numbered .md file)
 - Extract the plan ID from the folder name (e.g. `01105` from `01105-TestPlan`)
+- Report plan context to Jobs UI: `tendril job status $env:TENDRIL_JOB_ID --message "Reading plan..." --plan-id <plan-id> --plan-title "<title>"`
 
 ### 1.5. Verify Dependencies
 
@@ -102,7 +103,7 @@ After reading the plan revision, scan it for code validation markers to detect s
 1. **Extract validation blocks** — Parse the plan revision for sections containing:
    - Headers matching `**Current implementation**`, `**Current implementation in <file>**`, or `**Old implementation**`
    - Fenced code blocks (` ```language ... ``` `) immediately following these headers
-   - Associated file paths (markdown links with `file:///` or inline text like `Utils.ps1:217`)
+   - Associated file paths (markdown links with `file:///` or inline text like `helpers.py:217`)
 
 2. **Validate code exists** — For each validation block found:
    - Extract the file path from the context (header text or preceding paragraph)
@@ -147,7 +148,7 @@ After reading the plan revision, scan it for code validation markers to detect s
    - A `<details><summary>Still relevant?</summary>` block whose body starts with `No.`
    - Phrases like *"Already applied"*, *"This plan is redundant"*, *"This plan is superseded"*, or *"previously attempted … was merged to main via PR #NNNN"* in the `## Problem` or `## Solution` sections.
 
-   If any marker is found, verify the claim: run `gh pr view <cited PR> --json state,mergeCommit` (must be `MERGED`), confirm the cited commit is in `git log origin/<default-branch>`, and byte-compare the plan's proposed code against the current file contents. If all three checks pass, write `verification/PreExecution.md` with `Result: Fail`, write `artifacts/summary.md` documenting the no-op, set every `plan.yaml` verification to `Skipped`, and fail the plan **without creating a worktree** — running verifications on unchanged code wastes the time budget and produces a 0-commit PR that CreatePr cannot process.
+   If any marker is found, verify the claim: run `gh pr view <cited PR> --json state,mergeCommit` (must be `MERGED`), confirm the cited commit is in `git log origin/<default-branch>`, and byte-compare the plan's proposed code against the current file contents. If all three checks pass, write `verification/PreExecution.md` with `Result: Fail`, write `artifacts/summary.md` documenting the no-op, set every verification to `Skipped` via `tendril plan set-verification <plan-id> <name> Skipped`, and fail the plan **without creating a worktree** — running verifications on unchanged code wastes the time budget and produces a 0-commit PR that CreatePr cannot process.
 
 ### 1.8. Auto-Commit Uncommitted Changes
 
@@ -210,13 +211,13 @@ fi
 - Auto-committing and pushing ensures all local work is preserved and visible to worktrees
 - The `WIP:` prefix makes auto-commits easily identifiable for later cleanup (squash/amend)
 - **Revert detection with auto-resolve:** Before committing, each dirty tracked file — whether unstaged (`git diff --name-only HEAD`) or staged (`git diff --cached --name-only`) — is checked against the last 5 commits. If the working tree version matches the file's state *before* a recent commit (i.e., it's stale), the file is automatically restored to its HEAD version via `git checkout HEAD -- <file>`. This prevents silent reverts while keeping the process fully autonomous. Any remaining non-stale dirty files are committed normally.
-- **Backup file exclusion:** After staging all changes with `git add -A`, the command `git reset -- '*.bak_*'` explicitly unstages any files matching the backup pattern. This prevents temporary backup files (created by FileHelper.ReadAllText's defensive copy mechanism in plan 03055) from being committed to version control. Backup files serve only as local recovery points and should not pollute the repository history.
+- **Backup file exclusion:** After staging all changes with `git add -A`, the command `git reset -- '*.bak_*'` explicitly unstages any files matching the backup pattern. This prevents temporary backup files (created by prior plan executions as local recovery points) from being committed to version control. Backup files serve only as local recovery points and should not pollute the repository history.
 
 **Note:** This step runs in the original repo directories, before worktree creation.
 
 ### 2. Create Worktrees
 
-For each repo listed in `plan.yaml` `repos` (or the project's repos from `config.yaml` if empty):
+For each repo in `RepoConfigs` (this includes both the plan's repos AND any read-only build dependencies from the project config):
 
 1. Fetch latest from remote: `git fetch origin`
 2. Determine the base branch:
@@ -260,14 +261,22 @@ git worktree add "<PlanFolder>/worktrees/<RepoName>" -b "tendril/<PlanId>-<SafeT
 
 **Important:** Always branch from `origin/<resolved-base-branch>`, not local HEAD. This ensures the PR only contains the plan's commits, not any unpushed local work. The `<resolved-base-branch>` comes from either the `RepoConfigs` firmware header (if `baseBranch` is configured) or auto-detection.
 
-**Note on `RepoConfigs`:** The firmware header may include a `RepoConfigs` value injected by ExecutePlan.ps1. It contains per-repo configuration from `config.yaml`:
+**Note on `RepoConfigs`:** The firmware header may include a `RepoConfigs` value injected by Tendril. It contains per-repo configuration from `config.yaml`:
 ```yaml
 RepoConfigs: |
-  Ivy-Framework:
-    baseBranch: develop
-    syncStrategy: rebase
+  - path: /home/user/repos/my-project
+    baseBranch: main
+    syncStrategy: fetch
+    prRule: yolo
+  - path: /home/user/repos/shared-lib
+    baseBranch: main
+    syncStrategy: fetch
+    prRule: default
+    readOnly: true
 ```
 If `baseBranch` is present for a repo, use it instead of auto-detecting. If absent, fall back to `git symbolic-ref refs/remotes/origin/HEAD`.
+
+**Read-only repos** (`readOnly: true`) are build dependencies — they need worktrees so that cross-repo project references resolve, but you must NOT make changes, commits, or PRs in them. Create their worktrees the same way (branching from `origin/<baseBranch>`), but skip them during implementation steps 3-5.
 
 4. After creating the worktree, **verify the `.git` file exists** and fail fast if it's missing:
 
@@ -282,28 +291,15 @@ cat "<PlanFolder>/worktrees/<repo-folder-name>/.git"
 
 This ensures ExecutePlan fails immediately if worktree creation is incomplete, rather than leaving orphaned directories that trigger warnings during cleanup.
 
-5. Log the worktree creation event:
-
-```bash
-REPO_PATH="<original-repo-path>"
-WORKTREE_PATH="<PlanFolder>/worktrees/<repo-folder-name>"
-
-pwsh -NoProfile -Command '& "$env:TENDRIL_HOME/Promptwares/ExecutePlan/Tools/Log-WorktreeEvent.ps1" -Event Creation -PlanId "'"$PLAN_ID"'" -WorktreePath "'"$WORKTREE_PATH"'" -Metadata @{repo="'"$REPO_PATH"'"; branch="'"$BRANCH_NAME"'"}'
-```
-
-This creates a structured log entry in `$TENDRIL_HOME/Logs/worktrees.log` recording the worktree creation with repo path and branch metadata. Logging only happens after successful `.git` file verification (Step 2.4), ensuring only successfully created worktrees are recorded.
-
-6. **Apply sync strategy** — REQUIRED after worktree creation and `.git` file verification:
+5. **Apply sync strategy** — REQUIRED after worktree creation and `.git` file verification:
 
    ```bash
    SYNC_STRATEGY="<from RepoConfigs or 'fetch' if not specified>"
    BASE_BRANCH="<resolved-base-branch>"
    WORKTREE_PATH="<PlanFolder>/worktrees/<repo-folder-name>"
 
-   pwsh -NoProfile -File "$env:TENDRIL_HOME/Promptwares/ExecutePlan/Tools/Apply-SyncStrategy.ps1" \
-     -WorktreePath "$WORKTREE_PATH" \
-     -SyncStrategy "$SYNC_STRATEGY" \
-     -BaseBranch "$BASE_BRANCH"
+   # Invoke the Apply-SyncStrategy tool
+   Tools/Apply-SyncStrategy -WorktreePath "$WORKTREE_PATH" -SyncStrategy "$SYNC_STRATEGY" -BaseBranch "$BASE_BRANCH"
    ```
 
    This tool applies the configured sync strategy (fetch/rebase/merge) to keep the worktree branch synchronized with the base branch. It handles errors and logs each step.
@@ -313,75 +309,48 @@ This creates a structured log entry in `$TENDRIL_HOME/Logs/worktrees.log` record
    **Note:** For `syncStrategy: "rebase"` or `syncStrategy: "merge"`, this operation should also be performed before making commits during plan execution to keep the branch up-to-date with upstream changes. Use the same tool with the same parameters.
 
    **Error handling:**
-   - If `Apply-SyncStrategy.ps1` fails (non-zero exit code), the entire ExecutePlan run should fail
+   - If `Apply-SyncStrategy` fails (non-zero exit code), the entire ExecutePlan run should fail
    - Common failure scenarios:
      - `git fetch` fails → network issue or invalid remote
      - `git rebase` fails → conflicting changes between worktree base and origin
      - `git merge` fails → conflicting changes or uncommitted files
    - On failure, log the error and exit. Do NOT attempt to continue with an out-of-sync worktree.
 
-### 2.5. Setup Frontend Dependencies (JavaScript/TypeScript Projects Only)
+### 2.5. Setup Build Dependencies in Worktrees
 
-**Note:** This section applies only to projects using npm/pnpm. Skip if not applicable.
+**Note:** This section applies only when the project has build-time dependencies (e.g. frontend packages, generated code, pre-built artifacts) that need special handling in worktrees. Skip if not applicable.
 
-**!CRITICAL: Frontend builds in worktrees have known issues with npm package module resolution that cause 15-25 minute timeouts. Follow this workaround to avoid them.**
+Worktrees start with a clean checkout and may be missing build artifacts (e.g. `dist/`, `node_modules/`, generated files) that exist in the original repo. Determine whether the plan modifies these areas:
 
-Frontend directories are detected by the presence of `package.json` files in the repo. Find them by scanning the worktree:
+#### Default Path (No Changes to Build-Dependent Code)
 
-```bash
-find "<worktree-path>" -name "package.json" -not -path "*/node_modules/*" -exec dirname {} \;
-```
+If the plan does **NOT** modify code in directories with build artifacts:
 
-#### Cleanup Leftover Files
-
-Before setting up frontend dependencies, clean up any `.npmrc` files left from previous crashed runs:
+1. **Copy pre-built artifacts** from the original repo into the worktree to avoid unnecessary rebuilds:
 
 ```bash
-pwsh -NoProfile -File "$env:TENDRIL_HOME/Promptwares/ExecutePlan/Tools/Cleanup-WorktreeFrontend.ps1" -WorktreeRoot "<PlanFolder>/worktrees"
-```
-
-This removes temporary `.npmrc` files with auth tokens while preserving tracked files.
-
-#### Default Path (Most Plans)
-
-If the plan does **NOT** modify frontend code (`.tsx`, `.ts`, `.css` files in frontend directories):
-
-1. **Copy pre-built artifacts** from the original repo into each worktree. For each frontend directory that has a `dist/` folder in the original repo, copy it to the corresponding worktree path:
-
-```bash
-# For each frontend dir with dist/ in the original repo, copy to worktree
-for dist_dir in $(find "<original-repo-path>" -name "dist" -path "*/frontend/dist" -type d); do
-  relative_path="${dist_dir#<original-repo-path>/}"
+# Example: copy dist/ directories from original repo to worktree
+for artifact_dir in $(find "<original-repo-path>" -name "dist" -type d -not -path "*/node_modules/*"); do
+  relative_path="${artifact_dir#<original-repo-path>/}"
   parent_dir=$(dirname "$relative_path")
   mkdir -p "<worktree-path>/$parent_dir"
-  cp -r "$dist_dir" "<worktree-path>/$parent_dir/"
+  cp -r "$artifact_dir" "<worktree-path>/$parent_dir/"
 done
 ```
 
-2. **Create `.npmrc`** in each frontend directory preemptively (in case builds need to load frontend resources):
+2. **Skip dependency installation** — the copied artifacts are sufficient for build and tests.
 
-```bash
-for frontend_dir in $(find "<worktree-path>" -name "package.json" -not -path "*/node_modules/*" -exec dirname {} \;); do
-  echo "node-linker=hoisted" > "$frontend_dir/.npmrc"
-done
-```
+#### Exception Path (Build-Dependent Code Changes)
 
-3. **Skip `pnpm install`** entirely — the copied artifacts are sufficient for build and tests.
+If the plan **modifies** build-dependent code, you MUST rebuild:
 
-#### Exception Path (Frontend Code Changes)
-
-If the plan **modifies frontend code** (adding/editing `.tsx`, `.ts`, `.css` files), you MUST rebuild:
-
-1. **Create `.npmrc`** with `node-linker=hoisted` in each frontend directory (required for pnpm in worktrees)
-2. **Run `pnpm install`** in each frontend directory that has a `package.json`
-3. **Run `pnpm run build`** to regenerate `dist/`
-4. Be prepared for resolution failures — if `pnpm install` fails after 2 attempts, document the failure and recommend the user manually fix the lockfile
-
-**Note:** The `Setup-WorktreeFrontend.ps1` tool can automate authentication and `.npmrc` creation, but by default it also runs `pnpm install`. Only use it for the Exception Path when you need a full rebuild.
+1. **Install dependencies** using the project's package manager
+2. **Run the build** to regenerate artifacts
+3. If dependency installation fails after 2 attempts, document the failure and fail the plan
 
 ### 3. Handle Cross-Repo References
 
-Projects may reference other repos via absolute paths in project files (e.g. `.csproj`, `go.mod`, `package.json`).
+Projects may reference other repos via absolute paths in project files (e.g. build files, module manifests, package configs).
 
 These paths point to the original repos, not the worktree copies. Since we only modify files in the worktree, this is usually fine — the build references the original (stable) code.
 
@@ -456,65 +425,27 @@ Focus on **what changed** (past tense), not what the plan said to do. Emphasize 
 
 Update the summary after verification fixes too — if verifications cause additional commits, append those changes to the summary.
 
-### 5.7. Generate Recommendations
-
-**REQUIRED STEP** — After implementation, actively reflect on what you observed during this plan's execution. Consider each of the following categories and write down any findings:
-
-1. **Follow-up work** — Did you notice functionality that should be extended, edge cases not covered, or related features that would complement this change?
-2. **Code quality** — Did you encounter confusing code, missing documentation, inconsistent patterns, or technical debt in the files you touched or read?
-3. **Bugs** — Did you notice any unrelated bugs, broken tests, or incorrect behavior in surrounding code?
-4. **Optimizations** — Are there performance improvements, unnecessary complexity, or refactoring opportunities in the area you worked in?
-
-If you identified items in ANY category, append them to the `recommendations` field in `<PlanFolder>/plan.yaml`:
-
-```yaml
-recommendations:
-  - title: "Short descriptive title"
-    description: |
-      Markdown description with context and location.
-    state: Pending
-    impact: Medium   # Optional: Small, Medium, or High
-    risk: Small      # Optional: Small, Medium, or High
-```
-
-Optionally include `impact` and `risk` to help prioritize the recommendation. Impact indicates the value of implementing it; Risk indicates the potential for complications or bugs.
-
-**YAML quoting rules:** Titles containing backticks, colons, brackets, braces, or other YAML special characters MUST be double-quoted. Alternatively, use block scalar style (`>` or `|`) for values with special characters.
-
-Do NOT include items that are part of the current plan's scope.
-
-Do NOT include recommendations about code formatting, linting, or style issues (e.g., line wrapping, indentation, trailing whitespace, import ordering). These are handled automatically by DotnetFormat and FrontendLint verifications.
-
-If after genuine reflection you found nothing noteworthy, skip the file — but this should be rare. Most plans touch enough code to surface at least one observation.
-
 ### 6. Document Commits
 
-Update `plan.yaml` in the plan folder (NOT in the worktree). Use the Edit tool on the original `plan.yaml` at the `PlanFolder` path.
+Use the CLI to record commits, verifications, and related plans — **never edit plan.yaml directly**.
 
-Append each commit hash to the `commits` list:
+Add each commit hash:
 
-```yaml
-commits:
-  - abc1234
-  - def5678
+```bash
+tendril plan add-commit <plan-id> abc1234
+tendril plan add-commit <plan-id> def5678
 ```
 
-Also populate the `verifications` list from the plan revision. Set checked items (`- [x]`) to `Pending` and unchecked items (`- [ ]`) to `Skipped`:
+Set verification statuses from the plan revision. Set checked items (`- [x]`) to `Pending` and unchecked items (`- [ ]`) to `Skipped`:
 
-```yaml
-verifications:
-  - name: DotnetBuild
-    status: Pending
-  - name: DotnetTest
-    status: Skipped
+```bash
+tendril plan set-verification <plan-id> Build Pending
+tendril plan set-verification <plan-id> Test Skipped
 ```
 
-If the plan references other plans (e.g. split-from, follow-up), add them to `relatedPlans`:
+If the plan references other plans (e.g. split-from, follow-up), add them via CLI.
 
-```yaml
-relatedPlans:
-  - <PlansDirectory>/01100-OriginalPlan
-```
+**CRITICAL:** The `tendril plan add-commit` and `tendril plan set-verification` CLI commands are the ONLY mechanism that updates plan.yaml. If you skip them, the plan will be marked as Failed even if all verifications pass. You MUST call these commands — do not assume writing verification report files is sufficient.
 
 ### 7. Run Verifications
 
@@ -522,23 +453,29 @@ Create a `verification/` directory in the plan folder if it doesn't exist.
 
 Check the `## Verification` section in the plan revision for checked items (`- [x]`). Skip unchecked items (`- [ ]`).
 
+**Delegated verifications:** Some verifications are implemented as separate promptwares (e.g., `IvyFrameworkVerification`). A verification is **delegated** if its name matches an entry in the `promptwares` section of `config.yaml`. Delegated verifications MUST be run via `tendril promptware <Name>` — you are FORBIDDEN from writing their report files or setting their status to Pass yourself. If the `tendril` CLI is unavailable and you cannot invoke the sub-promptware, you MUST set the verification to `Fail` with a report explaining the CLI failure. Never self-certify a delegated verification.
+
 For each checked verification:
 
-1. Send a status message: `Invoke-RestMethod -Uri "$env:TENDRIL_URL/api/jobs/$env:TENDRIL_JOB_ID/status" -Method Post -Body ('{"message":"Verifying: <Name>"}') -ContentType "application/json" -ErrorAction SilentlyContinue`
+1. Send a status message: `tendril job status $env:TENDRIL_JOB_ID --message "Verifying: <Name>"`
 2. Look up its `prompt` in the `verifications` list in `config.yaml`
-3. Execute the prompt in the worktree directory
-4. If it fails: diagnose, fix the issue, **commit the fix** (e.g. `[01105] Fix lint errors from DotnetBuild`), and re-run. Repeat until it passes (fail the plan after 3+ failed attempts).
-5. Document all fix commits in `plan.yaml` just like implementation commits.
-6. Update the verification's `status` in `plan.yaml` to `Pass` or `Fail`.
+3. **Check if delegated:** If the verification name exists in config.yaml's `promptwares` section, it is a delegated verification — follow the prompt's instructions to invoke it as an external process. If the external process cannot be invoked (CLI broken, file lock, etc.), set the verification to `Fail` immediately. Do NOT attempt to do the verification inline or write the report yourself.
+4. Execute the prompt in the worktree directory
+5. If it fails: diagnose, fix the issue, **commit the fix** (e.g. `[01105] Fix lint errors from Build`), and re-run. Repeat until it passes (fail the plan after 3+ failed attempts).
+6. Document all fix commits via CLI: `tendril plan add-commit <plan-id> <sha>`
+7. Update the verification status via CLI: `tendril plan set-verification <plan-id> <Name> Pass` (or `Fail`)
 
-**!IMPORTANT: Every verification MUST produce a report** at `<PlanFolder>/verification/<VerificationName>.md`:
+**CRITICAL:** You MUST call `tendril plan set-verification` after EACH verification. The verification report file alone is NOT sufficient — plan.yaml must also be updated via the CLI. Failing to call this command will result in the plan being marked as Failed.
+
+**!IMPORTANT: Every verification MUST produce a report** at `<PlanFolder>/verification/<VerificationName>.md` using YAML frontmatter:
 
 ```markdown
+---
+result: Pass
+date: <CurrentTime>
+attempts: <number>
+---
 # <VerificationName>
-
-- **Date:** <CurrentTime>
-- **Result:** Pass / Fail
-- **Attempts:** <number>
 
 ## Output
 
@@ -553,23 +490,53 @@ For each checked verification:
 <any remaining issues, or "None">
 ```
 
-A verification is not complete without its report. If the report file does not exist after running a verification, the plan should fail.
+The `result` field in the frontmatter MUST be one of: `Pass`, `Fail`, or `Skipped`. A verification is not complete without both its report file AND the `tendril plan set-verification` CLI call.
+
+### 7.5. Generate Recommendations
+
+After all verifications pass, reflect on what you observed during this plan's execution. Write down anything you noticed that isn't part of this plan's scope:
+
+- Follow-up work, edge cases not covered, or related features
+- Confusing code, inconsistent patterns, or technical debt in the files you touched or read
+- Unrelated bugs, broken tests, or incorrect behavior in surrounding code
+- Performance improvements, unnecessary complexity, or refactoring opportunities
+
+For each item, register it via the CLI:
+
+```bash
+tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact Medium --risk Small
+```
+
+`--impact` and `--risk` are optional (Small, Medium, or High). Impact indicates the value of implementing it; Risk indicates the potential for complications or bugs.
+
+Do NOT include items that are part of the current plan's scope. Do NOT include recommendations about code formatting, linting, or style issues — those are handled by verifications.
+
+**After registering any recommendations via the CLI**, create `<PlanFolder>/artifacts/recommendations.md`. Having zero recommendations is fine — but the file must still be created:
+
+~~~markdown
+# Recommendations
+
+## Items
+
+- **<Title>** — <one-line summary>
+- **<Title>** — <one-line summary>
+
+*Or: "None — <one sentence explaining why>"*
+~~~
+
+**This file is mandatory.** Step 8 will verify it exists and fail the plan if it is missing.
 
 ### 8. Final Clean Check
 
 After all verifications pass:
 
-1. Kill any remaining sample processes from the plan's artifacts directory:
-   ```bash
-   powershell.exe -NoProfile -Command "\$planFolder = '<PlanFolder>'.Replace('\\', '\\\\'); Get-Process -ErrorAction SilentlyContinue | Where-Object { \$_.Path -and \$_.Path -match [regex]::Escape(\$planFolder) -and \$_.Path -match '\\\\artifacts\\\\sample\\\\bin\\\\' } | ForEach-Object { Write-Host \"Killing zombie process: \$(\$_.ProcessName) (PID \$(\$_.Id))\"; \$_ | Stop-Process -Force -ErrorAction SilentlyContinue }"
-   ```
+1. Kill any remaining processes spawned during plan execution (e.g. dev servers, sample apps). Find processes whose working directory or binary path is under the plan folder's artifacts directory and terminate them.
 
-2. Clean up temporary `.npmrc` files created in Step 2.5:
-   ```bash
-   pwsh -NoProfile -File "$env:TENDRIL_HOME/Promptwares/ExecutePlan/Tools/Cleanup-WorktreeFrontend.ps1" -WorktreeRoot "<PlanFolder>/worktrees"
-   ```
+2. Clean up any temporary files created in Step 2.5 (e.g. generated config files, auth tokens).
 
 3. Run `git status` in every worktree. If there are any uncommitted files (from verification fixes, generated files, etc.), commit or discard them. The worktrees must be completely clean before finishing.
+
+4. Verify `<PlanFolder>/artifacts/recommendations.md` exists. If missing, the plan **must fail** — go back to Step 7.5.
 
 ### 8.5. Worktree Lifecycle
 
@@ -596,11 +563,11 @@ You are running in non-interactive mode and CANNOT ask questions. If you are uns
 - All work happens in worktree directories, never in the original repos
 - Make logically grouped commits — not one giant commit
 - Worktrees must be clean (no uncommitted files) when finished
-- Document all commit hashes in `plan.yaml`
+- Document all commit hashes via `tendril plan add-commit` — never edit plan.yaml directly
 - Follow the plan instructions exactly as written
 - Do NOT skip tests or pre-commit formatting
 - Commit messages must reference the plan ID
-- All `file:///` paths in plans should be converted to Windows paths when needed
+- Convert `file:///` paths in plans to local filesystem paths appropriate for your OS
 - Do NOT commit artifact files (screenshots, images) to the repo. Test artifacts belong in `<PlanFolder>/artifacts/` only — CreatePr handles uploading them to persistent storage.
-- Private npm packages (like `@ivy-interactive/ivy-design-system`) require authentication via `.npmrc`. The Setup-WorktreeFrontend.ps1 tool handles this automatically. Credentials come from NPM_TOKEN env var or .NET user secrets (Npm:RegistryToken).
-- Do NOT use `subst` to create drive letter mappings for worktree paths. The plans directory is already symlinked to a short path to avoid long-path issues. Using `subst` creates phantom drives that are never cleaned up.
+- If the project uses private package registries, ensure authentication is configured before running dependency installation in worktrees. Credentials should come from environment variables or project-level configuration.
+- Do NOT create filesystem aliases or shortcuts (e.g. symlinks, drive mappings) to worktree paths. The plans directory path is managed by Tendril — additional indirection causes cleanup issues.

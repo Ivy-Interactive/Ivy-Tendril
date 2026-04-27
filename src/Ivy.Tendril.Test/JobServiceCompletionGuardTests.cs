@@ -1,11 +1,16 @@
-using Ivy.Tendril.Apps.Jobs;
-using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
 
-public class JobServiceCompletionGuardTests
+public class JobServiceCompletionGuardTests : IDisposable
 {
+    private readonly TempDirectoryFixture _tempDir = new();
+
+    public void Dispose()
+    {
+        _tempDir.Dispose();
+    }
     private static JobService CreateService()
     {
         SynchronizationContext.SetSynchronizationContext(null);
@@ -122,7 +127,7 @@ public class JobServiceCompletionGuardTests
         Assert.NotNull(job);
         job.StaleOutputDetected = true;
 
-        service.CompleteJob(id, null, timedOut: true, staleOutput: true);
+        service.CompleteJob(id, null, true, true);
 
         job = service.GetJob(id);
         Assert.NotNull(job);
@@ -133,86 +138,155 @@ public class JobServiceCompletionGuardTests
     [Fact]
     public void CompleteJob_CreatePlan_UpdatesPlanFileWhenOutputContainsPlanCreated()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"tendril-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
-        try
-        {
-            var service = CreateServiceWithPlanReader(tempDir);
-            var id = service.CreateTestJob("CreatePlan", "-Description", "Fix login bug", "-Project", "Tendril");
+        var service = CreateServiceWithPlanReader(_tempDir.Path);
+        var id = service.CreateTestJob("CreatePlan", "-Description", "Fix login bug", "-Project", "Tendril");
 
-            var job = service.GetJob(id);
-            Assert.NotNull(job);
-            job.EnqueueOutput("Processing...");
-            job.EnqueueOutput("Plan created: 02353-FixLoginBug");
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+        job.EnqueueOutput("Processing...");
+        job.EnqueueOutput("Plan created: 02353-FixLoginBug");
 
-            service.CompleteJob(id, 0);
+        service.CompleteJob(id, 0);
 
-            job = service.GetJob(id);
-            Assert.NotNull(job);
-            Assert.Equal("02353-FixLoginBug", job.PlanFile);
-        }
-        finally
-        {
-            Directory.Delete(tempDir, true);
-        }
+        job = service.GetJob(id);
+        Assert.NotNull(job);
+        Assert.Equal("02353-FixLoginBug", job.PlanFile);
     }
 
     [Fact]
     public void CompleteJob_CreatePlan_LeavesPlanFileUnchangedOnDuplicate()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"tendril-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
-        try
-        {
-            var service = CreateServiceWithPlanReader(tempDir);
-            var id = service.CreateTestJob("CreatePlan", "-Description", "Fix login bug", "-Project", "Tendril");
+        var service = CreateServiceWithPlanReader(_tempDir.Path);
+        var id = service.CreateTestJob("CreatePlan", "-Description", "Fix login bug", "-Project", "Tendril");
 
-            var job = service.GetJob(id);
-            Assert.NotNull(job);
-            var originalPlanFile = job.PlanFile;
-            job.EnqueueOutput("Processing...");
-            job.EnqueueOutput("identified as duplicate: 01234-ExistingPlan");
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+        var originalPlanFile = job.PlanFile;
+        job.EnqueueOutput("Processing...");
+        job.EnqueueOutput("identified as duplicate: 01234-ExistingPlan");
 
-            service.CompleteJob(id, 0);
+        service.CompleteJob(id, 0);
 
-            job = service.GetJob(id);
-            Assert.NotNull(job);
-            Assert.Equal(originalPlanFile, job.PlanFile);
-            Assert.Equal(JobStatus.Completed, job.Status);
-        }
-        finally
-        {
-            Directory.Delete(tempDir, true);
-        }
+        job = service.GetJob(id);
+        Assert.NotNull(job);
+        Assert.Equal(originalPlanFile, job.PlanFile);
+        Assert.Equal(JobStatus.Completed, job.Status);
     }
 
     private class StubPlanReaderService(string plansDirectory) : IPlanReaderService
     {
         public string PlansDirectory => plansDirectory;
         public bool IsDatabaseReady => true;
-        public void RecoverStuckPlans() { }
-        public void RepairPlans() { }
-        public List<PlanFile> GetPlans(PlanStatus? statusFilter = null) => [];
-        public PlanFile? GetPlanByFolder(string folderPath) => null;
-        public List<PlanFile> GetIceboxPlans() => [];
-        public void TransitionState(string folderName, PlanStatus newState) { }
-        public void SaveRevision(string folderName, string content) { }
-        public string ReadLatestRevision(string folderName) => "";
-        public List<(int Number, string Content, DateTime Modified)> GetRevisions(string folderName) => [];
-        public void AddLog(string folderName, string action, string content) { }
-        public void DeletePlan(string folderName) { }
-        public string ReadRawPlan(string folderName) => "";
-        public void SavePlan(string folderName, string fullContent) { }
-        public void UpdateLatestRevision(string folderName, string content) { }
-        public DashboardStats GetDashboardData(string? projectFilter) => new(0, 0, 0, 0, 0, 0, 0, [], []);
-        public decimal GetPlanTotalCost(string folderPath) => 0;
-        public int GetPlanTotalTokens(string folderPath) => 0;
-        public List<HourlyTokenBurn> GetHourlyTokenBurn(int days = 7, string? projectFilter = null) => [];
-        public List<Recommendation> GetRecommendations() => [];
-        public int GetPendingRecommendationsCount() => 0;
-        public PlanReaderService.PlanCountSnapshot ComputePlanCounts() => new(0, 0, 0, 0, 0, 0);
-        public void UpdateRecommendationState(string planFolderName, string recommendationTitle, string newState, string? declineReason = null) { }
-        public void InvalidateCaches() { }
-        public Task FlushPendingWritesAsync() => Task.CompletedTask;
+
+        public void RecoverStuckPlans()
+        {
+        }
+
+        public void RepairPlans()
+        {
+        }
+
+        public List<PlanFile> GetPlans(PlanStatus? statusFilter = null)
+        {
+            return [];
+        }
+
+        public PlanFile? GetPlanByFolder(string folderPath)
+        {
+            return null;
+        }
+
+        public List<PlanFile> GetIceboxPlans()
+        {
+            return [];
+        }
+
+        public void TransitionState(string folderName, PlanStatus newState)
+        {
+        }
+
+        public void SaveRevision(string folderName, string content)
+        {
+        }
+
+        public string ReadLatestRevision(string folderName)
+        {
+            return "";
+        }
+
+        public List<(int Number, string Content, DateTime Modified)> GetRevisions(string folderName)
+        {
+            return [];
+        }
+
+        public void AddLog(string folderName, string action, string content)
+        {
+        }
+
+        public void DeletePlan(string folderName)
+        {
+        }
+
+        public string ReadRawPlan(string folderName)
+        {
+            return "";
+        }
+
+        public void SavePlan(string folderName, string fullContent)
+        {
+        }
+
+        public void UpdateLatestRevision(string folderName, string content)
+        {
+        }
+
+        public DashboardModels GetDashboardData(string? projectFilter)
+        {
+            return new DashboardModels(0, 0, 0, 0, 0, 0, 0, [], []);
+        }
+
+        public decimal GetPlanTotalCost(string folderPath)
+        {
+            return 0;
+        }
+
+        public int GetPlanTotalTokens(string folderPath)
+        {
+            return 0;
+        }
+
+        public List<HourlyTokenBurn> GetHourlyTokenBurn(int days = 7, string? projectFilter = null)
+        {
+            return [];
+        }
+
+        public List<Recommendation> GetRecommendations()
+        {
+            return [];
+        }
+
+        public int GetPendingRecommendationsCount()
+        {
+            return 0;
+        }
+
+        public PlanReaderService.PlanCountSnapshot ComputePlanCounts()
+        {
+            return new PlanReaderService.PlanCountSnapshot(0, 0, 0, 0, 0, 0);
+        }
+
+        public void UpdateRecommendationState(string planFolderName, string recommendationTitle, string newState,
+            string? declineReason = null)
+        {
+        }
+
+        public void InvalidateCaches()
+        {
+        }
+
+        public Task FlushPendingWritesAsync()
+        {
+            return Task.CompletedTask;
+        }
     }
 }

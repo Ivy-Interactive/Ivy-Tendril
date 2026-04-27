@@ -10,3 +10,12 @@ public interface IPlanWatcherService : IDisposable
 
     void NotifyChanged(string? changedPlanFolder = null);
 }
+
+internal class NullPlanWatcherService : IPlanWatcherService
+{
+#pragma warning disable CS0067
+    public event Action<string?>? PlansChanged;
+#pragma warning restore CS0067
+    public void NotifyChanged(string? changedPlanFolder = null) { }
+    public void Dispose() { }
+}

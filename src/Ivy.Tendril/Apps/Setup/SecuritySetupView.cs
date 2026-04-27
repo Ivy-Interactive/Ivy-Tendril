@@ -1,6 +1,7 @@
 using System.Text;
 using Isopoh.Cryptography.Argon2;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps.Setup;
 
@@ -25,7 +26,7 @@ public class SecuritySetupView : ViewBase
 
         var form = Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(120)))
                    | Text.Block("Session Protection").Bold()
-                   | Text.Block("Require a password to access the Tendril interface")
+                   | Text.Block("Require a password to access the Tendril interface.").Muted().Small()
                    | isEnabled.ToBoolInput("Enable Password Protection")
                    | (isEnabled.Value
                        ? Layout.Vertical().Gap(3)

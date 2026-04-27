@@ -12,8 +12,8 @@ The firmware header contains:
 - **PlanFolder** — path to the plan folder
 - **CurrentTime** — current UTC timestamp
 
-Read the plan structure in `../.shared/Plans.md`.
-Use the `Get-ConfigYaml` helper from Utils.ps1 to read project configuration (project repos and their `prRule` setting) with caching.
+The plan structure and CLI commands are in the **Reference Documents** section of your firmware.
+Project configuration (repos, `prRule` settings) is available from the firmware header.
 
 ## PR Rules (from config.yaml per repo)
 
@@ -24,7 +24,7 @@ Use the `Get-ConfigYaml` helper from Utils.ps1 to read project configuration (pr
 
 ### 0. Check Plan State
 
-Before processing, read `plan.yaml` and check the `state` field:
+Before processing, read `plan.yaml` and check the `state` field. After reading, report plan context: `tendril job status $env:TENDRIL_JOB_ID --message "Creating PR..." --plan-id <plan-id> --plan-title "<title>"`
 - If `state: Completed`, the plan was already processed. Exit early with a message indicating the plan is already completed and showing the existing PR URLs from the `prs` list.
 - Otherwise, proceed with step 1.
 
@@ -32,7 +32,7 @@ Before processing, read `plan.yaml` and check the `state` field:
 
 - Read `plan.yaml` from the plan folder (project, commits, repos)
 - Read the latest revision for the plan title and description
-- Use `Get-ConfigYaml` to find the `prRule` for each repo
+- Find the `prRule` for each repo from the firmware header
 - **Check for custom options:** If `<PlanFolder>/.custom-pr-options.yaml` exists, read it. The file contains:
   ```yaml
   merge: true/false
@@ -49,7 +49,7 @@ Check `<PlanFolder>/worktrees/` for each repo worktree.
 
 > **Worktree already removed:** If the worktrees/ directory is empty (worktree was already cleaned up), fall back to `plan.yaml` to get the repo path and branch name (format: `tendril/<planId>-<SafeTitle>`, where SafeTitle is extracted from the plan folder name: e.g. `03158-ChangeBranchNaming` → `ChangeBranchNaming`). The commit objects may still exist in the original repo's object store. Use `git cat-file -t <sha>` to verify, then create or force-update the local branch: `git branch -f <branch-name> <sha>` (use `-f` because the branch may already exist from a WIP auto-commit) and push from the original repo path.
 >
-> **Commit lost (object GC'd):** If `git cat-file -t <sha>` fails, the commit was garbage-collected after worktree removal. In this case: (1) check if the change is already on main, (2) if not, recreate the change from the plan revision — create a new branch from main, apply the changes as described in the revision, commit with the standard `[<planId>] <title>` message, and push. Update `plan.yaml` commits list with the new commit hash.
+> **Commit lost (object GC'd):** If `git cat-file -t <sha>` fails, the commit was garbage-collected after worktree removal. In this case: (1) check if the change is already on main, (2) if not, recreate the change from the plan revision — create a new branch from main, apply the changes as described in the revision, commit with the standard `[<planId>] <title>` message, and push. Update commits via CLI: `tendril plan add-commit <plan-id> <new-sha>`.
 
 For each worktree:
 
@@ -64,15 +64,11 @@ For each worktree:
 
 ### 2.5. Upload Artifacts
 
-**If custom options exist and `includeArtifacts` is `false`, skip this step entirely** (set `$artifactMarkdown` to empty).
+**If custom options exist and `includeArtifacts` is `false`, skip this step entirely** (set artifact markdown to empty).
 
-Otherwise, run the `Upload-Artifacts.ps1` tool to upload screenshots and videos from `<PlanFolder>/artifacts/` to Azure storage:
+Otherwise, if an artifact upload tool is available in `Tools/`, run it to upload screenshots and videos from `<PlanFolder>/artifacts/` to persistent storage.
 
-```powershell
-$artifactMarkdown = pwsh -NoProfile -File Promptwares/CreatePr/Tools/Upload-Artifacts.ps1 -PlanFolder <PlanFolder>
-```
-
-Capture the returned markdown. If non-empty, it will be appended to the PR body under an `## Artifacts` heading in the next step.
+Capture the returned markdown. If non-empty, it will be appended to the PR body under an `## Artifacts` heading in the next step. If no upload tool is available, skip this step.
 
 ### 3. Create PR
 
@@ -87,7 +83,7 @@ EOF
 
 - **Base branch:**
   1. Read plan.yaml and get the project name
-  2. For each repo, call `GetRepoConfig` (from Utils.ps1) to check if `baseBranch` is configured
+  2. For each repo, check the firmware header for `baseBranch` configuration
   3. If configured, use that value
   4. Otherwise, auto-detect via: `gh repo view <owner/repo> --json defaultBranchRef -q .defaultBranchRef.name`
 - **Title:** `[<planId>] <plan title>`
@@ -147,7 +143,7 @@ When the PR status is `CONFLICTING`, resolve the conflict locally before retryin
    git merge origin/<default-branch>
    ```
 
-4. **Resolve conflicts**: Read each conflicted file (`git diff --name-only --diff-filter=U`), understand both sides, and resolve using the Edit tool. Prioritize:
+4. **Resolve conflicts**: Read each conflicted file (`git diff --name-only --diff-filter=U`), understand both sides, and edit to resolve. Prioritize:
    - Keep the plan's intentional changes
    - Accept base branch changes for unrelated code
    - When both sides changed the same lines, merge intelligently based on the plan's intent
@@ -161,10 +157,6 @@ When the PR status is `CONFLICTING`, resolve the conflict locally before retryin
 6. **Quick build check** (if build-critical files were involved in conflicts):
    ```bash
    # Run your project's build command from config.yaml verifications
-   # Examples:
-   # - .NET: dotnet build --warnaserror
-   # - JavaScript: npm run build
-   # - Go: go build ./...
    ```
    If the build fails, fix the issue and amend the merge commit.
 
@@ -213,23 +205,31 @@ rm -rf "<PlanFolder>/worktrees"
 
 **Skip cleanup** for repos using the `default` PR rule (or custom options with `merge: false`) — the worktree is still needed for potential review revisions.
 
-If cleanup fails (e.g. locked files on Windows), log a warning but do not fail the overall CreatePr execution.
+If cleanup fails (e.g. locked files), log a warning but do not fail the overall CreatePr execution.
 
-### 6. Update plan.yaml
+### 6. Update Plan via CLI
 
-Append each PR URL to the `prs` list in `plan.yaml`.
+Use the CLI to update the plan — **never edit plan.yaml directly**.
 
-**Update state to Completed:** If ALL repos in the plan used the `yolo` prRule (or custom options with `merge: true`) and ALL PRs were successfully merged, update the `state` field from `Building` to `Completed`. This marks the plan as fully processed.
+Add each PR URL:
+
+```bash
+tendril plan add-pr <plan-id> <pr-url>
+```
+
+**Update state to Completed:** If ALL repos in the plan used the `yolo` prRule (or custom options with `merge: true`) and ALL PRs were successfully merged, update the state:
+
+```bash
+tendril plan set <plan-id> state Completed
+```
 
 If ANY repo used the `default` prRule (or custom options with `merge: false`), do NOT update the state — the plan remains open for manual review and potential revisions.
-
-> If merge conflict resolution was performed (Step 4), the resolution commit hash should already be on the pushed branch. No additional plan.yaml update needed beyond the PR URL.
 
 ### Edge Case: Direct-to-Main (No PR Needed)
 
 Some plans create new repos and push directly to main (e.g., repo scaffolding). These have `repos: []`, no worktrees, and commits already on `origin/main`. When detected:
 1. Verify the commit(s) exist on the remote default branch
-2. Mark plan.yaml state as `Completed`
+2. Mark state as Completed: `tendril plan set <plan-id> state Completed`
 3. Log outcome as "No PR Required — Direct-to-Main"
 4. Skip steps 2–5 entirely
 
@@ -239,4 +239,4 @@ Some plans create new repos and push directly to main (e.g., repo scaffolding). 
 - One PR per repo worktree that has commits
 - Skip worktrees with no commits ahead of the base branch
 - Use `gh` CLI for all GitHub operations
-- NEVER embed images via GitHub branch URLs (`github.com/blob/<branch>/...`) — these 404 after branch deletion. All screenshots/images in PR bodies must use storage URLs from Upload-Artifacts.ps1.
+- NEVER embed images via GitHub branch URLs (`github.com/blob/<branch>/...`) — these 404 after branch deletion. All screenshots/images in PR bodies must use persistent storage URLs (from the artifact upload tool, if available).

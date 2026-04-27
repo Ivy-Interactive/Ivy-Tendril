@@ -9,9 +9,6 @@ public class JobServicePromptsRootTests
     {
         // In test/debug mode, AppContext.BaseDirectory is in bin/Debug/net10.0
         // Going ../../.. should land in the project dir where Promptwares/ exists
-        var sourceRoot = Path.GetFullPath(
-            Path.Combine(System.AppContext.BaseDirectory, "..", "..", "..", "..", "Ivy.Tendril", "Promptwares"));
-
         var result = JobService.ResolvePromptsRoot();
 
         // The resolved path should exist (either source or TENDRIL_HOME)

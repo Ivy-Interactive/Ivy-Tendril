@@ -3,7 +3,7 @@
 # IMPORTANT: GetPricing() uses longest-match-first ordering to ensure
 # deterministic matching when model names contain multiple keys as substrings.
 # NOTE: Some entries below (gpt-5.4*, gpt-5.3-codex, gemini-3-flash-preview,
-# gemini-2.5-flash-lite) are fictional placeholder models used in example.config.yaml.
+# gemini-3.1-flash-lite-preview, gemini-2.5-flash-lite) are fictional placeholder models used in example.config.yaml.
 # Replace with actual model names and pricing when configuring real agents.
 models:
   # Claude — current generation
@@ -103,6 +103,11 @@ models:
     output: 12.00
     cacheWrite: 0.0
     cacheRead: 0.15
+  gemini-3.1-flash-lite-preview:
+    input: 0.15
+    output: 1.25
+    cacheWrite: 0.0
+    cacheRead: 0.015
   gemini-2.5-flash-lite:
     input: 0.15
     output: 1.25

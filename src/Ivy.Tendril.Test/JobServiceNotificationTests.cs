@@ -2,8 +2,14 @@ using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
 
-public class JobServiceNotificationTests
+public class JobServiceNotificationTests : IDisposable
 {
+    private readonly TempDirectoryFixture _tempDir = new();
+
+    public void Dispose()
+    {
+        _tempDir.Dispose();
+    }
     private static JobService CreateService()
     {
         // Clear sync context so notifications fire synchronously during tests
@@ -15,7 +21,7 @@ public class JobServiceNotificationTests
     public void CompleteJob_Success_NotificationTitleIncludesJobType()
     {
         var service = CreateService();
-        var id = service.CreateTestJob("CreatePr", Path.GetTempPath());
+        var id = service.CreateTestJob("CreatePr", _tempDir.Path);
 
         JobNotification? notification = null;
         service.NotificationReady += n => notification = n;
@@ -30,7 +36,7 @@ public class JobServiceNotificationTests
     public void CompleteJob_Failure_NotificationTitleIncludesJobType()
     {
         var service = CreateService();
-        var id = service.CreateTestJob("ExecutePlan", Path.GetTempPath());
+        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
 
         JobNotification? notification = null;
         service.NotificationReady += n => notification = n;
@@ -45,7 +51,7 @@ public class JobServiceNotificationTests
     public void CompleteJob_Timeout_NotificationTitleIncludesJobType()
     {
         var service = CreateService();
-        var id = service.CreateTestJob("ExpandPlan", Path.GetTempPath());
+        var id = service.CreateTestJob("ExpandPlan", _tempDir.Path);
 
         JobNotification? notification = null;
         service.NotificationReady += n => notification = n;

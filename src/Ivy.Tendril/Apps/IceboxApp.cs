@@ -1,12 +1,14 @@
 using System.Reactive.Disposables;
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 using ContentView = Ivy.Tendril.Apps.Icebox.ContentView;
 using SidebarView = Ivy.Tendril.Apps.Icebox.SidebarView;
 
 namespace Ivy.Tendril.Apps;
 
-[App(title: "Icebox", icon: Icons.Snowflake, group: ["Apps"], order: MenuOrder.Icebox)]
+[App(title: "Icebox", icon: Icons.Snowflake, group: ["Apps"], order: Constants.Icebox)]
 public class IceboxApp : ViewBase
 {
     public override object Build()
@@ -19,6 +21,7 @@ public class IceboxApp : ViewBase
         var projectFilter = UseState<string?>(null);
         var levelFilter = UseState<string?>(null);
         var textFilter = UseState<string?>("");
+        var filtersOpen = UseState(false);
         var refreshToken = UseRefreshToken();
 
         UseEffect(() =>
@@ -53,13 +56,13 @@ public class IceboxApp : ViewBase
 
         previousPlans.Value = filteredPlans;
 
-        var sidebar = new SidebarView(plans, selectedPlanState, projectFilter, levelFilter, textFilter, configService);
+        var sidebar = new SidebarView(plans, selectedPlanState, projectFilter, levelFilter, textFilter, filtersOpen, configService);
 
         return new SidebarLayout(
             new ContentView(selectedPlanState.Value, filteredPlans, selectedPlanState, planService, jobService,
                 RefreshPlans, configService),
             sidebar
-        );
+        ).SidebarContentScroll(Scroll.None);
 
         void RefreshPlans()
         {
