@@ -21,6 +21,7 @@ public static class BackgroundServiceActivator
             {
                 logger?.LogError(ex, "Failed to initialize background services");
                 CrashLog.Write($"[{DateTime.UtcNow:O}] BackgroundServiceActivator.StartAsync failed: {ex}");
+                throw; // Re-throw so caller (CompleteStepView) can handle it
             }
         });
     }
