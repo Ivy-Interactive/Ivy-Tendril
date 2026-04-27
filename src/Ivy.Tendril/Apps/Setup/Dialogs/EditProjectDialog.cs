@@ -247,7 +247,7 @@ public class EditProjectDialog(
             new DialogBody(
                 Layout.Vertical().Gap(4)
                 | editName.ToTextInput("Project name...").WithField().Label("Name")
-                | editColor.ToColorInput().WithField().Label("Color")
+                | editColor.ToColorInput().Variant(ColorInputVariant.TextAndPicker).Suffix("hex").WithField().Label("Color")
                 | editContext.ToTextareaInput("Project context or prompt for AI agents (optional)...").Rows(4)
                     .WithField().Label("Context / Prompt (Optional)")
                 | (Layout.Vertical().Gap(2)
