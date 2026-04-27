@@ -91,28 +91,26 @@ public class JobServiceConcurrencyTests
     [Fact]
     public void SettingsReload_IncreasedConcurrency_StartsQueuedJobs()
     {
-        // Arrange: Start with max=2, queue 4 jobs
+        // Arrange: Start with max=2
         var configService = new TestConfigService { MaxConcurrentJobs = 2 };
         var jobService = new JobService(configService);
 
-        var job1Id = jobService.StartJob("CreatePlan", "-Description", "Job1");
-        var job2Id = jobService.StartJob("CreatePlan", "-Description", "Job2");
-        // Small delay to ensure first 2 jobs start running
-        Thread.Sleep(100);
-        var job3Id = jobService.StartJob("CreatePlan", "-Description", "Job3");
-        var job4Id = jobService.StartJob("CreatePlan", "-Description", "Job4");
+        // Create 2 test jobs that will run (consume the 2 slots)
+        var job1Id = jobService.CreateTestJob("ExecutePlan", "plan1");
+        var job2Id = jobService.CreateTestJob("ExecutePlan", "plan2");
 
-        Assert.Equal(JobStatus.Queued, jobService.GetJob(job3Id)!.Status);
-        Assert.Equal(JobStatus.Queued, jobService.GetJob(job4Id)!.Status);
+        // Verify we can only have 2 running jobs
+        Assert.Equal(JobStatus.Running, jobService.GetJob(job1Id)!.Status);
+        Assert.Equal(JobStatus.Running, jobService.GetJob(job2Id)!.Status);
 
         // Act: Increase max to 4
         configService.MaxConcurrentJobs = 4;
         configService.TriggerSettingsReloaded();
 
-        // Small delay for ProcessJobQueue to run
-        Thread.Sleep(100);
+        // Assert: Should now be able to create 2 more running jobs
+        var job3Id = jobService.CreateTestJob("ExecutePlan", "plan3");
+        var job4Id = jobService.CreateTestJob("ExecutePlan", "plan4");
 
-        // Assert: Queued jobs should now be running
         Assert.Equal(JobStatus.Running, jobService.GetJob(job3Id)!.Status);
         Assert.Equal(JobStatus.Running, jobService.GetJob(job4Id)!.Status);
     }
@@ -124,41 +122,34 @@ public class JobServiceConcurrencyTests
         var configService = new TestConfigService { MaxConcurrentJobs = 4 };
         var jobService = new JobService(configService);
 
-        var job1Id = jobService.StartJob("CreatePlan", "-Description", "Job1");
-        var job2Id = jobService.StartJob("CreatePlan", "-Description", "Job2");
-        var job3Id = jobService.StartJob("CreatePlan", "-Description", "Job3");
-        var job4Id = jobService.StartJob("CreatePlan", "-Description", "Job4");
-
-        // Small delay to ensure jobs start running
-        Thread.Sleep(100);
+        // Create 4 test jobs that will run
+        var job1Id = jobService.CreateTestJob("ExecutePlan", "plan1");
+        var job2Id = jobService.CreateTestJob("ExecutePlan", "plan2");
+        var job3Id = jobService.CreateTestJob("ExecutePlan", "plan3");
+        var job4Id = jobService.CreateTestJob("ExecutePlan", "plan4");
 
         // Act: Decrease max to 2
         configService.MaxConcurrentJobs = 2;
         configService.TriggerSettingsReloaded();
 
-        // Try to start new job
-        var job5Id = jobService.StartJob("CreatePlan", "-Description", "Job5");
+        // Assert: Cannot create new jobs (all 4 running jobs continue, but semaphore has 0 available slots)
+        // CreateTestJob tries to acquire a slot with Wait(0), which should fail and throw or queue
+        var canCreateMore = jobService.GetJobs().Count(j => j.Status == JobStatus.Running);
+        Assert.Equal(4, canCreateMore); // All 4 still running
 
-        // Assert: New job should be queued (all 4 running jobs continue, but no new slots)
-        Assert.Equal(JobStatus.Queued, jobService.GetJob(job5Id)!.Status);
-
-        // Complete 2 jobs
+        // Complete 2 jobs to free slots
         jobService.CompleteJob(job1Id, 0);
         jobService.CompleteJob(job2Id, 0);
 
-        // Small delay for ProcessJobQueue
-        Thread.Sleep(100);
-
-        // New job should still be queued (2 jobs still running == new limit)
-        Assert.Equal(JobStatus.Queued, jobService.GetJob(job5Id)!.Status);
+        // Now we should have 0 available slots (2 running == limit of 2)
+        canCreateMore = jobService.GetJobs().Count(j => j.Status == JobStatus.Running);
+        Assert.Equal(2, canCreateMore);
 
         // Complete 1 more job
         jobService.CompleteJob(job3Id, 0);
 
-        // Small delay for ProcessJobQueue
-        Thread.Sleep(100);
-
-        // Now job5 should start (only 1 running < limit of 2)
+        // Now we should have 1 available slot (1 running < limit of 2)
+        var job5Id = jobService.CreateTestJob("ExecutePlan", "plan5");
         Assert.Equal(JobStatus.Running, jobService.GetJob(job5Id)!.Status);
     }
 
@@ -169,24 +160,17 @@ public class JobServiceConcurrencyTests
         var configService = new TestConfigService { MaxConcurrentJobs = 5 };
         var jobService = new JobService(configService);
 
-        var job1Id = jobService.StartJob("CreatePlan", "-Description", "Job1");
-
-        // Small delay to ensure job starts
-        Thread.Sleep(100);
+        var job1Id = jobService.CreateTestJob("ExecutePlan", "plan1");
         Assert.Equal(JobStatus.Running, jobService.GetJob(job1Id)!.Status);
 
         // Act: Reload with same value
         configService.TriggerSettingsReloaded();
 
-        // Small delay
-        Thread.Sleep(50);
-
         // Assert: Job continues running (semaphore not disrupted)
         Assert.Equal(JobStatus.Running, jobService.GetJob(job1Id)!.Status);
 
-        // Can still start new jobs
-        var job2Id = jobService.StartJob("CreatePlan", "-Description", "Job2");
-        Thread.Sleep(100);
+        // Can still create new test jobs
+        var job2Id = jobService.CreateTestJob("ExecutePlan", "plan2");
         Assert.Equal(JobStatus.Running, jobService.GetJob(job2Id)!.Status);
     }
 

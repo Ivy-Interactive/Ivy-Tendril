@@ -143,7 +143,17 @@ public class JobService : IJobService
         var wasRunning = job.Status == JobStatus.Running;
         SetCompletionStatus(job, exitCode, timedOut, staleOutput);
         if (wasRunning)
-            _jobSlotSemaphore.Release();
+        {
+            try
+            {
+                _jobSlotSemaphore.Release();
+            }
+            catch (SemaphoreFullException)
+            {
+                // Semaphore is already at max capacity (can happen if MaxConcurrentJobs
+                // was decreased while jobs were running). Silently ignore.
+            }
+        }
 
         _completionHandler.HandleCompletion(
             job, _jobs, PersistJob, RaiseNotification, RaiseJobsPropertyChanged, StartJobSkipDepCheck);
