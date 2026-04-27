@@ -54,7 +54,7 @@ public class OnboardingPage
 
     public async Task SetRepoPath(string path)
     {
-        var input = _page.GetByPlaceholder("Select repository folder...");
+        var input = _page.GetByPlaceholder("Your repository folder");
         await input.First.ClearAsync();
         await input.First.FillAsync(path);
     }
