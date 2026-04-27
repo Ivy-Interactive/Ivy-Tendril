@@ -29,9 +29,11 @@ public class EditProjectDialog(
         var editVerifications = UseState(new List<ProjectVerificationRef>());
         var newRepoPath = UseState<string?>(null);
         var newRepoPrRule = UseState("default");
+        var newRepoBaseBranch = UseState("");
         var repoPathError = UseState<string?>(null);
         var editingRepoIndex = UseState<int?>(-1);
         var editingRepoPath = UseState<string?>(null);
+        var editingRepoBaseBranch = UseState("");
         var editingRepoError = UseState<string?>(null);
 
         var (folderDialogView, showFolderDialog, selectedFolderPath) = UseFolderDialog();
@@ -53,7 +55,7 @@ public class EditProjectDialog(
                 editColor.Set(Enum.TryParse<Colors>(project.Color, out var c) ? c : null);
                 editContext.Set(project.Context);
                 editRepos.Set(
-                    new List<RepoRef>(project.Repos.Select(r => new RepoRef { Path = r.Path, PrRule = r.PrRule })));
+                    new List<RepoRef>(project.Repos.Select(r => new RepoRef { Path = r.Path, PrRule = r.PrRule, BaseBranch = r.BaseBranch, SyncStrategy = r.SyncStrategy })));
                 editVerifications.Set(new List<ProjectVerificationRef>(
                     project.Verifications.Select(v => new ProjectVerificationRef
                     { Name = v.Name, Required = v.Required })));
@@ -61,9 +63,11 @@ public class EditProjectDialog(
 
             newRepoPath.Set(null);
             newRepoPrRule.Set("default");
+            newRepoBaseBranch.Set("");
             repoPathError.Set(null);
             editingRepoIndex.Set(-1);
             editingRepoPath.Set(null);
+            editingRepoBaseBranch.Set("");
             editingRepoError.Set(null);
         }, _editIndex);
 
@@ -93,7 +97,8 @@ public class EditProjectDialog(
 
             if (isEditing)
             {
-                reposLayout |= Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+                reposLayout |= Layout.Vertical().Gap(1)
+                               | (Layout.Horizontal().Gap(2).AlignContent(Align.Center)
                                | (!isGitRepo
                                    ? (object)new Icon(Icons.TriangleAlert, Colors.Warning).Small()
                                        .WithTooltip(!pathExists
@@ -126,8 +131,15 @@ public class EditProjectDialog(
                                        return;
                                    }
 
+                                   var trimmedBranch = editingRepoBaseBranch.Value?.Trim();
                                    var list = new List<RepoRef>(editRepos.Value);
-                                   list[ri] = new RepoRef { Path = newPath, PrRule = repo.PrRule };
+                                   list[ri] = new RepoRef
+                                   {
+                                       Path = newPath,
+                                       PrRule = repo.PrRule,
+                                       BaseBranch = string.IsNullOrEmpty(trimmedBranch) ? null : trimmedBranch,
+                                       SyncStrategy = repo.SyncStrategy,
+                                   };
                                    editRepos.Set(list);
                                    editingRepoIndex.Set(-1);
                                    editingRepoError.Set(null);
@@ -136,7 +148,11 @@ public class EditProjectDialog(
                                {
                                    editingRepoIndex.Set(-1);
                                    editingRepoError.Set(null);
-                               });
+                               }))
+                               | (Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+                               | editingRepoBaseBranch
+                                   .ToTextInput("Base branch (optional)")
+                                   .Width(Size.Grow()));
             }
             else
             {
@@ -152,15 +168,19 @@ public class EditProjectDialog(
                                    : null!)
                                | pathText
                                | new Badge(repo.PrRule).Variant(BadgeVariant.Outline)
+                               | (!string.IsNullOrEmpty(repo.BaseBranch)
+                                   ? (object)new Badge(repo.BaseBranch).Variant(BadgeVariant.Secondary)
+                                   : null!)
                                | new Spacer().Width(Size.Grow())
                                | new Button().Icon(Icons.Pencil).Ghost().Small()
                                    .OnClick(() =>
                                    {
                                        editingRepoIndex.Set(ri);
                                        editingRepoPath.Set(repo.Path);
+                                       editingRepoBaseBranch.Set(repo.BaseBranch ?? "");
                                        editingRepoError.Set(null);
                                    })
-                                   .WithTooltip("Edit path")
+                                   .WithTooltip("Edit repository")
                                | new Button().Icon(Icons.Trash).Ghost().Small().OnClick(() =>
                                {
                                    var list = new List<RepoRef>(editRepos.Value);
@@ -192,35 +212,50 @@ public class EditProjectDialog(
                     return;
                 }
 
+                var trimmedBaseBranch = newRepoBaseBranch.Value?.Trim();
                 var list = new List<RepoRef>(editRepos.Value)
                 {
-                    new() { Path = newRepoPath.Value, PrRule = newRepoPrRule.Value }
+                    new()
+                    {
+                        Path = newRepoPath.Value,
+                        PrRule = newRepoPrRule.Value,
+                        BaseBranch = string.IsNullOrEmpty(trimmedBaseBranch) ? null : trimmedBaseBranch,
+                    }
                 };
                 editRepos.Set(list);
                 newRepoPath.Set(null);
                 newRepoPrRule.Set("default");
+                newRepoBaseBranch.Set("");
                 repoPathError.Set(null);
             }
         };
 
         if (isDesktop)
         {
-            reposLayout |= Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+            reposLayout |= Layout.Vertical().Gap(1)
+                           | (Layout.Horizontal().Gap(2).AlignContent(Align.Center)
                            | new Button(newRepoPath.Value ?? "Your repository folder")
                                .Outline()
                                .Width(Size.Percent(100))
                                .OnClick(() => showFolderDialog(_ => { }))
                            | newRepoPrRule.ToSelectInput(new List<string> { "default", "yolo" })
                                .Width(Size.Units(20))
-                           | new Button("Add").Outline().Small().OnClick(addRepoAction);
+                           | new Button("Add").Outline().Small().OnClick(addRepoAction))
+                           | (Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+                           | newRepoBaseBranch.ToTextInput("Base branch (optional)")
+                               .Width(Size.Grow()));
         }
         else
         {
-            reposLayout |= Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+            reposLayout |= Layout.Vertical().Gap(1)
+                           | (Layout.Horizontal().Gap(2).AlignContent(Align.Center)
                            | newRepoPath.ToTextInput("Your repository folder")
-                               .Suffix(newRepoPrRule.ToSelectInput(new List<string> { "default", "yolo" }))
+                               .Suffix(newRepoPrRule.ToSelectInput(new List<string> { "default", "yolo" }).Ghost())
                                .Width(Size.Grow())
-                           | new Button("Add").Outline().Small().OnClick(addRepoAction);
+                           | new Button("Add").Outline().Small().OnClick(addRepoAction))
+                           | (Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+                           | newRepoBaseBranch.ToTextInput("Base branch (optional)")
+                               .Width(Size.Grow()));
         }
 
         // Verifications switches
@@ -278,8 +313,12 @@ public class EditProjectDialog(
                 | editName.ToTextInput("Project name...").WithField().Label("Name")
                 | (Layout.Vertical().Gap(1)
                    | Text.Block("Color").Small()
-                   | new Button(editColor.Value?.ToString() ?? "Select Color").Outline()
-                       .OnClick(() => showColorPicker.Set(true)))
+                   | (Layout.Horizontal().Gap(2).AlignContent(Align.TopLeft)
+                      | new Button(editColor.Value?.ToString() ?? "Select Color").Outline()
+                          .OnClick(() => showColorPicker.Set(true))
+                      | (editColor.Value != null
+                          ? (object)new Box().Background(editColor.Value.Value).Width(Size.Units(8)).Height(Size.Units(8))
+                          : null!)))
                 | editColor.ToColorInput().ToDialog(showColorPicker, title: "Select Color")
                 | editContext.ToTextareaInput("Project context or prompt for AI agents (optional)...").Rows(4)
                     .WithField().Label("Context / Prompt (Optional)")

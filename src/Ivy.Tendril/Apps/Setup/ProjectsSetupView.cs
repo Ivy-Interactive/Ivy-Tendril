@@ -27,6 +27,8 @@ public class ProjectsSetupView : ViewBase
                 {
                     layout |= Text.Block(repo.Path).Muted().Small();
                     layout |= new Badge(repo.PrRule).Variant(BadgeVariant.Outline).Small();
+                    if (!string.IsNullOrEmpty(repo.BaseBranch))
+                        layout |= new Badge(repo.BaseBranch).Variant(BadgeVariant.Secondary).Small();
                 }
                 return layout;
             }))
