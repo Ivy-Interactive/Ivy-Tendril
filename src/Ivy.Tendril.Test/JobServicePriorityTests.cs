@@ -103,11 +103,6 @@ public class JobServicePriorityTests : IDisposable
 
             Assert.NotNull(result);
             Assert.Equal(2, result.Priority);
-        }
-        finally
-        {
-            Directory.Delete(tempDir, true);
-        }
     }
 
     [Fact]

@@ -57,67 +57,68 @@ internal static class PlanYamlHelper
         return null;
     }
 
+    private static readonly object CounterLock = new();
+
     internal static string AllocatePlanId(string plansDir)
     {
         Directory.CreateDirectory(plansDir);
         var counterFile = Path.Combine(plansDir, ".counter");
 
-        // Use file-based locking for cross-process synchronization
-        var timeout = TimeSpan.FromSeconds(10);
-        var startTime = DateTime.UtcNow;
-        var retryDelay = 50; // ms
-
-        while (true)
+        // In-process lock prevents concurrent threads; file lock prevents concurrent processes
+        lock (CounterLock)
         {
-            try
-            {
-                // Open counter file with exclusive lock (FileShare.None prevents other processes from accessing)
-                using var stream = new FileStream(
-                    counterFile,
-                    FileMode.OpenOrCreate,
-                    FileAccess.ReadWrite,
-                    FileShare.None,
-                    bufferSize: 4096,
-                    FileOptions.None);
+            var timeout = TimeSpan.FromSeconds(10);
+            var startTime = DateTime.UtcNow;
+            var retryDelay = 50; // ms
 
-                // Read current counter
-                var counter = 1;
-                if (stream.Length > 0)
+            while (true)
+            {
+                try
                 {
-                    using var reader = new StreamReader(stream, leaveOpen: true);
-                    var text = reader.ReadToEnd().Trim();
-                    if (int.TryParse(text, out var parsed))
-                        counter = parsed;
+                    using var stream = new FileStream(
+                        counterFile,
+                        FileMode.OpenOrCreate,
+                        FileAccess.ReadWrite,
+                        FileShare.None,
+                        bufferSize: 4096,
+                        FileOptions.None);
+
+                    var counter = 1;
+                    if (stream.Length > 0)
+                    {
+                        using var reader = new StreamReader(stream, leaveOpen: true);
+                        var text = reader.ReadToEnd().Trim();
+                        if (int.TryParse(text, out var parsed))
+                            counter = parsed;
+                    }
+
+                    // Skip IDs that already have folders on disk
+                    while (Directory.GetDirectories(plansDir, $"{counter.ToString("D5")}-*").Length > 0)
+                        counter++;
+
+                    var id = counter.ToString("D5");
+
+                    stream.SetLength(0);
+                    stream.Position = 0;
+                    using (var writer = new StreamWriter(stream, leaveOpen: true))
+                    {
+                        writer.Write((counter + 1).ToString());
+                        writer.Flush();
+                    }
+
+                    return id;
                 }
-
-                // Skip IDs that already have folders on disk to prevent collisions
-                while (Directory.GetDirectories(plansDir, $"{counter.ToString("D5")}-*").Length > 0)
-                    counter++;
-
-                var id = counter.ToString("D5");
-
-                // Write incremented counter back to file
-                stream.SetLength(0);
-                stream.Position = 0;
-                using (var writer = new StreamWriter(stream, leaveOpen: true))
+                catch (IOException) when (DateTime.UtcNow - startTime < timeout)
                 {
-                    writer.Write((counter + 1).ToString());
-                    writer.Flush();
+                    Thread.Sleep(retryDelay);
+                    retryDelay = Math.Min(retryDelay * 2, 500);
                 }
-
-                return id;
-            }
-            catch (IOException) when (DateTime.UtcNow - startTime < timeout)
-            {
-                // Another process holds the lock, retry with exponential backoff
-                Thread.Sleep(retryDelay);
-                retryDelay = Math.Min(retryDelay * 2, 500);
-            }
-            catch (IOException)
-            {
-                throw new TimeoutException(
-                    $"Failed to acquire lock on {counterFile} after {timeout.TotalSeconds} seconds. " +
-                    "Another process may be holding the lock indefinitely.");
+                catch (IOException)
+                {
+                    throw new TimeoutException(
+                        $"Failed to acquire lock on {counterFile} after {timeout.TotalSeconds} seconds. " +
+                        "Another process may be holding the lock indefinitely.");
+                }
             }
         }
     }
@@ -207,5 +208,14 @@ internal static class PlanYamlHelper
         var folderName = Path.GetFileName(planFolder);
         var dashIdx = folderName.IndexOf('-');
         return dashIdx > 0 ? folderName[(dashIdx + 1)..] : null;
+    }
+
+    internal static string ToSafeTitle(string title)
+    {
+        var words = title.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var safe = string.Concat(words.Select(w =>
+            char.ToUpperInvariant(w[0]) + w[1..]));
+        safe = Regex.Replace(safe, @"[^a-zA-Z0-9]", "");
+        return safe.Length > 60 ? safe[..60] : safe;
     }
 }

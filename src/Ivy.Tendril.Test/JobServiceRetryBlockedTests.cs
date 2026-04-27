@@ -329,7 +329,7 @@ public class JobServiceRetryBlockedTests : IDisposable
         service.NotificationReady += n => notifications.Add(n);
 
         // Cancel job A — this should release the lock and auto-retry job B
-        service.CancelJob(jobAId);
+        service.StopJob(jobAId);
 
         // Job B should have been removed from blocked state
         Assert.Null(service.GetJob(jobBId));

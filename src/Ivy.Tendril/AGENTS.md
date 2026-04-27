@@ -128,7 +128,7 @@ $TENDRIL_HOME/
   config.yaml          # Project definitions, verifications, coding agents
   tendril.db           # SQLite — plan metadata cache (rebuilt from filesystem on startup)
   Plans/ or $TENDRIL_PLANS/
-    .counter           # Next plan ID (integer, incremented atomically)
+    .counter           # Next plan ID (managed by `tendril plan create` — do not modify directly)
     03450-SomePlan/
       plan.yaml        # Plan metadata (state, repos, commits, PRs)
       revisions/       # 001.md, 002.md — plan revision history
@@ -184,7 +184,7 @@ tendril plan get <id>       # Show plan details
 
 ### Common Issues
 
-- **Plan counter collisions**: `$TENDRIL_PLANS/.counter` is protected by an in-process lock. If plans get duplicate IDs, check that only one Tendril instance is running.
+- **Plan counter collisions**: `$TENDRIL_PLANS/.counter` is protected by file-based locking in `tendril plan create`. If plans get duplicate IDs, check for concurrent access issues.
 - **Plans not appearing in UI**: Run `tendril doctor plans` to check for malformed `plan.yaml` files. `PlanReaderService.RepairPlans()` runs on startup but silently skips plans it can't fix.
 - **Build errors from locked files**: Tendril locks its own exe while running. Use `--no-dependencies` or stop the running instance before building.
 - **Missing `.raw.jsonl` logs**: These are written by `WriteRawOutputLog` in `JobService.cs` on job completion. If the Logs directory doesn't exist for a promptware, no raw log is written.

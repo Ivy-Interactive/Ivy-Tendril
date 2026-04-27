@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Ivy.Core.Apps;
 using Ivy.Tendril.AppShell;
+using static Ivy.Tendril.AppShell.TendrilAppShell;
 
 namespace Ivy.Tendril.Test.AppShell;
 
@@ -42,7 +43,7 @@ public class AppShellRouterTests
     public void RouteForTabs_ExistingTabId_ReturnsSwitchToExistingTab()
     {
         var tabs = ImmutableArray.Create(
-            new TabState("tab1", "plans", "Plans", null, null, "key1"));
+            new TabState("tab1", "plans", "Plans", null!, null, "key1"));
         var router = new AppShellRouter();
 
         var result = router.Route(
@@ -78,8 +79,15 @@ public class AppShellRouterTests
     public void RouteForTabs_DuplicateAppId_ReturnsSwitchToExistingTab()
     {
         var tabs = ImmutableArray.Create(
-            new TabState("tab1", "plans", "Plans", null, null, "key1"));
-        var appDescriptor = new AppDescriptor { AllowDuplicateTabs = false };
+            new TabState("tab1", "plans", "Plans", null!, null, "key1"));
+        var appDescriptor = new AppDescriptor
+        {
+            Id = "plans",
+            Title = "Plans",
+            Group = [],
+            IsVisible = true,
+            AllowDuplicateTabs = false
+        };
         var router = new AppShellRouter();
 
         var result = router.Route(

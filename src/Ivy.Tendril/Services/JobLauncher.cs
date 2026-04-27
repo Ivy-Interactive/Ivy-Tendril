@@ -16,8 +16,7 @@ internal record JobLaunchContext(
     TimeSpan StaleOutputTimeout,
     Action<string, string, string, string, JobItem> RunHooks,
     Action<string, int?, bool, bool> CompleteJob,
-    Action RaiseStructureChanged,
-    Func<int> AllocatePlanId);
+    Action RaiseStructureChanged);
 
 internal class JobLauncher
 {
@@ -40,12 +39,11 @@ internal class JobLauncher
         TimeSpan staleOutputTimeout,
         Action<string, string, string, string, JobItem> runHooks,
         Action<string, int?, bool, bool> completeJob,
-        Action raiseStructureChanged,
-        Func<int> allocatePlanId)
+        Action raiseStructureChanged)
     {
         var ctx = new JobLaunchContext(
             job, jobs, jobSlotSemaphore, jobTimeout, staleOutputTimeout,
-            runHooks, completeJob, raiseStructureChanged, allocatePlanId);
+            runHooks, completeJob, raiseStructureChanged);
 
         LaunchJob(ctx);
     }
@@ -411,12 +409,6 @@ internal class JobLauncher
         var description = PlanYamlHelper.GetNamedArg(job.Args, "-Description") ?? string.Join(" ", job.Args);
         values["Args"] = description;
         values["PlansDirectory"] = _configService!.PlanFolder;
-
-        // Use JobService's atomic counter instead of file-based locking
-        var planIdInt = ctx.AllocatePlanId();
-        var planId = planIdInt.ToString("D5");
-        values["PlanId"] = planId;
-        job.AllocatedPlanId = planId;
     }
 
     private (Dictionary<string, string> Values, PlanYaml? PlanYaml, string? ProfileOverride)

@@ -195,7 +195,8 @@ public class ModelPricingServiceTests
             );
             File.WriteAllText(tempFile, lines);
 
-            var result = _service.ParseCodexSessionFile(tempFile);
+            var parser = new CodexSessionParser();
+            var result = parser.Parse(tempFile, _service);
 
             // TotalTokens = input + output only: 5000 + 500 + 100 reasoning = 5600
             Assert.Equal(5600, result.TotalTokens);
@@ -224,7 +225,8 @@ public class ModelPricingServiceTests
             );
             File.WriteAllText(tempFile, lines);
 
-            var result = _service.ParseCodexSessionFile(tempFile);
+            var parser = new CodexSessionParser();
+            var result = parser.Parse(tempFile, _service);
 
             // Should use the LAST entry; TotalTokens = input + output only: 3000 + 350 = 3350
             Assert.Equal(3350, result.TotalTokens);
@@ -267,7 +269,8 @@ public class ModelPricingServiceTests
                        """;
             File.WriteAllText(tempFile, json);
 
-            var result = _service.ParseGeminiSessionFile(tempFile);
+            var parser = new GeminiSessionParser();
+            var result = parser.Parse(tempFile, _service);
 
             // TotalTokens = input + output only: (1000+200) + (2000+400) = 3600
             Assert.Equal(3600, result.TotalTokens);
@@ -307,7 +310,8 @@ public class ModelPricingServiceTests
                        """;
             File.WriteAllText(tempFile, json);
 
-            var result = _service.ParseGeminiSessionFile(tempFile);
+            var parser = new GeminiSessionParser();
+            var result = parser.Parse(tempFile, _service);
 
             Assert.Equal(600, result.TotalTokens);
 

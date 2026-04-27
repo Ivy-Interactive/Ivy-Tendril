@@ -171,11 +171,6 @@ public class JobServiceCompletionGuardTests : IDisposable
             Assert.NotNull(job);
             Assert.Equal(originalPlanFile, job.PlanFile);
             Assert.Equal(JobStatus.Completed, job.Status);
-        }
-        finally
-        {
-            Directory.Delete(tempDir, true);
-        }
     }
 
     private class StubPlanReaderService(string plansDirectory) : IPlanReaderService

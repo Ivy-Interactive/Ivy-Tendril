@@ -56,7 +56,6 @@ public class JobService : IJobService
     private readonly JobLauncher _jobLauncher;
     private readonly JobCompletionHandler _completionHandler;
     private int _counter;
-    private int _planIdCounter;
 
     public JobService(
         IConfigService configService,
@@ -89,7 +88,6 @@ public class JobService : IJobService
             configService, _logger, modelPricingService, planReaderService,
             telemetryService, planWatcherService, worktreeLifecycleLogger, PromptsRoot);
         configService.SettingsReloaded += OnSettingsReloaded;
-        InitializePlanIdCounter(configService.PlanFolder);
         LoadHistoricalJobs();
     }
 
@@ -557,68 +555,8 @@ public class JobService : IJobService
     public void Dispose()
     {
         if (_configService != null)
-        {
             _configService.SettingsReloaded -= OnSettingsReloaded;
-
-            // Persist final counter value on shutdown
-            try
-            {
-                var counterPath = Path.Combine(_configService.PlanFolder, ".counter");
-                File.WriteAllText(counterPath, _planIdCounter.ToString());
-                _logger.LogInformation("Persisted final PlanId counter value: {Value}", _planIdCounter);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to persist .counter file on dispose");
-            }
-        }
         _jobSlotSemaphore.Dispose();
-    }
-
-    private void InitializePlanIdCounter(string planFolder)
-    {
-        var counterPath = Path.Combine(planFolder, ".counter");
-        if (File.Exists(counterPath))
-        {
-            var counterText = File.ReadAllText(counterPath).Trim();
-            if (int.TryParse(counterText, out var counterValue))
-            {
-                _planIdCounter = counterValue;
-                _logger.LogInformation("Initialized PlanId counter from {Path}: {Value}", counterPath, counterValue);
-            }
-            else
-            {
-                _logger.LogWarning("Invalid .counter file at {Path}, defaulting to 1", counterPath);
-                _planIdCounter = 1;
-            }
-        }
-        else
-        {
-            _logger.LogInformation(".counter file not found at {Path}, defaulting to 1", counterPath);
-            _planIdCounter = 1;
-        }
-    }
-
-    internal int AllocatePlanId()
-    {
-        var allocatedId = Interlocked.Increment(ref _planIdCounter);
-
-        // Persist counter every 10 allocations for crash recovery
-        if (allocatedId % 10 == 0 && _configService != null)
-        {
-            try
-            {
-                var counterPath = Path.Combine(_configService.PlanFolder, ".counter");
-                File.WriteAllText(counterPath, allocatedId.ToString());
-                _logger.LogDebug("Persisted PlanId counter to {Path}: {Value}", counterPath, allocatedId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to persist .counter file, continuing with in-memory value");
-            }
-        }
-
-        return allocatedId;
     }
 
     private void OnSettingsReloaded(object? sender, EventArgs e)
@@ -635,8 +573,7 @@ public class JobService : IJobService
             job, _jobs, _jobSlotSemaphore, _jobTimeout, _staleOutputTimeout,
             (when, type, folder, project, j) => RunHooks(when, type, folder, project, j),
             (id, exitCode, timedOut, staleOutput) => CompleteJob(id, exitCode, timedOut, staleOutput),
-            RaiseJobsStructureChanged,
-            AllocatePlanId);
+            RaiseJobsStructureChanged);
     }
 
     internal void RunHooks(string when, string jobType, string planFolder, string project, JobItem job)
