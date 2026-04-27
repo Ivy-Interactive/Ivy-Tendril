@@ -1,6 +1,5 @@
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Abstractions;
 
 namespace Ivy.Tendril.Test;
 
@@ -94,11 +93,7 @@ public class JobServiceConcurrencyTests
     {
         // Arrange: Start with max=2, queue 4 jobs
         var configService = new TestConfigService { MaxConcurrentJobs = 2 };
-        var jobService = new JobService(
-            configService,
-            TimeSpan.FromMinutes(60),
-            TimeSpan.FromMinutes(5),
-            2);
+        var jobService = new JobService(configService);
 
         var job1Id = jobService.StartJob("CreatePlan", "-Description", "Job1");
         var job2Id = jobService.StartJob("CreatePlan", "-Description", "Job2");
@@ -127,11 +122,7 @@ public class JobServiceConcurrencyTests
     {
         // Arrange: Start with max=4, launch 4 jobs
         var configService = new TestConfigService { MaxConcurrentJobs = 4 };
-        var jobService = new JobService(
-            configService,
-            TimeSpan.FromMinutes(60),
-            TimeSpan.FromMinutes(5),
-            4);
+        var jobService = new JobService(configService);
 
         var job1Id = jobService.StartJob("CreatePlan", "-Description", "Job1");
         var job2Id = jobService.StartJob("CreatePlan", "-Description", "Job2");
@@ -176,11 +167,7 @@ public class JobServiceConcurrencyTests
     {
         // Arrange
         var configService = new TestConfigService { MaxConcurrentJobs = 5 };
-        var jobService = new JobService(
-            configService,
-            TimeSpan.FromMinutes(60),
-            TimeSpan.FromMinutes(5),
-            5);
+        var jobService = new JobService(configService);
 
         var job1Id = jobService.StartJob("CreatePlan", "-Description", "Job1");
 
@@ -215,11 +202,41 @@ public class JobServiceConcurrencyTests
             Projects = []
         };
 
+        public string TendrilHome => "";
+        public string ConfigPath => "";
+        public string PlanFolder => "";
+        public List<ProjectConfig> Projects => [];
+        public List<LevelConfig> Levels => [];
+        public string[] LevelNames => [];
+        public EditorConfig Editor => new();
+        public bool NeedsOnboarding => false;
+        public ConfigParseError? ParseError => null;
+
         public event EventHandler? SettingsReloaded;
 
         public void TriggerSettingsReloaded()
         {
             SettingsReloaded?.Invoke(this, EventArgs.Empty);
         }
+
+        public ProjectConfig? GetProject(string name) => null;
+        public bool TryAutoHeal() => false;
+        public void ResetToDefaults() { }
+        public void RetryLoadConfig() { }
+        public BadgeVariant GetBadgeVariant(string level) => BadgeVariant.Info;
+        public Colors? GetProjectColor(string projectName) => null;
+        public void SaveSettings() { }
+        public void ReloadSettings() { }
+        public void SetPendingTendrilHome(string path) { }
+        public string? GetPendingTendrilHome() => null;
+        public void SetPendingProject(ProjectConfig project) { }
+        public ProjectConfig? GetPendingProject() => null;
+        public void SetPendingCodingAgent(string name) { }
+        public string? GetPendingCodingAgent() => null;
+        public void SetPendingVerificationDefinitions(List<VerificationConfig> definitions) { }
+        public List<VerificationConfig>? GetPendingVerificationDefinitions() => null;
+        public void CompleteOnboarding(string tendrilHome) { }
+        public void OpenInEditor(string path) { }
+        public string PreprocessForEditing(string path) => path;
     }
 }
