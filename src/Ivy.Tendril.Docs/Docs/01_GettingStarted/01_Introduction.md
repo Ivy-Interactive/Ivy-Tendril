@@ -24,24 +24,18 @@ Tendril is an Open Source AI Orchestrator designed for real-world agentic softwa
 
 In Tendril, work is organized into **Plans**—structured units of work like bug fixes, refactors, or new features. Instead of a "black box" that outputs code and hopes for the best, Tendril moves your Plan through a defined lifecycle using Promptwares: isolated, single-purpose agents that specialize in specific stages of the SDLC. Whether it’s generating code, verifying builds, or opening PRs, you have total visibility. Tendril doesn't just autocomplete your lines; it orchestrates your workflow.
 
- <Image Src="https://i.postimg.cc/NB89LJkw/Make-Plan-2.gif" />
 
 ---
 
 ## Key Features
 
-
-```csharp demo
-Layout.Grid().Columns(3).Gap(4)
-| new Card().Icon(Icons.RefreshCw.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Plan Lifecycle")).Description(Text.Muted("Draft – Execution – Review – PR.").Small()).Height(Size.Units(28)).OnClick(() => {})
-| new Card().Icon(Icons.FolderOpen.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Multi-Project")).Description(Text.Muted("Several repos, per-project verification rules.").Small()).Height(Size.Units(28)).OnClick(() => {})
-| new Card().Icon(Icons.Activity.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Jobs")).Description(Text.Muted("Status, tokens, cost.").Small()).Height(Size.Units(28)).OnClick(() => {})
-| new Card().Icon(Icons.Zap.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Promptwares")).Description(Text.Muted("Modular agents: CreatePlan, ExecutePlan, ExpandPlan, CreatePr.").Small()).Height(Size.Units(28)).OnClick(() => {})
-| new Card().Icon(Icons.GitBranch.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Git Worktrees")).Description(Text.Muted("Agent work stays off your main branch.").Small()).Height(Size.Units(28)).OnClick(() => {})
-| new Card().Icon(Icons.Terminal.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Terminal & File Viewer")).Description(Text.Muted("Embedded terminal and fast local file access.").Small()).Height(Size.Units(28)).OnClick(() => {})
-| new Card().Icon(Icons.CircleCheck.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Verification")).Description(Text.Muted("Hook your build, test, and format checks.").Small()).Height(Size.Units(28)).OnClick(() => {})
-```
-
+- **Plan Lifecycle** - Draft – Execution – Review – PR.
+- **Multi-Project** - Several repos, per-project verification rules.
+- **Jobs** - Status, tokens, cost.
+- **Promptwares** - Modular agents: CreatePlan, ExecutePlan, ExpandPlan, CreatePr.
+- **Git Worktrees** - Agent work stays off your main branch.
+- **Terminal & File Viewer** - Embedded terminal and fast local file access.
+- **Verification** - Hook your build, test, and format checks.
 
 ## The Tendril Loop: From Idea to PR.
 
