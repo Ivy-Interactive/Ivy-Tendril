@@ -115,9 +115,9 @@ public class Program
 
         if (useDesktop)
         {
-            var iconResource = OperatingSystem.IsWindows() ? "Ivy.Tendril.Assets.Tendril.ico"
-                : OperatingSystem.IsMacOS() ? "Ivy.Tendril.Assets.Tendril.icns"
-                : "Ivy.Tendril.Assets.Tendril.png";
+            var iconResource = OperatingSystem.IsWindows() ? "Ivy.Tendril.Assets.icon.ico"
+                : OperatingSystem.IsMacOS() ? "Ivy.Tendril.Assets.icon.icns"
+                : "Ivy.Tendril.Assets.icon.png";
 
             var window = new DesktopWindow(server)
                 .Title("Ivy Tendril")
