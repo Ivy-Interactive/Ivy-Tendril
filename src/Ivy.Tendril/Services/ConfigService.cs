@@ -267,6 +267,7 @@ public class ConfigService : IConfigService
 
     private void FinalizeConfiguration()
     {
+        ValidateSettings();
         VariableExpansion.InitializeUserSecrets(TendrilHome, _logger);
         ExpandSettingsVariables();
         ExpandRepoPaths();
@@ -282,6 +283,41 @@ public class ConfigService : IConfigService
         Directory.CreateDirectory(Path.Combine(TendrilHome, "Trash"));
         Directory.CreateDirectory(Path.Combine(TendrilHome, "Promptwares"));
         Directory.CreateDirectory(Path.Combine(TendrilHome, "Hooks"));
+    }
+
+    private void ValidateSettings()
+    {
+        // JobTimeout: 1-480 minutes (8 hours max)
+        if (Settings.JobTimeout < 1 || Settings.JobTimeout > 480)
+        {
+            _logger.LogWarning("JobTimeout {Value} is out of bounds (1-480 minutes). Using default 30.",
+                Settings.JobTimeout);
+            Settings.JobTimeout = 30;
+        }
+
+        // StaleOutputTimeout: 1-60 minutes
+        if (Settings.StaleOutputTimeout < 1 || Settings.StaleOutputTimeout > 60)
+        {
+            _logger.LogWarning("StaleOutputTimeout {Value} is out of bounds (1-60 minutes). Using default 10.",
+                Settings.StaleOutputTimeout);
+            Settings.StaleOutputTimeout = 10;
+        }
+
+        // GitTimeout: 1-30 minutes
+        if (Settings.GitTimeout < 1 || Settings.GitTimeout > 30)
+        {
+            _logger.LogWarning("GitTimeout {Value} is out of bounds (1-30 minutes). Using default 10.",
+                Settings.GitTimeout);
+            Settings.GitTimeout = 10;
+        }
+
+        // MaxConcurrentJobs: 1-100
+        if (Settings.MaxConcurrentJobs < 1 || Settings.MaxConcurrentJobs > 100)
+        {
+            _logger.LogWarning("MaxConcurrentJobs {Value} is out of bounds (1-100). Using default 5.",
+                Settings.MaxConcurrentJobs);
+            Settings.MaxConcurrentJobs = 5;
+        }
     }
 
     public TendrilSettings Settings { get; private set; }
@@ -366,6 +402,7 @@ public class ConfigService : IConfigService
             yaml = Regex.Replace(yaml, @"(?m)^(\s*-\s+)(%\w+%.*)$", "$1'$2'");
             Settings = YamlHelper.Deserializer.Deserialize<TendrilSettings>(yaml) ?? new TendrilSettings();
 
+            ValidateSettings();
             MigrateProjectColors();
             _levelNamesCache = null;
             VariableExpansion.InitializeUserSecrets(TendrilHome, _logger);

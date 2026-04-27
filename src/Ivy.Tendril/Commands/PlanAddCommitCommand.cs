@@ -36,6 +36,13 @@ public class PlanAddCommitCommand : Command<PlanAddCommitSettings>
             var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
             var plan = PlanCommandHelpers.ReadPlan(planFolder);
 
+            // Validate commit hash format
+            if (!GitService.IsValidCommitHash(settings.Sha))
+            {
+                _logger.LogError("Invalid commit hash format: {Sha}", settings.Sha);
+                return 1;
+            }
+
             // Check if already present
             if (plan.Commits.Contains(settings.Sha))
             {
