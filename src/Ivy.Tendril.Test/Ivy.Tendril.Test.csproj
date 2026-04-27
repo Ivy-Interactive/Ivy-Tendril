@@ -38,7 +38,7 @@
     <ProjectReference Include="..\..\..\Ivy-Framework\src\Ivy\Ivy.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(IvySource)' != 'true'">
-    <PackageReference Include="Ivy" Version="1.2.46" />
+    <PackageReference Include="Ivy" Version="1.2.48" />
   </ItemGroup>
 
 </Project>
