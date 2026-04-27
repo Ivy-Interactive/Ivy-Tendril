@@ -197,9 +197,9 @@ internal class JobCompletionHandler
                         PlanYamlHelper.LogCostToCsv(jobArgs[0], jobType, costCalc.TotalTokens, costCalc.TotalCost);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                /* Best-effort cost tracking */
+                _logger.LogWarning(ex, "Failed to calculate session cost for job {JobId}", jobId);
             }
         });
     }
