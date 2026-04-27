@@ -27,7 +27,7 @@ internal class AppShellRouter
         NavigateArgs navigateArgs,
         AppShellNavigation navigationMode,
         string? defaultAppId,
-        ImmutableArray<TabState> currentTabs,
+        ImmutableArray<TendrilAppShell.TabState> currentTabs,
         AppDescriptor? appDescriptor,
         bool preventTabDuplicates)
     {
@@ -48,7 +48,7 @@ internal class AppShellRouter
 
     private RouteResult RouteForTabs(
         NavigateArgs navigateArgs,
-        ImmutableArray<TabState> currentTabs,
+        ImmutableArray<TendrilAppShell.TabState> currentTabs,
         AppDescriptor? appDescriptor,
         bool preventTabDuplicates)
     {
@@ -104,14 +104,14 @@ internal class AppShellRouter
         };
     }
 
-    private static int FindTabIndex(ImmutableArray<TabState> tabs, string tabId)
+    private static int FindTabIndex(ImmutableArray<TendrilAppShell.TabState> tabs, string tabId)
     {
         for (var i = 0; i < tabs.Length; i++)
             if (tabs[i].Id == tabId) return i;
         return -1;
     }
 
-    private static int FindTabIndexByAppId(ImmutableArray<TabState> tabs, string appId)
+    private static int FindTabIndexByAppId(ImmutableArray<TendrilAppShell.TabState> tabs, string appId)
     {
         for (var i = 0; i < tabs.Length; i++)
             if (tabs[i].AppId == appId) return i;

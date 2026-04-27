@@ -229,7 +229,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             }
         }
 
-        private void HandleOpenPage(NavigateArgs navigateArgs, string? effectiveAppId, bool replaceHistory)
+        void HandleOpenPage(NavigateArgs navigateArgs, string? effectiveAppId, bool replaceHistory)
         {
             var previousApp = currentApp.Value?.AppId;
             var effectiveNavigateArgs = navigateArgs with { AppId = effectiveAppId };
@@ -246,7 +246,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 RedirectToAppIfNotError(effectiveNavigateArgs, replaceHistory);
         }
 
-        private void HandleSwitchToExistingTab(NavigateArgs navigateArgs, int tabIndex,
+        void HandleSwitchToExistingTab(NavigateArgs navigateArgs, int tabIndex,
             string tabId, bool replaceHistory)
         {
             var previousSelectedIndex = selectedIndex.Value;
@@ -258,7 +258,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 RedirectToAppIfNotError(navigateArgs, replaceHistory, tabId);
         }
 
-        private void HandleCreateNewTab(NavigateArgs navigateArgs, string effectiveAppId,
+        void HandleCreateNewTab(NavigateArgs navigateArgs, string effectiveAppId,
             bool replaceHistory)
         {
             if (navigateArgs.HistoryOp is not HistoryOp.Push) return;
