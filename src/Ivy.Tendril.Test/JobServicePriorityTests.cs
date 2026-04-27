@@ -82,13 +82,13 @@ public class JobServicePriorityTests : IDisposable
     {
         var planDir = Path.Combine(_tempDir.Path, $"plan-{Guid.NewGuid():N}");
         Directory.CreateDirectory(planDir);
-            var yamlContent = "state: Draft\nproject: TestProject\nlevel: NiceToHave\n";
+        var yamlContent = "state: Draft\nproject: TestProject\nlevel: NiceToHave\n";
         File.WriteAllText(Path.Combine(planDir, "plan.yaml"), yamlContent);
 
         var result = JobService.ReadPlanYaml(planDir);
 
-            Assert.NotNull(result);
-            Assert.Equal(0, result.Priority);
+        Assert.NotNull(result);
+        Assert.Equal(0, result.Priority);
     }
 
     [Fact]
@@ -96,13 +96,13 @@ public class JobServicePriorityTests : IDisposable
     {
         var planDir = Path.Combine(_tempDir.Path, $"plan-{Guid.NewGuid():N}");
         Directory.CreateDirectory(planDir);
-            var yamlContent = "state: Executing\nproject: Framework\npriority: 2\nlevel: Critical\n";
+        var yamlContent = "state: Executing\nproject: Framework\npriority: 2\nlevel: Critical\n";
         File.WriteAllText(Path.Combine(planDir, "plan.yaml"), yamlContent);
 
         var result = JobService.ReadPlanYaml(planDir);
 
-            Assert.NotNull(result);
-            Assert.Equal(2, result.Priority);
+        Assert.NotNull(result);
+        Assert.Equal(2, result.Priority);
     }
 
     [Fact]

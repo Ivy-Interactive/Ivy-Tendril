@@ -55,45 +55,45 @@ public sealed class PlanTools : AuthenticatedToolBase
         return ExecuteAuthenticated(() =>
         {
             try
-        {
-            var plansDir = PlanCommandHelpers.GetPlansDirectory();
-
-            DateTime? sinceDate = null;
-            if (!string.IsNullOrEmpty(since) && DateTime.TryParse(since, out var parsed))
-                sinceDate = parsed;
-
-            var sb = new StringBuilder();
-            var count = 0;
-
-            foreach (var dir in Directory.GetDirectories(plansDir).OrderByDescending(d => Path.GetFileName(d)))
             {
-                var folderName = Path.GetFileName(dir);
-                var match = FolderNameRegex.Match(folderName);
-                if (!match.Success) continue;
+                var plansDir = PlanCommandHelpers.GetPlansDirectory();
 
-                PlanYaml yaml;
-                try { yaml = PlanCommandHelpers.ReadPlan(dir); }
-                catch { continue; }
+                DateTime? sinceDate = null;
+                if (!string.IsNullOrEmpty(since) && DateTime.TryParse(since, out var parsed))
+                    sinceDate = parsed;
 
-                if (!MatchesFilters(yaml, state, project, sinceDate))
-                    continue;
+                var sb = new StringBuilder();
+                var count = 0;
 
-                var id = match.Groups[1].Value;
-                sb.AppendLine($"- [{id}] {yaml.Title} | State: {yaml.State} | Project: {yaml.Project} | Level: {yaml.Level}");
-                count++;
-
-                if (count >= 50)
+                foreach (var dir in Directory.GetDirectories(plansDir).OrderByDescending(d => Path.GetFileName(d)))
                 {
-                    sb.AppendLine("... (showing first 50 of potentially more results)");
-                    break;
+                    var folderName = Path.GetFileName(dir);
+                    var match = FolderNameRegex.Match(folderName);
+                    if (!match.Success) continue;
+
+                    PlanYaml yaml;
+                    try { yaml = PlanCommandHelpers.ReadPlan(dir); }
+                    catch { continue; }
+
+                    if (!MatchesFilters(yaml, state, project, sinceDate))
+                        continue;
+
+                    var id = match.Groups[1].Value;
+                    sb.AppendLine($"- [{id}] {yaml.Title} | State: {yaml.State} | Project: {yaml.Project} | Level: {yaml.Level}");
+                    count++;
+
+                    if (count >= 50)
+                    {
+                        sb.AppendLine("... (showing first 50 of potentially more results)");
+                        break;
+                    }
                 }
-            }
 
-            if (count == 0)
-                return "No plans found matching the specified criteria.";
+                if (count == 0)
+                    return "No plans found matching the specified criteria.";
 
-            sb.Insert(0, $"Found {count} plan(s):\n");
-            return sb.ToString();
+                sb.Insert(0, $"Found {count} plan(s):\n");
+                return sb.ToString();
             }
             catch (Exception ex)
             {
