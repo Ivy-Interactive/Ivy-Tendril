@@ -828,6 +828,38 @@ public class PlanReaderService(
         return (totalCost, totalTokens);
     }
 
+    private IEnumerable<Recommendation> ExtractPlanRecommendations(string folderName, string planYamlPath)
+    {
+        var planYaml = FileHelper.ReadAllText(planYamlPath);
+        var plan = YamlHelper.Deserializer.Deserialize<PlanYaml>(planYaml);
+        if (plan == null) yield break;
+
+        var match = FolderNameRegex.Match(folderName);
+        var planId = match.Groups[1].Value;
+
+        if (!Enum.TryParse<PlanStatus>(plan.State, true, out var status))
+            status = PlanStatus.Draft;
+
+        var items = plan.Recommendations;
+        if (items == null) yield break;
+
+        foreach (var item in items)
+            yield return new Recommendation(
+                item.Title,
+                item.Description,
+                string.IsNullOrWhiteSpace(item.State) ? "Pending" : item.State,
+                planId,
+                plan.Title ?? "",
+                folderName,
+                plan.Project ?? "",
+                plan.Updated,
+                status,
+                item.DeclineReason,
+                item.Impact,
+                item.Risk
+            );
+    }
+
     private List<Recommendation> ComputeRecommendations()
     {
         var recommendations = new List<Recommendation>();
@@ -836,36 +868,7 @@ public class PlanReaderService(
         {
             try
             {
-                var planYaml = FileHelper.ReadAllText(planYamlPath);
-                var plan = YamlHelper.Deserializer.Deserialize<PlanYaml>(planYaml);
-                if (plan == null) continue;
-
-                var match = FolderNameRegex.Match(folderName);
-                var planId = match.Groups[1].Value;
-
-                if (!Enum.TryParse<PlanStatus>(plan.State, true, out var status))
-                    status = PlanStatus.Draft;
-
-                var items = plan.Recommendations;
-
-                if (items != null)
-                {
-                    foreach (var item in items)
-                        recommendations.Add(new Recommendation(
-                            item.Title,
-                            item.Description,
-                            string.IsNullOrWhiteSpace(item.State) ? "Pending" : item.State,
-                            planId,
-                            plan.Title ?? "",
-                            folderName,
-                            plan.Project ?? "",
-                            plan.Updated,
-                            status,
-                            item.DeclineReason,
-                            item.Impact,
-                            item.Risk
-                        ));
-                }
+                recommendations.AddRange(ExtractPlanRecommendations(folderName, planYamlPath));
             }
             catch (Exception ex)
             {
