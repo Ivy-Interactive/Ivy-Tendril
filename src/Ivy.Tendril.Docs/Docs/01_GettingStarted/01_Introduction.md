@@ -25,7 +25,6 @@ In Tendril, work is organized into **Plans**—structured units of work like bug
 
 <Image Src="../../assets/Make-Plan-2.gif" />
 
-
 ## Key Features
 
 - **Plan Lifecycle** - Draft – Execution – Review – PR.
