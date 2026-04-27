@@ -3,12 +3,19 @@ using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
 
-public class JobServiceRetryBlockedTests
+public class JobServiceRetryBlockedTests : IDisposable
 {
-    private static string CreatePlanFolder(string state, List<string>? dependsOn = null, List<string>? prs = null)
+    private readonly TempDirectoryFixture _tempDir = new();
+
+    public void Dispose()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"tendril-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
+        _tempDir.Dispose();
+    }
+
+    private string CreatePlanFolder(string state, List<string>? dependsOn = null, List<string>? prs = null)
+    {
+        var planDir = Path.Combine(_tempDir.Path, $"plan-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(planDir);
 
         string depsYaml;
         if (dependsOn is { Count: > 0 })
@@ -24,13 +31,13 @@ public class JobServiceRetryBlockedTests
 
         var yaml =
             $"state: {state}\nproject: TestProject\nlevel: NiceToHave\ntitle: Test\nupdated: 2026-01-01T00:00:00Z\n{depsYaml}\n{prsYaml}\ncommits: []\nverifications: []\nrelatedPlans: []\nrepos: []\n";
-        File.WriteAllText(Path.Combine(tempDir, "plan.yaml"), yaml);
-        return tempDir;
+        File.WriteAllText(Path.Combine(planDir, "plan.yaml"), yaml);
+        return planDir;
     }
 
-    private static string CreatePlansDirectory(params (string folderName, string state)[] plans)
+    private string CreatePlansDirectory(params (string folderName, string state)[] plans)
     {
-        var plansDir = Path.Combine(Path.GetTempPath(), $"tendril-plans-{Guid.NewGuid():N}");
+        var plansDir = Path.Combine(_tempDir.Path, $"plans-{Guid.NewGuid():N}");
         Directory.CreateDirectory(plansDir);
 
         foreach (var (folderName, state) in plans)

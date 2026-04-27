@@ -3,8 +3,14 @@ using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
 
-public class JobServiceNotificationThreadSafetyTests
+public class JobServiceNotificationThreadSafetyTests : IDisposable
 {
+    private readonly TempDirectoryFixture _tempDir = new();
+
+    public void Dispose()
+    {
+        _tempDir.Dispose();
+    }
     [Fact]
     public void NotificationReady_FiresOnSyncContext_WhenAvailable()
     {
@@ -20,7 +26,7 @@ public class JobServiceNotificationThreadSafetyTests
             service.NotificationReady += n => received = n;
 
             // Start a job and complete it to trigger notification
-            var id = service.StartJob("CreatePr", Path.GetTempPath());
+            var id = service.StartJob("CreatePr", _tempDir.Path);
             service.CompleteJob(id, 0);
 
             // The notification should have been posted to the sync context, not invoked directly
@@ -51,7 +57,7 @@ public class JobServiceNotificationThreadSafetyTests
         JobNotification? received = null;
         service.NotificationReady += n => received = n;
 
-        var id = service.StartJob("CreatePr", Path.GetTempPath());
+        var id = service.StartJob("CreatePr", _tempDir.Path);
         service.CompleteJob(id, 0);
 
         Assert.NotNull(received);
@@ -73,7 +79,7 @@ public class JobServiceNotificationThreadSafetyTests
 
         // Complete multiple jobs rapidly
         var ids = new List<string>();
-        for (var i = 0; i < 5; i++) ids.Add(service.StartJob("CreatePr", Path.GetTempPath()));
+        for (var i = 0; i < 5; i++) ids.Add(service.StartJob("CreatePr", _tempDir.Path));
 
         foreach (var id in ids) service.CompleteJob(id, 0);
 
@@ -99,7 +105,7 @@ public class JobServiceNotificationThreadSafetyTests
         JobNotification? received = null;
         service.NotificationReady += n => received = n;
 
-        var id = service.StartJob("ExecutePlan", Path.GetTempPath());
+        var id = service.StartJob("ExecutePlan", _tempDir.Path);
         service.CompleteJob(id, 1);
 
         Assert.NotNull(received);

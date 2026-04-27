@@ -6,8 +6,14 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test;
 
-public class InboxWatcherServiceTests
+public class InboxWatcherServiceTests : IDisposable
 {
+    private readonly TempDirectoryFixture _tempDir = new();
+
+    public void Dispose()
+    {
+        _tempDir.Dispose();
+    }
     [Fact]
     public void ParseContent_PlainMarkdown_ReturnsAutoProject()
     {
@@ -115,55 +121,43 @@ public class InboxWatcherServiceTests
     [Fact]
     public async Task ProcessFileAsync_EmptyContent_SkipsJob()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"inbox-test-{Guid.NewGuid():N}");
-        var inboxDir = Path.Combine(tempDir, "Inbox");
+        var inboxDir = Path.Combine(_tempDir.Path, "Inbox");
         Directory.CreateDirectory(inboxDir);
 
-        try
-        {
-            // Place an empty file in the inbox
-            var filePath = Path.Combine(inboxDir, "empty-entry.md");
-            File.WriteAllText(filePath, "");
+        // Place an empty file in the inbox
+        var filePath = Path.Combine(inboxDir, "empty-entry.md");
+        File.WriteAllText(filePath, "");
 
-            var config = new ConfigService(new TendrilSettings(), tempDir);
-            var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
-            using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
+        var config = new ConfigService(new TendrilSettings(), _tempDir.Path);
+        var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
+        using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
 
-            // Wait for async processing to complete
-            await RetryHelper.WaitUntilAsync(
-                async () =>
-                {
-                    await Task.Yield();
-                    return Directory.GetFiles(inboxDir, "*.md").Length == 1;
-                },
-                TimeSpan.FromSeconds(5),
-                TimeSpan.FromMilliseconds(100),
-                "Empty file was not skipped within timeout");
+        // Wait for async processing to complete
+        await RetryHelper.WaitUntilAsync(
+            async () =>
+            {
+                await Task.Yield();
+                return Directory.GetFiles(inboxDir, "*.md").Length == 1;
+            },
+            TimeSpan.FromSeconds(5),
+            TimeSpan.FromMilliseconds(100),
+            "Empty file was not skipped within timeout");
 
-            // The .md file should still be there (not renamed to .processing) because the description is empty
-            Assert.Single(Directory.GetFiles(inboxDir, "*.md"));
-            Assert.Empty(Directory.GetFiles(inboxDir, "*.processing"));
-        }
-        finally
-        {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
-        }
+        // The .md file should still be there (not renamed to .processing) because the description is empty
+        Assert.Single(Directory.GetFiles(inboxDir, "*.md"));
+        Assert.Empty(Directory.GetFiles(inboxDir, "*.processing"));
     }
 
     [Fact]
     public async Task ProcessFileAsync_AlreadyTrackedByRunningJob_SkipsStartJob()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"inbox-test-{Guid.NewGuid():N}");
-        var inboxDir = Path.Combine(tempDir, "Inbox");
+        var inboxDir = Path.Combine(_tempDir.Path, "Inbox");
         Directory.CreateDirectory(inboxDir);
 
-        try
-        {
             var filePath = Path.Combine(inboxDir, "duplicate-entry.md");
             File.WriteAllText(filePath, "Fix the bug");
 
-            var config = new ConfigService(new TendrilSettings(), tempDir);
+        var config = new ConfigService(new TendrilSettings(), _tempDir.Path);
             var jobService = new TrackedStubJobService { TrackedReturnValue = true };
             using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
 
@@ -185,27 +179,18 @@ public class InboxWatcherServiceTests
             Assert.Empty(jobService.StartedJobs);
             Assert.Single(Directory.GetFiles(inboxDir, "*.md"));
             Assert.Empty(Directory.GetFiles(inboxDir, "*.md.processing"));
-        }
-        finally
-        {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
-        }
     }
 
     [Fact]
     public async Task ProcessFileAsync_NotTracked_StartsJobAndRenamesFile()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"inbox-test-{Guid.NewGuid():N}");
-        var inboxDir = Path.Combine(tempDir, "Inbox");
+        var inboxDir = Path.Combine(_tempDir.Path, "Inbox");
         Directory.CreateDirectory(inboxDir);
 
-        try
-        {
             var filePath = Path.Combine(inboxDir, "new-entry.md");
             File.WriteAllText(filePath, "Fix the bug");
 
-            var config = new ConfigService(new TendrilSettings(), tempDir);
+        var config = new ConfigService(new TendrilSettings(), _tempDir.Path);
             var jobService = new TrackedStubJobService { TrackedReturnValue = false };
             using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
 
@@ -224,12 +209,6 @@ public class InboxWatcherServiceTests
             Assert.Single(jobService.StartedJobs);
             Assert.Empty(Directory.GetFiles(inboxDir, "*.md"));
             Assert.Single(Directory.GetFiles(inboxDir, "*.md.processing"));
-        }
-        finally
-        {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
-        }
     }
 
     private class TrackedStubJobService : IJobService
@@ -267,16 +246,13 @@ public class InboxWatcherServiceTests
     [Fact]
     public async Task ProcessExistingFiles_PicksUpFilesInInbox()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"inbox-test-{Guid.NewGuid():N}");
-        var inboxDir = Path.Combine(tempDir, "Inbox");
+        var inboxDir = Path.Combine(_tempDir.Path, "Inbox");
         Directory.CreateDirectory(inboxDir);
 
-        try
-        {
             // Place a file in the inbox before creating the service
             File.WriteAllText(Path.Combine(inboxDir, "test-entry.md"), "Test inbox entry");
 
-            var config = new ConfigService(new TendrilSettings(), tempDir);
+        var config = new ConfigService(new TendrilSettings(), _tempDir.Path);
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
             using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
 
@@ -295,28 +271,19 @@ public class InboxWatcherServiceTests
 
             // The .md file should have been renamed to .processing (job started)
             Assert.Empty(Directory.GetFiles(inboxDir, "*.md"));
-        }
-        finally
-        {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
-        }
     }
 
     [Fact]
     public void ProcessFileAsync_FileDeletedBeforeRename_SkipsGracefully()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"inbox-test-{Guid.NewGuid():N}");
-        var inboxDir = Path.Combine(tempDir, "Inbox");
+        var inboxDir = Path.Combine(_tempDir.Path, "Inbox");
         Directory.CreateDirectory(inboxDir);
 
-        try
-        {
             // Create a file, then immediately delete it to simulate a race condition
             var filePath = Path.Combine(inboxDir, "race-condition-test.md");
             File.WriteAllText(filePath, "Test content for race condition");
 
-            var config = new ConfigService(new TendrilSettings(), tempDir);
+        var config = new ConfigService(new TendrilSettings(), _tempDir.Path);
             var jobService = new DeleteBeforeRenameJobService(filePath);
             using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
 
@@ -327,12 +294,6 @@ public class InboxWatcherServiceTests
             Assert.Empty(jobService.StartedJobs);
             Assert.Empty(Directory.GetFiles(inboxDir, "*.md"));
             Assert.Empty(Directory.GetFiles(inboxDir, "*.processing"));
-        }
-        finally
-        {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
-        }
     }
 
     private class DeleteBeforeRenameJobService : IJobService

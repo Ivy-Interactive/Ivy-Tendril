@@ -8,12 +8,13 @@ namespace Ivy.Tendril.Test;
 
 public class PlanDatabaseServiceTests : IDisposable
 {
+    private readonly TempDirectoryFixture _tempDir = new();
     private readonly PlanDatabaseService _db;
     private readonly string _dbPath;
 
     public PlanDatabaseServiceTests()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"tendril-test-{Guid.NewGuid()}.db");
+        _dbPath = Path.Combine(_tempDir.Path, $"tendril-test-{Guid.NewGuid()}.db");
         _db = new PlanDatabaseService(_dbPath, NullLogger<PlanDatabaseService>.Instance);
     }
 
@@ -21,12 +22,7 @@ public class PlanDatabaseServiceTests : IDisposable
     {
         _db.Dispose();
         SqliteConnection.ClearAllPools();
-        if (File.Exists(_dbPath))
-            File.Delete(_dbPath);
-        if (File.Exists(_dbPath + "-wal"))
-            File.Delete(_dbPath + "-wal");
-        if (File.Exists(_dbPath + "-shm"))
-            File.Delete(_dbPath + "-shm");
+        _tempDir.Dispose();
     }
 
     private PlanFile CreateTestPlan(int id, string title = "Test Plan", PlanStatus status = PlanStatus.Draft,

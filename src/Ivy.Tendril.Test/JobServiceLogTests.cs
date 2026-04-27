@@ -4,16 +4,18 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test;
 
-public class JobServiceLogTests
+public class JobServiceLogTests : IDisposable
 {
+    private readonly TempDirectoryFixture _tempDir = new();
+
+    public void Dispose()
+    {
+        _tempDir.Dispose();
+    }
     [Fact]
     public void WriteJobLog_IncludesSessionId()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"tendril-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
-        try
-        {
-            var configService = new ConfigService(new TendrilSettings(), tempDir);
+        var configService = new ConfigService(new TendrilSettings(), _tempDir.Path);
             var planReaderService = new PlanReaderService(configService, NullLogger<PlanReaderService>.Instance);
             var jobService = new JobService(TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(1),
                 planReaderService: planReaderService);
@@ -33,28 +35,19 @@ public class JobServiceLogTests
 
             jobService.WriteJobLog(job);
 
-            var logsDir = Path.Combine(tempDir, "Plans", "00001-TestPlan", "logs");
+        var logsDir = Path.Combine(_tempDir.Path, "Plans", "00001-TestPlan", "logs");
             var logFiles = Directory.GetFiles(logsDir, "*.md");
             Assert.Single(logFiles);
 
             var logContent = File.ReadAllText(logFiles[0]);
             Assert.Contains("**SessionId:**", logContent);
             Assert.Contains(sessionId, logContent);
-        }
-        finally
-        {
-            Directory.Delete(tempDir, true);
-        }
     }
 
     [Fact]
     public void WriteJobLog_OmitsSessionIdWhenNull()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"tendril-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
-        try
-        {
-            var configService = new ConfigService(new TendrilSettings(), tempDir);
+        var configService = new ConfigService(new TendrilSettings(), _tempDir.Path);
             var planReaderService = new PlanReaderService(configService, NullLogger<PlanReaderService>.Instance);
             var jobService = new JobService(TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(1),
                 planReaderService: planReaderService);

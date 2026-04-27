@@ -8,20 +8,19 @@ namespace Ivy.Tendril.Test;
 [Collection("TendrilHome")]
 public class PlanCliCommandTests : IDisposable
 {
+    private readonly TempDirectoryFixture _tempDir = new();
     private readonly string _originalTendrilHome;
     private readonly string? _originalTendrilPlans;
     private readonly string _plansDir;
-    private readonly string _tempDir;
 
     public PlanCliCommandTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), $"tendril-cli-test-{Guid.NewGuid():N}");
-        _plansDir = Path.Combine(_tempDir, "Plans");
+        _plansDir = Path.Combine(_tempDir.Path, "Plans");
         Directory.CreateDirectory(_plansDir);
 
         _originalTendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? "";
         _originalTendrilPlans = Environment.GetEnvironmentVariable("TENDRIL_PLANS");
-        Environment.SetEnvironmentVariable("TENDRIL_HOME", _tempDir);
+        Environment.SetEnvironmentVariable("TENDRIL_HOME", _tempDir.Path);
         Environment.SetEnvironmentVariable("TENDRIL_PLANS", null);
     }
 
@@ -29,14 +28,7 @@ public class PlanCliCommandTests : IDisposable
     {
         Environment.SetEnvironmentVariable("TENDRIL_HOME", _originalTendrilHome);
         Environment.SetEnvironmentVariable("TENDRIL_PLANS", _originalTendrilPlans);
-        if (Directory.Exists(_tempDir))
-            try
-            {
-                Directory.Delete(_tempDir, true);
-            }
-            catch
-            {
-            }
+        _tempDir.Dispose();
     }
 
     private string CreatePlanFolder(string id, string title, PlanYaml? plan = null)

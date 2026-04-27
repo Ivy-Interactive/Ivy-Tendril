@@ -3,8 +3,14 @@ using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
 
-public class JobServiceCostTrackingTests
+public class JobServiceCostTrackingTests : IDisposable
 {
+    private readonly TempDirectoryFixture _tempDir = new();
+
+    public void Dispose()
+    {
+        _tempDir.Dispose();
+    }
     private static string? FindTestScriptPath()
     {
         var relativeCandidates = new[]
@@ -77,24 +83,15 @@ public class JobServiceCostTrackingTests
     [Fact]
     public void StartJob_SetsProviderFromConfig()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"tendril-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
-        try
-        {
-            var settings = new TendrilSettings { CodingAgent = "codex" };
-            var configService = new ConfigService(settings, tempDir);
-            var service = new JobService(configService);
+        var settings = new TendrilSettings { CodingAgent = "codex" };
+        var configService = new ConfigService(settings, _tempDir.Path);
+        var service = new JobService(configService);
 
-            var id = service.StartJob("ExecutePlan", Path.GetTempPath());
-            var job = service.GetJob(id);
+        var id = service.StartJob("ExecutePlan", Path.GetTempPath());
+        var job = service.GetJob(id);
 
-            Assert.NotNull(job);
-            Assert.Equal("codex", job.Provider);
-        }
-        finally
-        {
-            Directory.Delete(tempDir, true);
-        }
+        Assert.NotNull(job);
+        Assert.Equal("codex", job.Provider);
     }
 
     [Fact]
