@@ -1,6 +1,8 @@
 using Ivy.Core.Hooks;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Ivy.Desktop;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Ivy.Tendril.Apps.Setup.Dialogs;
 
@@ -79,8 +81,7 @@ public class EditProjectDialog(
 
         if (_editIndex.Value == -1) return null;
 
-        var isDesktop = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? "")
-            .Equals("tendril", StringComparison.OrdinalIgnoreCase);
+        Context.TryUseService<DesktopWindow>(out var desktop);
 
         var isNew = _editIndex.Value == null;
 
@@ -230,14 +231,41 @@ public class EditProjectDialog(
             }
         };
 
-        if (isDesktop)
+        if (desktop != null)
         {
             reposLayout |= Layout.Vertical().Gap(1)
                            | (Layout.Horizontal().Gap(2).AlignContent(Align.Center)
                            | new Button(newRepoPath.Value ?? "Your repository folder")
                                .Outline()
                                .Width(Size.Percent(100))
-                               .OnClick(() => showFolderDialog(_ => { }))
+                               .OnClick(async () =>
+                               {
+                                   var tcs = new TaskCompletionSource<string[]?>();
+                                       var thread = new Thread(() =>
+                                       {
+                                           try
+                                           {
+                                               var folders = desktop.ShowSelectFolderDialog("Select Repository Folder");
+                                               tcs.SetResult(folders);
+                                           }
+                                           catch (Exception ex)
+                                           {
+                                               tcs.SetException(ex);
+                                           }
+                                       });
+                                       
+                                       if (OperatingSystem.IsWindows())
+                                       {
+                                           thread.SetApartmentState(ApartmentState.STA);
+                                       }
+                                       thread.Start();
+
+                                       var result = await tcs.Task;
+                                       if (result != null && result.Length > 0)
+                                       {
+                                           newRepoPath.Set(result[0]);
+                                       }
+                               })
                            | newRepoPrRule.ToSelectInput(new List<string> { "default", "yolo" })
                                .Width(Size.Units(20)))
                            | (Layout.Horizontal().Gap(2).AlignContent(Align.Center)

@@ -1,6 +1,8 @@
+using Ivy.Desktop;
 using Ivy.Tendril.Apps.Onboarding.Dialogs;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Ivy.Tendril.Apps.Onboarding;
 
@@ -180,16 +182,42 @@ internal class RepoPathInputView(IState<List<string>> repoPaths, int index) : Vi
                 repoPath.Set(selectedFolderPath.Value);
         }, selectedFolderPath);
 
-        var isDesktop = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? "")
-            .Equals("tendril", StringComparison.OrdinalIgnoreCase);
+        Context.TryUseService<DesktopWindow>(out var desktop);
 
-        if (isDesktop)
+        if (desktop != null)
         {
             return Layout.Horizontal().Gap(0)
                    | new Button(repoPath.Value ?? "Your repository folder")
                        .Outline()
                        .Width(Size.Percent(100))
-                       .OnClick(() => showFolderDialog(_ => { }))
+                       .OnClick(async () =>
+                       {
+                           var tcs = new TaskCompletionSource<string[]?>();
+                               var thread = new Thread(() =>
+                               {
+                                   try
+                                   {
+                                       var folders = desktop.ShowSelectFolderDialog("Select Repository Folder");
+                                       tcs.SetResult(folders);
+                                   }
+                                   catch (Exception ex)
+                                   {
+                                       tcs.SetException(ex);
+                                   }
+                               });
+                               
+                               if (OperatingSystem.IsWindows())
+                               {
+                                   thread.SetApartmentState(ApartmentState.STA);
+                               }
+                               thread.Start();
+
+                               var result = await tcs.Task;
+                               if (result != null && result.Length > 0)
+                               {
+                                   repoPath.Set(result[0]);
+                               }
+                       })
                    | folderDialogView;
         }
 
