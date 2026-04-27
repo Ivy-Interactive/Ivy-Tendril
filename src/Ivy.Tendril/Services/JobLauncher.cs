@@ -176,28 +176,61 @@ internal class JobLauncher
         var cts = new CancellationTokenSource(ctx.JobTimeout);
         job.TimeoutCts = cts;
 
+        // Hard timeout guard - ensures the job is completed even if WaitForExitOrKillAsync hangs
+        var hardTimeout = ctx.JobTimeout + TimeSpan.FromMinutes(5);
+        var hardTimeoutCts = new CancellationTokenSource(hardTimeout);
+
         Task.Run(async () =>
         {
             _logger.LogDebug("Job {JobId}: Monitor task started", id);
 
             try
             {
-                if (await process.WaitForExitOrKillAsync(cts.Token))
+                var waitTask = process.WaitForExitOrKillAsync(cts.Token);
+                var completedTask = await Task.WhenAny(waitTask, Task.Delay(hardTimeout, hardTimeoutCts.Token));
+
+                if (completedTask == waitTask)
                 {
-                    if (ctx.Jobs.TryGetValue(id, out var j) && j.StaleOutputDetected)
+                    var normalExit = await waitTask;
+                    if (normalExit)
                     {
-                        _logger.LogInformation("Job {JobId}: Process exited, stale output detected", id);
-                        ctx.CompleteJob(id, null, true, true);
+                        if (ctx.Jobs.TryGetValue(id, out var j) && j.StaleOutputDetected)
+                        {
+                            _logger.LogInformation("Job {JobId}: Process exited, stale output detected", id);
+                            ctx.CompleteJob(id, null, true, true);
+                        }
+                        else
+                        {
+                            _logger.LogInformation("Job {JobId}: Process exited with code {ExitCode}", id, process.ExitCode);
+                            ctx.CompleteJob(id, process.ExitCode, false, false);
+                        }
                     }
                     else
                     {
-                        _logger.LogInformation("Job {JobId}: Process exited with code {ExitCode}", id, process.ExitCode);
-                        ctx.CompleteJob(id, process.ExitCode, false, false);
+                        _logger.LogWarning("Job {JobId}: Process killed after timeout", id);
+                        ctx.CompleteJob(id, null, true, false);
                     }
                 }
                 else
                 {
-                    _logger.LogWarning("Job {JobId}: Process killed after timeout", id);
+                    _logger.LogError("Job {JobId}: HARD TIMEOUT after {Minutes} minutes - process may still be running",
+                        id, hardTimeout.TotalMinutes);
+                    CrashLog.Write($"[{DateTime.UtcNow:O}] Job {id} hit hard timeout after {hardTimeout.TotalMinutes} minutes - WaitForExitOrKillAsync did not complete");
+
+                    // Try one last forceful kill
+                    try
+                    {
+                        if (!process.HasExited)
+                        {
+                            _logger.LogWarning("Job {JobId}: Attempting emergency kill", id);
+                            process.Kill(entireProcessTree: true);
+                        }
+                    }
+                    catch (Exception killEx)
+                    {
+                        _logger.LogError(killEx, "Job {JobId}: Emergency kill failed", id);
+                    }
+
                     ctx.CompleteJob(id, null, true, false);
                 }
 
@@ -212,6 +245,10 @@ internal class JobLauncher
                 _logger.LogError(ex, "Job {JobId}: Monitor task exception", id);
                 CrashLog.Write($"[{DateTime.UtcNow:O}] JobService process monitor exception for job {id}: {ex}");
                 ctx.CompleteJob(id, null, false, false);
+            }
+            finally
+            {
+                hardTimeoutCts.Dispose();
             }
         });
 
