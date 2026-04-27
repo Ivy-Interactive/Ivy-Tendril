@@ -29,10 +29,14 @@ public partial class JobsApp
 
     private static string FormatLastOutput(JobItem job)
     {
-        if (job.LastOutputAt.HasValue && job.Status == JobStatus.Running)
+        if (job.Status == JobStatus.Running)
         {
-            var elapsed = DateTime.UtcNow - job.LastOutputAt.Value;
-            return FormatTimeSpan(elapsed);
+            if (job.LastOutputAt.HasValue)
+            {
+                var elapsed = DateTime.UtcNow - job.LastOutputAt.Value;
+                return FormatTimeSpan(elapsed);
+            }
+            return "Starting...";
         }
 
         return "-";
