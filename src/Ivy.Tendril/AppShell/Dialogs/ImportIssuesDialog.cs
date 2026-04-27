@@ -163,11 +163,11 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
             try
             {
                 var labels = selectedLabels.Value.Length > 0 ? selectedLabels.Value : null;
-                var (issues, error) = await githubService.SearchIssuesAsync(
+                var (issues, error) = await githubService.SearchIssuesAsync(new IssueSearchRequest(
                     repo.Owner, repo.Name,
                     string.IsNullOrWhiteSpace(searchQuery.Value) ? null : searchQuery.Value,
                     selectedAssignee.Value,
-                    labels);
+                    labels));
 
                 if (error is not null)
                 {

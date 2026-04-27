@@ -1,5 +1,6 @@
 using Ivy.Tendril.Models;
 using System.ComponentModel;
+using System.Text.RegularExpressions;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.Logging;
@@ -35,6 +36,13 @@ public class PlanAddCommitCommand : Command<PlanAddCommitSettings>
         {
             var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
             var plan = PlanCommandHelpers.ReadPlan(planFolder);
+
+            // Validate commit hash format
+            if (!Regex.IsMatch(settings.Sha, @"^[0-9a-fA-F]{7,40}$"))
+            {
+                _logger.LogError("Invalid commit hash format: {Sha}", settings.Sha);
+                return 1;
+            }
 
             // Check if already present
             if (plan.Commits.Contains(settings.Sha))

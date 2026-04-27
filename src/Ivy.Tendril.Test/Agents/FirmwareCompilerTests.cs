@@ -24,8 +24,7 @@ public class FirmwareCompilerTests : IDisposable
         var context = new FirmwareContext(
             "/programs/CreatePlan",
             "/programs/CreatePlan/Logs/00001.md",
-            new Dictionary<string, string> { ["PlanId"] = "03456", ["Project"] = "Tendril" },
-            new List<(string Name, string Content)>());
+            new Dictionary<string, string> { ["PlanId"] = "03456", ["Project"] = "Tendril" });
 
         var result = FirmwareCompiler.Compile(context);
 
@@ -39,8 +38,7 @@ public class FirmwareCompilerTests : IDisposable
         var context = new FirmwareContext(
             "/programs/Test",
             "/programs/Test/Logs/00001.md",
-            new Dictionary<string, string>(),
-            new List<(string Name, string Content)>());
+            new Dictionary<string, string>());
 
         var result = FirmwareCompiler.Compile(context);
 
@@ -53,8 +51,7 @@ public class FirmwareCompilerTests : IDisposable
         var context = new FirmwareContext(
             "/programs/Test",
             "/programs/Test/Logs/00001.md",
-            new Dictionary<string, string> { ["CurrentTime"] = "2026-01-01T00:00:00Z" },
-            new List<(string Name, string Content)>());
+            new Dictionary<string, string> { ["CurrentTime"] = "2026-01-01T00:00:00Z" });
 
         var result = FirmwareCompiler.Compile(context);
 
@@ -67,8 +64,7 @@ public class FirmwareCompilerTests : IDisposable
         var context = new FirmwareContext(
             "/my/programs/ExecutePlan",
             "/my/programs/ExecutePlan/Logs/00003.md",
-            new Dictionary<string, string>(),
-            new List<(string Name, string Content)>());
+            new Dictionary<string, string>());
 
         var result = FirmwareCompiler.Compile(context);
 
@@ -82,8 +78,7 @@ public class FirmwareCompilerTests : IDisposable
         var context = new FirmwareContext(
             "/programs/Test",
             "/programs/Test/Logs/00042.md",
-            new Dictionary<string, string>(),
-            new List<(string Name, string Content)>());
+            new Dictionary<string, string>());
 
         var result = FirmwareCompiler.Compile(context);
 
@@ -92,25 +87,19 @@ public class FirmwareCompilerTests : IDisposable
     }
 
     [Fact]
-    public void Compile_AppendsSharedDocuments()
+    public void Compile_AppendsEmbeddedPlansReference()
     {
         var context = new FirmwareContext(
             "/programs/Test",
             "/programs/Test/Logs/00001.md",
-            new Dictionary<string, string>(),
-            new List<(string Name, string Content)>
-            {
-                ("Plans", "# Plans\n\nPlan documentation here."),
-                ("Config", "# Config\n\nConfig documentation here.")
-            });
+            new Dictionary<string, string>());
 
         var result = FirmwareCompiler.Compile(context);
 
         Assert.Contains("## Reference Documents", result);
         Assert.Contains("### Plans", result);
-        Assert.Contains("Plan documentation here.", result);
-        Assert.Contains("### Config", result);
-        Assert.Contains("Config documentation here.", result);
+        Assert.Contains("Plans File Structure", result);
+        Assert.Contains("tendril plan", result);
     }
 
     [Fact]
@@ -119,8 +108,7 @@ public class FirmwareCompilerTests : IDisposable
         var context = new FirmwareContext(
             "/programs/Test",
             "/programs/Test/Logs/00001.md",
-            new Dictionary<string, string> { ["Zebra"] = "last", ["Alpha"] = "first" },
-            new List<(string Name, string Content)>());
+            new Dictionary<string, string> { ["Zebra"] = "last", ["Alpha"] = "first" });
 
         var result = FirmwareCompiler.Compile(context);
 
@@ -135,8 +123,7 @@ public class FirmwareCompilerTests : IDisposable
         var context = new FirmwareContext(
             "/programs/Test",
             "/programs/Test/Logs/00001.md",
-            new Dictionary<string, string>(),
-            new List<(string Name, string Content)>());
+            new Dictionary<string, string>());
 
         var result = FirmwareCompiler.Compile(context);
 
@@ -184,5 +171,30 @@ public class FirmwareCompilerTests : IDisposable
         FirmwareCompiler.GetNextLogFile(programFolder);
 
         Assert.True(Directory.Exists(Path.Combine(programFolder, "Logs")));
+    }
+
+    [Fact]
+    public void GetNextLogFile_ReservesFileOnDisk()
+    {
+        var programFolder = Path.Combine(_tempDir, "ReserveTest");
+        Directory.CreateDirectory(programFolder);
+
+        var logFile = FirmwareCompiler.GetNextLogFile(programFolder);
+
+        Assert.True(File.Exists(logFile));
+    }
+
+    [Fact]
+    public void GetNextLogFile_ConcurrentCalls_ProduceDifferentNumbers()
+    {
+        var programFolder = Path.Combine(_tempDir, "ConcurrentTest");
+        Directory.CreateDirectory(programFolder);
+
+        var first = FirmwareCompiler.GetNextLogFile(programFolder);
+        var second = FirmwareCompiler.GetNextLogFile(programFolder);
+
+        Assert.EndsWith("00001.md", first);
+        Assert.EndsWith("00002.md", second);
+        Assert.NotEqual(first, second);
     }
 }

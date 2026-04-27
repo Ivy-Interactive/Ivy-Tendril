@@ -14,8 +14,6 @@ public class JobService : IJobService
 {
     private static readonly string PromptsRoot = ResolvePromptsRoot();
 
-    internal static readonly string SharedRoot = Path.Combine(PromptsRoot, ".shared");
-
     internal static string ResolvePromptsRoot()
     {
         // 1. Debug/source mode: check if Promptwares exists relative to BaseDirectory
@@ -43,7 +41,7 @@ public class JobService : IJobService
     private readonly string? _inboxPath;
     private readonly PriorityQueue<string, int> _jobQueue = new();
     private readonly object _queueLock = new();
-    private readonly SemaphoreSlim _jobSlotSemaphore;
+    private SemaphoreSlim _jobSlotSemaphore;
     private TimeSpan _jobTimeout;
     private readonly ConcurrentDictionary<string, JobItem> _jobs = new();
     private int _maxConcurrentJobs;
@@ -85,7 +83,7 @@ public class JobService : IJobService
             ? new SemaphoreSlim(_maxConcurrentJobs, _maxConcurrentJobs)
             : new SemaphoreSlim(0, 1);
         _inboxPath = Path.Combine(configService.TendrilHome, "Inbox");
-        _jobLauncher = new JobLauncher(configService, _logger, PromptsRoot, SharedRoot);
+        _jobLauncher = new JobLauncher(configService, _logger, PromptsRoot);
         _completionHandler = new JobCompletionHandler(
             configService, _logger, modelPricingService, planReaderService,
             telemetryService, planWatcherService, worktreeLifecycleLogger, PromptsRoot);
@@ -115,10 +113,11 @@ public class JobService : IJobService
         _planReaderService = planReaderService;
         _telemetryService = telemetryService;
         _database = database;
-        _jobLauncher = new JobLauncher(null, _logger, PromptsRoot, SharedRoot);
+        _jobLauncher = new JobLauncher(null, _logger, PromptsRoot);
         _completionHandler = new JobCompletionHandler(
             null, _logger, null, planReaderService, telemetryService,
             null, null, PromptsRoot);
+        LoadHistoricalJobs();
     }
 
     public event Action? JobsChanged;
@@ -144,12 +143,22 @@ public class JobService : IJobService
         var wasRunning = job.Status == JobStatus.Running;
         SetCompletionStatus(job, exitCode, timedOut, staleOutput);
         if (wasRunning)
-            _jobSlotSemaphore.Release();
+        {
+            try
+            {
+                _jobSlotSemaphore.Release();
+            }
+            catch (SemaphoreFullException)
+            {
+                // Semaphore is already at max capacity (can happen if MaxConcurrentJobs
+                // was decreased while jobs were running). Silently ignore.
+            }
+        }
 
         _completionHandler.HandleCompletion(
             job, _jobs, PersistJob, RaiseNotification, RaiseJobsPropertyChanged, StartJobSkipDepCheck);
 
-        job.DisposeResources();
+        job.DisposeResources(_logger);
         PersistJob(job);
         EvictStaleJobs();
         RaiseJobsStructureChanged();
@@ -205,7 +214,7 @@ public class JobService : IJobService
             /* Process may have already exited */
         }
 
-        job.DisposeResources();
+        job.DisposeResources(_logger);
 
         job.Status = JobStatus.Stopped;
         job.CompletedAt = DateTime.UtcNow;
@@ -218,6 +227,10 @@ public class JobService : IJobService
 
         JobCompletionHandler.CleanupInboxFile(job);
         _completionHandler.ResetPlanState(job);
+
+        if (job.Type is Constants.JobTypes.ExecutePlan or Constants.JobTypes.CreatePr)
+            _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);
+
         RaiseJobsStructureChanged();
 
         // Try to start queued jobs now that a slot is free
@@ -229,7 +242,7 @@ public class JobService : IJobService
     {
         if (_jobs.TryRemove(id, out var removed))
         {
-            removed.DisposeResources();
+            removed.DisposeResources(_logger);
             try { _database?.DeleteJob(id); } catch { /* Best-effort */ }
         }
         RaiseJobsStructureChanged();
@@ -255,7 +268,7 @@ public class JobService : IJobService
 
         foreach (var id in staleJobs)
             if (_jobs.TryRemove(id, out var removed))
-                removed.DisposeResources();
+                removed.DisposeResources(_logger);
     }
 
     public void ClearCompletedJobs()
@@ -270,7 +283,7 @@ public class JobService : IJobService
         foreach (var id in ids)
         {
             if (_jobs.TryRemove(id, out var removed))
-                removed.DisposeResources();
+                removed.DisposeResources(_logger);
             try { _database?.DeleteJob(id); } catch { /* Best-effort */ }
         }
         if (ids.Count > 0)
@@ -295,7 +308,7 @@ public class JobService : IJobService
     public bool IsInboxFileTracked(string filePath)
     {
         return _jobs.Values.Any(j =>
-            j.Type == "CreatePlan" &&
+            j.Type == Constants.JobTypes.CreatePlan &&
             j.Status is JobStatus.Pending or JobStatus.Queued or JobStatus.Running &&
             j.InboxFile != null &&
             j.InboxFile.Equals(filePath, StringComparison.OrdinalIgnoreCase));
@@ -306,7 +319,11 @@ public class JobService : IJobService
         if (_database == null) return;
         try
         {
-            var historicalJobs = _database.GetRecentJobs();
+            var historicalJobs = _database.GetRecentJobs()
+                .Where(j => j.Status != JobStatus.Completed
+                         && j.Status != JobStatus.Failed
+                         && j.Status != JobStatus.Timeout
+                         && j.Status != JobStatus.Stopped);
             foreach (var job in historicalJobs) _jobs.TryAdd(job.Id, job);
         }
         catch
@@ -391,7 +408,7 @@ public class JobService : IJobService
         if (TryBlockForDependencies(job, skipDependencyCheck))
             return id;
 
-        if (type is "ExecutePlan" or "ExpandPlan" or "UpdatePlan" or "SplitPlan")
+        if (type is Constants.JobTypes.ExecutePlan or Constants.JobTypes.ExpandPlan or Constants.JobTypes.UpdatePlan or Constants.JobTypes.SplitPlan)
             _planReaderService?.FlushPendingWritesAsync().GetAwaiter().GetResult();
 
         if (!_jobSlotSemaphore.Wait(0))
@@ -423,7 +440,7 @@ public class JobService : IJobService
             Priority = priority
         };
 
-        if (type == "CreatePlan")
+        if (type == Constants.JobTypes.CreatePlan)
             SetupInboxTracking(job, id, args, inboxFilePath);
 
         return job;
@@ -431,7 +448,7 @@ public class JobService : IJobService
 
     private static (string PlanFile, string Project, int Priority) ExtractJobMetadata(string type, string[] args)
     {
-        if (type == "CreatePlan")
+        if (type == Constants.JobTypes.CreatePlan)
         {
             var planFile = GetNamedArg(args, "-Description") is { Length: > 0 } desc
                 ? desc.Length > 50 ? desc[..50] + "..." : desc
@@ -476,7 +493,7 @@ public class JobService : IJobService
 
     private bool TryRejectConflictingJob(JobItem job)
     {
-        if (job.Type is not ("ExecutePlan" or "UpdatePlan" or "ExpandPlan" or "SplitPlan"))
+        if (job.Type is not (Constants.JobTypes.ExecutePlan or Constants.JobTypes.UpdatePlan or Constants.JobTypes.ExpandPlan or Constants.JobTypes.SplitPlan))
             return false;
 
         var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
@@ -504,7 +521,7 @@ public class JobService : IJobService
 
     private bool TryBlockForDependencies(JobItem job, bool skipDependencyCheck)
     {
-        if (job.Type != "ExecutePlan" || skipDependencyCheck)
+        if (job.Type != Constants.JobTypes.ExecutePlan || skipDependencyCheck)
             return false;
 
         var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
@@ -561,7 +578,30 @@ public class JobService : IJobService
         if (_configService == null) return;
         _jobTimeout = TimeSpan.FromMinutes(_configService.Settings.JobTimeout);
         _staleOutputTimeout = TimeSpan.FromMinutes(_configService.Settings.StaleOutputTimeout);
-        _maxConcurrentJobs = _configService.Settings.MaxConcurrentJobs;
+
+        var newMaxConcurrent = _configService.Settings.MaxConcurrentJobs;
+        if (newMaxConcurrent != _maxConcurrentJobs)
+        {
+            var oldSemaphore = _jobSlotSemaphore;
+            var runningCount = _jobs.Values.Count(j => j.Status == JobStatus.Running);
+            var availableSlots = Math.Max(0, newMaxConcurrent - runningCount);
+
+            // Create new semaphore with correct capacity
+            var newSemaphore = newMaxConcurrent > 0
+                ? new SemaphoreSlim(availableSlots, newMaxConcurrent)
+                : new SemaphoreSlim(0, 1);
+
+            // Replace semaphore (field assignment is atomic)
+            _jobSlotSemaphore = newSemaphore;
+            _maxConcurrentJobs = newMaxConcurrent;
+
+            // Dispose old semaphore
+            oldSemaphore.Dispose();
+
+            // Process queue in case new capacity allows more jobs to run
+            if (newMaxConcurrent > runningCount)
+                ProcessJobQueue();
+        }
     }
 
     private void LaunchJob(JobItem job)
@@ -587,22 +627,24 @@ public class JobService : IJobService
             if (!_jobSlotSemaphore.Wait(0))
                 break;
 
-            string? queuedId;
+            JobItem? queuedJob = null;
             lock (_queueLock)
             {
-                if (!_jobQueue.TryDequeue(out queuedId, out _))
+                if (!_jobQueue.TryDequeue(out var queuedId, out _))
                 {
                     _jobSlotSemaphore.Release();
                     break;
                 }
+
+                // Check status INSIDE the lock, immediately after dequeue
+                if (!_jobs.TryGetValue(queuedId, out queuedJob) || queuedJob.Status != JobStatus.Queued)
+                {
+                    _jobSlotSemaphore.Release();
+                    continue;
+                }
             }
 
-            if (!_jobs.TryGetValue(queuedId, out var queuedJob) || queuedJob.Status != JobStatus.Queued)
-            {
-                _jobSlotSemaphore.Release();
-                continue;
-            }
-
+            // Launch outside the lock (launching is expensive)
             LaunchJob(queuedJob);
         }
     }

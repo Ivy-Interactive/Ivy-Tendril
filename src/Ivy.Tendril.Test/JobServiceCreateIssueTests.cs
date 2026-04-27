@@ -4,20 +4,17 @@ namespace Ivy.Tendril.Test;
 
 public class JobServiceCreateIssueTests : IDisposable
 {
+    private readonly TempDirectoryFixture _tempDir = new();
     private readonly string _planYamlPath;
-    private readonly string _tempDir;
 
     public JobServiceCreateIssueTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), $"tendril-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(_tempDir);
-        _planYamlPath = Path.Combine(_tempDir, "plan.yaml");
+        _planYamlPath = Path.Combine(_tempDir.Path, "plan.yaml");
     }
 
     public void Dispose()
     {
-        if (Directory.Exists(_tempDir))
-            Directory.Delete(_tempDir, true);
+        _tempDir.Dispose();
     }
 
     private static JobService CreateService()
@@ -44,7 +41,7 @@ public class JobServiceCreateIssueTests : IDisposable
         WritePlanYaml("Draft");
         var service = CreateService();
 
-        var id = service.StartJob("CreateIssue", _tempDir, "-Repo", "owner/repo", "-Assignee", "", "-Labels", "");
+        var id = service.StartJob("CreateIssue", _tempDir.Path, "-Repo", "owner/repo", "-Assignee", "", "-Labels", "");
         service.CompleteJob(id, 0);
 
         var content = File.ReadAllText(_planYamlPath);
@@ -57,7 +54,7 @@ public class JobServiceCreateIssueTests : IDisposable
         WritePlanYaml("Draft");
         var service = CreateService();
 
-        var id = service.StartJob("CreateIssue", _tempDir, "-Repo", "owner/repo", "-Assignee", "", "-Labels", "");
+        var id = service.StartJob("CreateIssue", _tempDir.Path, "-Repo", "owner/repo", "-Assignee", "", "-Labels", "");
         service.CompleteJob(id, 1);
 
         var content = File.ReadAllText(_planYamlPath);

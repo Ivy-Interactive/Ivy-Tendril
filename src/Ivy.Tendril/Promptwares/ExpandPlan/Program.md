@@ -8,7 +8,7 @@ The firmware header contains:
 - **Args** / **PlanFolder** — path to the plan folder
 - **CurrentTime** — current UTC timestamp
 
-Read the plan structure in `../.shared/Plans.md`.
+The plan structure and CLI commands are in the **Reference Documents** section of your firmware.
 Project configuration is available from the firmware header.
 
 ## Execution Steps

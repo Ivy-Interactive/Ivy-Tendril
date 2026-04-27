@@ -63,10 +63,10 @@ internal class JobCompletionHandler
         if (job.Status is JobStatus.Failed or JobStatus.Timeout)
             ScheduleWorktreeCleanup(job);
 
-        if (isSuccess && job.Type is "ExecutePlan" or "CreatePr")
+        if (job.Type is Constants.JobTypes.ExecutePlan or Constants.JobTypes.CreatePr)
             RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck);
 
-        if (isSuccess && job.Type is "ExecutePlan" or "CreatePr" or "CreateIssue")
+        if (isSuccess && job.Type is Constants.JobTypes.ExecutePlan or Constants.JobTypes.CreatePr or Constants.JobTypes.CreateIssue)
         {
             var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
             RetryBlockedDependents(planFolder, jobs, startJobSkipDepCheck);
@@ -95,24 +95,24 @@ internal class JobCompletionHandler
         {
             ResetPlanState(job);
         }
-        else if (isSuccess && job.Type == "ExecutePlan")
+        else if (isSuccess && job.Type == Constants.JobTypes.ExecutePlan)
         {
             SyncPlanArtifacts(job);
             EnsurePlanStateTransitioned(job);
         }
-        else if (isSuccess && job.Type == "CreateIssue")
+        else if (isSuccess && job.Type == Constants.JobTypes.CreateIssue)
         {
             SetPlanState(job, "Completed");
         }
-        else if (isSuccess && job.Type is "UpdatePlan" or "ExpandPlan")
+        else if (isSuccess && job.Type is Constants.JobTypes.UpdatePlan or Constants.JobTypes.ExpandPlan)
         {
             SetPlanState(job, "Draft");
         }
-        else if (isSuccess && job.Type == "SplitPlan")
+        else if (isSuccess && job.Type == Constants.JobTypes.SplitPlan)
         {
             SetPlanState(job, "Skipped");
         }
-        else if (isSuccess && job.Type == "CreatePlan")
+        else if (isSuccess && job.Type == Constants.JobTypes.CreatePlan)
         {
             VerifyCreatePlanResult(job);
         }
@@ -120,7 +120,7 @@ internal class JobCompletionHandler
 
     private void TrackTelemetry(JobItem job, bool isSuccess)
     {
-        if (isSuccess && job.Type == "CreatePlan" && job.Status == JobStatus.Completed)
+        if (isSuccess && job.Type == Constants.JobTypes.CreatePlan && job.Status == JobStatus.Completed)
         {
             var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
             var level = "NiceToHave";
@@ -133,7 +133,7 @@ internal class JobCompletionHandler
             _telemetryService?.TrackPlanCreated(new PlanCreatedContext(level, job.DurationSeconds));
         }
 
-        if (isSuccess && job.Type == "CreatePr")
+        if (isSuccess && job.Type == Constants.JobTypes.CreatePr)
         {
             _telemetryService?.TrackPrCreated(new PrCreatedContext(job.DurationSeconds));
         }
@@ -141,7 +141,17 @@ internal class JobCompletionHandler
         _telemetryService?.TrackJobCompleted(job.Type, job.Status, job.DurationSeconds);
 
         if (_telemetryService != null)
-            _ = Task.Run(async () => { try { await _telemetryService.FlushAsync(); } catch { /* best-effort */ } });
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _telemetryService.FlushAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Failed to flush telemetry (best-effort)");
+                }
+            });
     }
 
     private void NotifyPlanWatcher(JobItem job)
@@ -187,9 +197,9 @@ internal class JobCompletionHandler
                         PlanYamlHelper.LogCostToCsv(jobArgs[0], jobType, costCalc.TotalTokens, costCalc.TotalCost);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                /* Best-effort cost tracking */
+                _logger.LogWarning(ex, "Failed to calculate session cost for job {JobId}", jobId);
             }
         });
     }
@@ -332,8 +342,9 @@ internal class JobCompletionHandler
                     changed = true;
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogDebug(ex, "Failed to read verification report {ReportPath}", reportFile);
                 // Skip unreadable report files
             }
         }
@@ -353,62 +364,128 @@ internal class JobCompletionHandler
         if (planId == null || safeTitle == null) return false;
 
         var branchName = $"tendril/{planId}-{safeTitle}";
+        var planRepoNames = new HashSet<string>(
+            plan.Repos.Select(r => Path.GetFileName(Environment.ExpandEnvironmentVariables(r))),
+            StringComparer.OrdinalIgnoreCase);
+
         var changed = false;
-
-        foreach (var wtDir in Directory.GetDirectories(worktreesDir))
+        foreach (var wtDir in IterateWorktrees(worktreesDir, planRepoNames))
         {
-            try
-            {
-                var gitFile = Path.Combine(wtDir, ".git");
-                if (!File.Exists(gitFile)) continue;
-
-                var gitContent = FileHelper.ReadAllText(gitFile).Trim();
-                var gitDirMatch = Regex.Match(gitContent, @"gitdir:\s*(.+)");
-                if (!gitDirMatch.Success) continue;
-
-                var gitDir = gitDirMatch.Groups[1].Value.Trim();
-                var repoGitDir = Path.GetFullPath(Path.Combine(gitDir, "..", ".."));
-                var repoRoot = Path.GetDirectoryName(repoGitDir);
-                if (repoRoot == null || !Directory.Exists(repoRoot)) continue;
-
-                // Detect base branch
-                var baseBranch = DetectBaseBranch(repoRoot);
-
-                var psi = new ProcessStartInfo("git",
-                    $"log --format=%H \"{baseBranch}..{branchName}\"")
-                {
-                    WorkingDirectory = repoRoot,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-
-                using var process = Process.Start(psi);
-                if (process == null) continue;
-                var output = process.StandardOutput.ReadToEnd().Trim();
-                process.WaitForExitOrKill(10000);
-                if (process.ExitCode != 0 || string.IsNullOrEmpty(output)) continue;
-
-                foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-                {
-                    var hash = line.Trim();
-                    if (hash.Length < 7) continue;
-                    var shortHash = hash.Length > 9 ? hash[..9] : hash;
-                    if (!plan.Commits.Contains(shortHash))
-                    {
-                        plan.Commits.Add(shortHash);
-                        changed = true;
-                    }
-                }
-            }
-            catch
-            {
-                // Skip worktrees that can't be read
-            }
+            var commits = ExtractCommitsFromWorktree(wtDir, branchName, plan);
+            changed |= AddCommitsToPlan(plan, commits);
         }
 
         return changed;
+    }
+
+    private IEnumerable<string> IterateWorktrees(string worktreesDir, HashSet<string> planRepoNames)
+    {
+        foreach (var wtDir in Directory.GetDirectories(worktreesDir))
+        {
+            var wtName = Path.GetFileName(wtDir);
+            if (planRepoNames.Count > 0 && !planRepoNames.Contains(wtName))
+                continue;
+
+            var gitFile = Path.Combine(wtDir, ".git");
+            if (File.Exists(gitFile))
+                yield return wtDir;
+        }
+    }
+
+    private List<string> ExtractCommitsFromWorktree(string wtDir, string branchName, PlanYaml plan)
+    {
+        var commits = new List<string>();
+        try
+        {
+            var gitFile = Path.Combine(wtDir, ".git");
+            var gitContent = FileHelper.ReadAllText(gitFile).Trim();
+            var gitDirMatch = Regex.Match(gitContent, @"gitdir:\s*(.+)");
+            if (!gitDirMatch.Success) return commits;
+
+            var gitDir = gitDirMatch.Groups[1].Value.Trim();
+            var repoGitDir = Path.GetFullPath(Path.Combine(gitDir, "..", ".."));
+            var repoRoot = Path.GetDirectoryName(repoGitDir);
+            if (repoRoot == null || !Directory.Exists(repoRoot)) return commits;
+
+            var baseBranch = ResolveBaseBranch(repoRoot, plan);
+
+            var psi = new ProcessStartInfo("git",
+                $"log --format=%H \"{baseBranch}..{branchName}\"")
+            {
+                WorkingDirectory = repoRoot,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(psi);
+            if (process == null) return commits;
+            var output = process.StandardOutput.ReadToEnd().Trim();
+            process.WaitForExitOrKill(10000);
+            if (process.ExitCode != 0 || string.IsNullOrEmpty(output)) return commits;
+
+            foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var hash = line.Trim();
+                if (hash.Length >= 7)
+                {
+                    var shortHash = hash.Length > 9 ? hash[..9] : hash;
+                    commits.Add(shortHash);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to read commits from worktree {Worktree}", wtDir);
+            // Skip worktrees that can't be read
+        }
+
+        return commits;
+    }
+
+    private static bool AddCommitsToPlan(PlanYaml plan, IEnumerable<string> commits)
+    {
+        var changed = false;
+        foreach (var commit in commits)
+        {
+            if (!plan.Commits.Contains(commit))
+            {
+                plan.Commits.Add(commit);
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    private string ResolveBaseBranch(string repoRoot, PlanYaml plan)
+    {
+        var configured = TryGetConfiguredBaseBranch(repoRoot, plan);
+        return configured ?? DetectBaseBranch(repoRoot);
+    }
+
+    private string? TryGetConfiguredBaseBranch(string repoRoot, PlanYaml plan)
+    {
+        if (_configService == null) return null;
+
+        if (!string.IsNullOrEmpty(plan.Project))
+        {
+            var project = _configService.GetProject(plan.Project);
+            var repoRef = project?.Repos.FirstOrDefault(r =>
+                Path.GetFullPath(r.Path).Equals(Path.GetFullPath(repoRoot), StringComparison.OrdinalIgnoreCase));
+            if (repoRef?.BaseBranch is { Length: > 0 } configured)
+                return $"origin/{configured}";
+        }
+
+        foreach (var proj in _configService.Projects)
+        {
+            var repoRef = proj.Repos.FirstOrDefault(r =>
+                Path.GetFullPath(r.Path).Equals(Path.GetFullPath(repoRoot), StringComparison.OrdinalIgnoreCase));
+            if (repoRef?.BaseBranch is { Length: > 0 } found)
+                return $"origin/{found}";
+        }
+
+        return null;
     }
 
     private static string DetectBaseBranch(string repoRoot)
@@ -462,8 +539,9 @@ internal class JobCompletionHandler
                     PlanYamlHelper.SetPlanStateByFolder(planFolder, targetState.ToString());
             }
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Failed to ensure plan state transition for job {JobId}", job.Id);
         }
     }
 
@@ -477,8 +555,9 @@ internal class JobCompletionHandler
             else
                 PlanYamlHelper.SetPlanStateByFolder(planFolder, state);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Failed to set plan state to {State} for job {JobId}", state, job.Id);
         }
     }
 
@@ -541,8 +620,9 @@ internal class JobCompletionHandler
             var failureMessage = JobFailureAnalyzer.TryReadFailureArtifact(job.OutputLines.ToList());
             job.StatusMessage = failureMessage ?? "No plan created";
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Failed to verify CreatePlan result for job {JobId}", job.Id);
         }
     }
 
@@ -550,14 +630,15 @@ internal class JobCompletionHandler
     {
         try
         {
-            if (job.Type is "CreatePlan" or "CreatePr" or "CreateIssue") return;
+            if (job.Type is Constants.JobTypes.CreatePlan or Constants.JobTypes.CreatePr or Constants.JobTypes.CreateIssue) return;
 
             var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
-            var newState = job.Type == "ExecutePlan" ? "Failed" : "Draft";
+            var newState = job.Type == Constants.JobTypes.ExecutePlan ? "Failed" : "Draft";
             PlanYamlHelper.SetPlanStateByFolder(planFolder, newState);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Failed to reset plan state for job {JobId}", job.Id);
         }
     }
 
@@ -568,8 +649,9 @@ internal class JobCompletionHandler
             var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
             PlanYamlHelper.SetPlanStateByFolder(planFolder, "Blocked");
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Failed to reset plan state to Blocked for job {JobId}", job.Id);
         }
     }
 
@@ -588,7 +670,7 @@ internal class JobCompletionHandler
 
     private void ScheduleWorktreeCleanup(JobItem job)
     {
-        if (job.Type != "ExecutePlan") return;
+        if (job.Type != Constants.JobTypes.ExecutePlan) return;
 
         var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
         if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder)) return;
@@ -597,19 +679,21 @@ internal class JobCompletionHandler
         if (!Directory.Exists(worktreesDir)) return;
 
         var lifecycleLogger = _worktreeLifecycleLogger;
+        var logger = _logger;
 
         Task.Run(async () =>
         {
             await Task.Delay(TimeSpan.FromSeconds(30));
             try
             {
-                PlanReaderService.RemoveWorktrees(planFolder, lifecycleLogger: lifecycleLogger);
+                WorktreeCleanupService.RemoveWorktrees(planFolder, lifecycleLogger: lifecycleLogger);
 
                 if (Directory.Exists(worktreesDir) && Directory.GetDirectories(worktreesDir).Length == 0)
                     Directory.Delete(worktreesDir, false);
             }
-            catch
+            catch (Exception ex)
             {
+                logger.LogWarning(ex, "Failed to cleanup worktrees for {PlanFolder}", Path.GetFileName(planFolder));
             }
         });
     }
@@ -672,13 +756,19 @@ internal class JobCompletionHandler
         }
     }
 
+    internal void HandleRetryBlockedJobs(
+        ConcurrentDictionary<string, JobItem> jobs,
+        Action<JobNotification> raiseNotification,
+        Func<string, string[], string> startJobSkipDepCheck)
+        => RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck);
+
     private void RetryBlockedJobs(
         ConcurrentDictionary<string, JobItem> jobs,
         Action<JobNotification> raiseNotification,
         Func<string, string[], string> startJobSkipDepCheck)
     {
         var blockedJobs = jobs.Values
-            .Where(j => j.Status == JobStatus.Blocked && j.Type == "ExecutePlan")
+            .Where(j => j.Status == JobStatus.Blocked && j.Type == Constants.JobTypes.ExecutePlan)
             .ToList();
 
         foreach (var blockedJob in blockedJobs)
@@ -689,9 +779,9 @@ internal class JobCompletionHandler
             var (ok, _) = CheckDependencies(planFolder);
             if (!ok) continue;
 
-            if (!jobs.TryRemove(blockedJob.Id, out _)) continue;
-
             if (HasActiveJobForPlan(planFolder, jobs)) continue;
+
+            if (!jobs.TryRemove(blockedJob.Id, out _)) continue;
 
             PlanYamlHelper.SetPlanStateByFolder(planFolder, "Building");
             startJobSkipDepCheck(blockedJob.Type, blockedJob.Args);
@@ -722,7 +812,7 @@ internal class JobCompletionHandler
                 if (!planYaml.DependsOn.Contains(completedFolderName, StringComparer.OrdinalIgnoreCase)) continue;
 
                 var hasExistingJob = jobs.Values.Any(j =>
-                    j.Type == "ExecutePlan" &&
+                    j.Type == Constants.JobTypes.ExecutePlan &&
                     j.Status is JobStatus.Blocked or JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
                     j.Args.Length > 0 &&
                     j.Args[0].Equals(dir, StringComparison.OrdinalIgnoreCase));
@@ -732,7 +822,7 @@ internal class JobCompletionHandler
                 if (allMet)
                 {
                     PlanYamlHelper.SetPlanStateByFolder(dir, "Building");
-                    startJobSkipDepCheck("ExecutePlan", new[] { dir });
+                    startJobSkipDepCheck(Constants.JobTypes.ExecutePlan, new[] { dir });
                 }
             }
         }
@@ -743,16 +833,32 @@ internal class JobCompletionHandler
 
     private static bool HasActiveJobForPlan(string planFolder, ConcurrentDictionary<string, JobItem> jobs)
     {
+        var planRepos = PlanYamlHelper.ReadPlanYaml(planFolder)?.Repos;
+
         return jobs.Values.Any(j =>
-            j.Type == "ExecutePlan" &&
-            j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
-            j.Args.Length > 0 &&
-            j.Args[0].Equals(planFolder, StringComparison.OrdinalIgnoreCase));
+        {
+            if (j.Type != Constants.JobTypes.ExecutePlan) return false;
+            if (j.Status is not (JobStatus.Running or JobStatus.Queued or JobStatus.Pending)) return false;
+            if (j.Args.Length == 0) return false;
+
+            var otherFolder = j.Args[0];
+            if (otherFolder.Equals(planFolder, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (planRepos is { Count: > 0 })
+            {
+                var otherRepos = PlanYamlHelper.ReadPlanYaml(otherFolder)?.Repos;
+                if (otherRepos != null && planRepos.Any(r => otherRepos.Contains(r, StringComparer.OrdinalIgnoreCase)))
+                    return true;
+            }
+
+            return false;
+        });
     }
 
     private string? ResolvePlanFolder(JobItem job)
     {
-        if (job.Type != "CreatePlan")
+        if (job.Type != Constants.JobTypes.CreatePlan)
             return job.Args.Length > 0 ? job.Args[0] : null;
 
         var planId = job.ReportedPlanId ?? job.AllocatedPlanId;
@@ -778,62 +884,141 @@ internal class JobCompletionHandler
 
         try
         {
-            if (!string.IsNullOrEmpty(job.StatusFilePath))
-            {
-                var planFolder = ResolvePlanFolder(job);
-                if (!string.IsNullOrEmpty(planFolder) && Directory.Exists(planFolder))
-                    JobStatusFile.MoveLogToPlanFolder(job.StatusFilePath, planFolder, job.Type);
-            }
+            MoveStatusFileIfNeeded(job);
         }
         catch { }
 
         if (_planReaderService == null || string.IsNullOrEmpty(job.PlanFile))
             return;
 
-        if (job.Type == "CreatePlan")
+        if (job.Type == Constants.JobTypes.CreatePlan)
             return;
 
         try
         {
-            var duration = job.DurationSeconds.HasValue ? $"{job.DurationSeconds}s" : "unknown";
-            var logContent = $"# {job.Type}\n\n" +
-                             $"- **Status:** {job.Status}\n" +
-                             $"- **Started:** {job.StartedAt:u}\n" +
-                             $"- **Completed:** {job.CompletedAt:u}\n" +
-                             $"- **Duration:** {duration}\n";
-
-            if (!string.IsNullOrEmpty(job.SessionId))
-                logContent += $"- **SessionId:** {job.SessionId}\n";
-
-            if (job.Status == JobStatus.Timeout && job.StatusMessage != null)
-                logContent += $"- **Timeout Reason:** {job.StatusMessage}\n";
-
+            var logContent = BuildJobLogContent(job);
             _planReaderService.AddLog(job.PlanFile, job.Type, logContent);
-
-            if (job.Status is JobStatus.Failed or JobStatus.Timeout && job.OutputLines.Count > 0)
-            {
-                var planFolder = job.Args.Length > 0 ? job.Args[0] : null;
-
-                if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder))
-                {
-                    var logRoot = Path.Combine(
-                        Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? ".",
-                        "Logs", "Jobs");
-                    FileHelper.EnsureDirectory(logRoot);
-                    planFolder = logRoot;
-                }
-
-                var logsDir = Path.Combine(planFolder, "logs");
-                FileHelper.EnsureDirectory(logsDir);
-                var outputFile = Path.Combine(logsDir, $"{job.Type}-{job.Id}.output.log");
-                File.WriteAllLines(outputFile, job.OutputLines);
-
-                job.EnqueueOutput($"[Tendril] Full output saved to: {outputFile}");
-            }
+            WriteFailedJobOutputIfNeeded(job);
         }
         catch
         {
         }
+    }
+
+    private void MoveStatusFileIfNeeded(JobItem job)
+    {
+        if (string.IsNullOrEmpty(job.StatusFilePath)) return;
+
+        var planFolder = ResolvePlanFolder(job);
+        if (!string.IsNullOrEmpty(planFolder) && Directory.Exists(planFolder))
+            JobStatusFile.MoveLogToPlanFolder(job.StatusFilePath, planFolder, job.Type);
+    }
+
+    private string BuildJobLogContent(JobItem job)
+    {
+        var duration = job.DurationSeconds.HasValue ? $"{job.DurationSeconds}s" : "unknown";
+        var logContent = $"# {job.Type}\n\n" +
+                         $"- **Status:** {job.Status}\n" +
+                         $"- **Started:** {job.StartedAt:u}\n" +
+                         $"- **Completed:** {job.CompletedAt:u}\n" +
+                         $"- **Duration:** {duration}\n" +
+                         $"- **Provider:** {job.Provider}\n";
+
+        if (!string.IsNullOrEmpty(job.SessionId))
+            logContent += $"- **SessionId:** {job.SessionId}\n";
+
+        if (job.Cost.HasValue)
+            logContent += $"- **Cost:** ${job.Cost:F4}\n";
+
+        if (job.Tokens.HasValue)
+            logContent += $"- **Tokens:** {job.Tokens:N0}\n";
+
+        if (job.Status == JobStatus.Timeout && job.StatusMessage != null)
+            logContent += $"- **Timeout Reason:** {job.StatusMessage}\n";
+
+        logContent += BuildPlanOutcomeSummary(job);
+
+        return logContent;
+    }
+
+    private void WriteFailedJobOutputIfNeeded(JobItem job)
+    {
+        if (job.Status is not JobStatus.Failed and not JobStatus.Timeout || job.OutputLines.Count == 0)
+            return;
+
+        var planFolder = job.Args.Length > 0 ? job.Args[0] : null;
+
+        if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder))
+        {
+            var logRoot = Path.Combine(
+                Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? ".",
+                "Logs", "Jobs");
+            FileHelper.EnsureDirectory(logRoot);
+            planFolder = logRoot;
+        }
+
+        var logsDir = Path.Combine(planFolder, "logs");
+        FileHelper.EnsureDirectory(logsDir);
+        var outputFile = Path.Combine(logsDir, $"{job.Type}-{job.Id}.output.log");
+        File.WriteAllLines(outputFile, job.OutputLines);
+
+        job.EnqueueOutput($"[Tendril] Full output saved to: {outputFile}");
+    }
+
+    private static string BuildPlanOutcomeSummary(JobItem job)
+    {
+        if (job.Type != Constants.JobTypes.ExecutePlan)
+            return "";
+
+        var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
+        if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder))
+            return "";
+
+        try
+        {
+            var plan = PlanYamlHelper.ReadPlanYaml(planFolder);
+            if (plan == null)
+                return "";
+
+            var sb = new StringBuilder();
+            sb.AppendLine("\n## Outcome\n");
+
+            AppendCommitsSummary(sb, plan);
+            AppendVerificationsSummary(sb, plan);
+
+            sb.AppendLine($"**Final State:** {plan.State}");
+
+            return sb.ToString();
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    private static void AppendCommitsSummary(StringBuilder sb, PlanYaml plan)
+    {
+        if (plan.Commits.Count > 0)
+        {
+            sb.AppendLine($"**Commits:** {plan.Commits.Count}");
+            foreach (var commit in plan.Commits)
+                sb.AppendLine($"- `{commit}`");
+            sb.AppendLine();
+        }
+        else
+        {
+            sb.AppendLine("**Commits:** none\n");
+        }
+    }
+
+    private static void AppendVerificationsSummary(StringBuilder sb, PlanYaml plan)
+    {
+        if (plan.Verifications.Count == 0) return;
+
+        sb.AppendLine("**Verifications:**");
+        foreach (var v in plan.Verifications)
+            sb.AppendLine($"- {v.Name}: {v.Status}");
+        sb.AppendLine();
     }
 
     private void WriteRawOutputLog(JobItem job)

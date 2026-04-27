@@ -32,9 +32,9 @@ public class CompleteStepView(IState<int> stepperIndex) : ViewBase
                 // Step 1: Create directory structure and config
                 await setupService.CompleteSetupAsync(tendrilHome);
 
-                // Step 2: Start background services synchronously (may take time)
-                // Run in Task.Run to avoid blocking UI thread, but await completion
-                await Task.Run(() => setupService.StartBackgroundServices());
+                // Step 2: Start background services asynchronously (may take time)
+                // This now runs in a background thread without blocking DI resolution
+                await setupService.StartBackgroundServicesAsync();
 
                 // Step 3: Only redirect after services are ready
                 client.Redirect("/", true);

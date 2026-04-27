@@ -10,13 +10,12 @@ namespace Ivy.Tendril.Test;
 /// </summary>
 public class JobServiceConcurrentPlanModificationTests : IDisposable
 {
+    private readonly TempDirectoryFixture _tempDir = new();
     private readonly string _planFolder;
-    private readonly string _testDir;
 
     public JobServiceConcurrentPlanModificationTests()
     {
-        _testDir = Path.Combine(Path.GetTempPath(), "tendril-test-" + Guid.NewGuid().ToString("N")[..8]);
-        _planFolder = Path.Combine(_testDir, "Plans", "00001-TestPlan");
+        _planFolder = Path.Combine(_tempDir.Path, "Plans", "00001-TestPlan");
         Directory.CreateDirectory(_planFolder);
 
         // Create a minimal plan.yaml
@@ -35,15 +34,7 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
 
     public void Dispose()
     {
-        try
-        {
-            if (Directory.Exists(_testDir))
-                Directory.Delete(_testDir, true);
-        }
-        catch
-        {
-            // Best-effort cleanup
-        }
+        _tempDir.Dispose();
     }
 
     [Fact]
@@ -180,7 +171,7 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
     [Fact]
     public void StartJob_UpdatePlan_ForDifferentPlan_AllowsBothJobs()
     {
-        var otherPlanFolder = Path.Combine(_testDir, "Plans", "00002-OtherPlan");
+        var otherPlanFolder = Path.Combine(_tempDir.Path, "Plans", "00002-OtherPlan");
         Directory.CreateDirectory(otherPlanFolder);
         var planYaml = """
                        state: Draft

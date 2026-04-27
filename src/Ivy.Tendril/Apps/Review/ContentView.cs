@@ -171,8 +171,34 @@ public class ContentView(
         }
 
         var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan.FolderName);
+        var planData = planContentQuery.Value;
 
-        // Header
+        var header = BuildHeader(selectedPlan, allPlans, currentIndex, client, customPrOpen);
+        var actionBar = BuildActionBar(
+            selectedPlan, rerunDialogOpen, suggestChangesOpen, discardDialogOpen,
+            customPrOpen, copyToClipboard, client, logger);
+        var content = BuildContent(
+            selectedPlan, planData, planContentQuery, selectedTab, openVerification,
+            openCommit, openFile, openArtifact, artifactContentQuery, assigneesQuery,
+            assigneesError, suggestChangesOpen, suggestChangesText, customPrOpen,
+            discardDialogOpen, rerunDialogOpen, client, copyToClipboard, logger);
+
+        return new HeaderLayout(
+            header,
+            new FooterLayout(
+                actionBar,
+                content
+            ).Scroll(Scroll.None).Size(Size.Full())
+        ).Scroll(Scroll.None).Size(Size.Full()).Key(selectedPlan.Id);
+    }
+
+    private object BuildHeader(
+        PlanFile selectedPlan,
+        List<PlanFile> allPlans,
+        int currentIndex,
+        IClientProvider client,
+        IState<bool> customPrOpen)
+    {
         var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(40)).Gap(2)
                      | Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis);
 
@@ -195,14 +221,13 @@ public class ContentView(
 
             if (allYolo)
             {
-                // Optimistically update UI state before disk I/O
                 var optimisticPlan = selectedPlan with
                 {
                     Metadata = selectedPlan.Metadata with { State = PlanStatus.Building }
                 };
                 selectedPlanState.Set(optimisticPlan);
 
-                jobService.StartJob("CreatePr", selectedPlan.FolderPath);
+                jobService.StartJob(Constants.JobTypes.CreatePr, selectedPlan.FolderPath);
                 planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
                 refreshPlans();
             }
@@ -212,18 +237,102 @@ public class ContentView(
             }
         }).ShortcutKey("m").WithConfetti(AnimationTrigger.Click);
 
-        // Content sections
+        return header;
+    }
+
+    private object BuildActionBar(
+        PlanFile selectedPlan,
+        IState<bool> rerunDialogOpen,
+        IState<bool> suggestChangesOpen,
+        IState<bool> discardDialogOpen,
+        IState<bool> customPrOpen,
+        Action<string> copyToClipboard,
+        IClientProvider client,
+        ILogger<ContentView> logger)
+    {
+        return Layout.Horizontal().AlignContent(Align.Left).Gap(1)
+                | new Button("Rerun").Icon(Icons.RotateCw).Outline().ShortcutKey("r").OnClick(() =>
+                {
+                    rerunDialogOpen.Set(true);
+                })
+                | new Button("Suggest Changes").Icon(Icons.MessageSquare).Outline().OnClick(() =>
+                {
+                    suggestChangesOpen.Set(true);
+                }).ShortcutKey("d")
+                | new Button("Discard").Icon(Icons.Trash).Outline().ShortcutKey("Backspace").OnClick(() =>
+                {
+                    discardDialogOpen.Set(true);
+                })
+                | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(() => GoToPrevious())
+                    .ShortcutKey("p")
+                | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().OnClick(() => GoToNext())
+                    .ShortcutKey("n")
+                | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
+                    new MenuItem("Custom PR", Icon: Icons.GitPullRequest, Tag: "CustomPR").OnSelect(() =>
+                    {
+                        customPrOpen.Set(true);
+                    }),
+                    new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
+                    {
+                        var optimisticPlan = selectedPlan with
+                        {
+                            Metadata = selectedPlan.Metadata with { State = PlanStatus.Completed }
+                        };
+                        selectedPlanState.Set(optimisticPlan);
+
+                        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+                        refreshPlans();
+                    }),
+                    new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
+                        .OnSelect(() => { PlatformHelper.OpenInFileManager(selectedPlan.FolderPath, logger); }),
+                    new MenuItem("Open in Terminal", Icon: Icons.Terminal, Tag: "OpenInTerminal").OnSelect(() =>
+                    {
+                        PlatformHelper.OpenInTerminal(selectedPlan.FolderPath, logger);
+                    }),
+                    new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
+                        .OnSelect(() =>
+                        {
+                            copyToClipboard(selectedPlan.FolderPath);
+                            client.Toast("Copied path to clipboard", "Path Copied");
+                        }),
+                    new MenuItem($"Open in {config.Editor.Label}", Icon: Icons.Code, Tag: "OpenInEditor")
+                        .OnSelect(() => { config.OpenInEditor(selectedPlan.FolderPath); }),
+                    new MenuItem("Open plan.yaml", Icon: Icons.FileText, Tag: "OpenPlanYaml").OnSelect(() =>
+                    {
+                        var yamlPath = Path.Combine(selectedPlan.FolderPath, "plan.yaml");
+                        config.OpenInEditor(yamlPath);
+                    })
+                );
+    }
+
+    private object BuildContent(
+        PlanFile selectedPlan,
+        PlanContentData planData,
+        QueryResult<PlanContentData> planContentQuery,
+        IState<int> selectedTab,
+        IState<string?> openVerification,
+        IState<string?> openCommit,
+        IState<string?> openFile,
+        IState<string?> openArtifact,
+        QueryResult<string> artifactContentQuery,
+        QueryResult<string[]> assigneesQuery,
+        IState<string?> assigneesError,
+        IState<bool> suggestChangesOpen,
+        IState<string> suggestChangesText,
+        IState<bool> customPrOpen,
+        IState<bool> discardDialogOpen,
+        IState<bool> rerunDialogOpen,
+        IClientProvider client,
+        Action<string> copyToClipboard,
+        ILogger<ContentView> logger)
+    {
         var content = Layout.Vertical().Height(Size.Full()).Gap(1);
 
-        var planData = planContentQuery.Value;
-
-        // Early null guard: _selectedPlan may become null due to state updates
         if (selectedPlan is null)
         {
-            return Text.Muted("No plan selected");
+            return content | Text.Muted("No plan selected");
         }
 
-        // Plan tab content (not dependent on query — uses in-memory data)
         var reviewAnnotated = MarkdownHelper.AnnotateAllBrokenLinks(selectedPlan.LatestRevisionContent, planService.PlansDirectory);
         var planTabContent = Layout.Vertical().Scroll(Scroll.Vertical).Height(Size.Full())
             | new Markdown(reviewAnnotated)
@@ -255,8 +364,7 @@ public class ContentView(
         }
         else
         {
-            // Git tab content (uses shared helper)
-            var gitData = GitTabHelper.BuildGitTabData(selectedPlan!, config, gitService);
+            var gitData = GitTabHelper.BuildGitTabData(planData.CommitRows, selectedPlan!, config, gitService);
             var gitLayout = GitTabHelper.RenderGitTab(
                 gitData,
                 selectedPlan!,
@@ -267,16 +375,14 @@ public class ContentView(
                 {
                     copyToClipboard(path);
                     client.Toast("Copied path to clipboard", "Path Copied");
-                    return null!; // Return type doesn't matter, just need to satisfy Func
+                    return null!;
                 },
                 logger
             );
 
-            // Artifacts tab content
             var totalArtifacts = (planData.Artifacts.GetValueOrDefault("screenshots")?.Count ?? 0)
                                  + (planData.Artifacts.ContainsKey("sample") ? 1 : 0);
 
-            // Review actions
             var reviewActionStates = planData.ReviewActionStates;
             var projectConfig = config.GetProject(selectedPlan.Project);
             var reviewActions = projectConfig?.ReviewActions ?? new List<ReviewActionConfig>();
@@ -311,7 +417,6 @@ public class ContentView(
                 content |= actionsBar;
             }
 
-            // Recommendations tab content
             var recommendationsLayout = Layout.Vertical().Gap(4).Padding(2);
             if (planData.Recommendations.Count == 0)
                 recommendationsLayout |= Text.Muted("No recommendations.");
@@ -344,10 +449,8 @@ public class ContentView(
                     recommendationsLayout |= new Separator();
                 }
 
-            // Changes tab
             var changesTabView = new ChangesTabView(planData.AllChanges, planContentQuery.Loading, planContentQuery.Error);
 
-            // Build tabs
             var tabs = Layout.Tabs(
                 new Tab("Summary", Cap(new SummaryTabView(planData.SummaryMarkdown))),
                 new Tab("Verifications", Cap(new VerificationsTabView(
@@ -363,7 +466,6 @@ public class ContentView(
             content |= (Layout.Vertical().Padding(2, 0).Height(Size.Full()) | tabs);
         }
 
-        // Sheet modals (outside TabsLayout so they render as overlays)
         content |= new VerificationReportSheet(openVerification, selectedPlan);
         content |= new CommitDetailSheet(openCommit, selectedPlan, config, gitService);
 
@@ -389,81 +491,14 @@ public class ContentView(
             if (fileLinkSheet != null) content |= fileLinkSheet;
         }
 
-        // Dialogs
         content |= new SuggestChangesDialog(suggestChangesOpen, suggestChangesText, selectedPlan, jobService,
             planService, refreshPlans);
         content |= new CustomPrDialog(customPrOpen, selectedPlan, jobService, planService, refreshPlans,
             assigneesQuery, assigneesError);
-
-        // Discard confirmation dialog
         content |= new DiscardPlanDialog(discardDialogOpen, selectedPlan, planService, refreshPlans);
-
-        // Rerun dialog
         content |= new RerunDialog(rerunDialogOpen, selectedPlan, jobService, planService, refreshPlans);
 
-        // Action bar
-        var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(1)
-                        | new Button("Rerun").Icon(Icons.RotateCw).Outline().ShortcutKey("r").OnClick(() =>
-                        {
-                            rerunDialogOpen.Set(true);
-                        })
-                        | new Button("Suggest Changes").Icon(Icons.MessageSquare).Outline().OnClick(() =>
-                        {
-                            suggestChangesOpen.Set(true);
-                        }).ShortcutKey("d")
-                        | new Button("Discard").Icon(Icons.Trash).Outline().ShortcutKey("Backspace").OnClick(() =>
-                        {
-                            discardDialogOpen.Set(true);
-                        })
-                        | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(() => GoToPrevious())
-                            .ShortcutKey("p")
-                        | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().OnClick(() => GoToNext())
-                            .ShortcutKey("n")
-                        | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
-                            new MenuItem("Custom PR", Icon: Icons.GitPullRequest, Tag: "CustomPR").OnSelect(() =>
-                            {
-                                customPrOpen.Set(true);
-                            }),
-                            new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
-                            {
-                                // Optimistically update UI state before disk I/O
-                                var optimisticPlan = selectedPlan with
-                                {
-                                    Metadata = selectedPlan.Metadata with { State = PlanStatus.Completed }
-                                };
-                                selectedPlanState.Set(optimisticPlan);
-
-                                planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
-                                refreshPlans();
-                            }),
-                            new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
-                                .OnSelect(() => { PlatformHelper.OpenInFileManager(selectedPlan.FolderPath, logger); }),
-                            new MenuItem("Open in Terminal", Icon: Icons.Terminal, Tag: "OpenInTerminal").OnSelect(() =>
-                            {
-                                PlatformHelper.OpenInTerminal(selectedPlan.FolderPath, logger);
-                            }),
-                            new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
-                                .OnSelect(() =>
-                                {
-                                    copyToClipboard(selectedPlan.FolderPath);
-                                    client.Toast("Copied path to clipboard", "Path Copied");
-                                }),
-                            new MenuItem($"Open in {config.Editor.Label}", Icon: Icons.Code, Tag: "OpenInEditor")
-                                .OnSelect(() => { config.OpenInEditor(selectedPlan.FolderPath); }),
-                            new MenuItem("Open plan.yaml", Icon: Icons.FileText, Tag: "OpenPlanYaml").OnSelect(() =>
-                            {
-                                var yamlPath = Path.Combine(selectedPlan.FolderPath, "plan.yaml");
-                                config.OpenInEditor(yamlPath);
-                            })
-                        );
-
-        return new HeaderLayout(
-            header,
-            new FooterLayout(
-                actionBar,
-                content
-            ).Scroll(Scroll.None).Size(Size.Full())
-        ).Scroll(Scroll.None).Size(Size.Full()).Key(selectedPlan.Id);
+        return content;
 
         object Cap(object inner)
         {

@@ -9,12 +9,11 @@ Create an implementation plan for a task described in args.
 ## Context
 
 The firmware header contains these key values:
-- **PlanId** — pre-allocated 5-digit plan ID (e.g. `01127`). Use this — do NOT read `.counter`.
 - **PlansDirectory** — where plan folders are created
 - **Project** — selected project name, or `Auto` if not specified
 - **SourcePath** (optional) — absolute path to the source that generated this plan (e.g. test working directory)
 
-Read the plan folder structure in `../.shared/Plans.md`.
+The plan folder structure and CLI commands are in the **Reference Documents** section of your firmware.
 Project configuration is available from `config.yaml` (referenced via `$TENDRIL_CONFIG` env var).
 
 ## Execution Steps
@@ -46,7 +45,7 @@ Read `config.yaml` to understand all available projects, their repos, and contex
 
 ### 2. Plan ID
 
-The plan ID is pre-allocated by the launcher script and provided in the firmware header as `PlanId`. Use it directly — do NOT read or modify `.counter`.
+Do NOT read or modify `.counter` directly. Plan IDs are allocated by the `tendril plan create` CLI command (see Step 4).
 
 ### 3. Research
 
@@ -88,7 +87,7 @@ The plan ID is pre-allocated by the launcher script and provided in the firmware
 
   #### Step 5: Write trash file (when trashing)
 
-  Write a file to `$env:TENDRIL_HOME/Trash/<PlanId>-<SafeTitle>.md` (where `<SafeTitle>` is the title with spaces replaced by hyphens and special characters removed) with the following format, then exit without creating a plan folder:
+  Write a file to `$env:TENDRIL_HOME/Trash/<SafeTitle>.md` (where `<SafeTitle>` is the title with spaces replaced by hyphens and special characters removed) with the following format, then exit without creating a plan folder:
 
   ```markdown
   ---
@@ -142,30 +141,20 @@ For each assertion found:
 
 **Decision:**
 - **All validations pass** → Proceed to Step 4, include validated code blocks in plan with `**Current implementation**` headers
-- **Any validation fails** → Write trash file to `$env:TENDRIL_HOME/Trash/<PlanId>-<SafeTitle>.md` explaining the validation failure, then exit without creating a plan
+- **Any validation fails** → Write trash file to `$env:TENDRIL_HOME/Trash/<SafeTitle>.md` explaining the validation failure, then exit without creating a plan
 
 This catches stale plans before they enter the review queue, reducing wasted review time.
 
 ### 4. Create Plan
 
-Create the plan using CLI commands according to the structure in `../.shared/Plans.md`. **Never write `plan.yaml` directly** — use `tendril plan` commands for all plan metadata.
+Create the plan using CLI commands according to the plan structure in the **Reference Documents** section. **Never write `plan.yaml` directly** — use `tendril plan` commands for all plan metadata.
 
-#### 4.1. Create the plan folder and revision
+#### 4.1. Create plan folder and plan.yaml via CLI
 
-Create the folder `PlansDirectory/<PlanId>-<SafeTitle>/` and write `revisions/001.md` with the plan content.
-
-After creating the folder, report the plan ID and title to the Jobs UI so it can display progress:
+Use `tendril plan create` to allocate a plan ID, create the folder, and write `plan.yaml` in a single command:
 
 ```bash
-tendril job status $env:TENDRIL_JOB_ID --message "Creating plan..." --plan-id <PlanId> --plan-title "<Title>"
-```
-
-#### 4.2. Create plan.yaml via CLI
-
-Use `tendril plan create` with all known fields in a single command:
-
-```bash
-tendril plan create <PlanId> "<Title>" \
+tendril plan create "<Title>" \
   --project "<Project>" \
   --level "NiceToHave" \
   --initial-prompt "<cleaned args text>" \
@@ -176,6 +165,15 @@ tendril plan create <PlanId> "<Title>" \
   --verification "Test=Pending"
 ```
 
+The command outputs:
+```
+PlanId: 01234
+Directory: /path/to/Plans/01234-SafeTitle
+Plan created: 01234-SafeTitle
+```
+
+Parse `PlanId` and `Directory` from the output — use these for all subsequent operations.
+
 Include optional flags as needed:
 - `--source-url "<url>"` — if a source URL was extracted in Step 1
 - `--related-plan "<folder-name>"` — for each plan referenced via `[number]` syntax in args
@@ -183,6 +181,16 @@ Include optional flags as needed:
 - `--priority <number>` — if non-default priority
 
 Populate `--verification` flags from the project's `verifications` in config.yaml, all set to `Pending`.
+
+#### 4.2. Write the revision
+
+Write `revisions/001.md` with the plan content into the directory returned by `tendril plan create`.
+
+After creating the plan, report the plan ID and title to the Jobs UI so it can display progress:
+
+```bash
+tendril job status $env:TENDRIL_JOB_ID --message "Creating plan..." --plan-id <PlanId> --plan-title "<Title>"
+```
 
 #### 4.3. Post-creation adjustments
 
@@ -355,4 +363,4 @@ The user can edit the checklist before execution — unchecking a required verif
 - When referencing local files, use markdown links: `[filename:line](file:///path/to/filename)` for source files with line numbers, or `[filename](file:///path/to/filename)` without. Never use backticks in link text or `#L123` fragments in URLs. Use `![alt](path)` for images.
 - Keep the plan short and concise - the limiting factor of this system is a human that will have to read this.
 - **!IMPORTANT: ONE issue per plan file — if multiple issues, create multiple plan files with separate IDs**
-- **Multiple plans from one execution:** When args contain multiple issues, use the pre-allocated PlanId for the first plan. For additional plans, read `.counter`, use sequential IDs starting from it, and update `.counter` to the next available value after all plans are created.
+- **Multiple plans from one execution:** When args contain multiple issues, call `tendril plan create` once per plan. Each call auto-allocates a unique ID. Do NOT read or modify `.counter` directly.

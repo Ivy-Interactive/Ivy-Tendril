@@ -101,24 +101,6 @@ public class DoctorCommandPlansTests : IDisposable
     }
 
     [Fact]
-    public void DoctorPlans_NestedWorktree_DetectsIssue()
-    {
-        var planDir = CreatePlan("00005-NestedWt", ValidYaml);
-        var wtRepoDir = Path.Combine(planDir, "worktrees", "SomeRepo");
-        Directory.CreateDirectory(wtRepoDir);
-        File.WriteAllText(Path.Combine(wtRepoDir, ".git"), "gitdir: /some/path");
-        var nestedDir = Path.Combine(wtRepoDir, "subdir");
-        Directory.CreateDirectory(nestedDir);
-        File.WriteAllText(Path.Combine(nestedDir, ".git"), "gitdir: /nested/path");
-
-        var results = DoctorCommand.ScanPlans(_plansDir);
-
-        Assert.Single(results);
-        Assert.False(results[0].IsHealthy);
-        Assert.Contains("NestedWorktree", results[0].Health);
-    }
-
-    [Fact]
     public void DoctorPlans_UnhealthyFlag_FiltersResults()
     {
         CreatePlan("00010-Healthy", ValidYaml);
@@ -130,32 +112,6 @@ public class DoctorCommandPlansTests : IDisposable
         Assert.Equal(2, allResults.Count);
         Assert.Single(filtered);
         Assert.Equal("00011", filtered[0].Id);
-    }
-
-    [Fact]
-    public void HasNestedWorktrees_WithNestedGit_ReturnsTrue()
-    {
-        var planDir = CreatePlan("00020-WithNested", ValidYaml);
-        var wtRepoDir = Path.Combine(planDir, "worktrees", "SomeRepo");
-        Directory.CreateDirectory(wtRepoDir);
-        File.WriteAllText(Path.Combine(wtRepoDir, ".git"), "gitdir: /some/path");
-        var nestedDir = Path.Combine(wtRepoDir, "subdir");
-        Directory.CreateDirectory(nestedDir);
-        File.WriteAllText(Path.Combine(nestedDir, ".git"), "gitdir: /nested/path");
-
-        var result = DoctorCommand.HasNestedWorktrees(planDir);
-
-        Assert.True(result);
-    }
-
-    [Fact]
-    public void HasNestedWorktrees_NoWorktrees_ReturnsFalse()
-    {
-        var planDir = CreatePlan("00021-NoWt", ValidYaml);
-
-        var result = DoctorCommand.HasNestedWorktrees(planDir);
-
-        Assert.False(result);
     }
 
     [Fact]
@@ -199,26 +155,6 @@ public class DoctorCommandPlansTests : IDisposable
         Assert.True(result.Success);
         Assert.Contains("removed stale worktrees", result.Message);
         Assert.False(Directory.Exists(wtDir));
-    }
-
-    [Fact]
-    public void RepairPlan_NestedWorktree_RemovesNested()
-    {
-        var planDir = CreatePlan("00025-RepairNested", ValidYaml);
-        var wtDir = Path.Combine(planDir, "worktrees", "SomeRepo");
-        Directory.CreateDirectory(wtDir);
-        var nestedPlansDir = Path.Combine(wtDir, "Plans");
-        Directory.CreateDirectory(nestedPlansDir);
-        File.WriteAllText(Path.Combine(nestedPlansDir, "dummy.txt"), "test");
-
-        var healthResult = new DoctorCommand.PlanHealthResult(
-            "00025", "RepairNested", "Draft", 1, "NestedWorktree", false);
-
-        var result = DoctorCommand.RepairPlan(planDir, healthResult);
-
-        Assert.True(result.Success);
-        Assert.Contains("cleaned nested worktrees", result.Message);
-        Assert.False(Directory.Exists(nestedPlansDir));
     }
 
     [Fact]

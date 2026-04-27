@@ -8,7 +8,7 @@ The firmware header contains:
 - **Args** / **PlanFolder** — path to the plan folder to split
 - **CurrentTime** — current UTC timestamp
 
-Read the plan structure in `../.shared/Plans.md`.
+The plan structure and CLI commands are in the **Reference Documents** section of your firmware.
 Project configuration (projects, repos) is available from the firmware header.
 
 The plans directory path can be derived from the plan folder's parent directory.
@@ -22,30 +22,12 @@ The plans directory path can be derived from the plan folder's parent directory.
 - Identify distinct issues/tasks that should be separate plans
 - Report plan context to Jobs UI: `tendril job status $env:TENDRIL_JOB_ID --message "Splitting plan..." --plan-id <plan-id> --plan-title "<title>"`
 
-### 2. Allocate Plan IDs
+### 2. Create Split Plans
 
-- Read the counter from `.counter` in the plans directory
-- Reserve one ID per new plan and increment the counter atomically (read → reserve all needed IDs at once → write new value)
-- Format as 5-digit zero-padded (e.g. `01205`)
-- **Important:** Read and write the counter in a single operation to avoid race conditions with concurrent runs
-
-### 3. Create Split Plans
-
-For each distinct issue:
-
-#### 3.1 Create the plan folder and revision
-
-- Create folder `{ID:D5}-{SafeTitle}/` (title-cased, no spaces)
-- Create `revisions/001.md` using the `planTemplate` from `config.yaml`
-- Fill in Problem, Solution, Remaining Design Questions, Tests sections
-- Each plan must be fully self-contained
-
-#### 3.2 Create plan.yaml via CLI
-
-**Never write `plan.yaml` directly** — use `tendril plan create` with all known fields:
+For each distinct issue, use `tendril plan create` to allocate an ID, create the folder, and write `plan.yaml`:
 
 ```bash
-tendril plan create <PlanId> "<Title>" \
+tendril plan create "<Title>" \
   --project "<Project>" \
   --level "<Level>" \
   --initial-prompt "<original plan's initialPrompt>" \
@@ -56,21 +38,27 @@ tendril plan create <PlanId> "<Title>" \
   --related-plan "<original-plan-folder-name>"
 ```
 
+The command outputs `PlanId`, `Directory`, and `Plan created` lines. Parse the `Directory` to write the revision file.
+
 Include optional flags as needed:
 - `--source-url "<url>"` — if the original plan had a sourceUrl
-- `--depends-on "<sibling-plan-folder>"` — only when a sibling plan has a true blocking dependency (see Section 4)
+- `--depends-on "<sibling-plan-folder>"` — only when a sibling plan has a true blocking dependency (see Section 3)
 - `--priority <number>` — if non-default priority
 
 Populate `--verification` flags from the project's verifications in config.yaml, all set to `Pending`.
 
-#### 3.3 Project Assignment
+Do NOT read or modify `.counter` directly — `tendril plan create` handles ID allocation.
+
+After creating each plan, write `revisions/001.md` using the `planTemplate` from `config.yaml` into the returned directory. Fill in Problem, Solution, Remaining Design Questions, Tests sections. Each plan must be fully self-contained.
+
+#### Project Assignment
 
 Each new plan may belong to a different project than the original. For each split plan:
 - Analyze which project(s) from `config.yaml` are relevant based on the files/repos involved
 - Use the matching project's repos and verifications in the `tendril plan create` command
 - If a sub-plan spans multiple projects, prefer the primary project (where most changes occur)
 
-### 4. Dependencies Between Split Plans
+### 3. Dependencies Between Split Plans
 
 Add `--depends-on` between sibling plans **only** when one plan would fail to compile or run without the other's changes being merged first. This is rare — most split plans are independent.
 
@@ -86,7 +74,7 @@ Add `--depends-on` between sibling plans **only** when one plan would fail to co
 
 Ask: "Will Plan B fail to compile/run if Plan A's changes aren't merged first?" — if no, skip `dependsOn`.
 
-### 5. Original Plan
+### 4. Original Plan
 
 Do NOT modify the original plan — the launcher transitions it to `Skipped` automatically on success.
 

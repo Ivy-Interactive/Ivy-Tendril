@@ -82,7 +82,6 @@ public class PullRequestApp : ViewBase
                     ["Closed"] = nameof(Colors.Zinc)
                 }
             })
-            .Renderer(t => t.Plan, new LinkDisplayRenderer())
             .Renderer(t => t.Pr, new LinkDisplayRenderer())
             .SortDirection(t => t.PlanId, SortDirection.Descending)
             .Hidden(t => t.Id)
@@ -164,7 +163,7 @@ public class PullRequestApp : ViewBase
                 (description, projects, priority) =>
                 {
                     var project = string.Join(",", projects);
-                    jobService.StartJob("CreatePlan", "-Description", description, "-Project", project, "-Priority", priority.ToString());
+                    jobService.StartJob(Constants.JobTypes.CreatePlan, "-Description", description, "-Project", project, "-Priority", priority.ToString());
                 },
                 () =>
                 {

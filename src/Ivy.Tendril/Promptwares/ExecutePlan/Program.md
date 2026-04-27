@@ -12,7 +12,7 @@ The firmware header contains:
 - **CurrentTime** — current UTC timestamp
 - **Note** (optional) — Additional instructions from the reviewer. If present, follow these instructions in addition to the plan.
 
-Read the plan structure in `../.shared/Plans.md`.
+The plan structure and CLI commands are in the **Reference Documents** section of your firmware.
 Read the project configuration from `config.yaml` (referenced via `$TENDRIL_CONFIG` env var) for project repos and context.
 
 The launcher sets the working directory to the project's primary repo.
@@ -453,14 +453,17 @@ Create a `verification/` directory in the plan folder if it doesn't exist.
 
 Check the `## Verification` section in the plan revision for checked items (`- [x]`). Skip unchecked items (`- [ ]`).
 
+**Delegated verifications:** Some verifications are implemented as separate promptwares (e.g., `IvyFrameworkVerification`). A verification is **delegated** if its name matches an entry in the `promptwares` section of `config.yaml`. Delegated verifications MUST be run via `tendril promptware <Name>` — you are FORBIDDEN from writing their report files or setting their status to Pass yourself. If the `tendril` CLI is unavailable and you cannot invoke the sub-promptware, you MUST set the verification to `Fail` with a report explaining the CLI failure. Never self-certify a delegated verification.
+
 For each checked verification:
 
 1. Send a status message: `tendril job status $env:TENDRIL_JOB_ID --message "Verifying: <Name>"`
 2. Look up its `prompt` in the `verifications` list in `config.yaml`
-3. Execute the prompt in the worktree directory
-4. If it fails: diagnose, fix the issue, **commit the fix** (e.g. `[01105] Fix lint errors from Build`), and re-run. Repeat until it passes (fail the plan after 3+ failed attempts).
-5. Document all fix commits via CLI: `tendril plan add-commit <plan-id> <sha>`
-6. Update the verification status via CLI: `tendril plan set-verification <plan-id> <Name> Pass` (or `Fail`)
+3. **Check if delegated:** If the verification name exists in config.yaml's `promptwares` section, it is a delegated verification — follow the prompt's instructions to invoke it as an external process. If the external process cannot be invoked (CLI broken, file lock, etc.), set the verification to `Fail` immediately. Do NOT attempt to do the verification inline or write the report yourself.
+4. Execute the prompt in the worktree directory
+5. If it fails: diagnose, fix the issue, **commit the fix** (e.g. `[01105] Fix lint errors from Build`), and re-run. Repeat until it passes (fail the plan after 3+ failed attempts).
+6. Document all fix commits via CLI: `tendril plan add-commit <plan-id> <sha>`
+7. Update the verification status via CLI: `tendril plan set-verification <plan-id> <Name> Pass` (or `Fail`)
 
 **CRITICAL:** You MUST call `tendril plan set-verification` after EACH verification. The verification report file alone is NOT sufficient — plan.yaml must also be updated via the CLI. Failing to call this command will result in the plan being marked as Failed.
 

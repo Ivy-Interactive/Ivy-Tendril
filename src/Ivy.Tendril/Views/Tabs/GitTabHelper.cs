@@ -32,6 +32,16 @@ public static class GitTabHelper
         return new GitTabData(commitRows, worktreeRows);
     }
 
+    public static GitTabData BuildGitTabData(
+        List<PlanContentHelpers.CommitRow> precomputedCommitRows,
+        PlanFile plan,
+        IConfigService config,
+        IGitService gitService)
+    {
+        var worktreeRows = BuildWorktreeRows(plan, config, gitService);
+        return new GitTabData(precomputedCommitRows, worktreeRows);
+    }
+
     private static List<WorktreeRow> BuildWorktreeRows(
         PlanFile plan,
         IConfigService config,
@@ -45,11 +55,11 @@ public static class GitTabHelper
         var repoDirs = Directory.GetDirectories(worktreesDir);
         foreach (var repoDir in repoDirs)
         {
-            var worktrees = gitService.GetWorktrees(repoDir);
-            if (worktrees == null) continue;
+            var worktreesResult = gitService.GetWorktrees(repoDir);
+            if (!worktreesResult.IsSuccess || worktreesResult.Value == null) continue;
 
             // Find the worktree that matches this directory (not the main repo)
-            var worktree = worktrees.FirstOrDefault(w =>
+            var worktree = worktreesResult.Value.FirstOrDefault(w =>
                 Path.GetFullPath(w.Path).Equals(Path.GetFullPath(repoDir), StringComparison.OrdinalIgnoreCase));
 
             if (worktree == null) continue;
@@ -80,42 +90,31 @@ public static class GitTabHelper
     {
         var gitLayout = Layout.Vertical().Gap(4);
 
-        // Worktrees section (new)
+        // Worktrees section
         if (gitData.WorktreeRows.Count > 0)
         {
             gitLayout |= Text.Block("Worktrees").Bold();
-            var worktreesTable = new Table(
-                new TableRow(
-                    new TableCell("Name").IsHeader(),
-                    new TableCell("Branch:Commit").IsHeader(),
-                    new TableCell("Actions").IsHeader()
-                )
-                { IsHeader = true }
-            );
 
-            foreach (var row in gitData.WorktreeRows)
-            {
-                var pathCapture = row.Path;
-                var actionsMenu = new Button().Icon(Icons.EllipsisVertical).Ghost().Small()
-                    .WithDropDown(
-                        new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
-                            .OnSelect(() => PlatformHelper.OpenInFileManager(pathCapture, logger)),
-                        new MenuItem("Open in Terminal", Icon: Icons.Terminal, Tag: "OpenInTerminal")
-                            .OnSelect(() => PlatformHelper.OpenInTerminal(pathCapture, logger)),
-                        new MenuItem($"Open in {config.Editor.Label}", Icon: Icons.Code, Tag: "OpenInEditor")
-                            .OnSelect(() => config.OpenInEditor(pathCapture)),
-                        new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
-                            .OnSelect(() => copyToClipboard(pathCapture))
-                    );
+            var worktreeTableRows = gitData.WorktreeRows.Select(row => new WorktreeTableRow(
+                row.Name,
+                $"{row.Branch}:{row.ShortHash}",
+                row.Path
+            )).ToList();
 
-                worktreesTable |= new TableRow(
-                    new TableCell(row.Name),
-                    new TableCell($"{row.Branch}:{row.ShortHash}"),
-                    new TableCell(actionsMenu)
-                );
-            }
-
-            gitLayout |= worktreesTable;
+            gitLayout |= new TableBuilder<WorktreeTableRow>(worktreeTableRows)
+                .Header(t => t.BranchCommit, "Branch:Commit")
+                .Builder(t => t.Actions, f => f.Func<WorktreeTableRow, string>(path =>
+                    new Button().Icon(Icons.EllipsisVertical).Ghost().Small()
+                        .WithDropDown(
+                            new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
+                                .OnSelect(() => PlatformHelper.OpenInFileManager(path, logger)),
+                            new MenuItem("Open in Terminal", Icon: Icons.Terminal, Tag: "OpenInTerminal")
+                                .OnSelect(() => PlatformHelper.OpenInTerminal(path, logger)),
+                            new MenuItem($"Open in {config.Editor.Label}", Icon: Icons.Code, Tag: "OpenInEditor")
+                                .OnSelect(() => config.OpenInEditor(path)),
+                            new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
+                                .OnSelect(() => copyToClipboard(path))
+                        )));
         }
 
         // Problematic commits warning
@@ -140,23 +139,23 @@ public static class GitTabHelper
         if (plan.Commits.Count > 0)
         {
             gitLayout |= Text.Block("Commits").Bold();
-            var commitsTable = new Table(
-                new TableRow(
-                    new TableCell("Commit").IsHeader(),
-                    new TableCell("Message").IsHeader(),
-                    new TableCell("Files").IsHeader()
-                )
-                { IsHeader = true }
-            );
 
-            foreach (var row in gitData.CommitRows)
-                commitsTable |= new TableRow(
-                    new TableCell(new Button(row.ShortHash).Inline().OnClick(() => setOpenCommit(row.Hash))),
-                    new TableCell(row.Title),
-                    new TableCell(row.FileCount?.ToString() ?? "–")
-                );
+            var commitTableRows = gitData.CommitRows.Select(row => new CommitTableRow(
+                row.ShortHash,
+                row.Hash,
+                row.Title,
+                row.FileCount?.ToString() ?? "–"
+            )).ToList();
 
-            gitLayout |= commitsTable;
+            gitLayout |= new TableBuilder<CommitTableRow>(commitTableRows)
+                .Order(t => t.Commit, t => t.Message, t => t.Files)
+                .Builder(t => t.Commit, f => f.Func<CommitTableRow, string>(shortHash =>
+                    new Button(shortHash).Inline().OnClick(() =>
+                    {
+                        var row = commitTableRows.First(r => r.Commit == shortHash);
+                        setOpenCommit(row.Hash);
+                    })))
+                .Remove(t => t.Hash);
         }
 
         // Pull requests section
@@ -166,24 +165,15 @@ public static class GitTabHelper
                 gitLayout |= new Separator();
 
             gitLayout |= Text.Block("Pull Requests").Bold();
-            var prsTable = new Table(
-                new TableRow(
-                    new TableCell("Repository").IsHeader(),
-                    new TableCell("PR").IsHeader()
-                )
-                { IsHeader = true }
-            );
 
-            foreach (var pr in plan.Prs.Where(PullRequestApp.IsValidUrl))
-            {
-                var prCapture = pr;
-                prsTable |= new TableRow(
-                    new TableCell(PullRequestApp.ExtractRepo(pr)),
-                    new TableCell(new Button(pr).Link().OnClick(() => client.OpenUrl(prCapture)))
-                );
-            }
+            var prTableRows = plan.Prs.Where(PullRequestApp.IsValidUrl)
+                .Select(pr => new PrTableRow(PullRequestApp.ExtractRepo(pr), pr))
+                .ToList();
 
-            gitLayout |= prsTable;
+            gitLayout |= new TableBuilder<PrTableRow>(prTableRows)
+                .Header(t => t.Pr, "PR")
+                .Builder(t => t.Pr, f => f.Func<PrTableRow, string>(url =>
+                    new Button(url).Link().OnClick(() => client.OpenUrl(url))));
         }
 
         // Empty state
@@ -194,4 +184,8 @@ public static class GitTabHelper
 
         return gitLayout;
     }
+
+    private record WorktreeTableRow(string Name, string BranchCommit, string Actions);
+    private record CommitTableRow(string Commit, string Hash, string Message, string Files);
+    private record PrTableRow(string Repository, string Pr);
 }

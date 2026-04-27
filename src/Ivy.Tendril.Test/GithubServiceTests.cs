@@ -141,7 +141,7 @@ public class GithubServiceTests
         var githubService = new GithubService(configService, NullLogger<GithubService>.Instance);
 
         var (issues, error) = await githubService.SearchIssuesAsync(
-            "nonexistent-owner-xyz-000", "nonexistent-repo-xyz-000", null, null, null);
+            new IssueSearchRequest("nonexistent-owner-xyz-000", "nonexistent-repo-xyz-000"));
 
         Assert.Empty(issues);
         Assert.NotNull(error);

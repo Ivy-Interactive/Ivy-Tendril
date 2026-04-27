@@ -146,9 +146,9 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
         _logger.LogInformation("Configuration saved");
     }
 
-    public void StartBackgroundServices()
+    public async Task StartBackgroundServicesAsync()
     {
         _logger.LogInformation("Starting background services (deferred)");
-        BackgroundServiceActivator.Start(services, _logger);
+        await BackgroundServiceActivator.StartAsync(services, _logger);
     }
 }

@@ -75,7 +75,7 @@ projects:
   reviewActions:
   - name: Tendril
     condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril"
-    action: dotnet run --project worktrees\Ivy-Tendril\src\Ivy.Tendril
+    action: dotnet run --project worktrees\Ivy-Tendril\src\Ivy.Tendril --browse --find-available-port
   - name: Docs
     condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril.Docs"
     action: dotnet run --project worktrees\Ivy-Tendril\src\Ivy.Tendril.Docs --browse --find-available-port

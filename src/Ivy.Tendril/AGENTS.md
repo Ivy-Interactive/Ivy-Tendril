@@ -4,7 +4,7 @@
 
 When changing the `plan.yaml` structure (adding/removing/renaming fields, changing field types):
 
-1. **Update `Plans.md`** (`Promptwares/.shared/Plans.md`) — this is the source of truth for the plan schema
+1. **Update `Plans.md`** (`Assets/Plans.md`) — this is the source of truth for the plan schema (embedded as an assembly resource)
 2. **Add a repair step** in `PlanReaderService.RepairPlans()` — this runs on every Tendril startup and must migrate all existing plans to the new format
 3. **Keep `PlanYaml.cs` in sync** — the deserialization model must match what `Plans.md` documents
 4. **Update promptware instructions** — any promptware that writes `plan.yaml` (CreatePlan, ExecutePlan, UpdatePlan, SplitPlan, ExpandPlan) must produce the new format
@@ -16,7 +16,7 @@ Existing plans on disk are never recreated — they must be repaired in place. I
 - `Services/` — ConfigService, PlanReaderService, JobService, GitService
 - `Apps/` — PlansApp, ReviewApp, JobsApp, IceboxApp, and their views
 - `Promptwares/` — CreatePlan, ExecutePlan, UpdatePlan, SplitPlan, ExpandPlan, CreatePr, IvyFrameworkVerification
-- `Promptwares/.shared/` — Shared utilities (Utils.ps1, Plans.md, Firmware.md)
+- `Assets/Plans.md` — Plan schema reference (embedded in assembly, injected into firmware)
 - `AppShell/` — Custom TendrilAppShell with sidebar badges
 
 ## Config
@@ -128,7 +128,7 @@ $TENDRIL_HOME/
   config.yaml          # Project definitions, verifications, coding agents
   tendril.db           # SQLite — plan metadata cache (rebuilt from filesystem on startup)
   Plans/ or $TENDRIL_PLANS/
-    .counter           # Next plan ID (integer, incremented atomically)
+    .counter           # Next plan ID (managed by `tendril plan create` — do not modify directly)
     03450-SomePlan/
       plan.yaml        # Plan metadata (state, repos, commits, PRs)
       revisions/       # 001.md, 002.md — plan revision history
@@ -184,7 +184,7 @@ tendril plan get <id>       # Show plan details
 
 ### Common Issues
 
-- **Plan counter collisions**: `$TENDRIL_PLANS/.counter` is protected by an in-process lock. If plans get duplicate IDs, check that only one Tendril instance is running.
+- **Plan counter collisions**: `$TENDRIL_PLANS/.counter` is protected by file-based locking in `tendril plan create`. If plans get duplicate IDs, check for concurrent access issues.
 - **Plans not appearing in UI**: Run `tendril doctor plans` to check for malformed `plan.yaml` files. `PlanReaderService.RepairPlans()` runs on startup but silently skips plans it can't fix.
 - **Build errors from locked files**: Tendril locks its own exe while running. Use `--no-dependencies` or stop the running instance before building.
 - **Missing `.raw.jsonl` logs**: These are written by `WriteRawOutputLog` in `JobService.cs` on job completion. If the Logs directory doesn't exist for a promptware, no raw log is written.

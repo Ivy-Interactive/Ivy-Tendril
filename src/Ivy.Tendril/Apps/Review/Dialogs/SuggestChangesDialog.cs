@@ -35,7 +35,7 @@ public class SuggestChangesDialog(
             new DialogHeader($"Suggest Changes for Plan #{_selectedPlan.Id}"),
             new DialogBody(
                 Layout.Vertical()
-                | Text.P("Provide suggestions for changes to this plan before creating the PR.")
+                | Text.P("Provide suggestions for changes to the plan.")
                 | _suggestText.ToTextareaInput("Enter your suggestions...").Rows(6).AutoFocus()
             ),
             new DialogFooter(
@@ -57,7 +57,7 @@ public class SuggestChangesDialog(
                         _planService.SavePlan(_selectedPlan.FolderName, currentContent + "\n\n" + comments + "\n");
 
                         _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Updating);
-                        _jobService.StartJob("UpdatePlan", _selectedPlan.FolderPath);
+                        _jobService.StartJob(Constants.JobTypes.UpdatePlan, _selectedPlan.FolderPath);
                         _refreshPlans();
                         isCreating.Set(false);
                         _suggestText.Set("");

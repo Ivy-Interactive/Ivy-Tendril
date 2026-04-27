@@ -3,8 +3,14 @@ using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
 
-public class JobServiceCompletionGuardTests
+public class JobServiceCompletionGuardTests : IDisposable
 {
+    private readonly TempDirectoryFixture _tempDir = new();
+
+    public void Dispose()
+    {
+        _tempDir.Dispose();
+    }
     private static JobService CreateService()
     {
         SynchronizationContext.SetSynchronizationContext(null);
@@ -132,57 +138,39 @@ public class JobServiceCompletionGuardTests
     [Fact]
     public void CompleteJob_CreatePlan_UpdatesPlanFileWhenOutputContainsPlanCreated()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"tendril-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
-        try
-        {
-            var service = CreateServiceWithPlanReader(tempDir);
-            var id = service.CreateTestJob("CreatePlan", "-Description", "Fix login bug", "-Project", "Tendril");
+        var service = CreateServiceWithPlanReader(_tempDir.Path);
+        var id = service.CreateTestJob("CreatePlan", "-Description", "Fix login bug", "-Project", "Tendril");
 
-            var job = service.GetJob(id);
-            Assert.NotNull(job);
-            job.EnqueueOutput("Processing...");
-            job.EnqueueOutput("Plan created: 02353-FixLoginBug");
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+        job.EnqueueOutput("Processing...");
+        job.EnqueueOutput("Plan created: 02353-FixLoginBug");
 
-            service.CompleteJob(id, 0);
+        service.CompleteJob(id, 0);
 
-            job = service.GetJob(id);
-            Assert.NotNull(job);
-            Assert.Equal("02353-FixLoginBug", job.PlanFile);
-        }
-        finally
-        {
-            Directory.Delete(tempDir, true);
-        }
+        job = service.GetJob(id);
+        Assert.NotNull(job);
+        Assert.Equal("02353-FixLoginBug", job.PlanFile);
     }
 
     [Fact]
     public void CompleteJob_CreatePlan_LeavesPlanFileUnchangedOnDuplicate()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"tendril-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
-        try
-        {
-            var service = CreateServiceWithPlanReader(tempDir);
-            var id = service.CreateTestJob("CreatePlan", "-Description", "Fix login bug", "-Project", "Tendril");
+        var service = CreateServiceWithPlanReader(_tempDir.Path);
+        var id = service.CreateTestJob("CreatePlan", "-Description", "Fix login bug", "-Project", "Tendril");
 
-            var job = service.GetJob(id);
-            Assert.NotNull(job);
-            var originalPlanFile = job.PlanFile;
-            job.EnqueueOutput("Processing...");
-            job.EnqueueOutput("identified as duplicate: 01234-ExistingPlan");
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+        var originalPlanFile = job.PlanFile;
+        job.EnqueueOutput("Processing...");
+        job.EnqueueOutput("identified as duplicate: 01234-ExistingPlan");
 
-            service.CompleteJob(id, 0);
+        service.CompleteJob(id, 0);
 
-            job = service.GetJob(id);
-            Assert.NotNull(job);
-            Assert.Equal(originalPlanFile, job.PlanFile);
-            Assert.Equal(JobStatus.Completed, job.Status);
-        }
-        finally
-        {
-            Directory.Delete(tempDir, true);
-        }
+        job = service.GetJob(id);
+        Assert.NotNull(job);
+        Assert.Equal(originalPlanFile, job.PlanFile);
+        Assert.Equal(JobStatus.Completed, job.Status);
     }
 
     private class StubPlanReaderService(string plansDirectory) : IPlanReaderService

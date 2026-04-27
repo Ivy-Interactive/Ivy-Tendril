@@ -83,7 +83,7 @@ public class PromptwareRunCommandTests : IDisposable
         };
 
         var logFile = FirmwareCompiler.GetNextLogFile(promptwareDir);
-        var context = new FirmwareContext(promptwareDir, logFile, values, new List<(string Name, string Content)>());
+        var context = new FirmwareContext(promptwareDir, logFile, values);
         var prompt = FirmwareCompiler.Compile(context);
 
         // Firmware references ProgramFolder for the agent to read at runtime
@@ -109,7 +109,7 @@ public class PromptwareRunCommandTests : IDisposable
         };
 
         var logFile = FirmwareCompiler.GetNextLogFile(promptwareDir);
-        var context = new FirmwareContext(promptwareDir, logFile, values, new List<(string Name, string Content)>());
+        var context = new FirmwareContext(promptwareDir, logFile, values);
         var prompt = FirmwareCompiler.Compile(context);
 
         Assert.Contains("IvyFrameworkPath: /repos/Ivy-Framework", prompt);
