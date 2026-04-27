@@ -94,7 +94,7 @@ public class PlanDatabaseService : IPlanDatabaseService
         migrator.ApplyMigrations();
         _logger.LogInformation("Database migrations applied");
 
-        _dashboardRepository = new DashboardRepository(_connection, _lock, _logger.CreateLogger<DashboardRepository>());
+        _dashboardRepository = new DashboardRepository(_connection, _lock, _logger);
     }
 
     public List<PlanFile> GetPlans(PlanStatus? statusFilter = null)
