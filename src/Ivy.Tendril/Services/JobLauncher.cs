@@ -16,7 +16,8 @@ internal record JobLaunchContext(
     TimeSpan StaleOutputTimeout,
     Action<string, string, string, string, JobItem> RunHooks,
     Action<string, int?, bool, bool> CompleteJob,
-    Action RaiseStructureChanged);
+    Action RaiseStructureChanged,
+    Func<int> AllocatePlanId);
 
 internal class JobLauncher
 {
@@ -39,11 +40,12 @@ internal class JobLauncher
         TimeSpan staleOutputTimeout,
         Action<string, string, string, string, JobItem> runHooks,
         Action<string, int?, bool, bool> completeJob,
-        Action raiseStructureChanged)
+        Action raiseStructureChanged,
+        Func<int> allocatePlanId)
     {
         var ctx = new JobLaunchContext(
             job, jobs, jobSlotSemaphore, jobTimeout, staleOutputTimeout,
-            runHooks, completeJob, raiseStructureChanged);
+            runHooks, completeJob, raiseStructureChanged, allocatePlanId);
 
         LaunchJob(ctx);
     }
@@ -91,7 +93,7 @@ internal class JobLauncher
         var id = job.Id;
         var type = job.Type;
 
-        var (processInfo, stdin) = TryBuildAgentProcessStart(job);
+        var (processInfo, stdin) = TryBuildAgentProcessStart(ctx);
         psi = processInfo;
         stdinContent = stdin;
 
@@ -335,15 +337,16 @@ internal class JobLauncher
         };
     }
 
-    private (ProcessStartInfo? Psi, string? StdinContent) TryBuildAgentProcessStart(JobItem job)
+    private (ProcessStartInfo? Psi, string? StdinContent) TryBuildAgentProcessStart(JobLaunchContext ctx)
     {
         if (_configService == null) return (null, null);
 
+        var job = ctx.Job;
         var programFolder = Path.Combine(_promptsRoot, job.Type);
         if (!HasAgentDirectProgram(programFolder, job.Type)) return (null, null);
 
         var settings = _configService.Settings;
-        var (values, planYaml, profileOverride) = BuildFirmwareValues(job, programFolder);
+        var (values, planYaml, profileOverride) = BuildFirmwareValues(ctx, programFolder);
 
         values["Project"] = job.Project;
 
@@ -385,8 +388,9 @@ internal class JobLauncher
     }
 
     private (Dictionary<string, string> Values, PlanYaml? PlanYaml, string? ProfileOverride)
-        BuildFirmwareValues(JobItem job, string programFolder)
+        BuildFirmwareValues(JobLaunchContext ctx, string programFolder)
     {
+        var job = ctx.Job;
         var values = new Dictionary<string, string>
         {
             ["ClaudeSessionId"] = job.SessionId ?? ""
@@ -394,20 +398,23 @@ internal class JobLauncher
 
         if (job.Type == Constants.JobTypes.CreatePlan)
         {
-            BuildCreatePlanFirmware(job, values);
+            BuildCreatePlanFirmware(ctx, values);
             return (values, null, null);
         }
 
         return BuildNonCreatePlanFirmware(job, values);
     }
 
-    private void BuildCreatePlanFirmware(JobItem job, Dictionary<string, string> values)
+    private void BuildCreatePlanFirmware(JobLaunchContext ctx, Dictionary<string, string> values)
     {
+        var job = ctx.Job;
         var description = PlanYamlHelper.GetNamedArg(job.Args, "-Description") ?? string.Join(" ", job.Args);
         values["Args"] = description;
         values["PlansDirectory"] = _configService!.PlanFolder;
 
-        var planId = PlanYamlHelper.AllocatePlanId(_configService.PlanFolder);
+        // Use JobService's atomic counter instead of file-based locking
+        var planIdInt = ctx.AllocatePlanId();
+        var planId = planIdInt.ToString("D5");
         values["PlanId"] = planId;
         job.AllocatedPlanId = planId;
     }
