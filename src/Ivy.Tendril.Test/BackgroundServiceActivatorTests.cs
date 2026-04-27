@@ -1,5 +1,6 @@
 using System.Reflection;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.SessionParsers;
 using Ivy.Tendril.Test.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -144,7 +145,10 @@ public class BackgroundServiceActivatorTests : IAsyncLifetime
 
         var services = new ServiceCollection();
         services.AddSingleton<IConfigService>(config);
-        services.AddSingleton(new ModelPricingService(NullLogger<ModelPricingService>.Instance));
+        services.AddSingleton<ISessionParser, ClaudeSessionParser>();
+        services.AddSingleton<ISessionParser, CodexSessionParser>();
+        services.AddSingleton<ISessionParser, GeminiSessionParser>();
+        services.AddSingleton<ModelPricingService>();
         services.AddSingleton<IPlanReaderService>(sp =>
             new PlanReaderService(sp.GetRequiredService<IConfigService>(), NullLogger<PlanReaderService>.Instance));
         services.AddSingleton<ITelemetryService>(sp => new TelemetryService(false));

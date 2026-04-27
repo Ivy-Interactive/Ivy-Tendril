@@ -1,6 +1,5 @@
-using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Services.SessionParsers;
 using System.Reflection;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using YamlDotNet.Serialization;
 
@@ -24,11 +23,13 @@ public class ModelPricingService : IModelPricingService
 {
     private static readonly IDeserializer DefaultDeserializer = new DeserializerBuilder().Build();
     private readonly ILogger<ModelPricingService> _logger;
+    private readonly Dictionary<string, ISessionParser> _parsers;
 
-    public ModelPricingService(ILogger<ModelPricingService> logger)
+    public ModelPricingService(ILogger<ModelPricingService> logger, IEnumerable<ISessionParser> parsers)
     {
         _logger = logger;
         Pricing = LoadEmbeddedPricing();
+        _parsers = parsers.ToDictionary(p => p.Name, StringComparer.OrdinalIgnoreCase);
     }
 
     internal Dictionary<string, ModelPricing> Pricing { get; }
@@ -107,10 +108,10 @@ public class ModelPricingService : IModelPricingService
         var sessionFile = FindSessionFile(claudeProjectsDir, sessionId);
         if (sessionFile == null) return new CostCalculation();
 
-        var totalCost = 0.0;
-        var totalTokens = 0;
-
-        ProcessSessionFile(sessionFile, ref totalCost, ref totalTokens);
+        var parser = _parsers["claude"];
+        var mainCost = parser.Parse(sessionFile, this);
+        var totalCost = mainCost.TotalCost;
+        var totalTokens = mainCost.TotalTokens;
 
         // Parse subagent files
         var subagentDir = Path.Combine(
@@ -121,7 +122,11 @@ public class ModelPricingService : IModelPricingService
 
         if (Directory.Exists(subagentDir))
             foreach (var subFile in Directory.GetFiles(subagentDir, "*.jsonl"))
-                ProcessSessionFile(subFile, ref totalCost, ref totalTokens);
+            {
+                var subCost = parser.Parse(subFile, this);
+                totalCost += subCost.TotalCost;
+                totalTokens += subCost.TotalTokens;
+            }
 
         return new CostCalculation { TotalTokens = totalTokens, TotalCost = totalCost };
     }
@@ -141,7 +146,8 @@ public class ModelPricingService : IModelPricingService
 
         if (sessionFile == null) return new CostCalculation();
 
-        return ParseCodexSessionFile(sessionFile);
+        var parser = _parsers["codex"];
+        return parser.Parse(sessionFile, this);
     }
 
     private CostCalculation CalculateGeminiCost(string sessionId)
@@ -158,101 +164,14 @@ public class ModelPricingService : IModelPricingService
 
         if (sessionFile == null) return new CostCalculation();
 
-        return ParseGeminiSessionFile(sessionFile);
-    }
-
-    internal CostCalculation ParseCodexSessionFile(string filePath)
-    {
-        var model = "o4-mini";
-        var totalInputTokens = 0;
-        var totalOutputTokens = 0;
-        var totalCachedTokens = 0;
-
-        foreach (var line in File.ReadLines(filePath))
-        {
-            if (string.IsNullOrWhiteSpace(line)) continue;
-
-            try
-            {
-                using var doc = JsonDocument.Parse(line);
-                var root = doc.RootElement;
-
-                var entryType = TryGetStringProperty(root, "type");
-
-                if (entryType == "turn_context" &&
-                    root.TryGetProperty("payload", out var turnPayload) &&
-                    turnPayload.TryGetProperty("model", out var turnModel))
-                    model = turnModel.GetString() ?? model;
-
-                if (entryType == "event_msg" &&
-                    root.TryGetProperty("payload", out var payload) &&
-                    TryGetStringProperty(payload, "type") == "token_count" &&
-                    payload.TryGetProperty("info", out var info) &&
-                    info.ValueKind != JsonValueKind.Null &&
-                    info.TryGetProperty("total_token_usage", out var usage))
-                {
-                    totalInputTokens = TryGetInt32Property(usage, "input_tokens");
-                    totalOutputTokens = TryGetInt32Property(usage, "output_tokens");
-                    totalCachedTokens = TryGetInt32Property(usage, "cached_input_tokens");
-                    var reasoningTokens = TryGetInt32Property(usage, "reasoning_output_tokens");
-                    totalOutputTokens += reasoningTokens;
-                }
-            }
-            catch
-            {
-                /* Skip malformed lines */
-            }
-        }
-
-        var pricing = GetPricing(model);
-        return CalculateCostFromTokens(totalInputTokens, totalOutputTokens, totalCachedTokens, pricing);
-    }
-
-    internal CostCalculation ParseGeminiSessionFile(string filePath)
-    {
-        var totalCost = 0.0;
-        var totalTokens = 0;
-
-        try
-        {
-            var json = File.ReadAllText(filePath);
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-
-            if (!root.TryGetProperty("messages", out var messages)) return new CostCalculation();
-
-            foreach (var msg in messages.EnumerateArray())
-            {
-                var msgType = TryGetStringProperty(msg, "type");
-                if (msgType != "gemini") continue;
-                if (!msg.TryGetProperty("tokens", out var tokens)) continue;
-
-                var model = TryGetStringProperty(msg, "model") ?? "gemini-3-flash-preview";
-                var pricing = GetPricing(model);
-
-                var inputTokens = TryGetInt32Property(tokens, "input");
-                var outputTokens = TryGetInt32Property(tokens, "output");
-                var cachedTokens = TryGetInt32Property(tokens, "cached");
-
-                var cost = CalculateCostFromTokens(inputTokens, outputTokens, cachedTokens, pricing);
-                totalTokens += cost.TotalTokens;
-                totalCost += cost.TotalCost;
-            }
-        }
-        catch
-        {
-            /* Return empty on parse failure */
-        }
-
-        return new CostCalculation { TotalTokens = totalTokens, TotalCost = totalCost };
+        var parser = _parsers["gemini"];
+        return parser.Parse(sessionFile, this);
     }
 
     internal CostCalculation CalculateFromFile(string filePath)
     {
-        var totalCost = 0.0;
-        var totalTokens = 0;
-        ProcessSessionFile(filePath, ref totalCost, ref totalTokens);
-        return new CostCalculation { TotalTokens = totalTokens, TotalCost = totalCost };
+        var parser = _parsers["claude"];
+        return parser.Parse(filePath, this);
     }
 
     private static string? FindSessionFile(string claudeProjectsDir, string sessionId)
@@ -263,99 +182,4 @@ public class ModelPricingService : IModelPricingService
             .FirstOrDefault(f => !f.Contains("\\subagents\\") && !f.Contains("/subagents/"));
     }
 
-    private void ProcessSessionFile(string filePath, ref double totalCost, ref int totalTokens)
-    {
-        var processedIds = new HashSet<string>();
-
-        foreach (var line in FileHelper.EnumerateLines(filePath))
-        {
-            if (string.IsNullOrWhiteSpace(line)) continue;
-
-            try
-            {
-                using var obj = JsonDocument.Parse(line);
-                var root = obj.RootElement;
-
-                if (root.GetProperty("type").GetString() != "assistant") continue;
-                if (!root.TryGetProperty("message", out var message)) continue;
-                if (!message.TryGetProperty("usage", out var usage)) continue;
-
-                // Deduplicate: Claude Code writes one JSONL line per content block,
-                // but each line carries the full message with the same usage data.
-                if (message.TryGetProperty("id", out var idProp))
-                {
-                    var msgId = idProp.GetString();
-                    if (msgId != null && !processedIds.Add(msgId))
-                        continue; // Already counted this message
-                }
-
-                var model = message.TryGetProperty("model", out var m)
-                    ? m.GetString() ?? "claude-opus-4"
-                    : "claude-opus-4";
-
-                var pricing = GetPricing(model);
-
-                var priceInput = pricing.Input * 1e-6;
-                var priceOutput = pricing.Output * 1e-6;
-                var priceCacheWrite = pricing.CacheWrite * 1e-6;
-                var priceCacheRead = pricing.CacheRead * 1e-6;
-
-                var inputTokens = usage.TryGetProperty("input_tokens", out var it) ? it.GetInt32() : 0;
-                var outputTokens = usage.TryGetProperty("output_tokens", out var ot) ? ot.GetInt32() : 0;
-                var cacheReadTokens = usage.TryGetProperty("cache_read_input_tokens", out var cr) ? cr.GetInt32() : 0;
-
-                // TotalTokens tracks actual work (non-cached input + output) so the
-                // number shown to the user reflects what the model genuinely processed,
-                // not the much larger cache-dominated throughput.
-                totalTokens += inputTokens + outputTokens;
-                totalCost += inputTokens * priceInput;
-                totalCost += outputTokens * priceOutput;
-                totalCost += cacheReadTokens * priceCacheRead;
-
-                if (usage.TryGetProperty("cache_creation", out var cacheCreation))
-                {
-                    var cacheFiveMinutes = cacheCreation.TryGetProperty("ephemeral_5m_input_tokens", out var c5)
-                        ? c5.GetInt32()
-                        : 0;
-                    var cacheOneHour = cacheCreation.TryGetProperty("ephemeral_1h_input_tokens", out var c1)
-                        ? c1.GetInt32()
-                        : 0;
-                    totalCost += (cacheFiveMinutes + cacheOneHour) * priceCacheWrite;
-                }
-                else if (usage.TryGetProperty("cache_creation_input_tokens", out var ccTokens))
-                {
-                    var cacheCreationTokens = ccTokens.GetInt32();
-                    totalCost += cacheCreationTokens * priceCacheWrite;
-                }
-            }
-            catch
-            {
-                /* Skip malformed lines */
-            }
-        }
-    }
-
-    private static CostCalculation CalculateCostFromTokens(
-        int inputTokens,
-        int outputTokens,
-        int cachedTokens,
-        ModelPricing pricing)
-    {
-        var totalTokens = inputTokens + outputTokens;
-        var totalCost = inputTokens * pricing.Input * 1e-6
-                        + outputTokens * pricing.Output * 1e-6
-                        + cachedTokens * pricing.CacheRead * 1e-6;
-
-        return new CostCalculation { TotalTokens = totalTokens, TotalCost = totalCost };
-    }
-
-    private static string? TryGetStringProperty(JsonElement element, string propertyName)
-    {
-        return element.TryGetProperty(propertyName, out var prop) ? prop.GetString() : null;
-    }
-
-    private static int TryGetInt32Property(JsonElement element, string propertyName)
-    {
-        return element.TryGetProperty(propertyName, out var prop) ? prop.GetInt32() : 0;
-    }
 }
