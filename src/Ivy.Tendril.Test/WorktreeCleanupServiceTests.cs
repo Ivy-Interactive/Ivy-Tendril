@@ -253,11 +253,10 @@ public class WorktreeCleanupServiceTests : IDisposable
     {
         var dir = Path.Combine(_tempDir, "force-delete-nonexistent");
 
-        // DirectoryNotFoundException inherits from IOException, so the first catch handles it.
-        // The Windows rmdir fallback also tolerates missing paths.
-        // Verify the method does not throw on nonexistent directories.
-        var ex = Record.Exception(() => WorktreeCleanupService.ForceDeleteDirectory(dir));
-        Assert.Null(ex);
+        // DirectoryNotFoundException inherits from IOException.
+        // Without the rmdir fallback, this now propagates as IOException.
+        var ex = Assert.Throws<IOException>(() => WorktreeCleanupService.ForceDeleteDirectory(dir));
+        Assert.Contains("after 3 retries", ex.Message);
     }
 
     [Fact]
@@ -343,8 +342,8 @@ public class WorktreeCleanupServiceTests : IDisposable
     [Fact]
     public void ForceDeleteDirectory_Logs_Fallback_When_Initial_Delete_Fails()
     {
-        // Windows-only: holding a file handle open forces Directory.Delete to throw,
-        // which should trigger the rmdir fallback and produce a log entry.
+        // Windows-only: holding a file handle open forces Directory.Delete to throw.
+        // Without the rmdir fallback, this should now retry and eventually fail.
         if (!OperatingSystem.IsWindows()) return;
 
         var testDir = Path.Combine(_tempDir, "force-delete-fallback");
@@ -358,14 +357,14 @@ public class WorktreeCleanupServiceTests : IDisposable
         // Open the file with exclusive access to force Directory.Delete to fail.
         using (new FileStream(lockedFile, FileMode.Open, FileAccess.Read, FileShare.None))
         {
-            // Expect IOException: Directory.Delete fails because of the lock, and
-            // rmdir /s /q also can't delete the file while it's held open.
+            // Expect IOException: Directory.Delete fails because of the lock.
             var ex = Assert.Throws<IOException>(() =>
                 WorktreeCleanupService.ForceDeleteDirectory(testDir, logger));
             Assert.Contains("after 3 retries", ex.Message);
         }
 
-        Assert.Contains(logEntries, e => e.Contains("falling back to rmdir"));
+        // Verify retry log messages appear (rmdir fallback no longer exists)
+        Assert.Contains(logEntries, e => e.Contains("ForceDeleteDirectory retry"));
 
         // Cleanup after the stream is released.
         if (Directory.Exists(testDir))

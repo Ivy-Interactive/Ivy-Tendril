@@ -1206,6 +1206,201 @@ projects:
     }
 
     [Fact]
+    public void Should_Handle_Pathological_Yaml_Without_Timeout()
+    {
+        // Crafted YAML that would trigger backtracking with the old pattern
+        var pathologicalYaml = @"
+projects:
+  - name: Test
+    repos:
+      - path: " + string.Concat(Enumerable.Repeat("%VAR", 100)) + @"
+";
+
+        var tempDir = CreateTempConfigFile(pathologicalYaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            service.SetTendrilHome(tempDir);
+            sw.Stop();
+
+            // Should complete quickly (< 1s) even with pathological input
+            Assert.True(sw.ElapsedMilliseconds < 1000,
+                $"ReDoS detected: processing took {sw.ElapsedMilliseconds}ms");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void PreprocessForEditing_TracksCreatedTempFile()
+    {
+        var yaml = @"
+projects:
+  - name: TestProject
+    repos:
+      - path: D:\Repos\Test
+";
+
+        var tempDir = CreateTempConfigFile(yaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+
+            // Create a markdown file that needs polishing
+            var mdPath = Path.Combine(tempDir, "test.md");
+            File.WriteAllText(mdPath, "[Plan 12345](plan://12345)");
+
+            var processedPath = service.PreprocessForEditing(mdPath);
+
+            // Should have created a temp file
+            Assert.NotEqual(mdPath, processedPath);
+            Assert.True(File.Exists(processedPath));
+            Assert.Contains("tendril-edit-", processedPath);
+
+            // Clean up the temp file
+            service.Dispose();
+            Assert.False(File.Exists(processedPath));
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Dispose_DeletesTrackedTempFiles()
+    {
+        var yaml = @"
+projects:
+  - name: TestProject
+    repos:
+      - path: D:\Repos\Test
+";
+
+        var tempDir = CreateTempConfigFile(yaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+
+            // Create multiple temp files
+            var mdPath1 = Path.Combine(tempDir, "test1.md");
+            var mdPath2 = Path.Combine(tempDir, "test2.md");
+            File.WriteAllText(mdPath1, "[Plan 1](plan://1)");
+            File.WriteAllText(mdPath2, "[Plan 2](plan://2)");
+
+            var tempPath1 = service.PreprocessForEditing(mdPath1);
+            var tempPath2 = service.PreprocessForEditing(mdPath2);
+
+            Assert.True(File.Exists(tempPath1));
+            Assert.True(File.Exists(tempPath2));
+
+            // Dispose should delete both temp files
+            service.Dispose();
+
+            Assert.False(File.Exists(tempPath1));
+            Assert.False(File.Exists(tempPath2));
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Dispose_SuppressesExceptions()
+    {
+        var yaml = @"
+projects:
+  - name: TestProject
+    repos:
+      - path: D:\Repos\Test
+";
+
+        var tempDir = CreateTempConfigFile(yaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+
+            var mdPath = Path.Combine(tempDir, "test.md");
+            File.WriteAllText(mdPath, "[Plan 1](plan://1)");
+
+            var tempPath = service.PreprocessForEditing(mdPath);
+
+            // Manually delete the temp file before disposal
+            File.Delete(tempPath);
+
+            // Dispose should not throw even if file is already deleted
+            service.Dispose();
+
+            // Calling Dispose again should also not throw
+            service.Dispose();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void PreprocessForEditing_ThreadSafe()
+    {
+        var yaml = @"
+projects:
+  - name: TestProject
+    repos:
+      - path: D:\Repos\Test
+";
+
+        var tempDir = CreateTempConfigFile(yaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+
+            var tempPaths = new System.Collections.Concurrent.ConcurrentBag<string>();
+
+            // Create 10 temp files concurrently
+            Parallel.For(0, 10, i =>
+            {
+                var mdPath = Path.Combine(tempDir, $"test{i}.md");
+                File.WriteAllText(mdPath, $"[Plan {i}](plan://{i})");
+                var tempPath = service.PreprocessForEditing(mdPath);
+                tempPaths.Add(tempPath);
+            });
+
+            // All temp files should exist
+            Assert.Equal(10, tempPaths.Count);
+            foreach (var tempPath in tempPaths)
+            {
+                Assert.True(File.Exists(tempPath));
+            }
+
+            // Dispose should clean up all temp files
+            service.Dispose();
+
+            foreach (var tempPath in tempPaths)
+            {
+                Assert.False(File.Exists(tempPath));
+            }
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
     public void ValidateSettings_JobTimeout_TooLow_UsesDefault()
     {
         var yaml = @"

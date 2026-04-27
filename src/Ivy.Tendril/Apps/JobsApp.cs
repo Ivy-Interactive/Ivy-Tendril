@@ -354,18 +354,18 @@ public class JobsApp : ViewBase
                     {
                         if (job.Status is JobStatus.Failed or JobStatus.Timeout or JobStatus.Stopped)
                         {
-                            if (job.Type == "CreatePlan" && !job.Args.Contains("-Description"))
+                            if (job.Type == Constants.JobTypes.CreatePlan && !job.Args.Contains("-Description"))
                             {
                                 client.Toast("Cannot rerun CreatePlan: original description was not preserved.", "Rerun Failed");
                                 return ValueTask.CompletedTask;
                             }
 
-                            if (job.Type is "ExecutePlan" or "ExpandPlan" && job.Args.Length > 0)
+                            if (job.Type is Constants.JobTypes.ExecutePlan or Constants.JobTypes.ExpandPlan && job.Args.Length > 0)
                             {
                                 var folderName = Path.GetFileName(job.Args[0]);
                                 planService.TransitionState(folderName, PlanStatus.Building);
                             }
-                            else if (job is { Type: "UpdatePlan", Args.Length: > 0 })
+                            else if (job is { Type: Constants.JobTypes.UpdatePlan, Args.Length: > 0 })
                             {
                                 var folderName = Path.GetFileName(job.Args[0]);
                                 planService.TransitionState(folderName, PlanStatus.Updating);
@@ -456,7 +456,7 @@ public class JobsApp : ViewBase
 
     private static string? GetFullPrompt(JobItem job)
     {
-        if (job.Type == "CreatePlan")
+        if (job.Type == Constants.JobTypes.CreatePlan)
         {
             for (var i = 0; i < job.Args.Length - 1; i++)
                 if (job.Args[i].Equals("-Description", StringComparison.OrdinalIgnoreCase))
@@ -538,7 +538,7 @@ public class JobsApp : ViewBase
         }
 
         // CreatePlan jobs: use the -Description arg for display when no title is available yet
-        if (j.Type == "CreatePlan")
+        if (j.Type == Constants.JobTypes.CreatePlan)
         {
             var desc = CleanPromptText(GetFullPrompt(j) ?? j.PlanFile);
             return desc.Length > PromptDisplayMaxLength ? desc[..PromptDisplayMaxLength] + "..." : desc;
