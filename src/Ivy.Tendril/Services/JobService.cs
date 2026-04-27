@@ -74,6 +74,7 @@ public class JobService : IJobService
     private readonly IWorktreeLifecycleLogger? _worktreeLifecycleLogger;
     private readonly ILogger<JobService> _logger;
     private int _counter;
+    private int _planIdCounter;
 
     public JobService(
         IConfigService configService,
@@ -102,6 +103,7 @@ public class JobService : IJobService
             : new SemaphoreSlim(0, 1);
         _inboxPath = Path.Combine(configService.TendrilHome, "Inbox");
         configService.SettingsReloaded += OnSettingsReloaded;
+        InitializePlanIdCounter(configService.PlanFolder);
         LoadHistoricalJobs();
     }
 
@@ -655,8 +657,69 @@ public class JobService : IJobService
     public void Dispose()
     {
         if (_configService != null)
+        {
             _configService.SettingsReloaded -= OnSettingsReloaded;
+
+            // Persist final counter value on shutdown
+            try
+            {
+                var counterPath = Path.Combine(_configService.PlanFolder, ".counter");
+                File.WriteAllText(counterPath, _planIdCounter.ToString());
+                _logger.LogInformation("Persisted final PlanId counter on shutdown: {Value}", _planIdCounter);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to persist .counter file on shutdown");
+            }
+        }
+
         _jobSlotSemaphore.Dispose();
+    }
+
+    private void InitializePlanIdCounter(string planFolder)
+    {
+        var counterPath = Path.Combine(planFolder, ".counter");
+        if (File.Exists(counterPath))
+        {
+            var counterText = File.ReadAllText(counterPath).Trim();
+            if (int.TryParse(counterText, out var counterValue))
+            {
+                _planIdCounter = counterValue;
+                _logger.LogInformation("Initialized PlanId counter from {Path}: {Value}", counterPath, counterValue);
+            }
+            else
+            {
+                _logger.LogWarning("Invalid .counter file at {Path}, defaulting to 1", counterPath);
+                _planIdCounter = 1;
+            }
+        }
+        else
+        {
+            _logger.LogInformation(".counter file not found at {Path}, defaulting to 1", counterPath);
+            _planIdCounter = 1;
+        }
+    }
+
+    private int AllocatePlanId()
+    {
+        var allocatedId = Interlocked.Increment(ref _planIdCounter);
+
+        // Persist counter every 10 allocations for crash recovery
+        if (allocatedId % 10 == 0 && _configService != null)
+        {
+            try
+            {
+                var counterPath = Path.Combine(_configService.PlanFolder, ".counter");
+                File.WriteAllText(counterPath, allocatedId.ToString());
+                _logger.LogDebug("Persisted PlanId counter to {Path}: {Value}", counterPath, allocatedId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to persist .counter file, continuing with in-memory value");
+            }
+        }
+
+        return allocatedId;
     }
 
     private void OnSettingsReloaded(object? sender, EventArgs e)
@@ -851,7 +914,10 @@ public class JobService : IJobService
 
         if (job.Type == "CreatePlan")
         {
-            // CreatePlan: Args is the description text, not raw parameters
+            // CreatePlan: Allocate PlanId and pass via firmware header
+            var planId = AllocatePlanId();
+            values["PlanId"] = planId.ToString("D5");
+
             var description = GetNamedArg(job.Args, "-Description") ?? string.Join(" ", job.Args);
             values["Args"] = description;
             values["PlansDirectory"] = _configService.PlanFolder;
