@@ -43,7 +43,7 @@ public class ContentView(
                          .WithProjectColor(config, selectedRecommendation.Project)
                      | new Spacer().Width(Size.Grow())
                      | Text.Rich()
-                         .Bold($"{currentIndex + 1}/{allRecommendations.Count}", word: true)
+                         .Bold($"{(currentIndex == -1 ? "?" : (currentIndex + 1).ToString())}/{allRecommendations.Count}", word: true)
                          .Muted("recommendations", word: true)
                      | new Button("Decline").Icon(Icons.X).Outline().ShortcutKey("x").OnClick(() =>
                      {
@@ -52,7 +52,7 @@ public class ContentView(
                      | new Button("Accept").Icon(Icons.Check).Primary().ShortcutKey("a").OnClick(() =>
                      {
                          planService.UpdateRecommendationState(selectedRecommendation.PlanFolderName, selectedRecommendation.Title, "Accepted");
-                         jobService.StartJob("CreatePlan", "-Description", selectedRecommendation.Description, "-Project",
+                         jobService.StartJob(Constants.JobTypes.CreatePlan, "-Description", selectedRecommendation.Description, "-Project",
                              selectedRecommendation.Project);
                          client.Toast($"Started CreatePlan: {selectedRecommendation.Title}", "Recommendation Accepted");
                          refresh();
@@ -142,7 +142,7 @@ public class ContentView(
             {
                 var description = $"[ORIGINAL RECOMMENDATION]\n{selectedRecommendation.Description}\n\n[NOTES]\n{notes}";
                 planService.UpdateRecommendationState(selectedRecommendation.PlanFolderName, selectedRecommendation.Title, "AcceptedWithNotes");
-                jobService.StartJob("CreatePlan", "-Description", description, "-Project", selectedRecommendation.Project);
+                jobService.StartJob(Constants.JobTypes.CreatePlan, "-Description", description, "-Project", selectedRecommendation.Project);
                 client.Toast($"Started CreatePlan: {selectedRecommendation.Title}", "Recommendation Accepted with Notes");
                 refresh();
                 GoToNext();
@@ -195,6 +195,7 @@ public class ContentView(
     {
         if (allRecommendations.Count == 0) return;
         var currentIndex = allRecommendations.FindIndex(r => r.PlanId == selectedRecommendation?.PlanId && r.Title == selectedRecommendation?.Title);
+        if (currentIndex == -1) return; // Prevent navigation if not found
         var nextIndex = (currentIndex + 1) % allRecommendations.Count;
         selectedState.Set(allRecommendations[nextIndex]);
     }
@@ -203,6 +204,7 @@ public class ContentView(
     {
         if (allRecommendations.Count == 0) return;
         var currentIndex = allRecommendations.FindIndex(r => r.PlanId == selectedRecommendation?.PlanId && r.Title == selectedRecommendation?.Title);
+        if (currentIndex == -1) return; // Prevent navigation if not found
         var prevIndex = (currentIndex - 1 + allRecommendations.Count) % allRecommendations.Count;
         selectedState.Set(allRecommendations[prevIndex]);
     }

@@ -44,13 +44,13 @@ public static class PlanContentHelpers
         // Try batch lookup: single git process for all commits per repo
         foreach (var repo in repoPaths)
         {
-            var summaries = gitService.GetCommitSummaries(repo, plan.Commits);
-            if (summaries == null || summaries.Count == 0) continue;
+            var summariesResult = gitService.GetCommitSummaries(repo, plan.Commits);
+            if (!summariesResult.IsSuccess || summariesResult.Value == null || summariesResult.Value.Count == 0) continue;
 
             return plan.Commits.Select(commit =>
             {
                 var shortHash = commit.Length > 7 ? commit[..7] : commit;
-                if (summaries.TryGetValue(commit, out var info))
+                if (summariesResult.Value.TryGetValue(commit, out var info))
                     return new CommitRow(commit, shortHash, info.Title, info.FileCount);
                 return new CommitRow(commit, shortHash, "", null);
             }).ToList();
@@ -63,11 +63,12 @@ public static class PlanContentHelpers
             int? fileCount = null;
             foreach (var repo in repoPaths)
             {
-                var t = gitService.GetCommitTitle(repo, commit);
-                if (t != null)
+                var titleResult = gitService.GetCommitTitle(repo, commit);
+                if (titleResult.IsSuccess)
                 {
-                    title = t;
-                    fileCount = gitService.GetCommitFileCount(repo, commit);
+                    title = titleResult.Value;
+                    var fileCountResult = gitService.GetCommitFileCount(repo, commit);
+                    fileCount = fileCountResult.IsSuccess ? fileCountResult.Value : null;
                     break;
                 }
             }
@@ -171,21 +172,25 @@ public static class PlanContentHelpers
 
         foreach (var repo in repoPaths)
         {
-            var title = gitService.GetCommitTitle(repo, firstCommit);
-            if (title == null) continue;
+            var titleResult = gitService.GetCommitTitle(repo, firstCommit);
+            if (!titleResult.IsSuccess) continue;
 
             string? diff;
             List<(string Status, string FilePath)>? files;
 
             if (plan.Commits.Count == 1)
             {
-                diff = gitService.GetCommitDiff(repo, firstCommit);
-                files = gitService.GetCommitFiles(repo, firstCommit);
+                var diffResult = gitService.GetCommitDiff(repo, firstCommit);
+                var filesResult = gitService.GetCommitFiles(repo, firstCommit);
+                diff = diffResult.IsSuccess ? diffResult.Value : null;
+                files = filesResult.IsSuccess ? filesResult.Value : null;
             }
             else
             {
-                diff = gitService.GetCombinedDiff(repo, firstCommit, lastCommit);
-                files = gitService.GetCombinedChangedFiles(repo, firstCommit, lastCommit);
+                var diffResult = gitService.GetCombinedDiff(repo, firstCommit, lastCommit);
+                var filesResult = gitService.GetCombinedChangedFiles(repo, firstCommit, lastCommit);
+                diff = diffResult.IsSuccess ? diffResult.Value : null;
+                files = filesResult.IsSuccess ? filesResult.Value : null;
             }
 
             var fileList = files ?? [];

@@ -23,12 +23,15 @@ public class CommitDetailSheet(
                 {
                     foreach (var repo in repoPaths)
                     {
-                        var title = gitService.GetCommitTitle(repo, hash);
-                        if (title != null)
+                        var titleResult = gitService.GetCommitTitle(repo, hash);
+                        if (titleResult.IsSuccess)
                         {
-                            var diff = gitService.GetCommitDiff(repo, hash);
-                            var files = gitService.GetCommitFiles(repo, hash);
-                            return new PlanContentHelpers.CommitDetailData(title, diff, files);
+                            var diffResult = gitService.GetCommitDiff(repo, hash);
+                            var filesResult = gitService.GetCommitFiles(repo, hash);
+                            return new PlanContentHelpers.CommitDetailData(
+                                titleResult.Value!,
+                                diffResult.IsSuccess ? diffResult.Value : null,
+                                filesResult.IsSuccess ? filesResult.Value : null);
                         }
                     }
                     return null;

@@ -11,8 +11,15 @@ using ModelContextProtocol.Server;
 namespace Ivy.Tendril.Mcp.Tools;
 
 [McpServerToolType]
-public sealed class PlanTools(McpAuthenticationService authService)
+public sealed class PlanTools : AuthenticatedToolBase
 {
+    private readonly McpAuthenticationService _authService;
+
+    public PlanTools(McpAuthenticationService authService) : base(authService)
+    {
+        _authService = authService;
+    }
+
     private static readonly Regex FolderNameRegex = new(@"^(\d{5})-(.+)$", RegexOptions.Compiled);
 
     [McpServerTool(Name = "tendril_get_plan"), Description("Fetch plan metadata by ID or folder path")]
@@ -20,23 +27,23 @@ public sealed class PlanTools(McpAuthenticationService authService)
         [Description("Plan ID (e.g., '03228') or full folder path")] string planId,
         [Description("Optional field name to return a single value (state, project, level, title, repos, prs, commits, verifications, recommendations, etc.)")] string? field = null)
     {
-        if (!authService.ValidateEnvironmentToken())
-            return "Error: Authentication failed. Access denied.";
-
-        try
+        return ExecuteAuthenticated(() =>
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
+            try
+            {
+                var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
+                var plan = PlanCommandHelpers.ReadPlan(planFolder);
 
-            if (!string.IsNullOrEmpty(field))
-                return GetPlanField(plan, planFolder, field);
+                if (!string.IsNullOrEmpty(field))
+                    return GetPlanField(plan, planFolder, field);
 
-            return ReadPlanSummary(plan, planFolder);
-        }
-        catch (Exception ex)
-        {
-            return $"Error: {ex.Message}";
-        }
+                return ReadPlanSummary(plan, planFolder);
+            }
+            catch (Exception ex)
+            {
+                return $"Error: {ex.Message}";
+            }
+        });
     }
 
     [McpServerTool(Name = "tendril_list_plans"), Description("Query plans by state, project, or date range")]
@@ -45,10 +52,9 @@ public sealed class PlanTools(McpAuthenticationService authService)
         [Description("Filter by project name")] string? project = null,
         [Description("Filter plans created after this date (ISO 8601, e.g., 2026-04-01)")] string? since = null)
     {
-        if (!authService.ValidateEnvironmentToken())
-            return "Error: Authentication failed. Access denied.";
-
-        try
+        return ExecuteAuthenticated(() =>
+        {
+            try
         {
             var plansDir = PlanCommandHelpers.GetPlansDirectory();
 
@@ -88,11 +94,12 @@ public sealed class PlanTools(McpAuthenticationService authService)
 
             sb.Insert(0, $"Found {count} plan(s):\n");
             return sb.ToString();
-        }
-        catch (Exception ex)
-        {
-            return $"Error: {ex.Message}";
-        }
+            }
+            catch (Exception ex)
+            {
+                return $"Error: {ex.Message}";
+            }
+        });
     }
 
     [McpServerTool(Name = "tendril_inbox"), Description("Create a new plan by writing to the Tendril inbox")]
@@ -102,7 +109,7 @@ public sealed class PlanTools(McpAuthenticationService authService)
         [Description("Priority level: Critical, Important, NiceToHave (optional)")] string? level = null,
         [Description("Detailed prompt/description for plan creation (optional)")] string? prompt = null)
     {
-        if (!authService.ValidateEnvironmentToken())
+        if (!_authService.ValidateEnvironmentToken())
             return "Error: Authentication failed. Access denied.";
 
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
@@ -148,7 +155,7 @@ public sealed class PlanTools(McpAuthenticationService authService)
         [Description("Field name (state, project, level, title, executionProfile, initialPrompt, sourceUrl, priority)")] string field,
         [Description("New value")] string value)
     {
-        if (!authService.ValidateEnvironmentToken())
+        if (!_authService.ValidateEnvironmentToken())
             return "Error: Authentication failed. Access denied.";
 
         try
@@ -244,7 +251,7 @@ public sealed class PlanTools(McpAuthenticationService authService)
         [Description("Verification name (e.g., DotnetBuild, DotnetTest)")] string name,
         [Description("Status: Pending, Pass, Fail, Skipped")] string status)
     {
-        if (!authService.ValidateEnvironmentToken())
+        if (!_authService.ValidateEnvironmentToken())
             return "Error: Authentication failed. Access denied.";
 
         try
@@ -276,7 +283,7 @@ public sealed class PlanTools(McpAuthenticationService authService)
         [Description("Action name (e.g., CreatePlan, ExecutePlan)")] string action,
         [Description("Optional summary text")] string? summary = null)
     {
-        if (!authService.ValidateEnvironmentToken())
+        if (!_authService.ValidateEnvironmentToken())
             return "Error: Authentication failed. Access denied.";
 
         try
@@ -299,7 +306,7 @@ public sealed class PlanTools(McpAuthenticationService authService)
         [Description("Impact level: Small, Medium, High (optional)")] string? impact = null,
         [Description("Risk level: Small, Medium, High (optional)")] string? risk = null)
     {
-        if (!authService.ValidateEnvironmentToken())
+        if (!_authService.ValidateEnvironmentToken())
             return "Error: Authentication failed. Access denied.";
 
         try
@@ -386,7 +393,7 @@ public sealed class PlanTools(McpAuthenticationService authService)
         [Description("Plan ID")] string planId,
         [Description("Filter by state: Pending, Accepted, Declined (optional)")] string? state = null)
     {
-        if (!authService.ValidateEnvironmentToken())
+        if (!_authService.ValidateEnvironmentToken())
             return "Error: Authentication failed. Access denied.";
 
         try
@@ -416,7 +423,7 @@ public sealed class PlanTools(McpAuthenticationService authService)
 
     private string ModifyPlan(string planId, Action<PlanYaml> modifier, string successMessage)
     {
-        if (!authService.ValidateEnvironmentToken())
+        if (!_authService.ValidateEnvironmentToken())
             return "Error: Authentication failed. Access denied.";
 
         try

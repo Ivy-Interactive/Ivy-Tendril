@@ -430,6 +430,34 @@ public class PlanToolsTests : IDisposable
         Assert.Contains("Error: Authentication failed", result);
     }
 
+    [Fact]
+    public void AllToolMethods_RequireAuthentication()
+    {
+        // Arrange - enable auth but clear token
+        CreateTestPlan();
+        Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", "secret-token");
+        var authedService = new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance);
+        Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", null);
+        var authedTools = new PlanTools(authedService);
+
+        // Act & Assert - verify all 15 tool methods return auth error
+        Assert.Contains("Error: Authentication failed", authedTools.GetPlan("00001"));
+        Assert.Contains("Error: Authentication failed", authedTools.ListPlans());
+        Assert.Contains("Error: Authentication failed", authedTools.CreatePlan("Test"));
+        Assert.Contains("Error: Authentication failed", authedTools.SetField("00001", "state", "Draft"));
+        Assert.Contains("Error: Authentication failed", authedTools.AddRepo("00001", _repoDir));
+        Assert.Contains("Error: Authentication failed", authedTools.RemoveRepo("00001", _repoDir));
+        Assert.Contains("Error: Authentication failed", authedTools.AddPr("00001", "https://github.com/test/pr/1"));
+        Assert.Contains("Error: Authentication failed", authedTools.AddCommit("00001", "abc123"));
+        Assert.Contains("Error: Authentication failed", authedTools.SetVerification("00001", "Build", "Pass"));
+        Assert.Contains("Error: Authentication failed", authedTools.AddLog("00001", "Test"));
+        Assert.Contains("Error: Authentication failed", authedTools.RecAdd("00001", "Title", "Desc"));
+        Assert.Contains("Error: Authentication failed", authedTools.RecAccept("00001", "Title"));
+        Assert.Contains("Error: Authentication failed", authedTools.RecDecline("00001", "Title"));
+        Assert.Contains("Error: Authentication failed", authedTools.RecRemove("00001", "Title"));
+        Assert.Contains("Error: Authentication failed", authedTools.RecList("00001"));
+    }
+
     // --- TENDRIL_HOME not set ---
 
     [Fact]
