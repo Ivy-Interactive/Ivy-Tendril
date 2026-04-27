@@ -197,9 +197,9 @@ internal class JobCompletionHandler
                         PlanYamlHelper.LogCostToCsv(jobArgs[0], jobType, costCalc.TotalTokens, costCalc.TotalCost);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                /* Best-effort cost tracking */
+                _logger.LogWarning(ex, "Failed to calculate session cost for job {JobId}", jobId);
             }
         });
     }
@@ -686,7 +686,7 @@ internal class JobCompletionHandler
             await Task.Delay(TimeSpan.FromSeconds(30));
             try
             {
-                PlanReaderService.RemoveWorktrees(planFolder, lifecycleLogger: lifecycleLogger);
+                WorktreeCleanupService.RemoveWorktrees(planFolder, lifecycleLogger: lifecycleLogger);
 
                 if (Directory.Exists(worktreesDir) && Directory.GetDirectories(worktreesDir).Length == 0)
                     Directory.Delete(worktreesDir, false);

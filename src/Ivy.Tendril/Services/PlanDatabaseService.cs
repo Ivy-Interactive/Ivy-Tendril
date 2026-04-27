@@ -23,6 +23,28 @@ public class PlanDatabaseService : IPlanDatabaseService
     private readonly ReaderWriterLockSlim _lock = new();
     private bool _disposed;
 
+    private sealed class ReadLockHandle : IDisposable
+    {
+        private readonly ReaderWriterLockSlim _lock;
+        public ReadLockHandle(ReaderWriterLockSlim rwLock)
+        {
+            _lock = rwLock;
+            _lock.EnterReadLock();
+        }
+        public void Dispose() => _lock.ExitReadLock();
+    }
+
+    private sealed class WriteLockHandle : IDisposable
+    {
+        private readonly ReaderWriterLockSlim _lock;
+        public WriteLockHandle(ReaderWriterLockSlim rwLock)
+        {
+            _lock = rwLock;
+            _lock.EnterWriteLock();
+        }
+        public void Dispose() => _lock.ExitWriteLock();
+    }
+
     public PlanDatabaseService(string databasePath, ILogger<PlanDatabaseService> logger)
     {
         _logger = logger;
@@ -73,8 +95,7 @@ public class PlanDatabaseService : IPlanDatabaseService
 
     public List<PlanFile> GetPlans(PlanStatus? statusFilter = null)
     {
-        _lock.EnterReadLock();
-        try
+        using (new ReadLockHandle(_lock))
         {
             var sql = """
                       SELECT Id, Title, Project, Level, State, FolderPath, FolderName,
@@ -137,16 +158,11 @@ public class PlanDatabaseService : IPlanDatabaseService
 
             return plans;
         }
-        finally
-        {
-            _lock.ExitReadLock();
-        }
     }
 
     public PlanFile? GetPlanByFolder(string folderPath)
     {
-        _lock.EnterReadLock();
-        try
+        using (new ReadLockHandle(_lock))
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
@@ -162,16 +178,11 @@ public class PlanDatabaseService : IPlanDatabaseService
 
             return null;
         }
-        finally
-        {
-            _lock.ExitReadLock();
-        }
     }
 
     public PlanFile? GetPlanById(int planId)
     {
-        _lock.EnterReadLock();
-        try
+        using (new ReadLockHandle(_lock))
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
@@ -187,16 +198,11 @@ public class PlanDatabaseService : IPlanDatabaseService
 
             return null;
         }
-        finally
-        {
-            _lock.ExitReadLock();
-        }
     }
 
     public PlanReaderService.PlanCountSnapshot ComputePlanCounts()
     {
-        _lock.EnterReadLock();
-        try
+        using (new ReadLockHandle(_lock))
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
@@ -232,16 +238,11 @@ public class PlanDatabaseService : IPlanDatabaseService
 
             return new PlanReaderService.PlanCountSnapshot(0, 0, 0, 0, 0, 0);
         }
-        finally
-        {
-            _lock.ExitReadLock();
-        }
     }
 
     public DashboardModels GetDashboardData(string? projectFilter)
     {
-        _lock.EnterReadLock();
-        try
+        using (new ReadLockHandle(_lock))
         {
             var cutoff = DateTime.UtcNow.Date.AddDays(-6).ToString("yyyy-MM-dd");
             var pf = projectFilter != null ? " AND Project = @project" : "";
@@ -396,16 +397,11 @@ public class PlanDatabaseService : IPlanDatabaseService
                 totalCount, draftCount, inProgressCount, reviewCount, completedCount, failedCount,
                 avgCost, dailyStats, projectCounts);
         }
-        finally
-        {
-            _lock.ExitReadLock();
-        }
     }
 
     public decimal GetPlanTotalCost(int planId)
     {
-        _lock.EnterReadLock();
-        try
+        using (new ReadLockHandle(_lock))
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = "SELECT COALESCE(SUM(Cost), 0) FROM Costs WHERE PlanId = @planId";
@@ -413,16 +409,11 @@ public class PlanDatabaseService : IPlanDatabaseService
             var result = cmd.ExecuteScalar();
             return result != null ? Convert.ToDecimal(result, CultureInfo.InvariantCulture) : 0m;
         }
-        finally
-        {
-            _lock.ExitReadLock();
-        }
     }
 
     public int GetPlanTotalTokens(int planId)
     {
-        _lock.EnterReadLock();
-        try
+        using (new ReadLockHandle(_lock))
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = "SELECT COALESCE(SUM(Tokens), 0) FROM Costs WHERE PlanId = @planId";
@@ -430,16 +421,11 @@ public class PlanDatabaseService : IPlanDatabaseService
             var result = cmd.ExecuteScalar();
             return result != null ? Convert.ToInt32(result, CultureInfo.InvariantCulture) : 0;
         }
-        finally
-        {
-            _lock.ExitReadLock();
-        }
     }
 
     public List<HourlyTokenBurn> GetHourlyTokenBurn(int days = 7, string? projectFilter = null)
     {
-        _lock.EnterReadLock();
-        try
+        using (new ReadLockHandle(_lock))
         {
             var cutoff = DateTime.UtcNow.AddDays(-days);
 
@@ -490,99 +476,49 @@ public class PlanDatabaseService : IPlanDatabaseService
 
             return result;
         }
-        finally
-        {
-            _lock.ExitReadLock();
-        }
     }
 
     public List<Recommendation> GetRecommendations()
     {
-        _lock.EnterReadLock();
-        try
+        using (new ReadLockHandle(_lock))
         {
-            using var cmd = _connection.CreateCommand();
-            cmd.CommandText = """
-                              SELECT r.Title, r.Description, r.State, r.PlanId, r.PlanTitle,
-                                     r.PlanFolderName, r.Project, r.Date, r.SourcePlanStatus, r.DeclineReason,
-                                     r.Impact, r.Risk
-                              FROM Recommendations r
-                              ORDER BY r.Date DESC
-                              """;
-
-            var result = new List<Recommendation>();
-            using var reader = cmd.ExecuteReader();
-            int titleOrdinal = -1,
-                descOrdinal = -1,
-                stateOrdinal = -1,
-                planIdOrdinal = -1,
-                planTitleOrdinal = -1,
-                planFolderNameOrdinal = -1,
-                projectOrdinal = -1,
-                dateOrdinal = -1,
-                sourcePlanStatusOrdinal = -1,
-                declineReasonOrdinal = -1,
-                impactOrdinal = -1,
-                riskOrdinal = -1;
-            while (reader.Read())
-            {
-                if (titleOrdinal == -1)
+            return ReadList("""
+                            SELECT r.Title, r.Description, r.State, r.PlanId, r.PlanTitle,
+                                   r.PlanFolderName, r.Project, r.Date, r.SourcePlanStatus, r.DeclineReason,
+                                   r.Impact, r.Risk
+                            FROM Recommendations r
+                            ORDER BY r.Date DESC
+                            """,
+                reader =>
                 {
-                    titleOrdinal = reader.GetOrdinal("Title");
-                    descOrdinal = reader.GetOrdinal("Description");
-                    stateOrdinal = reader.GetOrdinal("State");
-                    planIdOrdinal = reader.GetOrdinal("PlanId");
-                    planTitleOrdinal = reader.GetOrdinal("PlanTitle");
-                    planFolderNameOrdinal = reader.GetOrdinal("PlanFolderName");
-                    projectOrdinal = reader.GetOrdinal("Project");
-                    dateOrdinal = reader.GetOrdinal("Date");
-                    sourcePlanStatusOrdinal = reader.GetOrdinal("SourcePlanStatus");
-                    declineReasonOrdinal = reader.GetOrdinal("DeclineReason");
-                    impactOrdinal = reader.GetOrdinal("Impact");
-                    riskOrdinal = reader.GetOrdinal("Risk");
-                }
+                    var sourcePlanStatusStr = reader.GetString(reader.GetOrdinal("SourcePlanStatus"));
+                    if (!Enum.TryParse<PlanStatus>(sourcePlanStatusStr, true, out var sourceStatus))
+                        sourceStatus = PlanStatus.Draft;
 
-                var sourcePlanStatusStr = reader.GetString(sourcePlanStatusOrdinal);
-                if (!Enum.TryParse<PlanStatus>(sourcePlanStatusStr, true, out var sourceStatus))
-                    sourceStatus = PlanStatus.Draft;
-
-                result.Add(new Recommendation(
-                    reader.GetString(titleOrdinal),
-                    reader.GetString(descOrdinal),
-                    reader.GetString(stateOrdinal),
-                    reader.GetInt32(planIdOrdinal).ToString("D5"),
-                    reader.GetString(planTitleOrdinal),
-                    reader.GetString(planFolderNameOrdinal),
-                    reader.GetString(projectOrdinal),
-                    DateTime.Parse(reader.GetString(dateOrdinal), CultureInfo.InvariantCulture,
-                        DateTimeStyles.AdjustToUniversal),
-                    sourceStatus,
-                    reader.GetStringOrNull(declineReasonOrdinal),
-                    reader.GetStringOrNull(impactOrdinal),
-                    reader.GetStringOrNull(riskOrdinal)
-                ));
-            }
-
-            return result;
-        }
-        finally
-        {
-            _lock.ExitReadLock();
+                    return new Recommendation(
+                        reader.GetString(reader.GetOrdinal("Title")),
+                        reader.GetString(reader.GetOrdinal("Description")),
+                        reader.GetString(reader.GetOrdinal("State")),
+                        reader.GetInt32(reader.GetOrdinal("PlanId")).ToString("D5"),
+                        reader.GetString(reader.GetOrdinal("PlanTitle")),
+                        reader.GetString(reader.GetOrdinal("PlanFolderName")),
+                        reader.GetString(reader.GetOrdinal("Project")),
+                        DateTime.Parse(reader.GetString(reader.GetOrdinal("Date")), CultureInfo.InvariantCulture,
+                            DateTimeStyles.AdjustToUniversal),
+                        sourceStatus,
+                        reader.GetStringOrNull(reader.GetOrdinal("DeclineReason")),
+                        reader.GetStringOrNull(reader.GetOrdinal("Impact")),
+                        reader.GetStringOrNull(reader.GetOrdinal("Risk"))
+                    );
+                });
         }
     }
 
     public int GetPendingRecommendationsCount()
     {
-        _lock.EnterReadLock();
-        try
+        using (new ReadLockHandle(_lock))
         {
-            using var cmd = _connection.CreateCommand();
-            cmd.CommandText = "SELECT COUNT(*) FROM Recommendations WHERE State = 'Pending'";
-            return Convert.ToInt32(cmd.ExecuteScalar(), CultureInfo.InvariantCulture);
-        }
-        finally
-        {
-            _lock.ExitReadLock();
+            return ExecuteScalar<int>("SELECT COUNT(*) FROM Recommendations WHERE State = 'Pending'");
         }
     }
 
@@ -609,8 +545,7 @@ public class PlanDatabaseService : IPlanDatabaseService
 
     public List<PlanFile> SearchPlans(string query)
     {
-        _lock.EnterReadLock();
-        try
+        using (new ReadLockHandle(_lock))
         {
             // Try FTS5 first with sanitized query
             var sanitizedQuery = SanitizeFts5Query(query);
@@ -662,16 +597,11 @@ public class PlanDatabaseService : IPlanDatabaseService
 
             return plans;
         }
-        finally
-        {
-            _lock.ExitReadLock();
-        }
     }
 
     public void UpsertPlan(PlanFile plan)
     {
-        _lock.EnterWriteLock();
-        try
+        using (new WriteLockHandle(_lock))
         {
             using var transaction = _connection.BeginTransaction();
             try
@@ -685,71 +615,43 @@ public class PlanDatabaseService : IPlanDatabaseService
                 throw;
             }
         }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
     }
 
     public void DeletePlan(int planId)
     {
-        _lock.EnterWriteLock();
-        try
+        using (new WriteLockHandle(_lock))
         {
-            using var cmd = _connection.CreateCommand();
-            cmd.CommandText = "DELETE FROM Plans WHERE Id = @id";
-            cmd.Parameters.AddWithValue("@id", planId);
-            cmd.ExecuteNonQuery();
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
+            ExecuteNonQuery("DELETE FROM Plans WHERE Id = @id", new SqliteParameter("@id", planId));
         }
     }
 
     public void UpdatePlanState(int planId, PlanStatus state)
     {
-        _lock.EnterWriteLock();
-        try
+        using (new WriteLockHandle(_lock))
         {
-            using var cmd = _connection.CreateCommand();
-            cmd.CommandText = "UPDATE Plans SET State = @state, Updated = @updated WHERE Id = @id";
-            cmd.Parameters.AddWithValue("@state", state.ToString());
-            cmd.Parameters.AddWithValue("@updated", DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
-            cmd.Parameters.AddWithValue("@id", planId);
-            cmd.ExecuteNonQuery();
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
+            ExecuteNonQuery("UPDATE Plans SET State = @state, Updated = @updated WHERE Id = @id",
+                new SqliteParameter("@state", state.ToString()),
+                new SqliteParameter("@updated", DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture)),
+                new SqliteParameter("@id", planId));
         }
     }
 
     public void UpdatePlanContent(int planId, string latestRevisionContent, int revisionCount)
     {
-        _lock.EnterWriteLock();
-        try
+        using (new WriteLockHandle(_lock))
         {
-            using var cmd = _connection.CreateCommand();
-            cmd.CommandText =
-                "UPDATE Plans SET LatestRevisionContent = @content, RevisionCount = @count, Updated = @updated WHERE Id = @id";
-            cmd.Parameters.AddWithValue("@content", latestRevisionContent);
-            cmd.Parameters.AddWithValue("@count", revisionCount);
-            cmd.Parameters.AddWithValue("@updated", DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
-            cmd.Parameters.AddWithValue("@id", planId);
-            cmd.ExecuteNonQuery();
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
+            ExecuteNonQuery("UPDATE Plans SET LatestRevisionContent = @content, RevisionCount = @count, Updated = @updated WHERE Id = @id",
+                new SqliteParameter("@content", latestRevisionContent),
+                new SqliteParameter("@count", revisionCount),
+                new SqliteParameter("@updated", DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture)),
+                new SqliteParameter("@id", planId));
         }
     }
 
     public void UpdateRecommendationState(int planId, string recommendationTitle, string newState,
         string? declineReason)
     {
-        _lock.EnterWriteLock();
-        try
+        using (new WriteLockHandle(_lock))
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
@@ -762,16 +664,11 @@ public class PlanDatabaseService : IPlanDatabaseService
             cmd.Parameters.AddWithValue("@title", recommendationTitle);
             cmd.ExecuteNonQuery();
         }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
     }
 
     public void UpsertCosts(int planId, List<CostEntry> costs)
     {
-        _lock.EnterWriteLock();
-        try
+        using (new WriteLockHandle(_lock))
         {
             using var deleteCmd = _connection.CreateCommand();
             deleteCmd.CommandText = "DELETE FROM Costs WHERE PlanId = @planId";
@@ -803,17 +700,12 @@ public class PlanDatabaseService : IPlanDatabaseService
                 insertCmd.ExecuteNonQuery();
             }
         }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
     }
 
     public void UpsertRecommendations(int planId, string folderName, List<RecommendationYaml> recommendations,
         string project, string planTitle, DateTime updated, PlanStatus status)
     {
-        _lock.EnterWriteLock();
-        try
+        using (new WriteLockHandle(_lock))
         {
             using var deleteCmd = _connection.CreateCommand();
             deleteCmd.CommandText = "DELETE FROM Recommendations WHERE PlanId = @planId";
@@ -861,16 +753,11 @@ public class PlanDatabaseService : IPlanDatabaseService
                 insertCmd.ExecuteNonQuery();
             }
         }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
     }
 
     public HashSet<int> GetTerminalPlanIds()
     {
-        _lock.EnterReadLock();
-        try
+        using (new ReadLockHandle(_lock))
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = "SELECT Id FROM Plans WHERE State IN ('Completed', 'Skipped')";
@@ -880,16 +767,11 @@ public class PlanDatabaseService : IPlanDatabaseService
                 ids.Add(reader.GetInt32(0));
             return ids;
         }
-        finally
-        {
-            _lock.ExitReadLock();
-        }
     }
 
     public void BulkUpsertPlans(List<PlanFile> plans, bool forceOverwrite = false)
     {
-        _lock.EnterWriteLock();
-        try
+        using (new WriteLockHandle(_lock))
         {
             if (plans.Count == 0) return;
 
@@ -906,16 +788,11 @@ public class PlanDatabaseService : IPlanDatabaseService
                 throw;
             }
         }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
     }
 
     public void UpsertJob(JobItem job)
     {
-        _lock.EnterWriteLock();
-        try
+        using (new WriteLockHandle(_lock))
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
@@ -940,25 +817,14 @@ public class PlanDatabaseService : IPlanDatabaseService
             cmd.Parameters.AddWithValue("@args", job.Args.Length > 0 ? JsonSerializer.Serialize(job.Args) : (object)DBNull.Value);
             cmd.ExecuteNonQuery();
         }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
     }
 
     public List<JobItem> GetRecentJobs(int limit = 100)
     {
-        _lock.EnterReadLock();
-        try
+        using (new ReadLockHandle(_lock))
         {
-            using var cmd = _connection.CreateCommand();
-            cmd.CommandText = "SELECT * FROM Jobs ORDER BY CompletedAt DESC LIMIT @limit";
-            cmd.Parameters.AddWithValue("@limit", limit);
-
-            var jobs = new List<JobItem>();
-            using var reader = cmd.ExecuteReader();
-            while (reader.Read())
-                jobs.Add(new JobItem
+            return ReadList("SELECT * FROM Jobs ORDER BY CompletedAt DESC LIMIT @limit",
+                reader => new JobItem
                 {
                     Id = reader.GetString(reader.GetOrdinal("Id")),
                     Type = reader.GetString(reader.GetOrdinal("Type")),
@@ -992,19 +858,14 @@ public class PlanDatabaseService : IPlanDatabaseService
                     Args = reader.IsDBNull(reader.GetOrdinal("Args"))
                         ? []
                         : JsonSerializer.Deserialize<string[]>(reader.GetString(reader.GetOrdinal("Args"))) ?? []
-                });
-            return jobs;
-        }
-        finally
-        {
-            _lock.ExitReadLock();
+                },
+                new SqliteParameter("@limit", limit));
         }
     }
 
     public void PurgeOldJobs(int keepCount = 500)
     {
-        _lock.EnterWriteLock();
-        try
+        using (new WriteLockHandle(_lock))
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
@@ -1018,48 +879,27 @@ public class PlanDatabaseService : IPlanDatabaseService
             cmd.Parameters.AddWithValue("@keepCount", keepCount);
             cmd.ExecuteNonQuery();
         }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
     }
 
     public void DeleteJob(string id)
     {
-        _lock.EnterWriteLock();
-        try
+        using (new WriteLockHandle(_lock))
         {
-            using var cmd = _connection.CreateCommand();
-            cmd.CommandText = "DELETE FROM Jobs WHERE Id = @id";
-            cmd.Parameters.AddWithValue("@id", id);
-            cmd.ExecuteNonQuery();
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
+            ExecuteNonQuery("DELETE FROM Jobs WHERE Id = @id", new SqliteParameter("@id", id));
         }
     }
 
     public long GetDatabaseSize()
     {
-        _lock.EnterReadLock();
-        try
+        using (new ReadLockHandle(_lock))
         {
-            using var cmd = _connection.CreateCommand();
-            cmd.CommandText = "SELECT page_count * page_size FROM pragma_page_count(), pragma_page_size()";
-            var result = cmd.ExecuteScalar();
-            return result != null ? Convert.ToInt64(result, CultureInfo.InvariantCulture) : 0;
-        }
-        finally
-        {
-            _lock.ExitReadLock();
+            return ExecuteScalar<long>("SELECT page_count * page_size FROM pragma_page_count(), pragma_page_size()");
         }
     }
 
     public DateTime GetLastSyncTime()
     {
-        _lock.EnterReadLock();
-        try
+        using (new ReadLockHandle(_lock))
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = "SELECT Value FROM SyncMetadata WHERE Key = 'LastSyncTime'";
@@ -1069,54 +909,37 @@ public class PlanDatabaseService : IPlanDatabaseService
                 return dt;
             return DateTime.MinValue;
         }
-        finally
-        {
-            _lock.ExitReadLock();
-        }
     }
 
     public void SetLastSyncTime(DateTime time)
     {
-        _lock.EnterWriteLock();
-        try
+        using (new WriteLockHandle(_lock))
         {
-            using var cmd = _connection.CreateCommand();
-            cmd.CommandText = """
-                              INSERT INTO SyncMetadata (Key, Value) VALUES ('LastSyncTime', @value)
-                              ON CONFLICT(Key) DO UPDATE SET Value = excluded.Value
-                              """;
-            cmd.Parameters.AddWithValue("@value", time.ToString("O", CultureInfo.InvariantCulture));
-            cmd.ExecuteNonQuery();
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
+            ExecuteNonQuery("""
+                            INSERT INTO SyncMetadata (Key, Value) VALUES ('LastSyncTime', @value)
+                            ON CONFLICT(Key) DO UPDATE SET Value = excluded.Value
+                            """,
+                new SqliteParameter("@value", time.ToString("O", CultureInfo.InvariantCulture)));
         }
     }
 
     public Dictionary<string, string> GetAllPrStatuses()
     {
-        _lock.EnterReadLock();
-        try
+        using (new ReadLockHandle(_lock))
         {
-            using var cmd = _connection.CreateCommand();
-            cmd.CommandText = "SELECT PrUrl, Status FROM PrStatuses";
+            var list = ReadList("SELECT PrUrl, Status FROM PrStatuses", reader =>
+                (Url: reader.GetString(0), Status: reader.GetString(1)));
+
             var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            using var reader = cmd.ExecuteReader();
-            while (reader.Read())
-                result[reader.GetString(0)] = reader.GetString(1);
+            foreach (var (url, status) in list)
+                result[url] = status;
             return result;
-        }
-        finally
-        {
-            _lock.ExitReadLock();
         }
     }
 
     public void UpsertPrStatus(string prUrl, string owner, string repo, string status, DateTime lastChecked)
     {
-        _lock.EnterWriteLock();
-        try
+        using (new WriteLockHandle(_lock))
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
@@ -1133,51 +956,76 @@ public class PlanDatabaseService : IPlanDatabaseService
             cmd.Parameters.AddWithValue("@checked", lastChecked.ToString("O", CultureInfo.InvariantCulture));
             cmd.ExecuteNonQuery();
         }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
     }
 
     public List<string> GetNonMergedPrUrls()
     {
-        _lock.EnterReadLock();
-        try
+        using (new ReadLockHandle(_lock))
         {
-            using var cmd = _connection.CreateCommand();
-            cmd.CommandText = "SELECT PrUrl FROM PrStatuses WHERE Status != 'Merged'";
-            var result = new List<string>();
-            using var reader = cmd.ExecuteReader();
-            while (reader.Read())
-                result.Add(reader.GetString(0));
-            return result;
-        }
-        finally
-        {
-            _lock.ExitReadLock();
+            return ReadList("SELECT PrUrl FROM PrStatuses WHERE Status != 'Merged'",
+                reader => reader.GetString(0));
         }
     }
 
     public void RebuildFtsIndex()
     {
-        _lock.EnterWriteLock();
-        try
+        using (new WriteLockHandle(_lock))
         {
-            using var cmd = _connection.CreateCommand();
-            cmd.CommandText = "INSERT INTO PlanSearch(PlanSearch) VALUES('delete-all');";
-            cmd.ExecuteNonQuery();
+            ExecuteNonQuery("INSERT INTO PlanSearch(PlanSearch) VALUES('delete-all');");
+            ExecuteNonQuery("""
+                            INSERT INTO PlanSearch(rowid, Title, LatestRevisionContent, Project, InitialPrompt, SourceUrl)
+                            SELECT Id, Title, LatestRevisionContent, Project, InitialPrompt, SourceUrl
+                            FROM Plans;
+                            """);
+        }
+    }
 
-            cmd.CommandText = """
-                              INSERT INTO PlanSearch(rowid, Title, LatestRevisionContent, Project, InitialPrompt, SourceUrl)
-                              SELECT Id, Title, LatestRevisionContent, Project, InitialPrompt, SourceUrl
-                              FROM Plans;
-                              """;
-            cmd.ExecuteNonQuery();
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
+    /// <summary>
+    /// Executes a scalar query and returns the result as T. Must be called within a lock.
+    /// </summary>
+    private T ExecuteScalar<T>(string sql, params SqliteParameter[] parameters)
+    {
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = sql;
+        foreach (var param in parameters)
+            cmd.Parameters.Add(param);
+
+        var result = cmd.ExecuteScalar();
+        if (result == null || result is DBNull)
+            return default(T)!;
+
+        return (T)Convert.ChangeType(result, typeof(T), CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// Executes a query and maps each row to T using the provided mapper function. Must be called within a lock.
+    /// </summary>
+    private List<T> ReadList<T>(string sql, Func<SqliteDataReader, T> mapper, params SqliteParameter[] parameters)
+    {
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = sql;
+        foreach (var param in parameters)
+            cmd.Parameters.Add(param);
+
+        var result = new List<T>();
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+            result.Add(mapper(reader));
+
+        return result;
+    }
+
+    /// <summary>
+    /// Executes a non-query command (INSERT, UPDATE, DELETE). Must be called within a lock.
+    /// </summary>
+    private int ExecuteNonQuery(string sql, params SqliteParameter[] parameters)
+    {
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = sql;
+        foreach (var param in parameters)
+            cmd.Parameters.Add(param);
+
+        return cmd.ExecuteNonQuery();
     }
 
     public void Dispose()

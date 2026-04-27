@@ -97,6 +97,6 @@ public class RerunDialog(
             WorktreeCleanupService.ForceDeleteDirectory(verificationDir, logger);
         }
 
-        PlanReaderService.RemoveWorktrees(planFolderPath, logger);
+        WorktreeCleanupService.RemoveWorktrees(planFolderPath, logger);
     }
 }
