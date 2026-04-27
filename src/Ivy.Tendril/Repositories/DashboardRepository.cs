@@ -8,7 +8,7 @@ namespace Ivy.Tendril.Repositories;
 public class DashboardRepository
 {
     private readonly SqliteConnection _connection;
-    private readonly ILogger _logger;
+    private readonly ILogger<DashboardRepository> _logger;
     private readonly ReaderWriterLockSlim _lock;
 
     private sealed class ReadLockHandle : IDisposable
@@ -22,7 +22,7 @@ public class DashboardRepository
         public void Dispose() => _lock.ExitReadLock();
     }
 
-    public DashboardRepository(SqliteConnection connection, ReaderWriterLockSlim lockSlim, ILogger logger)
+    public DashboardRepository(SqliteConnection connection, ReaderWriterLockSlim lockSlim, ILogger<DashboardRepository> logger)
     {
         _connection = connection;
         _lock = lockSlim;

@@ -3,6 +3,7 @@ using Ivy.Helpers;
 using Ivy.Tendril.AppShell;
 using Ivy.Tendril.Controllers;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.SessionParsers;
 using Ivy.Tendril.Helpers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.AI;
@@ -43,8 +44,10 @@ public static class TendrilServer
             server.UseAuth<Auth.TendrilAuthProvider>();
         }
 
-        server.Services.AddSingleton<ModelPricingService>(sp =>
-            new ModelPricingService(sp.GetRequiredService<ILogger<ModelPricingService>>()));
+        server.Services.AddSingleton<ISessionParser, ClaudeSessionParser>();
+        server.Services.AddSingleton<ISessionParser, CodexSessionParser>();
+        server.Services.AddSingleton<ISessionParser, GeminiSessionParser>();
+        server.Services.AddSingleton<ModelPricingService>();
         server.Services.AddSingleton<IModelPricingService>(sp => sp.GetRequiredService<ModelPricingService>());
 
         // Register IChatClient if LLM is configured
