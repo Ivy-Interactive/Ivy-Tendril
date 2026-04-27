@@ -15,8 +15,8 @@ public class MarkdownHelperTests : IDisposable
     {
         var markdown = "[AgentContext.cs](file:///C:/nonexistent/path/AgentContext.cs)";
         var result = MarkdownHelper.AnnotateBrokenFileLinks(markdown);
-        Assert.Contains("\u26a0\ufe0f", result);
-        Assert.Contains("[AgentContext.cs \u26a0\ufe0f](file:///C:/nonexistent/path/AgentContext.cs)", result);
+        Assert.Contains("⚠️", result);
+        Assert.Contains("[AgentContext.cs ⚠️](file:///C:/nonexistent/path/AgentContext.cs)", result);
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public class MarkdownHelperTests : IDisposable
         {
             var markdown = $"[test.txt](file:///{tempFile.Replace("\\", "/")})";
             var result = MarkdownHelper.AnnotateBrokenFileLinks(markdown);
-            Assert.DoesNotContain("\u26a0\ufe0f", result);
+            Assert.DoesNotContain("⚠️", result);
             Assert.Equal(markdown, result);
         }
         finally
@@ -49,7 +49,7 @@ public class MarkdownHelperTests : IDisposable
             var result = MarkdownHelper.AnnotateBrokenFileLinks(markdown);
 
             Assert.Contains(validLink, result);
-            Assert.Contains("[broken.cs \u26a0\ufe0f](file:///C:/nonexistent/broken.cs)", result);
+            Assert.Contains("[broken.cs ⚠️](file:///C:/nonexistent/broken.cs)", result);
         }
         finally
         {
@@ -81,70 +81,55 @@ public class MarkdownHelperTests : IDisposable
     public void AnnotateBrokenPlanLinks_ValidPlan_RemainsUnchanged()
     {
         var tempPlansDir = Path.Combine(_tempDir.Path, $"plans-{Guid.NewGuid()}");
-            Directory.CreateDirectory(Path.Combine(tempPlansDir, "01234-TestPlan"));
-            var markdown = "[Plan 01234](plan://01234)";
-            var result = MarkdownHelper.AnnotateBrokenPlanLinks(markdown, tempPlansDir);
-            Assert.DoesNotContain("\u26a0\ufe0f", result);
-            Assert.Equal(markdown, result);
+        Directory.CreateDirectory(Path.Combine(tempPlansDir, "01234-TestPlan"));
+        var markdown = "[Plan 01234](plan://01234)";
+        var result = MarkdownHelper.AnnotateBrokenPlanLinks(markdown, tempPlansDir);
+        Assert.DoesNotContain("⚠️", result);
+        Assert.Equal(markdown, result);
     }
 
     [Fact]
     public void AnnotateBrokenPlanLinks_BrokenPlan_AddsWarningIndicator()
     {
         var tempPlansDir = Path.Combine(_tempDir.Path, $"plans-{Guid.NewGuid()}");
-            Directory.CreateDirectory(tempPlansDir);
-            var markdown = "[Plan 99999](plan://99999)";
-            var result = MarkdownHelper.AnnotateBrokenPlanLinks(markdown, tempPlansDir);
-            Assert.Contains("\u26a0\ufe0f", result);
-            Assert.Contains("[Plan 99999 \u26a0\ufe0f](plan://99999)", result);
-        }
-        finally
-        {
-            Directory.Delete(tempPlansDir, true);
-        }
+        Directory.CreateDirectory(tempPlansDir);
+        var markdown = "[Plan 99999](plan://99999)";
+        var result = MarkdownHelper.AnnotateBrokenPlanLinks(markdown, tempPlansDir);
+        Assert.Contains("⚠️", result);
+        Assert.Contains("[Plan 99999 ⚠️](plan://99999)", result);
     }
 
     [Fact]
     public void AnnotateBrokenPlanLinks_PlanIdWithoutLeadingZeros_Works()
     {
         var tempPlansDir = Path.Combine(_tempDir.Path, $"plans-{Guid.NewGuid()}");
-            Directory.CreateDirectory(Path.Combine(tempPlansDir, "00123-TestPlan"));
-            var markdown = "[Plan 123](plan://123)";
-            var result = MarkdownHelper.AnnotateBrokenPlanLinks(markdown, tempPlansDir);
-            Assert.DoesNotContain("\u26a0\ufe0f", result);
-            Assert.Equal(markdown, result);
+        Directory.CreateDirectory(Path.Combine(tempPlansDir, "00123-TestPlan"));
+        var markdown = "[Plan 123](plan://123)";
+        var result = MarkdownHelper.AnnotateBrokenPlanLinks(markdown, tempPlansDir);
+        Assert.DoesNotContain("⚠️", result);
+        Assert.Equal(markdown, result);
     }
 
     [Fact]
     public void FindFilesInRepos_FindsMatchingFiles()
     {
         var tempTestDir = Path.Combine(_tempDir.Path, $"test-{Guid.NewGuid()}");
-            var subDir = Path.Combine(tempDir, "sub");
-            Directory.CreateDirectory(subDir);
-            File.WriteAllText(Path.Combine(subDir, "Target.cs"), "// test");
+        var subDir = Path.Combine(tempTestDir, "sub");
+        Directory.CreateDirectory(subDir);
+        File.WriteAllText(Path.Combine(subDir, "Target.cs"), "// test");
 
-            var results = MarkdownHelper.FindFilesInRepos([tempDir], "Target.cs");
-            Assert.Single(results);
-            Assert.EndsWith("Target.cs", results[0]);
-        }
-        finally
-        {
-            Directory.Delete(tempDir, true);
-        }
+        var results = MarkdownHelper.FindFilesInRepos([tempTestDir], "Target.cs");
+        Assert.Single(results);
+        Assert.EndsWith("Target.cs", results[0]);
     }
 
     [Fact]
     public void FindFilesInRepos_NoMatch_ReturnsEmpty()
     {
         var tempTestDir = Path.Combine(_tempDir.Path, $"test-{Guid.NewGuid()}");
-            Directory.CreateDirectory(tempTestDir);
-            var results = MarkdownHelper.FindFilesInRepos([tempDir], "NonExistent.cs");
-            Assert.Empty(results);
-        }
-        finally
-        {
-            Directory.Delete(tempDir, true);
-        }
+        Directory.CreateDirectory(tempTestDir);
+        var results = MarkdownHelper.FindFilesInRepos([tempTestDir], "NonExistent.cs");
+        Assert.Empty(results);
     }
 
     [Fact]
@@ -159,6 +144,8 @@ public class MarkdownHelperTests : IDisposable
     {
         var tempFile = Path.GetTempFileName();
         var tempPlansDir = Path.Combine(_tempDir.Path, $"plans-{Guid.NewGuid()}");
+        try
+        {
             Directory.CreateDirectory(tempPlansDir);
             var validFileLink = $"[valid.txt](file:///{tempFile.Replace("\\", "/")})";
             var brokenPlanLink = "[Plan 99999](plan://99999)";
@@ -167,13 +154,12 @@ public class MarkdownHelperTests : IDisposable
             var result = MarkdownHelper.AnnotateAllBrokenLinks(markdown, tempPlansDir);
 
             Assert.Contains(validFileLink, result);
-            Assert.Contains("[Plan 99999 \u26a0\ufe0f](plan://99999)", result);
-            Assert.Equal(1, result.Split("\u26a0\ufe0f").Length - 1);
+            Assert.Contains("[Plan 99999 ⚠️](plan://99999)", result);
+            Assert.Equal(1, result.Split("⚠️").Length - 1);
         }
         finally
         {
             File.Delete(tempFile);
-            Directory.Delete(tempPlansDir, true);
         }
     }
 
@@ -181,42 +167,32 @@ public class MarkdownHelperTests : IDisposable
     public void AnnotateAllBrokenLinks_BrokenFileLink_ValidPlanLink()
     {
         var tempPlansDir = Path.Combine(_tempDir.Path, $"plans-{Guid.NewGuid()}");
-            Directory.CreateDirectory(Path.Combine(tempPlansDir, "01234-TestPlan"));
-            var brokenFileLink = "[broken.cs](file:///C:/nonexistent/broken.cs)";
-            var validPlanLink = "[Plan 01234](plan://01234)";
-            var markdown = $"See {brokenFileLink} and {validPlanLink}";
+        Directory.CreateDirectory(Path.Combine(tempPlansDir, "01234-TestPlan"));
+        var brokenFileLink = "[broken.cs](file:///C:/nonexistent/broken.cs)";
+        var validPlanLink = "[Plan 01234](plan://01234)";
+        var markdown = $"See {brokenFileLink} and {validPlanLink}";
 
-            var result = MarkdownHelper.AnnotateAllBrokenLinks(markdown, tempPlansDir);
+        var result = MarkdownHelper.AnnotateAllBrokenLinks(markdown, tempPlansDir);
 
-            Assert.Contains("[broken.cs \u26a0\ufe0f](file:///C:/nonexistent/broken.cs)", result);
-            Assert.Contains(validPlanLink, result);
-            Assert.Equal(1, result.Split("\u26a0\ufe0f").Length - 1);
-        }
-        finally
-        {
-            Directory.Delete(tempPlansDir, true);
-        }
+        Assert.Contains("[broken.cs ⚠️](file:///C:/nonexistent/broken.cs)", result);
+        Assert.Contains(validPlanLink, result);
+        Assert.Equal(1, result.Split("⚠️").Length - 1);
     }
 
     [Fact]
     public void AnnotateAllBrokenLinks_BothBroken()
     {
         var tempPlansDir = Path.Combine(_tempDir.Path, $"plans-{Guid.NewGuid()}");
-            Directory.CreateDirectory(tempPlansDir);
-            var brokenFileLink = "[broken.cs](file:///C:/nonexistent/broken.cs)";
-            var brokenPlanLink = "[Plan 99999](plan://99999)";
-            var markdown = $"See {brokenFileLink} and {brokenPlanLink}";
+        Directory.CreateDirectory(tempPlansDir);
+        var brokenFileLink = "[broken.cs](file:///C:/nonexistent/broken.cs)";
+        var brokenPlanLink = "[Plan 99999](plan://99999)";
+        var markdown = $"See {brokenFileLink} and {brokenPlanLink}";
 
-            var result = MarkdownHelper.AnnotateAllBrokenLinks(markdown, tempPlansDir);
+        var result = MarkdownHelper.AnnotateAllBrokenLinks(markdown, tempPlansDir);
 
-            Assert.Contains("[broken.cs \u26a0\ufe0f](file:///C:/nonexistent/broken.cs)", result);
-            Assert.Contains("[Plan 99999 \u26a0\ufe0f](plan://99999)", result);
-            Assert.Equal(2, result.Split("\u26a0\ufe0f").Length - 1);
-        }
-        finally
-        {
-            Directory.Delete(tempPlansDir, true);
-        }
+        Assert.Contains("[broken.cs ⚠️](file:///C:/nonexistent/broken.cs)", result);
+        Assert.Contains("[Plan 99999 ⚠️](plan://99999)", result);
+        Assert.Equal(2, result.Split("⚠️").Length - 1);
     }
 
     [Fact]
@@ -224,6 +200,8 @@ public class MarkdownHelperTests : IDisposable
     {
         var tempFile = Path.GetTempFileName();
         var tempPlansDir = Path.Combine(_tempDir.Path, $"plans-{Guid.NewGuid()}");
+        try
+        {
             Directory.CreateDirectory(Path.Combine(tempPlansDir, "01234-TestPlan"));
             var validFileLink = $"[valid.txt](file:///{tempFile.Replace("\\", "/")})";
             var validPlanLink = "[Plan 01234](plan://01234)";
@@ -231,13 +209,12 @@ public class MarkdownHelperTests : IDisposable
 
             var result = MarkdownHelper.AnnotateAllBrokenLinks(markdown, tempPlansDir);
 
-            Assert.DoesNotContain("\u26a0\ufe0f", result);
+            Assert.DoesNotContain("⚠️", result);
             Assert.Equal(markdown, result);
         }
         finally
         {
             File.Delete(tempFile);
-            Directory.Delete(tempPlansDir, true);
         }
     }
 }

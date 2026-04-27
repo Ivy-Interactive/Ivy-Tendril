@@ -10,13 +10,10 @@ namespace Ivy.Tendril.Commands;
 
 public class PlanCreateSettings : CommandSettings
 {
-    [Description("Plan ID (e.g., 03430)")]
-    [CommandArgument(0, "<plan-id>")]
-    public string PlanId { get; set; } = "";
-
     [Description("Plan title")]
-    [CommandArgument(1, "<title>")]
+    [CommandArgument(0, "<title>")]
     public string Title { get; set; } = "";
+
 
     [Description("Project name (default: Auto)")]
     [CommandOption("--project")]
@@ -74,15 +71,20 @@ public class PlanCreateCommand : Command<PlanCreateSettings>
     {
         try
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
+            var plansDir = PlanCommandHelpers.GetPlansDirectory();
 
-            // Check if plan.yaml already exists
-            var yamlPath = Path.Combine(planFolder, "plan.yaml");
-            if (File.Exists(yamlPath))
+            var planId = PlanYamlHelper.AllocatePlanId(plansDir);
+            var safeTitle = PlanYamlHelper.ToSafeTitle(settings.Title);
+            var folderName = $"{planId}-{safeTitle}";
+            var planFolder = Path.Combine(plansDir, folderName);
+
+            if (Directory.Exists(planFolder))
             {
-                _logger.LogError("Plan already exists at {YamlPath}", yamlPath);
+                _logger.LogError("Plan folder already exists: {PlanFolder}", planFolder);
                 return 1;
             }
+
+            Directory.CreateDirectory(planFolder);
 
             var plan = new PlanYaml
             {
@@ -125,12 +127,14 @@ public class PlanCreateCommand : Command<PlanCreateSettings>
 
             PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
-            _logger.LogInformation("Created plan {PlanId}: {Title}", settings.PlanId, settings.Title);
+            Console.WriteLine($"PlanId: {planId}");
+            Console.WriteLine($"Directory: {planFolder}");
+            Console.WriteLine($"Plan created: {folderName}");
             return 0;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to create plan {PlanId}", settings.PlanId);
+            _logger.LogError(ex, "Failed to create plan");
             return 1;
         }
     }

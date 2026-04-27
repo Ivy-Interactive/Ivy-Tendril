@@ -17,7 +17,7 @@ public class JobServiceTimeoutTests : IDisposable
     {
         _tempDir.Dispose();
     }
-{
+
     private static JobService CreateService(
         TimeSpan jobTimeout,
         TimeSpan staleOutputTimeout,

@@ -34,7 +34,7 @@ public class PlanControllerTests : IDisposable
 
     private string CreateTestPlan(string id = "00001", string title = "Test Plan", string state = "Draft")
     {
-        var plansDir = Path.Combine(_tempDir, "Plans");
+        var plansDir = Path.Combine(_tempDir.Path, "Plans");
         var planFolder = Path.Combine(plansDir, $"{id}-{title.Replace(" ", "")}");
         Directory.CreateDirectory(planFolder);
 
@@ -103,7 +103,7 @@ public class PlanControllerTests : IDisposable
     [Fact]
     public void GetPlan_NotFound_Returns404()
     {
-        Directory.CreateDirectory(Path.Combine(_tempDir, "Plans"));
+        Directory.CreateDirectory(Path.Combine(_tempDir.Path, "Plans"));
         var controller = CreateController();
 
         var result = controller.GetPlan("99999");
@@ -261,7 +261,7 @@ public class PlanControllerTests : IDisposable
     [Fact]
     public void SetField_NotFound_Returns404()
     {
-        Directory.CreateDirectory(Path.Combine(_tempDir, "Plans"));
+        Directory.CreateDirectory(Path.Combine(_tempDir.Path, "Plans"));
         var controller = CreateController();
 
         var result = controller.SetField("99999", new SetFieldRequest("state", "Draft"));
@@ -276,7 +276,7 @@ public class PlanControllerTests : IDisposable
     {
         CreateTestPlan();
         var controller = CreateController();
-        var newRepo = Path.Combine(_tempDir, "repos", "AnotherRepo");
+        var newRepo = Path.Combine(_tempDir.Path, "repos", "AnotherRepo");
         Directory.CreateDirectory(newRepo);
 
         var result = controller.AddRepo("00001", new AddRepoRequest(newRepo));
@@ -307,7 +307,7 @@ public class PlanControllerTests : IDisposable
     {
         CreateTestPlan();
         var controller = CreateController();
-        var extraRepo = Path.Combine(_tempDir, "repos", "ExtraRepo");
+        var extraRepo = Path.Combine(_tempDir.Path, "repos", "ExtraRepo");
         Directory.CreateDirectory(extraRepo);
         controller.AddRepo("00001", new AddRepoRequest(extraRepo));
 

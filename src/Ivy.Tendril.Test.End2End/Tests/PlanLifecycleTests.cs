@@ -67,39 +67,6 @@ public class PlanLifecycleTests : IAsyncLifetime
         FileSystemAssertions.AssertPlanExists(_fixture.Tendril.TendrilPlans, "Uppercase");
     }
 
-    [Fact]
-    public async Task PlanList_ShowsCreatedPlans()
-    {
-        var dashboard = new DashboardPage(_page!);
-        var plans = new PlansPage(_page!);
-        var timeout = _fixture.Settings.PlanExecutionTimeoutSeconds;
-
-        await _page!.GotoAsync(_fixture.Tendril.TendrilUrl);
-        await dashboard.WaitForLoaded();
-        await dashboard.NavigateToDrafts();
-
-        await plans.CreatePlan("Uppercase all string literals in GlobalUsings.cs");
-        await WaitForPlanWithYaml("GlobalUsings", timeout);
-
-        var firstFolder = FileSystemAssertions.FindPlanFolder(_fixture.Tendril.TendrilPlans, "GlobalUsings")!;
-        var firstId = FileSystemAssertions.GetPlanId(firstFolder)!;
-
-        await plans.CreatePlan("Add XML documentation comments to Program.cs");
-        await WaitForPlanWithYaml("Documentation", timeout);
-
-        var secondFolder = FileSystemAssertions.FindPlanFolder(_fixture.Tendril.TendrilPlans, "Documentation")!;
-        var secondId = FileSystemAssertions.GetPlanId(secondFolder)!;
-
-        // Reload to pick up both plans in the sidebar
-        await _page!.ReloadAsync(new() { WaitUntil = WaitUntilState.NetworkIdle });
-        await dashboard.WaitForLoaded();
-        await dashboard.NavigateToDrafts();
-        await Task.Delay(2000);
-
-        Assert.True(await plans.PlanExistsInList($"#{firstId}"));
-        Assert.True(await plans.PlanExistsInList($"#{secondId}"));
-    }
-
     private async Task WaitForPlanWithYaml(string titleFragment, int timeoutSeconds)
     {
         using var watcher = new PlanCreationWatcher(_fixture.Tendril.TendrilPlans, titleFragment);

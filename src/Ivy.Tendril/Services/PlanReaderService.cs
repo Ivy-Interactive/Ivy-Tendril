@@ -727,24 +727,7 @@ public class PlanReaderService(
                 return null;
             }
 
-            var yamlContent = FileHelper.ReadAllText(planYamlPath);
-            PlanYaml? planYaml;
-
-            try
-            {
-                planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(yamlContent);
-            }
-            catch (Exception ex)
-            {
-                // Fall back to the repair pass for malformed agent-generated YAML.
-                _logger.LogWarning(ex, "Failed to parse plan YAML {PlanYamlPath}, attempting repair", planYamlPath);
-                var repaired = PlanYamlRepairService.RepairPlanYaml(yamlContent);
-                if (repaired != yamlContent)
-                    FileHelper.WriteAllText(planYamlPath, repaired);
-
-                planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(repaired);
-            }
-
+            var planYaml = ParsePlanYaml(planYamlPath);
             if (planYaml == null) return null;
 
             var folderName = Path.GetFileName(folderPath);
@@ -773,13 +756,10 @@ public class PlanReaderService(
                 planYaml.InitialPrompt,
                 planYaml.SourceUrl
             );
-            var latestContent = ReadLatestRevisionFromFileSystem(folderName);
 
-            var revisionsDir = Path.Combine(folderPath, "revisions");
-            var revisionCount = Directory.Exists(revisionsDir)
-                ? Directory.GetFiles(revisionsDir, "*.md").Length
-                : 1;
-            if (revisionCount == 0) revisionCount = 1;
+            var latestContent = ReadLatestRevisionFromFileSystem(folderName);
+            var yamlContent = FileHelper.ReadAllText(planYamlPath);
+            var revisionCount = GetLatestRevisionNumber(folderPath);
 
             return new PlanFile(metadata, latestContent, folderPath, yamlContent, revisionCount);
         }
@@ -788,6 +768,39 @@ public class PlanReaderService(
             _logger.LogWarning(ex, "Failed to parse plan folder: {FolderPath}", folderPath);
             return null;
         }
+    }
+
+    private PlanYaml? ParsePlanYaml(string planYamlPath)
+    {
+        var yamlContent = FileHelper.ReadAllText(planYamlPath);
+        PlanYaml? planYaml;
+
+        try
+        {
+            planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(yamlContent);
+        }
+        catch (Exception ex)
+        {
+            // Fall back to the repair pass for malformed agent-generated YAML.
+            _logger.LogWarning(ex, "Failed to parse plan YAML {PlanYamlPath}, attempting repair", planYamlPath);
+            var repaired = PlanYamlRepairService.RepairPlanYaml(yamlContent);
+            if (repaired != yamlContent)
+                FileHelper.WriteAllText(planYamlPath, repaired);
+
+            planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(repaired);
+        }
+
+        return planYaml;
+    }
+
+    private static int GetLatestRevisionNumber(string folderPath)
+    {
+        var revisionsDir = Path.Combine(folderPath, "revisions");
+        var revisionCount = Directory.Exists(revisionsDir)
+            ? Directory.GetFiles(revisionsDir, "*.md").Length
+            : 1;
+        if (revisionCount == 0) revisionCount = 1;
+        return revisionCount;
     }
 
     private static int? ExtractPlanId(string folderPath)
@@ -828,6 +841,38 @@ public class PlanReaderService(
         return (totalCost, totalTokens);
     }
 
+    private IEnumerable<Recommendation> ExtractPlanRecommendations(string folderName, string planYamlPath)
+    {
+        var planYaml = FileHelper.ReadAllText(planYamlPath);
+        var plan = YamlHelper.Deserializer.Deserialize<PlanYaml>(planYaml);
+        if (plan == null) yield break;
+
+        var match = FolderNameRegex.Match(folderName);
+        var planId = match.Groups[1].Value;
+
+        if (!Enum.TryParse<PlanStatus>(plan.State, true, out var status))
+            status = PlanStatus.Draft;
+
+        var items = plan.Recommendations;
+        if (items == null) yield break;
+
+        foreach (var item in items)
+            yield return new Recommendation(
+                item.Title,
+                item.Description,
+                string.IsNullOrWhiteSpace(item.State) ? "Pending" : item.State,
+                planId,
+                plan.Title ?? "",
+                folderName,
+                plan.Project ?? "",
+                plan.Updated,
+                status,
+                item.DeclineReason,
+                item.Impact,
+                item.Risk
+            );
+    }
+
     private List<Recommendation> ComputeRecommendations()
     {
         var recommendations = new List<Recommendation>();
@@ -836,36 +881,7 @@ public class PlanReaderService(
         {
             try
             {
-                var planYaml = FileHelper.ReadAllText(planYamlPath);
-                var plan = YamlHelper.Deserializer.Deserialize<PlanYaml>(planYaml);
-                if (plan == null) continue;
-
-                var match = FolderNameRegex.Match(folderName);
-                var planId = match.Groups[1].Value;
-
-                if (!Enum.TryParse<PlanStatus>(plan.State, true, out var status))
-                    status = PlanStatus.Draft;
-
-                var items = plan.Recommendations;
-
-                if (items != null)
-                {
-                    foreach (var item in items)
-                        recommendations.Add(new Recommendation(
-                            item.Title,
-                            item.Description,
-                            string.IsNullOrWhiteSpace(item.State) ? "Pending" : item.State,
-                            planId,
-                            plan.Title ?? "",
-                            folderName,
-                            plan.Project ?? "",
-                            plan.Updated,
-                            status,
-                            item.DeclineReason,
-                            item.Impact,
-                            item.Risk
-                        ));
-                }
+                recommendations.AddRange(ExtractPlanRecommendations(folderName, planYamlPath));
             }
             catch (Exception ex)
             {

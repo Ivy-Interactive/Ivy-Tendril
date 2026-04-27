@@ -91,7 +91,7 @@ internal class JobLauncher
         var id = job.Id;
         var type = job.Type;
 
-        var (processInfo, stdin) = TryBuildAgentProcessStart(job);
+        var (processInfo, stdin) = TryBuildAgentProcessStart(ctx);
         psi = processInfo;
         stdinContent = stdin;
 
@@ -176,28 +176,61 @@ internal class JobLauncher
         var cts = new CancellationTokenSource(ctx.JobTimeout);
         job.TimeoutCts = cts;
 
+        // Hard timeout guard - ensures the job is completed even if WaitForExitOrKillAsync hangs
+        var hardTimeout = ctx.JobTimeout + TimeSpan.FromMinutes(5);
+        var hardTimeoutCts = new CancellationTokenSource(hardTimeout);
+
         Task.Run(async () =>
         {
             _logger.LogDebug("Job {JobId}: Monitor task started", id);
 
             try
             {
-                if (await process.WaitForExitOrKillAsync(cts.Token))
+                var waitTask = process.WaitForExitOrKillAsync(cts.Token);
+                var completedTask = await Task.WhenAny(waitTask, Task.Delay(hardTimeout, hardTimeoutCts.Token));
+
+                if (completedTask == waitTask)
                 {
-                    if (ctx.Jobs.TryGetValue(id, out var j) && j.StaleOutputDetected)
+                    var normalExit = await waitTask;
+                    if (normalExit)
                     {
-                        _logger.LogInformation("Job {JobId}: Process exited, stale output detected", id);
-                        ctx.CompleteJob(id, null, true, true);
+                        if (ctx.Jobs.TryGetValue(id, out var j) && j.StaleOutputDetected)
+                        {
+                            _logger.LogInformation("Job {JobId}: Process exited, stale output detected", id);
+                            ctx.CompleteJob(id, null, true, true);
+                        }
+                        else
+                        {
+                            _logger.LogInformation("Job {JobId}: Process exited with code {ExitCode}", id, process.ExitCode);
+                            ctx.CompleteJob(id, process.ExitCode, false, false);
+                        }
                     }
                     else
                     {
-                        _logger.LogInformation("Job {JobId}: Process exited with code {ExitCode}", id, process.ExitCode);
-                        ctx.CompleteJob(id, process.ExitCode, false, false);
+                        _logger.LogWarning("Job {JobId}: Process killed after timeout", id);
+                        ctx.CompleteJob(id, null, true, false);
                     }
                 }
                 else
                 {
-                    _logger.LogWarning("Job {JobId}: Process killed after timeout", id);
+                    _logger.LogError("Job {JobId}: HARD TIMEOUT after {Minutes} minutes - process may still be running",
+                        id, hardTimeout.TotalMinutes);
+                    CrashLog.Write($"[{DateTime.UtcNow:O}] Job {id} hit hard timeout after {hardTimeout.TotalMinutes} minutes - WaitForExitOrKillAsync did not complete");
+
+                    // Try one last forceful kill
+                    try
+                    {
+                        if (!process.HasExited)
+                        {
+                            _logger.LogWarning("Job {JobId}: Attempting emergency kill", id);
+                            process.Kill(entireProcessTree: true);
+                        }
+                    }
+                    catch (Exception killEx)
+                    {
+                        _logger.LogError(killEx, "Job {JobId}: Emergency kill failed", id);
+                    }
+
                     ctx.CompleteJob(id, null, true, false);
                 }
 
@@ -212,6 +245,10 @@ internal class JobLauncher
                 _logger.LogError(ex, "Job {JobId}: Monitor task exception", id);
                 CrashLog.Write($"[{DateTime.UtcNow:O}] JobService process monitor exception for job {id}: {ex}");
                 ctx.CompleteJob(id, null, false, false);
+            }
+            finally
+            {
+                hardTimeoutCts.Dispose();
             }
         });
 
@@ -244,8 +281,19 @@ internal class JobLauncher
                     {
                         return;
                     }
+                    catch (ObjectDisposedException)
+                    {
+                        return;
+                    }
 
-                    if (timeoutCts.Token.IsCancellationRequested) return;
+                    try
+                    {
+                        if (timeoutCts.Token.IsCancellationRequested) return;
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        return;
+                    }
                 }
 
                 if (!jobs.TryGetValue(id, out var job) || job.Status != JobStatus.Running)
@@ -282,6 +330,7 @@ internal class JobLauncher
                     await Task.Delay(TimeSpan.FromSeconds(1), timeoutCts.Token);
                 }
                 catch (OperationCanceledException) { return; }
+                catch (ObjectDisposedException) { return; }
 
                 if (!jobs.TryGetValue(id, out var job) || job.Status != JobStatus.Running)
                     break;
@@ -335,15 +384,16 @@ internal class JobLauncher
         };
     }
 
-    private (ProcessStartInfo? Psi, string? StdinContent) TryBuildAgentProcessStart(JobItem job)
+    private (ProcessStartInfo? Psi, string? StdinContent) TryBuildAgentProcessStart(JobLaunchContext ctx)
     {
         if (_configService == null) return (null, null);
 
+        var job = ctx.Job;
         var programFolder = Path.Combine(_promptsRoot, job.Type);
         if (!HasAgentDirectProgram(programFolder, job.Type)) return (null, null);
 
         var settings = _configService.Settings;
-        var (values, planYaml, profileOverride) = BuildFirmwareValues(job, programFolder);
+        var (values, planYaml, profileOverride) = BuildFirmwareValues(ctx, programFolder);
 
         values["Project"] = job.Project;
 
@@ -385,8 +435,9 @@ internal class JobLauncher
     }
 
     private (Dictionary<string, string> Values, PlanYaml? PlanYaml, string? ProfileOverride)
-        BuildFirmwareValues(JobItem job, string programFolder)
+        BuildFirmwareValues(JobLaunchContext ctx, string programFolder)
     {
+        var job = ctx.Job;
         var values = new Dictionary<string, string>
         {
             ["ClaudeSessionId"] = job.SessionId ?? ""
@@ -394,22 +445,19 @@ internal class JobLauncher
 
         if (job.Type == Constants.JobTypes.CreatePlan)
         {
-            BuildCreatePlanFirmware(job, values);
+            BuildCreatePlanFirmware(ctx, values);
             return (values, null, null);
         }
 
         return BuildNonCreatePlanFirmware(job, values);
     }
 
-    private void BuildCreatePlanFirmware(JobItem job, Dictionary<string, string> values)
+    private void BuildCreatePlanFirmware(JobLaunchContext ctx, Dictionary<string, string> values)
     {
+        var job = ctx.Job;
         var description = PlanYamlHelper.GetNamedArg(job.Args, "-Description") ?? string.Join(" ", job.Args);
         values["Args"] = description;
         values["PlansDirectory"] = _configService!.PlanFolder;
-
-        var planId = PlanYamlHelper.AllocatePlanId(_configService.PlanFolder);
-        values["PlanId"] = planId;
-        job.AllocatedPlanId = planId;
     }
 
     private (Dictionary<string, string> Values, PlanYaml? PlanYaml, string? ProfileOverride)

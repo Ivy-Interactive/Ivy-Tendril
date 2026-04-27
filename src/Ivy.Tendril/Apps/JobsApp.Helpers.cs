@@ -29,10 +29,14 @@ public partial class JobsApp
 
     private static string FormatLastOutput(JobItem job)
     {
-        if (job.LastOutputAt.HasValue && job.Status == JobStatus.Running)
+        if (job.Status == JobStatus.Running)
         {
-            var elapsed = DateTime.UtcNow - job.LastOutputAt.Value;
-            return FormatTimeSpan(elapsed);
+            if (job.LastOutputAt.HasValue)
+            {
+                var elapsed = DateTime.UtcNow - job.LastOutputAt.Value;
+                return FormatTimeSpan(elapsed);
+            }
+            return "Starting...";
         }
 
         return "-";
@@ -70,31 +74,45 @@ public partial class JobsApp
 
     private static string GetPromptDisplay(JobItem j, IPlanReaderService planService)
     {
-        if (!string.IsNullOrEmpty(j.PlanFile))
-        {
-            var fullPath = Path.Combine(planService.PlansDirectory, j.PlanFile);
-            var plan = planService.GetPlanByFolder(fullPath);
-            if (plan != null && !string.IsNullOrEmpty(plan.Title))
-            {
-                var title = CleanPromptText(plan.Title);
-                return title.Length > PromptDisplayMaxLength ? title[..PromptDisplayMaxLength] + "..." : title;
-            }
-        }
+        // Try loading plan title from service
+        if (TryGetPlanTitle(j.PlanFile, planService, out var planTitle))
+            return TruncatePrompt(planTitle);
 
+        // Try reported title
         if (!string.IsNullOrEmpty(j.ReportedPlanTitle))
-        {
-            var title = CleanPromptText(j.ReportedPlanTitle);
-            return title.Length > PromptDisplayMaxLength ? title[..PromptDisplayMaxLength] + "..." : title;
-        }
+            return TruncatePrompt(j.ReportedPlanTitle);
 
+        // Try CreatePlan description
         if (j.Type == "CreatePlan")
+            return TruncatePrompt(GetFullPrompt(j) ?? j.PlanFile);
+
+        // Fallback to plan file
+        return TruncatePrompt(j.PlanFile);
+    }
+
+    private static bool TryGetPlanTitle(string? planFile, IPlanReaderService planService, out string title)
+    {
+        title = string.Empty;
+        if (string.IsNullOrEmpty(planFile)) return false;
+
+        var fullPath = Path.Combine(planService.PlansDirectory, planFile);
+        var plan = planService.GetPlanByFolder(fullPath);
+
+        if (plan != null && !string.IsNullOrEmpty(plan.Title))
         {
-            var desc = CleanPromptText(GetFullPrompt(j) ?? j.PlanFile);
-            return desc.Length > PromptDisplayMaxLength ? desc[..PromptDisplayMaxLength] + "..." : desc;
+            title = plan.Title;
+            return true;
         }
 
-        var pf = CleanPromptText(j.PlanFile);
-        return pf.Length > PromptDisplayMaxLength ? pf[..PromptDisplayMaxLength] + "..." : pf;
+        return false;
+    }
+
+    private static string TruncatePrompt(string? text)
+    {
+        var cleaned = CleanPromptText(text ?? string.Empty);
+        return cleaned.Length > PromptDisplayMaxLength
+            ? cleaned[..PromptDisplayMaxLength] + "..."
+            : cleaned;
     }
 
     private static string GetStatusMessage(JobItem job)

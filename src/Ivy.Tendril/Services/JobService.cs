@@ -217,6 +217,10 @@ public class JobService : IJobService
 
         JobCompletionHandler.CleanupInboxFile(job);
         _completionHandler.ResetPlanState(job);
+
+        if (job.Type is Constants.JobTypes.ExecutePlan or Constants.JobTypes.CreatePr)
+            _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);
+
         RaiseJobsStructureChanged();
 
         // Try to start queued jobs now that a slot is free

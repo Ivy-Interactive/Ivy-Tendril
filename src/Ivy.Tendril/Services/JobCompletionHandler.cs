@@ -756,6 +756,12 @@ internal class JobCompletionHandler
         }
     }
 
+    internal void HandleRetryBlockedJobs(
+        ConcurrentDictionary<string, JobItem> jobs,
+        Action<JobNotification> raiseNotification,
+        Func<string, string[], string> startJobSkipDepCheck)
+        => RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck);
+
     private void RetryBlockedJobs(
         ConcurrentDictionary<string, JobItem> jobs,
         Action<JobNotification> raiseNotification,
@@ -773,9 +779,9 @@ internal class JobCompletionHandler
             var (ok, _) = CheckDependencies(planFolder);
             if (!ok) continue;
 
-            if (!jobs.TryRemove(blockedJob.Id, out _)) continue;
-
             if (HasActiveJobForPlan(planFolder, jobs)) continue;
+
+            if (!jobs.TryRemove(blockedJob.Id, out _)) continue;
 
             PlanYamlHelper.SetPlanStateByFolder(planFolder, "Building");
             startJobSkipDepCheck(blockedJob.Type, blockedJob.Args);
@@ -827,11 +833,27 @@ internal class JobCompletionHandler
 
     private static bool HasActiveJobForPlan(string planFolder, ConcurrentDictionary<string, JobItem> jobs)
     {
+        var planRepos = PlanYamlHelper.ReadPlanYaml(planFolder)?.Repos;
+
         return jobs.Values.Any(j =>
-            j.Type == Constants.JobTypes.ExecutePlan &&
-            j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
-            j.Args.Length > 0 &&
-            j.Args[0].Equals(planFolder, StringComparison.OrdinalIgnoreCase));
+        {
+            if (j.Type != Constants.JobTypes.ExecutePlan) return false;
+            if (j.Status is not (JobStatus.Running or JobStatus.Queued or JobStatus.Pending)) return false;
+            if (j.Args.Length == 0) return false;
+
+            var otherFolder = j.Args[0];
+            if (otherFolder.Equals(planFolder, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (planRepos is { Count: > 0 })
+            {
+                var otherRepos = PlanYamlHelper.ReadPlanYaml(otherFolder)?.Repos;
+                if (otherRepos != null && planRepos.Any(r => otherRepos.Contains(r, StringComparer.OrdinalIgnoreCase)))
+                    return true;
+            }
+
+            return false;
+        });
     }
 
     private string? ResolvePlanFolder(JobItem job)

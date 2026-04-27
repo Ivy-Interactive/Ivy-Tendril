@@ -122,7 +122,14 @@ tendril plan validate <plan-id>
 ### Creating a plan
 
 ```bash
-tendril plan create <plan-id> <title> [options]
+tendril plan create <title> [options]
+```
+
+Auto-allocates a plan ID, creates the folder, and writes `plan.yaml`. Outputs:
+```
+PlanId: 01234
+Directory: /path/to/Plans/01234-SafeTitle
+Plan created: 01234-SafeTitle
 ```
 
 Options:
@@ -253,7 +260,7 @@ Scratch for clones, downloads, intermediates. Safe to delete after the plan fini
 
 ## .counter
 
-Single integer in `{planFolder}/.counter`; CreatePlan reads and increments for new IDs.
+Single integer in `{planFolder}/.counter`; managed by `tendril plan create`. Do not read or modify directly — always use the CLI.
 
 ## Verifications
 

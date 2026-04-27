@@ -3,6 +3,7 @@ using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.SessionParsers;
 using Ivy.Tendril.Test.Helpers;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test;
@@ -144,6 +145,7 @@ public class BackgroundServiceActivatorTests : IAsyncLifetime
         var config = new FreshInstallConfigService(settings);
 
         var services = new ServiceCollection();
+        services.AddLogging();
         services.AddSingleton<IConfigService>(config);
         services.AddSingleton<ISessionParser, ClaudeSessionParser>();
         services.AddSingleton<ISessionParser, CodexSessionParser>();
