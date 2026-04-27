@@ -633,8 +633,9 @@ public class PlanDatabaseService : IPlanDatabaseService
                 {
                     plans = ExecuteSearchQuery(ftsCmd);
                 }
-                catch (Microsoft.Data.Sqlite.SqliteException)
+                catch (Microsoft.Data.Sqlite.SqliteException ex)
                 {
+                    _logger?.LogDebug(ex, "FTS5 query syntax error for query '{Query}', falling back to LIKE", sanitizedQuery);
                     // FTS5 syntax error — safety net for edge cases the sanitizer doesn't handle
                     plans = [];
                 }
