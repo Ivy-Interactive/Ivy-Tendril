@@ -319,11 +319,7 @@ public class JobService : IJobService
         if (_database == null) return;
         try
         {
-            var historicalJobs = _database.GetRecentJobs()
-                .Where(j => j.Status != JobStatus.Completed
-                         && j.Status != JobStatus.Failed
-                         && j.Status != JobStatus.Timeout
-                         && j.Status != JobStatus.Stopped);
+            var historicalJobs = _database.GetRecentJobs();
             foreach (var job in historicalJobs) _jobs.TryAdd(job.Id, job);
         }
         catch
