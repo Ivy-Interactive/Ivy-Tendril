@@ -51,8 +51,11 @@ public class WallpaperApp : ViewBase
             var updateCommand = "dotnet tool update -g Ivy.Tendril";
             var notification = new FloatingPanel(
                 new Card(
-                    Layout.Vertical().Gap(false)
-                    | Text.P($"v{versionInfo.Value.LatestVersion} available").Small()
+                    Layout.Vertical().Gap(2)
+                    | Text.Rich()
+                        .Bold($"v{versionInfo.Value.LatestVersion}")
+                        .Run($" is available (you have v{versionInfo.Value.CurrentVersion})")
+                        .Small()
                     | (Layout.Horizontal().Gap(1)
                         | new Button("Copy update command", () => copyToClipboard(updateCommand))
                             .Variant(ButtonVariant.Primary)
