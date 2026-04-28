@@ -334,7 +334,7 @@ public class ContentView(
         }
 
         var reviewAnnotated = MarkdownHelper.AnnotateAllBrokenLinks(selectedPlan.LatestRevisionContent, planService.PlansDirectory);
-        var planTabContent = Layout.Vertical().Scroll(Scroll.Vertical).Height(Size.Full())
+        var planTabContent = Layout.Vertical().Height(Size.Full())
             | new Markdown(reviewAnnotated)
                 .DangerouslyAllowLocalFiles()
                 .OnLinkClick(FileLinkHelper.CreateFileLinkClickHandler(openFile, planId =>
@@ -502,7 +502,8 @@ public class ContentView(
 
         object Cap(object inner)
         {
-            return Layout.Vertical().Width(Size.Auto().Max(Size.Units(200))).Height(Size.Full()) | inner;
+            return Layout.Vertical().Scroll(Scroll.Auto).Width(Size.Full()).Height(Size.Full())
+                | (Layout.Vertical().Width(Size.Full().Max(Size.Units(200))) | inner);
         }
     }
 
