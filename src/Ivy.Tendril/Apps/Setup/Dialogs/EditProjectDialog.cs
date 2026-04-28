@@ -241,30 +241,30 @@ public class EditProjectDialog(
                                .OnClick(async () =>
                                {
                                    var tcs = new TaskCompletionSource<string[]?>();
-                                       var thread = new Thread(() =>
+                                   var thread = new Thread(() =>
+                                   {
+                                       try
                                        {
-                                           try
-                                           {
-                                               var folders = desktop.ShowSelectFolderDialog("Select Repository Folder");
-                                               tcs.SetResult(folders);
-                                           }
-                                           catch (Exception ex)
-                                           {
-                                               tcs.SetException(ex);
-                                           }
-                                       });
-                                       
-                                       if (OperatingSystem.IsWindows())
-                                       {
-                                           thread.SetApartmentState(ApartmentState.STA);
+                                           var folders = desktop.ShowSelectFolderDialog("Select Repository Folder");
+                                           tcs.SetResult(folders);
                                        }
-                                       thread.Start();
+                                       catch (Exception ex)
+                                       {
+                                           tcs.SetException(ex);
+                                       }
+                                   });
 
-                                       var result = await tcs.Task;
-                                       if (result != null && result.Length > 0)
-                                       {
-                                           newRepoPath.Set(result[0]);
-                                       }
+                                   if (OperatingSystem.IsWindows())
+                                   {
+                                       thread.SetApartmentState(ApartmentState.STA);
+                                   }
+                                   thread.Start();
+
+                                   var result = await tcs.Task;
+                                   if (result != null && result.Length > 0)
+                                   {
+                                       newRepoPath.Set(result[0]);
+                                   }
                                })
                            | newRepoPrRule.ToSelectInput(new List<string> { "default", "yolo" })
                                .Width(Size.Units(20)))
@@ -283,6 +283,8 @@ public class EditProjectDialog(
                            | newRepoBaseBranch.ToTextInput("Base branch (optional)")
                                .Width(Size.Grow()));
         }
+
+        reposLayout |= new Button("Add").Icon(Icons.Plus).Outline().OnClick(() => addRepoAction());
 
         // Verifications switches
         var verificationsLayout = Layout.Vertical().Gap(1);
