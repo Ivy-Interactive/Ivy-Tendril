@@ -82,6 +82,8 @@ public class WallpaperApp : ViewBase
         if (counts.Reviews > 0)
             parts.Add($"{counts.Reviews} {(counts.Reviews == 1 ? "review" : "reviews")} waiting");
 
-        return "You have " + string.Join(", ", parts) + ".";
+        return parts.Count > 0
+            ? "You have " + string.Join(", ", parts) + "."
+            : "No current drafts, jobs or reviews.";
     }
 }
