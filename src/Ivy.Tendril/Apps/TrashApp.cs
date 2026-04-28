@@ -92,16 +92,18 @@ public class TrashApp : ViewBase
                             });
 
             var annotatedContent = MarkdownHelper.AnnotateAllBrokenLinks(selected.Content, planService.PlansDirectory);
-            var scrollableContent = Layout.Vertical().Width(Size.Auto().Max(Size.Units(200)))
+            var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200)))
                                     | new Markdown(annotatedContent)
                                         .DangerouslyAllowLocalFiles()
                                         .OnLinkClick(FileLinkHelper.CreateFileLinkClickHandler(openFile));
 
+            var scrollWrapper = Layout.Vertical().Scroll(Scroll.Auto).Width(Size.Full())
+                                | scrollableContent;
             mainContent = new HeaderLayout(
                 header,
                 new FooterLayout(
                     actionBar,
-                    scrollableContent
+                    scrollWrapper
                 ).Size(Size.Full())
             ).Scroll(Scroll.None).Size(Size.Full());
         }

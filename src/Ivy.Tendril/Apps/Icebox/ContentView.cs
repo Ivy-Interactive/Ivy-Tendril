@@ -44,7 +44,7 @@ public class ContentView(
                          .Muted("plans", word: true)
             ;
 
-        var scrollableContent = Layout.Vertical().Width(Size.Auto().Max(Size.Units(200)))
+        var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200)))
                                 |
                                 new Markdown(MarkdownHelper.AnnotateAllBrokenLinks(selectedPlan.LatestRevisionContent, planService.PlansDirectory))
                                     .DangerouslyAllowLocalFiles()
@@ -96,7 +96,7 @@ public class ContentView(
                             })
                         );
 
-        var mainContent = Layout.Vertical()
+        var mainContent = Layout.Vertical().Scroll(Scroll.Auto).Width(Size.Full())
                           | scrollableContent;
 
         var mainLayout = new HeaderLayout(

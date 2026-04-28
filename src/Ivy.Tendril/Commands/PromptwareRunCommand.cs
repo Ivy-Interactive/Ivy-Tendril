@@ -64,15 +64,15 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
     ///     then falling back to TENDRIL_HOME/Promptwares/ for promptwares that
     ///     only exist in the deployed location (e.g. team config promptwares).
     /// </summary>
-    private static string ResolvePromptwareFolder(string promptwareName)
+    private static string ResolvePromptwareFolder(string promptwareName, string? tendrilHome)
     {
-        var sourceRoot = JobService.ResolvePromptsRoot();
+        var sourceRoot = Ivy.Tendril.Helpers.PromptwareHelper.ResolvePromptsRoot(tendrilHome);
         var sourceFolder = Path.Combine(sourceRoot, promptwareName);
 
         if (File.Exists(Path.Combine(sourceFolder, "Program.md")))
             return sourceFolder;
 
-        var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
+        tendrilHome ??= Environment.GetEnvironmentVariable("TENDRIL_HOME");
         if (!string.IsNullOrEmpty(tendrilHome))
         {
             var deployedRoot = Path.Combine(tendrilHome, "Promptwares");
@@ -89,7 +89,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         var configService = new ConfigService();
         var tendrilSettings = configService.Settings;
 
-        var programFolder = ResolvePromptwareFolder(settings.Promptware);
+        var programFolder = ResolvePromptwareFolder(settings.Promptware, configService.TendrilHome);
         var programMd = Path.Combine(programFolder, "Program.md");
 
         if (!File.Exists(programMd))

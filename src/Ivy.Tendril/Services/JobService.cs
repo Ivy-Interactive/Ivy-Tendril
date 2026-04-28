@@ -12,28 +12,7 @@ public record JobNotification(string Title, string Message, bool IsSuccess);
 
 public class JobService : IJobService
 {
-    private static readonly string PromptsRoot = ResolvePromptsRoot();
 
-    internal static string ResolvePromptsRoot()
-    {
-        // 1. Debug/source mode: check if Promptwares exists relative to BaseDirectory
-        var sourceRoot = Path.GetFullPath(
-            Path.Combine(System.AppContext.BaseDirectory, "..", "..", "..", "Promptwares"));
-        if (Directory.Exists(sourceRoot))
-            return sourceRoot;
-
-        // 2. Production mode: use TENDRIL_HOME/Promptwares
-        var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
-        if (!string.IsNullOrEmpty(tendrilHome))
-        {
-            var deployedRoot = Path.Combine(tendrilHome, "Promptwares");
-            if (Directory.Exists(deployedRoot))
-                return deployedRoot;
-        }
-
-        // 3. Fallback (will fail at runtime, but gives a clear error location)
-        return sourceRoot;
-    }
 
     private readonly IConfigService? _configService;
     private readonly IPlanDatabaseService? _database;
@@ -55,6 +34,7 @@ public class JobService : IJobService
     private readonly ILogger<JobService> _logger;
     private readonly JobLauncher _jobLauncher;
     private readonly JobCompletionHandler _completionHandler;
+    private readonly string _promptsRoot;
     private int _counter;
 
     public JobService(
@@ -83,10 +63,11 @@ public class JobService : IJobService
             ? new SemaphoreSlim(_maxConcurrentJobs, _maxConcurrentJobs)
             : new SemaphoreSlim(0, 1);
         _inboxPath = Path.Combine(configService.TendrilHome, "Inbox");
-        _jobLauncher = new JobLauncher(configService, _logger, PromptsRoot);
+        _promptsRoot = Ivy.Tendril.Helpers.PromptwareHelper.ResolvePromptsRoot(configService.TendrilHome);
+        _jobLauncher = new JobLauncher(configService, _logger, _promptsRoot);
         _completionHandler = new JobCompletionHandler(
             configService, _logger, modelPricingService, planReaderService,
-            telemetryService, planWatcherService, worktreeLifecycleLogger, PromptsRoot);
+            telemetryService, planWatcherService, worktreeLifecycleLogger, _promptsRoot);
         configService.SettingsReloaded += OnSettingsReloaded;
         LoadHistoricalJobs();
     }
@@ -113,10 +94,11 @@ public class JobService : IJobService
         _planReaderService = planReaderService;
         _telemetryService = telemetryService;
         _database = database;
-        _jobLauncher = new JobLauncher(null, _logger, PromptsRoot);
+        _promptsRoot = Ivy.Tendril.Helpers.PromptwareHelper.ResolvePromptsRoot();
+        _jobLauncher = new JobLauncher(null, _logger, _promptsRoot);
         _completionHandler = new JobCompletionHandler(
             null, _logger, null, planReaderService, telemetryService,
-            null, null, PromptsRoot);
+            null, null, _promptsRoot);
         LoadHistoricalJobs();
     }
 
@@ -319,11 +301,7 @@ public class JobService : IJobService
         if (_database == null) return;
         try
         {
-            var historicalJobs = _database.GetRecentJobs()
-                .Where(j => j.Status != JobStatus.Completed
-                         && j.Status != JobStatus.Failed
-                         && j.Status != JobStatus.Timeout
-                         && j.Status != JobStatus.Stopped);
+            var historicalJobs = _database.GetRecentJobs();
             foreach (var job in historicalJobs) _jobs.TryAdd(job.Id, job);
         }
         catch

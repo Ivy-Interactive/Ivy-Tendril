@@ -23,7 +23,7 @@ public class PlanTabView(
         }
         else
         {
-            var planLayout = Layout.Vertical().Scroll(Scroll.Auto).Height(Size.Full());
+            var planLayout = Layout.Vertical().Height(Size.Full());
             if (selectedPlan.Status == PlanStatus.Failed)
                 planLayout |= ContentView.BuildFailureCallout(selectedPlan);
 

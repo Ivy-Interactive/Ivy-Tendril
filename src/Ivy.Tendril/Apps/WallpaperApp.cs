@@ -30,7 +30,7 @@ public class WallpaperApp : ViewBase
 
         var heading = hasActivity ? "What are we making next?" : "Welcome to Ivy Tendril";
         var subtitle = hasActivity ? BuildSummary(counts) : "Manage your plans, track jobs, and review pull requests.";
-        var buttonLabel = hasActivity ? "New Plan" : "Create your first Plan";
+        var buttonLabel = hasActivity ? "New Plan" : "Create your first plan";
 
         var elements = new List<object>
         {
@@ -51,8 +51,11 @@ public class WallpaperApp : ViewBase
             var updateCommand = "dotnet tool update -g Ivy.Tendril";
             var notification = new FloatingPanel(
                 new Card(
-                    Layout.Vertical().Gap(false)
-                    | Text.P($"v{versionInfo.Value.LatestVersion} available").Small()
+                    Layout.Vertical().Gap(2)
+                    | Text.Rich()
+                        .Bold($"v{versionInfo.Value.LatestVersion}")
+                        .Run($" is available (you have v{versionInfo.Value.CurrentVersion})")
+                        .Small()
                     | (Layout.Horizontal().Gap(1)
                         | new Button("Copy update command", () => copyToClipboard(updateCommand))
                             .Variant(ButtonVariant.Primary)
@@ -82,6 +85,8 @@ public class WallpaperApp : ViewBase
         if (counts.Reviews > 0)
             parts.Add($"{counts.Reviews} {(counts.Reviews == 1 ? "review" : "reviews")} waiting");
 
-        return "You have " + string.Join(", ", parts) + ".";
+        return parts.Count > 0
+            ? "You have " + string.Join(", ", parts) + "."
+            : "No current drafts, jobs or reviews.";
     }
 }
