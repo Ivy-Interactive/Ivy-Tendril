@@ -27,6 +27,10 @@ public class SoftwareCheckStepView(
             () => CheckCommand("gemini", "--version"),
             CheckGeminiAuth,
             "Run `gemini` to authenticate (opens browser). Verify auth before selecting Gemini as your coding agent."),
+        new("Copilot CLI", "copilot", "https://githubnext.com/projects/copilot-cli", false,
+            () => CheckCommand("copilot", "--version"),
+            () => CheckHealth("copilot", "-p \"ping\" --allow-all -s"),
+            "Run `copilot` to log in, or check your GitHub Copilot subscription"),
         new("Git", "git", "https://git-scm.com/downloads", true,
             () => CheckCommand("git", "--version")),
         new("PowerShell", "powershell", "https://github.com/PowerShell/PowerShell", true,
@@ -41,13 +45,14 @@ public class SoftwareCheckStepView(
 
         var hasAnyCodingAgent = checkResults.Value != null
                                 && (checkResults.Value["claude"] || checkResults.Value["codex"] ||
-                                    checkResults.Value["gemini"]);
+                                    checkResults.Value["gemini"] || checkResults.Value["copilot"]);
 
         var ghHealthy = healthResults.Value?.GetValueOrDefault("gh") == HealthCheckStatus.Authenticated;
         var anyAgentHealthy = healthResults.Value != null
                               && (healthResults.Value.GetValueOrDefault("claude") == HealthCheckStatus.Authenticated
                                   || healthResults.Value.GetValueOrDefault("codex") == HealthCheckStatus.Authenticated
-                                  || healthResults.Value.GetValueOrDefault("gemini") == HealthCheckStatus.Authenticated);
+                                  || healthResults.Value.GetValueOrDefault("gemini") == HealthCheckStatus.Authenticated
+                                  || healthResults.Value.GetValueOrDefault("copilot") == HealthCheckStatus.Authenticated);
 
         var allRequiredPassed = checkResults.Value != null
                                 && checkResults.Value["gh"] && ghHealthy
@@ -62,7 +67,7 @@ public class SoftwareCheckStepView(
                    Tendril requires the following software to be installed:
 
                    **Required:**
-                   - **Coding Agent** - At least one of: Claude Code CLI, Codex CLI, or Gemini CLI
+                   - **Coding Agent** - At least one of: Claude Code CLI, Codex CLI, Gemini CLI, or Copilot CLI
                    - **GitHub CLI** - For PR creation and GitHub integration
                    - **Git** - For version control
                    - **PowerShell** - For running promptware and hooks

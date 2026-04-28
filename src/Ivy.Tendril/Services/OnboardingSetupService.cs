@@ -80,6 +80,17 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
                               "    model: gemini-3-flash-preview\n" +
                               "  - name: quick\n" +
                               "    model: gemini-3-flash-preview\n" +
+                              "- name: Copilot\n" +
+                              "  profiles:\n" +
+                              "  - name: deep\n" +
+                              "    model: gpt-5.2\n" +
+                              "    effort: high\n" +
+                              "  - name: balanced\n" +
+                              "    model: gpt-5.2\n" +
+                              "    effort: medium\n" +
+                              "  - name: quick\n" +
+                              "    model: gpt-5.2\n" +
+                              "    effort: low\n" +
                               "projects: []\n" +
                               "verifications: []\n";
             await FileHelper.WriteAllTextAsync(configPath, basicConfig);
