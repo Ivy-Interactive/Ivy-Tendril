@@ -30,7 +30,7 @@ public class WallpaperApp : ViewBase
 
         var heading = hasActivity ? "What are we making next?" : "Welcome to Ivy Tendril";
         var subtitle = hasActivity ? BuildSummary(counts) : "Manage your plans, track jobs, and review pull requests.";
-        var buttonLabel = hasActivity ? "New Plan" : "Create your first Plan";
+        var buttonLabel = hasActivity ? "New Plan" : "Create your first plan";
 
         var elements = new List<object>
         {
