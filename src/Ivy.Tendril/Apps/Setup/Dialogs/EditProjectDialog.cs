@@ -284,6 +284,8 @@ public class EditProjectDialog(
                                .Width(Size.Grow()));
         }
 
+        reposLayout |= new Button("Add").Icon(Icons.Plus).Outline().OnClick(() => addRepoAction());
+
         // Verifications switches
         var verificationsLayout = Layout.Vertical().Gap(1);
         foreach (var vName in _allVerifications)
