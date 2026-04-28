@@ -117,12 +117,16 @@ elif [[ "$SHELL" == *"bash"* ]]; then
 fi
 
 if [[ -n "$SHELL_PROFILE" ]]; then
-    if ! grep -q "DOTNET_ROOT" "$SHELL_PROFILE"; then
+    if ! grep -q -E "(\.dotnet/tools|DOTNET_ROOT/tools)" "$SHELL_PROFILE"; then
         printf "%b\\n" "Adding .NET environment variables to $SHELL_PROFILE"
-        printf "%b\\n" "\n# .NET SDK & Tools\nexport DOTNET_ROOT=\"\$HOME/.dotnet\"\nexport PATH=\"\$PATH:\$DOTNET_ROOT:\$DOTNET_ROOT/tools\"" >> "$SHELL_PROFILE"
+        if [[ -f "$HOME/.dotnet/dotnet" ]]; then
+            printf "%b\\n" "\n# .NET SDK & Tools\nexport DOTNET_ROOT=\"\$HOME/.dotnet\"\nexport PATH=\"\$PATH:\$DOTNET_ROOT:\$HOME/.dotnet/tools\"" >> "$SHELL_PROFILE"
+        else
+            printf "%b\\n" "\n# .NET Tools\nexport PATH=\"\$PATH:\$HOME/.dotnet/tools\"" >> "$SHELL_PROFILE"
+        fi
         printf "%b\\n" "${GREEN}✓ PATH updated. Please restart your terminal or run: source $SHELL_PROFILE${NC}"
     else
-        printf "%b\\n" "${GREEN}✓ PATH and DOTNET_ROOT already configured in $SHELL_PROFILE.${NC}"
+        printf "%b\\n" "${GREEN}✓ PATH already configured in $SHELL_PROFILE.${NC}"
     fi
 else
     printf "%b\\n" "${RED}Warning: Could not detect shell profile. Manually add $DOTNET_TOOLS_PATH to your PATH.${NC}"
