@@ -30,6 +30,14 @@ public class PromptwareRunSettings : CommandSettings
     [CommandOption("--value")]
     [Description("Additional firmware header values (key=value, repeatable)")]
     public string[]? Values { get; init; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        if (Args.Length > 0 && !Directory.Exists(Args[0]) && !File.Exists(Args[0]))
+            return Spectre.Console.ValidationResult.Error($"First argument '{Args[0]}' is not a valid path.");
+
+        return Spectre.Console.ValidationResult.Success();
+    }
 }
 
 public class PromptwareRunCommand : Command<PromptwareRunSettings>

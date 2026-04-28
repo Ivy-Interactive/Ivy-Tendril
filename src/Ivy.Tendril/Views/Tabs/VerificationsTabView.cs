@@ -10,31 +10,27 @@ public class VerificationsTabView(
 {
     public override object Build()
     {
-        var table = new Table(
-            new TableRow(
-                    new TableCell("Status").IsHeader(),
-                    new TableCell("Name").IsHeader()
-                )
-            { IsHeader = true }
-        );
+        var rows = verifications.Select(v => new VerificationRow(
+            v.Status,
+            v.Name,
+            verificationReports.TryGetValue(v.Name, out var exists) && exists
+        )).ToList();
 
-        foreach (var v in verifications)
-        {
-            var hasReport = verificationReports.TryGetValue(v.Name, out var exists) && exists;
-            var nameCapture = v.Name;
-            var nameCell = hasReport
-                ? new Button(v.Name).Inline().OnClick(() => openVerification(nameCapture))
-                : (object)Text.Block(v.Name);
+        var reportLookup = rows.ToDictionary(r => r.Name, r => r.HasReport);
 
-            table |= new TableRow(
-                new TableCell(new Badge(v.Status).Variant(
-                    StatusMappings.VerificationStatusBadgeVariants.TryGetValue(v.Status, out var variant)
+        return new TableBuilder<VerificationRow>(rows)
+            .Order(t => t.Status, t => t.Name)
+            .Builder(t => t.Status, f => f.Func<VerificationRow, string>(status =>
+                new Badge(status).Variant(
+                    StatusMappings.VerificationStatusBadgeVariants.TryGetValue(status, out var variant)
                         ? variant
-                        : BadgeVariant.Outline)),
-                new TableCell(nameCell)
-            );
-        }
-
-        return table;
+                        : BadgeVariant.Outline)))
+            .Builder(t => t.Name, f => f.Func<VerificationRow, string>(name =>
+                reportLookup.GetValueOrDefault(name)
+                    ? new Button(name).Inline().OnClick(() => openVerification(name))
+                    : (object)Text.Block(name)))
+            .Remove(t => t.HasReport);
     }
+
+    private record VerificationRow(string Status, string Name, bool HasReport);
 }

@@ -3,8 +3,14 @@ using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
 
-public class JobServiceHookTests
+public class JobServiceHookTests : IDisposable
 {
+    private readonly TempDirectoryFixture _tempDir = new();
+
+    public void Dispose()
+    {
+        _tempDir.Dispose();
+    }
     private static (JobService Service, ConfigService Config) CreateServiceWithHooks(
         List<PromptwareHookConfig> hooks, string projectName = "TestProject")
     {
@@ -26,9 +32,9 @@ public class JobServiceHookTests
         return (service, config);
     }
 
-    private static string CreateTempPlanFolder(string projectName = "TestProject")
+    private string CreateTempPlanFolder(string projectName = "TestProject")
     {
-        var dir = Path.Combine(Path.GetTempPath(), $"ivy-hook-test-{Guid.NewGuid()}");
+        var dir = Path.Combine(_tempDir.Path, $"plan-{Guid.NewGuid()}");
         Directory.CreateDirectory(dir);
         File.WriteAllText(Path.Combine(dir, "plan.yaml"), $"state: Executing\nproject: {projectName}\n");
         return dir;

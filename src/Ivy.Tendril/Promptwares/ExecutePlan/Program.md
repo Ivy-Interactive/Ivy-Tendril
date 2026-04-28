@@ -455,6 +455,8 @@ Check the `## Verification` section in the plan revision for checked items (`- [
 
 **Delegated verifications:** Some verifications are implemented as separate promptwares (e.g., `IvyFrameworkVerification`). A verification is **delegated** if its name matches an entry in the `promptwares` section of `config.yaml`. Delegated verifications MUST be run via `tendril promptware <Name>` — you are FORBIDDEN from writing their report files or setting their status to Pass yourself. If the `tendril` CLI is unavailable and you cannot invoke the sub-promptware, you MUST set the verification to `Fail` with a report explaining the CLI failure. Never self-certify a delegated verification.
 
+**IMPORTANT — delegated invocation syntax:** The `tendril promptware` CLI takes the plan folder as a **positional argument** (NOT a named flag like `--plan-folder`). You MUST also pass `--value` flags for each required firmware value. The exact command is in the verification's `prompt` field in config.yaml — copy it character-for-character, only replacing angle-bracketed placeholders with actual paths. If the command is wrong, the child promptware receives no arguments and silently fails.
+
 For each checked verification:
 
 1. Send a status message: `tendril job status $env:TENDRIL_JOB_ID --message "Verifying: <Name>"`

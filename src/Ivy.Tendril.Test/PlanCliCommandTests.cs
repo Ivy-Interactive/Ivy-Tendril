@@ -8,20 +8,19 @@ namespace Ivy.Tendril.Test;
 [Collection("TendrilHome")]
 public class PlanCliCommandTests : IDisposable
 {
+    private readonly TempDirectoryFixture _tempDir = new();
     private readonly string _originalTendrilHome;
     private readonly string? _originalTendrilPlans;
     private readonly string _plansDir;
-    private readonly string _tempDir;
 
     public PlanCliCommandTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), $"tendril-cli-test-{Guid.NewGuid():N}");
-        _plansDir = Path.Combine(_tempDir, "Plans");
+        _plansDir = Path.Combine(_tempDir.Path, "Plans");
         Directory.CreateDirectory(_plansDir);
 
         _originalTendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? "";
         _originalTendrilPlans = Environment.GetEnvironmentVariable("TENDRIL_PLANS");
-        Environment.SetEnvironmentVariable("TENDRIL_HOME", _tempDir);
+        Environment.SetEnvironmentVariable("TENDRIL_HOME", _tempDir.Path);
         Environment.SetEnvironmentVariable("TENDRIL_PLANS", null);
     }
 
@@ -29,14 +28,7 @@ public class PlanCliCommandTests : IDisposable
     {
         Environment.SetEnvironmentVariable("TENDRIL_HOME", _originalTendrilHome);
         Environment.SetEnvironmentVariable("TENDRIL_PLANS", _originalTendrilPlans);
-        if (Directory.Exists(_tempDir))
-            try
-            {
-                Directory.Delete(_tempDir, true);
-            }
-            catch
-            {
-            }
+        _tempDir.Dispose();
     }
 
     private string CreatePlanFolder(string id, string title, PlanYaml? plan = null)
@@ -50,7 +42,7 @@ public class PlanCliCommandTests : IDisposable
             State = "Draft",
             Project = "TestProject",
             Title = title,
-            Repos = [_tempDir],
+            Repos = [_tempDir.Path],
             Created = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc)
         };
@@ -75,7 +67,7 @@ public class PlanCliCommandTests : IDisposable
             commits:
             prs:
             repos:
-              - {_tempDir}
+              - {_tempDir.Path}
             verifications:
             relatedPlans:
             dependsOn:
@@ -205,7 +197,7 @@ public class PlanCliCommandTests : IDisposable
             Project = "Auto",
             Level = "NiceToHave",
             Title = "NewPlan",
-            Repos = [_tempDir],
+            Repos = [_tempDir.Path],
             Created = DateTime.UtcNow,
             Updated = DateTime.UtcNow
         };
@@ -228,7 +220,7 @@ public class PlanCliCommandTests : IDisposable
             State = "Failed",
             Project = "NewProject",
             Title = "OverwriteTest",
-            Repos = [_tempDir],
+            Repos = [_tempDir.Path],
             Created = DateTime.UtcNow,
             Updated = DateTime.UtcNow
         };
@@ -389,7 +381,7 @@ public class PlanCliCommandTests : IDisposable
     public void PlanAddRepo_AddsNewRepo()
     {
         CreatePlanFolder("20040", "AddRepoTest");
-        var newRepoDir = Path.Combine(_tempDir, "extra-repo");
+        var newRepoDir = Path.Combine(_tempDir.Path, "extra-repo");
         Directory.CreateDirectory(newRepoDir);
 
         var folder = PlanCommandHelpers.ResolvePlanFolder("20040");
@@ -423,7 +415,7 @@ public class PlanCliCommandTests : IDisposable
     [Fact]
     public void PlanRemoveRepo_RemovesExistingRepo()
     {
-        var extraDir = Path.Combine(_tempDir, "remove-repo-extra");
+        var extraDir = Path.Combine(_tempDir.Path, "remove-repo-extra");
         Directory.CreateDirectory(extraDir);
 
         CreatePlanFolder("20042", "RemoveRepoTest", new PlanYaml
@@ -431,7 +423,7 @@ public class PlanCliCommandTests : IDisposable
             State = "Draft",
             Project = "TestProject",
             Title = "RemoveRepoTest",
-            Repos = [_tempDir, extraDir],
+            Repos = [_tempDir.Path, extraDir],
             Created = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc)
         });
@@ -444,7 +436,7 @@ public class PlanCliCommandTests : IDisposable
 
         var result = ReadPlan("20042");
         Assert.Single(result.Repos);
-        Assert.Equal(_tempDir, result.Repos[0]);
+        Assert.Equal(_tempDir.Path, result.Repos[0]);
     }
 
     [Fact]
@@ -643,7 +635,7 @@ public class PlanCliCommandTests : IDisposable
             State = "Draft",
             Project = "TestProject",
             Title = "UpdateVerifTest",
-            Repos = [_tempDir],
+            Repos = [_tempDir.Path],
             Created = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc),
             Verifications = [new PlanVerificationEntry { Name = "DotnetBuild", Status = "Pending" }]
@@ -711,7 +703,7 @@ public class PlanCliCommandTests : IDisposable
     [Fact]
     public void PlanValidate_MissingState_Throws()
     {
-        var plan = new PlanYaml { State = "", Project = "X", Title = "Y", Repos = [_tempDir] };
+        var plan = new PlanYaml { State = "", Project = "X", Title = "Y", Repos = [_tempDir.Path] };
 
         Assert.Throws<ArgumentException>(() => PlanValidationService.Validate(plan));
     }
@@ -719,7 +711,7 @@ public class PlanCliCommandTests : IDisposable
     [Fact]
     public void PlanValidate_MissingProject_Throws()
     {
-        var plan = new PlanYaml { State = "Draft", Project = "", Title = "Y", Repos = [_tempDir] };
+        var plan = new PlanYaml { State = "Draft", Project = "", Title = "Y", Repos = [_tempDir.Path] };
 
         Assert.Throws<ArgumentException>(() => PlanValidationService.Validate(plan));
     }
@@ -727,7 +719,7 @@ public class PlanCliCommandTests : IDisposable
     [Fact]
     public void PlanValidate_MissingTitle_Throws()
     {
-        var plan = new PlanYaml { State = "Draft", Project = "X", Title = "", Repos = [_tempDir] };
+        var plan = new PlanYaml { State = "Draft", Project = "X", Title = "", Repos = [_tempDir.Path] };
 
         Assert.Throws<ArgumentException>(() => PlanValidationService.Validate(plan));
     }
@@ -807,12 +799,11 @@ public class PlanCliCommandTests : IDisposable
         CreatePlanFolder("20100", "TimestampTest");
         var before = ReadPlan("20100").Updated;
 
-        Thread.Sleep(50);
-
+        // Explicitly set a later timestamp to avoid timing races
         var folder = PlanCommandHelpers.ResolvePlanFolder("20100");
         var plan = PlanCommandHelpers.ReadPlan(folder);
         plan.Project = "Changed";
-        plan.Updated = DateTime.UtcNow;
+        plan.Updated = before.AddSeconds(1);
         PlanCommandHelpers.WritePlan(folder, plan);
 
         var after = ReadPlan("20100").Updated;
@@ -841,7 +832,7 @@ public class PlanCliCommandTests : IDisposable
             State = "Failed",
             Project = "Test",
             Title = "FailedPlan",
-            Repos = [_tempDir],
+            Repos = [_tempDir.Path],
             Created = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
         });
@@ -860,7 +851,7 @@ public class PlanCliCommandTests : IDisposable
             State = "Draft",
             Project = "Alpha",
             Title = "ProjA",
-            Repos = [_tempDir],
+            Repos = [_tempDir.Path],
             Created = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
         });
@@ -869,7 +860,7 @@ public class PlanCliCommandTests : IDisposable
             State = "Draft",
             Project = "Beta",
             Title = "ProjB",
-            Repos = [_tempDir],
+            Repos = [_tempDir.Path],
             Created = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
         });
@@ -889,7 +880,7 @@ public class PlanCliCommandTests : IDisposable
             Project = "Test",
             Title = "CritPlan",
             Level = "Critical",
-            Repos = [_tempDir],
+            Repos = [_tempDir.Path],
             Created = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
         });
@@ -909,7 +900,7 @@ public class PlanCliCommandTests : IDisposable
             State = "Completed",
             Project = "Test",
             Title = "WithPr",
-            Repos = [_tempDir],
+            Repos = [_tempDir.Path],
             Prs = ["https://github.com/org/repo/pull/1"],
             Created = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
@@ -946,7 +937,7 @@ public class PlanCliCommandTests : IDisposable
             Project = "Tendril",
             Title = "Match",
             Level = "Bug",
-            Repos = [_tempDir],
+            Repos = [_tempDir.Path],
             Created = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
         });
@@ -956,7 +947,7 @@ public class PlanCliCommandTests : IDisposable
             Project = "Other",
             Title = "NoMatch",
             Level = "Bug",
-            Repos = [_tempDir],
+            Repos = [_tempDir.Path],
             Created = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
         });
@@ -1003,7 +994,7 @@ public class PlanCliCommandTests : IDisposable
             Project = "MyProject",
             Level = "Bug",
             Title = "Full Plan",
-            Repos = [_tempDir],
+            Repos = [_tempDir.Path],
             Created = new DateTime(2026, 3, 1, 12, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 3, 2, 14, 30, 0, DateTimeKind.Utc),
             Prs = ["https://github.com/org/repo/pull/1"],
@@ -1057,7 +1048,7 @@ public class PlanCliCommandTests : IDisposable
             State = "Draft",
             Project = "Test",
             Title = "Fix: \"quotes\" & <angle> brackets",
-            Repos = [_tempDir],
+            Repos = [_tempDir.Path],
             Created = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
         });
@@ -1134,7 +1125,7 @@ public class PlanCliCommandTests : IDisposable
             SourceUrl = "https://github.com/org/repo/issues/42",
             ExecutionProfile = "deep",
             Priority = 3,
-            Repos = [_tempDir],
+            Repos = [_tempDir.Path],
             Verifications =
             [
                 new PlanVerificationEntry { Name = "DotnetBuild", Status = "Pending" },
@@ -1172,7 +1163,7 @@ public class PlanCliCommandTests : IDisposable
             State = "Draft",
             Project = "Test",
             Title = "WindowsPath",
-            Repos = [_tempDir],
+            Repos = [_tempDir.Path],
             InitialPrompt = @"Show issue in a DataTable D:\Screenshots\2026-04-23_10-25.png",
             Created = DateTime.UtcNow,
             Updated = DateTime.UtcNow
@@ -1194,7 +1185,7 @@ public class PlanCliCommandTests : IDisposable
             State = "Draft",
             Project = "Test",
             Title = "VerifFormat",
-            Repos = [_tempDir],
+            Repos = [_tempDir.Path],
             Verifications =
             [
                 new PlanVerificationEntry { Name = "DotnetBuild", Status = "Pending" },

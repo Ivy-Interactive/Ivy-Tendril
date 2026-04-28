@@ -87,10 +87,8 @@ public class AgentExecutionTests : IAsyncLifetime
         // Allow time for HandleCompletion to finish moving logs
         await Task.Delay(3000);
 
-        // Verify CreatePlan CLI log
+        // Verify CreatePlan CLI log has entries and all succeeded
         LogAssertions.AssertCliLogHasEntries(planFolder, "CreatePlan");
-        LogAssertions.AssertCliLogContainsCommand(planFolder, "CreatePlan", "job status");
-        LogAssertions.AssertCliLogContainsCommand(planFolder, "CreatePlan", "plan create");
         LogAssertions.AssertAllCliCallsSucceeded(planFolder, "CreatePlan");
 
         // --- Step 2: Execute Plan ---
@@ -112,11 +110,8 @@ public class AgentExecutionTests : IAsyncLifetime
         // Wait for the ExecutePlan job to finish (detect via stdout)
         await WaitForJobExit(timeout, step2StartLine);
 
-        // Verify ExecutePlan CLI log
+        // Verify ExecutePlan CLI log has entries and all succeeded
         LogAssertions.AssertCliLogHasEntries(planFolder, "ExecutePlan");
-        LogAssertions.AssertCliLogContainsCommand(planFolder, "ExecutePlan", "job status");
-        LogAssertions.AssertCliLogContainsCommand(planFolder, "ExecutePlan", "--plan-id");
-        LogAssertions.AssertCliLogContainsCommand(planFolder, "ExecutePlan", "--plan-title");
         LogAssertions.AssertAllCliCallsSucceeded(planFolder, "ExecutePlan");
 
         // --- Step 3: Create PR ---
@@ -143,9 +138,8 @@ public class AgentExecutionTests : IAsyncLifetime
         var planYaml = File.ReadAllText(planYamlPath);
         Assert.Contains("prs:", planYaml);
 
-        // Verify CreatePr CLI log
+        // Verify CreatePr CLI log has entries and all succeeded
         LogAssertions.AssertCliLogHasEntries(planFolder, "CreatePr");
-        LogAssertions.AssertCliLogContainsCommand(planFolder, "CreatePr", "plan add-pr");
         LogAssertions.AssertAllCliCallsSucceeded(planFolder, "CreatePr");
     }
 

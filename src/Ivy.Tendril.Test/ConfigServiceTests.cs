@@ -3,15 +3,20 @@ using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
 
-public class ConfigServiceTests
+public class ConfigServiceTests : IDisposable
 {
-    private static string CreateTempConfigFile(string yamlContent)
+    private readonly TempDirectoryFixture _tempDir = new("ivy-config-test");
+
+    public void Dispose()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"ivy-config-test-{Guid.NewGuid()}");
-        Directory.CreateDirectory(tempDir);
-        var configPath = Path.Combine(tempDir, "config.yaml");
+        _tempDir.Dispose();
+    }
+
+    private string CreateTempConfigFile(string yamlContent)
+    {
+        var configPath = Path.Combine(_tempDir.Path, "config.yaml");
         File.WriteAllText(configPath, yamlContent);
-        return tempDir;
+        return _tempDir.Path;
     }
 
     [Fact]
@@ -36,28 +41,21 @@ projects:
         var tempDir = CreateTempConfigFile(yaml);
         var service = new ConfigService(new TendrilSettings());
 
-        try
-        {
-            service.SetTendrilHome(tempDir);
+        service.SetTendrilHome(tempDir);
 
-            Assert.NotNull(service.Settings);
-            Assert.Equal(2, service.Settings.Projects.Count);
+        Assert.NotNull(service.Settings);
+        Assert.Equal(2, service.Settings.Projects.Count);
 
-            var project1 = service.Settings.Projects[0];
-            Assert.Equal("TestProject", project1.Name);
-            Assert.Single(project1.Repos);
-            Assert.Equal(@"D:\Repos\Test", project1.Repos[0].Path);
-            Assert.Contains("Test context for the project", project1.Context);
+        var project1 = service.Settings.Projects[0];
+        Assert.Equal("TestProject", project1.Name);
+        Assert.Single(project1.Repos);
+        Assert.Equal(@"D:\Repos\Test", project1.Repos[0].Path);
+        Assert.Contains("Test context for the project", project1.Context);
 
-            var project2 = service.Settings.Projects[1];
-            Assert.Equal("AnotherProject", project2.Name);
-            Assert.Equal(2, project2.Repos.Count);
-            Assert.Contains("Another test context", project2.Context);
-        }
-        finally
-        {
-            Directory.Delete(tempDir, true);
-        }
+        var project2 = service.Settings.Projects[1];
+        Assert.Equal("AnotherProject", project2.Name);
+        Assert.Equal(2, project2.Repos.Count);
+        Assert.Contains("Another test context", project2.Context);
     }
 
     [Fact]
@@ -886,9 +884,13 @@ editor:
     [Fact]
     public void SetTendrilHome_Should_Handle_Malformed_Config_Gracefully()
     {
-        var validYaml = "codingAgent: testAgent\njobTimeout: 99";
-        var validDir = CreateTempConfigFile(validYaml);
-        var malformedDir = CreateTempConfigFile("invalid: yaml: [unclosed");
+        var validDir = Path.Combine(Path.GetTempPath(), $"ivy-config-test-valid-{Guid.NewGuid():N}");
+        var malformedDir = Path.Combine(Path.GetTempPath(), $"ivy-config-test-malformed-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(validDir);
+        Directory.CreateDirectory(malformedDir);
+        File.WriteAllText(Path.Combine(validDir, "config.yaml"), "codingAgent: testAgent\njobTimeout: 99");
+        File.WriteAllText(Path.Combine(malformedDir, "config.yaml"), "projects:\n  - name: [invalid");
+
         var service = new ConfigService(new TendrilSettings());
 
         try
@@ -907,8 +909,8 @@ editor:
         }
         finally
         {
-            Directory.Delete(validDir, true);
-            Directory.Delete(malformedDir, true);
+            if (Directory.Exists(validDir)) Directory.Delete(validDir, true);
+            if (Directory.Exists(malformedDir)) Directory.Delete(malformedDir, true);
         }
     }
 
@@ -1198,6 +1200,307 @@ projects:
             var yaml = File.ReadAllText(Path.Combine(tempDir, "config.yaml"));
             var settings = YamlHelper.Deserializer.Deserialize<TendrilSettings>(yaml);
             Assert.NotNull(settings);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Should_Handle_Pathological_Yaml_Without_Timeout()
+    {
+        // Crafted YAML that would trigger backtracking with the old pattern
+        var pathologicalYaml = @"
+projects:
+  - name: Test
+    repos:
+      - path: " + string.Concat(Enumerable.Repeat("%VAR", 100)) + @"
+";
+
+        var tempDir = CreateTempConfigFile(pathologicalYaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            service.SetTendrilHome(tempDir);
+            sw.Stop();
+
+            // Should complete quickly (< 1s) even with pathological input
+            Assert.True(sw.ElapsedMilliseconds < 1000,
+                $"ReDoS detected: processing took {sw.ElapsedMilliseconds}ms");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void PreprocessForEditing_TracksCreatedTempFile()
+    {
+        var yaml = @"
+projects:
+  - name: TestProject
+    repos:
+      - path: D:\Repos\Test
+";
+
+        var tempDir = CreateTempConfigFile(yaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+
+            // Create a markdown file that needs polishing (backtick link text gets polished)
+            var mdPath = Path.Combine(tempDir, "test.md");
+            File.WriteAllText(mdPath, "[`Button.cs`](file:///D:/Repos/Test/Button.cs)");
+
+            var processedPath = service.PreprocessForEditing(mdPath);
+
+            // Should have created a temp file
+            Assert.NotEqual(mdPath, processedPath);
+            Assert.True(File.Exists(processedPath));
+            Assert.Contains("tendril-edit-", processedPath);
+
+            // Clean up the temp file
+            (service as IDisposable)?.Dispose();
+            Assert.False(File.Exists(processedPath));
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Dispose_DeletesTrackedTempFiles()
+    {
+        var yaml = @"
+projects:
+  - name: TestProject
+    repos:
+      - path: D:\Repos\Test
+";
+
+        var tempDir = CreateTempConfigFile(yaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+
+            // Create multiple temp files
+            var mdPath1 = Path.Combine(tempDir, "test1.md");
+            var mdPath2 = Path.Combine(tempDir, "test2.md");
+            File.WriteAllText(mdPath1, "[`File1.cs`](file:///D:/Repos/Test/File1.cs)");
+            File.WriteAllText(mdPath2, "[`File2.cs`](file:///D:/Repos/Test/File2.cs)");
+
+            var tempPath1 = service.PreprocessForEditing(mdPath1);
+            var tempPath2 = service.PreprocessForEditing(mdPath2);
+
+            Assert.True(File.Exists(tempPath1));
+            Assert.True(File.Exists(tempPath2));
+
+            // Dispose should delete both temp files
+            (service as IDisposable)?.Dispose();
+
+            Assert.False(File.Exists(tempPath1));
+            Assert.False(File.Exists(tempPath2));
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Dispose_SuppressesExceptions()
+    {
+        var yaml = @"
+projects:
+  - name: TestProject
+    repos:
+      - path: D:\Repos\Test
+";
+
+        var tempDir = CreateTempConfigFile(yaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+
+            var mdPath = Path.Combine(tempDir, "test.md");
+            File.WriteAllText(mdPath, "[`Button.cs`](file:///D:/Repos/Test/Button.cs)");
+
+            var tempPath = service.PreprocessForEditing(mdPath);
+
+            // Manually delete the temp file before disposal
+            File.Delete(tempPath);
+
+            // Dispose should not throw even if file is already deleted
+            (service as IDisposable)?.Dispose();
+
+            // Calling Dispose again should also not throw
+            (service as IDisposable)?.Dispose();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void PreprocessForEditing_ThreadSafe()
+    {
+        var yaml = @"
+projects:
+  - name: TestProject
+    repos:
+      - path: D:\Repos\Test
+";
+
+        var tempDir = CreateTempConfigFile(yaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+
+            var tempPaths = new System.Collections.Concurrent.ConcurrentBag<string>();
+
+            // Create 10 temp files concurrently
+            Parallel.For(0, 10, i =>
+            {
+                var mdPath = Path.Combine(tempDir, $"test{i}.md");
+                File.WriteAllText(mdPath, $"[`File{i}.cs`](file:///D:/Repos/Test/File{i}.cs)");
+                var tempPath = service.PreprocessForEditing(mdPath);
+                tempPaths.Add(tempPath);
+            });
+
+            // All temp files should exist
+            Assert.Equal(10, tempPaths.Count);
+            foreach (var tempPath in tempPaths)
+            {
+                Assert.True(File.Exists(tempPath));
+            }
+
+            // Dispose should clean up all temp files
+            (service as IDisposable)?.Dispose();
+
+            foreach (var tempPath in tempPaths)
+            {
+                Assert.False(File.Exists(tempPath));
+            }
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void ValidateSettings_JobTimeout_TooLow_UsesDefault()
+    {
+        var yaml = @"
+jobTimeout: 0
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+            Assert.Equal(30, service.Settings.JobTimeout);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void ValidateSettings_JobTimeout_TooHigh_UsesDefault()
+    {
+        var yaml = @"
+jobTimeout: 9999
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+            Assert.Equal(30, service.Settings.JobTimeout);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void ValidateSettings_MaxConcurrentJobs_Zero_UsesDefault()
+    {
+        var yaml = @"
+maxConcurrentJobs: 0
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+            Assert.Equal(5, service.Settings.MaxConcurrentJobs);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void ValidateSettings_GitTimeout_Negative_UsesDefault()
+    {
+        var yaml = @"
+gitTimeout: -1
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+            Assert.Equal(10, service.Settings.GitTimeout);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void ValidateSettings_AllValid_NoChanges()
+    {
+        var yaml = @"
+jobTimeout: 60
+staleOutputTimeout: 15
+gitTimeout: 20
+maxConcurrentJobs: 10
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+            Assert.Equal(60, service.Settings.JobTimeout);
+            Assert.Equal(15, service.Settings.StaleOutputTimeout);
+            Assert.Equal(20, service.Settings.GitTimeout);
+            Assert.Equal(10, service.Settings.MaxConcurrentJobs);
         }
         finally
         {

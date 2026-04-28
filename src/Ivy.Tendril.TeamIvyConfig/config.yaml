@@ -168,10 +168,18 @@ verifications:
   prompt: >
     Visually verify UI changes by delegating to the IvyFrameworkVerification promptware.
     You MUST run this as an external process — do NOT attempt to do the verification yourself or write the report directly.
+
+    COPY THE COMMAND BELOW EXACTLY — only replace angle-bracketed placeholders with actual paths.
+    The plan folder is a POSITIONAL argument (NOT `--plan-folder`). The `--value` flags are REQUIRED.
+
     Execute: `tendril promptware IvyFrameworkVerification "<PlanFolder>" --value VerificationDir="<PlanFolder>\verification" --value ArtifactsDir="<PlanFolder>\artifacts" --value IvyFrameworkPath="<worktree path to Ivy-Framework>"`
+
+    Example with real paths: `tendril promptware IvyFrameworkVerification "D:\Plans\03683-Example" --value VerificationDir="D:\Plans\03683-Example\verification" --value ArtifactsDir="D:\Plans\03683-Example\artifacts" --value IvyFrameworkPath="D:\Plans\03683-Example\worktrees\Ivy-Framework"`
+
     Wait for the process to complete (it may take several minutes).
-    If exit code is 0, read `<PlanFolder>\verification\IvyFrameworkVerification.md` and set status based on the Result field.
-    If exit code is non-zero or the report file was not created, set status to Fail.
+    After the process exits, IMMEDIATELY check if `<PlanFolder>\verification\IvyFrameworkVerification.md` exists.
+    If the file exists, read it and set status based on the Result field in its YAML frontmatter.
+    If exit code is non-zero OR the report file does not exist, set status to Fail immediately — do not poll or wait.
     Do NOT write the verification report yourself — the promptware creates it.
 - name: CheckResult
   prompt: >

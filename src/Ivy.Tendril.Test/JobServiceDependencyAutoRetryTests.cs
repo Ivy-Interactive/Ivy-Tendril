@@ -5,18 +5,17 @@ namespace Ivy.Tendril.Test;
 
 public class JobServiceDependencyAutoRetryTests : IDisposable
 {
+    private readonly TempDirectoryFixture _tempDir = new();
     private readonly string _plansDir;
 
     public JobServiceDependencyAutoRetryTests()
     {
-        _plansDir = Path.Combine(Path.GetTempPath(), $"tendril-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(_plansDir);
+        _plansDir = _tempDir.Path;
     }
 
     public void Dispose()
     {
-        if (Directory.Exists(_plansDir))
-            Directory.Delete(_plansDir, true);
+        _tempDir.Dispose();
     }
 
     private JobService CreateService()

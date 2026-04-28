@@ -22,4 +22,18 @@ public static class Constants
     public const string DiscordUrl = "https://discord.gg/FHgxkDga3y";
     public const string IssuesUrl = "https://github.com/Ivy-Interactive/Ivy-Tendril/issues/new";
     public const string NewsBaseUrl = "https://cdn.ivy.app/tendril/";
+
+    /// <summary>
+    ///     Job type identifiers for the Tendril promptware execution system.
+    /// </summary>
+    public static class JobTypes
+    {
+        public const string CreatePlan = "CreatePlan";
+        public const string ExecutePlan = "ExecutePlan";
+        public const string ExpandPlan = "ExpandPlan";
+        public const string UpdatePlan = "UpdatePlan";
+        public const string SplitPlan = "SplitPlan";
+        public const string CreatePr = "CreatePr";
+        public const string CreateIssue = "CreateIssue";
+    }
 }

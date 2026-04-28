@@ -184,11 +184,11 @@ jobs:
       - name: Set Icon Path
         run: |
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            echo "ICON_PATH=src/Ivy.Tendril/Assets/Tendril.ico" >> $GITHUB_ENV
+            echo "ICON_PATH=src/Ivy.Tendril/Assets/icon.ico" >> $GITHUB_ENV
           elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            echo "ICON_PATH=src/Ivy.Tendril/Assets/Tendril.icns" >> $GITHUB_ENV
+            echo "ICON_PATH=src/Ivy.Tendril/Assets/icon.icns" >> $GITHUB_ENV
           else
-            echo "ICON_PATH=src/Ivy.Tendril/Assets/Tendril.png" >> $GITHUB_ENV
+            echo "ICON_PATH=src/Ivy.Tendril/Assets/icon.png" >> $GITHUB_ENV
           fi
 
       - name: Publish Desktop Binary

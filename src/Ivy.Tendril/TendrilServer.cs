@@ -3,6 +3,7 @@ using Ivy.Helpers;
 using Ivy.Tendril.AppShell;
 using Ivy.Tendril.Controllers;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.SessionParsers;
 using Ivy.Tendril.Helpers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.AI;
@@ -34,14 +35,19 @@ public static class TendrilServer
         server.Services.AddSingleton<IConfigService>(configService);
         server.Services.AddSingleton<ConfigService>(configService);
 
+        // Store reference for cleanup on process exit
+        Program.SetConfigServiceForCleanup(configService);
+
         if (configService.Settings.Auth != null)
         {
             server.Services.AddHttpContextAccessor();
             server.UseAuth<Auth.TendrilAuthProvider>();
         }
 
-        server.Services.AddSingleton<ModelPricingService>(sp =>
-            new ModelPricingService(sp.GetRequiredService<ILogger<ModelPricingService>>()));
+        server.Services.AddSingleton<ISessionParser, ClaudeSessionParser>();
+        server.Services.AddSingleton<ISessionParser, CodexSessionParser>();
+        server.Services.AddSingleton<ISessionParser, GeminiSessionParser>();
+        server.Services.AddSingleton<ModelPricingService>();
         server.Services.AddSingleton<IModelPricingService>(sp => sp.GetRequiredService<ModelPricingService>());
 
         // Register IChatClient if LLM is configured
@@ -66,7 +72,9 @@ public static class TendrilServer
         server.Services.AddSingleton<GithubService>();
         server.Services.AddSingleton<IGithubService>(sp => sp.GetRequiredService<GithubService>());
         server.Services.AddSingleton<IGitService>(sp =>
-            new GitService(sp.GetRequiredService<IConfigService>()));
+            new GitService(
+                sp.GetRequiredService<IConfigService>(),
+                sp.GetRequiredService<ILogger<GitService>>()));
         server.Services.AddSingleton<IWorktreeLifecycleLogger>(sp =>
         {
             var config = sp.GetRequiredService<IConfigService>();
@@ -130,7 +138,8 @@ public static class TendrilServer
         server.Services.AddSingleton<PlanWatcherService>(sp =>
         {
             var config = sp.GetRequiredService<IConfigService>();
-            return new PlanWatcherService(config);
+            var logger = sp.GetService<ILogger<PlanWatcherService>>();
+            return new PlanWatcherService(config, logger);
         });
         server.Services.AddSingleton<IPlanWatcherService>(sp => sp.GetRequiredService<PlanWatcherService>());
         server.Services.AddSingleton<PlanCountsService>(sp =>

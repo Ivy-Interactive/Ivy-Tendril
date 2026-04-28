@@ -19,74 +19,47 @@ Tendril is an Open Source AI Orchestrator designed for real-world agentic softwa
 
 <Embed Url="https://youtu.be/X-zkkI8ah-E"/>
 
-
 ## The Concept
 
 In Tendril, work is organized into **Plans**—structured units of work like bug fixes, refactors, or new features. Instead of a "black box" that outputs code and hopes for the best, Tendril moves your Plan through a defined lifecycle using Promptwares: isolated, single-purpose agents that specialize in specific stages of the SDLC. Whether it’s generating code, verifying builds, or opening PRs, you have total visibility. Tendril doesn't just autocomplete your lines; it orchestrates your workflow.
 
- <Image Src="https://i.postimg.cc/NB89LJkw/Make-Plan-2.gif" />
-
----
+<Image Src="../../assets/Make-Plan-2.gif" />
 
 ## Key Features
 
-
-```csharp demo
-Layout.Grid().Columns(3).Gap(4)
-| new Card().Icon(Icons.RefreshCw.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Plan Lifecycle")).Description(Text.Muted("Draft – Execution – Review – PR.").Small()).Height(Size.Units(28)).OnClick(() => {})
-| new Card().Icon(Icons.FolderOpen.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Multi-Project")).Description(Text.Muted("Several repos, per-project verification rules.").Small()).Height(Size.Units(28)).OnClick(() => {})
-| new Card().Icon(Icons.Activity.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Jobs")).Description(Text.Muted("Status, tokens, cost.").Small()).Height(Size.Units(28)).OnClick(() => {})
-| new Card().Icon(Icons.Zap.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Promptwares")).Description(Text.Muted("Modular agents: CreatePlan, ExecutePlan, ExpandPlan, CreatePr.").Small()).Height(Size.Units(28)).OnClick(() => {})
-| new Card().Icon(Icons.GitBranch.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Git Worktrees")).Description(Text.Muted("Agent work stays off your main branch.").Small()).Height(Size.Units(28)).OnClick(() => {})
-| new Card().Icon(Icons.Terminal.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Terminal & File Viewer")).Description(Text.Muted("Embedded terminal and fast local file access.").Small()).Height(Size.Units(28)).OnClick(() => {})
-| new Card().Icon(Icons.CircleCheck.ToIcon().Color(Colors.Gray)).Title(Text.Bold("Verification")).Description(Text.Muted("Hook your build, test, and format checks.").Small()).Height(Size.Units(28)).OnClick(() => {})
-```
+- **Plan Lifecycle** - Draft – Execution – Review – PR.
+- **Multi-Project** - Several repos, per-project verification rules.
+- **Jobs** - Status, tokens, cost.
+- **Promptwares** - Modular agents: CreatePlan, ExecutePlan, ExpandPlan, CreatePr.
+- **Git Worktrees** - Agent work stays off your main branch.
+- **Terminal & File Viewer** - Embedded terminal and fast local file access.
+- **Verification** - Hook your build, test, and format checks.
 
 
-## The Tendril Loop: From Idea to PR.
+## The Tendril Loop: From Idea to PR
 
-A plan progresses through the following comprehensive set of states:
+Plans flow through the following pipeline:
 
 ```mermaid
 flowchart LR
-    Draft:::defaultStyle
-    Blocked:::blockedStyle
-    Building:::buildingStyle
-    Executing:::executingStyle
-    Updating:::executingStyle
-    ReadyForReview:::readyStyle
-    Failed:::failedStyle
-    Completed:::completedStyle
-    Icebox:::iceboxStyle
-    Skipped:::skippedStyle
+    GitHub((GitHub)):::inputStyle
+    Human((Human)):::inputStyle
+    Console((Console)):::inputStyle
 
-    Draft -->|CreatePlan| Building
-    Draft -->|Execute| Executing
-    Draft -->|Missing Context| Blocked
-    Blocked -->|Resolved| Draft
-    Building -->|Drafted| Draft
-    Draft -->|Shelve| Icebox
-    Icebox -->|Restore| Draft
+    GitHub -- Tickets --> Inbox:::stageStyle
+    Human -- Ideas --> Inbox
+    Console -- API/MCP/CLI --> Inbox
 
-    Executing -->|Iterate| Updating
-    Updating -->|Continue| Executing
-    Executing -->|Success| ReadyForReview
-    Executing -->|Error/Timeout| Failed
-    Failed -->|Retry| Executing
+    Inbox -- CreatePlan --> Drafts:::stageStyle
+    Drafts -- "Update-/Split-/ExpandPlan" --> Drafts
+    Drafts <--> Icebox:::iceboxStyle
+    Drafts -- ExecutePlan --> Review:::stageStyle
+    Review -- Recommendations --> Inbox
+    Review -- CreatePr --> GitHubOut((GitHub)):::inputStyle
 
-    ReadyForReview -->|Approve| Completed
-    ReadyForReview -->|Revise| Draft
-    ReadyForReview -->|Discard| Skipped
-
-    classDef defaultStyle fill:#E8F0FE,stroke:#4285F4,color:#000
-    classDef blockedStyle fill:#FFF9C4,stroke:#4285F4,color:#000
-    classDef buildingStyle fill:#E1F5FE,stroke:#4285F4,color:#000
-    classDef executingStyle fill:#FFF3E0,stroke:#4285F4,color:#000
-    classDef readyStyle fill:#E8F5E9,stroke:#4285F4,color:#000
-    classDef failedStyle fill:#FFEBEE,stroke:#E53935,color:#000
-    classDef completedStyle fill:#C8E6C9,stroke:#4285F4,color:#000
+    classDef inputStyle fill:#fff,stroke:#666,color:#000
+    classDef stageStyle fill:#E8F0FE,stroke:#4285F4,color:#000
     classDef iceboxStyle fill:#F3E5F5,stroke:#4285F4,color:#000
-    classDef skippedStyle fill:#F5F5F5,stroke:#9E9E9E,color:#000
 ```
 
 

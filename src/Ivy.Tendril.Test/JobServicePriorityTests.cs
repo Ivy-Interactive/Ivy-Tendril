@@ -4,8 +4,14 @@ using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
 
-public class JobServicePriorityTests
+public class JobServicePriorityTests : IDisposable
 {
+    private readonly TempDirectoryFixture _tempDir = new();
+
+    public void Dispose()
+    {
+        _tempDir.Dispose();
+    }
     [Fact]
     public void StartJob_CreatePlan_ReadsPriorityFromArgs()
     {
@@ -74,43 +80,29 @@ public class JobServicePriorityTests
     [Fact]
     public void PriorityField_IsOptionalInPlanYaml_BackwardCompatible()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"tendril-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
-        try
-        {
-            var yamlContent = "state: Draft\nproject: TestProject\nlevel: NiceToHave\n";
-            File.WriteAllText(Path.Combine(tempDir, "plan.yaml"), yamlContent);
+        var planDir = Path.Combine(_tempDir.Path, $"plan-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(planDir);
+        var yamlContent = "state: Draft\nproject: TestProject\nlevel: NiceToHave\n";
+        File.WriteAllText(Path.Combine(planDir, "plan.yaml"), yamlContent);
 
-            var result = JobService.ReadPlanYaml(tempDir);
+        var result = JobService.ReadPlanYaml(planDir);
 
-            Assert.NotNull(result);
-            Assert.Equal(0, result.Priority);
-        }
-        finally
-        {
-            Directory.Delete(tempDir, true);
-        }
+        Assert.NotNull(result);
+        Assert.Equal(0, result.Priority);
     }
 
     [Fact]
     public void PriorityField_ParsedFromPlanYaml()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"tendril-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
-        try
-        {
-            var yamlContent = "state: Executing\nproject: Framework\npriority: 2\nlevel: Critical\n";
-            File.WriteAllText(Path.Combine(tempDir, "plan.yaml"), yamlContent);
+        var planDir = Path.Combine(_tempDir.Path, $"plan-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(planDir);
+        var yamlContent = "state: Executing\nproject: Framework\npriority: 2\nlevel: Critical\n";
+        File.WriteAllText(Path.Combine(planDir, "plan.yaml"), yamlContent);
 
-            var result = JobService.ReadPlanYaml(tempDir);
+        var result = JobService.ReadPlanYaml(planDir);
 
-            Assert.NotNull(result);
-            Assert.Equal(2, result.Priority);
-        }
-        finally
-        {
-            Directory.Delete(tempDir, true);
-        }
+        Assert.NotNull(result);
+        Assert.Equal(2, result.Priority);
     }
 
     [Fact]

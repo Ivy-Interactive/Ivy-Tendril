@@ -36,8 +36,8 @@ public class CompleteStepView(IState<int> stepperIndex) : ViewBase
                 // This now runs in a background thread without blocking DI resolution
                 await setupService.StartBackgroundServicesAsync();
 
-                // Step 3: Only redirect after services are ready
-                client.Redirect("/", true);
+                // Step 3: Reload the page to transition to the main app shell
+                client.ReloadPage();
             }
             catch (Exception ex)
             {

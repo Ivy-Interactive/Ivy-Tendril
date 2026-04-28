@@ -1,6 +1,8 @@
+using Ivy.Desktop;
 using Ivy.Tendril.Apps.Onboarding.Dialogs;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Ivy.Tendril.Apps.Onboarding;
 
@@ -165,6 +167,8 @@ internal class RepoPathInputView(IState<List<string>> repoPaths, int index) : Vi
     public override object Build()
     {
         var repoPath = UseState(repoPaths.Value[index]);
+        var (folderDialogView, showFolderDialog, selectedFolderPath) = UseFolderDialog();
+
         UseEffect(() =>
         {
             var list = new List<string>(repoPaths.Value);
@@ -172,7 +176,54 @@ internal class RepoPathInputView(IState<List<string>> repoPaths, int index) : Vi
             repoPaths.Set(list);
         }, repoPath);
 
-        return repoPath.ToTextInput("Select repository folder...")
-            .Width(Size.Grow());
+        UseEffect(() =>
+        {
+            if (selectedFolderPath.Value != null)
+                repoPath.Set(selectedFolderPath.Value);
+        }, selectedFolderPath);
+
+        Context.TryUseService<DesktopWindow>(out var desktop);
+
+        if (desktop != null)
+        {
+            return Layout.Horizontal().Gap(0)
+                   | new Button(repoPath.Value ?? "Your repository folder")
+                       .Outline()
+                       .Width(Size.Percent(100))
+                       .OnClick(async () =>
+                       {
+                           var tcs = new TaskCompletionSource<string[]?>();
+                               var thread = new Thread(() =>
+                               {
+                                   try
+                                   {
+                                       var folders = desktop.ShowSelectFolderDialog("Select Repository Folder");
+                                       tcs.SetResult(folders);
+                                   }
+                                   catch (Exception ex)
+                                   {
+                                       tcs.SetException(ex);
+                                   }
+                               });
+                               
+                               if (OperatingSystem.IsWindows())
+                               {
+                                   thread.SetApartmentState(ApartmentState.STA);
+                               }
+                               thread.Start();
+
+                               var result = await tcs.Task;
+                               if (result != null && result.Length > 0)
+                               {
+                                   repoPath.Set(result[0]);
+                               }
+                       })
+                   | folderDialogView;
+        }
+
+        return Layout.Horizontal().Gap(0)
+               | repoPath.ToTextInput("Your repository folder")
+                   .Width(Size.Grow())
+               | folderDialogView;
     }
 }
