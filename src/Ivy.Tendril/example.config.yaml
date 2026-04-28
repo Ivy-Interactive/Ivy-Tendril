@@ -56,6 +56,17 @@ codingAgents:
     model: gemini-3-flash-preview
   - name: quick
     model: gemini-3-flash-preview
+- name: copilot
+  profiles:
+  - name: deep
+    model: gpt-5.2
+    effort: high
+  - name: balanced
+    model: gpt-5.2
+    effort: medium
+  - name: quick
+    model: gpt-5.2
+    effort: low
 
 # Each promptware is connected to a profile (deep/balanced/quick).
 # The profile determines model and effort from the active coding agent above.
@@ -70,6 +81,7 @@ codingAgents:
 #   %TENDRIL_HOME% — the TENDRIL_HOME environment variable
 # For Codex: Write/Edit path scopes are translated to --add-dir flags.
 # For Gemini: Write/Edit path scopes are translated to --include-directories flags.
+# For Copilot: Write/Edit path scopes are translated to --add-dir flags.
 promptwares:
   CreatePlan:
     profile: balanced

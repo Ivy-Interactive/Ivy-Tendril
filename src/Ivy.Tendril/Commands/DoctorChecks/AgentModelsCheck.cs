@@ -12,6 +12,7 @@ internal class AgentModelsCheck : IDoctorCheck
         ["claude"] = "--version",
         ["codex"] = "--version",
         ["gemini"] = "--version",
+        ["copilot"] = "--version",
         ["git"] = "--version",
         ["pwsh"] = "-Version",
         ["pandoc"] = "--version"
@@ -41,7 +42,8 @@ internal class AgentModelsCheck : IDoctorCheck
             string.Equals(a.Name, codingAgent, StringComparison.OrdinalIgnoreCase) ||
             (a.Name == "ClaudeCode" && codingAgent == "claude") ||
             (a.Name == "Codex" && codingAgent == "codex") ||
-            (a.Name == "Gemini" && codingAgent == "gemini"));
+            (a.Name == "Gemini" && codingAgent == "gemini") ||
+            (a.Name == "Copilot" && codingAgent == "copilot"));
 
         foreach (var agent in agents)
         {
@@ -109,6 +111,7 @@ internal class AgentModelsCheck : IDoctorCheck
             "claude" or "claudecode" => "claude",
             "codex" => "codex",
             "gemini" => "gemini",
+            "copilot" => "copilot",
             _ => null
         };
     }
@@ -120,6 +123,7 @@ internal class AgentModelsCheck : IDoctorCheck
             "claude" => ($"-p \"ping\" --model {model} --max-turns 1", 30000),
             "gemini" => ($"-p \"Reply OK\" --model {model}", 30000),
             "codex" => ($"exec --model {model} \"Reply OK\"", 60000),
+            "copilot" => ($"-p \"ping\" --model {model} --allow-all -s", 30000),
             _ => ("", 0)
         };
 

@@ -19,7 +19,7 @@ Configure Tendril in the in-app **Settings** UI or by editing `TENDRIL_HOME/conf
 
 From Tendril, open setup without hand-editing YAML. Sections include:
 
-- **General** — Default coding agent (`claude`, `codex`, …), max concurrent jobs, Slack emoji / coworkers.
+- **General** — Default coding agent (`claude`, `codex`, `gemini`, `copilot`), max concurrent jobs, Slack emoji / coworkers.
 - **Levels** — Complexity tiers (e.g. L1–L3) and how agents weight large vs. small work.
 - **Verifications** — Build / test / lint commands agents must satisfy.
 - **Promptwares** — Paths to custom promptware folders and tools.
@@ -56,7 +56,7 @@ coworkers:
 
 | Field | Purpose |
 |-------|---------|
-| `codingAgent` | Agent runtime. See Claude Code, Codex, or Gemini for details. |
+| `codingAgent` | Agent runtime. See Claude Code, Codex, Gemini, or Copilot for details. |
 | `maxConcurrentJobs` | Cap on parallel agent runs (worktrees). |
 | `projects` | Registered repositories and their settings. |
 | `coworkers` | GitHub users for PR assignment / team features. |

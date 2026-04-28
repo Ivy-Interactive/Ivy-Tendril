@@ -13,6 +13,7 @@ internal class SoftwareCheck : IDoctorCheck
         ["claude"] = "--version",
         ["codex"] = "--version",
         ["gemini"] = "--version",
+        ["copilot"] = "--version",
         ["git"] = "--version",
         ["pwsh"] = "-Version",
         ["pandoc"] = "--version"
@@ -22,7 +23,8 @@ internal class SoftwareCheck : IDoctorCheck
     {
         ["gh"] = "auth status",
         ["claude"] = "-p \"ping\" --max-turns 1",
-        ["codex"] = "login status"
+        ["codex"] = "login status",
+        ["copilot"] = "-p \"ping\" --allow-all -s"
     };
 
     private readonly ConfigService? _configService;
@@ -137,6 +139,7 @@ internal class SoftwareCheck : IDoctorCheck
             "claude" or "claudecode" => "claude",
             "codex" => "codex",
             "gemini" => "gemini",
+            "copilot" => "copilot",
             _ => null
         };
     }

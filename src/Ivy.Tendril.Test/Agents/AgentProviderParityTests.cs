@@ -13,7 +13,8 @@ public class AgentProviderParityTests
     [
         new ClaudeAgentProvider(),
         new CodexAgentProvider(),
-        new GeminiAgentProvider()
+        new GeminiAgentProvider(),
+        new CopilotAgentProvider()
     ];
 
     private static AgentInvocation CreateInvocation(

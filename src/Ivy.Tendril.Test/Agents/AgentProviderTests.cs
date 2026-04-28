@@ -233,6 +233,110 @@ public class AgentProviderTests
         Assert.DoesNotContain("--reasoning-effort", psi.ArgumentList.ToList());
     }
 
+    // --- Copilot Provider ---
+
+    [Fact]
+    public void Copilot_BuildProcessStart_SetsExecutable()
+    {
+        var provider = new CopilotAgentProvider();
+        var psi = provider.BuildProcessStart(CreateInvocation());
+
+        Assert.Equal("copilot", psi.FileName);
+    }
+
+    [Fact]
+    public void Copilot_BuildProcessStart_IncludesBaseFlags()
+    {
+        var provider = new CopilotAgentProvider();
+        var psi = provider.BuildProcessStart(CreateInvocation());
+
+        var args = psi.ArgumentList.ToList();
+        Assert.Contains("-p", args);
+        Assert.Contains("--allow-all", args);
+        Assert.Contains("json", args);
+        Assert.Contains("-s", args);
+    }
+
+    [Fact]
+    public void Copilot_BuildProcessStart_IncludesModelAndEffort()
+    {
+        var provider = new CopilotAgentProvider();
+        var psi = provider.BuildProcessStart(CreateInvocation(model: "gpt-5.2", effort: "high"));
+
+        var args = psi.ArgumentList.ToList();
+        var modelIdx = args.IndexOf("--model");
+        Assert.True(modelIdx >= 0);
+        Assert.Equal("gpt-5.2", args[modelIdx + 1]);
+
+        var effortIdx = args.IndexOf("--effort");
+        Assert.True(effortIdx >= 0);
+        Assert.Equal("high", args[effortIdx + 1]);
+    }
+
+    [Fact]
+    public void Copilot_BuildProcessStart_IncludesSessionAsName()
+    {
+        var provider = new CopilotAgentProvider();
+        var psi = provider.BuildProcessStart(CreateInvocation(sessionId: "abc-123"));
+
+        var args = psi.ArgumentList.ToList();
+        var idx = args.IndexOf("--name");
+        Assert.True(idx >= 0);
+        Assert.Equal("abc-123", args[idx + 1]);
+    }
+
+    [Fact]
+    public void Copilot_BuildProcessStart_PromptViaFlag()
+    {
+        var provider = new CopilotAgentProvider();
+        var psi = provider.BuildProcessStart(CreateInvocation("hello world"));
+
+        Assert.False(provider.UsesStdinPrompt);
+        var args = psi.ArgumentList.ToList();
+        var pIdx = args.IndexOf("-p");
+        Assert.True(pIdx >= 0);
+        Assert.Equal("hello world", args[pIdx + 1]);
+    }
+
+    [Fact]
+    public void Copilot_BuildProcessStart_PassesAddDirForWritableTools()
+    {
+        var provider = new CopilotAgentProvider();
+        var psi = provider.BuildProcessStart(CreateInvocation(
+            allowedTools: new[] { "Read", "Write(/plans/**)", "Bash" }));
+
+        var args = psi.ArgumentList.ToList();
+        var idx = args.IndexOf("--add-dir");
+        Assert.True(idx >= 0);
+        Assert.Equal("/plans", args[idx + 1]);
+    }
+
+    [Fact]
+    public void Copilot_BuildProcessStart_OmitsEmptyModel()
+    {
+        var provider = new CopilotAgentProvider();
+        var psi = provider.BuildProcessStart(CreateInvocation(model: ""));
+
+        var args = psi.ArgumentList.ToList();
+        Assert.DoesNotContain("--model", args);
+    }
+
+    [Fact]
+    public void Copilot_ExtractResult_ReturnsLastNonEmpty()
+    {
+        var provider = new CopilotAgentProvider();
+        var lines = new List<string>
+        {
+            "Working on the task...",
+            "Done! All changes applied.",
+            "",
+            ""
+        };
+
+        var result = provider.ExtractResult(lines);
+        Assert.Equal("Done! All changes applied.", result);
+    }
+
     // --- ExtractWritableDirs ---
 
     [Fact]
