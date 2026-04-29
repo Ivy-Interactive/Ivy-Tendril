@@ -423,7 +423,7 @@ public class ContentView(
             else
                 foreach (var rec in planData.Recommendations)
                 {
-                    var titleRow = Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+                    var titleRow = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
                                    | Text.Block(rec.Title).Bold();
 
                     if (rec.Impact is { } impact)
