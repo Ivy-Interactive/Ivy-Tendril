@@ -25,6 +25,7 @@ public class ContentView(
         var downloadUrl = PlanDownloadHelper.UsePlanDownload(Context, planService, selectedPlan);
         var client = UseService<IClientProvider>();
         var copyToClipboard = UseClipboard();
+        var updateDialogOpen = UseState(false);
         var deleteDialogOpen = UseState(false);
         var createIssueDialogOpen = UseState(false);
         var openFile = UseState<string?>(null);
@@ -33,7 +34,7 @@ public class ContentView(
         var issueLabelsState = UseState<string[]>([]);
         var issueCommentState = UseState("");
 
-        var pendingAdjustmentsJson = UseState("");
+        var updateText = UseState("");
         var isEditing = UseState(false);
         var editContent = UseState("");
         var originalContent = UseState("");
@@ -104,11 +105,7 @@ public class ContentView(
         }, isEditing);
 
         // Navigation effects (was UseNavigationEffects)
-        UseEffect(() =>
-        {
-            selectedTab.Set(0);
-            pendingAdjustmentsJson.Set("");
-        }, selectedPlanState);
+        UseEffect(() => { selectedTab.Set(0); }, selectedPlanState);
 
 #pragma warning disable CS8601
         selectedPlanRef.Value = selectedPlan;
@@ -179,7 +176,6 @@ public class ContentView(
             isEditing.Value,
             editContent,
             openFile,
-            pendingAdjustmentsJson,
             planService);
 
         if (planContentQuery.Loading)
@@ -245,34 +241,6 @@ public class ContentView(
             j.Args.Length > 0 &&
             j.Args[0].Equals(selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
 
-        // Pending adjustments from the PlanAdjuster widget are submitted via the action bar's Update button.
-        var pendingAdjustments = PlanAdjustmentHelper.Parse(pendingAdjustmentsJson.Value);
-        var hasActiveUpdateJob = jobService.GetJobs().Any(j =>
-            j.Type == Constants.JobTypes.UpdatePlan &&
-            j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
-            j.Args.Length > 0 &&
-            j.Args[0].Equals(selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
-
-        Action submitAdjustments = () =>
-        {
-            if (pendingAdjustments.Count == 0 || hasActiveUpdateJob) return;
-
-            var current = planService.ReadLatestRevision(selectedPlan.FolderName);
-            var updated = PlanAdjustmentHelper.ApplyAdjustments(current, pendingAdjustments);
-
-            var optimisticPlan = selectedPlan with
-            {
-                Metadata = selectedPlan.Metadata with { State = PlanStatus.Updating }
-            };
-            selectedPlanState.Set(optimisticPlan);
-
-            planService.SavePlan(selectedPlan.FolderName, updated);
-            planService.TransitionState(selectedPlan.FolderName, PlanStatus.Updating);
-            jobService.StartJob(Constants.JobTypes.UpdatePlan, selectedPlan.FolderPath);
-            pendingAdjustmentsJson.Set("");
-            refreshPlans();
-        };
-
         var actionBar = new ActionBarView(
             selectedPlan,
             allPlans,
@@ -280,9 +248,7 @@ public class ContentView(
             isEditing,
             editContent,
             originalContent,
-            pendingAdjustments.Count,
-            hasActiveUpdateJob,
-            submitAdjustments,
+            updateDialogOpen,
             deleteDialogOpen,
             createIssueDialogOpen,
             planService,
@@ -307,6 +273,7 @@ public class ContentView(
         var elements = new List<object>
         {
             mainLayout,
+            new UpdatePlanDialog(updateDialogOpen, updateText, selectedPlan, selectedPlanState, jobService, planService, refreshPlans),
             new DeletePlanDialog(deleteDialogOpen, selectedPlan, selectedPlanState, planService, refreshPlans),
             new CreateIssueDialog(createIssueDialogOpen, selectedRepoState, issueAssigneeState, issueLabelsState,
                 issueCommentState, selectedPlan, jobService)

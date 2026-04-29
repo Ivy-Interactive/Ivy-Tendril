@@ -12,9 +12,7 @@ public class ActionBarView(
     IState<bool> isEditingState,
     IState<string> editContentState,
     IState<string> originalContentState,
-    int pendingAdjustmentCount,
-    bool hasActiveUpdateJob,
-    Action submitAdjustments,
+    IState<bool> updateDialogOpenState,
     IState<bool> deleteDialogOpenState,
     IState<bool> createIssueDialogOpenState,
     IPlanReaderService planService,
@@ -60,9 +58,7 @@ public class ActionBarView(
                 | new Button("Edit").Icon(Icons.Pencil).Outline().ShortcutKey("E")
                     .OnClick(() => isEditingState.Set(true))
                 | new Button("Update").Icon(Icons.WandSparkles).Outline().ShortcutKey("u")
-                    .Badge(pendingAdjustmentCount > 0 ? pendingAdjustmentCount.ToString() : null)
-                    .Disabled(pendingAdjustmentCount == 0 || hasActiveUpdateJob)
-                    .OnClick(() => submitAdjustments())
+                    .OnClick(() => updateDialogOpenState.Set(true))
                 | new Button("Split").Icon(Icons.Scissors).Outline().ShortcutKey("s")
                     .Disabled(hasActiveSplitJob)
                     .OnClick(() =>
