@@ -125,7 +125,7 @@ public partial class JobsApp
                         var job = jobs.FirstOrDefault(j => j.Id == id);
                         if (job != null)
                         {
-                            var fullPrompt = GetFullPrompt(job);
+                            var fullPrompt = GetFullPrompt(job, planService);
                             if (!string.IsNullOrEmpty(fullPrompt))
                                 showPrompt.Set(fullPrompt);
                         }
@@ -186,7 +186,7 @@ public partial class JobsApp
                     }
                     else if (tag == "show-prompt")
                     {
-                        var fullPrompt = GetFullPrompt(job);
+                        var fullPrompt = GetFullPrompt(job, planService);
                         if (!string.IsNullOrEmpty(fullPrompt))
                             showPrompt.Set(fullPrompt);
                     }
