@@ -12,7 +12,8 @@ public class ChangesTabView(
 
     public override object Build()
     {
-        var expandedFiles = UseState(new HashSet<string>());
+        // null sentinel = "user hasn't toggled yet, default to all expanded"
+        var expandedFiles = UseState<HashSet<string>?>(() => null);
         var selectedFile = UseState<string?>(null);
 
         if (loading)
@@ -31,17 +32,10 @@ public class ChangesTabView(
         if (fileDiffs.Count == 0 && changesData.Files.Count == 0)
             return Text.Muted("No file changes.");
 
-        // Build tree items from file list
-        var treeItems = fileDiffs.Select(fd =>
-        {
-            var fileName = Path.GetFileName(fd.FilePath);
-            var (icon, color) = PlanContentHelpers.GetFileStatusIconAndColor(fd.Status);
-            return new MenuItem(fileName)
-                .Icon(icon)
-                .Color(color)
-                .Tag(fd.FilePath)
-                .Tooltip(fd.FilePath);
-        }).ToArray();
+        var currentlyExpanded = expandedFiles.Value
+            ?? new HashSet<string>(fileDiffs.Select(fd => fd.FilePath));
+
+        var treeItems = BuildFileTree(fileDiffs);
 
         var tree = new Tree(treeItems)
             .OnSelect(e =>
@@ -49,25 +43,22 @@ public class ChangesTabView(
                 var path = e.Value?.ToString();
                 if (path is null) return;
                 selectedFile.Set(path);
-                // Also expand the file when selected from tree
-                if (!expandedFiles.Value.Contains(path))
+                if (!currentlyExpanded.Contains(path))
                 {
-                    var files = new HashSet<string>(expandedFiles.Value) { path };
+                    var files = new HashSet<string>(currentlyExpanded) { path };
                     expandedFiles.Set(files);
                 }
             });
 
-        // Stats header
         var statsText =
             $"{changesData.Files.Count} files changed ({changesData.AddedCount} added, {changesData.ModifiedCount} modified, {changesData.DeletedCount} deleted)";
 
-        // Build per-file collapsible diff sections
-        var diffsLayout = Layout.Vertical().Gap(2);
+        var diffsLayout = Layout.Vertical().Gap(2).Width(Size.Full());
         diffsLayout |= Text.Block(statsText).Bold();
 
         foreach (var fileDiff in fileDiffs)
         {
-            var isExpanded = expandedFiles.Value.Contains(fileDiff.FilePath);
+            var isExpanded = currentlyExpanded.Contains(fileDiff.FilePath);
             var chevronIcon = isExpanded ? Icons.ChevronDown : Icons.ChevronRight;
             var (statusIcon, statusColor) = PlanContentHelpers.GetFileStatusIconAndColor(fileDiff.Status);
             var fileName = Path.GetFileName(fileDiff.FilePath);
@@ -82,16 +73,17 @@ public class ChangesTabView(
             var path = fileDiff.FilePath;
             diffsLayout |= new Box(header)
                 .BorderThickness(0).Padding(1)
+                .Hover(HoverEffect.Pointer)
                 .OnClick(() =>
                 {
-                    var files = new HashSet<string>(expandedFiles.Value);
+                    var files = new HashSet<string>(currentlyExpanded);
                     if (!files.Add(path)) files.Remove(path);
                     expandedFiles.Set(files);
                 });
 
             if (isExpanded)
             {
-                diffsLayout |= new DiffView().Diff(fileDiff.Diff).Split();
+                diffsLayout |= new DiffView().Diff(fileDiff.Diff).Split().Width(Size.Full());
             }
         }
 
@@ -103,5 +95,68 @@ public class ChangesTabView(
             sidebarContent: sidebarContent,
             width: Size.Rem(16)
         ).Resizable();
+    }
+
+    private static MenuItem[] BuildFileTree(IReadOnlyList<PlanContentHelpers.FileDiff> fileDiffs)
+    {
+        var root = new TreeNode("");
+        foreach (var fd in fileDiffs)
+        {
+            var segments = fd.FilePath.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var node = root;
+            for (var i = 0; i < segments.Length - 1; i++)
+            {
+                var seg = segments[i];
+                if (!node.Folders.TryGetValue(seg, out var child))
+                {
+                    child = new TreeNode(seg);
+                    node.Folders[seg] = child;
+                }
+                node = child;
+            }
+            node.Files.Add(fd);
+        }
+        return ChildItems(root);
+    }
+
+    private static MenuItem[] ChildItems(TreeNode node)
+    {
+        var items = new List<MenuItem>();
+        foreach (var folder in node.Folders.Values.OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            items.Add(FolderItem(folder));
+        }
+        foreach (var file in node.Files.OrderBy(f => Path.GetFileName(f.FilePath), StringComparer.OrdinalIgnoreCase))
+        {
+            var (icon, color) = PlanContentHelpers.GetFileStatusIconAndColor(file.Status);
+            items.Add(new MenuItem(Path.GetFileName(file.FilePath))
+                .Icon(icon)
+                .Color(color)
+                .Tag(file.FilePath)
+                .Tooltip(file.FilePath));
+        }
+        return items.ToArray();
+    }
+
+    // Collapse single-child folder chains (e.g. "src/components" if src has only the components folder)
+    // for a more compact GitHub-style tree.
+    private static MenuItem FolderItem(TreeNode node)
+    {
+        var label = node.Name;
+        while (node.Files.Count == 0 && node.Folders.Count == 1)
+        {
+            var only = node.Folders.Values.First();
+            label = $"{label}/{only.Name}";
+            node = only;
+        }
+
+        return new MenuItem(label, ChildItems(node)).Icon(Icons.Folder).Expanded();
+    }
+
+    private sealed class TreeNode(string name)
+    {
+        public string Name { get; } = name;
+        public Dictionary<string, TreeNode> Folders { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public List<PlanContentHelpers.FileDiff> Files { get; } = new();
     }
 }
