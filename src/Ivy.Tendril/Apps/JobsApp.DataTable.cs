@@ -71,12 +71,10 @@ public partial class JobsApp
             .Hidden(t => t.LastOutputTimestamp)
             .Hidden(t => t.ErrorContext)
             .SortDirection(t => t.Id, SortDirection.Descending)
-            .Filterable(t => t.Timer, false)
-            .Filterable(t => t.LastOutput, false)
             .Config(c =>
             {
                 c.AllowSorting = true;
-                c.AllowFiltering = true;
+                c.AllowFiltering = false;
                 c.ShowSearch = false;
                 c.SelectionMode = SelectionModes.None;
                 c.ShowIndexColumn = false;
