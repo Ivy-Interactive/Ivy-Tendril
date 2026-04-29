@@ -19,7 +19,7 @@ Configure Tendril in the in-app **Settings** UI or by editing `TENDRIL_HOME/conf
 
 From Tendril, open setup without hand-editing YAML. Sections include:
 
-- **General** — Default coding agent (`claude`, `codex`, `gemini`, `copilot`), max concurrent jobs, Slack emoji / coworkers.
+- **General** — Default coding agent (`claude`, `codex`, `gemini`, `copilot`), max concurrent jobs, timeouts.
 - **Levels** — Complexity tiers (e.g. L1–L3) and how agents weight large vs. small work.
 - **Verifications** — Build / test / lint commands agents must satisfy.
 - **Promptwares** — Paths to custom promptware folders and tools.
@@ -37,19 +37,19 @@ maxConcurrentJobs: 3
 
 projects:
   - name: MyProject
-    repo: D:\Repos\MyProject
+    color: Blue
+    repos:
+      - path: D:\Repos\MyProject
+        prRule: default
     verifications:
-      - DotnetBuild
-      - DotnetFormat
-      - DotnetTest
-      - CheckResult
+      - name: Build
+        required: true
+      - name: Test
+        required: true
+      - name: CheckResult
+        required: true
     meta:
       slackEmoji: ":rocket:"
-      color: "#3B82F6"
-
-coworkers:
-  - github: username
-    name: Display Name
 ```
 
 ### Common fields
@@ -59,17 +59,18 @@ coworkers:
 | `codingAgent` | Agent runtime. See Claude Code, Codex, Gemini, or Copilot for details. |
 | `maxConcurrentJobs` | Cap on parallel agent runs (worktrees). |
 | `projects` | Registered repositories and their settings. |
-| `coworkers` | GitHub users for PR assignment / team features. |
-| `api.apiKey` | Protect the REST API with a shared secret (see [REST API](../08_Advanced/02_REST.md)). |
+| `api.apiKey` | Protect the REST API with a shared secret (see [REST API](../07_Advanced/02_REST.md)). |
 
 ## Verifications
 
-Wire these names into project `verifications` (and define behavior in config as needed):
+Tendril ships with these built-in verification definitions. Wire them into project `verifications`:
 
 | Name | Role |
 |------|------|
-| `DotnetBuild` | `dotnet build` |
-| `DotnetFormat` | `dotnet format` checks |
-| `DotnetTest` | Test suite |
-| `Npm*` | Same idea for other stacks |
-| `CheckResult` | Parse stdout/stderr to decide pass/fail |
+| `Build` | Run the project's build command and verify zero errors |
+| `Format` | Run the code formatter on changed files |
+| `Test` | Run tests scoped by the plan's test section |
+| `Lint` | Run the linter and fix any errors |
+| `CheckResult` | Verify the implementation matches the plan |
+
+Stack-specific verifications (e.g. `DotnetBuild`, `NpmTest`) can be added as custom entries in `config.yaml`.

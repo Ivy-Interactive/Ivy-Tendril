@@ -33,12 +33,6 @@ In Tendril, work is organized into **Plans**—structured units of work. Instead
 - **Stack & Agent Agnostic** — Works with any language, framework, or CLI-based agent — Claude Code, Codex, Gemini, and more. No lock-in.
 - **Cross-Platform & Local-First** — Runs on Windows, macOS, and Linux. Your code never leaves your machine.
 
-## The Tendril Loop: From Idea to PR
-
-Plans flow through the following pipeline:
-
-![Plan flow](assets/PlanLifecycle.png)
-
 ## Why Tendril?
 
 At [Ivy Interactive](https://ivy.app), we experimented with many different systems of architecture in order to improve our workflow and take advantage of the advancements in AI/agentic coding capabilities. Working with the incredible capabilities of Claude and others was great, but it quickly became messy managing a dozen terminal windows.
