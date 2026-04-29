@@ -48,6 +48,7 @@
     <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.Xterm/Ivy.Widgets.Xterm.csproj" />
     <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.DiffView/Ivy.Widgets.DiffView.csproj" />
     <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.ClaudeJsonRenderer/Ivy.Widgets.ClaudeJsonRenderer.csproj" />
+    <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.PlanAdjuster/Ivy.Widgets.PlanAdjuster.csproj" />
     <ProjectReference Include="../../../Ivy-Framework/src/Ivy.Desktop/Ivy.Desktop.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(IvySource)' != 'true'">
@@ -56,6 +57,7 @@
     <PackageReference Include="Ivy.Widgets.Xterm" Version="1.2.50" />
     <PackageReference Include="Ivy.Widgets.DiffView" Version="1.2.50" />
     <PackageReference Include="Ivy.Widgets.ClaudeJsonRenderer" Version="1.2.50" />
+    <PackageReference Include="Ivy.Widgets.PlanAdjuster" Version="1.2.50" />
     <PackageReference Include="Ivy.Desktop" Version="1.2.50" />
   </ItemGroup>
   <ItemGroup Condition="'$(IvySource)' == 'true'">
