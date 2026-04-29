@@ -32,8 +32,20 @@ public class OutputSheet(
                     .Height(Size.Full());
             }
         }
+        else if (job is not null && hasStreamContent.Value)
+        {
+            // Job finished while user was watching the stream — keep using stream renderer
+            // (switching to JsonStream would duplicate content since streamedLines persists in React state)
+            outputContent = new ClaudeJsonRenderer()
+                .Stream(outputStream)
+                .ShowThinking(false)
+                .ShowSystemEvents(false)
+                .AutoScroll(false)
+                .Height(Size.Full());
+        }
         else if (job is not null && job.OutputLines.Count > 0)
         {
+            // Job completed before user opened sheet — load from stored output
             var jsonStream = string.Join("\n", job.OutputLines);
             outputContent = new ClaudeJsonRenderer()
                 .JsonStream(jsonStream)
