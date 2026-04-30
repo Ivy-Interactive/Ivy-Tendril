@@ -35,7 +35,9 @@ public class ChangesTabView(
         var currentlyExpanded = expandedFiles.Value
             ?? new HashSet<string>(fileDiffs.Select(fd => fd.FilePath));
 
-        var treeItems = BuildFileTree(fileDiffs);
+        var root = BuildFileTree(fileDiffs);
+        var treeItems = ChildItems(root);
+        var sortedFileDiffs = SortByTreeOrder(fileDiffs, root);
 
         var tree = new Tree(treeItems)
             .OnSelect(e =>
@@ -56,7 +58,7 @@ public class ChangesTabView(
         var diffsLayout = Layout.Vertical().Gap(2).Width(Size.Full());
         diffsLayout |= Text.Block(statsText).Bold();
 
-        foreach (var fileDiff in fileDiffs)
+        foreach (var fileDiff in sortedFileDiffs)
         {
             var isExpanded = currentlyExpanded.Contains(fileDiff.FilePath);
             var chevronIcon = isExpanded ? Icons.ChevronDown : Icons.ChevronRight;
@@ -99,7 +101,7 @@ public class ChangesTabView(
             | diffsLayout;
     }
 
-    private static MenuItem[] BuildFileTree(IReadOnlyList<PlanContentHelpers.FileDiff> fileDiffs)
+    private static TreeNode BuildFileTree(IReadOnlyList<PlanContentHelpers.FileDiff> fileDiffs)
     {
         var root = new TreeNode("");
         foreach (var fd in fileDiffs)
@@ -118,7 +120,7 @@ public class ChangesTabView(
             }
             node.Files.Add(fd);
         }
-        return ChildItems(root);
+        return root;
     }
 
     private static MenuItem[] ChildItems(TreeNode node)
@@ -140,6 +142,32 @@ public class ChangesTabView(
         return items.ToArray();
     }
 
+    private static List<string> FlattenTreeOrder(TreeNode node)
+    {
+        var result = new List<string>();
+        FlattenTreeOrderRecursive(node, result);
+        return result;
+    }
+
+    private static void FlattenTreeOrderRecursive(TreeNode node, List<string> result)
+    {
+        foreach (var folder in node.Folders.Values.OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase))
+            FlattenTreeOrderRecursive(folder, result);
+        foreach (var file in node.Files.OrderBy(f => Path.GetFileName(f.FilePath), StringComparer.OrdinalIgnoreCase))
+            result.Add(file.FilePath);
+    }
+
+    private static List<PlanContentHelpers.FileDiff> SortByTreeOrder(
+        IReadOnlyList<PlanContentHelpers.FileDiff> fileDiffs, TreeNode root)
+    {
+        var orderedPaths = FlattenTreeOrder(root);
+        var lookup = fileDiffs.ToDictionary(fd => fd.FilePath);
+        return orderedPaths
+            .Where(lookup.ContainsKey)
+            .Select(p => lookup[p])
+            .ToList();
+    }
+
     // Collapse single-child folder chains (e.g. "src/components" if src has only the components folder)
     // for a more compact GitHub-style tree.
     private static MenuItem FolderItem(TreeNode node)
@@ -152,7 +180,37 @@ public class ChangesTabView(
             node = only;
         }
 
-        return new MenuItem(label, ChildItems(node)).Icon(Icons.Folder).Expanded();
+        var item = new MenuItem(label, ChildItems(node)).Icon(Icons.Folder).Expanded();
+        var folderColor = GetFolderColor(node);
+        return folderColor is not null ? item.Color(folderColor.Value) : item;
+    }
+
+    private static Colors? GetFolderColor(TreeNode node)
+    {
+        var hasAdded = false;
+        var hasDeleted = false;
+        var hasOther = false;
+        CollectStatuses(node);
+        if (!hasAdded && !hasDeleted && !hasOther) return null;
+        if (hasAdded && !hasDeleted && !hasOther) return Colors.Success;
+        if (hasDeleted && !hasAdded && !hasOther) return Colors.Destructive;
+        return Colors.Neutral;
+
+        void CollectStatuses(TreeNode n)
+        {
+            foreach (var f in n.Files)
+            {
+                switch (f.Status)
+                {
+                    case "A": hasAdded = true; break;
+                    case "D": hasDeleted = true; break;
+                    default: hasOther = true; break;
+                }
+                if (hasAdded && hasDeleted) return;
+            }
+            foreach (var folder in n.Folders.Values)
+                CollectStatuses(folder);
+        }
     }
 
     private sealed class TreeNode(string name)
