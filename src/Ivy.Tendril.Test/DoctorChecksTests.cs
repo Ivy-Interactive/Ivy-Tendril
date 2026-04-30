@@ -14,7 +14,7 @@ public class DoctorChecksTests : IDisposable
     }
 
     [Fact]
-    public void EnvironmentCheck_MissingConfigFile_ShowsFullPath()
+    public async Task EnvironmentCheck_MissingConfigFile_ShowsFullPath()
     {
         var tempDir = _tempDir.Path;
         var expectedConfigPath = Path.Combine(tempDir, "config.yaml");
@@ -28,9 +28,9 @@ public class DoctorChecksTests : IDisposable
         try
         {
             var check = new EnvironmentCheck();
-            var result = check.Run();
+            var result = await check.RunAsync();
 
-            var configStatus = result.Statuses.FirstOrDefault(s => s.Name == "config.yaml");
+            var configStatus = result.Statuses.FirstOrDefault(s => s.Label == "config.yaml");
             Assert.NotNull(configStatus);
             Assert.Equal(StatusKind.Error, configStatus.Kind);
             Assert.Contains("Not found at", configStatus.Value);

@@ -1530,7 +1530,7 @@ maxConcurrentJobs: 10
         });
         var logger = loggerFactory.CreateLogger<ConfigService>();
 
-        var service = new ConfigService(logger, tempDir);
+        var service = new ConfigService(new TendrilSettings(), tempDir, logger);
 
         Assert.Contains(logMessages, msg =>
             msg.Contains("Configuration file not found") &&
@@ -1564,7 +1564,7 @@ maxConcurrentJobs: 10
             _logAction = logAction;
         }
 
-        public IDisposable BeginScope<TState>(TState state) => null!;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
         public bool IsEnabled(LogLevel logLevel) => true;
 
