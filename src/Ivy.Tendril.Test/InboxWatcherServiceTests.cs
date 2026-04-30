@@ -296,6 +296,54 @@ public class InboxWatcherServiceTests : IDisposable
         Assert.Empty(Directory.GetFiles(inboxDir, "*.processing"));
     }
 
+    [Fact]
+    public void ProcessExistingFiles_StaggersStartupWithDelay()
+    {
+        var inboxDir = Path.Combine(_tempDir.Path, "Inbox");
+        Directory.CreateDirectory(inboxDir);
+
+        // Create 5 inbox files with staggered creation times
+        var files = new List<string>();
+        for (int i = 0; i < 5; i++)
+        {
+            var filePath = Path.Combine(inboxDir, $"entry-{i}.md");
+            File.WriteAllText(filePath, $"Test entry {i}");
+            Thread.Sleep(100); // Small delay to ensure different creation times
+            files.Add(filePath);
+        }
+
+        var config = new ConfigService(new TendrilSettings(), _tempDir.Path);
+        var jobService = new TimestampedJobService();
+
+        // Manually call ProcessExistingFiles (without creating watcher to avoid auto-processing)
+        var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
+
+        // Wait for all jobs to be started
+        var startTime = DateTime.UtcNow;
+        while (jobService.StartedJobs.Count < 5 && (DateTime.UtcNow - startTime).TotalSeconds < 15)
+        {
+            Thread.Sleep(100);
+        }
+
+        // Verify we got all 5 jobs
+        Assert.Equal(5, jobService.StartedJobs.Count);
+
+        // Verify files were processed in creation order (oldest first)
+        for (int i = 0; i < 5; i++)
+        {
+            var processingPath = files[i] + ".processing";
+            Assert.Contains(jobService.StartedJobs, job => job.InboxFilePath == processingPath);
+        }
+
+        // Verify time between StartJob calls is approximately 2 seconds
+        for (int i = 1; i < jobService.StartJobTimestamps.Count; i++)
+        {
+            var delay = (jobService.StartJobTimestamps[i] - jobService.StartJobTimestamps[i - 1]).TotalMilliseconds;
+            // Allow some tolerance (1800ms to 2200ms) for system scheduling
+            Assert.InRange(delay, 1800, 2500);
+        }
+    }
+
     private class DeleteBeforeRenameJobService : IJobService
     {
         private readonly string _fileToDelete;
@@ -324,6 +372,39 @@ public class InboxWatcherServiceTests : IDisposable
             }
             return false;
         }
+
+        public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false) { }
+        public void StopJob(string id) { }
+        public void DeleteJob(string id) { }
+        public void ClearCompletedJobs() { }
+        public void ClearFailedJobs() { }
+        public List<JobItem> GetJobs() => new();
+        public JobItem? GetJob(string id) => null;
+        public void Dispose() { }
+
+#pragma warning disable CS0067
+        public event Action? JobsChanged;
+        public event Action? JobsStructureChanged;
+        public event Action? JobPropertyChanged;
+        public event Action<JobNotification>? NotificationReady;
+#pragma warning restore CS0067
+    }
+
+    private class TimestampedJobService : IJobService
+    {
+        public List<(string Type, string[] Args, string? InboxFilePath)> StartedJobs { get; } = new();
+        public List<DateTime> StartJobTimestamps { get; } = new();
+
+        public string StartJob(string type, string[] args, string? inboxFilePath)
+        {
+            StartJobTimestamps.Add(DateTime.UtcNow);
+            StartedJobs.Add((type, args, inboxFilePath));
+            return $"job-{StartedJobs.Count:D3}";
+        }
+
+        public string StartJob(string type, params string[] args) => StartJob(type, args, null);
+
+        public bool IsInboxFileTracked(string filePath) => false;
 
         public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false) { }
         public void StopJob(string id) { }

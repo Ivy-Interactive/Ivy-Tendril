@@ -1,5 +1,6 @@
 using Ivy.Tendril.Helpers;
 using System.Collections.Concurrent;
+using System.Linq;
 using Ivy.Helpers;
 using Microsoft.Extensions.Logging;
 
@@ -98,8 +99,18 @@ public class InboxWatcherService : IInboxWatcherService
         if (!Directory.Exists(_inboxPath))
             return;
 
-        foreach (var file in Directory.GetFiles(_inboxPath, "*.md"))
-            _ = ProcessFileAsync(file);
+        var files = Directory.GetFiles(_inboxPath, "*.md")
+            .OrderBy(f => File.GetCreationTimeUtc(f))
+            .ToList();
+
+        for (int i = 0; i < files.Count; i++)
+        {
+            _ = ProcessFileAsync(files[i]);
+
+            // Stagger startup to avoid thundering herd
+            if (i < files.Count - 1)
+                Thread.Sleep(2000);
+        }
     }
 
     private async Task ProcessFileAsync(string filePath)
