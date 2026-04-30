@@ -41,9 +41,34 @@ public record ProjectConfig
         return Meta.TryGetValue(key, out var v) ? v?.ToString() : null;
     }
 
+    /// <summary>
+    /// Finds a repository reference by path.
+    /// Normalizes paths before comparison to handle trailing slashes, mixed separators, and relative paths.
+    /// </summary>
+    /// <param name="path">The repository path to find.</param>
+    /// <returns>The matching RepoRef, or null if not found.</returns>
     public RepoRef? GetRepoRef(string path)
     {
-        return Repos.FirstOrDefault(r => r.Path.Equals(path, StringComparison.OrdinalIgnoreCase));
+        var normalizedPath = NormalizePath(path);
+        return Repos.FirstOrDefault(r =>
+            NormalizePath(r.Path).Equals(normalizedPath, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string NormalizePath(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return path;
+
+        try
+        {
+            // Get full path and remove trailing directory separators
+            var normalized = Path.GetFullPath(path);
+            return normalized.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
+        catch
+        {
+            // If Path.GetFullPath fails (e.g., invalid path), return original with trimmed separators
+            return path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
     }
 }
 
