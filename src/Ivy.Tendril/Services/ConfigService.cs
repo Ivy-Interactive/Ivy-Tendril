@@ -270,7 +270,7 @@ public class ConfigService : IConfigService, IDisposable
     private void FinalizeConfiguration()
     {
         ValidateSettings();
-        VariableExpansion.InitializeUserSecrets(TendrilHome, _logger);
+        VariableExpansion.InitializeUserSecrets(_logger);
         ExpandSettingsVariables();
         ExpandRepoPaths();
         ValidateRepoPathsAreNotWorktrees();
@@ -407,7 +407,7 @@ public class ConfigService : IConfigService, IDisposable
             ValidateSettings();
             MigrateProjectColors();
             _levelNamesCache = null;
-            VariableExpansion.InitializeUserSecrets(TendrilHome, _logger);
+            VariableExpansion.InitializeUserSecrets(_logger);
             ExpandSettingsVariables();
 
             SettingsReloaded?.Invoke(this, EventArgs.Empty);
@@ -574,7 +574,7 @@ public class ConfigService : IConfigService, IDisposable
                     FileHelper.WriteAllText(ConfigPath, backupYaml);
                     Settings = restored;
                     MigrateProjectColors();
-                    VariableExpansion.InitializeUserSecrets(TendrilHome, _logger);
+                    VariableExpansion.InitializeUserSecrets(_logger);
                     ExpandSettingsVariables();
                     ExpandRepoPaths();
                     return true;
@@ -618,7 +618,7 @@ public class ConfigService : IConfigService, IDisposable
             ParseError = null;
             NeedsOnboarding = false;
             _levelNamesCache = null;
-            VariableExpansion.InitializeUserSecrets(TendrilHome, _logger);
+            VariableExpansion.InitializeUserSecrets(_logger);
             ExpandSettingsVariables();
             ExpandRepoPaths();
             SettingsReloaded?.Invoke(this, EventArgs.Empty);
@@ -756,7 +756,7 @@ public class ConfigService : IConfigService, IDisposable
         ValidateSettings();
         MigrateProjectColors();
         _levelNamesCache = null;
-        VariableExpansion.InitializeUserSecrets(TendrilHome, _logger);
+        VariableExpansion.InitializeUserSecrets(_logger);
         ExpandSettingsVariables();
     }
 
