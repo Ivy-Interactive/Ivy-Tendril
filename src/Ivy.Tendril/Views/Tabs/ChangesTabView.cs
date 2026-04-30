@@ -88,8 +88,6 @@ public class ChangesTabView(
             }
         }
 
-        diffsLayout.ScrollTarget(selectedFile.Value);
-
         var sidebarContent = Layout.Vertical().Gap(2).Padding(1)
             | tree;
 
