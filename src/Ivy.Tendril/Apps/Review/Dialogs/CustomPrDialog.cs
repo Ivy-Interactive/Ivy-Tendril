@@ -32,6 +32,7 @@ public class CustomPrDialog(
         var customPrIncludeArtifacts = UseState(false);
         var customPrAssignee = UseState<string?>(null);
         var customPrComment = UseState("");
+        var customPrDraft = UseState(false);
 
         UseEffect(() =>
         {
@@ -49,6 +50,7 @@ public class CustomPrDialog(
                 customPrIncludeArtifacts.Set(true);
                 customPrAssignee.Set(null);
                 customPrComment.Set("");
+                customPrDraft.Set(false);
                 _dialogOpen.Set(false);
             },
             new DialogHeader($"Custom PR for #{_selectedPlan.Id}"),
@@ -58,6 +60,7 @@ public class CustomPrDialog(
                 | customPrDeleteBranch.ToBoolInput("Delete Branch")
                     .Disabled(!customPrMerge.Value)
                 | customPrIncludeArtifacts.ToBoolInput("Include Artifacts")
+                | customPrDraft.ToBoolInput("Create as Draft")
                 | customPrAssignee.ToSelectInput((_assigneesQuery.Value ?? Array.Empty<string>()).ToOptions())
                     .Nullable().WithField().Label("Assignee")
                 | (_assigneesError.Value is { } err
@@ -74,6 +77,7 @@ public class CustomPrDialog(
                     customPrIncludeArtifacts.Set(true);
                     customPrAssignee.Set(null);
                     customPrComment.Set("");
+                    customPrDraft.Set(false);
                     _dialogOpen.Set(false);
                 }),
                 new Button("Create PR").Primary().Disabled(isCreating.Value).ShortcutKey("Ctrl+Enter").OnClick(() =>
@@ -87,7 +91,8 @@ public class CustomPrDialog(
                             ["deleteBranch"] = customPrDeleteBranch.Value && customPrMerge.Value,
                             ["includeArtifacts"] = customPrIncludeArtifacts.Value,
                             ["assignee"] = customPrAssignee.Value ?? "",
-                            ["comment"] = customPrComment.Value
+                            ["comment"] = customPrComment.Value,
+                            ["draft"] = customPrDraft.Value
                         };
                         var serializer = new SerializerBuilder()
                             .WithNamingConvention(CamelCaseNamingConvention.Instance)
@@ -103,6 +108,7 @@ public class CustomPrDialog(
                         customPrIncludeArtifacts.Set(true);
                         customPrAssignee.Set(null);
                         customPrComment.Set("");
+                        customPrDraft.Set(false);
                         _dialogOpen.Set(false);
                     }
                 }).WithConfetti(AnimationTrigger.Click)
