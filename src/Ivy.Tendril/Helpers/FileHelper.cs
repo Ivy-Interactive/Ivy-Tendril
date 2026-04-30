@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Helpers;
 
@@ -278,7 +279,7 @@ internal static class FileHelper
     ///     (e.g. Tendril running as Administrator) and the current non-elevated user
     ///     only has read access via BUILTIN\Users.
     /// </summary>
-    private static void TryGrantCurrentUserAccess(string path)
+    private static void TryGrantCurrentUserAccess(string path, ILogger? logger = null)
     {
         if (!OperatingSystem.IsWindows()) return;
         try
@@ -310,7 +311,11 @@ internal static class FileHelper
         {
             // Best-effort: if we can't fix the ACL (e.g. not owner), the caller will
             // get the original UnauthorizedAccessException on the next retry.
-            Console.Error.WriteLine($"Failed to grant access to {path}: {ex.Message}");
+            var message = $"Failed to grant access to {path}: {ex.Message}";
+            if (logger != null)
+                logger.LogWarning(ex, "Failed to grant access to {Path}", path);
+            else
+                Console.Error.WriteLine(message);
         }
     }
 }

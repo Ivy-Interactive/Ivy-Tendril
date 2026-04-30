@@ -192,6 +192,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             while (!process.StandardError.EndOfStream)
             {
                 var line = process.StandardError.ReadLine();
+                // Passthrough stderr from child process — not logged to avoid polluting parent logs
                 if (line != null) Console.Error.WriteLine(line);
             }
         }, cancellationToken);
