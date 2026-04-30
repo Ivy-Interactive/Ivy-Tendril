@@ -13,7 +13,6 @@ public class WallpaperApp : ViewBase
         var versionService = UseService<IVersionCheckService>();
         var versionInfo = UseState<VersionInfo?>(null);
         var dismissedVersion = UseState<string?>(null);
-        var copyToClipboard = UseClipboard();
 
         UseEffect(() =>
         {
@@ -56,14 +55,10 @@ public class WallpaperApp : ViewBase
                         .Bold($"v{versionInfo.Value.LatestVersion}")
                         .Run($" is available (you have v{versionInfo.Value.CurrentVersion})")
                         .Small()
-                    | (Layout.Horizontal().Gap(1)
-                        | new Button("Copy update command", () => copyToClipboard(updateCommand))
-                            .Variant(ButtonVariant.Primary)
-                            .Small()
-                            .Icon(Icons.Clipboard)
-                        | new Button("Dismiss", () => dismissedVersion.Set(versionInfo.Value.LatestVersion))
-                            .Variant(ButtonVariant.Ghost)
-                            .Small())
+                    | new CodeBlock(updateCommand, Languages.Bash)
+                    | new Button("Dismiss", () => dismissedVersion.Set(versionInfo.Value.LatestVersion))
+                        .Variant(ButtonVariant.Ghost)
+                        .Small()
                 ).Header("Update Available", null, Icons.CircleArrowUp),
                 Align.BottomRight
             ).Offset(new Thickness(0, 0, 8, 8));
