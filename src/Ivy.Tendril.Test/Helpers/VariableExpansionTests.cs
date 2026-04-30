@@ -61,11 +61,14 @@ public class VariableExpansionTests
     [Fact]
     public void ExpandVariables_ExpandsTendrilHome()
     {
+        // Arrange
+        var testPath = Path.Combine("test", "path");
+
         // Act
-        var result = VariableExpansion.ExpandVariables("%TENDRIL_HOME%", "/test/path");
+        var result = VariableExpansion.ExpandVariables("%TENDRIL_HOME%", testPath);
 
         // Assert
-        Assert.Equal("/test/path", result);
+        Assert.Equal(testPath, result);
     }
 
     [Fact]
