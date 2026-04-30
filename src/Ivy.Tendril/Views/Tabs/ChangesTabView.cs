@@ -90,14 +90,13 @@ public class ChangesTabView(
 
         diffsLayout.ScrollTarget(selectedFile.Value);
 
-        var sidebarContent = Layout.Vertical().Gap(2).Padding(1)
+        var treePanel = Layout.Vertical().Gap(2).Padding(1)
+            .Width(Size.Rem(16)).Scroll(Scroll.Auto).Height(Size.Full())
             | tree;
 
-        return new SidebarLayout(
-            mainContent: diffsLayout,
-            sidebarContent: sidebarContent,
-            width: Size.Rem(16)
-        ).Resizable();
+        return Layout.Horizontal().Height(Size.Full())
+            | treePanel
+            | diffsLayout;
     }
 
     private static MenuItem[] BuildFileTree(IReadOnlyList<PlanContentHelpers.FileDiff> fileDiffs)
