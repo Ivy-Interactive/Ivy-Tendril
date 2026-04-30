@@ -53,6 +53,8 @@ On macOS/Linux, if you've never used .NET tools before, you may need to add the 
 tendril
 ```
 
+The first time you run Tendril, you'll be guided through an onboarding wizard. During setup, Tendril will create a configuration file at `$TENDRIL_HOME/config.yaml` (default: `~/.tendril/config.yaml`).
+
 ## Update
 
 You can update Ivy Tendril at anytime after the initial install using the dotnet tool update command:

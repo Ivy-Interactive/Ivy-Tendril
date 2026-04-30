@@ -27,7 +27,9 @@ From Tendril, open setup without hand-editing YAML. Sections include:
 
 ## `config.yaml`
 
-Same data lives in `TENDRIL_HOME/config.yaml`. Changes in the UI write here immediately.
+Same data lives in `$TENDRIL_HOME/config.yaml` (default: `~/.tendril/config.yaml`). Changes in the UI write here immediately.
+
+**Note:** The configuration file must be named `config.yaml` (not `tendril-config.yaml`). The `TENDRIL_CONFIG` environment variable points to this file's full path.
 
 ### Example
 

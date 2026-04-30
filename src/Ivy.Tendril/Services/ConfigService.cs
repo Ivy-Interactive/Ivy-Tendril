@@ -230,7 +230,10 @@ public class ConfigService : IConfigService, IDisposable
     private (bool Success, TendrilSettings Config) TryLoadConfig()
     {
         if (!File.Exists(ConfigPath))
+        {
+            _logger.LogWarning("Configuration file not found at {ConfigPath}. Expected filename: config.yaml", ConfigPath);
             return (false, new TendrilSettings());
+        }
 
         try
         {
