@@ -74,7 +74,7 @@ public class ChangesTabView(
 
             var path = fileDiff.FilePath;
             diffsLayout |= new Box(header)
-                .TestId(fileDiff.FilePath)
+                .Anchor(fileDiff.FilePath)
                 .BorderThickness(0).Padding(1)
                 .Hover(HoverEffect.Pointer)
                 .OnClick(() =>
