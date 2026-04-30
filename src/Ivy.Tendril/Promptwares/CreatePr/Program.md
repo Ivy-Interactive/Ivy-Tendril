@@ -40,6 +40,7 @@ Before processing, read `plan.yaml` and check the `state` field. After reading, 
   includeArtifacts: true/false
   assignee: "username"
   comment: "Review comment text"
+  draft: true/false
   ```
   These flags override the default behavior in subsequent steps. If the file does not exist, all flags default to the behavior defined by the repo's `prRule`. **Delete the file after reading** so it doesn't affect future runs.
 
@@ -75,7 +76,7 @@ Capture the returned markdown. If non-empty, it will be appended to the PR body 
 For each pushed branch:
 
 ```bash
-gh pr create --repo <owner/repo> --base <default-branch> --head <branch> --title "<title>" --body "$(cat <<'EOF'
+gh pr create [--draft] --repo <owner/repo> --base <default-branch> --head <branch> --title "<title>" --body "$(cat <<'EOF'
 <body content>
 EOF
 )"
@@ -88,6 +89,7 @@ EOF
   4. Otherwise, auto-detect via: `gh repo view <owner/repo> --json defaultBranchRef -q .defaultBranchRef.name`
 - **Title:** `[<planId>] <plan title>`
 - **Body:** If `<PlanFolder>/artifacts/summary.md` exists, use its content as the PR body (followed by list of commits). Otherwise, fall back to summary from Problem + Solution sections. If `$artifactMarkdown` from step 2.5 is non-empty, append it under an `## Artifacts` heading after the commits list.
+- **Draft (custom options):** If custom options exist and `draft` is `true`, add `--draft` to the `gh pr create` command to create the PR in draft mode. If no custom options or `draft` is `false`, create as ready for review (default behavior).
 - **Assignee (custom options):** If custom options exist and `assignee` is non-empty, add `--assignee <assignee>` to the `gh pr create` command.
 
 ### 3.5. Add PR Comment (custom options)
