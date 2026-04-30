@@ -1507,4 +1507,57 @@ maxConcurrentJobs: 10
             Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public void GetRepoRef_WithTrailingSlash_ShouldMatch()
+    {
+        var project = new ProjectConfig
+        {
+            Repos = new List<RepoRef>
+            {
+                new RepoRef { Path = @"D:\Repos\MyRepo", PrRule = "yolo" }
+            }
+        };
+
+        var result = project.GetRepoRef(@"D:\Repos\MyRepo\");
+        Assert.NotNull(result);
+        Assert.Equal("yolo", result.PrRule);
+    }
+
+    [Fact]
+    public void GetRepoRef_WithMixedSlashes_ShouldMatch()
+    {
+        var project = new ProjectConfig
+        {
+            Repos = new List<RepoRef>
+            {
+                new RepoRef { Path = @"D:\Repos\MyRepo", PrRule = "yolo" }
+            }
+        };
+
+        var result = project.GetRepoRef(@"D:/Repos/MyRepo");
+        Assert.NotNull(result);
+        Assert.Equal("yolo", result.PrRule);
+    }
+
+    [Fact]
+    public void GetRepoRef_WithRelativePath_ShouldMatch()
+    {
+        // Arrange: create a RepoRef with absolute path
+        var absolutePath = Path.Combine(Directory.GetCurrentDirectory(), "TestRepo");
+        var project = new ProjectConfig
+        {
+            Repos = new List<RepoRef>
+            {
+                new RepoRef { Path = absolutePath, PrRule = "yolo" }
+            }
+        };
+
+        // Act: query with relative path
+        var result = project.GetRepoRef("TestRepo");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("yolo", result.PrRule);
+    }
 }
