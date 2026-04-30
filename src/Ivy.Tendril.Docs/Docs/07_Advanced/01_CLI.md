@@ -82,6 +82,7 @@ tendril promptware CreatePlan --verbose D:\Plans\00123-MyPlan
 | `doctor` | System health check |
 | `plan <subcommand>` | Create and manage plans |
 | `plan doctor` | Scan and repair plan folders |
+| `promptware <name>` | Run a promptware by name |
 | `db-version` | Show database schema version |
 | `db-migrate` | Apply pending migrations |
 | `db-reset` | Reset the database |
@@ -130,10 +131,33 @@ Create, read, update, and validate plans directly from the terminal. All subcomm
 ### plan create
 
 ```bash
-tendril plan create <plan-id> <title>
+tendril plan create <title> [options]
 ```
 
-Creates a new plan folder and `plan.yaml` scaffold with state `Draft`.
+Creates a new plan folder and `plan.yaml` scaffold with state `Draft`. The plan ID is auto-allocated from the `.counter` file.
+
+#### Options
+
+| Option | Description |
+|--------|-------------|
+| `--project <name>` | Project name (default: Auto) |
+| `--level <level>` | Priority level (default: NiceToHave) |
+| `--initial-prompt <text>` | Initial prompt text |
+| `--source-url <url>` | Source URL (GitHub issue or PR) |
+| `--execution-profile <profile>` | Execution profile (deep or balanced) |
+| `--priority <number>` | Priority number (default: 0) |
+| `--repo <path>` | Repository path (repeatable) |
+| `--verification <Name=Status>` | Verification entry (repeatable) |
+| `--related-plan <folder>` | Related plan folder name (repeatable) |
+| `--depends-on <folder>` | Dependency plan folder name (repeatable) |
+
+#### Output
+
+```
+PlanId: 01234
+Directory: /path/to/Plans/01234-SafeTitle
+Plan created: 01234-SafeTitle
+```
 
 ### plan list
 
@@ -149,7 +173,7 @@ Lists plans with optional filters. Scans all plan folders and displays matching 
 |--------|--------|
 | `--state <state>` | Filter by state (e.g. `Draft`, `Executing`, `Failed`) |
 | `--project <name>` | Filter by project name |
-| `--level <level>` | Filter by level (`Critical`, `Bug`, `NiceToHave`, `Backlog`, `Icebox`) |
+| `--level <level>` | Filter by level (e.g. `Bug`, `Critical`, `NiceToHave`, `Epic` — customizable in config) |
 | `--has-pr` | Only plans that have associated PRs |
 | `--has-worktree` | Only plans that have worktrees |
 | `--limit <n>` | Maximum number of results |
@@ -179,7 +203,9 @@ tendril plan get <plan-id> [field]
 
 Prints the full YAML, or a single field value when `[field]` is provided.
 
-**Supported fields:** `state`, `project`, `level`, `title`, `created`, `updated`, `executionProfile`, `initialPrompt`, `sourceUrl`, `priority`
+**Supported scalar fields:** `state`, `project`, `level`, `title`, `created`, `updated`, `executionProfile`, `initialPrompt`, `sourceUrl`, `priority`
+
+**Supported list fields:** `repos`, `prs`, `commits`, `verifications`, `dependsOn`, `relatedPlans`, `recommendations` (each list item on its own line)
 
 ### plan set
 
@@ -221,6 +247,22 @@ tendril plan add-commit <plan-id> <sha>
 ```
 
 Append a commit SHA to the plan's commit list.
+
+### plan add-related-plan
+
+```bash
+tendril plan add-related-plan <plan-id> <folder-name>
+```
+
+Add a related plan reference (for parent plans, split-from, follow-ups).
+
+### plan add-depends-on
+
+```bash
+tendril plan add-depends-on <plan-id> <folder-name>
+```
+
+Add a blocking dependency on another plan. ExecutePlan will wait for the dependency to reach `Completed` state before executing this plan.
 
 ### plan set-verification
 
@@ -432,3 +474,23 @@ tendril update-promptwares
 ```
 
 Refreshes the embedded promptware templates from the bundled source. Use after upgrading Tendril to pick up new or updated promptwares.
+
+### promptware
+
+```bash
+tendril promptware <promptware-name> [args...] [options]
+```
+
+Runs a promptware by name. Used primarily for testing or manual promptware execution.
+
+| Option | Effect |
+|--------|--------|
+| `--profile <profile>` | Override agent profile (deep, balanced, quick) |
+| `--working-dir <path>` | Working directory for the agent process |
+| `--value <key=value>` | Additional firmware header values (repeatable) |
+
+Example:
+
+```bash
+tendril promptware CreatePlan "Fix the login bug" --value Project=Tendril
+```

@@ -33,20 +33,20 @@ ngrok config add-authtoken YOUR_AUTH_TOKEN
 With Tendril running on its default port, start an ngrok tunnel:
 
 ```bash
-ngrok http 5000
+ngrok http 5010
 ```
 
 Ngrok outputs a public forwarding URL:
 
 ```
-Forwarding  https://abc123.ngrok-free.app -> http://localhost:5000
+Forwarding  https://abc123.ngrok-free.app -> http://localhost:5010
 ```
 
 Use this URL anywhere an external service needs to reach Tendril.
 
 ## Using with Webhooks
 
-Replace `localhost:5000` with your ngrok URL when configuring webhook integrations. For example, a jam.dev webhook would point to:
+Replace `localhost:5010` with your ngrok URL when configuring webhook integrations. For example, a jam.dev webhook would point to:
 
 ```
 https://abc123.ngrok-free.app/api/inbox
@@ -73,7 +73,7 @@ Always set an API key in your `config.yaml` under `api.apiKey` when exposing Ten
 </Callout>
 
 - Ngrok tunnels are publicly accessible — treat them as production endpoints from a security perspective
-- Use `ngrok http 5000 --basic-auth "user:password"` to add an extra layer of authentication at the tunnel level
+- Use `ngrok http 5010 --basic-auth "user:password"` to add an extra layer of authentication at the tunnel level
 - Shut down the tunnel when not actively needed
 - Review the ngrok web inspector at `http://localhost:4040` to monitor incoming requests
 

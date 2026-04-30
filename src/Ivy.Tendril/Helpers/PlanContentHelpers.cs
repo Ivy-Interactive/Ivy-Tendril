@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Ivy.Tendril.Models;
 using Ivy.Widgets.DiffView;
 
@@ -7,6 +8,42 @@ namespace Ivy.Tendril.Helpers;
 public static class PlanContentHelpers
 {
     public record CommitRow(string Hash, string ShortHash, string Title, int? FileCount);
+
+    public record FileDiff(string FilePath, string Status, string Diff);
+
+    public static List<FileDiff> SplitDiffByFile(AllChangesData changesData)
+    {
+        var result = new List<FileDiff>();
+        if (string.IsNullOrWhiteSpace(changesData.Diff))
+            return result;
+
+        // Split on "diff --git " boundaries
+        var chunks = Regex.Split(changesData.Diff, @"(?=^diff --git )", RegexOptions.Multiline);
+
+        // Build a lookup from file path to status
+        var statusLookup = new Dictionary<string, string>();
+        foreach (var (status, filePath) in changesData.Files)
+        {
+            statusLookup[filePath] = status;
+        }
+
+        foreach (var chunk in chunks)
+        {
+            if (string.IsNullOrWhiteSpace(chunk) || !chunk.StartsWith("diff --git "))
+                continue;
+
+            // Extract file path from "diff --git a/path b/path"
+            var headerMatch = Regex.Match(chunk, @"^diff --git a/(.+?) b/(.+?)$", RegexOptions.Multiline);
+            if (!headerMatch.Success)
+                continue;
+
+            var filePath = headerMatch.Groups[2].Value;
+            var status = statusLookup.GetValueOrDefault(filePath, "M");
+            result.Add(new FileDiff(filePath, status, chunk.TrimEnd()));
+        }
+
+        return result;
+    }
 
     public record CommitDetailData(
         string Title,
@@ -96,7 +133,8 @@ public static class PlanContentHelpers
     }
 
     public static object RenderCommitDetailSheet(CommitDetailData? data, bool loading, string? commitHash,
-        Action closeSheet, Exception? error = null)
+        Action closeSheet, HashSet<string>? expandedFiles = null, Action<string>? onToggleFile = null,
+        Exception? error = null)
     {
         if (commitHash is null) return new Empty();
 
@@ -119,7 +157,44 @@ public static class PlanContentHelpers
         {
             var commitSheetContent = Layout.Vertical().Gap(4).Padding(2);
 
-            if (data.Files is { Count: > 0 })
+            if (!string.IsNullOrWhiteSpace(data.Diff) && data.Files is { Count: > 0 })
+            {
+                // Build AllChangesData to reuse SplitDiffByFile
+                var changesData = new AllChangesData(data.Diff, data.Files, 0, 0, 0);
+                var fileDiffs = SplitDiffByFile(changesData);
+
+                foreach (var fileDiff in fileDiffs)
+                {
+                    var isExpanded = expandedFiles?.Contains(fileDiff.FilePath) ?? false;
+                    var chevronIcon = isExpanded ? Icons.ChevronDown : Icons.ChevronRight;
+                    var (statusIcon, statusColor) = GetFileStatusIconAndColor(fileDiff.Status);
+                    var fileName = Path.GetFileName(fileDiff.FilePath);
+
+                    var header = Layout.Horizontal().Gap(2)
+                        | new Icon(chevronIcon).Small()
+                        | new Icon(statusIcon).Small().Color(statusColor)
+                        | Text.Block(fileName).Bold()
+                        | Text.Muted(fileDiff.FilePath);
+
+                    if (onToggleFile != null)
+                    {
+                        var path = fileDiff.FilePath;
+                        commitSheetContent |= new Box(header)
+                            .BorderThickness(0).Padding(0)
+                            .OnClick(() => onToggleFile(path));
+                    }
+                    else
+                    {
+                        commitSheetContent |= header;
+                    }
+
+                    if (isExpanded)
+                    {
+                        commitSheetContent |= new DiffView().Diff(fileDiff.Diff).Split();
+                    }
+                }
+            }
+            else if (data.Files is { Count: > 0 })
             {
                 var filesLayout = Layout.Vertical().Gap(1);
                 filesLayout |= Text.Block("Changed Files").Bold();
@@ -136,12 +211,12 @@ public static class PlanContentHelpers
                         | Text.Block(filePath);
                 }
                 commitSheetContent |= filesLayout;
-            }
 
-            if (!string.IsNullOrWhiteSpace(data.Diff))
-            {
-                commitSheetContent |= Text.Block("Diff").Bold();
-                commitSheetContent |= new DiffView().Diff(data.Diff).Split();
+                if (!string.IsNullOrWhiteSpace(data.Diff))
+                {
+                    commitSheetContent |= Text.Block("Diff").Bold();
+                    commitSheetContent |= new DiffView().Diff(data.Diff).Split();
+                }
             }
 
             sheetContent = commitSheetContent;
@@ -153,6 +228,13 @@ public static class PlanContentHelpers
             title: $"Commit {shortHash} — {data?.Title ?? ""}"
         ).Width(Size.Half()).Resizable();
     }
+
+    internal static (Icons Icon, Colors Color) GetFileStatusIconAndColor(string status) => status switch
+    {
+        "A" => (Icons.FilePlus, Colors.Success),
+        "D" => (Icons.FileMinus, Colors.Destructive),
+        _ => (Icons.FilePen, Colors.Neutral)
+    };
 
     public record AllChangesData(
         string? Diff,

@@ -6,3 +6,4 @@ Trash/
 *.db
 *.db-shm
 *.db-wal
+crash.log

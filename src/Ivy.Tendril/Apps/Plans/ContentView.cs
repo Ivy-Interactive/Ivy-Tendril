@@ -287,7 +287,8 @@ public class ContentView(
 
         return new Fragment(elements.ToArray());
 
-        object Cap(object inner) => Layout.Vertical().Width(Size.Auto().Max(Size.Units(200))).Height(Size.Full()) | inner;
+        object Cap(object inner) => Layout.Vertical().Scroll(Scroll.Auto).Width(Size.Full()).Height(Size.Full())
+            | (Layout.Vertical().Width(Size.Full().Max(Size.Units(200))) | inner);
     }
 
     internal static object BuildFailureCallout(PlanFile plan)

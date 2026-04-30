@@ -22,6 +22,7 @@ public class AgentProviderFactoryTests
     [InlineData("claude", typeof(ClaudeAgentProvider))]
     [InlineData("codex", typeof(CodexAgentProvider))]
     [InlineData("gemini", typeof(GeminiAgentProvider))]
+    [InlineData("copilot", typeof(CopilotAgentProvider))]
     public void GetProvider_ReturnsCorrectType(string name, Type expectedType)
     {
         var provider = AgentProviderFactory.GetProvider(name);
@@ -267,6 +268,31 @@ public class AgentProviderFactoryTests
 
         var resolution = AgentProviderFactory.Resolve(settings, "Test");
         Assert.Equal("gemini-2.5-pro", resolution.Model);
+    }
+
+    [Fact]
+    public void Resolve_MatchesCapitalizedAgentName_Copilot()
+    {
+        var settings = CreateSettings(
+            "copilot",
+            codingAgents: new List<AgentConfig>
+            {
+                new()
+                {
+                    Name = "Copilot",
+                    Profiles = new List<AgentProfileConfig>
+                    {
+                        new() { Name = "default", Model = "gpt-5.2", Effort = "medium" }
+                    }
+                }
+            },
+            promptwares: new Dictionary<string, PromptwareConfig>
+            {
+                ["_default"] = new() { Profile = "default" }
+            });
+
+        var resolution = AgentProviderFactory.Resolve(settings, "Test");
+        Assert.Equal("gpt-5.2", resolution.Model);
     }
 
     [Fact]

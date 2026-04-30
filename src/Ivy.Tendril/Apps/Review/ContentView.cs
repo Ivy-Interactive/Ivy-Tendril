@@ -334,7 +334,7 @@ public class ContentView(
         }
 
         var reviewAnnotated = MarkdownHelper.AnnotateAllBrokenLinks(selectedPlan.LatestRevisionContent, planService.PlansDirectory);
-        var planTabContent = Layout.Vertical().Scroll(Scroll.Vertical).Height(Size.Full())
+        var planTabContent = Layout.Vertical().Height(Size.Full())
             | new Markdown(reviewAnnotated)
                 .DangerouslyAllowLocalFiles()
                 .OnLinkClick(FileLinkHelper.CreateFileLinkClickHandler(openFile, planId =>
@@ -423,7 +423,7 @@ public class ContentView(
             else
                 foreach (var rec in planData.Recommendations)
                 {
-                    var titleRow = Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+                    var titleRow = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
                                    | Text.Block(rec.Title).Bold();
 
                     if (rec.Impact is { } impact)
@@ -457,7 +457,7 @@ public class ContentView(
                     selectedPlan.Verifications, planData.VerificationReports,
                     v => openVerification.Set(v)))).Badge(selectedPlan.Verifications.Count.ToString()),
                 new Tab("Git", Cap(gitLayout)).Badge((gitData.WorktreeRows.Count + selectedPlan.Commits.Count + selectedPlan.Prs.Count).ToString()),
-                new Tab("Changes", Cap(changesTabView)).Badge(changesTabView.FileCount > 0 ? changesTabView.FileCount.ToString() : ""),
+                new Tab("Changes", Layout.Vertical().Width(Size.Full()).Height(Size.Full()) | changesTabView).Badge(changesTabView.FileCount > 0 ? changesTabView.FileCount.ToString() : ""),
                 new Tab("Artifacts", Cap(new ArtifactsTabView(planData.Artifacts))).Badge(totalArtifacts.ToString()),
                 new Tab("Recommendations", Cap(recommendationsLayout)).Badge(planData.Recommendations.Count.ToString()),
                 new Tab("Plan", Cap(planTabContent))
@@ -502,7 +502,8 @@ public class ContentView(
 
         object Cap(object inner)
         {
-            return Layout.Vertical().Width(Size.Auto().Max(Size.Units(200))).Height(Size.Full()) | inner;
+            return Layout.Vertical().Scroll(Scroll.Auto).Width(Size.Full()).Height(Size.Full())
+                | (Layout.Vertical().Width(Size.Full().Max(Size.Units(200))) | inner);
         }
     }
 

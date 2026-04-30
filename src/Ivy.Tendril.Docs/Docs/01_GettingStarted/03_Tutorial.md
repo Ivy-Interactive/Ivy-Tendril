@@ -76,13 +76,16 @@ codingAgent: claude
 
 projects:
   - name: MyProject
-    repo: D:\Repos\MyProject
+    repos:
+      - path: D:\Repos\MyProject
     verifications:
-      - DotnetBuild
-      - CheckResult
+      - name: Build
+        required: true
+      - name: CheckResult
+        required: true
 ```
 
-Set `codingAgent` to the agent you want to use (`claude`, `codex`, `gemini`, etc.) and adjust `verifications` to match your stack.
+Set `codingAgent` to the agent you want to use (`claude`, `codex`, `gemini`, `copilot`) and adjust `verifications` to match your stack.
 
 <Callout type="Tip">
 Add a `CLAUDE.md` or `AGENTS.md` file to your repo root with project conventions — Tendril passes these to the agent as context.

@@ -243,6 +243,128 @@ public class PlanContentHelpersTests
         Assert.Null(result);
     }
 
+    [Fact]
+    public void SplitDiffByFile_MultiFileDiff_SplitsCorrectly()
+    {
+        var diff = "diff --git a/src/Foo.cs b/src/Foo.cs\n"
+                   + "index abc1234..def5678 100644\n"
+                   + "--- a/src/Foo.cs\n"
+                   + "+++ b/src/Foo.cs\n"
+                   + "@@ -1,3 +1,4 @@\n"
+                   + " using System;\n"
+                   + "+using System.Linq;\n"
+                   + " namespace Foo;\n"
+                   + "diff --git a/src/Bar.cs b/src/Bar.cs\n"
+                   + "new file mode 100644\n"
+                   + "index 0000000..abc1234\n"
+                   + "--- /dev/null\n"
+                   + "+++ b/src/Bar.cs\n"
+                   + "@@ -0,0 +1,2 @@\n"
+                   + "+namespace Bar;\n"
+                   + "+public class Bar { }\n"
+                   + "diff --git a/src/Baz.cs b/src/Baz.cs\n"
+                   + "deleted file mode 100644\n"
+                   + "index abc1234..0000000\n"
+                   + "--- a/src/Baz.cs\n"
+                   + "+++ /dev/null\n"
+                   + "@@ -1,2 +0,0 @@\n"
+                   + "-namespace Baz;\n"
+                   + "-public class Baz { }\n";
+
+        var files = new List<(string Status, string FilePath)>
+        {
+            ("M", "src/Foo.cs"),
+            ("A", "src/Bar.cs"),
+            ("D", "src/Baz.cs")
+        };
+
+        var changesData = new PlanContentHelpers.AllChangesData(diff, files, 1, 1, 1);
+        var result = PlanContentHelpers.SplitDiffByFile(changesData);
+
+        Assert.Equal(3, result.Count);
+
+        Assert.Equal("src/Foo.cs", result[0].FilePath);
+        Assert.Equal("M", result[0].Status);
+        Assert.Contains("using System.Linq", result[0].Diff);
+
+        Assert.Equal("src/Bar.cs", result[1].FilePath);
+        Assert.Equal("A", result[1].Status);
+        Assert.Contains("namespace Bar", result[1].Diff);
+
+        Assert.Equal("src/Baz.cs", result[2].FilePath);
+        Assert.Equal("D", result[2].Status);
+        Assert.Contains("namespace Baz", result[2].Diff);
+    }
+
+    [Fact]
+    public void SplitDiffByFile_EmptyDiff_ReturnsEmptyList()
+    {
+        var files = new List<(string Status, string FilePath)>();
+        var changesData = new PlanContentHelpers.AllChangesData("", files, 0, 0, 0);
+
+        var result = PlanContentHelpers.SplitDiffByFile(changesData);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void SplitDiffByFile_NullDiff_ReturnsEmptyList()
+    {
+        var files = new List<(string Status, string FilePath)>();
+        var changesData = new PlanContentHelpers.AllChangesData(null, files, 0, 0, 0);
+
+        var result = PlanContentHelpers.SplitDiffByFile(changesData);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void SplitDiffByFile_SingleFileDiff_ReturnsSingleItem()
+    {
+        var diff = "diff --git a/README.md b/README.md\n"
+                   + "index abc1234..def5678 100644\n"
+                   + "--- a/README.md\n"
+                   + "+++ b/README.md\n"
+                   + "@@ -1,2 +1,3 @@\n"
+                   + " # Project\n"
+                   + "+New line added\n";
+
+        var files = new List<(string Status, string FilePath)>
+        {
+            ("M", "README.md")
+        };
+
+        var changesData = new PlanContentHelpers.AllChangesData(diff, files, 0, 1, 0);
+        var result = PlanContentHelpers.SplitDiffByFile(changesData);
+
+        Assert.Single(result);
+        Assert.Equal("README.md", result[0].FilePath);
+        Assert.Equal("M", result[0].Status);
+        Assert.Contains("New line added", result[0].Diff);
+    }
+
+    [Fact]
+    public void SplitDiffByFile_UnknownFileStatus_DefaultsToModified()
+    {
+        var diff = "diff --git a/unknown.txt b/unknown.txt\n"
+                   + "index abc1234..def5678 100644\n"
+                   + "--- a/unknown.txt\n"
+                   + "+++ b/unknown.txt\n"
+                   + "@@ -1 +1 @@\n"
+                   + "-old\n"
+                   + "+new\n";
+
+        // File not in the files list — should default to "M"
+        var files = new List<(string Status, string FilePath)>();
+        var changesData = new PlanContentHelpers.AllChangesData(diff, files, 0, 0, 0);
+
+        var result = PlanContentHelpers.SplitDiffByFile(changesData);
+
+        Assert.Single(result);
+        Assert.Equal("unknown.txt", result[0].FilePath);
+        Assert.Equal("M", result[0].Status);
+    }
+
     private class StubGitService(
         string? commitTitle = null,
         List<(string Status, string FilePath)>? commitFiles = null,

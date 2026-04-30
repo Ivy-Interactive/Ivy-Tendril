@@ -32,7 +32,7 @@ internal class EnvironmentCheck : IDoctorCheck
         }
         else
         {
-            statuses.Add(new CheckStatus("config.yaml", "Not found", StatusKind.Error));
+            statuses.Add(new CheckStatus("config.yaml", $"Not found at {configPath}", StatusKind.Error));
             hasErrors = true;
         }
 

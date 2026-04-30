@@ -71,12 +71,10 @@ public partial class JobsApp
             .Hidden(t => t.LastOutputTimestamp)
             .Hidden(t => t.ErrorContext)
             .SortDirection(t => t.Id, SortDirection.Descending)
-            .Filterable(t => t.Timer, false)
-            .Filterable(t => t.LastOutput, false)
             .Config(c =>
             {
                 c.AllowSorting = true;
-                c.AllowFiltering = true;
+                c.AllowFiltering = false;
                 c.ShowSearch = false;
                 c.SelectionMode = SelectionModes.None;
                 c.ShowIndexColumn = false;
@@ -125,7 +123,7 @@ public partial class JobsApp
                         var job = jobs.FirstOrDefault(j => j.Id == id);
                         if (job != null)
                         {
-                            var fullPrompt = GetFullPrompt(job);
+                            var fullPrompt = GetFullPrompt(job, planService);
                             if (!string.IsNullOrEmpty(fullPrompt))
                                 showPrompt.Set(fullPrompt);
                         }
@@ -186,7 +184,7 @@ public partial class JobsApp
                     }
                     else if (tag == "show-prompt")
                     {
-                        var fullPrompt = GetFullPrompt(job);
+                        var fullPrompt = GetFullPrompt(job, planService);
                         if (!string.IsNullOrEmpty(fullPrompt))
                             showPrompt.Set(fullPrompt);
                     }

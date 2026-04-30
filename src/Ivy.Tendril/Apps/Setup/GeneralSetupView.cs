@@ -5,7 +5,7 @@ namespace Ivy.Tendril.Apps.Setup;
 
 public class GeneralSetupView : ViewBase
 {
-    private static readonly string[] CodingAgentOptions = ["claude", "codex", "gemini"];
+    private static readonly string[] CodingAgentOptions = ["claude", "codex", "gemini", "copilot"];
 
     public override object Build()
     {

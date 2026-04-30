@@ -43,11 +43,17 @@ dotnet tool install -g Ivy.Tendril
 Powershell 7, Git and gh CLI need to be present on your machine if you install using `dotnet tool` command
 </Callout>
 
+<Callout type="Info">
+On macOS/Linux, if you've never used .NET tools before, you may need to add the global tool directory to your PATH. Add `export PATH="$PATH:$HOME/.dotnet/tools"` to your `~/.zshrc` or `~/.bashrc` to run `tendril` directly from your terminal. This is done automatically with the quick install commands above.
+</Callout>
+
 ## Run
 
 ```bash
 tendril
 ```
+
+The first time you run Tendril, you'll be guided through an onboarding wizard. During setup, Tendril will create a configuration file at `$TENDRIL_HOME/config.yaml` (default: `~/.tendril/config.yaml`).
 
 ## Update
 

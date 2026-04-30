@@ -23,10 +23,10 @@ jam.dev can send bug reports to Tendril's inbox API endpoint, which automaticall
 Configure jam.dev to POST to:
 
 ```
-http://localhost:5000/api/inbox
+http://localhost:5010/api/inbox
 ```
 
-Replace `localhost:5000` with your Tendril host and port if configured differently. 
+Replace `localhost:5010` with your Tendril host and port if configured differently. 
 
 ## Request Format
 

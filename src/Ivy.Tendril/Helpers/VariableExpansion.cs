@@ -1,5 +1,7 @@
+using System.Reflection;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration.UserSecrets;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Helpers;
@@ -16,35 +18,39 @@ public static class VariableExpansion
     private static IConfigurationRoot? _userSecretsConfig;
 
     /// <summary>
-    ///     Initialize user secrets from the directory containing a .csproj with UserSecretsId.
+    ///     Initialize user secrets from the entry assembly's UserSecretsIdAttribute.
     /// </summary>
-    public static void InitializeUserSecrets(string configDirectory, ILogger? logger = null)
+    public static void InitializeUserSecrets(ILogger? logger = null)
     {
         try
         {
-            // Look for .csproj file in config directory
-            var csprojFiles = Directory.GetFiles(configDirectory, "*.csproj", SearchOption.TopDirectoryOnly);
-            if (csprojFiles.Length == 0) return;
+            var entryAssembly = Assembly.GetEntryAssembly();
+            if (entryAssembly == null)
+            {
+                logger?.LogWarning("Cannot initialize user secrets: entry assembly is null");
+                _userSecretsConfig = null;
+                return;
+            }
 
-            var csprojPath = csprojFiles[0];
-            var csprojContent = FileHelper.ReadAllText(csprojPath);
+            var userSecretsAttr = entryAssembly.GetCustomAttribute<UserSecretsIdAttribute>();
+            if (userSecretsAttr == null)
+            {
+                logger?.LogWarning("Cannot initialize user secrets: UserSecretsIdAttribute not found on entry assembly");
+                _userSecretsConfig = null;
+                return;
+            }
 
-            // Extract UserSecretsId from .csproj
-            var match = Regex.Match(csprojContent, "<UserSecretsId>([^<]+)</UserSecretsId>");
-            if (!match.Success) return;
-
-            var userSecretsId = match.Groups[1].Value;
+            var userSecretsId = userSecretsAttr.UserSecretsId;
 
             // Build configuration from user secrets
             var builder = new ConfigurationBuilder()
-                .SetBasePath(configDirectory)
                 .AddUserSecrets(userSecretsId);
 
             _userSecretsConfig = builder.Build();
         }
         catch (Exception ex)
         {
-            logger?.LogWarning(ex, "Failed to initialize user secrets from {ConfigDirectory}", configDirectory);
+            logger?.LogWarning(ex, "Failed to initialize user secrets");
             _userSecretsConfig = null;
         }
     }
