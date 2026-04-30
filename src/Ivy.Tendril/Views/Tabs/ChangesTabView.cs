@@ -153,7 +153,37 @@ public class ChangesTabView(
             node = only;
         }
 
-        return new MenuItem(label, ChildItems(node)).Icon(Icons.Folder).Expanded();
+        var item = new MenuItem(label, ChildItems(node)).Icon(Icons.Folder).Expanded();
+        var folderColor = GetFolderColor(node);
+        return folderColor is not null ? item.Color(folderColor.Value) : item;
+    }
+
+    private static Colors? GetFolderColor(TreeNode node)
+    {
+        var hasAdded = false;
+        var hasDeleted = false;
+        var hasOther = false;
+        CollectStatuses(node);
+        if (!hasAdded && !hasDeleted && !hasOther) return null;
+        if (hasAdded && !hasDeleted && !hasOther) return Colors.Success;
+        if (hasDeleted && !hasAdded && !hasOther) return Colors.Destructive;
+        return Colors.Neutral;
+
+        void CollectStatuses(TreeNode n)
+        {
+            foreach (var f in n.Files)
+            {
+                switch (f.Status)
+                {
+                    case "A": hasAdded = true; break;
+                    case "D": hasDeleted = true; break;
+                    default: hasOther = true; break;
+                }
+                if (hasAdded && hasDeleted) return;
+            }
+            foreach (var folder in n.Folders.Values)
+                CollectStatuses(folder);
+        }
     }
 
     private sealed class TreeNode(string name)
