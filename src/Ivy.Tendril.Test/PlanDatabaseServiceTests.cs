@@ -1,5 +1,5 @@
-using Ivy.Tendril.Apps.Jobs;
-using Ivy.Tendril.Apps.Plans;
+using System.Collections.Concurrent;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -8,12 +8,13 @@ namespace Ivy.Tendril.Test;
 
 public class PlanDatabaseServiceTests : IDisposable
 {
+    private readonly TempDirectoryFixture _tempDir = new();
     private readonly PlanDatabaseService _db;
     private readonly string _dbPath;
 
     public PlanDatabaseServiceTests()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"tendril-test-{Guid.NewGuid()}.db");
+        _dbPath = Path.Combine(_tempDir.Path, $"tendril-test-{Guid.NewGuid()}.db");
         _db = new PlanDatabaseService(_dbPath, NullLogger<PlanDatabaseService>.Instance);
     }
 
@@ -21,12 +22,7 @@ public class PlanDatabaseServiceTests : IDisposable
     {
         _db.Dispose();
         SqliteConnection.ClearAllPools();
-        if (File.Exists(_dbPath))
-            File.Delete(_dbPath);
-        if (File.Exists(_dbPath + "-wal"))
-            File.Delete(_dbPath + "-wal");
-        if (File.Exists(_dbPath + "-shm"))
-            File.Delete(_dbPath + "-shm");
+        _tempDir.Dispose();
     }
 
     private PlanFile CreateTestPlan(int id, string title = "Test Plan", PlanStatus status = PlanStatus.Draft,
@@ -424,8 +420,8 @@ public class PlanDatabaseServiceTests : IDisposable
         _db.UpsertPlan(CreateTestPlan(1601, "Plan B", project: "Framework"));
 
         var now = DateTime.UtcNow;
-        _db.UpsertCosts(1600, [new("ExecutePlan", 50000, 1.50m, now)]);
-        _db.UpsertCosts(1601, [new("ExecutePlan", 30000, 0.90m, now)]);
+        _db.UpsertCosts(1600, [new CostEntry("ExecutePlan", 50000, 1.50m, now)]);
+        _db.UpsertCosts(1601, [new CostEntry("ExecutePlan", 30000, 0.90m, now)]);
 
         var burn = _db.GetHourlyTokenBurn(projectFilter: "Tendril");
         Assert.NotEmpty(burn);
@@ -440,8 +436,8 @@ public class PlanDatabaseServiceTests : IDisposable
         _db.UpsertPlan(CreateTestPlan(1701, "Plan B", project: "Framework"));
 
         var now = DateTime.UtcNow;
-        _db.UpsertCosts(1700, [new("ExecutePlan", 50000, 1.50m, now)]);
-        _db.UpsertCosts(1701, [new("ExecutePlan", 30000, 0.90m, now)]);
+        _db.UpsertCosts(1700, [new CostEntry("ExecutePlan", 50000, 1.50m, now)]);
+        _db.UpsertCosts(1701, [new CostEntry("ExecutePlan", 30000, 0.90m, now)]);
 
         var burn = _db.GetHourlyTokenBurn(projectFilter: null);
         Assert.NotEmpty(burn);
@@ -454,7 +450,7 @@ public class PlanDatabaseServiceTests : IDisposable
     public void GetHourlyTokenBurn_NullLogTimestamp_FallsBackToPlanUpdated()
     {
         _db.UpsertPlan(CreateTestPlan(1750, "Test", project: "Tendril"));
-        _db.UpsertCosts(1750, [new("ExecutePlan", 50000, 1.50m, null)]);
+        _db.UpsertCosts(1750, [new CostEntry("ExecutePlan", 50000, 1.50m, null)]);
 
         var burn = _db.GetHourlyTokenBurn();
         Assert.NotEmpty(burn);
@@ -468,8 +464,8 @@ public class PlanDatabaseServiceTests : IDisposable
 
         var now = DateTime.UtcNow;
         _db.UpsertCosts(1760, [
-            new("ExecutePlan", 40000, 1.00m, now),
-            new("CreatePr", 20000, 0.50m, null)
+            new CostEntry("ExecutePlan", 40000, 1.00m, now),
+            new CostEntry("CreatePr", 20000, 0.50m, null)
         ]);
 
         var burn = _db.GetHourlyTokenBurn();
@@ -494,16 +490,16 @@ public class PlanDatabaseServiceTests : IDisposable
     public void GetDashboardData_FilteredStats_ReturnsCorrectCounts()
     {
         // Arrange: plans across two projects with varied statuses
-        _db.UpsertPlan(CreateTestPlan(1900, "Draft Tendril", status: PlanStatus.Draft, project: "Tendril"));
-        _db.UpsertPlan(CreateTestPlan(1901, "Completed Tendril", status: PlanStatus.Completed, project: "Tendril"));
-        _db.UpsertPlan(CreateTestPlan(1902, "Failed Tendril", status: PlanStatus.Failed, project: "Tendril"));
-        _db.UpsertPlan(CreateTestPlan(1903, "Review Framework", status: PlanStatus.ReadyForReview,
-            project: "Framework"));
-        _db.UpsertPlan(CreateTestPlan(1904, "InProgress Tendril", status: PlanStatus.Executing, project: "Tendril"));
+        _db.UpsertPlan(CreateTestPlan(1900, "Draft Tendril"));
+        _db.UpsertPlan(CreateTestPlan(1901, "Completed Tendril", PlanStatus.Completed));
+        _db.UpsertPlan(CreateTestPlan(1902, "Failed Tendril", PlanStatus.Failed));
+        _db.UpsertPlan(CreateTestPlan(1903, "Review Framework", PlanStatus.ReadyForReview,
+            "Framework"));
+        _db.UpsertPlan(CreateTestPlan(1904, "InProgress Tendril", PlanStatus.Executing));
 
         // Add costs for avg cost calculation
-        _db.UpsertCosts(1901, [new("ExecutePlan", 50000, 2.00m, DateTime.UtcNow)]);
-        _db.UpsertCosts(1902, [new("ExecutePlan", 30000, 1.00m, DateTime.UtcNow)]);
+        _db.UpsertCosts(1901, [new CostEntry("ExecutePlan", 50000, 2.00m, DateTime.UtcNow)]);
+        _db.UpsertCosts(1902, [new CostEntry("ExecutePlan", 30000, 1.00m, DateTime.UtcNow)]);
 
         // Act: filter to Tendril project
         var stats = _db.GetDashboardData("Tendril");
@@ -992,11 +988,11 @@ public class PlanDatabaseServiceTests : IDisposable
         // Seed some data so reads return non-empty results
         for (var i = 0; i < 10; i++)
             _db.UpsertPlan(CreateTestPlan(2000 + i, $"Concurrent Plan {i}",
-                status: i % 2 == 0 ? PlanStatus.Draft : PlanStatus.Completed));
+                i % 2 == 0 ? PlanStatus.Draft : PlanStatus.Completed));
 
         const int threadCount = 10;
         var barrier = new Barrier(threadCount);
-        var exceptions = new System.Collections.Concurrent.ConcurrentBag<Exception>();
+        var exceptions = new ConcurrentBag<Exception>();
         var threads = new Thread[threadCount];
 
         for (var t = 0; t < threadCount; t++)
@@ -1027,7 +1023,8 @@ public class PlanDatabaseServiceTests : IDisposable
         }
 
         foreach (var t in threads) t.Start();
-        foreach (var t in threads) Assert.True(t.Join(TimeSpan.FromSeconds(10)), "Thread timed out — possible deadlock");
+        foreach (var t in threads)
+            Assert.True(t.Join(TimeSpan.FromSeconds(10)), "Thread timed out — possible deadlock");
 
         Assert.Empty(exceptions);
     }
@@ -1104,8 +1101,8 @@ public class PlanDatabaseServiceTests : IDisposable
         _db.UpsertPlan(CreateTestPlan(3101, "Plan B", project: "ConsoleApp"));
 
         var now = DateTime.UtcNow;
-        _db.UpsertCosts(3100, [new("ExecutePlan", 50000, 1.50m, now)]);
-        _db.UpsertCosts(3101, [new("ExecutePlan", 30000, 0.90m, now)]);
+        _db.UpsertCosts(3100, [new CostEntry("ExecutePlan", 50000, 1.50m, now)]);
+        _db.UpsertCosts(3101, [new CostEntry("ExecutePlan", 30000, 0.90m, now)]);
 
         var burn = _db.GetHourlyTokenBurn(projectFilter: "Console");
 
@@ -1165,15 +1162,15 @@ public class PlanDatabaseServiceTests : IDisposable
             "# Content", "D:\\Plans\\03202-OldFrameworkPlan", "state: Draft"));
 
         // Add costs for recent plans to test avg cost calculation
-        _db.UpsertCosts(3200, [new("ExecutePlan", 50000, 2.00m, today)]);
+        _db.UpsertCosts(3200, [new CostEntry("ExecutePlan", 50000, 2.00m, today)]);
 
         // Act
         var stats = _db.GetDashboardData(null);
 
         // Assert: Status counts should exclude old plans
-        Assert.Equal(1, stats.TotalCount);  // Only 3200 (recent), not 3201 or 3202
-        Assert.Equal(0, stats.DraftCount);  // Old Framework plan is excluded
-        Assert.Equal(1, stats.CompletedCount);  // Only recent completed plan
+        Assert.Equal(1, stats.TotalCount); // Only 3200 (recent), not 3201 or 3202
+        Assert.Equal(0, stats.DraftCount); // Old Framework plan is excluded
+        Assert.Equal(1, stats.CompletedCount); // Only recent completed plan
 
         // Assert: Avg cost should reflect only recent plans
         Assert.Equal(2.00m, stats.AvgCostPerPlan);
@@ -1181,11 +1178,11 @@ public class PlanDatabaseServiceTests : IDisposable
         // Assert: Daily stats should reflect only recent plans within 7-day window
         Assert.Equal(7, stats.DailyStats.Count);
         var todayStats = stats.DailyStats.First(d => d.Date == today);
-        Assert.Equal(1, todayStats.Created);  // Only recent plan
+        Assert.Equal(1, todayStats.Created); // Only recent plan
 
         // Verify 8 days ago has no data even though old plans exist
         var eightDaysAgoStats = stats.DailyStats.FirstOrDefault(d => d.Date == today.AddDays(-8));
-        Assert.Null(eightDaysAgoStats);  // Not in 7-day window
+        Assert.Null(eightDaysAgoStats); // Not in 7-day window
 
         // Assert: Project counts should exclude old plans
         // Tendril should have only 1 (recent plan 3200), not 2 (3200 + 3201)
@@ -1195,6 +1192,193 @@ public class PlanDatabaseServiceTests : IDisposable
 
         // Framework should have 0 (3202 is excluded), not 1
         var frameworkCount = stats.ProjectCounts.FirstOrDefault(pc => pc.Project == "Framework");
-        Assert.Null(frameworkCount);  // Framework has no plans in 7-day window
+        Assert.Null(frameworkCount); // Framework has no plans in 7-day window
+    }
+
+    [Fact]
+    public async Task ConcurrentOperations_DoNotDeadlock()
+    {
+        // Setup: Insert initial plans
+        _db.UpsertPlan(CreateTestPlan(1500, "Plan A"));
+        _db.UpsertPlan(CreateTestPlan(1501, "Plan B"));
+
+        // Execute: Run 100 concurrent read/write operations
+        var tasks = new List<Task>();
+        for (int i = 0; i < 50; i++)
+        {
+            tasks.Add(Task.Run(() => _db.GetPlans()));
+            tasks.Add(Task.Run(() => _db.UpdatePlanState(1500, PlanStatus.Building)));
+        }
+
+        // Verify: All operations complete without deadlock (5 second timeout)
+        var allCompletedTask = Task.WhenAll(tasks);
+        var completedInTime = await Task.WhenAny(allCompletedTask, Task.Delay(TimeSpan.FromSeconds(5))) == allCompletedTask;
+        Assert.True(completedInTime, "Operations deadlocked");
+    }
+
+    [Fact]
+    public void BatchGetList_WithLargePlanIdList_ReturnsMergedResults()
+    {
+        // Create 1200 plans to test batching (>500 batch size)
+        for (int i = 4000; i < 5200; i++)
+        {
+            var plan = CreateTestPlan(i, $"Plan {i}");
+            _db.UpsertPlan(plan);
+        }
+
+        // GetPlans() loads all plans and internally calls BatchGetList for repos/commits/etc
+        var result = _db.GetPlans();
+
+        // Verify we got all 1200+ plans (plus any from other tests)
+        Assert.True(result.Count >= 1200, $"Expected at least 1200 plans, got {result.Count}");
+
+        // Verify a sample of the large batch loaded correctly
+        var samplePlan = result.FirstOrDefault(p => p.Id == 4500);
+        Assert.NotNull(samplePlan);
+        Assert.Equal("Plan 4500", samplePlan.Title);
+        Assert.Single(samplePlan.Repos); // From CreateTestPlan
+    }
+
+    [Fact]
+    public void BatchGetList_WithEmptyList_ReturnsEmptyDictionary()
+    {
+        // This tests the early-return case when no plans exist
+        var result = _db.GetPlans();
+        // No assertion needed - just verifies no exception thrown on empty batch
+    }
+
+    [Fact]
+    public void BatchGetVerifications_WithLargePlanIdList_ReturnsMergedResults()
+    {
+        // Create 1200 plans with multiple verifications to test batching
+        for (int i = 5200; i < 6400; i++)
+        {
+            var metadata = new PlanMetadata(
+                i, "Tendril", "NiceToHave", $"Plan {i}", PlanStatus.Draft,
+                new List<string>(),
+                new List<string>(),
+                new List<string>(),
+                new List<PlanVerificationEntry>
+                {
+                    new() { Name = "DotnetBuild", Status = "Pass" },
+                    new() { Name = "DotnetTest", Status = "Pass" },
+                    new() { Name = "DotnetFormat", Status = "Pass" }
+                },
+                new List<string>(),
+                new List<string>(),
+                DateTime.UtcNow.AddDays(-1),
+                DateTime.UtcNow,
+                null,
+                null
+            );
+            var plan = new PlanFile(metadata, "# Content", $"D:\\Plans\\{i:D5}-Plan{i}", "state: Draft");
+            _db.UpsertPlan(plan);
+        }
+
+        var result = _db.GetPlans();
+        var largeBatchPlans = result.Where(p => p.Id >= 5200 && p.Id < 6400).ToList();
+
+        Assert.Equal(1200, largeBatchPlans.Count);
+        Assert.All(largeBatchPlans, plan =>
+        {
+            Assert.Equal(3, plan.Verifications.Count);
+            Assert.Contains(plan.Verifications, v => v.Name == "DotnetBuild");
+            Assert.Contains(plan.Verifications, v => v.Name == "DotnetTest");
+            Assert.Contains(plan.Verifications, v => v.Name == "DotnetFormat");
+        });
+    }
+
+    [Fact]
+    public void BatchGetList_WithSinglePlanId_ReturnsCorrectResult()
+    {
+        var plan = CreateTestPlan(6400, "Single Plan");
+        _db.UpsertPlan(plan);
+
+        var result = _db.GetPlanById(6400);
+
+        Assert.NotNull(result);
+        Assert.Equal(6400, result!.Id);
+        Assert.Equal("Single Plan", result.Title);
+        Assert.Single(result.Repos); // Verifies BatchGetList loaded the repo
+    }
+
+    [Fact]
+    public void BatchReadList_WithEmptyPlanIds_ReturnsEmptyDictionary()
+    {
+        // Test that the generic BatchReadList handles empty input correctly
+        var plans = _db.GetPlans();
+        Assert.Empty(plans);
+    }
+
+    [Fact]
+    public void BatchReadList_WithSingleBatch_GroupsResultsByPlanId()
+    {
+        // Create 10 plans with multiple repos each to verify batching logic
+        for (int i = 7000; i < 7010; i++)
+        {
+            var metadata = new PlanMetadata(
+                i, "Tendril", "NiceToHave", $"Plan {i}", PlanStatus.Draft,
+                new List<string> { "D:\\Repos\\Test1", "D:\\Repos\\Test2" },
+                new List<string>(),
+                new List<string>(),
+                new List<PlanVerificationEntry>(),
+                new List<string>(),
+                new List<string>(),
+                DateTime.UtcNow.AddDays(-1),
+                DateTime.UtcNow,
+                null,
+                null
+            );
+            var plan = new PlanFile(metadata, "# Test", $"D:\\Plans\\{i:D5}-Test", "state: Draft");
+            _db.UpsertPlan(plan);
+        }
+
+        // Retrieve all plans and verify repos were loaded correctly
+        var plans = _db.GetPlans().Where(p => p.Id >= 7000 && p.Id < 7010).ToList();
+
+        Assert.Equal(10, plans.Count);
+        foreach (var plan in plans)
+        {
+            Assert.Equal(2, plan.Repos.Count);
+            Assert.Contains("D:\\Repos\\Test1", plan.Repos);
+            Assert.Contains("D:\\Repos\\Test2", plan.Repos);
+        }
+    }
+
+    [Fact]
+    public void BatchReadList_WithMultipleBatches_HandlesLargeSets()
+    {
+        // Create 1200 plans to test batching (batch size is 500)
+        for (int i = 8000; i < 9200; i++)
+        {
+            var metadata = new PlanMetadata(
+                i, "Tendril", "NiceToHave", $"Plan {i}", PlanStatus.Draft,
+                new List<string> { $"D:\\Repos\\Repo{i}" },
+                new List<string>(),
+                new List<string>(),
+                new List<PlanVerificationEntry> { new() { Name = "DotnetBuild", Status = "Pass" } },
+                new List<string>(),
+                new List<string>(),
+                DateTime.UtcNow.AddDays(-1),
+                DateTime.UtcNow,
+                null,
+                null
+            );
+            var plan = new PlanFile(metadata, "# Test", $"D:\\Plans\\{i:D5}-Test", "state: Draft");
+            _db.UpsertPlan(plan);
+        }
+
+        // Retrieve all plans and verify batching worked correctly
+        var plans = _db.GetPlans().Where(p => p.Id >= 8000 && p.Id < 9200).ToList();
+
+        Assert.Equal(1200, plans.Count);
+        foreach (var plan in plans)
+        {
+            Assert.Single(plan.Repos);
+            Assert.Equal($"D:\\Repos\\Repo{plan.Id}", plan.Repos[0]);
+            Assert.Single(plan.Verifications);
+            Assert.Equal("DotnetBuild", plan.Verifications[0].Name);
+            Assert.Equal("Pass", plan.Verifications[0].Status);
+        }
     }
 }

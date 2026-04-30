@@ -9,8 +9,6 @@ searchHints:
 icon: Download
 ---
 
-<Text Color="Green" Small Bold>Getting Started</Text>
-
 # Installation
 
 <Ingress>
@@ -24,13 +22,13 @@ One-liner: installs Tendril and required backend tools.
 ### macOS / Linux
 
 ```bash
-curl -sSf https://raw.githubusercontent.com/Ivy-Interactive/Ivy-Tendril/main/src/install.sh | sh
+curl -sSf https://cdn.ivy.app/install-tendril.sh | sh
 ```
 
 ### Windows
 
 ```powershell
-Invoke-RestMethod -Uri https://raw.githubusercontent.com/Ivy-Interactive/Ivy-Tendril/main/src/install.ps1 | Invoke-Expression
+Invoke-RestMethod -Uri https://cdn.ivy.app/install-tendril.ps1 | Invoke-Expression
 ```
 
 ## .NET Tool
@@ -43,7 +41,10 @@ dotnet tool install -g Ivy.Tendril
 
 <Callout type="Tip">
 Powershell 7, Git and gh CLI need to be present on your machine if you install using `dotnet tool` command
+</Callout>
 
+<Callout type="Info">
+On macOS/Linux, if you've never used .NET tools before, you may need to add the global tool directory to your PATH. Add `export PATH="$PATH:$HOME/.dotnet/tools"` to your `~/.zshrc` or `~/.bashrc` to run `tendril` directly from your terminal. This is done automatically with the quick install commands above.
 </Callout>
 
 ## Run
@@ -51,6 +52,8 @@ Powershell 7, Git and gh CLI need to be present on your machine if you install u
 ```bash
 tendril
 ```
+
+The first time you run Tendril, you'll be guided through an onboarding wizard. During setup, Tendril will create a configuration file at `$TENDRIL_HOME/config.yaml` (default: `~/.tendril/config.yaml`).
 
 ## Update
 

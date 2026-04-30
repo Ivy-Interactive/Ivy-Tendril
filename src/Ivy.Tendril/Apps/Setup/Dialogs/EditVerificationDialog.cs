@@ -1,4 +1,5 @@
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps.Setup.Dialogs;
 
@@ -42,7 +43,7 @@ public class EditVerificationDialog(
             _ => _editIndex.Set(-1),
             new DialogHeader(isNew ? "Add Verification" : "Edit Verification"),
             new DialogBody(
-                Layout.Vertical().Gap(2)
+                Layout.Vertical().Gap(4)
                 | editName.ToTextInput("Verification name...").WithField().Label("Name")
                 | editPrompt.ToTextareaInput("Verification prompt...").Rows(8).WithField().Label("Prompt")
             ),

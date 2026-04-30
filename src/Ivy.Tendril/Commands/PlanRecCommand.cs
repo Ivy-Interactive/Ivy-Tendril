@@ -1,6 +1,9 @@
 using System.ComponentModel;
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
+using Microsoft.Extensions.Logging;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -102,6 +105,10 @@ public class PlanRecSetSettings : CommandSettings
 
 public class PlanRecListCommand : Command<PlanRecListSettings>
 {
+    private readonly ILogger<PlanRecListCommand> _logger;
+
+    public PlanRecListCommand(ILogger<PlanRecListCommand> logger) => _logger = logger;
+
     protected override int Execute(CommandContext context, PlanRecListSettings settings, CancellationToken cancellationToken)
     {
         try
@@ -137,7 +144,7 @@ public class PlanRecListCommand : Command<PlanRecListSettings>
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            _logger.LogError(ex, "Failed to list recommendations for plan {PlanId}", settings.PlanId);
             return 1;
         }
     }
@@ -145,6 +152,15 @@ public class PlanRecListCommand : Command<PlanRecListSettings>
 
 public class PlanRecAddCommand : Command<PlanRecAddSettings>
 {
+    private readonly ILogger<PlanRecAddCommand> _logger;
+    private readonly IPlanWatcherService _planWatcher;
+
+    public PlanRecAddCommand(ILogger<PlanRecAddCommand> logger, IPlanWatcherService planWatcher)
+    {
+        _logger = logger;
+        _planWatcher = planWatcher;
+    }
+
     protected override int Execute(CommandContext context, PlanRecAddSettings settings, CancellationToken cancellationToken)
     {
         try
@@ -156,7 +172,7 @@ public class PlanRecAddCommand : Command<PlanRecAddSettings>
 
             if (plan.Recommendations.Any(r => r.Title.Equals(settings.Title, StringComparison.OrdinalIgnoreCase)))
             {
-                Console.Error.WriteLine($"Error: Recommendation '{settings.Title}' already exists");
+                _logger.LogError("Recommendation already exists: {Title}", settings.Title);
                 return 1;
             }
 
@@ -165,7 +181,7 @@ public class PlanRecAddCommand : Command<PlanRecAddSettings>
             {
                 if (!Console.IsInputRedirected)
                 {
-                    Console.Error.WriteLine("Error: Provide --description or pipe content via stdin");
+                    _logger.LogError("Provide --description or pipe content via stdin");
                     return 1;
                 }
                 description = Console.In.ReadToEnd().Trim();
@@ -181,14 +197,14 @@ public class PlanRecAddCommand : Command<PlanRecAddSettings>
             });
 
             plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
-            Console.WriteLine($"Added recommendation '{settings.Title}'");
+            _logger.LogInformation("Added recommendation: {Title}", settings.Title);
             return 0;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            _logger.LogError(ex, "Failed to add recommendation to plan {PlanId}", settings.PlanId);
             return 1;
         }
     }
@@ -196,6 +212,15 @@ public class PlanRecAddCommand : Command<PlanRecAddSettings>
 
 public class PlanRecRemoveCommand : Command<PlanRecRemoveSettings>
 {
+    private readonly ILogger<PlanRecRemoveCommand> _logger;
+    private readonly IPlanWatcherService _planWatcher;
+
+    public PlanRecRemoveCommand(ILogger<PlanRecRemoveCommand> logger, IPlanWatcherService planWatcher)
+    {
+        _logger = logger;
+        _planWatcher = planWatcher;
+    }
+
     protected override int Execute(CommandContext context, PlanRecRemoveSettings settings, CancellationToken cancellationToken)
     {
         try
@@ -208,20 +233,20 @@ public class PlanRecRemoveCommand : Command<PlanRecRemoveSettings>
 
             if (match == null)
             {
-                Console.Error.WriteLine($"Error: Recommendation '{settings.Title}' not found");
+                _logger.LogError("Recommendation not found: {Title}", settings.Title);
                 return 1;
             }
 
             recs.Remove(match);
             plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
-            Console.WriteLine($"Removed recommendation '{settings.Title}'");
+            _logger.LogInformation("Removed recommendation: {Title}", settings.Title);
             return 0;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            _logger.LogError(ex, "Failed to remove recommendation from plan {PlanId}", settings.PlanId);
             return 1;
         }
     }
@@ -229,6 +254,15 @@ public class PlanRecRemoveCommand : Command<PlanRecRemoveSettings>
 
 public class PlanRecAcceptCommand : Command<PlanRecAcceptSettings>
 {
+    private readonly ILogger<PlanRecAcceptCommand> _logger;
+    private readonly IPlanWatcherService _planWatcher;
+
+    public PlanRecAcceptCommand(ILogger<PlanRecAcceptCommand> logger, IPlanWatcherService planWatcher)
+    {
+        _logger = logger;
+        _planWatcher = planWatcher;
+    }
+
     protected override int Execute(CommandContext context, PlanRecAcceptSettings settings, CancellationToken cancellationToken)
     {
         try
@@ -241,7 +275,7 @@ public class PlanRecAcceptCommand : Command<PlanRecAcceptSettings>
 
             if (rec == null)
             {
-                Console.Error.WriteLine($"Error: Recommendation '{settings.Title}' not found");
+                _logger.LogError("Recommendation not found: {Title}", settings.Title);
                 return 1;
             }
 
@@ -249,14 +283,14 @@ public class PlanRecAcceptCommand : Command<PlanRecAcceptSettings>
             rec.DeclineReason = null;
 
             plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
-            Console.WriteLine($"Accepted recommendation '{settings.Title}'");
+            _logger.LogInformation("Accepted recommendation: {Title}", settings.Title);
             return 0;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            _logger.LogError(ex, "Failed to accept recommendation for plan {PlanId}", settings.PlanId);
             return 1;
         }
     }
@@ -264,6 +298,15 @@ public class PlanRecAcceptCommand : Command<PlanRecAcceptSettings>
 
 public class PlanRecDeclineCommand : Command<PlanRecDeclineSettings>
 {
+    private readonly ILogger<PlanRecDeclineCommand> _logger;
+    private readonly IPlanWatcherService _planWatcher;
+
+    public PlanRecDeclineCommand(ILogger<PlanRecDeclineCommand> logger, IPlanWatcherService planWatcher)
+    {
+        _logger = logger;
+        _planWatcher = planWatcher;
+    }
+
     protected override int Execute(CommandContext context, PlanRecDeclineSettings settings, CancellationToken cancellationToken)
     {
         try
@@ -276,7 +319,7 @@ public class PlanRecDeclineCommand : Command<PlanRecDeclineSettings>
 
             if (rec == null)
             {
-                Console.Error.WriteLine($"Error: Recommendation '{settings.Title}' not found");
+                _logger.LogError("Recommendation not found: {Title}", settings.Title);
                 return 1;
             }
 
@@ -284,14 +327,14 @@ public class PlanRecDeclineCommand : Command<PlanRecDeclineSettings>
             rec.DeclineReason = settings.Reason;
 
             plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
-            Console.WriteLine($"Declined recommendation '{settings.Title}'");
+            _logger.LogInformation("Declined recommendation: {Title}", settings.Title);
             return 0;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            _logger.LogError(ex, "Failed to decline recommendation for plan {PlanId}", settings.PlanId);
             return 1;
         }
     }
@@ -299,6 +342,15 @@ public class PlanRecDeclineCommand : Command<PlanRecDeclineSettings>
 
 public class PlanRecSetCommand : Command<PlanRecSetSettings>
 {
+    private readonly ILogger<PlanRecSetCommand> _logger;
+    private readonly IPlanWatcherService _planWatcher;
+
+    public PlanRecSetCommand(ILogger<PlanRecSetCommand> logger, IPlanWatcherService planWatcher)
+    {
+        _logger = logger;
+        _planWatcher = planWatcher;
+    }
+
     protected override int Execute(CommandContext context, PlanRecSetSettings settings, CancellationToken cancellationToken)
     {
         try
@@ -311,7 +363,7 @@ public class PlanRecSetCommand : Command<PlanRecSetSettings>
 
             if (rec == null)
             {
-                Console.Error.WriteLine($"Error: Recommendation '{settings.Title}' not found");
+                _logger.LogError("Recommendation not found: {Title}", settings.Title);
                 return 1;
             }
 
@@ -340,14 +392,14 @@ public class PlanRecSetCommand : Command<PlanRecSetSettings>
             }
 
             plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
-            Console.WriteLine($"Updated {settings.Field} to '{settings.Value}'");
+            _logger.LogInformation("Updated recommendation {Field} to '{Value}'", settings.Field, settings.Value);
             return 0;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            _logger.LogError(ex, "Failed to set recommendation field for plan {PlanId}", settings.PlanId);
             return 1;
         }
     }

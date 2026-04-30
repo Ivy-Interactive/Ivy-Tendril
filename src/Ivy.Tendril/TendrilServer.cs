@@ -3,9 +3,12 @@ using Ivy.Helpers;
 using Ivy.Tendril.AppShell;
 using Ivy.Tendril.Controllers;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.SessionParsers;
+using Ivy.Tendril.Helpers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using OpenAI;
 
@@ -25,9 +28,15 @@ public static class TendrilServer
 
         server.Services.AddHttpClient();
 
-        var configService = new ConfigService();
+        // Register VerbosityService before other services
+        server.Services.AddSingleton<IVerbosityService, VerbosityService>();
+
+        var configService = new ConfigService(Microsoft.Extensions.Logging.Abstractions.NullLogger<ConfigService>.Instance);
         server.Services.AddSingleton<IConfigService>(configService);
         server.Services.AddSingleton<ConfigService>(configService);
+
+        // Store reference for cleanup on process exit
+        Program.SetConfigServiceForCleanup(configService);
 
         if (configService.Settings.Auth != null)
         {
@@ -35,8 +44,10 @@ public static class TendrilServer
             server.UseAuth<Auth.TendrilAuthProvider>();
         }
 
-        server.Services.AddSingleton<ModelPricingService>(sp =>
-            new ModelPricingService(sp.GetRequiredService<ILogger<ModelPricingService>>()));
+        server.Services.AddSingleton<ISessionParser, ClaudeSessionParser>();
+        server.Services.AddSingleton<ISessionParser, CodexSessionParser>();
+        server.Services.AddSingleton<ISessionParser, GeminiSessionParser>();
+        server.Services.AddSingleton<ModelPricingService>();
         server.Services.AddSingleton<IModelPricingService>(sp => sp.GetRequiredService<ModelPricingService>());
 
         // Register IChatClient if LLM is configured
@@ -61,7 +72,9 @@ public static class TendrilServer
         server.Services.AddSingleton<GithubService>();
         server.Services.AddSingleton<IGithubService>(sp => sp.GetRequiredService<GithubService>());
         server.Services.AddSingleton<IGitService>(sp =>
-            new GitService(sp.GetRequiredService<IConfigService>()));
+            new GitService(
+                sp.GetRequiredService<IConfigService>(),
+                sp.GetRequiredService<ILogger<GitService>>()));
         server.Services.AddSingleton<IWorktreeLifecycleLogger>(sp =>
         {
             var config = sp.GetRequiredService<IConfigService>();
@@ -125,7 +138,8 @@ public static class TendrilServer
         server.Services.AddSingleton<PlanWatcherService>(sp =>
         {
             var config = sp.GetRequiredService<IConfigService>();
-            return new PlanWatcherService(config);
+            var logger = sp.GetService<ILogger<PlanWatcherService>>();
+            return new PlanWatcherService(config, logger);
         });
         server.Services.AddSingleton<IPlanWatcherService>(sp => sp.GetRequiredService<PlanWatcherService>());
         server.Services.AddSingleton<PlanCountsService>(sp =>
@@ -140,7 +154,7 @@ public static class TendrilServer
         {
             var config = sp.GetRequiredService<IConfigService>();
             var jobService = sp.GetRequiredService<IJobService>();
-            return new InboxWatcherService(config, jobService);
+            return new InboxWatcherService(config, jobService, sp.GetRequiredService<ILogger<InboxWatcherService>>());
         });
         server.Services.AddSingleton<IInboxWatcherService>(sp => sp.GetRequiredService<InboxWatcherService>());
         server.Services.AddSingleton<WorktreeCleanupService>(sp =>
@@ -161,6 +175,25 @@ public static class TendrilServer
         });
         server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<PrStatusSyncService>());
 
+        // Configure logging based on verbosity.
+        // We set levels via configuration (not SetMinimumLevel) because the Ivy framework
+        // calls SetMinimumLevel after UseWebApplicationBuilder mods, which would override ours.
+        // Configuration-based rules take precedence over SetMinimumLevel.
+        var verbosityService = new VerbosityService();
+        var logLevel = verbosityService.Level switch
+        {
+            VerbosityLevel.Verbose => "Debug",
+            VerbosityLevel.Quiet => "Warning",
+            _ => "Error"
+        };
+        server.UseWebApplicationBuilder(builder =>
+        {
+            builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Logging:LogLevel:Default"] = logLevel,
+            });
+        });
+
         server.UseWebApplication(app =>
         {
             app.UseMiddleware<ApiKeyAuthMiddleware>();
@@ -171,7 +204,18 @@ public static class TendrilServer
                 Environment.SetEnvironmentVariable("TENDRIL_URL", serverUrl);
 
             if (!configService.NeedsOnboarding)
+            {
+                // Auto-update promptwares if the running version is newer than what's deployed
+                var promptwaresDir = Path.Combine(configService.TendrilHome, "Promptwares");
+                if (PromptwareDeployer.NeedsUpdate(promptwaresDir))
+                {
+                    var logger = app.Services.GetRequiredService<ILogger<Server>>();
+                    logger.LogInformation("Promptware update detected, deploying new version");
+                    PromptwareDeployer.Deploy(promptwaresDir);
+                }
+
                 BackgroundServiceActivator.Start(app.Services);
+            }
 
             var telemetryService = app.Services.GetRequiredService<TelemetryService>();
             var appVersion = typeof(TendrilAppShell).Assembly.GetName().Version!.ToString(3);

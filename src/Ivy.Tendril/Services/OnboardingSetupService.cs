@@ -1,3 +1,4 @@
+using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services;
@@ -76,9 +77,20 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
                               "  - name: deep\n" +
                               "    model: gemini-3-flash-preview\n" +
                               "  - name: balanced\n" +
-                              "    model: gemini-2.5-flash\n" +
+                              "    model: gemini-3-flash-preview\n" +
                               "  - name: quick\n" +
-                              "    model: gemini-2.5-flash-lite\n" +
+                              "    model: gemini-3-flash-preview\n" +
+                              "- name: Copilot\n" +
+                              "  profiles:\n" +
+                              "  - name: deep\n" +
+                              "    model: gpt-5.2\n" +
+                              "    effort: high\n" +
+                              "  - name: balanced\n" +
+                              "    model: gpt-5.2\n" +
+                              "    effort: medium\n" +
+                              "  - name: quick\n" +
+                              "    model: gpt-5.2\n" +
+                              "    effort: low\n" +
                               "projects: []\n" +
                               "verifications: []\n";
             await FileHelper.WriteAllTextAsync(configPath, basicConfig);
@@ -145,9 +157,9 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
         _logger.LogInformation("Configuration saved");
     }
 
-    public void StartBackgroundServices()
+    public async Task StartBackgroundServicesAsync()
     {
         _logger.LogInformation("Starting background services (deferred)");
-        BackgroundServiceActivator.Start(services, _logger);
+        await BackgroundServiceActivator.StartAsync(services, _logger);
     }
 }

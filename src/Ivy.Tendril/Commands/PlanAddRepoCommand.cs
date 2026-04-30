@@ -1,5 +1,8 @@
+using Ivy.Tendril.Models;
 using System.ComponentModel;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
+using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -17,6 +20,15 @@ public class PlanAddRepoSettings : CommandSettings
 
 public class PlanAddRepoCommand : Command<PlanAddRepoSettings>
 {
+    private readonly ILogger<PlanAddRepoCommand> _logger;
+    private readonly IPlanWatcherService _planWatcher;
+
+    public PlanAddRepoCommand(ILogger<PlanAddRepoCommand> logger, IPlanWatcherService planWatcher)
+    {
+        _logger = logger;
+        _planWatcher = planWatcher;
+    }
+
     protected override int Execute(CommandContext context, PlanAddRepoSettings settings, CancellationToken cancellationToken)
     {
         try
@@ -27,7 +39,7 @@ public class PlanAddRepoCommand : Command<PlanAddRepoSettings>
             // Check if already present
             if (plan.Repos.Contains(settings.RepoPath, StringComparer.OrdinalIgnoreCase))
             {
-                Console.WriteLine($"Repository already in plan: {settings.RepoPath}");
+                _logger.LogInformation("Repository already in plan: {RepoPath}", settings.RepoPath);
                 return 0;
             }
 
@@ -35,14 +47,14 @@ public class PlanAddRepoCommand : Command<PlanAddRepoSettings>
             plan.Repos.Add(settings.RepoPath);
             plan.Updated = DateTime.UtcNow;
 
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
-            Console.WriteLine($"Added repository: {settings.RepoPath}");
+            _logger.LogInformation("Added repository: {RepoPath}", settings.RepoPath);
             return 0;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            _logger.LogError(ex, "Failed to add repository to plan {PlanId}", settings.PlanId);
             return 1;
         }
     }

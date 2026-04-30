@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps.Onboarding;
 
@@ -15,11 +16,13 @@ public class TendrilHomeStepView(IState<int> stepperIndex) : ViewBase
             )
         );
         var error = UseState<string?>(null);
+        var configInfo = UseState<string?>(null);
         var config = UseService<IConfigService>();
 
         return Layout.Vertical().Margin(0, 0, 0, 20)
                | Text.H2("Tendril Data Location")
                | Text.Muted("This folder will store your plans, inbox, trash, and other Tendril data.")
+               | (configInfo.Value != null ? Text.Muted(configInfo.Value) : null!)
                | (error.Value != null ? Text.Danger(error.Value) : null!)
                | folderPath.ToTextInput("Select Tendril data folder...")
                    .WithField().Label("Tendril Home")
@@ -60,6 +63,8 @@ public class TendrilHomeStepView(IState<int> stepperIndex) : ViewBase
                            tendrilHome = Path.GetFullPath(tendrilHome);
 
                            config.SetPendingTendrilHome(tendrilHome);
+                           var expectedConfigPath = Path.Combine(tendrilHome, "config.yaml");
+                           configInfo.Set($"Configuration will be stored at {expectedConfigPath}");
                            error.Set(null);
                            stepperIndex.Set(stepperIndex.Value + 1);
                        }

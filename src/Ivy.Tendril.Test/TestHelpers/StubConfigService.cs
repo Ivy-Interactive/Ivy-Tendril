@@ -15,26 +15,90 @@ public class StubConfigService : IConfigService
     public bool NeedsOnboarding => false;
     public ConfigParseError? ParseError => null;
 
-    public ProjectConfig? GetProject(string name) => null;
-    public BadgeVariant GetBadgeVariant(string level) => BadgeVariant.Outline;
-    public Colors? GetProjectColor(string projectName) => null;
-    public void SaveSettings() { }
-    public void ReloadSettings() { }
-    public bool TryAutoHeal() => false;
-    public void ResetToDefaults() { }
-    public void RetryLoadConfig() { }
+    public ProjectConfig? GetProject(string name)
+    {
+        return null;
+    }
+
+    public BadgeVariant GetBadgeVariant(string level)
+    {
+        return BadgeVariant.Outline;
+    }
+
+    public Colors? GetProjectColor(string projectName)
+    {
+        return null;
+    }
+
+    public void SaveSettings()
+    {
+    }
+
+    public void ReloadSettings()
+    {
+    }
+
+    public bool TryAutoHeal()
+    {
+        return false;
+    }
+
+    public void ResetToDefaults()
+    {
+    }
+
+    public void RetryLoadConfig()
+    {
+    }
 #pragma warning disable CS0067
     public event EventHandler? SettingsReloaded;
 #pragma warning restore CS0067
-    public void SetPendingCodingAgent(string name) { }
-    public string? GetPendingCodingAgent() => null;
-    public void SetPendingTendrilHome(string path) { }
-    public string? GetPendingTendrilHome() => null;
-    public void SetPendingProject(ProjectConfig project) { }
-    public ProjectConfig? GetPendingProject() => null;
-    public void SetPendingVerificationDefinitions(List<VerificationConfig> definitions) { }
-    public List<VerificationConfig>? GetPendingVerificationDefinitions() => null;
-    public void CompleteOnboarding(string tendrilHome) { }
-    public void OpenInEditor(string path) { }
-    public string PreprocessForEditing(string path) => path;
+    public void SetPendingCodingAgent(string name)
+    {
+    }
+
+    public string? GetPendingCodingAgent()
+    {
+        return null;
+    }
+
+    public void SetPendingTendrilHome(string path)
+    {
+    }
+
+    public string? GetPendingTendrilHome()
+    {
+        return null;
+    }
+
+    public void SetPendingProject(ProjectConfig project)
+    {
+    }
+
+    public ProjectConfig? GetPendingProject()
+    {
+        return null;
+    }
+
+    public void SetPendingVerificationDefinitions(List<VerificationConfig> definitions)
+    {
+    }
+
+    public List<VerificationConfig>? GetPendingVerificationDefinitions()
+    {
+        return null;
+    }
+
+    public void CompleteOnboarding(string tendrilHome)
+    {
+    }
+
+    public void OpenInEditor(string path)
+    {
+    }
+
+    public string PreprocessForEditing(string path)
+    {
+        return path;
+    }
 }

@@ -1,10 +1,12 @@
 using System.Reactive.Disposables;
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps;
 
-[App(title: "Drafts", icon: Icons.Feather, group: ["Apps"], order: MenuOrder.Drafts)]
+[App(title: "Drafts", icon: Icons.Feather, group: ["Apps"], order: Constants.Drafts)]
 public class PlansApp : ViewBase
 {
     public override object Build()
@@ -18,6 +20,7 @@ public class PlansApp : ViewBase
         var projectFilter = UseState<string?>(null);
         var levelFilter = UseState<string?>(null);
         var textFilter = UseState<string?>("");
+        var filtersOpen = UseState(false);
         var refreshToken = UseRefreshToken();
 
         UseEffect(() =>
@@ -58,13 +61,13 @@ public class PlansApp : ViewBase
 
         previousPlans.Value = filteredPlans;
 
-        var sidebar = new SidebarView(plans, selectedPlanState, projectFilter, levelFilter, textFilter, configService);
+        var sidebar = new SidebarView(plans, selectedPlanState, projectFilter, levelFilter, textFilter, filtersOpen, configService);
 
         return new SidebarLayout(
             new ContentView(selectedPlanState.Value, filteredPlans, selectedPlanState, planService, jobService,
                 RefreshPlans, configService, gitService),
             sidebar
-        );
+        ).SidebarContentScroll(Scroll.None);
 
         void RefreshPlans()
         {

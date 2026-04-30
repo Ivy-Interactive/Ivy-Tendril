@@ -1,4 +1,6 @@
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps.Onboarding;
 
@@ -7,7 +9,7 @@ public class CodingAgentStepView(
     IReadOnlyDictionary<string, bool> checkResults,
     IReadOnlyDictionary<string, HealthCheckStatus?>? healthResults) : ViewBase
 {
-    private static readonly (string Label, string Name)[] AgentOptions = [("Claude", "claude"), ("Codex", "codex"), ("Gemini", "gemini")];
+    private static readonly (string Label, string Name)[] AgentOptions = [("Claude", "claude"), ("Codex", "codex"), ("Gemini", "gemini"), ("Copilot", "copilot")];
     private readonly (string Label, string Name)[] _installedOptions = GetInstalledOptions(checkResults, healthResults);
 
     private static (string Label, string Name)[] GetInstalledOptions(

@@ -1,4 +1,5 @@
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Views;
 
 namespace Ivy.Tendril.Apps;
@@ -11,6 +12,7 @@ public class WallpaperApp : ViewBase
         var countsService = UseService<IPlanCountsService>();
         var versionService = UseService<IVersionCheckService>();
         var versionInfo = UseState<VersionInfo?>(null);
+        var dismissedVersion = UseState<string?>(null);
 
         UseEffect(() =>
         {
@@ -27,7 +29,7 @@ public class WallpaperApp : ViewBase
 
         var heading = hasActivity ? "What are we making next?" : "Welcome to Ivy Tendril";
         var subtitle = hasActivity ? BuildSummary(counts) : "Manage your plans, track jobs, and review pull requests.";
-        var buttonLabel = hasActivity ? "New Plan" : "Create your first Plan";
+        var buttonLabel = hasActivity ? "New Plan" : "Create your first plan";
 
         var elements = new List<object>
         {
@@ -43,15 +45,26 @@ public class WallpaperApp : ViewBase
                 )
         };
 
-        if (versionInfo.Value?.HasUpdate == true)
-            elements.Insert(0, new Box(
-                Callout.Info(
-                    $"**Tendril v{versionInfo.Value.LatestVersion} is available!**\n\n" +
-                    $"You're currently running v{versionInfo.Value.CurrentVersion}.\n\n" +
-                    $"Update with: `tendril --version && dotnet tool update -g Ivy.Tendril`",
-                    "Update Available"
-                )
-            ).Margin(2));
+        if (versionInfo.Value?.HasUpdate == true && versionInfo.Value.LatestVersion != dismissedVersion.Value)
+        {
+            var updateCommand = "dotnet tool update -g Ivy.Tendril";
+            var notification = new FloatingPanel(
+                new Card(
+                    Layout.Vertical().Gap(4)
+                    | Text.Rich()
+                        .Bold($"v{versionInfo.Value.LatestVersion}")
+                        .Run($" is available (you have v{versionInfo.Value.CurrentVersion})")
+                        .Small()
+                    | new CodeBlock(updateCommand, Languages.Bash)
+                    | new Button("Dismiss", () => dismissedVersion.Set(versionInfo.Value.LatestVersion))
+                        .Variant(ButtonVariant.Ghost)
+                        .Small()
+                ).Header("Update Available", null, Icons.CircleArrowUp),
+                Align.BottomRight
+            ).Offset(new Thickness(0, 0, 8, 8));
+
+            elements.Add(notification);
+        }
 
         return new Fragment(elements.ToArray());
     }
@@ -67,6 +80,8 @@ public class WallpaperApp : ViewBase
         if (counts.Reviews > 0)
             parts.Add($"{counts.Reviews} {(counts.Reviews == 1 ? "review" : "reviews")} waiting");
 
-        return "You have " + string.Join(", ", parts) + ".";
+        return parts.Count > 0
+            ? "You have " + string.Join(", ", parts) + "."
+            : "No current drafts, jobs or reviews.";
     }
 }

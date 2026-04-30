@@ -1,5 +1,5 @@
 ---
-icon: Bot
+icon: ClaudeCode
 searchHints:
   - claude
   - claude code

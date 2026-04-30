@@ -1,3 +1,4 @@
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Test.TestHelpers;
 
@@ -155,6 +156,15 @@ public class FileLinkHelperTests
 
         public T Value { get; set; }
 
+        public IDisposable Subscribe(IObserver<T> observer)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Dispose()
+        {
+        }
+
         public T Set(T value)
         {
             return Value = value;
@@ -168,11 +178,6 @@ public class FileLinkHelperTests
         public T Reset()
         {
             return Value = _initial;
-        }
-
-        public IDisposable Subscribe(IObserver<T> observer)
-        {
-            throw new NotImplementedException();
         }
 
         public IDisposable SubscribeAny(Action action)
@@ -193,10 +198,6 @@ public class FileLinkHelperTests
         public object? GetValueAsObject()
         {
             return Value;
-        }
-
-        public void Dispose()
-        {
         }
 
         public IEffectTrigger ToTrigger()

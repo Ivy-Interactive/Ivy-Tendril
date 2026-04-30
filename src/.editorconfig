@@ -1,0 +1,3 @@
+[*.cs]
+dotnet_diagnostic.IDE0005.severity = none
+resharper_redundant_using_directive_highlighting = do_not_show

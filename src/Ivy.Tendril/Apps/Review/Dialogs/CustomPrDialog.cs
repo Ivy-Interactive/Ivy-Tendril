@@ -1,5 +1,7 @@
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -30,6 +32,7 @@ public class CustomPrDialog(
         var customPrIncludeArtifacts = UseState(false);
         var customPrAssignee = UseState<string?>(null);
         var customPrComment = UseState("");
+        var customPrDraft = UseState(false);
 
         UseEffect(() =>
         {
@@ -41,11 +44,13 @@ public class CustomPrDialog(
         return new Dialog(
             _ =>
             {
+                isCreating.Set(false);
                 customPrMerge.Set(true);
                 customPrDeleteBranch.Set(true);
                 customPrIncludeArtifacts.Set(true);
                 customPrAssignee.Set(null);
                 customPrComment.Set("");
+                customPrDraft.Set(false);
                 _dialogOpen.Set(false);
             },
             new DialogHeader($"Custom PR for #{_selectedPlan.Id}"),
@@ -55,6 +60,7 @@ public class CustomPrDialog(
                 | customPrDeleteBranch.ToBoolInput("Delete Branch")
                     .Disabled(!customPrMerge.Value)
                 | customPrIncludeArtifacts.ToBoolInput("Include Artifacts")
+                | customPrDraft.ToBoolInput("Create as Draft")
                 | customPrAssignee.ToSelectInput((_assigneesQuery.Value ?? Array.Empty<string>()).ToOptions())
                     .Nullable().WithField().Label("Assignee")
                 | (_assigneesError.Value is { } err
@@ -65,11 +71,13 @@ public class CustomPrDialog(
             new DialogFooter(
                 new Button("Cancel").Outline().ShortcutKey("Escape").OnClick(() =>
                 {
+                    isCreating.Set(false);
                     customPrMerge.Set(true);
                     customPrDeleteBranch.Set(true);
                     customPrIncludeArtifacts.Set(true);
                     customPrAssignee.Set(null);
                     customPrComment.Set("");
+                    customPrDraft.Set(false);
                     _dialogOpen.Set(false);
                 }),
                 new Button("Create PR").Primary().Disabled(isCreating.Value).ShortcutKey("Ctrl+Enter").OnClick(() =>
@@ -83,21 +91,24 @@ public class CustomPrDialog(
                             ["deleteBranch"] = customPrDeleteBranch.Value && customPrMerge.Value,
                             ["includeArtifacts"] = customPrIncludeArtifacts.Value,
                             ["assignee"] = customPrAssignee.Value ?? "",
-                            ["comment"] = customPrComment.Value
+                            ["comment"] = customPrComment.Value,
+                            ["draft"] = customPrDraft.Value
                         };
                         var serializer = new SerializerBuilder()
                             .WithNamingConvention(CamelCaseNamingConvention.Instance)
                             .Build();
                         var optionsPath = Path.Combine(_selectedPlan.FolderPath, ".custom-pr-options.yaml");
                         FileHelper.WriteAllText(optionsPath, serializer.Serialize(options));
-                        _jobService.StartJob("CreatePr", _selectedPlan.FolderPath);
+                        _jobService.StartJob(Constants.JobTypes.CreatePr, _selectedPlan.FolderPath);
                         _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Building);
                         _refreshPlans();
+                        isCreating.Set(false);
                         customPrMerge.Set(true);
                         customPrDeleteBranch.Set(true);
                         customPrIncludeArtifacts.Set(true);
                         customPrAssignee.Set(null);
                         customPrComment.Set("");
+                        customPrDraft.Set(false);
                         _dialogOpen.Set(false);
                     }
                 }).WithConfetti(AnimationTrigger.Click)

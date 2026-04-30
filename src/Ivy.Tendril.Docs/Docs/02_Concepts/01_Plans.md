@@ -10,8 +10,6 @@ searchHints:
   - states
 ---
 
-<Text Color="Green" Small Bold>Concepts</Text>
-
 
 # Plans
 
@@ -24,47 +22,7 @@ searchHints:
 
 A plan progresses through the following comprehensive set of states:
 
-```mermaid
-flowchart LR
-    Draft:::defaultStyle
-    Blocked:::blockedStyle
-    Building:::buildingStyle
-    Executing:::executingStyle
-    Updating:::executingStyle
-    ReadyForReview:::readyStyle
-    Failed:::failedStyle
-    Completed:::completedStyle
-    Icebox:::iceboxStyle
-    Skipped:::skippedStyle
-
-    Draft -->|CreatePlan| Building
-    Draft -->|Execute| Executing
-    Draft -->|Missing Context| Blocked
-    Blocked -->|Resolved| Draft
-    Building -->|Drafted| Draft
-    Draft -->|Shelve| Icebox
-    Icebox -->|Restore| Draft
-
-    Executing -->|Iterate| Updating
-    Updating -->|Continue| Executing
-    Executing -->|Success| ReadyForReview
-    Executing -->|Error/Timeout| Failed
-    Failed -->|Retry| Executing
-
-    ReadyForReview -->|Approve| Completed
-    ReadyForReview -->|Revise| Draft
-    ReadyForReview -->|Discard| Skipped
-
-    classDef defaultStyle fill:#E8F0FE,stroke:#4285F4,color:#000
-    classDef blockedStyle fill:#FFF9C4,stroke:#4285F4,color:#000
-    classDef buildingStyle fill:#E1F5FE,stroke:#4285F4,color:#000
-    classDef executingStyle fill:#FFF3E0,stroke:#4285F4,color:#000
-    classDef readyStyle fill:#E8F5E9,stroke:#4285F4,color:#000
-    classDef failedStyle fill:#FFEBEE,stroke:#E53935,color:#000
-    classDef completedStyle fill:#C8E6C9,stroke:#4285F4,color:#000
-    classDef iceboxStyle fill:#F3E5F5,stroke:#4285F4,color:#000
-    classDef skippedStyle fill:#F5F5F5,stroke:#9E9E9E,color:#000
-```
+![Plan flow](assets/PlanLifecycle.png)
 
 | State | Description |
 |-------|-------------|

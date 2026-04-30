@@ -22,10 +22,9 @@ public class FirmwareCompilerTests : IDisposable
     public void Compile_InjectsHeaderValues()
     {
         var context = new FirmwareContext(
-            ProgramFolder: "/programs/CreatePlan",
-            LogFile: "/programs/CreatePlan/Logs/00001.md",
-            Values: new() { ["PlanId"] = "03456", ["Project"] = "Tendril" },
-            SharedDocuments: new());
+            "/programs/CreatePlan",
+            "/programs/CreatePlan/Logs/00001.md",
+            new Dictionary<string, string> { ["PlanId"] = "03456", ["Project"] = "Tendril" });
 
         var result = FirmwareCompiler.Compile(context);
 
@@ -37,10 +36,9 @@ public class FirmwareCompilerTests : IDisposable
     public void Compile_InjectsCurrentTimeIfMissing()
     {
         var context = new FirmwareContext(
-            ProgramFolder: "/programs/Test",
-            LogFile: "/programs/Test/Logs/00001.md",
-            Values: new(),
-            SharedDocuments: new());
+            "/programs/Test",
+            "/programs/Test/Logs/00001.md",
+            new Dictionary<string, string>());
 
         var result = FirmwareCompiler.Compile(context);
 
@@ -51,10 +49,9 @@ public class FirmwareCompilerTests : IDisposable
     public void Compile_DoesNotOverrideExplicitCurrentTime()
     {
         var context = new FirmwareContext(
-            ProgramFolder: "/programs/Test",
-            LogFile: "/programs/Test/Logs/00001.md",
-            Values: new() { ["CurrentTime"] = "2026-01-01T00:00:00Z" },
-            SharedDocuments: new());
+            "/programs/Test",
+            "/programs/Test/Logs/00001.md",
+            new Dictionary<string, string> { ["CurrentTime"] = "2026-01-01T00:00:00Z" });
 
         var result = FirmwareCompiler.Compile(context);
 
@@ -65,10 +62,9 @@ public class FirmwareCompilerTests : IDisposable
     public void Compile_ReplacesProgramFolder()
     {
         var context = new FirmwareContext(
-            ProgramFolder: "/my/programs/ExecutePlan",
-            LogFile: "/my/programs/ExecutePlan/Logs/00003.md",
-            Values: new(),
-            SharedDocuments: new());
+            "/my/programs/ExecutePlan",
+            "/my/programs/ExecutePlan/Logs/00003.md",
+            new Dictionary<string, string>());
 
         var result = FirmwareCompiler.Compile(context);
 
@@ -80,10 +76,9 @@ public class FirmwareCompilerTests : IDisposable
     public void Compile_ReplacesLogFile()
     {
         var context = new FirmwareContext(
-            ProgramFolder: "/programs/Test",
-            LogFile: "/programs/Test/Logs/00042.md",
-            Values: new(),
-            SharedDocuments: new());
+            "/programs/Test",
+            "/programs/Test/Logs/00042.md",
+            new Dictionary<string, string>());
 
         var result = FirmwareCompiler.Compile(context);
 
@@ -92,35 +87,28 @@ public class FirmwareCompilerTests : IDisposable
     }
 
     [Fact]
-    public void Compile_AppendsSharedDocuments()
+    public void Compile_AppendsEmbeddedPlansReference()
     {
         var context = new FirmwareContext(
-            ProgramFolder: "/programs/Test",
-            LogFile: "/programs/Test/Logs/00001.md",
-            Values: new(),
-            SharedDocuments: new()
-            {
-                ("Plans", "# Plans\n\nPlan documentation here."),
-                ("Config", "# Config\n\nConfig documentation here.")
-            });
+            "/programs/Test",
+            "/programs/Test/Logs/00001.md",
+            new Dictionary<string, string>());
 
         var result = FirmwareCompiler.Compile(context);
 
         Assert.Contains("## Reference Documents", result);
         Assert.Contains("### Plans", result);
-        Assert.Contains("Plan documentation here.", result);
-        Assert.Contains("### Config", result);
-        Assert.Contains("Config documentation here.", result);
+        Assert.Contains("Plans File Structure", result);
+        Assert.Contains("tendril plan", result);
     }
 
     [Fact]
     public void Compile_HeaderValuesSortedAlphabetically()
     {
         var context = new FirmwareContext(
-            ProgramFolder: "/programs/Test",
-            LogFile: "/programs/Test/Logs/00001.md",
-            Values: new() { ["Zebra"] = "last", ["Alpha"] = "first" },
-            SharedDocuments: new());
+            "/programs/Test",
+            "/programs/Test/Logs/00001.md",
+            new Dictionary<string, string> { ["Zebra"] = "last", ["Alpha"] = "first" });
 
         var result = FirmwareCompiler.Compile(context);
 
@@ -133,10 +121,9 @@ public class FirmwareCompilerTests : IDisposable
     public void Compile_ContainsCoreInstructions()
     {
         var context = new FirmwareContext(
-            ProgramFolder: "/programs/Test",
-            LogFile: "/programs/Test/Logs/00001.md",
-            Values: new(),
-            SharedDocuments: new());
+            "/programs/Test",
+            "/programs/Test/Logs/00001.md",
+            new Dictionary<string, string>());
 
         var result = FirmwareCompiler.Compile(context);
 
@@ -184,5 +171,30 @@ public class FirmwareCompilerTests : IDisposable
         FirmwareCompiler.GetNextLogFile(programFolder);
 
         Assert.True(Directory.Exists(Path.Combine(programFolder, "Logs")));
+    }
+
+    [Fact]
+    public void GetNextLogFile_ReservesFileOnDisk()
+    {
+        var programFolder = Path.Combine(_tempDir, "ReserveTest");
+        Directory.CreateDirectory(programFolder);
+
+        var logFile = FirmwareCompiler.GetNextLogFile(programFolder);
+
+        Assert.True(File.Exists(logFile));
+    }
+
+    [Fact]
+    public void GetNextLogFile_ConcurrentCalls_ProduceDifferentNumbers()
+    {
+        var programFolder = Path.Combine(_tempDir, "ConcurrentTest");
+        Directory.CreateDirectory(programFolder);
+
+        var first = FirmwareCompiler.GetNextLogFile(programFolder);
+        var second = FirmwareCompiler.GetNextLogFile(programFolder);
+
+        Assert.EndsWith("00001.md", first);
+        Assert.EndsWith("00002.md", second);
+        Assert.NotEqual(first, second);
     }
 }

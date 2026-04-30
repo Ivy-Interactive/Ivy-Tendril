@@ -184,11 +184,11 @@ jobs:
       - name: Set Icon Path
         run: |
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            echo "ICON_PATH=src/Ivy.Tendril/Assets/Tendril.ico" >> $GITHUB_ENV
+            echo "ICON_PATH=src/Ivy.Tendril/Assets/icon.ico" >> $GITHUB_ENV
           elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            echo "ICON_PATH=src/Ivy.Tendril/Assets/Tendril.icns" >> $GITHUB_ENV
+            echo "ICON_PATH=src/Ivy.Tendril/Assets/icon.icns" >> $GITHUB_ENV
           else
-            echo "ICON_PATH=src/Ivy.Tendril/Assets/Tendril.png" >> $GITHUB_ENV
+            echo "ICON_PATH=src/Ivy.Tendril/Assets/icon.png" >> $GITHUB_ENV
           fi
 
       - name: Publish Desktop Binary
@@ -259,7 +259,7 @@ jobs:
   upload-release-assets:
     needs: [version, publish-nuget, publish-desktop]
     runs-on: ubuntu-latest
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -267,13 +267,22 @@ jobs:
           pattern: tendril-installer-*
           merge-multiple: true
 
-      - name: Upload assets to release
+      - name: Create or Upload to Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload "${{ github.event.release.tag_name }}" ./* \
-            --repo "${{ github.repository }}" \
-            --clobber
+          TAG="v${{ needs.version.outputs.version }}"
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            TAG="${{ github.event.release.tag_name }}"
+          fi
+          
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release $TAG already exists, uploading assets..."
+            gh release upload "$TAG" ./* --repo "${{ github.repository }}" --clobber
+          else
+            echo "Creating new release $TAG..."
+            gh release create "$TAG" ./* --repo "${{ github.repository }}" --generate-notes
+          fi
 
   deploy-docs:
     needs: [publish-nuget, publish-desktop]
@@ -321,3 +330,23 @@ jobs:
               --name ${{ env.APP_SERVICE_NAME }} \
               --slot preproduction \
               --target-slot production
+
+  upload-install-scripts:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 'Az login with OIDC'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: 'Upload install scripts to CDN'
+        continue-on-error: true
+        run: |
+          az storage blob upload --account-name ivycdn --container-name public --name install-tendril.sh --file src/install.sh --content-type "text/x-shellscript" --auth-mode login
+          az storage blob upload --account-name ivycdn --container-name public --name install-tendril.ps1 --file src/install.ps1 --content-type "text/plain" --auth-mode login

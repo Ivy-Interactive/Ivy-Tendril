@@ -1,6 +1,9 @@
 using System.ComponentModel;
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
+using Microsoft.Extensions.Logging;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -39,6 +42,10 @@ public class PlanListSettings : CommandSettings
 
 public class PlanListCommand : Command<PlanListSettings>
 {
+    private readonly ILogger<PlanListCommand> _logger;
+
+    public PlanListCommand(ILogger<PlanListCommand> logger) => _logger = logger;
+
     protected override int Execute(CommandContext context, PlanListSettings settings, CancellationToken cancellationToken)
     {
         try
@@ -49,7 +56,7 @@ public class PlanListCommand : Command<PlanListSettings>
                 var home = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
                 if (string.IsNullOrEmpty(home))
                 {
-                    Console.Error.WriteLine("Error: TENDRIL_HOME environment variable is not set");
+                    _logger.LogError("TENDRIL_HOME environment variable is not set");
                     return 1;
                 }
                 plansDirectory = Path.Combine(home, "Plans");
@@ -57,7 +64,7 @@ public class PlanListCommand : Command<PlanListSettings>
 
             if (!Directory.Exists(plansDirectory))
             {
-                Console.Error.WriteLine($"Error: Plans directory not found: {plansDirectory}");
+                _logger.LogError("Plans directory not found: {PlansDirectory}", plansDirectory);
                 return 1;
             }
 
@@ -112,7 +119,7 @@ public class PlanListCommand : Command<PlanListSettings>
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            _logger.LogError(ex, "Failed to list plans");
             return 1;
         }
     }

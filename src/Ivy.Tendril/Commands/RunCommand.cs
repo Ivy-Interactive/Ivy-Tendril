@@ -1,5 +1,6 @@
 using Ivy.Tendril.Database;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;

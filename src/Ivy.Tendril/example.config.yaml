@@ -53,36 +53,92 @@ codingAgents:
   - name: deep
     model: gemini-3-flash-preview
   - name: balanced
-    model: gemini-2.5-flash
+    model: gemini-3-flash-preview
   - name: quick
-    model: gemini-2.5-flash-lite
+    model: gemini-3-flash-preview
+- name: copilot
+  profiles:
+  - name: deep
+    model: gpt-5.2
+    effort: high
+  - name: balanced
+    model: gpt-5.2
+    effort: medium
+  - name: quick
+    model: gpt-5.2
+    effort: low
 
 # Each promptware is connected to a profile (deep/balanced/quick).
 # The profile determines model and effort from the active coding agent above.
 # _default provides base values. Specific entries override only the fields they define;
 # unspecified fields are inherited from _default.
+#
+# Allowed tools use Claude Code format: Tool, Tool(path-glob), Bash(command-pattern).
+# Read, Glob, Grep are always safe (read-only). Write/Edit can be scoped to directories.
+# Job context variables are expanded at launch time:
+#   %PLANS_DIR%    — the plans directory (e.g., /home/user/tendril/Plans)
+#   %PLAN_FOLDER%  — the specific plan folder (e.g., /home/user/tendril/Plans/01234-MyPlan)
+#   %TENDRIL_HOME% — the TENDRIL_HOME environment variable
+# For Codex: Write/Edit path scopes are translated to --add-dir flags.
+# For Gemini: Write/Edit path scopes are translated to --include-directories flags.
+# For Copilot: Write/Edit path scopes are translated to --add-dir flags.
 promptwares:
   CreatePlan:
     profile: balanced
-    allowedTools: [Read, Glob, Grep, Bash, Write, Edit]
+    allowedTools:
+    - Read
+    - Glob
+    - Grep
+    - Bash
+    - 'Write(%PLANS_DIR%/**)'
+    - 'Edit(%PLANS_DIR%/**)'
   ExecutePlan:
     profile: deep
-    allowedTools: [Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch]
+    allowedTools:
+    - Read
+    - Write
+    - Edit
+    - Glob
+    - Grep
+    - Bash
+    - WebFetch
+    - WebSearch
   ExpandPlan:
     profile: balanced
-    allowedTools: [Read, Glob, Grep, Bash, Write, Edit]
+    allowedTools:
+    - Read
+    - Glob
+    - Grep
+    - Bash
+    - 'Write(%PLAN_FOLDER%/**)'
   UpdatePlan:
     profile: balanced
-    allowedTools: [Read, Glob, Grep, Bash, Write]
+    allowedTools:
+    - Read
+    - Glob
+    - Grep
+    - Bash
+    - 'Write(%PLAN_FOLDER%/**)'
   SplitPlan:
     profile: balanced
-    allowedTools: [Read, Bash, Write]
+    allowedTools:
+    - Read
+    - Bash
+    - 'Write(%PLANS_DIR%/**)'
   CreatePr:
     profile: balanced
-    allowedTools: [Read, Glob, Grep, Bash, Write, Edit]
+    allowedTools:
+    - Read
+    - Glob
+    - Grep
+    - Bash
+    - 'Write(%PLAN_FOLDER%/**)'
+    - 'Edit(%PLAN_FOLDER%/**)'
   CreateIssue:
     profile: balanced
-    allowedTools: [Read, Bash]
+    allowedTools:
+    - Read
+    - Bash
 
 # Projects — add your projects here. Each project groups repos, verifications, and context.
 #
@@ -120,6 +176,11 @@ promptwares:
 #         promptwares: [CreatePr]
 #         condition: ''
 #         action: pwsh -NoProfile -File %TENDRIL_HOME%/Hooks/NotifySlack.ps1
+#     # buildDependencies — repos needed for building but not modified by plans.
+#     # Worktrees are created for these repos (read-only) so cross-repo project
+#     # references resolve during build. No commits or PRs are created for them.
+#     buildDependencies:
+#       - "%REPOS_HOME%/shared-framework"
 #
 # Example Ivy-Tendril project (if working on Tendril itself):
 # projects:

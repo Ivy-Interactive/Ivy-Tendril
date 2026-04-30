@@ -9,8 +9,6 @@ searchHints:
   - worktree
 ---
 
-<Text Color="Green" Small Bold>Configuration</Text>
-
 # Project Setup
 
 <Ingress>
@@ -24,11 +22,15 @@ Each **project** is a git repo with its own verifications and agent context. Ten
 ```yaml
 projects:
   - name: Global Engine
-    repo: ~/git/global-engine
+    repos:
+      - path: ~/git/global-engine
     verifications:
-      - NpmBuild
-      - NpmTest
-      - CheckResult
+      - name: Build
+        required: true
+      - name: Test
+        required: true
+      - name: CheckResult
+        required: true
 ```
 
 ## Worktrees

@@ -1,7 +1,18 @@
+using System.Reflection;
+
 namespace Ivy.Tendril.Services.Agents;
 
 public class FirmwareCompiler
 {
+    private static readonly Lazy<string?> PlansReference = new(() =>
+    {
+        var asm = Assembly.GetExecutingAssembly();
+        using var stream = asm.GetManifestResourceStream("Ivy.Tendril.Assets.Plans.md");
+        if (stream == null) return null;
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
+    });
+
     private const string FirmwareTemplate = """
         ---
         {HEADER}
@@ -77,20 +88,17 @@ public class FirmwareCompiler
             .Replace("{LOGFILE}", context.LogFile)
             .Replace("{PROGRAMFOLDER}", context.ProgramFolder);
 
-        // Append shared reference documents
-        if (context.SharedDocuments.Count > 0)
+        var plansContent = PlansReference.Value;
+        if (plansContent != null)
         {
             firmware += "\n\n## Reference Documents\n";
-            foreach (var (name, content) in context.SharedDocuments)
-            {
-                firmware += $"\n### {name}\n\n{content}\n";
-            }
+            firmware += $"\n### Plans\n\n{plansContent}\n";
         }
 
         return firmware;
     }
 
-    public static string GetNextLogFile(string programFolder)
+    public static string GetNextLogFile(string programFolder, Dictionary<string, string>? initialValues = null)
     {
         var logsFolder = Path.Combine(programFolder, "Logs");
         Directory.CreateDirectory(logsFolder);
@@ -106,7 +114,22 @@ public class FirmwareCompiler
             }
         }
 
-        return Path.Combine(logsFolder, $"{maxNumber + 1:D5}.md");
+        var logFile = Path.Combine(logsFolder, $"{maxNumber + 1:D5}.md");
+
+        // Reserve the slot immediately to prevent race conditions with concurrent jobs
+        var header = $"# Execution Log {maxNumber + 1:D5}\n\n## Args\n";
+        if (initialValues != null)
+        {
+            foreach (var kv in initialValues.OrderBy(kv => kv.Key))
+            {
+                var value = kv.Value.Length > 200 ? kv.Value[..200] + "..." : kv.Value;
+                header += $"- **{kv.Key}:** {value}\n";
+            }
+        }
+        header += "\n*Execution in progress...*\n";
+        File.WriteAllText(logFile, header);
+
+        return logFile;
     }
 
     public static string ResolveProgramFolder(string promptsRoot, string promptwareName)
@@ -118,5 +141,4 @@ public class FirmwareCompiler
 public record FirmwareContext(
     string ProgramFolder,
     string LogFile,
-    Dictionary<string, string> Values,
-    List<(string Name, string Content)> SharedDocuments);
+    Dictionary<string, string> Values);

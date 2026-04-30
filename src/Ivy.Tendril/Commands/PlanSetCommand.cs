@@ -1,5 +1,8 @@
+using Ivy.Tendril.Models;
 using System.ComponentModel;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
+using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -21,6 +24,15 @@ public class PlanSetSettings : CommandSettings
 
 public class PlanSetCommand : Command<PlanSetSettings>
 {
+    private readonly ILogger<PlanSetCommand> _logger;
+    private readonly IPlanWatcherService _planWatcher;
+
+    public PlanSetCommand(ILogger<PlanSetCommand> logger, IPlanWatcherService planWatcher)
+    {
+        _logger = logger;
+        _planWatcher = planWatcher;
+    }
+
     protected override int Execute(CommandContext context, PlanSetSettings settings, CancellationToken cancellationToken)
     {
         try
@@ -71,14 +83,14 @@ public class PlanSetCommand : Command<PlanSetSettings>
             if (settings.Field.ToLower() != "updated")
                 plan.Updated = DateTime.UtcNow;
 
-            PlanCommandHelpers.WritePlan(planFolder, plan);
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
-            Console.WriteLine($"Updated {settings.Field} to '{settings.Value}'");
+            _logger.LogInformation("Updated {Field} to '{Value}'", settings.Field, settings.Value);
             return 0;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            _logger.LogError(ex, "Failed to set field on plan {PlanId}", settings.PlanId);
             return 1;
         }
     }

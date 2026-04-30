@@ -1,4 +1,5 @@
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps.Onboarding;
 
@@ -28,23 +29,15 @@ public class CompleteStepView(IState<int> stepperIndex) : ViewBase
                     return;
                 }
 
+                // Step 1: Create directory structure and config
                 await setupService.CompleteSetupAsync(tendrilHome);
 
-                // Redirect first to unblock UI
-                client.Redirect("/", true);
+                // Step 2: Start background services asynchronously (may take time)
+                // This now runs in a background thread without blocking DI resolution
+                await setupService.StartBackgroundServicesAsync();
 
-                // Start background services after redirect (fire-and-forget)
-                _ = Task.Run(() =>
-                {
-                    try
-                    {
-                        setupService.StartBackgroundServices();
-                    }
-                    catch
-                    {
-                        // Already logged by StartBackgroundServices
-                    }
-                });
+                // Step 3: Reload the page to transition to the main app shell
+                client.ReloadPage();
             }
             catch (Exception ex)
             {

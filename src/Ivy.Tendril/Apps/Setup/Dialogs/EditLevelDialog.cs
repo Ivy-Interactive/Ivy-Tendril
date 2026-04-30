@@ -1,4 +1,5 @@
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps.Setup.Dialogs;
 
@@ -43,7 +44,7 @@ public class EditLevelDialog(
             _ => { _editIndex.Set(-1); },
             new DialogHeader(isNew ? "Add Level" : "Edit Level"),
             new DialogBody(
-                Layout.Vertical().Gap(2)
+                Layout.Vertical().Gap(4)
                 | editName.ToTextInput("Level name...").WithField().Label("Name")
                 | editBadge.ToSelectInput(badgeOptions).WithField().Label("Badge Variant")
             ),

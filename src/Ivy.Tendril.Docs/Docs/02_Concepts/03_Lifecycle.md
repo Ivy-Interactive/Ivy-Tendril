@@ -10,8 +10,6 @@ searchHints:
   - verification
 ---
 
-<Text Color="Green" Small Bold>Concepts</Text>
-
 # Lifecycle & Jobs
 
 <Ingress>

@@ -1,4 +1,4 @@
-using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;

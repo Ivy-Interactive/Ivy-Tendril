@@ -5,6 +5,7 @@ namespace Ivy.Tendril.Services.Agents;
 public interface IAgentProvider
 {
     string Name { get; }
+    bool UsesStdinPrompt => false;
     ProcessStartInfo BuildProcessStart(AgentInvocation invocation);
     string? ExtractResult(IReadOnlyList<string> outputLines);
 }

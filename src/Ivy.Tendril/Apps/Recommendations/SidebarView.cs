@@ -1,4 +1,6 @@
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Views;
 
 namespace Ivy.Tendril.Apps.Recommendations;
 
@@ -10,27 +12,19 @@ public class SidebarView(
     IState<string?> riskFilter,
     int totalCount,
     bool hasActiveFilters,
-    IState<string?> textFilter) : ViewBase
+    IState<string?> textFilter,
+    IState<bool> filtersOpen) : ViewBase
 {
-    private readonly bool _hasActiveFilters = hasActiveFilters;
-    private readonly IState<string?> _impactFilter = impactFilter;
-    private readonly IState<string?> _projectFilter = projectFilter;
-    private readonly List<Recommendation> _recommendations = recommendations;
-    private readonly IState<string?> _riskFilter = riskFilter;
-    private readonly IState<Recommendation?> _selectedState = selectedState;
-    private readonly IState<string?> _textFilter = textFilter;
-    private readonly int _totalCount = totalCount;
-
-    private object BuildHeader(IState<bool> filtersOpen)
+    private object BuildHeader()
     {
-        var projectOptions = _recommendations
+        var projectOptions = recommendations
             .GroupBy(r => r.Project)
             .OrderByDescending(g => g.Count())
             .Select(g => new Option<string>($"{g.Key} ({g.Count()})", g.Key))
             .ToArray<IAnyOption>();
 
-        var searchInput = _textFilter.ToSearchInput()
-            .Placeholder("Search...")
+        var searchInput = textFilter.ToSearchInput()
+            .Placeholder("Search")
             .Suffix(
                 new Button()
                     .Icon(filtersOpen.Value ? Icons.ChevronUp : Icons.ChevronDown)
@@ -39,40 +33,40 @@ public class SidebarView(
                     .OnClick(() => filtersOpen.Set(!filtersOpen.Value))
             );
 
-        var header = Layout.Vertical() | searchInput;
+        var header = Layout.Vertical()
+            | (Layout.Vertical().Height(Size.Px(40)).AlignContent(Align.Center) | searchInput);
 
         if (filtersOpen.Value)
         {
             var impactLevelOptions = new[] { "Small", "Medium", "High" }
                 .Select(l => new Option<string>(l, l))
                 .ToArray<IAnyOption>();
-
             var riskLevelOptions = new[] { "Small", "Medium", "High" }
                 .Select(l => new Option<string>(l, l))
                 .ToArray<IAnyOption>();
 
             header |= Layout.Vertical()
-                      | _projectFilter.ToSelectInput(projectOptions).Placeholder("All Projects").Nullable()
-                          .WithField().Label("Project")
-                      | _impactFilter.ToSelectInput(impactLevelOptions).Placeholder("All Impacts").Nullable()
-                          .WithField().Label("Impact")
-                      | _riskFilter.ToSelectInput(riskLevelOptions).Placeholder("All Risk Levels").Nullable()
-                          .WithField().Label("Risk");
+                | projectFilter.ToSelectInput(projectOptions).Placeholder("All Projects").Nullable()
+                    .WithField().Label("Project")
+                | impactFilter.ToSelectInput(impactLevelOptions).Placeholder("All Impacts").Nullable()
+                    .WithField().Label("Impact")
+                | riskFilter.ToSelectInput(riskLevelOptions).Placeholder("All Risk Levels").Nullable()
+                    .WithField().Label("Risk");
         }
 
         return header;
     }
 
-    private object BuildContent()
+    public override object Build()
     {
-        var filtered = _recommendations
-            .Where(r => _projectFilter.Value == null || r.Project == _projectFilter.Value)
-            .Where(r => _impactFilter.Value == null || r.Impact == _impactFilter.Value)
-            .Where(r => _riskFilter.Value == null || r.Risk == _riskFilter.Value)
+        var filtered = recommendations
+            .Where(r => projectFilter.Value == null || r.Project == projectFilter.Value)
+            .Where(r => impactFilter.Value == null || r.Impact == impactFilter.Value)
+            .Where(r => riskFilter.Value == null || r.Risk == riskFilter.Value)
             .Where(r =>
             {
-                if (string.IsNullOrWhiteSpace(_textFilter.Value)) return true;
-                var search = _textFilter.Value.ToLowerInvariant();
+                if (string.IsNullOrWhiteSpace(textFilter.Value)) return true;
+                var search = textFilter.Value.ToLowerInvariant();
                 return r.Title.ToLowerInvariant().Contains(search) ||
                        r.Description.ToLowerInvariant().Contains(search) ||
                        r.PlanId.Contains(search) ||
@@ -80,29 +74,23 @@ public class SidebarView(
             })
             .ToList();
 
-        if (filtered.Count == 0 && _hasActiveFilters && _totalCount > 0)
-            return Layout.Vertical().AlignContent(Align.Center).Gap(2).Padding(4)
-                   | new Icon(Icons.ListFilterPlus).Size(Size.Units(6)).Color(Colors.Gray)
-                   | Text.Muted("No matching recommendations")
-                   | Text.Muted("Try adjusting your filters").Small();
+        if (filtered.Count == 0 && hasActiveFilters && totalCount > 0)
+        {
+            return new HeaderLayout(BuildHeader(), new NoResultsView());
+        }
 
-        return new List(filtered.Select(rec =>
+        var content = new List(filtered.Select(rec =>
         {
             var clickableRec = rec;
 
             var preview = rec.Description.Length > 120
-                ? rec.Description[..120] + "…"
+                ? rec.Description[..120] + "..."
                 : rec.Description;
 
             return new ListItem($"#{rec.PlanId} {rec.Title}", preview)
-                .OnClick(() => _selectedState.Set(clickableRec));
+                .OnClick(() => selectedState.Set(clickableRec));
         }));
-    }
 
-    public override object Build()
-    {
-        var filtersOpen = UseState(false);
-
-        return new HeaderLayout(BuildHeader(filtersOpen), BuildContent());
+        return new HeaderLayout(BuildHeader(), content);
     }
 }

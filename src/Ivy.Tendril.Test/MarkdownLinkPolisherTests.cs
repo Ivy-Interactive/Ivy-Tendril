@@ -1,19 +1,18 @@
-using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Test;
 
 public class MarkdownLinkPolisherTests : IDisposable
 {
-    private readonly string _tempDir;
-    private readonly string _repoDir;
+    private readonly TempDirectoryFixture _tempDir = new();
     private readonly string _planFolder;
     private readonly string _plansDir;
+    private readonly string _repoDir;
 
     public MarkdownLinkPolisherTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), $"polisher-test-{Guid.NewGuid()}");
-        _repoDir = Path.Combine(_tempDir, "repo");
-        _plansDir = Path.Combine(_tempDir, "Plans");
+        _repoDir = Path.Combine(_tempDir.Path, "repo");
+        _plansDir = Path.Combine(_tempDir.Path, "Plans");
         _planFolder = Path.Combine(_plansDir, "02369-SomePlan");
 
         Directory.CreateDirectory(_repoDir);
@@ -22,8 +21,7 @@ public class MarkdownLinkPolisherTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_tempDir))
-            Directory.Delete(_tempDir, true);
+        _tempDir.Dispose();
     }
 
     [Fact]

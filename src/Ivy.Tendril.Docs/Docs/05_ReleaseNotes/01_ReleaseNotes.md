@@ -14,6 +14,40 @@ icon: ScrollText
 Version history, new features, improvements, and bug fixes for each Tendril release.
 </Ingress>
 
+## 1.0.22 (2026-04-27)
+
+### Improvements
+
+- **GitResult\<T\> error handling** — Introduced a typed `GitResult<T>` return type across GitService for consistent, explicit error handling instead of exceptions.
+- **DashboardRepository extraction** — Extracted `GetDashboardData` into a dedicated DashboardRepository, separating data access from business logic.
+- **ISessionParser interface** — Extracted session parsing behind an `ISessionParser` interface for testability and future parser variants.
+- **PlanYamlRepairService extraction** — Moved plan YAML repair logic and worktree removal into dedicated services (`PlanYamlRepairService`, `WorktreeCleanupService`).
+- **AppShellRouter extraction** — Extracted routing logic from `OpenApp` into a dedicated `AppShellRouter` class.
+- **IDoctorCheck implementations** — Refactored doctor diagnostic checks into individual `IDoctorCheck` classes for extensibility.
+- **Centralized MCP authentication** — Consolidated MCP tool authentication into a single service.
+- **BackgroundServiceActivator guard** — Added detection and recovery for silent background process death.
+- **IDisposable pattern in PlanDatabaseService** — Proper resource cleanup for database connections.
+- **Async SoftwareCheckStepView** — Replaced blocking `.Result` calls with `await` for responsive UI during health checks.
+- **Comprehensive code health pass** — Reduced cyclomatic complexity across ContentView, PlanController, PlanTools, ConfigService, GithubService, JobLauncher, ModelPricingService, TendrilAppShell, and GetPromptDisplay via method extraction and data-driven refactors.
+- **Test infrastructure** — Added `TempDirectoryFixture`, `ConfigServiceFixture`, `DatabaseFixture`, and `IClassFixture` patterns; expanded test coverage for GitService, PlanValidationService, JobLauncher, and PlanId allocation.
+- **Dashboard 7-day window** — Status counts and project counts on the dashboard now filter to the last 7 days.
+
+### Bug Fixes
+
+- Fixed PlanId allocation race condition by centralizing allocation in JobService.
+- Fixed `ModifyPlanEndpoint` returning incorrect result types.
+- Fixed `DashboardRepository` logger type mismatch.
+- Fixed GitHub issue auto-close by moving `Closes` reference after body truncation.
+- Fixed race condition in `InboxWatcherService` file rename.
+- Fixed nullable parameter handling in `IsValidCommitHash`.
+- Fixed exception handling in cost tracking task.
+- Fixed service provider access in `Program.cs`.
+- Fixed `TabState` reference in `AppShellRouter` and handler method access modifiers.
+- Removed repository concurrency blocking from JobService.
+- Removed `DashboardLoggerAdapter` — uses logger directly.
+- Added logging to swallowed exceptions across services.
+- Fixed CI/Docker: Node.js v22, proper `IvySource` handling, removed stale Ivy-Framework references.
+
 ## 1.0.14 (2026-04-10)
 
 ### Features
@@ -87,6 +121,6 @@ Version history, new features, improvements, and bug fixes for each Tendril rele
 - **Promptwares** — CreatePlan, ExecutePlan, CreatePr, UpdatePlan, SplitPlan, ExpandPlan, and CreateIssue.
 - **Cross-platform support** — macOS and Windows with automatic platform detection.
 - **Worktree-based execution** — Plans execute in isolated git worktrees to keep the main repo clean.
-- **Configurable verifications** — DotnetBuild, DotnetTest, DotnetFormat, FrontendLint, and CheckResult.
+- **Configurable verifications** — Build, Test, Format, Lint, and CheckResult (with stack-specific variants like DotnetBuild, NpmTest).
 - **GitHub integration** — Automatic PR creation, status tracking, and merge detection.
 - **Keyboard shortcuts** — `Ctrl+Alt+D` for new drafts, with customizable bindings.

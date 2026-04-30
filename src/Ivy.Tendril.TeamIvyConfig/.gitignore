@@ -1,7 +1,9 @@
 Inbox/
+Jobs/
 Logs/
 Plans/
 Trash/
 *.db
 *.db-shm
 *.db-wal
+crash.log

@@ -1,4 +1,5 @@
 using Ivy.Tendril.Controllers;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -88,15 +89,44 @@ public class InboxControllerTests
             return StartJob(type, args, null);
         }
 
-        public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false) { }
-        public void StopJob(string id) { }
-        public void DeleteJob(string id) { }
-        public void ClearCompletedJobs() { }
-        public void ClearFailedJobs() { }
-        public List<Ivy.Tendril.Apps.Jobs.JobItem> GetJobs() => new();
-        public Ivy.Tendril.Apps.Jobs.JobItem? GetJob(string id) => null;
-        public bool IsInboxFileTracked(string filePath) => false;
-        public void Dispose() { }
+        public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false)
+        {
+        }
+
+        public void StopJob(string id)
+        {
+        }
+
+        public void DeleteJob(string id)
+        {
+        }
+
+        public void ClearCompletedJobs()
+        {
+        }
+
+        public void ClearFailedJobs()
+        {
+        }
+
+        public List<JobItem> GetJobs()
+        {
+            return new List<JobItem>();
+        }
+
+        public JobItem? GetJob(string id)
+        {
+            return null;
+        }
+
+        public bool IsInboxFileTracked(string filePath)
+        {
+            return false;
+        }
+
+        public void Dispose()
+        {
+        }
 
 #pragma warning disable CS0067
         public event Action? JobsChanged;
