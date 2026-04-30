@@ -43,8 +43,15 @@ public partial class JobsApp
                     : null
             };
         })
-            .OrderByDescending(r => r.Id)
+            .OrderByDescending(r => ExtractJobNumber(r.Id))
             .ToList();
+    }
+
+    private static int ExtractJobNumber(string jobId)
+    {
+        if (string.IsNullOrEmpty(jobId)) return 0;
+        var parts = jobId.Split('-');
+        return parts.Length > 1 && int.TryParse(parts[^1], out var num) ? num : 0;
     }
 
     private StackedProgress BuildStatusProgress(List<JobItem> jobs, IConfigService config)
