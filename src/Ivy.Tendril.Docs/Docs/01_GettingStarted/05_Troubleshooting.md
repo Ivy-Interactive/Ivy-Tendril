@@ -21,6 +21,7 @@ Common issues and how to fix them. If you're still stuck, run <code>tendril doct
 | Symptom | Fix |
 |---------|-----|
 | `TENDRIL_HOME` not found | Set the environment variable and restart your terminal |
+| `config.yaml` not found | Ensure the file exists at `$TENDRIL_HOME/config.yaml` (default: `~/.tendril/config.yaml`). The filename must be `config.yaml`, not `tendril-config.yaml`. Run `tendril doctor` to see the expected path. |
 | `gh` not authenticated | Run `gh auth login` |
 | `pwsh` not found | Install [PowerShell 7](https://github.com/PowerShell/PowerShell) — required on all platforms |
 | `git` not found | Install Git and ensure it's on your `PATH` |

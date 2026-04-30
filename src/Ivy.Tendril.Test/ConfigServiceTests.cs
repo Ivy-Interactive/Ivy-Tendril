@@ -1,5 +1,6 @@
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Test;
 
@@ -1509,6 +1510,35 @@ maxConcurrentJobs: 10
     }
 
     [Fact]
+    public void LoadConfig_WhenFileNotFound_LogsExpectedPath()
+    {
+        var tempDir = _tempDir.Path;
+        var configPath = Path.Combine(tempDir, "config.yaml");
+
+        // Ensure no config file exists
+        if (File.Exists(configPath))
+            File.Delete(configPath);
+
+        var logMessages = new List<string>();
+        var loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder.AddProvider(new TestLoggerProvider((level, message) =>
+            {
+                if (level == LogLevel.Warning)
+                    logMessages.Add(message);
+            }));
+        });
+        var logger = loggerFactory.CreateLogger<ConfigService>();
+
+        var service = new ConfigService(new TendrilSettings(), tempDir, logger);
+
+        Assert.Contains(logMessages, msg =>
+            msg.Contains("Configuration file not found") &&
+            msg.Contains(configPath) &&
+            msg.Contains("config.yaml"));
+    }
+
+    [Fact]
     public void GetRepoRef_WithTrailingSlash_ShouldMatch()
     {
         var project = new ProjectConfig
@@ -1559,5 +1589,41 @@ maxConcurrentJobs: 10
         // Assert
         Assert.NotNull(result);
         Assert.Equal("yolo", result.PrRule);
+    }
+
+    private class TestLoggerProvider : ILoggerProvider
+    {
+        private readonly Action<LogLevel, string> _logAction;
+
+        public TestLoggerProvider(Action<LogLevel, string> logAction)
+        {
+            _logAction = logAction;
+        }
+
+        public ILogger CreateLogger(string categoryName)
+        {
+            return new TestLogger(_logAction);
+        }
+
+        public void Dispose() { }
+    }
+
+    private class TestLogger : ILogger
+    {
+        private readonly Action<LogLevel, string> _logAction;
+
+        public TestLogger(Action<LogLevel, string> logAction)
+        {
+            _logAction = logAction;
+        }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            _logAction(logLevel, formatter(state, exception));
+        }
     }
 }
