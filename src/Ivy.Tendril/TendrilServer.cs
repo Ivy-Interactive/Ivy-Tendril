@@ -214,6 +214,20 @@ public static class TendrilServer
                     PromptwareDeployer.Deploy(promptwaresDir);
                 }
 
+                // One-time migration: ensure global gitignore has OS metadata patterns
+                var onboarding = app.Services.GetRequiredService<OnboardingSetupService>();
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await onboarding.EnsureGlobalGitignoreOnStartupAsync(configService.TendrilHome);
+                    }
+                    catch (Exception ex)
+                    {
+                        CrashLog.Write($"[{DateTime.UtcNow:O}] Global gitignore migration failed: {ex}");
+                    }
+                });
+
                 BackgroundServiceActivator.Start(app.Services);
             }
 
