@@ -72,6 +72,7 @@ public class ChangesTabView(
 
             var path = fileDiff.FilePath;
             diffsLayout |= new Box(header)
+                .TestId(fileDiff.FilePath)
                 .BorderThickness(0).Padding(1)
                 .Hover(HoverEffect.Pointer)
                 .OnClick(() =>
@@ -86,6 +87,8 @@ public class ChangesTabView(
                 diffsLayout |= new DiffView().Diff(fileDiff.Diff).Split().Width(Size.Full());
             }
         }
+
+        diffsLayout.ScrollTarget(selectedFile.Value);
 
         var sidebarContent = Layout.Vertical().Gap(2).Padding(1)
             | tree;
