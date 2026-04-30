@@ -12,6 +12,10 @@ public class ChangesTabView(
 
     public override object Build()
     {
+        // null sentinel = "user hasn't toggled yet, default to all expanded"
+        var expandedFiles = UseState<HashSet<string>?>(() => null);
+        var selectedFile = UseState<string?>(null);
+
         if (loading)
             return Text.Muted("Loading...");
 
@@ -23,36 +27,138 @@ public class ChangesTabView(
             return Text.Muted(errorMsg);
         }
 
-        var layout = Layout.Vertical().Gap(4).Padding(2);
+        var fileDiffs = PlanContentHelpers.SplitDiffByFile(changesData);
+
+        if (fileDiffs.Count == 0 && changesData.Files.Count == 0)
+            return Text.Muted("No file changes.");
+
+        var currentlyExpanded = expandedFiles.Value
+            ?? new HashSet<string>(fileDiffs.Select(fd => fd.FilePath));
+
+        var treeItems = BuildFileTree(fileDiffs);
+
+        var tree = new Tree(treeItems)
+            .OnSelect(e =>
+            {
+                var path = e.Value?.ToString();
+                if (path is null) return;
+                selectedFile.Set(path);
+                if (!currentlyExpanded.Contains(path))
+                {
+                    var files = new HashSet<string>(currentlyExpanded) { path };
+                    expandedFiles.Set(files);
+                }
+            });
 
         var statsText =
             $"{changesData.Files.Count} files changed ({changesData.AddedCount} added, {changesData.ModifiedCount} modified, {changesData.DeletedCount} deleted)";
-        layout |= Text.Block(statsText).Bold();
 
-        if (changesData.Files.Count > 0)
+        var diffsLayout = Layout.Vertical().Gap(2).Width(Size.Full());
+        diffsLayout |= Text.Block(statsText).Bold();
+
+        foreach (var fileDiff in fileDiffs)
         {
-            var filesLayout = Layout.Vertical().Gap(1);
-            foreach (var (status, filePath) in changesData.Files)
-            {
-                var (label, variant) = status switch
+            var isExpanded = currentlyExpanded.Contains(fileDiff.FilePath);
+            var chevronIcon = isExpanded ? Icons.ChevronDown : Icons.ChevronRight;
+            var (statusIcon, statusColor) = PlanContentHelpers.GetFileStatusIconAndColor(fileDiff.Status);
+            var fileName = Path.GetFileName(fileDiff.FilePath);
+
+            var header = Layout.Horizontal()
+                .Gap(2)
+                | new Icon(chevronIcon).Small()
+                | new Icon(statusIcon).Small().Color(statusColor)
+                | Text.Block(fileName).Bold()
+                | Text.Muted(Path.GetDirectoryName(fileDiff.FilePath)?.Replace('\\', '/') ?? "");
+
+            var path = fileDiff.FilePath;
+            diffsLayout |= new Box(header)
+                .TestId(fileDiff.FilePath)
+                .BorderThickness(0).Padding(1)
+                .Hover(HoverEffect.Pointer)
+                .OnClick(() =>
                 {
-                    "A" => ("Added", BadgeVariant.Success),
-                    "D" => ("Deleted", BadgeVariant.Destructive),
-                    _ => ("Modified", BadgeVariant.Outline)
-                };
-                filesLayout |= Layout.Horizontal().Gap(2)
-                    | new Badge(label).Variant(variant).Small()
-                    | Text.Block(filePath);
+                    var files = new HashSet<string>(currentlyExpanded);
+                    if (!files.Add(path)) files.Remove(path);
+                    expandedFiles.Set(files);
+                });
+
+            if (isExpanded)
+            {
+                diffsLayout |= new DiffView().Diff(fileDiff.Diff).Split().Width(Size.Full());
             }
-
-            layout |= filesLayout;
         }
 
-        if (!string.IsNullOrWhiteSpace(changesData.Diff))
+        diffsLayout.ScrollTarget(selectedFile.Value);
+
+        var treePanel = Layout.Vertical().Gap(2).Padding(1)
+            .Width(Size.Rem(16)).Scroll(Scroll.Auto).Height(Size.Full())
+            | tree;
+
+        return Layout.Horizontal().Height(Size.Full())
+            | treePanel
+            | diffsLayout;
+    }
+
+    private static MenuItem[] BuildFileTree(IReadOnlyList<PlanContentHelpers.FileDiff> fileDiffs)
+    {
+        var root = new TreeNode("");
+        foreach (var fd in fileDiffs)
         {
-            layout |= new DiffView().Diff(changesData.Diff).Split();
+            var segments = fd.FilePath.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var node = root;
+            for (var i = 0; i < segments.Length - 1; i++)
+            {
+                var seg = segments[i];
+                if (!node.Folders.TryGetValue(seg, out var child))
+                {
+                    child = new TreeNode(seg);
+                    node.Folders[seg] = child;
+                }
+                node = child;
+            }
+            node.Files.Add(fd);
+        }
+        return ChildItems(root);
+    }
+
+    private static MenuItem[] ChildItems(TreeNode node)
+    {
+        var items = new List<MenuItem>();
+        foreach (var folder in node.Folders.Values.OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            items.Add(FolderItem(folder));
+        }
+        foreach (var file in node.Files.OrderBy(f => Path.GetFileName(f.FilePath), StringComparer.OrdinalIgnoreCase))
+        {
+            var (icon, color) = PlanContentHelpers.GetFileStatusIconAndColor(file.Status);
+            items.Add(new MenuItem(Path.GetFileName(file.FilePath))
+                .Icon(icon)
+                .Color(color)
+                .Tag(file.FilePath)
+                .Tooltip(file.FilePath));
+        }
+        return items.ToArray();
+    }
+
+    // Collapse single-child folder chains (e.g. "src/components" if src has only the components folder)
+    // for a more compact GitHub-style tree.
+    private static MenuItem FolderItem(TreeNode node)
+    {
+        var label = node.Name;
+        while (node.Files.Count == 0 && node.Folders.Count == 1)
+        {
+            var only = node.Folders.Values.First();
+            label = $"{label}/{only.Name}";
+            node = only;
         }
 
-        return layout;
+        return new MenuItem(label, ChildItems(node)).Icon(Icons.Folder).Expanded();
+    }
+
+    private sealed class TreeNode(string name)
+    {
+        public string Name { get; } = name;
+        public Dictionary<string, TreeNode> Folders { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public List<PlanContentHelpers.FileDiff> Files { get; } = new();
     }
 }

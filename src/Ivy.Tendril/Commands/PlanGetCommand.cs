@@ -2,6 +2,7 @@ using Ivy.Tendril.Models;
 using System.ComponentModel;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -19,6 +20,13 @@ public class PlanGetSettings : CommandSettings
 
 public class PlanGetCommand : Command<PlanGetSettings>
 {
+    private readonly ILogger<PlanGetCommand> _logger;
+
+    public PlanGetCommand(ILogger<PlanGetCommand> logger)
+    {
+        _logger = logger;
+    }
+
     protected override int Execute(CommandContext context, PlanGetSettings settings, CancellationToken cancellationToken)
     {
         try
@@ -86,6 +94,7 @@ public class PlanGetCommand : Command<PlanGetSettings>
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Failed to get plan {PlanId}", settings.PlanId);
             Console.Error.WriteLine($"Error: {ex.Message}");
             return 1;
         }

@@ -173,7 +173,7 @@ Lists plans with optional filters. Scans all plan folders and displays matching 
 |--------|--------|
 | `--state <state>` | Filter by state (e.g. `Draft`, `Executing`, `Failed`) |
 | `--project <name>` | Filter by project name |
-| `--level <level>` | Filter by level (`Critical`, `Bug`, `NiceToHave`, `Backlog`, `Icebox`) |
+| `--level <level>` | Filter by level (e.g. `Bug`, `Critical`, `NiceToHave`, `Epic` — customizable in config) |
 | `--has-pr` | Only plans that have associated PRs |
 | `--has-worktree` | Only plans that have worktrees |
 | `--limit <n>` | Maximum number of results |

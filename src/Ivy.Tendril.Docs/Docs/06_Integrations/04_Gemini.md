@@ -31,7 +31,7 @@ Tendril maps effort levels to Gemini models:
 | Profile | Model | Use Case |
 |---------|-------|----------|
 | `deep` | gemini-3-flash-preview | Complex multi-file changes |
-| `balanced` | gemini-2.5-flash | Standard plan execution |
-| `quick` | gemini-2.5-flash-lite | Simple fixes and small edits |
+| `balanced` | gemini-3-flash-preview | Standard plan execution |
+| `quick` | gemini-3-flash-preview | Simple fixes and small edits |
 
 The profile is selected automatically based on the plan's complexity level.

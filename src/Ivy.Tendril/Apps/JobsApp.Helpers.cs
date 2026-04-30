@@ -8,13 +8,26 @@ public partial class JobsApp
 {
     private const int PromptDisplayMaxLength = 500;
 
-    private static string? GetFullPrompt(JobItem job)
+    private static string? GetFullPrompt(JobItem job, IPlanReaderService? planService = null)
     {
         if (job.Type == "CreatePlan")
         {
             for (var i = 0; i < job.Args.Length - 1; i++)
                 if (job.Args[i].Equals("-Description", StringComparison.OrdinalIgnoreCase))
                     return job.Args[i + 1];
+        }
+
+        if (planService != null && !string.IsNullOrEmpty(job.PlanFile))
+        {
+            var fullPath = Path.Combine(planService.PlansDirectory, job.PlanFile);
+            var plan = planService.GetPlanByFolder(fullPath);
+            if (plan != null)
+            {
+                if (!string.IsNullOrEmpty(plan.InitialPrompt))
+                    return plan.InitialPrompt;
+                if (!string.IsNullOrEmpty(plan.Title))
+                    return plan.Title;
+            }
         }
 
         return job.PlanFile;
@@ -86,8 +99,8 @@ public partial class JobsApp
         if (j.Type == "CreatePlan")
             return TruncatePrompt(GetFullPrompt(j) ?? j.PlanFile);
 
-        // Fallback to plan file
-        return TruncatePrompt(j.PlanFile);
+        // Fallback to full prompt (resolves InitialPrompt/Title from plan.yaml) or plan file
+        return TruncatePrompt(GetFullPrompt(j, planService) ?? j.PlanFile);
     }
 
     private static bool TryGetPlanTitle(string? planFile, IPlanReaderService planService, out string title)

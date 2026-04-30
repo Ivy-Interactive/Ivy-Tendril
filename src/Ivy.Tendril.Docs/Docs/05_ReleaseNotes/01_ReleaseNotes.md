@@ -121,6 +121,6 @@ Version history, new features, improvements, and bug fixes for each Tendril rele
 - **Promptwares** — CreatePlan, ExecutePlan, CreatePr, UpdatePlan, SplitPlan, ExpandPlan, and CreateIssue.
 - **Cross-platform support** — macOS and Windows with automatic platform detection.
 - **Worktree-based execution** — Plans execute in isolated git worktrees to keep the main repo clean.
-- **Configurable verifications** — DotnetBuild, DotnetTest, DotnetFormat, FrontendLint, and CheckResult.
+- **Configurable verifications** — Build, Test, Format, Lint, and CheckResult (with stack-specific variants like DotnetBuild, NpmTest).
 - **GitHub integration** — Automatic PR creation, status tracking, and merge detection.
 - **Keyboard shortcuts** — `Ctrl+Alt+D` for new drafts, with customizable bindings.

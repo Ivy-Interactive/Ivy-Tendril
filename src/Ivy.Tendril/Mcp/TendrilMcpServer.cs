@@ -45,8 +45,8 @@ public class TendrilMcpServer
         }
         catch (Exception ex)
         {
-            // Logger may not be available if host build itself failed; fall back is acceptable
-            Console.Error.WriteLine($"MCP server error: {ex.Message}");
+            // Logger unavailable when host build fails; use stderr fallback
+            Console.Error.WriteLine($"MCP server error: {ex}");
             return 1;
         }
     }

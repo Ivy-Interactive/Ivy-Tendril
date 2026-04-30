@@ -22,27 +22,7 @@ searchHints:
 
 A plan progresses through the following comprehensive set of states:
 
-```mermaid
-flowchart LR
-    GitHub((GitHub)):::inputStyle
-    Human((Human)):::inputStyle
-    Console((Console)):::inputStyle
-
-    GitHub -- Tickets --> Inbox:::stageStyle
-    Human -- Ideas --> Inbox
-    Console -- API/MCP/CLI --> Inbox
-
-    Inbox -- CreatePlan --> Drafts:::stageStyle
-    Drafts -- "Update-/Split-/ExpandPlan" --> Drafts
-    Drafts <--> Icebox:::iceboxStyle
-    Drafts -- ExecutePlan --> Review:::stageStyle
-    Review -- Recommendations --> Inbox
-    Review -- CreatePr --> GitHubOut((GitHub)):::inputStyle
-
-    classDef inputStyle fill:#fff,stroke:#666,color:#000
-    classDef stageStyle fill:#E8F0FE,stroke:#4285F4,color:#000
-    classDef iceboxStyle fill:#F3E5F5,stroke:#4285F4,color:#000
-```
+![Plan flow](assets/PlanLifecycle.png)
 
 | State | Description |
 |-------|-------------|
