@@ -51,21 +51,37 @@ internal static class PromptwareDeployer
                     }
                 }
 
-                // Delete old promptware files (if target exists)
-                if (Directory.Exists(targetSubDir))
-                    Directory.Delete(targetSubDir, true);
-
-                // Move new files from temp
-                Directory.Move(sourceSubDir, targetSubDir);
-
-                // Restore preserved directories
-                foreach (var (original, aside) in preservedDirs)
+                try
                 {
-                    // Remove empty placeholder if it was created by the zip
-                    if (Directory.Exists(original))
-                        Directory.Delete(original, true);
+                    // Delete old promptware files (if target exists)
+                    if (Directory.Exists(targetSubDir))
+                        Directory.Delete(targetSubDir, true);
 
-                    Directory.Move(aside, original);
+                    // Move new files from temp
+                    Directory.Move(sourceSubDir, targetSubDir);
+
+                    // Restore preserved directories
+                    foreach (var (original, aside) in preservedDirs)
+                    {
+                        // Remove empty placeholder if it was created by the zip
+                        if (Directory.Exists(original))
+                            Directory.Delete(original, true);
+
+                        Directory.Move(aside, original);
+                    }
+                }
+                catch
+                {
+                    // If deployment fails after preservation, clean up preserved dirs
+                    foreach (var (_, aside) in preservedDirs)
+                    {
+                        if (Directory.Exists(aside))
+                        {
+                            try { Directory.Delete(aside, true); }
+                            catch { /* Best effort */ }
+                        }
+                    }
+                    throw;
                 }
             }
 
@@ -86,6 +102,35 @@ internal static class PromptwareDeployer
             {
                 try { Directory.Delete(tempDir, true); }
                 catch { /* Best effort */ }
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Removes orphaned *-preserved-* directories from previous failed deployments.
+    /// </summary>
+    public static void CleanupOrphanedPreservedDirectories(string targetDir)
+    {
+        if (!Directory.Exists(targetDir))
+            return;
+
+        foreach (var subDir in Directory.GetDirectories(targetDir))
+        {
+            // Scan each promptware subfolder for preserved directories
+            foreach (var dir in Directory.GetDirectories(subDir))
+            {
+                var dirName = Path.GetFileName(dir);
+                if (dirName.Contains("-preserved-"))
+                {
+                    try
+                    {
+                        Directory.Delete(dir, recursive: true);
+                    }
+                    catch
+                    {
+                        // Best effort — log but don't block startup
+                    }
+                }
             }
         }
     }
