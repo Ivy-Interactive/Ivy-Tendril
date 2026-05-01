@@ -9,7 +9,7 @@ public static class PlanContentHelpers
 {
     public record CommitRow(string Hash, string ShortHash, string Title, int? FileCount);
 
-    public record FileDiff(string FilePath, string Status, string Diff);
+    public record FileDiff(string FilePath, string Status, string Diff, string? OldFilePath = null);
 
     public static List<FileDiff> SplitDiffByFile(AllChangesData changesData)
     {
@@ -38,8 +38,10 @@ public static class PlanContentHelpers
                 continue;
 
             var filePath = headerMatch.Groups[2].Value;
+            var oldFilePath = headerMatch.Groups[1].Value;
             var status = statusLookup.GetValueOrDefault(filePath, "M");
-            result.Add(new FileDiff(filePath, status, chunk.TrimEnd()));
+            var oldPath = oldFilePath != filePath ? oldFilePath : null;
+            result.Add(new FileDiff(filePath, status, chunk.TrimEnd(), oldPath));
         }
 
         return result;
@@ -169,12 +171,25 @@ public static class PlanContentHelpers
                     var chevronIcon = isExpanded ? Icons.ChevronDown : Icons.ChevronRight;
                     var (statusIcon, statusColor) = GetFileStatusIconAndColor(fileDiff.Status);
                     var fileName = Path.GetFileName(fileDiff.FilePath);
+                    var isRenamed = fileDiff.OldFilePath != null;
+                    var oldFileName = isRenamed ? Path.GetFileName(fileDiff.OldFilePath!) : null;
 
                     var header = Layout.Horizontal().Gap(2)
                         | new Icon(chevronIcon).Small()
-                        | new Icon(statusIcon).Small().Color(statusColor)
-                        | Text.Block(fileName).Bold()
-                        | Text.Muted(fileDiff.FilePath);
+                        | new Icon(statusIcon).Small().Color(statusColor);
+
+                    if (isRenamed)
+                    {
+                        header |= Text.Block(oldFileName!).Bold();
+                        header |= Text.Muted("→");
+                        header |= Text.Block(fileName).Bold();
+                        header |= Text.Muted(fileDiff.FilePath);
+                    }
+                    else
+                    {
+                        header |= Text.Block(fileName).Bold();
+                        header |= Text.Muted(fileDiff.FilePath);
+                    }
 
                     if (onToggleFile != null)
                     {
@@ -190,7 +205,7 @@ public static class PlanContentHelpers
 
                     if (isExpanded)
                     {
-                        commitSheetContent |= new DiffView().Diff(fileDiff.Diff).Split();
+                        commitSheetContent |= new DiffView().Diff(fileDiff.Diff).Split().ShowHeader(false);
                     }
                 }
             }
@@ -215,7 +230,7 @@ public static class PlanContentHelpers
                 if (!string.IsNullOrWhiteSpace(data.Diff))
                 {
                     commitSheetContent |= Text.Block("Diff").Bold();
-                    commitSheetContent |= new DiffView().Diff(data.Diff).Split();
+                    commitSheetContent |= new DiffView().Diff(data.Diff).Split().ShowHeader(false);
                 }
             }
 
