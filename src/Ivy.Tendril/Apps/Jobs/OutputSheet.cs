@@ -44,7 +44,7 @@ public class OutputSheet(
         }
         else if (job is not null && job.OutputLines.Count > 0)
         {
-            // Job completed before user opened sheet — load from stored output
+            // Job completed before user opened sheet load from stored output
             var jsonStream = string.Join("\n", job.OutputLines);
             outputContent = new ClaudeJsonRenderer()
                 .JsonStream(jsonStream)
@@ -64,7 +64,7 @@ public class OutputSheet(
     public string GetSheetTitle()
     {
         var job = jobService.GetJob(jobId);
-        return job is not null ? $"{job.Type} — {ExtractPlanId(job.PlanFile)}" : "Job Output";
+        return job is not null ? $"{job.Type} {ExtractPlanId(job.PlanFile)}" : "Job Output";
     }
 
     private static string ExtractPlanId(string planFile)
