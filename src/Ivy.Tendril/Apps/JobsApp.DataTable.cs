@@ -80,57 +80,55 @@ public partial class JobsApp
                 c.SelectionMode = SelectionModes.None;
                 c.ShowIndexColumn = false;
                 c.BatchSize = 50;
-                c.EnableCellClickEvents = true;
             })
-            .OnCellClick(e =>
+            .OnCellAction(t => t.PlanId, e =>
             {
-                if (e.Value.ColumnName == "PlanId")
+                var planId = e.Value.CellValue?.ToString();
+                if (!string.IsNullOrEmpty(planId))
                 {
-                    var planId = e.Value.CellValue?.ToString();
-                    if (!string.IsNullOrEmpty(planId))
+                    var job = jobs.FirstOrDefault(j => ExtractPlanId(j.PlanFile) == planId);
+                    if (job != null && !string.IsNullOrEmpty(job.PlanFile))
                     {
-                        var job = jobs.FirstOrDefault(j => ExtractPlanId(j.PlanFile) == planId);
-                        if (job != null && !string.IsNullOrEmpty(job.PlanFile))
-                        {
-                            var fullPath = Path.Combine(planService.PlansDirectory, job.PlanFile);
-                            if (Directory.Exists(fullPath))
-                                showPlan.Set(fullPath);
-                        }
+                        var fullPath = Path.Combine(planService.PlansDirectory, job.PlanFile);
+                        if (Directory.Exists(fullPath))
+                            showPlan.Set(fullPath);
                     }
                 }
-                else if (e.Value.ColumnName == "LastOutput")
+                return ValueTask.CompletedTask;
+            })
+            .OnCellAction(t => t.LastOutput, e =>
+            {
+                var id = e.Value.RowId?.ToString();
+                if (!string.IsNullOrEmpty(id))
+                    showOutput.Set(id);
+                return ValueTask.CompletedTask;
+            })
+            .OnCellAction(t => t.StatusMessage, e =>
+            {
+                var id = e.Value.RowId?.ToString();
+                if (!string.IsNullOrEmpty(id))
                 {
-                    var id = e.Value.RowId?.ToString();
-                    if (!string.IsNullOrEmpty(id))
+                    var job = jobs.FirstOrDefault(j => j.Id == id);
+                    if (job?.Status is JobStatus.Failed or JobStatus.Timeout)
+                    {
                         showOutput.Set(id);
-                }
-                else if (e.Value.ColumnName == "StatusMessage")
-                {
-                    var id = e.Value.RowId?.ToString();
-                    if (!string.IsNullOrEmpty(id))
-                    {
-                        var job = jobs.FirstOrDefault(j => j.Id == id);
-                        if (job?.Status is JobStatus.Failed or JobStatus.Timeout)
-                        {
-                            showOutput.Set(id);
-                        }
                     }
                 }
-                else if (e.Value.ColumnName == "Prompt/Title")
+                return ValueTask.CompletedTask;
+            })
+            .OnCellAction(t => t.Plan, e =>
+            {
+                var id = e.Value.RowId?.ToString();
+                if (!string.IsNullOrEmpty(id))
                 {
-                    var id = e.Value.RowId?.ToString();
-                    if (!string.IsNullOrEmpty(id))
+                    var job = jobs.FirstOrDefault(j => j.Id == id);
+                    if (job != null)
                     {
-                        var job = jobs.FirstOrDefault(j => j.Id == id);
-                        if (job != null)
-                        {
-                            var fullPrompt = GetFullPrompt(job, planService);
-                            if (!string.IsNullOrEmpty(fullPrompt))
-                                showPrompt.Set(fullPrompt);
-                        }
+                        var fullPrompt = GetFullPrompt(job, planService);
+                        if (!string.IsNullOrEmpty(fullPrompt))
+                            showPrompt.Set(fullPrompt);
                     }
                 }
-
                 return ValueTask.CompletedTask;
             })
             .RowActions(row =>
