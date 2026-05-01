@@ -134,14 +134,7 @@ public partial class JobsApp
             .RowActions(row =>
             {
                 var job = jobs.FirstOrDefault(j => j.Id == row.Id);
-                var actions = new List<MenuItem>
-                {
-                    new MenuItem("View Plan", Icon: Icons.FileText, Tag: "view-plan").Tooltip("Open the associated plan"),
-                    new MenuItem("View Output", Icon: Icons.Terminal, Tag: "view-output").Tooltip(
-                        "View job output with Claude JSON rendering"),
-                    new MenuItem("Show Prompt", Icon: Icons.MessageSquare, Tag: "show-prompt").Tooltip(
-                        "Show the full prompt text"),
-                };
+                var actions = new List<MenuItem> { };
 
                 if (job?.Status is JobStatus.Running or JobStatus.Queued)
                 {
@@ -168,26 +161,8 @@ public partial class JobsApp
 
                 if (job != null)
                 {
-                    if (tag == "view-plan")
-                    {
-                        if (!string.IsNullOrEmpty(job.PlanFile))
-                        {
-                            var fullPath = Path.Combine(planService.PlansDirectory, job.PlanFile);
-                            if (Directory.Exists(fullPath))
-                                showPlan.Set(fullPath);
-                        }
-                    }
-                    else if (tag == "view-output")
-                    {
-                        showOutput.Set(job.Id);
-                    }
-                    else if (tag == "show-prompt")
-                    {
-                        var fullPrompt = GetFullPrompt(job, planService);
-                        if (!string.IsNullOrEmpty(fullPrompt))
-                            showPrompt.Set(fullPrompt);
-                    }
-                    else if (tag == "stop-job")
+                  
+                    if (tag == "stop-job")
                     {
                         if (job.Status is JobStatus.Running or JobStatus.Queued)
                         {
@@ -236,7 +211,7 @@ public partial class JobsApp
 
                 return ValueTask.CompletedTask;
             })
-            .HeaderRight(_ => Layout.Horizontal().Gap(2)
+            .HeaderRight(_ => Layout.Horizontal()
                               | jobsProgress
                               | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
                                   new MenuItem("Clear Completed", Icon: Icons.Trash, Tag: "ClearCompleted")
