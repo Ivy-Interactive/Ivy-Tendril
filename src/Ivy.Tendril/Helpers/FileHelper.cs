@@ -136,6 +136,8 @@ internal static class FileHelper
                 using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read);
                 using var writer = new StreamWriter(stream);
                 writer.Write(contents);
+                writer.Flush();
+                stream.Flush(flushToDisk: true);
                 return;
             }
             catch (UnauthorizedAccessException) when (attempt < MaxRetries)
