@@ -1,0 +1,91 @@
+# Dockerfile.tendril — builds and runs Ivy Tendril for one-click Sliplane deploy.
+#
+# Runtime dependencies installed in the final image:
+#   - Claude Code  (@anthropic-ai/claude-code) — AI agent CLI
+#   - Codex CLI    (@openai/codex)             — OpenAI coding agent (`codex` on PATH)
+#   - Gemini CLI   (@google/gemini-cli)        — Google coding agent (`gemini` on PATH)
+#   - GitHub CLI   (gh)                        — PR creation / branch management
+#   - PowerShell   (pwsh)                      — hooks and verification scripts
+#   - Git                                        — worktree / commit operations
+#   - Pandoc       (pandoc)                    — optional PDF export (Tendril onboarding / PlanPdf)
+#
+# Required env vars at runtime:
+#   ANTHROPIC_API_KEY  — Anthropic API key passed to Claude Code
+#   GITHUB_TOKEN       — GitHub token used automatically by gh CLI
+#
+# Agent auth (set in Sliplane / your orchestrator as needed):
+#   OPENAI_API_KEY     — Codex CLI (or use `codex login` interactively where possible)
+#   GEMINI_API_KEY / Google auth — see Gemini CLI docs for headless/container setup
+#
+# Optional env vars:
+#   PORT               — web server port         (default: 8000)
+#   TENDRIL_HOME       — config + data directory (default: /data/tendril)
+#
+# Persistent volume:
+#   Mount a volume at /data/tendril to persist config.yaml, plans, and SQLite DB.
+#   On first start the example config.yaml is copied there automatically.
+
+# ── Stage 1: install Tendril + PowerShell as dotnet global tools ───────────────
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+
+RUN --mount=type=cache,id=nuget-tendril,target=/root/.nuget/packages \
+    dotnet tool install --global Ivy.Tendril \
+ && dotnet tool install --global PowerShell
+
+# ── Stage 2: runtime image with all CLI dependencies ──────────────────────────
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
+
+# aspnet:10.0 puts the runtime at /usr/share/dotnet — tools must point there
+ENV DOTNET_ROOT=/usr/share/dotnet
+ENV PATH="$PATH:/root/.dotnet/tools"
+ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
+ENV DOTNET_NOLOGO=1
+ENV CLAUDE_CODE_SKIP_SETUP=1
+ENV HOME=/root
+
+# Tendril runtime config
+ENV TENDRIL_HOME=/data/tendril
+ENV PORT=8000
+
+# Copy Tendril + PowerShell global tools from build stage
+COPY --from=build /root/.dotnet/tools /root/.dotnet/tools
+
+# Copy Node.js from official image (avoids flaky apt mirrors — same pattern as Dockerfile.tendril-docs)
+COPY --from=node:22-bookworm-slim /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:22-bookworm-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+ && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+
+# Coding agent CLIs (npm cache speeds rebuilds on the same builder)
+RUN --mount=type=cache,id=npm-tendril,target=/root/.npm \
+    npm install -g \
+      @anthropic-ai/claude-code \
+      @openai/codex \
+      @google/gemini-cli
+
+# Install git + GitHub CLI + Pandoc (PDF export)
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git curl ca-certificates gnupg pandoc \
+ && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+        -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
+ && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+ && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] \
+        https://cli.github.com/packages stable main" \
+        > /etc/apt/sources.list.d/github-cli.list \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends gh \
+ && rm -rf /var/lib/apt/lists/*
+
+# git: allow operations on any mounted repo volume
+RUN git config --global --add safe.directory '*' \
+ && git config --global user.name  "Tendril" \
+ && git config --global user.email "tendril@localhost"
+
+# Default config template (copied to TENDRIL_HOME on first start by Tendril itself)
+COPY src/Ivy.Tendril/example.config.yaml /etc/tendril/example.config.yaml
+
+VOLUME ["/data/tendril"]
+
+EXPOSE 8000
+
+CMD ["tendril", "--web"]
