@@ -550,6 +550,10 @@ internal class JobCompletionHandler
         try
         {
             var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
+
+            _logger.LogDebug("SetPlanState: Setting {PlanFolder} to {State} for job {JobId}",
+                Path.GetFileName(planFolder), state, job.Id);
+
             if (_planReaderService != null && Enum.TryParse<PlanStatus>(state, true, out var status))
                 _planReaderService.TransitionState(Path.GetFileName(planFolder), status);
             else
