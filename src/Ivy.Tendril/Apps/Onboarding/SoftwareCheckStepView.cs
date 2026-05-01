@@ -13,7 +13,7 @@ public class SoftwareCheckStepView(
     {
         new("GitHub CLI", "gh", "https://cli.github.com/", true,
             () => CheckCommand("gh", "--version"),
-            () => CheckHealth("gh", "auth status"),
+            () => CheckHealth("gh", "auth status --active"),
             "Run `gh auth login` to authenticate"),
         new("Claude CLI", "claude", "https://docs.anthropic.com/en/docs/claude-code", false,
             () => CheckCommand("claude", "--version"),
