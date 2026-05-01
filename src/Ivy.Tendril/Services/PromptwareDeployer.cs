@@ -45,7 +45,10 @@ internal static class PromptwareDeployer
                     var existingDir = Path.Combine(targetSubDir, preserve);
                     if (Directory.Exists(existingDir))
                     {
-                        var asideDir = existingDir + "-preserved-" + Guid.NewGuid().ToString("N")[..8];
+                        // IMPORTANT: Move preserved dirs to temp directory (not as subdirs of targetSubDir)
+                        // so they aren't deleted when we recursively delete targetSubDir
+                        var asideDir = Path.Combine(Path.GetTempPath(),
+                            $"{subDirName}-{preserve}-preserved-" + Guid.NewGuid().ToString("N")[..8]);
                         Directory.Move(existingDir, asideDir);
                         preservedDirs.Add((existingDir, asideDir));
                     }
