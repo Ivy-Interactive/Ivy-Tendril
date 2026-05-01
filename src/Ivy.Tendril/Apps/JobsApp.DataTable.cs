@@ -23,7 +23,7 @@ public partial class JobsApp
     {
         return rows.AsQueryable()
             .ToDataTable(t => t.Id)
-            .Density(Density.Large.At(Breakpoint.Tablet).And(Breakpoint.Desktop, Density.Medium))
+            .Density(new Responsive<Density?> { Default = Density.Large, Desktop = Density.Medium })
             .RefreshToken(refreshToken)
             .UpdateStream(updateStream)
             .Width(Size.Full())
