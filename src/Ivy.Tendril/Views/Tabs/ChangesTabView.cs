@@ -12,6 +12,8 @@ public class ChangesTabView(
 
     public override object Build()
     {
+        var client = UseService<IClientProvider>();
+        
         // null sentinel = "user hasn't toggled yet, default to all expanded"
         var expandedFiles = UseState<HashSet<string>?>(() => null);
         var selectedFile = UseState<string?>(null);
@@ -50,12 +52,13 @@ public class ChangesTabView(
                     var files = new HashSet<string>(currentlyExpanded) { path };
                     expandedFiles.Set(files);
                 }
+                client.Redirect($"#{path}");
             });
 
         var statsText =
             $"{changesData.Files.Count} files changed ({changesData.AddedCount} added, {changesData.ModifiedCount} modified, {changesData.DeletedCount} deleted)";
 
-        var diffsLayout = Layout.Vertical().Gap(2).Width(Size.Full());
+        var diffsLayout = Layout.Vertical().Gap(2).Width(Size.Grow().Min(Size.Px(0))).Scroll(Scroll.Auto).Height(Size.Full());
         diffsLayout |= Text.Block(statsText).Bold();
 
         foreach (var fileDiff in sortedFileDiffs)
@@ -73,8 +76,10 @@ public class ChangesTabView(
                 | Text.Muted(Path.GetDirectoryName(fileDiff.FilePath)?.Replace('\\', '/') ?? "");
 
             var path = fileDiff.FilePath;
+            
+            diffsLayout |= Text.Block("").Anchor(path);
+
             diffsLayout |= new Box(header)
-                .TestId(fileDiff.FilePath)
                 .BorderThickness(0).Padding(1)
                 .Hover(HoverEffect.Pointer)
                 .OnClick(() =>
@@ -90,10 +95,8 @@ public class ChangesTabView(
             }
         }
 
-        diffsLayout.ScrollTarget(selectedFile.Value);
-
         var treePanel = Layout.Vertical().Gap(2).Padding(1)
-            .Width(Size.Rem(16)).Scroll(Scroll.Auto).Height(Size.Full())
+            .Width(Size.Rem(16).Min(Size.Rem(16))).Scroll(Scroll.Auto).Height(Size.Full())
             | tree;
 
         return Layout.Horizontal().Height(Size.Full())
