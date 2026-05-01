@@ -9,7 +9,8 @@ public class OutputSheet(
     string jobId,
     IJobService jobService,
     IWriteStream<string> outputStream,
-    IState<bool> hasStreamContent) : ViewBase
+    IState<bool> hasStreamContent,
+    IState<string?> streamingJobId) : ViewBase
 {
     public override object Build()
     {
@@ -32,10 +33,8 @@ public class OutputSheet(
                     .Height(Size.Full());
             }
         }
-        else if (job is not null && hasStreamContent.Value)
+        else if (job is not null && hasStreamContent.Value && streamingJobId.Value == jobId)
         {
-            // Job finished while user was watching the stream — keep using stream renderer
-            // (switching to JsonStream would duplicate content since streamedLines persists in React state)
             outputContent = new ClaudeJsonRenderer()
                 .Stream(outputStream)
                 .ShowThinking(false)
