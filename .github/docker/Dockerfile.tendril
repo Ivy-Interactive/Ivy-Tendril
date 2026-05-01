@@ -1,29 +1,6 @@
-# Dockerfile.tendril — builds and runs Ivy Tendril for one-click Sliplane deploy.
-#
-# Runtime dependencies installed in the final image:
-#   - Claude Code  (@anthropic-ai/claude-code) — AI agent CLI
-#   - Codex CLI    (@openai/codex)             — OpenAI coding agent (`codex` on PATH)
-#   - Gemini CLI   (@google/gemini-cli)        — Google coding agent (`gemini` on PATH)
-#   - GitHub CLI   (gh)                        — PR creation / branch management
-#   - PowerShell   (pwsh)                      — hooks and verification scripts
-#   - Git                                        — worktree / commit operations
-#   - Pandoc       (pandoc)                    — optional PDF export (Tendril onboarding / PlanPdf)
-#
-# Required env vars at runtime:
-#   ANTHROPIC_API_KEY  — Anthropic API key passed to Claude Code
-#   GITHUB_TOKEN       — GitHub token used automatically by gh CLI
-#
-# Agent auth (set in Sliplane / your orchestrator as needed):
-#   OPENAI_API_KEY     — Codex CLI (or use `codex login` interactively where possible)
-#   GEMINI_API_KEY / Google auth — see Gemini CLI docs for headless/container setup
-#
-# Optional env vars:
-#   PORT               — web server port         (default: 8000)
-#   TENDRIL_HOME       — config + data directory (default: /data/tendril)
-#
-# Persistent volume:
-#   Mount a volume at /data/tendril to persist config.yaml, plans, and SQLite DB.
-#   On first start the example config.yaml is copied there automatically.
+# Ivy Tendril image for Sliplane (or similar). Includes Node CLIs: claude-code, codex, gemini;
+# git, gh, pwsh, pandoc. Required: ANTHROPIC_API_KEY, GITHUB_TOKEN. Optional: OPENAI_API_KEY,
+# Gemini auth, PORT (8000), TENDRIL_HOME (/data/tendril). Mount /data/tendril to persist data.
 
 # ── Stage 1: install Tendril + PowerShell as dotnet global tools ───────────────
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
