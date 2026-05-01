@@ -483,6 +483,10 @@ internal class JobLauncher
         if (planYaml == null)
             return (values, null, null);
 
+        // Add sourceUrl to firmware header if present
+        if (!string.IsNullOrEmpty(planYaml.SourceUrl))
+            values["SourceUrl"] = planYaml.SourceUrl;
+
         var profileOverride = ExtractExecutionProfile(job, planYaml);
         AddRepoConfigsIfNeeded(job, planYaml, values);
 
