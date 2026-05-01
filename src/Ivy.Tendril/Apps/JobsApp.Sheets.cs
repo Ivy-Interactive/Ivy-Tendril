@@ -19,6 +19,8 @@ public partial class JobsApp
         IState<bool> hasStreamContent,
         LayoutView layout)
     {
+        layout |= dataTable;
+
         if (showPlan.Value is { } planPath)
         {
             var planSheetView = new PlanSheet(planPath, planService, config, openFile);
@@ -30,37 +32,30 @@ public partial class JobsApp
                 planSheetView.GetSheetTitle()
             ).Width(Size.Half()).Resizable();
 
-            if (fileLinkSheet is not null) return layout | new Fragment(dataTable, planSheet, fileLinkSheet);
-
-            return layout | new Fragment(dataTable, planSheet);
+            layout |= planSheet;
+            if (fileLinkSheet is not null) layout |= fileLinkSheet;
         }
-
-        if (showOutput.Value is { } jobId)
+        else if (showOutput.Value is { } jobId)
         {
             var outputSheetView = new OutputSheet(jobId, jobService, outputStream, hasStreamContent);
 
-            var outputSheet = new Sheet(
+            layout |= new Sheet(
                 () => showOutput.Set(null),
                 outputSheetView.Build(),
                 outputSheetView.GetSheetTitle()
             ).Width(Size.Half()).Resizable();
-
-            return layout | new Fragment(dataTable, outputSheet);
         }
-
-        if (showPrompt.Value is { } promptText)
+        else if (showPrompt.Value is { } promptText)
         {
             var promptSheetView = new PromptSheet(promptText);
 
-            var promptSheet = new Sheet(
+            layout |= new Sheet(
                 () => showPrompt.Set(null),
                 promptSheetView.Build(),
                 "Full Prompt"
             ).Width(Size.Half()).Resizable();
-
-            return layout | new Fragment(dataTable, promptSheet);
         }
 
-        return layout | dataTable;
+        return layout;
     }
 }
