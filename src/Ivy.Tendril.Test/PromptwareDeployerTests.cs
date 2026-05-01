@@ -192,4 +192,37 @@ public class PromptwareDeployerTests : IDisposable
             }
         }
     }
+
+    [Fact]
+    public void CleanupOrphanedPreservedDirectories_RemovesPreservedDirectories()
+    {
+        // Arrange
+        var promptwaresDir = Path.Combine(_tempDir, "Promptwares");
+        var updatePlanDir = Path.Combine(promptwaresDir, "UpdatePlan");
+        var orphanedDir = Path.Combine(updatePlanDir, "Logs-preserved-abc123");
+        Directory.CreateDirectory(orphanedDir);
+        File.WriteAllText(Path.Combine(orphanedDir, "test.md"), "orphaned content");
+
+        // Act
+        PromptwareDeployer.CleanupOrphanedPreservedDirectories(promptwaresDir);
+
+        // Assert
+        Assert.False(Directory.Exists(orphanedDir));
+    }
+
+    [Fact]
+    public void CleanupOrphanedPreservedDirectories_IgnoresNormalDirectories()
+    {
+        // Arrange
+        var promptwaresDir = Path.Combine(_tempDir, "Promptwares");
+        var normalDir = Path.Combine(promptwaresDir, "UpdatePlan", "Logs");
+        Directory.CreateDirectory(normalDir);
+        File.WriteAllText(Path.Combine(normalDir, "test.md"), "normal content");
+
+        // Act
+        PromptwareDeployer.CleanupOrphanedPreservedDirectories(promptwaresDir);
+
+        // Assert
+        Assert.True(Directory.Exists(normalDir));
+    }
 }
