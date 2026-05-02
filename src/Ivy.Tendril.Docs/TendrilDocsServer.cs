@@ -33,13 +33,21 @@ public static class TendrilDocsServer
 
         var appShellSettings = new AppShellSettings()
             .Header(
-                Layout.Horizontal(
-                    new Image("/tendril-docs/assets/Tendril.svg").Width(Size.Units(15)).Height(Size.Auto()),
-                    Layout.Vertical(
-                        Text.Block("Ivy Tendril"),
-                        Text.Muted($"v{version}")
-                    ).Gap(0)
-                ).Gap(2).Padding(2).AlignContent(Align.BottomLeft)
+                Layout.Vertical(
+                    Layout.Horizontal(
+                        new Image("/tendril-docs/assets/Tendril.svg").Width(Size.Units(15)).Height(Size.Auto()),
+                        Layout.Vertical(
+                            Text.Block("Ivy Tendril"),
+                            Text.Muted($"v{version}")
+                        ).Gap(0)
+                    ).Gap(2).AlignContent(Align.BottomLeft),
+                    new Button("Tendril on GitHub")
+                        .Icon(Icons.Github)
+                        .Variant(ButtonVariant.Outline)
+                        .Width(Size.Full())
+                        .OnClick(() => { })
+                        .Link("https://github.com/Ivy-Interactive/Ivy-Tendril", LinkTarget.Blank)
+                ).Gap(2).Padding(2)
             )
             .DefaultApp<IntroductionApp>()
             .UsePages()
