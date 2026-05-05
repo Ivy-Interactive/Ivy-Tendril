@@ -1,0 +1,85 @@
+# Ivy Tendril image for Sliplane (or similar). Includes Node CLIs: claude-code, codex, gemini, copilot;
+# git, gh, pwsh, pandoc. Required: ANTHROPIC_API_KEY, GITHUB_TOKEN. Optional: OPENAI_API_KEY,
+# Gemini auth, PORT (8000), TENDRIL_HOME (/data/tendril). Mount /data/tendril to persist data.
+
+# ── Stage 1: install Tendril + PowerShell as dotnet global tools ───────────────
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+
+RUN --mount=type=cache,id=nuget-tendril,target=/root/.nuget/packages \
+    dotnet tool install --global Ivy.Tendril \
+ && dotnet tool install --global PowerShell
+
+# ── Stage 2: runtime image with all CLI dependencies ──────────────────────────
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
+
+# Non-root user so Claude Code accepts --dangerously-skip-permissions
+RUN useradd --create-home --shell /bin/bash tendril
+
+# aspnet:10.0 puts the runtime at /usr/share/dotnet — tools must point there
+ENV DOTNET_ROOT=/usr/share/dotnet
+ENV PATH="$PATH:/home/tendril/.dotnet/tools"
+ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
+ENV DOTNET_NOLOGO=1
+ENV CLAUDE_CODE_SKIP_SETUP=1
+ENV HOME=/home/tendril
+# HOMEDIR is read by the clone bootstrap prelude: HOME="${HOMEDIR:-/root}"
+# Without this, HOME gets reset to /root and non-root tools (gh, claude) fail.
+ENV HOMEDIR=/home/tendril
+
+# Tendril runtime config
+ENV TENDRIL_HOME=/data/tendril
+ENV PORT=8000
+
+# Copy Tendril + PowerShell global tools from build stage (root → tendril user home)
+COPY --from=build --chown=tendril:tendril /root/.dotnet/tools /home/tendril/.dotnet/tools
+
+# Copy Node.js from official image (avoids flaky apt mirrors — same pattern as Dockerfile.tendril-docs)
+COPY --from=node:22-bookworm-slim /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:22-bookworm-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+ && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+
+# Coding agent CLIs (npm cache speeds rebuilds on the same builder)
+RUN --mount=type=cache,id=npm-tendril,target=/root/.npm \
+    npm install -g \
+      @anthropic-ai/claude-code \
+      @openai/codex \
+      @google/gemini-cli \
+      @github/copilot
+
+# Install git + GitHub CLI + Pandoc (PDF export)
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git curl ca-certificates gnupg pandoc \
+ && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+        -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
+ && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+ && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] \
+        https://cli.github.com/packages stable main" \
+        > /etc/apt/sources.list.d/github-cli.list \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends gh \
+ && rm -rf /var/lib/apt/lists/*
+
+# git: allow operations on any mounted repo volume (for both root and tendril user)
+RUN git config --global --add safe.directory '*' \
+ && git config --global user.name  "Tendril" \
+ && git config --global user.email "tendril@localhost" \
+ && chown tendril:tendril /home/tendril/.gitconfig
+
+# Ensure dotnet tools path and /usr/local/bin survive login-shell PATH reinit
+RUN echo 'export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/tendril/.dotnet/tools"' \
+    > /etc/profile.d/tendril-path.sh
+
+# Ensure tendril user owns the data volume mount point
+RUN mkdir -p /data/tendril && chown tendril:tendril /data/tendril
+
+# Default config template (copied to TENDRIL_HOME on first start by Tendril itself)
+COPY src/Ivy.Tendril/example.config.yaml /etc/tendril/example.config.yaml
+
+VOLUME ["/data/tendril"]
+
+EXPOSE 8000
+
+USER tendril
+
+CMD ["tendril", "--web"]

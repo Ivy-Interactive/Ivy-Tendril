@@ -11,6 +11,7 @@ Create GitHub pull requests and apply PR rules.
 The firmware header contains:
 - **PlanFolder** — path to the plan folder
 - **CurrentTime** — current UTC timestamp
+- **SourceUrl** — (optional) GitHub issue or PR URL from plan.yaml
 
 The plan structure and CLI commands are in the **Reference Documents** section of your firmware.
 Project configuration (repos, `prRule` settings) is available from the firmware header.
@@ -88,7 +89,25 @@ EOF
   3. If configured, use that value
   4. Otherwise, auto-detect via: `gh repo view <owner/repo> --json defaultBranchRef -q .defaultBranchRef.name`
 - **Title:** `[<planId>] <plan title>`
-- **Body:** If `<PlanFolder>/artifacts/summary.md` exists, use its content as the PR body (followed by list of commits). Otherwise, fall back to summary from Problem + Solution sections. If `$artifactMarkdown` from step 2.5 is non-empty, append it under an `## Artifacts` heading after the commits list.
+- **Body:** 
+  1. **If SourceUrl is present in firmware header** and it's a GitHub issue URL (format: `https://github.com/owner/repo/issues/NUMBER`), prepend `Fixes #NUMBER\n\n` to the body
+  2. If `<PlanFolder>/artifacts/summary.md` exists, use its content as the PR body (after the issue link)
+  3. Otherwise, fall back to summary from Problem + Solution sections
+  4. Append commit list
+  5. If `$artifactMarkdown` from step 2.5 is non-empty, append it under an `## Artifacts` heading
+
+  **Issue linking logic:**
+  ```bash
+  # Extract issue number from SourceUrl (if present in firmware header)
+  issueLink=""
+  if [[ -n "$SOURCE_URL" && "$SOURCE_URL" =~ github\.com/.*/issues/([0-9]+) ]]; then
+    issueNumber="${BASH_REMATCH[1]}"
+    issueLink="Fixes #${issueNumber}\n\n"
+  fi
+
+  # Construct body with issue link prepended
+  body="${issueLink}${summaryContent}\n\n---\n${commitsList}${artifactMarkdown}"
+  ```
 - **Draft (custom options):** If custom options exist and `draft` is `true`, add `--draft` to the `gh pr create` command to create the PR in draft mode. If no custom options or `draft` is `false`, create as ready for review (default behavior).
 - **Assignee (custom options):** If custom options exist and `assignee` is non-empty, add `--assignee <assignee>` to the `gh pr create` command.
 

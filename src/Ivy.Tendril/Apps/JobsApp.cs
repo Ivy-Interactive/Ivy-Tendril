@@ -43,6 +43,6 @@ public partial class JobsApp : ViewBase
         var layout = Layout.Vertical().Height(Size.Full());
 
         return RenderWithSheets(dataTable, showPlan, showOutput, showPrompt, planService,
-            config, openFile, jobService, outputStream, hasStreamContent, layout);
+            config, openFile, jobService, outputStream, hasStreamContent, streamingJobId, layout);
     }
 }

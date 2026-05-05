@@ -44,9 +44,10 @@ internal static class PlanYamlHelper
 
     internal static void SetPlanStateByFolder(string planFolder, string state)
     {
-        UpdatePlanYamlFields(planFolder,
-            ("state", state),
-            ("updated", DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")));
+        var plan = PlanCommandHelpers.ReadPlan(planFolder);
+        plan.State = state;
+        plan.Updated = DateTime.UtcNow;
+        PlanCommandHelpers.WritePlan(planFolder, plan, watcher: null);
     }
 
     internal static string? GetNamedArg(string[] args, string name)

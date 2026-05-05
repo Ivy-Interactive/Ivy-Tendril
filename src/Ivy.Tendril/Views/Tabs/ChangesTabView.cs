@@ -67,13 +67,26 @@ public class ChangesTabView(
             var chevronIcon = isExpanded ? Icons.ChevronDown : Icons.ChevronRight;
             var (statusIcon, statusColor) = PlanContentHelpers.GetFileStatusIconAndColor(fileDiff.Status);
             var fileName = Path.GetFileName(fileDiff.FilePath);
+            var isRenamed = fileDiff.OldFilePath != null;
+            var oldFileName = isRenamed ? Path.GetFileName(fileDiff.OldFilePath!) : null;
 
             var header = Layout.Horizontal()
                 .Gap(2)
                 | new Icon(chevronIcon).Small()
-                | new Icon(statusIcon).Small().Color(statusColor)
-                | Text.Block(fileName).Bold()
-                | Text.Muted(Path.GetDirectoryName(fileDiff.FilePath)?.Replace('\\', '/') ?? "");
+                | new Icon(statusIcon).Small().Color(statusColor);
+
+            if (isRenamed)
+            {
+                header |= Text.Block(oldFileName!).Bold();
+                header |= Text.Muted("→");
+                header |= Text.Block(fileName).Bold();
+                header |= Text.Muted(Path.GetDirectoryName(fileDiff.FilePath)?.Replace('\\', '/') ?? "");
+            }
+            else
+            {
+                header |= Text.Block(fileName).Bold();
+                header |= Text.Muted(Path.GetDirectoryName(fileDiff.FilePath)?.Replace('\\', '/') ?? "");
+            }
 
             var path = fileDiff.FilePath;
             

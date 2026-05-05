@@ -185,7 +185,7 @@ public class ContentView(
         }
         else
         {
-            // Git tab content (uses shared helper — reuse precomputed commit rows from planContentQuery)
+            // Git tab content (uses shared helper reuse precomputed commit rows from planContentQuery)
             var gitData = GitTabHelper.BuildGitTabData(planData.CommitRows, selectedPlan!, config, gitService);
             var gitLayout = GitTabHelper.RenderGitTab(
                 gitData,
@@ -306,7 +306,7 @@ public class ContentView(
                 var reportPath = Path.Combine(verificationDir, $"{v.Name}.md");
                 if (!File.Exists(reportPath))
                 {
-                    parts.Add($"**{v.Name}** — {v.Status}, no report generated");
+                    parts.Add($"**{v.Name}** {v.Status}, no report generated");
                     continue;
                 }
 
@@ -327,7 +327,7 @@ public class ContentView(
                     : null;
 
                 var detail = output ?? issues ?? "See verification report for details";
-                parts.Add($"**{v.Name}** — {detail}");
+                parts.Add($"**{v.Name}** {detail}");
             }
 
             return Callout.Destructive(string.Join("\n\n", parts), "Execution Failed");
