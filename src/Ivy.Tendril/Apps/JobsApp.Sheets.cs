@@ -17,8 +17,11 @@ public partial class JobsApp
         IJobService jobService,
         IWriteStream<string> outputStream,
         IState<bool> hasStreamContent,
+        IState<string?> streamingJobId,
         LayoutView layout)
     {
+        object? activeSheet = null;
+
         if (showPlan.Value is { } planPath)
         {
             var planSheetView = new PlanSheet(planPath, planService, config, openFile);
@@ -30,37 +33,31 @@ public partial class JobsApp
                 planSheetView.GetSheetTitle()
             ).Width(Size.Half()).Resizable();
 
-            if (fileLinkSheet is not null) return layout | new Fragment(dataTable, planSheet, fileLinkSheet);
-
-            return layout | new Fragment(dataTable, planSheet);
+            activeSheet = fileLinkSheet is not null
+                ? new Fragment(planSheet, fileLinkSheet)
+                : planSheet;
         }
-
-        if (showOutput.Value is { } jobId)
+        else if (showOutput.Value is { } jobId)
         {
-            var outputSheetView = new OutputSheet(jobId, jobService, outputStream, hasStreamContent);
+            var outputSheetView = new OutputSheet(jobId, jobService, outputStream, hasStreamContent, streamingJobId);
 
-            var outputSheet = new Sheet(
+            activeSheet = new Sheet(
                 () => showOutput.Set(null),
                 outputSheetView.Build(),
                 outputSheetView.GetSheetTitle()
             ).Width(Size.Half()).Resizable();
-
-            return layout | new Fragment(dataTable, outputSheet);
         }
-
-        if (showPrompt.Value is { } promptText)
+        else if (showPrompt.Value is { } promptText)
         {
             var promptSheetView = new PromptSheet(promptText);
 
-            var promptSheet = new Sheet(
+            activeSheet = new Sheet(
                 () => showPrompt.Set(null),
                 promptSheetView.Build(),
                 "Full Prompt"
             ).Width(Size.Half()).Resizable();
-
-            return layout | new Fragment(dataTable, promptSheet);
         }
 
-        return layout | dataTable;
+        return layout | new Fragment(dataTable, activeSheet);
     }
 }

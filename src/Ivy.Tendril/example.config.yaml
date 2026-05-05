@@ -141,6 +141,8 @@ promptwares:
     - Bash
 
 # Projects — add your projects here. Each project groups repos, verifications, and context.
+#
+# Example .NET project:
 # projects:
 #   - name: MyProject
 #     color: Blue           # UI color: Blue, Emerald, Rose, Purple, Teal, Sky, Slate, etc.
@@ -179,6 +181,30 @@ promptwares:
 #     # references resolve during build. No commits or PRs are created for them.
 #     buildDependencies:
 #       - "%REPOS_HOME%/shared-framework"
+#
+# Example Ivy-Tendril project (if working on Tendril itself):
+# projects:
+#   - name: Ivy Tendril
+#     color: Yellow
+#     repos:
+#       - path: %REPOS_HOME%/Ivy-Tendril
+#         prRule: default
+#         syncStrategy: fetch
+#     verifications:
+#       - name: CheckResult
+#         required: true
+#       - name: Build
+#         required: true
+#       - name: Format
+#         required: true
+#       - name: Test
+#         required: true
+#       - name: Lint
+#         required: true
+#     context: >
+#       AI coding agent orchestrator built on Ivy Framework. Manages plan lifecycles,
+#       orchestrates Claude/Codex/Gemini agents, and provides GitHub PR integration.
+#       Key folders: src/Ivy.Tendril/Services/, src/Ivy.Tendril/Apps/, src/Ivy.Tendril/Promptwares/
 projects: []
 
 # Standard verification definitions — these prompts are used when verifications are referenced by projects.

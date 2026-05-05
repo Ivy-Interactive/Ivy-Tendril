@@ -3,6 +3,7 @@ using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Apps.Review;
 using ContentView = Ivy.Tendril.Apps.Review.ContentView;
 using SidebarView = Ivy.Tendril.Apps.Review.SidebarView;
 
@@ -19,6 +20,8 @@ public class ReviewApp : ViewBase
         var configService = UseService<IConfigService>();
         var gitService = UseService<IGitService>();
         var planWatcher = UseService<IPlanWatcherService>();
+        var args = UseArgs<ReviewAppArgs>();
+        var nav = UseNavigation();
         var selectedPlanState = UseState<PlanFile?>(null);
         var projectFilter = UseState<string?>(null);
         var levelFilter = UseState<string?>(null);
@@ -36,6 +39,28 @@ public class ReviewApp : ViewBase
 
             planWatcher.PlansChanged += OnChanged;
             return Disposable.Create(() => planWatcher.PlansChanged -= OnChanged);
+        });
+
+        UseEffect(() =>
+        {
+            if (!string.IsNullOrEmpty(args?.PlanId))
+            {
+                var p = planService.GetPlans().FirstOrDefault(x => x.FolderName == args.PlanId);
+                if (p != null && p.FolderName != selectedPlanState.Value?.FolderName)
+                {
+                    selectedPlanState.Set(p);
+                }
+            }
+            return Disposable.Empty;
+        });
+
+        UseEffect(() =>
+        {
+            if (selectedPlanState.Value != null && selectedPlanState.Value.FolderName != args?.PlanId)
+            {
+                nav.Navigate<ReviewApp>(new ReviewAppArgs(selectedPlanState.Value.FolderName, args?.Tab ?? "summary"));
+            }
+            return Disposable.Empty;
         });
 
         var previousPlans = UseRef(new List<PlanFile>());
@@ -63,12 +88,14 @@ public class ReviewApp : ViewBase
             }
         }
 
+
+
         previousPlans.Value = filteredPlans;
 
         var sidebar = new SidebarView(plans, selectedPlanState, projectFilter, levelFilter, textFilter, filtersOpen, showCompleted, configService);
 
         return new SidebarLayout(
-            new ContentView(selectedPlanState.Value, filteredPlans, selectedPlanState, planService, jobService,
+            new ContentView(selectedPlanState, filteredPlans, planService, jobService,
                 RefreshPlans, configService, gitService),
             sidebar
         ).SidebarContentScroll(Scroll.None);

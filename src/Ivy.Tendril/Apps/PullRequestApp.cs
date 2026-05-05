@@ -95,17 +95,13 @@ public class PullRequestApp : ViewBase
                 c.SelectionMode = SelectionModes.None;
                 c.ShowIndexColumn = false;
                 c.BatchSize = 50;
-                c.EnableCellClickEvents = true;
             })
-            .OnCellClick(e =>
+            .OnCellAction(t => t.Plan, e =>
             {
-                if (e.Value.ColumnName == "Plan")
-                {
-                    var row = rows.ElementAtOrDefault(e.Value.RowIndex);
-                    if (row != null && !string.IsNullOrEmpty(row.PlanFolderPath) &&
-                        Directory.Exists(row.PlanFolderPath))
-                        showPlan.Set(row.PlanFolderPath);
-                }
+                var row = rows.ElementAtOrDefault(e.Value.RowIndex);
+                if (row != null && !string.IsNullOrEmpty(row.PlanFolderPath) &&
+                    Directory.Exists(row.PlanFolderPath))
+                    showPlan.Set(row.PlanFolderPath);
 
                 return ValueTask.CompletedTask;
             })

@@ -23,6 +23,7 @@ public partial class JobsApp
     {
         return rows.AsQueryable()
             .ToDataTable(t => t.Id)
+            .Density(new Responsive<Density?> { Default = Density.Large, Desktop = Density.Medium })
             .RefreshToken(refreshToken)
             .UpdateStream(updateStream)
             .Width(Size.Full())
@@ -79,70 +80,61 @@ public partial class JobsApp
                 c.SelectionMode = SelectionModes.None;
                 c.ShowIndexColumn = false;
                 c.BatchSize = 50;
-                c.EnableCellClickEvents = true;
             })
-            .OnCellClick(e =>
+            .OnCellAction(t => t.PlanId, e =>
             {
-                if (e.Value.ColumnName == "PlanId")
+                var planId = e.Value.CellValue?.ToString();
+                if (!string.IsNullOrEmpty(planId))
                 {
-                    var planId = e.Value.CellValue?.ToString();
-                    if (!string.IsNullOrEmpty(planId))
+                    var job = jobs.FirstOrDefault(j => ExtractPlanId(j.PlanFile) == planId);
+                    if (job != null && !string.IsNullOrEmpty(job.PlanFile))
                     {
-                        var job = jobs.FirstOrDefault(j => ExtractPlanId(j.PlanFile) == planId);
-                        if (job != null && !string.IsNullOrEmpty(job.PlanFile))
-                        {
-                            var fullPath = Path.Combine(planService.PlansDirectory, job.PlanFile);
-                            if (Directory.Exists(fullPath))
-                                showPlan.Set(fullPath);
-                        }
+                        var fullPath = Path.Combine(planService.PlansDirectory, job.PlanFile);
+                        if (Directory.Exists(fullPath))
+                            showPlan.Set(fullPath);
                     }
                 }
-                else if (e.Value.ColumnName == "LastOutput")
+                return ValueTask.CompletedTask;
+            })
+            .OnCellAction(t => t.LastOutput, e =>
+            {
+                var id = e.Value.RowId?.ToString();
+                if (!string.IsNullOrEmpty(id))
+                    showOutput.Set(id);
+                return ValueTask.CompletedTask;
+            })
+            .OnCellAction(t => t.StatusMessage, e =>
+            {
+                var id = e.Value.RowId?.ToString();
+                if (!string.IsNullOrEmpty(id))
                 {
-                    var id = e.Value.RowId?.ToString();
-                    if (!string.IsNullOrEmpty(id))
+                    var job = jobs.FirstOrDefault(j => j.Id == id);
+                    if (job?.Status is JobStatus.Failed or JobStatus.Timeout)
+                    {
                         showOutput.Set(id);
-                }
-                else if (e.Value.ColumnName == "StatusMessage")
-                {
-                    var id = e.Value.RowId?.ToString();
-                    if (!string.IsNullOrEmpty(id))
-                    {
-                        var job = jobs.FirstOrDefault(j => j.Id == id);
-                        if (job?.Status is JobStatus.Failed or JobStatus.Timeout)
-                        {
-                            showOutput.Set(id);
-                        }
                     }
                 }
-                else if (e.Value.ColumnName == "Prompt/Title")
+                return ValueTask.CompletedTask;
+            })
+            .OnCellAction(t => t.Plan, e =>
+            {
+                var id = e.Value.RowId?.ToString();
+                if (!string.IsNullOrEmpty(id))
                 {
-                    var id = e.Value.RowId?.ToString();
-                    if (!string.IsNullOrEmpty(id))
+                    var job = jobs.FirstOrDefault(j => j.Id == id);
+                    if (job != null)
                     {
-                        var job = jobs.FirstOrDefault(j => j.Id == id);
-                        if (job != null)
-                        {
-                            var fullPrompt = GetFullPrompt(job, planService);
-                            if (!string.IsNullOrEmpty(fullPrompt))
-                                showPrompt.Set(fullPrompt);
-                        }
+                        var fullPrompt = GetFullPrompt(job, planService);
+                        if (!string.IsNullOrEmpty(fullPrompt))
+                            showPrompt.Set(fullPrompt);
                     }
                 }
-
                 return ValueTask.CompletedTask;
             })
             .RowActions(row =>
             {
                 var job = jobs.FirstOrDefault(j => j.Id == row.Id);
-                var actions = new List<MenuItem>
-                {
-                    new MenuItem("View Plan", Icon: Icons.FileText, Tag: "view-plan").Tooltip("Open the associated plan"),
-                    new MenuItem("View Output", Icon: Icons.Terminal, Tag: "view-output").Tooltip(
-                        "View job output with Claude JSON rendering"),
-                    new MenuItem("Show Prompt", Icon: Icons.MessageSquare, Tag: "show-prompt").Tooltip(
-                        "Show the full prompt text"),
-                };
+                var actions = new List<MenuItem> { };
 
                 if (job?.Status is JobStatus.Running or JobStatus.Queued)
                 {
@@ -169,26 +161,8 @@ public partial class JobsApp
 
                 if (job != null)
                 {
-                    if (tag == "view-plan")
-                    {
-                        if (!string.IsNullOrEmpty(job.PlanFile))
-                        {
-                            var fullPath = Path.Combine(planService.PlansDirectory, job.PlanFile);
-                            if (Directory.Exists(fullPath))
-                                showPlan.Set(fullPath);
-                        }
-                    }
-                    else if (tag == "view-output")
-                    {
-                        showOutput.Set(job.Id);
-                    }
-                    else if (tag == "show-prompt")
-                    {
-                        var fullPrompt = GetFullPrompt(job, planService);
-                        if (!string.IsNullOrEmpty(fullPrompt))
-                            showPrompt.Set(fullPrompt);
-                    }
-                    else if (tag == "stop-job")
+                  
+                    if (tag == "stop-job")
                     {
                         if (job.Status is JobStatus.Running or JobStatus.Queued)
                         {
@@ -237,7 +211,7 @@ public partial class JobsApp
 
                 return ValueTask.CompletedTask;
             })
-            .HeaderRight(_ => Layout.Horizontal().Gap(2)
+            .HeaderRight(_ => Layout.Horizontal()
                               | jobsProgress
                               | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
                                   new MenuItem("Clear Completed", Icon: Icons.Trash, Tag: "ClearCompleted")

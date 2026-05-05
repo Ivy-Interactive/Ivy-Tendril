@@ -207,6 +207,7 @@ public static class TendrilServer
             {
                 // Auto-update promptwares if the running version is newer than what's deployed
                 var promptwaresDir = Path.Combine(configService.TendrilHome, "Promptwares");
+                PromptwareDeployer.CleanupOrphanedPreservedDirectories(promptwaresDir);
                 if (PromptwareDeployer.NeedsUpdate(promptwaresDir))
                 {
                     var logger = app.Services.GetRequiredService<ILogger<Server>>();
