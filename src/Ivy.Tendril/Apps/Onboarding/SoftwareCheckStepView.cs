@@ -42,6 +42,8 @@ public class SoftwareCheckStepView(
     public override object Build()
     {
         var isChecking = UseState(false);
+        var installing = UseState<HashSet<string>>(() => new HashSet<string>());
+        var installErrors = UseState<Dictionary<string, string>>(() => new Dictionary<string, string>());
 
         var hasAnyCodingAgent = checkResults.Value != null
                                 && (checkResults.Value["claude"] || checkResults.Value["codex"] ||
@@ -100,8 +102,33 @@ public class SoftwareCheckStepView(
                              .Select(MakeSoftwareRow)
                              .ToArray())
                          .Builder(t => t.Instructions, f => f.Func<SoftwareRow, string>(value =>
-                             value.StartsWith("http") ? new Button("Install").Inline().Url(value) : (object)value))
+                         {
+                             if (value.StartsWith("install:"))
+                             {
+                                 var key = value.Substring("install:".Length);
+                                 var busy = installing.Value.Contains(key);
+                                 var err = installErrors.Value.GetValueOrDefault(key);
+                                 var label = busy ? "Installing..." : (err != null ? "Retry Install" : "Install Now");
+                                 return new Button(label)
+                                     .Inline()
+                                     .Loading(busy)
+                                     .Disabled(busy)
+                                     .OnClick(async () => await DoInstall(key));
+                             }
+                             return value.StartsWith("http")
+                                 ? new Button("Install").Inline().Url(value)
+                                 : (object)value;
+                         }))
                          .Width(Size.Full())
+                   : null!)
+               | (installErrors.Value.Count > 0
+                   ? Text.Markdown(
+                       "**Install errors:**\n\n" +
+                       string.Join("\n", installErrors.Value.Select(kvp => $"- **{kvp.Key}**: {kvp.Value}")))
+                   : null!)
+               | (checkResults.Value != null
+                   ? Text.Muted(
+                       "Auto-install runs in the background. If a freshly installed tool isn't detected after Recheck, restart Tendril so it picks up the updated PATH.")
                    : null!)
                | (checkResults.Value == null
                    ? new Button("Check Software")
@@ -120,6 +147,39 @@ public class SoftwareCheckStepView(
                            .OnClick(() => stepperIndex.Set(stepperIndex.Value + 1))
                        : Text.Muted("Please Wait...")
                );
+
+        async Task DoInstall(string key)
+        {
+            var inProgress = new HashSet<string>(installing.Value) { key };
+            installing.Set(inProgress);
+
+            var errors = new Dictionary<string, string>(installErrors.Value);
+            errors.Remove(key);
+            installErrors.Set(errors);
+
+            try
+            {
+                var (ok, message) = await SoftwareInstaller.InstallAsync(key);
+                if (!ok)
+                {
+                    var failed = new Dictionary<string, string>(installErrors.Value)
+                    {
+                        [key] = string.IsNullOrWhiteSpace(message) ? "Install failed." : message
+                    };
+                    installErrors.Set(failed);
+                }
+                else
+                {
+                    await CheckSoftware();
+                }
+            }
+            finally
+            {
+                var done = new HashSet<string>(installing.Value);
+                done.Remove(key);
+                installing.Set(done);
+            }
+        }
 
         async Task CheckSoftware()
         {
@@ -166,7 +226,9 @@ public class SoftwareCheckStepView(
         var check = SoftwareChecks.FirstOrDefault(c => c.Key == result.Key);
         string instructions = result switch
         {
-            { IsInstalled: false } => result.InstallUrl,
+            { IsInstalled: false } => SoftwareInstaller.CanAutoInstall(result.Key)
+                ? $"install:{result.Key}"
+                : result.InstallUrl,
             { HealthStatus: HealthCheckStatus.NotAuthenticated } => check?.HealthHint ?? "",
             { HealthStatus: HealthCheckStatus.CheckFailed } => "Try clicking Recheck",
             _ => ""
