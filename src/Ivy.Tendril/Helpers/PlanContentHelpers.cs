@@ -205,7 +205,7 @@ public static class PlanContentHelpers
 
                     if (isExpanded)
                     {
-                        commitSheetContent |= new DiffView().Diff(fileDiff.Diff).Split().ShowHeader(false);
+                        commitSheetContent |= new DiffView().Diff(fileDiff.Diff).Split();
                     }
                 }
             }
@@ -230,7 +230,7 @@ public static class PlanContentHelpers
                 if (!string.IsNullOrWhiteSpace(data.Diff))
                 {
                     commitSheetContent |= Text.Block("Diff").Bold();
-                    commitSheetContent |= new DiffView().Diff(data.Diff).Split().ShowHeader(false);
+                    commitSheetContent |= new DiffView().Diff(data.Diff).Split();
                 }
             }
 

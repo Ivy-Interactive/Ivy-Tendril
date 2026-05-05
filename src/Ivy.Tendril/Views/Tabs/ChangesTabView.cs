@@ -104,7 +104,7 @@ public class ChangesTabView(
 
             if (isExpanded)
             {
-                diffsLayout |= new DiffView().Diff(fileDiff.Diff).Split().Width(Size.Full()).ShowHeader(false);
+                diffsLayout |= new DiffView().Diff(fileDiff.Diff).Split().Width(Size.Full());
             }
         }
 
