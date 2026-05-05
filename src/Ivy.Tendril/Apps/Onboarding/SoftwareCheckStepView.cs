@@ -129,7 +129,7 @@ public class SoftwareCheckStepView(
                    : null!)
                | (installAttempted.Value
                    ? Text.Muted(
-                       "Auto-install runs in the background. If a freshly installed tool isn't detected after Recheck, restart Tendril so it picks up the updated PATH.")
+                       "Auto-installed tools are placed in `~/.tendril/bin` (or `winget`'s default location on Windows). They're available immediately in this session; to use them in new shells, add `$HOME/.tendril/bin` to your shell PATH.")
                    : null!)
                | (checkResults.Value == null
                    ? new Button("Check Software")
