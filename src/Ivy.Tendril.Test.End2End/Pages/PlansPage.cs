@@ -9,8 +9,12 @@ public class PlansPage
 
     public PlansPage(IPage page) => _page = page;
 
-    public async Task ClickNewPlan() =>
-        await _page.GetByRole(AriaRole.Button, new() { Name = "New Plan" }).First.ClickAsync();
+    public async Task ClickNewPlan()
+    {
+        var button = _page.GetByRole(AriaRole.Button, new() { Name = "New Plan" }).First;
+        await button.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 });
+        await button.ClickAsync();
+    }
 
     public async Task CreatePlan(string description, string project = "Auto", string priority = "Normal")
     {
@@ -32,8 +36,14 @@ public class PlansPage
         var textarea = _page.GetByPlaceholder("Enter task description...");
         await textarea.FillAsync(description);
 
-        // Click Create
-        await _page.GetByRole(AriaRole.Button, new() { Name = "Create" }).ClickAsync();
+        // Wait for the Create button to become enabled (server round-trip after fill)
+        var createButton = _page.GetByRole(AriaRole.Button, new() { Name = "Create" });
+        await createButton.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 5_000 });
+        await _page.WaitForFunctionAsync(
+            "btn => !btn.disabled",
+            await createButton.ElementHandleAsync(),
+            new() { Timeout = 5_000 });
+        await createButton.ClickAsync();
     }
 
     public async Task<bool> PlanExistsInList(string titleFragment)
