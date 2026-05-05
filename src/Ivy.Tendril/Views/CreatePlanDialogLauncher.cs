@@ -1,3 +1,4 @@
+using Ivy.Tendril.Apps;
 using Ivy.Tendril.Apps.Plans.Dialogs;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
@@ -10,6 +11,7 @@ public class CreatePlanDialogLauncher(Func<Action, object> renderTrigger) : View
     {
         var jobService = UseService<IJobService>();
         var configService = UseService<IConfigService>();
+        var navigator = UseService<INavigator>();
         var dialogOpen = UseState(false);
         var lastSelectedProjects = UseState<string[]>(["Auto"]);
 
@@ -21,17 +23,25 @@ public class CreatePlanDialogLauncher(Func<Action, object> renderTrigger) : View
         };
 
         if (dialogOpen.Value)
-            elements.Add(new CreatePlanDialog(
-                projectNames,
-                (description, projects, priority) =>
-                {
-                    lastSelectedProjects.Set(projects);
-                    var project = string.Join(",", projects);
-                    jobService.StartJob(Constants.JobTypes.CreatePlan, "-Description", $"{description} [FORCE]", "-Project", project, "-Priority", priority.ToString());
-                },
-                () => dialogOpen.Set(false),
-                lastSelectedProjects.Value
-            ));
+        {
+            if (projectNames.Count == 0)
+                elements.Add(new NoProjectsDialog(
+                    () => dialogOpen.Set(false),
+                    () => navigator.Navigate<SetupApp>()
+                ));
+            else
+                elements.Add(new CreatePlanDialog(
+                    projectNames,
+                    (description, projects, priority) =>
+                    {
+                        lastSelectedProjects.Set(projects);
+                        var project = string.Join(",", projects);
+                        jobService.StartJob(Constants.JobTypes.CreatePlan, "-Description", $"{description} [FORCE]", "-Project", project, "-Priority", priority.ToString());
+                    },
+                    () => dialogOpen.Set(false),
+                    lastSelectedProjects.Value
+                ));
+        }
 
         return new Fragment(elements.ToArray());
     }
