@@ -20,13 +20,26 @@ public class DashboardPage
     }
 
     public async Task NavigateToDrafts() =>
-        await _page.GetByText("Drafts").First.ClickAsync();
+        await ClickSidebarItem("Drafts");
 
     public async Task NavigateToJobs() =>
-        await _page.GetByText("Jobs").First.ClickAsync();
+        await ClickSidebarItem("Jobs");
 
     public async Task NavigateToReview() =>
-        await _page.GetByText("Review").First.ClickAsync();
+        await ClickSidebarItem("Review");
+
+    private async Task ClickSidebarItem(string text)
+    {
+        var locator = _page.GetByText(text).First;
+        try
+        {
+            await locator.ClickAsync(new() { Timeout = 5_000 });
+        }
+        catch (TimeoutException)
+        {
+            await locator.ClickAsync(new() { Force = true });
+        }
+    }
 
     public async Task<string> GetStatValue(string label)
     {

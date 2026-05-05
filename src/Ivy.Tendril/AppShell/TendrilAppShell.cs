@@ -26,6 +26,9 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
     private static async Task<SidebarNewsArticle[]> FetchNewsAsync()
     {
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("TENDRIL_E2E")))
+            return [];
+
         try
         {
             var json = await NewsHttp.GetStringAsync(Constants.NewsBaseUrl + "news.json");

@@ -11,7 +11,7 @@ public class CreatePlanDialogLauncher(Func<Action, object> renderTrigger) : View
     {
         var jobService = UseService<IJobService>();
         var configService = UseService<IConfigService>();
-        var navigator = UseService<INavigator>();
+        var navigator = UseNavigation();
         var dialogOpen = UseState(false);
         var lastSelectedProjects = UseState<string[]>(["Auto"]);
 
