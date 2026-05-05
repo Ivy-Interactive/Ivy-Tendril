@@ -45,6 +45,9 @@ public class SoftwareCheckStepView(
         var installing = UseState<HashSet<string>>(() => new HashSet<string>());
         var installErrors = UseState<Dictionary<string, string>>(() => new Dictionary<string, string>());
         var installAttempted = UseState(false);
+        var ghAuthInProgress = UseState(false);
+        var ghAuthCode = UseState<string?>(() => null);
+        var ghAuthError = UseState<string?>(() => null);
 
         var hasAnyCodingAgent = checkResults.Value != null
                                 && (checkResults.Value["claude"] || checkResults.Value["codex"] ||
@@ -116,6 +119,17 @@ public class SoftwareCheckStepView(
                                      .Disabled(busy)
                                      .OnClick(async () => await DoInstall(key));
                              }
+                             if (value.StartsWith("auth:"))
+                             {
+                                 var key = value.Substring("auth:".Length);
+                                 var busy = ghAuthInProgress.Value;
+                                 var label = busy ? "Authenticating..." : "Authenticate";
+                                 return new Button(label)
+                                     .Inline()
+                                     .Loading(busy)
+                                     .Disabled(busy)
+                                     .OnClick(async () => await DoAuth(key));
+                             }
                              return value.StartsWith("http")
                                  ? new Button("Install").Inline().Url(value)
                                  : (object)value;
@@ -126,6 +140,20 @@ public class SoftwareCheckStepView(
                    ? Text.Markdown(
                        "**Install errors:**\n\n" +
                        string.Join("\n", installErrors.Value.Select(kvp => $"- **{kvp.Key}**: {kvp.Value}")))
+                   : null!)
+               | (ghAuthCode.Value != null
+                   ? Layout.Vertical()
+                     | new Separator()
+                     | Text.H3("Authenticate GitHub CLI")
+                     | Text.Block($"Open the link below and enter this one-time code:")
+                     | Text.Code(ghAuthCode.Value!, Languages.Text)
+                     | new Button("Open github.com/login/device")
+                         .Primary()
+                         .Url(GitHubAuthenticator.DeviceFlowUrl)
+                     | Text.Muted("Waiting for authentication to complete...")
+                   : null!)
+               | (ghAuthError.Value != null
+                   ? Text.Markdown($"**Authentication error:** {ghAuthError.Value}")
                    : null!)
                | (installAttempted.Value
                    ? Text.Muted(
@@ -186,6 +214,38 @@ public class SoftwareCheckStepView(
             }
         }
 
+        async Task DoAuth(string key)
+        {
+            if (key != "gh") return;
+
+            ghAuthInProgress.Set(true);
+            ghAuthError.Set(null);
+            ghAuthCode.Set(null);
+
+            try
+            {
+                var (ok, message) = await GitHubAuthenticator.AuthenticateAsync(
+                    onCodeDetected: code => ghAuthCode.Set(code));
+                if (!ok)
+                {
+                    ghAuthError.Set(string.IsNullOrWhiteSpace(message) ? "Authentication failed." : message);
+                }
+                else
+                {
+                    await CheckSoftware();
+                }
+            }
+            catch (Exception ex)
+            {
+                ghAuthError.Set($"Unexpected error: {ex.Message}");
+            }
+            finally
+            {
+                ghAuthInProgress.Set(false);
+                ghAuthCode.Set(null);
+            }
+        }
+
         async Task CheckSoftware()
         {
             isChecking.Set(true);
@@ -234,6 +294,7 @@ public class SoftwareCheckStepView(
             { IsInstalled: false } => SoftwareInstaller.CanAutoInstall(result.Key)
                 ? $"install:{result.Key}"
                 : result.InstallUrl,
+            { HealthStatus: HealthCheckStatus.NotAuthenticated, Key: "gh" } => "auth:gh",
             { HealthStatus: HealthCheckStatus.NotAuthenticated } => check?.HealthHint ?? "",
             { HealthStatus: HealthCheckStatus.CheckFailed } => "Try clicking Recheck",
             _ => ""
