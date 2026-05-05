@@ -240,6 +240,14 @@ verifications:
     2. Review all commits made by this execution
     3. Compare the plan's Problem and Solution sections against the actual changes
     4. Write the verification report to `<PlanFolder>/verification/CheckResult.md`
+- name: VisualCheck
+  prompt: >
+    Run Playwright tests for changed frontend components and capture screenshots.
+    1. Read the plan revision's **## Tests** section.
+    2. If the plan involves frontend changes, identify affected pages/components.
+    3. Run Playwright tests with screenshot capture enabled.
+    4. Save screenshots to `<PlanFolder>/artifacts/screenshots/` with descriptive filenames (e.g., `login-page-before.png`, `login-page-after.png`).
+    5. Create a visual comparison report at `<PlanFolder>/artifacts/screenshots/report.md` listing all captured screenshots.
 
 # Stack-specific verification examples (uncomment and customize for your stack):
 
@@ -274,6 +282,16 @@ verifications:
 #   prompt: Run `go build ./...` and verify it succeeds.
 # - name: GoTest
 #   prompt: Run `go test <packages>` with the filter from the plan's **## Tests** section.
+
+# Frontend Visual Testing:
+# - name: VisualCheck
+#   prompt: >
+#     Run Playwright tests for changed frontend components and capture screenshots.
+#     1. Read the plan revision's **## Tests** section.
+#     2. If the plan involves frontend changes, identify affected pages/components.
+#     3. Run Playwright tests with screenshot capture enabled.
+#     4. Save screenshots to `<PlanFolder>/artifacts/screenshots/` with descriptive filenames (e.g., `login-page-before.png`, `login-page-after.png`).
+#     5. Create a visual comparison report at `<PlanFolder>/artifacts/screenshots/report.md` listing all captured screenshots.
 
 levels:
   - name: Bug
