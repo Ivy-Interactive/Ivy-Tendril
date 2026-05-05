@@ -573,8 +573,6 @@ internal class JobCompletionHandler
             var plansDir = _planReaderService.PlansDirectory;
             if (!Directory.Exists(plansDir)) return;
 
-            var planId = job.ReportedPlanId ?? job.AllocatedPlanId;
-
             // 1. Agent reported a plan ID via the status API
             if (!string.IsNullOrEmpty(job.ReportedPlanId))
             {
@@ -584,7 +582,15 @@ internal class JobCompletionHandler
                     job.PlanFile = reportedFolder;
                     return;
                 }
+
+                // Reported ID doesn't match any plan folder — clear it so the
+                // bogus value doesn't leak into the UI (e.g. agent copied the
+                // example "01234" from documentation instead of calling the CLI).
+                job.ReportedPlanId = null;
+                job.ReportedPlanTitle = null;
             }
+
+            var planId = job.ReportedPlanId ?? job.AllocatedPlanId;
 
             // 2. Check output regex (backward compat)
             var outputText = string.Join("\n", job.OutputLines);

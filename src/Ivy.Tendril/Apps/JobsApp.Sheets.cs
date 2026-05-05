@@ -17,6 +17,7 @@ public partial class JobsApp
         IJobService jobService,
         IWriteStream<string> outputStream,
         IState<bool> hasStreamContent,
+        IState<string?> streamingJobId,
         LayoutView layout)
     {
         object? activeSheet = null;
@@ -38,7 +39,7 @@ public partial class JobsApp
         }
         else if (showOutput.Value is { } jobId)
         {
-            var outputSheetView = new OutputSheet(jobId, jobService, outputStream, hasStreamContent);
+            var outputSheetView = new OutputSheet(jobId, jobService, outputStream, hasStreamContent, streamingJobId);
 
             activeSheet = new Sheet(
                 () => showOutput.Set(null),
