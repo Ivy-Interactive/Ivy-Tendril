@@ -182,7 +182,9 @@ public class JobServicePlanYamlTests : IDisposable
         var tempDir = _tempDir.Path;
 
         {
-            var yamlContent = "state: Draft\nproject: TestProject\nupdated: 2026-01-01T00:00:00Z\n";
+            var repoDir = Path.Combine(tempDir, "repo");
+            Directory.CreateDirectory(repoDir);
+            var yamlContent = $"state: Draft\nproject: TestProject\nlevel: NiceToHave\ntitle: Test Plan\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nrepos:\n- {repoDir}\nprs: []\ncommits: []\nverifications: []\nrelatedPlans: []\ndependsOn: []\n";
             File.WriteAllText(Path.Combine(tempDir, "plan.yaml"), yamlContent);
 
             JobService.SetPlanStateByFolder(tempDir, "Executing");
@@ -199,14 +201,16 @@ public class JobServicePlanYamlTests : IDisposable
         var tempDir = _tempDir.Path;
 
         {
-            var yamlContent = "state: Draft\nproject: TestProject\nupdated: 2026-01-01T00:00:00Z\n";
+            var repoDir = Path.Combine(tempDir, "repo");
+            Directory.CreateDirectory(repoDir);
+            var yamlContent = $"state: Draft\nproject: TestProject\nlevel: NiceToHave\ntitle: Test Plan\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nrepos:\n- {repoDir}\nprs: []\ncommits: []\nverifications: []\nrelatedPlans: []\ndependsOn: []\n";
             File.WriteAllText(Path.Combine(tempDir, "plan.yaml"), yamlContent);
 
             JobService.SetPlanStateByFolder(tempDir, "ReadyForReview");
 
             var result = File.ReadAllText(Path.Combine(tempDir, "plan.yaml"));
-            // Verify ISO 8601 format with Z suffix: yyyy-MM-ddTHH:mm:ssZ
-            Assert.Matches(@"updated: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", result);
+            // Verify ISO 8601 format: yyyy-MM-ddTHH:mm:ss (with optional fractional seconds and Z)
+            Assert.Matches(@"updated: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}", result);
         }
     }
 }

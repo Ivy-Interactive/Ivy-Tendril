@@ -3,8 +3,25 @@ using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
 
-public class JobServiceFailureReasonTests
+public class JobServiceFailureReasonTests : IDisposable
 {
+    private readonly TempDirectoryFixture _tempDir = new();
+
+    public void Dispose()
+    {
+        _tempDir.Dispose();
+    }
+
+    private string CreateValidPlanFolder()
+    {
+        var dir = Path.Combine(_tempDir.Path, $"plan-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        var repoDir = Path.Combine(dir, "repo");
+        Directory.CreateDirectory(repoDir);
+        File.WriteAllText(Path.Combine(dir, "plan.yaml"),
+            $"state: Draft\nproject: TestProject\nlevel: NiceToHave\ntitle: Test Plan\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nrepos:\n- {repoDir}\nprs: []\ncommits: []\nverifications: []\nrelatedPlans: []\ndependsOn: []\n");
+        return dir;
+    }
     [Fact]
     public void ExtractFailureReason_EmptyOutput_ReturnsUnknownError()
     {
@@ -111,7 +128,8 @@ public class JobServiceFailureReasonTests
     public void CompleteJob_ZeroExitCode_NullStatusMessage()
     {
         var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
-        var id = service.StartJob("ExecutePlan", Path.GetTempPath());
+        var planFolder = CreateValidPlanFolder();
+        var id = service.StartJob("ExecutePlan", planFolder);
 
         service.CompleteJob(id, 0);
 
@@ -150,7 +168,8 @@ public class JobServiceFailureReasonTests
     public void CompleteJob_WithExistingStatusMessage_PreservesApiSetMessage()
     {
         var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
-        var id = service.StartJob("ExecutePlan", Path.GetTempPath());
+        var planFolder = CreateValidPlanFolder();
+        var id = service.StartJob("ExecutePlan", planFolder);
         var job = service.GetJob(id)!;
         job.StatusMessage = "Execution failed (exit code: 1)";
         job.OutputLines.Enqueue("[stderr] some raw stderr output");

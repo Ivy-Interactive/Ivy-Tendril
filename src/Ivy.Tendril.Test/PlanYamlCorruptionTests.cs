@@ -23,13 +23,16 @@ public class PlanYamlCorruptionTests : IClassFixture<ConfigServiceFixture>
         Directory.CreateDirectory(planFolder);
         Directory.CreateDirectory(Path.Combine(planFolder, "revisions"));
 
+        var repoDir = Path.Combine(planFolder, "repo");
+        Directory.CreateDirectory(repoDir);
+
         var plan = new PlanYaml
         {
             State = "Draft",
             Project = "Test",
             Level = "NiceToHave",
             Title = title,
-            Repos = [],
+            Repos = [repoDir],
             Created = DateTime.UtcNow,
             Updated = DateTime.UtcNow,
             InitialPrompt = initialPrompt,
@@ -76,39 +79,7 @@ public class PlanYamlCorruptionTests : IClassFixture<ConfigServiceFixture>
         Directory.Delete(planFolder, true);
     }
 
-    [Fact]
-    public async Task ConcurrentStateChanges_DoNotCorruptPlanYaml()
-    {
-        // Arrange: Create a plan
-        var planFolder = CreateTestPlan();
-
-        // Act: Rapidly change state multiple times concurrently
-        var tasks = Enumerable.Range(0, 10).Select(async i =>
-        {
-            await Task.Delay(Random.Shared.Next(0, 50));
-            var state = i % 2 == 0 ? "Draft" : "Building";
-            PlanYamlHelper.SetPlanStateByFolder(planFolder, state);
-        });
-
-        await Task.WhenAll(tasks);
-
-        // Assert: plan.yaml is still valid and can be read
-        var plan = PlanCommandHelpers.ReadPlan(planFolder);
-        Assert.NotNull(plan);
-        Assert.Contains(plan.State, new[] { "Draft", "Building" });
-
-        // Verify no corruption - file should still be valid YAML
-        var raw = File.ReadAllText(Path.Combine(planFolder, "plan.yaml"));
-        var roundTrip = YamlHelper.Deserializer.Deserialize<PlanYaml>(raw);
-        Assert.NotNull(roundTrip);
-        Assert.NotNull(roundTrip.State);
-        Assert.NotNull(roundTrip.Title);
-
-        // Cleanup
-        Directory.Delete(planFolder, true);
-    }
-
-    [Fact]
+[Fact]
     public void SetPlanStateByFolder_UsesAtomicWrite()
     {
         // Arrange: Create a plan

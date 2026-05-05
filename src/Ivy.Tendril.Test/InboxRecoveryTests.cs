@@ -239,7 +239,14 @@ public class InboxRecoveryTests
         {
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
 
-            var id = jobService.StartJob("ExecutePlan", Path.GetTempPath());
+            var planFolder = Path.Combine(tempDir, "plan");
+            Directory.CreateDirectory(planFolder);
+            var repoDir = Path.Combine(planFolder, "repo");
+            Directory.CreateDirectory(repoDir);
+            File.WriteAllText(Path.Combine(planFolder, "plan.yaml"),
+                $"state: Draft\nproject: TestProject\nlevel: NiceToHave\ntitle: Test Plan\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nrepos:\n- {repoDir}\nprs: []\ncommits: []\nverifications: []\nrelatedPlans: []\ndependsOn: []\n");
+
+            var id = jobService.StartJob("ExecutePlan", planFolder);
             var job = jobService.GetJob(id);
             Assert.NotNull(job);
             Assert.Null(job.InboxFile);
