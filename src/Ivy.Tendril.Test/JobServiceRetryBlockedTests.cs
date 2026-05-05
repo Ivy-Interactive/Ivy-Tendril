@@ -16,6 +16,8 @@ public class JobServiceRetryBlockedTests : IDisposable
     {
         var planDir = Path.Combine(_tempDir.Path, $"plan-{Guid.NewGuid():N}");
         Directory.CreateDirectory(planDir);
+        var repoDir = Path.Combine(planDir, "repo");
+        Directory.CreateDirectory(repoDir);
 
         string depsYaml;
         if (dependsOn is { Count: > 0 })
@@ -30,7 +32,7 @@ public class JobServiceRetryBlockedTests : IDisposable
             prsYaml = "prs: []";
 
         var yaml =
-            $"state: {state}\nproject: TestProject\nlevel: NiceToHave\ntitle: Test\nupdated: 2026-01-01T00:00:00Z\n{depsYaml}\n{prsYaml}\ncommits: []\nverifications: []\nrelatedPlans: []\nrepos: []\n";
+            $"state: {state}\nproject: TestProject\nlevel: NiceToHave\ntitle: Test\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\n{depsYaml}\n{prsYaml}\ncommits: []\nverifications: []\nrelatedPlans: []\nrepos:\n- {repoDir}\n";
         File.WriteAllText(Path.Combine(planDir, "plan.yaml"), yaml);
         return planDir;
     }
@@ -44,8 +46,10 @@ public class JobServiceRetryBlockedTests : IDisposable
         {
             var planDir = Path.Combine(plansDir, folderName);
             Directory.CreateDirectory(planDir);
+            var repoDir = Path.Combine(planDir, "repo");
+            Directory.CreateDirectory(repoDir);
             var yaml =
-                $"state: {state}\nproject: TestProject\nlevel: NiceToHave\ntitle: {folderName}\nupdated: 2026-01-01T00:00:00Z\ndependsOn: []\nprs: []\ncommits: []\nverifications: []\nrelatedPlans: []\nrepos: []\n";
+                $"state: {state}\nproject: TestProject\nlevel: NiceToHave\ntitle: {folderName}\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\ndependsOn: []\nprs: []\ncommits: []\nverifications: []\nrelatedPlans: []\nrepos:\n- {repoDir}\n";
             File.WriteAllText(Path.Combine(planDir, "plan.yaml"), yaml);
         }
 

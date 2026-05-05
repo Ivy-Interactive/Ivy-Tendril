@@ -373,6 +373,21 @@ codingAgents:
     model: gemini-2.5-flash-lite
     effort: ''
     arguments: ''
+- name: opencode
+  arguments: ''
+  profiles:
+  - name: deep
+    model: opencode-advanced
+    effort: high
+    arguments: ''
+  - name: balanced
+    model: opencode-standard
+    effort: medium
+    arguments: ''
+  - name: quick
+    model: opencode-fast
+    effort: low
+    arguments: ''
 telemetry: true
 levels:
 - name: Bug

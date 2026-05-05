@@ -36,7 +36,10 @@ public class JobServiceHookTests : IDisposable
     {
         var dir = Path.Combine(_tempDir.Path, $"plan-{Guid.NewGuid()}");
         Directory.CreateDirectory(dir);
-        File.WriteAllText(Path.Combine(dir, "plan.yaml"), $"state: Executing\nproject: {projectName}\n");
+        var repoDir = Path.Combine(dir, "repo");
+        Directory.CreateDirectory(repoDir);
+        File.WriteAllText(Path.Combine(dir, "plan.yaml"),
+            $"state: Executing\nproject: {projectName}\nlevel: NiceToHave\ntitle: Test Plan\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nrepos:\n- {repoDir}\nprs: []\ncommits: []\nverifications: []\nrelatedPlans: []\ndependsOn: []\n");
         return dir;
     }
 

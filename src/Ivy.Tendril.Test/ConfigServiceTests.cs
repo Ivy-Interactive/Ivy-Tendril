@@ -1510,7 +1510,7 @@ maxConcurrentJobs: 10
     }
 
     [Fact]
-    public void LoadConfig_WhenFileNotFound_LogsExpectedPath()
+    public void LoadConfig_WhenFileNotFound_ServiceInitializesWithDefaults()
     {
         var tempDir = _tempDir.Path;
         var configPath = Path.Combine(tempDir, "config.yaml");
@@ -1532,10 +1532,10 @@ maxConcurrentJobs: 10
 
         var service = new ConfigService(new TendrilSettings(), tempDir, logger);
 
-        Assert.Contains(logMessages, msg =>
-            msg.Contains("Configuration file not found") &&
-            msg.Contains(configPath) &&
-            msg.Contains("config.yaml"));
+        // Internal constructor does not attempt to load config from disk,
+        // so no warning is logged — it uses the provided settings directly.
+        Assert.Empty(logMessages);
+        Assert.Equal(configPath, service.ConfigPath);
     }
 
     [Fact]

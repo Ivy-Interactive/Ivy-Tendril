@@ -31,6 +31,8 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
     {
         var folder = Path.Combine(_plansDir, name);
         Directory.CreateDirectory(folder);
+        var repoDir = Path.Combine(folder, "repo");
+        Directory.CreateDirectory(repoDir);
 
         string depsYaml;
         if (dependsOn is { Count: > 0 })
@@ -41,12 +43,16 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         File.WriteAllText(Path.Combine(folder, "plan.yaml"), $"""
                                                               state: {state}
                                                               project: Tendril
+                                                              level: NiceToHave
                                                               title: {name}
                                                               created: 2026-04-01T00:00:00Z
                                                               updated: 2026-04-01T00:00:00Z
+                                                              repos:
+                                                              - {repoDir}
                                                               prs: []
                                                               commits: []
                                                               verifications: []
+                                                              relatedPlans: []
                                                               {depsYaml}
                                                               """);
 

@@ -24,14 +24,22 @@ public class JobServiceCreateIssueTests : IDisposable
 
     private void WritePlanYaml(string state)
     {
+        var repoDir = Path.Combine(_tempDir.Path, "repo");
+        Directory.CreateDirectory(repoDir);
         File.WriteAllText(_planYamlPath, $"""
                                           state: {state}
                                           project: Tendril
+                                          level: NiceToHave
                                           title: Test Plan
                                           created: 2026-04-01T00:00:00Z
                                           updated: 2026-04-01T00:00:00Z
+                                          repos:
+                                          - {repoDir}
+                                          prs: []
                                           commits: []
                                           verifications: []
+                                          relatedPlans: []
+                                          dependsOn: []
                                           """);
     }
 

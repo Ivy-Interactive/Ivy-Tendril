@@ -11,6 +11,17 @@ public class JobServiceCostTrackingTests : IDisposable
     {
         _tempDir.Dispose();
     }
+
+    private string CreateValidPlanFolder(string? basePath = null)
+    {
+        var dir = Path.Combine(basePath ?? _tempDir.Path, $"plan-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        var repoDir = Path.Combine(dir, "repo");
+        Directory.CreateDirectory(repoDir);
+        File.WriteAllText(Path.Combine(dir, "plan.yaml"),
+            $"state: Draft\nproject: TestProject\nlevel: NiceToHave\ntitle: Test Plan\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nrepos:\n- {repoDir}\nprs: []\ncommits: []\nverifications: []\nrelatedPlans: []\ndependsOn: []\n");
+        return dir;
+    }
     private static string? FindTestScriptPath()
     {
         var relativeCandidates = new[]
@@ -54,8 +65,9 @@ public class JobServiceCostTrackingTests : IDisposable
     public void LaunchJob_SetsSessionIdToValidGuid()
     {
         var service = CreateService();
+        var planFolder = CreateValidPlanFolder();
 
-        var id = service.StartJob("ExecutePlan", Path.GetTempPath());
+        var id = service.StartJob("ExecutePlan", planFolder);
         var job = service.GetJob(id);
 
         Assert.NotNull(job);
@@ -68,9 +80,11 @@ public class JobServiceCostTrackingTests : IDisposable
     public void LaunchJob_SessionIdIsUniquePerJob()
     {
         var service = CreateService();
+        var planFolder1 = CreateValidPlanFolder();
+        var planFolder2 = CreateValidPlanFolder();
 
-        var id1 = service.StartJob("ExecutePlan", Path.GetTempPath());
-        var id2 = service.StartJob("ExecutePlan", Path.GetTempPath());
+        var id1 = service.StartJob("ExecutePlan", planFolder1);
+        var id2 = service.StartJob("ExecutePlan", planFolder2);
 
         var job1 = service.GetJob(id1);
         var job2 = service.GetJob(id2);
@@ -86,8 +100,9 @@ public class JobServiceCostTrackingTests : IDisposable
         var settings = new TendrilSettings { CodingAgent = "codex" };
         var configService = new ConfigService(settings, _tempDir.Path);
         var service = new JobService(configService);
+        var planFolder = CreateValidPlanFolder();
 
-        var id = service.StartJob("ExecutePlan", Path.GetTempPath());
+        var id = service.StartJob("ExecutePlan", planFolder);
         var job = service.GetJob(id);
 
         Assert.NotNull(job);
@@ -104,8 +119,9 @@ public class JobServiceCostTrackingTests : IDisposable
             var settings = new TendrilSettings();
             var configService = new ConfigService(settings, tempDir);
             var service = new JobService(configService);
+            var planFolder = CreateValidPlanFolder(tempDir);
 
-            var id = service.StartJob("ExecutePlan", Path.GetTempPath());
+            var id = service.StartJob("ExecutePlan", planFolder);
             var job = service.GetJob(id);
 
             Assert.NotNull(job);

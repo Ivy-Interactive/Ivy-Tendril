@@ -14,7 +14,8 @@ public class AgentProviderFactory
         ["claude"] = new ClaudeAgentProvider(),
         ["codex"] = new CodexAgentProvider(),
         ["gemini"] = new GeminiAgentProvider(),
-        ["copilot"] = new CopilotAgentProvider()
+        ["copilot"] = new CopilotAgentProvider(),
+        ["opencode"] = new OpenCodeAgentProvider()
     };
 
     public static IAgentProvider GetProvider(string name)
@@ -80,7 +81,8 @@ public class AgentProviderFactory
             (a.Name.Equals("ClaudeCode", StringComparison.OrdinalIgnoreCase) && codingAgent == "claude") ||
             (a.Name.Equals("Codex", StringComparison.OrdinalIgnoreCase) && codingAgent == "codex") ||
             (a.Name.Equals("Gemini", StringComparison.OrdinalIgnoreCase) && codingAgent == "gemini") ||
-            (a.Name.Equals("Copilot", StringComparison.OrdinalIgnoreCase) && codingAgent == "copilot"));
+            (a.Name.Equals("Copilot", StringComparison.OrdinalIgnoreCase) && codingAgent == "copilot") ||
+            (a.Name.Equals("OpenCode", StringComparison.OrdinalIgnoreCase) && codingAgent == "opencode"));
 
         if (agentConfig != null)
         {
