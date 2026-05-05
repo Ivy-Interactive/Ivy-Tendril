@@ -44,6 +44,7 @@ public class SoftwareCheckStepView(
         var isChecking = UseState(false);
         var installing = UseState<HashSet<string>>(() => new HashSet<string>());
         var installErrors = UseState<Dictionary<string, string>>(() => new Dictionary<string, string>());
+        var installAttempted = UseState(false);
 
         var hasAnyCodingAgent = checkResults.Value != null
                                 && (checkResults.Value["claude"] || checkResults.Value["codex"] ||
@@ -126,7 +127,7 @@ public class SoftwareCheckStepView(
                        "**Install errors:**\n\n" +
                        string.Join("\n", installErrors.Value.Select(kvp => $"- **{kvp.Key}**: {kvp.Value}")))
                    : null!)
-               | (checkResults.Value != null
+               | (installAttempted.Value
                    ? Text.Muted(
                        "Auto-install runs in the background. If a freshly installed tool isn't detected after Recheck, restart Tendril so it picks up the updated PATH.")
                    : null!)
@@ -150,6 +151,8 @@ public class SoftwareCheckStepView(
 
         async Task DoInstall(string key)
         {
+            installAttempted.Set(true);
+
             var inProgress = new HashSet<string>(installing.Value) { key };
             installing.Set(inProgress);
 
@@ -162,16 +165,18 @@ public class SoftwareCheckStepView(
                 var (ok, message) = await SoftwareInstaller.InstallAsync(key);
                 if (!ok)
                 {
-                    var failed = new Dictionary<string, string>(installErrors.Value)
-                    {
-                        [key] = string.IsNullOrWhiteSpace(message) ? "Install failed." : message
-                    };
-                    installErrors.Set(failed);
+                    errors[key] = string.IsNullOrWhiteSpace(message) ? "Install failed." : message;
+                    installErrors.Set(new Dictionary<string, string>(errors));
                 }
                 else
                 {
                     await CheckSoftware();
                 }
+            }
+            catch (Exception ex)
+            {
+                errors[key] = $"Unexpected error: {ex.Message}";
+                installErrors.Set(new Dictionary<string, string>(errors));
             }
             finally
             {

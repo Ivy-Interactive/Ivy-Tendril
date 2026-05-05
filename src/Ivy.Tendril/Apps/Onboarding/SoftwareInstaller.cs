@@ -7,8 +7,8 @@ internal static class SoftwareInstaller
     public static bool CanAutoInstall(string key) => key switch
     {
         "powershell" => true,
-        "gh" => OperatingSystem.IsMacOS() || OperatingSystem.IsWindows() || HasBrew(),
-        "pandoc" => OperatingSystem.IsMacOS() || OperatingSystem.IsWindows() || HasBrew(),
+        "gh" => OperatingSystem.IsWindows() || HasBrew(),
+        "pandoc" => OperatingSystem.IsWindows() || HasBrew(),
         _ => false
     };
 
@@ -55,40 +55,60 @@ internal static class SoftwareInstaller
         return null;
     }
 
-    private static Task<(bool, string)> Run(string fileName, string arguments)
+    private static async Task<(bool, string)> Run(string fileName, string arguments)
     {
-        return Task.Run<(bool, string)>(() =>
+        try
         {
+            var psi = new ProcessStartInfo
+            {
+                FileName = OperatingSystem.IsWindows() ? "cmd.exe" : fileName,
+                Arguments = OperatingSystem.IsWindows()
+                    ? $"/S /c \"{fileName} {arguments}\""
+                    : arguments,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var proc = Process.Start(psi);
+            if (proc is null) return (false, $"Failed to start '{fileName}'.");
+
+            // Read both streams concurrently — reading them sequentially can
+            // deadlock when the child fills one pipe buffer while we're
+            // blocked on the other.
+            var stdoutTask = proc.StandardOutput.ReadToEndAsync();
+            var stderrTask = proc.StandardError.ReadToEndAsync();
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
             try
             {
-                var psi = new ProcessStartInfo
-                {
-                    FileName = OperatingSystem.IsWindows() ? "cmd.exe" : fileName,
-                    Arguments = OperatingSystem.IsWindows()
-                        ? $"/S /c \"{fileName} {arguments}\""
-                        : arguments,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-
-                using var proc = Process.Start(psi);
-                if (proc is null) return (false, $"Failed to start '{fileName}'.");
-
-                var stdout = proc.StandardOutput.ReadToEnd();
-                var stderr = proc.StandardError.ReadToEnd();
-                proc.WaitForExit(5 * 60 * 1000);
-
-                var combined = string.IsNullOrWhiteSpace(stderr)
-                    ? stdout.Trim()
-                    : (stdout + "\n" + stderr).Trim();
-                return (proc.ExitCode == 0, combined);
+                await proc.WaitForExitAsync(cts.Token);
             }
-            catch (Exception ex)
+            catch (OperationCanceledException)
             {
-                return (false, ex.Message);
+                try { proc.Kill(entireProcessTree: true); } catch { /* best-effort */ }
+                return (false, $"Install timed out after 5 minutes running '{fileName} {arguments}'. Try running it manually.");
             }
-        });
+
+            var stdout = await stdoutTask;
+            var stderr = await stderrTask;
+            var combined = string.IsNullOrWhiteSpace(stderr)
+                ? stdout.Trim()
+                : (stdout + "\n" + stderr).Trim();
+
+            if (proc.ExitCode != 0)
+            {
+                var detail = string.IsNullOrWhiteSpace(combined)
+                    ? $"exit code {proc.ExitCode}"
+                    : combined;
+                return (false, $"'{fileName} {arguments}' failed: {detail}");
+            }
+            return (true, combined);
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
+        }
     }
 }
