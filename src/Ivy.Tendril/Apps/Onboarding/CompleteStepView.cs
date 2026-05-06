@@ -18,6 +18,7 @@ public class CompleteStepView(
 
         var stream = UseStream<string>();
         var running = UseState(true);
+        var hasOutput = UseState(false);
         var error = UseState<string?>(null);
         var refreshToken = UseState(0);
         var isFinishing = UseState(false);
@@ -40,6 +41,8 @@ public class CompleteStepView(
                     return;
                 }
 
+                var notifyingStream = new NotifyingStream<string>(stream, () => hasOutput.Set(true));
+
                 foreach (var name in projectsNeedingVerifications)
                 {
                     var handle = runner.Run(new PromptwareRunOptions
@@ -50,7 +53,7 @@ public class CompleteStepView(
                             ["ProjectName"] = name,
                             ["Instructions"] = "Setup verifications"
                         }
-                    }, stream);
+                    }, notifyingStream);
 
                     await handle.Completion;
                     config.ReloadSettings();
@@ -134,7 +137,13 @@ public class CompleteStepView(
                | (error.Value != null ? Text.Danger(error.Value) : null!)
                | (running.Value
                    ? (object)new Box(
-                       new ClaudeJsonRenderer()
+                       Layout.Vertical().Gap(4).Width(Size.Full()).Height(Size.Full())
+                       | (!hasOutput.Value
+                           ? (object)(Layout.Vertical().Gap(2).AlignContent(Align.Center).Width(Size.Full()).Padding(8)
+                               | Icons.LoaderCircle.ToIcon().WithAnimation(AnimationType.Rotate).Duration(1)
+                               | Text.Muted("Starting agent..."))
+                           : null!)
+                       | new ClaudeJsonRenderer()
                            .Stream(stream)
                            .ShowThinking(false)
                            .ShowSystemEvents(false)
@@ -156,5 +165,30 @@ public class CompleteStepView(
                       .Disabled(running.Value || isFinishing.Value)
                       .Loading(isFinishing.Value)
                       .OnClick(async () => await OnFinish()));
+    }
+
+    private class NotifyingStream<T> : IWriteStream<T>
+    {
+        private readonly IWriteStream<T> _inner;
+        private readonly Action _onFirstWrite;
+        private bool _notified;
+
+        public NotifyingStream(IWriteStream<T> inner, Action onFirstWrite)
+        {
+            _inner = inner;
+            _onFirstWrite = onFirstWrite;
+        }
+
+        public string Id => _inner.Id;
+
+        public void Write(T data)
+        {
+            if (!_notified)
+            {
+                _notified = true;
+                _onFirstWrite();
+            }
+            _inner.Write(data);
+        }
     }
 }
