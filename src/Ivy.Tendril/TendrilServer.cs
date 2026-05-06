@@ -69,6 +69,7 @@ public static class TendrilServer
 
         server.Services.AddSingleton<OnboardingSetupService>();
         server.Services.AddSingleton<IOnboardingSetupService>(sp => sp.GetRequiredService<OnboardingSetupService>());
+        server.Services.AddSingleton<IOnboardingAuthRunner, OnboardingAuthRunner>();
         server.Services.AddSingleton<GithubService>();
         server.Services.AddSingleton<IGithubService>(sp => sp.GetRequiredService<GithubService>());
         server.Services.AddSingleton<IGitService>(sp =>

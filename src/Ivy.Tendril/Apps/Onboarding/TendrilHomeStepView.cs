@@ -26,7 +26,11 @@ public class TendrilHomeStepView(IState<int> stepperIndex) : ViewBase
                | (error.Value != null ? Text.Danger(error.Value) : null!)
                | folderPath.ToTextInput("Select Tendril data folder...")
                    .WithField().Label("Tendril Home")
-               | new Button("Next").Primary().Large().Icon(Icons.ArrowRight, Align.Right)
+               | (Layout.Horizontal().Width(Size.Full())
+                  | new Button("Back").Outline().Large().Icon(Icons.ArrowLeft)
+                      .OnClick(() => stepperIndex.Set(stepperIndex.Value - 1))
+                  | new Spacer()
+                  | new Button("Next").Primary().Large().Icon(Icons.ArrowRight, Align.Right)
                    .OnClick(() =>
                    {
                        if (string.IsNullOrEmpty(folderPath.Value))
@@ -72,6 +76,6 @@ public class TendrilHomeStepView(IState<int> stepperIndex) : ViewBase
                        {
                            error.Set($"Invalid path: {ex.Message}");
                        }
-                   });
+                   }));
     }
 }
