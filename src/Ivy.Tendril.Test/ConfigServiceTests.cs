@@ -141,10 +141,10 @@ projects:
     reviewActions:
       - name: Sample
         condition: 'Test-Path ""artifacts\sample\*.csproj""'
-        action: 'dotnet run --browse'
+        command: 'dotnet run --browse'
       - name: Open Docs
         condition: ''
-        action: 'start docs/index.html'
+        command: 'start docs/index.html'
 ";
 
         var tempDir = CreateTempConfigFile(yaml);
