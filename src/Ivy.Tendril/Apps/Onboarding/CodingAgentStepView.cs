@@ -226,7 +226,7 @@ public class CodingAgentStepView(
         {
             grid |= new Card(
                 Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(1)
-                | a.Logo.ToIcon().Width(Size.Px(32)).Height(Size.Px(32))
+                | a.Logo.ToIcon().Width(Size.Units(15)).Height(Size.Auto())
                 | Text.Block(a.Label)
             ).OnClick(() => onSelect(a.Key));
         }
