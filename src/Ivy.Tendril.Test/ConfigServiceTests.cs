@@ -160,12 +160,12 @@ projects:
 
             Assert.Equal("Sample", project.ReviewActions[0].Name);
             Assert.Contains("Test-Path", project.ReviewActions[0].Condition);
-            Assert.Equal("dotnet run --browse", project.ReviewActions[0].Action);
+            Assert.Equal("dotnet run --browse", project.ReviewActions[0].Command);
 
             Assert.Equal("Open Docs", project.ReviewActions[1].Name);
             Assert.Empty(project.ReviewActions[1].Condition);
-            Assert.Contains("start docs", project.ReviewActions[1].Action);
-            Assert.Contains("index.html", project.ReviewActions[1].Action);
+            Assert.Contains("start docs", project.ReviewActions[1].Command);
+            Assert.Contains("index.html", project.ReviewActions[1].Command);
         }
         finally
         {

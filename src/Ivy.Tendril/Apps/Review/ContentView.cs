@@ -402,7 +402,7 @@ public class ContentView(
                         var actionCapture = action;
                         btn = btn.OnClick(() =>
                         {
-                            if (!PlatformHelper.RunPowerShellAction(actionCapture.Action, selectedPlan.FolderPath, logger))
+                            if (!PlatformHelper.RunPowerShellAction(actionCapture.Command, selectedPlan.FolderPath, logger))
                             {
                                 logger.LogWarning("Failed to run review action {ActionName}: pwsh not found", actionCapture.Name);
                             }
@@ -459,7 +459,8 @@ public class ContentView(
                 new Tab("Artifacts", Cap(new ArtifactsTabView(planData.Artifacts))).Badge(totalArtifacts.ToString()),
                 new Tab("Recommendations", Cap(recommendationsLayout)).Badge(planData.Recommendations.Count.ToString()),
                 new Tab("Plan", Cap(planTabContent))
-            ).OnSelect(v => {
+            ).OnSelect(v =>
+            {
                 if (v >= 0 && v < tabNames.Length && selectedPlanState.Value != null)
                     nav.Navigate<ReviewApp>(new ReviewAppArgs(selectedPlanState.Value.FolderName, tabNames[v]));
             }).SelectedIndex(selectedTabIndex).Variant(TabsVariant.Content);
