@@ -57,7 +57,8 @@ public class OnboardingApp : ViewBase
         var steps = GetSteps(stepperIndex.Value);
 
         return Layout.TopCenter() |
-               (Layout.Vertical().Margin(0, 32, 0, 0).Width(150)
+               (Layout.Vertical().Margin(0, 20).Width(150)
+                | new Image("/tendril/assets/Tendril.svg").Width(Size.Units(20)).Height(Size.Auto())
                 | new Stepper(OnSelect, stepperIndex.Value, steps).Width(Size.Full())
                 | GetStepViews(stepperIndex, ghOwners, ghReposByOwner,
                                commonChecksPassed, homeBootstrapped, reposFetched, completedAgentKey,

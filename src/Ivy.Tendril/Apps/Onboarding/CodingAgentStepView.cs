@@ -100,16 +100,16 @@ public class CodingAgentStepView(
 
                 foreach (var c in checks.Where(c => c.HealthCheck != null))
                 {
-                    progressMessage.Set($"Verifying {c.Name} authentication...");
+                    progressMessage.Set($"Verifying {c.Name} Authentication...");
                     var status = await c.HealthCheck!();
                     if (status == HealthCheckStatus.Authenticated) continue;
 
-                    progressMessage.Set($"Signing in to {c.Name}... (browser will open)");
+                    progressMessage.Set($"Signing In to {c.Name}... (Browser Will Open)");
                     authCode.Set(null);
                     await authRunner.RunAuthAsync(c.Key, client, code => authCode.Set(code), CancellationToken.None);
                     authCode.Set(null);
 
-                    progressMessage.Set($"Verifying {c.Name} authentication...");
+                    progressMessage.Set($"Verifying {c.Name} Authentication...");
                     status = await c.HealthCheck!();
                     if (status != HealthCheckStatus.Authenticated)
                     {
@@ -129,7 +129,7 @@ public class CodingAgentStepView(
 
                 if (!homeBootstrapped.Value)
                 {
-                    progressMessage.Set("Setting up Tendril home...");
+                    progressMessage.Set("Setting Up Tendril Home...");
                     var defaultHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")
                                       ?? Path.Combine(
                                           Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
@@ -141,7 +141,7 @@ public class CodingAgentStepView(
 
                 if (!reposFetched.Value)
                 {
-                    progressMessage.Set("Fetching your GitHub repositories...");
+                    progressMessage.Set("Fetching Your GitHub Repositories...");
                     var owners = await GitHubCliHelper.GetOwnersAsync();
                     ghOwners.Set(owners);
 
@@ -187,7 +187,7 @@ public class CodingAgentStepView(
         var missing = missingCheck.Value;
 
         return Layout.Vertical().Margin(0, 0, 0, 20).Gap(4)
-               | Text.Bold(progressMessage.Value ?? $"Setting up {selected.Label}")
+               | Text.Bold(progressMessage.Value ?? $"Setting Up {selected.Label}")
                | (progressValue.Value != null
                    ? new Progress(progressValue.Value.Value)
                    : null!)
