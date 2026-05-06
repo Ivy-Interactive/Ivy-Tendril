@@ -19,6 +19,14 @@ Tendril is a web application built on [Ivy Framework](https://github.com/Ivy-Int
 - **GitHub PR integration** — Automated pull request creation from completed plans
 - **Plan review workflow** — Review diffs, run sample apps, approve or send back for revision
 
+## Deploy on Sliplane
+
+<p align="center">
+  <a href="https://ivy-tendril-deployment.sliplane.app">
+    <img src="https://raw.githubusercontent.com/Ivy-Interactive/Ivy-Examples/development/project-demos/tendril-deploy/Assets/deploy-button.svg" alt="Deploy your Tendril on Sliplane" />
+  </a>
+</p>
+
 ## Installation
 
 ### Quick Install
