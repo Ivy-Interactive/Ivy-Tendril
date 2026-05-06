@@ -37,7 +37,7 @@ public class OnboardingApp : ViewBase
                                          commonChecksPassed, homeBootstrapped, reposFetched, completedAgentKey),
             1 => new ProjectSetupStepView(stepperIndex, ghOwners, ghReposByOwner,
                                           selectedOwner, selectedRepos, projectName),
-            2 => new CompleteStepView(stepperIndex),
+            2 => new CompleteStepView(stepperIndex, selectedOwner, selectedRepos, projectName),
             _ => throw new ArgumentOutOfRangeException()
         };
     }
