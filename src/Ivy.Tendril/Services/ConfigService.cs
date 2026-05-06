@@ -94,7 +94,7 @@ public record ReviewActionConfig
 {
     public string Name { get; set; } = "";
     public string Condition { get; set; } = "";
-    public string Action { get; set; } = "";
+    public string Command { get; set; } = "";
 }
 
 public record PromptwareHookConfig

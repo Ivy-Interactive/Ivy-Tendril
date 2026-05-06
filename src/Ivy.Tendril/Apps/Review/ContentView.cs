@@ -402,7 +402,7 @@ public class ContentView(
                         var actionCapture = action;
                         btn = btn.OnClick(() =>
                         {
-                            if (!PlatformHelper.RunPowerShellAction(actionCapture.Action, selectedPlan.FolderPath, logger))
+                            if (!PlatformHelper.RunPowerShellAction(actionCapture.Command, selectedPlan.FolderPath, logger))
                             {
                                 logger.LogWarning("Failed to run review action {ActionName}: pwsh not found", actionCapture.Name);
                             }

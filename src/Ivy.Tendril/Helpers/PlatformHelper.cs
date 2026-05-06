@@ -48,6 +48,36 @@ public static class PlatformHelper
     {
         try
         {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                // On macOS, create a temporary .command script and open it in Terminal.app
+                // This ensures the terminal window is visible and interactive
+                var scriptPath = Path.Combine(Path.GetTempPath(), $"tendril-action-{Guid.NewGuid():N}.command");
+                var scriptContent = $"#!/bin/bash\ncd \"{workingDirectory}\"\npwsh -NoExit -NoProfile -Command \"{action.Replace("\"", "\\\"")}\"\nrm \"{scriptPath}\"\n";
+                File.WriteAllText(scriptPath, scriptContent);
+
+                // Make the script executable
+                var chmodPsi = new ProcessStartInfo("chmod", $"+x \"{scriptPath}\"")
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using (var chmodProc = Process.Start(chmodPsi))
+                {
+                    chmodProc?.WaitForExit();
+                }
+
+                // Open the script in Terminal.app
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "open",
+                    Arguments = $"-a Terminal \"{scriptPath}\"",
+                    UseShellExecute = true
+                });
+                return true;
+            }
+
+            // Windows and Linux: run pwsh directly
             Process.Start(new ProcessStartInfo
             {
                 FileName = "pwsh",
