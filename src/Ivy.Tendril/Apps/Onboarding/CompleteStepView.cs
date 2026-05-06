@@ -1,5 +1,4 @@
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps.Onboarding;
 
@@ -9,7 +8,6 @@ public class CompleteStepView(IState<int> stepperIndex) : ViewBase
     {
         var isProcessing = UseState(false);
         var error = UseState<string?>(null);
-        var config = UseService<IConfigService>();
         var setupService = UseService<IOnboardingSetupService>();
         var client = UseService<IClientProvider>();
 
@@ -20,23 +18,8 @@ public class CompleteStepView(IState<int> stepperIndex) : ViewBase
 
             try
             {
-                var tendrilHome = config.GetPendingTendrilHome();
-
-                if (string.IsNullOrEmpty(tendrilHome))
-                {
-                    error.Set("Tendril home path not set");
-                    isProcessing.Set(false);
-                    return;
-                }
-
-                // Step 1: Create directory structure and config
-                await setupService.CompleteSetupAsync(tendrilHome);
-
-                // Step 2: Start background services asynchronously (may take time)
-                // This now runs in a background thread without blocking DI resolution
+                await setupService.FinalizeOnboardingAsync();
                 await setupService.StartBackgroundServicesAsync();
-
-                // Step 3: Reload the page to transition to the main app shell
                 client.ReloadPage();
             }
             catch (Exception ex)
@@ -48,19 +31,16 @@ public class CompleteStepView(IState<int> stepperIndex) : ViewBase
 
         return Layout.Vertical().Margin(0, 0, 0, 20)
                | Text.H2("Ready to Go!")
-               | Text.Markdown(
-                   "We'll now:\n" +
-                   "- Create the necessary folder structure\n" +
-                   "- Set up your configuration file\n" +
-                   "- Initialize Tendril with default settings\n\n" +
-                   "Click 'Complete Setup' to finish.")
+               | Text.Markdown("All set — click **Finish** to start using Tendril.")
                | (error.Value != null ? Text.Danger(error.Value) : null!)
-               | new Button("Complete Setup")
-                   .Primary()
-                   .Large()
-                   .Icon(Icons.Check, Align.Right)
-                   .Disabled(isProcessing.Value)
-                   .Loading(isProcessing.Value)
-                   .OnClick(async () => await OnComplete());
+               | (Layout.Horizontal().Width(Size.Full())
+                  | new Button("Back").Outline().Large().Icon(Icons.ArrowLeft)
+                      .Disabled(isProcessing.Value)
+                      .OnClick(() => stepperIndex.Set(stepperIndex.Value - 1))
+                  | new Spacer()
+                  | new Button("Finish").Primary().Large().Icon(Icons.Check, Align.Right)
+                      .Disabled(isProcessing.Value)
+                      .Loading(isProcessing.Value)
+                      .OnClick(async () => await OnComplete()));
     }
 }

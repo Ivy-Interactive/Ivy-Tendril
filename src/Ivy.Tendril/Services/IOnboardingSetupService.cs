@@ -2,6 +2,7 @@ namespace Ivy.Tendril.Services;
 
 public interface IOnboardingSetupService
 {
-    Task CompleteSetupAsync(string tendrilHome);
+    Task BootstrapTendrilHomeAsync(string tendrilHome);
+    Task FinalizeOnboardingAsync();
     Task StartBackgroundServicesAsync();
 }

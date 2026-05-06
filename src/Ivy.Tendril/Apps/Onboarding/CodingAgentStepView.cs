@@ -1,11 +1,15 @@
 using System.Diagnostics;
 using Ivy.Helpers;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps.Onboarding;
 
-public class CodingAgentStepView(IState<int> stepperIndex) : ViewBase
+public class CodingAgentStepView(
+    IState<int> stepperIndex,
+    IState<string[]> ghOwners,
+    IState<Dictionary<string, string[]>> ghReposByOwner) : ViewBase
 {
     private record AgentInfo(string Key, string Label, Icons Logo);
 
@@ -22,6 +26,7 @@ public class CodingAgentStepView(IState<int> stepperIndex) : ViewBase
         var config = UseService<IConfigService>();
         var client = UseService<IClientProvider>();
         var authRunner = UseService<IOnboardingAuthRunner>();
+        var setupService = UseService<IOnboardingSetupService>();
 
         var selectedAgent = UseState<string?>(null);
         var progressMessage = UseState<string?>(null);
@@ -105,13 +110,33 @@ public class CodingAgentStepView(IState<int> stepperIndex) : ViewBase
                     }
                 }
 
+                config.Settings.CodingAgent = agentKey;
+                config.SetPendingCodingAgent(agentKey);
+
+                progressMessage.Set("Setting up Tendril home...");
+                var defaultHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")
+                                  ?? Path.Combine(
+                                      Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                                      ".tendril");
+                config.SetPendingTendrilHome(defaultHome);
+                await setupService.BootstrapTendrilHomeAsync(defaultHome);
+
+                progressMessage.Set("Fetching your GitHub repositories...");
+                var owners = await GitHubCliHelper.GetOwnersAsync();
+                ghOwners.Set(owners);
+
+                var repoFetches = owners.Select(async o => (Owner: o, Repos: await GitHubCliHelper.GetRepositoriesAsync(o)));
+                var results = await Task.WhenAll(repoFetches);
+                var byOwner = new Dictionary<string, string[]>();
+                foreach (var (owner, ownerRepos) in results)
+                    byOwner[owner] = ownerRepos;
+                ghReposByOwner.Set(byOwner);
+
                 progressCts.Cancel();
                 progressValue.Set(100);
                 progressMessage.Set("Done");
                 await Task.Delay(250);
 
-                config.Settings.CodingAgent = agentKey;
-                config.SetPendingCodingAgent(agentKey);
                 progressValue.Set(null);
                 progressMessage.Set(null);
                 stepperIndex.Set(stepperIndex.Value + 1);

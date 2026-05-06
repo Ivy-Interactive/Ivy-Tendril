@@ -1,197 +1,169 @@
-using Ivy.Desktop;
-using Ivy.Tendril.Apps.Onboarding.Dialogs;
-using Ivy.Tendril.Services;
-using System.IO;
+using System.Text.RegularExpressions;
 using Ivy.Tendril.Helpers;
-using Microsoft.Extensions.DependencyInjection;
-using Ivy.Core.Hooks;
+using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps.Onboarding;
 
-public class ProjectSetupStepView(IState<int> stepperIndex) : ViewBase
+public class ProjectSetupStepView(
+    IState<int> stepperIndex,
+    IState<string[]> ghOwners,
+    IState<Dictionary<string, string[]>> ghReposByOwner) : ViewBase
 {
+    private record RepoChoice(string Owner, string Name);
+
     public override object Build()
     {
         var config = UseService<IConfigService>();
+
+        var selectedOwner = UseState("");
+        var selectedRepo = UseState("");
+        var selectedRepos = UseState(new List<RepoChoice>());
         var projectName = UseState("");
-        var repoPaths = UseState(new List<string> { "" });
-        var projectContext = UseState("");
+        var isCloning = UseState(false);
         var error = UseState<string?>(null);
-        var verifications = UseState(new List<VerificationEntry>
+
+        UseEffect(() =>
         {
-            new("CheckResult", "Verify the implementation matches the plan requirements.", true)
-        });
+            if (string.IsNullOrEmpty(selectedOwner.Value) && ghOwners.Value.Length > 0)
+                selectedOwner.Set(ghOwners.Value[0]);
+        }, ghOwners);
 
-        // Dialog state for editing verifications
-        var editIndex = UseState<int?>(-1); // -1 = closed, null = new, >= 0 = editing index
-
-        var isFetching = UseState(false);
-        var localRepoPaths = UseState<List<string>>([]);
-
-        var dummyBranchState = UseState(""); // branch selection not stored in onboarding yet
-        var reposLayout = Layout.Vertical().Gap(2);
-        var currentRepos = repoPaths.Value;
-        for (var i = 0; i < currentRepos.Count; i++)
+        UseEffect(() =>
         {
-            var ri = i;
-            var repoUrlState = new ConvertedState<List<string>, string>(
-                repoPaths,
-                list => list[ri],
-                val => { var l = new List<string>(repoPaths.Value); l[ri] = val; return l; }
-            );
-            
-            reposLayout |= new Ivy.Tendril.Views.GitHubRepoSelectorView(repoUrlState, dummyBranchState, () =>
-                           {
-                               var list = new List<string>(repoPaths.Value);
-                               if (ri < list.Count) list.RemoveAt(ri);
-                               if (list.Count == 0) list.Add("");
-                               repoPaths.Set(list);
-                           });
+            selectedRepo.Set("");
+        }, selectedOwner);
+
+        UseEffect(() =>
+        {
+            var picked = selectedRepo.Value;
+            if (string.IsNullOrEmpty(picked) || string.IsNullOrEmpty(selectedOwner.Value))
+                return;
+
+            var owner = selectedOwner.Value;
+            selectedRepo.Set("");
+
+            var list = new List<RepoChoice>(selectedRepos.Value);
+            if (!list.Any(r => r.Owner == owner && r.Name == picked))
+            {
+                list.Add(new RepoChoice(owner, picked));
+                selectedRepos.Set(list);
+
+                if (string.IsNullOrEmpty(projectName.Value))
+                    projectName.Set(SanitizeProjectName(picked));
+            }
+        }, selectedRepo);
+
+        UseEffect(() =>
+        {
+            var raw = projectName.Value ?? "";
+            var sanitized = SanitizeProjectName(raw);
+            if (sanitized != raw) projectName.Set(sanitized);
+        }, projectName);
+
+        var repos = ghReposByOwner.Value.TryGetValue(selectedOwner.Value, out var ownerRepos)
+            ? ownerRepos
+            : Array.Empty<string>();
+
+        var listLayout = Layout.Vertical().Gap(2);
+        var current = selectedRepos.Value;
+        for (var i = 0; i < current.Count; i++)
+        {
+            var idx = i;
+            var item = current[idx];
+            listLayout |= new Box(
+                Layout.Horizontal().Width(Size.Full()).AlignContent(Align.Center)
+                | Text.Block($"{item.Owner}/{item.Name}")
+                | new Spacer()
+                | new Button().Icon(Icons.X).Ghost().OnClick(() =>
+                {
+                    var list = new List<RepoChoice>(selectedRepos.Value);
+                    if (idx < list.Count) list.RemoveAt(idx);
+                    selectedRepos.Set(list);
+                }).WithTooltip("Remove")
+            ).Padding(4, 2, 2, 2).Width(Size.Full());
         }
 
-
-
-        // Verification list
-        var verificationsLayout = Layout.Vertical().Gap(2);
-        var currentVerifications = verifications.Value;
-        for (var i = 0; i < currentVerifications.Count; i++)
-        {
-            var vi = i;
-            var v = currentVerifications[vi];
-            verificationsLayout |= Layout.Horizontal().Gap(2).AlignContent(Align.Center)
-                                   | Text.Block(v.Name).Width(Size.Grow())
-                                   | (v.Required ? new Badge("Required") : null!)
-                                   | new Button().Icon(Icons.Pencil).Ghost().OnClick(() =>
-                                   {
-                                       editIndex.Set(vi);
-                                   })
-                                   | new Button().Icon(Icons.Trash).Ghost().OnClick(() =>
-                                   {
-                                       var list = new List<VerificationEntry>(verifications.Value);
-                                       list.RemoveAt(vi);
-                                       verifications.Set(list);
-                                   });
-        }
+        var canContinue = selectedRepos.Value.Count > 0
+                          && !string.IsNullOrWhiteSpace(projectName.Value)
+                          && !isCloning.Value;
 
         return Layout.Vertical().Gap(4).Margin(0, 0, 0, 20)
                | Text.H2("Setup your first project")
-               | Text.Muted("Set up your first project. You can add more projects later in Settings.")
+               | Text.Muted("Pick the repositories this project will work with.")
                | (error.Value != null ? Text.Danger(error.Value) : null!)
+               | (Layout.Horizontal().Gap(2).Width(Size.Full())
+                  | selectedOwner.ToSelectInput(ghOwners.Value, disabled: isCloning.Value).Width(Size.Fraction(0.3f))
+                  | selectedRepo.ToSelectInput(repos, disabled: isCloning.Value || string.IsNullOrEmpty(selectedOwner.Value)).Width(Size.Grow()))
+               | new Separator()
+               | (selectedRepos.Value.Count > 0 ? listLayout : null!)
                | projectName.ToTextInput().WithField().Required().Label("Project Name")
-               | projectContext.ToTextareaInput()
-                   .Rows(4)
-                   .WithField()
-                   .Label("Context (Optional)")
-               | new Separator()
-               | (Layout.Vertical().Gap(2)
-                  | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                     | Text.Block("Repositories").Bold()
-                     | new Button("Add Repository").Icon(Icons.Plus).Outline().OnClick(() =>
-                     {
-                         var list = new List<string>(repoPaths.Value) { "" };
-                         repoPaths.Set(list);
-                     }))
-                  | Text.Muted("Add at least one repository URL for this project.")
-                  | reposLayout
-                  | (Layout.Horizontal().AlignContent(Align.Left)
-                      | new Button(isFetching.Value ? "Fetching..." : "Confirm & Fetch Repositories").Primary().Icon(Icons.Download)
-                          .Disabled(isFetching.Value)
-                          .OnClick(async () =>
-                          {
-                              var filledRepos = repoPaths.Value.Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
-                              if (filledRepos.Count == 0)
-                              {
-                                  error.Set("Please add at least one repository URL.");
-                                  return;
-                              }
-
-                              isFetching.Set(true);
-                              error.Set(null);
-
-                              var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
-                              var reposDir = Path.Combine(tendrilHome, "repos");
-                              Directory.CreateDirectory(reposDir);
-
-                              var fetchedPaths = new List<string>();
-
-                              foreach (var url in filledRepos)
-                              {
-                                  var repoName = url.Split('/').Last().Replace(".git", "");
-                                  if (string.IsNullOrWhiteSpace(repoName)) repoName = Guid.NewGuid().ToString();
-
-                                  var destPath = Path.Combine(reposDir, repoName);
-                                  
-                                  var success = await GitHubCliHelper.CloneRepositoryAsync(url, destPath);
-                                  if (!success)
-                                  {
-                                      error.Set($"Failed to fetch repository: {url}. Ensure 'git' is installed and you have access.");
-                                      isFetching.Set(false);
-                                      return;
-                                  }
-                                  
-                                  fetchedPaths.Add(destPath);
-                              }
-
-                              localRepoPaths.Set(fetchedPaths);
-                              isFetching.Set(false);
-                          })
-                  ))
-               | (localRepoPaths.Value.Count > 0 ? new Fragment(
-                   new Separator(),
-                   Layout.Vertical().Gap(2)
-                      | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                         | Text.Block("Verifications").Bold()
-                         | new Button("Add Verification").Icon(Icons.Plus).Outline().OnClick(() =>
-                         {
-                             editIndex.Set(null);
-                         }))
-                      | Text.Muted("Define verifications to run for this project.")
-                      | verificationsLayout
-                 ) : null!)
-               | new Separator()
-               | (Layout.Horizontal().Gap(2)
-                  | new Button("Next").Primary().Large().Icon(Icons.ArrowRight, Align.Right)
-                      .Disabled(localRepoPaths.Value.Count == 0)
-                      .OnClick(() =>
+               | (Layout.Horizontal().Width(Size.Full())
+                  | new Button("Back").Outline().Large().Icon(Icons.ArrowLeft)
+                      .Disabled(isCloning.Value)
+                      .OnClick(() => stepperIndex.Set(stepperIndex.Value - 1))
+                  | new Spacer()
+                  | new Button("Continue").Primary().Large().Icon(Icons.ArrowRight, Align.Right)
+                      .Disabled(!canContinue)
+                      .Loading(isCloning.Value)
+                      .OnClick(async () =>
                       {
-                          if (string.IsNullOrWhiteSpace(projectName.Value))
+                          if (selectedRepos.Value.Count == 0)
                           {
-                              error.Set("Please enter a project name.");
+                              error.Set("Please select at least one repository.");
+                              return;
+                          }
+                          var name = SanitizeProjectName(projectName.Value);
+                          if (string.IsNullOrWhiteSpace(name))
+                          {
+                              error.Set("Please enter a valid project name.");
                               return;
                           }
 
-                          var validVerifications = verifications.Value
-                              .Where(v => !string.IsNullOrWhiteSpace(v.Name))
-                              .ToList();
+                          isCloning.Set(true);
+                          error.Set(null);
+
+                          var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")
+                                            ?? Path.Combine(
+                                                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                                                ".tendril");
+                          var reposDir = Path.Combine(tendrilHome, "repos");
+                          Directory.CreateDirectory(reposDir);
+
+                          var refs = new List<RepoRef>();
+                          foreach (var choice in selectedRepos.Value)
+                          {
+                              var url = $"https://github.com/{choice.Owner}/{choice.Name}.git";
+                              var destPath = Path.Combine(reposDir, choice.Name);
+                              var success = await GitHubCliHelper.CloneRepositoryAsync(url, destPath);
+                              if (!success)
+                              {
+                                  error.Set($"Failed to fetch repository: {choice.Owner}/{choice.Name}.");
+                                  isCloning.Set(false);
+                                  return;
+                              }
+                              refs.Add(new RepoRef { Path = destPath, PrRule = "default" });
+                          }
 
                           var project = new ProjectConfig
                           {
-                              Name = projectName.Value.Trim(),
+                              Name = name,
                               Color = "Green",
-                              Repos = localRepoPaths.Value.Select(p => new RepoRef { Path = p, PrRule = "default" }).ToList(),
-                              Context = projectContext.Value.Trim(),
-                              Verifications = validVerifications.Select(v => new ProjectVerificationRef
-                              {
-                                  Name = v.Name,
-                                  Required = v.Required
-                              }).ToList()
+                              Repos = refs,
+                              Context = "",
+                              Verifications = new List<ProjectVerificationRef>()
                           };
 
                           config.SetPendingProject(project);
-                          config.SetPendingVerificationDefinitions(validVerifications
-                              .Select(v => new VerificationConfig
-                              {
-                                  Name = v.Name,
-                                  Prompt = v.Prompt
-                              }).ToList());
+                          config.SetPendingVerificationDefinitions(new List<VerificationConfig>());
 
-                          error.Set(null);
+                          isCloning.Set(false);
                           stepperIndex.Set(stepperIndex.Value + 1);
-                      })
-               )
-               | new EditOnboardingVerificationDialog(editIndex, verifications);
+                      }));
+    }
+
+    private static string SanitizeProjectName(string input)
+    {
+        if (string.IsNullOrEmpty(input)) return "";
+        return Regex.Replace(input, @"[^A-Za-z0-9._-]", "");
     }
 }
-
-internal record VerificationEntry(string Name, string Prompt, bool Required);
-

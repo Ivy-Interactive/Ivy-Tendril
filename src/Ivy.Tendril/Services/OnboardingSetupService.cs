@@ -7,18 +7,19 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
 {
     private readonly ILogger<OnboardingSetupService> _logger = logger;
 
-    public async Task CompleteSetupAsync(string tendrilHome)
+    public async Task BootstrapTendrilHomeAsync(string tendrilHome)
     {
         _logger.LogInformation("Creating Tendril directory structure at {Path}", tendrilHome);
 
-        // Create directory structure
         Directory.CreateDirectory(tendrilHome);
         Directory.CreateDirectory(Path.Combine(tendrilHome, "Inbox"));
         var planFolder = Environment.GetEnvironmentVariable("TENDRIL_PLANS")?.Trim() is { Length: > 0 } plans
             ? plans
             : Path.Combine(tendrilHome, "Plans");
         Directory.CreateDirectory(planFolder);
-        await FileHelper.WriteAllTextAsync(Path.Combine(planFolder, ".counter"), "1");
+        var counterPath = Path.Combine(planFolder, ".counter");
+        if (!File.Exists(counterPath))
+            await FileHelper.WriteAllTextAsync(counterPath, "1");
         Directory.CreateDirectory(Path.Combine(tendrilHome, "Trash"));
         Directory.CreateDirectory(Path.Combine(tendrilHome, "Promptwares"));
         if (PromptwareDeployer.IsEmbeddedAvailable())
@@ -27,7 +28,6 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
 
         _logger.LogInformation("Directory structure created");
 
-        // Copy template or create basic config
         _logger.LogInformation("Writing config file to {Path}", Path.Combine(tendrilHome, "config.yaml"));
         var projectDir = Path.GetDirectoryName(System.AppContext.BaseDirectory);
         while (projectDir != null && !File.Exists(Path.Combine(projectDir, "example.config.yaml")))
@@ -39,70 +39,71 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
 
         var configPath = Path.Combine(tendrilHome, "config.yaml");
 
-        if (File.Exists(exampleConfigPath))
+        if (!File.Exists(configPath))
         {
-            var exampleContent = await FileHelper.ReadAllTextAsync(exampleConfigPath);
-            await FileHelper.WriteAllTextAsync(configPath, exampleContent);
-        }
-        else if (!File.Exists(configPath))
-        {
-            var basicConfig = "codingAgent: claude\n" +
-                              "jobTimeout: 30\n" +
-                              "staleOutputTimeout: 10\n" +
-                              "codingAgents:\n" +
-                              "- name: ClaudeCode\n" +
-                              "  profiles:\n" +
-                              "  - name: deep\n" +
-                              "    model: claude-opus-4-6\n" +
-                              "    effort: max\n" +
-                              "  - name: balanced\n" +
-                              "    model: claude-sonnet-4-6\n" +
-                              "    effort: high\n" +
-                              "  - name: quick\n" +
-                              "    model: claude-haiku-4-5\n" +
-                              "    effort: low\n" +
-                              "- name: Codex\n" +
-                              "  profiles:\n" +
-                              "  - name: deep\n" +
-                              "    model: gpt-5.4\n" +
-                              "    effort: high\n" +
-                              "  - name: balanced\n" +
-                              "    model: gpt-5.4-mini\n" +
-                              "    effort: medium\n" +
-                              "  - name: quick\n" +
-                              "    model: gpt-5.3-codex\n" +
-                              "    effort: low\n" +
-                              "- name: Gemini\n" +
-                              "  profiles:\n" +
-                              "  - name: deep\n" +
-                              "    model: gemini-3-flash-preview\n" +
-                              "  - name: balanced\n" +
-                              "    model: gemini-3-flash-preview\n" +
-                              "  - name: quick\n" +
-                              "    model: gemini-3-flash-preview\n" +
-                              "- name: Copilot\n" +
-                              "  profiles:\n" +
-                              "  - name: deep\n" +
-                              "    model: gpt-5.2\n" +
-                              "    effort: high\n" +
-                              "  - name: balanced\n" +
-                              "    model: gpt-5.2\n" +
-                              "    effort: medium\n" +
-                              "  - name: quick\n" +
-                              "    model: gpt-5.2\n" +
-                              "    effort: low\n" +
-                              "projects: []\n" +
-                              "verifications: []\n";
-            await FileHelper.WriteAllTextAsync(configPath, basicConfig);
+            if (File.Exists(exampleConfigPath))
+            {
+                var exampleContent = await FileHelper.ReadAllTextAsync(exampleConfigPath);
+                await FileHelper.WriteAllTextAsync(configPath, exampleContent);
+            }
+            else
+            {
+                var basicConfig = "codingAgent: claude\n" +
+                                  "jobTimeout: 30\n" +
+                                  "staleOutputTimeout: 10\n" +
+                                  "codingAgents:\n" +
+                                  "- name: ClaudeCode\n" +
+                                  "  profiles:\n" +
+                                  "  - name: deep\n" +
+                                  "    model: claude-opus-4-6\n" +
+                                  "    effort: max\n" +
+                                  "  - name: balanced\n" +
+                                  "    model: claude-sonnet-4-6\n" +
+                                  "    effort: high\n" +
+                                  "  - name: quick\n" +
+                                  "    model: claude-haiku-4-5\n" +
+                                  "    effort: low\n" +
+                                  "- name: Codex\n" +
+                                  "  profiles:\n" +
+                                  "  - name: deep\n" +
+                                  "    model: gpt-5.4\n" +
+                                  "    effort: high\n" +
+                                  "  - name: balanced\n" +
+                                  "    model: gpt-5.4-mini\n" +
+                                  "    effort: medium\n" +
+                                  "  - name: quick\n" +
+                                  "    model: gpt-5.3-codex\n" +
+                                  "    effort: low\n" +
+                                  "- name: Gemini\n" +
+                                  "  profiles:\n" +
+                                  "  - name: deep\n" +
+                                  "    model: gemini-3-flash-preview\n" +
+                                  "  - name: balanced\n" +
+                                  "    model: gemini-3-flash-preview\n" +
+                                  "  - name: quick\n" +
+                                  "    model: gemini-3-flash-preview\n" +
+                                  "- name: Copilot\n" +
+                                  "  profiles:\n" +
+                                  "  - name: deep\n" +
+                                  "    model: gpt-5.2\n" +
+                                  "    effort: high\n" +
+                                  "  - name: balanced\n" +
+                                  "    model: gpt-5.2\n" +
+                                  "    effort: medium\n" +
+                                  "  - name: quick\n" +
+                                  "    model: gpt-5.2\n" +
+                                  "    effort: low\n" +
+                                  "projects: []\n" +
+                                  "verifications: []\n";
+                await FileHelper.WriteAllTextAsync(configPath, basicConfig);
+            }
         }
 
         _logger.LogInformation("Config file written");
 
-        // Set environment variable for current session
         _logger.LogInformation("Setting environment variable TENDRIL_HOME={Value}", tendrilHome);
         Environment.SetEnvironmentVariable("TENDRIL_HOME", tendrilHome);
 
-        // Persist environment variable across restarts
         try
         {
             if (OperatingSystem.IsWindows())
@@ -111,7 +112,6 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
             }
             else
             {
-                // Determine shell rc file
                 var shell = Environment.GetEnvironmentVariable("SHELL") ?? "";
                 var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
                 var rcFile = shell.EndsWith("/zsh") ? Path.Combine(home, ".zshrc")
@@ -134,19 +134,23 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
         }
 
         _logger.LogInformation("Environment variable persisted (Windows={IsWin})", OperatingSystem.IsWindows());
+    }
 
-        // Mark onboarding complete (this reloads config from the file we just wrote)
+    public Task FinalizeOnboardingAsync()
+    {
+        var tendrilHome = config.GetPendingTendrilHome();
+        if (string.IsNullOrEmpty(tendrilHome))
+            throw new InvalidOperationException("Tendril home path not set; cannot finalize onboarding.");
+
         _logger.LogInformation("Marking onboarding complete");
         config.CompleteOnboarding(tendrilHome);
 
-        // Add pending verification definitions to global config
         var pendingDefinitions = config.GetPendingVerificationDefinitions();
         if (pendingDefinitions != null)
             foreach (var def in pendingDefinitions)
                 if (!config.Settings.Verifications.Any(v => v.Name == def.Name))
                     config.Settings.Verifications.Add(def);
 
-        // Add pending project if one was configured
         var pendingProject = config.GetPendingProject();
         if (pendingProject != null)
         {
@@ -155,6 +159,7 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
         }
 
         _logger.LogInformation("Configuration saved");
+        return Task.CompletedTask;
     }
 
     public async Task StartBackgroundServicesAsync()
