@@ -187,12 +187,7 @@ public class CodingAgentStepView(IState<int> stepperIndex) : ViewBase
                | Text.Markdown(
                    "Tendril is a coding orchestrator powered by AI agents. Pick the agent you'd like to use — we'll check the required software and sign you in.")
                | (errorMessage != null ? Text.Danger(errorMessage) : null!)
-               | grid
-               | Text.Markdown(
-                   """
-                   >[!NOTE]
-                   >Tendril runs agents at scale and can consume tokens rapidly.
-                   """);
+               | grid;
     }
 
     private static List<SoftwareCheck> BuildChecks(string agentKey)
