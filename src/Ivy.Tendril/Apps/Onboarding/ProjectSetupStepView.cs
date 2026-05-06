@@ -26,7 +26,7 @@ public class ProjectSetupStepView(
         {
             if (string.IsNullOrEmpty(selectedOwner.Value) && ghOwners.Value.Length > 0)
                 selectedOwner.Set(ghOwners.Value[0]);
-        }, ghOwners);
+        }, EffectTrigger.OnMount(), ghOwners);
 
         UseEffect(() =>
         {
@@ -92,8 +92,12 @@ public class ProjectSetupStepView(
                | Text.Muted("Pick the repositories this project will work with.")
                | (error.Value != null ? Text.Danger(error.Value) : null!)
                | (Layout.Horizontal().Gap(2).Width(Size.Full())
-                  | selectedOwner.ToSelectInput(ghOwners.Value, disabled: isCloning.Value).Width(Size.Fraction(0.3f))
-                  | selectedRepo.ToSelectInput(repos, disabled: isCloning.Value || string.IsNullOrEmpty(selectedOwner.Value)).Width(Size.Grow()))
+                  | selectedOwner.ToSelectInput(ghOwners.Value, disabled: isCloning.Value)
+                       .Placeholder("Owner")
+                       .Width(Size.Fraction(0.3f))
+                  | selectedRepo.ToSelectInput(repos, disabled: isCloning.Value || string.IsNullOrEmpty(selectedOwner.Value))
+                       .Placeholder("Select a repository")
+                       .Width(Size.Grow()))
                | new Separator()
                | (selectedRepos.Value.Count > 0 ? listLayout : null!)
                | projectName.ToTextInput().WithField().Required().Label("Project Name")
