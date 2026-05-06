@@ -556,6 +556,7 @@ internal class JobLauncher
         if (!string.IsNullOrEmpty(tendrilHome))
             psi.Environment["TENDRIL_HOME"] = tendrilHome;
         psi.Environment["TENDRIL_CONFIG"] = _configService.ConfigPath;
+        psi.Environment["TENDRIL_PLANS"] = _configService.PlanFolder;
 
         var statusFile = JobStatusFile.GetStatusFilePath(job.Id);
         psi.Environment["TENDRIL_STATUS_FILE"] = statusFile;
@@ -564,7 +565,7 @@ internal class JobLauncher
         EnsureTendrilOnPath(psi);
     }
 
-    private static void EnsureTendrilOnPath(ProcessStartInfo psi)
+    internal static void EnsureTendrilOnPath(ProcessStartInfo psi)
     {
         var processPath = Environment.ProcessPath;
         if (!string.IsNullOrEmpty(processPath) &&
@@ -619,7 +620,7 @@ internal class JobLauncher
         }
     }
 
-    private static void PrependToPath(ProcessStartInfo psi, string dir)
+    internal static void PrependToPath(ProcessStartInfo psi, string dir)
     {
         var current = psi.Environment.TryGetValue("PATH", out var p) ? p : Environment.GetEnvironmentVariable("PATH");
         psi.Environment["PATH"] = $"{dir}{Path.PathSeparator}{current}";

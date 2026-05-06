@@ -155,6 +155,7 @@ Use `tendril plan create` to allocate a plan ID, create the folder, and write `p
 
 ```bash
 tendril plan create "<Title>" \
+  --plans-dir "<PlansDirectory>" \
   --project "<Project>" \
   --level "NiceToHave" \
   --initial-prompt "<cleaned args text>" \
@@ -164,6 +165,8 @@ tendril plan create "<Title>" \
   --verification "Build=Pending" \
   --verification "Test=Pending"
 ```
+
+**IMPORTANT:** Always pass `--plans-dir` with the `PlansDirectory` firmware value. This ensures the plan is created in the correct directory regardless of environment variable inheritance.
 
 The command outputs:
 ```

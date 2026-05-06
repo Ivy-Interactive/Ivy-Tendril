@@ -150,11 +150,15 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
 
         var psi = resolution.Provider.BuildProcessStart(invocation);
 
-        // Set environment
+        // Set environment so child processes (including tendril CLI calls from the agent)
+        // resolve the same home/config/plans directories as this process.
         var tendrilHome = configService.TendrilHome;
         if (!string.IsNullOrEmpty(tendrilHome))
             psi.Environment["TENDRIL_HOME"] = tendrilHome;
         psi.Environment["TENDRIL_CONFIG"] = configService.ConfigPath;
+        psi.Environment["TENDRIL_PLANS"] = configService.PlanFolder;
+
+        JobLauncher.EnsureTendrilOnPath(psi);
 
         var verbosityService = new VerbosityService();
         if (verbosityService.Level != VerbosityLevel.Quiet)
