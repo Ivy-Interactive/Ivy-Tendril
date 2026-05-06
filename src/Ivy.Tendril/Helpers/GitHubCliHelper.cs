@@ -63,4 +63,46 @@ public static class GitHubCliHelper
         var cmd = $"gh api repos/{safeOwner}/{safeRepo}/branches --jq '.[].name'";
         return await RunCommandAsync(cmd);
     }
+
+    public static async Task<bool> CloneRepositoryAsync(string url, string destinationPath)
+    {
+        try
+        {
+            var isWindows = OperatingSystem.IsWindows();
+            var shell = isWindows ? "pwsh" : "pwsh";
+            
+            // Validate arguments somewhat to prevent injection
+            if (url.Contains('\'') || url.Contains('"')) return false;
+            
+            string cmd;
+            if (System.IO.Directory.Exists(destinationPath))
+            {
+                cmd = $"git -C '{destinationPath}' pull";
+            }
+            else
+            {
+                cmd = $"git clone '{url}' '{destinationPath}'";
+            }
+            
+            var psi = new ProcessStartInfo
+            {
+                FileName = shell,
+                Arguments = $"-NoProfile -Command \"{cmd}\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(psi);
+            if (process == null) return false;
+
+            await process.WaitForExitAsync();
+            return process.ExitCode == 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }

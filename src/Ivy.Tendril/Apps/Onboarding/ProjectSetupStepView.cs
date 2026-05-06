@@ -1,6 +1,7 @@
 using Ivy.Desktop;
 using Ivy.Tendril.Apps.Onboarding.Dialogs;
 using Ivy.Tendril.Services;
+using System.IO;
 using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -22,6 +23,9 @@ public class ProjectSetupStepView(IState<int> stepperIndex) : ViewBase
 
         // Dialog state for editing verifications
         var editIndex = UseState<int?>(-1); // -1 = closed, null = new, >= 0 = editing index
+
+        var isFetching = UseState(false);
+        var localRepoPaths = UseState<List<string>>([]);
 
         var reposLayout = Layout.Vertical().Gap(2);
         var currentRepos = repoPaths.Value;
@@ -80,32 +84,71 @@ public class ProjectSetupStepView(IState<int> stepperIndex) : ViewBase
                          repoPaths.Set(list);
                      }))
                   | Text.Muted("Add at least one repository URL for this project.")
-                  | reposLayout)
-               | new Separator()
-               | (Layout.Vertical().Gap(2)
-                  | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                     | Text.Block("Verifications").Bold()
-                     | new Button("Add Verification").Icon(Icons.Plus).Outline().OnClick(() =>
-                     {
-                         editIndex.Set(null);
-                     }))
-                  | Text.Muted("Define verifications to run for this project.")
-                  | verificationsLayout)
+                  | reposLayout
+                  | (Layout.Horizontal().AlignContent(Align.Left)
+                      | new Button(isFetching.Value ? "Fetching..." : "Confirm & Fetch Repositories").Primary().Icon(Icons.Download)
+                          .Disabled(isFetching.Value)
+                          .OnClick(async () =>
+                          {
+                              var filledRepos = repoPaths.Value.Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
+                              if (filledRepos.Count == 0)
+                              {
+                                  error.Set("Please add at least one repository URL.");
+                                  return;
+                              }
+
+                              isFetching.Set(true);
+                              error.Set(null);
+
+                              var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
+                              var reposDir = Path.Combine(tendrilHome, "repos");
+                              Directory.CreateDirectory(reposDir);
+
+                              var fetchedPaths = new List<string>();
+
+                              foreach (var url in filledRepos)
+                              {
+                                  var repoName = url.Split('/').Last().Replace(".git", "");
+                                  if (string.IsNullOrWhiteSpace(repoName)) repoName = Guid.NewGuid().ToString();
+
+                                  var destPath = Path.Combine(reposDir, repoName);
+                                  
+                                  var success = await GitHubCliHelper.CloneRepositoryAsync(url, destPath);
+                                  if (!success)
+                                  {
+                                      error.Set($"Failed to fetch repository: {url}. Ensure 'git' is installed and you have access.");
+                                      isFetching.Set(false);
+                                      return;
+                                  }
+                                  
+                                  fetchedPaths.Add(destPath);
+                              }
+
+                              localRepoPaths.Set(fetchedPaths);
+                              isFetching.Set(false);
+                          })
+                  ))
+               | (localRepoPaths.Value.Count > 0 ? new Fragment(
+                   new Separator(),
+                   Layout.Vertical().Gap(2)
+                      | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
+                         | Text.Block("Verifications").Bold()
+                         | new Button("Add Verification").Icon(Icons.Plus).Outline().OnClick(() =>
+                         {
+                             editIndex.Set(null);
+                         }))
+                      | Text.Muted("Define verifications to run for this project.")
+                      | verificationsLayout
+                 ) : null!)
                | new Separator()
                | (Layout.Horizontal().Gap(2)
                   | new Button("Next").Primary().Large().Icon(Icons.ArrowRight, Align.Right)
+                      .Disabled(localRepoPaths.Value.Count == 0)
                       .OnClick(() =>
                       {
                           if (string.IsNullOrWhiteSpace(projectName.Value))
                           {
                               error.Set("Please enter a project name.");
-                              return;
-                          }
-
-                          var filledRepos = repoPaths.Value.Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
-                          if (filledRepos.Count == 0)
-                          {
-                              error.Set("Please add at least one repository URL.");
                               return;
                           }
 
@@ -117,10 +160,7 @@ public class ProjectSetupStepView(IState<int> stepperIndex) : ViewBase
                           {
                               Name = projectName.Value.Trim(),
                               Color = "Green",
-                              Repos = repoPaths.Value
-                                  .Where(p => !string.IsNullOrWhiteSpace(p))
-                                  .Select(p => new RepoRef { Path = p, PrRule = "default" })
-                                  .ToList(),
+                              Repos = localRepoPaths.Value.Select(p => new RepoRef { Path = p, PrRule = "default" }).ToList(),
                               Context = projectContext.Value.Trim(),
                               Verifications = validVerifications.Select(v => new ProjectVerificationRef
                               {
