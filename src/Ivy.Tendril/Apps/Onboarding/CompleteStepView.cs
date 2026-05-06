@@ -104,7 +104,7 @@ public class CompleteStepView(
             var verifications = project.Verifications ?? new List<ProjectVerificationRef>();
             if (verifications.Count == 0) continue;
 
-            listLayout |= Text.Block($"**{project.Name}**");
+            listLayout |= Text.Bold(project.Name);
             foreach (var v in verifications)
             {
                 var capturedProjectName = project.Name;
@@ -131,7 +131,7 @@ public class CompleteStepView(
 
         var subText = running.Value
             ? "Tendril is detecting your tech stack and configuring verifications."
-            : $"{totalVerifications} verification(s) configured across {projects.Count} project(s). Click **Finish** to start using Tendril, or go back to add another project.";
+            : $"{totalVerifications} verification(s) configured across {projects.Count} project(s). Click Finish to start using Tendril, or go back to add another project.";
 
         return Layout.Vertical().Gap(4).Margin(0, 0, 0, 20)
                | Text.H2(headerText)
