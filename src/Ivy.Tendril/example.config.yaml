@@ -139,6 +139,13 @@ promptwares:
     allowedTools:
     - Read
     - Bash
+  UpdateProject:
+    profile: deep
+    allowedTools:
+    - Read
+    - Glob
+    - Grep
+    - Bash
 
 # Projects — add your projects here. Each project groups repos, verifications, and context.
 #
@@ -210,29 +217,6 @@ projects: []
 # Standard verification definitions — these prompts are used when verifications are referenced by projects.
 # Define verifications appropriate for your tech stack.
 verifications:
-- name: Build
-  prompt: >
-    Run the build command for your project in the plan's worktree directory (not the original repo)
-    and verify it succeeds with zero errors and zero warnings.
-- name: Format
-  prompt: >
-    Run the code formatter for your project in the plan's worktree directory (not the original repo),
-    scoped to only the files changed by this plan's commits.
-    Get the list of changed files with `git diff --name-only --diff-filter=ACM HEAD~<N>`
-    (where N is the number of commits in this execution), then run your formatter on those files.
-    If it modifies any files, stage and commit them.
-- name: Test
-  prompt: >
-    Run tests in the plan's worktree directory (not the original repo).
-    1. Read the plan revision's **## Tests** section for test scope instructions.
-    2. If the plan specifies a test filter/scope expression, run it.
-    3. If the plan says "No existing test coverage" or "No tests needed", skip with Pass.
-    4. If the plan says "Run all tests", run all tests.
-    5. Verify all executed tests pass.
-- name: Lint
-  prompt: >
-    Run the linter for your project in the plan's worktree directory (not the original repo).
-    If it reports any errors, fix them, commit the fixes, and re-run until it passes.
 - name: CheckResult
   prompt: >
     Verify the implementation matches what was requested in the plan.

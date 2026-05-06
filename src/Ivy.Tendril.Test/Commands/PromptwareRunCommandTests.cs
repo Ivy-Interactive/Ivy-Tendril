@@ -19,22 +19,24 @@ public class PromptwareRunCommandTests : IDisposable
             Directory.Delete(_tempDir, true);
     }
 
+    // --- Settings Parsing ---
+
     [Fact]
-    public void PromptwareRunSettings_ParsesPromptwareName()
+    public void Settings_ParsesPromptwareName()
     {
         var settings = new PromptwareRunSettings
         {
-            Promptware = "IvyFrameworkVerification",
-            Args = ["/plans/00123-TestPlan"]
+            Promptware = "UpdateProject",
+            Args = ["Setup verifications"]
         };
 
-        Assert.Equal("IvyFrameworkVerification", settings.Promptware);
+        Assert.Equal("UpdateProject", settings.Promptware);
         Assert.Single(settings.Args);
-        Assert.Equal("/plans/00123-TestPlan", settings.Args[0]);
+        Assert.Equal("Setup verifications", settings.Args[0]);
     }
 
     [Fact]
-    public void PromptwareRunSettings_DefaultsToEmptyArgs()
+    public void Settings_DefaultsToEmptyArgs()
     {
         var settings = new PromptwareRunSettings { Promptware = "TestPromptware" };
 
@@ -42,10 +44,14 @@ public class PromptwareRunCommandTests : IDisposable
         Assert.Null(settings.Profile);
         Assert.Null(settings.WorkingDir);
         Assert.Null(settings.Values);
+        Assert.Null(settings.Plan);
+        Assert.Null(settings.ConfigPath);
+        Assert.Null(settings.AgentCmd);
+        Assert.False(settings.DryRun);
     }
 
     [Fact]
-    public void PromptwareRunSettings_SupportsProfile()
+    public void Settings_SupportsProfile()
     {
         var settings = new PromptwareRunSettings
         {
@@ -57,16 +63,46 @@ public class PromptwareRunCommandTests : IDisposable
     }
 
     [Fact]
-    public void PromptwareRunSettings_SupportsValues()
+    public void Settings_SupportsValues()
     {
         var settings = new PromptwareRunSettings
         {
             Promptware = "TestPromptware",
-            Values = ["VerificationDir=/tmp/v", "ArtifactsDir=/tmp/a"]
+            Values = ["ProjectName=MyProject", "Instructions=Do stuff"]
         };
 
         Assert.Equal(2, settings.Values.Length);
     }
+
+    [Fact]
+    public void Settings_SupportsPlan()
+    {
+        var settings = new PromptwareRunSettings
+        {
+            Promptware = "ExecutePlan",
+            Plan = "03430"
+        };
+
+        Assert.Equal("03430", settings.Plan);
+    }
+
+    [Fact]
+    public void Settings_SupportsTestingOptions()
+    {
+        var settings = new PromptwareRunSettings
+        {
+            Promptware = "TestPromptware",
+            ConfigPath = "/tmp/test-config.yaml",
+            AgentCmd = "echo",
+            DryRun = true
+        };
+
+        Assert.Equal("/tmp/test-config.yaml", settings.ConfigPath);
+        Assert.Equal("echo", settings.AgentCmd);
+        Assert.True(settings.DryRun);
+    }
+
+    // --- Firmware Compilation ---
 
     [Fact]
     public void FirmwareCompilation_WorksForArbitraryPromptware()
@@ -86,10 +122,8 @@ public class PromptwareRunCommandTests : IDisposable
         var context = new FirmwareContext(promptwareDir, logFile, values);
         var prompt = FirmwareCompiler.Compile(context);
 
-        // Firmware references ProgramFolder for the agent to read at runtime
         Assert.Contains(promptwareDir, prompt);
         Assert.Contains("Program.md", prompt);
-        // Header values are injected
         Assert.Contains("PlanFolder: /plans/00123-Test", prompt);
         Assert.Contains("VerificationDir: /plans/00123-Test/verification", prompt);
         Assert.Contains("ArtifactsDir: /plans/00123-Test/artifacts", prompt);
@@ -104,15 +138,62 @@ public class PromptwareRunCommandTests : IDisposable
 
         var values = new Dictionary<string, string>
         {
-            ["IvyFrameworkPath"] = "/repos/Ivy-Framework",
-            ["CustomKey"] = "CustomValue"
+            ["ProjectName"] = "MyProject",
+            ["Instructions"] = "Setup verifications"
         };
 
         var logFile = FirmwareCompiler.GetNextLogFile(promptwareDir);
         var context = new FirmwareContext(promptwareDir, logFile, values);
         var prompt = FirmwareCompiler.Compile(context);
 
-        Assert.Contains("IvyFrameworkPath: /repos/Ivy-Framework", prompt);
-        Assert.Contains("CustomKey: CustomValue", prompt);
+        Assert.Contains("ProjectName: MyProject", prompt);
+        Assert.Contains("Instructions: Setup verifications", prompt);
+    }
+
+    [Fact]
+    public void FirmwareCompilation_FreeFormArgsJoinedIntoSingleValue()
+    {
+        var promptwareDir = Path.Combine(_tempDir, "FreeFormArgs");
+        Directory.CreateDirectory(promptwareDir);
+        File.WriteAllText(Path.Combine(promptwareDir, "Program.md"), "# FreeForm\n");
+
+        var values = new Dictionary<string, string>
+        {
+            ["Args"] = "Setup verifications and review actions for this project."
+        };
+
+        var logFile = FirmwareCompiler.GetNextLogFile(promptwareDir);
+        var context = new FirmwareContext(promptwareDir, logFile, values);
+        var prompt = FirmwareCompiler.Compile(context);
+
+        Assert.Contains("Args: Setup verifications and review actions for this project.", prompt);
+    }
+
+    // --- Plan Resolution ---
+
+    [Fact]
+    public void PlanOption_PopulatesPlanFirmwareValues()
+    {
+        // Create a plan folder structure
+        var plansDir = Path.Combine(_tempDir, "Plans");
+        var planFolder = Path.Combine(plansDir, "00123-TestPlan");
+        Directory.CreateDirectory(planFolder);
+        File.WriteAllText(Path.Combine(planFolder, "plan.yaml"), "state: Draft\ntitle: Test\n");
+
+        var originalHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
+        var originalPlans = Environment.GetEnvironmentVariable("TENDRIL_PLANS");
+        try
+        {
+            Environment.SetEnvironmentVariable("TENDRIL_HOME", _tempDir);
+            Environment.SetEnvironmentVariable("TENDRIL_PLANS", null);
+
+            var folder = Ivy.Tendril.Helpers.PlanCommandHelpers.ResolvePlanFolder("00123");
+            Assert.Contains("00123-TestPlan", folder);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("TENDRIL_HOME", originalHome);
+            Environment.SetEnvironmentVariable("TENDRIL_PLANS", originalPlans);
+        }
     }
 }
