@@ -854,7 +854,7 @@ public class ConfigService : IConfigService, IDisposable
         foreach (var action in actions)
         {
             action.Condition = ExpandVar(action.Condition);
-            action.Action = ExpandVar(action.Action);
+            action.Command = ExpandVar(action.Command);
         }
     }
 
