@@ -26,13 +26,17 @@ public class OnboardingApp : ViewBase
         IState<bool> commonChecksPassed,
         IState<bool> homeBootstrapped,
         IState<bool> reposFetched,
-        IState<string?> completedAgentKey)
+        IState<string?> completedAgentKey,
+        IState<string> selectedOwner,
+        IState<List<Onboarding.RepoChoice>> selectedRepos,
+        IState<string> projectName)
     {
         return stepperIndex.Value switch
         {
             0 => new CodingAgentStepView(stepperIndex, ghOwners, ghReposByOwner,
                                          commonChecksPassed, homeBootstrapped, reposFetched, completedAgentKey),
-            1 => new ProjectSetupStepView(stepperIndex, ghOwners, ghReposByOwner),
+            1 => new ProjectSetupStepView(stepperIndex, ghOwners, ghReposByOwner,
+                                          selectedOwner, selectedRepos, projectName),
             2 => new CompleteStepView(stepperIndex),
             _ => throw new ArgumentOutOfRangeException()
         };
@@ -47,13 +51,17 @@ public class OnboardingApp : ViewBase
         var homeBootstrapped = UseState(false);
         var reposFetched = UseState(false);
         var completedAgentKey = UseState<string?>((string?)null);
+        var selectedOwner = UseState("");
+        var selectedRepos = UseState(() => new List<Onboarding.RepoChoice>());
+        var projectName = UseState("");
         var steps = GetSteps(stepperIndex.Value);
 
         return Layout.TopCenter() |
                (Layout.Vertical().Margin(0, 32, 0, 0).Width(150)
                 | new Stepper(OnSelect, stepperIndex.Value, steps).Width(Size.Full())
                 | GetStepViews(stepperIndex, ghOwners, ghReposByOwner,
-                               commonChecksPassed, homeBootstrapped, reposFetched, completedAgentKey)
+                               commonChecksPassed, homeBootstrapped, reposFetched, completedAgentKey,
+                               selectedOwner, selectedRepos, projectName)
                );
 
         ValueTask OnSelect(Event<Stepper, int> e)

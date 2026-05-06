@@ -4,21 +4,21 @@ using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps.Onboarding;
 
+public record RepoChoice(string Owner, string Name);
+
 public class ProjectSetupStepView(
     IState<int> stepperIndex,
     IState<string[]> ghOwners,
-    IState<Dictionary<string, string[]>> ghReposByOwner) : ViewBase
+    IState<Dictionary<string, string[]>> ghReposByOwner,
+    IState<string> selectedOwner,
+    IState<List<RepoChoice>> selectedRepos,
+    IState<string> projectName) : ViewBase
 {
-    private record RepoChoice(string Owner, string Name);
-
     public override object Build()
     {
         var config = UseService<IConfigService>();
 
-        var selectedOwner = UseState("");
         var selectedRepo = UseState("");
-        var selectedRepos = UseState(new List<RepoChoice>());
-        var projectName = UseState("");
         var isCloning = UseState(false);
         var error = UseState<string?>(null);
 
