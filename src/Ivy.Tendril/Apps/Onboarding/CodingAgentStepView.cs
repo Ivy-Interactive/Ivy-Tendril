@@ -9,7 +9,11 @@ namespace Ivy.Tendril.Apps.Onboarding;
 public class CodingAgentStepView(
     IState<int> stepperIndex,
     IState<string[]> ghOwners,
-    IState<Dictionary<string, string[]>> ghReposByOwner) : ViewBase
+    IState<Dictionary<string, string[]>> ghReposByOwner,
+    IState<bool> commonChecksPassed,
+    IState<bool> homeBootstrapped,
+    IState<bool> reposFetched,
+    IState<string?> completedAgentKey) : ViewBase
 {
     private record AgentInfo(string Key, string Label, Icons Logo);
 
@@ -41,12 +45,20 @@ public class CodingAgentStepView(
             error.Set(null);
             authCode.Set(null);
 
+            if (completedAgentKey.Value == agentKey)
+            {
+                stepperIndex.Set(stepperIndex.Value + 1);
+                return;
+            }
+
             var progressCts = new CancellationTokenSource();
             _ = DriveProgressAsync(progressValue, progressCts.Token);
 
             try
             {
-                var checks = BuildChecks(agentKey);
+                var checks = commonChecksPassed.Value
+                    ? new List<SoftwareCheck> { BuildAgentCheck(agentKey) }
+                    : BuildChecks(agentKey);
 
                 while (true)
                 {
@@ -110,27 +122,39 @@ public class CodingAgentStepView(
                     }
                 }
 
+                commonChecksPassed.Set(true);
+
                 config.Settings.CodingAgent = agentKey;
                 config.SetPendingCodingAgent(agentKey);
 
-                progressMessage.Set("Setting up Tendril home...");
-                var defaultHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")
-                                  ?? Path.Combine(
-                                      Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                                      ".tendril");
-                config.SetPendingTendrilHome(defaultHome);
-                await setupService.BootstrapTendrilHomeAsync(defaultHome);
+                if (!homeBootstrapped.Value)
+                {
+                    progressMessage.Set("Setting up Tendril home...");
+                    var defaultHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")
+                                      ?? Path.Combine(
+                                          Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                                          ".tendril");
+                    config.SetPendingTendrilHome(defaultHome);
+                    await setupService.BootstrapTendrilHomeAsync(defaultHome);
+                    homeBootstrapped.Set(true);
+                }
 
-                progressMessage.Set("Fetching your GitHub repositories...");
-                var owners = await GitHubCliHelper.GetOwnersAsync();
-                ghOwners.Set(owners);
+                if (!reposFetched.Value)
+                {
+                    progressMessage.Set("Fetching your GitHub repositories...");
+                    var owners = await GitHubCliHelper.GetOwnersAsync();
+                    ghOwners.Set(owners);
 
-                var repoFetches = owners.Select(async o => (Owner: o, Repos: await GitHubCliHelper.GetRepositoriesAsync(o)));
-                var results = await Task.WhenAll(repoFetches);
-                var byOwner = new Dictionary<string, string[]>();
-                foreach (var (owner, ownerRepos) in results)
-                    byOwner[owner] = ownerRepos;
-                ghReposByOwner.Set(byOwner);
+                    var repoFetches = owners.Select(async o => (Owner: o, Repos: await GitHubCliHelper.GetRepositoriesAsync(o)));
+                    var results = await Task.WhenAll(repoFetches);
+                    var byOwner = new Dictionary<string, string[]>();
+                    foreach (var (owner, ownerRepos) in results)
+                        byOwner[owner] = ownerRepos;
+                    ghReposByOwner.Set(byOwner);
+                    reposFetched.Set(true);
+                }
+
+                completedAgentKey.Set(agentKey);
 
                 progressCts.Cancel();
                 progressValue.Set(100);
@@ -233,37 +257,30 @@ public class CodingAgentStepView(
                 () => CheckHealth("gh", "auth status --active"),
                 "Sign in to GitHub")
         };
-
-        switch (agentKey)
-        {
-            case "claude":
-                list.Add(new("Claude CLI", "claude", "https://docs.anthropic.com/en/docs/claude-code", true,
-                    () => CheckCommand("claude", "--version"),
-                    () => CheckHealth("claude", "-p \"ping\" --max-turns 1"),
-                    "Sign in to Claude"));
-                break;
-            case "codex":
-                list.Add(new("Codex CLI", "codex", "https://openai.com/index/codex/", true,
-                    () => CheckCommand("codex", "--version"),
-                    () => CheckHealth("codex", "login status"),
-                    "Sign in to Codex"));
-                break;
-            case "gemini":
-                list.Add(new("Gemini CLI", "gemini", "https://github.com/google-gemini/gemini-cli", true,
-                    () => CheckCommand("gemini", "--version"),
-                    CheckGeminiAuth,
-                    "Sign in to Gemini"));
-                break;
-            case "copilot":
-                list.Add(new("Copilot CLI", "copilot", "https://githubnext.com/projects/copilot-cli", true,
-                    () => CheckCommand("copilot", "--version"),
-                    () => CheckHealth("copilot", "-p \"ping\" --allow-all -s"),
-                    "Sign in to Copilot"));
-                break;
-        }
-
+        list.Add(BuildAgentCheck(agentKey));
         return list;
     }
+
+    private static SoftwareCheck BuildAgentCheck(string agentKey) => agentKey switch
+    {
+        "claude" => new("Claude CLI", "claude", "https://docs.anthropic.com/en/docs/claude-code", true,
+            () => CheckCommand("claude", "--version"),
+            () => CheckHealth("claude", "-p \"ping\" --max-turns 1"),
+            "Sign in to Claude"),
+        "codex" => new("Codex CLI", "codex", "https://openai.com/index/codex/", true,
+            () => CheckCommand("codex", "--version"),
+            () => CheckHealth("codex", "login status"),
+            "Sign in to Codex"),
+        "gemini" => new("Gemini CLI", "gemini", "https://github.com/google-gemini/gemini-cli", true,
+            () => CheckCommand("gemini", "--version"),
+            CheckGeminiAuth,
+            "Sign in to Gemini"),
+        "copilot" => new("Copilot CLI", "copilot", "https://githubnext.com/projects/copilot-cli", true,
+            () => CheckCommand("copilot", "--version"),
+            () => CheckHealth("copilot", "-p \"ping\" --allow-all -s"),
+            "Sign in to Copilot"),
+        _ => throw new ArgumentOutOfRangeException(nameof(agentKey), agentKey, "Unknown agent")
+    };
 
     private static async Task DriveProgressAsync(IState<int?> value, CancellationToken ct)
     {
