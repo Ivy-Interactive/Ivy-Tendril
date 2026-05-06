@@ -101,6 +101,11 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
 
         _logger.LogInformation("Config file written");
 
+        config.ReloadSettings();
+        var pendingAgent = config.GetPendingCodingAgent();
+        if (!string.IsNullOrEmpty(pendingAgent))
+            config.Settings.CodingAgent = pendingAgent;
+
         _logger.LogInformation("Setting environment variable TENDRIL_HOME={Value}", tendrilHome);
         Environment.SetEnvironmentVariable("TENDRIL_HOME", tendrilHome);
 
