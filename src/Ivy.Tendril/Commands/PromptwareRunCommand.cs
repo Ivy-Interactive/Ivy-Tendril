@@ -42,9 +42,9 @@ public class PromptwareRunSettings : CommandSettings
     [Description("Override config.yaml path (for testing)")]
     public string? ConfigPath { get; init; }
 
-    [CommandOption("--agent-cmd")]
-    [Description("Override agent CLI command (for testing, e.g. 'echo' to dry-run)")]
-    public string? AgentCmd { get; init; }
+    [CommandOption("--agent")]
+    [Description("Override agent provider (claude, gemini, codex, copilot, opencode)")]
+    public string? Agent { get; init; }
 
     [CommandOption("--dry-run")]
     [Description("Print the compiled firmware and exit without launching the agent")]
@@ -119,7 +119,9 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
 
         var values = BuildFirmwareValues(settings, configService);
 
-        var resolution = AgentProviderFactory.Resolve(tendrilSettings, settings.Promptware, settings.Profile);
+        var resolution = !string.IsNullOrEmpty(settings.Agent)
+            ? AgentProviderFactory.Resolve(tendrilSettings, settings.Promptware, settings.Profile, agentOverride: settings.Agent)
+            : AgentProviderFactory.Resolve(tendrilSettings, settings.Promptware, settings.Profile);
 
         var workDir = settings.WorkingDir ?? programFolder;
 
@@ -172,9 +174,6 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             ExtraArgs: resolution.ExtraArgs);
 
         var psi = resolution.Provider.BuildProcessStart(invocation);
-
-        if (!string.IsNullOrEmpty(settings.AgentCmd))
-            psi.FileName = settings.AgentCmd;
 
         var tendrilHome = configService.TendrilHome;
         if (!string.IsNullOrEmpty(tendrilHome))

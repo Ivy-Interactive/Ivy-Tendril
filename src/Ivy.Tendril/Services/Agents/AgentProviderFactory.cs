@@ -30,9 +30,10 @@ public class AgentProviderFactory
         TendrilSettings settings,
         string promptwareName,
         string? profileOverride = null,
-        IReadOnlyDictionary<string, string>? jobContext = null)
+        IReadOnlyDictionary<string, string>? jobContext = null,
+        string? agentOverride = null)
     {
-        var codingAgent = settings.CodingAgent;
+        var codingAgent = agentOverride ?? settings.CodingAgent;
         var provider = GetProvider(codingAgent);
 
         // Layer promptware config: _default → specific → profileOverride

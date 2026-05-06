@@ -351,7 +351,7 @@ public class PromptwareDryRunTests : IDisposable
                 DryRun = true,
                 ConfigPath = _configPath,
                 PromptwarePath = _promptwarePath,
-                AgentCmd = "nonexistent-binary-that-should-not-run",
+                Agent = "claude",
                 Values = ["PlansDirectory=/tmp"]
             });
             Assert.Equal(0, exitCode);

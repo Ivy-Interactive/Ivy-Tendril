@@ -46,7 +46,7 @@ public class PromptwareRunCommandTests : IDisposable
         Assert.Null(settings.Values);
         Assert.Null(settings.Plan);
         Assert.Null(settings.ConfigPath);
-        Assert.Null(settings.AgentCmd);
+        Assert.Null(settings.Agent);
         Assert.False(settings.DryRun);
     }
 
@@ -93,12 +93,12 @@ public class PromptwareRunCommandTests : IDisposable
         {
             Promptware = "TestPromptware",
             ConfigPath = "/tmp/test-config.yaml",
-            AgentCmd = "echo",
+            Agent = "gemini",
             DryRun = true
         };
 
         Assert.Equal("/tmp/test-config.yaml", settings.ConfigPath);
-        Assert.Equal("echo", settings.AgentCmd);
+        Assert.Equal("gemini", settings.Agent);
         Assert.True(settings.DryRun);
     }
 
