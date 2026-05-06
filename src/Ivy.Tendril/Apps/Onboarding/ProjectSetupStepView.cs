@@ -35,26 +35,6 @@ public class ProjectSetupStepView(
 
         UseEffect(() =>
         {
-            var picked = selectedRepo.Value;
-            if (string.IsNullOrEmpty(picked) || string.IsNullOrEmpty(selectedOwner.Value))
-                return;
-
-            var owner = selectedOwner.Value;
-            selectedRepo.Set("");
-
-            var list = new List<RepoChoice>(selectedRepos.Value);
-            if (!list.Any(r => r.Owner == owner && r.Name == picked))
-            {
-                list.Add(new RepoChoice(owner, picked));
-                selectedRepos.Set(list);
-
-                if (string.IsNullOrEmpty(projectName.Value))
-                    projectName.Set(SanitizeProjectName(picked));
-            }
-        }, selectedRepo);
-
-        UseEffect(() =>
-        {
             var raw = projectName.Value ?? "";
             var sanitized = SanitizeProjectName(raw);
             if (sanitized != raw) projectName.Set(sanitized);
@@ -97,7 +77,27 @@ public class ProjectSetupStepView(
                        .Width(Size.Fraction(0.3f))
                   | selectedRepo.ToSelectInput(repos, disabled: isCloning.Value || string.IsNullOrEmpty(selectedOwner.Value))
                        .Placeholder("Select a repository")
-                       .Width(Size.Grow()))
+                       .Width(Size.Grow())
+                  | new Button("Add").Icon(Icons.Plus)
+                       .Disabled(string.IsNullOrEmpty(selectedRepo.Value) || isCloning.Value)
+                       .OnClick(() =>
+                       {
+                           var picked = selectedRepo.Value;
+                           if (string.IsNullOrEmpty(picked) || string.IsNullOrEmpty(selectedOwner.Value))
+                               return;
+
+                           var owner = selectedOwner.Value;
+                           var list = new List<RepoChoice>(selectedRepos.Value);
+                           if (!list.Any(r => r.Owner == owner && r.Name == picked))
+                           {
+                               list.Add(new RepoChoice(owner, picked));
+                               selectedRepos.Set(list);
+
+                               if (string.IsNullOrEmpty(projectName.Value))
+                                   projectName.Set(SanitizeProjectName(picked));
+                           }
+                           selectedRepo.Set("");
+                       }))
                | new Separator()
                | (selectedRepos.Value.Count > 0 ? listLayout : null!)
                | projectName.ToTextInput().WithField().Required().Label("Project Name")
