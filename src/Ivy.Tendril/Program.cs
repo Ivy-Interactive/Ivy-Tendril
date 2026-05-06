@@ -304,6 +304,10 @@ public class Program
                     .WithDescription("Add a build dependency to a project");
                 project.AddCommand<ProjectRemoveBuildDepCommand>("remove-build-dep")
                     .WithDescription("Remove a build dependency from a project");
+                project.AddCommand<ProjectAddReviewActionCommand>("add-review-action")
+                    .WithDescription("Add a review action to a project");
+                project.AddCommand<ProjectRemoveReviewActionCommand>("remove-review-action")
+                    .WithDescription("Remove a review action from a project");
             });
         });
         return app;

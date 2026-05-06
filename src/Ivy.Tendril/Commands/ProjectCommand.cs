@@ -129,6 +129,36 @@ public class ProjectRemoveBuildDepSettings : CommandSettings
     public string Dependency { get; set; } = "";
 }
 
+public class ProjectAddReviewActionSettings : CommandSettings
+{
+    [Description("Project name")]
+    [CommandArgument(0, "<project-name>")]
+    public string ProjectName { get; set; } = "";
+
+    [Description("Review action name")]
+    [CommandArgument(1, "<name>")]
+    public string Name { get; set; } = "";
+
+    [CommandOption("--command")]
+    [Description("Command to execute")]
+    public string? Command { get; set; }
+
+    [CommandOption("--condition")]
+    [Description("Condition expression (e.g. Test-Path \"...\")")]
+    public string? Condition { get; set; }
+}
+
+public class ProjectRemoveReviewActionSettings : CommandSettings
+{
+    [Description("Project name")]
+    [CommandArgument(0, "<project-name>")]
+    public string ProjectName { get; set; } = "";
+
+    [Description("Review action name")]
+    [CommandArgument(1, "<name>")]
+    public string Name { get; set; } = "";
+}
+
 // --- Commands ---
 
 public class ProjectListCommand : Command<ProjectListSettings>
@@ -537,6 +567,93 @@ public class ProjectRemoveBuildDepCommand : Command<ProjectRemoveBuildDepSetting
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to remove build dependency from project");
+            return 1;
+        }
+    }
+}
+
+public class ProjectAddReviewActionCommand : Command<ProjectAddReviewActionSettings>
+{
+    private readonly ILogger<ProjectAddReviewActionCommand> _logger;
+
+    public ProjectAddReviewActionCommand(ILogger<ProjectAddReviewActionCommand> logger) => _logger = logger;
+
+    protected override int Execute(CommandContext context, ProjectAddReviewActionSettings settings, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var config = new ConfigService();
+            var project = config.Settings.Projects
+                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+            if (project == null)
+            {
+                _logger.LogError("Project not found: {Name}", settings.ProjectName);
+                return 1;
+            }
+
+            if (project.ReviewActions.Any(r => r.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase)))
+            {
+                _logger.LogError("Review action already exists: {Name}", settings.Name);
+                return 1;
+            }
+
+            project.ReviewActions.Add(new ReviewActionConfig
+            {
+                Name = settings.Name,
+                Command = settings.Command ?? "",
+                Condition = settings.Condition ?? ""
+            });
+
+            config.SaveSettings();
+            _logger.LogInformation("Added review action: {Name}", settings.Name);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to add review action to project");
+            return 1;
+        }
+    }
+}
+
+public class ProjectRemoveReviewActionCommand : Command<ProjectRemoveReviewActionSettings>
+{
+    private readonly ILogger<ProjectRemoveReviewActionCommand> _logger;
+
+    public ProjectRemoveReviewActionCommand(ILogger<ProjectRemoveReviewActionCommand> logger) => _logger = logger;
+
+    protected override int Execute(CommandContext context, ProjectRemoveReviewActionSettings settings, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var config = new ConfigService();
+            var project = config.Settings.Projects
+                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+            if (project == null)
+            {
+                _logger.LogError("Project not found: {Name}", settings.ProjectName);
+                return 1;
+            }
+
+            var match = project.ReviewActions
+                .FirstOrDefault(r => r.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
+
+            if (match == null)
+            {
+                _logger.LogError("Review action not found: {Name}", settings.Name);
+                return 1;
+            }
+
+            project.ReviewActions.Remove(match);
+            config.SaveSettings();
+            _logger.LogInformation("Removed review action: {Name}", settings.Name);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to remove review action from project");
             return 1;
         }
     }
