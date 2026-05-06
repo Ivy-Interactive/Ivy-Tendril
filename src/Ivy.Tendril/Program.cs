@@ -139,7 +139,7 @@ public class Program
     {
         bool verbose = args.Contains("--verbose") || args.Contains("-v");
         bool quiet = args.Contains("--quiet") || args.Contains("-q");
-        bool forceDesktop = args.Contains("--desktop") || args.Contains("--photino");
+        bool forceDesktop = args.Contains("--desktop");
         bool forceWeb = args.Contains("--web");
 
         if (verbose)
@@ -148,7 +148,7 @@ public class Program
             Environment.SetEnvironmentVariable("TENDRIL_QUIET", "1");
 
         var filtered = args.Where(a =>
-            a != "--desktop" && a != "--photino" && a != "--web" &&
+            a != "--desktop" && a != "--web" &&
             a != "--verbose" && a != "-v" &&
             a != "--quiet" && a != "-q"
         ).ToArray();
@@ -223,8 +223,12 @@ public class Program
                     .WithDescription("Add a commit hash");
                 plan.AddCommand<PlanAddRelatedPlanCommand>("add-related-plan")
                     .WithDescription("Add a related plan");
+                plan.AddCommand<PlanRemoveRelatedPlanCommand>("remove-related-plan")
+                    .WithDescription("Remove a related plan");
                 plan.AddCommand<PlanAddDependsOnCommand>("add-depends-on")
                     .WithDescription("Add a plan dependency");
+                plan.AddCommand<PlanRemoveDependsOnCommand>("remove-depends-on")
+                    .WithDescription("Remove a plan dependency");
                 plan.AddCommand<PlanSetVerificationCommand>("set-verification")
                     .WithDescription("Update verification status");
                 plan.AddCommand<PlanGetCommand>("get")
