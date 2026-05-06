@@ -136,15 +136,8 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
         _logger.LogInformation("Environment variable persisted (Windows={IsWin})", OperatingSystem.IsWindows());
     }
 
-    public Task FinalizeOnboardingAsync()
+    public Task CommitPendingProjectAsync()
     {
-        var tendrilHome = config.GetPendingTendrilHome();
-        if (string.IsNullOrEmpty(tendrilHome))
-            throw new InvalidOperationException("Tendril home path not set; cannot finalize onboarding.");
-
-        _logger.LogInformation("Marking onboarding complete");
-        config.CompleteOnboarding(tendrilHome);
-
         var pendingDefinitions = config.GetPendingVerificationDefinitions();
         if (pendingDefinitions != null)
             foreach (var def in pendingDefinitions)
@@ -152,13 +145,47 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
                     config.Settings.Verifications.Add(def);
 
         var pendingProject = config.GetPendingProject();
-        if (pendingProject != null)
+        if (pendingProject != null
+            && !config.Settings.Projects.Any(p => p.Name.Equals(pendingProject.Name, StringComparison.OrdinalIgnoreCase)))
         {
             config.Settings.Projects.Add(pendingProject);
             config.SaveSettings();
+            _logger.LogInformation("Pending project '{Name}' committed", pendingProject.Name);
         }
 
+        return Task.CompletedTask;
+    }
+
+    public async Task FinalizeOnboardingAsync()
+    {
+        var tendrilHome = config.GetPendingTendrilHome();
+        if (string.IsNullOrEmpty(tendrilHome))
+            throw new InvalidOperationException("Tendril home path not set; cannot finalize onboarding.");
+
+        await CommitPendingProjectAsync();
+
+        _logger.LogInformation("Marking onboarding complete");
+        config.CompleteOnboarding(tendrilHome);
+
         _logger.LogInformation("Configuration saved");
+    }
+
+    public Task RemoveProjectVerificationAsync(string projectName, string verificationName)
+    {
+        var project = config.Settings.Projects
+            .FirstOrDefault(p => p.Name.Equals(projectName, StringComparison.OrdinalIgnoreCase));
+        if (project == null)
+            return Task.CompletedTask;
+
+        var removed = project.Verifications.RemoveAll(v =>
+            v.Name.Equals(verificationName, StringComparison.OrdinalIgnoreCase));
+        if (removed > 0)
+        {
+            config.SaveSettings();
+            _logger.LogInformation("Removed verification '{Verification}' from project '{Project}'",
+                verificationName, projectName);
+        }
+
         return Task.CompletedTask;
     }
 
