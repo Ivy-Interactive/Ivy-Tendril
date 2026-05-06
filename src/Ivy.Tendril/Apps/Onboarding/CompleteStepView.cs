@@ -21,7 +21,6 @@ public class CompleteStepView(
         var error = UseState<string?>(null);
         var refreshToken = UseState(0);
         var isFinishing = UseState(false);
-        var currentProject = UseState<string?>((string?)null);
 
         UseEffect(async () =>
         {
@@ -43,7 +42,6 @@ public class CompleteStepView(
 
                 foreach (var name in projectsNeedingVerifications)
                 {
-                    currentProject.Set(name);
                     var handle = runner.Run(new PromptwareRunOptions
                     {
                         Promptware = "UpdateProject",
@@ -65,7 +63,6 @@ public class CompleteStepView(
             }
             finally
             {
-                currentProject.Set((string?)null);
                 running.Set(false);
             }
         }, [EffectTrigger.OnMount()]);
@@ -124,9 +121,7 @@ public class CompleteStepView(
         }
 
         var headerText = running.Value
-            ? (currentProject.Value != null
-                ? $"Setting up verifications for {currentProject.Value}…"
-                : "Setting up verifications…")
+            ? "Setting up verifications…"
             : "Ready to Go!";
 
         var subText = running.Value
