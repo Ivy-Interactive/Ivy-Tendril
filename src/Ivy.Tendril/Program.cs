@@ -162,6 +162,7 @@ public class Program
         {
             "doctor", "db-version", "db-migrate", "db-reset",
             "update-promptwares", "job", "plan", "promptware",
+            "verification", "project",
             "version", "--version"
         };
         return cliCommands.Contains(firstArg);
@@ -257,6 +258,52 @@ public class Program
                     rec.AddCommand<PlanRecDeclineCommand>("decline")
                         .WithDescription("Decline a recommendation");
                 });
+
+                plan.AddBranch("verification", verification =>
+                {
+                    verification.AddCommand<PlanVerificationListCommand>("list")
+                        .WithDescription("List verifications on a plan");
+                    verification.AddCommand<PlanVerificationAddCommand>("add")
+                        .WithDescription("Add a verification to a plan");
+                    verification.AddCommand<PlanVerificationRemoveCommand>("remove")
+                        .WithDescription("Remove a verification from a plan");
+                });
+            });
+
+            config.AddBranch("verification", verification =>
+            {
+                verification.AddCommand<VerificationListCommand>("list")
+                    .WithDescription("List global verification definitions");
+                verification.AddCommand<VerificationAddCommand>("add")
+                    .WithDescription("Add a verification definition");
+                verification.AddCommand<VerificationRemoveCommand>("remove")
+                    .WithDescription("Remove a verification definition");
+                verification.AddCommand<VerificationSetCommand>("set")
+                    .WithDescription("Update a verification definition field");
+            });
+
+            config.AddBranch("project", project =>
+            {
+                project.AddCommand<ProjectListCommand>("list")
+                    .WithDescription("List all projects");
+                project.AddCommand<ProjectAddCommand>("add")
+                    .WithDescription("Add a project");
+                project.AddCommand<ProjectRemoveCommand>("remove")
+                    .WithDescription("Remove a project");
+                project.AddCommand<ProjectSetCommand>("set")
+                    .WithDescription("Set a project field");
+                project.AddCommand<ProjectAddRepoCommand>("add-repo")
+                    .WithDescription("Add a repository to a project");
+                project.AddCommand<ProjectRemoveRepoCommand>("remove-repo")
+                    .WithDescription("Remove a repository from a project");
+                project.AddCommand<ProjectAddVerificationCommand>("add-verification")
+                    .WithDescription("Add a verification to a project");
+                project.AddCommand<ProjectRemoveVerificationCommand>("remove-verification")
+                    .WithDescription("Remove a verification from a project");
+                project.AddCommand<ProjectAddBuildDepCommand>("add-build-dep")
+                    .WithDescription("Add a build dependency to a project");
+                project.AddCommand<ProjectRemoveBuildDepCommand>("remove-build-dep")
+                    .WithDescription("Remove a build dependency from a project");
             });
         });
         return app;
