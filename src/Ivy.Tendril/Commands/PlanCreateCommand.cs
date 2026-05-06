@@ -54,6 +54,10 @@ public class PlanCreateSettings : CommandSettings
     [Description("Dependency plan folder names (repeatable)")]
     [CommandOption("--depends-on")]
     public string[]? DependsOn { get; set; }
+
+    [Description("Explicit plans directory (overrides TENDRIL_PLANS / TENDRIL_HOME)")]
+    [CommandOption("--plans-dir")]
+    public string? PlansDir { get; set; }
 }
 
 public class PlanCreateCommand : Command<PlanCreateSettings>
@@ -71,7 +75,7 @@ public class PlanCreateCommand : Command<PlanCreateSettings>
     {
         try
         {
-            var plansDir = PlanCommandHelpers.GetPlansDirectory();
+            var plansDir = PlanCommandHelpers.GetPlansDirectory(settings.PlansDir);
 
             var planId = PlanYamlHelper.AllocatePlanId(plansDir);
             var safeTitle = PlanYamlHelper.ToSafeTitle(settings.Title);

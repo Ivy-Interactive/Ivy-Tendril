@@ -28,6 +28,7 @@ For each distinct issue, use `tendril plan create` to allocate an ID, create the
 
 ```bash
 tendril plan create "<Title>" \
+  --plans-dir "<PlansDirectory>" \
   --project "<Project>" \
   --level "<Level>" \
   --initial-prompt "<original plan's initialPrompt>" \
@@ -37,6 +38,8 @@ tendril plan create "<Title>" \
   --verification "Test=Pending" \
   --related-plan "<original-plan-folder-name>"
 ```
+
+**IMPORTANT:** Always pass `--plans-dir` with the plans directory (derive from the plan folder's parent). This ensures child plans are created in the correct directory regardless of environment variable inheritance.
 
 The command outputs `PlanId`, `Directory`, and `Plan created` lines. Parse the `Directory` to write the revision file.
 

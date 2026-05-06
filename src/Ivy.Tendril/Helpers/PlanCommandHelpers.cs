@@ -14,6 +14,12 @@ public static class PlanCommandHelpers
     /// </summary>
     public static string ResolvePlanFolder(string planId)
     {
+        // If the input is already a valid plan folder path, use it directly.
+        // This allows agents to pass the full Directory path from `tendril plan create`
+        // without relying on env var inheritance for resolution.
+        if (Path.IsPathRooted(planId) && Directory.Exists(planId) && File.Exists(Path.Combine(planId, "plan.yaml")))
+            return planId;
+
         var plansDirectory = GetPlansDirectory();
 
         var normalized = NormalizePlanId(planId, plansDirectory);
@@ -49,10 +55,17 @@ public static class PlanCommandHelpers
     }
 
     /// <summary>
-    ///     Resolves the plans directory from TENDRIL_PLANS or TENDRIL_HOME/Plans.
+    ///     Resolves the plans directory from an explicit override, TENDRIL_PLANS, or TENDRIL_HOME/Plans.
     /// </summary>
-    public static string GetPlansDirectory()
+    public static string GetPlansDirectory(string? explicitPlansDir = null)
     {
+        if (!string.IsNullOrEmpty(explicitPlansDir))
+        {
+            if (!Directory.Exists(explicitPlansDir))
+                Directory.CreateDirectory(explicitPlansDir);
+            return explicitPlansDir;
+        }
+
         var plans = Environment.GetEnvironmentVariable("TENDRIL_PLANS")?.Trim();
         if (!string.IsNullOrEmpty(plans))
         {
