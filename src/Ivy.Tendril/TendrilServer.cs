@@ -65,6 +65,7 @@ public static class TendrilServer
 
         server.Services.AddSingleton<VersionCheckService>();
         server.Services.AddSingleton<IVersionCheckService>(sp => sp.GetRequiredService<VersionCheckService>());
+        server.Services.AddSingleton<IPromptwareRunner, PromptwareRunner>();
 
 
         server.Services.AddSingleton<OnboardingSetupService>();
