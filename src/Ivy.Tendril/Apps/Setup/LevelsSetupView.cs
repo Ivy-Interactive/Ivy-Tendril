@@ -12,6 +12,7 @@ public class LevelsSetupView : ViewBase
         var client = UseService<IClientProvider>();
         var refreshToken = UseRefreshToken();
         var editIndex = UseState<int?>(-1);
+        var (alertView, showAlert) = UseAlert();
 
         // Use levels in config.yaml order (not alphabetically sorted).
         var levels = config.Settings.Levels;
@@ -34,10 +35,16 @@ public class LevelsSetupView : ViewBase
                 | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete this level").OnClick(() =>
                 {
                     var name = levels[idx].Name;
-                    levels.RemoveAt(idx);
-                    config.SaveSettings();
-                    client.Toast($"Level '{name}' deleted", "Deleted");
-                    refreshToken.Refresh();
+                    showAlert($"Are you sure you want to delete '{name}'?", result =>
+                    {
+                        if (result == AlertResult.Ok)
+                        {
+                            levels.RemoveAt(idx);
+                            config.SaveSettings();
+                            client.Toast($"Level '{name}' deleted", "Deleted");
+                            refreshToken.Refresh();
+                        }
+                    }, "Delete Level", AlertButtonSet.OkCancel);
                 })
             ))
             .ColumnWidth(t => t.Index, Size.Px(88));
@@ -50,7 +57,8 @@ public class LevelsSetupView : ViewBase
                {
                    editIndex.Set(null);
                })
-               | new EditLevelDialog(editIndex, levels, config, client, refreshToken);
+               | new EditLevelDialog(editIndex, levels, config, client, refreshToken)
+               | alertView;
     }
 
     private record LevelRow(string Name, string Badge, int Index);

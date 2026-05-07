@@ -12,6 +12,7 @@ public class VerificationsSetupView : ViewBase
         var client = UseService<IClientProvider>();
         var refreshToken = UseRefreshToken();
         var editIndex = UseState<int?>(-1);
+        var (alertView, showAlert) = UseAlert();
 
         var verifications = config.Settings.Verifications;
 
@@ -28,10 +29,16 @@ public class VerificationsSetupView : ViewBase
                 | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete this verification").OnClick(() =>
                 {
                     var name = verifications[idx].Name;
-                    verifications.RemoveAt(idx);
-                    config.SaveSettings();
-                    client.Toast($"Verification '{name}' deleted", "Deleted");
-                    refreshToken.Refresh();
+                    showAlert($"Are you sure you want to delete '{name}'?", result =>
+                    {
+                        if (result == AlertResult.Ok)
+                        {
+                            verifications.RemoveAt(idx);
+                            config.SaveSettings();
+                            client.Toast($"Verification '{name}' deleted", "Deleted");
+                            refreshToken.Refresh();
+                        }
+                    }, "Delete Verification", AlertButtonSet.OkCancel);
                 })
             ))
             .ColumnWidth(t => t.Name, Size.Units(32))
@@ -47,7 +54,8 @@ public class VerificationsSetupView : ViewBase
                {
                    editIndex.Set(null);
                })
-               | new EditVerificationDialog(editIndex, verifications, config, client, refreshToken);
+               | new EditVerificationDialog(editIndex, verifications, config, client, refreshToken)
+               | alertView;
     }
 
     private record VerificationRow(string Name, string Prompt, int Index);
