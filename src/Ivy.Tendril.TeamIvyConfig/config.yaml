@@ -298,6 +298,13 @@ promptwares:
     allowedTools:
     - Read
     - Bash
+  UpdateProject:
+    profile: deep
+    allowedTools:
+    - Read
+    - Glob
+    - Grep
+    - Bash
   IvyFrameworkVerification:
     profile: balanced
     allowedTools:
