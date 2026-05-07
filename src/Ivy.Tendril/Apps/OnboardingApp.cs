@@ -71,6 +71,7 @@ public class OnboardingApp : ViewBase
 
         ValueTask OnSelect(Event<Stepper, int> e)
         {
+            if (stepperIndex.Value == 3) return ValueTask.CompletedTask;
             stepperIndex.Set(e.Value);
             return ValueTask.CompletedTask;
         }
