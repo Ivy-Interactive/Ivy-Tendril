@@ -27,6 +27,8 @@ public class PromptwareRunner
         string workingDir,
         Dictionary<string, string>? extraValues = null,
         string? profile = null,
+        string? agent = null,
+        string? cliLogPath = null,
         TimeSpan? timeout = null,
         CancellationToken ct = default)
     {
@@ -51,6 +53,18 @@ public class PromptwareRunner
         {
             arguments.Add("--profile");
             arguments.Add(profile);
+        }
+
+        if (!string.IsNullOrEmpty(agent))
+        {
+            arguments.Add("--agent");
+            arguments.Add(agent);
+        }
+
+        if (!string.IsNullOrEmpty(cliLogPath))
+        {
+            arguments.Add("--cli-log");
+            arguments.Add(cliLogPath);
         }
 
         if (extraValues != null)
