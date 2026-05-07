@@ -88,10 +88,10 @@ public class ModelPricingService : IModelPricingService
                 if (kvp.Value is Dictionary<object, object> props)
                     result[modelName] = new ModelPricing
                     {
-                        Input = Convert.ToDouble(props["input"]),
-                        Output = Convert.ToDouble(props["output"]),
-                        CacheWrite = Convert.ToDouble(props["cacheWrite"]),
-                        CacheRead = Convert.ToDouble(props["cacheRead"])
+                        Input = Convert.ToDouble(props["input"], System.Globalization.CultureInfo.InvariantCulture),
+                        Output = Convert.ToDouble(props["output"], System.Globalization.CultureInfo.InvariantCulture),
+                        CacheWrite = Convert.ToDouble(props["cacheWrite"], System.Globalization.CultureInfo.InvariantCulture),
+                        CacheRead = Convert.ToDouble(props["cacheRead"], System.Globalization.CultureInfo.InvariantCulture)
                     };
             }
 

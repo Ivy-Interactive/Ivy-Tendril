@@ -10,6 +10,7 @@ public class PrStatusSyncService : IStartable, IDisposable
 
     private readonly IPlanDatabaseService _database;
     private readonly IGithubService _githubService;
+    private readonly IBitbucketService _bitbucketService;
     private readonly IPlanReaderService _planReader;
     private readonly ILogger<PrStatusSyncService> _logger;
     private Timer? _timer;
@@ -17,11 +18,13 @@ public class PrStatusSyncService : IStartable, IDisposable
     public PrStatusSyncService(
         IPlanDatabaseService database,
         IGithubService githubService,
+        IBitbucketService bitbucketService,
         IPlanReaderService planReader,
         ILogger<PrStatusSyncService> logger)
     {
         _database = database;
         _githubService = githubService;
+        _bitbucketService = bitbucketService;
         _planReader = planReader;
         _logger = logger;
     }
@@ -68,35 +71,52 @@ public class PrStatusSyncService : IStartable, IDisposable
                 return;
             }
 
-            var grouped = GroupByOwnerRepo(urlsToCheck);
+            var grouped = GroupByHostOwnerRepo(urlsToCheck);
             var now = DateTime.UtcNow;
 
-            foreach (var (ownerRepo, urls) in grouped)
+            foreach (var (hostOwnerRepo, urls) in grouped)
             {
-                var parts = ownerRepo.Split('/');
+                var parts = hostOwnerRepo.Split('|');
                 if (parts.Length != 2) continue;
+                
+                var host = parts[0];
+                var ownerRepoParts = parts[1].Split('/');
+                if (ownerRepoParts.Length != 2) continue;
+
+                var owner = ownerRepoParts[0];
+                var repo = ownerRepoParts[1];
 
                 try
                 {
-                    var (statuses, error) = await _githubService.GetPrStatusesAsync(parts[0], parts[1]);
+                    Dictionary<string, string> statuses;
+                    string? error;
+
+                    if (host.Contains("bitbucket.org", StringComparison.OrdinalIgnoreCase))
+                    {
+                        (statuses, error) = await _bitbucketService.GetPrStatusesAsync(owner, repo, urls);
+                    }
+                    else
+                    {
+                        (statuses, error) = await _githubService.GetPrStatusesAsync(owner, repo);
+                    }
 
                     if (error is not null)
                     {
-                        _logger.LogWarning("Failed to fetch PR statuses for {Repo}: {Error}", ownerRepo, error);
+                        _logger.LogWarning("Failed to fetch PR statuses for {Repo} on {Host}: {Error}", parts[1], host, error);
                         continue;
                     }
 
                     foreach (var url in urls)
                     {
                         var resolvedStatus = statuses.GetValueOrDefault(url, "Open");
-                        _database.UpsertPrStatus(url, parts[0], parts[1], resolvedStatus, now);
+                        _database.UpsertPrStatus(url, owner, repo, resolvedStatus, now);
                     }
 
-                    _logger.LogDebug("Synced {Count} PR statuses for {Repo}", urls.Count, ownerRepo);
+                    _logger.LogDebug("Synced {Count} PR statuses for {Repo} on {Host}", urls.Count, parts[1], host);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Failed to fetch PR statuses for {Repo}", ownerRepo);
+                    _logger.LogWarning(ex, "Failed to fetch PR statuses for {Repo} on {Host}", parts[1], host);
                 }
             }
         }
@@ -117,7 +137,7 @@ public class PrStatusSyncService : IStartable, IDisposable
             .ToList();
     }
 
-    internal static Dictionary<string, List<string>> GroupByOwnerRepo(List<string> prUrls)
+    internal static Dictionary<string, List<string>> GroupByHostOwnerRepo(List<string> prUrls)
     {
         var result = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (var url in prUrls)
@@ -127,7 +147,7 @@ public class PrStatusSyncService : IStartable, IDisposable
                 var uri = new Uri(url);
                 var segments = uri.AbsolutePath.Trim('/').Split('/');
                 if (segments.Length < 2) continue;
-                var key = $"{segments[0]}/{segments[1]}";
+                var key = $"{uri.Host}|{segments[0]}/{segments[1]}";
                 if (!result.TryGetValue(key, out var list))
                 {
                     list = new List<string>();

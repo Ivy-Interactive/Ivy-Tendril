@@ -209,8 +209,11 @@ public class PullRequestApp : ViewBase
     private static readonly Regex GitHubPrPattern = new(
         @"^https?://github\.com/[^/]+/[^/]+/pull/\d+", RegexOptions.Compiled);
 
+    private static readonly Regex BitbucketPrPattern = new(
+        @"^https?://bitbucket\.org/[^/]+/[^/]+/pull-requests/\d+", RegexOptions.Compiled);
+
     internal static bool IsValidUrl(string? value) =>
-        value is not null && GitHubPrPattern.IsMatch(value);
+        value is not null && (GitHubPrPattern.IsMatch(value) || BitbucketPrPattern.IsMatch(value));
 
     internal static string ExtractRepo(string prUrl, ILogger? logger = null)
     {

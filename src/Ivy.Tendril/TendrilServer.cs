@@ -73,6 +73,8 @@ public static class TendrilServer
         server.Services.AddSingleton<IOnboardingAuthRunner, OnboardingAuthRunner>();
         server.Services.AddSingleton<GithubService>();
         server.Services.AddSingleton<IGithubService>(sp => sp.GetRequiredService<GithubService>());
+        server.Services.AddSingleton<BitbucketService>();
+        server.Services.AddSingleton<IBitbucketService>(sp => sp.GetRequiredService<BitbucketService>());
         server.Services.AddSingleton<IGitService>(sp =>
             new GitService(
                 sp.GetRequiredService<IConfigService>(),
@@ -171,9 +173,10 @@ public static class TendrilServer
         {
             var database = sp.GetRequiredService<IPlanDatabaseService>();
             var githubService = sp.GetRequiredService<IGithubService>();
+            var bitbucketService = sp.GetRequiredService<IBitbucketService>();
             var planReader = sp.GetRequiredService<IPlanReaderService>();
             var logger = sp.GetRequiredService<ILogger<PrStatusSyncService>>();
-            return new PrStatusSyncService(database, githubService, planReader, logger);
+            return new PrStatusSyncService(database, githubService, bitbucketService, planReader, logger);
         });
         server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<PrStatusSyncService>());
 
