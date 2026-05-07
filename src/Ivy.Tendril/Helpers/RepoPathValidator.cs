@@ -63,29 +63,29 @@ public static class RepoPathValidator
         switch (kind)
         {
             case RepoPathKind.SshUrl:
-            {
-                // git@host:owner/repo.git -> repo
-                var colonIdx = input.IndexOf(':');
-                if (colonIdx < 0) return null;
-                var path = input[(colonIdx + 1)..];
-                if (path.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
-                    path = path[..^4];
-                var parts = path.Split('/');
-                return parts.Length > 0 ? parts[^1] : null;
-            }
+                {
+                    // git@host:owner/repo.git -> repo
+                    var colonIdx = input.IndexOf(':');
+                    if (colonIdx < 0) return null;
+                    var path = input[(colonIdx + 1)..];
+                    if (path.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
+                        path = path[..^4];
+                    var parts = path.Split('/');
+                    return parts.Length > 0 ? parts[^1] : null;
+                }
             case RepoPathKind.HttpUrl:
-            {
-                var trimmed = input;
-                if (trimmed.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
-                    trimmed = trimmed[..^4];
-                var parts = trimmed.Split('/', StringSplitOptions.RemoveEmptyEntries);
-                return parts.Length > 0 ? parts[^1] : null;
-            }
+                {
+                    var trimmed = input;
+                    if (trimmed.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
+                        trimmed = trimmed[..^4];
+                    var parts = trimmed.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                    return parts.Length > 0 ? parts[^1] : null;
+                }
             case RepoPathKind.LocalPath:
-            {
-                var trimmed = input.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-                return Path.GetFileName(trimmed);
-            }
+                {
+                    var trimmed = input.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                    return Path.GetFileName(trimmed);
+                }
             default:
                 return null;
         }
