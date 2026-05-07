@@ -11,7 +11,6 @@ public class CodingAgentStepView(
     IState<string[]> ghOwners,
     IState<Dictionary<string, string[]>> ghReposByOwner,
     IState<bool> commonChecksPassed,
-    IState<bool> homeBootstrapped,
     IState<bool> reposFetched,
     IState<string?> completedAgentKey) : ViewBase
 {
@@ -19,10 +18,11 @@ public class CodingAgentStepView(
 
     private static readonly AgentInfo[] Agents =
     [
-        new("claude",  "Claude",  Icons.ClaudeCode),
-        new("codex",   "Codex",   Icons.OpenAI),
-        new("gemini",  "Gemini",  Icons.Gemini),
-        new("copilot", "Copilot", Icons.Copilot)
+        new("claude",   "Claude",   Icons.ClaudeCode),
+        new("codex",    "Codex",    Icons.OpenAI),
+        new("gemini",   "Gemini",   Icons.Gemini),
+        new("copilot",  "Copilot",  Icons.Copilot),
+        new("opencode", "OpenCode", Icons.OpenCode)
     ];
 
     public override object Build()
@@ -30,7 +30,6 @@ public class CodingAgentStepView(
         var config = UseService<IConfigService>();
         var client = UseService<IClientProvider>();
         var authRunner = UseService<IOnboardingAuthRunner>();
-        var setupService = UseService<IOnboardingSetupService>();
 
         var selectedAgent = UseState<string?>(null);
         var progressMessage = UseState<string?>(null);
@@ -126,18 +125,6 @@ public class CodingAgentStepView(
 
                 config.Settings.CodingAgent = agentKey;
                 config.SetPendingCodingAgent(agentKey);
-
-                if (!homeBootstrapped.Value)
-                {
-                    progressMessage.Set("Setting Up Tendril Home...");
-                    var defaultHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")
-                                      ?? Path.Combine(
-                                          Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                                          ".tendril");
-                    config.SetPendingTendrilHome(defaultHome);
-                    await setupService.BootstrapTendrilHomeAsync(defaultHome);
-                    homeBootstrapped.Set(true);
-                }
 
                 if (!reposFetched.Value)
                 {
@@ -274,6 +261,10 @@ public class CodingAgentStepView(
             () => CheckCommand("copilot", "--version"),
             () => CheckHealth("copilot", "-p \"ping\" --allow-all -s"),
             "Sign in to Copilot"),
+        "opencode" => new("OpenCode CLI", "opencode", "https://opencode.ai", true,
+            () => CheckCommand("opencode", "--version"),
+            CheckOpenCodeAuth,
+            "Sign in to OpenCode"),
         _ => throw new ArgumentOutOfRangeException(nameof(agentKey), agentKey, "Unknown agent")
     };
 
@@ -327,6 +318,38 @@ public class CodingAgentStepView(
         {
             return HealthCheckStatus.CheckFailed;
         }
+    }
+
+    private static Task<HealthCheckStatus> CheckOpenCodeAuth()
+    {
+        return Task.Run(() =>
+        {
+            try
+            {
+                var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                // OpenCode stores credentials at ~/.local/share/opencode/auth.json on Linux/macOS
+                // and %APPDATA%/opencode/auth.json on Windows.
+                var authPath = OperatingSystem.IsWindows()
+                    ? Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                        "opencode", "auth.json")
+                    : Path.Combine(homeDir, ".local", "share", "opencode", "auth.json");
+
+                if (File.Exists(authPath))
+                {
+                    var fileInfo = new FileInfo(authPath);
+                    return fileInfo.Length > 2
+                        ? HealthCheckStatus.Authenticated
+                        : HealthCheckStatus.NotAuthenticated;
+                }
+
+                return HealthCheckStatus.NotAuthenticated;
+            }
+            catch
+            {
+                return HealthCheckStatus.CheckFailed;
+            }
+        });
     }
 
     private static Task<HealthCheckStatus> CheckGeminiAuth()

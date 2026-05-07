@@ -14,8 +14,9 @@ public class OnboardingApp : ViewBase
         return
         [
             new("1", selectedIndex > 0 ? Icons.Check : null, "Coding Agent"),
-            new("2", selectedIndex > 1 ? Icons.Check : null, "Your first project"),
-            new("3", selectedIndex > 2 ? Icons.Check : null, "Complete")
+            new("2", selectedIndex > 1 ? Icons.Check : null, "Data Location"),
+            new("3", selectedIndex > 2 ? Icons.Check : null, "Your first project"),
+            new("4", selectedIndex > 3 ? Icons.Check : null, "Complete")
         ];
     }
 
@@ -27,6 +28,7 @@ public class OnboardingApp : ViewBase
         IState<bool> homeBootstrapped,
         IState<bool> reposFetched,
         IState<string?> completedAgentKey,
+        IState<string> tendrilHomePath,
         IState<string> selectedOwner,
         IState<List<Onboarding.RepoChoice>> selectedRepos,
         IState<string> projectName)
@@ -34,10 +36,11 @@ public class OnboardingApp : ViewBase
         return stepperIndex.Value switch
         {
             0 => new CodingAgentStepView(stepperIndex, ghOwners, ghReposByOwner,
-                                         commonChecksPassed, homeBootstrapped, reposFetched, completedAgentKey),
-            1 => new ProjectSetupStepView(stepperIndex, ghOwners, ghReposByOwner,
+                                         commonChecksPassed, reposFetched, completedAgentKey),
+            1 => new TendrilHomeStepView(stepperIndex, tendrilHomePath, homeBootstrapped),
+            2 => new ProjectSetupStepView(stepperIndex, ghOwners, ghReposByOwner,
                                           selectedOwner, selectedRepos, projectName),
-            2 => new CompleteStepView(stepperIndex, selectedOwner, selectedRepos, projectName),
+            3 => new CompleteStepView(stepperIndex, selectedOwner, selectedRepos, projectName),
             _ => throw new ArgumentOutOfRangeException()
         };
     }
@@ -51,6 +54,9 @@ public class OnboardingApp : ViewBase
         var homeBootstrapped = UseState(false);
         var reposFetched = UseState(false);
         var completedAgentKey = UseState<string?>((string?)null);
+        var tendrilHomePath = UseState(() =>
+            Environment.GetEnvironmentVariable("TENDRIL_HOME")
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril"));
         var selectedOwner = UseState("");
         var selectedRepos = UseState(() => new List<Onboarding.RepoChoice>());
         var projectName = UseState("");
@@ -62,7 +68,7 @@ public class OnboardingApp : ViewBase
                 | new Stepper(OnSelect, stepperIndex.Value, steps).Width(Size.Full())
                 | GetStepViews(stepperIndex, ghOwners, ghReposByOwner,
                                commonChecksPassed, homeBootstrapped, reposFetched, completedAgentKey,
-                               selectedOwner, selectedRepos, projectName)
+                               tendrilHomePath, selectedOwner, selectedRepos, projectName)
                );
 
         ValueTask OnSelect(Event<Stepper, int> e)

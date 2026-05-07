@@ -17,6 +17,7 @@ public class OnboardingAuthRunner : IOnboardingAuthRunner
         "codex" => new("codex", "login", null, GenericUrlRegex),
         "gemini" => new("gemini", "", null, GenericUrlRegex),
         "copilot" => new("copilot", "", null, GenericUrlRegex),
+        "opencode" => new("opencode", "auth login", null, GenericUrlRegex),
         _ => null
     };
 
