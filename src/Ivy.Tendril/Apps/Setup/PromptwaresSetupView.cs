@@ -10,11 +10,11 @@ public class PromptwaresSetupView : ViewBase
         var config = UseService<IConfigService>();
         var client = UseService<IClientProvider>();
         var refreshToken = UseRefreshToken();
+        var (triggerView, showTrigger) = UseTrigger((IState<bool> isOpen, string? existingKey) =>
+            new EditPromptwareDialogContent(isOpen, existingKey, config, client, refreshToken));
+        var (alertView, showAlert) = UseAlert();
 
         var promptwares = config.Settings.Promptwares;
-
-        var (triggerView, showTrigger) = UseTrigger((IState<bool> isOpen, string? existingKey) =>
-            new EditPromptwareDialogContent(isOpen, existingKey, promptwares, config, client, refreshToken));
 
         var rows = promptwares.Select((kvp, i) => new PromptwareRow(
             kvp.Key,
@@ -25,20 +25,30 @@ public class PromptwaresSetupView : ViewBase
         var table = new TableBuilder<PromptwareRow>(rows)
             .Header(t => t.Index, "")
             .Builder(t => t.Index, f => f.Func<PromptwareRow, int>(idx =>
-                Layout.Horizontal().Gap(1)
-                | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit this promptware").OnClick(() =>
-                {
-                    showTrigger(rows[idx].Name);
-                })
-                | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete this promptware").OnClick(() =>
-                {
-                    var name = rows[idx].Name;
-                    promptwares.Remove(name);
-                    config.SaveSettings();
-                    client.Toast($"Promptware '{name}' deleted", "Deleted");
-                    refreshToken.Refresh();
-                })
-            ));
+            {
+                var name = rows[idx].Name;
+                var isBuiltIn = Constants.JobTypes.BuiltIn.Contains(name);
+                return Layout.Horizontal().Gap(1)
+                       | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit this promptware").OnClick(() =>
+                       {
+                           showTrigger(name);
+                       })
+                       | (isBuiltIn
+                           ? null
+                           : new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete this promptware").OnClick(() =>
+                           {
+                               showAlert($"Are you sure you want to delete '{name}'?", result =>
+                               {
+                                   if (result == AlertResult.Ok)
+                                   {
+                                       promptwares.Remove(name);
+                                       config.SaveSettings();
+                                       client.Toast($"Promptware '{name}' deleted", "Deleted");
+                                       refreshToken.Refresh();
+                                   }
+                               }, "Delete Promptware", AlertButtonSet.OkCancel);
+                           }));
+            }));
 
         return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(200)))
                | Text.Block("Promptware Configuration").Bold()
@@ -49,7 +59,8 @@ public class PromptwaresSetupView : ViewBase
                {
                    showTrigger(null);
                })
-               | triggerView;
+               | triggerView
+               | alertView;
     }
 
     private record PromptwareRow(string Name, string Profile, int Index);
@@ -58,19 +69,29 @@ public class PromptwaresSetupView : ViewBase
 file class EditPromptwareDialogContent(
     IState<bool> isOpen,
     string? existingKey,
-    Dictionary<string, PromptwareConfig> promptwares,
     IConfigService config,
     IClientProvider client,
     RefreshToken refreshToken) : ViewBase
 {
     public override object? Build()
     {
-        var isNew = existingKey == null;
-        var existing = !isNew && promptwares.ContainsKey(existingKey!) ? promptwares[existingKey!] : null;
+        var editName = UseState("");
+        var editProfile = UseState("");
+        var editAllowedTools = UseState("");
+        UseEffect(() =>
+        {
+            var pw = config.Settings.Promptwares;
+            if (existingKey != null && pw.ContainsKey(existingKey))
+            {
+                var p = pw[existingKey];
+                editName.Set(existingKey);
+                editProfile.Set(p.Profile);
+                editAllowedTools.Set(string.Join(", ", p.AllowedTools));
+            }
+        }, EffectTrigger.OnMount());
 
-        var editName = UseState(existing != null ? existingKey! : "");
-        var editProfile = UseState(existing?.Profile ?? "");
-        var editAllowedTools = UseState(existing != null ? string.Join(", ", existing.AllowedTools) : "");
+        var promptwares = config.Settings.Promptwares;
+        var isNew = existingKey == null;
 
         return new Dialog(
             _ => isOpen.Set(false),
