@@ -70,7 +70,7 @@ public class EditProjectDialog(
             var repoName = RepoPathValidator.ExtractRepoName(draft.Path) ?? Guid.NewGuid().ToString();
             var destPath = Path.Combine(reposDir, repoName);
 
-            var success = await GitHubCliHelper.CloneRepositoryAsync(draft.Path, destPath);
+            var success = await GitHelper.CloneRepositoryAsync(draft.Path, destPath);
             if (!success)
             {
                 _client.Toast($"Failed to fetch repository: {draft.Path}", "Error");

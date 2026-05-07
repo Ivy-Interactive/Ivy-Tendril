@@ -2,7 +2,7 @@ using System.Diagnostics;
 
 namespace Ivy.Tendril.Helpers;
 
-public static class GitHubCliHelper
+public static class GitHelper
 {
     public static async Task<bool> CloneRepositoryAsync(string url, string destinationPath)
     {

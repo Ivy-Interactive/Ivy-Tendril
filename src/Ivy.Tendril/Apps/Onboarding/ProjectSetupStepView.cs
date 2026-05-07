@@ -97,7 +97,7 @@ public class ProjectSetupStepView(
                                       var repoName = RepoPathValidator.ExtractRepoName(repo.Path) ?? Guid.NewGuid().ToString();
                                       progressMessage.Set($"Fetching {repoName} ({i}/{total})...");
                                       var destPath = Path.Combine(reposDir, repoName);
-                                      var success = await GitHubCliHelper.CloneRepositoryAsync(repo.Path, destPath);
+                                      var success = await GitHelper.CloneRepositoryAsync(repo.Path, destPath);
                                       if (!success)
                                       {
                                           progressCts.Cancel();
