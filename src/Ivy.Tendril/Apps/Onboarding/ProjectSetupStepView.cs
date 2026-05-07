@@ -75,67 +75,20 @@ public class ProjectSetupStepView(
                               error.Set(null);
                               isCloning.Set(true);
 
-                              try
+                              var refs = await ResolveReposAsync(config, progressMessage, error, isCloning);
+                              if (refs == null) return;
+
+                              var project = new ProjectConfig
                               {
-                                  var refs = new List<RepoRef>();
-                                  var tendrilHome = config.TendrilHome;
-                                  if (string.IsNullOrEmpty(tendrilHome))
-                                  {
-                                      tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")
-                                                    ?? Path.Combine(
-                                                        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                                                        ".tendril");
-                                  }
-                                  var reposDir = Path.Combine(tendrilHome, "Repos");
+                                  Name = name,
+                                  Color = "Green",
+                                  Repos = refs,
+                                  Context = "",
+                                  Verifications = new List<ProjectVerificationRef>()
+                              };
 
-                                  var total = selectedRepos.Value.Count;
-                                  var i = 0;
-                                  foreach (var repo in selectedRepos.Value)
-                                  {
-                                      i++;
-                                      var kind = RepoPathValidator.Classify(repo.Path);
-                                      if (kind == RepoPathKind.LocalPath)
-                                      {
-                                          progressMessage.Set($"Adding {repo.Path} ({i}/{total})...");
-                                          var trimmed = repo.Path.Trim();
-                                          if (!string.IsNullOrWhiteSpace(trimmed))
-                                              refs.Add(repo with { Path = trimmed });
-                                      }
-                                      else
-                                      {
-                                          Directory.CreateDirectory(reposDir);
-                                          var repoName = RepoPathValidator.ExtractRepoName(repo.Path) ?? Guid.NewGuid().ToString();
-                                          progressMessage.Set($"Fetching {repoName} ({i}/{total})...");
-                                          var destPath = Path.Combine(reposDir, repoName);
-                                          var success = await CloneRepositoryAsync(repo.Path, destPath);
-                                          if (!success)
-                                          {
-                                              error.Set($"Failed to fetch repository: {repo.Path}.");
-                                              isCloning.Set(false);
-                                              return;
-                                          }
-                                          refs.Add(repo with { Path = destPath });
-                                      }
-                                  }
-
-                                  var project = new ProjectConfig
-                                  {
-                                      Name = name,
-                                      Color = "Green",
-                                      Repos = refs,
-                                      Context = "",
-                                      Verifications = new List<ProjectVerificationRef>()
-                                  };
-
-                                  config.SetPendingProject(project);
-                                  config.SetPendingVerificationDefinitions(new List<VerificationConfig>());
-                              }
-                              catch (Exception ex)
-                              {
-                                  error.Set($"Failed to complete setup: {ex.Message}");
-                                  isCloning.Set(false);
-                                  return;
-                              }
+                              config.SetPendingProject(project);
+                              config.SetPendingVerificationDefinitions(new List<VerificationConfig>());
                           }
 
                           await setupService.FinalizeOnboardingAsync();
@@ -161,49 +114,13 @@ public class ProjectSetupStepView(
 
                           try
                           {
-                              var refs = new List<RepoRef>();
-
-                              var tendrilHome = config.TendrilHome;
-                              if (string.IsNullOrEmpty(tendrilHome))
+                              var refs = await ResolveReposAsync(config, progressMessage, error, isCloning);
+                              if (refs == null)
                               {
-                                  tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")
-                                                ?? Path.Combine(
-                                                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                                                    ".tendril");
-                              }
-                              var reposDir = Path.Combine(tendrilHome, "Repos");
-
-                              var total = selectedRepos.Value.Count;
-                              var i = 0;
-                              foreach (var repo in selectedRepos.Value)
-                              {
-                                  i++;
-                                  var kind = RepoPathValidator.Classify(repo.Path);
-                                  if (kind == RepoPathKind.LocalPath)
-                                  {
-                                      progressMessage.Set($"Adding {repo.Path} ({i}/{total})...");
-                                      var trimmed = repo.Path.Trim();
-                                      if (!string.IsNullOrWhiteSpace(trimmed))
-                                          refs.Add(repo with { Path = trimmed });
-                                  }
-                                  else
-                                  {
-                                      Directory.CreateDirectory(reposDir);
-                                      var repoName = RepoPathValidator.ExtractRepoName(repo.Path) ?? Guid.NewGuid().ToString();
-                                      progressMessage.Set($"Fetching {repoName} ({i}/{total})...");
-                                      var destPath = Path.Combine(reposDir, repoName);
-                                      var success = await CloneRepositoryAsync(repo.Path, destPath);
-                                      if (!success)
-                                      {
-                                          progressCts.Cancel();
-                                          progressValue.Set(null);
-                                          progressMessage.Set(null);
-                                          error.Set($"Failed to fetch repository: {repo.Path}.");
-                                          isCloning.Set(false);
-                                          return;
-                                      }
-                                      refs.Add(repo with { Path = destPath });
-                                  }
+                                  progressCts.Cancel();
+                                  progressValue.Set(null);
+                                  progressMessage.Set(null);
+                                  return;
                               }
 
                               var project = new ProjectConfig
@@ -237,6 +154,56 @@ public class ProjectSetupStepView(
                               isCloning.Set(false);
                           }
                       }));
+    }
+
+    private async Task<List<RepoRef>?> ResolveReposAsync(
+        IConfigService config,
+        IState<string?> progressMessage,
+        IState<string?> error,
+        IState<bool> isCloning)
+    {
+        var refs = new List<RepoRef>();
+        var tendrilHome = config.TendrilHome;
+        if (string.IsNullOrEmpty(tendrilHome))
+        {
+            tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")
+                          ?? Path.Combine(
+                              Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                              ".tendril");
+        }
+        var reposDir = Path.Combine(tendrilHome, "Repos");
+
+        var total = selectedRepos.Value.Count;
+        var i = 0;
+        foreach (var repo in selectedRepos.Value)
+        {
+            i++;
+            var kind = RepoPathValidator.Classify(repo.Path);
+            if (kind == RepoPathKind.LocalPath)
+            {
+                progressMessage.Set($"Adding {repo.Path} ({i}/{total})...");
+                var trimmed = repo.Path.Trim();
+                if (!string.IsNullOrWhiteSpace(trimmed))
+                    refs.Add(repo with { Path = trimmed });
+            }
+            else
+            {
+                Directory.CreateDirectory(reposDir);
+                var repoName = RepoPathValidator.ExtractRepoName(repo.Path) ?? Guid.NewGuid().ToString();
+                progressMessage.Set($"Fetching {repoName} ({i}/{total})...");
+                var destPath = Path.Combine(reposDir, repoName);
+                var success = await CloneRepositoryAsync(repo.Path, destPath);
+                if (!success)
+                {
+                    error.Set($"Failed to fetch repository: {repo.Path}.");
+                    isCloning.Set(false);
+                    return null;
+                }
+                refs.Add(repo with { Path = destPath });
+            }
+        }
+
+        return refs;
     }
 
     private static async Task DriveProgressAsync(IState<int?> value, CancellationToken ct)
