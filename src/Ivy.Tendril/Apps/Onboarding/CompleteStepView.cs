@@ -86,13 +86,6 @@ public class CompleteStepView(
             }
         }
 
-        void OnBack()
-        {
-            selectedRepos.Set(new List<RepoRef>());
-            projectName.Set("");
-            stepperIndex.Set(stepperIndex.Value - 1);
-        }
-
         var projects = config.Settings.Projects;
         var totalVerifications = projects.Sum(p => p.Verifications?.Count ?? 0);
 
@@ -155,9 +148,6 @@ public class CompleteStepView(
                    : null!)
                | (!running.Value && totalVerifications > 0 ? (object)listLayout : null!)
                | (Layout.Horizontal().Width(Size.Full())
-                  | new Button("Back").Outline().Large().Icon(Icons.ArrowLeft)
-                      .Disabled(running.Value || isFinishing.Value)
-                      .OnClick(OnBack)
                   | new Spacer()
                   | new Button("Finish").Primary().Large().Icon(Icons.Check, Align.Right)
                       .Disabled(running.Value || isFinishing.Value)
