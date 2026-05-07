@@ -174,10 +174,16 @@ public class CompleteStepView(
 
         public void Write(T data)
         {
-            if (!_notified)
+            if (!_notified && data is string json)
             {
-                _notified = true;
-                _onFirstWrite();
+                var trimmed = json.TrimStart();
+                // Only hide loading indicator for events that produce visible output
+                // System and user events are filtered out by the renderer
+                if (!trimmed.StartsWith("{\"type\":\"system\"") && !trimmed.StartsWith("{\"type\":\"user\""))
+                {
+                    _notified = true;
+                    _onFirstWrite();
+                }
             }
             _inner.Write(data);
         }
