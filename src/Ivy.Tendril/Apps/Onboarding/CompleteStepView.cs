@@ -100,8 +100,10 @@ public class CompleteStepView(
             {
                 var capturedProjectName = project.Name;
                 var capturedVerificationName = v.Name;
-                listLayout |= new Box(
-                    Layout.Horizontal().Width(Size.Full()).AlignContent(Align.Center)
+                var prompt = config.Settings.Verifications
+                    .FirstOrDefault(vc => vc.Name == v.Name)?.Prompt ?? "";
+
+                var header = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.Center)
                     | Text.Block(v.Name)
                     | (v.Required ? (object)new Badge("required").Variant(BadgeVariant.Outline) : null!)
                     | new Spacer()
@@ -109,8 +111,11 @@ public class CompleteStepView(
                     {
                         await setupService.RemoveProjectVerificationAsync(capturedProjectName, capturedVerificationName);
                         refreshToken.Set(refreshToken.Value + 1);
-                    }).WithTooltip("Remove")
-                ).Padding(4, 2, 2, 2).Width(Size.Full());
+                    }).WithTooltip("Remove");
+
+                listLayout |= new Expandable(header, Text.Muted(prompt))
+                    .Ghost()
+                    .Width(Size.Full());
             }
         }
 
