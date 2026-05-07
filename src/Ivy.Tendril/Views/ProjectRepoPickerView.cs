@@ -265,7 +265,7 @@ public class ProjectRepoPickerView(
                 var isGitRepo = pathExists && Path.Exists(Path.Combine(expanded, ".git"));
                 if (!isGitRepo)
                 {
-                    pathLabel = Text.Block(item.Path).Color(Colors.Red);
+                    pathLabel = Text.Block(item.Path).Color(Colors.Destructive);
                     validityIcon = new Icon(Icons.TriangleAlert, Colors.Warning).Small()
                         .WithTooltip(!pathExists
                             ? $"Path does not exist: {expanded}"
@@ -293,7 +293,7 @@ public class ProjectRepoPickerView(
                              repos.Set(list);
                          }).WithTooltip("Remove");
 
-            listLayout |= new Box(row).BorderStyle(BorderStyle.None).Background(Colors.Black, 0.04f).Padding(4, 2, 2, 2).Width(Size.Full());
+            listLayout |= new Box(row).BorderStyle(BorderStyle.None).Background(Colors.Muted, 0.15f).Padding(4, 2, 2, 2).Width(Size.Full());
         }
 
         var helperText = isRemote
