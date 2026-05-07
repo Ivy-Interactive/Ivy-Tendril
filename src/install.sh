@@ -79,7 +79,31 @@ else
     printf "%b\\n" "${GREEN}✓ GitHub CLI installed to /usr/local/bin/gh.${NC}"
 fi
 
-printf "%b\\n" "\n${BLUE}Step 4: Checking for PowerShell (pwsh)...${NC}"
+printf "%b\\n" "\n${BLUE}Step 4: Checking for GitLab CLI (glab)...${NC}"
+if command -v glab &> /dev/null; then
+    printf "%b\\n" "${GREEN}✓ GitLab CLI is already installed.${NC}"
+else
+    printf "%b\\n" "Installing GitLab CLI (glab)..."
+    LATEST_GLAB=$(curl -s "https://gitlab.com/api/v4/projects/gitlab-org%2Fcli/releases" | grep -Eo '"name":"v?[0-9]+\.[0-9]+\.[0-9]+"' | head -n 1 | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+')
+    
+    GLAB_TEMP=$(mktemp -d)
+    GLAB_TAR="glab_${LATEST_GLAB}_darwin_${GH_ARCH}.tar.gz"
+    
+    printf "%b\\n" "Downloading glab ${LATEST_GLAB}..."
+    curl -sSL -o "$GLAB_TEMP/$GLAB_TAR" "https://gitlab.com/gitlab-org/cli/-/releases/v${LATEST_GLAB}/downloads/${GLAB_TAR}"
+    
+    cd "$GLAB_TEMP"
+    tar -xzf "$GLAB_TAR"
+    
+    sudo mkdir -p /usr/local/bin
+    sudo mv bin/glab /usr/local/bin/
+    
+    cd - > /dev/null
+    rm -rf "$GLAB_TEMP"
+    printf "%b\\n" "${GREEN}✓ GitLab CLI installed to /usr/local/bin/glab.${NC}"
+fi
+
+printf "%b\\n" "\n${BLUE}Step 5: Checking for PowerShell (pwsh)...${NC}"
 if command -v pwsh &> /dev/null || dotnet tool list -g | grep -qi "powershell"; then
     printf "%b\\n" "${GREEN}✓ PowerShell is already installed.${NC}"
 else
@@ -88,7 +112,7 @@ else
     printf "%b\\n" "${GREEN}✓ PowerShell installed successfully.${NC}"
 fi
 
-printf "%b\\n" "\n${BLUE}Step 5: Installing Ivy-Tendril...${NC}"
+printf "%b\\n" "\n${BLUE}Step 6: Installing Ivy-Tendril...${NC}"
 # Use the internal source if provided, otherwise secondary
 # We'll try official NuGet first, then fallback to Ivy feed if requested
 IVY_SOURCE="https://api.nuget.org/v3/index.json"
@@ -101,8 +125,8 @@ else
     dotnet tool install -g Ivy.Tendril --add-source "$IVY_SOURCE"
 fi
 
-# 6. PATH Configuration
-printf "%b\\n" "\n${BLUE}Step 6: Configuring PATH...${NC}"
+# 7. PATH Configuration
+printf "%b\\n" "\n${BLUE}Step 7: Configuring PATH...${NC}"
 DOTNET_TOOLS_PATH="$HOME/.dotnet/tools"
 SHELL_PROFILE=""
 

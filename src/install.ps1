@@ -76,7 +76,21 @@ if (Get-Command gh -ErrorAction SilentlyContinue) {
     }
 }
 
-Write-Host "`nStep 4: Checking for PowerShell (pwsh)..." -ForegroundColor Blue
+Write-Host "`nStep 4: Checking for GitLab CLI (glab)..." -ForegroundColor Blue
+if (Get-Command glab -ErrorAction SilentlyContinue) {
+    Write-Host "✓ GitLab CLI is already installed." -ForegroundColor Green
+} else {
+    Write-Host "Installing GitLab CLI (glab)..."
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        winget install --id GitLab.glab -e --source winget
+        Write-Host "✓ GitLab CLI installed." -ForegroundColor Green
+    } else {
+        Write-Host "Error: 'winget' not found. Please install GitLab CLI manually." -ForegroundColor Red
+        exit 1
+    }
+}
+
+Write-Host "`nStep 5: Checking for PowerShell (pwsh)..." -ForegroundColor Blue
 $hasPwsh = $false
 if (Get-Command pwsh -ErrorAction SilentlyContinue) {
     $hasPwsh = $true
@@ -95,7 +109,7 @@ if ($hasPwsh) {
     Write-Host "✓ PowerShell installed successfully." -ForegroundColor Green
 }
 
-Write-Host "`nStep 5: Installing Ivy-Tendril..." -ForegroundColor Blue
+Write-Host "`nStep 6: Installing Ivy-Tendril..." -ForegroundColor Blue
 $IVY_SOURCE = "https://api.nuget.org/v3/index.json"
 
 $hasTendril = $false
@@ -119,8 +133,8 @@ if ($hasTendril) {
     dotnet tool install -g Ivy.Tendril --add-source "$IVY_SOURCE"
 }
 
-# Step 6: Path Configuration Verification
-Write-Host "`nStep 6: Configuring PATH..." -ForegroundColor Blue
+# Step 7: Path Configuration Verification
+Write-Host "`nStep 7: Configuring PATH..." -ForegroundColor Blue
 $dotnetToolsPath = "$env:USERPROFILE\.dotnet\tools"
 $env:PATH = "$dotnetToolsPath;$env:PATH"
 
@@ -137,8 +151,8 @@ Write-Host "`n=== Installation Complete! ===" -ForegroundColor Green
 Write-Host "You can now run Ivy-Tendril by typing: tendril" -ForegroundColor Blue
 Write-Host "To launch the GUI, use: tendril --desktop" -ForegroundColor Blue
 
-if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
-    Write-Host "Note: You may need to restart your terminal for 'gh' or 'tendril' to be available." -ForegroundColor Red
+if (-not (Get-Command gh -ErrorAction SilentlyContinue) -or -not (Get-Command glab -ErrorAction SilentlyContinue)) {
+    Write-Host "Note: You may need to restart your terminal for 'gh', 'glab' or 'tendril' to be available." -ForegroundColor Red
 }
 
 Write-Host "`nTry running: tendril --version" -ForegroundColor Blue
