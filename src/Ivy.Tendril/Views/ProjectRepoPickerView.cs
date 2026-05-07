@@ -111,7 +111,7 @@ public class ProjectRepoPickerView(
             var isLocal = itemKind == RepoPathKind.LocalPath;
 
             object? validityIcon = null;
-            object pathLabel = Text.Block(GetDisplayLabel(item));
+            object pathLabel = Text.Block(GetDisplayLabel(item)).Color(Colors.Primary);
             if (isLocal)
             {
                 var expanded = VariableExpansion.ExpandVariables(item.Path, tendrilHome);
