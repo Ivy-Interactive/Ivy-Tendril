@@ -1,4 +1,3 @@
-using Ivy.Tendril.Apps.Setup.Dialogs;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 
@@ -11,7 +10,8 @@ public class LevelsSetupView : ViewBase
         var config = UseService<IConfigService>();
         var client = UseService<IClientProvider>();
         var refreshToken = UseRefreshToken();
-        var editIndex = UseState<int?>(-1);
+        var (triggerView, showTrigger) = UseTrigger((IState<bool> isOpen, int? existingIndex) =>
+            new EditLevelDialogContent(isOpen, existingIndex, config, client, refreshToken));
         var (alertView, showAlert) = UseAlert();
 
         // Use levels in config.yaml order (not alphabetically sorted).
@@ -30,7 +30,7 @@ public class LevelsSetupView : ViewBase
                 Layout.Horizontal().Gap(1)
                 | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit this level").OnClick(() =>
                 {
-                    editIndex.Set(idx);
+                    showTrigger(idx);
                 })
                 | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete this level").OnClick(() =>
                 {
@@ -55,11 +55,70 @@ public class LevelsSetupView : ViewBase
                | table
                | new Button("Add Level").Icon(Icons.Plus).Outline().OnClick(() =>
                {
-                   editIndex.Set(null);
+                   showTrigger(null);
                })
-               | new EditLevelDialog(editIndex, levels, config, client, refreshToken)
+               | triggerView
                | alertView;
     }
 
     private record LevelRow(string Name, string Badge, int Index);
+}
+
+file class EditLevelDialogContent(
+    IState<bool> isOpen,
+    int? existingIndex,
+    IConfigService config,
+    IClientProvider client,
+    RefreshToken refreshToken) : ViewBase
+{
+    public override object? Build()
+    {
+        var editName = UseState("");
+        var editBadge = UseState("Outline");
+        UseEffect(() =>
+        {
+            var levels = config.Settings.Levels;
+            if (existingIndex != null && existingIndex >= 0 && existingIndex < levels.Count)
+            {
+                editName.Set(levels[existingIndex.Value].Name);
+                editBadge.Set(levels[existingIndex.Value].Badge);
+            }
+        }, EffectTrigger.OnMount());
+
+        var levels = config.Settings.Levels;
+        var badgeOptions = Enum.GetNames<BadgeVariant>().ToList();
+        var isNew = existingIndex == null;
+
+        return new Dialog(
+            _ => isOpen.Set(false),
+            new DialogHeader(isNew ? "Add Level" : "Edit Level"),
+            new DialogBody(
+                Layout.Vertical().Gap(4)
+                | editName.ToTextInput("Level name...").WithField().Label("Name")
+                | editBadge.ToSelectInput(badgeOptions).WithField().Label("Badge Variant")
+            ),
+            new DialogFooter(
+                new Button("Cancel").Outline().OnClick(() => isOpen.Set(false)),
+                new Button(isNew ? "Add" : "Save").Primary().OnClick(() =>
+                {
+                    if (string.IsNullOrWhiteSpace(editName.Value)) return;
+                    if (isNew)
+                    {
+                        levels.Add(new LevelConfig { Name = editName.Value, Badge = editBadge.Value });
+                    }
+                    else
+                    {
+                        var level = levels[existingIndex!.Value];
+                        level.Name = editName.Value;
+                        level.Badge = editBadge.Value;
+                    }
+
+                    config.SaveSettings();
+                    isOpen.Set(false);
+                    refreshToken.Refresh();
+                    client.Toast("Level saved", "Saved");
+                })
+            )
+        ).Width(Size.Rem(25));
+    }
 }

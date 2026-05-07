@@ -12,7 +12,7 @@ public class ProjectsSetupView : ViewBase
         var client = UseService<IClientProvider>();
         var refreshToken = UseRefreshToken();
         var editIndex = UseState<int?>(-1);
-        var deleteIndex = UseState<int?>(-1);
+        var (alertView, showAlert) = UseAlert();
 
         var projects = config.Settings.Projects;
         var allVerifications = config.Settings.Verifications.Select(v => v.Name).ToList();
@@ -41,7 +41,17 @@ public class ProjectsSetupView : ViewBase
                 })
                 | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete this project").OnClick(() =>
                 {
-                    deleteIndex.Set(idx);
+                    var name = projects[idx].Name;
+                    showAlert($"Are you sure you want to delete the project '{name}'? This cannot be undone.", result =>
+                    {
+                        if (result == AlertResult.Ok)
+                        {
+                            projects.RemoveAt(idx);
+                            config.SaveSettings();
+                            refreshToken.Refresh();
+                            client.Toast($"Project '{name}' deleted", "Deleted");
+                        }
+                    }, "Delete Project", AlertButtonSet.OkCancel);
                 })
             ))
             .ColumnWidth(t => t.Repos, Size.Grow())
@@ -56,7 +66,7 @@ public class ProjectsSetupView : ViewBase
                    editIndex.Set(null);
                })
                | new EditProjectDialog(editIndex, projects, allVerifications, config, client, refreshToken)
-               | new DeleteProjectDialog(deleteIndex, projects, config, client, refreshToken);
+               | alertView;
     }
 
     private record ProjectRow(string Name, List<RepoRef> Repos, int Index);
