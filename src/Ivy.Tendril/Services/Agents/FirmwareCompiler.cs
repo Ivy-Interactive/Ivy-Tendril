@@ -95,6 +95,13 @@ public class FirmwareCompiler
             firmware += $"\n### Plans\n\n{plansContent}\n";
         }
 
+        if (!string.IsNullOrWhiteSpace(context.CustomInstructions))
+        {
+            firmware += "\n\n## Custom Instructions\n\n";
+            firmware += "IMPORTANT: The following instructions are provided by the user and take precedence over the Firmware template and Program.md instructions. Follow them even if they conflict with other instructions.\n\n";
+            firmware += context.CustomInstructions + "\n";
+        }
+
         return firmware;
     }
 
@@ -141,4 +148,5 @@ public class FirmwareCompiler
 public record FirmwareContext(
     string ProgramFolder,
     string LogFile,
-    Dictionary<string, string> Values);
+    Dictionary<string, string> Values,
+    string? CustomInstructions = null);
