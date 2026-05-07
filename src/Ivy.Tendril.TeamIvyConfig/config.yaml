@@ -81,10 +81,10 @@ projects:
   reviewActions:
   - name: Tendril
     condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril"
-    command: ''
+    command: dotnet run --browse --find-available-port --project worktrees\Ivy-Tendril\src\Ivy.Tendril
   - name: Docs
     condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril.Docs"
-    command: ''
+    command: dotnet run --browse --find-available-port --project worktrees\Ivy-Tendril\src\Ivy.Tendril.Docs
   hooks:
   - name: SlackNotify
     when: after

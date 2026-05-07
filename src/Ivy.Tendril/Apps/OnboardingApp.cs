@@ -28,14 +28,15 @@ public class OnboardingApp : ViewBase
         IState<string?> completedAgentKey,
         IState<string> tendrilHomePath,
         IState<List<RepoRef>> selectedRepos,
-        IState<string> projectName)
+        IState<string> projectName,
+        OnboardingVerificationSession session)
     {
         return stepperIndex.Value switch
         {
             0 => new CodingAgentStepView(stepperIndex, commonChecksPassed, completedAgentKey),
             1 => new TendrilHomeStepView(stepperIndex, tendrilHomePath, homeBootstrapped),
-            2 => new ProjectSetupStepView(stepperIndex, selectedRepos, projectName),
-            3 => new CompleteStepView(stepperIndex, selectedRepos, projectName),
+            2 => new ProjectSetupStepView(stepperIndex, selectedRepos, projectName, session),
+            3 => new CompleteStepView(stepperIndex, selectedRepos, projectName, session),
             _ => throw new ArgumentOutOfRangeException()
         };
     }
@@ -51,6 +52,25 @@ public class OnboardingApp : ViewBase
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril"));
         var selectedRepos = UseState(() => new List<RepoRef>());
         var projectName = UseState("");
+
+        var verificationStream = UseStream<string>();
+        var verificationHandle = UseState<PromptwareRunHandle?>((PromptwareRunHandle?)null);
+        var verificationHasOutput = UseState(false);
+        var verificationRunning = UseState(false);
+        var verificationStarted = UseState(false);
+        var verificationCancelled = UseState(false);
+        var verificationError = UseState<string?>((string?)null);
+        var verificationRefreshToken = UseState(0);
+        var session = new OnboardingVerificationSession(
+            verificationStream,
+            verificationHandle,
+            verificationHasOutput,
+            verificationRunning,
+            verificationStarted,
+            verificationCancelled,
+            verificationError,
+            verificationRefreshToken);
+
         var steps = GetSteps(stepperIndex.Value);
 
         return Layout.TopCenter() |
@@ -59,7 +79,7 @@ public class OnboardingApp : ViewBase
                 | new Stepper(OnSelect, stepperIndex.Value, steps).Width(Size.Full())
                 | GetStepViews(stepperIndex,
                                commonChecksPassed, homeBootstrapped, completedAgentKey,
-                               tendrilHomePath, selectedRepos, projectName)
+                               tendrilHomePath, selectedRepos, projectName, session)
                );
 
         ValueTask OnSelect(Event<Stepper, int> e)

@@ -9,12 +9,14 @@ namespace Ivy.Tendril.Apps.Onboarding;
 public class ProjectSetupStepView(
     IState<int> stepperIndex,
     IState<List<RepoRef>> selectedRepos,
-    IState<string> projectName) : ViewBase
+    IState<string> projectName,
+    OnboardingVerificationSession session) : ViewBase
 {
     public override object Build()
     {
         var config = UseService<IConfigService>();
         var setupService = UseService<IOnboardingSetupService>();
+        var runner = UseService<IPromptwareRunner>();
         var clientProvider = UseService<IClientProvider>();
         var isCloning = UseState(false);
         var progressMessage = UseState<string?>(null);
@@ -57,9 +59,9 @@ public class ProjectSetupStepView(
                | new ProjectRepoPickerView(selectedRepos, projectName)
                | projectName.ToTextInput().WithField().Required().Label("Project Name")
                | (Layout.Horizontal().Width(Size.Full())
-                  | new Button("Back").Outline().Large().Icon(Icons.ArrowLeft)
+                  | new Button("Back").Outline().Small().Icon(Icons.ArrowLeft)
                       .OnClick(() => stepperIndex.Set(stepperIndex.Value - 1))
-                  | new Button("Continue without verifications").Ghost().Large()
+                  | new Button("Skip Verifications").Ghost().Small()
                       .Disabled(!canContinue)
                       .OnClick(async () =>
                       {
@@ -95,7 +97,7 @@ public class ProjectSetupStepView(
                           clientProvider.ReloadPage();
                       })
                   | new Spacer()
-                  | new Button("Generate Project Verifications").Primary().Large().Icon(Icons.Sparkles)
+                  | new Button("Generate Verifications").Primary().Large().Icon(Icons.Sparkles)
                       .Disabled(!canContinue)
                       .OnClick(async () =>
                       {
@@ -138,6 +140,9 @@ public class ProjectSetupStepView(
                               progressCts.Cancel();
                               progressValue.Set(100);
                               progressMessage.Set("Done");
+
+                              await StartVerificationSessionAsync(config, setupService, runner, name);
+
                               await Task.Delay(250);
 
                               progressValue.Set(null);
@@ -154,6 +159,58 @@ public class ProjectSetupStepView(
                               isCloning.Set(false);
                           }
                       }));
+    }
+
+    private async Task StartVerificationSessionAsync(
+        IConfigService config,
+        IOnboardingSetupService setupService,
+        IPromptwareRunner runner,
+        string projectName)
+    {
+        session.Reset();
+        await setupService.CommitPendingProjectAsync();
+
+        var notifyingStream = new NotifyingStream<string>(
+            session.Stream,
+            () => session.HasOutput.Set(true));
+
+        var handle = runner.Run(new PromptwareRunOptions
+        {
+            Promptware = "UpdateProject",
+            Values = new()
+            {
+                ["ProjectName"] = projectName,
+                ["Instructions"] = "Setup verifications"
+            }
+        }, notifyingStream);
+
+        session.Handle.Set(handle);
+        session.Running.Set(true);
+        session.Started.Set(true);
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await handle.Completion;
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                if (!session.Cancelled.Value)
+                    session.Error.Set($"Verification setup failed: {ex.Message}");
+            }
+            finally
+            {
+                if (!session.Cancelled.Value)
+                {
+                    config.ReloadSettings();
+                    session.RefreshToken.Set(session.RefreshToken.Value + 1);
+                }
+                session.Handle.Set((PromptwareRunHandle?)null);
+                session.Running.Set(false);
+            }
+        });
     }
 
     private async Task<List<RepoRef>?> ResolveReposAsync(

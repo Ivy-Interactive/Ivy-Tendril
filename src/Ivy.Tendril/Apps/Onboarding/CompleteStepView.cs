@@ -6,7 +6,8 @@ namespace Ivy.Tendril.Apps.Onboarding;
 public class CompleteStepView(
     IState<int> stepperIndex,
     IState<List<RepoRef>> selectedRepos,
-    IState<string> projectName) : ViewBase
+    IState<string> projectName,
+    OnboardingVerificationSession session) : ViewBase
 {
     public override object Build()
     {
@@ -15,15 +16,12 @@ public class CompleteStepView(
         var runner = UseService<IPromptwareRunner>();
         var client = UseService<IClientProvider>();
 
-        var stream = UseStream<string>();
-        var running = UseState(true);
-        var hasOutput = UseState(false);
-        var error = UseState<string?>(null);
-        var refreshToken = UseState(0);
         var isFinishing = UseState(false);
 
         UseEffect(async () =>
         {
+            if (session.Started.Value) return;
+
             try
             {
                 await setupService.CommitPendingProjectAsync();
@@ -35,15 +33,22 @@ public class CompleteStepView(
 
                 if (projectsNeedingVerifications.Count == 0 && config.Settings.Projects.Count == 0)
                 {
-                    error.Set("No project found from the previous step.");
-                    running.Set(false);
+                    session.Error.Set("No project found from the previous step.");
+                    session.Running.Set(false);
                     return;
                 }
 
-                var notifyingStream = new NotifyingStream<string>(stream, () => hasOutput.Set(true));
+                var notifyingStream = new NotifyingStream<string>(
+                    session.Stream,
+                    () => session.HasOutput.Set(true));
+
+                session.Started.Set(true);
+                session.Running.Set(true);
 
                 foreach (var name in projectsNeedingVerifications)
                 {
+                    if (session.Cancelled.Value) break;
+
                     var handle = runner.Run(new PromptwareRunOptions
                     {
                         Promptware = "UpdateProject",
@@ -54,25 +59,43 @@ public class CompleteStepView(
                         }
                     }, notifyingStream);
 
-                    await handle.Completion;
+                    session.Handle.Set(handle);
+
+                    try
+                    {
+                        await handle.Completion;
+                    }
+                    catch (OperationCanceledException) { }
+
+                    session.Handle.Set((PromptwareRunHandle?)null);
+
+                    if (session.Cancelled.Value) break;
+
                     config.ReloadSettings();
-                    refreshToken.Set(refreshToken.Value + 1);
+                    session.RefreshToken.Set(session.RefreshToken.Value + 1);
                 }
             }
             catch (Exception ex)
             {
-                error.Set($"Verification setup failed: {ex.Message}");
+                if (!session.Cancelled.Value)
+                    session.Error.Set($"Verification setup failed: {ex.Message}");
             }
             finally
             {
-                running.Set(false);
+                session.Running.Set(false);
             }
         }, [EffectTrigger.OnMount()]);
+
+        void OnBack()
+        {
+            session.Reset();
+            stepperIndex.Set(stepperIndex.Value - 1);
+        }
 
         async Task OnFinish()
         {
             isFinishing.Set(true);
-            error.Set(null);
+            session.Error.Set(null);
             try
             {
                 await setupService.FinalizeOnboardingAsync();
@@ -81,7 +104,7 @@ public class CompleteStepView(
             }
             catch (Exception ex)
             {
-                error.Set($"Failed to complete setup: {ex.Message}");
+                session.Error.Set($"Failed to complete setup: {ex.Message}");
                 isFinishing.Set(false);
             }
         }
@@ -110,7 +133,7 @@ public class CompleteStepView(
                     | new Button().Icon(Icons.X).Ghost().OnClick(async () =>
                     {
                         await setupService.RemoveProjectVerificationAsync(capturedProjectName, capturedVerificationName);
-                        refreshToken.Set(refreshToken.Value + 1);
+                        session.RefreshToken.Set(session.RefreshToken.Value + 1);
                     }).WithTooltip("Remove");
 
                 listLayout |= new Expandable(header, Text.Muted(prompt))
@@ -119,28 +142,32 @@ public class CompleteStepView(
             }
         }
 
-        var headerText = running.Value
+        var running = session.Running.Value;
+        var hasOutput = session.HasOutput.Value;
+        var error = session.Error.Value;
+
+        var headerText = running
             ? "Setting up verifications…"
             : "Ready to Go!";
 
-        var subText = running.Value
+        var subText = running
             ? "Tendril is detecting your tech stack and configuring verifications."
             : $"{totalVerifications} verification(s) configured across {projects.Count} project(s). Click Finish to start using Tendril, or go back to add another project.";
 
         return Layout.Vertical().Gap(4).Margin(0, 0, 0, 20)
                | Text.H2(headerText)
                | Text.Muted(subText)
-               | (error.Value != null ? Text.Danger(error.Value) : null!)
-               | (running.Value
+               | (error != null ? Text.Danger(error) : null!)
+               | (running
                    ? (object)new Box(
                        Layout.Vertical().Gap(4).Width(Size.Full()).Height(Size.Full())
-                       | (!hasOutput.Value
+                       | (!hasOutput
                            ? (object)(Layout.Vertical().Gap(2).AlignContent(Align.Center).Width(Size.Full()).Padding(8)
                                | Icons.LoaderCircle.ToIcon().WithAnimation(AnimationType.Rotate).Duration(1)
                                | Text.Muted("Starting agent..."))
                            : null!)
                        | new ClaudeJsonRenderer()
-                           .Stream(stream)
+                           .Stream(session.Stream)
                            .ShowThinking(false)
                            .ShowSystemEvents(false)
                            .AutoScroll(true)
@@ -151,46 +178,15 @@ public class CompleteStepView(
                        .Height(Size.Units(100).Max(Size.Fraction(0.6f)))
                        .Padding(0)
                    : null!)
-               | (!running.Value && totalVerifications > 0 ? (object)listLayout : null!)
+               | (!running && totalVerifications > 0 ? (object)listLayout : null!)
                | (Layout.Horizontal().Width(Size.Full())
-                  | new Button("Back").Outline().Large().Icon(Icons.ArrowLeft)
-                      .Disabled(running.Value || isFinishing.Value)
-                      .OnClick(() => stepperIndex.Set(stepperIndex.Value - 1))
+                  | new Button("Back").Outline().Icon(Icons.ArrowLeft)
+                      .Disabled(isFinishing.Value)
+                      .OnClick(OnBack)
                   | new Spacer()
                   | new Button("Finish").Primary().Large().Icon(Icons.Check, Align.Right)
-                      .Disabled(running.Value || isFinishing.Value)
+                      .Disabled(running || isFinishing.Value)
                       .Loading(isFinishing.Value)
                       .OnClick(async () => await OnFinish()));
-    }
-
-    private class NotifyingStream<T> : IWriteStream<T>
-    {
-        private readonly IWriteStream<T> _inner;
-        private readonly Action _onFirstWrite;
-        private bool _notified;
-
-        public NotifyingStream(IWriteStream<T> inner, Action onFirstWrite)
-        {
-            _inner = inner;
-            _onFirstWrite = onFirstWrite;
-        }
-
-        public string Id => _inner.Id;
-
-        public void Write(T data)
-        {
-            if (!_notified && data is string json)
-            {
-                var trimmed = json.TrimStart();
-                // Only hide loading indicator for events that produce visible output
-                // System and user events are filtered out by the renderer
-                if (!trimmed.StartsWith("{\"type\":\"system\"") && !trimmed.StartsWith("{\"type\":\"user\""))
-                {
-                    _notified = true;
-                    _onFirstWrite();
-                }
-            }
-            _inner.Write(data);
-        }
     }
 }

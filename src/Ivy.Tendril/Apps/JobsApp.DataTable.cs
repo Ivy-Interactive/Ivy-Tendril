@@ -75,7 +75,7 @@ public partial class JobsApp
             .Config(c =>
             {
                 c.AllowSorting = true;
-                c.AllowFiltering = false;
+                c.AllowFiltering = true;
                 c.ShowSearch = false;
                 c.SelectionMode = SelectionModes.None;
                 c.ShowIndexColumn = false;
@@ -103,6 +103,7 @@ public partial class JobsApp
                     showOutput.Set(id);
                 return ValueTask.CompletedTask;
             })
+            /*
             .OnCellAction(t => t.StatusMessage, e =>
             {
                 var id = e.Value.RowId?.ToString();
@@ -116,6 +117,7 @@ public partial class JobsApp
                 }
                 return ValueTask.CompletedTask;
             })
+            */
             .OnCellAction(t => t.Plan, e =>
             {
                 var id = e.Value.RowId?.ToString();
