@@ -174,7 +174,7 @@ public class CodingAgentStepView(
         var missing = missingCheck.Value;
 
         return Layout.Vertical().Margin(0, 0, 0, 20).Gap(4)
-               | Text.Bold(progressMessage.Value ?? $"Setting Up {selected.Label}")
+               | Text.Block(progressMessage.Value ?? $"Setting Up {selected.Label}")
                | (progressValue.Value != null
                    ? new Progress(progressValue.Value.Value)
                    : null!)

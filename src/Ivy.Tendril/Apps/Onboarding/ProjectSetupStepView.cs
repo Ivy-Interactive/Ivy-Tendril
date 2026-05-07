@@ -30,7 +30,7 @@ public class ProjectSetupStepView(
         if (isCloning.Value)
         {
             return Layout.Vertical().Margin(0, 0, 0, 20).Gap(4)
-                   | Text.Bold(progressMessage.Value ?? "Setting up your project...")
+                   | Text.Block(progressMessage.Value ?? "Setting up your project...")
                    | (progressValue.Value != null
                        ? new Progress(progressValue.Value.Value)
                        : null!)
