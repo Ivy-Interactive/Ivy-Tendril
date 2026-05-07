@@ -35,4 +35,6 @@ public interface IPlanReaderService
 
     void InvalidateCaches();
     Task FlushPendingWritesAsync();
+
+    event Action? CountsInvalidated;
 }
