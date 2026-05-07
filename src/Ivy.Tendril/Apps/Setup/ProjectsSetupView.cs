@@ -22,13 +22,15 @@ public class ProjectsSetupView : ViewBase
         var table = new TableBuilder<ProjectRow>(rows)
             .Builder(t => t.Repos, f => f.Func<ProjectRow, List<RepoRef>>(repos =>
             {
-                var layout = Layout.Horizontal().Gap(2).AlignContent(Align.Left);
+                var layout = Layout.Vertical().Gap(1);
                 foreach (var repo in repos)
                 {
-                    layout |= Text.Block(repo.Path).Muted().Small();
-                    layout |= new Badge(repo.PrRule).Variant(BadgeVariant.Outline).Small();
+                    var row = Layout.Horizontal().Gap(2).AlignContent(Align.Left);
+                    row |= Text.Block(repo.Path).Muted().Small();
+                    row |= new Badge(repo.PrRule).Variant(BadgeVariant.Outline).Small();
                     if (!string.IsNullOrEmpty(repo.BaseBranch))
-                        layout |= new Badge(repo.BaseBranch).Variant(BadgeVariant.Secondary).Small();
+                        row |= new Badge(repo.BaseBranch).Variant(BadgeVariant.Secondary).Small();
+                    layout |= row;
                 }
                 return layout;
             }))
