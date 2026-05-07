@@ -7,8 +7,6 @@ namespace Ivy.Tendril.Apps.Onboarding;
 
 public class ProjectSetupStepView(
     IState<int> stepperIndex,
-    IState<string[]> ghOwners,
-    IState<Dictionary<string, string[]>> ghReposByOwner,
     IState<List<RepoRef>> selectedRepos,
     IState<string> projectName) : ViewBase
 {
@@ -43,9 +41,7 @@ public class ProjectSetupStepView(
         return Layout.Vertical().Gap(4).Margin(0, 0, 0, 20)
                | Text.H2("Setup your first project")
                | (error.Value != null ? Text.Danger(error.Value) : null!)
-               | new ProjectRepoPickerView(selectedRepos, projectName,
-                                           preFetchedOwners: ghOwners,
-                                           preFetchedReposByOwner: ghReposByOwner)
+               | new ProjectRepoPickerView(selectedRepos, projectName)
                | projectName.ToTextInput().WithField().Required().Label("Project Name")
                | (Layout.Horizontal().Width(Size.Full())
                   | new Button("Back").Outline().Large().Icon(Icons.ArrowLeft)
@@ -87,7 +83,8 @@ public class ProjectSetupStepView(
                               foreach (var repo in selectedRepos.Value)
                               {
                                   i++;
-                                  if (!LooksLikeUrl(repo.Path))
+                                  var kind = RepoPathValidator.Classify(repo.Path);
+                                  if (kind == RepoPathKind.LocalPath)
                                   {
                                       progressMessage.Set($"Adding {repo.Path} ({i}/{total})...");
                                       var trimmed = repo.Path.Trim();
@@ -97,7 +94,7 @@ public class ProjectSetupStepView(
                                   else
                                   {
                                       Directory.CreateDirectory(reposDir);
-                                      var repoName = ExtractRepoName(repo.Path);
+                                      var repoName = RepoPathValidator.ExtractRepoName(repo.Path) ?? Guid.NewGuid().ToString();
                                       progressMessage.Set($"Fetching {repoName} ({i}/{total})...");
                                       var destPath = Path.Combine(reposDir, repoName);
                                       var success = await GitHubCliHelper.CloneRepositoryAsync(repo.Path, destPath);
@@ -145,21 +142,6 @@ public class ProjectSetupStepView(
                               isCloning.Set(false);
                           }
                       }));
-    }
-
-    private static bool LooksLikeUrl(string path)
-        => !string.IsNullOrEmpty(path)
-           && (path.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
-               || path.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
-               || path.StartsWith("git@", StringComparison.OrdinalIgnoreCase));
-
-    private static string ExtractRepoName(string url)
-    {
-        var trimmed = url;
-        if (trimmed.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
-            trimmed = trimmed[..^4];
-        var parts = trimmed.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        return parts.Length > 0 ? parts[^1] : Guid.NewGuid().ToString();
     }
 
     private static async Task DriveProgressAsync(IState<int?> value, CancellationToken ct)

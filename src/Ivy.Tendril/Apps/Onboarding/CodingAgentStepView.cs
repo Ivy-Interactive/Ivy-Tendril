@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using Ivy.Helpers;
-using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
@@ -8,10 +7,7 @@ namespace Ivy.Tendril.Apps.Onboarding;
 
 public class CodingAgentStepView(
     IState<int> stepperIndex,
-    IState<string[]> ghOwners,
-    IState<Dictionary<string, string[]>> ghReposByOwner,
     IState<bool> commonChecksPassed,
-    IState<bool> reposFetched,
     IState<string?> completedAgentKey) : ViewBase
 {
     private record AgentInfo(string Key, string Label, Icons Logo);
@@ -126,21 +122,6 @@ public class CodingAgentStepView(
                 config.Settings.CodingAgent = agentKey;
                 config.SetPendingCodingAgent(agentKey);
 
-                if (!reposFetched.Value)
-                {
-                    progressMessage.Set("Fetching Your GitHub Repositories...");
-                    var owners = await GitHubCliHelper.GetOwnersAsync();
-                    ghOwners.Set(owners);
-
-                    var repoFetches = owners.Select(async o => (Owner: o, Repos: await GitHubCliHelper.GetRepositoriesAsync(o)));
-                    var results = await Task.WhenAll(repoFetches);
-                    var byOwner = new Dictionary<string, string[]>();
-                    foreach (var (owner, ownerRepos) in results)
-                        byOwner[owner] = ownerRepos;
-                    ghReposByOwner.Set(byOwner);
-                    reposFetched.Set(true);
-                }
-
                 completedAgentKey.Set(agentKey);
 
                 progressCts.Cancel();
@@ -233,11 +214,7 @@ public class CodingAgentStepView(
             new("Git", "git", "https://git-scm.com/downloads", true,
                 () => CheckCommand("git", "--version")),
             new("PowerShell", "powershell", "https://github.com/PowerShell/PowerShell", true,
-                CheckPowerShell),
-            new("GitHub CLI", "gh", "https://cli.github.com/", true,
-                () => CheckCommand("gh", "--version"),
-                () => CheckHealth("gh", "auth status --active"),
-                "Sign in to GitHub")
+                CheckPowerShell)
         };
         list.Add(BuildAgentCheck(agentKey));
         return list;
