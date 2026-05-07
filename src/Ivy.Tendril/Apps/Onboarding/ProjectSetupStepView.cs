@@ -61,7 +61,6 @@ public class ProjectSetupStepView(
                | (Layout.Horizontal().Width(Size.Full())
                   | new Button("Back").Outline().Small().Icon(Icons.ArrowLeft)
                       .OnClick(() => stepperIndex.Set(stepperIndex.Value - 1))
-                  | new Spacer()
                   | new Button("Skip Verifications").Ghost().Small()
                       .Disabled(!canContinue)
                       .OnClick(async () =>
@@ -97,6 +96,7 @@ public class ProjectSetupStepView(
                           await setupService.StartBackgroundServicesAsync();
                           clientProvider.ReloadPage();
                       })
+                  | new Spacer()
                   | new Button("Generate Verifications").Primary().Large().Icon(Icons.Sparkles)
                       .Disabled(!canContinue)
                       .OnClick(async () =>
