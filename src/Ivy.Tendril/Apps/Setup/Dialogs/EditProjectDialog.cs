@@ -24,7 +24,7 @@ public class EditProjectDialog(
     {
         var editName = UseState("");
         var editColor = UseState<Colors?>(null);
-        var showColorPicker = UseState(false);
+
         var editContext = UseState("");
         var editRepos = UseState(new List<RepoRef>());
         var editVerifications = UseState(new List<ProjectVerificationRef>());
@@ -126,15 +126,7 @@ public class EditProjectDialog(
             new DialogBody(
                 Layout.Vertical().Gap(4)
                 | editName.ToTextInput("Project name...").WithField().Label("Name")
-                | (Layout.Vertical().Gap(1)
-                   | Text.Block("Color").Small()
-                   | (Layout.Horizontal().Gap(2).AlignContent(Align.TopLeft)
-                      | new Button(editColor.Value?.ToString() ?? "Select Color").Outline()
-                          .OnClick(() => showColorPicker.Set(true))
-                      | (editColor.Value != null
-                          ? (object)new Box().Background(editColor.Value.Value).Width(Size.Units(8)).Height(Size.Units(8))
-                          : null!)))
-                | editColor.ToColorInput().ToDialog(showColorPicker, title: "Select Color")
+                | editColor.ToColorInput().Variant(ColorInputVariant.SwatchPicker).Nullable().WithField().Label("Color")
                 | editContext.ToTextareaInput("Project context or prompt for AI agents (optional)...").Rows(4)
                     .WithField().Label("Context / Prompt (Optional)")
                 | (Layout.Vertical().Gap(2)
