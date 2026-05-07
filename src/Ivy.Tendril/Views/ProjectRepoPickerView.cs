@@ -87,7 +87,18 @@ public class ProjectRepoPickerView(
             loadingBranches.Set(true);
             try
             {
-                var fetched = await GitHubCliHelper.GetBranchesAsync(selectedOwner.Value, selectedRepo.Value);
+                var branchesTask = GitHubCliHelper.GetBranchesAsync(selectedOwner.Value, selectedRepo.Value);
+                var defaultBranchTask = GitHubCliHelper.GetDefaultBranchAsync(selectedOwner.Value, selectedRepo.Value);
+                await Task.WhenAll(branchesTask, defaultBranchTask);
+
+                var fetched = branchesTask.Result;
+                var defaultBranch = defaultBranchTask.Result;
+
+                if (!string.IsNullOrEmpty(defaultBranch) && fetched.Contains(defaultBranch))
+                {
+                    fetched = new[] { defaultBranch }.Concat(fetched.Where(b => b != defaultBranch)).ToArray();
+                }
+
                 var next = new Dictionary<string, string[]>(branchesByRepo.Value) { [key] = fetched };
                 branchesByRepo.Set(next);
                 if (fetched.Length > 0) selectedBranch.Set(fetched[0]);
