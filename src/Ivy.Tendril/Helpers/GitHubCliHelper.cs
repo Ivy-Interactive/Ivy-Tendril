@@ -79,10 +79,10 @@ public static class GitHubCliHelper
         {
             var isWindows = OperatingSystem.IsWindows();
             var shell = isWindows ? "pwsh" : "pwsh";
-            
+
             // Validate arguments somewhat to prevent injection
             if (url.Contains('\'') || url.Contains('"')) return false;
-            
+
             string cmd;
             if (System.IO.Directory.Exists(destinationPath))
             {
@@ -92,7 +92,7 @@ public static class GitHubCliHelper
             {
                 cmd = $"git clone '{url}' '{destinationPath}'";
             }
-            
+
             var psi = new ProcessStartInfo
             {
                 FileName = shell,
