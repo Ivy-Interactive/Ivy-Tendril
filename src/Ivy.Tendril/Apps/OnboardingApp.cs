@@ -23,11 +23,8 @@ public class OnboardingApp : ViewBase
 
     private static object GetStepViews(
         IState<int> stepperIndex,
-        IState<string[]> ghOwners,
-        IState<Dictionary<string, string[]>> ghReposByOwner,
         IState<bool> commonChecksPassed,
         IState<bool> homeBootstrapped,
-        IState<bool> reposFetched,
         IState<string?> completedAgentKey,
         IState<string> tendrilHomePath,
         IState<List<RepoRef>> selectedRepos,
@@ -35,10 +32,9 @@ public class OnboardingApp : ViewBase
     {
         return stepperIndex.Value switch
         {
-            0 => new CodingAgentStepView(stepperIndex, ghOwners, ghReposByOwner,
-                                         commonChecksPassed, reposFetched, completedAgentKey),
+            0 => new CodingAgentStepView(stepperIndex, commonChecksPassed, completedAgentKey),
             1 => new TendrilHomeStepView(stepperIndex, tendrilHomePath, homeBootstrapped),
-            2 => new ProjectSetupStepView(stepperIndex, ghOwners, ghReposByOwner, selectedRepos, projectName),
+            2 => new ProjectSetupStepView(stepperIndex, selectedRepos, projectName),
             3 => new CompleteStepView(stepperIndex, selectedRepos, projectName),
             _ => throw new ArgumentOutOfRangeException()
         };
@@ -47,11 +43,8 @@ public class OnboardingApp : ViewBase
     public override object Build()
     {
         var stepperIndex = UseState(0);
-        var ghOwners = UseState<string[]>(Array.Empty<string>);
-        var ghReposByOwner = UseState<Dictionary<string, string[]>>(() => new Dictionary<string, string[]>());
         var commonChecksPassed = UseState(false);
         var homeBootstrapped = UseState(false);
-        var reposFetched = UseState(false);
         var completedAgentKey = UseState<string?>((string?)null);
         var tendrilHomePath = UseState(() =>
             Environment.GetEnvironmentVariable("TENDRIL_HOME")
@@ -64,8 +57,8 @@ public class OnboardingApp : ViewBase
                (Layout.Vertical().Margin(0, 20).Width(150)
                 | new Image("/tendril/assets/Tendril.svg").Width(Size.Units(15)).Height(Size.Auto())
                 | new Stepper(OnSelect, stepperIndex.Value, steps).Width(Size.Full())
-                | GetStepViews(stepperIndex, ghOwners, ghReposByOwner,
-                               commonChecksPassed, homeBootstrapped, reposFetched, completedAgentKey,
+                | GetStepViews(stepperIndex,
+                               commonChecksPassed, homeBootstrapped, completedAgentKey,
                                tendrilHomePath, selectedRepos, projectName)
                );
 

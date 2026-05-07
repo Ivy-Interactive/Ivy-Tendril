@@ -59,14 +59,15 @@ public class EditProjectDialog(
 
         Func<RepoRef, Task<RepoRef?>> cloneRemoteOnAdd = async draft =>
         {
-            if (!LooksLikeUrl(draft.Path)) return draft;
+            var kind = RepoPathValidator.Classify(draft.Path);
+            if (kind == RepoPathKind.LocalPath || kind == RepoPathKind.Invalid) return draft;
 
             var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")
                               ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
             var reposDir = Path.Combine(tendrilHome, "Repos");
             Directory.CreateDirectory(reposDir);
 
-            var repoName = ExtractRepoName(draft.Path);
+            var repoName = RepoPathValidator.ExtractRepoName(draft.Path) ?? Guid.NewGuid().ToString();
             var destPath = Path.Combine(reposDir, repoName);
 
             var success = await GitHubCliHelper.CloneRepositoryAsync(draft.Path, destPath);
@@ -157,18 +158,4 @@ public class EditProjectDialog(
         ).Width(Size.Rem(40));
     }
 
-    private static bool LooksLikeUrl(string path)
-        => !string.IsNullOrEmpty(path)
-           && (path.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
-               || path.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
-               || path.StartsWith("git@", StringComparison.OrdinalIgnoreCase));
-
-    private static string ExtractRepoName(string url)
-    {
-        var trimmed = url;
-        if (trimmed.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
-            trimmed = trimmed[..^4];
-        var parts = trimmed.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        return parts.Length > 0 ? parts[^1] : Guid.NewGuid().ToString();
-    }
 }
