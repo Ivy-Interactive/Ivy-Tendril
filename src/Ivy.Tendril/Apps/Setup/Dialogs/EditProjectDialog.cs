@@ -125,7 +125,7 @@ public class EditProjectDialog(
                 isFetching.Set(true);
 
                 var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
-                var reposDir = Path.Combine(tendrilHome, "repos");
+                var reposDir = Path.Combine(tendrilHome, "Repos");
                 Directory.CreateDirectory(reposDir);
 
                 var url = newRepoPath.Value;

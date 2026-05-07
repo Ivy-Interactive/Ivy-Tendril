@@ -130,7 +130,7 @@ public class ProjectSetupStepView(
                                             ?? Path.Combine(
                                                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
                                                 ".tendril");
-                          var reposDir = Path.Combine(tendrilHome, "repos");
+                          var reposDir = Path.Combine(tendrilHome, "Repos");
                           Directory.CreateDirectory(reposDir);
 
                           var refs = new List<RepoRef>();
