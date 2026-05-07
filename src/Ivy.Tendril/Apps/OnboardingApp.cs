@@ -23,23 +23,20 @@ public class OnboardingApp : ViewBase
 
     private static object GetStepViews(
         IState<int> stepperIndex,
-        IState<string[]> ghOwners,
-        IState<Dictionary<string, string[]>> ghReposByOwner,
         IState<bool> commonChecksPassed,
         IState<bool> homeBootstrapped,
-        IState<bool> reposFetched,
         IState<string?> completedAgentKey,
         IState<string> tendrilHomePath,
         IState<List<RepoRef>> selectedRepos,
-        IState<string> projectName)
+        IState<string> projectName,
+        OnboardingVerificationSession session)
     {
         return stepperIndex.Value switch
         {
-            0 => new CodingAgentStepView(stepperIndex, ghOwners, ghReposByOwner,
-                                         commonChecksPassed, reposFetched, completedAgentKey),
+            0 => new CodingAgentStepView(stepperIndex, commonChecksPassed, completedAgentKey),
             1 => new TendrilHomeStepView(stepperIndex, tendrilHomePath, homeBootstrapped),
-            2 => new ProjectSetupStepView(stepperIndex, ghOwners, ghReposByOwner, selectedRepos, projectName),
-            3 => new CompleteStepView(stepperIndex, selectedRepos, projectName),
+            2 => new ProjectSetupStepView(stepperIndex, selectedRepos, projectName, session),
+            3 => new CompleteStepView(stepperIndex, selectedRepos, projectName, session),
             _ => throw new ArgumentOutOfRangeException()
         };
     }
@@ -47,32 +44,54 @@ public class OnboardingApp : ViewBase
     public override object Build()
     {
         var stepperIndex = UseState(0);
-        var ghOwners = UseState<string[]>(Array.Empty<string>);
-        var ghReposByOwner = UseState<Dictionary<string, string[]>>(() => new Dictionary<string, string[]>());
         var commonChecksPassed = UseState(false);
         var homeBootstrapped = UseState(false);
-        var reposFetched = UseState(false);
         var completedAgentKey = UseState<string?>((string?)null);
         var tendrilHomePath = UseState(() =>
             Environment.GetEnvironmentVariable("TENDRIL_HOME")
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril"));
         var selectedRepos = UseState(() => new List<RepoRef>());
         var projectName = UseState("");
+
+        var verificationStream = UseStream<string>();
+        var verificationHandle = UseState<PromptwareRunHandle?>((PromptwareRunHandle?)null);
+        var verificationHasOutput = UseState(false);
+        var verificationRunning = UseState(false);
+        var verificationStarted = UseState(false);
+        var verificationCancelled = UseState(false);
+        var verificationError = UseState<string?>((string?)null);
+        var verificationRefreshToken = UseState(0);
+        var session = new OnboardingVerificationSession(
+            verificationStream,
+            verificationHandle,
+            verificationHasOutput,
+            verificationRunning,
+            verificationStarted,
+            verificationCancelled,
+            verificationError,
+            verificationRefreshToken);
+
         var steps = GetSteps(stepperIndex.Value);
 
         return Layout.TopCenter() |
                (Layout.Vertical().Margin(0, 20).Width(150)
                 | new Image("/tendril/assets/Tendril.svg").Width(Size.Units(15)).Height(Size.Auto())
                 | new Stepper(OnSelect, stepperIndex.Value, steps).Width(Size.Full())
-                | GetStepViews(stepperIndex, ghOwners, ghReposByOwner,
-                               commonChecksPassed, homeBootstrapped, reposFetched, completedAgentKey,
-                               tendrilHomePath, selectedRepos, projectName)
+                | GetStepViews(stepperIndex,
+                               commonChecksPassed, homeBootstrapped, completedAgentKey,
+                               tendrilHomePath, selectedRepos, projectName, session)
                );
 
         ValueTask OnSelect(Event<Stepper, int> e)
         {
-            if (stepperIndex.Value == 3) return ValueTask.CompletedTask;
-            stepperIndex.Set(e.Value);
+            if (e.Value < stepperIndex.Value)
+            {
+                stepperIndex.Set(e.Value);
+            }
+            else if (stepperIndex.Value != 3)
+            {
+                stepperIndex.Set(e.Value);
+            }
             return ValueTask.CompletedTask;
         }
     }
