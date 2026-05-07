@@ -64,16 +64,25 @@ public static class GitHubCliHelper
         return await RunCommandAsync(cmd);
     }
 
+    public static async Task<string?> GetDefaultBranchAsync(string owner, string repo)
+    {
+        var safeOwner = owner.Replace("'", "").Replace("\"", "");
+        var safeRepo = repo.Replace("'", "").Replace("\"", "");
+        var cmd = $"gh api repos/{safeOwner}/{safeRepo} --jq '.default_branch'";
+        var result = await RunCommandAsync(cmd);
+        return result.Length > 0 ? result[0] : null;
+    }
+
     public static async Task<bool> CloneRepositoryAsync(string url, string destinationPath)
     {
         try
         {
             var isWindows = OperatingSystem.IsWindows();
             var shell = isWindows ? "pwsh" : "pwsh";
-            
+
             // Validate arguments somewhat to prevent injection
             if (url.Contains('\'') || url.Contains('"')) return false;
-            
+
             string cmd;
             if (System.IO.Directory.Exists(destinationPath))
             {
@@ -83,7 +92,7 @@ public static class GitHubCliHelper
             {
                 cmd = $"git clone '{url}' '{destinationPath}'";
             }
-            
+
             var psi = new ProcessStartInfo
             {
                 FileName = shell,
