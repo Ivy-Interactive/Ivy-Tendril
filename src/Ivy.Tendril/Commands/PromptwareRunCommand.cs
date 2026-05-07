@@ -46,6 +46,10 @@ public class PromptwareRunSettings : CommandSettings
     [Description("Override agent provider (claude, gemini, codex, copilot, opencode)")]
     public string? Agent { get; init; }
 
+    [CommandOption("--cli-log")]
+    [Description("Path to write CLI invocation log (JSONL) — tracks tendril calls made by the agent")]
+    public string? CliLog { get; init; }
+
     [CommandOption("--dry-run")]
     [Description("Print the compiled firmware and exit without launching the agent")]
     public bool DryRun { get; init; }
@@ -180,6 +184,9 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             psi.Environment["TENDRIL_HOME"] = tendrilHome;
         psi.Environment["TENDRIL_CONFIG"] = configService.ConfigPath;
         psi.Environment["TENDRIL_PLANS"] = configService.PlanFolder;
+
+        if (!string.IsNullOrEmpty(settings.CliLog))
+            psi.Environment["TENDRIL_CLI_LOG"] = settings.CliLog;
 
         JobLauncher.EnsureTendrilOnPath(psi);
 
