@@ -51,7 +51,7 @@ public class ProjectSetupStepView(
                   | new Button("Back").Outline().Large().Icon(Icons.ArrowLeft)
                       .OnClick(() => stepperIndex.Set(stepperIndex.Value - 1))
                   | new Spacer()
-                  | new Button("Continue").Primary().Large().Icon(Icons.ArrowRight, Align.Right)
+                  | new Button("Generate Project Verifications").Primary().Large().Icon(Icons.Sparkles, Align.Right)
                       .Disabled(!canContinue)
                       .OnClick(async () =>
                       {
