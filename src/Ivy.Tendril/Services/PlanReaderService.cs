@@ -46,6 +46,8 @@ public class PlanReaderService(
     public string PlansDirectory => _config.PlanFolder;
     public bool IsDatabaseReady => _useDatabaseForReads;
 
+    public event Action? CountsInvalidated;
+
     /// <summary>
     ///     On startup, reset any plans stuck in transient states (Building, Executing, Updating)
     ///     back to Failed. These are leftovers from a previous Tendril shutdown.
@@ -199,6 +201,7 @@ public class PlanReaderService(
 
         _planCountsCache.Invalidate();
         _recommendationsCache.Invalidate();
+        CountsInvalidated?.Invoke();
 
         // Notify watcher for instant UI feedback
         _planWatcherService?.NotifyChanged(folderName);
@@ -234,6 +237,7 @@ public class PlanReaderService(
         }
 
         _planCountsCache.Invalidate();
+        CountsInvalidated?.Invoke();
 
         // Notify watcher for instant UI feedback
         _planWatcherService?.NotifyChanged(folderName);
@@ -350,6 +354,7 @@ public class PlanReaderService(
 
         _planCountsCache.Invalidate();
         _recommendationsCache.Invalidate();
+        CountsInvalidated?.Invoke();
 
         // Delete folder in background (can be slow due to git worktree removal).
         var folderPath = Path.Combine(PlansDirectory, folderName);
@@ -397,6 +402,7 @@ public class PlanReaderService(
         }
 
         _planCountsCache.Invalidate();
+        CountsInvalidated?.Invoke();
 
         // Write to disk in background for durability.
         WriteFileInBackground(() =>
@@ -575,6 +581,7 @@ public class PlanReaderService(
 
         _recommendationsCache.Invalidate();
         _planCountsCache.Invalidate();
+        CountsInvalidated?.Invoke();
 
         // Without a backing database, writes need to complete before the next read.
         WriteFile(() =>
