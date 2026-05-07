@@ -219,8 +219,8 @@ public class CodingAgentStepView(
         }
 
         return Layout.Vertical().Margin(0, 0, 0, 20).Gap(4)
-               | Text.H1("Welcome to Ivy Tendril")
-               | Text.Markdown(
+               | Text.H2("Welcome to Ivy Tendril")
+               | Text.Muted(
                    "Tendril is a coding orchestrator powered by AI agents. Pick the agent you'd like to use — we'll check the required software and sign you in.")
                | (errorMessage != null ? Text.Danger(errorMessage) : null!)
                | grid;

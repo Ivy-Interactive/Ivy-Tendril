@@ -87,7 +87,18 @@ public class ProjectRepoPickerView(
             loadingBranches.Set(true);
             try
             {
-                var fetched = await GitHubCliHelper.GetBranchesAsync(selectedOwner.Value, selectedRepo.Value);
+                var branchesTask = GitHubCliHelper.GetBranchesAsync(selectedOwner.Value, selectedRepo.Value);
+                var defaultBranchTask = GitHubCliHelper.GetDefaultBranchAsync(selectedOwner.Value, selectedRepo.Value);
+                await Task.WhenAll(branchesTask, defaultBranchTask);
+
+                var fetched = branchesTask.Result;
+                var defaultBranch = defaultBranchTask.Result;
+
+                if (!string.IsNullOrEmpty(defaultBranch) && fetched.Contains(defaultBranch))
+                {
+                    fetched = new[] { defaultBranch }.Concat(fetched.Where(b => b != defaultBranch)).ToArray();
+                }
+
                 var next = new Dictionary<string, string[]>(branchesByRepo.Value) { [key] = fetched };
                 branchesByRepo.Set(next);
                 if (fetched.Length > 0) selectedBranch.Set(fetched[0]);
@@ -265,7 +276,7 @@ public class ProjectRepoPickerView(
                 var isGitRepo = pathExists && Path.Exists(Path.Combine(expanded, ".git"));
                 if (!isGitRepo)
                 {
-                    pathLabel = Text.Block(item.Path).Color(Colors.Red);
+                    pathLabel = Text.Block(item.Path).Color(Colors.Destructive);
                     validityIcon = new Icon(Icons.TriangleAlert, Colors.Warning).Small()
                         .WithTooltip(!pathExists
                             ? $"Path does not exist: {expanded}"
@@ -293,7 +304,7 @@ public class ProjectRepoPickerView(
                              repos.Set(list);
                          }).WithTooltip("Remove");
 
-            listLayout |= new Box(row).BorderStyle(BorderStyle.None).Background(Colors.Black, 0.04f).Padding(4, 2, 2, 2).Width(Size.Full());
+            listLayout |= new Box(row).BorderStyle(BorderStyle.None).Background(Colors.Muted, 0.15f).Padding(4, 2, 2, 2).Width(Size.Full());
         }
 
         var helperText = isRemote
