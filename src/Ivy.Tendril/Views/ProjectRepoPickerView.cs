@@ -293,7 +293,7 @@ public class ProjectRepoPickerView(
                              repos.Set(list);
                          }).WithTooltip("Remove");
 
-            listLayout |= new Box(row).Padding(4, 2, 2, 2).Width(Size.Full());
+            listLayout |= new Box(row).BorderStyle(BorderStyle.None).Background(Colors.Black, 0.04f).Padding(4, 2, 2, 2).Width(Size.Full());
         }
 
         var helperText = isRemote
