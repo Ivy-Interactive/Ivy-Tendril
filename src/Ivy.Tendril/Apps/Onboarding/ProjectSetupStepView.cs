@@ -14,10 +14,22 @@ public class ProjectSetupStepView(
     public override object Build()
     {
         var config = UseService<IConfigService>();
+        var setupService = UseService<IOnboardingSetupService>();
+        var clientProvider = UseService<IClientProvider>();
         var isCloning = UseState(false);
         var progressMessage = UseState<string?>(null);
         var progressValue = UseState<int?>(null);
         var error = UseState<string?>(null);
+
+        UseEffect(() =>
+        {
+            if (selectedRepos.Value.Count == 0 && config.Settings.Projects.Count > 0)
+            {
+                var lastProject = config.Settings.Projects.Last();
+                projectName.Set(lastProject.Name);
+                selectedRepos.Set(lastProject.Repos.ToList());
+            }
+        }, [EffectTrigger.OnMount()]);
 
         UseEffect(() =>
         {
@@ -48,6 +60,88 @@ public class ProjectSetupStepView(
                   | new Button("Back").Outline().Large().Icon(Icons.ArrowLeft)
                       .OnClick(() => stepperIndex.Set(stepperIndex.Value - 1))
                   | new Spacer()
+                  | new Button("Continue without verifications").Ghost().Large()
+                      .Disabled(!canContinue)
+                      .OnClick(async () =>
+                      {
+                          var name = SanitizeProjectName(projectName.Value);
+                          if (string.IsNullOrWhiteSpace(name)) return;
+
+                          var existingProject = config.Settings.Projects
+                              .FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+                          if (existingProject == null)
+                          {
+                              error.Set(null);
+                              isCloning.Set(true);
+
+                              try
+                              {
+                                  var refs = new List<RepoRef>();
+                                  var tendrilHome = config.TendrilHome;
+                                  if (string.IsNullOrEmpty(tendrilHome))
+                                  {
+                                      tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")
+                                                    ?? Path.Combine(
+                                                        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                                                        ".tendril");
+                                  }
+                                  var reposDir = Path.Combine(tendrilHome, "Repos");
+
+                                  var total = selectedRepos.Value.Count;
+                                  var i = 0;
+                                  foreach (var repo in selectedRepos.Value)
+                                  {
+                                      i++;
+                                      var kind = RepoPathValidator.Classify(repo.Path);
+                                      if (kind == RepoPathKind.LocalPath)
+                                      {
+                                          progressMessage.Set($"Adding {repo.Path} ({i}/{total})...");
+                                          var trimmed = repo.Path.Trim();
+                                          if (!string.IsNullOrWhiteSpace(trimmed))
+                                              refs.Add(repo with { Path = trimmed });
+                                      }
+                                      else
+                                      {
+                                          Directory.CreateDirectory(reposDir);
+                                          var repoName = RepoPathValidator.ExtractRepoName(repo.Path) ?? Guid.NewGuid().ToString();
+                                          progressMessage.Set($"Fetching {repoName} ({i}/{total})...");
+                                          var destPath = Path.Combine(reposDir, repoName);
+                                          var success = await CloneRepositoryAsync(repo.Path, destPath);
+                                          if (!success)
+                                          {
+                                              error.Set($"Failed to fetch repository: {repo.Path}.");
+                                              isCloning.Set(false);
+                                              return;
+                                          }
+                                          refs.Add(repo with { Path = destPath });
+                                      }
+                                  }
+
+                                  var project = new ProjectConfig
+                                  {
+                                      Name = name,
+                                      Color = "Green",
+                                      Repos = refs,
+                                      Context = "",
+                                      Verifications = new List<ProjectVerificationRef>()
+                                  };
+
+                                  config.SetPendingProject(project);
+                                  config.SetPendingVerificationDefinitions(new List<VerificationConfig>());
+                              }
+                              catch (Exception ex)
+                              {
+                                  error.Set($"Failed to complete setup: {ex.Message}");
+                                  isCloning.Set(false);
+                                  return;
+                              }
+                          }
+
+                          await setupService.FinalizeOnboardingAsync();
+                          await setupService.StartBackgroundServicesAsync();
+                          clientProvider.ReloadPage();
+                      })
                   | new Button("Generate Project Verifications").Primary().Large().Icon(Icons.Sparkles)
                       .Disabled(!canContinue)
                       .OnClick(async () =>
