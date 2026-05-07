@@ -12,13 +12,14 @@ projects:
   - path: D:\Repos\_Ivy\Ivy-Framework
     prRule: yolo
     baseBranch: development
+    syncStrategy: fetch
   verifications:
   - name: FrameworkDotnetBuild
     required: true
-  - &o1
+  - &o0
     name: DotnetFormat
     required: true
-  - &o2
+  - &o3
     name: DotnetTest
     required: true
   - name: FrameworkFrontendLint
@@ -28,7 +29,7 @@ projects:
   - name: NewWidgetChecklist
   - name: VitePlusCheck
     required: true
-  - &o3
+  - &o1
     name: CheckResult
     required: true
   context: >
@@ -36,13 +37,13 @@ projects:
   reviewActions:
   - name: Sample
     condition: Test-Path "artifacts\sample\*.csproj"
-    action: dotnet run --project artifacts\sample --browse --find-available-port
+    command: ''
   - name: Docs
     condition: Test-Path "worktrees\Ivy-Framework\src\Ivy.Docs"
-    action: dotnet run --project worktrees\Ivy-Framework\src\Ivy.Docs --browse --find-available-port
+    command: ''
   - name: Samples
     condition: Test-Path "worktrees\Ivy-Framework\src\Ivy.Samples"
-    action: dotnet run --project worktrees\Ivy-Framework\src\Ivy.Samples --browse --find-available-port
+    command: ''
   hooks:
   - name: SlackNotify
     when: after
@@ -56,29 +57,34 @@ projects:
     - CreatePr
     condition: ''
     action: Start-Process -FilePath 'tendril' -ArgumentList 'promptware','PlanEvaluator',$PWD -WindowStyle Hidden
+  buildDependencies: []
+  repoPaths:
+  - D:\Repos\_Ivy\Ivy-Framework
 - name: Tendril
   color: Emerald
   meta:
     slackEmoji: ':seedling:'
   repos:
-  - path: '%REPOS_HOME%\Ivy-Tendril'
+  - path: D:\Repos\_Ivy\Ivy-Tendril
     prRule: yolo
     baseBranch: development
+    syncStrategy: fetch
   verifications:
-  - name: DotnetBuild
+  - &o2
+    name: DotnetBuild
     required: true
-  - *o1
+  - *o0
   - name: DotnetTest
-  - *o3
+  - *o1
   context: >
     Plan management TUI. Key folders: - src\Ivy.Tendril\Services\ — ConfigService, PlanReaderService, JobService - src\Ivy.Tendril\Apps\ — PlansApp, JobsApp UI - src\Ivy.Tendril\Promptwares\ — CreatePlan, UpdatePlan, SplitPlan, ExpandPlan This project uses the Ivy Framework - there's CLI helper methods you can use:  ivy docs AGENTS.md  ivy question "How do I make a button in Ivy?"
   reviewActions:
   - name: Tendril
     condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril"
-    action: dotnet run --project worktrees\Ivy-Tendril\src\Ivy.Tendril --browse --find-available-port
+    command: ''
   - name: Docs
     condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril.Docs"
-    action: dotnet run --project worktrees\Ivy-Tendril\src\Ivy.Tendril.Docs --browse --find-available-port
+    command: ''
   hooks:
   - name: SlackNotify
     when: after
@@ -93,7 +99,9 @@ projects:
     condition: ''
     action: Start-Process -FilePath 'tendril' -ArgumentList 'promptware','PlanEvaluator',$PWD -WindowStyle Hidden
   buildDependencies:
-  - '%REPOS_HOME%\Ivy-Framework'
+  - D:\Repos\_Ivy\Ivy-Framework
+  repoPaths:
+  - D:\Repos\_Ivy\Ivy-Tendril
 - name: Rustino
   color: Orange
   meta:
@@ -102,30 +110,24 @@ projects:
   - path: D:\Repos\_Ivy\Rustino
     prRule: yolo
     baseBranch: development
+    syncStrategy: fetch
   verifications:
-  - name: DotnetBuild
-    required: true
-  - *o1
   - *o2
+  - *o0
+  - *o3
   - name: RustBuild
     required: true
   - name: RustTest
     required: true
   - name: RustClippy
     required: true
-  - *o3
+  - *o1
   context: >
-    Rustino — cross-platform native desktop windows with embedded web views (Rust + .NET).
-    Key folders:
-    - src/Rustino.Native/ — Rust cdylib (wry + tao for webview/window)
-    - src/Rustino.NET/ — C# P/Invoke wrapper
-    - src/Rustino.NET.Reactive/ — IObservable extensions
-    - src/Rustino.Samples/ — demo applications
-    Build: `cd src/Rustino.Native && cargo build --release`, then `dotnet build`
+    Rustino — cross-platform native desktop windows with embedded web views (Rust + .NET). Key folders: - src\Rustino.Native\ — Rust cdylib (wry + tao for webview\window) - src\Rustino.NET\ — C# P\Invoke wrapper - src\Rustino.NET.Reactive\ — IObservable extensions - src\Rustino.Samples\ — demo applications Build: `cd src\Rustino.Native && cargo build --release`, then `dotnet build`
   reviewActions:
   - name: Samples
     condition: Test-Path "worktrees\Rustino\src\Rustino.Samples"
-    action: dotnet run --project worktrees\Rustino\src\Rustino.Samples
+    command: ''
   hooks:
   - name: SlackNotify
     when: after
@@ -139,14 +141,13 @@ projects:
     - CreatePr
     condition: ''
     action: Start-Process -FilePath 'tendril' -ArgumentList 'promptware','PlanEvaluator',$PWD -WindowStyle Hidden
+  buildDependencies: []
+  repoPaths:
+  - D:\Repos\_Ivy\Rustino
 verifications:
 - name: FrameworkDotnetBuild
   prompt: >
-    Run `dotnet build --warnaserror` in the plan's worktree directory (not the original repo) and verify it succeeds with zero errors and zero warnings.
-    Then also build the sample and documentation projects to catch breaking changes:
-    1. `dotnet build --warnaserror` in `src/Ivy.Samples`
-    2. `dotnet build --warnaserror` in `src/Ivy.Docs`
-    All three builds must pass.
+    Run `dotnet build --warnaserror` in the plan's worktree directory (not the original repo) and verify it succeeds with zero errors and zero warnings. Then also build the sample and documentation projects to catch breaking changes: 1. `dotnet build --warnaserror` in `src\Ivy.Samples` 2. `dotnet build --warnaserror` in `src\Ivy.Docs` All three builds must pass.
 - name: DotnetBuild
   prompt: Run `dotnet build --warnaserror` in the plan's worktree directory (not the original repo) and verify it succeeds with zero errors and zero warnings.
 - name: DotnetTest
@@ -166,21 +167,15 @@ verifications:
   prompt: Run `cd src\frontend && npm run lint && npm run format:check` and verify no errors.
 - name: IvyFrameworkVerification
   prompt: >
-    Visually verify UI changes by delegating to the IvyFrameworkVerification promptware.
-    You MUST run this as an external process — do NOT attempt to do the verification yourself or write the report directly.
+    Visually verify UI changes by delegating to the IvyFrameworkVerification promptware. You MUST run this as an external process — do NOT attempt to do the verification yourself or write the report directly.
 
-    COPY THE COMMAND BELOW EXACTLY — only replace angle-bracketed placeholders with actual paths.
-    The plan folder is a POSITIONAL argument (NOT `--plan-folder`). The `--value` flags are REQUIRED.
+    COPY THE COMMAND BELOW EXACTLY — only replace angle-bracketed placeholders with actual paths. The plan folder is a POSITIONAL argument (NOT `--plan-folder`). The `--value` flags are REQUIRED.
 
     Execute: `tendril promptware IvyFrameworkVerification "<PlanFolder>" --value VerificationDir="<PlanFolder>\verification" --value ArtifactsDir="<PlanFolder>\artifacts" --value IvyFrameworkPath="<worktree path to Ivy-Framework>"`
 
     Example with real paths: `tendril promptware IvyFrameworkVerification "D:\Plans\03683-Example" --value VerificationDir="D:\Plans\03683-Example\verification" --value ArtifactsDir="D:\Plans\03683-Example\artifacts" --value IvyFrameworkPath="D:\Plans\03683-Example\worktrees\Ivy-Framework"`
 
-    Wait for the process to complete (it may take several minutes).
-    After the process exits, IMMEDIATELY check if `<PlanFolder>\verification\IvyFrameworkVerification.md` exists.
-    If the file exists, read it and set status based on the Result field in its YAML frontmatter.
-    If exit code is non-zero OR the report file does not exist, set status to Fail immediately — do not poll or wait.
-    Do NOT write the verification report yourself — the promptware creates it.
+    Wait for the process to complete (it may take several minutes). After the process exits, IMMEDIATELY check if `<PlanFolder>\verification\IvyFrameworkVerification.md` exists. If the file exists, read it and set status based on the Result field in its YAML frontmatter. If exit code is non-zero OR the report file does not exist, set status to Fail immediately — do not poll or wait. Do NOT write the verification report yourself — the promptware creates it.
 - name: CheckResult
   prompt: >
     Verify the implementation matches what was requested in the plan. 1. Read the plan revision from `<PlanFolder>\revisions\` (latest numbered .md file) 2. Read all commits made by this execution from `plan.yaml` `commits` list 3. For each commit, review the diff (`git show <hash>`) in the worktree 4. Compare the plan's **Problem** and **Solution** sections against the actual changes:
@@ -213,25 +208,16 @@ verifications:
     Verify all 6 required elements exist for any new widget created by this plan: 1. Backend widget class — src\Ivy\Widgets\<WidgetName>.cs with [Prop]\[Event] attributes, [JsonIgnore] on delegates, Has* booleans 2. Frontend React component — src\frontend\src\widgets\<widgetName>\<WidgetName>Widget.tsx 3. Index export — src\frontend\src\widgets\<widgetName>\index.ts 4. Widget map registration — import + entry in src\frontend\src\widgets\widgetMap.ts 5. Sample app — src\Ivy.Samples.Shared\Apps\Widgets\<WidgetName>App.cs 6. Documentation page — src\Ivy.Docs.Shared\Docs\02_Widgets\<category>\<WidgetName>.md Check each file exists and follows conventions. Report which elements are present vs missing.
 - name: RustBuild
   prompt: >
-    Run `cargo build --release` in the Rust source directory (src/Rustino.Native).
-    Verify the build completes with zero errors and zero warnings.
-    The output cdylib should be in target/release/ (rustino_native.dll on Windows, librustino_native.so on Linux, librustino_native.dylib on macOS).
+    Run `cargo build --release` in the Rust source directory (src\Rustino.Native). Verify the build completes with zero errors and zero warnings. The output cdylib should be in target\release\ (rustino_native.dll on Windows, librustino_native.so on Linux, librustino_native.dylib on macOS).
 - name: RustTest
   prompt: >
-    Run `cargo test` in the Rust source directory (src/Rustino.Native).
-    Verify all tests pass. If no test files exist, report "No tests found" and pass.
+    Run `cargo test` in the Rust source directory (src\Rustino.Native). Verify all tests pass. If no test files exist, report "No tests found" and pass.
 - name: RustClippy
   prompt: >
-    Run `cargo clippy -- -D warnings` in the Rust source directory (src/Rustino.Native).
-    Verify no warnings or errors are reported. Clippy is the Rust linter.
+    Run `cargo clippy -- -D warnings` in the Rust source directory (src\Rustino.Native). Verify no warnings or errors are reported. Clippy is the Rust linter.
 - name: VitePlusCheck
   prompt: >
-    Run `vp check` in the VitePlus frontend directory of the project repo.
-    For PrCostCalculator: run in repo root.
-    For Framework: `cd src\frontend && vp check`
-    For Console: `cd Ivy.Studio\Widgets\frontend && vp check`
-    If `vp check` reports fixable issues, run `vp check --fix`, then stage and commit the changes.
-    Also run `vp build` to verify the production build succeeds.
+    Run `vp check` in the VitePlus frontend directory of the project repo. For PrCostCalculator: run in repo root. For Framework: `cd src\frontend && vp check` For Console: `cd Ivy.Studio\Widgets\frontend && vp check` If `vp check` reports fixable issues, run `vp check --fix`, then stage and commit the changes. Also run `vp build` to verify the production build succeeds.
 planTemplate: >
   # {title}
 
@@ -265,8 +251,8 @@ promptwares:
     - Glob
     - Grep
     - Bash
-    - 'Write(%PLANS_DIR%/**)'
-    - 'Edit(%PLANS_DIR%/**)'
+    - Write(%PLANS_DIR%\**)
+    - Edit(%PLANS_DIR%\**)
   ExecutePlan:
     profile: deep
     allowedTools:
@@ -283,7 +269,7 @@ promptwares:
     - Glob
     - Grep
     - Bash
-    - 'Write(%PLAN_FOLDER%/**)'
+    - Write(%PLAN_FOLDER%\**)
   CreatePr:
     profile: balanced
     allowedTools:
@@ -291,8 +277,8 @@ promptwares:
     - Glob
     - Grep
     - Bash
-    - 'Write(%PLAN_FOLDER%/**)'
-    - 'Edit(%PLAN_FOLDER%/**)'
+    - Write(%PLAN_FOLDER%\**)
+    - Edit(%PLAN_FOLDER%\**)
   UpdatePlan:
     profile: balanced
     allowedTools:
@@ -300,13 +286,13 @@ promptwares:
     - Glob
     - Grep
     - Bash
-    - 'Write(%PLAN_FOLDER%/**)'
+    - Write(%PLAN_FOLDER%\**)
   SplitPlan:
     profile: balanced
     allowedTools:
     - Read
     - Bash
-    - 'Write(%PLANS_DIR%/**)'
+    - Write(%PLANS_DIR%\**)
   CreateIssue:
     profile: balanced
     allowedTools:
@@ -316,17 +302,9 @@ promptwares:
     profile: balanced
     allowedTools:
     - Read
-    - 'Write(%PLAN_FOLDER%/**)'
-    - 'Edit(%PLAN_FOLDER%/**)'
+    - Write(%PLAN_FOLDER%\**)
+    - Edit(%PLAN_FOLDER%\**)
     - Bash
-  PlanEvaluator:
-    profile: balanced
-    allowedTools:
-    - Read
-    - Glob
-    - Grep
-    - Bash
-    - 'Write(%TENDRIL_HOME%/Inbox/**)'
 codingAgents:
 - name: claude
   arguments: ''
