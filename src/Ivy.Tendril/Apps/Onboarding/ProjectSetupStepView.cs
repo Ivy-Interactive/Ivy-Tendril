@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
@@ -97,7 +98,7 @@ public class ProjectSetupStepView(
                                       var repoName = RepoPathValidator.ExtractRepoName(repo.Path) ?? Guid.NewGuid().ToString();
                                       progressMessage.Set($"Fetching {repoName} ({i}/{total})...");
                                       var destPath = Path.Combine(reposDir, repoName);
-                                      var success = await GitHelper.CloneRepositoryAsync(repo.Path, destPath);
+                                      var success = await CloneRepositoryAsync(repo.Path, destPath);
                                       if (!success)
                                       {
                                           progressCts.Cancel();
@@ -164,5 +165,45 @@ public class ProjectSetupStepView(
     {
         if (string.IsNullOrEmpty(input)) return "";
         return Regex.Replace(input, @"[^A-Za-z0-9._-]", "");
+    }
+
+    private static async Task<bool> CloneRepositoryAsync(string url, string destinationPath)
+    {
+        try
+        {
+            var shell = "pwsh";
+
+            if (url.Contains('\'') || url.Contains('"')) return false;
+
+            string cmd;
+            if (Directory.Exists(destinationPath))
+            {
+                cmd = $"git -C '{destinationPath}' pull";
+            }
+            else
+            {
+                cmd = $"git clone '{url}' '{destinationPath}'";
+            }
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = shell,
+                Arguments = $"-NoProfile -Command \"{cmd}\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(psi);
+            if (process == null) return false;
+
+            await process.WaitForExitAsync();
+            return process.ExitCode == 0;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }
