@@ -32,7 +32,7 @@ public class ProjectRepoPickerView(
 
             if (!RepoPathValidator.IsValid(path))
             {
-                addingError.Set("Invalid input. Enter an SSH URL, HTTPS URL, or local path.");
+                addingError.Set("Invalid repository path.");
                 return;
             }
 
@@ -74,22 +74,12 @@ public class ProjectRepoPickerView(
             }
         }
 
-        var kind = RepoPathValidator.Classify(inputValue.Value ?? "");
-        object? validationBadge = kind switch
-        {
-            RepoPathKind.SshUrl => new Badge("SSH").Variant(BadgeVariant.Secondary),
-            RepoPathKind.HttpUrl => new Badge("HTTPS").Variant(BadgeVariant.Secondary),
-            RepoPathKind.LocalPath => new Badge("Local").Variant(BadgeVariant.Secondary),
-            _ => null
-        };
-
         object pickerControls;
         if (isDesktop)
         {
             pickerControls = Layout.Horizontal().Gap(2).Width(Size.Full())
-                             | inputValue.ToTextInput("SSH URL, HTTPS URL, or local path")
+                             | inputValue.ToTextInput("Repository URL or local path")
                                  .Width(Size.Grow())
-                             | (validationBadge ?? null!)
                              | new Button("Browse").Icon(Icons.FolderOpen).Outline()
                                  .OnClick(() =>
                                  {
@@ -104,9 +94,8 @@ public class ProjectRepoPickerView(
         else
         {
             pickerControls = Layout.Horizontal().Gap(2).Width(Size.Full())
-                             | inputValue.ToTextInput("SSH URL, HTTPS URL, or local path")
+                             | inputValue.ToTextInput("Repository URL or local path")
                                  .Width(Size.Grow())
-                             | (validationBadge ?? null!)
                              | new Button(isAdding.Value ? "Adding..." : "Add").Icon(Icons.Plus)
                                  .Disabled(string.IsNullOrWhiteSpace(inputValue.Value) || isAdding.Value)
                                  .OnClick(() => { _ = AddAsync(); });
@@ -138,18 +127,9 @@ public class ProjectRepoPickerView(
                 }
             }
 
-            var kindBadge = itemKind switch
-            {
-                RepoPathKind.SshUrl => (object)new Badge("SSH").Variant(BadgeVariant.Outline),
-                RepoPathKind.HttpUrl => (object)new Badge("HTTPS").Variant(BadgeVariant.Outline),
-                RepoPathKind.LocalPath => (object)new Badge("Local").Variant(BadgeVariant.Outline),
-                _ => (object)new Badge("Remote").Variant(BadgeVariant.Outline)
-            };
-
             object row = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.Center).Gap(2)
                          | (validityIcon ?? null!)
                          | pathLabel
-                         | kindBadge
                          | new Spacer()
                          | (showPrRule
                              ? (object)BuildPrRuleSelector(repos, idx)
@@ -161,11 +141,11 @@ public class ProjectRepoPickerView(
                              repos.Set(list);
                          }).WithTooltip("Remove");
 
-            listLayout |= new Box(row).BorderStyle(BorderStyle.None).Background(Colors.Muted, 0.15f).Padding(4, 2, 2, 2).Width(Size.Full());
+            listLayout |= new Box(row).BorderStyle(BorderStyle.None).Background(Colors.Muted).Padding(4, 2, 2, 2).Width(Size.Full());
         }
 
         return Layout.Vertical().Gap(4).Width(Size.Full())
-               | Text.Muted("Add repositories by SSH URL, HTTPS URL, or local path.")
+               | Text.Muted("Add a repository to this project.")
                | (addingError.Value != null ? Text.Danger(addingError.Value) : null!)
                | pickerControls
                | (current.Count > 0 ? new Separator() : null!)
