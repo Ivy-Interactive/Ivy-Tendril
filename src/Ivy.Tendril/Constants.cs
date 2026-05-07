@@ -35,10 +35,11 @@ public static class Constants
         public const string SplitPlan = "SplitPlan";
         public const string CreatePr = "CreatePr";
         public const string CreateIssue = "CreateIssue";
+        public const string UpdateProject = "UpdateProject";
 
         public static readonly HashSet<string> BuiltIn = new(StringComparer.OrdinalIgnoreCase)
         {
-            CreatePlan, ExecutePlan, ExpandPlan, UpdatePlan, SplitPlan, CreatePr, CreateIssue
+            CreatePlan, ExecutePlan, ExpandPlan, UpdatePlan, SplitPlan, CreatePr, CreateIssue, UpdateProject
         };
     }
 }

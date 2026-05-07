@@ -117,6 +117,7 @@ public record PromptwareConfig
 {
     public string Profile { get; set; } = "";
     public List<string> AllowedTools { get; set; } = new();
+    public string? CustomInstructions { get; set; }
 }
 
 public record AgentProfileConfig
