@@ -62,7 +62,7 @@ public class OnboardingApp : ViewBase
 
         return Layout.TopCenter() |
                (Layout.Vertical().Margin(0, 20).Width(150)
-                | new Image("/tendril/assets/Tendril.svg").Width(Size.Units(20)).Height(Size.Auto())
+                | new Image("/tendril/assets/Tendril.svg").Width(Size.Units(15)).Height(Size.Auto())
                 | new Stepper(OnSelect, stepperIndex.Value, steps).Width(Size.Full())
                 | GetStepViews(stepperIndex, ghOwners, ghReposByOwner,
                                commonChecksPassed, homeBootstrapped, reposFetched, completedAgentKey,
