@@ -16,7 +16,7 @@ public class VerificationsSetupView : ViewBase
 
         var verifications = config.Settings.Verifications;
 
-        var rows = verifications.Select((v, i) => new VerificationRow(v.Name, v.Prompt, i)).ToList();
+        var rows = verifications.Select((v, i) => new VerificationRow(v.Name, i)).ToList();
 
         var table = new TableBuilder<VerificationRow>(rows)
             .Header(t => t.Index, "")
@@ -41,10 +41,7 @@ public class VerificationsSetupView : ViewBase
                     }, "Delete Verification", AlertButtonSet.OkCancel);
                 })
             ))
-            .ColumnWidth(t => t.Name, Size.Units(32))
-            .ColumnWidth(t => t.Prompt, Size.Units(100))
-            .Multiline(t => t.Prompt)
-            .ColumnWidth(t => t.Index, Size.Px(88));
+            .Width(Size.Fit());
 
         return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(400)))
                | Text.Block("Verification Definitions").Bold()
@@ -58,7 +55,7 @@ public class VerificationsSetupView : ViewBase
                | alertView;
     }
 
-    private record VerificationRow(string Name, string Prompt, int Index);
+    private record VerificationRow(string Name, int Index);
 }
 
 file class EditVerificationDialogContent(

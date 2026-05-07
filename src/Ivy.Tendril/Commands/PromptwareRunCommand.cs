@@ -129,8 +129,15 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
 
         var workDir = settings.WorkingDir ?? programFolder;
 
+        string? customInstructions = null;
+        if (tendrilSettings.Promptwares.TryGetValue("_default", out var defaultCfg))
+            customInstructions = defaultCfg.CustomInstructions;
+        if (tendrilSettings.Promptwares.TryGetValue(settings.Promptware, out var specificCfg)
+            && !string.IsNullOrWhiteSpace(specificCfg.CustomInstructions))
+            customInstructions = specificCfg.CustomInstructions;
+
         var logFile = FirmwareCompiler.GetNextLogFile(programFolder, values);
-        var firmwareContext = new FirmwareContext(programFolder, logFile, values);
+        var firmwareContext = new FirmwareContext(programFolder, logFile, values, customInstructions);
         var prompt = FirmwareCompiler.Compile(firmwareContext);
 
         // Emit resolved context as YAML for testability/debugging

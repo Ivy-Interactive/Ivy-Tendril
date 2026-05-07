@@ -401,8 +401,15 @@ internal class JobLauncher
         var resolution = AgentProviderFactory.Resolve(settings, job.Type, profileOverride, jobContext);
         var workDir = ResolveWorkingDirectory(job, programFolder);
 
+        string? customInstructions = null;
+        if (settings.Promptwares.TryGetValue("_default", out var defaultCfg))
+            customInstructions = defaultCfg.CustomInstructions;
+        if (settings.Promptwares.TryGetValue(job.Type, out var specificCfg)
+            && !string.IsNullOrWhiteSpace(specificCfg.CustomInstructions))
+            customInstructions = specificCfg.CustomInstructions;
+
         var logFile = FirmwareCompiler.GetNextLogFile(programFolder, values);
-        var context = new FirmwareContext(programFolder, logFile, values);
+        var context = new FirmwareContext(programFolder, logFile, values, customInstructions);
         var prompt = FirmwareCompiler.Compile(context);
 
         var invocation = new AgentInvocation(

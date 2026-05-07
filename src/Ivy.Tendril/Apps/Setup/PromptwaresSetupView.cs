@@ -28,9 +28,6 @@ public class PromptwaresSetupView : ViewBase
                     ? Layout.Horizontal().Gap(2) | name | new Badge("Tendril").Variant(BadgeVariant.Secondary).Small()
                     : name))
             .Header(t => t.Index, "")
-            .ColumnWidth(c => c.Name, Size.Fit())
-            .ColumnWidth(c => c.Profile, Size.Fit())
-            .ColumnWidth(c => c.Index, Size.Fit())
             .Builder(t => t.Index, f => f.Func<PromptwareRow, int>(idx =>
             {
                 var name = rows[idx].Name;
