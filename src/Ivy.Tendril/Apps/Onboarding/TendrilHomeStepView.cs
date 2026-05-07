@@ -29,9 +29,8 @@ public class TendrilHomeStepView(
                    "you want this data on a different drive, synced via Dropbox/iCloud, or shared " +
                    "between machines.")
                | (error.Value != null ? Text.Danger(error.Value) : null!)
-               | tendrilHomePath.ToTextInput("Path to data folder...")
+               | tendrilHomePath.ToTextInput(defaultHome)
                    .WithField().Label("Tendril Home")
-               | Text.Muted($"Default: {defaultHome}")
                | (Layout.Horizontal().Width(Size.Full())
                   | new Button("Back").Outline().Large().Icon(Icons.ArrowLeft)
                       .Disabled(isBootstrapping.Value)
