@@ -57,6 +57,9 @@ public class JobServiceSplitPlanCompletionTests
 
         public string PlansDirectory => "";
         public bool IsDatabaseReady => true;
+#pragma warning disable CS0067
+        public event Action? CountsInvalidated;
+#pragma warning restore CS0067
 
         public void TransitionState(string folderName, PlanStatus newState)
         {

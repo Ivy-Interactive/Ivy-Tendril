@@ -306,6 +306,9 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
 
         public string PlansDirectory { get; }
         public bool IsDatabaseReady => true;
+#pragma warning disable CS0067
+        public event Action? CountsInvalidated;
+#pragma warning restore CS0067
 
         public void RecoverStuckPlans()
         {
