@@ -1,4 +1,5 @@
 using Ivy.Tendril.Apps.Onboarding;
+using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps;
 
@@ -29,8 +30,7 @@ public class OnboardingApp : ViewBase
         IState<bool> reposFetched,
         IState<string?> completedAgentKey,
         IState<string> tendrilHomePath,
-        IState<string> selectedOwner,
-        IState<List<Onboarding.RepoChoice>> selectedRepos,
+        IState<List<RepoRef>> selectedRepos,
         IState<string> projectName)
     {
         return stepperIndex.Value switch
@@ -38,9 +38,8 @@ public class OnboardingApp : ViewBase
             0 => new CodingAgentStepView(stepperIndex, ghOwners, ghReposByOwner,
                                          commonChecksPassed, reposFetched, completedAgentKey),
             1 => new TendrilHomeStepView(stepperIndex, tendrilHomePath, homeBootstrapped),
-            2 => new ProjectSetupStepView(stepperIndex, ghOwners, ghReposByOwner,
-                                          selectedOwner, selectedRepos, projectName),
-            3 => new CompleteStepView(stepperIndex, selectedOwner, selectedRepos, projectName),
+            2 => new ProjectSetupStepView(stepperIndex, ghOwners, ghReposByOwner, selectedRepos, projectName),
+            3 => new CompleteStepView(stepperIndex, selectedRepos, projectName),
             _ => throw new ArgumentOutOfRangeException()
         };
     }
@@ -57,8 +56,7 @@ public class OnboardingApp : ViewBase
         var tendrilHomePath = UseState(() =>
             Environment.GetEnvironmentVariable("TENDRIL_HOME")
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril"));
-        var selectedOwner = UseState("");
-        var selectedRepos = UseState(() => new List<Onboarding.RepoChoice>());
+        var selectedRepos = UseState(() => new List<RepoRef>());
         var projectName = UseState("");
         var steps = GetSteps(stepperIndex.Value);
 
@@ -68,7 +66,7 @@ public class OnboardingApp : ViewBase
                 | new Stepper(OnSelect, stepperIndex.Value, steps).Width(Size.Full())
                 | GetStepViews(stepperIndex, ghOwners, ghReposByOwner,
                                commonChecksPassed, homeBootstrapped, reposFetched, completedAgentKey,
-                               tendrilHomePath, selectedOwner, selectedRepos, projectName)
+                               tendrilHomePath, selectedRepos, projectName)
                );
 
         ValueTask OnSelect(Event<Stepper, int> e)

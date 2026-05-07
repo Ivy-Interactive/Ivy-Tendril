@@ -208,12 +208,12 @@ public class CodingAgentStepView(
 
     private static object BuildPicker(Action<string> onSelect, string? errorMessage)
     {
-        var grid = Layout.Grid().Columns(2).Gap(2);
+        var grid = Layout.Grid().Columns(3).Gap(2);
         foreach (var a in Agents)
         {
             grid |= new Card(
-                Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(1)
-                | a.Logo.ToIcon().Width(Size.Units(15)).Height(Size.Auto())
+                Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(0)
+                | a.Logo.ToIcon().Width(Size.Px(32)).Height(Size.Px(32))
                 | Text.Block(a.Label)
             ).OnClick(() => onSelect(a.Key));
         }

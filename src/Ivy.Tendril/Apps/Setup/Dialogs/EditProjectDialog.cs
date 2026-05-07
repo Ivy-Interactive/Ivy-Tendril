@@ -1,8 +1,7 @@
 using Ivy.Core.Hooks;
-using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
-using Ivy.Desktop;
-using Microsoft.Extensions.DependencyInjection;
+using Ivy.Tendril.Services;
+using Ivy.Tendril.Views;
 
 namespace Ivy.Tendril.Apps.Setup.Dialogs;
 
@@ -29,16 +28,7 @@ public class EditProjectDialog(
         var editContext = UseState("");
         var editRepos = UseState(new List<RepoRef>());
         var editVerifications = UseState(new List<ProjectVerificationRef>());
-        var newRepoPath = UseState<string?>(null);
-        var newRepoPrRule = UseState("default");
-        var newRepoBaseBranch = UseState("");
-        var repoPathError = UseState<string?>(null);
-        var editingRepoIndex = UseState<int?>(-1);
-        var editingRepoPath = UseState<string?>(null);
-        var editingRepoBaseBranch = UseState("");
-        var editingRepoError = UseState<string?>(null);
 
-        var isFetching = UseState(false);
         UseEffect(() =>
         {
             if (_editIndex.Value == null)
@@ -61,124 +51,34 @@ public class EditProjectDialog(
                     project.Verifications.Select(v => new ProjectVerificationRef
                     { Name = v.Name, Required = v.Required })));
             }
-
-            newRepoPath.Set(null);
-            newRepoPrRule.Set("default");
-            newRepoBaseBranch.Set("");
-            repoPathError.Set(null);
-            editingRepoIndex.Set(-1);
-            editingRepoPath.Set(null);
-            editingRepoBaseBranch.Set("");
-            editingRepoError.Set(null);
         }, _editIndex);
-
 
         if (_editIndex.Value == -1) return null;
 
-        Context.TryUseService<DesktopWindow>(out var desktop);
-
         var isNew = _editIndex.Value == null;
 
-        var reposLayout = Layout.Vertical().Gap(2);
-        var currentRepos = editRepos.Value;
-        for (var i = 0; i < currentRepos.Count; i++)
+        Func<RepoRef, Task<RepoRef?>> cloneRemoteOnAdd = async draft =>
         {
-            var ri = i;
-            var repo = currentRepos[ri];
-            var expandedPath = VariableExpansion.ExpandVariables(repo.Path, _config.TendrilHome);
-            var pathExists = Directory.Exists(expandedPath);
-            var isGitRepo = pathExists && Path.Exists(Path.Combine(expandedPath, ".git"));
+            if (!LooksLikeUrl(draft.Path)) return draft;
 
-            var pathText = Text.Block(repo.Path);
-            if (!isGitRepo) pathText = pathText.Color(Colors.Red);
+            var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")
+                              ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
+            var reposDir = Path.Combine(tendrilHome, "Repos");
+            Directory.CreateDirectory(reposDir);
 
-            reposLayout |= Layout.Horizontal().Gap(2).AlignContent(Align.Center)
-                           | (!isGitRepo
-                               ? (object)new Icon(Icons.TriangleAlert, Colors.Warning).Small()
-                                   .WithTooltip(!pathExists
-                                       ? $"Path does not exist: {expandedPath}"
-                                       : $"Not a git repository: {expandedPath}")
-                               : null!)
-                           | pathText
-                           | new Badge(repo.PrRule).Variant(BadgeVariant.Outline)
-                           | (!string.IsNullOrEmpty(repo.BaseBranch)
-                               ? (object)new Badge(repo.BaseBranch).Variant(BadgeVariant.Secondary)
-                               : null!)
-                           | new Spacer().Width(Size.Grow())
-                           | new Button().Icon(Icons.Trash).Ghost().Small().OnClick(() =>
-                           {
-                               var list = new List<RepoRef>(editRepos.Value);
-                               list.RemoveAt(ri);
-                               editRepos.Set(list);
-                           });
-        }
+            var repoName = ExtractRepoName(draft.Path);
+            var destPath = Path.Combine(reposDir, repoName);
 
-        if (editingRepoError.Value != null) reposLayout |= Text.Danger(editingRepoError.Value);
-
-        if (repoPathError.Value != null) reposLayout |= Text.Danger(repoPathError.Value);
-
-        Func<Task> addRepoAction = async () =>
-        {
-            if (!string.IsNullOrWhiteSpace(newRepoPath.Value))
+            var success = await GitHubCliHelper.CloneRepositoryAsync(draft.Path, destPath);
+            if (!success)
             {
-                repoPathError.Set(null);
-                isFetching.Set(true);
-
-                var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
-                var reposDir = Path.Combine(tendrilHome, "Repos");
-                Directory.CreateDirectory(reposDir);
-
-                var url = newRepoPath.Value;
-                var repoName = url.Split('/').Last().Replace(".git", "");
-                if (string.IsNullOrWhiteSpace(repoName)) repoName = Guid.NewGuid().ToString();
-
-                var destPath = Path.Combine(reposDir, repoName);
-                
-                var success = await GitHubCliHelper.CloneRepositoryAsync(url, destPath);
-                if (!success)
-                {
-                    repoPathError.Set($"Failed to fetch repository: {url}. Ensure 'git' is installed and you have access.");
-                    isFetching.Set(false);
-                    return;
-                }
-
-                var trimmedBaseBranch = newRepoBaseBranch.Value?.Trim();
-                var list = new List<RepoRef>(editRepos.Value)
-                {
-                    new()
-                    {
-                        Path = destPath,
-                        PrRule = newRepoPrRule.Value,
-                        BaseBranch = string.IsNullOrEmpty(trimmedBaseBranch) ? null : trimmedBaseBranch,
-                    }
-                };
-                editRepos.Set(list);
-                newRepoPath.Set(null);
-                newRepoPrRule.Set("default");
-                newRepoBaseBranch.Set("");
-                repoPathError.Set(null);
-                isFetching.Set(false);
+                _client.Toast($"Failed to fetch repository: {draft.Path}", "Error");
+                return null;
             }
+
+            return draft with { Path = destPath };
         };
 
-        var newRepoUrlState = new ConvertedState<string?, string>(
-            newRepoPath,
-            val => val ?? "",
-            val => string.IsNullOrEmpty(val) ? null : val
-        );
-
-        reposLayout |= Layout.Vertical().Gap(1)
-                       | new Ivy.Tendril.Views.GitHubRepoSelectorView(newRepoUrlState, newRepoBaseBranch)
-                       | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                          | newRepoPrRule.ToSelectInput(new List<string> { "default", "yolo" }).Width(Size.Units(20))
-                       );
-
-        reposLayout |= (Layout.Horizontal().AlignContent(Align.Right)
-                       | new Button(isFetching.Value ? "Fetching..." : "Confirm & Fetch").Primary().Icon(Icons.Download)
-                           .Disabled(isFetching.Value)
-                           .OnClick(() => { _ = addRepoAction(); })
-                       );
-        // Verifications switches
         var verificationsLayout = Layout.Vertical().Gap(1);
         foreach (var vName in _allVerifications)
         {
@@ -221,12 +121,7 @@ public class EditProjectDialog(
         }
 
         return new Dialog(
-            _ =>
-            {
-                _editIndex.Set(-1);
-                editingRepoIndex.Set(-1);
-                editingRepoError.Set(null);
-            },
+            _ => _editIndex.Set(-1),
             new DialogHeader(isNew ? "Add Project" : $"Edit Project: {editName.Value}"),
             new DialogBody(
                 Layout.Vertical().Gap(4)
@@ -244,21 +139,15 @@ public class EditProjectDialog(
                     .WithField().Label("Context / Prompt (Optional)")
                 | (Layout.Vertical().Gap(2)
                    | Text.Block("Repositories").Bold()
-                   | reposLayout)
+                   | new ProjectRepoPickerView(editRepos, onAdd: cloneRemoteOnAdd, showPrRule: true))
                 | (Layout.Vertical().Gap(2)
                    | Text.Block("Verifications").Bold()
                    | verificationsLayout)
             ),
             new DialogFooter(
-                new Button("Cancel").Outline().OnClick(() =>
+                new Button("Cancel").Outline().OnClick(() => _editIndex.Set(-1)),
+                new Button(isNew ? "Add" : "Save").Primary().OnClick(() =>
                 {
-                    _editIndex.Set(-1);
-                    editingRepoIndex.Set(-1);
-                    editingRepoError.Set(null);
-                }),
-                new Button(isNew ? "Add" : "Save").Primary().OnClick(async () =>
-                {
-                    await addRepoAction();
                     if (string.IsNullOrWhiteSpace(editName.Value)) return;
                     var project = isNew ? new ProjectConfig() : _projects[_editIndex.Value!.Value];
                     project.Name = editName.Value;
@@ -269,12 +158,25 @@ public class EditProjectDialog(
                     if (isNew) _projects.Add(project);
                     _config.SaveSettings();
                     _editIndex.Set(-1);
-                    editingRepoIndex.Set(-1);
-                    editingRepoError.Set(null);
                     _refreshToken.Refresh();
                     _client.Toast($"Project '{editName.Value}' saved", "Saved");
                 })
             )
         ).Width(Size.Rem(40));
+    }
+
+    private static bool LooksLikeUrl(string path)
+        => !string.IsNullOrEmpty(path)
+           && (path.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+               || path.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+               || path.StartsWith("git@", StringComparison.OrdinalIgnoreCase));
+
+    private static string ExtractRepoName(string url)
+    {
+        var trimmed = url;
+        if (trimmed.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
+            trimmed = trimmed[..^4];
+        var parts = trimmed.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length > 0 ? parts[^1] : Guid.NewGuid().ToString();
     }
 }

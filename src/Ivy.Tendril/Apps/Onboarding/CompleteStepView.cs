@@ -5,8 +5,7 @@ namespace Ivy.Tendril.Apps.Onboarding;
 
 public class CompleteStepView(
     IState<int> stepperIndex,
-    IState<string> selectedOwner,
-    IState<List<RepoChoice>> selectedRepos,
+    IState<List<RepoRef>> selectedRepos,
     IState<string> projectName) : ViewBase
 {
     public override object Build()
@@ -89,9 +88,8 @@ public class CompleteStepView(
 
         void OnBack()
         {
-            selectedRepos.Set(new List<RepoChoice>());
+            selectedRepos.Set(new List<RepoRef>());
             projectName.Set("");
-            selectedOwner.Set("");
             stepperIndex.Set(stepperIndex.Value - 1);
         }
 
