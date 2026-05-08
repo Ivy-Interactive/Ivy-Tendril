@@ -1,0 +1,7 @@
+{"type":"thread.started","thread_id":"019e068c-aea3-71b2-bb16-667a98d76ff6"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"I’m reading `sample.txt` from the workspace now, then I’ll summarize its contents directly."}}
+{"type":"item.started","item":{"id":"item_1","type":"command_execution","command":"\"C:\\\\Program Files\\\\PowerShell\\\\7\\\\pwsh.exe\" -Command 'Get-Content -LiteralPath sample.txt'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_1","type":"command_execution","command":"\"C:\\\\Program Files\\\\PowerShell\\\\7\\\\pwsh.exe\" -Command 'Get-Content -LiteralPath sample.txt'","aggregated_output":"test content\r\n","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"`sample.txt` contains: `test content`"}}
+{"type":"turn.completed","usage":{"input_tokens":51128,"cached_input_tokens":28416,"output_tokens":89}}

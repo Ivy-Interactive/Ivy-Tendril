@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Text.Json.Serialization;
+using Ivy.Tendril.Services.Agents;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Models;
@@ -45,6 +47,9 @@ public record JobItem
     public int Priority { get; init; }
     public decimal? Cost { get; set; }
     public int? Tokens { get; set; }
+
+    [JsonIgnore]
+    public IOutputNormalizer? OutputNormalizer { get; set; }
 
     // Process handle for non-interactive execution
     public Process? Process { get; set; }

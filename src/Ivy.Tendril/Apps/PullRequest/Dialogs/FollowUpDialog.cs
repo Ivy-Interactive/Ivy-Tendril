@@ -6,7 +6,6 @@ namespace Ivy.Tendril.Apps.PullRequest.Dialogs;
 public class FollowUpDialog(
     string planId,
     string planTitle,
-    string prUrl,
     List<string> projectNames,
     Action<string, string[], int> onCreatePlan,
     Action onClose) : ViewBase

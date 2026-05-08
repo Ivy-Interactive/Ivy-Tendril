@@ -227,19 +227,6 @@ public class GitServiceTests : IDisposable
         Assert.Contains("file1.txt", result.Value);
     }
 
-    [Fact(Skip = "Git diff range behavior varies - test is environment-dependent")]
-    public void GetCombinedChangedFiles_ReturnsCorrectFiles()
-    {
-        var service = CreateService();
-        var firstCommit = GetCommitHash(2); // Initial commit
-        var lastCommit = GetCommitHash(1); // Add file2 commit
-
-        var result = service.GetCombinedChangedFiles(_testRepoPath, firstCommit, lastCommit);
-
-        Assert.True(result.IsSuccess);
-        Assert.Contains(result.Value!, f => f.FilePath == "file2.txt" && f.Status == "A");
-    }
-
     [Fact]
     public void GetCommitSummaries_ReturnsCorrectSummaries()
     {

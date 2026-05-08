@@ -48,7 +48,13 @@ If all questions are resolved and no new questions arose, omit the `## Questions
 
 ### 4. Apply Changes
 
-- Create a new revision file (next sequential number, e.g. `002.md`)
+- Write the new revision via CLI (number auto-incremented):
+  ```bash
+  tendril plan write-revision <plan-id> <<'EOF'
+  <updated revision content>
+  EOF
+  ```
+  Do NOT use the Write or Edit tools to create revision files.
 - Incorporate the intent of each `>>` instruction into the updated plan
 - Maintain the `## Questions` section (placed after the title, before `## Problem`) using `<details>` tags: (1) Existing questions answered by `>>` comments or research should be collapsed into `<details>` blocks with the answer. (2) New `>>` questions become new `<details>` blocks with answers. (3) Unanswered questions from prior revisions remain as open items (not in `<details>`). (4) If all questions are resolved and no new ones arose, omit the section entirely. Format:
   ```html

@@ -70,7 +70,7 @@ public class TryBuildAgentProcessStartTests : IDisposable
         var resolution = AgentProviderFactory.Resolve(settings, "Test");
 
         // Backslashes should be converted to forward slashes
-        Assert.Equal("D:/Repos/Tools/script.ps1", resolution.AllowedTools[0]);
+        Assert.Contains("D:/Repos/Tools/script.ps1", resolution.AllowedTools);
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public class TryBuildAgentProcessStartTests : IDisposable
                 ["_default"] = new()
                 {
                     Profile = "balanced",
-                    AllowedTools = new List<string> { "Read", "Write", "Bash" }
+                    AllowedTools = new List<string> { "Write" }
                 },
                 ["SimpleTask"] = new()
                 {
@@ -156,8 +156,10 @@ public class TryBuildAgentProcessStartTests : IDisposable
 
         var resolution = AgentProviderFactory.Resolve(settings, "SimpleTask");
 
-        // Empty tools from specific config should NOT replace default tools
-        Assert.Equal(new[] { "Read", "Write", "Bash" }, resolution.AllowedTools);
+        // Base tools + _default's Write should still be present
+        Assert.Contains("Read", resolution.AllowedTools);
+        Assert.Contains("Write", resolution.AllowedTools);
+        Assert.Contains("Bash(tendril*)", resolution.AllowedTools);
         Assert.Equal("haiku", resolution.Model);
     }
 

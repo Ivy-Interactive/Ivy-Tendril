@@ -112,8 +112,8 @@ tendril plan rec set <plan-id> <title> <field> <value>
 tendril plan rec remove <plan-id> <title>
 tendril plan rec list <plan-id> [--state Pending|Accepted|Declined]
 
-# Replace entire plan YAML (pipe from stdin)
-cat revised.yaml | tendril plan update <plan-id>
+# Replace entire plan YAML (reads from stdin)
+tendril plan update <plan-id> < revised.yaml
 
 # Validate plan health
 tendril plan validate <plan-id>
@@ -127,9 +127,9 @@ tendril plan create <title> [options]
 
 Auto-allocates a plan ID, creates the folder, and writes `plan.yaml`. Outputs:
 ```
-PlanId: 01234
-Directory: /path/to/Plans/01234-SafeTitle
-Plan created: 01234-SafeTitle
+PlanId: <ID>
+Directory: <PlansDirectory>/<ID>-<SafeTitle>
+Plan created: <ID>-<SafeTitle>
 ```
 
 Options:
@@ -143,6 +143,14 @@ Options:
 - `--verification <Name=Status>` — Verification entry (repeatable)
 - `--related-plan <folder>` — Related plan folder name (repeatable)
 - `--depends-on <folder>` — Dependency plan folder name (repeatable)
+
+### Writing revisions
+
+```bash
+echo "<content>" | tendril plan write-revision <plan-id>
+```
+
+Writes STDIN content to `revisions/<NNN>.md` in the plan folder. Auto-increments from the highest existing revision. Outputs the file path.
 
 ### Writing execution logs
 
