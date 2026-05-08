@@ -16,6 +16,8 @@ namespace Ivy.Tendril;
 
 public class Program
 {
+    private const string DetachedLaunchMarker = "--tendril-detached-child";
+
     // Native console control handler to detect why the process is being killed.
     // This fires BEFORE .NET's ProcessExit and catches CTRL_CLOSE_EVENT which
     // .NET's AppDomain.ProcessExit may not see (Windows force-kills after 5s).
@@ -37,9 +39,18 @@ public class Program
 
         var (verbose, quiet, forceDesktop, forceWeb, filteredArgs) = ParseGlobalFlags(args);
 
-        var fileName = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? "");
-        bool isTool = fileName.Equals("tendril", StringComparison.OrdinalIgnoreCase);
+        bool isTool = IsTendrilToolInvocation();
         bool useDesktop = (isTool || forceDesktop) && !forceWeb;
+        bool isDetachedChild = args.Contains(DetachedLaunchMarker);
+
+        if (isTool && useDesktop && !isDetachedChild && ShouldDetachDesktopLaunch(filteredArgs))
+            return RelaunchDesktopDetached(filteredArgs);
+
+        if (isDetachedChild && useDesktop)
+        {
+            Console.SetOut(TextWriter.Null);
+            Console.SetError(TextWriter.Null);
+        }
 
         // Handle CLI commands using Spectre.Console.Cli
         if (filteredArgs.Length > 0)
@@ -150,7 +161,8 @@ public class Program
         var filtered = args.Where(a =>
             a != "--desktop" && a != "--web" &&
             a != "--verbose" && a != "-v" &&
-            a != "--quiet" && a != "-q"
+            a != "--quiet" && a != "-q" &&
+            a != DetachedLaunchMarker
         ).ToArray();
 
         return (verbose, quiet, forceDesktop, forceWeb, filtered);
@@ -166,6 +178,62 @@ public class Program
             "version", "--version"
         };
         return cliCommands.Contains(firstArg);
+    }
+
+    private static bool ShouldDetachDesktopLaunch(string[] filteredArgs)
+    {
+        // Detach only for desktop startup and not for CLI commands.
+        return filteredArgs.Length == 0;
+    }
+
+    private static bool IsTendrilToolInvocation()
+    {
+        // ProcessPath can be "dotnet" for global tools, so inspect argv[0] too.
+        var processPathName = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? string.Empty);
+        if (processPathName.Equals("tendril", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var argv0 = Environment.GetCommandLineArgs().FirstOrDefault() ?? string.Empty;
+        var argv0Name = Path.GetFileNameWithoutExtension(argv0);
+        return argv0Name.Equals("tendril", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int RelaunchDesktopDetached(string[] filteredArgs)
+    {
+        var processPath = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(processPath))
+        {
+            Console.Error.WriteLine("Unable to determine tendril executable path.");
+            return 1;
+        }
+
+        var childArgs = new List<string>(filteredArgs)
+        {
+            "--desktop",
+            DetachedLaunchMarker
+        };
+
+        var startInfo = new ProcessStartInfo(processPath)
+        {
+            UseShellExecute = true
+        };
+
+        foreach (var arg in childArgs)
+            startInfo.ArgumentList.Add(arg);
+
+        if (OperatingSystem.IsWindows())
+            startInfo.CreateNoWindow = true;
+
+        try
+        {
+            Process.Start(startInfo);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Failed to launch desktop mode: {ex.Message}");
+            return 1;
+        }
     }
 
     private static CommandApp ConfigureCliCommands(ServiceCollection cliServices)
