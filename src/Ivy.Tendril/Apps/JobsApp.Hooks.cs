@@ -1,6 +1,7 @@
 using System.Reactive.Disposables;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Agents;
 
 namespace Ivy.Tendril.Apps;
 
@@ -26,10 +27,14 @@ public partial class JobsApp
             streamingJobId.Set(activeJobId);
             hasStreamContent.Set(false);
 
+            var normalizer = activeJob.OutputNormalizer
+                ??= OutputNormalizerFactory.Create(activeJob.Provider);
+
             var existingLines = activeJob.OutputLines.ToArray();
             foreach (var line in existingLines)
             {
-                outputStream.Write(line);
+                foreach (var normalized in normalizer.Normalize(line))
+                    outputStream.Write(normalized);
             }
 
             if (existingLines.Length > 0 && !hasStreamContent.Value)
@@ -41,10 +46,14 @@ public partial class JobsApp
         }
         else
         {
+            var normalizer = activeJob.OutputNormalizer
+                ??= OutputNormalizerFactory.Create(activeJob.Provider);
+
             var currentLines = activeJob.OutputLines.ToArray();
             for (var i = startIdx; i < currentLines.Length; i++)
             {
-                outputStream.Write(currentLines[i]);
+                foreach (var normalized in normalizer.Normalize(currentLines[i]))
+                    outputStream.Write(normalized);
             }
 
             if (currentLines.Length > 0 && !hasStreamContent.Value)

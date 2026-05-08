@@ -48,7 +48,7 @@ public class AgentProviderFactoryTests
         var settings = CreateSettings(
             promptwares: new Dictionary<string, PromptwareConfig>
             {
-                ["_default"] = new() { Profile = "balanced", AllowedTools = new List<string> { "Read", "Write" } }
+                ["_default"] = new() { Profile = "balanced", AllowedTools = new List<string> { "Write" } }
             },
             codingAgents: new List<AgentConfig>
             {
@@ -67,18 +67,20 @@ public class AgentProviderFactoryTests
         Assert.IsType<ClaudeAgentProvider>(resolution.Provider);
         Assert.Equal("sonnet", resolution.Model);
         Assert.Equal("high", resolution.Effort);
-        Assert.Equal(new[] { "Read", "Write" }, resolution.AllowedTools);
+        // Base tools + _default's Write
+        Assert.Contains("Read", resolution.AllowedTools);
+        Assert.Contains("Write", resolution.AllowedTools);
+        Assert.Contains("Bash(tendril*)", resolution.AllowedTools);
     }
 
     [Fact]
-    public void Resolve_SpecificPromptwareOverridesDefault()
+    public void Resolve_ExecutePlanGetsUnrestrictedBash()
     {
         var settings = CreateSettings(
             promptwares: new Dictionary<string, PromptwareConfig>
             {
-                ["_default"] = new() { Profile = "quick", AllowedTools = new List<string> { "Read" } },
                 ["ExecutePlan"] = new()
-                { Profile = "deep", AllowedTools = new List<string> { "Read", "Write", "Bash" } }
+                { Profile = "deep", AllowedTools = new List<string> { "Write(/extra/**)" } }
             },
             codingAgents: new List<AgentConfig>
             {
@@ -87,7 +89,6 @@ public class AgentProviderFactoryTests
                     Name = "claude",
                     Profiles = new List<AgentProfileConfig>
                     {
-                        new() { Name = "quick", Model = "haiku", Effort = "low" },
                         new() { Name = "deep", Model = "opus", Effort = "max" }
                     }
                 }
@@ -97,7 +98,12 @@ public class AgentProviderFactoryTests
 
         Assert.Equal("opus", resolution.Model);
         Assert.Equal("max", resolution.Effort);
-        Assert.Equal(new[] { "Read", "Write", "Bash" }, resolution.AllowedTools);
+        // Base tools + built-in ExecutePlan extras + config extras
+        Assert.Contains("Read", resolution.AllowedTools);
+        Assert.Contains("Bash", resolution.AllowedTools);
+        Assert.Contains("Bash(tendril*)", resolution.AllowedTools);
+        Assert.Contains("WebFetch", resolution.AllowedTools);
+        Assert.Contains("Write(/extra/**)", resolution.AllowedTools);
     }
 
     [Fact]
@@ -157,7 +163,7 @@ public class AgentProviderFactoryTests
     }
 
     [Fact]
-    public void Resolve_NoConfigReturnsEmptyModelAndEffort()
+    public void Resolve_NoConfigStillReturnsBaseTools()
     {
         var settings = CreateSettings();
         var resolution = AgentProviderFactory.Resolve(settings, "SomePromptware");
@@ -165,7 +171,13 @@ public class AgentProviderFactoryTests
         Assert.IsType<ClaudeAgentProvider>(resolution.Provider);
         Assert.Equal("", resolution.Model);
         Assert.Equal("", resolution.Effort);
-        Assert.Empty(resolution.AllowedTools);
+        Assert.Contains("Read", resolution.AllowedTools);
+        Assert.Contains("Glob", resolution.AllowedTools);
+        Assert.Contains("Grep", resolution.AllowedTools);
+        Assert.Contains("Bash(tendril*)", resolution.AllowedTools);
+        Assert.Contains("WebFetch", resolution.AllowedTools);
+        Assert.Contains("WebSearch", resolution.AllowedTools);
+        Assert.DoesNotContain("Bash", resolution.AllowedTools.Where(t => t == "Bash"));
         Assert.Empty(resolution.ExtraArgs);
     }
 
@@ -306,7 +318,7 @@ public class AgentProviderFactoryTests
                     Profile = "balanced",
                     AllowedTools = new List<string>
                     {
-                        "Read", "Bash", "Write(%PLANS_DIR%/**)", "Edit(%PLAN_FOLDER%/**)"
+                        "Write(%PLANS_DIR%/**)", "Edit(%PLAN_FOLDER%/**)"
                     }
                 }
             });
@@ -319,8 +331,11 @@ public class AgentProviderFactoryTests
 
         var resolution = AgentProviderFactory.Resolve(settings, "CreatePlan", jobContext: jobContext);
 
+        // Base tools always present
         Assert.Contains("Read", resolution.AllowedTools);
-        Assert.Contains("Bash", resolution.AllowedTools);
+        Assert.Contains("Bash(tendril*)", resolution.AllowedTools);
+        Assert.Contains("WebFetch", resolution.AllowedTools);
+        // Config extras with expanded variables
         Assert.Contains("Write(D:/Tendril/Plans/**)", resolution.AllowedTools);
         Assert.Contains("Edit(D:/Tendril/Plans/01234-MyPlan/**)", resolution.AllowedTools);
     }
@@ -345,7 +360,50 @@ public class AgentProviderFactoryTests
     }
 
     [Fact]
-    public void Resolve_NoJobContextLeavesVariablesForEnvExpansion()
+    public void Resolve_ConfigToolsAddToBaseTools()
+    {
+        var settings = CreateSettings(
+            promptwares: new Dictionary<string, PromptwareConfig>
+            {
+                ["Test"] = new()
+                {
+                    AllowedTools = new List<string> { "Write(/extra/**)" }
+                }
+            });
+
+        var resolution = AgentProviderFactory.Resolve(settings, "Test");
+
+        // Base tools present
+        Assert.Contains("Read", resolution.AllowedTools);
+        Assert.Contains("Glob", resolution.AllowedTools);
+        Assert.Contains("Grep", resolution.AllowedTools);
+        Assert.Contains("Bash(tendril*)", resolution.AllowedTools);
+        Assert.Contains("WebFetch", resolution.AllowedTools);
+        Assert.Contains("WebSearch", resolution.AllowedTools);
+        // Config extra
+        Assert.Contains("Write(/extra/**)", resolution.AllowedTools);
+    }
+
+    [Fact]
+    public void Resolve_ExecutePlanGetsBuiltInWriteEditAndBash()
+    {
+        var settings = CreateSettings();
+
+        var jobContext = new Dictionary<string, string>
+        {
+            ["PLAN_FOLDER"] = "/plans/01234-Test"
+        };
+
+        var resolution = AgentProviderFactory.Resolve(settings, "ExecutePlan", jobContext: jobContext);
+
+        Assert.Contains("Read", resolution.AllowedTools);
+        Assert.Contains("Bash", resolution.AllowedTools);
+        Assert.Contains("Write(/plans/01234-Test/worktrees/**)", resolution.AllowedTools);
+        Assert.Contains("Edit(/plans/01234-Test/worktrees/**)", resolution.AllowedTools);
+    }
+
+    [Fact]
+    public void Resolve_DeduplicatesTools()
     {
         var settings = CreateSettings(
             promptwares: new Dictionary<string, PromptwareConfig>
@@ -358,6 +416,55 @@ public class AgentProviderFactoryTests
 
         var resolution = AgentProviderFactory.Resolve(settings, "Test");
 
-        Assert.Equal(new[] { "Read", "Bash" }, resolution.AllowedTools);
+        // Should not have duplicate Read or Bash
+        Assert.Equal(resolution.AllowedTools.Count, resolution.AllowedTools.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+    }
+
+    [Theory]
+    [InlineData("claude", typeof(ClaudeAgentProvider))]
+    [InlineData("codex", typeof(CodexAgentProvider))]
+    [InlineData("gemini", typeof(GeminiAgentProvider))]
+    [InlineData("copilot", typeof(CopilotAgentProvider))]
+    [InlineData("opencode", typeof(OpenCodeAgentProvider))]
+    public void Resolve_UpdateProject_GetsOnlyBaseToolsForAllAgents(string agent, Type expectedProviderType)
+    {
+        var settings = CreateSettings(
+            agent,
+            promptwares: new Dictionary<string, PromptwareConfig>
+            {
+                ["UpdateProject"] = new() { Profile = "deep" }
+            },
+            codingAgents: new List<AgentConfig>
+            {
+                new()
+                {
+                    Name = agent,
+                    Profiles = new List<AgentProfileConfig>
+                    {
+                        new() { Name = "deep", Model = "test-model", Effort = "max" }
+                    }
+                }
+            });
+
+        var resolution = AgentProviderFactory.Resolve(settings, "UpdateProject");
+
+        Assert.IsType(expectedProviderType, resolution.Provider);
+        Assert.Equal("test-model", resolution.Model);
+        Assert.Equal("max", resolution.Effort);
+
+        // UpdateProject gets exactly base tools — no Write, Edit, or unrestricted Bash
+        Assert.Contains("Read", resolution.AllowedTools);
+        Assert.Contains("Glob", resolution.AllowedTools);
+        Assert.Contains("Grep", resolution.AllowedTools);
+        Assert.Contains("Bash(tendril*)", resolution.AllowedTools);
+        Assert.Contains("WebFetch", resolution.AllowedTools);
+        Assert.Contains("WebSearch", resolution.AllowedTools);
+
+        // Must NOT have unrestricted Bash, Write, or Edit
+        Assert.DoesNotContain("Bash", resolution.AllowedTools.Where(t => t == "Bash"));
+        Assert.DoesNotContain(resolution.AllowedTools, t => t.StartsWith("Write", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(resolution.AllowedTools, t => t.StartsWith("Edit", StringComparison.OrdinalIgnoreCase));
+
+        Assert.Equal(6, resolution.AllowedTools.Count);
     }
 }

@@ -2,6 +2,9 @@ using System.Diagnostics;
 
 namespace Ivy.Tendril.Services.Agents;
 
+// OpenCode has no runtime tool restriction mechanism in non-interactive mode.
+// --dangerously-skip-permissions overrides all agent permission rules.
+// Tool restrictions rely on prompt instructions and working directory scoping only.
 public class OpenCodeAgentProvider : IAgentProvider
 {
     public string Name => "opencode";

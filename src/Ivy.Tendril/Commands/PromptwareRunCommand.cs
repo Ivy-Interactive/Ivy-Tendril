@@ -196,6 +196,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             psi.Environment["TENDRIL_CLI_LOG"] = settings.CliLog;
 
         JobLauncher.EnsureTendrilOnPath(psi);
+        JobLauncher.ResolveCommandShim(psi);
 
         if (verbosityService.Level != VerbosityLevel.Quiet)
             _logger.LogInformation("Running {Promptware} via {ProviderName} (model={Model}, effort={Effort})", settings.Promptware, resolution.Provider.Name, resolution.Model, resolution.Effort);

@@ -58,7 +58,7 @@ public class CodexAgentProvider : IAgentProvider
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var tool in allowedTools)
         {
-            var match = Regex.Match(tool, @"^(?:Write|Edit)\((.+?)(?:/\*\*?)?\)$", RegexOptions.IgnoreCase);
+            var match = Regex.Match(tool, @"^(?:Write|Edit)\((.+?)(?:[/\\]\*\*?)?\)$", RegexOptions.IgnoreCase);
             if (!match.Success) continue;
             var dir = match.Groups[1].Value;
             if (seen.Add(dir)) yield return dir;

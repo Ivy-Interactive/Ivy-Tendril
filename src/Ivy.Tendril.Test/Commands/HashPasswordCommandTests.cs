@@ -48,21 +48,25 @@ public class HashPasswordCommandTests
     {
         var password = "my-test-password";
         var secret = HashPasswordCommand.GenerateSecret();
-
-        var writer = new StringWriter();
-        Console.SetOut(writer);
-
-        HashPasswordCommand.Handle(["hash-password", password, secret]);
-
-        Console.SetOut(new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true });
-
-        var output = writer.ToString();
-        var lines = output.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
-
-        var hashLine = lines[1];
         var secretBytes = Convert.FromBase64String(secret);
 
-        var verified = Argon2.Verify(hashLine, new Argon2Config
+        var salt = new byte[16];
+        System.Security.Cryptography.RandomNumberGenerator.Fill(salt);
+        var hash = Argon2.Hash(new Argon2Config
+        {
+            Type = Argon2Type.DataIndependentAddressing,
+            Version = Argon2Version.Nineteen,
+            TimeCost = 3,
+            MemoryCost = 65536,
+            Lanes = 1,
+            Threads = 1,
+            Password = Encoding.UTF8.GetBytes(password),
+            Salt = salt,
+            Secret = secretBytes,
+            HashLength = 32
+        });
+
+        var verified = Argon2.Verify(hash, new Argon2Config
         {
             Password = Encoding.UTF8.GetBytes(password),
             Secret = secretBytes

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using Ivy.Helpers;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
@@ -341,7 +342,9 @@ internal class JobLauncher
                 if (payload == null) continue;
 
                 job.StatusMessage = payload.Message;
-                if (!string.IsNullOrEmpty(payload.PlanId))
+                if (!string.IsNullOrEmpty(payload.PlanId)
+                    && Regex.IsMatch(payload.PlanId, @"^\d{5}$")
+                    && payload.PlanId != "01234")
                     job.ReportedPlanId = payload.PlanId;
                 if (!string.IsNullOrEmpty(payload.PlanTitle))
                     job.ReportedPlanTitle = payload.PlanTitle;
@@ -606,7 +609,7 @@ internal class JobLauncher
         }
     }
 
-    private static void ResolveCommandShim(ProcessStartInfo psi)
+    internal static void ResolveCommandShim(ProcessStartInfo psi)
     {
         if (!OperatingSystem.IsWindows()) return;
 

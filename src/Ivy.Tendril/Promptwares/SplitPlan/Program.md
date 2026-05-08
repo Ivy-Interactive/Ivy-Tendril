@@ -52,7 +52,13 @@ Populate `--verification` flags from the project's verifications in config.yaml,
 
 Do NOT read or modify `.counter` directly — `tendril plan create` handles ID allocation.
 
-After creating each plan, write `revisions/001.md` using the `planTemplate` from `config.yaml` into the returned directory. Fill in Problem, Solution, Remaining Design Questions, Tests sections. Each plan must be fully self-contained.
+After creating each plan, write the revision via CLI:
+```bash
+tendril plan write-revision <PlanId> <<'EOF'
+<revision content>
+EOF
+```
+Fill in Problem, Solution, Remaining Design Questions, Tests sections. Each plan must be fully self-contained. Do NOT use the Write or Edit tools to create revision files.
 
 #### Project Assignment
 

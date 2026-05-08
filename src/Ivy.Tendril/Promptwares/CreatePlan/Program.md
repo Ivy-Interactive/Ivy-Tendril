@@ -170,9 +170,9 @@ tendril plan create "<Title>" \
 
 The command outputs:
 ```
-PlanId: 01234
-Directory: /path/to/Plans/01234-SafeTitle
-Plan created: 01234-SafeTitle
+PlanId: <ID>
+Directory: <PlansDirectory>/<ID>-<SafeTitle>
+Plan created: <ID>-<SafeTitle>
 ```
 
 Parse `PlanId` and `Directory` from the output — use these for all subsequent operations.
@@ -187,13 +187,29 @@ Populate `--verification` flags from the project's `verifications` in config.yam
 
 #### 4.2. Write the revision
 
-Write `revisions/001.md` with the plan content into the directory returned by `tendril plan create`.
+Write the revision content via the CLI (heredoc on stdin):
+
+```bash
+tendril plan write-revision <PlanId> <<'EOF'
+# Plan Title
+
+## Problem
+...
+
+## Solution
+...
+EOF
+```
+
+This auto-creates `revisions/001.md` (or the next sequential number) in the plan folder. Do NOT use the Write or Edit tools to create revision files — always use the `tendril plan write-revision` command.
 
 After creating the plan, report the plan ID and title to the Jobs UI so it can display progress:
 
 ```bash
 tendril job status $env:TENDRIL_JOB_ID --message "Creating plan..." --plan-id <PlanId> --plan-title "<Title>"
 ```
+
+**CRITICAL: Never call `tendril job status --plan-id` with a value you did not receive from `tendril plan create` stdout. Never use example IDs from documentation. If you have not successfully created a plan, do NOT report any plan-id.**
 
 #### 4.3. Post-creation adjustments
 

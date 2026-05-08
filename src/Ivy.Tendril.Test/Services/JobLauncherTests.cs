@@ -122,39 +122,6 @@ projects:
         Assert.False(result);
     }
 
-    [Fact(Skip = "Timing-dependent test - stale output detection requires 60s check interval")]
-    public async Task RunStaleOutputWatchdog_DetectsStaleOutput()
-    {
-        var configService = new ConfigService(new TendrilSettings());
-        configService.SetTendrilHome(_tempTendrilHome);
-
-        var launcher = new JobLauncher(configService, NullLogger.Instance, _tempPromptsRoot);
-        var job = new JobItem
-        {
-            Id = "test-1",
-            Type = "CreatePlan",
-            Args = new[] { "Test" },
-            Project = "TestProject",
-            Status = JobStatus.Running,
-            LastOutputAt = DateTime.UtcNow.AddSeconds(-70)
-        };
-        var jobs = new ConcurrentDictionary<string, JobItem>();
-        jobs[job.Id] = job;
-
-        var cts = new CancellationTokenSource();
-        var watchdogTask = launcher.RunStaleOutputWatchdog(
-            job.Id,
-            cts,
-            jobs,
-            TimeSpan.FromSeconds(10));
-
-        await Task.Delay(TimeSpan.FromSeconds(3));
-
-        Assert.True(job.StaleOutputDetected);
-        cts.Cancel();
-        await watchdogTask;
-    }
-
     [Fact]
     public async Task RunStaleOutputWatchdog_DoesNotFlagRecentOutput()
     {

@@ -57,14 +57,14 @@ public class Program
 
             if (ShouldHandleAsCliCommand(firstArg))
             {
-                var statusFile = Environment.GetEnvironmentVariable("TENDRIL_CLI_LOG");
-                if (!string.IsNullOrEmpty(statusFile))
+                var cliLog = Environment.GetEnvironmentVariable("TENDRIL_CLI_LOG");
+                if (!string.IsNullOrEmpty(cliLog))
                 {
                     var commandLine = string.Join(" ", filteredArgs);
                     var sw = Stopwatch.StartNew();
                     var exitCode = app.Run(filteredArgs);
                     sw.Stop();
-                    JobStatusFile.AppendCliInvocation(statusFile, commandLine, exitCode, sw.Elapsed.TotalMilliseconds);
+                    JobStatusFile.AppendCliInvocationDirect(cliLog, commandLine, exitCode, sw.Elapsed.TotalMilliseconds);
                     return exitCode;
                 }
                 return app.Run(filteredArgs);
@@ -236,6 +236,8 @@ public class Program
                     .WithDescription("Read plan or field");
                 plan.AddCommand<PlanAddLogCommand>("add-log")
                     .WithDescription("Write a log entry");
+                plan.AddCommand<PlanWriteRevisionCommand>("write-revision")
+                    .WithDescription("Write a revision file from STDIN");
                 plan.AddCommand<PlanValidateCommand>("validate")
                     .WithDescription("Validate plan health");
                 plan.AddCommand<PlanCleanupCommand>("cleanup")

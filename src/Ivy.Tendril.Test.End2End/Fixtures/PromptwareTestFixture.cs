@@ -49,6 +49,37 @@ public class PromptwareTestFixture : IAsyncLifetime
             verifications:
               - name: DotnetBuild
                 command: dotnet build
+            promptwares:
+              CreatePlan:
+                profile: balanced
+                allowedTools:
+                  - Read
+                  - Glob
+                  - Grep
+                  - Bash
+              UpdatePlan:
+                profile: balanced
+                allowedTools:
+                  - Read
+                  - Glob
+                  - Grep
+                  - Bash
+              SplitPlan:
+                profile: balanced
+                allowedTools:
+                  - Read
+                  - Glob
+                  - Grep
+                  - Bash
+              ExecutePlan:
+                profile: deep
+                allowedTools:
+                  - Read
+                  - Write
+                  - Edit
+                  - Glob
+                  - Grep
+                  - Bash
             """;
 
         File.WriteAllText(ConfigPath, yaml);

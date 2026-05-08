@@ -46,7 +46,13 @@ Example:
 
 ### 3. Create Expanded Revision
 
-- Create a new revision file (next sequential number, e.g. `002.md`)
+- Write the new revision via CLI (number auto-incremented):
+  ```bash
+  tendril plan write-revision <plan-id> <<'EOF'
+  <expanded revision content>
+  EOF
+  ```
+  Do NOT use the Write or Edit tools to create revision files.
 - Replace all investigative/exploratory language with specific actions
 - Include exact file paths for changes
 - Specify concrete code modifications or additions

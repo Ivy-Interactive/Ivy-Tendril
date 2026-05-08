@@ -18,6 +18,15 @@ public class AgentProviderFactory
         ["opencode"] = new OpenCodeAgentProvider()
     };
 
+    internal static readonly IReadOnlyList<string> BaseTools =
+        ["Read", "Glob", "Grep", "Bash(tendril*)", "WebFetch", "WebSearch"];
+
+    private static readonly Dictionary<string, IReadOnlyList<string>> BuiltInExtraTools =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ExecutePlan"] = ["Bash", "Write(%PLAN_FOLDER%/worktrees/**)", "Edit(%PLAN_FOLDER%/worktrees/**)"]
+        };
+
     public static IAgentProvider GetProvider(string name)
     {
         if (Providers.TryGetValue(name, out var provider))
@@ -36,15 +45,20 @@ public class AgentProviderFactory
         var codingAgent = agentOverride ?? settings.CodingAgent;
         var provider = GetProvider(codingAgent);
 
-        // Layer promptware config: _default → specific → profileOverride
+        // Built-in defaults: BaseTools + per-promptware extras
         string profileName = "";
-        var allowedTools = new List<string>();
+        var allowedTools = new List<string>(BaseTools);
 
+        if (BuiltInExtraTools.TryGetValue(promptwareName, out var builtInExtras))
+            allowedTools.AddRange(builtInExtras);
+
+        // Layer config on top: _default → specific promptware → profileOverride
         if (settings.Promptwares.TryGetValue("_default", out var defaultConfig))
         {
             if (!string.IsNullOrEmpty(defaultConfig.Profile))
                 profileName = defaultConfig.Profile;
-            allowedTools.AddRange(defaultConfig.AllowedTools);
+            if (defaultConfig.AllowedTools.Count > 0)
+                allowedTools.AddRange(defaultConfig.AllowedTools);
         }
 
         if (!string.IsNullOrEmpty(promptwareName) &&
@@ -53,7 +67,7 @@ public class AgentProviderFactory
             if (!string.IsNullOrEmpty(specificConfig.Profile))
                 profileName = specificConfig.Profile;
             if (specificConfig.AllowedTools.Count > 0)
-                allowedTools = new List<string>(specificConfig.AllowedTools);
+                allowedTools.AddRange(specificConfig.AllowedTools);
         }
 
         if (!string.IsNullOrEmpty(profileOverride))
@@ -71,6 +85,9 @@ public class AgentProviderFactory
             allowedTools[i] = Environment.ExpandEnvironmentVariables(tool)
                 .Replace('\\', '/');
         }
+
+        // Deduplicate (config may re-state base tools)
+        allowedTools = allowedTools.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
         // Resolve model, effort, and extra args from agent config + profile
         string model = "";

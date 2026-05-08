@@ -151,10 +151,17 @@ public class PullRequestApp : ViewBase
         if (showFollowUpDialog.Value && selectedRowForFollowUp.Value is { } selectedRow)
         {
             var projectNames = config.Projects.Select(p => p.Name).ToList();
+
+            // Extract just the title without the plan ID prefix
+            var planFolder = selectedRow.PlanFolderPath;
+            var planData = !string.IsNullOrEmpty(planFolder) && Directory.Exists(planFolder)
+                ? planService.GetPlanByFolder(planFolder)
+                : null;
+            var planTitle = planData?.Title ?? selectedRow.Plan;
+
             var followUpDialog = new FollowUpDialog(
                 selectedRow.PlanId,
-                selectedRow.Plan,
-                selectedRow.Pr,
+                planTitle,
                 projectNames,
                 (description, projects, priority) =>
                 {

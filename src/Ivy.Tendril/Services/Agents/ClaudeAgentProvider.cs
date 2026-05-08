@@ -26,7 +26,8 @@ public class ClaudeAgentProvider : IAgentProvider
         psi.ArgumentList.Add("--verbose");
         psi.ArgumentList.Add("--output-format");
         psi.ArgumentList.Add("stream-json");
-        psi.ArgumentList.Add("--dangerously-skip-permissions");
+        psi.ArgumentList.Add("--permission-mode");
+        psi.ArgumentList.Add("dontAsk");
 
         if (!string.IsNullOrEmpty(invocation.Model))
         {

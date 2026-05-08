@@ -246,72 +246,25 @@ llm:
 promptwares:
   CreatePlan:
     profile: balanced
-    allowedTools:
-    - Read
-    - Glob
-    - Grep
-    - Bash
-    - Write(%PLANS_DIR%\**)
-    - Edit(%PLANS_DIR%\**)
   ExecutePlan:
     profile: deep
-    allowedTools:
-    - Read
-    - Write
-    - Edit
-    - Glob
-    - Grep
-    - Bash
   ExpandPlan:
     profile: balanced
-    allowedTools:
-    - Read
-    - Glob
-    - Grep
-    - Bash
-    - Write(%PLAN_FOLDER%\**)
   CreatePr:
     profile: balanced
-    allowedTools:
-    - Read
-    - Glob
-    - Grep
-    - Bash
-    - Write(%PLAN_FOLDER%\**)
-    - Edit(%PLAN_FOLDER%\**)
   UpdatePlan:
     profile: balanced
-    allowedTools:
-    - Read
-    - Glob
-    - Grep
-    - Bash
-    - Write(%PLAN_FOLDER%\**)
   SplitPlan:
     profile: balanced
-    allowedTools:
-    - Read
-    - Bash
-    - Write(%PLANS_DIR%\**)
   CreateIssue:
     profile: balanced
-    allowedTools:
-    - Read
-    - Bash
   UpdateProject:
     profile: deep
-    allowedTools:
-    - Read
-    - Glob
-    - Grep
-    - Bash
   IvyFrameworkVerification:
     profile: balanced
     allowedTools:
-    - Read
     - Write(%PLAN_FOLDER%\**)
     - Edit(%PLAN_FOLDER%\**)
-    - Bash
 codingAgents:
 - name: claude
   arguments: ''

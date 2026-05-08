@@ -70,11 +70,13 @@ codingAgents:
 
 # Each promptware is connected to a profile (deep/balanced/quick).
 # The profile determines model and effort from the active coding agent above.
-# _default provides base values. Specific entries override only the fields they define;
-# unspecified fields are inherited from _default.
 #
-# Allowed tools use Claude Code format: Tool, Tool(path-glob), Bash(command-pattern).
-# Read, Glob, Grep are always safe (read-only). Write/Edit can be scoped to directories.
+# All promptwares receive these base tools automatically:
+#   Read, Glob, Grep, Bash(tendril*), WebFetch, WebSearch
+# ExecutePlan additionally gets: Bash, Write(%PLAN_FOLDER%/worktrees/**), Edit(%PLAN_FOLDER%/worktrees/**)
+#
+# Only specify allowedTools if you need ADDITIONAL tools beyond the defaults.
+# Tool format uses Claude Code syntax: Tool, Tool(path-glob).
 # Job context variables are expanded at launch time:
 #   %PLANS_DIR%    — the plans directory (e.g., /home/user/tendril/Plans)
 #   %PLAN_FOLDER%  — the specific plan folder (e.g., /home/user/tendril/Plans/01234-MyPlan)
@@ -85,67 +87,20 @@ codingAgents:
 promptwares:
   CreatePlan:
     profile: balanced
-    allowedTools:
-    - Read
-    - Glob
-    - Grep
-    - Bash
-    - 'Write(%PLANS_DIR%/**)'
-    - 'Edit(%PLANS_DIR%/**)'
   ExecutePlan:
     profile: deep
-    allowedTools:
-    - Read
-    - Write
-    - Edit
-    - Glob
-    - Grep
-    - Bash
-    - WebFetch
-    - WebSearch
   ExpandPlan:
     profile: balanced
-    allowedTools:
-    - Read
-    - Glob
-    - Grep
-    - Bash
-    - 'Write(%PLAN_FOLDER%/**)'
   UpdatePlan:
     profile: balanced
-    allowedTools:
-    - Read
-    - Glob
-    - Grep
-    - Bash
-    - 'Write(%PLAN_FOLDER%/**)'
   SplitPlan:
     profile: balanced
-    allowedTools:
-    - Read
-    - Bash
-    - 'Write(%PLANS_DIR%/**)'
   CreatePr:
     profile: balanced
-    allowedTools:
-    - Read
-    - Glob
-    - Grep
-    - Bash
-    - 'Write(%PLAN_FOLDER%/**)'
-    - 'Edit(%PLAN_FOLDER%/**)'
   CreateIssue:
     profile: balanced
-    allowedTools:
-    - Read
-    - Bash
   UpdateProject:
     profile: deep
-    allowedTools:
-    - Read
-    - Glob
-    - Grep
-    - Bash
 
 # Projects — add your projects here. Each project groups repos, verifications, and context.
 #

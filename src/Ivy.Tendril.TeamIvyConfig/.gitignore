@@ -3,6 +3,7 @@ Jobs/
 Logs/
 Plans/
 Trash/
+Repos/
 *.db
 *.db-shm
 *.db-wal

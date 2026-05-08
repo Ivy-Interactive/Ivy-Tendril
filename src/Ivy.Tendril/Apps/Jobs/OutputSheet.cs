@@ -1,5 +1,6 @@
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Agents;
 using Ivy.Tendril.Helpers;
 using Ivy.Widgets.ClaudeJsonRenderer;
 
@@ -44,8 +45,12 @@ public class OutputSheet(
         }
         else if (job is not null && job.OutputLines.Count > 0)
         {
-            // Job completed before user opened sheet load from stored output
-            var jsonStream = string.Join("\n", job.OutputLines);
+            // Job completed before user opened sheet — normalize stored output
+            var normalizer = OutputNormalizerFactory.Create(job.Provider);
+            var normalized = job.OutputLines
+                .SelectMany(line => normalizer.Normalize(line))
+                .Concat(normalizer.Flush());
+            var jsonStream = string.Join("\n", normalized);
             outputContent = new ClaudeJsonRenderer()
                 .JsonStream(jsonStream)
                 .ShowThinking(false)
