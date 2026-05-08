@@ -5,8 +5,7 @@
 # ── Stage 1: install Tendril + PowerShell as dotnet global tools ───────────────
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 
-RUN --mount=type=cache,id=nuget-tendril,target=/root/.nuget/packages \
-    dotnet tool install --global Ivy.Tendril \
+RUN dotnet tool install --global Ivy.Tendril \
  && dotnet tool install --global PowerShell
 
 # ── Stage 2: runtime image with all CLI dependencies ──────────────────────────
