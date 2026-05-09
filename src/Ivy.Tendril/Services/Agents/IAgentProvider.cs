@@ -17,4 +17,5 @@ public record AgentInvocation(
     string Effort,
     string SessionId,
     IReadOnlyList<string> AllowedTools,
-    IReadOnlyList<string> ExtraArgs);
+    IReadOnlyList<string> ExtraArgs,
+    string? PromptFilePath = null);

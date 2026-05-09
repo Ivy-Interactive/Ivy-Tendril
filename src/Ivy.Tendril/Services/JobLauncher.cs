@@ -415,6 +415,17 @@ internal class JobLauncher
         var context = new FirmwareContext(programFolder, logFile, values, customInstructions);
         var prompt = FirmwareCompiler.Compile(context);
 
+        string? promptFilePath = null;
+        if (!resolution.Provider.UsesStdinPrompt)
+        {
+            var tempDir = values.TryGetValue("PlanFolder", out var pf)
+                ? Path.Combine(pf, "temp")
+                : Path.GetTempPath();
+            Directory.CreateDirectory(tempDir);
+            promptFilePath = Path.Combine(tempDir, $"prompt-{job.Id}.md");
+            File.WriteAllText(promptFilePath, prompt);
+        }
+
         var invocation = new AgentInvocation(
             PromptContent: prompt,
             WorkingDirectory: workDir,
@@ -422,7 +433,8 @@ internal class JobLauncher
             Effort: resolution.Effort,
             SessionId: job.SessionId ?? "",
             AllowedTools: resolution.AllowedTools,
-            ExtraArgs: resolution.ExtraArgs);
+            ExtraArgs: resolution.ExtraArgs,
+            PromptFilePath: promptFilePath);
 
         var psi = resolution.Provider.BuildProcessStart(invocation);
         SetTendrilEnvironment(psi, job);
