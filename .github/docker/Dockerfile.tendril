@@ -2,10 +2,24 @@
 # git, gh, pwsh, pandoc. Required: ANTHROPIC_API_KEY, GITHUB_TOKEN. Optional: OPENAI_API_KEY,
 # Gemini auth, PORT (8000), TENDRIL_HOME (/data/tendril). Mount /data/tendril to persist data.
 
-# ── Stage 1: install Tendril + PowerShell as dotnet global tools ───────────────
+# ── Stage 1: build Tendril from source + install PowerShell ───────────────────
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 
-RUN dotnet tool install --global Ivy.Tendril \
+# Node + pnpm + vite-plus needed for the frontend embedded in Ivy.Tendril
+COPY --from=node:22-bookworm-slim /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:22-bookworm-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+ && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
+ && npm install -g pnpm vite-plus@0.1.13
+
+# Copy source and build Tendril directly from the repo
+COPY src/ /src/
+RUN dotnet pack /src/Ivy.Tendril/Ivy.Tendril.csproj \
+      --configuration Release \
+      --output /tools/nupkg \
+ && dotnet tool install --global \
+      --add-source /tools/nupkg \
+      Ivy.Tendril \
  && dotnet tool install --global PowerShell
 
 # ── Stage 2: runtime image with all CLI dependencies ──────────────────────────
