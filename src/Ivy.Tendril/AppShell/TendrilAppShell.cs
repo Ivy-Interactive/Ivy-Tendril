@@ -438,7 +438,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                     if (isDesktop)
                         config.OpenInEditor(config.ConfigPath);
                     else
-                        navigator.Navigate<SetupApp>(new SetupAppArgs(SelectedTab: 7));
+                        navigator.Navigate<ConfigEditorApp>();
                 })
         };
 

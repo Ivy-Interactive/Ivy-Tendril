@@ -16,16 +16,20 @@ public class RawConfigEditorView : ViewBase
         var originalYaml = LoadYaml(config);
         var hasChanges = yamlText.Value != originalYaml;
 
-        return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(200)))
-               | Text.Block("config.yaml").Bold()
+        // CodeInput fills height reliably in web layout; plain textarea ignores flex grow.
+        // Button row: never use AlignContent(Align.Right) on Horizontal — that aligns on the
+        // cross axis (vertical) and pushes controls to the bottom of a tall row.
+        return Layout.Vertical().Gap(2).Padding(2).Height(Size.Full()).Width(Size.Full())
+               .RemoveParentPadding()
                | Text.Muted(config.ConfigPath).Small()
                | (errorMessage.Value != null
                    ? Text.Block(errorMessage.Value!).Color(Colors.Destructive)
                    : null!)
-               | yamlText.ToTextareaInput()
-                   .Rows(30)
-                   .Width(Size.Grow())
-               | (Layout.Horizontal().Gap(2)
+               | (Layout.Vertical())
+                  | yamlText.ToCodeInput(language: Languages.Yaml)
+                      .Height(Size.Full())
+                      .Width(Size.Full())
+               | (Layout.Horizontal().Gap(2).Height(Size.Fit())
                   | new Button("Save").Primary()
                       .Disabled(!hasChanges)
                       .OnClick(() =>
