@@ -57,7 +57,7 @@ promptwares:
 | Field | Required | Description |
 |-------|----------|-------------|
 | `profile` | Yes | Agent profile to use (`balanced`, `deep`, `quick`). |
-| `allowedTools` | Yes | Tools the agent may call. Supports `%PLAN_FOLDER%` and `%PLANS_DIR%` variables. |
+| `allowedTools` | No | Additional tools beyond the built-in defaults. Supports `%PROMPTWARE_DIR%`, `%PLAN_DIR%`, and `%PLANS_DIR%` variables. |
 | `customInstructions` | No | Free-text instructions injected into the agent prompt. Takes precedence over Firmware and Program.md. |
 
 A special `_default` entry applies as a baseline to all promptwares; specific entries override it.

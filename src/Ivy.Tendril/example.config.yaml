@@ -72,15 +72,17 @@ codingAgents:
 # The profile determines model and effort from the active coding agent above.
 #
 # All promptwares receive these base tools automatically:
-#   Read, Glob, Grep, Bash(tendril*), WebFetch, WebSearch
-# ExecutePlan additionally gets: Bash, Write(%PLAN_FOLDER%/worktrees/**), Edit(%PLAN_FOLDER%/worktrees/**)
+#   Read, Glob, Grep, Bash(tendril*), WebFetch, WebSearch,
+#   Write(%PROMPTWARE_DIR%/**), Edit(%PROMPTWARE_DIR%/**), Bash(%PROMPTWARE_DIR%/Tools/*)
+# ExecutePlan additionally gets: Bash, Write(%PLAN_DIR%/worktrees/**), Edit(%PLAN_DIR%/worktrees/**)
 #
 # Only specify allowedTools if you need ADDITIONAL tools beyond the defaults.
 # Tool format uses Claude Code syntax: Tool, Tool(path-glob).
 # Job context variables are expanded at launch time:
-#   %PLANS_DIR%    — the plans directory (e.g., /home/user/tendril/Plans)
-#   %PLAN_FOLDER%  — the specific plan folder (e.g., /home/user/tendril/Plans/01234-MyPlan)
-#   %TENDRIL_HOME% — the TENDRIL_HOME environment variable
+#   %PROMPTWARE_DIR% — the promptware's own directory (Program.md, Logs/, Tools/, Memory/)
+#   %PLANS_DIR%      — the plans directory (e.g., /home/user/tendril/Plans)
+#   %PLAN_DIR%       — the specific plan folder (e.g., /home/user/tendril/Plans/01234-MyPlan)
+#   %TENDRIL_HOME%   — the TENDRIL_HOME environment variable
 # For Codex: Write/Edit path scopes are translated to --add-dir flags.
 # For Gemini: Write/Edit path scopes are translated to --include-directories flags.
 # For Copilot: Write/Edit path scopes are translated to --add-dir flags.
