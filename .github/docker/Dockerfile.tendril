@@ -15,10 +15,12 @@ RUN dotnet tool install --global PowerShell
 WORKDIR /src
 COPY . .
 
-# Publish Tendril from source. IvySource is NOT set → Ivy Framework comes from
-# NuGet (no need to clone Ivy-Framework). Our local changes are baked in here.
+# Publish Tendril from source.
+# Publishing=true → Directory.Build.props sets IvySource=false → Ivy Framework
+# comes from NuGet (no need to clone Ivy-Framework). Our local changes are baked in.
 RUN dotnet publish src/Ivy.Tendril/Ivy.Tendril.csproj \
     -c Release \
+    -p:Publishing=true \
     -o /app
 
 # ── Stage 2: runtime image with all CLI dependencies ──────────────────────────
