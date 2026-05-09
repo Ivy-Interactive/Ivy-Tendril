@@ -42,34 +42,26 @@ public class FirmwareCompiler
 
         ## Goal
 
-        You are to execute the instructions in {PROGRAMFOLDER}/Program.md
-
-        Your goal is to complete these instructions with the following priority:
+        Your goal is to complete the instructions in the **Program** section below (inlined from {PROGRAMFOLDER}/Program.md) with the following priority:
 
         1. Completeness
         2. Speed
         3. Token efficiency
         4. Improvement over time
 
-        To complete your task you have powershell tools stored in {PROGRAMFOLDER}/Tools/. You are urged to create and maintain reusable tools to better achieve your goals during this session and over time.
+        **Tools:** {PROGRAMFOLDER}/Tools/
+        **Memory:** {PROGRAMFOLDER}/Memory/
 
-        You can store memory in {PROGRAMFOLDER}/Memory/ as markdown files.
+        List memory files at the start of execution for relevant context.
 
-        Always start with:
-
-        - Read {PROGRAMFOLDER}/Program.md
-        - List tools in {PROGRAMFOLDER}/Tools/
-        - List memory in {PROGRAMFOLDER}/Memory/
-
-        Complete you task and present the user with a summary.
+        Complete your task and present the user with a summary.
 
         ## Reflection
 
-        Every execution needs to end with a reflection step. This is your oppurtunity to improve over time. What did we learn during this session. Save this in a applicable markdown file under {PROGRAMFOLDER}/Memory/. Create new tools if applicable. Add instuctions to {PROGRAMFOLDER}/Program.md.
+        Every execution needs to end with a reflection step. This is your opportunity to improve over time. What did we learn during this session. Save this in an applicable markdown file under {PROGRAMFOLDER}/Memory/.
 
         - Note that learnings might be falsified over time. Pruning memory is just as important as storing new memory.
-        - Many session don't have any new learnings. Only store memory when you need it.
-        - Only store general knowledge in Program.md - this is shared between multiple users of this system. In Memory you should store specifics about this user's system.
+        - Many sessions don't have any new learnings. Only store memory when you need it.
         """;
 
     public static string Compile(FirmwareContext context)
@@ -87,6 +79,14 @@ public class FirmwareCompiler
             .Replace("{HEADER}", header)
             .Replace("{LOGFILE}", context.LogFile)
             .Replace("{PROGRAMFOLDER}", context.ProgramFolder);
+
+        // Include Program.md inline
+        var programFile = Path.Combine(context.ProgramFolder, "Program.md");
+        if (File.Exists(programFile))
+        {
+            firmware += "\n\n## Program\n\n";
+            firmware += File.ReadAllText(programFile) + "\n";
+        }
 
         var plansContent = PlansReference.Value;
         if (plansContent != null)
