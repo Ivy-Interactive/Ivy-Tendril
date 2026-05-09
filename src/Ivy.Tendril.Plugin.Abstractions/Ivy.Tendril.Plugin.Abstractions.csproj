@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <NoWarn>CS1591;CS1573</NoWarn>
-    <PackageId>Ivy.Plugin.Tendril.Abstractions</PackageId>
+    <PackageId>Ivy.Tendril.Plugin.Abstractions</PackageId>
     <Company>Ivy</Company>
     <Description>Abstractions for Ivy Tendril plugins</Description>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>

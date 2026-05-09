@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../../Ivy.Plugin.Tendril.Abstractions/Ivy.Plugin.Tendril.Abstractions.csproj" />
+    <ProjectReference Include="../../../Ivy.Tendril.Plugin.Abstractions/Ivy.Tendril.Plugin.Abstractions.csproj" />
   </ItemGroup>
 
 </Project>
