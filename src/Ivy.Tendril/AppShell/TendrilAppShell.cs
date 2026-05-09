@@ -10,6 +10,7 @@ using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Views;
 using Ivy.Widgets.Internal;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.AppShell;
@@ -107,6 +108,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var serverArgs = UseService<ServerArgs>();
         var navigate = Context.UseSignal<NavigateSignal, NavigateArgs, Unit>();
         var navigator = UseNavigation();
+        var httpContextAccessor = UseService<IHttpContextAccessor>();
         var importIssuesDialogOpen = UseState(false);
         var newsArticles = UseState(Array.Empty<SidebarNewsArticle>());
         UseEffect(async () =>
@@ -434,12 +436,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .Tag("$open-config")
                 .Icon(Icons.FileText)
                 .OnSelect(() =>
-                {
-                    if (isDesktop)
-                        config.OpenInEditor(config.ConfigPath);
-                    else
-                        navigator.Navigate<ConfigEditorApp>();
-                })
+                    ConfigYamlUiHelper.OpenOrNavigate(config, navigator, isDesktop, httpContextAccessor))
         };
 
         var authSession = auth?.GetAuthSession();
