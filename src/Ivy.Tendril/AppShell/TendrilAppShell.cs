@@ -95,6 +95,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var appRepository = UseService<IAppRepository>();
         var client = UseService<IClientProvider>();
         Context.TryUseService<IAuthService>(out var auth);
+        Context.TryUseService<DesktopWindow>(out var desktopWindow);
+        var isDesktop = desktopWindow != null;
         var user = UseState<UserInfo?>();
         var currentApp = UseState<AppHost?>();
         var countsService = UseService<IPlanCountsService>();
@@ -433,17 +435,10 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .Icon(Icons.FileText)
                 .OnSelect(() =>
                 {
-                    Context.TryUseService<DesktopWindow>(out var desktop);
-                    if (desktop != null)
-                    {
-                        // Local desktop: open in external editor as before
+                    if (isDesktop)
                         config.OpenInEditor(config.ConfigPath);
-                    }
                     else
-                    {
-                        // Headless / Docker / remote: navigate to in-app Config editor (tab index 7)
                         navigator.Navigate<SetupApp>(new SetupAppArgs(SelectedTab: 7));
-                    }
                 })
         };
 
