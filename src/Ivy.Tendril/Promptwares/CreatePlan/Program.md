@@ -133,7 +133,7 @@ Before creating the plan, scan the task description (args) for code state assert
 
 For each assertion found:
 1. Extract the referenced file path and optional line range
-2. Use `Tools/Validate-CodeAssertion` to check if the described code actually exists
+2. Read the file and verify the described code exists (use normalized whitespace comparison for code snippets, or grep for patterns)
 3. If validation fails, investigate:
    - Check `git log --oneline -10 --all -- <file>` for recent changes
    - Check `git blame <file>` to find who/when the code changed
