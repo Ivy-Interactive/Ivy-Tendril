@@ -48,7 +48,7 @@ public class TryBuildAgentProcessStartTests : IDisposable
         var result = FirmwareCompiler.Compile(context);
 
         Assert.Contains("Tools/", result);
-        Assert.Contains("reusable tools", result);
+        Assert.Contains("Memory/", result);
     }
 
     [Fact]
