@@ -209,24 +209,12 @@ After successful `yolo` merges (or custom options with `merge: true`), clean up 
 For each repo where the PR was merged:
 
 ```bash
-cd <original-repo-path>
-PLAN_FOLDER_NAME=$(basename "<PlanFolder>")
-PLAN_ID=$(echo "$PLAN_FOLDER_NAME" | grep -oP '^\d+')
-SAFE_TITLE=$(echo "$PLAN_FOLDER_NAME" | sed 's/^[0-9]\+-//')
-BRANCH_NAME="tendril/$PLAN_ID-$SAFE_TITLE"
-git worktree remove "<PlanFolder>/worktrees/<repo-folder-name>" --force
-git branch -D "$BRANCH_NAME" 2>/dev/null
-```
-
-If **all** worktrees were cleaned up, remove the now-empty `worktrees/` directory:
-
-```bash
-rm -rf "<PlanFolder>/worktrees"
+tendril plan remove-worktree <PlanId> <repo-folder-name>
 ```
 
 **Skip cleanup** for repos using the `default` PR rule (or custom options with `merge: false`) — the worktree is still needed for potential review revisions.
 
-If cleanup fails (e.g. locked files), log a warning but do not fail the overall CreatePr execution.
+If cleanup fails, log a warning but do not fail the overall CreatePr execution.
 
 ### 6. Update Plan via CLI
 

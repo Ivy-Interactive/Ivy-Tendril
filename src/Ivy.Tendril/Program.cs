@@ -310,6 +310,10 @@ public class Program
                     .WithDescription("Validate plan health");
                 plan.AddCommand<PlanCleanupCommand>("cleanup")
                     .WithDescription("Remove worktrees from a plan");
+                plan.AddCommand<PlanRemoveWorktreeCommand>("remove-worktree")
+                    .WithDescription("Remove a single worktree from a plan");
+                plan.AddCommand<PlanSyncWorktreeCommand>("sync-worktree")
+                    .WithDescription("Apply sync strategy to a worktree");
                 plan.AddCommand<PlanDoctorCommand>("doctor")
                     .WithDescription("Check plan health");
 
