@@ -481,12 +481,12 @@ public class AgentProviderTests
     [Fact]
     public void ExtractWritableDirs_HandlesBackslashPaths()
     {
-        var tools = new[] { @"Write(D:\Plans\00123\**)", @"Edit(%PLAN_FOLDER%\**)" };
+        var tools = new[] { @"Write(D:\Plans\00123\**)", @"Edit(%PLAN_DIR%\**)" };
         var dirs = CodexAgentProvider.ExtractWritableDirs(tools).ToList();
 
         Assert.Equal(2, dirs.Count);
         Assert.Equal(@"D:\Plans\00123", dirs[0]);
-        Assert.Equal(@"%PLAN_FOLDER%", dirs[1]);
+        Assert.Equal(@"%PLAN_DIR%", dirs[1]);
     }
 
     // --- Codex writable dirs ---

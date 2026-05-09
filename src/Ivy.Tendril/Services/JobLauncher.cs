@@ -400,7 +400,7 @@ internal class JobLauncher
 
         values["Project"] = job.Project;
 
-        var jobContext = BuildJobContext(job, values);
+        var jobContext = BuildJobContext(job, values, programFolder);
         var resolution = AgentProviderFactory.Resolve(settings, job.Type, profileOverride, jobContext);
         var workDir = ResolveWorkingDirectory(job, programFolder);
 
@@ -527,14 +527,16 @@ internal class JobLauncher
             values["RepoConfigs"] = repoConfigs;
     }
 
-    private static Dictionary<string, string> BuildJobContext(JobItem job, Dictionary<string, string> firmwareValues)
+    private static Dictionary<string, string> BuildJobContext(JobItem job, Dictionary<string, string> firmwareValues, string programFolder)
     {
         var ctx = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        ctx["PROMPTWARE_DIR"] = programFolder;
 
         if (firmwareValues.TryGetValue("PlansDirectory", out var plansDir))
             ctx["PLANS_DIR"] = plansDir;
         if (firmwareValues.TryGetValue("PlanFolder", out var planFolder))
-            ctx["PLAN_FOLDER"] = planFolder;
+            ctx["PLAN_DIR"] = planFolder;
 
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         if (!string.IsNullOrEmpty(tendrilHome))

@@ -67,7 +67,13 @@ public class PromptwareRunner : IPromptwareRunner
             throw new FileNotFoundException($"Program.md not found at {programMd}", programMd);
 
         var values = new Dictionary<string, string>(options.Values);
-        var resolution = AgentProviderFactory.Resolve(settings, options.Promptware, options.Profile);
+
+        var jobContext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["PROMPTWARE_DIR"] = programFolder
+        };
+
+        var resolution = AgentProviderFactory.Resolve(settings, options.Promptware, options.Profile, jobContext);
         var workDir = options.WorkingDir ?? programFolder;
 
         var logFile = FirmwareCompiler.GetNextLogFile(programFolder, values);
