@@ -3,6 +3,7 @@ using System.Reactive.Disposables;
 using System.Text.Json;
 using Ivy.Core;
 using Ivy.Core.Apps;
+using Ivy.Desktop;
 using Ivy.Tendril.AppShell.Dialogs;
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Services;
@@ -430,7 +431,20 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             MenuItem.Default("Open config.yaml")
                 .Tag("$open-config")
                 .Icon(Icons.FileText)
-                .OnSelect(() => { config.OpenInEditor(config.ConfigPath); })
+                .OnSelect(() =>
+                {
+                    Context.TryUseService<DesktopWindow>(out var desktop);
+                    if (desktop != null)
+                    {
+                        // Local desktop: open in external editor as before
+                        config.OpenInEditor(config.ConfigPath);
+                    }
+                    else
+                    {
+                        // Headless / Docker / remote: navigate to in-app Config editor (tab index 7)
+                        navigator.Navigate<SetupApp>(new SetupAppArgs(SelectedTab: 7));
+                    }
+                })
         };
 
         var authSession = auth?.GetAuthSession();
