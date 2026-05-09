@@ -2,25 +2,24 @@
 # git, gh, pwsh, pandoc. Required: ANTHROPIC_API_KEY, GITHUB_TOKEN. Optional: OPENAI_API_KEY,
 # Gemini auth, PORT (8000), TENDRIL_HOME (/data/tendril). Mount /data/tendril to persist data.
 
-# ── Stage 1: build Tendril from source + install PowerShell ───────────────────
+# ── Stage 1: build Tendril from source + install PowerShell as dotnet tool ────
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 
-# Node + pnpm + vite-plus needed for the frontend embedded in Ivy.Tendril
-COPY --from=node:22-bookworm-slim /usr/local/bin/node /usr/local/bin/node
-COPY --from=node:22-bookworm-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
-RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
- && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
- && npm install -g pnpm vite-plus@0.1.13
+ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
+ENV DOTNET_NOLOGO=1
+ENV PATH="$PATH:/root/.dotnet/tools"
 
-# Copy source and build Tendril directly from the repo
-COPY src/ /src/
-RUN dotnet pack /src/Ivy.Tendril/Ivy.Tendril.csproj \
-      --configuration Release \
-      --output /tools/nupkg \
- && dotnet tool install --global \
-      --add-source /tools/nupkg \
-      Ivy.Tendril \
- && dotnet tool install --global PowerShell
+# PowerShell: needed at runtime by Tendril AND needed now for pack-promptwares.ps1
+RUN dotnet tool install --global PowerShell
+
+WORKDIR /src
+COPY . .
+
+# Publish Tendril from source. IvySource is NOT set → Ivy Framework comes from
+# NuGet (no need to clone Ivy-Framework). Our local changes are baked in here.
+RUN dotnet publish src/Ivy.Tendril/Ivy.Tendril.csproj \
+    -c Release \
+    -o /app
 
 # ── Stage 2: runtime image with all CLI dependencies ──────────────────────────
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
@@ -43,8 +42,11 @@ ENV HOMEDIR=/home/tendril
 ENV TENDRIL_HOME=/data/tendril
 ENV PORT=8000
 
-# Copy Tendril + PowerShell global tools from build stage (root → tendril user home)
+# Copy PowerShell global tool from build stage (root → tendril user home)
 COPY --from=build --chown=tendril:tendril /root/.dotnet/tools /home/tendril/.dotnet/tools
+
+# Copy published Tendril app from build stage
+COPY --from=build --chown=tendril:tendril /app /home/tendril/tendril-app
 
 # Copy Node.js from official image (avoids flaky apt mirrors — same pattern as Dockerfile.tendril-docs)
 COPY --from=node:22-bookworm-slim /usr/local/bin/node /usr/local/bin/node
@@ -95,4 +97,4 @@ EXPOSE 8000
 
 USER tendril
 
-CMD ["tendril", "--web"]
+CMD ["dotnet", "/home/tendril/tendril-app/Ivy.Tendril.dll", "--web"]
