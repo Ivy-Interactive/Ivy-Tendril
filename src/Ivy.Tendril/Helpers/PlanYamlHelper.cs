@@ -50,13 +50,6 @@ internal static class PlanYamlHelper
         PlanCommandHelpers.WritePlan(planFolder, plan, watcher: null);
     }
 
-    internal static string? GetNamedArg(string[] args, string name)
-    {
-        for (var i = 0; i < args.Length - 1; i++)
-            if (args[i].Equals(name, StringComparison.OrdinalIgnoreCase))
-                return args[i + 1];
-        return null;
-    }
 
     private static readonly object CounterLock = new();
 

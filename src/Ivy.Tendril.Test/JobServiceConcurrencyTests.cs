@@ -96,8 +96,8 @@ public class JobServiceConcurrencyTests
         var jobService = new JobService(configService);
 
         // Create 2 test jobs that will run (consume the 2 slots)
-        var job1Id = jobService.CreateTestJob("ExecutePlan", "plan1");
-        var job2Id = jobService.CreateTestJob("ExecutePlan", "plan2");
+        var job1Id = jobService.CreateTestJob("ExecutePlan", new ExecutePlanArgs("plan1"));
+        var job2Id = jobService.CreateTestJob("ExecutePlan", new ExecutePlanArgs("plan2"));
 
         // Verify we can only have 2 running jobs
         Assert.Equal(JobStatus.Running, jobService.GetJob(job1Id)!.Status);
@@ -108,8 +108,8 @@ public class JobServiceConcurrencyTests
         configService.TriggerSettingsReloaded();
 
         // Assert: Should now be able to create 2 more running jobs
-        var job3Id = jobService.CreateTestJob("ExecutePlan", "plan3");
-        var job4Id = jobService.CreateTestJob("ExecutePlan", "plan4");
+        var job3Id = jobService.CreateTestJob("ExecutePlan", new ExecutePlanArgs("plan3"));
+        var job4Id = jobService.CreateTestJob("ExecutePlan", new ExecutePlanArgs("plan4"));
 
         Assert.Equal(JobStatus.Running, jobService.GetJob(job3Id)!.Status);
         Assert.Equal(JobStatus.Running, jobService.GetJob(job4Id)!.Status);
@@ -123,10 +123,10 @@ public class JobServiceConcurrencyTests
         var jobService = new JobService(configService);
 
         // Create 4 test jobs that will run
-        var job1Id = jobService.CreateTestJob("ExecutePlan", "plan1");
-        var job2Id = jobService.CreateTestJob("ExecutePlan", "plan2");
-        var job3Id = jobService.CreateTestJob("ExecutePlan", "plan3");
-        var job4Id = jobService.CreateTestJob("ExecutePlan", "plan4");
+        var job1Id = jobService.CreateTestJob("ExecutePlan", new ExecutePlanArgs("plan1"));
+        var job2Id = jobService.CreateTestJob("ExecutePlan", new ExecutePlanArgs("plan2"));
+        var job3Id = jobService.CreateTestJob("ExecutePlan", new ExecutePlanArgs("plan3"));
+        var job4Id = jobService.CreateTestJob("ExecutePlan", new ExecutePlanArgs("plan4"));
 
         // Act: Decrease max to 2
         configService.MaxConcurrentJobs = 2;
@@ -149,7 +149,7 @@ public class JobServiceConcurrencyTests
         jobService.CompleteJob(job3Id, 0);
 
         // Now we should have 1 available slot (1 running < limit of 2)
-        var job5Id = jobService.CreateTestJob("ExecutePlan", "plan5");
+        var job5Id = jobService.CreateTestJob("ExecutePlan", new ExecutePlanArgs("plan5"));
         Assert.Equal(JobStatus.Running, jobService.GetJob(job5Id)!.Status);
     }
 
@@ -160,7 +160,7 @@ public class JobServiceConcurrencyTests
         var configService = new TestConfigService { MaxConcurrentJobs = 5 };
         var jobService = new JobService(configService);
 
-        var job1Id = jobService.CreateTestJob("ExecutePlan", "plan1");
+        var job1Id = jobService.CreateTestJob("ExecutePlan", new ExecutePlanArgs("plan1"));
         Assert.Equal(JobStatus.Running, jobService.GetJob(job1Id)!.Status);
 
         // Act: Reload with same value
@@ -170,7 +170,7 @@ public class JobServiceConcurrencyTests
         Assert.Equal(JobStatus.Running, jobService.GetJob(job1Id)!.Status);
 
         // Can still create new test jobs
-        var job2Id = jobService.CreateTestJob("ExecutePlan", "plan2");
+        var job2Id = jobService.CreateTestJob("ExecutePlan", new ExecutePlanArgs("plan2"));
         Assert.Equal(JobStatus.Running, jobService.GetJob(job2Id)!.Status);
     }
 

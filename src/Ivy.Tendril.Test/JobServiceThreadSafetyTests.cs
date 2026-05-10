@@ -121,7 +121,7 @@ public class JobServiceThreadSafetyTests
             TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
             null, 2);
 
-        var jobId = service.CreateTestJob("ExecutePlan", "test-plan");
+        var jobId = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs("test-plan"));
 
         // First call should succeed and transition the job out of Running
         service.CompleteJob(jobId, 0);
@@ -144,7 +144,7 @@ public class JobServiceThreadSafetyTests
 
         // Pre-populate with some jobs
         for (var i = 0; i < 5; i++)
-            service.CreateTestJob("ExecutePlan", $"plan-{i}");
+            service.CreateTestJob("ExecutePlan", new ExecutePlanArgs($"plan-{i}"));
 
         var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var exceptions = new ConcurrentBag<Exception>();
@@ -171,7 +171,7 @@ public class JobServiceThreadSafetyTests
             var counter = 100;
             while (!cts.Token.IsCancellationRequested)
             {
-                var id = service.CreateTestJob("CreatePlan", $"concurrent-{counter++}");
+                var id = service.CreateTestJob("CreatePlan", new CreatePlanArgs($"concurrent-{counter++}", "Auto"));
                 Thread.Sleep(1);
                 service.DeleteJob(id);
             }
