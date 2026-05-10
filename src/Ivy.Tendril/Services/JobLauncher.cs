@@ -600,24 +600,21 @@ internal class JobLauncher
             return;
         }
 
+        // Dev mode: create a shim that uses `dotnet exec` on the already-built DLL
+        // instead of `dotnet run` which triggers a build and fails when DLLs are locked.
         var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-        var projectPath = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "Ivy.Tendril.csproj"));
-        if (File.Exists(projectPath))
+        var dllPath = Path.Combine(baseDir, "Ivy.Tendril.dll");
+        if (File.Exists(dllPath))
         {
             var shimDir = Path.Combine(Path.GetTempPath(), "tendril-shim");
-            var shimOutputDir = Path.Combine(Path.GetTempPath(), "tendril-shim-build");
             FileHelper.EnsureDirectory(shimDir);
 
-            var outputArg = $"-p:BaseOutputPath=\"{shimOutputDir}{Path.DirectorySeparatorChar}\"";
-
             var cmdShim = Path.Combine(shimDir, "tendril.cmd");
-            File.WriteAllText(cmdShim, $"@dotnet run --project \"{projectPath}\" {outputArg} -- %*\r\n");
+            File.WriteAllText(cmdShim, $"@dotnet exec \"{dllPath}\" %*\r\n");
 
-            var bashProjectPath = projectPath.Replace('\\', '/');
-            var bashOutputArg = $"-p:BaseOutputPath='{shimOutputDir.Replace('\\', '/')}/'";
-
+            var bashDllPath = dllPath.Replace('\\', '/');
             var bashShim = Path.Combine(shimDir, "tendril");
-            File.WriteAllText(bashShim, $"#!/usr/bin/env bash\ndotnet run --project '{bashProjectPath}' {bashOutputArg} -- \"$@\"\n");
+            File.WriteAllText(bashShim, $"#!/usr/bin/env bash\ndotnet exec '{bashDllPath}' \"$@\"\n");
 
             PrependToPath(psi, shimDir);
         }
