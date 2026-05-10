@@ -51,7 +51,7 @@ public class SlackPlugin : IIvyPlugin
     {
     }
 
-    public void Configure(IPluginContext context)
+    public void Configure(IIvyPluginContext context)
     {
         if (context is not ITendrilPluginContext tendrilContext)
             return;

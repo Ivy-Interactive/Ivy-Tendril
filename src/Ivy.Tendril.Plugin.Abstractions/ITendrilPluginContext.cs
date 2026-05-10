@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Ivy.Plugins;
 
-public interface ITendrilPluginContext : IPluginContext
+public interface ITendrilPluginContext : IIvyPluginContext
 {
     void RegisterMessagingChannel(IMessagingChannel channel)
     {
