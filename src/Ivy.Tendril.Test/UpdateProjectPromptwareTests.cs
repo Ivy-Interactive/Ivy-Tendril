@@ -113,7 +113,7 @@ public class UpdateProjectPromptwareTests : IDisposable
 
         Assert.Contains("ProjectName: MyApp", output);
         Assert.Contains("Instructions: Setup verifications and review actions", output);
-        Assert.Contains("Program.md", output);
+        Assert.Contains("## Program", output);
     }
 
     [Fact]

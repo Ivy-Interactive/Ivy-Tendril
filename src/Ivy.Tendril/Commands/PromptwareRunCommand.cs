@@ -123,9 +123,18 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
 
         var values = BuildFirmwareValues(settings, configService);
 
+        var jobContext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["PROMPTWARE_DIR"] = programFolder
+        };
+        if (values.TryGetValue("PlansDirectory", out var plansDir))
+            jobContext["PLANS_DIR"] = plansDir;
+        if (values.TryGetValue("PlanFolder", out var planFolder2))
+            jobContext["PLAN_DIR"] = planFolder2;
+
         var resolution = !string.IsNullOrEmpty(settings.Agent)
-            ? AgentProviderFactory.Resolve(tendrilSettings, settings.Promptware, settings.Profile, agentOverride: settings.Agent)
-            : AgentProviderFactory.Resolve(tendrilSettings, settings.Promptware, settings.Profile);
+            ? AgentProviderFactory.Resolve(tendrilSettings, settings.Promptware, settings.Profile, jobContext, settings.Agent)
+            : AgentProviderFactory.Resolve(tendrilSettings, settings.Promptware, settings.Profile, jobContext);
 
         var workDir = settings.WorkingDir ?? programFolder;
 

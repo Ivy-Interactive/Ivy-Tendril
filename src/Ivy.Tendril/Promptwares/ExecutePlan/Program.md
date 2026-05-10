@@ -224,18 +224,13 @@ For each repo in `RepoConfigs` (this includes both the plan's repos AND any read
    - Check the `RepoConfigs` firmware header for this repo's `baseBranch` value
    - If configured, use that value as the base branch
    - Otherwise, auto-detect via: `git symbolic-ref refs/remotes/origin/HEAD | sed 's|refs/remotes/origin/||'`
-3. If the worktree or branch already exists from a prior execution, remove it first. A prior run may have left a **stale directory** (the filesystem tree still exists but git no longer tracks it as a worktree — there's no `.git` file at the worktree root). In that case `git worktree remove` will fail with "is not a working tree"; you must also `rm -rf` the directory. **Do all three unconditionally** so the next `git worktree add` starts from a clean slate:
+3. If the worktree or branch already exists from a prior execution, remove it first:
 
 ```bash
-PLAN_FOLDER_NAME=$(basename "<PlanFolder>")
-PLAN_ID=$(echo "$PLAN_FOLDER_NAME" | grep -oP '^\d+')
-SAFE_TITLE=$(echo "$PLAN_FOLDER_NAME" | sed 's/^[0-9]\+-//')
-BRANCH_NAME="tendril/$PLAN_ID-$SAFE_TITLE"
-
-git worktree remove "<PlanFolder>/worktrees/<repo-folder-name>" --force 2>/dev/null
-git branch -D "$BRANCH_NAME" 2>/dev/null
-rm -rf "<PlanFolder>/worktrees/<repo-folder-name>"
+tendril plan remove-worktree <PlanId> <repo-folder-name>
 ```
+
+This handles stale directories, locked files, and branch cleanup automatically with fallback strategies.
 
 **Note on stale directories:** If a stale worktree directory exists and you run `git -C <stale-dir> status`, git silently walks up the parent chain and reports the state of the main repo — making it look like the "worktree" is simply on `main`. Do not trust that output. Before assuming a prior worktree is intact, verify with `git -C <main-repo> worktree list | grep <path>` or check that `<worktree-path>/.git` exists.
 
@@ -298,18 +293,17 @@ This ensures ExecutePlan fails immediately if worktree creation is incomplete, r
    BASE_BRANCH="<resolved-base-branch>"
    WORKTREE_PATH="<PlanFolder>/worktrees/<repo-folder-name>"
 
-   # Invoke the Apply-SyncStrategy tool
-   Tools/Apply-SyncStrategy -WorktreePath "$WORKTREE_PATH" -SyncStrategy "$SYNC_STRATEGY" -BaseBranch "$BASE_BRANCH"
+   tendril plan sync-worktree "$WORKTREE_PATH" --strategy "$SYNC_STRATEGY" --base-branch "$BASE_BRANCH"
    ```
 
-   This tool applies the configured sync strategy (fetch/rebase/merge) to keep the worktree branch synchronized with the base branch. It handles errors and logs each step.
+   This applies the configured sync strategy (fetch/rebase/merge) to keep the worktree branch synchronized with the base branch.
 
    **When to call:** After each worktree is created (Step 2.4) and before moving to the next repo.
 
-   **Note:** For `syncStrategy: "rebase"` or `syncStrategy: "merge"`, this operation should also be performed before making commits during plan execution to keep the branch up-to-date with upstream changes. Use the same tool with the same parameters.
+   **Note:** For `syncStrategy: "rebase"` or `syncStrategy: "merge"`, this operation should also be performed before making commits during plan execution to keep the branch up-to-date with upstream changes.
 
    **Error handling:**
-   - If `Apply-SyncStrategy` fails (non-zero exit code), the entire ExecutePlan run should fail
+   - If the command fails (non-zero exit code), the entire ExecutePlan run should fail
    - Common failure scenarios:
      - `git fetch` fails → network issue or invalid remote
      - `git rebase` fails → conflicting changes between worktree base and origin

@@ -263,8 +263,8 @@ promptwares:
   IvyFrameworkVerification:
     profile: balanced
     allowedTools:
-    - Write(%PLAN_FOLDER%\**)
-    - Edit(%PLAN_FOLDER%\**)
+    - Write(%PLAN_DIR%\**)
+    - Edit(%PLAN_DIR%\**)
 codingAgents:
 - name: claude
   arguments: ''

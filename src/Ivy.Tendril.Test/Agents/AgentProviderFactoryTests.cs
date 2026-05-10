@@ -62,15 +62,22 @@ public class AgentProviderFactoryTests
                 }
             });
 
-        var resolution = AgentProviderFactory.Resolve(settings, "UnknownPromptware");
+        var jobContext = new Dictionary<string, string>
+        {
+            ["PROMPTWARE_DIR"] = "/promptwares/UnknownPromptware"
+        };
+        var resolution = AgentProviderFactory.Resolve(settings, "UnknownPromptware", jobContext: jobContext);
 
         Assert.IsType<ClaudeAgentProvider>(resolution.Provider);
         Assert.Equal("sonnet", resolution.Model);
         Assert.Equal("high", resolution.Effort);
-        // Base tools + _default's Write
+        // Base tools + _default's Write (unrestricted)
         Assert.Contains("Read", resolution.AllowedTools);
         Assert.Contains("Write", resolution.AllowedTools);
         Assert.Contains("Bash(tendril*)", resolution.AllowedTools);
+        // Promptware-scoped tools
+        Assert.Contains("Write(/promptwares/UnknownPromptware/**)", resolution.AllowedTools);
+        Assert.Contains("Edit(/promptwares/UnknownPromptware/**)", resolution.AllowedTools);
     }
 
     [Fact]
@@ -94,7 +101,11 @@ public class AgentProviderFactoryTests
                 }
             });
 
-        var resolution = AgentProviderFactory.Resolve(settings, "ExecutePlan");
+        var jobContext = new Dictionary<string, string>
+        {
+            ["PROMPTWARE_DIR"] = "/promptwares/ExecutePlan"
+        };
+        var resolution = AgentProviderFactory.Resolve(settings, "ExecutePlan", jobContext: jobContext);
 
         Assert.Equal("opus", resolution.Model);
         Assert.Equal("max", resolution.Effort);
@@ -166,7 +177,11 @@ public class AgentProviderFactoryTests
     public void Resolve_NoConfigStillReturnsBaseTools()
     {
         var settings = CreateSettings();
-        var resolution = AgentProviderFactory.Resolve(settings, "SomePromptware");
+        var jobContext = new Dictionary<string, string>
+        {
+            ["PROMPTWARE_DIR"] = "/promptwares/SomePromptware"
+        };
+        var resolution = AgentProviderFactory.Resolve(settings, "SomePromptware", jobContext: jobContext);
 
         Assert.IsType<ClaudeAgentProvider>(resolution.Provider);
         Assert.Equal("", resolution.Model);
@@ -177,6 +192,9 @@ public class AgentProviderFactoryTests
         Assert.Contains("Bash(tendril*)", resolution.AllowedTools);
         Assert.Contains("WebFetch", resolution.AllowedTools);
         Assert.Contains("WebSearch", resolution.AllowedTools);
+        Assert.Contains("Write(/promptwares/SomePromptware/**)", resolution.AllowedTools);
+        Assert.Contains("Edit(/promptwares/SomePromptware/**)", resolution.AllowedTools);
+        Assert.Contains("Bash(/promptwares/SomePromptware/Tools/*)", resolution.AllowedTools);
         Assert.DoesNotContain("Bash", resolution.AllowedTools.Where(t => t == "Bash"));
         Assert.Empty(resolution.ExtraArgs);
     }
@@ -318,15 +336,16 @@ public class AgentProviderFactoryTests
                     Profile = "balanced",
                     AllowedTools = new List<string>
                     {
-                        "Write(%PLANS_DIR%/**)", "Edit(%PLAN_FOLDER%/**)"
+                        "Write(%PLANS_DIR%/**)", "Edit(%PLAN_DIR%/**)"
                     }
                 }
             });
 
         var jobContext = new Dictionary<string, string>
         {
+            ["PROMPTWARE_DIR"] = @"D:\Tendril\Promptwares\CreatePlan",
             ["PLANS_DIR"] = @"D:\Tendril\Plans",
-            ["PLAN_FOLDER"] = @"D:\Tendril\Plans\01234-MyPlan"
+            ["PLAN_DIR"] = @"D:\Tendril\Plans\01234-MyPlan"
         };
 
         var resolution = AgentProviderFactory.Resolve(settings, "CreatePlan", jobContext: jobContext);
@@ -335,6 +354,10 @@ public class AgentProviderFactoryTests
         Assert.Contains("Read", resolution.AllowedTools);
         Assert.Contains("Bash(tendril*)", resolution.AllowedTools);
         Assert.Contains("WebFetch", resolution.AllowedTools);
+        // Promptware self-modification tools
+        Assert.Contains("Write(D:/Tendril/Promptwares/CreatePlan/**)", resolution.AllowedTools);
+        Assert.Contains("Edit(D:/Tendril/Promptwares/CreatePlan/**)", resolution.AllowedTools);
+        Assert.Contains("Bash(D:/Tendril/Promptwares/CreatePlan/Tools/*)", resolution.AllowedTools);
         // Config extras with expanded variables
         Assert.Contains("Write(D:/Tendril/Plans/**)", resolution.AllowedTools);
         Assert.Contains("Edit(D:/Tendril/Plans/01234-MyPlan/**)", resolution.AllowedTools);
@@ -391,7 +414,8 @@ public class AgentProviderFactoryTests
 
         var jobContext = new Dictionary<string, string>
         {
-            ["PLAN_FOLDER"] = "/plans/01234-Test"
+            ["PROMPTWARE_DIR"] = "/promptwares/ExecutePlan",
+            ["PLAN_DIR"] = "/plans/01234-Test"
         };
 
         var resolution = AgentProviderFactory.Resolve(settings, "ExecutePlan", jobContext: jobContext);
@@ -400,6 +424,9 @@ public class AgentProviderFactoryTests
         Assert.Contains("Bash", resolution.AllowedTools);
         Assert.Contains("Write(/plans/01234-Test/worktrees/**)", resolution.AllowedTools);
         Assert.Contains("Edit(/plans/01234-Test/worktrees/**)", resolution.AllowedTools);
+        // Also gets promptware self-modification
+        Assert.Contains("Write(/promptwares/ExecutePlan/**)", resolution.AllowedTools);
+        Assert.Contains("Edit(/promptwares/ExecutePlan/**)", resolution.AllowedTools);
     }
 
     [Fact]
@@ -426,7 +453,7 @@ public class AgentProviderFactoryTests
     [InlineData("gemini", typeof(GeminiAgentProvider))]
     [InlineData("copilot", typeof(CopilotAgentProvider))]
     [InlineData("opencode", typeof(OpenCodeAgentProvider))]
-    public void Resolve_UpdateProject_GetsOnlyBaseToolsForAllAgents(string agent, Type expectedProviderType)
+    public void Resolve_UpdateProject_GetsBaseToolsWithPromptwareDirForAllAgents(string agent, Type expectedProviderType)
     {
         var settings = CreateSettings(
             agent,
@@ -446,13 +473,18 @@ public class AgentProviderFactoryTests
                 }
             });
 
-        var resolution = AgentProviderFactory.Resolve(settings, "UpdateProject");
+        var jobContext = new Dictionary<string, string>
+        {
+            ["PROMPTWARE_DIR"] = "/promptwares/UpdateProject"
+        };
+
+        var resolution = AgentProviderFactory.Resolve(settings, "UpdateProject", jobContext: jobContext);
 
         Assert.IsType(expectedProviderType, resolution.Provider);
         Assert.Equal("test-model", resolution.Model);
         Assert.Equal("max", resolution.Effort);
 
-        // UpdateProject gets exactly base tools — no Write, Edit, or unrestricted Bash
+        // Base read-only tools
         Assert.Contains("Read", resolution.AllowedTools);
         Assert.Contains("Glob", resolution.AllowedTools);
         Assert.Contains("Grep", resolution.AllowedTools);
@@ -460,11 +492,14 @@ public class AgentProviderFactoryTests
         Assert.Contains("WebFetch", resolution.AllowedTools);
         Assert.Contains("WebSearch", resolution.AllowedTools);
 
-        // Must NOT have unrestricted Bash, Write, or Edit
-        Assert.DoesNotContain("Bash", resolution.AllowedTools.Where(t => t == "Bash"));
-        Assert.DoesNotContain(resolution.AllowedTools, t => t.StartsWith("Write", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(resolution.AllowedTools, t => t.StartsWith("Edit", StringComparison.OrdinalIgnoreCase));
+        // Promptware self-modification tools (scoped to own directory)
+        Assert.Contains("Write(/promptwares/UpdateProject/**)", resolution.AllowedTools);
+        Assert.Contains("Edit(/promptwares/UpdateProject/**)", resolution.AllowedTools);
+        Assert.Contains("Bash(/promptwares/UpdateProject/Tools/*)", resolution.AllowedTools);
 
-        Assert.Equal(6, resolution.AllowedTools.Count);
+        // Must NOT have unrestricted Bash
+        Assert.DoesNotContain("Bash", resolution.AllowedTools.Where(t => t == "Bash"));
+
+        Assert.Equal(9, resolution.AllowedTools.Count);
     }
 }

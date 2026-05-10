@@ -6,6 +6,7 @@ namespace Ivy.Tendril.Services.Agents;
 public class ClaudeAgentProvider : IAgentProvider
 {
     public string Name => "claude";
+    public bool UsesStdinPrompt => true;
 
     public ProcessStartInfo BuildProcessStart(AgentInvocation invocation)
     {
@@ -18,6 +19,7 @@ public class ClaudeAgentProvider : IAgentProvider
             RedirectStandardInput = true,
             UseShellExecute = false,
             CreateNoWindow = true,
+            StandardInputEncoding = System.Text.Encoding.UTF8,
             StandardOutputEncoding = System.Text.Encoding.UTF8,
             StandardErrorEncoding = System.Text.Encoding.UTF8
         };
@@ -56,8 +58,8 @@ public class ClaudeAgentProvider : IAgentProvider
         foreach (var arg in invocation.ExtraArgs)
             psi.ArgumentList.Add(arg);
 
-        psi.ArgumentList.Add("--");
-        psi.ArgumentList.Add(invocation.PromptContent);
+        // Prompt is read from stdin to avoid Windows command line length limits.
+        psi.ArgumentList.Add("-");
 
         psi.Environment["CI"] = "true";
         psi.Environment["TERM"] = "dumb";

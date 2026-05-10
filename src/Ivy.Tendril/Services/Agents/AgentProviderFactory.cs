@@ -19,12 +19,13 @@ public class AgentProviderFactory
     };
 
     internal static readonly IReadOnlyList<string> BaseTools =
-        ["Read", "Glob", "Grep", "Bash(tendril*)", "WebFetch", "WebSearch"];
+        ["Read", "Glob", "Grep", "Bash(tendril*)", "WebFetch", "WebSearch",
+         "Write(%PROMPTWARE_DIR%/**)", "Edit(%PROMPTWARE_DIR%/**)", "Bash(%PROMPTWARE_DIR%/Tools/*)"];
 
     private static readonly Dictionary<string, IReadOnlyList<string>> BuiltInExtraTools =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            ["ExecutePlan"] = ["Bash", "Write(%PLAN_FOLDER%/worktrees/**)", "Edit(%PLAN_FOLDER%/worktrees/**)"]
+            ["ExecutePlan"] = ["Bash", "Write(%PLAN_DIR%/worktrees/**)", "Edit(%PLAN_DIR%/worktrees/**)"]
         };
 
     public static IAgentProvider GetProvider(string name)
@@ -73,7 +74,7 @@ public class AgentProviderFactory
         if (!string.IsNullOrEmpty(profileOverride))
             profileName = profileOverride;
 
-        // Expand job context variables (%PLAN_FOLDER%, %PLANS_DIR%, etc.) then env vars
+        // Expand job context variables (%PLAN_DIR%, %PLANS_DIR%, etc.) then env vars
         for (var i = 0; i < allowedTools.Count; i++)
         {
             var tool = allowedTools[i];
