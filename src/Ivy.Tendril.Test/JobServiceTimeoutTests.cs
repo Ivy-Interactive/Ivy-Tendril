@@ -32,7 +32,7 @@ public class JobServiceTimeoutTests : IDisposable
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
 
-        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
+        var id = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs(_tempDir.Path));
         var job = service.GetJob(id);
         Assert.NotNull(job);
         Assert.Equal(JobStatus.Running, job.Status);
@@ -58,7 +58,7 @@ public class JobServiceTimeoutTests : IDisposable
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
 
-        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
+        var id = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs(_tempDir.Path));
 
         JobNotification? notification = null;
         service.NotificationReady += n => notification = n;
@@ -79,7 +79,7 @@ public class JobServiceTimeoutTests : IDisposable
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
 
-        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
+        var id = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs(_tempDir.Path));
 
         JobNotification? notification = null;
         service.NotificationReady += n => notification = n;
@@ -100,7 +100,7 @@ public class JobServiceTimeoutTests : IDisposable
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
 
-        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
+        var id = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs(_tempDir.Path));
 
         JobNotification? notification = null;
         service.NotificationReady += n => notification = n;
@@ -120,7 +120,7 @@ public class JobServiceTimeoutTests : IDisposable
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
 
-        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
+        var id = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs(_tempDir.Path));
 
         service.CompleteJob(id, 0);
         var job = service.GetJob(id);
@@ -138,7 +138,7 @@ public class JobServiceTimeoutTests : IDisposable
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
 
-        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
+        var id = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs(_tempDir.Path));
         var job = service.GetJob(id);
         var cts = job!.TimeoutCts;
         Assert.NotNull(cts);
@@ -154,10 +154,10 @@ public class JobServiceTimeoutTests : IDisposable
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
 
-        var runningId = service.CreateTestJob("ExecutePlan", _tempDir.Path);
-        var completedId = service.CreateTestJob("ExecutePlan", _tempDir.Path);
-        var failedId = service.CreateTestJob("ExecutePlan", _tempDir.Path);
-        var timeoutId = service.CreateTestJob("ExecutePlan", _tempDir.Path);
+        var runningId = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs(_tempDir.Path));
+        var completedId = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs(_tempDir.Path));
+        var failedId = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs(_tempDir.Path));
+        var timeoutId = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs(_tempDir.Path));
 
         service.CompleteJob(completedId, 0);
         service.CompleteJob(failedId, 1);
@@ -176,7 +176,7 @@ public class JobServiceTimeoutTests : IDisposable
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
 
-        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
+        var id = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs(_tempDir.Path));
         service.CompleteJob(id, 0);
 
         service.ClearFailedJobs();
@@ -223,7 +223,7 @@ codingAgent: claude
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
 
-        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
+        var id = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs(_tempDir.Path));
         var job = service.GetJob(id);
         Assert.NotNull(job);
 
@@ -243,7 +243,7 @@ codingAgent: claude
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
 
-        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
+        var id = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs(_tempDir.Path));
         var job = service.GetJob(id);
         Assert.NotNull(job);
 
@@ -285,7 +285,7 @@ codingAgent: claude
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromSeconds(5));
 
-        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
+        var id = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs(_tempDir.Path));
         var job = service.GetJob(id);
         Assert.NotNull(job);
 
@@ -304,7 +304,7 @@ codingAgent: claude
     public void ProcessId_CapturedOnJobItem()
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
-        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
+        var id = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs(_tempDir.Path));
         var job = service.GetJob(id);
         Assert.NotNull(job);
 
@@ -333,7 +333,7 @@ codingAgent: claude
         var logger = NullLogger<JobService>.Instance;
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), logger);
 
-        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
+        var id = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs(_tempDir.Path));
         service.CompleteJob(id, 0);
 
         var job = service.GetJob(id);
@@ -348,7 +348,7 @@ codingAgent: claude
         var logger = new CapturingLogger<JobService>(logEntries);
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), logger);
 
-        var id = service.CreateTestJob("ExecutePlan", _tempDir.Path);
+        var id = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs(_tempDir.Path));
         service.CompleteJob(id, 0);
 
         var job = service.GetJob(id);

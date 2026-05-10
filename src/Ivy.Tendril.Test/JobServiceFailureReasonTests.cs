@@ -112,7 +112,7 @@ public class JobServiceFailureReasonTests : IDisposable
     public void CompleteJob_NonZeroExitCode_PopulatesStatusMessage()
     {
         var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
-        var id = service.CreateTestJob("ExecutePlan", Path.GetTempPath());
+        var id = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs(Path.GetTempPath()));
         var job = service.GetJob(id)!;
         job.OutputLines.Enqueue("[stderr] something went wrong");
 

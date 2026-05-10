@@ -858,13 +858,41 @@ public class PlanDatabaseService : IPlanDatabaseService
             return JsonSerializer.Deserialize<JobArgsBase>(json);
         }
 
-        // Legacy fallback: parse old Args column
+        // Legacy fallback: parse old Args column for rows written before migration 011
         var argsOrd = reader.GetOrdinal("Args");
         if (reader.IsDBNull(argsOrd)) return null;
         var legacyArgs = JsonSerializer.Deserialize<string[]>(reader.GetString(argsOrd));
         if (legacyArgs == null || legacyArgs.Length == 0) return null;
         var type = reader.GetString(reader.GetOrdinal("Type"));
-        return JobArgsBase.FromLegacy(type, legacyArgs);
+        return ParseLegacyArgs(type, legacyArgs);
+    }
+
+    private static JobArgsBase? ParseLegacyArgs(string type, string[] args)
+    {
+        return type switch
+        {
+            Constants.JobTypes.CreatePlan => new CreatePlanArgs(
+                GetLegacyArg(args, "-Description") ?? string.Join(" ", args),
+                GetLegacyArg(args, "-Project") ?? "Auto"),
+            Constants.JobTypes.ExecutePlan => new ExecutePlanArgs(args[0]),
+            Constants.JobTypes.ExpandPlan => new ExpandPlanArgs(args[0]),
+            Constants.JobTypes.UpdatePlan => new UpdatePlanArgs(args[0]),
+            Constants.JobTypes.SplitPlan => new SplitPlanArgs(args[0]),
+            Constants.JobTypes.CreatePr => new CreatePrArgs(args[0]),
+            Constants.JobTypes.CreateIssue => new CreateIssueArgs(
+                args[0],
+                GetLegacyArg(args, "-Repo") ?? ""),
+            Constants.JobTypes.UpdateProject => new UpdateProjectArgs(args[0]),
+            _ => null
+        };
+
+        static string? GetLegacyArg(string[] a, string name)
+        {
+            for (var i = 0; i < a.Length - 1; i++)
+                if (a[i].Equals(name, StringComparison.OrdinalIgnoreCase))
+                    return a[i + 1];
+            return null;
+        }
     }
 
     private List<T> ReadList<T>(string sql, Func<SqliteDataReader, T> mapper, params SqliteParameter[] parameters)

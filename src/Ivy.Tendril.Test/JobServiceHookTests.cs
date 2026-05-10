@@ -334,7 +334,7 @@ public class JobServiceHookTests : IDisposable
         // Use the constructor that doesn't take ConfigService
         var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
 
-        var id = service.CreateTestJob("ExecutePlan", Path.GetTempPath());
+        var id = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs(Path.GetTempPath()));
         var job = service.GetJob(id)!;
 
         // Should not throw, just silently skip hooks

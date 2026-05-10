@@ -256,7 +256,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         var service = CreateService();
 
         // Create a Running ExecutePlan job for planA (simulating an already active job)
-        var activeId = service.CreateTestJob("ExecutePlan", planA);
+        var activeId = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs(planA));
         Assert.Equal(JobStatus.Running, service.GetJob(activeId)!.Status);
 
         // Trigger RetryBlockedDependents by completing a job for PlanB
@@ -282,7 +282,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         var service = CreateService();
 
         // Create a Blocked ExecutePlan job for planA (simulating StartJob that found unmet deps earlier)
-        var blockedId = service.CreateTestJob("ExecutePlan", planA);
+        var blockedId = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs(planA));
         service.GetJob(blockedId)!.Status = JobStatus.Blocked;
 
         // Trigger RetryBlockedDependents by completing a CreateIssue job for PlanB

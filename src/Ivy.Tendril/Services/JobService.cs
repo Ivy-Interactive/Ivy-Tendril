@@ -513,17 +513,17 @@ public class JobService : IJobService
     ///     Creates a job in "Running" state without launching a real process.
     ///     Used by tests to exercise CompleteJob without background monitor races.
     /// </summary>
-    internal string CreateTestJob(string type, params string[] args)
+    internal string CreateTestJob(string type, JobArgsBase args)
     {
         var id = $"job-{Interlocked.Increment(ref _counter):D3}";
         var job = new JobItem
         {
             Id = id,
             Type = type,
-            PlanFile = args.Length > 0 ? args[0] : type,
+            PlanFile = args.PlanFolder ?? type,
             Status = JobStatus.Running,
             StartedAt = DateTime.UtcNow,
-            TypedArgs = JobArgsBase.FromLegacy(type, args),
+            TypedArgs = args,
             TimeoutCts = new CancellationTokenSource()
         };
         _jobs[id] = job;
