@@ -218,6 +218,9 @@ public class ConfigService : IConfigService, IDisposable
             Settings = new TendrilSettings();
             ConfigPath = Path.Combine(System.AppContext.BaseDirectory, "config.yaml");
             TendrilHome = "";
+            // Populate Auth from env vars in-memory so UseAuth middleware is registered even
+            // before onboarding completes (no config.yaml yet → nothing to persist here).
+            AuthEnvironmentBootstrapper.TrySyncFromEnvironment(Settings, _logger);
             return;
         }
 
@@ -229,6 +232,9 @@ public class ConfigService : IConfigService, IDisposable
         {
             NeedsOnboarding = true;
             Settings = new TendrilSettings();
+            // Populate Auth from env vars in-memory so UseAuth middleware is registered even
+            // before onboarding completes (config.yaml missing or unreadable → nothing to persist here).
+            AuthEnvironmentBootstrapper.TrySyncFromEnvironment(Settings, _logger);
             return;
         }
 

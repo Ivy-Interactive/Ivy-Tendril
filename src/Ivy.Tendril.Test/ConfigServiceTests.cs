@@ -1591,6 +1591,71 @@ maxConcurrentJobs: 10
         Assert.Equal("yolo", result.PrRule);
     }
 
+    [Fact]
+    public void Should_Populate_Auth_From_Env_When_No_Config_Yaml_Exists()
+    {
+        // Regression test: when TENDRIL_HOME is not set (NeedsOnboarding path), env-supplied
+        // credentials must still be synced into Settings.Auth so that UseAuth middleware is
+        // registered at startup without requiring a redeploy after onboarding.
+        var prevHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
+        var prevPassword = Environment.GetEnvironmentVariable("TENDRIL_AUTH_PASSWORD");
+        var prevHashSecret = Environment.GetEnvironmentVariable("TENDRIL_AUTH_HASH_SECRET");
+        try
+        {
+            Environment.SetEnvironmentVariable("TENDRIL_HOME", null);
+            Environment.SetEnvironmentVariable("TENDRIL_AUTH_PASSWORD", "mysecretpassword");
+            // Hash secret must be valid base64
+            Environment.SetEnvironmentVariable("TENDRIL_AUTH_HASH_SECRET",
+                Convert.ToBase64String(new byte[32]));
+
+            var service = new ConfigService();
+
+            Assert.True(service.NeedsOnboarding);
+            Assert.NotNull(service.Settings.Auth);
+            Assert.NotEmpty(service.Settings.Auth!.Password);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("TENDRIL_HOME", prevHome);
+            Environment.SetEnvironmentVariable("TENDRIL_AUTH_PASSWORD", prevPassword);
+            Environment.SetEnvironmentVariable("TENDRIL_AUTH_HASH_SECRET", prevHashSecret);
+        }
+    }
+
+    [Fact]
+    public void Should_Populate_Auth_From_Env_When_Config_Yaml_Missing_But_Home_Set()
+    {
+        // Regression test: when TENDRIL_HOME points to a dir without config.yaml (second NeedsOnboarding
+        // path), env-supplied credentials must still be synced into Settings.Auth in-memory so that
+        // UseAuth middleware is registered without requiring a redeploy after first onboarding.
+        var emptyDir = Path.Combine(Path.GetTempPath(), $"tendril-test-{Guid.NewGuid()}");
+        Directory.CreateDirectory(emptyDir);
+
+        var prevHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
+        var prevPassword = Environment.GetEnvironmentVariable("TENDRIL_AUTH_PASSWORD");
+        var prevHashSecret = Environment.GetEnvironmentVariable("TENDRIL_AUTH_HASH_SECRET");
+        try
+        {
+            Environment.SetEnvironmentVariable("TENDRIL_HOME", emptyDir);
+            Environment.SetEnvironmentVariable("TENDRIL_AUTH_PASSWORD", "mysecretpassword");
+            Environment.SetEnvironmentVariable("TENDRIL_AUTH_HASH_SECRET",
+                Convert.ToBase64String(new byte[32]));
+
+            var service = new ConfigService();
+
+            Assert.True(service.NeedsOnboarding);
+            Assert.NotNull(service.Settings.Auth);
+            Assert.NotEmpty(service.Settings.Auth!.Password);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("TENDRIL_HOME", prevHome);
+            Environment.SetEnvironmentVariable("TENDRIL_AUTH_PASSWORD", prevPassword);
+            Environment.SetEnvironmentVariable("TENDRIL_AUTH_HASH_SECRET", prevHashSecret);
+            try { Directory.Delete(emptyDir, true); } catch { }
+        }
+    }
+
     private class TestLoggerProvider : ILoggerProvider
     {
         private readonly Action<LogLevel, string> _logAction;
