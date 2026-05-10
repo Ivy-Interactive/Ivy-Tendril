@@ -72,7 +72,7 @@ codingAgents:
 # The profile determines model and effort from the active coding agent above.
 #
 # All promptwares receive these base tools automatically:
-#   Read, Glob, Grep, Bash(tendril*), WebFetch, WebSearch,
+#   Read, Glob, Grep, Bash(tendril*), Bash(git *), WebFetch, WebSearch,
 #   Write(%PROMPTWARE_DIR%/**), Edit(%PROMPTWARE_DIR%/**), Bash(%PROMPTWARE_DIR%/Tools/*)
 # ExecutePlan additionally gets: Bash, Write(%PLAN_DIR%/worktrees/**), Edit(%PLAN_DIR%/worktrees/**)
 #
