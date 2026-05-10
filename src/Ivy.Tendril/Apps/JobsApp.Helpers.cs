@@ -92,7 +92,7 @@ public partial class JobsApp
             return TruncatePrompt(j.ReportedPlanTitle);
 
         // Try CreatePlan description
-        if (j.Type == "CreatePlan")
+        if (j.TypedArgs is CreatePlanArgs)
             return TruncatePrompt(GetFullPrompt(j) ?? j.PlanFile);
 
         // Fallback to full prompt (resolves InitialPrompt/Title from plan.yaml) or plan file

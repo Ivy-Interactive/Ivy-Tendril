@@ -223,14 +223,14 @@ public class ContentView(
 
         // Check for active ExpandPlan job
         var hasActiveExpandJob = jobService.GetJobs().Any(j =>
-            j.Type == "ExpandPlan" &&
+            j.TypedArgs is ExpandPlanArgs &&
             j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
             j.TypedArgs?.PlanFolder != null &&
             j.TypedArgs.PlanFolder.Equals(selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
 
         // Check for active SplitPlan job
         var hasActiveSplitJob = jobService.GetJobs().Any(j =>
-            j.Type == "SplitPlan" &&
+            j.TypedArgs is SplitPlanArgs &&
             j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
             j.TypedArgs?.PlanFolder != null &&
             j.TypedArgs.PlanFolder.Equals(selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
