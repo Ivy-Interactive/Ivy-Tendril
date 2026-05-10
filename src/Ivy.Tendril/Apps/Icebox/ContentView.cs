@@ -74,7 +74,7 @@ public class ContentView(
                         | new Button("Execute").Icon(Icons.Rocket).Outline().ShortcutKey("e").OnClick(() =>
                         {
                             planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
-                            jobService.StartJob(Constants.JobTypes.ExecutePlan, new ExecutePlanArgs(selectedPlan.FolderPath));
+                            jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath));
                             refreshPlans();
                         })
                         | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(

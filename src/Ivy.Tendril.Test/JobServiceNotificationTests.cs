@@ -22,7 +22,7 @@ public class JobServiceNotificationTests : IDisposable
     public void CompleteJob_Success_NotificationTitleIncludesJobType()
     {
         var service = CreateService();
-        var id = service.CreateTestJob("CreatePr", new CreatePrArgs(_tempDir.Path));
+        var id = service.CreateTestJob(new CreatePrArgs(_tempDir.Path));
 
         JobNotification? notification = null;
         service.NotificationReady += n => notification = n;
@@ -37,7 +37,7 @@ public class JobServiceNotificationTests : IDisposable
     public void CompleteJob_Failure_NotificationTitleIncludesJobType()
     {
         var service = CreateService();
-        var id = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs(_tempDir.Path));
+        var id = service.CreateTestJob(new ExecutePlanArgs(_tempDir.Path));
 
         JobNotification? notification = null;
         service.NotificationReady += n => notification = n;
@@ -52,7 +52,7 @@ public class JobServiceNotificationTests : IDisposable
     public void CompleteJob_Timeout_NotificationTitleIncludesJobType()
     {
         var service = CreateService();
-        var id = service.CreateTestJob("ExpandPlan", new ExpandPlanArgs(_tempDir.Path));
+        var id = service.CreateTestJob(new ExpandPlanArgs(_tempDir.Path));
 
         JobNotification? notification = null;
         service.NotificationReady += n => notification = n;

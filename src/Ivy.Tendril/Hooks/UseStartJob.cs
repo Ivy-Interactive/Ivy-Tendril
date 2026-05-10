@@ -12,20 +12,18 @@ public static class UseStartJobExtensions
     /// </summary>
     /// <param name="context">The view context</param>
     /// <returns>A tuple containing the startJob action and isStarting flag</returns>
-    public static (Action<string, JobArgsBase> StartJob, bool IsStarting) UseStartJob(
+    public static (Action<JobArgsBase> StartJob, bool IsStarting) UseStartJob(
         this IViewContext context)
     {
         var jobService = context.UseService<IJobService>();
         var isStarting = context.UseState(false);
 
-        Action<string, JobArgsBase> startJob = (type, args) =>
+        Action<JobArgsBase> startJob = args =>
         {
             if (!isStarting.Value)
             {
                 isStarting.Set(true);
-                jobService.StartJob(type, args);
-                // Note: isStarting stays true - dialogs close immediately after StartJob,
-                // so resetting to false is not needed
+                jobService.StartJob(args);
             }
         };
 

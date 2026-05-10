@@ -47,7 +47,7 @@ internal class JobCompletionHandler
         Action<JobItem> persistJob,
         Action<JobNotification> raiseNotification,
         Action raisePropertyChanged,
-        Func<string, JobArgsBase, string> startJobSkipDepCheck)
+        Func<JobArgsBase, string> startJobSkipDepCheck)
     {
         var isSuccess = job.Status == JobStatus.Completed;
 
@@ -769,13 +769,13 @@ internal class JobCompletionHandler
     internal void HandleRetryBlockedJobs(
         ConcurrentDictionary<string, JobItem> jobs,
         Action<JobNotification> raiseNotification,
-        Func<string, JobArgsBase, string> startJobSkipDepCheck)
+        Func<JobArgsBase, string> startJobSkipDepCheck)
         => RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck);
 
     private void RetryBlockedJobs(
         ConcurrentDictionary<string, JobItem> jobs,
         Action<JobNotification> raiseNotification,
-        Func<string, JobArgsBase, string> startJobSkipDepCheck)
+        Func<JobArgsBase, string> startJobSkipDepCheck)
     {
         var blockedJobs = jobs.Values
             .Where(j => j.Status == JobStatus.Blocked && j.Type == Constants.JobTypes.ExecutePlan)
@@ -794,7 +794,7 @@ internal class JobCompletionHandler
             if (!jobs.TryRemove(blockedJob.Id, out _)) continue;
 
             PlanYamlHelper.SetPlanStateByFolder(planFolder, "Building");
-            startJobSkipDepCheck(blockedJob.Type, blockedJob.TypedArgs!);
+            startJobSkipDepCheck(blockedJob.TypedArgs!);
 
             raiseNotification(new JobNotification(
                 "Job Unblocked",
@@ -806,7 +806,7 @@ internal class JobCompletionHandler
     private void RetryBlockedDependents(
         string completedPlanFolder,
         ConcurrentDictionary<string, JobItem> jobs,
-        Func<string, JobArgsBase, string> startJobSkipDepCheck)
+        Func<JobArgsBase, string> startJobSkipDepCheck)
     {
         try
         {
@@ -832,7 +832,7 @@ internal class JobCompletionHandler
                 if (allMet)
                 {
                     PlanYamlHelper.SetPlanStateByFolder(dir, "Building");
-                    startJobSkipDepCheck(Constants.JobTypes.ExecutePlan, new ExecutePlanArgs(dir));
+                    startJobSkipDepCheck(new ExecutePlanArgs(dir));
                 }
             }
         }

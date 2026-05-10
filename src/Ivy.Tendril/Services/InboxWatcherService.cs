@@ -193,7 +193,7 @@ public class InboxWatcherService : IInboxWatcherService
         }
 
         var args = new CreatePlanArgs(description, project, SourcePath: sourcePath);
-        _jobService.StartJob(Constants.JobTypes.CreatePlan, args, processingPath);
+        _jobService.StartJob(args, processingPath);
     }
 
     internal static (string project, string description, string? sourcePath) ParseContent(string content)

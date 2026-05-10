@@ -15,7 +15,7 @@ public class JobServiceEventSplitTests
     public void CompleteJob_RaisesJobsStructureChanged()
     {
         var service = CreateService();
-        var id = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs("test-plan"));
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
 
         var structureChangedFired = false;
         var propertyChangedFired = false;
@@ -32,7 +32,7 @@ public class JobServiceEventSplitTests
     public void CompleteJob_AlsoRaisesJobsChanged_ForBackwardCompatibility()
     {
         var service = CreateService();
-        var id = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs("test-plan"));
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
 
         var jobsChangedFired = false;
         service.JobsChanged += () => jobsChangedFired = true;
@@ -46,7 +46,7 @@ public class JobServiceEventSplitTests
     public void DeleteJob_RaisesJobsStructureChanged()
     {
         var service = CreateService();
-        var id = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs("test-plan"));
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
         service.CompleteJob(id, 0);
 
         var structureChangedFired = false;
@@ -64,7 +64,7 @@ public class JobServiceEventSplitTests
     public void StopJob_RaisesJobsStructureChanged()
     {
         var service = CreateService();
-        var id = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs("test-plan"));
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
 
         var structureChangedFired = false;
         var propertyChangedFired = false;
@@ -81,7 +81,7 @@ public class JobServiceEventSplitTests
     public void ClearCompletedJobs_RaisesJobsStructureChanged()
     {
         var service = CreateService();
-        var id = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs("test-plan"));
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
         service.CompleteJob(id, 0);
 
         var structureChangedFired = false;
@@ -96,7 +96,7 @@ public class JobServiceEventSplitTests
     public void ClearFailedJobs_RaisesJobsStructureChanged()
     {
         var service = CreateService();
-        var id = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs("test-plan"));
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
         service.CompleteJob(id, 1);
 
         var structureChangedFired = false;

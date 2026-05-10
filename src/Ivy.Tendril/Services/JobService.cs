@@ -107,9 +107,9 @@ public class JobService : IJobService
     public event Action? JobPropertyChanged;
     public event Action<JobNotification>? NotificationReady;
 
-    public string StartJob(string type, JobArgsBase args, string? inboxFilePath = null)
+    public string StartJob(JobArgsBase args, string? inboxFilePath = null)
     {
-        return StartJobInternal(type, args, inboxFilePath);
+        return StartJobInternal(args, inboxFilePath);
     }
 
     public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false)
@@ -363,15 +363,15 @@ public class JobService : IJobService
             NotificationReady?.Invoke(notification);
     }
 
-    private string StartJobSkipDepCheck(string type, JobArgsBase args)
+    private string StartJobSkipDepCheck(JobArgsBase args)
     {
-        return StartJobInternal(type, args, inboxFilePath: null, skipDependencyCheck: true);
+        return StartJobInternal(args, inboxFilePath: null, skipDependencyCheck: true);
     }
 
-    private string StartJobInternal(string type, JobArgsBase args, string? inboxFilePath, bool skipDependencyCheck = false)
+    private string StartJobInternal(JobArgsBase args, string? inboxFilePath, bool skipDependencyCheck = false)
     {
         var id = $"job-{Interlocked.Increment(ref _counter):D3}";
-        var job = BuildJobItem(id, type, args, inboxFilePath);
+        var job = BuildJobItem(id, args, inboxFilePath);
 
         if (TryRejectConflictingJob(job))
             return id;
@@ -381,7 +381,7 @@ public class JobService : IJobService
         if (TryBlockForDependencies(job, skipDependencyCheck))
             return id;
 
-        if (type is Constants.JobTypes.ExecutePlan or Constants.JobTypes.ExpandPlan or Constants.JobTypes.UpdatePlan or Constants.JobTypes.SplitPlan)
+        if (job.Type is Constants.JobTypes.ExecutePlan or Constants.JobTypes.ExpandPlan or Constants.JobTypes.UpdatePlan or Constants.JobTypes.SplitPlan)
             _planReaderService?.FlushPendingWritesAsync().GetAwaiter().GetResult();
 
         if (!_jobSlotSemaphore.Wait(0))
@@ -397,14 +397,14 @@ public class JobService : IJobService
         return id;
     }
 
-    private JobItem BuildJobItem(string id, string type, JobArgsBase args, string? inboxFilePath)
+    private JobItem BuildJobItem(string id, JobArgsBase args, string? inboxFilePath)
     {
-        var (planFile, project, priority) = ExtractJobMetadata(type, args);
+        var (planFile, project, priority) = ExtractJobMetadata(args);
 
         var job = new JobItem
         {
             Id = id,
-            Type = type,
+            Type = args.Type,
             PlanFile = planFile,
             Project = project,
             Status = JobStatus.Pending,
@@ -413,13 +413,13 @@ public class JobService : IJobService
             Priority = priority
         };
 
-        if (type == Constants.JobTypes.CreatePlan)
+        if (args is CreatePlanArgs)
             SetupInboxTracking(job, id, args, inboxFilePath);
 
         return job;
     }
 
-    private static (string PlanFile, string Project, int Priority) ExtractJobMetadata(string type, JobArgsBase args)
+    private static (string PlanFile, string Project, int Priority) ExtractJobMetadata(JobArgsBase args)
     {
         if (args is CreatePlanArgs cp)
         {
@@ -513,14 +513,14 @@ public class JobService : IJobService
     ///     Creates a job in "Running" state without launching a real process.
     ///     Used by tests to exercise CompleteJob without background monitor races.
     /// </summary>
-    internal string CreateTestJob(string type, JobArgsBase args)
+    internal string CreateTestJob(JobArgsBase args)
     {
         var id = $"job-{Interlocked.Increment(ref _counter):D3}";
         var job = new JobItem
         {
             Id = id,
-            Type = type,
-            PlanFile = args.PlanFolder ?? type,
+            Type = args.Type,
+            PlanFile = args.PlanFolder ?? args.Type,
             Status = JobStatus.Running,
             StartedAt = DateTime.UtcNow,
             TypedArgs = args,

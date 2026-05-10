@@ -19,7 +19,7 @@ public class InboxController(IJobService jobService) : ControllerBase
         {
             var project = request.Project ?? "Auto";
             var args = new CreatePlanArgs(request.Description, project, SourcePath: request.SourcePath);
-            var jobId = jobService.StartJob(Constants.JobTypes.CreatePlan, args);
+            var jobId = jobService.StartJob(args);
             return Ok(new { jobId, status = "Started", message = "Plan creation job started successfully" });
         }
         catch (Exception ex)

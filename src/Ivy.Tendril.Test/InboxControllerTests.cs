@@ -46,7 +46,7 @@ public class InboxControllerTests
 
         Assert.IsType<OkObjectResult>(result);
         var job = Assert.Single(jobService.StartedJobs);
-        var cpArgs = Assert.IsType<CreatePlanArgs>(job.Args);
+        var cpArgs = Assert.IsType<CreatePlanArgs>(job);
         Assert.Equal(@"D:\Tests\Session1", cpArgs.SourcePath);
     }
 
@@ -60,7 +60,7 @@ public class InboxControllerTests
 
         Assert.IsType<OkObjectResult>(result);
         var job = Assert.Single(jobService.StartedJobs);
-        var cpArgs = Assert.IsType<CreatePlanArgs>(job.Args);
+        var cpArgs = Assert.IsType<CreatePlanArgs>(job);
         Assert.Equal("Auto", cpArgs.Project);
     }
 
@@ -76,12 +76,12 @@ public class InboxControllerTests
 
     private class StubJobService : IJobService
     {
-        public List<(string Type, JobArgsBase Args)> StartedJobs { get; } = new();
+        public List<JobArgsBase> StartedJobs { get; } = new();
 
-        public string StartJob(string type, JobArgsBase args, string? inboxFilePath = null)
+        public string StartJob(JobArgsBase args, string? inboxFilePath = null)
         {
             var id = $"job-{StartedJobs.Count + 1}";
-            StartedJobs.Add((type, args));
+            StartedJobs.Add(args);
             return id;
         }
 

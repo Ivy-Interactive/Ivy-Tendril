@@ -75,7 +75,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         };
 
         // Simulate CreateIssue completing for PlanB
-        var id = service.StartJob("CreateIssue", new CreateIssueArgs(planB, "owner/repo", "", "", ""));
+        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         // PlanA should have been auto-queued
@@ -92,7 +92,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
 
         var service = CreateService();
 
-        var id = service.StartJob("CreateIssue", new CreateIssueArgs(planB, "owner/repo", "", "", ""));
+        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         var jobs = service.GetJobs();
@@ -108,7 +108,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
 
         var service = CreateService();
 
-        var id = service.StartJob("CreateIssue", new CreateIssueArgs(planB, "owner/repo", "", "", ""));
+        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         var jobs = service.GetJobs();
@@ -123,7 +123,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
 
         var service = CreateService();
 
-        var id = service.StartJob("CreateIssue", new CreateIssueArgs(planB, "owner/repo", "", "", ""));
+        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         // Verify plan.yaml was updated — Building then immediately Executing when job launches
@@ -141,7 +141,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         var service = CreateService();
 
         // Start ExecutePlan — dependencies aren't met, so ResetPlanStateToBlocked should fire
-        service.StartJob("ExecutePlan", new ExecutePlanArgs(planA));
+        service.StartJob(new ExecutePlanArgs(planA));
 
         // Verify plan.yaml was updated to Blocked (not Draft)
         var planYamlContent = File.ReadAllText(Path.Combine(planA, "plan.yaml"));
@@ -156,7 +156,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
 
         var service = CreateService();
 
-        var id = service.StartJob("CreateIssue", new CreateIssueArgs(planB, "owner/repo", "", "", ""));
+        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         var jobs = service.GetJobs();
@@ -171,7 +171,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
 
         var service = CreateService();
 
-        var id = service.StartJob("CreateIssue", new CreateIssueArgs(planB, "owner/repo", "", "", ""));
+        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         var jobs = service.GetJobs();
@@ -186,7 +186,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
 
         var service = CreateService();
 
-        var id = service.StartJob("CreateIssue", new CreateIssueArgs(planB, "owner/repo", "", "", ""));
+        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         var jobs = service.GetJobs();
@@ -204,7 +204,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         var service = CreateService();
 
         // Start ExecutePlan for planC — it will be blocked because DepPlan is not Completed
-        service.StartJob("ExecutePlan", new ExecutePlanArgs(planC));
+        service.StartJob(new ExecutePlanArgs(planC));
 
         var blockedJobsBefore = service.GetJobs().Count(j =>
             j.Type == "ExecutePlan" &&
@@ -216,7 +216,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         // Complete a CreateIssue job for PlanB — triggers RetryBlockedDependents
         // planC depends on both DepPlan (not met) and PlanB (met), so it stays blocked
         // But the duplicate-job guard should prevent creating another blocked job entry
-        var id = service.StartJob("CreateIssue", new CreateIssueArgs(planB, "owner/repo", "", "", ""));
+        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         // Should still have exactly one blocked job for planC (not two)
@@ -238,7 +238,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         var service = CreateService();
 
         // Start ExecutePlan — dependencies are met, so it should NOT be blocked
-        service.StartJob("ExecutePlan", new ExecutePlanArgs(planA));
+        service.StartJob(new ExecutePlanArgs(planA));
 
         // Verify the job is not blocked (deps are met, no redundant CheckDependencies to fail)
         var jobs = service.GetJobs();
@@ -256,11 +256,11 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         var service = CreateService();
 
         // Create a Running ExecutePlan job for planA (simulating an already active job)
-        var activeId = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs(planA));
+        var activeId = service.CreateTestJob(new ExecutePlanArgs(planA));
         Assert.Equal(JobStatus.Running, service.GetJob(activeId)!.Status);
 
         // Trigger RetryBlockedDependents by completing a job for PlanB
-        var id = service.StartJob("CreateIssue", new CreateIssueArgs(planB, "owner/repo", "", "", ""));
+        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         // Should NOT create a duplicate ExecutePlan job for planA
@@ -282,11 +282,11 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         var service = CreateService();
 
         // Create a Blocked ExecutePlan job for planA (simulating StartJob that found unmet deps earlier)
-        var blockedId = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs(planA));
+        var blockedId = service.CreateTestJob(new ExecutePlanArgs(planA));
         service.GetJob(blockedId)!.Status = JobStatus.Blocked;
 
         // Trigger RetryBlockedDependents by completing a CreateIssue job for PlanB
-        var id = service.StartJob("CreateIssue", new CreateIssueArgs(planB, "owner/repo", "", "", ""));
+        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         // Should have at most one ExecutePlan job for planA (not two)

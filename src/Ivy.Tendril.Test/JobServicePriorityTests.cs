@@ -19,7 +19,7 @@ public class JobServicePriorityTests : IDisposable
             TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
             null, 0);
 
-        var id = service.StartJob("CreatePlan", new CreatePlanArgs("Test", "Framework", Priority: 2));
+        var id = service.StartJob(new CreatePlanArgs("Test", "Framework", Priority: 2));
         var job = service.GetJob(id);
 
         Assert.NotNull(job);
@@ -33,7 +33,7 @@ public class JobServicePriorityTests : IDisposable
             TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
             null, 0);
 
-        var id = service.StartJob("CreatePlan", new CreatePlanArgs("Test", "Framework"));
+        var id = service.StartJob(new CreatePlanArgs("Test", "Framework"));
         var job = service.GetJob(id);
 
         Assert.NotNull(job);
@@ -47,7 +47,7 @@ public class JobServicePriorityTests : IDisposable
             TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
             null, 0);
 
-        var id = service.StartJob("CreatePlan", new CreatePlanArgs("Test", "Auto"));
+        var id = service.StartJob(new CreatePlanArgs("Test", "Auto"));
         var job = service.GetJob(id);
 
         Assert.NotNull(job);
@@ -62,9 +62,9 @@ public class JobServicePriorityTests : IDisposable
             TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
             null, 0);
 
-        var lowId = service.StartJob("CreatePlan", new CreatePlanArgs("Low priority", "Auto", Priority: 0));
-        var highId = service.StartJob("CreatePlan", new CreatePlanArgs("High priority", "Auto", Priority: 2));
-        var medId = service.StartJob("CreatePlan", new CreatePlanArgs("Med priority", "Auto", Priority: 1));
+        var lowId = service.StartJob(new CreatePlanArgs("Low priority", "Auto", Priority: 0));
+        var highId = service.StartJob(new CreatePlanArgs("High priority", "Auto", Priority: 2));
+        var medId = service.StartJob(new CreatePlanArgs("Med priority", "Auto", Priority: 1));
 
         // All should be queued
         Assert.Equal(JobStatus.Queued, service.GetJob(lowId)!.Status);
