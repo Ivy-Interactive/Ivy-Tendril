@@ -36,7 +36,7 @@ public class CreatePlanDialogLauncher(Func<Action, object> renderTrigger) : View
                     {
                         lastSelectedProjects.Set(projects);
                         var project = string.Join(",", projects);
-                        jobService.StartJob(Constants.JobTypes.CreatePlan, "-Description", $"{description} [FORCE]", "-Project", project, "-Priority", priority.ToString());
+                        jobService.StartJob(Constants.JobTypes.CreatePlan, "-Description", description, "-Project", project, "-Priority", priority.ToString(), "-Force");
                     },
                     () => dialogOpen.Set(false),
                     lastSelectedProjects.Value

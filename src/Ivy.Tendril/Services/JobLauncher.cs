@@ -480,6 +480,9 @@ internal class JobLauncher
         var description = PlanYamlHelper.GetNamedArg(job.Args, "-Description") ?? string.Join(" ", job.Args);
         values["Args"] = description;
         values["PlansDirectory"] = _configService!.PlanFolder;
+
+        if (job.Args.Contains("-Force", StringComparer.OrdinalIgnoreCase))
+            values["Force"] = "true";
     }
 
     private (Dictionary<string, string> Values, PlanYaml? PlanYaml, string? ProfileOverride)
