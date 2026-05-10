@@ -83,7 +83,13 @@ public record SplitPlanArgs(
 }
 
 public record CreatePrArgs(
-    string FolderPath) : JobArgsBase
+    string FolderPath,
+    bool Merge = true,
+    bool DeleteBranch = true,
+    bool IncludeArtifacts = true,
+    string? Assignee = null,
+    string? Comment = null,
+    bool Draft = false) : JobArgsBase
 {
     public override string PlanFolder => FolderPath;
 }
