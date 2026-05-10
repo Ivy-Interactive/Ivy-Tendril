@@ -11,6 +11,7 @@ Create an implementation plan for a task described in args.
 The firmware header contains these key values:
 - **PlansDirectory** — where plan folders are created
 - **Project** — selected project name, or `Auto` if not specified
+- **Force** (optional) — if `true`, skip duplicate detection entirely (see Step 3)
 - **SourcePath** (optional) — absolute path to the source that generated this plan (e.g. test working directory)
 
 The plan folder structure and CLI commands are in the **Reference Documents** section of your firmware.
@@ -21,12 +22,6 @@ Project configuration is available from `config.yaml` (referenced via `$TENDRIL_
 ### 1. Parse Args
 
 Args contains the user's task description. If it references related plans with `[number]` syntax (e.g. `[01205]`), find and read those plan files from `PlansDirectory` for context.
-
-**Extract Flags**: Check for special flags at the end of args:
-
-- **Force Flag**: If args ends with ` [FORCE]`, set an internal flag to skip duplicate detection (see Step 3), then strip ` [FORCE]` from the description.
-
-Strip all flags. The cleaned description should be used for all subsequent steps (title, plan.yaml, etc.). Never let flags appear in any plan field or title.
 
 **Extract Source URL**: Check if the args contain a GitHub PR URL (`https://github.com/{owner}/{repo}/pull/{number}`) or issue URL (`https://github.com/{owner}/{repo}/issues/{number}`). If found, store it as `sourceUrl` in plan.yaml. Use `gh pr view <url> --json title,body` or `gh issue view <url> --json title,body` to fetch the title and body for additional context when writing the plan.
 
@@ -49,7 +44,7 @@ Do NOT read or modify `.counter` directly. Plan IDs are allocated by the `tendri
 
 ### 3. Research
 
-- **Check for duplicate plans** first — **unless the force flag was set in Step 1** (args ended with ` [FORCE]`), in which case skip duplicate detection entirely. Check the `DuplicateCandidates` firmware value. If present, it contains pre-computed matches (format: `folderName|title|state` per line). For each match, perform **state-aware duplicate detection** on those specific plans only. If `DuplicateCandidates` is absent, no potential duplicates were found — skip duplicate detection. When matches are found, decide as follows:
+- **Check for duplicate plans** first — **unless `Force: true` is set in the firmware header**, in which case skip duplicate detection entirely. Check the `DuplicateCandidates` firmware value. If present, it contains pre-computed matches (format: `folderName|title|state` per line). For each match, perform **state-aware duplicate detection** on those specific plans only. If `DuplicateCandidates` is absent, no potential duplicates were found — skip duplicate detection. When matches are found, decide as follows:
 
   #### Step 1: Read existing plan state
   
