@@ -161,7 +161,7 @@ public class ContentView(
             selectedPlanState.Set(optimisticPlan);
 
             planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
-            jobService.StartJob("ExecutePlan", selectedPlan.FolderPath);
+            jobService.StartJob("ExecutePlan", new ExecutePlanArgs(selectedPlan.FolderPath));
             refreshPlans();
         });
 
@@ -225,15 +225,15 @@ public class ContentView(
         var hasActiveExpandJob = jobService.GetJobs().Any(j =>
             j.Type == "ExpandPlan" &&
             j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
-            j.Args.Length > 0 &&
-            j.Args[0].Equals(selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
+            j.TypedArgs?.PlanFolder != null &&
+            j.TypedArgs.PlanFolder.Equals(selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
 
         // Check for active SplitPlan job
         var hasActiveSplitJob = jobService.GetJobs().Any(j =>
             j.Type == "SplitPlan" &&
             j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
-            j.Args.Length > 0 &&
-            j.Args[0].Equals(selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
+            j.TypedArgs?.PlanFolder != null &&
+            j.TypedArgs.PlanFolder.Equals(selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
 
         var actionBar = new ActionBarView(
             selectedPlan,

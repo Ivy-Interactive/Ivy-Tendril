@@ -47,7 +47,7 @@ internal class JobCompletionHandler
         Action<JobItem> persistJob,
         Action<JobNotification> raiseNotification,
         Action raisePropertyChanged,
-        Func<string, string[], string> startJobSkipDepCheck)
+        Func<string, JobArgsBase, string> startJobSkipDepCheck)
     {
         var isSuccess = job.Status == JobStatus.Completed;
 
@@ -68,14 +68,14 @@ internal class JobCompletionHandler
 
         if (isSuccess && job.Type is Constants.JobTypes.ExecutePlan or Constants.JobTypes.CreatePr or Constants.JobTypes.CreateIssue)
         {
-            var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
+            var planFolder = job.TypedArgs?.PlanFolder ?? "";
             RetryBlockedDependents(planFolder, jobs, startJobSkipDepCheck);
         }
     }
 
     private void RunAfterHooks(JobItem job)
     {
-        var planFolderForHooks = job.Args.Length > 0 ? job.Args[0] : "";
+        var planFolderForHooks = job.TypedArgs?.PlanFolder ?? "";
         RunHooks("after", job.Type, planFolderForHooks, job.Project, job);
     }
 
@@ -122,7 +122,7 @@ internal class JobCompletionHandler
     {
         if (isSuccess && job.Type == Constants.JobTypes.CreatePlan && job.Status == JobStatus.Completed)
         {
-            var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
+            var planFolder = job.TypedArgs?.PlanFolder ?? "";
             var level = "NiceToHave";
             if (Directory.Exists(planFolder))
             {
@@ -156,7 +156,7 @@ internal class JobCompletionHandler
 
     private void NotifyPlanWatcher(JobItem job)
     {
-        var notifyFolder = job.Args.Length > 0 ? job.Args[0] : null;
+        var notifyFolder = job.TypedArgs?.PlanFolder;
         _planWatcherService?.NotifyChanged(Directory.Exists(notifyFolder) ? notifyFolder : null);
     }
 
@@ -171,7 +171,7 @@ internal class JobCompletionHandler
             return;
 
         var sessionId = job.SessionId;
-        var jobArgs = job.Args;
+        var jobPlanFolder = job.TypedArgs?.PlanFolder;
         var jobType = job.Type;
         var jobId = job.Id;
         var provider = job.Provider;
@@ -193,8 +193,8 @@ internal class JobCompletionHandler
                         raisePropertyChanged();
                     }
 
-                    if (jobArgs.Length > 0)
-                        PlanYamlHelper.LogCostToCsv(jobArgs[0], jobType, costCalc.TotalTokens, costCalc.TotalCost);
+                    if (jobPlanFolder != null)
+                        PlanYamlHelper.LogCostToCsv(jobPlanFolder, jobType, costCalc.TotalTokens, costCalc.TotalCost);
                 }
             }
             catch (Exception ex)
@@ -288,7 +288,7 @@ internal class JobCompletionHandler
 
     private void SyncPlanArtifacts(JobItem job)
     {
-        var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
+        var planFolder = job.TypedArgs?.PlanFolder ?? "";
         if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder)) return;
 
         try
@@ -522,7 +522,7 @@ internal class JobCompletionHandler
     {
         try
         {
-            var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
+            var planFolder = job.TypedArgs?.PlanFolder ?? "";
             var planYaml = PlanYamlHelper.ReadPlanYaml(planFolder);
             if (planYaml == null) return;
 
@@ -549,7 +549,7 @@ internal class JobCompletionHandler
     {
         try
         {
-            var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
+            var planFolder = job.TypedArgs?.PlanFolder ?? "";
 
             _logger.LogDebug("SetPlanState: Setting {PlanFolder} to {State} for job {JobId}",
                 Path.GetFileName(planFolder), state, job.Id);
@@ -642,7 +642,7 @@ internal class JobCompletionHandler
         {
             if (job.Type is Constants.JobTypes.CreatePlan or Constants.JobTypes.CreatePr or Constants.JobTypes.CreateIssue) return;
 
-            var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
+            var planFolder = job.TypedArgs?.PlanFolder ?? "";
             var newState = job.Type == Constants.JobTypes.ExecutePlan ? "Failed" : "Draft";
             PlanYamlHelper.SetPlanStateByFolder(planFolder, newState);
         }
@@ -656,7 +656,7 @@ internal class JobCompletionHandler
     {
         try
         {
-            var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
+            var planFolder = job.TypedArgs?.PlanFolder ?? "";
             PlanYamlHelper.SetPlanStateByFolder(planFolder, "Blocked");
         }
         catch (Exception ex)
@@ -682,7 +682,7 @@ internal class JobCompletionHandler
     {
         if (job.Type != Constants.JobTypes.ExecutePlan) return;
 
-        var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
+        var planFolder = job.TypedArgs?.PlanFolder ?? "";
         if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder)) return;
 
         var worktreesDir = Path.Combine(planFolder, "worktrees");
@@ -769,13 +769,13 @@ internal class JobCompletionHandler
     internal void HandleRetryBlockedJobs(
         ConcurrentDictionary<string, JobItem> jobs,
         Action<JobNotification> raiseNotification,
-        Func<string, string[], string> startJobSkipDepCheck)
+        Func<string, JobArgsBase, string> startJobSkipDepCheck)
         => RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck);
 
     private void RetryBlockedJobs(
         ConcurrentDictionary<string, JobItem> jobs,
         Action<JobNotification> raiseNotification,
-        Func<string, string[], string> startJobSkipDepCheck)
+        Func<string, JobArgsBase, string> startJobSkipDepCheck)
     {
         var blockedJobs = jobs.Values
             .Where(j => j.Status == JobStatus.Blocked && j.Type == Constants.JobTypes.ExecutePlan)
@@ -783,7 +783,7 @@ internal class JobCompletionHandler
 
         foreach (var blockedJob in blockedJobs)
         {
-            var planFolder = blockedJob.Args.Length > 0 ? blockedJob.Args[0] : "";
+            var planFolder = blockedJob.TypedArgs?.PlanFolder ?? "";
             if (string.IsNullOrEmpty(planFolder)) continue;
 
             var (ok, _) = CheckDependencies(planFolder);
@@ -794,7 +794,7 @@ internal class JobCompletionHandler
             if (!jobs.TryRemove(blockedJob.Id, out _)) continue;
 
             PlanYamlHelper.SetPlanStateByFolder(planFolder, "Building");
-            startJobSkipDepCheck(blockedJob.Type, blockedJob.Args);
+            startJobSkipDepCheck(blockedJob.Type, blockedJob.TypedArgs!);
 
             raiseNotification(new JobNotification(
                 "Job Unblocked",
@@ -806,7 +806,7 @@ internal class JobCompletionHandler
     private void RetryBlockedDependents(
         string completedPlanFolder,
         ConcurrentDictionary<string, JobItem> jobs,
-        Func<string, string[], string> startJobSkipDepCheck)
+        Func<string, JobArgsBase, string> startJobSkipDepCheck)
     {
         try
         {
@@ -824,15 +824,15 @@ internal class JobCompletionHandler
                 var hasExistingJob = jobs.Values.Any(j =>
                     j.Type == Constants.JobTypes.ExecutePlan &&
                     j.Status is JobStatus.Blocked or JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
-                    j.Args.Length > 0 &&
-                    j.Args[0].Equals(dir, StringComparison.OrdinalIgnoreCase));
+                    j.TypedArgs?.PlanFolder != null &&
+                    j.TypedArgs.PlanFolder.Equals(dir, StringComparison.OrdinalIgnoreCase));
                 if (hasExistingJob) continue;
 
                 var (allMet, _) = CheckDependencies(dir);
                 if (allMet)
                 {
                     PlanYamlHelper.SetPlanStateByFolder(dir, "Building");
-                    startJobSkipDepCheck(Constants.JobTypes.ExecutePlan, new[] { dir });
+                    startJobSkipDepCheck(Constants.JobTypes.ExecutePlan, new ExecutePlanArgs(dir));
                 }
             }
         }
@@ -849,9 +849,10 @@ internal class JobCompletionHandler
         {
             if (j.Type != Constants.JobTypes.ExecutePlan) return false;
             if (j.Status is not (JobStatus.Running or JobStatus.Queued or JobStatus.Pending)) return false;
-            if (j.Args.Length == 0) return false;
 
-            var otherFolder = j.Args[0];
+            var otherFolder = j.TypedArgs?.PlanFolder;
+            if (otherFolder == null) return false;
+
             if (otherFolder.Equals(planFolder, StringComparison.OrdinalIgnoreCase))
                 return true;
 
@@ -869,7 +870,7 @@ internal class JobCompletionHandler
     private string? ResolvePlanFolder(JobItem job)
     {
         if (job.Type != Constants.JobTypes.CreatePlan)
-            return job.Args.Length > 0 ? job.Args[0] : null;
+            return job.TypedArgs?.PlanFolder;
 
         var planId = job.ReportedPlanId ?? job.AllocatedPlanId;
         if (string.IsNullOrEmpty(planId)) return null;
@@ -956,7 +957,7 @@ internal class JobCompletionHandler
         if (job.Status is not JobStatus.Failed and not JobStatus.Timeout || job.OutputLines.Count == 0)
             return;
 
-        var planFolder = job.Args.Length > 0 ? job.Args[0] : null;
+        var planFolder = job.TypedArgs?.PlanFolder;
 
         if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder))
         {
@@ -980,7 +981,7 @@ internal class JobCompletionHandler
         if (job.Type != Constants.JobTypes.ExecutePlan)
             return "";
 
-        var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
+        var planFolder = job.TypedArgs?.PlanFolder ?? "";
         if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder))
             return "";
 

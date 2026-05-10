@@ -1,5 +1,6 @@
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Apps.Plans.Dialogs;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 
@@ -36,7 +37,7 @@ public class CreatePlanDialogLauncher(Func<Action, object> renderTrigger) : View
                     {
                         lastSelectedProjects.Set(projects);
                         var project = string.Join(",", projects);
-                        jobService.StartJob(Constants.JobTypes.CreatePlan, "-Description", description, "-Project", project, "-Priority", priority.ToString(), "-Force");
+                        jobService.StartJob(Constants.JobTypes.CreatePlan, new CreatePlanArgs(description, project, priority, Force: true));
                     },
                     () => dialogOpen.Set(false),
                     lastSelectedProjects.Value

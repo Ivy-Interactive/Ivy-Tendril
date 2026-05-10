@@ -1,3 +1,4 @@
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
@@ -49,7 +50,7 @@ public class JobServiceCreateIssueTests : IDisposable
         WritePlanYaml("Draft");
         var service = CreateService();
 
-        var id = service.StartJob("CreateIssue", _tempDir.Path, "-Repo", "owner/repo", "-Assignee", "", "-Labels", "");
+        var id = service.StartJob("CreateIssue", new CreateIssueArgs(_tempDir.Path, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         var content = File.ReadAllText(_planYamlPath);
@@ -62,7 +63,7 @@ public class JobServiceCreateIssueTests : IDisposable
         WritePlanYaml("Draft");
         var service = CreateService();
 
-        var id = service.StartJob("CreateIssue", _tempDir.Path, "-Repo", "owner/repo", "-Assignee", "", "-Labels", "");
+        var id = service.StartJob("CreateIssue", new CreateIssueArgs(_tempDir.Path, "owner/repo", "", "", ""));
         service.CompleteJob(id, 1);
 
         var content = File.ReadAllText(_planYamlPath);

@@ -68,17 +68,16 @@ internal class JobLauncher
     {
         var job = ctx.Job;
         var type = job.Type;
-        var args = job.Args;
 
         job.Status = JobStatus.Running;
         job.StartedAt = DateTime.UtcNow;
         job.StatusMessage = null;
 
-        var planFolderForHooks = type != Constants.JobTypes.CreatePlan && args.Length > 0 ? args[0] : "";
+        var planFolderForHooks = type != Constants.JobTypes.CreatePlan ? (job.TypedArgs?.PlanFolder ?? "") : "";
         ctx.RunHooks("before", type, planFolderForHooks, job.Project, job);
 
-        if (type == Constants.JobTypes.ExecutePlan && args.Length > 0)
-            PlanYamlHelper.SetPlanStateByFolder(args[0], "Executing");
+        if (type == Constants.JobTypes.ExecutePlan && !string.IsNullOrEmpty(job.TypedArgs?.PlanFolder))
+            PlanYamlHelper.SetPlanStateByFolder(job.TypedArgs!.PlanFolder!, "Executing");
 
         job.SessionId = Guid.NewGuid().ToString();
     }
@@ -477,18 +476,19 @@ internal class JobLauncher
     private void BuildCreatePlanFirmware(JobLaunchContext ctx, Dictionary<string, string> values)
     {
         var job = ctx.Job;
-        var description = PlanYamlHelper.GetNamedArg(job.Args, "-Description") ?? string.Join(" ", job.Args);
+        var cp = job.TypedArgs as CreatePlanArgs;
+        var description = cp?.Description ?? "";
         values["Args"] = description;
         values["PlansDirectory"] = _configService!.PlanFolder;
 
-        if (job.Args.Contains("-Force", StringComparer.OrdinalIgnoreCase))
+        if (cp?.Force == true)
             values["Force"] = "true";
     }
 
     private (Dictionary<string, string> Values, PlanYaml? PlanYaml, string? ProfileOverride)
         BuildNonCreatePlanFirmware(JobItem job, Dictionary<string, string> values)
     {
-        var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
+        var planFolder = job.TypedArgs?.PlanFolder ?? "";
         values["Args"] = planFolder;
 
         if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder))

@@ -186,12 +186,7 @@ public class PlanCountsServiceTests : IDisposable
             return _jobs.FirstOrDefault(j => j.Id == id);
         }
 
-        public string StartJob(string type, string[] args, string? inboxFilePath)
-        {
-            throw new NotImplementedException();
-        }
-
-        public string StartJob(string type, params string[] args)
+        public string StartJob(string type, JobArgsBase args, string? inboxFilePath = null)
         {
             throw new NotImplementedException();
         }

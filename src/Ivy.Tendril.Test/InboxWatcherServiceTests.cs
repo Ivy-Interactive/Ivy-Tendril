@@ -214,15 +214,13 @@ public class InboxWatcherServiceTests : IDisposable
     private class TrackedStubJobService : IJobService
     {
         public bool TrackedReturnValue { get; set; }
-        public List<(string Type, string[] Args, string? InboxFilePath)> StartedJobs { get; } = new();
+        public List<(string Type, JobArgsBase Args, string? InboxFilePath)> StartedJobs { get; } = new();
 
-        public string StartJob(string type, string[] args, string? inboxFilePath)
+        public string StartJob(string type, JobArgsBase args, string? inboxFilePath = null)
         {
             StartedJobs.Add((type, args, inboxFilePath));
             return $"job-{StartedJobs.Count:D3}";
         }
-
-        public string StartJob(string type, params string[] args) => StartJob(type, args, null);
 
         public bool IsInboxFileTracked(string filePath) => TrackedReturnValue;
 
@@ -347,20 +345,18 @@ public class InboxWatcherServiceTests : IDisposable
     private class DeleteBeforeRenameJobService : IJobService
     {
         private readonly string _fileToDelete;
-        public List<(string Type, string[] Args, string? InboxFilePath)> StartedJobs { get; } = new();
+        public List<(string Type, JobArgsBase Args, string? InboxFilePath)> StartedJobs { get; } = new();
 
         public DeleteBeforeRenameJobService(string fileToDelete)
         {
             _fileToDelete = fileToDelete;
         }
 
-        public string StartJob(string type, string[] args, string? inboxFilePath)
+        public string StartJob(string type, JobArgsBase args, string? inboxFilePath = null)
         {
             StartedJobs.Add((type, args, inboxFilePath));
             return $"job-{StartedJobs.Count:D3}";
         }
-
-        public string StartJob(string type, params string[] args) => StartJob(type, args, null);
 
         public bool IsInboxFileTracked(string filePath)
         {
@@ -392,17 +388,15 @@ public class InboxWatcherServiceTests : IDisposable
 
     private class TimestampedJobService : IJobService
     {
-        public List<(string Type, string[] Args, string? InboxFilePath)> StartedJobs { get; } = new();
+        public List<(string Type, JobArgsBase Args, string? InboxFilePath)> StartedJobs { get; } = new();
         public List<DateTime> StartJobTimestamps { get; } = new();
 
-        public string StartJob(string type, string[] args, string? inboxFilePath)
+        public string StartJob(string type, JobArgsBase args, string? inboxFilePath = null)
         {
             StartJobTimestamps.Add(DateTime.UtcNow);
             StartedJobs.Add((type, args, inboxFilePath));
             return $"job-{StartedJobs.Count:D3}";
         }
-
-        public string StartJob(string type, params string[] args) => StartJob(type, args, null);
 
         public bool IsInboxFileTracked(string filePath) => false;
 

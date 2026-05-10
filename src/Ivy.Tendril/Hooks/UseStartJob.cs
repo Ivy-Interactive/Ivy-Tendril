@@ -1,5 +1,6 @@
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 
 namespace Ivy.Tendril.Hooks;
 
@@ -11,13 +12,13 @@ public static class UseStartJobExtensions
     /// </summary>
     /// <param name="context">The view context</param>
     /// <returns>A tuple containing the startJob action and isStarting flag</returns>
-    public static (Action<string, string[]> StartJob, bool IsStarting) UseStartJob(
+    public static (Action<string, JobArgsBase> StartJob, bool IsStarting) UseStartJob(
         this IViewContext context)
     {
         var jobService = context.UseService<IJobService>();
         var isStarting = context.UseState(false);
 
-        Action<string, string[]> startJob = (type, args) =>
+        Action<string, JobArgsBase> startJob = (type, args) =>
         {
             if (!isStarting.Value)
             {

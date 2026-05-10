@@ -1,3 +1,4 @@
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Test.Helpers;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -108,9 +109,7 @@ public class InboxRecoveryTests
         {
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
 
-            var id = jobService.StartJob("CreatePlan",
-                "-Description", "Test plan description",
-                "-Project", "Tendril");
+            var id = jobService.StartJob("CreatePlan", new CreatePlanArgs("Test plan description", "Tendril"));
 
             var job = jobService.GetJob(id);
             Assert.NotNull(job);
@@ -145,9 +144,7 @@ public class InboxRecoveryTests
         {
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
 
-            var id = jobService.StartJob("CreatePlan",
-                "-Description", "Failing plan",
-                "-Project", "Tendril");
+            var id = jobService.StartJob("CreatePlan", new CreatePlanArgs("Failing plan", "Tendril"));
 
             var job = jobService.GetJob(id);
             Assert.NotNull(job?.InboxFile);
@@ -175,9 +172,7 @@ public class InboxRecoveryTests
         {
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
 
-            var id = jobService.StartJob("CreatePlan",
-                "-Description", "Stopped plan",
-                "-Project", "Tendril");
+            var id = jobService.StartJob("CreatePlan", new CreatePlanArgs("Stopped plan", "Tendril"));
 
             var job = jobService.GetJob(id);
             Assert.NotNull(job?.InboxFile);
@@ -210,7 +205,7 @@ public class InboxRecoveryTests
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
 
             var id = jobService.StartJob("CreatePlan",
-                ["-Description", "Some request", "-Project", "Agent"],
+                new CreatePlanArgs("Some request", "Agent"),
                 processingFile);
 
             var job = jobService.GetJob(id);
@@ -246,7 +241,7 @@ public class InboxRecoveryTests
             File.WriteAllText(Path.Combine(planFolder, "plan.yaml"),
                 $"state: Draft\nproject: TestProject\nlevel: NiceToHave\ntitle: Test Plan\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nrepos:\n- {repoDir}\nprs: []\ncommits: []\nverifications: []\nrelatedPlans: []\ndependsOn: []\n");
 
-            var id = jobService.StartJob("ExecutePlan", planFolder);
+            var id = jobService.StartJob("ExecutePlan", new ExecutePlanArgs(planFolder));
             var job = jobService.GetJob(id);
             Assert.NotNull(job);
             Assert.Null(job.InboxFile);

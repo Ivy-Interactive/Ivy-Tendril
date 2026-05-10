@@ -644,8 +644,8 @@ public class PlanDatabaseService : IPlanDatabaseService
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
-                              INSERT OR REPLACE INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, SessionId, StartedAt, CompletedAt, DurationSeconds, Cost, Tokens, StatusMessage, Args)
-                              VALUES (@id, @type, @planFile, @project, @status, @provider, @sessionId, @startedAt, @completedAt, @durationSeconds, @cost, @tokens, @statusMessage, @args)
+                              INSERT OR REPLACE INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, SessionId, StartedAt, CompletedAt, DurationSeconds, Cost, Tokens, StatusMessage, Args, TypedArgs)
+                              VALUES (@id, @type, @planFile, @project, @status, @provider, @sessionId, @startedAt, @completedAt, @durationSeconds, @cost, @tokens, @statusMessage, @args, @typedArgs)
                               """;
             cmd.Parameters.AddWithValue("@id", job.Id);
             cmd.Parameters.AddWithValue("@type", job.Type);
@@ -662,7 +662,10 @@ public class PlanDatabaseService : IPlanDatabaseService
             cmd.Parameters.AddWithValue("@cost", job.Cost.HasValue ? (double)job.Cost.Value : DBNull.Value);
             cmd.Parameters.AddWithValue("@tokens", (object?)job.Tokens ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@statusMessage", (object?)job.StatusMessage ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@args", job.Args.Length > 0 ? JsonSerializer.Serialize(job.Args) : (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@args", DBNull.Value);
+            cmd.Parameters.AddWithValue("@typedArgs", job.TypedArgs != null
+                ? JsonSerializer.Serialize<JobArgsBase>(job.TypedArgs)
+                : DBNull.Value);
             cmd.ExecuteNonQuery();
         }
     }
@@ -703,9 +706,7 @@ public class PlanDatabaseService : IPlanDatabaseService
                     StatusMessage = reader.IsDBNull(reader.GetOrdinal("StatusMessage"))
                         ? null
                         : reader.GetString(reader.GetOrdinal("StatusMessage")),
-                    Args = reader.IsDBNull(reader.GetOrdinal("Args"))
-                        ? []
-                        : JsonSerializer.Deserialize<string[]>(reader.GetString(reader.GetOrdinal("Args"))) ?? []
+                    TypedArgs = ReadTypedArgs(reader)
                 },
                 new SqliteParameter("@limit", limit));
         }
@@ -848,6 +849,24 @@ public class PlanDatabaseService : IPlanDatabaseService
     /// <summary>
     /// Executes a query and maps each row to T using the provided mapper function. Must be called within a lock.
     /// </summary>
+    private static JobArgsBase? ReadTypedArgs(SqliteDataReader reader)
+    {
+        var typedOrd = reader.GetOrdinal("TypedArgs");
+        if (!reader.IsDBNull(typedOrd))
+        {
+            var json = reader.GetString(typedOrd);
+            return JsonSerializer.Deserialize<JobArgsBase>(json);
+        }
+
+        // Legacy fallback: parse old Args column
+        var argsOrd = reader.GetOrdinal("Args");
+        if (reader.IsDBNull(argsOrd)) return null;
+        var legacyArgs = JsonSerializer.Deserialize<string[]>(reader.GetString(argsOrd));
+        if (legacyArgs == null || legacyArgs.Length == 0) return null;
+        var type = reader.GetString(reader.GetOrdinal("Type"));
+        return JobArgsBase.FromLegacy(type, legacyArgs);
+    }
+
     private List<T> ReadList<T>(string sql, Func<SqliteDataReader, T> mapper, params SqliteParameter[] parameters)
     {
         using var cmd = _connection.CreateCommand();

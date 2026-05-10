@@ -40,7 +40,7 @@ public record JobItem
     public DateTime? StartedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public int? DurationSeconds { get; set; }
-    public string[] Args { get; init; } = [];
+    public JobArgsBase? TypedArgs { get; init; }
     public bool CancellationRequested { get; set; }
     public string? SessionId { get; set; }
     public string Provider { get; init; } = "claude";

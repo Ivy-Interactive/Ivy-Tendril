@@ -31,8 +31,8 @@ public class UpdatePlanDialog(
         var hasActiveJob = _jobService.GetJobs().Any(j =>
             j.Type == Constants.JobTypes.UpdatePlan &&
             j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
-            j.Args.Length > 0 &&
-            j.Args[0].Equals(_selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
+            j.TypedArgs?.PlanFolder != null &&
+            j.TypedArgs.PlanFolder.Equals(_selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
 
         return new Dialog(
             _ =>
@@ -76,7 +76,7 @@ public class UpdatePlanDialog(
                         _planService.SavePlan(_selectedPlan.FolderName, currentContent + "\n\n" + comments + "\n");
 
                         _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Updating);
-                        _jobService.StartJob(Constants.JobTypes.UpdatePlan, _selectedPlan.FolderPath);
+                        _jobService.StartJob(Constants.JobTypes.UpdatePlan, new UpdatePlanArgs(_selectedPlan.FolderPath));
                         _refreshPlans();
                         _updateText.Set("");
                         isCreating.Set(false);
