@@ -514,6 +514,7 @@ internal class JobLauncher
 
         var profileOverride = ExtractExecutionProfile(job, planYaml);
         AddRepoConfigsIfNeeded(job, planYaml, values);
+        AddCreatePrOptions(job, values);
 
         return (values, planYaml, profileOverride);
     }
@@ -540,6 +541,21 @@ internal class JobLauncher
         var repoConfigs = BuildRepoConfigsYaml(planYaml, job.Project);
         if (!string.IsNullOrEmpty(repoConfigs))
             values["RepoConfigs"] = repoConfigs;
+    }
+
+    private static void AddCreatePrOptions(JobItem job, Dictionary<string, string> values)
+    {
+        if (job.Type != Constants.JobTypes.CreatePr || job.TypedArgs is not CreatePrArgs pr)
+            return;
+
+        values["PrMerge"] = pr.Merge.ToString().ToLowerInvariant();
+        values["PrDeleteBranch"] = pr.DeleteBranch.ToString().ToLowerInvariant();
+        values["PrIncludeArtifacts"] = pr.IncludeArtifacts.ToString().ToLowerInvariant();
+        values["PrDraft"] = pr.Draft.ToString().ToLowerInvariant();
+        if (!string.IsNullOrEmpty(pr.Assignee))
+            values["PrAssignee"] = pr.Assignee;
+        if (!string.IsNullOrEmpty(pr.Comment))
+            values["PrComment"] = pr.Comment;
     }
 
     private static Dictionary<string, string> BuildJobContext(JobItem job, Dictionary<string, string> firmwareValues, string programFolder)
