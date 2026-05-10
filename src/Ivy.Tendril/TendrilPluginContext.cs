@@ -9,9 +9,4 @@ namespace Ivy.Tendril;
 internal class TendrilPluginContext(Server server, WebApplicationBuilder builder)
     : PluginContextBase(server, builder), ITendrilPluginContext
 {
-    public void RegisterMessagingChannel(IMessagingChannel channel)
-    {
-        Services.AddSingleton(channel);
-    }
 }
-

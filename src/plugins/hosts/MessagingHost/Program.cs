@@ -20,8 +20,4 @@ await server.RunAsync();
 class MessagingPluginContext(Server server, WebApplicationBuilder builder)
     : PluginContextBase(server, builder), Ivy.Plugins.ITendrilPluginContext
 {
-    public void RegisterMessagingChannel(IMessagingChannel channel)
-    {
-        Services.AddSingleton<IMessagingChannel>(channel);
-    }
 }
