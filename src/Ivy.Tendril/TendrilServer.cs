@@ -244,6 +244,16 @@ public static class TendrilServer
         server.AddAppsFromAssembly(typeof(TendrilServer).Assembly);
         server.AddConnectionsFromAssembly(typeof(TendrilServer).Assembly);
 
+        // Load plugins from the plugins directory under Tendril root
+        if (!string.IsNullOrEmpty(configService.TendrilHome) && Directory.Exists(configService.TendrilHome))
+        {
+            var pluginsDir = Path.Combine(configService.TendrilHome, "plugins");
+            Directory.CreateDirectory(pluginsDir);
+            server.UsePlugins(pluginsDir,
+                contextFactory: (s, builder) => new TendrilPluginContext(s, builder),
+                sharedAssemblyNames: ["Ivy.Tendril.Plugin.Abstractions"]);
+        }
+
         var version = typeof(TendrilAppShell).Assembly.GetName().Version!;
         var versionString = version.ToString(3);
         var appShellSettings = new AppShellSettings()
