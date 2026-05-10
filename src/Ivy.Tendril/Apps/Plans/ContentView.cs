@@ -161,7 +161,7 @@ public class ContentView(
             selectedPlanState.Set(optimisticPlan);
 
             planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
-            jobService.StartJob("ExecutePlan", new ExecutePlanArgs(selectedPlan.FolderPath));
+            jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath));
             refreshPlans();
         });
 

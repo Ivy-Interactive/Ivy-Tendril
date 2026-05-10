@@ -83,7 +83,7 @@ public class CustomPrDialog(
                     if (!isCreating.Value)
                     {
                         isCreating.Set(true);
-                        _jobService.StartJob(Constants.JobTypes.CreatePr, new CreatePrArgs(
+                        _jobService.StartJob(new CreatePrArgs(
                             _selectedPlan.FolderPath,
                             Merge: customPrMerge.Value,
                             DeleteBranch: customPrDeleteBranch.Value && customPrMerge.Value,

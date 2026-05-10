@@ -52,7 +52,7 @@ public class ContentView(
                      | new Button("Accept").Icon(Icons.Check).Primary().ShortcutKey("a").OnClick(() =>
                      {
                          planService.UpdateRecommendationState(selectedRecommendation.PlanFolderName, selectedRecommendation.Title, "Accepted");
-                         jobService.StartJob(Constants.JobTypes.CreatePlan, new CreatePlanArgs(selectedRecommendation.Description, selectedRecommendation.Project));
+                         jobService.StartJob(new CreatePlanArgs(selectedRecommendation.Description, selectedRecommendation.Project));
                          client.Toast($"Started CreatePlan: {selectedRecommendation.Title}", "Recommendation Accepted");
                          refresh();
                          GoToNext();
@@ -141,7 +141,7 @@ public class ContentView(
             {
                 var description = $"[ORIGINAL RECOMMENDATION]\n{selectedRecommendation.Description}\n\n[NOTES]\n{notes}";
                 planService.UpdateRecommendationState(selectedRecommendation.PlanFolderName, selectedRecommendation.Title, "AcceptedWithNotes");
-                jobService.StartJob(Constants.JobTypes.CreatePlan, new CreatePlanArgs(description, selectedRecommendation.Project));
+                jobService.StartJob(new CreatePlanArgs(description, selectedRecommendation.Project));
                 client.Toast($"Started CreatePlan: {selectedRecommendation.Title}", "Recommendation Accepted with Notes");
                 refresh();
                 GoToNext();

@@ -166,7 +166,7 @@ public class PullRequestApp : ViewBase
                 (description, projects, priority) =>
                 {
                     var project = string.Join(",", projects);
-                    jobService.StartJob(Constants.JobTypes.CreatePlan, new CreatePlanArgs(description, project, priority));
+                    jobService.StartJob(new CreatePlanArgs(description, project, priority));
                 },
                 () =>
                 {

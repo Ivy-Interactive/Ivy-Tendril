@@ -68,7 +68,7 @@ public class JobServiceCostTrackingTests : IDisposable
         var service = CreateService();
         var planFolder = CreateValidPlanFolder();
 
-        var id = service.StartJob("ExecutePlan", new ExecutePlanArgs(planFolder));
+        var id = service.StartJob(new ExecutePlanArgs(planFolder));
         var job = service.GetJob(id);
 
         Assert.NotNull(job);
@@ -84,8 +84,8 @@ public class JobServiceCostTrackingTests : IDisposable
         var planFolder1 = CreateValidPlanFolder();
         var planFolder2 = CreateValidPlanFolder();
 
-        var id1 = service.StartJob("ExecutePlan", new ExecutePlanArgs(planFolder1));
-        var id2 = service.StartJob("ExecutePlan", new ExecutePlanArgs(planFolder2));
+        var id1 = service.StartJob(new ExecutePlanArgs(planFolder1));
+        var id2 = service.StartJob(new ExecutePlanArgs(planFolder2));
 
         var job1 = service.GetJob(id1);
         var job2 = service.GetJob(id2);
@@ -103,7 +103,7 @@ public class JobServiceCostTrackingTests : IDisposable
         var service = new JobService(configService);
         var planFolder = CreateValidPlanFolder();
 
-        var id = service.StartJob("ExecutePlan", new ExecutePlanArgs(planFolder));
+        var id = service.StartJob(new ExecutePlanArgs(planFolder));
         var job = service.GetJob(id);
 
         Assert.NotNull(job);
@@ -122,7 +122,7 @@ public class JobServiceCostTrackingTests : IDisposable
             var service = new JobService(configService);
             var planFolder = CreateValidPlanFolder(tempDir);
 
-            var id = service.StartJob("ExecutePlan", new ExecutePlanArgs(planFolder));
+            var id = service.StartJob(new ExecutePlanArgs(planFolder));
             var job = service.GetJob(id);
 
             Assert.NotNull(job);

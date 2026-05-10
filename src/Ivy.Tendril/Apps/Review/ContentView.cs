@@ -226,7 +226,7 @@ public class ContentView(
 
             if (allYolo)
             {
-                jobService.StartJob(Constants.JobTypes.CreatePr, new CreatePrArgs(selectedPlan.FolderPath));
+                jobService.StartJob(new CreatePrArgs(selectedPlan.FolderPath));
                 planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
                 refreshPlans();
             }

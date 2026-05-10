@@ -193,7 +193,7 @@ public partial class JobsApp
                             }
 
                             jobService.DeleteJob(job.Id);
-                            jobService.StartJob(job.Type, job.TypedArgs);
+                            jobService.StartJob(job.TypedArgs);
 
                             refreshToken.Refresh();
                         }

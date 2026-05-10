@@ -76,7 +76,7 @@ public class UpdatePlanDialog(
                         _planService.SavePlan(_selectedPlan.FolderName, currentContent + "\n\n" + comments + "\n");
 
                         _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Updating);
-                        _jobService.StartJob(Constants.JobTypes.UpdatePlan, new UpdatePlanArgs(_selectedPlan.FolderPath));
+                        _jobService.StartJob(new UpdatePlanArgs(_selectedPlan.FolderPath));
                         _refreshPlans();
                         _updateText.Set("");
                         isCreating.Set(false);

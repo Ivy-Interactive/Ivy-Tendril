@@ -15,7 +15,7 @@ public class JobServiceJobsChangedTests
     public void CompleteJob_RaisesJobsChangedEvent()
     {
         var service = CreateService();
-        var id = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs("test-plan"));
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
 
         var fired = false;
         service.JobsChanged += () => fired = true;
@@ -28,7 +28,7 @@ public class JobServiceJobsChangedTests
     public void CompleteJob_Failure_RaisesJobsChangedEvent()
     {
         var service = CreateService();
-        var id = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs("test-plan"));
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
 
         var fired = false;
         service.JobsChanged += () => fired = true;
@@ -41,7 +41,7 @@ public class JobServiceJobsChangedTests
     public void StopJob_RaisesJobsChangedEvent()
     {
         var service = CreateService();
-        var id = service.CreateTestJob("ExecutePlan", new ExecutePlanArgs("test-plan"));
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
 
         var fired = false;
         service.JobsChanged += () => fired = true;

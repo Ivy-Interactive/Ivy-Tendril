@@ -10,7 +10,7 @@ public interface IJobService : IDisposable
     event Action? JobPropertyChanged;    // Only properties changed (cost, tokens)
     event Action<JobNotification>? NotificationReady;
 
-    string StartJob(string type, JobArgsBase args, string? inboxFilePath = null);
+    string StartJob(JobArgsBase args, string? inboxFilePath = null);
     void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false);
     void StopJob(string id);
     void DeleteJob(string id);

@@ -73,7 +73,7 @@ public class ActionBarView(
                     selectedPlanState.Set(optimisticPlan);
 
                     planService.TransitionState(selectedPlan.FolderName, PlanStatus.Updating);
-                    jobService.StartJob("SplitPlan", new SplitPlanArgs(selectedPlan.FolderPath));
+                    jobService.StartJob(new SplitPlanArgs(selectedPlan.FolderPath));
                     refreshPlans();
                 })
                 | new Button("Expand").Icon(Icons.UnfoldVertical).Outline().ShortcutKey("x")
@@ -91,7 +91,7 @@ public class ActionBarView(
 
                     planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
                     var planPath = selectedPlan.FolderPath;
-                    jobService.StartJob("ExpandPlan", new ExpandPlanArgs(planPath));
+                    jobService.StartJob(new ExpandPlanArgs(planPath));
                     refreshPlans();
                 })
                 | new Button("Delete").Icon(Icons.Trash).Outline().ShortcutKey("Backspace")
