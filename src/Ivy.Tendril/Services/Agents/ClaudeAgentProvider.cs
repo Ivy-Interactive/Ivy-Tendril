@@ -52,7 +52,7 @@ public class ClaudeAgentProvider : IAgentProvider
         if (invocation.AllowedTools.Count > 0)
         {
             psi.ArgumentList.Add("--allowedTools");
-            psi.ArgumentList.Add(string.Join(",", invocation.AllowedTools));
+            psi.ArgumentList.Add(string.Join(" ", invocation.AllowedTools));
         }
 
         foreach (var arg in invocation.ExtraArgs)
