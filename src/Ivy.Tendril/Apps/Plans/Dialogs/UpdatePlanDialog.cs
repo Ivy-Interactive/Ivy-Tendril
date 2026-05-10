@@ -29,7 +29,7 @@ public class UpdatePlanDialog(
 
         // Check if there's already an UpdatePlan job running for this plan
         var hasActiveJob = _jobService.GetJobs().Any(j =>
-            j.Type == Constants.JobTypes.UpdatePlan &&
+            j.TypedArgs is UpdatePlanArgs &&
             j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
             j.TypedArgs?.PlanFolder != null &&
             j.TypedArgs.PlanFolder.Equals(_selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));

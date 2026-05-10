@@ -63,10 +63,10 @@ internal class JobCompletionHandler
         if (job.Status is JobStatus.Failed or JobStatus.Timeout)
             ScheduleWorktreeCleanup(job);
 
-        if (job.Type is Constants.JobTypes.ExecutePlan or Constants.JobTypes.CreatePr)
+        if (job.TypedArgs is ExecutePlanArgs or CreatePrArgs)
             RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck);
 
-        if (isSuccess && job.Type is Constants.JobTypes.ExecutePlan or Constants.JobTypes.CreatePr or Constants.JobTypes.CreateIssue)
+        if (isSuccess && job.TypedArgs is ExecutePlanArgs or CreatePrArgs or CreateIssueArgs)
         {
             var planFolder = job.TypedArgs?.PlanFolder ?? "";
             RetryBlockedDependents(planFolder, jobs, startJobSkipDepCheck);
@@ -95,24 +95,24 @@ internal class JobCompletionHandler
         {
             ResetPlanState(job);
         }
-        else if (isSuccess && job.Type == Constants.JobTypes.ExecutePlan)
+        else if (isSuccess && job.TypedArgs is ExecutePlanArgs)
         {
             SyncPlanArtifacts(job);
             EnsurePlanStateTransitioned(job);
         }
-        else if (isSuccess && job.Type == Constants.JobTypes.CreateIssue)
+        else if (isSuccess && job.TypedArgs is CreateIssueArgs)
         {
             SetPlanState(job, "Completed");
         }
-        else if (isSuccess && job.Type is Constants.JobTypes.UpdatePlan or Constants.JobTypes.ExpandPlan)
+        else if (isSuccess && job.TypedArgs is UpdatePlanArgs or ExpandPlanArgs)
         {
             SetPlanState(job, "Draft");
         }
-        else if (isSuccess && job.Type == Constants.JobTypes.SplitPlan)
+        else if (isSuccess && job.TypedArgs is SplitPlanArgs)
         {
             SetPlanState(job, "Skipped");
         }
-        else if (isSuccess && job.Type == Constants.JobTypes.CreatePlan)
+        else if (isSuccess && job.TypedArgs is CreatePlanArgs)
         {
             VerifyCreatePlanResult(job);
         }
@@ -120,7 +120,7 @@ internal class JobCompletionHandler
 
     private void TrackTelemetry(JobItem job, bool isSuccess)
     {
-        if (isSuccess && job.Type == Constants.JobTypes.CreatePlan && job.Status == JobStatus.Completed)
+        if (isSuccess && job.TypedArgs is CreatePlanArgs && job.Status == JobStatus.Completed)
         {
             var planFolder = job.TypedArgs?.PlanFolder ?? "";
             var level = "NiceToHave";
@@ -133,7 +133,7 @@ internal class JobCompletionHandler
             _telemetryService?.TrackPlanCreated(new PlanCreatedContext(level, job.DurationSeconds));
         }
 
-        if (isSuccess && job.Type == Constants.JobTypes.CreatePr)
+        if (isSuccess && job.TypedArgs is CreatePrArgs)
         {
             _telemetryService?.TrackPrCreated(new PrCreatedContext(job.DurationSeconds));
         }
@@ -640,10 +640,10 @@ internal class JobCompletionHandler
     {
         try
         {
-            if (job.Type is Constants.JobTypes.CreatePlan or Constants.JobTypes.CreatePr or Constants.JobTypes.CreateIssue) return;
+            if (job.TypedArgs is CreatePlanArgs or CreatePrArgs or CreateIssueArgs) return;
 
             var planFolder = job.TypedArgs?.PlanFolder ?? "";
-            var newState = job.Type == Constants.JobTypes.ExecutePlan ? "Failed" : "Draft";
+            var newState = job.TypedArgs is ExecutePlanArgs ? "Failed" : "Draft";
             PlanYamlHelper.SetPlanStateByFolder(planFolder, newState);
         }
         catch (Exception ex)
@@ -680,7 +680,7 @@ internal class JobCompletionHandler
 
     private void ScheduleWorktreeCleanup(JobItem job)
     {
-        if (job.Type != Constants.JobTypes.ExecutePlan) return;
+        if (job.TypedArgs is not ExecutePlanArgs) return;
 
         var planFolder = job.TypedArgs?.PlanFolder ?? "";
         if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder)) return;
@@ -778,7 +778,7 @@ internal class JobCompletionHandler
         Func<JobArgsBase, string> startJobSkipDepCheck)
     {
         var blockedJobs = jobs.Values
-            .Where(j => j.Status == JobStatus.Blocked && j.Type == Constants.JobTypes.ExecutePlan)
+            .Where(j => j.Status == JobStatus.Blocked && j.TypedArgs is ExecutePlanArgs)
             .ToList();
 
         foreach (var blockedJob in blockedJobs)
@@ -822,7 +822,7 @@ internal class JobCompletionHandler
                 if (!planYaml.DependsOn.Contains(completedFolderName, StringComparer.OrdinalIgnoreCase)) continue;
 
                 var hasExistingJob = jobs.Values.Any(j =>
-                    j.Type == Constants.JobTypes.ExecutePlan &&
+                    j.TypedArgs is ExecutePlanArgs &&
                     j.Status is JobStatus.Blocked or JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
                     j.TypedArgs?.PlanFolder != null &&
                     j.TypedArgs.PlanFolder.Equals(dir, StringComparison.OrdinalIgnoreCase));
@@ -847,7 +847,7 @@ internal class JobCompletionHandler
 
         return jobs.Values.Any(j =>
         {
-            if (j.Type != Constants.JobTypes.ExecutePlan) return false;
+            if (j.TypedArgs is not ExecutePlanArgs) return false;
             if (j.Status is not (JobStatus.Running or JobStatus.Queued or JobStatus.Pending)) return false;
 
             var otherFolder = j.TypedArgs?.PlanFolder;
@@ -869,7 +869,7 @@ internal class JobCompletionHandler
 
     private string? ResolvePlanFolder(JobItem job)
     {
-        if (job.Type != Constants.JobTypes.CreatePlan)
+        if (job.TypedArgs is not CreatePlanArgs)
             return job.TypedArgs?.PlanFolder;
 
         var planId = job.ReportedPlanId ?? job.AllocatedPlanId;
@@ -902,7 +902,7 @@ internal class JobCompletionHandler
         if (_planReaderService == null || string.IsNullOrEmpty(job.PlanFile))
             return;
 
-        if (job.Type == Constants.JobTypes.CreatePlan)
+        if (job.TypedArgs is CreatePlanArgs)
             return;
 
         try
@@ -978,7 +978,7 @@ internal class JobCompletionHandler
 
     private static string BuildPlanOutcomeSummary(JobItem job)
     {
-        if (job.Type != Constants.JobTypes.ExecutePlan)
+        if (job.TypedArgs is not ExecutePlanArgs)
             return "";
 
         var planFolder = job.TypedArgs?.PlanFolder ?? "";

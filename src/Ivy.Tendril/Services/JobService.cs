@@ -205,7 +205,7 @@ public class JobService : IJobService
         JobCompletionHandler.CleanupInboxFile(job);
         _completionHandler.ResetPlanState(job);
 
-        if (job.Type is Constants.JobTypes.ExecutePlan or Constants.JobTypes.CreatePr)
+        if (job.TypedArgs is ExecutePlanArgs or CreatePrArgs)
             _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);
 
         RaiseJobsStructureChanged();
@@ -285,7 +285,7 @@ public class JobService : IJobService
     public bool IsInboxFileTracked(string filePath)
     {
         return _jobs.Values.Any(j =>
-            j.Type == Constants.JobTypes.CreatePlan &&
+            j.TypedArgs is CreatePlanArgs &&
             j.Status is JobStatus.Pending or JobStatus.Queued or JobStatus.Running &&
             j.InboxFile != null &&
             j.InboxFile.Equals(filePath, StringComparison.OrdinalIgnoreCase));
@@ -381,7 +381,7 @@ public class JobService : IJobService
         if (TryBlockForDependencies(job, skipDependencyCheck))
             return id;
 
-        if (job.Type is Constants.JobTypes.ExecutePlan or Constants.JobTypes.ExpandPlan or Constants.JobTypes.UpdatePlan or Constants.JobTypes.SplitPlan)
+        if (job.TypedArgs is ExecutePlanArgs or ExpandPlanArgs or UpdatePlanArgs or SplitPlanArgs)
             _planReaderService?.FlushPendingWritesAsync().GetAwaiter().GetResult();
 
         if (!_jobSlotSemaphore.Wait(0))
@@ -463,7 +463,7 @@ public class JobService : IJobService
 
     private bool TryRejectConflictingJob(JobItem job)
     {
-        if (job.Type is not (Constants.JobTypes.ExecutePlan or Constants.JobTypes.UpdatePlan or Constants.JobTypes.ExpandPlan or Constants.JobTypes.SplitPlan))
+        if (job.TypedArgs is not (ExecutePlanArgs or UpdatePlanArgs or ExpandPlanArgs or SplitPlanArgs))
             return false;
 
         var planFolder = job.TypedArgs?.PlanFolder ?? "";
@@ -491,7 +491,7 @@ public class JobService : IJobService
 
     private bool TryBlockForDependencies(JobItem job, bool skipDependencyCheck)
     {
-        if (job.Type != Constants.JobTypes.ExecutePlan || skipDependencyCheck)
+        if (job.TypedArgs is not ExecutePlanArgs || skipDependencyCheck)
             return false;
 
         var planFolder = job.TypedArgs?.PlanFolder ?? "";

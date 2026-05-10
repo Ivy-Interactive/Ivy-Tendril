@@ -183,11 +183,11 @@ public partial class JobsApp
                             }
 
                             var folder = job.TypedArgs.PlanFolder;
-                            if (job.Type is "ExecutePlan" or "ExpandPlan" && folder != null)
+                            if (job.TypedArgs is ExecutePlanArgs or ExpandPlanArgs && folder != null)
                             {
                                 planService.TransitionState(Path.GetFileName(folder), PlanStatus.Building);
                             }
-                            else if (job.Type == "UpdatePlan" && folder != null)
+                            else if (job.TypedArgs is UpdatePlanArgs && folder != null)
                             {
                                 planService.TransitionState(Path.GetFileName(folder), PlanStatus.Updating);
                             }

@@ -73,10 +73,10 @@ internal class JobLauncher
         job.StartedAt = DateTime.UtcNow;
         job.StatusMessage = null;
 
-        var planFolderForHooks = type != Constants.JobTypes.CreatePlan ? (job.TypedArgs?.PlanFolder ?? "") : "";
+        var planFolderForHooks = job.TypedArgs is not CreatePlanArgs ? (job.TypedArgs?.PlanFolder ?? "") : "";
         ctx.RunHooks("before", type, planFolderForHooks, job.Project, job);
 
-        if (type == Constants.JobTypes.ExecutePlan && !string.IsNullOrEmpty(job.TypedArgs?.PlanFolder))
+        if (job.TypedArgs is ExecutePlanArgs && !string.IsNullOrEmpty(job.TypedArgs?.PlanFolder))
             PlanYamlHelper.SetPlanStateByFolder(job.TypedArgs!.PlanFolder!, "Executing");
 
         job.SessionId = Guid.NewGuid().ToString();
@@ -464,7 +464,7 @@ internal class JobLauncher
             ["ClaudeSessionId"] = job.SessionId ?? ""
         };
 
-        if (job.Type == Constants.JobTypes.CreatePlan)
+        if (job.TypedArgs is CreatePlanArgs)
         {
             BuildCreatePlanFirmware(ctx, values);
             return (values, null, null);
@@ -528,14 +528,14 @@ internal class JobLauncher
 
     private static string? ExtractExecutionProfile(JobItem job, PlanYaml planYaml)
     {
-        if (job.Type == Constants.JobTypes.ExecutePlan && !string.IsNullOrEmpty(planYaml.ExecutionProfile))
+        if (job.TypedArgs is ExecutePlanArgs && !string.IsNullOrEmpty(planYaml.ExecutionProfile))
             return planYaml.ExecutionProfile;
         return null;
     }
 
     private void AddRepoConfigsIfNeeded(JobItem job, PlanYaml planYaml, Dictionary<string, string> values)
     {
-        if (job.Type is not (Constants.JobTypes.ExecutePlan or Constants.JobTypes.CreatePr))
+        if (job.TypedArgs is not (ExecutePlanArgs or CreatePrArgs))
             return;
 
         var repoConfigs = BuildRepoConfigsYaml(planYaml, job.Project);
@@ -545,7 +545,7 @@ internal class JobLauncher
 
     private static void AddCreatePrOptions(JobItem job, Dictionary<string, string> values)
     {
-        if (job.Type != Constants.JobTypes.CreatePr || job.TypedArgs is not CreatePrArgs pr)
+        if (job.TypedArgs is not CreatePrArgs pr)
             return;
 
         values["PrMerge"] = pr.Merge.ToString().ToLowerInvariant();
