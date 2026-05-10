@@ -18,7 +18,7 @@ public class JobServiceThreadSafetyTests
         string id;
         try
         {
-            id = service.StartJob("CreatePlan", "-Description", "Slot filler");
+            id = service.StartJob("CreatePlan", new CreatePlanArgs("Slot filler", "Auto"));
         }
         catch
         {

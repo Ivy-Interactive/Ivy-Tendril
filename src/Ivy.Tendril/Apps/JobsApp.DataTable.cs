@@ -176,25 +176,24 @@ public partial class JobsApp
                     {
                         if (job.Status is JobStatus.Failed or JobStatus.Timeout or JobStatus.Stopped)
                         {
-                            if (job.Type == "CreatePlan" && !job.Args.Contains("-Description"))
+                            if (job.TypedArgs == null)
                             {
-                                client.Toast("Cannot rerun CreatePlan: original description was not preserved.", "Rerun Failed");
+                                client.Toast("Cannot rerun: original args were not preserved.", "Rerun Failed");
                                 return ValueTask.CompletedTask;
                             }
 
-                            if (job.Type is "ExecutePlan" or "ExpandPlan" && job.Args.Length > 0)
+                            var folder = job.TypedArgs.PlanFolder;
+                            if (job.Type is "ExecutePlan" or "ExpandPlan" && folder != null)
                             {
-                                var folderName = Path.GetFileName(job.Args[0]);
-                                planService.TransitionState(folderName, PlanStatus.Building);
+                                planService.TransitionState(Path.GetFileName(folder), PlanStatus.Building);
                             }
-                            else if (job is { Type: "UpdatePlan", Args.Length: > 0 })
+                            else if (job.Type == "UpdatePlan" && folder != null)
                             {
-                                var folderName = Path.GetFileName(job.Args[0]);
-                                planService.TransitionState(folderName, PlanStatus.Updating);
+                                planService.TransitionState(Path.GetFileName(folder), PlanStatus.Updating);
                             }
 
                             jobService.DeleteJob(job.Id);
-                            jobService.StartJob(job.Type, job.Args);
+                            jobService.StartJob(job.Type, job.TypedArgs);
 
                             refreshToken.Refresh();
                         }

@@ -186,7 +186,7 @@ public class JobServiceRetryBlockedTests : IDisposable
         // Since the blocked job was already removed, no new ExecutePlan job should be created for it
         var jobs = service.GetJobs();
         var executePlanJobs =
-            jobs.Where(j => j.Type == "ExecutePlan" && j.Args.Length > 0 && j.Args[0] == dependentPlan1).ToList();
+            jobs.Where(j => j.Type == "ExecutePlan" && j.TypedArgs?.PlanFolder == dependentPlan1).ToList();
         Assert.Empty(executePlanJobs);
 
         // Cleanup
@@ -232,7 +232,7 @@ public class JobServiceRetryBlockedTests : IDisposable
 
         // The active job should still be running
         var executePlanJobs = service.GetJobs()
-            .Where(j => j.Type == "ExecutePlan" && j.Args.Length > 0 && j.Args[0] == dependentPlan)
+            .Where(j => j.Type == "ExecutePlan" && j.TypedArgs?.PlanFolder == dependentPlan)
             .ToList();
 
         Assert.Equal(2, executePlanJobs.Count);
@@ -289,7 +289,7 @@ public class JobServiceRetryBlockedTests : IDisposable
 
         // A new job should have been created (the restarted job B)
         var jobs = service.GetJobs();
-        var restartedJob = jobs.FirstOrDefault(j => j.Id != jobAId && j.Type == "ExecutePlan" && j.Args.Length > 0 && j.Args[0] == planB);
+        var restartedJob = jobs.FirstOrDefault(j => j.Id != jobAId && j.Type == "ExecutePlan" && j.TypedArgs?.PlanFolder == planB);
         Assert.NotNull(restartedJob);
         Assert.NotEqual(JobStatus.Blocked, restartedJob.Status);
 
@@ -342,7 +342,7 @@ public class JobServiceRetryBlockedTests : IDisposable
 
         // A new job should have been created (the restarted job B)
         var jobs = service.GetJobs();
-        var restartedJob = jobs.FirstOrDefault(j => j.Id != jobAId && j.Type == "ExecutePlan" && j.Args.Length > 0 && j.Args[0] == planB);
+        var restartedJob = jobs.FirstOrDefault(j => j.Id != jobAId && j.Type == "ExecutePlan" && j.TypedArgs?.PlanFolder == planB);
         Assert.NotNull(restartedJob);
         Assert.NotEqual(JobStatus.Blocked, restartedJob.Status);
 

@@ -41,13 +41,15 @@ public class UseStartJobTests
 
         // Act
         var (startJob, _) = ctx.UseStartJob();
-        startJob("CreatePlan", new[] { "-Description", "Test Plan", "-Project", "TestProject" });
+        startJob("CreatePlan", new CreatePlanArgs("Test Plan", "TestProject"));
 
         // Assert
         Assert.Single(jobService.StartedJobs);
         var (type, args) = jobService.StartedJobs[0];
         Assert.Equal("CreatePlan", type);
-        Assert.Equal(new[] { "-Description", "Test Plan", "-Project", "TestProject" }, args);
+        var createPlanArgs = Assert.IsType<CreatePlanArgs>(args);
+        Assert.Equal("Test Plan", createPlanArgs.Description);
+        Assert.Equal("TestProject", createPlanArgs.Project);
     }
 
     [Fact]
@@ -59,9 +61,9 @@ public class UseStartJobTests
         var (startJob, _) = ctx.UseStartJob();
 
         // Act
-        startJob("TestJob1", new[] { "arg1" });
-        startJob("TestJob2", new[] { "arg2" });
-        startJob("TestJob3", new[] { "arg3" });
+        startJob("TestJob1", new CreatePlanArgs("task1", "Auto"));
+        startJob("TestJob2", new CreatePlanArgs("task2", "Auto"));
+        startJob("TestJob3", new CreatePlanArgs("task3", "Auto"));
 
         // Assert - only the first call should have triggered StartJob
         Assert.Single(jobService.StartedJobs);
@@ -79,7 +81,7 @@ public class UseStartJobTests
         var (startJob, isStartingBefore) = ctx.UseStartJob();
         Assert.False(isStartingBefore);
 
-        startJob("TestJob", new[] { "arg1" });
+        startJob("TestJob", new CreatePlanArgs("task", "Auto"));
 
         // Second render - reset context and call hook again
         ctx.Reset();
@@ -91,15 +93,9 @@ public class UseStartJobTests
 
     private class TestJobService : IJobService
     {
-        public List<(string Type, string[] Args)> StartedJobs { get; } = new();
+        public List<(string Type, JobArgsBase Args)> StartedJobs { get; } = new();
 
-        public string StartJob(string type, string[] args, string? inboxFilePath)
-        {
-            StartedJobs.Add((type, args));
-            return Guid.NewGuid().ToString();
-        }
-
-        public string StartJob(string type, params string[] args)
+        public string StartJob(string type, JobArgsBase args, string? inboxFilePath = null)
         {
             StartedJobs.Add((type, args));
             return Guid.NewGuid().ToString();

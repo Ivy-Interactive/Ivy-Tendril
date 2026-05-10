@@ -10,12 +10,8 @@ public partial class JobsApp
 
     private static string? GetFullPrompt(JobItem job, IPlanReaderService? planService = null)
     {
-        if (job.Type == "CreatePlan")
-        {
-            for (var i = 0; i < job.Args.Length - 1; i++)
-                if (job.Args[i].Equals("-Description", StringComparison.OrdinalIgnoreCase))
-                    return job.Args[i + 1];
-        }
+        if (job.TypedArgs is CreatePlanArgs cp)
+            return cp.Description;
 
         if (planService != null && !string.IsNullOrEmpty(job.PlanFile))
         {

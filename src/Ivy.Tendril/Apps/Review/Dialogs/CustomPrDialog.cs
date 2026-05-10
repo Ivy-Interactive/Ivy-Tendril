@@ -99,7 +99,7 @@ public class CustomPrDialog(
                             .Build();
                         var optionsPath = Path.Combine(_selectedPlan.FolderPath, ".custom-pr-options.yaml");
                         FileHelper.WriteAllText(optionsPath, serializer.Serialize(options));
-                        _jobService.StartJob(Constants.JobTypes.CreatePr, _selectedPlan.FolderPath);
+                        _jobService.StartJob(Constants.JobTypes.CreatePr, new CreatePrArgs(_selectedPlan.FolderPath));
                         _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Building);
                         _refreshPlans();
                         isCreating.Set(false);

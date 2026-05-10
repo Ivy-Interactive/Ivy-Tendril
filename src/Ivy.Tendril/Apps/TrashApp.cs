@@ -1,5 +1,6 @@
 using Ivy.Tendril.Apps.Trash;
 using Ivy.Tendril.Apps.Trash.Dialogs;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Views;
@@ -85,8 +86,7 @@ public class TrashApp : ViewBase
                                 if (!string.IsNullOrEmpty(selected.OriginalRequest))
                                 {
                                     var project = string.IsNullOrEmpty(selected.Project) ? "Auto" : selected.Project;
-                                    jobService.StartJob(Constants.JobTypes.CreatePlan, "-Description",
-                                        selected.OriginalRequest, "-Project", project, "-Force");
+                                    jobService.StartJob(Constants.JobTypes.CreatePlan, new CreatePlanArgs(selected.OriginalRequest, project, Force: true));
                                     client.Toast("CreatePlan job started", "Force Plan");
                                 }
                             });

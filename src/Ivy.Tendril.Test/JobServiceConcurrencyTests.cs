@@ -27,7 +27,7 @@ public class JobServiceConcurrencyTests
             TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
             null, 0);
 
-        var id = service.StartJob("CreatePlan", "-Description", "Test Job");
+        var id = service.StartJob("CreatePlan", new CreatePlanArgs("Test Job", "Auto"));
         var job = service.GetJob(id);
 
         Assert.NotNull(job);
@@ -47,7 +47,7 @@ public class JobServiceConcurrencyTests
         // but the initial status should be "Running" not "Queued"
         try
         {
-            var id = service.StartJob("CreatePlan", "-Description", "Test Job");
+            var id = service.StartJob("CreatePlan", new CreatePlanArgs("Test Job", "Auto"));
             var job = service.GetJob(id);
             Assert.NotNull(job);
             Assert.NotEqual(JobStatus.Queued, job.Status);
@@ -65,8 +65,8 @@ public class JobServiceConcurrencyTests
             TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
             null, 0);
 
-        service.StartJob("CreatePlan", "-Description", "Job 1");
-        service.StartJob("CreatePlan", "-Description", "Job 2");
+        service.StartJob("CreatePlan", new CreatePlanArgs("Job 1", "Auto"));
+        service.StartJob("CreatePlan", new CreatePlanArgs("Job 2", "Auto"));
 
         var jobs = service.GetJobs();
         Assert.Equal(2, jobs.Count);
@@ -80,7 +80,7 @@ public class JobServiceConcurrencyTests
             TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
             null, 0);
 
-        var id = service.StartJob("CreatePlan", "-Description", "Test Job");
+        var id = service.StartJob("CreatePlan", new CreatePlanArgs("Test Job", "Auto"));
         service.StopJob(id);
 
         var job = service.GetJob(id);

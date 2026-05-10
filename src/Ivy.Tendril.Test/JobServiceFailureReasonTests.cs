@@ -129,7 +129,7 @@ public class JobServiceFailureReasonTests : IDisposable
     {
         var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
         var planFolder = CreateValidPlanFolder();
-        var id = service.StartJob("ExecutePlan", planFolder);
+        var id = service.StartJob("ExecutePlan", new ExecutePlanArgs(planFolder));
 
         service.CompleteJob(id, 0);
 
@@ -169,7 +169,7 @@ public class JobServiceFailureReasonTests : IDisposable
     {
         var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
         var planFolder = CreateValidPlanFolder();
-        var id = service.StartJob("ExecutePlan", planFolder);
+        var id = service.StartJob("ExecutePlan", new ExecutePlanArgs(planFolder));
         var job = service.GetJob(id)!;
         job.StatusMessage = "Execution failed (exit code: 1)";
         job.OutputLines.Enqueue("[stderr] some raw stderr output");

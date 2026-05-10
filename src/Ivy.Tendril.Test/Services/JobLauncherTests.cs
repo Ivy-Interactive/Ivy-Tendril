@@ -133,7 +133,7 @@ projects:
         {
             Id = "test-1",
             Type = "CreatePlan",
-            Args = new[] { "Test" },
+            TypedArgs = new CreatePlanArgs("Test", "Auto"),
             Project = "TestProject",
             Status = JobStatus.Running,
             LastOutputAt = DateTime.UtcNow
@@ -163,7 +163,7 @@ projects:
         {
             Id = "test-1",
             Type = "CreatePlan",
-            Args = new[] { "Test" },
+            TypedArgs = new CreatePlanArgs("Test", "Auto"),
             Project = "TestProject",
             Status = JobStatus.Running,
             StatusFilePath = Path.Combine(_tempTendrilHome, "status-test-1.json")
