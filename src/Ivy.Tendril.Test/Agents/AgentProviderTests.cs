@@ -78,16 +78,30 @@ public class AgentProviderTests
     }
 
     [Fact]
-    public void Claude_BuildProcessStart_PassesAllowedTools()
+    public void Claude_BuildProcessStart_PassesAllowedToolsAsSpaceSeparatedString()
     {
         var provider = new ClaudeAgentProvider();
         var psi = provider.BuildProcessStart(CreateInvocation(
-            allowedTools: new[] { "Read", "Glob", "Grep", "Bash" }));
+            allowedTools: new[] { "Read", "Glob", "Bash(git *)", "Write(/plans/**)" }));
 
         var args = psi.ArgumentList.ToList();
         var idx = args.IndexOf("--allowedTools");
         Assert.True(idx >= 0);
-        Assert.Equal("Read,Glob,Grep,Bash", args[idx + 1]);
+        Assert.Equal("Read Glob Bash(git *) Write(/plans/**)", args[idx + 1]);
+    }
+
+    [Fact]
+    public void Claude_BuildProcessStart_AllowedToolsBeforeStdinMarker()
+    {
+        var provider = new ClaudeAgentProvider();
+        var psi = provider.BuildProcessStart(CreateInvocation(
+            allowedTools: new[] { "Read", "Bash(tendril*)" }));
+
+        var args = psi.ArgumentList.ToList();
+        var toolsIdx = args.IndexOf("--allowedTools");
+        Assert.True(toolsIdx >= 0);
+        Assert.Equal("Read Bash(tendril*)", args[toolsIdx + 1]);
+        Assert.Equal("-", args[^1]);
     }
 
     [Fact]
