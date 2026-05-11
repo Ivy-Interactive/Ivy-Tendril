@@ -28,7 +28,7 @@ public class CreatePlanDialogLauncher(Func<Action, object> renderTrigger) : View
             if (projectNames.Count == 0)
                 elements.Add(new NoProjectsDialog(
                     () => dialogOpen.Set(false),
-                    () => navigator.Navigate<SetupApp>()
+                    () => navigator.Navigate<SettingsApp>()
                 ));
             else
                 elements.Add(new CreatePlanDialog(
