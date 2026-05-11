@@ -40,6 +40,9 @@ public partial class JobsApp : ViewBase
             if (!isOpen.Value)
             {
                 activeOutputJobId.Set(null);
+                streamingJobId.Set(null);
+                hasStreamContent.Set(false);
+                lastProcessedIndex.Set(0);
                 return null;
             }
             activeOutputJobId.Set(jobId);
