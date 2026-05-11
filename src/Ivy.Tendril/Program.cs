@@ -35,6 +35,9 @@ public class Program
     [STAThread]
     public static async Task<int> Main(string[] args)
     {
+        Console.InputEncoding = System.Text.Encoding.UTF8;
+        Console.OutputEncoding = System.Text.Encoding.UTF8;
+
         VelopackApp.Build().Run();
 
         var (verbose, quiet, forceDesktop, forceWeb, filteredArgs) = ParseGlobalFlags(args);
