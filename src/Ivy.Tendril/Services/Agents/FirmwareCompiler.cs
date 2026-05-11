@@ -49,10 +49,8 @@ public class FirmwareCompiler
         3. Token efficiency
         4. Improvement over time
 
-        **Tools:** {PROGRAMFOLDER}/Tools/
-        **Memory:** {PROGRAMFOLDER}/Memory/
-
-        List memory files at the start of execution for relevant context.
+        **Tools:** {TOOLS_LISTING}
+        **Memory:** {MEMORY_LISTING}
 
         Complete your task and present the user with a summary.
 
@@ -75,10 +73,15 @@ public class FirmwareCompiler
             .OrderBy(kv => kv.Key)
             .Select(kv => $"{kv.Key}: {kv.Value}"));
 
+        var toolsListing = ListDirectoryFiles(Path.Combine(context.ProgramFolder, "Tools"));
+        var memoryListing = ListDirectoryFiles(Path.Combine(context.ProgramFolder, "Memory"));
+
         var firmware = FirmwareTemplate
             .Replace("{HEADER}", header)
             .Replace("{LOGFILE}", context.LogFile)
-            .Replace("{PROGRAMFOLDER}", context.ProgramFolder);
+            .Replace("{PROGRAMFOLDER}", context.ProgramFolder)
+            .Replace("{TOOLS_LISTING}", toolsListing)
+            .Replace("{MEMORY_LISTING}", memoryListing);
 
         // Include Program.md inline
         var programFile = Path.Combine(context.ProgramFolder, "Program.md");
@@ -103,6 +106,20 @@ public class FirmwareCompiler
         }
 
         return firmware;
+    }
+
+    private static string ListDirectoryFiles(string directory)
+    {
+        if (!Directory.Exists(directory))
+            return "(none)";
+
+        var files = Directory.GetFiles(directory)
+            .Select(Path.GetFileName)
+            .Where(f => f != null)
+            .OrderBy(f => f)
+            .ToList();
+
+        return files.Count == 0 ? "(none)" : string.Join(", ", files);
     }
 
     public static string GetNextLogFile(string programFolder, Dictionary<string, string>? initialValues = null)
