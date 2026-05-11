@@ -12,14 +12,11 @@ public record JobNotification(string Title, string Message, bool IsSuccess);
 
 public class JobService : IJobService
 {
-
-
     private readonly IConfigService? _configService;
     private readonly IPlanDatabaseService? _database;
-
     private readonly string? _inboxPath;
     private readonly PriorityQueue<string, int> _jobQueue = new();
-    private readonly object _queueLock = new();
+    private readonly Lock _queueLock = new();
     private SemaphoreSlim _jobSlotSemaphore;
     private TimeSpan _jobTimeout;
     private readonly ConcurrentDictionary<string, JobItem> _jobs = new();
@@ -34,7 +31,6 @@ public class JobService : IJobService
     private readonly ILogger<JobService> _logger;
     private readonly JobLauncher _jobLauncher;
     private readonly JobCompletionHandler _completionHandler;
-    private readonly string _promptsRoot;
     private int _counter;
 
     public JobService(
@@ -63,11 +59,11 @@ public class JobService : IJobService
             ? new SemaphoreSlim(_maxConcurrentJobs, _maxConcurrentJobs)
             : new SemaphoreSlim(0, 1);
         _inboxPath = Path.Combine(configService.TendrilHome, "Inbox");
-        _promptsRoot = Ivy.Tendril.Helpers.PromptwareHelper.ResolvePromptsRoot(configService.TendrilHome);
-        _jobLauncher = new JobLauncher(configService, _logger, _promptsRoot);
+        var promptsRoot = Ivy.Tendril.Helpers.PromptwareHelper.ResolvePromptsRoot(configService.TendrilHome);
+        _jobLauncher = new JobLauncher(configService, _logger, promptsRoot);
         _completionHandler = new JobCompletionHandler(
             configService, _logger, modelPricingService, planReaderService,
-            telemetryService, planWatcherService, worktreeLifecycleLogger, _promptsRoot);
+            telemetryService, planWatcherService, worktreeLifecycleLogger, promptsRoot);
         configService.SettingsReloaded += OnSettingsReloaded;
         LoadHistoricalJobs();
     }
@@ -94,11 +90,11 @@ public class JobService : IJobService
         _planReaderService = planReaderService;
         _telemetryService = telemetryService;
         _database = database;
-        _promptsRoot = Ivy.Tendril.Helpers.PromptwareHelper.ResolvePromptsRoot();
-        _jobLauncher = new JobLauncher(null, _logger, _promptsRoot);
+        var promptsRoot = Ivy.Tendril.Helpers.PromptwareHelper.ResolvePromptsRoot();
+        _jobLauncher = new JobLauncher(null, _logger, promptsRoot);
         _completionHandler = new JobCompletionHandler(
             null, _logger, null, planReaderService, telemetryService,
-            null, null, _promptsRoot);
+            null, null, promptsRoot);
         LoadHistoricalJobs();
     }
 
@@ -587,7 +583,7 @@ public class JobService : IJobService
         => _completionHandler.RunHooks(when, jobType, planFolder, project, job);
 
     internal Task RunStaleOutputWatchdog(string id, CancellationTokenSource timeoutCts)
-        => _jobLauncher.RunStaleOutputWatchdog(id, timeoutCts, _jobs, _staleOutputTimeout);
+        => JobMonitor.RunStaleOutputWatchdog(id, timeoutCts, _jobs, _staleOutputTimeout);
 
 
     private void ProcessJobQueue()

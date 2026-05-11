@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Text.RegularExpressions;
 using Ivy.Helpers;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
@@ -18,6 +17,13 @@ internal record JobLaunchContext(
     Action<string, string, string, string, JobItem> RunHooks,
     Action<string, int?, bool, bool> CompleteJob,
     Action RaiseStructureChanged);
+
+internal record RepoConfigEntry(
+    string Path,
+    string BaseBranch,
+    string SyncStrategy,
+    string PrRule,
+    bool ReadOnly);
 
 internal class JobLauncher
 {
@@ -49,7 +55,7 @@ internal class JobLauncher
         LaunchJob(ctx);
     }
 
-    internal void LaunchJob(JobLaunchContext ctx)
+    private void LaunchJob(JobLaunchContext ctx)
     {
         PrepareJobForLaunch(ctx);
 
@@ -170,188 +176,8 @@ internal class JobLauncher
 
     private void InitializeJobMonitoring(JobLaunchContext ctx, Process process)
     {
-        var job = ctx.Job;
-        var id = job.Id;
-
-        var cts = new CancellationTokenSource(ctx.JobTimeout);
-        job.TimeoutCts = cts;
-
-        // Hard timeout guard - ensures the job is completed even if WaitForExitOrKillAsync hangs
-        var hardTimeout = ctx.JobTimeout + TimeSpan.FromMinutes(5);
-        var hardTimeoutCts = new CancellationTokenSource(hardTimeout);
-
-        Task.Run(async () =>
-        {
-            _logger.LogDebug("Job {JobId}: Monitor task started", id);
-
-            try
-            {
-                var waitTask = process.WaitForExitOrKillAsync(cts.Token);
-                var completedTask = await Task.WhenAny(waitTask, Task.Delay(hardTimeout, hardTimeoutCts.Token));
-
-                if (completedTask == waitTask)
-                {
-                    var normalExit = await waitTask;
-                    if (normalExit)
-                    {
-                        if (ctx.Jobs.TryGetValue(id, out var j) && j.StaleOutputDetected)
-                        {
-                            _logger.LogInformation("Job {JobId}: Process exited, stale output detected", id);
-                            ctx.CompleteJob(id, null, true, true);
-                        }
-                        else
-                        {
-                            _logger.LogInformation("Job {JobId}: Process exited with code {ExitCode}", id, process.ExitCode);
-                            if (ctx.Jobs.TryGetValue(id, out var exitJob))
-                                exitJob.ExitCode = process.ExitCode;
-                            ctx.CompleteJob(id, process.ExitCode, false, false);
-                        }
-                    }
-                    else
-                    {
-                        _logger.LogWarning("Job {JobId}: Process killed after timeout", id);
-                        ctx.CompleteJob(id, null, true, false);
-                    }
-                }
-                else
-                {
-                    _logger.LogError("Job {JobId}: HARD TIMEOUT after {Minutes} minutes - process may still be running",
-                        id, hardTimeout.TotalMinutes);
-                    CrashLog.Write($"[{DateTime.UtcNow:O}] Job {id} hit hard timeout after {hardTimeout.TotalMinutes} minutes - WaitForExitOrKillAsync did not complete");
-
-                    // Try one last forceful kill
-                    try
-                    {
-                        if (!process.HasExited)
-                        {
-                            _logger.LogWarning("Job {JobId}: Attempting emergency kill", id);
-                            process.Kill(entireProcessTree: true);
-                        }
-                    }
-                    catch (Exception killEx)
-                    {
-                        _logger.LogError(killEx, "Job {JobId}: Emergency kill failed", id);
-                    }
-
-                    ctx.CompleteJob(id, null, true, false);
-                }
-
-                _logger.LogDebug("Job {JobId}: Monitor task completed normally", id);
-            }
-            catch (ObjectDisposedException)
-            {
-                _logger.LogDebug("Job {JobId}: Monitor task exiting (CTS disposed, job completed elsewhere)", id);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Job {JobId}: Monitor task exception", id);
-                CrashLog.Write($"[{DateTime.UtcNow:O}] JobService process monitor exception for job {id}: {ex}");
-                ctx.CompleteJob(id, null, false, false);
-            }
-            finally
-            {
-                hardTimeoutCts.Dispose();
-            }
-        });
-
-        if (ctx.StaleOutputTimeout > TimeSpan.Zero)
-            _ = RunStaleOutputWatchdog(id, cts, ctx.Jobs, ctx.StaleOutputTimeout);
-
-        if (!string.IsNullOrEmpty(job.StatusFilePath))
-            _ = RunStatusFilePoller(id, cts, ctx.Jobs);
-    }
-
-    internal async Task RunStaleOutputWatchdog(
-        string id,
-        CancellationTokenSource timeoutCts,
-        ConcurrentDictionary<string, JobItem> jobs,
-        TimeSpan staleOutputTimeout)
-    {
-        const int checkIntervalSeconds = 60;
-
-        try
-        {
-            while (!timeoutCts.Token.IsCancellationRequested)
-            {
-                for (var i = 0; i < checkIntervalSeconds; i++)
-                {
-                    try
-                    {
-                        await Task.Delay(TimeSpan.FromSeconds(1), timeoutCts.Token);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        return;
-                    }
-                    catch (ObjectDisposedException)
-                    {
-                        return;
-                    }
-
-                    try
-                    {
-                        if (timeoutCts.Token.IsCancellationRequested) return;
-                    }
-                    catch (ObjectDisposedException)
-                    {
-                        return;
-                    }
-                }
-
-                if (!jobs.TryGetValue(id, out var job) || job.Status != JobStatus.Running)
-                    break;
-
-                if (job.LastOutputAt.HasValue)
-                {
-                    var sinceLastOutput = DateTime.UtcNow - job.LastOutputAt.Value;
-                    if (sinceLastOutput >= staleOutputTimeout)
-                    {
-                        job.StaleOutputDetected = true;
-                        try { timeoutCts.Cancel(); } catch (ObjectDisposedException) { }
-                        break;
-                    }
-                }
-            }
-        }
-        catch (ObjectDisposedException)
-        {
-        }
-    }
-
-    internal static async Task RunStatusFilePoller(
-        string id,
-        CancellationTokenSource timeoutCts,
-        ConcurrentDictionary<string, JobItem> jobs)
-    {
-        try
-        {
-            while (!timeoutCts.Token.IsCancellationRequested)
-            {
-                try
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(1), timeoutCts.Token);
-                }
-                catch (OperationCanceledException) { return; }
-                catch (ObjectDisposedException) { return; }
-
-                if (!jobs.TryGetValue(id, out var job) || job.Status != JobStatus.Running)
-                    break;
-
-                if (string.IsNullOrEmpty(job.StatusFilePath)) break;
-
-                var payload = JobStatusFile.Read(job.StatusFilePath);
-                if (payload == null) continue;
-
-                job.StatusMessage = payload.Message;
-                if (!string.IsNullOrEmpty(payload.PlanId)
-                    && Regex.IsMatch(payload.PlanId, @"^\d{5}$")
-                    && payload.PlanId != "01234")
-                    job.ReportedPlanId = payload.PlanId;
-                if (!string.IsNullOrEmpty(payload.PlanTitle))
-                    job.ReportedPlanTitle = payload.PlanTitle;
-            }
-        }
-        catch (ObjectDisposedException) { }
+        var monitor = new JobMonitor(ctx.Job.Id, ctx, process, _logger);
+        monitor.Start();
     }
 
     private static void AttachOutputHandlers(Process process, JobItem job, string id)
@@ -398,37 +224,20 @@ internal class JobLauncher
 
         var settings = _configService.Settings;
         var (values, planYaml, profileOverride) = BuildFirmwareValues(ctx, programFolder);
-
         values["Project"] = job.Project;
 
         var jobContext = BuildJobContext(job, values, programFolder);
         var resolution = AgentProviderFactory.Resolve(settings, job.Type, profileOverride, jobContext);
         var workDir = ResolveWorkingDirectory(job, programFolder);
 
-        string? customInstructions = null;
-        if (settings.Promptwares.TryGetValue("_default", out var defaultCfg))
-            customInstructions = defaultCfg.CustomInstructions;
-        if (settings.Promptwares.TryGetValue(job.Type, out var specificCfg)
-            && !string.IsNullOrWhiteSpace(specificCfg.CustomInstructions))
-            customInstructions = specificCfg.CustomInstructions;
-
         var logFile = FirmwareCompiler.GetNextLogFile(programFolder);
         job.LogFilePath = logFile;
 
-        var context = new FirmwareContext(programFolder, values, customInstructions);
-        var prompt = FirmwareCompiler.Compile(context);
+        var customInstructions = ResolveCustomInstructions(job.Type);
+        var prompt = FirmwareCompiler.Compile(new FirmwareContext(programFolder, values, customInstructions));
         job.CompiledPrompt = prompt;
 
-        string? promptFilePath = null;
-        if (!resolution.Provider.UsesStdinPrompt)
-        {
-            var tempDir = values.TryGetValue("PlanFolder", out var pf)
-                ? Path.Combine(pf, "temp")
-                : Path.GetTempPath();
-            Directory.CreateDirectory(tempDir);
-            promptFilePath = Path.Combine(tempDir, $"prompt-{job.Id}.md");
-            File.WriteAllText(promptFilePath, prompt);
-        }
+        var promptFilePath = WritePromptFileIfNeeded(resolution, prompt, job.Id, values);
 
         var invocation = new AgentInvocation(
             PromptContent: prompt,
@@ -442,15 +251,40 @@ internal class JobLauncher
 
         var psi = resolution.Provider.BuildProcessStart(invocation);
         SetTendrilEnvironment(psi, job);
-        job.CliCommand = FirmwareCompiler.FormatCliCommand(psi);
-
-        var stdinContent = resolution.Provider.UsesStdinPrompt ? prompt : null;
+        job.CliCommand = AgentProcessHelper.FormatCliCommand(psi);
 
         _logger.LogInformation(
             "Job {JobId}: Agent-direct launch ({Provider}, model={Model}, effort={Effort})",
             job.Id, resolution.Provider.Name, resolution.Model, resolution.Effort);
 
-        return (psi, stdinContent);
+        return (psi, resolution.Provider.UsesStdinPrompt ? prompt : null);
+    }
+
+    private string? ResolveCustomInstructions(string promptwareName)
+    {
+        var settings = _configService!.Settings;
+        string? instructions = null;
+        if (settings.Promptwares.TryGetValue("_default", out var defaultCfg))
+            instructions = defaultCfg.CustomInstructions;
+        if (settings.Promptwares.TryGetValue(promptwareName, out var specificCfg)
+            && !string.IsNullOrWhiteSpace(specificCfg.CustomInstructions))
+            instructions = specificCfg.CustomInstructions;
+        return instructions;
+    }
+
+    private static string? WritePromptFileIfNeeded(
+        AgentResolution resolution, string prompt, string jobId, Dictionary<string, string> values)
+    {
+        if (resolution.Provider.UsesStdinPrompt)
+            return null;
+
+        var tempDir = values.TryGetValue("PlanFolder", out var pf)
+            ? Path.Combine(pf, "temp")
+            : Path.GetTempPath();
+        Directory.CreateDirectory(tempDir);
+        var path = Path.Combine(tempDir, $"prompt-{jobId}.md");
+        File.WriteAllText(path, prompt);
+        return path;
     }
 
     private static bool HasAgentDirectProgram(string programFolder, string jobType)
@@ -500,7 +334,7 @@ internal class JobLauncher
         if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder))
             return (values, null, null);
 
-        var planId = ExtractPlanIdFromFolder(planFolder);
+        var planId = PlanYamlHelper.ExtractPlanIdFromFolder(planFolder);
         if (planId != null)
         {
             values["PlanId"] = planId;
@@ -525,12 +359,6 @@ internal class JobLauncher
         return (values, planYaml, profileOverride);
     }
 
-    private static string? ExtractPlanIdFromFolder(string planFolder)
-    {
-        var folderName = Path.GetFileName(planFolder);
-        var dashIdx = folderName.IndexOf('-');
-        return dashIdx > 0 ? folderName[..dashIdx] : null;
-    }
 
     private static string? ExtractExecutionProfile(JobItem job, PlanYaml planYaml)
     {
@@ -566,9 +394,10 @@ internal class JobLauncher
 
     private static Dictionary<string, string> BuildJobContext(JobItem job, Dictionary<string, string> firmwareValues, string programFolder)
     {
-        var ctx = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-        ctx["PROMPTWARE_DIR"] = programFolder;
+        var ctx = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["PROMPTWARE_DIR"] = programFolder
+        };
 
         if (firmwareValues.TryGetValue("PlansDirectory", out var plansDir))
             ctx["PLANS_DIR"] = plansDir;
@@ -615,62 +444,10 @@ internal class JobLauncher
     }
 
     internal static void EnsureTendrilOnPath(ProcessStartInfo psi)
-    {
-        var processPath = Environment.ProcessPath;
-        if (!string.IsNullOrEmpty(processPath) &&
-            Path.GetFileNameWithoutExtension(processPath).Equals("tendril", StringComparison.OrdinalIgnoreCase))
-        {
-            var dir = Path.GetDirectoryName(processPath)!;
-            PrependToPath(psi, dir);
-            return;
-        }
-
-        // Dev mode: create a shim that uses `dotnet exec` on the already-built DLL
-        // instead of `dotnet run` which triggers a build and fails when DLLs are locked.
-        var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-        var dllPath = Path.Combine(baseDir, "Ivy.Tendril.dll");
-        if (File.Exists(dllPath))
-        {
-            var shimDir = Path.Combine(Path.GetTempPath(), "tendril-shim");
-            FileHelper.EnsureDirectory(shimDir);
-
-            var cmdShim = Path.Combine(shimDir, "tendril.cmd");
-            File.WriteAllText(cmdShim, $"@dotnet exec \"{dllPath}\" %*\r\n");
-
-            var bashDllPath = dllPath.Replace('\\', '/');
-            var bashShim = Path.Combine(shimDir, "tendril");
-            File.WriteAllText(bashShim, $"#!/usr/bin/env bash\ndotnet exec '{bashDllPath}' \"$@\"\n");
-
-            PrependToPath(psi, shimDir);
-        }
-    }
+        => AgentProcessHelper.EnsureTendrilOnPath(psi);
 
     internal static void ResolveCommandShim(ProcessStartInfo psi)
-    {
-        if (!OperatingSystem.IsWindows()) return;
-
-        var fileName = psi.FileName;
-        if (Path.IsPathRooted(fileName) || Path.HasExtension(fileName)) return;
-
-        var pathDirs = (psi.Environment.TryGetValue("PATH", out var p) ? p : Environment.GetEnvironmentVariable("PATH"))
-            ?.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries) ?? [];
-
-        foreach (var dir in pathDirs)
-        {
-            var cmdPath = Path.Combine(dir, fileName + ".cmd");
-            if (File.Exists(cmdPath))
-            {
-                psi.FileName = cmdPath;
-                return;
-            }
-        }
-    }
-
-    internal static void PrependToPath(ProcessStartInfo psi, string dir)
-    {
-        var current = psi.Environment.TryGetValue("PATH", out var p) ? p : Environment.GetEnvironmentVariable("PATH");
-        psi.Environment["PATH"] = $"{dir}{Path.PathSeparator}{current}";
-    }
+        => AgentProcessHelper.ResolveCommandShim(psi);
 
     private string? BuildRepoConfigsYaml(PlanYaml plan, string project)
     {
@@ -696,11 +473,13 @@ internal class JobLauncher
         {
             var expanded = Environment.ExpandEnvironmentVariables(repoPath);
             var repoRef = FindProjectRepoConfig(projectConfig, Path.GetFileName(expanded));
-            AddRepoToConfigLines(lines, expanded,
+            var entry = new RepoConfigEntry(
+                expanded,
                 repoRef?.BaseBranch ?? "main",
                 repoRef?.SyncStrategy ?? "fetch",
                 repoRef?.PrRule ?? "default",
-                false);
+                ReadOnly: false);
+            AddRepoToConfigLines(lines, entry);
         }
     }
 
@@ -716,24 +495,23 @@ internal class JobLauncher
             if (planRepoNames.Contains(repoName))
                 continue;
 
-            var depBaseBranch = FindBaseBranchAcrossProjects(repoName);
-            AddRepoToConfigLines(lines, expanded, depBaseBranch, "fetch", "default", true);
+            var entry = new RepoConfigEntry(
+                expanded,
+                FindBaseBranchAcrossProjects(repoName),
+                "fetch",
+                "default",
+                ReadOnly: true);
+            AddRepoToConfigLines(lines, entry);
         }
     }
 
-    private static void AddRepoToConfigLines(
-        List<string> lines,
-        string path,
-        string baseBranch,
-        string syncStrategy,
-        string prRule,
-        bool readOnly)
+    private static void AddRepoToConfigLines(List<string> lines, RepoConfigEntry entry)
     {
-        lines.Add($"- path: {path}");
-        lines.Add($"  baseBranch: {baseBranch}");
-        lines.Add($"  syncStrategy: {syncStrategy}");
-        lines.Add($"  prRule: {prRule}");
-        if (readOnly)
+        lines.Add($"- path: {entry.Path}");
+        lines.Add($"  baseBranch: {entry.BaseBranch}");
+        lines.Add($"  syncStrategy: {entry.SyncStrategy}");
+        lines.Add($"  prRule: {entry.PrRule}");
+        if (entry.ReadOnly)
             lines.Add("  readOnly: true");
     }
 

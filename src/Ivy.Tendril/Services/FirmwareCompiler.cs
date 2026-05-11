@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Reflection;
 
 namespace Ivy.Tendril.Services;
@@ -35,8 +34,11 @@ public static class FirmwareCompiler
         3. Token efficiency
         4. Improvement over time
 
-        **Tools:** {TOOLS_LISTING}
-        **Memory:** {MEMORY_LISTING}
+        **Tools:** 
+        {TOOLS}
+        
+        **Memory:** 
+        {MEMORY}
 
         Complete your task and present the user with a summary.
 
@@ -65,8 +67,8 @@ public static class FirmwareCompiler
         var firmware = FirmwareTemplate
             .Replace("{HEADER}", header)
             .Replace("{PROGRAMFOLDER}", context.ProgramFolder)
-            .Replace("{TOOLS_LISTING}", toolsListing)
-            .Replace("{MEMORY_LISTING}", memoryListing);
+            .Replace("{TOOLS}", toolsListing)
+            .Replace("{MEMORY}", memoryListing);
 
         // Include Program.md inline
         var programFile = Path.Combine(context.ProgramFolder, "Program.md");
@@ -143,17 +145,6 @@ public static class FirmwareCompiler
         return fallback;
     }
 
-    public static string FormatCliCommand(ProcessStartInfo psi)
-    {
-        var parts = new List<string> { psi.FileName };
-        parts.AddRange(psi.ArgumentList);
-        return string.Join(" ", parts.Select(p => p.Contains(' ') ? $"\"{p}\"" : p));
-    }
-
-    public static string ResolveProgramFolder(string promptsRoot, string promptwareName)
-    {
-        return Path.Combine(promptsRoot, promptwareName);
-    }
 }
 
 public record FirmwareContext(

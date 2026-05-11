@@ -65,7 +65,7 @@ public class PromptwareRunner : IPromptwareRunner
     public PromptwareRunHandle Run(PromptwareRunOptions options, IWriteStream<string> outputStream)
     {
         var settings = _configService.Settings;
-        var programFolder = ResolvePromptwareFolder(options.Promptware, _configService.TendrilHome, options.PromptwarePath);
+        var programFolder = PromptwareHelper.ResolvePromptwareFolder(options.Promptware, _configService.TendrilHome, options.PromptwarePath);
         var programMd = Path.Combine(programFolder, "Program.md");
 
         if (!File.Exists(programMd))
@@ -111,7 +111,7 @@ public class PromptwareRunner : IPromptwareRunner
         psi.Environment["TENDRIL_CONFIG"] = _configService.ConfigPath;
         psi.Environment["TENDRIL_PLANS"] = _configService.PlanFolder;
 
-        JobLauncher.EnsureTendrilOnPath(psi);
+        AgentProcessHelper.EnsureTendrilOnPath(psi);
 
         _logger.LogInformation("PromptwareRunner: launching {Promptware} via {Provider} (model={Model}, effort={Effort})",
             options.Promptware, resolution.Provider.Name, resolution.Model, resolution.Effort);
@@ -127,7 +127,7 @@ public class PromptwareRunner : IPromptwareRunner
             process.StandardInput.Close();
         }
 
-        var cliCommand = FirmwareCompiler.FormatCliCommand(psi);
+        var cliCommand = AgentProcessHelper.FormatCliCommand(psi);
 
         var cts = new CancellationTokenSource();
         var handle = new PromptwareRunHandle
@@ -208,30 +208,4 @@ public class PromptwareRunner : IPromptwareRunner
         }
     }
 
-    private static string ResolvePromptwareFolder(string promptwareName, string? tendrilHome, string? promptwarePath)
-    {
-        if (!string.IsNullOrEmpty(promptwarePath))
-        {
-            var overrideFolder = Path.Combine(promptwarePath, promptwareName);
-            if (File.Exists(Path.Combine(overrideFolder, "Program.md")))
-                return overrideFolder;
-        }
-
-        var sourceRoot = PromptwareHelper.ResolvePromptsRoot(tendrilHome);
-        var sourceFolder = Path.Combine(sourceRoot, promptwareName);
-
-        if (File.Exists(Path.Combine(sourceFolder, "Program.md")))
-            return sourceFolder;
-
-        tendrilHome ??= Environment.GetEnvironmentVariable("TENDRIL_HOME");
-        if (!string.IsNullOrEmpty(tendrilHome))
-        {
-            var deployedRoot = Path.Combine(tendrilHome, "Promptwares");
-            var deployedFolder = Path.Combine(deployedRoot, promptwareName);
-            if (File.Exists(Path.Combine(deployedFolder, "Program.md")))
-                return deployedFolder;
-        }
-
-        return sourceFolder;
-    }
 }

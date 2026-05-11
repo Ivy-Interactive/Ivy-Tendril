@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -53,24 +54,14 @@ projects:
     [Fact]
     public void ExtractPlanIdFromFolder_ReturnsCorrectId()
     {
-        var launcher = new JobLauncher(null, NullLogger.Instance, _tempPromptsRoot);
-        var method = typeof(JobLauncher).GetMethod("ExtractPlanIdFromFolder",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-
-        var result = method?.Invoke(null, new object[] { "D:\\Plans\\01234-TestPlan" });
-
+        var result = PlanYamlHelper.ExtractPlanIdFromFolder("D:\\Plans\\01234-TestPlan");
         Assert.Equal("01234", result);
     }
 
     [Fact]
     public void ExtractPlanIdFromFolder_HandlesNoDash()
     {
-        var launcher = new JobLauncher(null, NullLogger.Instance, _tempPromptsRoot);
-        var method = typeof(JobLauncher).GetMethod("ExtractPlanIdFromFolder",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-
-        var result = method?.Invoke(null, new object[] { "D:\\Plans\\SomePlan" });
-
+        var result = PlanYamlHelper.ExtractPlanIdFromFolder("D:\\Plans\\SomePlan");
         Assert.Null(result);
     }
 
@@ -128,7 +119,6 @@ projects:
         var configService = new ConfigService(new TendrilSettings());
         configService.SetTendrilHome(_tempTendrilHome);
 
-        var launcher = new JobLauncher(configService, NullLogger.Instance, _tempPromptsRoot);
         var job = new JobItem
         {
             Id = "test-1",
@@ -142,7 +132,7 @@ projects:
         jobs[job.Id] = job;
 
         var cts = new CancellationTokenSource();
-        var watchdogTask = launcher.RunStaleOutputWatchdog(
+        var watchdogTask = JobMonitor.RunStaleOutputWatchdog(
             job.Id,
             cts,
             jobs,
@@ -172,7 +162,7 @@ projects:
         jobs[job.Id] = job;
 
         var cts = new CancellationTokenSource();
-        var pollerTask = JobLauncher.RunStatusFilePoller(job.Id, cts, jobs);
+        var pollerTask = JobMonitor.RunStatusFilePoller(job.Id, cts, jobs);
 
         job.Status = JobStatus.Completed;
         await Task.Delay(TimeSpan.FromSeconds(2));
