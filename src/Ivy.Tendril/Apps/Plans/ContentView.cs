@@ -31,17 +31,9 @@ public class ContentView(
         var issueLabelsState = UseState<string[]>([]);
         var issueCommentState = UseState("");
 
-        var (updateDialog, showUpdateDialog) = UseTrigger((isOpen) =>
-        {
-            if (!isOpen.Value) return null;
-            return new UpdatePlanDialog(isOpen, selectedPlan!, selectedPlanState, jobService, planService, refreshPlans);
-        });
+        var (updateDialog, showUpdateDialog) = UseTrigger((isOpen) => !isOpen.Value ? null : new UpdatePlanDialog(isOpen, selectedPlan!, selectedPlanState, jobService, planService, refreshPlans));
 
-        var (deleteDialog, showDeleteDialog) = UseTrigger((isOpen) =>
-        {
-            if (!isOpen.Value) return null;
-            return new DeletePlanDialog(isOpen, selectedPlan!, selectedPlanState, planService, refreshPlans);
-        });
+        var (deleteDialog, showDeleteDialog) = UseTrigger((isOpen) => !isOpen.Value ? null : new DeletePlanDialog(isOpen, selectedPlan!, selectedPlanState, planService, refreshPlans));
 
         var (createIssueDialog, showCreateIssueDialog) = UseTrigger((isOpen) =>
         {
@@ -70,23 +62,18 @@ public class ContentView(
                 {
                     if (selectedPlan is null)
                         return new PlanContentData(null,
-                            new Dictionary<string, List<string>>(), new List<PlanContentHelpers.CommitRow>(),
+                            new Dictionary<string, List<string>>(), [],
                             new Dictionary<string, bool>(), null);
 
-                    // Summary
-                    var summPath = Path.Combine(folderPath, "artifacts", "summary.md");
-                    var summaryMd = File.Exists(summPath) ? FileHelper.ReadAllText(summPath) : null;
+                    var summaryPath = Path.Combine(folderPath, "artifacts", "summary.md");
+                    var summaryMd = File.Exists(summaryPath) ? FileHelper.ReadAllText(summaryPath) : null;
 
-                    // Artifacts
                     var artifacts = PlanContentHelpers.GetArtifacts(folderPath);
 
-                    // Commit rows
                     var commitRows = PlanContentHelpers.BuildCommitRows(selectedPlan!, config, gitService);
 
-                    // All changes data
                     var allChanges = PlanContentHelpers.GetAllChangesData(selectedPlan!, config, gitService);
 
-                    // Verification report existence
                     var verReports = selectedPlan.Verifications.ToDictionary(
                         v => v.Name,
                         v => File.Exists(Path.Combine(folderPath, "verification", $"{v.Name}.md")));
@@ -180,11 +167,8 @@ public class ContentView(
             refreshPlans();
         });
 
-        // Build tab contents
         var content = Layout.Vertical().Height(Size.Full());
-        var planData = planContentQuery.Value;
 
-        // Plan tab content
         var planTabContent = new PlanTabView(
             selectedPlan,
             selectedPlanState,
@@ -200,30 +184,6 @@ public class ContentView(
         }
         else
         {
-            // Git tab content (uses shared helper reuse precomputed commit rows from planContentQuery)
-            var gitData = GitTabHelper.BuildGitTabData(planData.CommitRows, selectedPlan!, config, gitService);
-            var gitLayout = GitTabHelper.RenderGitTab(
-                gitData,
-                selectedPlan!,
-                client,
-                config,
-                hash => openCommit.Set(hash),
-                path =>
-                {
-                    copyToClipboard(path);
-                    client.Toast("Copied path to clipboard", "Path Copied");
-                    return null!; // Return type doesn't matter, just need to satisfy Func
-                }
-            );
-
-            // Changes tab
-            var changesTabView = new ChangesTabView(planData.AllChanges, planContentQuery.Loading, planContentQuery.Error);
-
-            // Artifacts tab content
-            var totalArtifacts = (planData.Artifacts.GetValueOrDefault("screenshots")?.Count ?? 0)
-                                 + (planData.Artifacts.ContainsKey("sample") ? 1 : 0);
-
-            // Build tabs
             var tabs = Layout.Tabs(
                 new Tab("Plan", Cap(planTabContent)),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan!)))
@@ -232,21 +192,18 @@ public class ContentView(
             content |= (Layout.Vertical().Padding(2).Height(Size.Full()) | tabs);
         }
 
-        // Sheet modals
         content |= new VerificationReportSheet(openVerification, selectedPlan);
         content |= new CommitDetailSheet(openCommit, selectedPlan, config, gitService);
 
         // Check for active ExpandPlan job
         var hasActiveExpandJob = jobService.GetJobs().Any(j =>
-            j.TypedArgs is ExpandPlanArgs &&
-            j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
+            j is { TypedArgs: ExpandPlanArgs, Status: JobStatus.Running or JobStatus.Queued or JobStatus.Pending } &&
             j.TypedArgs?.PlanFolder != null &&
             j.TypedArgs.PlanFolder.Equals(selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
 
         // Check for active SplitPlan job
         var hasActiveSplitJob = jobService.GetJobs().Any(j =>
-            j.TypedArgs is SplitPlanArgs &&
-            j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
+            j is { TypedArgs: SplitPlanArgs, Status: JobStatus.Running or JobStatus.Queued or JobStatus.Pending } &&
             j.TypedArgs?.PlanFolder != null &&
             j.TypedArgs.PlanFolder.Equals(selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
 
@@ -295,7 +252,7 @@ public class ContentView(
 
         return new Fragment(elements.ToArray());
 
-        object Cap(object inner) => Layout.Vertical().Scroll(Scroll.Auto).Width(Size.Full()).Height(Size.Full())
+        object Cap(object inner) => Layout.Vertical().Scroll().Width(Size.Full()).Height(Size.Full())
             | (Layout.Vertical().Width(Size.Full().Max(Size.Units(200))) | inner);
     }
 
@@ -343,34 +300,29 @@ public class ContentView(
 
         // Fall back to last execution log
         var logsDir = Path.Combine(plan.FolderPath, "logs");
-        if (Directory.Exists(logsDir))
-        {
-            var lastLog = Directory.GetFiles(logsDir, "*.md")
-                .OrderByDescending(f => f)
-                .FirstOrDefault();
-            if (lastLog != null)
-            {
-                var logContent = FileHelper.ReadAllText(lastLog);
-                var summaryMatch = Regex.Match(
-                    logContent, @"## Summary\s*\n([\s\S]*?)(?=\n## |\z)");
-                if (summaryMatch.Success)
-                    return Callout.Destructive(summaryMatch.Groups[1].Value.Trim(), "Execution Failed");
+        if (!Directory.Exists(logsDir))
+            return Callout.Destructive("No details available. Check the logs folder.", "Execution Failed");
+        var lastLog = Directory.GetFiles(logsDir, "*.md")
+            .OrderByDescending(f => f)
+            .FirstOrDefault();
+        if (lastLog == null)
+            return Callout.Destructive("No details available. Check the logs folder.", "Execution Failed");
+        var logContent = FileHelper.ReadAllText(lastLog);
+        var summaryMatch = Regex.Match(
+            logContent, @"## Summary\s*\n([\s\S]*?)(?=\n## |\z)");
+        if (summaryMatch.Success)
+            return Callout.Destructive(summaryMatch.Groups[1].Value.Trim(), "Execution Failed");
+        var statusMatch = Regex.Match(
+            logContent, @"\*\*Status:\*\*\s*(.+)");
+        if (!statusMatch.Success)
+            return Callout.Destructive("No details available. Check the logs folder.", "Execution Failed");
+        var status = statusMatch.Groups[1].Value.Trim();
+        if (status == "Completed")
+            return Callout.Warning(
+                "Execution reported as completed but plan is in Failed state. The process may have crashed during state transition.",
+                "State Mismatch");
+        return Callout.Destructive($"Last execution status: {status}", "Execution Failed");
 
-                var statusMatch = Regex.Match(
-                    logContent, @"\*\*Status:\*\*\s*(.+)");
-                if (statusMatch.Success)
-                {
-                    var status = statusMatch.Groups[1].Value.Trim();
-                    if (status == "Completed")
-                        return Callout.Warning(
-                            "Execution reported as completed but plan is in Failed state. The process may have crashed during state transition.",
-                            "State Mismatch");
-                    return Callout.Destructive($"Last execution status: {status}", "Execution Failed");
-                }
-            }
-        }
-
-        return Callout.Destructive("No details available. Check the logs folder.", "Execution Failed");
     }
 
     private void GoToNext()
@@ -388,8 +340,7 @@ public class ContentView(
         var prevIndex = (currentIndex - 1 + allPlans.Count) % allPlans.Count;
         selectedPlanState.Set(allPlans[prevIndex]);
     }
-
-
+    
     private record PlanContentData(
         string? SummaryMarkdown,
         Dictionary<string, List<string>> Artifacts,
