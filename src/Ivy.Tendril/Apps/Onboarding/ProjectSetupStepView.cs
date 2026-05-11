@@ -61,7 +61,7 @@ public class ProjectSetupStepView(
                 | new Button("Back").Outline().Icon(Icons.ArrowLeft)
                     .OnClick(() => stepperIndex.Set(stepperIndex.Value - 1))
                 | new Spacer()
-                | new Button("Skip").Secondary()
+                | new Button("Finish").Secondary()
                     .OnClick(async () =>
                     {
                         await setupService.FinalizeOnboardingAsync();
@@ -74,7 +74,8 @@ public class ProjectSetupStepView(
             buttonArea = Layout.Horizontal().Width(Size.Full())
                 | new Button("Back").Outline().Icon(Icons.ArrowLeft)
                     .OnClick(() => stepperIndex.Set(stepperIndex.Value - 1))
-                | new Button("Skip").Secondary()
+                | new Spacer()
+                | new Button("Finish").Secondary()
                     .OnClick(async () =>
                     {
                         var name = SanitizeProjectName(projectName.Value);
@@ -108,8 +109,13 @@ public class ProjectSetupStepView(
                         await setupService.FinalizeOnboardingAsync();
                         await setupService.StartBackgroundServicesAsync();
                         clientProvider.ReloadPage();
-                    })
-                | new Spacer()
+                    });
+        }
+
+        var generateBlock = canContinue
+            ? (object)(Layout.Vertical().Gap(2)
+                | Text.Bold("Generate Verifications")
+                | Text.Muted("Automatically detect your project's tech stack and configure verification steps (build, test, lint, etc.) that run after each plan execution.")
                 | new Button("Generate Verifications").Primary().Large().Icon(Icons.Sparkles)
                     .OnClick(async () =>
                     {
@@ -173,14 +179,15 @@ public class ProjectSetupStepView(
                             isCloning.Set(false);
                             isStepLoading.Set(false);
                         }
-                    });
-        }
+                    }))
+            : null!;
 
         return Layout.Vertical().Gap(4).Margin(0, 0, 0, 20)
                | Text.H2("Setup your first project")
                | (error.Value != null ? Text.Danger(error.Value) : null!)
                | new ProjectRepoPickerView(selectedRepos, projectName)
                | projectName.ToTextInput().WithField().Required().Label("Project Name")
+               | generateBlock
                | buttonArea;
     }
 
