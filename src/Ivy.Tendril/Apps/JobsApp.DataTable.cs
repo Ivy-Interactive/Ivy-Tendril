@@ -14,9 +14,9 @@ public partial class JobsApp
         IPlanReaderService planService,
         IJobService jobService,
         IClientProvider client,
-        IState<string?> showPlan,
-        IState<string?> showOutput,
-        IState<string?> showPrompt,
+        Action<string> showPlan,
+        Action<string> showOutput,
+        Action<string> showPrompt,
         List<JobItem> jobs,
         Dictionary<string, string> projectColors,
         StackedProgress jobsProgress)
@@ -91,7 +91,7 @@ public partial class JobsApp
                     {
                         var fullPath = Path.Combine(planService.PlansDirectory, job.PlanFile);
                         if (Directory.Exists(fullPath))
-                            showPlan.Set(fullPath);
+                            showPlan(fullPath);
                     }
                 }
                 return ValueTask.CompletedTask;
@@ -100,7 +100,7 @@ public partial class JobsApp
             {
                 var id = e.Value.RowId?.ToString();
                 if (!string.IsNullOrEmpty(id))
-                    showOutput.Set(id);
+                    showOutput(id);
                 return ValueTask.CompletedTask;
             })
             /*
@@ -128,7 +128,7 @@ public partial class JobsApp
                     {
                         var fullPrompt = GetFullPrompt(job, planService);
                         if (!string.IsNullOrEmpty(fullPrompt))
-                            showPrompt.Set(fullPrompt);
+                            showPrompt(fullPrompt);
                     }
                 }
                 return ValueTask.CompletedTask;

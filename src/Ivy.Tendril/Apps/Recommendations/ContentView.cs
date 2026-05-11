@@ -20,10 +20,55 @@ public class ContentView(
         var client = UseService<IClientProvider>();
         var config = UseService<IConfigService>();
         var copyToClipboard = UseClipboard();
-        var showPlan = UseState<string?>(null);
         var openFile = UseState<string?>(null);
-        var showNotesDialog = UseState(false);
-        var showDeclineDialog = UseState<bool>();
+        var (planSheet, showPlan) = UseTrigger<string>((isOpen, planPath) =>
+        {
+            if (!isOpen.Value) return null;
+            var folderName = Path.GetFileName(planPath);
+            var content = planService.ReadLatestRevision(folderName);
+            var plan = planService.GetPlanByFolder(planPath);
+
+            var sheetContent = string.IsNullOrEmpty(content)
+                ? Text.P("Plan not found or empty.")
+                : (object)new Markdown(MarkdownHelper.AnnotateAllBrokenLinks(content, planService.PlansDirectory))
+                    .DangerouslyAllowLocalFiles()
+                    .OnLinkClick(FileLinkHelper.CreateFileLinkClickHandler(openFile));
+
+            var repoPaths = plan?.GetEffectiveRepoPaths(config) ?? [];
+            var fileLinkSheet = FileLinkHelper.BuildFileLinkSheet(
+                openFile.Value, () => openFile.Set(null), repoPaths, config);
+
+            var sheet = new Sheet(
+                () => isOpen.Set(false),
+                sheetContent,
+                plan?.Title ?? folderName
+            ).Width(Size.Half()).Resizable();
+
+            return fileLinkSheet is not null ? new Fragment(sheet, fileLinkSheet) : sheet;
+        });
+        var (notesDialog, showNotesDialog) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value || selectedRecommendation is null) return null;
+            return new AcceptWithNotesDialog(
+                isOpen,
+                selectedRecommendation,
+                notes =>
+                {
+                    var description = $"[ORIGINAL RECOMMENDATION]\n{selectedRecommendation.Description}\n\n[NOTES]\n{notes}";
+                    planService.UpdateRecommendationState(selectedRecommendation.PlanFolderName, selectedRecommendation.Title, "AcceptedWithNotes");
+                    jobService.StartJob(new CreatePlanArgs(description, selectedRecommendation.Project));
+                    client.Toast($"Started CreatePlan: {selectedRecommendation.Title}", "Recommendation Accepted with Notes");
+                    refresh();
+                    GoToNext();
+                });
+        });
+
+        var (declineDialog, showDeclineDialog) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value || selectedRecommendation is null) return null;
+            return new DeclineRecommendationDialog(
+                isOpen, selectedRecommendation, planService, refresh, GoToNext);
+        });
 
         if (selectedRecommendation is null)
         {
@@ -47,7 +92,7 @@ public class ContentView(
                          .Muted("recommendations", word: true)
                      | new Button("Decline").Icon(Icons.X).Outline().ShortcutKey("x").OnClick(() =>
                      {
-                         showDeclineDialog.Set(true);
+                         showDeclineDialog();
                      })
                      | new Button("Accept").Icon(Icons.Check).Primary().ShortcutKey("a").OnClick(() =>
                      {
@@ -92,12 +137,12 @@ public class ContentView(
         // Action bar (secondary actions)
         var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(1)
                         | new Button("Accept with Notes").Icon(Icons.CircleCheck).Outline().ShortcutKey("w")
-                            .OnClick(() => showNotesDialog.Set(true))
+                            .OnClick(() => showNotesDialog())
                         | new Button("View Plan").Icon(Icons.ExternalLink).Outline().ShortcutKey("d").OnClick(() =>
                         {
                             var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
                             if (Directory.Exists(fullPath))
-                                showPlan.Set(fullPath);
+                                showPlan(fullPath);
                         })
                         | new Button("Previous").Icon(Icons.ChevronLeft).Outline().ShortcutKey("p")
                             .OnClick(() => GoToPrevious())
@@ -134,60 +179,7 @@ public class ContentView(
             ).Size(Size.Full())
         ).Scroll(Scroll.None).Size(Size.Full());
 
-        var notesDialog = new AcceptWithNotesDialog(
-            showNotesDialog,
-            selectedRecommendation,
-            notes =>
-            {
-                var description = $"[ORIGINAL RECOMMENDATION]\n{selectedRecommendation.Description}\n\n[NOTES]\n{notes}";
-                planService.UpdateRecommendationState(selectedRecommendation.PlanFolderName, selectedRecommendation.Title, "AcceptedWithNotes");
-                jobService.StartJob(new CreatePlanArgs(description, selectedRecommendation.Project));
-                client.Toast($"Started CreatePlan: {selectedRecommendation.Title}", "Recommendation Accepted with Notes");
-                refresh();
-                GoToNext();
-            });
-
-        var declineDialog = new DeclineRecommendationDialog(
-            showDeclineDialog, selectedRecommendation, planService, refresh, GoToNext);
-
-        if (showPlan.Value is { } planPath)
-        {
-            var folderName = Path.GetFileName(planPath);
-            var content = planService.ReadLatestRevision(folderName);
-            var plan = planService.GetPlanByFolder(planPath);
-
-            var sheetContent = string.IsNullOrEmpty(content)
-                ? Text.P("Plan not found or empty.")
-                : (object)new Markdown(MarkdownHelper.AnnotateAllBrokenLinks(content, planService.PlansDirectory))
-                    .DangerouslyAllowLocalFiles()
-                    .OnLinkClick(FileLinkHelper.CreateFileLinkClickHandler(openFile));
-
-            var planSheet = new Sheet(
-                () => showPlan.Set(null),
-                sheetContent,
-                plan?.Title ?? folderName
-            ).Width(Size.Half()).Resizable();
-
-            var repoPaths = plan?.GetEffectiveRepoPaths(config) ?? [];
-            var fileLinkSheet = FileLinkHelper.BuildFileLinkSheet(
-                openFile.Value,
-                () => openFile.Set(null),
-                repoPaths,
-                config);
-
-            if (fileLinkSheet is not null)
-                return new Fragment(
-                    mainLayout,
-                    planSheet,
-                    fileLinkSheet,
-                    notesDialog,
-                    declineDialog
-                );
-
-            return new Fragment(mainLayout, planSheet, notesDialog, declineDialog);
-        }
-
-        return new Fragment(mainLayout, notesDialog, declineDialog);
+        return new Fragment(mainLayout, planSheet, notesDialog, declineDialog);
     }
 
     private void GoToNext()

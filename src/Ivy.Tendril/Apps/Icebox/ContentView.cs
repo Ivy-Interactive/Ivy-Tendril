@@ -22,8 +22,13 @@ public class ContentView(
         var downloadUrl = PlanDownloadHelper.UsePlanDownload(Context, planService, selectedPlan);
         var client = UseService<IClientProvider>();
         var copyToClipboard = UseClipboard();
-        var deleteDialogOpen = UseState(false);
         var openFile = UseState<string?>(null);
+
+        var (deleteDialog, showDeleteDialog) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value) return null;
+            return new DeletePlanDialog(isOpen, selectedPlan!, planService, refreshPlans);
+        });
 
         if (selectedPlan is null)
         {
@@ -61,7 +66,7 @@ public class ContentView(
                                     }));
 
         var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(1)
-                        | new Button("Delete").Icon(Icons.Trash).Outline().OnClick(() => deleteDialogOpen.Set(true))
+                        | new Button("Delete").Icon(Icons.Trash).Outline().OnClick(() => showDeleteDialog())
                         | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(() => GoToPrevious())
                             .ShortcutKey("p")
                         | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().OnClick(() => GoToNext())
@@ -110,7 +115,7 @@ public class ContentView(
         var elements = new List<object>
         {
             mainLayout,
-            new DeletePlanDialog(deleteDialogOpen, selectedPlan, planService, refreshPlans)
+            deleteDialog
         };
 
         var repoPaths = selectedPlan.GetEffectiveRepoPaths(config);

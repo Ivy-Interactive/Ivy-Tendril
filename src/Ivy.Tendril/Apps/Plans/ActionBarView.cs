@@ -12,9 +12,9 @@ public class ActionBarView(
     IState<bool> isEditingState,
     IState<string> editContentState,
     IState<string> originalContentState,
-    IState<bool> updateDialogOpenState,
-    IState<bool> deleteDialogOpenState,
-    IState<bool> createIssueDialogOpenState,
+    Action showUpdateDialog,
+    Action showDeleteDialog,
+    Action showCreateIssueDialog,
     IPlanReaderService planService,
     IJobService jobService,
     IConfigService config,
@@ -58,7 +58,7 @@ public class ActionBarView(
                 | new Button("Edit").Icon(Icons.Pencil).Outline().ShortcutKey("E")
                     .OnClick(() => isEditingState.Set(true))
                 | new Button("Update").Icon(Icons.WandSparkles).Outline().ShortcutKey("u")
-                    .OnClick(() => updateDialogOpenState.Set(true))
+                    .OnClick(() => showUpdateDialog())
                 | new Button("Split").Icon(Icons.Scissors).Outline().ShortcutKey("s")
                     .Disabled(hasActiveSplitJob)
                     .OnClick(() =>
@@ -95,14 +95,14 @@ public class ActionBarView(
                     refreshPlans();
                 })
                 | new Button("Delete").Icon(Icons.Trash).Outline().ShortcutKey("Backspace")
-                    .OnClick(() => deleteDialogOpenState.Set(true))
+                    .OnClick(() => showDeleteDialog())
                 | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(() => goToPrevious())
                     .ShortcutKey("p")
                 | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().OnClick(() => goToNext())
                     .ShortcutKey("n")
                 | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
                     new MenuItem("Create Issue", Icon: Icons.Github, Tag: "CreateIssue").OnSelect(() =>
-                        createIssueDialogOpenState.Set(true)),
+                        showCreateIssueDialog()),
                     new MenuItem("Download", Icon: Icons.Download, Tag: "Download").OnSelect(() =>
                     {
                         if (!string.IsNullOrEmpty(downloadUrl)) client.OpenUrl(downloadUrl);

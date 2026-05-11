@@ -19,15 +19,62 @@ public class PullRequestApp : ViewBase
         var logger = UseService<ILogger<PullRequestApp>>();
         var refreshToken = UseRefreshToken();
         var nav = UseNavigation();
-        var showPlan = UseState<string?>(null);
-        var openFile = UseState<string?>(null);
-        var showFollowUpDialog = UseState(false);
-        var selectedRowForFollowUp = UseState<PrRow?>(null);
         var config = UseService<IConfigService>();
+        var openFile = UseState<string?>(null);
+
+        var (planSheet, showPlan) = UseTrigger<string>((isOpen, planPath) =>
+        {
+            if (!isOpen.Value) return null;
+            var folderName = Path.GetFileName(planPath);
+            var content = planService.ReadLatestRevision(folderName);
+            var plan = planService.GetPlanByFolder(planPath);
+
+            var sheetContent = string.IsNullOrEmpty(content)
+                ? Text.P("Plan not found or empty.")
+                : (object)new Markdown(MarkdownHelper.AnnotateAllBrokenLinks(content, planService.PlansDirectory))
+                    .DangerouslyAllowLocalFiles()
+                    .OnLinkClick(FileLinkHelper.CreateFileLinkClickHandler(openFile));
+
+            var repoPaths = plan?.GetEffectiveRepoPaths(config) ?? [];
+            var fileLinkSheet = FileLinkHelper.BuildFileLinkSheet(
+                openFile.Value, () => openFile.Set(null), repoPaths, config);
+
+            var sheet = new Sheet(
+                () => isOpen.Set(false),
+                sheetContent,
+                plan?.Title ?? folderName
+            ).Width(Size.Half()).Resizable();
+
+            return fileLinkSheet is not null ? new Fragment(sheet, fileLinkSheet) : sheet;
+        });
         var databaseService = UseService<IPlanDatabaseService>();
         var jobService = UseService<IJobService>();
         var prStatusSyncService = UseService<PrStatusSyncService>();
         var (loadingView, showLoading) = UseLoading();
+
+        var (followUpDialog, showFollowUpDialog) = UseTrigger<PrRow>((isOpen, selectedRow) =>
+        {
+            if (!isOpen.Value) return null;
+            var projectNames = config.Projects.Select(p => p.Name).ToList();
+            var planFolder = selectedRow.PlanFolderPath;
+            var planData = !string.IsNullOrEmpty(planFolder) && Directory.Exists(planFolder)
+                ? planService.GetPlanByFolder(planFolder)
+                : null;
+            var planTitle = planData?.Title ?? selectedRow.Plan;
+
+            return new FollowUpDialog(
+                selectedRow.PlanId,
+                planTitle,
+                projectNames,
+                (description, projects, priority) =>
+                {
+                    var project = string.Join(",", projects);
+                    jobService.StartJob(new CreatePlanArgs(description, project, priority));
+                },
+                () => isOpen.Set(false)
+            );
+        });
+
         var prStatuses = databaseService.GetAllPrStatuses();
 
         var plans = planService.GetPlans()
@@ -101,7 +148,7 @@ public class PullRequestApp : ViewBase
                 var row = rows.ElementAtOrDefault(e.Value.RowIndex);
                 if (row != null && !string.IsNullOrEmpty(row.PlanFolderPath) &&
                     Directory.Exists(row.PlanFolderPath))
-                    showPlan.Set(row.PlanFolderPath);
+                    showPlan(row.PlanFolderPath);
 
                 return ValueTask.CompletedTask;
             })
@@ -123,12 +170,11 @@ public class PullRequestApp : ViewBase
                     if (tag == "view-plan")
                     {
                         if (!string.IsNullOrEmpty(row.PlanFolderPath) && Directory.Exists(row.PlanFolderPath))
-                            showPlan.Set(row.PlanFolderPath);
+                            showPlan(row.PlanFolderPath);
                     }
                     else if (tag == "follow-up")
                     {
-                        selectedRowForFollowUp.Set(row);
-                        showFollowUpDialog.Set(true);
+                        showFollowUpDialog(row);
                     }
                     else if (tag == "open-pr")
                     {
@@ -148,65 +194,7 @@ public class PullRequestApp : ViewBase
                 return ValueTask.CompletedTask;
             });
 
-        if (showFollowUpDialog.Value && selectedRowForFollowUp.Value is { } selectedRow)
-        {
-            var projectNames = config.Projects.Select(p => p.Name).ToList();
-
-            // Extract just the title without the plan ID prefix
-            var planFolder = selectedRow.PlanFolderPath;
-            var planData = !string.IsNullOrEmpty(planFolder) && Directory.Exists(planFolder)
-                ? planService.GetPlanByFolder(planFolder)
-                : null;
-            var planTitle = planData?.Title ?? selectedRow.Plan;
-
-            var followUpDialog = new FollowUpDialog(
-                selectedRow.PlanId,
-                planTitle,
-                projectNames,
-                (description, projects, priority) =>
-                {
-                    var project = string.Join(",", projects);
-                    jobService.StartJob(new CreatePlanArgs(description, project, priority));
-                },
-                () =>
-                {
-                    showFollowUpDialog.Set(false);
-                    selectedRowForFollowUp.Set(null);
-                }
-            );
-
-            return Layout.Vertical().Height(Size.Full()) | new Fragment(dataTable, followUpDialog, loadingView);
-        }
-
-        if (showPlan.Value is { } planPath)
-        {
-            var folderName = Path.GetFileName(planPath);
-            var content = planService.ReadLatestRevision(folderName);
-            var plan = planService.GetPlanByFolder(planPath);
-
-            var sheetContent = string.IsNullOrEmpty(content)
-                ? Text.P("Plan not found or empty.")
-                : (object)new Markdown(MarkdownHelper.AnnotateAllBrokenLinks(content, planService.PlansDirectory))
-                    .DangerouslyAllowLocalFiles()
-                    .OnLinkClick(FileLinkHelper.CreateFileLinkClickHandler(openFile));
-
-            var repoPaths = plan?.GetEffectiveRepoPaths(config) ?? [];
-            var fileLinkSheet = FileLinkHelper.BuildFileLinkSheet(
-                openFile.Value, () => openFile.Set(null), repoPaths, config);
-
-            var planSheet = new Sheet(
-                () => showPlan.Set(null),
-                sheetContent,
-                plan?.Title ?? folderName
-            ).Width(Size.Half()).Resizable();
-
-            if (fileLinkSheet is not null)
-                return Layout.Vertical().Height(Size.Full()) | new Fragment(dataTable, planSheet, fileLinkSheet, loadingView);
-
-            return Layout.Vertical().Height(Size.Full()) | new Fragment(dataTable, planSheet, loadingView);
-        }
-
-        return Layout.Vertical().Height(Size.Full()) | new Fragment(dataTable, loadingView);
+        return Layout.Vertical().Height(Size.Full()) | new Fragment(dataTable, planSheet, followUpDialog, loadingView);
     }
 
     /// <summary>
