@@ -33,10 +33,20 @@ public class VerificationsSetupView : ViewBase
                     {
                         if (result == AlertResult.Ok)
                         {
+                            var removed = verifications[idx];
                             verifications.RemoveAt(idx);
-                            config.SaveSettings();
-                            client.Toast($"Verification '{name}' deleted", "Deleted");
-                            refreshToken.Refresh();
+                            try
+                            {
+                                config.SaveSettings();
+                                client.Toast($"Verification '{name}' deleted", "Deleted");
+                                refreshToken.Refresh();
+                            }
+                            catch (Exception ex)
+                            {
+                                verifications.Insert(idx, removed);
+                                refreshToken.Refresh();
+                                client.Toast($"Failed to delete verification: {ex.Message}", "Error");
+                            }
                         }
                     }, "Delete Verification", AlertButtonSet.OkCancel);
                 })
@@ -95,6 +105,8 @@ file class EditVerificationDialogContent(
                 new Button(isNew ? "Add" : "Save").Primary().OnClick(() =>
                 {
                     if (string.IsNullOrWhiteSpace(editName.Value)) return;
+                    var oldName = isNew ? null : verifications[existingIndex!.Value].Name;
+                    var oldPrompt = isNew ? null : verifications[existingIndex!.Value].Prompt;
                     if (isNew)
                     {
                         verifications.Add(new VerificationConfig
@@ -109,10 +121,25 @@ file class EditVerificationDialogContent(
                         verifications[existingIndex!.Value].Prompt = editPrompt.Value;
                     }
 
-                    config.SaveSettings();
-                    isOpen.Set(false);
-                    refreshToken.Refresh();
-                    client.Toast("Verification saved", "Saved");
+                    try
+                    {
+                        config.SaveSettings();
+                        isOpen.Set(false);
+                        refreshToken.Refresh();
+                        client.Toast("Verification saved", "Saved");
+                    }
+                    catch (Exception ex)
+                    {
+                        if (isNew)
+                            verifications.RemoveAt(verifications.Count - 1);
+                        else
+                        {
+                            verifications[existingIndex!.Value].Name = oldName!;
+                            verifications[existingIndex!.Value].Prompt = oldPrompt!;
+                        }
+                        refreshToken.Refresh();
+                        client.Toast($"Failed to save verification: {ex.Message}", "Error");
+                    }
                 })
             )
         ).Width(Size.Rem(35));
