@@ -120,12 +120,27 @@ public class FirmwareCompiler
                 maxNumber = num;
         }
 
-        var logFile = Path.Combine(logsFolder, $"{maxNumber + 1:D5}.md");
+        // Use CreateNew to atomically claim the slot; retry on collision
+        for (var attempt = maxNumber + 1; attempt < maxNumber + 100; attempt++)
+        {
+            var logFile = Path.Combine(logsFolder, $"{attempt:D5}.md");
+            try
+            {
+                using var fs = new FileStream(logFile, FileMode.CreateNew, FileAccess.Write);
+                using var writer = new StreamWriter(fs);
+                writer.Write("*Execution in progress...*\n");
+                return logFile;
+            }
+            catch (IOException)
+            {
+                // File already exists (race with another process), try next number
+            }
+        }
 
-        // Reserve the slot immediately to prevent race conditions with concurrent jobs
-        File.WriteAllText(logFile, "*Execution in progress...*\n");
-
-        return logFile;
+        // Fallback: should never reach here
+        var fallback = Path.Combine(logsFolder, $"{maxNumber + 1:D5}.md");
+        File.WriteAllText(fallback, "*Execution in progress...*\n");
+        return fallback;
     }
 
     public static string FormatCliCommand(ProcessStartInfo psi)

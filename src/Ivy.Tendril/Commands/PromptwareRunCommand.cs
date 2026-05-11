@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services.Agents;
@@ -184,6 +185,14 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             return 0;
         }
 
+        string? promptFilePath = null;
+        if (!resolution.Provider.UsesStdinPrompt)
+        {
+            var tempDir = Path.GetTempPath();
+            promptFilePath = Path.Combine(tempDir, $"prompt-{Guid.NewGuid():N}.md");
+            File.WriteAllText(promptFilePath, prompt);
+        }
+
         var invocation = new AgentInvocation(
             PromptContent: prompt,
             WorkingDirectory: workDir,
@@ -191,7 +200,8 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             Effort: resolution.Effort,
             SessionId: "",
             AllowedTools: resolution.AllowedTools,
-            ExtraArgs: resolution.ExtraArgs);
+            ExtraArgs: resolution.ExtraArgs,
+            PromptFilePath: promptFilePath);
 
         var psi = resolution.Provider.BuildProcessStart(invocation);
 
@@ -210,6 +220,8 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         if (verbosityService.Level != VerbosityLevel.Quiet)
             _logger.LogInformation("Running {Promptware} via {ProviderName} (model={Model}, effort={Effort})", settings.Promptware, resolution.Provider.Name, resolution.Model, resolution.Effort);
 
+        var cliCommand = FirmwareCompiler.FormatCliCommand(psi);
+
         using var process = Process.Start(psi);
         if (process == null)
         {
@@ -224,12 +236,18 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             process.StandardInput.Close();
         }
 
+        var outputLines = new List<string>();
+
         var outputTask = Task.Run(() =>
         {
             while (!process.StandardOutput.EndOfStream)
             {
                 var line = process.StandardOutput.ReadLine();
-                if (line != null) Console.WriteLine(line);
+                if (line != null)
+                {
+                    Console.WriteLine(line);
+                    outputLines.Add(line);
+                }
             }
         }, cancellationToken);
 
@@ -238,12 +256,36 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             while (!process.StandardError.EndOfStream)
             {
                 var line = process.StandardError.ReadLine();
-                if (line != null) Console.Error.WriteLine(line);
+                if (line != null)
+                {
+                    Console.Error.WriteLine(line);
+                    outputLines.Add($"[stderr] {line}");
+                }
             }
         }, cancellationToken);
 
         process.WaitForExit();
         Task.WaitAll([outputTask, errorTask], TimeSpan.FromSeconds(5));
+
+        try
+        {
+            var job = new JobItem
+            {
+                Provider = resolution.Provider.Name,
+                Status = process.ExitCode == 0 ? JobStatus.Completed : JobStatus.Failed,
+                CompletedAt = DateTime.UtcNow,
+                ExitCode = process.ExitCode,
+                LogFilePath = logFile,
+                CompiledPrompt = prompt,
+                CliCommand = cliCommand
+            };
+            foreach (var line in outputLines)
+                job.EnqueueOutput(line);
+
+            PromptwareLogWriter.WriteLog(job);
+            PromptwareLogWriter.WriteRawLog(logFile, outputLines);
+        }
+        catch { }
 
         return process.ExitCode;
     }

@@ -85,6 +85,14 @@ public class PromptwareRunner : IPromptwareRunner
         var firmwareContext = new FirmwareContext(programFolder, values);
         var prompt = FirmwareCompiler.Compile(firmwareContext);
 
+        string? promptFilePath = null;
+        if (!resolution.Provider.UsesStdinPrompt)
+        {
+            var tempDir = Path.GetTempPath();
+            promptFilePath = Path.Combine(tempDir, $"prompt-{Guid.NewGuid():N}.md");
+            File.WriteAllText(promptFilePath, prompt);
+        }
+
         var invocation = new AgentInvocation(
             PromptContent: prompt,
             WorkingDirectory: workDir,
@@ -92,7 +100,8 @@ public class PromptwareRunner : IPromptwareRunner
             Effort: resolution.Effort,
             SessionId: "",
             AllowedTools: resolution.AllowedTools,
-            ExtraArgs: resolution.ExtraArgs);
+            ExtraArgs: resolution.ExtraArgs,
+            PromptFilePath: promptFilePath);
 
         var psi = resolution.Provider.BuildProcessStart(invocation);
 
