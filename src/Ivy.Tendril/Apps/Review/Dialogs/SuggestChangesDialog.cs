@@ -7,7 +7,6 @@ namespace Ivy.Tendril.Apps.Review.Dialogs;
 
 public class SuggestChangesDialog(
     IState<bool> dialogOpen,
-    IState<string> suggestText,
     PlanFile selectedPlan,
     IJobService jobService,
     IPlanReaderService planService,
@@ -18,40 +17,40 @@ public class SuggestChangesDialog(
     private readonly IPlanReaderService _planService = planService;
     private readonly Action _refreshPlans = refreshPlans;
     private readonly PlanFile _selectedPlan = selectedPlan;
-    private readonly IState<string> _suggestText = suggestText;
 
     public override object? Build()
     {
         var isCreating = UseState(false);
+        var suggestText = UseState("");
         if (!_dialogOpen.Value) return null;
 
         return new Dialog(
             _ =>
             {
                 isCreating.Set(false);
-                _suggestText.Set("");
+                suggestText.Set("");
                 _dialogOpen.Set(false);
             },
             new DialogHeader($"Suggest Changes for Plan #{_selectedPlan.Id}"),
             new DialogBody(
                 Layout.Vertical()
                 | Text.P("Provide suggestions for changes to the plan.")
-                | _suggestText.ToTextareaInput("Enter your suggestions...").Rows(6).AutoFocus()
+                | suggestText.ToTextareaInput("Enter your suggestions...").Rows(6).AutoFocus()
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() =>
                 {
                     isCreating.Set(false);
-                    _suggestText.Set("");
+                    suggestText.Set("");
                     _dialogOpen.Set(false);
                 }),
-                new Button("Submit Suggestions").Primary().Disabled(isCreating.Value || string.IsNullOrWhiteSpace(_suggestText.Value)).ShortcutKey("Ctrl+Enter").OnClick(() =>
+                new Button("Submit Suggestions").Primary().Disabled(isCreating.Value || string.IsNullOrWhiteSpace(suggestText.Value)).ShortcutKey("Ctrl+Enter").OnClick(() =>
                 {
-                    if (!string.IsNullOrWhiteSpace(_suggestText.Value) && !isCreating.Value)
+                    if (!string.IsNullOrWhiteSpace(suggestText.Value) && !isCreating.Value)
                     {
                         isCreating.Set(true);
                         var currentContent = _planService.ReadLatestRevision(_selectedPlan.FolderName);
-                        var comments = string.Join("\n", _suggestText.Value
+                        var comments = string.Join("\n", suggestText.Value
                             .Split('\n')
                             .Select(line => $">> {line}"));
                         _planService.SavePlan(_selectedPlan.FolderName, currentContent + "\n\n" + comments + "\n");
@@ -60,7 +59,7 @@ public class SuggestChangesDialog(
                         _jobService.StartJob(new UpdatePlanArgs(_selectedPlan.FolderPath));
                         _refreshPlans();
                         isCreating.Set(false);
-                        _suggestText.Set("");
+                        suggestText.Set("");
                         _dialogOpen.Set(false);
                     }
                 })

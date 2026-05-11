@@ -23,7 +23,12 @@ public class SettingsApp : ViewBase
     {
         var config = UseService<IConfigService>();
         var selected = UseState(TagGeneral);
-        var importIssuesDialogOpen = UseState(false);
+
+        var (importIssuesDialog, showImportIssuesDialog) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value) return null;
+            return new ImportIssuesDialog(isOpen, config);
+        });
 
         var menuItems = new[]
         {
@@ -56,7 +61,7 @@ public class SettingsApp : ViewBase
             switch (tag)
             {
                 case TagImportIssues:
-                    importIssuesDialogOpen.Set(true);
+                    showImportIssuesDialog();
                     break;
                 case TagOpenConfig:
                     config.OpenInEditor(config.ConfigPath);
@@ -85,7 +90,7 @@ public class SettingsApp : ViewBase
 
         return new Fragment(
             new SidebarLayout(content, sidebar),
-            new ImportIssuesDialog(importIssuesDialogOpen, config)
+            importIssuesDialog
         );
     }
 }

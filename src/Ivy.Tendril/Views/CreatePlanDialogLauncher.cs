@@ -13,37 +13,29 @@ public class CreatePlanDialogLauncher(Func<Action, object> renderTrigger) : View
         var jobService = UseService<IJobService>();
         var configService = UseService<IConfigService>();
         var navigator = UseNavigation();
-        var dialogOpen = UseState(false);
         var lastSelectedProjects = UseState<string[]>(["Auto"]);
-
-        var projectNames = configService.Projects.Select(p => p.Name).ToList();
-
-        var elements = new List<object>
+        var (dialog, showDialog) = UseTrigger((isOpen) =>
         {
-            renderTrigger(() => dialogOpen.Set(true))
-        };
-
-        if (dialogOpen.Value)
-        {
+            if (!isOpen.Value) return null;
+            var projectNames = configService.Projects.Select(p => p.Name).ToList();
             if (projectNames.Count == 0)
-                elements.Add(new NoProjectsDialog(
-                    () => dialogOpen.Set(false),
+                return new NoProjectsDialog(
+                    () => isOpen.Set(false),
                     () => navigator.Navigate<SettingsApp>()
-                ));
-            else
-                elements.Add(new CreatePlanDialog(
-                    projectNames,
-                    (description, projects, priority) =>
-                    {
-                        lastSelectedProjects.Set(projects);
-                        var project = string.Join(",", projects);
-                        jobService.StartJob(new CreatePlanArgs(description, project, priority, Force: true));
-                    },
-                    () => dialogOpen.Set(false),
-                    lastSelectedProjects.Value
-                ));
-        }
+                );
+            return (object)new CreatePlanDialog(
+                projectNames,
+                (description, projects, priority) =>
+                {
+                    lastSelectedProjects.Set(projects);
+                    var project = string.Join(",", projects);
+                    jobService.StartJob(new CreatePlanArgs(description, project, priority, Force: true));
+                },
+                () => isOpen.Set(false),
+                lastSelectedProjects.Value
+            );
+        });
 
-        return new Fragment(elements.ToArray());
+        return new Fragment(renderTrigger(() => showDialog()), dialog);
     }
 }

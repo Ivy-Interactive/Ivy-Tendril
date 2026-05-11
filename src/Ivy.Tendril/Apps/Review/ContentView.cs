@@ -29,11 +29,6 @@ public class ContentView(
         var openArtifact = UseState<string?>(null);
         var openFile = UseState<string?>(null);
         var openCommit = UseState<string?>(null);
-        var discardDialogOpen = UseState(false);
-        var suggestChangesOpen = UseState(false);
-        var suggestChangesText = UseState("");
-        var customPrOpen = UseState(false);
-        var rerunDialogOpen = UseState(false);
         var args = UseArgs<ReviewAppArgs>();
         var nav = UseNavigation();
 
@@ -68,6 +63,30 @@ public class ContentView(
             initialValue: Array.Empty<string>()
         );
 
+        var (discardDialog, showDiscardDialog) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value) return null;
+            return new DiscardPlanDialog(isOpen, selectedPlanState.Value!, planService, refreshPlans);
+        });
+
+        var (suggestChangesDialog, showSuggestChangesDialog) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value) return null;
+            return new SuggestChangesDialog(isOpen, selectedPlanState.Value!, jobService, planService, refreshPlans);
+        });
+
+        var (customPrDialog, showCustomPrDialog) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value) return null;
+            return new CustomPrDialog(isOpen, selectedPlanState.Value!, jobService, planService, refreshPlans,
+                assigneesQuery, assigneesError);
+        });
+
+        var (rerunDialog, showRerunDialog) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value) return null;
+            return new RerunDialog(isOpen, selectedPlanState.Value!, jobService, planService, refreshPlans);
+        });
 
         var artifactContentQuery = UseQuery<string, string>(
             openArtifact.Value ?? "",
@@ -176,23 +195,25 @@ public class ContentView(
         var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlanState.Value.FolderName);
         var planData = planContentQuery.Value;
 
-        var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, client, customPrOpen, nav, args);
+        var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, client, showCustomPrDialog, nav, args);
         var actionBar = BuildActionBar(
-            selectedPlanState.Value, rerunDialogOpen, suggestChangesOpen, discardDialogOpen,
-            customPrOpen, copyToClipboard, client, logger, nav, args);
+            selectedPlanState.Value, showRerunDialog, showSuggestChangesDialog, showDiscardDialog,
+            showCustomPrDialog, copyToClipboard, client, logger, nav, args);
         var content = BuildContent(
             selectedPlanState.Value, planData, planContentQuery, selectedTabIndex, tabNames, openVerification,
             openCommit, openFile, openArtifact, artifactContentQuery, assigneesQuery,
-            assigneesError, suggestChangesOpen, suggestChangesText, customPrOpen,
-            discardDialogOpen, rerunDialogOpen, client, copyToClipboard, logger, nav, args);
+            assigneesError,
+            client, copyToClipboard, logger, nav, args);
 
-        return new HeaderLayout(
+        var mainLayout = new HeaderLayout(
             header,
             new FooterLayout(
                 actionBar,
                 content
             ).Scroll(Scroll.None).Size(Size.Full())
         ).Scroll(Scroll.None).Size(Size.Full()).Key(selectedPlanState.Value.Id);
+
+        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, customPrDialog, rerunDialog);
     }
 
     private object BuildHeader(
@@ -200,7 +221,7 @@ public class ContentView(
         List<PlanFile> allPlans,
         int currentIndex,
         IClientProvider client,
-        IState<bool> customPrOpen,
+        Action showCustomPrDialog,
         INavigator nav,
         ReviewAppArgs? args)
     {
@@ -232,7 +253,7 @@ public class ContentView(
             }
             else
             {
-                customPrOpen.Set(true);
+                showCustomPrDialog();
             }
         }).ShortcutKey("m").WithConfetti(AnimationTrigger.Click);
 
@@ -241,10 +262,10 @@ public class ContentView(
 
     private object BuildActionBar(
         PlanFile selectedPlan,
-        IState<bool> rerunDialogOpen,
-        IState<bool> suggestChangesOpen,
-        IState<bool> discardDialogOpen,
-        IState<bool> customPrOpen,
+        Action showRerunDialog,
+        Action showSuggestChangesDialog,
+        Action showDiscardDialog,
+        Action showCustomPrDialog,
         Action<string> copyToClipboard,
         IClientProvider client,
         ILogger<ContentView> logger,
@@ -254,15 +275,15 @@ public class ContentView(
         return Layout.Horizontal().AlignContent(Align.Left).Gap(1)
                 | new Button("Rerun").Icon(Icons.RotateCw).Outline().ShortcutKey("r").OnClick(() =>
                 {
-                    rerunDialogOpen.Set(true);
+                    showRerunDialog();
                 })
                 | new Button("Suggest Changes").Icon(Icons.MessageSquare).Outline().OnClick(() =>
                 {
-                    suggestChangesOpen.Set(true);
+                    showSuggestChangesDialog();
                 }).ShortcutKey("d")
                 | new Button("Discard").Icon(Icons.Trash).Outline().ShortcutKey("Backspace").OnClick(() =>
                 {
-                    discardDialogOpen.Set(true);
+                    showDiscardDialog();
                 })
                 | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(() => GoToPrevious(nav, args))
                     .ShortcutKey("p")
@@ -271,7 +292,7 @@ public class ContentView(
                 | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
                     new MenuItem("Custom PR", Icon: Icons.GitPullRequest, Tag: "CustomPR").OnSelect(() =>
                     {
-                        customPrOpen.Set(true);
+                        showCustomPrDialog();
                     }),
                     new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
                     {
@@ -313,11 +334,6 @@ public class ContentView(
         QueryResult<string> artifactContentQuery,
         QueryResult<string[]> assigneesQuery,
         IState<string?> assigneesError,
-        IState<bool> suggestChangesOpen,
-        IState<string> suggestChangesText,
-        IState<bool> customPrOpen,
-        IState<bool> discardDialogOpen,
-        IState<bool> rerunDialogOpen,
         IClientProvider client,
         Action<string> copyToClipboard,
         ILogger<ContentView> logger,
@@ -492,13 +508,6 @@ public class ContentView(
                 FileLinkHelper.BuildFileLinkSheet(openFile.Value, () => openFile.Set(null), fileRepoPaths, config);
             if (fileLinkSheet != null) content |= fileLinkSheet;
         }
-
-        content |= new SuggestChangesDialog(suggestChangesOpen, suggestChangesText, selectedPlan, jobService,
-            planService, refreshPlans);
-        content |= new CustomPrDialog(customPrOpen, selectedPlan, jobService, planService, refreshPlans,
-            assigneesQuery, assigneesError);
-        content |= new DiscardPlanDialog(discardDialogOpen, selectedPlan, planService, refreshPlans);
-        content |= new RerunDialog(rerunDialogOpen, selectedPlan, jobService, planService, refreshPlans);
 
         return content;
 

@@ -25,16 +25,31 @@ public class ContentView(
         var downloadUrl = PlanDownloadHelper.UsePlanDownload(Context, planService, selectedPlan);
         var client = UseService<IClientProvider>();
         var copyToClipboard = UseClipboard();
-        var updateDialogOpen = UseState(false);
-        var deleteDialogOpen = UseState(false);
-        var createIssueDialogOpen = UseState(false);
         var openFile = UseState<string?>(null);
         var selectedRepoState = UseState<string?>(null);
         var issueAssigneeState = UseState<string?>(null);
         var issueLabelsState = UseState<string[]>([]);
         var issueCommentState = UseState("");
 
-        var updateText = UseState("");
+        var (updateDialog, showUpdateDialog) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value) return null;
+            return new UpdatePlanDialog(isOpen, selectedPlan!, selectedPlanState, jobService, planService, refreshPlans);
+        });
+
+        var (deleteDialog, showDeleteDialog) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value) return null;
+            return new DeletePlanDialog(isOpen, selectedPlan!, selectedPlanState, planService, refreshPlans);
+        });
+
+        var (createIssueDialog, showCreateIssueDialog) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value) return null;
+            return new CreateIssueDialog(isOpen, selectedRepoState, issueAssigneeState, issueLabelsState,
+                issueCommentState, selectedPlan!, jobService);
+        });
+
         var isEditing = UseState(false);
         var editContent = UseState("");
         var originalContent = UseState("");
@@ -242,9 +257,9 @@ public class ContentView(
             isEditing,
             editContent,
             originalContent,
-            updateDialogOpen,
-            deleteDialogOpen,
-            createIssueDialogOpen,
+            showUpdateDialog,
+            showDeleteDialog,
+            showCreateIssueDialog,
             planService,
             jobService,
             config,
@@ -267,10 +282,9 @@ public class ContentView(
         var elements = new List<object>
         {
             mainLayout,
-            new UpdatePlanDialog(updateDialogOpen, updateText, selectedPlan, selectedPlanState, jobService, planService, refreshPlans),
-            new DeletePlanDialog(deleteDialogOpen, selectedPlan, selectedPlanState, planService, refreshPlans),
-            new CreateIssueDialog(createIssueDialogOpen, selectedRepoState, issueAssigneeState, issueLabelsState,
-                issueCommentState, selectedPlan, jobService)
+            updateDialog,
+            deleteDialog,
+            createIssueDialog
         };
 
         var repoPaths = selectedPlan.GetEffectiveRepoPaths(config);
