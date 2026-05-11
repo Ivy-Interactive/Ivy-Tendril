@@ -55,17 +55,15 @@ public class PullRequestApp : ViewBase
         var (followUpDialog, showFollowUpDialog) = UseTrigger<PrRow>((isOpen, selectedRow) =>
         {
             if (!isOpen.Value) return null;
-            var projectNames = config.Projects.Select(p => p.Name).ToList();
             var planFolder = selectedRow.PlanFolderPath;
             var planData = !string.IsNullOrEmpty(planFolder) && Directory.Exists(planFolder)
                 ? planService.GetPlanByFolder(planFolder)
                 : null;
-            var planTitle = planData?.Title ?? selectedRow.Plan;
+            var project = planData?.Project ?? "Auto";
 
             return new FollowUpDialog(
                 selectedRow.PlanId,
-                planTitle,
-                projectNames,
+                project,
                 (description, projects, priority) =>
                 {
                     var project = string.Join(",", projects);
