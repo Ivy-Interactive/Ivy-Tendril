@@ -25,7 +25,7 @@ public class AgentProviderFactory
     private static readonly Dictionary<string, IReadOnlyList<string>> BuiltInExtraTools =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            ["ExecutePlan"] = ["Bash", "Write(%PLAN_DIR%/worktrees/**)", "Edit(%PLAN_DIR%/worktrees/**)"]
+            ["ExecutePlan"] = ["Bash", "Write(%PLAN_DIR%/**)", "Edit(%PLAN_DIR%/**)"]
         };
 
     public static IAgentProvider GetProvider(string name)
