@@ -245,7 +245,7 @@ llm:
   model: gpt-4o-mini
 promptwares:
   CreatePlan:
-    profile: balanced
+    profile: deep
   ExecutePlan:
     profile: deep
   ExpandPlan:

@@ -4,6 +4,8 @@
 
 **🚫 FORBIDDEN: Do NOT modify, create, or delete any source code files. Do NOT implement the plan. You are a PLANNER, not an executor. Your ONLY output is plan files (plan.yaml, revisions/*.md) inside PlansDirectory. If you catch yourself writing code to a repo, STOP IMMEDIATELY.**
 
+**⚠️ SCOPE ENFORCEMENT: You have READ access to source code for research. You do NOT have WRITE/EDIT access to any files outside PlansDirectory and the Trash folder. Any attempt to Write or Edit source code will be DENIED by the permission system. Do not attempt it — plan the changes instead and let the executor handle implementation.**
+
 Create an implementation plan for a task described in args.
 
 ## Context
@@ -111,7 +113,7 @@ Do NOT read or modify `.counter` directly. Plan IDs are allocated by the `tendri
 
   **Note:** When writing trash files, ensure the write is flushed/synchronous, as the parent process checks for the file immediately after exit.
 
-- Read relevant source files to understand the codebase areas involved
+- Read relevant source files to understand the codebase areas involved (READ ONLY — do not write, edit, or create any source files)
 - **Search GitHub issues** before creating plans to avoid duplicates or workaround plans for features already being built. Example:
   ```bash
   gh search issues "<keyword>" --repo <owner>/<repo> --json title,url,number,state
@@ -372,7 +374,7 @@ The user can edit the checklist before execution — unchecking a required verif
 ### Rules
 
 - **Diagrams**: Markdown supports Graphviz/DOT (```dot or ```graphviz code blocks) and Mermaid (```mermaid code blocks). **Prefer Graphviz/DOT over Mermaid** — it produces cleaner layouts for architecture and flow diagrams. Use diagrams sparingly — only when a visual genuinely clarifies the concept. Most plans don't need diagrams.
-- **🚫 NEVER modify source code. NEVER implement changes. You READ source code for research, you WRITE only to PlansDirectory. Any file write outside PlansDirectory is a critical violation.**
+- **🚫 NEVER modify source code. NEVER implement changes. You READ source code for research, you WRITE only to PlansDirectory and TENDRIL_HOME/Trash. Any file write outside these directories is a critical violation that wastes the entire session. The permission system WILL block you and you WILL fail.**
 - **!CRITICAL: Every CreatePlan execution MUST produce at least one plan folder. Even if the task is an analysis, review, or investigation — always create a plan with actionable steps. Never just analyze and report back without a plan.**
 - The plan must include all paths and information for an LLM coding agent to execute end-to-end without human intervention
 - **!IMPORTANT: Validate all file paths before writing `file:///` links in plans.** Use glob/search to confirm the actual path exists. Do NOT guess paths based on naming conventions — hallucinated paths cause "File not found" errors in the UI.

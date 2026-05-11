@@ -55,6 +55,7 @@ internal class JobCompletionHandler
     {
         var isSuccess = job.Status == JobStatus.Completed;
 
+        SurfacePermissionDenials(job);
         RunAfterHooks(job);
         SendCompletionNotification(job, isSuccess, raiseNotification);
         HandlePlanStateTransition(job, isSuccess);
@@ -74,6 +75,39 @@ internal class JobCompletionHandler
         {
             var planFolder = job.TypedArgs?.PlanFolder ?? "";
             _dependencyChecker.RetryBlockedDependents(planFolder, jobs, startJobSkipDepCheck);
+        }
+    }
+
+    private static void SurfacePermissionDenials(JobItem job)
+    {
+        if (job.OutputLines.Count == 0) return;
+
+        try
+        {
+            var provider = AgentProviderFactory.GetProvider(job.Provider);
+            var denials = provider.ExtractPermissionDenials(job.OutputLines.ToArray());
+            if (denials.Count == 0) return;
+
+            var toolNames = denials.Select(d => d.ToolName).Distinct().ToList();
+            var summary = $"Permission denied: {string.Join(", ", toolNames)} ({denials.Count} call{(denials.Count > 1 ? "s" : "")})";
+
+            if (string.IsNullOrEmpty(job.StatusMessage))
+                job.StatusMessage = summary;
+            else
+                job.StatusMessage += $" | {summary}";
+
+            job.EnqueueOutput($"[Tendril] {summary}");
+            foreach (var d in denials.Take(5))
+            {
+                var detail = d.InputSummary != null ? $"  → {d.ToolName}({d.InputSummary})" : $"  → {d.ToolName}";
+                job.EnqueueOutput($"[Tendril] {detail}");
+            }
+            if (denials.Count > 5)
+                job.EnqueueOutput($"[Tendril]   ... and {denials.Count - 5} more");
+        }
+        catch (Exception)
+        {
+            // Don't fail completion handling due to denial parsing
         }
     }
 

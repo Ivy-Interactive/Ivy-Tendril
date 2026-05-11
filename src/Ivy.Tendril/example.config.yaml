@@ -88,7 +88,7 @@ codingAgents:
 # For Copilot: Write/Edit path scopes are translated to --add-dir flags.
 promptwares:
   CreatePlan:
-    profile: balanced
+    profile: deep
   ExecutePlan:
     profile: deep
   ExpandPlan:
