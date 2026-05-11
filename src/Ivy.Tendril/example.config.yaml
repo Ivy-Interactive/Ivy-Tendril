@@ -72,9 +72,10 @@ codingAgents:
 # The profile determines model and effort from the active coding agent above.
 #
 # All promptwares receive these base tools automatically:
-#   Read, Glob, Grep, Bash(tendril*), Bash(git *), WebFetch, WebSearch,
+#   Read, Glob, Grep, Bash(tendril*), Bash(git *), Bash(gh *), WebFetch, WebSearch,
 #   Write(%PROMPTWARE_DIR%/**), Edit(%PROMPTWARE_DIR%/**), Bash(%PROMPTWARE_DIR%/Tools/*)
 # ExecutePlan additionally gets: Bash, Write(%PLAN_DIR%/worktrees/**), Edit(%PLAN_DIR%/worktrees/**)
+# CreatePr additionally gets: Bash (needs unrestricted shell for git/gh in worktrees)
 #
 # Only specify allowedTools if you need ADDITIONAL tools beyond the defaults.
 # Tool format uses Claude Code syntax: Tool, Tool(path-glob).
