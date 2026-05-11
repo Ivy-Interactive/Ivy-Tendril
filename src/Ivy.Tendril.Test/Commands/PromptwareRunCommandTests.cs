@@ -118,8 +118,8 @@ public class PromptwareRunCommandTests : IDisposable
             ["ArtifactsDir"] = "/plans/00123-Test/artifacts"
         };
 
-        var logFile = FirmwareCompiler.GetNextLogFile(promptwareDir);
-        var context = new FirmwareContext(promptwareDir, logFile, values);
+        FirmwareCompiler.GetNextLogFile(promptwareDir);
+        var context = new FirmwareContext(promptwareDir, values);
         var prompt = FirmwareCompiler.Compile(context);
 
         Assert.Contains(promptwareDir, prompt);
@@ -142,8 +142,8 @@ public class PromptwareRunCommandTests : IDisposable
             ["Instructions"] = "Setup verifications"
         };
 
-        var logFile = FirmwareCompiler.GetNextLogFile(promptwareDir);
-        var context = new FirmwareContext(promptwareDir, logFile, values);
+        FirmwareCompiler.GetNextLogFile(promptwareDir);
+        var context = new FirmwareContext(promptwareDir, values);
         var prompt = FirmwareCompiler.Compile(context);
 
         Assert.Contains("ProjectName: MyProject", prompt);
@@ -162,8 +162,8 @@ public class PromptwareRunCommandTests : IDisposable
             ["Args"] = "Setup verifications and review actions for this project."
         };
 
-        var logFile = FirmwareCompiler.GetNextLogFile(promptwareDir);
-        var context = new FirmwareContext(promptwareDir, logFile, values);
+        FirmwareCompiler.GetNextLogFile(promptwareDir);
+        var context = new FirmwareContext(promptwareDir, values);
         var prompt = FirmwareCompiler.Compile(context);
 
         Assert.Contains("Args: Setup verifications and review actions for this project.", prompt);

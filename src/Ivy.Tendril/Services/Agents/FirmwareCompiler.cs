@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 
 namespace Ivy.Tendril.Services.Agents;
@@ -24,21 +25,6 @@ public class FirmwareCompiler
         In the header above your arguments is specified.
 
         Your program folder is: {PROGRAMFOLDER}
-
-        ## Logs
-
-        In {PROGRAMFOLDER}/Logs/ we maintain logs for all executions of this application.
-
-        A file for this session has already been created: {LOGFILE}
-
-        It currently only have the args written to it.
-
-        In the log file you are to maintain a record:
-
-        - The outcome of the execution
-        - Any tools created or changed
-        - Any memory created or changed
-        - And changes to the program during reflection
 
         ## Goal
 
@@ -78,7 +64,6 @@ public class FirmwareCompiler
 
         var firmware = FirmwareTemplate
             .Replace("{HEADER}", header)
-            .Replace("{LOGFILE}", context.LogFile)
             .Replace("{PROGRAMFOLDER}", context.ProgramFolder)
             .Replace("{TOOLS_LISTING}", toolsListing)
             .Replace("{MEMORY_LISTING}", memoryListing);
@@ -122,38 +107,32 @@ public class FirmwareCompiler
         return files.Count == 0 ? "(none)" : string.Join(", ", files);
     }
 
-    public static string GetNextLogFile(string programFolder, Dictionary<string, string>? initialValues = null)
+    public static string GetNextLogFile(string programFolder)
     {
         var logsFolder = Path.Combine(programFolder, "Logs");
         Directory.CreateDirectory(logsFolder);
 
         var maxNumber = 0;
-        if (Directory.Exists(logsFolder))
+        foreach (var file in Directory.GetFiles(logsFolder, "*.md"))
         {
-            foreach (var file in Directory.GetFiles(logsFolder, "*.md"))
-            {
-                var baseName = Path.GetFileNameWithoutExtension(file);
-                if (int.TryParse(baseName, out var num) && num > maxNumber)
-                    maxNumber = num;
-            }
+            var baseName = Path.GetFileNameWithoutExtension(file);
+            if (int.TryParse(baseName, out var num) && num > maxNumber)
+                maxNumber = num;
         }
 
         var logFile = Path.Combine(logsFolder, $"{maxNumber + 1:D5}.md");
 
         // Reserve the slot immediately to prevent race conditions with concurrent jobs
-        var header = $"# Execution Log {maxNumber + 1:D5}\n\n## Args\n";
-        if (initialValues != null)
-        {
-            foreach (var kv in initialValues.OrderBy(kv => kv.Key))
-            {
-                var value = kv.Value.Length > 200 ? kv.Value[..200] + "..." : kv.Value;
-                header += $"- **{kv.Key}:** {value}\n";
-            }
-        }
-        header += "\n*Execution in progress...*\n";
-        File.WriteAllText(logFile, header);
+        File.WriteAllText(logFile, "*Execution in progress...*\n");
 
         return logFile;
+    }
+
+    public static string FormatCliCommand(ProcessStartInfo psi)
+    {
+        var parts = new List<string> { psi.FileName };
+        parts.AddRange(psi.ArgumentList);
+        return string.Join(" ", parts.Select(p => p.Contains(' ') ? $"\"{p}\"" : p));
     }
 
     public static string ResolveProgramFolder(string promptsRoot, string promptwareName)
@@ -164,6 +143,5 @@ public class FirmwareCompiler
 
 public record FirmwareContext(
     string ProgramFolder,
-    string LogFile,
     Dictionary<string, string> Values,
     string? CustomInstructions = null);

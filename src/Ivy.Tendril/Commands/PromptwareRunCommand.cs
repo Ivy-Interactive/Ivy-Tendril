@@ -145,8 +145,8 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             && !string.IsNullOrWhiteSpace(specificCfg.CustomInstructions))
             customInstructions = specificCfg.CustomInstructions;
 
-        var logFile = FirmwareCompiler.GetNextLogFile(programFolder, values);
-        var firmwareContext = new FirmwareContext(programFolder, logFile, values, customInstructions);
+        var logFile = FirmwareCompiler.GetNextLogFile(programFolder);
+        var firmwareContext = new FirmwareContext(programFolder, values, customInstructions);
         var prompt = FirmwareCompiler.Compile(firmwareContext);
 
         // Emit resolved context as YAML for testability/debugging
