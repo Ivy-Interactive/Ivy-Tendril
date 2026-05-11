@@ -889,16 +889,10 @@ internal class JobCompletionHandler
         try
         {
             PromptwareLogWriter.WriteLog(job);
+            if (!string.IsNullOrEmpty(job.LogFilePath) && job.OutputLines.Count > 0)
+                PromptwareLogWriter.WriteRawLog(job.LogFilePath, job.OutputLines);
         }
         catch { }
-
-        try
-        {
-            WriteRawOutputLog(job);
-        }
-        catch
-        {
-        }
 
         try
         {
@@ -1039,12 +1033,4 @@ internal class JobCompletionHandler
         sb.AppendLine();
     }
 
-    private static void WriteRawOutputLog(JobItem job)
-    {
-        if (job.OutputLines.Count == 0) return;
-        if (string.IsNullOrEmpty(job.LogFilePath)) return;
-
-        var rawFile = Path.ChangeExtension(job.LogFilePath, ".raw.jsonl");
-        File.WriteAllLines(rawFile, job.OutputLines);
-    }
 }
