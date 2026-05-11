@@ -78,6 +78,12 @@ public record JobItem
     // Path to the status file used for cross-process status updates
     public string? StatusFilePath { get; set; }
 
+    // Automatic logging metadata (transient, not persisted)
+    [JsonIgnore] public string? LogFilePath { get; set; }
+    [JsonIgnore] public string? CompiledPrompt { get; set; }
+    [JsonIgnore] public string? CliCommand { get; set; }
+    [JsonIgnore] public int? ExitCode { get; set; }
+
     public void EnqueueOutput(string line)
     {
         OutputLines.Enqueue(line);

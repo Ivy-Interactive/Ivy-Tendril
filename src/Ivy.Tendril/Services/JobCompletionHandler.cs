@@ -6,6 +6,7 @@ using Ivy.Helpers;
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Services.Agents;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services;
@@ -887,6 +888,12 @@ internal class JobCompletionHandler
     {
         try
         {
+            PromptwareLogWriter.WriteLog(job);
+        }
+        catch { }
+
+        try
+        {
             WriteRawOutputLog(job);
         }
         catch
@@ -1032,18 +1039,12 @@ internal class JobCompletionHandler
         sb.AppendLine();
     }
 
-    private void WriteRawOutputLog(JobItem job)
+    private static void WriteRawOutputLog(JobItem job)
     {
         if (job.OutputLines.Count == 0) return;
+        if (string.IsNullOrEmpty(job.LogFilePath)) return;
 
-        var logsDir = Path.Combine(_promptsRoot, job.Type, "Logs");
-        if (!Directory.Exists(logsDir)) return;
-
-        var logName = !string.IsNullOrEmpty(job.AllocatedPlanId)
-            ? job.AllocatedPlanId
-            : job.Id;
-
-        var rawFile = Path.Combine(logsDir, $"{logName}.raw.jsonl");
+        var rawFile = Path.ChangeExtension(job.LogFilePath, ".raw.jsonl");
         File.WriteAllLines(rawFile, job.OutputLines);
     }
 }

@@ -202,6 +202,8 @@ internal class JobLauncher
                         else
                         {
                             _logger.LogInformation("Job {JobId}: Process exited with code {ExitCode}", id, process.ExitCode);
+                            if (ctx.Jobs.TryGetValue(id, out var exitJob))
+                                exitJob.ExitCode = process.ExitCode;
                             ctx.CompleteJob(id, process.ExitCode, false, false);
                         }
                     }
@@ -410,9 +412,12 @@ internal class JobLauncher
             && !string.IsNullOrWhiteSpace(specificCfg.CustomInstructions))
             customInstructions = specificCfg.CustomInstructions;
 
-        var logFile = FirmwareCompiler.GetNextLogFile(programFolder, values);
-        var context = new FirmwareContext(programFolder, logFile, values, customInstructions);
+        var logFile = FirmwareCompiler.GetNextLogFile(programFolder);
+        job.LogFilePath = logFile;
+
+        var context = new FirmwareContext(programFolder, values, customInstructions);
         var prompt = FirmwareCompiler.Compile(context);
+        job.CompiledPrompt = prompt;
 
         string? promptFilePath = null;
         if (!resolution.Provider.UsesStdinPrompt)
@@ -437,6 +442,7 @@ internal class JobLauncher
 
         var psi = resolution.Provider.BuildProcessStart(invocation);
         SetTendrilEnvironment(psi, job);
+        job.CliCommand = FirmwareCompiler.FormatCliCommand(psi);
 
         var stdinContent = resolution.Provider.UsesStdinPrompt ? prompt : null;
 

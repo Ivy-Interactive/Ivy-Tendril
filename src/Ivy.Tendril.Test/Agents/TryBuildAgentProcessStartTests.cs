@@ -27,7 +27,6 @@ public class TryBuildAgentProcessStartTests : IDisposable
     {
         var context = new FirmwareContext(
             "/programs/Test",
-            "/programs/Test/Logs/00001.md",
             new Dictionary<string, string>());
 
         var result = FirmwareCompiler.Compile(context);
@@ -42,13 +41,12 @@ public class TryBuildAgentProcessStartTests : IDisposable
     {
         var context = new FirmwareContext(
             "/programs/Test",
-            "/programs/Test/Logs/00001.md",
             new Dictionary<string, string>());
 
         var result = FirmwareCompiler.Compile(context);
 
-        Assert.Contains("Tools/", result);
-        Assert.Contains("Memory/", result);
+        Assert.Contains("**Tools:**", result);
+        Assert.Contains("**Memory:**", result);
     }
 
     [Fact]
