@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
 using Ivy.Helpers;
-using Ivy.Tendril.Apps;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services.Agents;
@@ -21,6 +20,8 @@ internal class JobCompletionHandler
     private readonly ITelemetryService? _telemetryService;
     private readonly IWorktreeLifecycleLogger? _worktreeLifecycleLogger;
     private readonly string _promptsRoot;
+    private readonly PlanArtifactSyncer _artifactSyncer;
+    private readonly DependencyChecker _dependencyChecker;
 
     internal JobCompletionHandler(
         IConfigService? configService,
@@ -40,6 +41,8 @@ internal class JobCompletionHandler
         _planWatcherService = planWatcherService;
         _worktreeLifecycleLogger = worktreeLifecycleLogger;
         _promptsRoot = promptsRoot;
+        _artifactSyncer = new PlanArtifactSyncer(configService, logger, planWatcherService);
+        _dependencyChecker = new DependencyChecker(planReaderService);
     }
 
     internal void HandleCompletion(
@@ -65,12 +68,12 @@ internal class JobCompletionHandler
             ScheduleWorktreeCleanup(job);
 
         if (job.TypedArgs is ExecutePlanArgs or CreatePrArgs)
-            RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck);
+            _dependencyChecker.RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck);
 
         if (isSuccess && job.TypedArgs is ExecutePlanArgs or CreatePrArgs or CreateIssueArgs)
         {
             var planFolder = job.TypedArgs?.PlanFolder ?? "";
-            RetryBlockedDependents(planFolder, jobs, startJobSkipDepCheck);
+            _dependencyChecker.RetryBlockedDependents(planFolder, jobs, startJobSkipDepCheck);
         }
     }
 
@@ -95,33 +98,44 @@ internal class JobCompletionHandler
         if (job.Status is JobStatus.Failed or JobStatus.Timeout)
         {
             ResetPlanState(job);
+            return;
         }
-        else if (isSuccess && job.TypedArgs is ExecutePlanArgs)
+
+        if (!isSuccess) return;
+
+        switch (job.TypedArgs)
         {
-            SyncPlanArtifacts(job);
-            EnsurePlanStateTransitioned(job);
-        }
-        else if (isSuccess && job.TypedArgs is CreateIssueArgs)
-        {
-            SetPlanState(job, "Completed");
-        }
-        else if (isSuccess && job.TypedArgs is UpdatePlanArgs or ExpandPlanArgs)
-        {
-            SetPlanState(job, "Draft");
-        }
-        else if (isSuccess && job.TypedArgs is SplitPlanArgs)
-        {
-            SetPlanState(job, "Skipped");
-        }
-        else if (isSuccess && job.TypedArgs is CreatePlanArgs)
-        {
-            VerifyCreatePlanResult(job);
+            case ExecutePlanArgs:
+                _artifactSyncer.SyncPlanArtifacts(job);
+                EnsurePlanStateTransitioned(job);
+                break;
+            case CreateIssueArgs:
+                SetPlanState(job, "Completed");
+                break;
+            case UpdatePlanArgs or ExpandPlanArgs:
+                SetPlanState(job, "Draft");
+                break;
+            case SplitPlanArgs:
+                SetPlanState(job, "Skipped");
+                break;
+            case CreatePlanArgs:
+                VerifyCreatePlanResult(job);
+                break;
         }
     }
 
     private void TrackTelemetry(JobItem job, bool isSuccess)
     {
-        if (isSuccess && job.TypedArgs is CreatePlanArgs && job.Status == JobStatus.Completed)
+        if (isSuccess)
+            TrackSuccessTelemetry(job);
+
+        _telemetryService?.TrackJobCompleted(job.Type, job.Status, job.DurationSeconds);
+        FlushTelemetryAsync();
+    }
+
+    private void TrackSuccessTelemetry(JobItem job)
+    {
+        if (job.TypedArgs is CreatePlanArgs)
         {
             var planFolder = job.TypedArgs?.PlanFolder ?? "";
             var level = "NiceToHave";
@@ -130,29 +144,23 @@ internal class JobCompletionHandler
                 var plan = PlanYamlHelper.ReadPlanYaml(planFolder);
                 if (plan != null) level = plan.Level;
             }
-
             _telemetryService?.TrackPlanCreated(new PlanCreatedContext(level, job.DurationSeconds));
         }
-
-        if (isSuccess && job.TypedArgs is CreatePrArgs)
+        else if (job.TypedArgs is CreatePrArgs)
         {
             _telemetryService?.TrackPrCreated(new PrCreatedContext(job.DurationSeconds));
         }
+    }
 
-        _telemetryService?.TrackJobCompleted(job.Type, job.Status, job.DurationSeconds);
+    private void FlushTelemetryAsync()
+    {
+        if (_telemetryService == null) return;
 
-        if (_telemetryService != null)
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await _telemetryService.FlushAsync();
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogDebug(ex, "Failed to flush telemetry (best-effort)");
-                }
-            });
+        _ = Task.Run(async () =>
+        {
+            try { await _telemetryService.FlushAsync(); }
+            catch (Exception ex) { _logger.LogDebug(ex, "Failed to flush telemetry (best-effort)"); }
+        });
     }
 
     private void NotifyPlanWatcher(JobItem job)
@@ -218,305 +226,90 @@ internal class JobCompletionHandler
             .ToList();
 
         foreach (var hook in hooks)
-            try
-            {
-                if (!string.IsNullOrWhiteSpace(hook.Condition))
-                {
-                    var condPsi = new ProcessStartInfo
-                    {
-                        FileName = "pwsh",
-                        Arguments = $"-NoProfile -NonInteractive -EncodedCommand {EncodeForPowerShell(hook.Condition)}",
-                        WorkingDirectory = string.IsNullOrEmpty(planFolder) ? "." : planFolder,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        RedirectStandardInput = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    };
-                    using var condProc = Process.Start(condPsi);
-                    var condOutput = condProc?.StandardOutput.ReadToEnd().Trim() ?? "";
-                    condProc.WaitForExitOrKill(10000);
+            ExecuteSingleHook(hook, planFolder, job, jobType);
+    }
 
-                    if (condProc?.ExitCode != 0 ||
-                        condOutput.Equals("False", StringComparison.OrdinalIgnoreCase))
-                    {
-                        job.EnqueueOutput($"[hook:{hook.Name}] Condition not met, skipping");
-                        continue;
-                    }
-                }
+    private void ExecuteSingleHook(PromptwareHookConfig hook, string planFolder, JobItem job, string jobType)
+    {
+        try
+        {
+            if (!EvaluateHookCondition(hook, planFolder, job))
+                return;
 
-                var actionPsi = new ProcessStartInfo
-                {
-                    FileName = "pwsh",
-                    Arguments = $"-NoProfile -NonInteractive -EncodedCommand {EncodeForPowerShell(hook.Action)}",
-                    WorkingDirectory = string.IsNullOrEmpty(planFolder) ? "." : planFolder,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    RedirectStandardInput = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                actionPsi.Environment["TENDRIL_JOB_ID"] = job.Id;
-                actionPsi.Environment["TENDRIL_JOB_TYPE"] = jobType;
-                actionPsi.Environment["TENDRIL_JOB_STATUS"] = job.Status.ToString();
-                actionPsi.Environment["TENDRIL_PLAN_FOLDER"] = planFolder;
-                actionPsi.Environment["TENDRIL_CONFIG"] = _configService.ConfigPath;
+            RunHookAction(hook, planFolder, job, jobType);
+        }
+        catch (Exception ex)
+        {
+            job.EnqueueOutput($"[hook:{hook.Name}] Error: {ex.Message}");
+        }
+    }
 
-                using var actionProc = Process.Start(actionPsi);
-                var output = actionProc?.StandardOutput.ReadToEnd().Trim() ?? "";
-                var stderr = actionProc?.StandardError.ReadToEnd().Trim() ?? "";
-                actionProc.WaitForExitOrKill(30000);
+    private static bool EvaluateHookCondition(PromptwareHookConfig hook, string planFolder, JobItem job)
+    {
+        if (string.IsNullOrWhiteSpace(hook.Condition))
+            return true;
 
-                if (!string.IsNullOrEmpty(output))
-                    job.EnqueueOutput($"[hook:{hook.Name}] {output}");
-                if (!string.IsNullOrEmpty(stderr))
-                    job.EnqueueOutput($"[hook:{hook.Name}] [stderr] {stderr}");
+        var condPsi = new ProcessStartInfo
+        {
+            FileName = "pwsh",
+            Arguments = $"-NoProfile -NonInteractive -EncodedCommand {EncodeForPowerShell(hook.Condition)}",
+            WorkingDirectory = string.IsNullOrEmpty(planFolder) ? "." : planFolder,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            RedirectStandardInput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        using var condProc = Process.Start(condPsi);
+        var condOutput = condProc?.StandardOutput.ReadToEnd().Trim() ?? "";
+        condProc.WaitForExitOrKill(10000);
 
-                if (actionProc?.ExitCode != 0)
-                    job.EnqueueOutput($"[hook:{hook.Name}] Hook failed with exit code {actionProc?.ExitCode}");
-            }
-            catch (Exception ex)
-            {
-                job.EnqueueOutput($"[hook:{hook.Name}] Error: {ex.Message}");
-            }
+        if (condProc?.ExitCode != 0 || condOutput.Equals("False", StringComparison.OrdinalIgnoreCase))
+        {
+            job.EnqueueOutput($"[hook:{hook.Name}] Condition not met, skipping");
+            return false;
+        }
+
+        return true;
+    }
+
+    private void RunHookAction(PromptwareHookConfig hook, string planFolder, JobItem job, string jobType)
+    {
+        var actionPsi = new ProcessStartInfo
+        {
+            FileName = "pwsh",
+            Arguments = $"-NoProfile -NonInteractive -EncodedCommand {EncodeForPowerShell(hook.Action)}",
+            WorkingDirectory = string.IsNullOrEmpty(planFolder) ? "." : planFolder,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            RedirectStandardInput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        actionPsi.Environment["TENDRIL_JOB_ID"] = job.Id;
+        actionPsi.Environment["TENDRIL_JOB_TYPE"] = jobType;
+        actionPsi.Environment["TENDRIL_JOB_STATUS"] = job.Status.ToString();
+        actionPsi.Environment["TENDRIL_PLAN_FOLDER"] = planFolder;
+        actionPsi.Environment["TENDRIL_CONFIG"] = _configService!.ConfigPath;
+
+        using var actionProc = Process.Start(actionPsi);
+        var output = actionProc?.StandardOutput.ReadToEnd().Trim() ?? "";
+        var stderr = actionProc?.StandardError.ReadToEnd().Trim() ?? "";
+        actionProc.WaitForExitOrKill(30000);
+
+        if (!string.IsNullOrEmpty(output))
+            job.EnqueueOutput($"[hook:{hook.Name}] {output}");
+        if (!string.IsNullOrEmpty(stderr))
+            job.EnqueueOutput($"[hook:{hook.Name}] [stderr] {stderr}");
+
+        if (actionProc?.ExitCode != 0)
+            job.EnqueueOutput($"[hook:{hook.Name}] Hook failed with exit code {actionProc?.ExitCode}");
     }
 
     private static string EncodeForPowerShell(string command)
     {
         var bytes = Encoding.Unicode.GetBytes(command);
         return Convert.ToBase64String(bytes);
-    }
-
-    private void SyncPlanArtifacts(JobItem job)
-    {
-        var planFolder = job.TypedArgs?.PlanFolder ?? "";
-        if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder)) return;
-
-        try
-        {
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
-            var changed = false;
-
-            changed |= SyncVerificationsFromReports(planFolder, plan);
-            changed |= SyncCommitsFromWorktrees(planFolder, plan);
-
-            if (changed)
-            {
-                plan.Updated = DateTime.UtcNow;
-                PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcherService);
-                _logger.LogInformation(
-                    "Synced plan artifacts from disk for {PlanFolder} (agent did not call CLI commands)",
-                    Path.GetFileName(planFolder));
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to sync plan artifacts for {PlanFolder}", planFolder);
-        }
-    }
-
-    private bool SyncVerificationsFromReports(string planFolder, PlanYaml plan)
-    {
-        var verificationDir = Path.Combine(planFolder, "verification");
-        if (!Directory.Exists(verificationDir)) return false;
-        if (plan.Verifications == null || plan.Verifications.Count == 0) return false;
-
-        var changed = false;
-
-        foreach (var reportFile in Directory.GetFiles(verificationDir, "*.md"))
-        {
-            var reportName = Path.GetFileNameWithoutExtension(reportFile);
-            if (reportName.Equals("PreExecution", StringComparison.OrdinalIgnoreCase)) continue;
-
-            var verification = plan.Verifications.FirstOrDefault(v =>
-                v.Name.Equals(reportName, StringComparison.OrdinalIgnoreCase));
-            if (verification == null) continue;
-            if (verification.Status != "Pending") continue;
-
-            try
-            {
-                var content = FileHelper.ReadAllText(reportFile);
-                var result = PlanYamlHelper.ParseVerificationResultFromReport(content);
-                if (result != null)
-                {
-                    verification.Status = result;
-                    changed = true;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, "Failed to read verification report {ReportPath}", reportFile);
-                // Skip unreadable report files
-            }
-        }
-
-        return changed;
-    }
-
-    private bool SyncCommitsFromWorktrees(string planFolder, PlanYaml plan)
-    {
-        if (plan.Commits.Count > 0) return false;
-
-        var worktreesDir = Path.Combine(planFolder, "worktrees");
-        if (!Directory.Exists(worktreesDir)) return false;
-
-        var planId = PlanYamlHelper.ExtractPlanIdFromFolder(planFolder);
-        var safeTitle = PlanYamlHelper.ExtractSafeTitleFromFolder(planFolder);
-        if (planId == null || safeTitle == null) return false;
-
-        var branchName = $"tendril/{planId}-{safeTitle}";
-        var planRepoNames = new HashSet<string>(
-            plan.Repos.Select(r => Path.GetFileName(Environment.ExpandEnvironmentVariables(r))),
-            StringComparer.OrdinalIgnoreCase);
-
-        var changed = false;
-        foreach (var wtDir in IterateWorktrees(worktreesDir, planRepoNames))
-        {
-            var commits = ExtractCommitsFromWorktree(wtDir, branchName, plan);
-            changed |= AddCommitsToPlan(plan, commits);
-        }
-
-        return changed;
-    }
-
-    private IEnumerable<string> IterateWorktrees(string worktreesDir, HashSet<string> planRepoNames)
-    {
-        foreach (var wtDir in Directory.GetDirectories(worktreesDir))
-        {
-            var wtName = Path.GetFileName(wtDir);
-            if (planRepoNames.Count > 0 && !planRepoNames.Contains(wtName))
-                continue;
-
-            var gitFile = Path.Combine(wtDir, ".git");
-            if (File.Exists(gitFile))
-                yield return wtDir;
-        }
-    }
-
-    private List<string> ExtractCommitsFromWorktree(string wtDir, string branchName, PlanYaml plan)
-    {
-        var commits = new List<string>();
-        try
-        {
-            var gitFile = Path.Combine(wtDir, ".git");
-            var gitContent = FileHelper.ReadAllText(gitFile).Trim();
-            var gitDirMatch = Regex.Match(gitContent, @"gitdir:\s*(.+)");
-            if (!gitDirMatch.Success) return commits;
-
-            var gitDir = gitDirMatch.Groups[1].Value.Trim();
-            var repoGitDir = Path.GetFullPath(Path.Combine(gitDir, "..", ".."));
-            var repoRoot = Path.GetDirectoryName(repoGitDir);
-            if (repoRoot == null || !Directory.Exists(repoRoot)) return commits;
-
-            var baseBranch = ResolveBaseBranch(repoRoot, plan);
-
-            var psi = new ProcessStartInfo("git",
-                $"log --format=%H \"{baseBranch}..{branchName}\"")
-            {
-                WorkingDirectory = repoRoot,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using var process = Process.Start(psi);
-            if (process == null) return commits;
-            var output = process.StandardOutput.ReadToEnd().Trim();
-            process.WaitForExitOrKill(10000);
-            if (process.ExitCode != 0 || string.IsNullOrEmpty(output)) return commits;
-
-            foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-            {
-                var hash = line.Trim();
-                if (hash.Length >= 7)
-                {
-                    var shortHash = hash.Length > 9 ? hash[..9] : hash;
-                    commits.Add(shortHash);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Failed to read commits from worktree {Worktree}", wtDir);
-            // Skip worktrees that can't be read
-        }
-
-        return commits;
-    }
-
-    private static bool AddCommitsToPlan(PlanYaml plan, IEnumerable<string> commits)
-    {
-        var changed = false;
-        foreach (var commit in commits)
-        {
-            if (!plan.Commits.Contains(commit))
-            {
-                plan.Commits.Add(commit);
-                changed = true;
-            }
-        }
-        return changed;
-    }
-
-    private string ResolveBaseBranch(string repoRoot, PlanYaml plan)
-    {
-        var configured = TryGetConfiguredBaseBranch(repoRoot, plan);
-        return configured ?? DetectBaseBranch(repoRoot);
-    }
-
-    private string? TryGetConfiguredBaseBranch(string repoRoot, PlanYaml plan)
-    {
-        if (_configService == null) return null;
-
-        if (!string.IsNullOrEmpty(plan.Project))
-        {
-            var project = _configService.GetProject(plan.Project);
-            var repoRef = project?.Repos.FirstOrDefault(r =>
-                Path.GetFullPath(r.Path).Equals(Path.GetFullPath(repoRoot), StringComparison.OrdinalIgnoreCase));
-            if (repoRef?.BaseBranch is { Length: > 0 } configured)
-                return $"origin/{configured}";
-        }
-
-        foreach (var proj in _configService.Projects)
-        {
-            var repoRef = proj.Repos.FirstOrDefault(r =>
-                Path.GetFullPath(r.Path).Equals(Path.GetFullPath(repoRoot), StringComparison.OrdinalIgnoreCase));
-            if (repoRef?.BaseBranch is { Length: > 0 } found)
-                return $"origin/{found}";
-        }
-
-        return null;
-    }
-
-    private static string DetectBaseBranch(string repoRoot)
-    {
-        try
-        {
-            var psi = new ProcessStartInfo("git",
-                "symbolic-ref refs/remotes/origin/HEAD")
-            {
-                WorkingDirectory = repoRoot,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using var process = Process.Start(psi);
-            if (process == null) return "origin/main";
-            var output = process.StandardOutput.ReadToEnd().Trim();
-            process.WaitForExitOrKill(5000);
-
-            if (process.ExitCode == 0 && !string.IsNullOrEmpty(output))
-                return output.Replace("refs/remotes/", "");
-        }
-        catch
-        {
-            // Fall through to default
-        }
-
-        return "origin/main";
     }
 
     private void EnsurePlanStateTransitioned(JobItem job)
@@ -570,71 +363,87 @@ internal class JobCompletionHandler
     {
         try
         {
-            if (_planReaderService == null) return;
-            var plansDir = _planReaderService.PlansDirectory;
-            if (!Directory.Exists(plansDir)) return;
+            var plansDir = _planReaderService?.PlansDirectory;
+            if (plansDir == null || !Directory.Exists(plansDir)) return;
 
-            // 1. Agent reported a plan ID via the status API
-            if (!string.IsNullOrEmpty(job.ReportedPlanId))
-            {
-                var reportedFolder = PlanYamlHelper.FindPlanFolderById(plansDir, job.ReportedPlanId);
-                if (reportedFolder != null)
-                {
-                    job.PlanFile = reportedFolder;
-                    return;
-                }
+            if (TryVerifyByReportedId(job, plansDir)) return;
+            if (TryVerifyByOutputRegex(job)) return;
+            if (IsDuplicatePlan(job)) return;
+            if (TryVerifyByFilesystem(job, plansDir)) return;
+            if (IsInTrash(job)) return;
 
-                // Reported ID doesn't match any plan folder — clear it so the
-                // bogus value doesn't leak into the UI (e.g. agent copied the
-                // example "01234" from documentation instead of calling the CLI).
-                job.ReportedPlanId = null;
-                job.ReportedPlanTitle = null;
-            }
-
-            var planId = job.ReportedPlanId ?? job.AllocatedPlanId;
-
-            // 2. Check output regex (backward compat)
-            var outputText = string.Join("\n", job.OutputLines);
-            var createdMatch = Regex.Match(outputText, @"Plan created:\s*(\S+)");
-            if (createdMatch.Success)
-            {
-                job.PlanFile = createdMatch.Groups[1].Value;
-                return;
-            }
-
-            // 3. Duplicate detection
-            var duplicate = Regex.IsMatch(outputText, "identified as duplicate:");
-            if (duplicate) return;
-
-            // 4. Filesystem fallback using allocated or reported ID
-            var planFolder = PlanYamlHelper.FindPlanFolderById(plansDir, planId);
-            if (planFolder != null)
-            {
-                job.PlanFile = planFolder;
-                return;
-            }
-
-            // 5. Check trash
-            var trashDir = _configService != null
-                ? Path.Combine(_configService.TendrilHome, "Trash")
-                : null;
-            var trashEntry = trashDir != null && !string.IsNullOrEmpty(planId)
-                ? PlanYamlHelper.FindTrashEntryById(trashDir, planId)
-                : null;
-            if (trashEntry != null) return;
-
-            // 6. Nothing found — mark as failed
-            job.EnqueueOutput(
-                "[Tendril] WARNING: CreatePlan completed but no plan folder or trash entry was found.");
-            job.Status = JobStatus.Failed;
-
-            var failureMessage = JobFailureAnalyzer.TryReadFailureArtifact(job.OutputLines.ToList());
-            job.StatusMessage = failureMessage ?? "No plan created";
+            MarkCreatePlanFailed(job);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to verify CreatePlan result for job {JobId}", job.Id);
         }
+    }
+
+    private static void MarkCreatePlanFailed(JobItem job)
+    {
+        job.EnqueueOutput(
+            "[Tendril] WARNING: CreatePlan completed but no plan folder or trash entry was found.");
+        job.Status = JobStatus.Failed;
+        job.StatusMessage = JobFailureAnalyzer.TryReadFailureArtifact(job.OutputLines.ToList()) ?? "No plan created";
+    }
+
+    private static bool TryVerifyByReportedId(JobItem job, string plansDir)
+    {
+        if (string.IsNullOrEmpty(job.ReportedPlanId)) return false;
+
+        var reportedFolder = PlanYamlHelper.FindPlanFolderById(plansDir, job.ReportedPlanId);
+        if (reportedFolder != null)
+        {
+            job.PlanFile = reportedFolder;
+            return true;
+        }
+
+        job.ReportedPlanId = null;
+        job.ReportedPlanTitle = null;
+        return false;
+    }
+
+    private static bool TryVerifyByOutputRegex(JobItem job)
+    {
+        var outputText = string.Join("\n", job.OutputLines);
+        var createdMatch = Regex.Match(outputText, @"Plan created:\s*(\S+)");
+        if (createdMatch.Success)
+        {
+            job.PlanFile = createdMatch.Groups[1].Value;
+            return true;
+        }
+        return false;
+    }
+
+    private static bool IsDuplicatePlan(JobItem job)
+    {
+        var outputText = string.Join("\n", job.OutputLines);
+        return Regex.IsMatch(outputText, "identified as duplicate:");
+    }
+
+    private static bool TryVerifyByFilesystem(JobItem job, string plansDir)
+    {
+        var planId = job.ReportedPlanId ?? job.AllocatedPlanId;
+        var planFolder = PlanYamlHelper.FindPlanFolderById(plansDir, planId);
+        if (planFolder != null)
+        {
+            job.PlanFile = planFolder;
+            return true;
+        }
+        return false;
+    }
+
+    private bool IsInTrash(JobItem job)
+    {
+        var planId = job.ReportedPlanId ?? job.AllocatedPlanId;
+        var trashDir = _configService != null
+            ? Path.Combine(_configService.TendrilHome, "Trash")
+            : null;
+        var trashEntry = trashDir != null && !string.IsNullOrEmpty(planId)
+            ? PlanYamlHelper.FindTrashEntryById(trashDir, planId)
+            : null;
+        return trashEntry != null;
     }
 
     internal void ResetPlanState(JobItem job)
@@ -689,6 +498,11 @@ internal class JobCompletionHandler
         var worktreesDir = Path.Combine(planFolder, "worktrees");
         if (!Directory.Exists(worktreesDir)) return;
 
+        ScheduleWorktreeRemoval(planFolder, worktreesDir);
+    }
+
+    private void ScheduleWorktreeRemoval(string planFolder, string worktreesDir)
+    {
         var lifecycleLogger = _worktreeLifecycleLogger;
         var logger = _logger;
 
@@ -710,163 +524,13 @@ internal class JobCompletionHandler
     }
 
     internal (bool Ok, string? BlockReason) CheckDependencies(string planFolder)
-    {
-        try
-        {
-            var planYaml = PlanYamlHelper.ReadPlanYaml(planFolder);
-            if (planYaml?.DependsOn == null || planYaml.DependsOn.Count == 0)
-                return (true, null);
-
-            var plansDir = _planReaderService?.PlansDirectory;
-            if (plansDir == null) return (true, null);
-
-            foreach (var dep in planYaml.DependsOn)
-            {
-                var depFolder = Path.Combine(plansDir, dep);
-                var depPlan = PlanYamlHelper.ReadPlanYaml(depFolder);
-
-                if (depPlan == null)
-                    return (false, $"Dependency '{dep}' not found");
-
-                if (!depPlan.State.Equals("Completed", StringComparison.OrdinalIgnoreCase))
-                    return (false, $"Dependency '{dep}' is '{depPlan.State}', not Completed");
-
-                if (depPlan.Prs.Count == 0)
-                    continue;
-
-                foreach (var prUrl in depPlan.Prs.Where(PullRequestApp.IsValidUrl))
-                    try
-                    {
-                        var psi = new ProcessStartInfo
-                        {
-                            FileName = "gh",
-                            Arguments = $"pr view \"{prUrl}\" --json state -q .state",
-                            RedirectStandardOutput = true,
-                            RedirectStandardError = true,
-                            UseShellExecute = false,
-                            CreateNoWindow = true
-                        };
-                        using var proc = Process.Start(psi);
-                        var output = proc?.StandardOutput.ReadToEnd().Trim() ?? "";
-                        proc.WaitForExitOrKill(10000);
-
-                        if (!output.Equals("MERGED", StringComparison.OrdinalIgnoreCase))
-                            return (false, $"Dependency '{dep}' PR {prUrl} is '{output}', not MERGED");
-                    }
-                    catch (Exception ex)
-                    {
-                        return (false, $"Failed to check PR status for '{dep}': {ex.Message}");
-                    }
-            }
-
-            return (true, null);
-        }
-        catch (Exception ex)
-        {
-            return (false, $"Dependency check failed: {ex.Message}");
-        }
-    }
+        => _dependencyChecker.CheckDependencies(planFolder);
 
     internal void HandleRetryBlockedJobs(
         ConcurrentDictionary<string, JobItem> jobs,
         Action<JobNotification> raiseNotification,
         Func<JobArgsBase, string> startJobSkipDepCheck)
-        => RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck);
-
-    private void RetryBlockedJobs(
-        ConcurrentDictionary<string, JobItem> jobs,
-        Action<JobNotification> raiseNotification,
-        Func<JobArgsBase, string> startJobSkipDepCheck)
-    {
-        var blockedJobs = jobs.Values
-            .Where(j => j.Status == JobStatus.Blocked && j.TypedArgs is ExecutePlanArgs)
-            .ToList();
-
-        foreach (var blockedJob in blockedJobs)
-        {
-            var planFolder = blockedJob.TypedArgs?.PlanFolder ?? "";
-            if (string.IsNullOrEmpty(planFolder)) continue;
-
-            var (ok, _) = CheckDependencies(planFolder);
-            if (!ok) continue;
-
-            if (HasActiveJobForPlan(planFolder, jobs)) continue;
-
-            if (!jobs.TryRemove(blockedJob.Id, out _)) continue;
-
-            PlanYamlHelper.SetPlanStateByFolder(planFolder, "Building");
-            startJobSkipDepCheck(blockedJob.TypedArgs!);
-
-            raiseNotification(new JobNotification(
-                "Job Unblocked",
-                $"{blockedJob.PlanFile}: dependencies now satisfied, auto-restarting",
-                true));
-        }
-    }
-
-    private void RetryBlockedDependents(
-        string completedPlanFolder,
-        ConcurrentDictionary<string, JobItem> jobs,
-        Func<JobArgsBase, string> startJobSkipDepCheck)
-    {
-        try
-        {
-            var completedFolderName = Path.GetFileName(completedPlanFolder);
-            var plansDir = _planReaderService?.PlansDirectory;
-            if (string.IsNullOrEmpty(plansDir) || !Directory.Exists(plansDir)) return;
-
-            foreach (var dir in Directory.GetDirectories(plansDir))
-            {
-                var planYaml = PlanYamlHelper.ReadPlanYaml(dir);
-                if (planYaml == null) continue;
-                if (!planYaml.State.Equals("Blocked", StringComparison.OrdinalIgnoreCase)) continue;
-                if (!planYaml.DependsOn.Contains(completedFolderName, StringComparer.OrdinalIgnoreCase)) continue;
-
-                var hasExistingJob = jobs.Values.Any(j =>
-                    j.TypedArgs is ExecutePlanArgs &&
-                    j.Status is JobStatus.Blocked or JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
-                    j.TypedArgs?.PlanFolder != null &&
-                    j.TypedArgs.PlanFolder.Equals(dir, StringComparison.OrdinalIgnoreCase));
-                if (hasExistingJob) continue;
-
-                var (allMet, _) = CheckDependencies(dir);
-                if (allMet)
-                {
-                    PlanYamlHelper.SetPlanStateByFolder(dir, "Building");
-                    startJobSkipDepCheck(new ExecutePlanArgs(dir));
-                }
-            }
-        }
-        catch
-        {
-        }
-    }
-
-    private static bool HasActiveJobForPlan(string planFolder, ConcurrentDictionary<string, JobItem> jobs)
-    {
-        var planRepos = PlanYamlHelper.ReadPlanYaml(planFolder)?.Repos;
-
-        return jobs.Values.Any(j =>
-        {
-            if (j.TypedArgs is not ExecutePlanArgs) return false;
-            if (j.Status is not (JobStatus.Running or JobStatus.Queued or JobStatus.Pending)) return false;
-
-            var otherFolder = j.TypedArgs?.PlanFolder;
-            if (otherFolder == null) return false;
-
-            if (otherFolder.Equals(planFolder, StringComparison.OrdinalIgnoreCase))
-                return true;
-
-            if (planRepos is { Count: > 0 })
-            {
-                var otherRepos = PlanYamlHelper.ReadPlanYaml(otherFolder)?.Repos;
-                if (otherRepos != null && planRepos.Any(r => otherRepos.Contains(r, StringComparer.OrdinalIgnoreCase)))
-                    return true;
-            }
-
-            return false;
-        });
-    }
+        => _dependencyChecker.RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck);
 
     private string? ResolvePlanFolder(JobItem job)
     {
@@ -1032,5 +696,4 @@ internal class JobCompletionHandler
             sb.AppendLine($"- {v.Name}: {v.Status}");
         sb.AppendLine();
     }
-
 }

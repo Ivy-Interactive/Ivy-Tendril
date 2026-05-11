@@ -75,35 +75,6 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         }
     }
 
-    private static string ResolvePromptwareFolder(string promptwareName, string? tendrilHome, string? promptwarePath)
-    {
-        // 1. --promptware-path override (highest priority)
-        if (!string.IsNullOrEmpty(promptwarePath))
-        {
-            var overrideFolder = Path.Combine(promptwarePath, promptwareName);
-            if (File.Exists(Path.Combine(overrideFolder, "Program.md")))
-                return overrideFolder;
-        }
-
-        // 2. Source/debug mode (AppContext.BaseDirectory relative)
-        var sourceRoot = PromptwareHelper.ResolvePromptsRoot(tendrilHome);
-        var sourceFolder = Path.Combine(sourceRoot, promptwareName);
-
-        if (File.Exists(Path.Combine(sourceFolder, "Program.md")))
-            return sourceFolder;
-
-        // 3. TENDRIL_HOME/Promptwares (deployed mode)
-        tendrilHome ??= Environment.GetEnvironmentVariable("TENDRIL_HOME");
-        if (!string.IsNullOrEmpty(tendrilHome))
-        {
-            var deployedRoot = Path.Combine(tendrilHome, "Promptwares");
-            var deployedFolder = Path.Combine(deployedRoot, promptwareName);
-            if (File.Exists(Path.Combine(deployedFolder, "Program.md")))
-                return deployedFolder;
-        }
-
-        return sourceFolder;
-    }
 
     internal int Run(PromptwareRunSettings settings, CancellationToken cancellationToken = default)
     {
@@ -113,7 +84,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
 
         var tendrilSettings = configService.Settings;
 
-        var programFolder = ResolvePromptwareFolder(settings.Promptware, configService.TendrilHome, settings.PromptwarePath);
+        var programFolder = PromptwareHelper.ResolvePromptwareFolder(settings.Promptware, configService.TendrilHome, settings.PromptwarePath);
         var programMd = Path.Combine(programFolder, "Program.md");
 
         if (!File.Exists(programMd))
@@ -214,13 +185,13 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         if (!string.IsNullOrEmpty(settings.CliLog))
             psi.Environment["TENDRIL_CLI_LOG"] = settings.CliLog;
 
-        JobLauncher.EnsureTendrilOnPath(psi);
-        JobLauncher.ResolveCommandShim(psi);
+        AgentProcessHelper.EnsureTendrilOnPath(psi);
+        AgentProcessHelper.ResolveCommandShim(psi);
 
         if (verbosityService.Level != VerbosityLevel.Quiet)
             _logger.LogInformation("Running {Promptware} via {ProviderName} (model={Model}, effort={Effort})", settings.Promptware, resolution.Provider.Name, resolution.Model, resolution.Effort);
 
-        var cliCommand = FirmwareCompiler.FormatCliCommand(psi);
+        var cliCommand = AgentProcessHelper.FormatCliCommand(psi);
 
         using var process = Process.Start(psi);
         if (process == null)
