@@ -1,3 +1,4 @@
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
@@ -120,5 +121,38 @@ public class IConfigServiceTests
         var names = config.LevelNames;
 
         Assert.Equal(new[] { "Bug", "Critical", "NiceToHave" }, names);
+    }
+
+    [Fact]
+    public void SaveSettings_PersistsProjectDeletion()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"tendril-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var config = new ConfigService(new TendrilSettings
+            {
+                Projects = new List<ProjectConfig>
+                {
+                    new() { Name = "ProjectA", Color = "Blue" },
+                    new() { Name = "ProjectB", Color = "Red" }
+                }
+            }, tempDir);
+
+            // Delete the first project
+            config.Settings.Projects.RemoveAt(0);
+            config.SaveSettings();
+
+            // Reload from file and verify
+            var yaml = File.ReadAllText(config.ConfigPath);
+            var reloaded = YamlHelper.Deserializer.Deserialize<TendrilSettings>(yaml);
+
+            Assert.Single(reloaded.Projects);
+            Assert.Equal("ProjectB", reloaded.Projects[0].Name);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
     }
 }
