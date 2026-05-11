@@ -53,112 +53,130 @@ public class ProjectSetupStepView(
         var canContinue = selectedRepos.Value.Count > 0
                           && !string.IsNullOrWhiteSpace(projectName.Value);
 
+        object buttonArea;
+        if (!canContinue)
+        {
+            buttonArea = Layout.Horizontal().Width(Size.Full())
+                | new Button("Back").Outline().Small().Icon(Icons.ArrowLeft)
+                    .OnClick(() => stepperIndex.Set(stepperIndex.Value - 1))
+                | new Spacer()
+                | new Button("Skip").Ghost().Small()
+                    .OnClick(async () =>
+                    {
+                        await setupService.FinalizeOnboardingAsync();
+                        await setupService.StartBackgroundServicesAsync();
+                        clientProvider.ReloadPage();
+                    });
+        }
+        else
+        {
+            buttonArea = Layout.Horizontal().Width(Size.Full())
+                | new Button("Back").Outline().Small().Icon(Icons.ArrowLeft)
+                    .OnClick(() => stepperIndex.Set(stepperIndex.Value - 1))
+                | new Button("Skip Verifications").Ghost().Small()
+                    .OnClick(async () =>
+                    {
+                        var name = SanitizeProjectName(projectName.Value);
+                        if (string.IsNullOrWhiteSpace(name)) return;
+
+                        var existingProject = config.Settings.Projects
+                            .FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+                        if (existingProject == null)
+                        {
+                            error.Set(null);
+                            isCloning.Set(true);
+
+                            var refs = await ResolveReposAsync(config, progressMessage, error, isCloning);
+                            if (refs == null) return;
+
+                            var project = new ProjectConfig
+                            {
+                                Name = name,
+                                Color = "Green",
+                                Repos = refs,
+                                Context = "",
+                                Verifications = new List<ProjectVerificationRef>()
+                            };
+
+                            config.SetPendingProject(project);
+                            config.SetPendingVerificationDefinitions(new List<VerificationConfig>());
+                        }
+
+                        await setupService.FinalizeOnboardingAsync();
+                        await setupService.StartBackgroundServicesAsync();
+                        clientProvider.ReloadPage();
+                    })
+                | new Spacer()
+                | new Button("Generate Verifications").Primary().Large().Icon(Icons.Sparkles)
+                    .OnClick(async () =>
+                    {
+                        var name = SanitizeProjectName(projectName.Value);
+                        if (string.IsNullOrWhiteSpace(name))
+                        {
+                            error.Set("Please enter a valid project name.");
+                            return;
+                        }
+
+                        error.Set(null);
+                        isCloning.Set(true);
+
+                        var progressCts = new CancellationTokenSource();
+                        _ = DriveProgressAsync(progressValue, progressCts.Token);
+
+                        try
+                        {
+                            var refs = await ResolveReposAsync(config, progressMessage, error, isCloning);
+                            if (refs == null)
+                            {
+                                progressCts.Cancel();
+                                progressValue.Set(null);
+                                progressMessage.Set(null);
+                                return;
+                            }
+
+                            var project = new ProjectConfig
+                            {
+                                Name = name,
+                                Color = "Green",
+                                Repos = refs,
+                                Context = "",
+                                Verifications = new List<ProjectVerificationRef>()
+                            };
+
+                            config.SetPendingProject(project);
+                            config.SetPendingVerificationDefinitions(new List<VerificationConfig>());
+
+                            progressCts.Cancel();
+                            progressValue.Set(100);
+                            progressMessage.Set("Done");
+
+                            await StartVerificationSessionAsync(config, setupService, runner, name);
+
+                            await Task.Delay(250);
+
+                            progressValue.Set(null);
+                            progressMessage.Set(null);
+                            isCloning.Set(false);
+                            stepperIndex.Set(stepperIndex.Value + 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            progressCts.Cancel();
+                            progressValue.Set(null);
+                            progressMessage.Set(null);
+                            error.Set($"Failed to set up project: {ex.Message}");
+                            isCloning.Set(false);
+                        }
+                    });
+        }
+
         return Layout.Vertical().Gap(4).Margin(0, 0, 0, 20)
                | Text.H2("Setup your first project")
                | (error.Value != null ? Text.Danger(error.Value) : null!)
                | new ProjectRepoPickerView(selectedRepos, projectName)
                | projectName.ToTextInput().WithField().Required().Label("Project Name")
-               | (Layout.Horizontal().Width(Size.Full())
-                  | new Button("Back").Outline().Small().Icon(Icons.ArrowLeft)
-                      .OnClick(() => stepperIndex.Set(stepperIndex.Value - 1))
-                  | new Button("Skip Verifications").Ghost().Small()
-                      .Disabled(!canContinue)
-                      .OnClick(async () =>
-                      {
-                          var name = SanitizeProjectName(projectName.Value);
-                          if (string.IsNullOrWhiteSpace(name)) return;
-
-                          var existingProject = config.Settings.Projects
-                              .FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-
-                          if (existingProject == null)
-                          {
-                              error.Set(null);
-                              isCloning.Set(true);
-
-                              var refs = await ResolveReposAsync(config, progressMessage, error, isCloning);
-                              if (refs == null) return;
-
-                              var project = new ProjectConfig
-                              {
-                                  Name = name,
-                                  Color = "Green",
-                                  Repos = refs,
-                                  Context = "",
-                                  Verifications = new List<ProjectVerificationRef>()
-                              };
-
-                              config.SetPendingProject(project);
-                              config.SetPendingVerificationDefinitions(new List<VerificationConfig>());
-                          }
-
-                          await setupService.FinalizeOnboardingAsync();
-                          await setupService.StartBackgroundServicesAsync();
-                          clientProvider.ReloadPage();
-                      })
-                  | new Spacer()
-                  | new Button("Generate Verifications").Primary().Large().Icon(Icons.Sparkles)
-                      .Disabled(!canContinue)
-                      .OnClick(async () =>
-                      {
-                          var name = SanitizeProjectName(projectName.Value);
-                          if (string.IsNullOrWhiteSpace(name))
-                          {
-                              error.Set("Please enter a valid project name.");
-                              return;
-                          }
-
-                          error.Set(null);
-                          isCloning.Set(true);
-
-                          var progressCts = new CancellationTokenSource();
-                          _ = DriveProgressAsync(progressValue, progressCts.Token);
-
-                          try
-                          {
-                              var refs = await ResolveReposAsync(config, progressMessage, error, isCloning);
-                              if (refs == null)
-                              {
-                                  progressCts.Cancel();
-                                  progressValue.Set(null);
-                                  progressMessage.Set(null);
-                                  return;
-                              }
-
-                              var project = new ProjectConfig
-                              {
-                                  Name = name,
-                                  Color = "Green",
-                                  Repos = refs,
-                                  Context = "",
-                                  Verifications = new List<ProjectVerificationRef>()
-                              };
-
-                              config.SetPendingProject(project);
-                              config.SetPendingVerificationDefinitions(new List<VerificationConfig>());
-
-                              progressCts.Cancel();
-                              progressValue.Set(100);
-                              progressMessage.Set("Done");
-
-                              await StartVerificationSessionAsync(config, setupService, runner, name);
-
-                              await Task.Delay(250);
-
-                              progressValue.Set(null);
-                              progressMessage.Set(null);
-                              isCloning.Set(false);
-                              stepperIndex.Set(stepperIndex.Value + 1);
-                          }
-                          catch (Exception ex)
-                          {
-                              progressCts.Cancel();
-                              progressValue.Set(null);
-                              progressMessage.Set(null);
-                              error.Set($"Failed to set up project: {ex.Message}");
-                              isCloning.Set(false);
-                          }
-                      }));
+               | buttonArea;
     }
 
     private async Task StartVerificationSessionAsync(
