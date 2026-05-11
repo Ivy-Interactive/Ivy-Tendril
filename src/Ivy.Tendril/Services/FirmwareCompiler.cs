@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.Reflection;
 
-namespace Ivy.Tendril.Services.Agents;
+namespace Ivy.Tendril.Services;
 
-public class FirmwareCompiler
+public static class FirmwareCompiler
 {
     private static readonly Lazy<string?> PlansReference = new(() =>
     {

@@ -1,4 +1,5 @@
 using Ivy.Tendril.Commands;
+using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Agents;
 
 namespace Ivy.Tendril.Test.Commands;
