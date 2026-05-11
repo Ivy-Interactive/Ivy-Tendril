@@ -167,10 +167,10 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
         if (string.IsNullOrEmpty(tendrilHome))
             throw new InvalidOperationException("Tendril home path not set; cannot finalize onboarding.");
 
-        await CommitPendingProjectAsync();
-
         _logger.LogInformation("Marking onboarding complete");
         config.CompleteOnboarding(tendrilHome);
+
+        await CommitPendingProjectAsync();
 
         _logger.LogInformation("Configuration saved");
     }
