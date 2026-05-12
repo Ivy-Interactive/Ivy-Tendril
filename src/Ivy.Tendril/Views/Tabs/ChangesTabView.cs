@@ -14,10 +14,6 @@ public class ChangesTabView(
     {
         var client = UseService<IClientProvider>();
 
-        // null sentinel = "user hasn't toggled yet, default to all expanded"
-        var expandedFiles = UseState<HashSet<string>?>(() => null);
-        var selectedFile = UseState<string?>(null);
-
         if (loading)
             return Text.Muted("Loading...");
 
@@ -34,9 +30,6 @@ public class ChangesTabView(
         if (fileDiffs.Count == 0 && changesData.Files.Count == 0)
             return Text.Muted("No file changes.");
 
-        var currentlyExpanded = expandedFiles.Value
-            ?? new HashSet<string>(fileDiffs.Select(fd => fd.FilePath));
-
         var root = BuildFileTree(fileDiffs);
         var treeItems = ChildItems(root);
         var sortedFileDiffs = SortByTreeOrder(fileDiffs, root);
@@ -46,12 +39,6 @@ public class ChangesTabView(
             {
                 var path = e.Value?.ToString();
                 if (path is null) return;
-                selectedFile.Set(path);
-                if (!currentlyExpanded.Contains(path))
-                {
-                    var files = new HashSet<string>(currentlyExpanded) { path };
-                    expandedFiles.Set(files);
-                }
                 client.Redirect($"#{path}");
             });
 
@@ -63,49 +50,13 @@ public class ChangesTabView(
 
         foreach (var fileDiff in sortedFileDiffs)
         {
-            var isExpanded = currentlyExpanded.Contains(fileDiff.FilePath);
-            var chevronIcon = isExpanded ? Icons.ChevronDown : Icons.ChevronRight;
-            var (statusIcon, statusColor) = PlanContentHelpers.GetFileStatusIconAndColor(fileDiff.Status);
-            var fileName = Path.GetFileName(fileDiff.FilePath);
-            var isRenamed = fileDiff.OldFilePath != null;
-            var oldFileName = isRenamed ? Path.GetFileName(fileDiff.OldFilePath!) : null;
-
-            var header = Layout.Horizontal()
-                .Gap(2)
-                | new Icon(chevronIcon).Small()
-                | new Icon(statusIcon).Small().Color(statusColor);
-
-            if (isRenamed)
-            {
-                header |= Text.Block(oldFileName!).Bold();
-                header |= Text.Muted("→");
-                header |= Text.Block(fileName).Bold();
-                header |= Text.Muted(Path.GetDirectoryName(fileDiff.FilePath)?.Replace('\\', '/') ?? "");
-            }
-            else
-            {
-                header |= Text.Block(fileName).Bold();
-                header |= Text.Muted(Path.GetDirectoryName(fileDiff.FilePath)?.Replace('\\', '/') ?? "");
-            }
-
             var path = fileDiff.FilePath;
-
             diffsLayout |= Text.Block("").Anchor(path);
-
-            diffsLayout |= new Box(header)
-                .BorderThickness(0).Padding(1)
-                .Hover(HoverEffect.Pointer)
-                .OnClick(() =>
-                {
-                    var files = new HashSet<string>(currentlyExpanded);
-                    if (!files.Add(path)) files.Remove(path);
-                    expandedFiles.Set(files);
-                });
-
-            if (isExpanded)
-            {
-                diffsLayout |= new DiffView().Diff(fileDiff.Diff).Split().Width(Size.Full());
-            }
+            diffsLayout |= new DiffView()
+                .Diff(fileDiff.Diff)
+                .Split()
+                .Collapsible()
+                .Width(Size.Full());
         }
 
         var treePanel = Layout.Vertical().Gap(2).Padding(1)

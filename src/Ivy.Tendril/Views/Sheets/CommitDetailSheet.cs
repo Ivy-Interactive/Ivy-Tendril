@@ -13,8 +13,6 @@ public class CommitDetailSheet(
 {
     public override object Build()
     {
-        var expandedFiles = UseState(new HashSet<string>());
-
         var commitQuery = UseQuery<PlanContentHelpers.CommitDetailData?, string>(
             openCommit.Value ?? "",
             async (hash, ct) =>
@@ -45,20 +43,11 @@ public class CommitDetailSheet(
         if (openCommit.Value is not { } commitHash || selectedPlan is null)
             return new Empty();
 
-        void ToggleFile(string path)
-        {
-            var files = new HashSet<string>(expandedFiles.Value);
-            if (!files.Add(path)) files.Remove(path);
-            expandedFiles.Set(files);
-        }
-
         return PlanContentHelpers.RenderCommitDetailSheet(
             commitQuery.Value,
             commitQuery.Loading || commitQuery.Value is null && !string.IsNullOrEmpty(openCommit.Value),
             commitHash,
             () => openCommit.Set(null),
-            expandedFiles.Value,
-            ToggleFile,
             commitQuery.Error);
     }
 }
