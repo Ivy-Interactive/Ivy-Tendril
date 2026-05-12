@@ -47,10 +47,13 @@ Example:
 ### 3. Create Expanded Revision
 
 - Write the new revision via CLI (number auto-incremented):
-  1. Write the expanded revision content to `<TendrilHome>/Temp/<short-random>.md` using the `Write` tool
-  2. Run: `tendril plan write-revision <plan-id> --file "<path-to-temp-file>"`
+  ```bash
+  tendril plan write-revision <plan-id> <<'EOF'
+  <expanded revision content here>
+  EOF
+  ```
 
-  Do NOT use the Write or Edit tools to create revision files directly in `revisions/` — always use `tendril plan write-revision` with `--file`.
+  The command reads from STDIN and auto-creates the next numbered revision file. Do NOT use the Write or Edit tools to create revision files directly in `revisions/`.
 - Replace all investigative/exploratory language with specific actions
 - Include exact file paths for changes
 - Specify concrete code modifications or additions

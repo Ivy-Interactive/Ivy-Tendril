@@ -143,12 +143,12 @@ Options:
 ### Writing revisions
 
 ```bash
-tendril plan write-revision <plan-id> --file <path-to-file>
+tendril plan write-revision <plan-id> <<'EOF'
+<revision content>
+EOF
 ```
 
-Reads content from `<path-to-file>` and writes it to `revisions/<NNN>.md` in the plan folder. Auto-increments from the highest existing revision. Outputs the file path.
-
-Workflow: write revision content to `<TendrilHome>/Temp/<short-random>.md` using the `Write` tool, then run the command above referencing that file.
+Reads content from STDIN and writes it to `revisions/<NNN>.md` in the plan folder. Auto-increments from the highest existing revision. Outputs the file path.
 
 ### Writing execution logs
 

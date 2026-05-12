@@ -73,10 +73,9 @@ codingAgents:
 #
 # All promptwares receive these base tools automatically:
 #   Read, Glob, Grep, Bash(tendril*), Bash(git *), Bash(gh *), Bash(ls *), Bash(find *), Bash(cat *),
-#   WebFetch, WebSearch, Write(%PROMPTWARE_DIR%/**), Edit(%PROMPTWARE_DIR%/**), Bash(%PROMPTWARE_DIR%/Tools/*)
+#   WebFetch, WebSearch, Bash(%PROMPTWARE_DIR%/Tools/*)
+# Memory/tool writes go through CLI: tendril promptware write-memory/write-tool <name> <file>
 # ExecutePlan additionally gets: Bash, Write(%PLAN_DIR%/**), Edit(%PLAN_DIR%/**)
-# CreatePlan additionally gets: Write(%PLANS_DIR%/**) (for temp files used by --file flag)
-# SplitPlan additionally gets: Write(%PLANS_DIR%/**) (creates child plans with --file flag)
 # UpdatePlan additionally gets: Write(%PLAN_DIR%/**) (for temp files used by --file flag)
 # ExpandPlan additionally gets: Write(%PLAN_DIR%/**) (for temp files used by --file flag)
 # CreatePr additionally gets: Bash (needs unrestricted shell for git/gh in worktrees)

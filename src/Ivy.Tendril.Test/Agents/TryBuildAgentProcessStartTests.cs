@@ -32,7 +32,7 @@ public class TryBuildAgentProcessStartTests : IDisposable
         var result = FirmwareCompiler.Compile(context);
 
         Assert.Contains("Reflection", result);
-        Assert.Contains("Memory/", result);
+        Assert.Contains("write-memory", result);
         Assert.Contains("improve over time", result);
     }
 
