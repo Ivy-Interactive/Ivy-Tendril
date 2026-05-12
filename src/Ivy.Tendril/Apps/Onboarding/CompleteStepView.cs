@@ -184,7 +184,7 @@ public class CompleteStepView(
                       .Disabled(isFinishing.Value)
                       .OnClick(OnBack)
                   | new Spacer()
-                  | new Button("Finish").Primary().Large().Icon(Icons.Check, Align.Right)
+                  | new Button("Finish").Primary().Icon(Icons.Check, Align.Right)
                       .Disabled(running || isFinishing.Value)
                       .Loading(isFinishing.Value)
                       .OnClick(async () => await OnFinish()));
