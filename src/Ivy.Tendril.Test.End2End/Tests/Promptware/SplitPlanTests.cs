@@ -41,7 +41,7 @@ public class SplitPlanTests
             cliLogPath: cliLog,
             extraValues: new Dictionary<string, string>
             {
-                ["PlansDirectory"] = _fixture.PlansDir
+                ["TendrilPlansFolder"] = _fixture.PlansDir
             });
 
         PromptwareAssertions.AssertExitSuccess(result, $"SplitPlan ({agent})");

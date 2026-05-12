@@ -5,7 +5,7 @@ Create a GitHub issue from a plan.
 ## Context
 
 The firmware header contains:
-- **PlanFolder** — path to the plan folder
+- **TendrilPlanFolder** — path to the plan folder
 - **CurrentTime** — current UTC timestamp
 - **Repo** — target repository path (local path)
 - **Assignee** — GitHub username to assign (optional, may be empty)
@@ -17,7 +17,7 @@ The firmware header contains:
 
 - Read `plan.yaml` from the plan folder
 - Read the latest revision for the plan title and Problem section
-- Report plan context to Jobs UI: `tendril job status $env:TENDRIL_JOB_ID --message "Creating issue..." --plan-id <plan-id> --plan-title "<title>"`
+- Report plan context to Jobs UI: `tendril job status TendrilJobId --message "Creating issue..." --plan-id <plan-id> --plan-title "<title>"`
 
 ### 2. Identify GitHub Repository
 

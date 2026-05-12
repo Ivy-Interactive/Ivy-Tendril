@@ -24,12 +24,12 @@ public class FirmwareCompilerTests : IDisposable
     {
         var context = new FirmwareContext(
             "/programs/CreatePlan",
-            new Dictionary<string, string> { ["PlanId"] = "03456", ["Project"] = "Tendril" });
+            new Dictionary<string, string> { ["TendrilPlanId"] = "03456", ["TendrilProject"] = "Tendril" });
 
         var result = FirmwareCompiler.Compile(context);
 
-        Assert.Contains("PlanId: 03456", result);
-        Assert.Contains("Project: Tendril", result);
+        Assert.Contains("TendrilPlanId: 03456", result);
+        Assert.Contains("TendrilProject: Tendril", result);
     }
 
     [Fact]

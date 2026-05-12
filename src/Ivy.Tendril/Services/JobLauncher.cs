@@ -224,7 +224,7 @@ internal class JobLauncher
 
         var settings = _configService.Settings;
         var (values, planYaml, profileOverride) = BuildFirmwareValues(ctx, programFolder);
-        values["Project"] = job.Project;
+        values["TendrilProject"] = job.Project;
 
         var jobContext = BuildJobContext(job, values, programFolder);
         var resolution = AgentProviderFactory.Resolve(settings, job.Type, profileOverride, jobContext);
@@ -278,7 +278,7 @@ internal class JobLauncher
         if (resolution.Provider.UsesStdinPrompt)
             return null;
 
-        var tempDir = values.TryGetValue("PlanFolder", out var pf)
+        var tempDir = values.TryGetValue("TendrilPlanFolder", out var pf)
             ? Path.Combine(pf, "temp")
             : Path.GetTempPath();
         Directory.CreateDirectory(tempDir);
@@ -301,7 +301,10 @@ internal class JobLauncher
         var job = ctx.Job;
         var values = new Dictionary<string, string>
         {
-            ["ClaudeSessionId"] = job.SessionId ?? ""
+            ["AgentSessionId"] = job.SessionId ?? "",
+            ["TendrilJobId"] = job.Id,
+            ["TendrilConfigPath"] = _configService!.ConfigPath,
+            ["TendrilHome"] = _configService.TendrilHome ?? ""
         };
 
         if (job.TypedArgs is CreatePlanArgs)
@@ -319,7 +322,7 @@ internal class JobLauncher
         var cp = job.TypedArgs as CreatePlanArgs;
         var description = cp?.Description ?? "";
         values["Args"] = description;
-        values["PlansDirectory"] = _configService!.PlanFolder;
+        values["TendrilPlansFolder"] = _configService!.PlanFolder;
 
         if (cp?.Force == true)
             values["Force"] = "true";
@@ -337,12 +340,12 @@ internal class JobLauncher
         var planId = PlanYamlHelper.ExtractPlanIdFromFolder(planFolder);
         if (planId != null)
         {
-            values["PlanId"] = planId;
+            values["TendrilPlanId"] = planId;
             job.AllocatedPlanId ??= planId;
         }
 
-        values["PlanFolder"] = planFolder;
-        values["PlansDirectory"] = Path.GetDirectoryName(planFolder) ?? "";
+        values["TendrilPlanFolder"] = planFolder;
+        values["TendrilPlansFolder"] = Path.GetDirectoryName(planFolder) ?? "";
 
         var planYaml = PlanYamlHelper.ReadPlanYaml(planFolder);
         if (planYaml == null)
@@ -399,9 +402,9 @@ internal class JobLauncher
             ["PROMPTWARE_DIR"] = programFolder
         };
 
-        if (firmwareValues.TryGetValue("PlansDirectory", out var plansDir))
+        if (firmwareValues.TryGetValue("TendrilPlansFolder", out var plansDir))
             ctx["PLANS_DIR"] = plansDir;
-        if (firmwareValues.TryGetValue("PlanFolder", out var planFolder))
+        if (firmwareValues.TryGetValue("TendrilPlanFolder", out var planFolder))
             ctx["PLAN_DIR"] = planFolder;
 
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");

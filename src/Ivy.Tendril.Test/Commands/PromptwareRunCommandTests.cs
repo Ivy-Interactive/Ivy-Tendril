@@ -114,7 +114,7 @@ public class PromptwareRunCommandTests : IDisposable
 
         var values = new Dictionary<string, string>
         {
-            ["PlanFolder"] = "/plans/00123-Test",
+            ["TendrilPlanFolder"] = "/plans/00123-Test",
             ["VerificationDir"] = "/plans/00123-Test/verification",
             ["ArtifactsDir"] = "/plans/00123-Test/artifacts"
         };
