@@ -93,8 +93,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var selectedIndex = UseState<int?>();
         var appRepository = UseService<IAppRepository>();
         var client = UseService<IClientProvider>();
-        Context.TryUseService<IAuthService>(out var auth);
-        var user = UseState<UserInfo?>();
         var currentApp = UseState<AppHost?>();
         var countsService = UseService<IPlanCountsService>();
         var menuItems = UseState(() => BuildMenuItems(appRepository, countsService.Current));
@@ -136,12 +134,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         UseEffect(async () =>
         {
             if (config.NeedsOnboarding) return;
-
-            if (auth != null)
-            {
-                var userInfo = await auth.GetUserInfoAsync();
-                user.Set(userInfo);
-            }
 
             var initialAppId = args.NavigationAppId ?? settings.DefaultAppId;
             var targetAppId = initialAppId;
@@ -420,25 +412,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .OnSelect(() => importIssuesDialogOpen.Set(true))
         };
 
-        void OnLogout()
-        {
-            _ = LogoutAsync();
-        }
-
-        async Task LogoutAsync()
-        {
-            if (auth == null) return;
-
-            try
-            {
-                await auth.LogoutAsync();
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Logout failed");
-            }
-        }
-
         var settingsTrigger = new Button("Settings")
             .Content(
                 Layout.Horizontal().AlignContent(Align.Left)
@@ -453,36 +426,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             .Top()
             .Items(settings.FooterMenuItemsTransformer(settingsMenuItems, navigator));
 
-        object? footer;
-        if (user.Value != null)
-        {
-            var profileTrigger = new Button().Variant(ButtonVariant.Ghost)
-                .Content(
-                    Layout.Horizontal().AlignContent(Align.Left).Width(Size.Full())
-                    | new Avatar(user.Value.Initials, user.Value.AvatarUrl)
-                    | (Layout.Vertical().Gap(1)
-                       | (user.Value.FullName != null
-                           ? Text.Muted(user.Value.FullName!).Overflow(Overflow.Ellipsis)
-                           : null!)
-                       | Text.Label(user.Value.Email).Overflow(Overflow.Ellipsis))
-                    .Grow()
-                    .Size(Size.Full().Min(0))
-                ).Width(Size.Full());
-
-            var profileMenu = new DropDownMenu(
-                    DropDownMenu.DefaultSelectHandler(),
-                    profileTrigger)
-                .Top()
-                .Items(settings.FooterMenuItemsTransformer(
-                    [MenuItem.Default("Logout").Tag("$logout").Icon(Icons.LogOut).OnSelect(OnLogout)],
-                    navigator));
-
-            footer = Layout.Vertical().Gap(1) | settingsMenu | profileMenu;
-        }
-        else
-        {
-            footer = settingsMenu;
-        }
+        object? footer = settingsMenu;
 
         if (config.ParseError != null)
             return new ConfigErrorApp(config);
