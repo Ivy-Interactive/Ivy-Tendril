@@ -1,3 +1,4 @@
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
@@ -24,14 +25,22 @@ public class JobServiceCreateIssueTests : IDisposable
 
     private void WritePlanYaml(string state)
     {
+        var repoDir = Path.Combine(_tempDir.Path, "repo");
+        Directory.CreateDirectory(repoDir);
         File.WriteAllText(_planYamlPath, $"""
                                           state: {state}
                                           project: Tendril
+                                          level: NiceToHave
                                           title: Test Plan
                                           created: 2026-04-01T00:00:00Z
                                           updated: 2026-04-01T00:00:00Z
+                                          repos:
+                                          - {repoDir}
+                                          prs: []
                                           commits: []
                                           verifications: []
+                                          relatedPlans: []
+                                          dependsOn: []
                                           """);
     }
 
@@ -41,7 +50,7 @@ public class JobServiceCreateIssueTests : IDisposable
         WritePlanYaml("Draft");
         var service = CreateService();
 
-        var id = service.StartJob("CreateIssue", _tempDir.Path, "-Repo", "owner/repo", "-Assignee", "", "-Labels", "");
+        var id = service.StartJob(new CreateIssueArgs(_tempDir.Path, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         var content = File.ReadAllText(_planYamlPath);
@@ -54,7 +63,7 @@ public class JobServiceCreateIssueTests : IDisposable
         WritePlanYaml("Draft");
         var service = CreateService();
 
-        var id = service.StartJob("CreateIssue", _tempDir.Path, "-Repo", "owner/repo", "-Assignee", "", "-Labels", "");
+        var id = service.StartJob(new CreateIssueArgs(_tempDir.Path, "owner/repo", "", "", ""));
         service.CompleteJob(id, 1);
 
         var content = File.ReadAllText(_planYamlPath);

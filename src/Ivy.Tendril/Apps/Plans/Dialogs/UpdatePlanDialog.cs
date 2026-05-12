@@ -7,7 +7,6 @@ namespace Ivy.Tendril.Apps.Plans.Dialogs;
 
 public class UpdatePlanDialog(
     IState<bool> dialogOpen,
-    IState<string> updateText,
     PlanFile selectedPlan,
     IState<PlanFile?> selectedPlanState,
     IJobService jobService,
@@ -20,24 +19,24 @@ public class UpdatePlanDialog(
     private readonly Action _refreshPlans = refreshPlans;
     private readonly PlanFile _selectedPlan = selectedPlan;
     private readonly IState<PlanFile?> _selectedPlanState = selectedPlanState;
-    private readonly IState<string> _updateText = updateText;
 
     public override object? Build()
     {
         var isCreating = UseState(false);
+        var updateText = UseState("");
         if (!_dialogOpen.Value) return null;
 
         // Check if there's already an UpdatePlan job running for this plan
         var hasActiveJob = _jobService.GetJobs().Any(j =>
-            j.Type == Constants.JobTypes.UpdatePlan &&
+            j.TypedArgs is UpdatePlanArgs &&
             j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
-            j.Args.Length > 0 &&
-            j.Args[0].Equals(_selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
+            j.TypedArgs?.PlanFolder != null &&
+            j.TypedArgs.PlanFolder.Equals(_selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
 
         return new Dialog(
             _ =>
             {
-                _updateText.Set("");
+                updateText.Set("");
                 isCreating.Set(false);
                 _dialogOpen.Set(false);
             },
@@ -46,18 +45,18 @@ public class UpdatePlanDialog(
                 Layout.Vertical()
                 | Text.P("Provide instructions for revising this draft plan.")
                 | (hasActiveJob ? Text.P("⚠️ UpdatePlan is already running for this plan. Please wait...").Color(Colors.Warning) : null)
-                | _updateText.ToTextareaInput("Enter update instructions...").Rows(6).AutoFocus()
+                | updateText.ToTextareaInput("Enter update instructions...").Rows(6).AutoFocus()
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() =>
                 {
-                    _updateText.Set("");
+                    updateText.Set("");
                     isCreating.Set(false);
                     _dialogOpen.Set(false);
                 }),
-                new Button("Submit Update").Primary().Disabled(hasActiveJob || isCreating.Value || string.IsNullOrWhiteSpace(_updateText.Value)).ShortcutKey("Ctrl+Enter").OnClick(() =>
+                new Button("Submit Update").Primary().Disabled(hasActiveJob || isCreating.Value || string.IsNullOrWhiteSpace(updateText.Value)).ShortcutKey("Ctrl+Enter").OnClick(() =>
                 {
-                    if (!string.IsNullOrWhiteSpace(_updateText.Value) && !isCreating.Value)
+                    if (!string.IsNullOrWhiteSpace(updateText.Value) && !isCreating.Value)
                     {
                         isCreating.Set(true);
 
@@ -70,15 +69,15 @@ public class UpdatePlanDialog(
 
                         // Append >> comments to the latest revision so UpdatePlan can process them
                         var currentContent = _planService.ReadLatestRevision(_selectedPlan.FolderName);
-                        var comments = string.Join("\n", _updateText.Value
+                        var comments = string.Join("\n", updateText.Value
                             .Split('\n')
                             .Select(line => $">> {line}"));
                         _planService.SavePlan(_selectedPlan.FolderName, currentContent + "\n\n" + comments + "\n");
 
                         _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Updating);
-                        _jobService.StartJob(Constants.JobTypes.UpdatePlan, _selectedPlan.FolderPath);
+                        _jobService.StartJob(new UpdatePlanArgs(_selectedPlan.FolderPath));
                         _refreshPlans();
-                        _updateText.Set("");
+                        updateText.Set("");
                         isCreating.Set(false);
                         _dialogOpen.Set(false);
                     }

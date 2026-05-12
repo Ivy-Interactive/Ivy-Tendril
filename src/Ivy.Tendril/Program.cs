@@ -16,6 +16,8 @@ namespace Ivy.Tendril;
 
 public class Program
 {
+    private const string DetachedLaunchMarker = "--tendril-detached-child";
+
     // Native console control handler to detect why the process is being killed.
     // This fires BEFORE .NET's ProcessExit and catches CTRL_CLOSE_EVENT which
     // .NET's AppDomain.ProcessExit may not see (Windows force-kills after 5s).
@@ -33,13 +35,25 @@ public class Program
     [STAThread]
     public static async Task<int> Main(string[] args)
     {
+        Console.InputEncoding = System.Text.Encoding.UTF8;
+        Console.OutputEncoding = System.Text.Encoding.UTF8;
+
         VelopackApp.Build().Run();
 
         var (verbose, quiet, forceDesktop, forceWeb, filteredArgs) = ParseGlobalFlags(args);
 
-        var fileName = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? "");
-        bool isTool = fileName.Equals("tendril", StringComparison.OrdinalIgnoreCase);
+        bool isTool = IsTendrilToolInvocation();
         bool useDesktop = (isTool || forceDesktop) && !forceWeb;
+        bool isDetachedChild = args.Contains(DetachedLaunchMarker);
+
+        if (isTool && useDesktop && !isDetachedChild && ShouldDetachDesktopLaunch(filteredArgs))
+            return RelaunchDesktopDetached(filteredArgs);
+
+        if (isDetachedChild && useDesktop)
+        {
+            Console.SetOut(TextWriter.Null);
+            Console.SetError(TextWriter.Null);
+        }
 
         // Handle CLI commands using Spectre.Console.Cli
         if (filteredArgs.Length > 0)
@@ -57,14 +71,14 @@ public class Program
 
             if (ShouldHandleAsCliCommand(firstArg))
             {
-                var statusFile = Environment.GetEnvironmentVariable("TENDRIL_STATUS_FILE");
-                if (!string.IsNullOrEmpty(statusFile))
+                var cliLog = Environment.GetEnvironmentVariable("TENDRIL_CLI_LOG");
+                if (!string.IsNullOrEmpty(cliLog))
                 {
                     var commandLine = string.Join(" ", filteredArgs);
                     var sw = Stopwatch.StartNew();
                     var exitCode = app.Run(filteredArgs);
                     sw.Stop();
-                    JobStatusFile.AppendCliInvocation(statusFile, commandLine, exitCode, sw.Elapsed.TotalMilliseconds);
+                    JobStatusFile.AppendCliInvocationDirect(cliLog, commandLine, exitCode, sw.Elapsed.TotalMilliseconds);
                     return exitCode;
                 }
                 return app.Run(filteredArgs);
@@ -139,7 +153,7 @@ public class Program
     {
         bool verbose = args.Contains("--verbose") || args.Contains("-v");
         bool quiet = args.Contains("--quiet") || args.Contains("-q");
-        bool forceDesktop = args.Contains("--desktop") || args.Contains("--photino");
+        bool forceDesktop = args.Contains("--desktop");
         bool forceWeb = args.Contains("--web");
 
         if (verbose)
@@ -148,9 +162,10 @@ public class Program
             Environment.SetEnvironmentVariable("TENDRIL_QUIET", "1");
 
         var filtered = args.Where(a =>
-            a != "--desktop" && a != "--photino" && a != "--web" &&
+            a != "--desktop" && a != "--web" &&
             a != "--verbose" && a != "-v" &&
-            a != "--quiet" && a != "-q"
+            a != "--quiet" && a != "-q" &&
+            a != DetachedLaunchMarker
         ).ToArray();
 
         return (verbose, quiet, forceDesktop, forceWeb, filtered);
@@ -162,9 +177,66 @@ public class Program
         {
             "doctor", "db-version", "db-migrate", "db-reset",
             "update-promptwares", "job", "plan", "promptware",
+            "verification", "project",
             "version", "--version"
         };
         return cliCommands.Contains(firstArg);
+    }
+
+    private static bool ShouldDetachDesktopLaunch(string[] filteredArgs)
+    {
+        // Detach only for desktop startup and not for CLI commands.
+        return filteredArgs.Length == 0;
+    }
+
+    private static bool IsTendrilToolInvocation()
+    {
+        // ProcessPath can be "dotnet" for global tools, so inspect argv[0] too.
+        var processPathName = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? string.Empty);
+        if (processPathName.Equals("tendril", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var argv0 = Environment.GetCommandLineArgs().FirstOrDefault() ?? string.Empty;
+        var argv0Name = Path.GetFileNameWithoutExtension(argv0);
+        return argv0Name.Equals("tendril", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int RelaunchDesktopDetached(string[] filteredArgs)
+    {
+        var processPath = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(processPath))
+        {
+            Console.Error.WriteLine("Unable to determine tendril executable path.");
+            return 1;
+        }
+
+        var childArgs = new List<string>(filteredArgs)
+        {
+            "--desktop",
+            DetachedLaunchMarker
+        };
+
+        var startInfo = new ProcessStartInfo(processPath)
+        {
+            UseShellExecute = true
+        };
+
+        foreach (var arg in childArgs)
+            startInfo.ArgumentList.Add(arg);
+
+        if (OperatingSystem.IsWindows())
+            startInfo.CreateNoWindow = true;
+
+        try
+        {
+            Process.Start(startInfo);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Failed to launch desktop mode: {ex.Message}");
+            return 1;
+        }
     }
 
     private static CommandApp ConfigureCliCommands(ServiceCollection cliServices)
@@ -223,18 +295,28 @@ public class Program
                     .WithDescription("Add a commit hash");
                 plan.AddCommand<PlanAddRelatedPlanCommand>("add-related-plan")
                     .WithDescription("Add a related plan");
+                plan.AddCommand<PlanRemoveRelatedPlanCommand>("remove-related-plan")
+                    .WithDescription("Remove a related plan");
                 plan.AddCommand<PlanAddDependsOnCommand>("add-depends-on")
                     .WithDescription("Add a plan dependency");
+                plan.AddCommand<PlanRemoveDependsOnCommand>("remove-depends-on")
+                    .WithDescription("Remove a plan dependency");
                 plan.AddCommand<PlanSetVerificationCommand>("set-verification")
                     .WithDescription("Update verification status");
                 plan.AddCommand<PlanGetCommand>("get")
                     .WithDescription("Read plan or field");
                 plan.AddCommand<PlanAddLogCommand>("add-log")
                     .WithDescription("Write a log entry");
+                plan.AddCommand<PlanWriteRevisionCommand>("write-revision")
+                    .WithDescription("Write a revision file from STDIN");
                 plan.AddCommand<PlanValidateCommand>("validate")
                     .WithDescription("Validate plan health");
                 plan.AddCommand<PlanCleanupCommand>("cleanup")
                     .WithDescription("Remove worktrees from a plan");
+                plan.AddCommand<PlanRemoveWorktreeCommand>("remove-worktree")
+                    .WithDescription("Remove a single worktree from a plan");
+                plan.AddCommand<PlanSyncWorktreeCommand>("sync-worktree")
+                    .WithDescription("Apply sync strategy to a worktree");
                 plan.AddCommand<PlanDoctorCommand>("doctor")
                     .WithDescription("Check plan health");
 
@@ -253,6 +335,56 @@ public class Program
                     rec.AddCommand<PlanRecDeclineCommand>("decline")
                         .WithDescription("Decline a recommendation");
                 });
+
+                plan.AddBranch("verification", verification =>
+                {
+                    verification.AddCommand<PlanVerificationListCommand>("list")
+                        .WithDescription("List verifications on a plan");
+                    verification.AddCommand<PlanVerificationAddCommand>("add")
+                        .WithDescription("Add a verification to a plan");
+                    verification.AddCommand<PlanVerificationRemoveCommand>("remove")
+                        .WithDescription("Remove a verification from a plan");
+                });
+            });
+
+            config.AddBranch("verification", verification =>
+            {
+                verification.AddCommand<VerificationListCommand>("list")
+                    .WithDescription("List global verification definitions");
+                verification.AddCommand<VerificationAddCommand>("add")
+                    .WithDescription("Add a verification definition");
+                verification.AddCommand<VerificationRemoveCommand>("remove")
+                    .WithDescription("Remove a verification definition");
+                verification.AddCommand<VerificationSetCommand>("set")
+                    .WithDescription("Update a verification definition field");
+            });
+
+            config.AddBranch("project", project =>
+            {
+                project.AddCommand<ProjectListCommand>("list")
+                    .WithDescription("List all projects");
+                project.AddCommand<ProjectAddCommand>("add")
+                    .WithDescription("Add a project");
+                project.AddCommand<ProjectRemoveCommand>("remove")
+                    .WithDescription("Remove a project");
+                project.AddCommand<ProjectSetCommand>("set")
+                    .WithDescription("Set a project field");
+                project.AddCommand<ProjectAddRepoCommand>("add-repo")
+                    .WithDescription("Add a repository to a project");
+                project.AddCommand<ProjectRemoveRepoCommand>("remove-repo")
+                    .WithDescription("Remove a repository from a project");
+                project.AddCommand<ProjectAddVerificationCommand>("add-verification")
+                    .WithDescription("Add a verification to a project");
+                project.AddCommand<ProjectRemoveVerificationCommand>("remove-verification")
+                    .WithDescription("Remove a verification from a project");
+                project.AddCommand<ProjectAddBuildDepCommand>("add-build-dep")
+                    .WithDescription("Add a build dependency to a project");
+                project.AddCommand<ProjectRemoveBuildDepCommand>("remove-build-dep")
+                    .WithDescription("Remove a build dependency from a project");
+                project.AddCommand<ProjectAddReviewActionCommand>("add-review-action")
+                    .WithDescription("Add a review action to a project");
+                project.AddCommand<ProjectRemoveReviewActionCommand>("remove-review-action")
+                    .WithDescription("Remove a review action from a project");
             });
         });
         return app;

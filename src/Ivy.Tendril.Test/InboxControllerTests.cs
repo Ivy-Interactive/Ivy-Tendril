@@ -46,8 +46,8 @@ public class InboxControllerTests
 
         Assert.IsType<OkObjectResult>(result);
         var job = Assert.Single(jobService.StartedJobs);
-        Assert.Contains("-SourcePath", job.Args);
-        Assert.Contains(@"D:\Tests\Session1", job.Args);
+        var cpArgs = Assert.IsType<CreatePlanArgs>(job);
+        Assert.Equal(@"D:\Tests\Session1", cpArgs.SourcePath);
     }
 
     [Fact]
@@ -60,7 +60,8 @@ public class InboxControllerTests
 
         Assert.IsType<OkObjectResult>(result);
         var job = Assert.Single(jobService.StartedJobs);
-        Assert.Contains("Auto", job.Args);
+        var cpArgs = Assert.IsType<CreatePlanArgs>(job);
+        Assert.Equal("Auto", cpArgs.Project);
     }
 
     private static InboxController CreateController(IJobService jobService)
@@ -75,18 +76,13 @@ public class InboxControllerTests
 
     private class StubJobService : IJobService
     {
-        public List<(string Type, string[] Args)> StartedJobs { get; } = new();
+        public List<JobArgsBase> StartedJobs { get; } = new();
 
-        public string StartJob(string type, string[] args, string? inboxFilePath)
+        public string StartJob(JobArgsBase args, string? inboxFilePath = null)
         {
             var id = $"job-{StartedJobs.Count + 1}";
-            StartedJobs.Add((type, args));
+            StartedJobs.Add(args);
             return id;
-        }
-
-        public string StartJob(string type, params string[] args)
-        {
-            return StartJob(type, args, null);
         }
 
         public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false)

@@ -19,7 +19,7 @@ public class JobServiceSplitPlanCompletionTests
     public void CompleteJob_SplitPlan_TransitionsToSkipped()
     {
         var (service, recorder) = CreateService();
-        var id = service.CreateTestJob("SplitPlan", "/plans/03500-OriginalPlan");
+        var id = service.CreateTestJob(new SplitPlanArgs("/plans/03500-OriginalPlan"));
 
         service.CompleteJob(id, 0);
 
@@ -31,7 +31,7 @@ public class JobServiceSplitPlanCompletionTests
     public void CompleteJob_UpdatePlan_TransitionsToDraft()
     {
         var (service, recorder) = CreateService();
-        var id = service.CreateTestJob("UpdatePlan", "/plans/03501-SomePlan");
+        var id = service.CreateTestJob(new UpdatePlanArgs("/plans/03501-SomePlan"));
 
         service.CompleteJob(id, 0);
 
@@ -43,7 +43,7 @@ public class JobServiceSplitPlanCompletionTests
     public void CompleteJob_ExpandPlan_TransitionsToDraft()
     {
         var (service, recorder) = CreateService();
-        var id = service.CreateTestJob("ExpandPlan", "/plans/03502-SomePlan");
+        var id = service.CreateTestJob(new ExpandPlanArgs("/plans/03502-SomePlan"));
 
         service.CompleteJob(id, 0);
 
@@ -57,6 +57,9 @@ public class JobServiceSplitPlanCompletionTests
 
         public string PlansDirectory => "";
         public bool IsDatabaseReady => true;
+#pragma warning disable CS0067
+        public event Action? CountsInvalidated;
+#pragma warning restore CS0067
 
         public void TransitionState(string folderName, PlanStatus newState)
         {

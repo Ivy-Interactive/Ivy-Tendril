@@ -1,5 +1,5 @@
 using Ivy.Tendril.Apps.Onboarding;
-using Ivy.Tendril.Models;
+using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps;
 
@@ -14,28 +14,29 @@ public class OnboardingApp : ViewBase
     {
         return
         [
-            new("1", selectedIndex > 0 ? Icons.Check : null, "Welcome"),
-            new("2", selectedIndex > 1 ? Icons.Check : null, "Software"),
-            new("3", selectedIndex > 2 ? Icons.Check : null, "Coding Agent"),
-            new("4", selectedIndex > 3 ? Icons.Check : null, "Storage"),
-            new("5", selectedIndex > 4 ? Icons.Check : null, "Project"),
-            new("6", selectedIndex > 5 ? Icons.Check : null, "Complete")
+            new("1", selectedIndex > 0 ? Icons.Check : null, "Coding Agent"),
+            new("2", selectedIndex > 1 ? Icons.Check : null, "Data Location"),
+            new("3", selectedIndex > 2 ? Icons.Check : null, "Your first project"),
+            new("4", selectedIndex > 3 ? Icons.Check : null, "Complete")
         ];
     }
 
     private static object GetStepViews(
         IState<int> stepperIndex,
-        IState<Dictionary<string, bool>?> checkResults,
-        IState<Dictionary<string, HealthCheckStatus?>?> healthResults)
+        IState<bool> commonChecksPassed,
+        IState<bool> homeBootstrapped,
+        IState<string?> completedAgentKey,
+        IState<string> tendrilHomePath,
+        IState<List<RepoRef>> selectedRepos,
+        IState<string> projectName,
+        OnboardingVerificationSession session)
     {
         return stepperIndex.Value switch
         {
-            0 => new WelcomeStepView(stepperIndex),
-            1 => new SoftwareCheckStepView(stepperIndex, checkResults, healthResults),
-            2 => new CodingAgentStepView(stepperIndex, checkResults.Value ?? new Dictionary<string, bool>(), healthResults.Value),
-            3 => new TendrilHomeStepView(stepperIndex),
-            4 => new ProjectSetupStepView(stepperIndex),
-            5 => new CompleteStepView(stepperIndex),
+            0 => new CodingAgentStepView(stepperIndex, commonChecksPassed, completedAgentKey),
+            1 => new TendrilHomeStepView(stepperIndex, tendrilHomePath, homeBootstrapped),
+            2 => new ProjectSetupStepView(stepperIndex, selectedRepos, projectName, session),
+            3 => new CompleteStepView(stepperIndex, selectedRepos, projectName, session),
             _ => throw new ArgumentOutOfRangeException()
         };
     }
@@ -43,20 +44,54 @@ public class OnboardingApp : ViewBase
     public override object Build()
     {
         var stepperIndex = UseState(0);
-        var checkResults = UseState<Dictionary<string, bool>?>(null);
-        var healthResults = UseState<Dictionary<string, HealthCheckStatus?>?>(null);
+        var commonChecksPassed = UseState(false);
+        var homeBootstrapped = UseState(false);
+        var completedAgentKey = UseState<string?>((string?)null);
+        var tendrilHomePath = UseState(() =>
+            Environment.GetEnvironmentVariable("TENDRIL_HOME")
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril"));
+        var selectedRepos = UseState(() => new List<RepoRef>());
+        var projectName = UseState("");
+
+        var verificationStream = UseStream<string>();
+        var verificationHandle = UseState<PromptwareRunHandle?>((PromptwareRunHandle?)null);
+        var verificationHasOutput = UseState(false);
+        var verificationRunning = UseState(false);
+        var verificationStarted = UseState(false);
+        var verificationCancelled = UseState(false);
+        var verificationError = UseState<string?>((string?)null);
+        var verificationRefreshToken = UseState(0);
+        var session = new OnboardingVerificationSession(
+            verificationStream,
+            verificationHandle,
+            verificationHasOutput,
+            verificationRunning,
+            verificationStarted,
+            verificationCancelled,
+            verificationError,
+            verificationRefreshToken);
+
         var steps = GetSteps(stepperIndex.Value);
 
         return Layout.TopCenter() |
                (Layout.Vertical().Margin(0, 20).Width(150)
-                | new Image("/tendril/assets/Tendril.svg").Width(Size.Units(20)).Height(Size.Auto())
+                | new Image("/tendril/assets/Tendril.svg").Width(Size.Units(15)).Height(Size.Auto())
                 | new Stepper(OnSelect, stepperIndex.Value, steps).Width(Size.Full())
-                | GetStepViews(stepperIndex, checkResults, healthResults)
+                | GetStepViews(stepperIndex,
+                               commonChecksPassed, homeBootstrapped, completedAgentKey,
+                               tendrilHomePath, selectedRepos, projectName, session)
                );
 
         ValueTask OnSelect(Event<Stepper, int> e)
         {
-            stepperIndex.Set(e.Value);
+            if (e.Value < stepperIndex.Value)
+            {
+                stepperIndex.Set(e.Value);
+            }
+            else if (stepperIndex.Value != 3)
+            {
+                stepperIndex.Set(e.Value);
+            }
             return ValueTask.CompletedTask;
         }
     }

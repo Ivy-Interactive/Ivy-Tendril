@@ -65,10 +65,12 @@ public static class TendrilServer
 
         server.Services.AddSingleton<VersionCheckService>();
         server.Services.AddSingleton<IVersionCheckService>(sp => sp.GetRequiredService<VersionCheckService>());
+        server.Services.AddSingleton<IPromptwareRunner, PromptwareRunner>();
 
 
         server.Services.AddSingleton<OnboardingSetupService>();
         server.Services.AddSingleton<IOnboardingSetupService>(sp => sp.GetRequiredService<OnboardingSetupService>());
+        server.Services.AddSingleton<IOnboardingAuthRunner, OnboardingAuthRunner>();
         server.Services.AddSingleton<GithubService>();
         server.Services.AddSingleton<IGithubService>(sp => sp.GetRequiredService<GithubService>());
         server.Services.AddSingleton<IGitService>(sp =>
@@ -207,6 +209,7 @@ public static class TendrilServer
             {
                 // Auto-update promptwares if the running version is newer than what's deployed
                 var promptwaresDir = Path.Combine(configService.TendrilHome, "Promptwares");
+                PromptwareDeployer.CleanupOrphanedPreservedDirectories(promptwaresDir);
                 if (PromptwareDeployer.NeedsUpdate(promptwaresDir))
                 {
                     var logger = app.Services.GetRequiredService<ILogger<Server>>();

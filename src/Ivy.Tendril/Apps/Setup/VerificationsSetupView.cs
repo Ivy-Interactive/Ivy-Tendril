@@ -1,4 +1,3 @@
-using Ivy.Tendril.Apps.Setup.Dialogs;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 
@@ -11,11 +10,13 @@ public class VerificationsSetupView : ViewBase
         var config = UseService<IConfigService>();
         var client = UseService<IClientProvider>();
         var refreshToken = UseRefreshToken();
-        var editIndex = UseState<int?>(-1);
+        var (triggerView, showTrigger) = UseTrigger((IState<bool> isOpen, int? existingIndex) =>
+            new EditVerificationDialogContent(isOpen, existingIndex, config, client, refreshToken));
+        var (alertView, showAlert) = UseAlert();
 
         var verifications = config.Settings.Verifications;
 
-        var rows = verifications.Select((v, i) => new VerificationRow(v.Name, v.Prompt, i)).ToList();
+        var rows = verifications.Select((v, i) => new VerificationRow(v.Name, i)).ToList();
 
         var table = new TableBuilder<VerificationRow>(rows)
             .Header(t => t.Index, "")
@@ -23,21 +24,34 @@ public class VerificationsSetupView : ViewBase
                 Layout.Horizontal().Gap(1)
                 | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit this verification").OnClick(() =>
                 {
-                    editIndex.Set(idx);
+                    showTrigger(idx);
                 })
                 | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete this verification").OnClick(() =>
                 {
                     var name = verifications[idx].Name;
-                    verifications.RemoveAt(idx);
-                    config.SaveSettings();
-                    client.Toast($"Verification '{name}' deleted", "Deleted");
-                    refreshToken.Refresh();
+                    showAlert($"Are you sure you want to delete '{name}'?", result =>
+                    {
+                        if (result == AlertResult.Ok)
+                        {
+                            var removed = verifications[idx];
+                            verifications.RemoveAt(idx);
+                            try
+                            {
+                                config.SaveSettings();
+                                client.Toast($"Verification '{name}' deleted", "Deleted");
+                                refreshToken.Refresh();
+                            }
+                            catch (Exception ex)
+                            {
+                                verifications.Insert(idx, removed);
+                                refreshToken.Refresh();
+                                client.Toast($"Failed to delete verification: {ex.Message}", "Error");
+                            }
+                        }
+                    }, "Delete Verification", AlertButtonSet.OkCancel);
                 })
             ))
-            .ColumnWidth(t => t.Name, Size.Units(32))
-            .ColumnWidth(t => t.Prompt, Size.Units(100))
-            .Multiline(t => t.Prompt)
-            .ColumnWidth(t => t.Index, Size.Px(88));
+            .Width(Size.Fit());
 
         return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(400)))
                | Text.Block("Verification Definitions").Bold()
@@ -45,10 +59,89 @@ public class VerificationsSetupView : ViewBase
                | table
                | new Button("Add Verification").Icon(Icons.Plus).Outline().OnClick(() =>
                {
-                   editIndex.Set(null);
+                   showTrigger(null);
                })
-               | new EditVerificationDialog(editIndex, verifications, config, client, refreshToken);
+               | triggerView
+               | alertView;
     }
 
-    private record VerificationRow(string Name, string Prompt, int Index);
+    private record VerificationRow(string Name, int Index);
+}
+
+file class EditVerificationDialogContent(
+    IState<bool> isOpen,
+    int? existingIndex,
+    IConfigService config,
+    IClientProvider client,
+    RefreshToken refreshToken) : ViewBase
+{
+    public override object? Build()
+    {
+        var editName = UseState("");
+        var editPrompt = UseState("");
+        UseEffect(() =>
+        {
+            var verifications = config.Settings.Verifications;
+            if (existingIndex != null && existingIndex >= 0 && existingIndex < verifications.Count)
+            {
+                editName.Set(verifications[existingIndex.Value].Name);
+                editPrompt.Set(verifications[existingIndex.Value].Prompt);
+            }
+        }, EffectTrigger.OnMount());
+
+        var verifications = config.Settings.Verifications;
+        var isNew = existingIndex == null;
+
+        return new Dialog(
+            _ => isOpen.Set(false),
+            new DialogHeader(isNew ? "Add Verification" : "Edit Verification"),
+            new DialogBody(
+                Layout.Vertical().Gap(4)
+                | editName.ToTextInput("Verification name...").WithField().Label("Name")
+                | editPrompt.ToTextareaInput("Verification prompt...").Rows(8).WithField().Label("Prompt")
+            ),
+            new DialogFooter(
+                new Button("Cancel").Outline().OnClick(() => isOpen.Set(false)),
+                new Button(isNew ? "Add" : "Save").Primary().OnClick(() =>
+                {
+                    if (string.IsNullOrWhiteSpace(editName.Value)) return;
+                    var oldName = isNew ? null : verifications[existingIndex!.Value].Name;
+                    var oldPrompt = isNew ? null : verifications[existingIndex!.Value].Prompt;
+                    if (isNew)
+                    {
+                        verifications.Add(new VerificationConfig
+                        {
+                            Name = editName.Value,
+                            Prompt = editPrompt.Value
+                        });
+                    }
+                    else
+                    {
+                        verifications[existingIndex!.Value].Name = editName.Value;
+                        verifications[existingIndex!.Value].Prompt = editPrompt.Value;
+                    }
+
+                    try
+                    {
+                        config.SaveSettings();
+                        isOpen.Set(false);
+                        refreshToken.Refresh();
+                        client.Toast("Verification saved", "Saved");
+                    }
+                    catch (Exception ex)
+                    {
+                        if (isNew)
+                            verifications.RemoveAt(verifications.Count - 1);
+                        else
+                        {
+                            verifications[existingIndex!.Value].Name = oldName!;
+                            verifications[existingIndex!.Value].Prompt = oldPrompt!;
+                        }
+                        refreshToken.Refresh();
+                        client.Toast($"Failed to save verification: {ex.Message}", "Error");
+                    }
+                })
+            )
+        ).Width(Size.Rem(35));
+    }
 }

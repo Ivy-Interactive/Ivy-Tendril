@@ -6,7 +6,7 @@ namespace Ivy.Tendril.Test;
 public class JobServiceStartupTests
 {
     [Fact]
-    public void LoadHistoricalJobs_ExcludesCompletedJobs()
+    public void LoadHistoricalJobs_LoadsAllRecentJobs()
     {
         // Arrange: seed database with completed and active jobs
         var db = new FakeDatabaseService
@@ -30,19 +30,17 @@ public class JobServiceStartupTests
             TimeSpan.FromMinutes(10),
             database: db);
 
-        // Assert: only non-terminal jobs are loaded
+        // Assert: all jobs from the database are loaded (eviction happens later)
         var jobs = service.GetJobs().ToList();
-        Assert.Equal(4, jobs.Count);
+        Assert.Equal(8, jobs.Count);
+        Assert.Contains(jobs, j => j.Id == "job-1"); // Completed
+        Assert.Contains(jobs, j => j.Id == "job-2"); // Failed
+        Assert.Contains(jobs, j => j.Id == "job-3"); // Timeout
+        Assert.Contains(jobs, j => j.Id == "job-4"); // Stopped
         Assert.Contains(jobs, j => j.Id == "job-5"); // Running
         Assert.Contains(jobs, j => j.Id == "job-6"); // Pending
         Assert.Contains(jobs, j => j.Id == "job-7"); // Queued
         Assert.Contains(jobs, j => j.Id == "job-8"); // Blocked
-
-        // Terminal jobs should not be loaded
-        Assert.DoesNotContain(jobs, j => j.Id == "job-1"); // Completed
-        Assert.DoesNotContain(jobs, j => j.Id == "job-2"); // Failed
-        Assert.DoesNotContain(jobs, j => j.Id == "job-3"); // Timeout
-        Assert.DoesNotContain(jobs, j => j.Id == "job-4"); // Stopped
     }
 
     [Fact]

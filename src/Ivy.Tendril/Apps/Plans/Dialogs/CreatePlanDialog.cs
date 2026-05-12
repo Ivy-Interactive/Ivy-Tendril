@@ -8,7 +8,7 @@ public class CreatePlanDialog(
     Action onClose,
     string[]? defaultProjects = null) : ViewBase
 {
-    private readonly string[] _defaultProjects = defaultProjects ?? ["Auto"];
+    private readonly string[] _defaultProjects = defaultProjects ?? (projectNames.Count == 1 ? [projectNames[0]] : ["Auto"]);
 
     internal static readonly List<string> PriorityOptions = ["Normal", "High", "Urgent"];
 
@@ -41,7 +41,9 @@ public class CreatePlanDialog(
             }
         );
 
-        var options = new List<string> { "Auto" };
+        var options = new List<string>();
+        if (projectNames.Count > 1)
+            options.Add("Auto");
         options.AddRange(projectNames);
 
         return new Dialog(
@@ -61,7 +63,7 @@ public class CreatePlanDialog(
                     if (!string.IsNullOrWhiteSpace(createPlanText.Value) && !isCreating.Value)
                     {
                         isCreating.Set(true);
-                        var projects = selectedProjects.Value.Any() ? selectedProjects.Value : ["Auto"];
+                        var projects = selectedProjects.Value.Any() ? selectedProjects.Value : (projectNames.Count == 1 ? [projectNames[0]] : ["Auto"]);
                         onCreatePlan(createPlanText.Value, projects, ParsePriority(selectedPriority.Value));
                         onClose();
                     }

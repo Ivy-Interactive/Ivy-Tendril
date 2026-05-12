@@ -14,15 +14,16 @@ public partial class JobsApp
         IPlanReaderService planService,
         IJobService jobService,
         IClientProvider client,
-        IState<string?> showPlan,
-        IState<string?> showOutput,
-        IState<string?> showPrompt,
+        Action<string> showPlan,
+        Action<string> showOutput,
+        Action<string> showPrompt,
         List<JobItem> jobs,
         Dictionary<string, string> projectColors,
         StackedProgress jobsProgress)
     {
         return rows.AsQueryable()
             .ToDataTable(t => t.Id)
+            .Density(new Responsive<Density?> { Default = Density.Large, Desktop = Density.Medium })
             .RefreshToken(refreshToken)
             .UpdateStream(updateStream)
             .Width(Size.Full())
@@ -74,75 +75,68 @@ public partial class JobsApp
             .Config(c =>
             {
                 c.AllowSorting = true;
-                c.AllowFiltering = false;
+                c.AllowFiltering = true;
                 c.ShowSearch = false;
                 c.SelectionMode = SelectionModes.None;
                 c.ShowIndexColumn = false;
                 c.BatchSize = 50;
-                c.EnableCellClickEvents = true;
             })
-            .OnCellClick(e =>
+            .OnCellAction(t => t.PlanId, e =>
             {
-                if (e.Value.ColumnName == "PlanId")
+                var planId = e.Value.CellValue?.ToString();
+                if (!string.IsNullOrEmpty(planId))
                 {
-                    var planId = e.Value.CellValue?.ToString();
-                    if (!string.IsNullOrEmpty(planId))
+                    var job = jobs.FirstOrDefault(j => ExtractPlanId(j.PlanFile) == planId);
+                    if (job != null && !string.IsNullOrEmpty(job.PlanFile))
                     {
-                        var job = jobs.FirstOrDefault(j => ExtractPlanId(j.PlanFile) == planId);
-                        if (job != null && !string.IsNullOrEmpty(job.PlanFile))
-                        {
-                            var fullPath = Path.Combine(planService.PlansDirectory, job.PlanFile);
-                            if (Directory.Exists(fullPath))
-                                showPlan.Set(fullPath);
-                        }
+                        var fullPath = Path.Combine(planService.PlansDirectory, job.PlanFile);
+                        if (Directory.Exists(fullPath))
+                            showPlan(fullPath);
                     }
                 }
-                else if (e.Value.ColumnName == "LastOutput")
+                return ValueTask.CompletedTask;
+            })
+            .OnCellAction(t => t.LastOutput, e =>
+            {
+                var id = e.Value.RowId?.ToString();
+                if (!string.IsNullOrEmpty(id))
+                    showOutput(id);
+                return ValueTask.CompletedTask;
+            })
+            /*
+            .OnCellAction(t => t.StatusMessage, e =>
+            {
+                var id = e.Value.RowId?.ToString();
+                if (!string.IsNullOrEmpty(id))
                 {
-                    var id = e.Value.RowId?.ToString();
-                    if (!string.IsNullOrEmpty(id))
+                    var job = jobs.FirstOrDefault(j => j.Id == id);
+                    if (job?.Status is JobStatus.Failed or JobStatus.Timeout)
+                    {
                         showOutput.Set(id);
-                }
-                else if (e.Value.ColumnName == "StatusMessage")
-                {
-                    var id = e.Value.RowId?.ToString();
-                    if (!string.IsNullOrEmpty(id))
-                    {
-                        var job = jobs.FirstOrDefault(j => j.Id == id);
-                        if (job?.Status is JobStatus.Failed or JobStatus.Timeout)
-                        {
-                            showOutput.Set(id);
-                        }
                     }
                 }
-                else if (e.Value.ColumnName == "Prompt/Title")
+                return ValueTask.CompletedTask;
+            })
+            */
+            .OnCellAction(t => t.Plan, e =>
+            {
+                var id = e.Value.RowId?.ToString();
+                if (!string.IsNullOrEmpty(id))
                 {
-                    var id = e.Value.RowId?.ToString();
-                    if (!string.IsNullOrEmpty(id))
+                    var job = jobs.FirstOrDefault(j => j.Id == id);
+                    if (job != null)
                     {
-                        var job = jobs.FirstOrDefault(j => j.Id == id);
-                        if (job != null)
-                        {
-                            var fullPrompt = GetFullPrompt(job, planService);
-                            if (!string.IsNullOrEmpty(fullPrompt))
-                                showPrompt.Set(fullPrompt);
-                        }
+                        var fullPrompt = GetFullPrompt(job, planService);
+                        if (!string.IsNullOrEmpty(fullPrompt))
+                            showPrompt(fullPrompt);
                     }
                 }
-
                 return ValueTask.CompletedTask;
             })
             .RowActions(row =>
             {
                 var job = jobs.FirstOrDefault(j => j.Id == row.Id);
-                var actions = new List<MenuItem>
-                {
-                    new MenuItem("View Plan", Icon: Icons.FileText, Tag: "view-plan").Tooltip("Open the associated plan"),
-                    new MenuItem("View Output", Icon: Icons.Terminal, Tag: "view-output").Tooltip(
-                        "View job output with Claude JSON rendering"),
-                    new MenuItem("Show Prompt", Icon: Icons.MessageSquare, Tag: "show-prompt").Tooltip(
-                        "Show the full prompt text"),
-                };
+                var actions = new List<MenuItem> { };
 
                 if (job?.Status is JobStatus.Running or JobStatus.Queued)
                 {
@@ -169,26 +163,8 @@ public partial class JobsApp
 
                 if (job != null)
                 {
-                    if (tag == "view-plan")
-                    {
-                        if (!string.IsNullOrEmpty(job.PlanFile))
-                        {
-                            var fullPath = Path.Combine(planService.PlansDirectory, job.PlanFile);
-                            if (Directory.Exists(fullPath))
-                                showPlan.Set(fullPath);
-                        }
-                    }
-                    else if (tag == "view-output")
-                    {
-                        showOutput.Set(job.Id);
-                    }
-                    else if (tag == "show-prompt")
-                    {
-                        var fullPrompt = GetFullPrompt(job, planService);
-                        if (!string.IsNullOrEmpty(fullPrompt))
-                            showPrompt.Set(fullPrompt);
-                    }
-                    else if (tag == "stop-job")
+                  
+                    if (tag == "stop-job")
                     {
                         if (job.Status is JobStatus.Running or JobStatus.Queued)
                         {
@@ -200,25 +176,24 @@ public partial class JobsApp
                     {
                         if (job.Status is JobStatus.Failed or JobStatus.Timeout or JobStatus.Stopped)
                         {
-                            if (job.Type == "CreatePlan" && !job.Args.Contains("-Description"))
+                            if (job.TypedArgs == null)
                             {
-                                client.Toast("Cannot rerun CreatePlan: original description was not preserved.", "Rerun Failed");
+                                client.Toast("Cannot rerun: original args were not preserved.", "Rerun Failed");
                                 return ValueTask.CompletedTask;
                             }
 
-                            if (job.Type is "ExecutePlan" or "ExpandPlan" && job.Args.Length > 0)
+                            var folder = job.TypedArgs.PlanFolder;
+                            if (job.TypedArgs is ExecutePlanArgs or ExpandPlanArgs && folder != null)
                             {
-                                var folderName = Path.GetFileName(job.Args[0]);
-                                planService.TransitionState(folderName, PlanStatus.Building);
+                                planService.TransitionState(Path.GetFileName(folder), PlanStatus.Building);
                             }
-                            else if (job is { Type: "UpdatePlan", Args.Length: > 0 })
+                            else if (job.TypedArgs is UpdatePlanArgs && folder != null)
                             {
-                                var folderName = Path.GetFileName(job.Args[0]);
-                                planService.TransitionState(folderName, PlanStatus.Updating);
+                                planService.TransitionState(Path.GetFileName(folder), PlanStatus.Updating);
                             }
 
                             jobService.DeleteJob(job.Id);
-                            jobService.StartJob(job.Type, job.Args);
+                            jobService.StartJob(job.TypedArgs);
 
                             refreshToken.Refresh();
                         }
@@ -237,19 +212,23 @@ public partial class JobsApp
 
                 return ValueTask.CompletedTask;
             })
-            .HeaderRight(_ => Layout.Horizontal().Gap(2)
+            .HeaderRight(_ => Layout.Horizontal()
                               | jobsProgress
                               | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
                                   new MenuItem("Clear Completed", Icon: Icons.Trash, Tag: "ClearCompleted")
                                       .OnSelect(() =>
                                       {
+                                          var count = jobService.GetJobs().Count(j => j.Status == JobStatus.Completed);
                                           jobService.ClearCompletedJobs();
                                           refreshToken.Refresh();
+                                          client.Toast($"Cleared {count} completed job(s)", "Clear Completed");
                                       }),
                                   new MenuItem("Clear Failed", Icon: Icons.Trash, Tag: "ClearFailed").OnSelect(() =>
                                   {
+                                      var count = jobService.GetJobs().Count(j => j.Status is JobStatus.Failed or JobStatus.Timeout);
                                       jobService.ClearFailedJobs();
                                       refreshToken.Refresh();
+                                      client.Toast($"Cleared {count} failed job(s)", "Clear Failed");
                                   })
                               ));
     }

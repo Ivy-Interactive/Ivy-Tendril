@@ -23,7 +23,16 @@ public class GeminiAgentProvider : IAgentProvider
             StandardErrorEncoding = System.Text.Encoding.UTF8
         };
 
-        psi.ArgumentList.Add("--yolo");
+        var hasWriteTools = invocation.AllowedTools.Count == 0 || invocation.AllowedTools.Any(t =>
+            t.StartsWith("Write", StringComparison.OrdinalIgnoreCase) ||
+            t.StartsWith("Edit", StringComparison.OrdinalIgnoreCase));
+
+        psi.ArgumentList.Add("--approval-mode");
+        psi.ArgumentList.Add(hasWriteTools ? "yolo" : "plan");
+
+        psi.ArgumentList.Add("--skip-trust");
+        psi.ArgumentList.Add("--output-format");
+        psi.ArgumentList.Add("json");
 
         if (!string.IsNullOrEmpty(invocation.Model))
         {
@@ -40,13 +49,12 @@ public class GeminiAgentProvider : IAgentProvider
         foreach (var arg in invocation.ExtraArgs)
             psi.ArgumentList.Add(arg);
 
-        // Prompt is piped via stdin to avoid Windows command line length limits.
-        // --prompt triggers headless mode; stdin content is read first.
         psi.ArgumentList.Add("--prompt");
         psi.ArgumentList.Add(" ");
 
         psi.Environment["CI"] = "true";
         psi.Environment["TERM"] = "dumb";
+        psi.Environment["GEMINI_CLI_TRUST_WORKSPACE"] = "true";
 
         return psi;
     }

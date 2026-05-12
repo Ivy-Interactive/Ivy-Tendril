@@ -12,9 +12,8 @@ using Microsoft.Extensions.Logging;
 namespace Ivy.Tendril.Apps.Review;
 
 public class ContentView(
-    PlanFile? selectedPlan,
-    List<PlanFile> allPlans,
     IState<PlanFile?> selectedPlanState,
+    List<PlanFile> allPlans,
     IPlanReaderService planService,
     IJobService jobService,
     Action refreshPlans,
@@ -30,24 +29,21 @@ public class ContentView(
         var openArtifact = UseState<string?>(null);
         var openFile = UseState<string?>(null);
         var openCommit = UseState<string?>(null);
-        var discardDialogOpen = UseState(false);
-        var suggestChangesOpen = UseState(false);
-        var suggestChangesText = UseState("");
-        var customPrOpen = UseState(false);
-        var rerunDialogOpen = UseState(false);
+        var args = UseArgs<ReviewAppArgs>();
+        var nav = UseNavigation();
 
         var githubService = UseService<IGithubService>();
         var assigneesError = UseState<string?>(null);
         var assigneesQuery = UseQuery<string[], string>(
-            selectedPlan?.Project ?? "",
+            selectedPlanState.Value?.Project ?? "",
             async (_, _) =>
             {
-                if (selectedPlan is null)
+                if (selectedPlanState.Value is null)
                 {
                     assigneesError.Set(null);
                     return Array.Empty<string>();
                 }
-                var repos = selectedPlan.GetEffectiveRepoPaths(config);
+                var repos = selectedPlanState.Value.GetEffectiveRepoPaths(config);
                 var repoPath = repos.FirstOrDefault();
                 if (repoPath is null)
                 {
@@ -66,15 +62,39 @@ public class ContentView(
             },
             initialValue: Array.Empty<string>()
         );
-        var selectedTab = UseState(0);
+
+        var (discardDialog, showDiscardDialog) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value) return null;
+            return new DiscardPlanDialog(isOpen, selectedPlanState.Value!, planService, refreshPlans);
+        });
+
+        var (suggestChangesDialog, showSuggestChangesDialog) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value) return null;
+            return new SuggestChangesDialog(isOpen, selectedPlanState.Value!, jobService, planService, refreshPlans);
+        });
+
+        var (customPrDialog, showCustomPrDialog) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value) return null;
+            return new CustomPrDialog(isOpen, selectedPlanState.Value!, jobService, planService, refreshPlans,
+                assigneesQuery, assigneesError);
+        });
+
+        var (rerunDialog, showRerunDialog) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value) return null;
+            return new RerunDialog(isOpen, selectedPlanState.Value!, jobService, planService, refreshPlans);
+        });
 
         var artifactContentQuery = UseQuery<string, string>(
             openArtifact.Value ?? "",
             async (filePath, ct) =>
             {
                 if (string.IsNullOrEmpty(filePath)) return "";
-                if (selectedPlan is null) return "";
-                var artifactsDir = Path.GetFullPath(Path.Combine(selectedPlan.FolderPath, "artifacts"));
+                if (selectedPlanState.Value is null) return "";
+                var artifactsDir = Path.GetFullPath(Path.Combine(selectedPlanState.Value.FolderPath, "artifacts"));
                 var resolvedPath = Path.GetFullPath(filePath);
                 if (!resolvedPath.StartsWith(artifactsDir, StringComparison.OrdinalIgnoreCase))
                     return "Access denied: file is outside the artifacts folder.";
@@ -85,12 +105,12 @@ public class ContentView(
         );
 
         var planContentQuery = UseQuery<PlanContentData, string>(
-            selectedPlan?.FolderPath ?? "",
+            selectedPlanState.Value?.FolderPath ?? "",
             async (folderPath, ct) =>
             {
                 return await Task.Run(() =>
                 {
-                    if (selectedPlan is null)
+                    if (selectedPlanState.Value is null)
                         return new PlanContentData(new List<RecommendationYaml>(), null,
                             new Dictionary<string, List<string>>(), new List<PlanContentHelpers.CommitRow>(),
                             new Dictionary<string, bool>(), new List<(string Name, bool ConditionMet)>(), null);
@@ -125,18 +145,18 @@ public class ContentView(
                     var artifacts = PlanContentHelpers.GetArtifacts(folderPath);
 
                     // Commit rows
-                    var commitRows = PlanContentHelpers.BuildCommitRows(selectedPlan!, config, gitService);
+                    var commitRows = PlanContentHelpers.BuildCommitRows(selectedPlanState.Value!, config, gitService);
 
                     // All changes data
-                    var allChanges = PlanContentHelpers.GetAllChangesData(selectedPlan!, config, gitService);
+                    var allChanges = PlanContentHelpers.GetAllChangesData(selectedPlanState.Value!, config, gitService);
 
                     // Verification report existence
-                    var verReports = selectedPlan.Verifications.ToDictionary(
+                    var verReports = selectedPlanState.Value.Verifications.ToDictionary(
                         v => v.Name,
                         v => File.Exists(Path.Combine(folderPath, "verification", $"{v.Name}.md")));
 
                     // Review action conditions
-                    var projectConfig = config.GetProject(selectedPlan.Project);
+                    var projectConfig = config.GetProject(selectedPlanState.Value.Project);
                     var reviewActions = projectConfig?.ReviewActions ?? [];
                     var actionStates = new (string Name, bool ConditionMet)[reviewActions.Count];
                     Parallel.For(0, reviewActions.Count, i =>
@@ -159,9 +179,11 @@ public class ContentView(
                 new List<(string Name, bool ConditionMet)>(), null)
         );
 
-        UseEffect(() => { selectedTab.Set(0); }, selectedPlanState);
+        var tabNames = new[] { "summary", "verifications", "git", "changes", "artifacts", "recommendations", "plan" };
+        var selectedTabIndex = Array.IndexOf(tabNames, args?.Tab ?? "summary");
+        if (selectedTabIndex < 0) selectedTabIndex = 0;
 
-        if (selectedPlan is null)
+        if (selectedPlanState.Value is null)
         {
             if (allPlans.Count == 0)
                 return new NoContentView("No plans to review", "Completed plans will appear here for review.");
@@ -170,26 +192,28 @@ public class ContentView(
                    | Text.Muted("Select a completed plan to review");
         }
 
-        var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan.FolderName);
+        var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlanState.Value.FolderName);
         var planData = planContentQuery.Value;
 
-        var header = BuildHeader(selectedPlan, allPlans, currentIndex, client, customPrOpen);
+        var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, client, showCustomPrDialog, nav, args);
         var actionBar = BuildActionBar(
-            selectedPlan, rerunDialogOpen, suggestChangesOpen, discardDialogOpen,
-            customPrOpen, copyToClipboard, client, logger);
+            selectedPlanState.Value, showRerunDialog, showSuggestChangesDialog, showDiscardDialog,
+            showCustomPrDialog, copyToClipboard, client, logger, nav, args);
         var content = BuildContent(
-            selectedPlan, planData, planContentQuery, selectedTab, openVerification,
+            selectedPlanState.Value, planData, planContentQuery, selectedTabIndex, tabNames, openVerification,
             openCommit, openFile, openArtifact, artifactContentQuery, assigneesQuery,
-            assigneesError, suggestChangesOpen, suggestChangesText, customPrOpen,
-            discardDialogOpen, rerunDialogOpen, client, copyToClipboard, logger);
+            assigneesError,
+            client, copyToClipboard, logger, nav, args);
 
-        return new HeaderLayout(
+        var mainLayout = new HeaderLayout(
             header,
             new FooterLayout(
                 actionBar,
                 content
             ).Scroll(Scroll.None).Size(Size.Full())
-        ).Scroll(Scroll.None).Size(Size.Full()).Key(selectedPlan.Id);
+        ).Scroll(Scroll.None).Size(Size.Full()).Key(selectedPlanState.Value.Id);
+
+        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, customPrDialog, rerunDialog);
     }
 
     private object BuildHeader(
@@ -197,7 +221,9 @@ public class ContentView(
         List<PlanFile> allPlans,
         int currentIndex,
         IClientProvider client,
-        IState<bool> customPrOpen)
+        Action showCustomPrDialog,
+        INavigator nav,
+        ReviewAppArgs? args)
     {
         var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(40)).Gap(2)
                      | Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis);
@@ -221,19 +247,13 @@ public class ContentView(
 
             if (allYolo)
             {
-                var optimisticPlan = selectedPlan with
-                {
-                    Metadata = selectedPlan.Metadata with { State = PlanStatus.Building }
-                };
-                selectedPlanState.Set(optimisticPlan);
-
-                jobService.StartJob(Constants.JobTypes.CreatePr, selectedPlan.FolderPath);
+                jobService.StartJob(new CreatePrArgs(selectedPlan.FolderPath));
                 planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
                 refreshPlans();
             }
             else
             {
-                customPrOpen.Set(true);
+                showCustomPrDialog();
             }
         }).ShortcutKey("m").WithConfetti(AnimationTrigger.Click);
 
@@ -242,44 +262,40 @@ public class ContentView(
 
     private object BuildActionBar(
         PlanFile selectedPlan,
-        IState<bool> rerunDialogOpen,
-        IState<bool> suggestChangesOpen,
-        IState<bool> discardDialogOpen,
-        IState<bool> customPrOpen,
+        Action showRerunDialog,
+        Action showSuggestChangesDialog,
+        Action showDiscardDialog,
+        Action showCustomPrDialog,
         Action<string> copyToClipboard,
         IClientProvider client,
-        ILogger<ContentView> logger)
+        ILogger<ContentView> logger,
+        INavigator nav,
+        ReviewAppArgs? args)
     {
         return Layout.Horizontal().AlignContent(Align.Left).Gap(1)
                 | new Button("Rerun").Icon(Icons.RotateCw).Outline().ShortcutKey("r").OnClick(() =>
                 {
-                    rerunDialogOpen.Set(true);
+                    showRerunDialog();
                 })
                 | new Button("Suggest Changes").Icon(Icons.MessageSquare).Outline().OnClick(() =>
                 {
-                    suggestChangesOpen.Set(true);
+                    showSuggestChangesDialog();
                 }).ShortcutKey("d")
                 | new Button("Discard").Icon(Icons.Trash).Outline().ShortcutKey("Backspace").OnClick(() =>
                 {
-                    discardDialogOpen.Set(true);
+                    showDiscardDialog();
                 })
-                | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(() => GoToPrevious())
+                | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(() => GoToPrevious(nav, args))
                     .ShortcutKey("p")
-                | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().OnClick(() => GoToNext())
+                | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().OnClick(() => GoToNext(nav, args))
                     .ShortcutKey("n")
                 | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
                     new MenuItem("Custom PR", Icon: Icons.GitPullRequest, Tag: "CustomPR").OnSelect(() =>
                     {
-                        customPrOpen.Set(true);
+                        showCustomPrDialog();
                     }),
                     new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
                     {
-                        var optimisticPlan = selectedPlan with
-                        {
-                            Metadata = selectedPlan.Metadata with { State = PlanStatus.Completed }
-                        };
-                        selectedPlanState.Set(optimisticPlan);
-
                         planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
                         refreshPlans();
                     }),
@@ -309,7 +325,8 @@ public class ContentView(
         PlanFile selectedPlan,
         PlanContentData planData,
         QueryResult<PlanContentData> planContentQuery,
-        IState<int> selectedTab,
+        int selectedTabIndex,
+        string[] tabNames,
         IState<string?> openVerification,
         IState<string?> openCommit,
         IState<string?> openFile,
@@ -317,14 +334,11 @@ public class ContentView(
         QueryResult<string> artifactContentQuery,
         QueryResult<string[]> assigneesQuery,
         IState<string?> assigneesError,
-        IState<bool> suggestChangesOpen,
-        IState<string> suggestChangesText,
-        IState<bool> customPrOpen,
-        IState<bool> discardDialogOpen,
-        IState<bool> rerunDialogOpen,
         IClientProvider client,
         Action<string> copyToClipboard,
-        ILogger<ContentView> logger)
+        ILogger<ContentView> logger,
+        INavigator nav,
+        ReviewAppArgs? args)
     {
         var content = Layout.Vertical().Height(Size.Full()).Gap(1);
 
@@ -404,7 +418,7 @@ public class ContentView(
                         var actionCapture = action;
                         btn = btn.OnClick(() =>
                         {
-                            if (!PlatformHelper.RunPowerShellAction(actionCapture.Action, selectedPlan.FolderPath, logger))
+                            if (!PlatformHelper.RunPowerShellAction(actionCapture.Command, selectedPlan.FolderPath, logger))
                             {
                                 logger.LogWarning("Failed to run review action {ActionName}: pwsh not found", actionCapture.Name);
                             }
@@ -461,7 +475,11 @@ public class ContentView(
                 new Tab("Artifacts", Cap(new ArtifactsTabView(planData.Artifacts))).Badge(totalArtifacts.ToString()),
                 new Tab("Recommendations", Cap(recommendationsLayout)).Badge(planData.Recommendations.Count.ToString()),
                 new Tab("Plan", Cap(planTabContent))
-            ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content);
+            ).OnSelect(v =>
+            {
+                if (v >= 0 && v < tabNames.Length && selectedPlanState.Value != null)
+                    nav.Navigate<ReviewApp>(new ReviewAppArgs(selectedPlanState.Value.FolderName, tabNames[v]));
+            }).SelectedIndex(selectedTabIndex).Variant(TabsVariant.Content);
 
             content |= (Layout.Vertical().Padding(2, 0).Height(Size.Full()) | tabs);
         }
@@ -491,13 +509,6 @@ public class ContentView(
             if (fileLinkSheet != null) content |= fileLinkSheet;
         }
 
-        content |= new SuggestChangesDialog(suggestChangesOpen, suggestChangesText, selectedPlan, jobService,
-            planService, refreshPlans);
-        content |= new CustomPrDialog(customPrOpen, selectedPlan, jobService, planService, refreshPlans,
-            assigneesQuery, assigneesError);
-        content |= new DiscardPlanDialog(discardDialogOpen, selectedPlan, planService, refreshPlans);
-        content |= new RerunDialog(rerunDialogOpen, selectedPlan, jobService, planService, refreshPlans);
-
         return content;
 
         object Cap(object inner)
@@ -521,18 +532,18 @@ public class ContentView(
         return resolvedPath.StartsWith(verificationDir, StringComparison.OrdinalIgnoreCase);
     }
 
-    private void GoToNext()
+    private void GoToNext(INavigator nav, ReviewAppArgs? args)
     {
         if (allPlans.Count == 0) return;
-        var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan?.FolderName);
+        var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlanState.Value?.FolderName);
         var nextIndex = (currentIndex + 1) % allPlans.Count;
         selectedPlanState.Set(allPlans[nextIndex]);
     }
 
-    private void GoToPrevious()
+    private void GoToPrevious(INavigator nav, ReviewAppArgs? args)
     {
         if (allPlans.Count == 0) return;
-        var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan?.FolderName);
+        var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlanState.Value?.FolderName);
         var prevIndex = (currentIndex - 1 + allPlans.Count) % allPlans.Count;
         selectedPlanState.Set(allPlans[prevIndex]);
     }

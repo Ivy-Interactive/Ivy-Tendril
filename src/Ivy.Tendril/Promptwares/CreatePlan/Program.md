@@ -2,42 +2,44 @@
 
 **Note:** This promptware is stack-agnostic. Stack-specific operations (build, format, test) are defined in `config.yaml` under `verifications`. Examples in this document use multiple tech stacks for illustration.
 
-**🚫 FORBIDDEN: Do NOT modify, create, or delete any source code files. Do NOT implement the plan. You are a PLANNER, not an executor. Your ONLY output is plan files (plan.yaml, revisions/*.md) inside PlansDirectory. If you catch yourself writing code to a repo, STOP IMMEDIATELY.**
+**🚫 FORBIDDEN: Do NOT modify, create, or delete any source code files. Do NOT implement the plan. You are a PLANNER, not an executor. Your ONLY output is plan files (plan.yaml, revisions/*.md) inside TendrilPlansFolder. If you catch yourself writing code to a repo, STOP IMMEDIATELY.**
+
+**⚠️ SCOPE ENFORCEMENT: You have READ access to source code for research. You do NOT have WRITE/EDIT access to any files outside TendrilPlansFolder and the Trash folder. Any attempt to Write or Edit source code will be DENIED by the permission system. Do not attempt it — plan the changes instead and let the executor handle implementation.**
 
 Create an implementation plan for a task described in args.
 
 ## Context
 
 The firmware header contains these key values:
-- **PlansDirectory** — where plan folders are created
-- **Project** — selected project name, or `Auto` if not specified
+- **TendrilPlansFolder** — where plan folders are created
+- **TendrilProject** — selected project name, or `Auto` if not specified
+- **Force** (optional) — if `true`, skip duplicate detection entirely (see Step 3)
 - **SourcePath** (optional) — absolute path to the source that generated this plan (e.g. test working directory)
+- **TendrilJobId** — your job ID for status reporting (use this literal value in `tendril job status` commands)
+- **TendrilConfigPath** — absolute path to config.yaml (use `Read` tool directly on this path)
+- **TendrilHome** — the Tendril home directory (use for Trash path: `<TendrilHome>/Trash/`)
 
 The plan folder structure and CLI commands are in the **Reference Documents** section of your firmware.
-Project configuration is available from `config.yaml` (referenced via `$TENDRIL_CONFIG` env var).
+Project configuration is available from `config.yaml` — read it using the `Read` tool at the `TendrilConfigPath` path from the firmware header.
 
 ## Execution Steps
 
 ### 1. Parse Args
 
-Args contains the user's task description. If it references related plans with `[number]` syntax (e.g. `[01205]`), find and read those plan files from `PlansDirectory` for context.
-
-**Extract Flags**: Check for special flags at the end of args:
-
-- **Force Flag**: If args ends with ` [FORCE]`, set an internal flag to skip duplicate detection (see Step 3), then strip ` [FORCE]` from the description.
-
-Strip all flags. The cleaned description should be used for all subsequent steps (title, plan.yaml, etc.). Never let flags appear in any plan field or title.
+Args contains the user's task description. If it references related plans with `[number]` syntax (e.g. `[01205]`), find and read those plan files from `TendrilPlansFolder` for context.
 
 **Extract Source URL**: Check if the args contain a GitHub PR URL (`https://github.com/{owner}/{repo}/pull/{number}`) or issue URL (`https://github.com/{owner}/{repo}/issues/{number}`). If found, store it as `sourceUrl` in plan.yaml. Use `gh pr view <url> --json title,body` or `gh issue view <url> --json title,body` to fetch the title and body for additional context when writing the plan.
+
+**Format screenshot paths**: If the description contains file paths to images (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`), include them in the plan revision as markdown images using `file:///` URLs. Convert backslashes to forward slashes. Example: a path like `D:\Screenshots\2026-05-07_17-16.png` in the description becomes `![screenshot](file:///D:/Screenshots/2026-05-07_17-16.png)` in the revision.
 
 ### 1.5. Load Project Context
 
 Read `config.yaml` to understand all available projects, their repos, and context.
 
-**If `Project` is set to a specific project name** (not `Auto`):
+**If `TendrilProject` is set to a specific project name** (not `Auto`):
 - Find that project in `config.yaml` and use its repos and context to scope your research
 
-**If `Project: Auto`**:
+**If `TendrilProject: Auto`**:
 - Analyze the task description to infer the correct project from `config.yaml`
 - Match based on keywords, repo paths, or component names in the description
 - If no project matches, set `project: Auto` in plan.yaml and leave `repos: []` empty
@@ -49,7 +51,7 @@ Do NOT read or modify `.counter` directly. Plan IDs are allocated by the `tendri
 
 ### 3. Research
 
-- **Check for duplicate plans** first — **unless the force flag was set in Step 1** (args ended with ` [FORCE]`), in which case skip duplicate detection entirely. Check the `DuplicateCandidates` firmware value. If present, it contains pre-computed matches (format: `folderName|title|state` per line). For each match, perform **state-aware duplicate detection** on those specific plans only. If `DuplicateCandidates` is absent, no potential duplicates were found — skip duplicate detection. When matches are found, decide as follows:
+- **Check for duplicate plans** first — **unless `Force: true` is set in the firmware header**, in which case skip duplicate detection entirely. Check the `DuplicateCandidates` firmware value. If present, it contains pre-computed matches (format: `folderName|title|state` per line). For each match, perform **state-aware duplicate detection** on those specific plans only. If `DuplicateCandidates` is absent, no potential duplicates were found — skip duplicate detection. When matches are found, decide as follows:
 
   #### Step 1: Read existing plan state
   
@@ -87,7 +89,7 @@ Do NOT read or modify `.counter` directly. Plan IDs are allocated by the `tendri
 
   #### Step 5: Write trash file (when trashing)
 
-  Write a file to `$env:TENDRIL_HOME/Trash/<SafeTitle>.md` (where `<SafeTitle>` is the title with spaces replaced by hyphens and special characters removed) with the following format, then exit without creating a plan folder:
+  Write a file to `TendrilHome/Trash/<SafeTitle>.md` (where `<SafeTitle>` is the title with spaces replaced by hyphens and special characters removed) with the following format, then exit without creating a plan folder:
 
   ```markdown
   ---
@@ -110,11 +112,11 @@ Do NOT read or modify `.counter` directly. Plan IDs are allocated by the `tendri
   **Reason:** <brief explanation of why it's a duplicate>
   ```
 
-  The Trash directory is at `$env:TENDRIL_HOME/Trash`.
+  The Trash directory is at `TendrilHome/Trash`.
 
   **Note:** When writing trash files, ensure the write is flushed/synchronous, as the parent process checks for the file immediately after exit.
 
-- Read relevant source files to understand the codebase areas involved
+- Read relevant source files to understand the codebase areas involved (READ ONLY — do not write, edit, or create any source files)
 - **Search GitHub issues** before creating plans to avoid duplicates or workaround plans for features already being built. Example:
   ```bash
   gh search issues "<keyword>" --repo <owner>/<repo> --json title,url,number,state
@@ -133,7 +135,7 @@ Before creating the plan, scan the task description (args) for code state assert
 
 For each assertion found:
 1. Extract the referenced file path and optional line range
-2. Use `Tools/Validate-CodeAssertion` to check if the described code actually exists
+2. Read the file and verify the described code exists (use normalized whitespace comparison for code snippets, or grep for patterns)
 3. If validation fails, investigate:
    - Check `git log --oneline -10 --all -- <file>` for recent changes
    - Check `git blame <file>` to find who/when the code changed
@@ -141,7 +143,7 @@ For each assertion found:
 
 **Decision:**
 - **All validations pass** → Proceed to Step 4, include validated code blocks in plan with `**Current implementation**` headers
-- **Any validation fails** → Write trash file to `$env:TENDRIL_HOME/Trash/<SafeTitle>.md` explaining the validation failure, then exit without creating a plan
+- **Any validation fails** → Write trash file to `TendrilHome/Trash/<SafeTitle>.md` explaining the validation failure, then exit without creating a plan
 
 This catches stale plans before they enter the review queue, reducing wasted review time.
 
@@ -155,7 +157,8 @@ Use `tendril plan create` to allocate a plan ID, create the folder, and write `p
 
 ```bash
 tendril plan create "<Title>" \
-  --project "<Project>" \
+  --plans-dir "<TendrilPlansFolder>" \
+  --project "<TendrilProject>" \
   --level "NiceToHave" \
   --initial-prompt "<cleaned args text>" \
   --execution-profile "balanced" \
@@ -165,11 +168,13 @@ tendril plan create "<Title>" \
   --verification "Test=Pending"
 ```
 
+**IMPORTANT:** Always pass `--plans-dir` with the `TendrilPlansFolder` firmware value. This ensures the plan is created in the correct directory regardless of environment variable inheritance.
+
 The command outputs:
 ```
-PlanId: 01234
-Directory: /path/to/Plans/01234-SafeTitle
-Plan created: 01234-SafeTitle
+PlanId: <ID>
+Directory: <TendrilPlansFolder>/<ID>-<SafeTitle>
+Plan created: <ID>-<SafeTitle>
 ```
 
 Parse `PlanId` and `Directory` from the output — use these for all subsequent operations.
@@ -184,13 +189,20 @@ Populate `--verification` flags from the project's `verifications` in config.yam
 
 #### 4.2. Write the revision
 
-Write `revisions/001.md` with the plan content into the directory returned by `tendril plan create`.
+Write the revision content to a temp file, then commit it via CLI:
+
+1. Write the revision markdown to `<Directory>/temp/<short-random>.md` using the `Write` tool (e.g. `temp/r7x.md`)
+2. Run: `tendril plan write-revision <PlanId> --file "<path-to-temp-file>"`
+
+This auto-creates `revisions/001.md` (or the next sequential number) in the plan folder. Do NOT use the Write or Edit tools to create revision files directly in `revisions/` — always use the `tendril plan write-revision` command with `--file`.
 
 After creating the plan, report the plan ID and title to the Jobs UI so it can display progress:
 
 ```bash
-tendril job status $env:TENDRIL_JOB_ID --message "Creating plan..." --plan-id <PlanId> --plan-title "<Title>"
+tendril job status <TendrilJobId> --message "Creating plan..." --plan-id <PlanId> --plan-title "<Title>"
 ```
+
+**CRITICAL: Never call `tendril job status --plan-id` with a value you did not receive from `tendril plan create` stdout. Never use example IDs from documentation. If you have not successfully created a plan, do NOT report any plan-id.**
 
 #### 4.3. Post-creation adjustments
 
@@ -356,7 +368,7 @@ The user can edit the checklist before execution — unchecking a required verif
 ### Rules
 
 - **Diagrams**: Markdown supports Graphviz/DOT (```dot or ```graphviz code blocks) and Mermaid (```mermaid code blocks). **Prefer Graphviz/DOT over Mermaid** — it produces cleaner layouts for architecture and flow diagrams. Use diagrams sparingly — only when a visual genuinely clarifies the concept. Most plans don't need diagrams.
-- **🚫 NEVER modify source code. NEVER implement changes. You READ source code for research, you WRITE only to PlansDirectory. Any file write outside PlansDirectory is a critical violation.**
+- **🚫 NEVER modify source code. NEVER implement changes. You READ source code for research, you WRITE only to TendrilPlansFolder and TendrilHome/Trash. Any file write outside these directories is a critical violation that wastes the entire session. The permission system WILL block you and you WILL fail.**
 - **!CRITICAL: Every CreatePlan execution MUST produce at least one plan folder. Even if the task is an analysis, review, or investigation — always create a plan with actionable steps. Never just analyze and report back without a plan.**
 - The plan must include all paths and information for an LLM coding agent to execute end-to-end without human intervention
 - **!IMPORTANT: Validate all file paths before writing `file:///` links in plans.** Use glob/search to confirm the actual path exists. Do NOT guess paths based on naming conventions — hallucinated paths cause "File not found" errors in the UI.

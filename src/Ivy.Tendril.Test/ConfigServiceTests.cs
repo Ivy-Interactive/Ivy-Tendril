@@ -141,10 +141,10 @@ projects:
     reviewActions:
       - name: Sample
         condition: 'Test-Path ""artifacts\sample\*.csproj""'
-        action: 'dotnet run --browse'
+        command: 'dotnet run --browse'
       - name: Open Docs
         condition: ''
-        action: 'start docs/index.html'
+        command: 'start docs/index.html'
 ";
 
         var tempDir = CreateTempConfigFile(yaml);
@@ -160,12 +160,12 @@ projects:
 
             Assert.Equal("Sample", project.ReviewActions[0].Name);
             Assert.Contains("Test-Path", project.ReviewActions[0].Condition);
-            Assert.Equal("dotnet run --browse", project.ReviewActions[0].Action);
+            Assert.Equal("dotnet run --browse", project.ReviewActions[0].Command);
 
             Assert.Equal("Open Docs", project.ReviewActions[1].Name);
             Assert.Empty(project.ReviewActions[1].Condition);
-            Assert.Contains("start docs", project.ReviewActions[1].Action);
-            Assert.Contains("index.html", project.ReviewActions[1].Action);
+            Assert.Contains("start docs", project.ReviewActions[1].Command);
+            Assert.Contains("index.html", project.ReviewActions[1].Command);
         }
         finally
         {
@@ -1510,7 +1510,7 @@ maxConcurrentJobs: 10
     }
 
     [Fact]
-    public void LoadConfig_WhenFileNotFound_LogsExpectedPath()
+    public void LoadConfig_WhenFileNotFound_ServiceInitializesWithDefaults()
     {
         var tempDir = _tempDir.Path;
         var configPath = Path.Combine(tempDir, "config.yaml");
@@ -1532,15 +1532,17 @@ maxConcurrentJobs: 10
 
         var service = new ConfigService(new TendrilSettings(), tempDir, logger);
 
-        Assert.Contains(logMessages, msg =>
-            msg.Contains("Configuration file not found") &&
-            msg.Contains(configPath) &&
-            msg.Contains("config.yaml"));
+        // Internal constructor does not attempt to load config from disk,
+        // so no warning is logged — it uses the provided settings directly.
+        Assert.Empty(logMessages);
+        Assert.Equal(configPath, service.ConfigPath);
     }
 
     [Fact]
     public void GetRepoRef_WithTrailingSlash_ShouldMatch()
     {
+        if (!OperatingSystem.IsWindows()) return; // Backslash is not a path separator on Linux
+
         var project = new ProjectConfig
         {
             Repos = new List<RepoRef>
@@ -1557,6 +1559,8 @@ maxConcurrentJobs: 10
     [Fact]
     public void GetRepoRef_WithMixedSlashes_ShouldMatch()
     {
+        if (!OperatingSystem.IsWindows()) return; // Mixed slashes only relevant on Windows
+
         var project = new ProjectConfig
         {
             Repos = new List<RepoRef>

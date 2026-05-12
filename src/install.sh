@@ -42,7 +42,16 @@ else
     printf "%b\\n" "${GREEN}✓ .NET 10 SDK installed successfully.${NC}"
 fi
 
-printf "%b\\n" "\n${BLUE}Step 2: Checking for Git...${NC}"
+printf "%b\\n" "\n${BLUE}Step 2: Trusting .NET dev certificates...${NC}"
+if dotnet dev-certs https --check --trust &> /dev/null; then
+    printf "%b\\n" "${GREEN}✓ .NET dev certificate is already trusted.${NC}"
+else
+    printf "%b\\n" "Generating and trusting .NET dev certificate..."
+    dotnet dev-certs https --trust
+    printf "%b\\n" "${GREEN}✓ .NET dev certificate trusted successfully.${NC}"
+fi
+
+printf "%b\\n" "\n${BLUE}Step 3: Checking for Git...${NC}"
 if xcode-select -p &> /dev/null; then
     printf "%b\\n" "${GREEN}✓ Git is already installed.${NC}"
 else
@@ -52,7 +61,7 @@ else
     exit 1
 fi
 
-printf "%b\\n" "\n${BLUE}Step 3: Checking for GitHub CLI (gh)...${NC}"
+printf "%b\\n" "\n${BLUE}Step 4: Checking for GitHub CLI (gh)...${NC}"
 if command -v gh &> /dev/null; then
     printf "%b\\n" "${GREEN}✓ GitHub CLI is already installed.${NC}"
 else
@@ -79,7 +88,7 @@ else
     printf "%b\\n" "${GREEN}✓ GitHub CLI installed to /usr/local/bin/gh.${NC}"
 fi
 
-printf "%b\\n" "\n${BLUE}Step 4: Checking for PowerShell (pwsh)...${NC}"
+printf "%b\\n" "\n${BLUE}Step 5: Checking for PowerShell (pwsh)...${NC}"
 if command -v pwsh &> /dev/null || dotnet tool list -g | grep -qi "powershell"; then
     printf "%b\\n" "${GREEN}✓ PowerShell is already installed.${NC}"
 else
@@ -88,7 +97,7 @@ else
     printf "%b\\n" "${GREEN}✓ PowerShell installed successfully.${NC}"
 fi
 
-printf "%b\\n" "\n${BLUE}Step 5: Installing Ivy-Tendril...${NC}"
+printf "%b\\n" "\n${BLUE}Step 6: Installing Ivy-Tendril...${NC}"
 # Use the internal source if provided, otherwise secondary
 # We'll try official NuGet first, then fallback to Ivy feed if requested
 IVY_SOURCE="https://api.nuget.org/v3/index.json"
@@ -101,8 +110,8 @@ else
     dotnet tool install -g Ivy.Tendril --add-source "$IVY_SOURCE"
 fi
 
-# 6. PATH Configuration
-printf "%b\\n" "\n${BLUE}Step 6: Configuring PATH...${NC}"
+# 7. PATH Configuration
+printf "%b\\n" "\n${BLUE}Step 7: Configuring PATH...${NC}"
 DOTNET_TOOLS_PATH="$HOME/.dotnet/tools"
 SHELL_PROFILE=""
 

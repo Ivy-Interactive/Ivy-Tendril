@@ -12,14 +12,11 @@ public record JobNotification(string Title, string Message, bool IsSuccess);
 
 public class JobService : IJobService
 {
-
-
     private readonly IConfigService? _configService;
     private readonly IPlanDatabaseService? _database;
-
     private readonly string? _inboxPath;
     private readonly PriorityQueue<string, int> _jobQueue = new();
-    private readonly object _queueLock = new();
+    private readonly Lock _queueLock = new();
     private SemaphoreSlim _jobSlotSemaphore;
     private TimeSpan _jobTimeout;
     private readonly ConcurrentDictionary<string, JobItem> _jobs = new();
@@ -34,7 +31,6 @@ public class JobService : IJobService
     private readonly ILogger<JobService> _logger;
     private readonly JobLauncher _jobLauncher;
     private readonly JobCompletionHandler _completionHandler;
-    private readonly string _promptsRoot;
     private int _counter;
 
     public JobService(
@@ -63,11 +59,11 @@ public class JobService : IJobService
             ? new SemaphoreSlim(_maxConcurrentJobs, _maxConcurrentJobs)
             : new SemaphoreSlim(0, 1);
         _inboxPath = Path.Combine(configService.TendrilHome, "Inbox");
-        _promptsRoot = Ivy.Tendril.Helpers.PromptwareHelper.ResolvePromptsRoot(configService.TendrilHome);
-        _jobLauncher = new JobLauncher(configService, _logger, _promptsRoot);
+        var promptsRoot = Ivy.Tendril.Helpers.PromptwareHelper.ResolvePromptsRoot(configService.TendrilHome);
+        _jobLauncher = new JobLauncher(configService, _logger, promptsRoot);
         _completionHandler = new JobCompletionHandler(
             configService, _logger, modelPricingService, planReaderService,
-            telemetryService, planWatcherService, worktreeLifecycleLogger, _promptsRoot);
+            telemetryService, planWatcherService, worktreeLifecycleLogger, promptsRoot);
         configService.SettingsReloaded += OnSettingsReloaded;
         LoadHistoricalJobs();
     }
@@ -94,11 +90,11 @@ public class JobService : IJobService
         _planReaderService = planReaderService;
         _telemetryService = telemetryService;
         _database = database;
-        _promptsRoot = Ivy.Tendril.Helpers.PromptwareHelper.ResolvePromptsRoot();
-        _jobLauncher = new JobLauncher(null, _logger, _promptsRoot);
+        var promptsRoot = Ivy.Tendril.Helpers.PromptwareHelper.ResolvePromptsRoot();
+        _jobLauncher = new JobLauncher(null, _logger, promptsRoot);
         _completionHandler = new JobCompletionHandler(
             null, _logger, null, planReaderService, telemetryService,
-            null, null, _promptsRoot);
+            null, null, promptsRoot);
         LoadHistoricalJobs();
     }
 
@@ -107,14 +103,9 @@ public class JobService : IJobService
     public event Action? JobPropertyChanged;
     public event Action<JobNotification>? NotificationReady;
 
-    public string StartJob(string type, string[] args, string? inboxFilePath)
+    public string StartJob(JobArgsBase args, string? inboxFilePath = null)
     {
-        return StartJobInternal(type, args, inboxFilePath);
-    }
-
-    public string StartJob(string type, params string[] args)
-    {
-        return StartJobInternal(type, args, null);
+        return StartJobInternal(args, inboxFilePath);
     }
 
     public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false)
@@ -210,7 +201,7 @@ public class JobService : IJobService
         JobCompletionHandler.CleanupInboxFile(job);
         _completionHandler.ResetPlanState(job);
 
-        if (job.Type is Constants.JobTypes.ExecutePlan or Constants.JobTypes.CreatePr)
+        if (job.TypedArgs is ExecutePlanArgs or CreatePrArgs)
             _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);
 
         RaiseJobsStructureChanged();
@@ -290,7 +281,7 @@ public class JobService : IJobService
     public bool IsInboxFileTracked(string filePath)
     {
         return _jobs.Values.Any(j =>
-            j.Type == Constants.JobTypes.CreatePlan &&
+            j.TypedArgs is CreatePlanArgs &&
             j.Status is JobStatus.Pending or JobStatus.Queued or JobStatus.Running &&
             j.InboxFile != null &&
             j.InboxFile.Equals(filePath, StringComparison.OrdinalIgnoreCase));
@@ -368,15 +359,15 @@ public class JobService : IJobService
             NotificationReady?.Invoke(notification);
     }
 
-    private string StartJobSkipDepCheck(string type, params string[] args)
+    private string StartJobSkipDepCheck(JobArgsBase args)
     {
-        return StartJobInternal(type, args, inboxFilePath: null, skipDependencyCheck: true);
+        return StartJobInternal(args, inboxFilePath: null, skipDependencyCheck: true);
     }
 
-    private string StartJobInternal(string type, string[] args, string? inboxFilePath, bool skipDependencyCheck = false)
+    private string StartJobInternal(JobArgsBase args, string? inboxFilePath, bool skipDependencyCheck = false)
     {
         var id = $"job-{Interlocked.Increment(ref _counter):D3}";
-        var job = BuildJobItem(id, type, args, inboxFilePath);
+        var job = BuildJobItem(id, args, inboxFilePath);
 
         if (TryRejectConflictingJob(job))
             return id;
@@ -386,7 +377,7 @@ public class JobService : IJobService
         if (TryBlockForDependencies(job, skipDependencyCheck))
             return id;
 
-        if (type is Constants.JobTypes.ExecutePlan or Constants.JobTypes.ExpandPlan or Constants.JobTypes.UpdatePlan or Constants.JobTypes.SplitPlan)
+        if (job.TypedArgs is ExecutePlanArgs or ExpandPlanArgs or UpdatePlanArgs or SplitPlanArgs)
             _planReaderService?.FlushPendingWritesAsync().GetAwaiter().GetResult();
 
         if (!_jobSlotSemaphore.Wait(0))
@@ -402,41 +393,37 @@ public class JobService : IJobService
         return id;
     }
 
-    private JobItem BuildJobItem(string id, string type, string[] args, string? inboxFilePath)
+    private JobItem BuildJobItem(string id, JobArgsBase args, string? inboxFilePath)
     {
-        var (planFile, project, priority) = ExtractJobMetadata(type, args);
+        var (planFile, project, priority) = ExtractJobMetadata(args);
 
         var job = new JobItem
         {
             Id = id,
-            Type = type,
+            Type = args.Type,
             PlanFile = planFile,
             Project = project,
             Status = JobStatus.Pending,
-            Args = args,
+            TypedArgs = args,
             Provider = _configService?.Settings.CodingAgent ?? "claude",
             Priority = priority
         };
 
-        if (type == Constants.JobTypes.CreatePlan)
+        if (args is CreatePlanArgs)
             SetupInboxTracking(job, id, args, inboxFilePath);
 
         return job;
     }
 
-    private static (string PlanFile, string Project, int Priority) ExtractJobMetadata(string type, string[] args)
+    private static (string PlanFile, string Project, int Priority) ExtractJobMetadata(JobArgsBase args)
     {
-        if (type == Constants.JobTypes.CreatePlan)
+        if (args is CreatePlanArgs cp)
         {
-            var planFile = GetNamedArg(args, "-Description") is { Length: > 0 } desc
-                ? desc.Length > 50 ? desc[..50] + "..." : desc
-                : "New Plan";
-            var project = GetNamedArg(args, "-Project") ?? "Auto";
-            int.TryParse(GetNamedArg(args, "-Priority"), out var priority);
-            return (planFile, project, priority);
+            var planFile = cp.Description.Length > 50 ? cp.Description[..50] + "..." : cp.Description;
+            return (planFile, cp.Project, cp.Priority);
         }
 
-        var folder = args.Length > 0 ? args[0] : "";
+        var folder = args.PlanFolder ?? "";
         var file = Path.GetFileName(folder);
         if (!Directory.Exists(folder))
             return (file, "Auto", 0);
@@ -447,7 +434,7 @@ public class JobService : IJobService
             : (file, "Auto", 0);
     }
 
-    private void SetupInboxTracking(JobItem job, string id, string[] args, string? inboxFilePath)
+    private void SetupInboxTracking(JobItem job, string id, JobArgsBase args, string? inboxFilePath)
     {
         if (inboxFilePath != null)
         {
@@ -458,8 +445,9 @@ public class JobService : IJobService
             try
             {
                 FileHelper.EnsureDirectory(_inboxPath);
-                var description = GetNamedArg(args, "-Description") ?? "New Plan";
-                var inboxProject = GetNamedArg(args, "-Project") ?? "Auto";
+                var cp = args as CreatePlanArgs;
+                var description = cp?.Description ?? "New Plan";
+                var inboxProject = cp?.Project ?? "Auto";
                 var pendingFile = Path.Combine(_inboxPath, $"pending-{id}.md.processing");
                 var content = $"---\nproject: {inboxProject}\n---\n{description}";
                 FileHelper.WriteAllText(pendingFile, content);
@@ -471,15 +459,15 @@ public class JobService : IJobService
 
     private bool TryRejectConflictingJob(JobItem job)
     {
-        if (job.Type is not (Constants.JobTypes.ExecutePlan or Constants.JobTypes.UpdatePlan or Constants.JobTypes.ExpandPlan or Constants.JobTypes.SplitPlan))
+        if (job.TypedArgs is not (ExecutePlanArgs or UpdatePlanArgs or ExpandPlanArgs or SplitPlanArgs))
             return false;
 
-        var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
+        var planFolder = job.TypedArgs?.PlanFolder ?? "";
         var conflictingJob = _jobs.Values.FirstOrDefault(j =>
             j.Type == job.Type &&
             j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
-            j.Args.Length > 0 &&
-            j.Args[0].Equals(planFolder, StringComparison.OrdinalIgnoreCase));
+            !string.IsNullOrEmpty(j.TypedArgs?.PlanFolder) &&
+            j.TypedArgs!.PlanFolder!.Equals(planFolder, StringComparison.OrdinalIgnoreCase));
 
         if (conflictingJob == null)
             return false;
@@ -499,10 +487,10 @@ public class JobService : IJobService
 
     private bool TryBlockForDependencies(JobItem job, bool skipDependencyCheck)
     {
-        if (job.Type != Constants.JobTypes.ExecutePlan || skipDependencyCheck)
+        if (job.TypedArgs is not ExecutePlanArgs || skipDependencyCheck)
             return false;
 
-        var planFolder = job.Args.Length > 0 ? job.Args[0] : "";
+        var planFolder = job.TypedArgs?.PlanFolder ?? "";
         var (ok, blockReason) = CheckDependencies(planFolder);
         if (ok)
             return false;
@@ -521,17 +509,17 @@ public class JobService : IJobService
     ///     Creates a job in "Running" state without launching a real process.
     ///     Used by tests to exercise CompleteJob without background monitor races.
     /// </summary>
-    internal string CreateTestJob(string type, params string[] args)
+    internal string CreateTestJob(JobArgsBase args)
     {
         var id = $"job-{Interlocked.Increment(ref _counter):D3}";
         var job = new JobItem
         {
             Id = id,
-            Type = type,
-            PlanFile = args.Length > 0 ? args[0] : type,
+            Type = args.Type,
+            PlanFile = args.PlanFolder ?? args.Type,
             Status = JobStatus.Running,
             StartedAt = DateTime.UtcNow,
-            Args = args,
+            TypedArgs = args,
             TimeoutCts = new CancellationTokenSource()
         };
         _jobs[id] = job;
@@ -595,7 +583,7 @@ public class JobService : IJobService
         => _completionHandler.RunHooks(when, jobType, planFolder, project, job);
 
     internal Task RunStaleOutputWatchdog(string id, CancellationTokenSource timeoutCts)
-        => _jobLauncher.RunStaleOutputWatchdog(id, timeoutCts, _jobs, _staleOutputTimeout);
+        => JobMonitor.RunStaleOutputWatchdog(id, timeoutCts, _jobs, _staleOutputTimeout);
 
 
     private void ProcessJobQueue()
@@ -646,8 +634,6 @@ public class JobService : IJobService
     internal static void SetPlanStateByFolder(string planFolder, string state)
         => PlanYamlHelper.SetPlanStateByFolder(planFolder, state);
 
-    private static string? GetNamedArg(string[] args, string name)
-        => PlanYamlHelper.GetNamedArg(args, name);
 
     private (bool Ok, string? BlockReason) CheckDependencies(string planFolder)
         => _completionHandler.CheckDependencies(planFolder);

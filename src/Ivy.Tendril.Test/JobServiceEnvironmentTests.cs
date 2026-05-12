@@ -47,7 +47,7 @@ maxConcurrentJobs: 1
         psi.Environment["TENDRIL_JOB_ID"] = "test-job";
         psi.Environment["TENDRIL_SESSION_ID"] = Guid.NewGuid().ToString();
         psi.Environment["TENDRIL_CONFIG"] = Path.Combine(_tempDir.Path, "config.yaml");
-        psi.Environment["TENDRIL_STATUS_FILE"] = Path.Combine(_tempDir.Path, "Jobs", "test-job.status");
+        psi.Environment["TENDRIL_CLI_LOG"] = Path.Combine(_tempDir.Path, "Jobs", "test-job.status");
 
         // Force non-interactive mode for Claude Code CLI to prevent TTY detection issues
         psi.Environment["CI"] = "true";

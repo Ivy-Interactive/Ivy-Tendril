@@ -30,7 +30,7 @@ public class JobServiceCompletionGuardTests : IDisposable
     public void CompleteJob_ConcurrentCalls_OnlyFirstCompletes()
     {
         var service = CreateService();
-        var id = service.CreateTestJob("ExecutePlan", "test-plan");
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
 
         var notificationCount = 0;
         service.NotificationReady += _ => Interlocked.Increment(ref notificationCount);
@@ -69,7 +69,7 @@ public class JobServiceCompletionGuardTests : IDisposable
     public void StopJob_RacingWithCompleteJob_OnlyOneWins()
     {
         var service = CreateService();
-        var id = service.CreateTestJob("ExecutePlan", "test-plan");
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
 
         var notificationCount = 0;
         service.NotificationReady += _ => Interlocked.Increment(ref notificationCount);
@@ -103,7 +103,7 @@ public class JobServiceCompletionGuardTests : IDisposable
     public void CompleteJob_AfterStopJob_IsNoOp()
     {
         var service = CreateService();
-        var id = service.CreateTestJob("ExecutePlan", "test-plan");
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
 
         service.StopJob(id);
         var job = service.GetJob(id);
@@ -121,7 +121,7 @@ public class JobServiceCompletionGuardTests : IDisposable
     public void CompleteJob_StaleOutputDetected_SetsTimeoutWithStaleReason()
     {
         var service = CreateService();
-        var id = service.CreateTestJob("ExecutePlan", "test-plan");
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
 
         var job = service.GetJob(id);
         Assert.NotNull(job);
@@ -139,7 +139,7 @@ public class JobServiceCompletionGuardTests : IDisposable
     public void CompleteJob_CreatePlan_UpdatesPlanFileWhenOutputContainsPlanCreated()
     {
         var service = CreateServiceWithPlanReader(_tempDir.Path);
-        var id = service.CreateTestJob("CreatePlan", "-Description", "Fix login bug", "-Project", "Tendril");
+        var id = service.CreateTestJob(new CreatePlanArgs("Fix login bug", "Tendril"));
 
         var job = service.GetJob(id);
         Assert.NotNull(job);
@@ -157,7 +157,7 @@ public class JobServiceCompletionGuardTests : IDisposable
     public void CompleteJob_CreatePlan_LeavesPlanFileUnchangedOnDuplicate()
     {
         var service = CreateServiceWithPlanReader(_tempDir.Path);
-        var id = service.CreateTestJob("CreatePlan", "-Description", "Fix login bug", "-Project", "Tendril");
+        var id = service.CreateTestJob(new CreatePlanArgs("Fix login bug", "Tendril"));
 
         var job = service.GetJob(id);
         Assert.NotNull(job);
@@ -177,6 +177,9 @@ public class JobServiceCompletionGuardTests : IDisposable
     {
         public string PlansDirectory => plansDirectory;
         public bool IsDatabaseReady => true;
+#pragma warning disable CS0067
+        public event Action? CountsInvalidated;
+#pragma warning restore CS0067
 
         public void RecoverStuckPlans()
         {

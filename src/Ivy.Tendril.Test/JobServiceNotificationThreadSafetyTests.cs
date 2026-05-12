@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
@@ -10,6 +11,17 @@ public class JobServiceNotificationThreadSafetyTests : IDisposable
     public void Dispose()
     {
         _tempDir.Dispose();
+    }
+
+    private string CreateValidPlanFolder()
+    {
+        var dir = Path.Combine(_tempDir.Path, $"plan-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        var repoDir = Path.Combine(dir, "repo");
+        Directory.CreateDirectory(repoDir);
+        File.WriteAllText(Path.Combine(dir, "plan.yaml"),
+            $"state: Draft\nproject: TestProject\nlevel: NiceToHave\ntitle: Test Plan\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nrepos:\n- {repoDir}\nprs: []\ncommits: []\nverifications: []\nrelatedPlans: []\ndependsOn: []\n");
+        return dir;
     }
     [Fact]
     public void NotificationReady_FiresOnSyncContext_WhenAvailable()
@@ -26,7 +38,7 @@ public class JobServiceNotificationThreadSafetyTests : IDisposable
             service.NotificationReady += n => received = n;
 
             // Start a job and complete it to trigger notification
-            var id = service.StartJob("CreatePr", _tempDir.Path);
+            var id = service.StartJob(new CreatePrArgs(_tempDir.Path));
             service.CompleteJob(id, 0);
 
             // The notification should have been posted to the sync context, not invoked directly
@@ -57,7 +69,7 @@ public class JobServiceNotificationThreadSafetyTests : IDisposable
         JobNotification? received = null;
         service.NotificationReady += n => received = n;
 
-        var id = service.StartJob("CreatePr", _tempDir.Path);
+        var id = service.StartJob(new CreatePrArgs(_tempDir.Path));
         service.CompleteJob(id, 0);
 
         Assert.NotNull(received);
@@ -79,7 +91,7 @@ public class JobServiceNotificationThreadSafetyTests : IDisposable
 
         // Complete multiple jobs rapidly
         var ids = new List<string>();
-        for (var i = 0; i < 5; i++) ids.Add(service.StartJob("CreatePr", _tempDir.Path));
+        for (var i = 0; i < 5; i++) ids.Add(service.StartJob(new CreatePrArgs(_tempDir.Path)));
 
         foreach (var id in ids) service.CompleteJob(id, 0);
 
@@ -105,7 +117,8 @@ public class JobServiceNotificationThreadSafetyTests : IDisposable
         JobNotification? received = null;
         service.NotificationReady += n => received = n;
 
-        var id = service.StartJob("ExecutePlan", _tempDir.Path);
+        var planFolder = CreateValidPlanFolder();
+        var id = service.StartJob(new ExecutePlanArgs(planFolder));
         service.CompleteJob(id, 1);
 
         Assert.NotNull(received);

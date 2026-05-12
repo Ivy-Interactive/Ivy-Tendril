@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Ivy.Tendril.Services.Agents;
 
 namespace Ivy.Tendril.Test.Agents;
@@ -11,11 +12,13 @@ public class AgentProviderTests
         string effort = "high",
         string sessionId = "sess-123",
         IReadOnlyList<string>? allowedTools = null,
-        IReadOnlyList<string>? extraArgs = null)
+        IReadOnlyList<string>? extraArgs = null,
+        string? promptFilePath = null)
     {
         return new AgentInvocation(prompt, workDir, model, effort, sessionId,
             allowedTools ?? Array.Empty<string>(),
-            extraArgs ?? Array.Empty<string>());
+            extraArgs ?? Array.Empty<string>(),
+            promptFilePath);
     }
 
     // --- Claude Provider ---
@@ -39,7 +42,11 @@ public class AgentProviderTests
         Assert.Contains("--print", args);
         Assert.Contains("--verbose", args);
         Assert.Contains("stream-json", args);
-        Assert.Contains("--dangerously-skip-permissions", args);
+        Assert.DoesNotContain("--dangerously-skip-permissions", args);
+
+        var permIdx = args.IndexOf("--permission-mode");
+        Assert.True(permIdx >= 0);
+        Assert.Equal("dontAsk", args[permIdx + 1]);
     }
 
     [Fact]
@@ -71,28 +78,56 @@ public class AgentProviderTests
     }
 
     [Fact]
-    public void Claude_BuildProcessStart_IncludesAllowedTools()
+    public void Claude_BuildProcessStart_PassesAllowedToolsAsSpaceSeparatedString()
     {
         var provider = new ClaudeAgentProvider();
         var psi = provider.BuildProcessStart(CreateInvocation(
-            allowedTools: new[] { "Read", "Write", "Bash" }));
+            allowedTools: new[] { "Read", "Glob", "Bash(git *)", "Write(/plans/**)" }));
 
         var args = psi.ArgumentList.ToList();
         var idx = args.IndexOf("--allowedTools");
         Assert.True(idx >= 0);
-        Assert.Equal("Read,Write,Bash", args[idx + 1]);
+        Assert.Equal("Read Glob Bash(git *) Write(/plans/**)", args[idx + 1]);
     }
 
     [Fact]
-    public void Claude_BuildProcessStart_PromptAfterDoubleDash()
+    public void Claude_BuildProcessStart_AllowedToolsBeforeStdinMarker()
     {
         var provider = new ClaudeAgentProvider();
-        var psi = provider.BuildProcessStart(CreateInvocation("hello world"));
+        var psi = provider.BuildProcessStart(CreateInvocation(
+            allowedTools: new[] { "Read", "Bash(tendril*)" }));
 
         var args = psi.ArgumentList.ToList();
-        var dashIdx = args.IndexOf("--");
-        Assert.True(dashIdx >= 0);
-        Assert.Equal("hello world", args[dashIdx + 1]);
+        var toolsIdx = args.IndexOf("--allowedTools");
+        Assert.True(toolsIdx >= 0);
+        Assert.Equal("Read Bash(tendril*)", args[toolsIdx + 1]);
+        Assert.Equal("-", args[^1]);
+    }
+
+    [Fact]
+    public void Claude_BuildProcessStart_NoAllowedToolsWhenEmpty()
+    {
+        var provider = new ClaudeAgentProvider();
+        var psi = provider.BuildProcessStart(CreateInvocation(
+            allowedTools: Array.Empty<string>()));
+
+        var args = psi.ArgumentList.ToList();
+        Assert.DoesNotContain("--allowedTools", args);
+    }
+
+    [Fact]
+    public void Claude_BuildProcessStart_PromptViaStdin()
+    {
+        var provider = new ClaudeAgentProvider();
+        Assert.True(provider.UsesStdinPrompt);
+
+        var psi = provider.BuildProcessStart(CreateInvocation("hello world"));
+        var args = psi.ArgumentList.ToList();
+
+        // Prompt read from stdin (indicated by "-"), not as a CLI argument
+        Assert.Contains("-", args);
+        Assert.DoesNotContain("--", args);
+        Assert.DoesNotContain("hello world", args);
     }
 
     [Fact]
@@ -228,9 +263,55 @@ public class AgentProviderTests
         var provider = new GeminiAgentProvider();
         var psi = provider.BuildProcessStart(CreateInvocation(effort: "high"));
 
-        // Gemini CLI does not support effort flag
         Assert.DoesNotContain("--effort", psi.ArgumentList.ToList());
         Assert.DoesNotContain("--reasoning-effort", psi.ArgumentList.ToList());
+    }
+
+    [Fact]
+    public void Gemini_BuildProcessStart_IncludesSkipTrustAndOutputFormat()
+    {
+        var provider = new GeminiAgentProvider();
+        var psi = provider.BuildProcessStart(CreateInvocation());
+
+        var args = psi.ArgumentList.ToList();
+        Assert.Contains("--skip-trust", args);
+        Assert.Contains("--output-format", args);
+        Assert.Contains("json", args);
+    }
+
+    [Fact]
+    public void Gemini_BuildProcessStart_SetsTrustEnvironment()
+    {
+        var provider = new GeminiAgentProvider();
+        var psi = provider.BuildProcessStart(CreateInvocation());
+
+        Assert.Equal("true", psi.Environment["GEMINI_CLI_TRUST_WORKSPACE"]);
+    }
+
+    [Fact]
+    public void Gemini_BuildProcessStart_UsesPlanModeWhenNoWriteTools()
+    {
+        var provider = new GeminiAgentProvider();
+        var psi = provider.BuildProcessStart(CreateInvocation(
+            allowedTools: new[] { "Read", "Bash", "Glob", "Grep" }));
+
+        var args = psi.ArgumentList.ToList();
+        var idx = args.IndexOf("--approval-mode");
+        Assert.True(idx >= 0);
+        Assert.Equal("plan", args[idx + 1]);
+    }
+
+    [Fact]
+    public void Gemini_BuildProcessStart_UsesYoloModeWhenWriteTools()
+    {
+        var provider = new GeminiAgentProvider();
+        var psi = provider.BuildProcessStart(CreateInvocation(
+            allowedTools: new[] { "Read", "Write(/plans/**)", "Bash" }));
+
+        var args = psi.ArgumentList.ToList();
+        var idx = args.IndexOf("--approval-mode");
+        Assert.True(idx >= 0);
+        Assert.Equal("yolo", args[idx + 1]);
     }
 
     // --- Copilot Provider ---
@@ -252,9 +333,12 @@ public class AgentProviderTests
 
         var args = psi.ArgumentList.ToList();
         Assert.Contains("-p", args);
-        Assert.Contains("--allow-all", args);
+        Assert.Contains("--allow-all-paths", args);
+        Assert.Contains("--allow-all-urls", args);
+        Assert.Contains("--allow-all-tools", args);
         Assert.Contains("json", args);
         Assert.Contains("-s", args);
+        Assert.DoesNotContain("--allow-all", args);
     }
 
     [Fact]
@@ -299,6 +383,24 @@ public class AgentProviderTests
     }
 
     [Fact]
+    public void Copilot_BuildProcessStart_UsesPromptFileWhenProvided()
+    {
+        var provider = new CopilotAgentProvider();
+        var psi = provider.BuildProcessStart(CreateInvocation(
+            "long prompt content",
+            promptFilePath: "/plans/00123-Test/temp/prompt-job-001.md"));
+
+        var args = psi.ArgumentList.ToList();
+        var pIdx = args.IndexOf("-p");
+        Assert.True(pIdx >= 0);
+        Assert.Contains("/plans/00123-Test/temp/prompt-job-001.md", args[pIdx + 1]);
+        Assert.DoesNotContain("long prompt content", args);
+        Assert.Contains("--add-dir", args);
+        var addDirIdx = args.IndexOf("--add-dir");
+        Assert.Contains("temp", args[addDirIdx + 1]);
+    }
+
+    [Fact]
     public void Copilot_BuildProcessStart_PassesAddDirForWritableTools()
     {
         var provider = new CopilotAgentProvider();
@@ -309,6 +411,40 @@ public class AgentProviderTests
         var idx = args.IndexOf("--add-dir");
         Assert.True(idx >= 0);
         Assert.Equal("/plans", args[idx + 1]);
+    }
+
+    [Fact]
+    public void Copilot_BuildProcessStart_UsesAvailableToolsWhenRestricted()
+    {
+        var provider = new CopilotAgentProvider();
+        var psi = provider.BuildProcessStart(CreateInvocation(
+            allowedTools: new[] { "Read", "Bash", "Glob" }));
+
+        var args = psi.ArgumentList.ToList();
+        var idx = args.IndexOf("--available-tools");
+        Assert.True(idx >= 0);
+        var expectedShell = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "powershell" : "bash";
+        var tools = args[idx + 1].Split(',').ToHashSet();
+        Assert.Contains("view", tools);
+        Assert.Contains(expectedShell, tools);
+        Assert.Contains("glob", tools);
+        Assert.DoesNotContain("apply_patch", tools);
+        Assert.Contains("--allow-all-tools", args);
+    }
+
+    [Fact]
+    public void Copilot_BuildProcessStart_TranslatesToolNames()
+    {
+        var tools = CopilotAgentProvider.TranslateTools(
+            new[] { "Read", "Write", "Edit", "Bash", "Glob", "Grep" });
+
+        var expectedShell = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "powershell" : "bash";
+        Assert.Contains("view", tools);
+        Assert.Contains("apply_patch", tools);
+        Assert.Contains(expectedShell, tools);
+        Assert.Contains("glob", tools);
+        Assert.Contains("rg", tools);
+        Assert.Equal(5, tools.Count);
     }
 
     [Fact]
@@ -379,6 +515,17 @@ public class AgentProviderTests
         Assert.Equal("/inbox", dirs[0]);
     }
 
+    [Fact]
+    public void ExtractWritableDirs_HandlesBackslashPaths()
+    {
+        var tools = new[] { @"Write(D:\Plans\00123\**)", @"Edit(%PLAN_DIR%\**)" };
+        var dirs = CodexAgentProvider.ExtractWritableDirs(tools).ToList();
+
+        Assert.Equal(2, dirs.Count);
+        Assert.Equal(@"D:\Plans\00123", dirs[0]);
+        Assert.Equal(@"%PLAN_DIR%", dirs[1]);
+    }
+
     // --- Codex writable dirs ---
 
     [Fact]
@@ -421,11 +568,14 @@ public class AgentProviderTests
     }
 
     [Fact]
-    public void Gemini_BuildProcessStart_IncludesYoloFlag()
+    public void Gemini_BuildProcessStart_UsesYoloByDefault()
     {
         var provider = new GeminiAgentProvider();
         var psi = provider.BuildProcessStart(CreateInvocation());
 
-        Assert.Contains("--yolo", psi.ArgumentList.ToList());
+        var args = psi.ArgumentList.ToList();
+        var idx = args.IndexOf("--approval-mode");
+        Assert.True(idx >= 0);
+        Assert.Equal("yolo", args[idx + 1]);
     }
 }

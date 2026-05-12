@@ -5,7 +5,7 @@ Transform investigation-heavy plans into concrete implementation plans.
 ## Context
 
 The firmware header contains:
-- **Args** / **PlanFolder** — path to the plan folder
+- **Args** / **TendrilPlanFolder** — path to the plan folder
 - **CurrentTime** — current UTC timestamp
 
 The plan structure and CLI commands are in the **Reference Documents** section of your firmware.
@@ -18,7 +18,7 @@ Project configuration is available from the firmware header.
 - Read `plan.yaml` from the plan folder
 - Read the latest revision from `revisions/` (highest numbered .md file)
 - Identify sections with investigative/exploratory language ("Investigate...", "Check if...", "Research...", "Explore...")
-- Report plan context to Jobs UI: `tendril job status $env:TENDRIL_JOB_ID --message "Expanding plan..." --plan-id <plan-id> --plan-title "<title>"`
+- Report plan context to Jobs UI: `tendril job status TendrilJobId --message "Expanding plan..." --plan-id <plan-id> --plan-title "<title>"`
 
 ### 2. Research and Resolve
 
@@ -46,7 +46,11 @@ Example:
 
 ### 3. Create Expanded Revision
 
-- Create a new revision file (next sequential number, e.g. `002.md`)
+- Write the new revision via CLI (number auto-incremented):
+  1. Write the expanded revision content to `<TendrilPlanFolder>/temp/<short-random>.md` using the `Write` tool
+  2. Run: `tendril plan write-revision <plan-id> --file "<path-to-temp-file>"`
+
+  Do NOT use the Write or Edit tools to create revision files directly in `revisions/` — always use `tendril plan write-revision` with `--file`.
 - Replace all investigative/exploratory language with specific actions
 - Include exact file paths for changes
 - Specify concrete code modifications or additions

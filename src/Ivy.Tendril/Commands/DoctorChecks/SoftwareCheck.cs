@@ -21,7 +21,7 @@ internal class SoftwareCheck : IDoctorCheck
 
     private static readonly Dictionary<string, string> HealthArgs = new()
     {
-        ["gh"] = "auth status",
+        ["gh"] = "auth status --active",
         ["claude"] = "-p \"ping\" --max-turns 1",
         ["codex"] = "login status",
         ["copilot"] = "-p \"ping\" --allow-all -s"

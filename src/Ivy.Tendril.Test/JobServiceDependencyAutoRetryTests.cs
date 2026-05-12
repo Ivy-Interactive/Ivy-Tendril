@@ -31,6 +31,8 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
     {
         var folder = Path.Combine(_plansDir, name);
         Directory.CreateDirectory(folder);
+        var repoDir = Path.Combine(folder, "repo");
+        Directory.CreateDirectory(repoDir);
 
         string depsYaml;
         if (dependsOn is { Count: > 0 })
@@ -41,12 +43,16 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         File.WriteAllText(Path.Combine(folder, "plan.yaml"), $"""
                                                               state: {state}
                                                               project: Tendril
+                                                              level: NiceToHave
                                                               title: {name}
                                                               created: 2026-04-01T00:00:00Z
                                                               updated: 2026-04-01T00:00:00Z
+                                                              repos:
+                                                              - {repoDir}
                                                               prs: []
                                                               commits: []
                                                               verifications: []
+                                                              relatedPlans: []
                                                               {depsYaml}
                                                               """);
 
@@ -69,12 +75,12 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         };
 
         // Simulate CreateIssue completing for PlanB
-        var id = service.StartJob("CreateIssue", planB, "-Repo", "owner/repo", "-Assignee", "", "-Labels", "");
+        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         // PlanA should have been auto-queued
         var jobs = service.GetJobs();
-        Assert.Contains(jobs, j => j.Type == "ExecutePlan" && j.Args.Contains(planA));
+        Assert.Contains(jobs, j => j.Type == "ExecutePlan" && j.TypedArgs?.PlanFolder == planA);
     }
 
     [Fact]
@@ -86,11 +92,11 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
 
         var service = CreateService();
 
-        var id = service.StartJob("CreateIssue", planB, "-Repo", "owner/repo", "-Assignee", "", "-Labels", "");
+        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         var jobs = service.GetJobs();
-        Assert.DoesNotContain(jobs, j => j.Type == "ExecutePlan" && j.Args.Contains(planA));
+        Assert.DoesNotContain(jobs, j => j.Type == "ExecutePlan" && j.TypedArgs?.PlanFolder == planA);
     }
 
     [Fact]
@@ -102,11 +108,11 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
 
         var service = CreateService();
 
-        var id = service.StartJob("CreateIssue", planB, "-Repo", "owner/repo", "-Assignee", "", "-Labels", "");
+        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         var jobs = service.GetJobs();
-        Assert.DoesNotContain(jobs, j => j.Type == "ExecutePlan" && j.Args.Contains(planA));
+        Assert.DoesNotContain(jobs, j => j.Type == "ExecutePlan" && j.TypedArgs?.PlanFolder == planA);
     }
 
     [Fact]
@@ -117,7 +123,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
 
         var service = CreateService();
 
-        var id = service.StartJob("CreateIssue", planB, "-Repo", "owner/repo", "-Assignee", "", "-Labels", "");
+        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         // Verify plan.yaml was updated — Building then immediately Executing when job launches
@@ -135,7 +141,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         var service = CreateService();
 
         // Start ExecutePlan — dependencies aren't met, so ResetPlanStateToBlocked should fire
-        service.StartJob("ExecutePlan", planA);
+        service.StartJob(new ExecutePlanArgs(planA));
 
         // Verify plan.yaml was updated to Blocked (not Draft)
         var planYamlContent = File.ReadAllText(Path.Combine(planA, "plan.yaml"));
@@ -150,11 +156,11 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
 
         var service = CreateService();
 
-        var id = service.StartJob("CreateIssue", planB, "-Repo", "owner/repo", "-Assignee", "", "-Labels", "");
+        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         var jobs = service.GetJobs();
-        Assert.DoesNotContain(jobs, j => j.Type == "ExecutePlan" && j.Args.Contains(planA));
+        Assert.DoesNotContain(jobs, j => j.Type == "ExecutePlan" && j.TypedArgs?.PlanFolder == planA);
     }
 
     [Fact]
@@ -165,11 +171,11 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
 
         var service = CreateService();
 
-        var id = service.StartJob("CreateIssue", planB, "-Repo", "owner/repo", "-Assignee", "", "-Labels", "");
+        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         var jobs = service.GetJobs();
-        Assert.DoesNotContain(jobs, j => j.Type == "ExecutePlan" && j.Args.Contains(planA));
+        Assert.DoesNotContain(jobs, j => j.Type == "ExecutePlan" && j.TypedArgs?.PlanFolder == planA);
     }
 
     [Fact]
@@ -180,7 +186,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
 
         var service = CreateService();
 
-        var id = service.StartJob("CreateIssue", planB, "-Repo", "owner/repo", "-Assignee", "", "-Labels", "");
+        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         var jobs = service.GetJobs();
@@ -198,27 +204,27 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         var service = CreateService();
 
         // Start ExecutePlan for planC — it will be blocked because DepPlan is not Completed
-        service.StartJob("ExecutePlan", planC);
+        service.StartJob(new ExecutePlanArgs(planC));
 
         var blockedJobsBefore = service.GetJobs().Count(j =>
             j.Type == "ExecutePlan" &&
             j.Status == JobStatus.Blocked &&
-            j.Args.Length > 0 &&
-            j.Args[0] == planC);
+            j.TypedArgs?.PlanFolder != null &&
+            j.TypedArgs.PlanFolder == planC);
         Assert.Equal(1, blockedJobsBefore);
 
         // Complete a CreateIssue job for PlanB — triggers RetryBlockedDependents
         // planC depends on both DepPlan (not met) and PlanB (met), so it stays blocked
         // But the duplicate-job guard should prevent creating another blocked job entry
-        var id = service.StartJob("CreateIssue", planB, "-Repo", "owner/repo", "-Assignee", "", "-Labels", "");
+        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         // Should still have exactly one blocked job for planC (not two)
         var blockedJobsAfter = service.GetJobs().Count(j =>
             j.Type == "ExecutePlan" &&
             j.Status == JobStatus.Blocked &&
-            j.Args.Length > 0 &&
-            j.Args[0] == planC);
+            j.TypedArgs?.PlanFolder != null &&
+            j.TypedArgs.PlanFolder == planC);
         Assert.Equal(1, blockedJobsAfter);
     }
 
@@ -232,11 +238,11 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         var service = CreateService();
 
         // Start ExecutePlan — dependencies are met, so it should NOT be blocked
-        service.StartJob("ExecutePlan", planA);
+        service.StartJob(new ExecutePlanArgs(planA));
 
         // Verify the job is not blocked (deps are met, no redundant CheckDependencies to fail)
         var jobs = service.GetJobs();
-        var planAJob = jobs.FirstOrDefault(j => j.Type == "ExecutePlan" && j.Args.Contains(planA));
+        var planAJob = jobs.FirstOrDefault(j => j.Type == "ExecutePlan" && j.TypedArgs?.PlanFolder == planA);
         Assert.NotNull(planAJob);
         Assert.NotEqual(JobStatus.Blocked, planAJob.Status);
     }
@@ -250,16 +256,16 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         var service = CreateService();
 
         // Create a Running ExecutePlan job for planA (simulating an already active job)
-        var activeId = service.CreateTestJob("ExecutePlan", planA);
+        var activeId = service.CreateTestJob(new ExecutePlanArgs(planA));
         Assert.Equal(JobStatus.Running, service.GetJob(activeId)!.Status);
 
         // Trigger RetryBlockedDependents by completing a job for PlanB
-        var id = service.StartJob("CreateIssue", planB, "-Repo", "owner/repo", "-Assignee", "", "-Labels", "");
+        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         // Should NOT create a duplicate ExecutePlan job for planA
         var executePlanJobs = service.GetJobs()
-            .Where(j => j.Type == "ExecutePlan" && j.Args.Length > 0 && j.Args[0] == planA)
+            .Where(j => j.Type == "ExecutePlan" && j.TypedArgs?.PlanFolder == planA)
             .ToList();
 
         // Only the original active job should exist
@@ -276,16 +282,16 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         var service = CreateService();
 
         // Create a Blocked ExecutePlan job for planA (simulating StartJob that found unmet deps earlier)
-        var blockedId = service.CreateTestJob("ExecutePlan", planA);
+        var blockedId = service.CreateTestJob(new ExecutePlanArgs(planA));
         service.GetJob(blockedId)!.Status = JobStatus.Blocked;
 
         // Trigger RetryBlockedDependents by completing a CreateIssue job for PlanB
-        var id = service.StartJob("CreateIssue", planB, "-Repo", "owner/repo", "-Assignee", "", "-Labels", "");
+        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         // Should have at most one ExecutePlan job for planA (not two)
         var executePlanJobs = service.GetJobs()
-            .Where(j => j.Type == "ExecutePlan" && j.Args.Length > 0 && j.Args[0] == planA)
+            .Where(j => j.Type == "ExecutePlan" && j.TypedArgs?.PlanFolder == planA)
             .ToList();
         Assert.True(executePlanJobs.Count <= 1,
             $"Expected at most 1 ExecutePlan job for planA, found {executePlanJobs.Count}");
@@ -300,6 +306,9 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
 
         public string PlansDirectory { get; }
         public bool IsDatabaseReady => true;
+#pragma warning disable CS0067
+        public event Action? CountsInvalidated;
+#pragma warning restore CS0067
 
         public void RecoverStuckPlans()
         {

@@ -12,7 +12,7 @@ public class ProjectsSetupView : ViewBase
         var client = UseService<IClientProvider>();
         var refreshToken = UseRefreshToken();
         var editIndex = UseState<int?>(-1);
-        var deleteIndex = UseState<int?>(-1);
+        var (alertView, showAlert) = UseAlert();
 
         var projects = config.Settings.Projects;
         var allVerifications = config.Settings.Verifications.Select(v => v.Name).ToList();
@@ -22,13 +22,15 @@ public class ProjectsSetupView : ViewBase
         var table = new TableBuilder<ProjectRow>(rows)
             .Builder(t => t.Repos, f => f.Func<ProjectRow, List<RepoRef>>(repos =>
             {
-                var layout = Layout.Horizontal().Gap(2).AlignContent(Align.Left);
+                var layout = Layout.Vertical().Gap(1);
                 foreach (var repo in repos)
                 {
-                    layout |= Text.Block(repo.Path).Muted().Small();
-                    layout |= new Badge(repo.PrRule).Variant(BadgeVariant.Outline).Small();
+                    var row = Layout.Horizontal().Gap(2).AlignContent(Align.Left);
+                    row |= Text.Block(repo.Path).Muted().Small();
+                    row |= new Badge(repo.PrRule).Variant(BadgeVariant.Outline).Small();
                     if (!string.IsNullOrEmpty(repo.BaseBranch))
-                        layout |= new Badge(repo.BaseBranch).Variant(BadgeVariant.Secondary).Small();
+                        row |= new Badge(repo.BaseBranch).Variant(BadgeVariant.Secondary).Small();
+                    layout |= row;
                 }
                 return layout;
             }))
@@ -41,11 +43,30 @@ public class ProjectsSetupView : ViewBase
                 })
                 | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete this project").OnClick(() =>
                 {
-                    deleteIndex.Set(idx);
+                    var name = projects[idx].Name;
+                    showAlert($"Are you sure you want to delete the project '{name}'? This cannot be undone.", result =>
+                    {
+                        if (result == AlertResult.Ok)
+                        {
+                            var removedProject = projects[idx];
+                            projects.RemoveAt(idx);
+                            try
+                            {
+                                config.SaveSettings();
+                                refreshToken.Refresh();
+                                client.Toast($"Project '{name}' deleted", "Deleted");
+                            }
+                            catch (Exception ex)
+                            {
+                                projects.Insert(idx, removedProject);
+                                refreshToken.Refresh();
+                                client.Toast($"Failed to delete project: {ex.Message}", "Error");
+                            }
+                        }
+                    }, "Delete Project", AlertButtonSet.OkCancel);
                 })
             ))
-            .ColumnWidth(t => t.Repos, Size.Grow())
-            .ColumnWidth(t => t.Index, Size.Px(88));
+            .Width(Size.Fit());
 
         return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(200)))
                | Text.Block("Projects").Bold()
@@ -56,7 +77,7 @@ public class ProjectsSetupView : ViewBase
                    editIndex.Set(null);
                })
                | new EditProjectDialog(editIndex, projects, allVerifications, config, client, refreshToken)
-               | new DeleteProjectDialog(deleteIndex, projects, config, client, refreshToken);
+               | alertView;
     }
 
     private record ProjectRow(string Name, List<RepoRef> Repos, int Index);

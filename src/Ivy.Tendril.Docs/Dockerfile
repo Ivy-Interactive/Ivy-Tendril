@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y git curl && rm -rf /var/lib/apt/lists/*
 # Install Node.js + pnpm + vite-plus (Ivy.csproj MSBuild targets run "vp install/build")
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y nodejs && \
-    npm install -g pnpm@10.33.0 vite-plus@0.1.13
+    npm install -g pnpm@10.33.0 vite-plus@0.1.20
 
 RUN git clone --depth 1 --branch $IVY_FRAMEWORK_REF \
     https://github.com/Ivy-Interactive/Ivy-Framework.git /src/Ivy-Framework

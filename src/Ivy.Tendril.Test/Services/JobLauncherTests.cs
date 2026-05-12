@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -53,24 +54,14 @@ projects:
     [Fact]
     public void ExtractPlanIdFromFolder_ReturnsCorrectId()
     {
-        var launcher = new JobLauncher(null, NullLogger.Instance, _tempPromptsRoot);
-        var method = typeof(JobLauncher).GetMethod("ExtractPlanIdFromFolder",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-
-        var result = method?.Invoke(null, new object[] { "D:\\Plans\\01234-TestPlan" });
-
+        var result = PlanYamlHelper.ExtractPlanIdFromFolder("D:\\Plans\\01234-TestPlan");
         Assert.Equal("01234", result);
     }
 
     [Fact]
     public void ExtractPlanIdFromFolder_HandlesNoDash()
     {
-        var launcher = new JobLauncher(null, NullLogger.Instance, _tempPromptsRoot);
-        var method = typeof(JobLauncher).GetMethod("ExtractPlanIdFromFolder",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-
-        var result = method?.Invoke(null, new object[] { "D:\\Plans\\SomePlan" });
-
+        var result = PlanYamlHelper.ExtractPlanIdFromFolder("D:\\Plans\\SomePlan");
         Assert.Null(result);
     }
 
@@ -122,51 +113,17 @@ projects:
         Assert.False(result);
     }
 
-    [Fact(Skip = "Timing-dependent test - stale output detection requires 60s check interval")]
-    public async Task RunStaleOutputWatchdog_DetectsStaleOutput()
-    {
-        var configService = new ConfigService(new TendrilSettings());
-        configService.SetTendrilHome(_tempTendrilHome);
-
-        var launcher = new JobLauncher(configService, NullLogger.Instance, _tempPromptsRoot);
-        var job = new JobItem
-        {
-            Id = "test-1",
-            Type = "CreatePlan",
-            Args = new[] { "Test" },
-            Project = "TestProject",
-            Status = JobStatus.Running,
-            LastOutputAt = DateTime.UtcNow.AddSeconds(-70)
-        };
-        var jobs = new ConcurrentDictionary<string, JobItem>();
-        jobs[job.Id] = job;
-
-        var cts = new CancellationTokenSource();
-        var watchdogTask = launcher.RunStaleOutputWatchdog(
-            job.Id,
-            cts,
-            jobs,
-            TimeSpan.FromSeconds(10));
-
-        await Task.Delay(TimeSpan.FromSeconds(3));
-
-        Assert.True(job.StaleOutputDetected);
-        cts.Cancel();
-        await watchdogTask;
-    }
-
     [Fact]
     public async Task RunStaleOutputWatchdog_DoesNotFlagRecentOutput()
     {
         var configService = new ConfigService(new TendrilSettings());
         configService.SetTendrilHome(_tempTendrilHome);
 
-        var launcher = new JobLauncher(configService, NullLogger.Instance, _tempPromptsRoot);
         var job = new JobItem
         {
             Id = "test-1",
             Type = "CreatePlan",
-            Args = new[] { "Test" },
+            TypedArgs = new CreatePlanArgs("Test", "Auto"),
             Project = "TestProject",
             Status = JobStatus.Running,
             LastOutputAt = DateTime.UtcNow
@@ -175,7 +132,7 @@ projects:
         jobs[job.Id] = job;
 
         var cts = new CancellationTokenSource();
-        var watchdogTask = launcher.RunStaleOutputWatchdog(
+        var watchdogTask = JobMonitor.RunStaleOutputWatchdog(
             job.Id,
             cts,
             jobs,
@@ -196,7 +153,7 @@ projects:
         {
             Id = "test-1",
             Type = "CreatePlan",
-            Args = new[] { "Test" },
+            TypedArgs = new CreatePlanArgs("Test", "Auto"),
             Project = "TestProject",
             Status = JobStatus.Running,
             StatusFilePath = Path.Combine(_tempTendrilHome, "status-test-1.json")
@@ -205,7 +162,7 @@ projects:
         jobs[job.Id] = job;
 
         var cts = new CancellationTokenSource();
-        var pollerTask = JobLauncher.RunStatusFilePoller(job.Id, cts, jobs);
+        var pollerTask = JobMonitor.RunStatusFilePoller(job.Id, cts, jobs);
 
         job.Status = JobStatus.Completed;
         await Task.Delay(TimeSpan.FromSeconds(2));

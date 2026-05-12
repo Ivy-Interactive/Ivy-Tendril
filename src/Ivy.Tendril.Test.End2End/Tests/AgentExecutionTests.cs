@@ -70,16 +70,16 @@ public class AgentExecutionTests : IAsyncLifetime
         await dashboard.NavigateToDrafts();
         await Task.Delay(1000);
 
-        var planDescription = "Uppercase all string literals in Program.cs";
+        var planDescription = "Reverse all string literals in Program.cs";
         var step1StartLine = _fixture.Tendril.StdoutLines.Count;
         await plans.CreatePlan(planDescription);
 
-        await WaitForPlanWithYaml("Uppercase", timeout,
+        await WaitForPlanWithYaml("Reverse", timeout,
             $"Step 1 (CreatePlan) failed: agent={agent}");
 
-        var planFolder = FileSystemAssertions.FindPlanFolder(plansDir, "Uppercase")!;
+        var planFolder = FileSystemAssertions.FindPlanFolder(plansDir, "Reverse")!;
         var planId = FileSystemAssertions.GetPlanId(planFolder)!;
-        FileSystemAssertions.AssertPlanExists(plansDir, "Uppercase");
+        FileSystemAssertions.AssertPlanExists(plansDir, "Reverse");
 
         // Wait for the CreatePlan job to finish (detect via stdout)
         await WaitForJobExit(timeout, step1StartLine);
@@ -104,7 +104,7 @@ public class AgentExecutionTests : IAsyncLifetime
         var step2StartLine = _fixture.Tendril.StdoutLines.Count;
         await plans.ClickExecute();
 
-        await WaitForPlanState("Uppercase", "ReadyForReview", timeout,
+        await WaitForPlanState("Reverse", "ReadyForReview", timeout,
             $"Step 2 (ExecutePlan) failed: plan #{planId} did not reach ReadyForReview, agent={agent}");
 
         // Wait for the ExecutePlan job to finish (detect via stdout)

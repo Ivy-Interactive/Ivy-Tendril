@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Text.Json.Serialization;
+using Ivy.Tendril.Services.Agents;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Models;
@@ -38,13 +40,16 @@ public record JobItem
     public DateTime? StartedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public int? DurationSeconds { get; set; }
-    public string[] Args { get; init; } = [];
+    public JobArgsBase? TypedArgs { get; init; }
     public bool CancellationRequested { get; set; }
     public string? SessionId { get; set; }
     public string Provider { get; init; } = "claude";
     public int Priority { get; init; }
     public decimal? Cost { get; set; }
     public int? Tokens { get; set; }
+
+    [JsonIgnore]
+    public IOutputNormalizer? OutputNormalizer { get; set; }
 
     // Process handle for non-interactive execution
     public Process? Process { get; set; }
@@ -72,6 +77,12 @@ public record JobItem
 
     // Path to the status file used for cross-process status updates
     public string? StatusFilePath { get; set; }
+
+    // Automatic logging metadata (transient, not persisted)
+    [JsonIgnore] public string? LogFilePath { get; set; }
+    [JsonIgnore] public string? CompiledPrompt { get; set; }
+    [JsonIgnore] public string? CliCommand { get; set; }
+    [JsonIgnore] public int? ExitCode { get; set; }
 
     public void EnqueueOutput(string line)
     {

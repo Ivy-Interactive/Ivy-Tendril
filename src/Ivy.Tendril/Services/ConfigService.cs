@@ -34,6 +34,7 @@ public record ProjectConfig
     public List<ReviewActionConfig> ReviewActions { get; set; } = new();
     public List<PromptwareHookConfig> Hooks { get; set; } = new();
     public List<string> BuildDependencies { get; set; } = new();
+    [YamlIgnore]
     public List<string> RepoPaths => Repos.Select(r => r.Path).ToList();
 
     public string? GetMeta(string key)
@@ -94,7 +95,7 @@ public record ReviewActionConfig
 {
     public string Name { get; set; } = "";
     public string Condition { get; set; } = "";
-    public string Action { get; set; } = "";
+    public string Command { get; set; } = "";
 }
 
 public record PromptwareHookConfig
@@ -117,6 +118,7 @@ public record PromptwareConfig
 {
     public string Profile { get; set; } = "";
     public List<string> AllowedTools { get; set; } = new();
+    public string? CustomInstructions { get; set; }
 }
 
 public record AgentProfileConfig
@@ -854,7 +856,7 @@ public class ConfigService : IConfigService, IDisposable
         foreach (var action in actions)
         {
             action.Condition = ExpandVar(action.Condition);
-            action.Action = ExpandVar(action.Action);
+            action.Command = ExpandVar(action.Command);
         }
     }
 

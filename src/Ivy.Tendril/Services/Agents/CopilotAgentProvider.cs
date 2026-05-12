@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
 namespace Ivy.Tendril.Services.Agents;
@@ -7,6 +8,21 @@ public class CopilotAgentProvider : IAgentProvider
 {
     public string Name => "copilot";
     public bool UsesStdinPrompt => false;
+
+    private static readonly string ShellToolName =
+        RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "powershell" : "bash";
+
+    private static readonly Dictionary<string, string> ToolNameMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Read"] = "view",
+        ["Write"] = "apply_patch",
+        ["Edit"] = "apply_patch",
+        ["Bash"] = ShellToolName,
+        ["Glob"] = "glob",
+        ["Grep"] = "rg",
+        ["WebFetch"] = "web_fetch",
+        ["WebSearch"] = "web_fetch",
+    };
 
     public ProcessStartInfo BuildProcessStart(AgentInvocation invocation)
     {
@@ -23,12 +39,38 @@ public class CopilotAgentProvider : IAgentProvider
             StandardErrorEncoding = System.Text.Encoding.UTF8
         };
 
-        psi.ArgumentList.Add("-p");
-        psi.ArgumentList.Add(invocation.PromptContent);
-        psi.ArgumentList.Add("--allow-all");
+        if (invocation.PromptFilePath != null)
+        {
+            psi.ArgumentList.Add("-p");
+            psi.ArgumentList.Add($"Read and execute all instructions in the file: {invocation.PromptFilePath}");
+            psi.ArgumentList.Add("--add-dir");
+            psi.ArgumentList.Add(Path.GetDirectoryName(invocation.PromptFilePath)!);
+        }
+        else
+        {
+            psi.ArgumentList.Add("-p");
+            psi.ArgumentList.Add(invocation.PromptContent);
+        }
+        psi.ArgumentList.Add("--allow-all-paths");
+        psi.ArgumentList.Add("--allow-all-urls");
         psi.ArgumentList.Add("--output-format");
         psi.ArgumentList.Add("json");
         psi.ArgumentList.Add("-s");
+
+        if (invocation.AllowedTools.Count > 0)
+        {
+            var copilotTools = TranslateTools(invocation.AllowedTools);
+            if (copilotTools.Count > 0)
+            {
+                psi.ArgumentList.Add("--available-tools");
+                psi.ArgumentList.Add(string.Join(",", copilotTools));
+            }
+            psi.ArgumentList.Add("--allow-all-tools");
+        }
+        else
+        {
+            psi.ArgumentList.Add("--allow-all-tools");
+        }
 
         if (!string.IsNullOrEmpty(invocation.Model))
         {
@@ -61,6 +103,18 @@ public class CopilotAgentProvider : IAgentProvider
         psi.Environment["TERM"] = "dumb";
 
         return psi;
+    }
+
+    internal static IReadOnlyList<string> TranslateTools(IReadOnlyList<string> claudeTools)
+    {
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var tool in claudeTools)
+        {
+            var baseName = Regex.Match(tool, @"^(\w+)").Groups[1].Value;
+            if (ToolNameMap.TryGetValue(baseName, out var copilotName))
+                result.Add(copilotName);
+        }
+        return result.ToList();
     }
 
     public string? ExtractResult(IReadOnlyList<string> outputLines)

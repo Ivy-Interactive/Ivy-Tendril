@@ -48,7 +48,17 @@ if ($hasDotNet10) {
     Write-Host "✓ .NET 10 SDK installed successfully." -ForegroundColor Green
 }
 
-Write-Host "`nStep 2: Checking for Git..." -ForegroundColor Blue
+Write-Host "`nStep 2: Trusting .NET dev certificates..." -ForegroundColor Blue
+$certCheck = dotnet dev-certs https --check --trust 2>&1
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "✓ .NET dev certificate is already trusted." -ForegroundColor Green
+} else {
+    Write-Host "Generating and trusting .NET dev certificate..."
+    dotnet dev-certs https --trust
+    Write-Host "✓ .NET dev certificate trusted successfully." -ForegroundColor Green
+}
+
+Write-Host "`nStep 3: Checking for Git..." -ForegroundColor Blue
 if (Get-Command git -ErrorAction SilentlyContinue) {
     Write-Host "✓ Git is already installed." -ForegroundColor Green
 } else {
@@ -62,7 +72,7 @@ if (Get-Command git -ErrorAction SilentlyContinue) {
     }
 }
 
-Write-Host "`nStep 3: Checking for GitHub CLI (gh)..." -ForegroundColor Blue
+Write-Host "`nStep 4: Checking for GitHub CLI (gh)..." -ForegroundColor Blue
 if (Get-Command gh -ErrorAction SilentlyContinue) {
     Write-Host "✓ GitHub CLI is already installed." -ForegroundColor Green
 } else {
@@ -76,7 +86,7 @@ if (Get-Command gh -ErrorAction SilentlyContinue) {
     }
 }
 
-Write-Host "`nStep 4: Checking for PowerShell (pwsh)..." -ForegroundColor Blue
+Write-Host "`nStep 5: Checking for PowerShell (pwsh)..." -ForegroundColor Blue
 $hasPwsh = $false
 if (Get-Command pwsh -ErrorAction SilentlyContinue) {
     $hasPwsh = $true
@@ -95,7 +105,7 @@ if ($hasPwsh) {
     Write-Host "✓ PowerShell installed successfully." -ForegroundColor Green
 }
 
-Write-Host "`nStep 5: Installing Ivy-Tendril..." -ForegroundColor Blue
+Write-Host "`nStep 6: Installing Ivy-Tendril..." -ForegroundColor Blue
 $IVY_SOURCE = "https://api.nuget.org/v3/index.json"
 
 $hasTendril = $false
@@ -119,8 +129,8 @@ if ($hasTendril) {
     dotnet tool install -g Ivy.Tendril --add-source "$IVY_SOURCE"
 }
 
-# Step 6: Path Configuration Verification
-Write-Host "`nStep 6: Configuring PATH..." -ForegroundColor Blue
+# Step 7: Path Configuration Verification
+Write-Host "`nStep 7: Configuring PATH..." -ForegroundColor Blue
 $dotnetToolsPath = "$env:USERPROFILE\.dotnet\tools"
 $env:PATH = "$dotnetToolsPath;$env:PATH"
 

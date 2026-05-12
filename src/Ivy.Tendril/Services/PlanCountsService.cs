@@ -20,6 +20,7 @@ public class PlanCountsService : IPlanCountsService
         Current = ComputeCounts();
         _planWatcher.PlansChanged += OnPlansSourceChanged;
         _jobService.JobsStructureChanged += OnSourceChanged;
+        _planReaderService.CountsInvalidated += OnCountsInvalidated;
     }
 
     public event Action? CountsChanged;
@@ -30,6 +31,19 @@ public class PlanCountsService : IPlanCountsService
     {
         _planWatcher.PlansChanged -= OnPlansSourceChanged;
         _jobService.JobsStructureChanged -= OnSourceChanged;
+        _planReaderService.CountsInvalidated -= OnCountsInvalidated;
+    }
+
+    private void OnCountsInvalidated()
+    {
+        try
+        {
+            Refresh();
+        }
+        catch
+        {
+            // Swallow to prevent unhandled exceptions from terminating the process.
+        }
     }
 
     private void OnPlansSourceChanged(string? _)
@@ -49,6 +63,12 @@ public class PlanCountsService : IPlanCountsService
             // Swallow to prevent unhandled exceptions on timer/thread-pool threads
             // from terminating the process.
         }
+    }
+
+    public void RefreshNow()
+    {
+        _planReaderService.InvalidateCaches();
+        Refresh();
     }
 
     private void Refresh()

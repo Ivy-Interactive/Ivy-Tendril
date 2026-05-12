@@ -41,6 +41,7 @@ public class TendrilProcessFixture : IAsyncLifetime
 
         psi.Environment["TENDRIL_HOME"] = TendrilHome;
         psi.Environment["TENDRIL_PLANS"] = TendrilPlans;
+        psi.Environment["TENDRIL_E2E"] = "1";
 
         _tendrilProcess = Process.Start(psi)
             ?? throw new InvalidOperationException("Failed to start Tendril process");
