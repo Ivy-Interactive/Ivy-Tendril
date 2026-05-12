@@ -13,7 +13,7 @@ public class ChangesTabView(
     public override object Build()
     {
         var client = UseService<IClientProvider>();
-        
+
         // null sentinel = "user hasn't toggled yet, default to all expanded"
         var expandedFiles = UseState<HashSet<string>?>(() => null);
         var selectedFile = UseState<string?>(null);
@@ -89,7 +89,7 @@ public class ChangesTabView(
             }
 
             var path = fileDiff.FilePath;
-            
+
             diffsLayout |= Text.Block("").Anchor(path);
 
             diffsLayout |= new Box(header)
