@@ -58,8 +58,6 @@ projects:
     condition: ''
     action: Start-Process -FilePath 'tendril' -ArgumentList 'promptware','PlanEvaluator',$PWD -WindowStyle Hidden
   buildDependencies: []
-  repoPaths:
-  - D:\Repos\_Ivy\Ivy-Framework
 - name: Tendril
   color: Emerald
   meta:
@@ -100,8 +98,6 @@ projects:
     action: Start-Process -FilePath 'tendril' -ArgumentList 'promptware','PlanEvaluator',$PWD -WindowStyle Hidden
   buildDependencies:
   - D:\Repos\_Ivy\Ivy-Framework
-  repoPaths:
-  - D:\Repos\_Ivy\Ivy-Tendril
 - name: Rustino
   color: Orange
   meta:
@@ -142,8 +138,6 @@ projects:
     condition: ''
     action: Start-Process -FilePath 'tendril' -ArgumentList 'promptware','PlanEvaluator',$PWD -WindowStyle Hidden
   buildDependencies: []
-  repoPaths:
-  - D:\Repos\_Ivy\Rustino
 verifications:
 - name: FrameworkDotnetBuild
   prompt: >
@@ -246,25 +240,42 @@ llm:
 promptwares:
   CreatePlan:
     profile: deep
+    allowedTools:
+    - Bash(ivy *)
   ExecutePlan:
     profile: deep
+    allowedTools:
+    - Bash(ivy *)
   ExpandPlan:
     profile: balanced
+    allowedTools:
+    - Bash(ivy *)
   CreatePr:
     profile: balanced
+    allowedTools:
+    - Bash(ivy *)
   UpdatePlan:
     profile: balanced
+    allowedTools:
+    - Bash(ivy *)
   SplitPlan:
     profile: balanced
+    allowedTools:
+    - Bash(ivy *)
   CreateIssue:
     profile: balanced
+    allowedTools:
+    - Bash(ivy *)
   UpdateProject:
     profile: deep
+    allowedTools:
+    - Bash(ivy *)
   IvyFrameworkVerification:
     profile: balanced
     allowedTools:
     - Write(%PLAN_DIR%\**)
     - Edit(%PLAN_DIR%\**)
+    - Bash(ivy *)
 codingAgents:
 - name: claude
   arguments: ''
