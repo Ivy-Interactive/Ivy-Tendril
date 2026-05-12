@@ -57,10 +57,10 @@ public class ProjectSetupStepView(
         if (!canContinue)
         {
             buttonArea = Layout.Horizontal().Width(Size.Full())
-                | new Button("Back").Outline().Small().Icon(Icons.ArrowLeft)
+                | new Button("Back").Outline().Icon(Icons.ArrowLeft)
                     .OnClick(() => stepperIndex.Set(stepperIndex.Value - 1))
                 | new Spacer()
-                | new Button("Skip").Ghost().Small()
+                | new Button("Skip").Secondary()
                     .OnClick(async () =>
                     {
                         await setupService.FinalizeOnboardingAsync();
@@ -71,9 +71,9 @@ public class ProjectSetupStepView(
         else
         {
             buttonArea = Layout.Horizontal().Width(Size.Full())
-                | new Button("Back").Outline().Small().Icon(Icons.ArrowLeft)
+                | new Button("Back").Outline().Icon(Icons.ArrowLeft)
                     .OnClick(() => stepperIndex.Set(stepperIndex.Value - 1))
-                | new Button("Skip Verifications").Ghost().Small()
+                | new Button("Skip").Secondary()
                     .OnClick(async () =>
                     {
                         var name = SanitizeProjectName(projectName.Value);
