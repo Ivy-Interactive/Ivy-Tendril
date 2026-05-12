@@ -491,6 +491,9 @@ public class AgentProviderFactoryTests
         Assert.Contains("Bash(tendril*)", resolution.AllowedTools);
         Assert.Contains("Bash(git *)", resolution.AllowedTools);
         Assert.Contains("Bash(gh *)", resolution.AllowedTools);
+        Assert.Contains("Bash(ls *)", resolution.AllowedTools);
+        Assert.Contains("Bash(find *)", resolution.AllowedTools);
+        Assert.Contains("Bash(cat *)", resolution.AllowedTools);
         Assert.Contains("WebFetch", resolution.AllowedTools);
         Assert.Contains("WebSearch", resolution.AllowedTools);
 
@@ -502,6 +505,6 @@ public class AgentProviderFactoryTests
         // Must NOT have unrestricted Bash
         Assert.DoesNotContain("Bash", resolution.AllowedTools.Where(t => t == "Bash"));
 
-        Assert.Equal(11, resolution.AllowedTools.Count);
+        Assert.Equal(14, resolution.AllowedTools.Count);
     }
 }

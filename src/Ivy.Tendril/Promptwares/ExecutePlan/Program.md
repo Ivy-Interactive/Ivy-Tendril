@@ -8,12 +8,12 @@ Execute an approved plan in isolated git worktrees.
 
 The firmware header contains:
 
-- **Args** / **PlanFolder** — path to the plan folder
+- **Args** / **TendrilPlanFolder** — path to the plan folder
 - **CurrentTime** — current UTC timestamp
 - **Note** (optional) — Additional instructions from the reviewer. If present, follow these instructions in addition to the plan.
 
 The plan structure and CLI commands are in the **Reference Documents** section of your firmware.
-Read the project configuration from `config.yaml` (referenced via `$TENDRIL_CONFIG` env var) for project repos and context.
+Read the project configuration from `config.yaml` (use `Read` tool with the `TendrilConfigPath` from the firmware header) for project repos and context.
 
 The launcher sets the working directory to the project's primary repo.
 
@@ -40,7 +40,7 @@ Focus on making progress, not achieving perfect understanding. A working impleme
 - Read `plan.yaml` from the plan folder (project, repos, title)
 - Read the latest revision from `revisions/` (highest numbered .md file)
 - Extract the plan ID from the folder name (e.g. `01105` from `01105-TestPlan`)
-- Report plan context to Jobs UI: `tendril job status $env:TENDRIL_JOB_ID --message "Reading plan..." --plan-id <plan-id> --plan-title "<title>"`
+- Report plan context to Jobs UI: `tendril job status TendrilJobId --message "Reading plan..." --plan-id <plan-id> --plan-title "<title>"`
 
 ### 1.5. Verify Dependencies
 
@@ -119,7 +119,7 @@ After reading the plan revision, scan it for code validation markers to detect s
    - **If all validation blocks pass** → Proceed to worktree creation
    - **If any validation fails** → Fail the plan immediately with a detailed report
 
-4. **Write validation report** — Create `<PlanFolder>/verification/PreExecution.md`:
+4. **Write validation report** — Create `<TendrilPlanFolder>/verification/PreExecution.md`:
 
 ```markdown
 # PreExecution
@@ -227,7 +227,7 @@ For each repo in `RepoConfigs` (this includes both the plan's repos AND any read
 3. If the worktree or branch already exists from a prior execution, remove it first:
 
 ```bash
-tendril plan remove-worktree <PlanId> <repo-folder-name>
+tendril plan remove-worktree <TendrilPlanId> <repo-folder-name>
 ```
 
 This handles stale directories, locked files, and branch cleanup automatically with fallback strategies.
@@ -239,11 +239,11 @@ This handles stale directories, locked files, and branch cleanup automatically w
 ```bash
 cd <original-repo-path>
 git fetch origin
-PLAN_FOLDER_NAME=$(basename "<PlanFolder>")
+PLAN_FOLDER_NAME=$(basename "<TendrilPlanFolder>")
 PLAN_ID=$(echo "$PLAN_FOLDER_NAME" | grep -oP '^\d+')
 SAFE_TITLE=$(echo "$PLAN_FOLDER_NAME" | sed 's/^[0-9]\+-//')
 BRANCH_NAME="tendril/$PLAN_ID-$SAFE_TITLE"
-git worktree add "<PlanFolder>/worktrees/<repo-folder-name>" -b "$BRANCH_NAME" "origin/<resolved-base-branch>"
+git worktree add "<TendrilPlanFolder>/worktrees/<repo-folder-name>" -b "$BRANCH_NAME" "origin/<resolved-base-branch>"
 ```
 
 Example:
@@ -251,7 +251,7 @@ Example:
 ```bash
 cd <RepoPath>
 git fetch origin
-git worktree add "<PlanFolder>/worktrees/<RepoName>" -b "tendril/<PlanId>-<SafeTitle>" origin/<resolved-base-branch>
+git worktree add "<TendrilPlanFolder>/worktrees/<RepoName>" -b "tendril/<TendrilPlanId>-<SafeTitle>" origin/<resolved-base-branch>
 ```
 
 **Important:** Always branch from `origin/<resolved-base-branch>`, not local HEAD. This ensures the PR only contains the plan's commits, not any unpushed local work. The `<resolved-base-branch>` comes from either the `RepoConfigs` firmware header (if `baseBranch` is configured) or auto-detection.
@@ -276,12 +276,12 @@ If `baseBranch` is present for a repo, use it instead of auto-detecting. If abse
 4. After creating the worktree, **verify the `.git` file exists** and fail fast if it's missing:
 
 ```bash
-if [ ! -f "<PlanFolder>/worktrees/<repo-folder-name>/.git" ]; then
-    echo "ERROR: Worktree creation failed - .git file missing at <PlanFolder>/worktrees/<repo-folder-name>/.git"
+if [ ! -f "<TendrilPlanFolder>/worktrees/<repo-folder-name>/.git" ]; then
+    echo "ERROR: Worktree creation failed - .git file missing at <TendrilPlanFolder>/worktrees/<repo-folder-name>/.git"
     echo "This indicates git worktree add did not fully initialize the worktree."
     exit 1
 fi
-cat "<PlanFolder>/worktrees/<repo-folder-name>/.git"
+cat "<TendrilPlanFolder>/worktrees/<repo-folder-name>/.git"
 ```
 
 This ensures ExecutePlan fails immediately if worktree creation is incomplete, rather than leaving orphaned directories that trigger warnings during cleanup.
@@ -291,7 +291,7 @@ This ensures ExecutePlan fails immediately if worktree creation is incomplete, r
    ```bash
    SYNC_STRATEGY="<from RepoConfigs or 'fetch' if not specified>"
    BASE_BRANCH="<resolved-base-branch>"
-   WORKTREE_PATH="<PlanFolder>/worktrees/<repo-folder-name>"
+   WORKTREE_PATH="<TendrilPlanFolder>/worktrees/<repo-folder-name>"
 
    tendril plan sync-worktree "$WORKTREE_PATH" --strategy "$SYNC_STRATEGY" --base-branch "$BASE_BRANCH"
    ```
@@ -395,7 +395,7 @@ If there are uncommitted changes, either commit them or discard them with a clea
 
 ### 5.5. Generate Summary
 
-After all implementation commits are made, create `<PlanFolder>/artifacts/summary.md` summarizing what was done.
+After all implementation commits are made, create `<TendrilPlanFolder>/artifacts/summary.md` summarizing what was done.
 
 The summary should follow this structure:
 
@@ -453,7 +453,7 @@ Check the `## Verification` section in the plan revision for checked items (`- [
 
 For each checked verification:
 
-1. Send a status message: `tendril job status $env:TENDRIL_JOB_ID --message "Verifying: <Name>"`
+1. Send a status message: `tendril job status TendrilJobId --message "Verifying: <Name>"`
 2. Look up its `prompt` in the `verifications` list in `config.yaml`
 3. **Check if delegated:** If the verification name exists in config.yaml's `promptwares` section, it is a delegated verification — follow the prompt's instructions to invoke it as an external process. If the external process cannot be invoked (CLI broken, file lock, etc.), set the verification to `Fail` immediately. Do NOT attempt to do the verification inline or write the report yourself.
 4. Execute the prompt in the worktree directory
@@ -463,7 +463,7 @@ For each checked verification:
 
 **CRITICAL:** You MUST call `tendril plan set-verification` after EACH verification. The verification report file alone is NOT sufficient — plan.yaml must also be updated via the CLI. Failing to call this command will result in the plan being marked as Failed.
 
-**!IMPORTANT: Every verification MUST produce a report** at `<PlanFolder>/verification/<VerificationName>.md` using YAML frontmatter:
+**!IMPORTANT: Every verification MUST produce a report** at `<TendrilPlanFolder>/verification/<VerificationName>.md` using YAML frontmatter:
 
 ```markdown
 ---
@@ -507,7 +507,7 @@ tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown descriptio
 
 Do NOT include items that are part of the current plan's scope. Do NOT include recommendations about code formatting, linting, or style issues — those are handled by verifications.
 
-**After registering any recommendations via the CLI**, create `<PlanFolder>/artifacts/recommendations.md`. Having zero recommendations is fine — but the file must still be created:
+**After registering any recommendations via the CLI**, create `<TendrilPlanFolder>/artifacts/recommendations.md`. Having zero recommendations is fine — but the file must still be created:
 
 ~~~markdown
 # Recommendations
@@ -532,7 +532,7 @@ After all verifications pass:
 
 3. Run `git status` in every worktree. If there are any uncommitted files (from verification fixes, generated files, etc.), commit or discard them. The worktrees must be completely clean before finishing.
 
-4. Verify `<PlanFolder>/artifacts/recommendations.md` exists. If missing, the plan **must fail** — go back to Step 7.5.
+4. Verify `<TendrilPlanFolder>/artifacts/recommendations.md` exists. If missing, the plan **must fail** — go back to Step 7.5.
 
 ### 8.5. Worktree Lifecycle
 
@@ -564,6 +564,6 @@ You are running in non-interactive mode and CANNOT ask questions. If you are uns
 - Do NOT skip tests or pre-commit formatting
 - Commit messages must reference the plan ID
 - Convert `file:///` paths in plans to local filesystem paths appropriate for your OS
-- Do NOT commit artifact files (screenshots, images) to the repo. Test artifacts belong in `<PlanFolder>/artifacts/` only — CreatePr handles uploading them to persistent storage.
+- Do NOT commit artifact files (screenshots, images) to the repo. Test artifacts belong in `<TendrilPlanFolder>/artifacts/` only — CreatePr handles uploading them to persistent storage.
 - If the project uses private package registries, ensure authentication is configured before running dependency installation in worktrees. Credentials should come from environment variables or project-level configuration.
 - Do NOT create filesystem aliases or shortcuts (e.g. symlinks, drive mappings) to worktree paths. The plans directory path is managed by Tendril — additional indirection causes cleanup issues.

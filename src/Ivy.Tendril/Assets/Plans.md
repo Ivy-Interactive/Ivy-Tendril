@@ -112,9 +112,6 @@ tendril plan rec set <plan-id> <title> <field> <value>
 tendril plan rec remove <plan-id> <title>
 tendril plan rec list <plan-id> [--state Pending|Accepted|Declined]
 
-# Replace entire plan YAML (reads from stdin)
-tendril plan update <plan-id> < revised.yaml
-
 # Validate plan health
 tendril plan validate <plan-id>
 ```
@@ -128,7 +125,7 @@ tendril plan create <title> [options]
 Auto-allocates a plan ID, creates the folder, and writes `plan.yaml`. Outputs:
 ```
 PlanId: <ID>
-Directory: <PlansDirectory>/<ID>-<SafeTitle>
+Directory: <TendrilPlansFolder>/<ID>-<SafeTitle>
 Plan created: <ID>-<SafeTitle>
 ```
 
@@ -147,10 +144,12 @@ Options:
 ### Writing revisions
 
 ```bash
-echo "<content>" | tendril plan write-revision <plan-id>
+tendril plan write-revision <plan-id> --file <path-to-file>
 ```
 
-Writes STDIN content to `revisions/<NNN>.md` in the plan folder. Auto-increments from the highest existing revision. Outputs the file path.
+Reads content from `<path-to-file>` and writes it to `revisions/<NNN>.md` in the plan folder. Auto-increments from the highest existing revision. Outputs the file path.
+
+Workflow: write revision content to `temp/<short-random>.md` inside the plan folder using the `Write` tool, then run the command above referencing that file.
 
 ### Writing execution logs
 

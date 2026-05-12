@@ -61,6 +61,7 @@ internal class JobCompletionHandler
         HandlePlanStateTransition(job, isSuccess);
         TrackTelemetry(job, isSuccess);
         CleanupInboxFile(job);
+        CleanupTempFolder(job);
         WriteJobLog(job);
         NotifyPlanWatcher(job);
         ScheduleCostCalculation(job, jobs, persistJob, raisePropertyChanged);
@@ -516,6 +517,23 @@ internal class JobCompletionHandler
         {
             if (File.Exists(job.InboxFile))
                 File.Delete(job.InboxFile);
+        }
+        catch
+        {
+        }
+    }
+
+    private static void CleanupTempFolder(JobItem job)
+    {
+        var planFolder = job.TypedArgs?.PlanFolder ?? "";
+        if (string.IsNullOrEmpty(planFolder)) return;
+
+        var tempDir = Path.Combine(planFolder, "temp");
+        if (!Directory.Exists(tempDir)) return;
+
+        try
+        {
+            Directory.Delete(tempDir, recursive: true);
         }
         catch
         {

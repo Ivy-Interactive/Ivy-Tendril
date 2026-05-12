@@ -5,7 +5,7 @@ Split a multi-issue plan into separate, self-contained plans.
 ## Context
 
 The firmware header contains:
-- **Args** / **PlanFolder** — path to the plan folder to split
+- **Args** / **TendrilPlanFolder** — path to the plan folder to split
 - **CurrentTime** — current UTC timestamp
 
 The plan structure and CLI commands are in the **Reference Documents** section of your firmware.
@@ -20,7 +20,7 @@ The plans directory path can be derived from the plan folder's parent directory.
 - Read `plan.yaml` via `tendril plan get <plan-id>` from the plan folder
 - Read the latest revision from `revisions/` (highest numbered .md file)
 - Identify distinct issues/tasks that should be separate plans
-- Report plan context to Jobs UI: `tendril job status $env:TENDRIL_JOB_ID --message "Splitting plan..." --plan-id <plan-id> --plan-title "<title>"`
+- Report plan context to Jobs UI: `tendril job status TendrilJobId --message "Splitting plan..." --plan-id <plan-id> --plan-title "<title>"`
 
 ### 2. Create Split Plans
 
@@ -28,8 +28,8 @@ For each distinct issue, use `tendril plan create` to allocate an ID, create the
 
 ```bash
 tendril plan create "<Title>" \
-  --plans-dir "<PlansDirectory>" \
-  --project "<Project>" \
+  --plans-dir "<TendrilPlansFolder>" \
+  --project "<TendrilProject>" \
   --level "<Level>" \
   --initial-prompt "<original plan's initialPrompt>" \
   --execution-profile "balanced" \
@@ -53,12 +53,11 @@ Populate `--verification` flags from the project's verifications in config.yaml,
 Do NOT read or modify `.counter` directly — `tendril plan create` handles ID allocation.
 
 After creating each plan, write the revision via CLI:
-```bash
-tendril plan write-revision <PlanId> <<'EOF'
-<revision content>
-EOF
-```
-Fill in Problem, Solution, Remaining Design Questions, Tests sections. Each plan must be fully self-contained. Do NOT use the Write or Edit tools to create revision files.
+
+1. Write revision content to `<TendrilPlansFolder>/<NewPlanFolder>/temp/<short-random>.md` using the `Write` tool
+2. Run: `tendril plan write-revision <PlanId> --file "<path-to-temp-file>"`
+
+Fill in Problem, Solution, Remaining Design Questions, Tests sections. Each plan must be fully self-contained. Do NOT use the Write or Edit tools to create revision files directly in `revisions/`.
 
 #### Project Assignment
 
