@@ -165,7 +165,9 @@ public class ProjectRepoPickerView(
                 return list;
             });
 
-        return bridge.ToSelectInput(new List<string> { "default", "yolo" }).Width(Size.Units(20));
+        return bridge.ToSelectInput(new List<string> { "default", "yolo" })
+            .Variant(SelectInputVariant.Toggle)
+            .Width(Size.Units(28));
     }
 
     private static string GetDisplayLabel(RepoRef repo)
