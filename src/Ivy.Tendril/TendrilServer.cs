@@ -251,7 +251,8 @@ public static class TendrilServer
             Directory.CreateDirectory(pluginsDir);
             server.UsePlugins(pluginsDir,
                 contextFactory: (s, builder) => new TendrilPluginContext(s, builder),
-                sharedAssemblyNames: ["Ivy.Tendril.Plugin.Abstractions"]);
+                sharedAssemblyNames: ["Ivy.Tendril.Plugin.Abstractions"],
+                buildSourcePlugins: true);
         }
 
         var version = typeof(TendrilAppShell).Assembly.GetName().Version!;

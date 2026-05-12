@@ -13,7 +13,8 @@ var pluginsDir = Path.GetFullPath(
 
 server.UsePlugins(pluginsDir,
     contextFactory: (s, builder) => new MessagingPluginContext(s, builder),
-    sharedAssemblyNames: ["Ivy.Tendril.Plugin.Abstractions"]);
+    sharedAssemblyNames: ["Ivy.Tendril.Plugin.Abstractions"],
+    buildSourcePlugins: true);
 
 await server.RunAsync();
 
