@@ -191,7 +191,7 @@ Populate `--verification` flags from the project's `verifications` in config.yam
 
 Write the revision content to a temp file, then commit it via CLI:
 
-1. Write the revision markdown to `<Directory>/temp/<short-random>.md` using the `Write` tool (e.g. `temp/r7x.md`)
+1. Write the revision markdown to `<TendrilHome>/Temp/<short-random>.md` using the `Write` tool
 2. Run: `tendril plan write-revision <PlanId> --file "<path-to-temp-file>"`
 
 This auto-creates `revisions/001.md` (or the next sequential number) in the plan folder. Do NOT use the Write or Edit tools to create revision files directly in `revisions/` — always use the `tendril plan write-revision` command with `--file`.

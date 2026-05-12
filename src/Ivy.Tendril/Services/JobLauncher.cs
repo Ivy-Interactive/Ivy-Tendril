@@ -355,6 +355,9 @@ internal class JobLauncher
         if (!string.IsNullOrEmpty(planYaml.SourceUrl))
             values["SourceUrl"] = planYaml.SourceUrl;
 
+        if (job.TypedArgs is UpdatePlanArgs { Instructions: not null } updateArgs)
+            values["UpdateInstructions"] = updateArgs.Instructions;
+
         var profileOverride = ExtractExecutionProfile(job, planYaml);
         AddRepoConfigsIfNeeded(job, planYaml, values);
         AddCreatePrOptions(job, values);

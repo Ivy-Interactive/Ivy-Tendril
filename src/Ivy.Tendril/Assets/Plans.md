@@ -26,7 +26,6 @@ Plans live under `planFolder` from `config.yaml`.
 │   │   ├── DotnetTest.md
 │   │   └── ...
 │   ├── worktrees/                    # Git worktrees used during execution
-│   ├── temp/                         # Scratch space for promptware agents
 └── ...
 ```
 
@@ -149,7 +148,7 @@ tendril plan write-revision <plan-id> --file <path-to-file>
 
 Reads content from `<path-to-file>` and writes it to `revisions/<NNN>.md` in the plan folder. Auto-increments from the highest existing revision. Outputs the file path.
 
-Workflow: write revision content to `temp/<short-random>.md` inside the plan folder using the `Write` tool, then run the command above referencing that file.
+Workflow: write revision content to `<TendrilHome>/Temp/<short-random>.md` using the `Write` tool, then run the command above referencing that file.
 
 ### Writing execution logs
 
@@ -260,10 +259,6 @@ Subsequent revisions are written by ExpandPlan, UpdatePlan, or SplitPlan agents.
 ## Logs
 
 `logs/{NNN}-{Action}.md` per promptware run (Completed time, status, …).
-
-## temp/
-
-Scratch for clones, downloads, intermediates. Safe to delete after the plan finishes.
 
 ## .counter
 

@@ -49,14 +49,9 @@ public class SuggestChangesDialog(
                     if (!string.IsNullOrWhiteSpace(suggestText.Value) && !isCreating.Value)
                     {
                         isCreating.Set(true);
-                        var currentContent = _planService.ReadLatestRevision(_selectedPlan.FolderName);
-                        var comments = string.Join("\n", suggestText.Value
-                            .Split('\n')
-                            .Select(line => $">> {line}"));
-                        _planService.SavePlan(_selectedPlan.FolderName, currentContent + "\n\n" + comments + "\n");
 
                         _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Updating);
-                        _jobService.StartJob(new UpdatePlanArgs(_selectedPlan.FolderPath));
+                        _jobService.StartJob(new UpdatePlanArgs(_selectedPlan.FolderPath, suggestText.Value));
                         _refreshPlans();
                         isCreating.Set(false);
                         suggestText.Set("");
