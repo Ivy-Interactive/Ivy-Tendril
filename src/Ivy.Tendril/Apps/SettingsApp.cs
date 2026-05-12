@@ -13,6 +13,7 @@ public class SettingsApp : ViewBase
     private const string TagVerifications = "verifications";
     private const string TagPromptwares = "promptwares";
     private const string TagProjects = "projects";
+    private const string TagPlugins = "plugins";
     private const string TagAdvanced = "advanced";
     private const string TagTheme = "theme";
     private const string TagTrash = "trash";
@@ -42,6 +43,7 @@ public class SettingsApp : ViewBase
                     MenuItem.Default("Verifications", TagVerifications).Icon(Icons.CircleCheck),
                     MenuItem.Default("Promptwares", TagPromptwares).Icon(Icons.Wand),
                     MenuItem.Default("Projects", TagProjects).Icon(Icons.Folder),
+                    MenuItem.Default("Plugins", TagPlugins).Icon(Icons.Plug),
                     MenuItem.Default("Advanced", TagAdvanced).Icon(Icons.Cog)
                 ),
             MenuItem.Default("Tools")
@@ -82,6 +84,7 @@ public class SettingsApp : ViewBase
             TagVerifications => new VerificationsSetupView(),
             TagPromptwares => new PromptwaresSetupView(),
             TagProjects => new ProjectsSetupView(),
+            TagPlugins => new PluginsSetupView(),
             TagAdvanced => new AdvancedSetupView(),
             TagTheme => new ThemeSettingsView(),
             TagTrash => new TrashApp(),
