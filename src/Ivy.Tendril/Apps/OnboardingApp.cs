@@ -29,14 +29,15 @@ public class OnboardingApp : ViewBase
         IState<string> tendrilHomePath,
         IState<List<RepoRef>> selectedRepos,
         IState<string> projectName,
+        IState<bool> isStepLoading,
         OnboardingVerificationSession session)
     {
         return stepperIndex.Value switch
         {
-            0 => new CodingAgentStepView(stepperIndex, commonChecksPassed, completedAgentKey),
-            1 => new TendrilHomeStepView(stepperIndex, tendrilHomePath, homeBootstrapped),
-            2 => new ProjectSetupStepView(stepperIndex, selectedRepos, projectName, session),
-            3 => new CompleteStepView(stepperIndex, selectedRepos, projectName, session),
+            0 => new CodingAgentStepView(stepperIndex, commonChecksPassed, completedAgentKey, isStepLoading),
+            1 => new TendrilHomeStepView(stepperIndex, tendrilHomePath, homeBootstrapped, isStepLoading),
+            2 => new ProjectSetupStepView(stepperIndex, selectedRepos, projectName, isStepLoading, session),
+            3 => new CompleteStepView(stepperIndex, selectedRepos, projectName, isStepLoading, session),
             _ => throw new ArgumentOutOfRangeException()
         };
     }
@@ -52,6 +53,7 @@ public class OnboardingApp : ViewBase
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril"));
         var selectedRepos = UseState(() => new List<RepoRef>());
         var projectName = UseState("");
+        var isStepLoading = UseState(false);
 
         var verificationStream = UseStream<string>();
         var verificationHandle = UseState<PromptwareRunHandle?>((PromptwareRunHandle?)null);
@@ -76,14 +78,15 @@ public class OnboardingApp : ViewBase
         return Layout.TopCenter() |
                (Layout.Vertical().Margin(0, 20).Width(150)
                 | new Image("/tendril/assets/Tendril.svg").Width(Size.Units(15)).Height(Size.Auto())
-                | new Stepper(OnSelect, stepperIndex.Value, steps).Width(Size.Full())
+                | new Stepper(OnSelect, stepperIndex.Value, steps).Width(Size.Full()).Disabled(isStepLoading.Value || verificationRunning.Value)
                 | GetStepViews(stepperIndex,
                                commonChecksPassed, homeBootstrapped, completedAgentKey,
-                               tendrilHomePath, selectedRepos, projectName, session)
+                               tendrilHomePath, selectedRepos, projectName, isStepLoading, session)
                );
 
         ValueTask OnSelect(Event<Stepper, int> e)
         {
+            if (isStepLoading.Value || verificationRunning.Value) return ValueTask.CompletedTask;
             if (e.Value < stepperIndex.Value)
             {
                 stepperIndex.Set(e.Value);

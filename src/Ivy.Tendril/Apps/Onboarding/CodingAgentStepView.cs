@@ -8,7 +8,8 @@ namespace Ivy.Tendril.Apps.Onboarding;
 public class CodingAgentStepView(
     IState<int> stepperIndex,
     IState<bool> commonChecksPassed,
-    IState<string?> completedAgentKey) : ViewBase
+    IState<string?> completedAgentKey,
+    IState<bool> isStepLoading) : ViewBase
 {
     private record AgentInfo(string Key, string Label, Icons Logo);
 
@@ -46,6 +47,7 @@ public class CodingAgentStepView(
                 return;
             }
 
+            isStepLoading.Set(true);
             var progressCts = new CancellationTokenSource();
             _ = DriveProgressAsync(progressValue, progressCts.Token);
 
@@ -84,6 +86,7 @@ public class CodingAgentStepView(
 
                     if (!resumed)
                     {
+                        isStepLoading.Set(false);
                         selectedAgent.Set(null);
                         return;
                     }
@@ -111,6 +114,7 @@ public class CodingAgentStepView(
                         progressCts.Cancel();
                         progressValue.Set(null);
                         progressMessage.Set(null);
+                        isStepLoading.Set(false);
                         error.Set($"Could not authenticate {c.Name}. Please try again.");
                         selectedAgent.Set(null);
                         return;
@@ -131,6 +135,7 @@ public class CodingAgentStepView(
 
                 progressValue.Set(null);
                 progressMessage.Set(null);
+                isStepLoading.Set(false);
                 stepperIndex.Set(stepperIndex.Value + 1);
             }
             catch
@@ -138,6 +143,7 @@ public class CodingAgentStepView(
                 progressCts.Cancel();
                 progressValue.Set(null);
                 progressMessage.Set(null);
+                isStepLoading.Set(false);
                 throw;
             }
         }

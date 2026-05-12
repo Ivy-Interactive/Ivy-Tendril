@@ -7,7 +7,8 @@ namespace Ivy.Tendril.Apps.Onboarding;
 public class TendrilHomeStepView(
     IState<int> stepperIndex,
     IState<string> tendrilHomePath,
-    IState<bool> homeBootstrapped) : ViewBase
+    IState<bool> homeBootstrapped,
+    IState<bool> isStepLoading) : ViewBase
 {
     public override object Build()
     {
@@ -60,6 +61,7 @@ public class TendrilHomeStepView(
 
                           error.Set(null);
                           isBootstrapping.Set(true);
+                          isStepLoading.Set(true);
                           try
                           {
                               config.SetPendingTendrilHome(resolved);
@@ -75,6 +77,7 @@ public class TendrilHomeStepView(
                           finally
                           {
                               isBootstrapping.Set(false);
+                              isStepLoading.Set(false);
                           }
                       }));
     }
