@@ -25,7 +25,7 @@ public class UpdateProjectTests
             extraValues: new Dictionary<string, string>
             {
                 ["Args"] = "Setup verifications for the E2ETest project. Add a dotnet build verification.",
-                ["Project"] = "E2ETest"
+                ["TendrilProject"] = "E2ETest"
             });
 
         PromptwareAssertions.AssertExitSuccess(result, $"UpdateProject ({agent})");

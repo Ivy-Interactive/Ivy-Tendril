@@ -1,3 +1,4 @@
+using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Agents;
 
 namespace Ivy.Tendril.Test.Agents;
@@ -23,13 +24,12 @@ public class FirmwareCompilerTests : IDisposable
     {
         var context = new FirmwareContext(
             "/programs/CreatePlan",
-            "/programs/CreatePlan/Logs/00001.md",
-            new Dictionary<string, string> { ["PlanId"] = "03456", ["Project"] = "Tendril" });
+            new Dictionary<string, string> { ["TendrilPlanId"] = "03456", ["TendrilProject"] = "Tendril" });
 
         var result = FirmwareCompiler.Compile(context);
 
-        Assert.Contains("PlanId: 03456", result);
-        Assert.Contains("Project: Tendril", result);
+        Assert.Contains("TendrilPlanId: 03456", result);
+        Assert.Contains("TendrilProject: Tendril", result);
     }
 
     [Fact]
@@ -37,7 +37,6 @@ public class FirmwareCompilerTests : IDisposable
     {
         var context = new FirmwareContext(
             "/programs/Test",
-            "/programs/Test/Logs/00001.md",
             new Dictionary<string, string>());
 
         var result = FirmwareCompiler.Compile(context);
@@ -50,7 +49,6 @@ public class FirmwareCompilerTests : IDisposable
     {
         var context = new FirmwareContext(
             "/programs/Test",
-            "/programs/Test/Logs/00001.md",
             new Dictionary<string, string> { ["CurrentTime"] = "2026-01-01T00:00:00Z" });
 
         var result = FirmwareCompiler.Compile(context);
@@ -63,7 +61,6 @@ public class FirmwareCompilerTests : IDisposable
     {
         var context = new FirmwareContext(
             "/my/programs/ExecutePlan",
-            "/my/programs/ExecutePlan/Logs/00003.md",
             new Dictionary<string, string>());
 
         var result = FirmwareCompiler.Compile(context);
@@ -73,17 +70,16 @@ public class FirmwareCompilerTests : IDisposable
     }
 
     [Fact]
-    public void Compile_ReplacesLogFile()
+    public void Compile_DoesNotContainLogFilePlaceholder()
     {
         var context = new FirmwareContext(
             "/programs/Test",
-            "/programs/Test/Logs/00042.md",
             new Dictionary<string, string>());
 
         var result = FirmwareCompiler.Compile(context);
 
-        Assert.Contains("/programs/Test/Logs/00042.md", result);
         Assert.DoesNotContain("{LOGFILE}", result);
+        Assert.DoesNotContain("In the log file you are to maintain", result);
     }
 
     [Fact]
@@ -91,7 +87,6 @@ public class FirmwareCompilerTests : IDisposable
     {
         var context = new FirmwareContext(
             "/programs/Test",
-            "/programs/Test/Logs/00001.md",
             new Dictionary<string, string>());
 
         var result = FirmwareCompiler.Compile(context);
@@ -107,7 +102,6 @@ public class FirmwareCompilerTests : IDisposable
     {
         var context = new FirmwareContext(
             "/programs/Test",
-            "/programs/Test/Logs/00001.md",
             new Dictionary<string, string> { ["Zebra"] = "last", ["Alpha"] = "first" });
 
         var result = FirmwareCompiler.Compile(context);
@@ -122,7 +116,6 @@ public class FirmwareCompilerTests : IDisposable
     {
         var context = new FirmwareContext(
             "/programs/Test",
-            "/programs/Test/Logs/00001.md",
             new Dictionary<string, string>());
 
         var result = FirmwareCompiler.Compile(context);
@@ -130,8 +123,8 @@ public class FirmwareCompilerTests : IDisposable
         Assert.Contains("You are an agentic application", result);
         Assert.Contains("Program.md", result);
         Assert.Contains("Reflection", result);
-        Assert.Contains("Memory/", result);
-        Assert.Contains("Tools/", result);
+        Assert.Contains("**Memory:**", result);
+        Assert.Contains("**Tools:**", result);
     }
 
     // --- GetNextLogFile ---

@@ -34,6 +34,7 @@ public record ProjectConfig
     public List<ReviewActionConfig> ReviewActions { get; set; } = new();
     public List<PromptwareHookConfig> Hooks { get; set; } = new();
     public List<string> BuildDependencies { get; set; } = new();
+    [YamlIgnore]
     public List<string> RepoPaths => Repos.Select(r => r.Path).ToList();
 
     public string? GetMeta(string key)

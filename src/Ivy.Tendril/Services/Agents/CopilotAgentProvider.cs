@@ -39,8 +39,18 @@ public class CopilotAgentProvider : IAgentProvider
             StandardErrorEncoding = System.Text.Encoding.UTF8
         };
 
-        psi.ArgumentList.Add("-p");
-        psi.ArgumentList.Add(invocation.PromptContent);
+        if (invocation.PromptFilePath != null)
+        {
+            psi.ArgumentList.Add("-p");
+            psi.ArgumentList.Add($"Read and execute all instructions in the file: {invocation.PromptFilePath}");
+            psi.ArgumentList.Add("--add-dir");
+            psi.ArgumentList.Add(Path.GetDirectoryName(invocation.PromptFilePath)!);
+        }
+        else
+        {
+            psi.ArgumentList.Add("-p");
+            psi.ArgumentList.Add(invocation.PromptContent);
+        }
         psi.ArgumentList.Add("--allow-all-paths");
         psi.ArgumentList.Add("--allow-all-urls");
         psi.ArgumentList.Add("--output-format");

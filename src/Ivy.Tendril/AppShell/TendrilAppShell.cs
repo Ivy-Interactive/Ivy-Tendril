@@ -418,7 +418,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             MenuItem.Default("Setup")
                 .Tag("$setup")
                 .Icon(Icons.Construction)
-                .OnSelect(() => navigator.Navigate<SetupApp>()),
+                .OnSelect(() => navigator.Navigate<SettingsApp>()),
             MenuItem.Default("Trash")
                 .Tag("$trash")
                 .Icon(Icons.Trash2)
@@ -461,10 +461,19 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             }
         }
 
-        DropDownMenu? footer;
+        var settingsButton = new Button("Settings")
+            .Content(
+                Layout.Horizontal().AlignContent(Align.Left)
+                | Icons.Settings.ToIcon()
+                | Text.P("Settings").Small().Muted()
+            )
+            .Variant(ButtonVariant.Ghost).Width(Size.Full())
+            .OnClick(() => navigator.Navigate<SettingsApp>());
+
+        object? footer;
         if (user.Value != null)
         {
-            var trigger = new Button().Variant(ButtonVariant.Ghost)
+            var profileTrigger = new Button().Variant(ButtonVariant.Ghost)
                 .Content(
                     Layout.Horizontal().AlignContent(Align.Left).Width(Size.Full())
                     | new Avatar(user.Value.Initials, user.Value.AvatarUrl)
@@ -477,18 +486,22 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                     .Size(Size.Full().Min(0))
                 ).Width(Size.Full());
 
-            footer = new DropDownMenu(
+            var profileMenu = new DropDownMenu(
                     DropDownMenu.DefaultSelectHandler(),
-                    trigger)
-                .Top();
+                    profileTrigger)
+                .Top()
+                .Items(settings.FooterMenuItemsTransformer(
+                    [
+                        ..commonMenuItems,
+                        MenuItem.Default("Logout").Tag("$logout").Icon(Icons.LogOut).OnSelect(OnLogout)
+                    ],
+                    navigator));
 
-            footer = footer.Items(settings.FooterMenuItemsTransformer([
-                ..commonMenuItems, MenuItem.Default("Logout").Tag("$logout").Icon(Icons.LogOut).OnSelect(OnLogout)
-            ], navigator));
+            footer = Layout.Vertical().Gap(1) | settingsButton | profileMenu;
         }
         else
         {
-            var trigger = new Button("Settings")
+            var settingsTrigger = new Button("Settings")
                 .Content(
                     Layout.Horizontal().AlignContent(Align.Left)
                     | Icons.Settings.ToIcon()
@@ -496,13 +509,14 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 )
                 .Variant(ButtonVariant.Ghost).Width(Size.Full());
 
-            var footerMenuItems = isLoggedIn
-                ? [.. commonMenuItems, MenuItem.Default("Logout").Tag("$logout").Icon(Icons.LogOut).OnSelect(OnLogout)]
+            var logoutItem = MenuItem.Default("Logout").Tag("$logout").Icon(Icons.LogOut).OnSelect(OnLogout);
+            MenuItem[] footerMenuItems = isLoggedIn
+                ? [..commonMenuItems, logoutItem]
                 : commonMenuItems;
 
             footer = new DropDownMenu(
                     DropDownMenu.DefaultSelectHandler(),
-                    trigger)
+                    settingsTrigger)
                 .Top()
                 .Items(
                     settings.FooterMenuItemsTransformer(footerMenuItems, navigator)

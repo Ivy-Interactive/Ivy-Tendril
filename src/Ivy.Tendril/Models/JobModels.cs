@@ -40,7 +40,7 @@ public record JobItem
     public DateTime? StartedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public int? DurationSeconds { get; set; }
-    public string[] Args { get; init; } = [];
+    public JobArgsBase? TypedArgs { get; init; }
     public bool CancellationRequested { get; set; }
     public string? SessionId { get; set; }
     public string Provider { get; init; } = "claude";
@@ -77,6 +77,12 @@ public record JobItem
 
     // Path to the status file used for cross-process status updates
     public string? StatusFilePath { get; set; }
+
+    // Automatic logging metadata (transient, not persisted)
+    [JsonIgnore] public string? LogFilePath { get; set; }
+    [JsonIgnore] public string? CompiledPrompt { get; set; }
+    [JsonIgnore] public string? CliCommand { get; set; }
+    [JsonIgnore] public int? ExitCode { get; set; }
 
     public void EnqueueOutput(string line)
     {

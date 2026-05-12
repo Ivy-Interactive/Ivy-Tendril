@@ -1541,6 +1541,8 @@ maxConcurrentJobs: 10
     [Fact]
     public void GetRepoRef_WithTrailingSlash_ShouldMatch()
     {
+        if (!OperatingSystem.IsWindows()) return; // Backslash is not a path separator on Linux
+
         var project = new ProjectConfig
         {
             Repos = new List<RepoRef>
@@ -1557,6 +1559,8 @@ maxConcurrentJobs: 10
     [Fact]
     public void GetRepoRef_WithMixedSlashes_ShouldMatch()
     {
+        if (!OperatingSystem.IsWindows()) return; // Mixed slashes only relevant on Windows
+
         var project = new ProjectConfig
         {
             Repos = new List<RepoRef>

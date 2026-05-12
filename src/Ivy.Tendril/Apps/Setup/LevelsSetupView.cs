@@ -39,10 +39,20 @@ public class LevelsSetupView : ViewBase
                     {
                         if (result == AlertResult.Ok)
                         {
+                            var removed = levels[idx];
                             levels.RemoveAt(idx);
-                            config.SaveSettings();
-                            client.Toast($"Level '{name}' deleted", "Deleted");
-                            refreshToken.Refresh();
+                            try
+                            {
+                                config.SaveSettings();
+                                client.Toast($"Level '{name}' deleted", "Deleted");
+                                refreshToken.Refresh();
+                            }
+                            catch (Exception ex)
+                            {
+                                levels.Insert(idx, removed);
+                                refreshToken.Refresh();
+                                client.Toast($"Failed to delete level: {ex.Message}", "Error");
+                            }
                         }
                     }, "Delete Level");
                 })
@@ -102,6 +112,8 @@ file class EditLevelDialogContent(
                 new Button(isNew ? "Add" : "Save").Primary().OnClick(() =>
                 {
                     if (string.IsNullOrWhiteSpace(editName.Value)) return;
+                    var oldLevelName = isNew ? null : levels[existingIndex!.Value].Name;
+                    var oldBadge = isNew ? null : levels[existingIndex!.Value].Badge;
                     if (isNew)
                     {
                         levels.Add(new LevelConfig { Name = editName.Value, Badge = editBadge.Value });
@@ -113,10 +125,26 @@ file class EditLevelDialogContent(
                         level.Badge = editBadge.Value;
                     }
 
-                    config.SaveSettings();
-                    isOpen.Set(false);
-                    refreshToken.Refresh();
-                    client.Toast("Level saved", "Saved");
+                    try
+                    {
+                        config.SaveSettings();
+                        isOpen.Set(false);
+                        refreshToken.Refresh();
+                        client.Toast("Level saved", "Saved");
+                    }
+                    catch (Exception ex)
+                    {
+                        if (isNew)
+                            levels.RemoveAt(levels.Count - 1);
+                        else
+                        {
+                            var level = levels[existingIndex!.Value];
+                            level.Name = oldLevelName!;
+                            level.Badge = oldBadge!;
+                        }
+                        refreshToken.Refresh();
+                        client.Toast($"Failed to save level: {ex.Message}", "Error");
+                    }
                 })
             )
         ).Width(Size.Rem(25));

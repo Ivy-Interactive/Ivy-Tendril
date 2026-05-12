@@ -1,5 +1,6 @@
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Ivy.Tendril.Controllers;
@@ -17,11 +18,8 @@ public class InboxController(IJobService jobService) : ControllerBase
         try
         {
             var project = request.Project ?? "Auto";
-            var args = new List<string> { "-Description", request.Description, "-Project", project };
-            if (!string.IsNullOrEmpty(request.SourcePath))
-                args.AddRange(["-SourcePath", request.SourcePath]);
-
-            var jobId = jobService.StartJob(Constants.JobTypes.CreatePlan, args.ToArray(), null);
+            var args = new CreatePlanArgs(request.Description, project, SourcePath: request.SourcePath);
+            var jobId = jobService.StartJob(args);
             return Ok(new { jobId, status = "Started", message = "Plan creation job started successfully" });
         }
         catch (Exception ex)

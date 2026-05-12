@@ -144,16 +144,39 @@ public class EditProjectDialog(
                 {
                     if (string.IsNullOrWhiteSpace(editName.Value)) return;
                     var project = isNew ? new ProjectConfig() : _projects[_editIndex.Value!.Value];
+                    var oldName = project.Name;
+                    var oldColor = project.Color;
+                    var oldContext = project.Context;
+                    var oldRepos = project.Repos;
+                    var oldVerifications = project.Verifications;
                     project.Name = editName.Value;
                     project.Color = editColor.Value?.ToString() ?? "";
                     project.Context = editContext.Value;
                     project.Repos = new List<RepoRef>(editRepos.Value);
                     project.Verifications = new List<ProjectVerificationRef>(editVerifications.Value);
                     if (isNew) _projects.Add(project);
-                    _config.SaveSettings();
-                    _editIndex.Set(-1);
-                    _refreshToken.Refresh();
-                    _client.Toast($"Project '{editName.Value}' saved", "Saved");
+                    try
+                    {
+                        _config.SaveSettings();
+                        _editIndex.Set(-1);
+                        _refreshToken.Refresh();
+                        _client.Toast($"Project '{editName.Value}' saved", "Saved");
+                    }
+                    catch (Exception ex)
+                    {
+                        if (isNew)
+                            _projects.Remove(project);
+                        else
+                        {
+                            project.Name = oldName;
+                            project.Color = oldColor;
+                            project.Context = oldContext;
+                            project.Repos = oldRepos;
+                            project.Verifications = oldVerifications;
+                        }
+                        _refreshToken.Refresh();
+                        _client.Toast($"Failed to save project: {ex.Message}", "Error");
+                    }
                 })
             )
         ).Width(Size.Rem(40));

@@ -9,13 +9,13 @@ public partial class JobsApp
 {
     private static void StreamOutputLines(
         IJobService jobService,
-        IState<string?> showOutput,
+        IState<string?> activeOutputJobId,
         IState<string?> streamingJobId,
         IState<int> lastProcessedIndex,
         IState<bool> hasStreamContent,
         IWriteStream<string> outputStream)
     {
-        if (showOutput.Value is not { } activeJobId) return;
+        if (activeOutputJobId.Value is not { } activeJobId) return;
 
         var activeJob = jobService.GetJob(activeJobId);
         if (activeJob is not { Status: JobStatus.Running }) return;

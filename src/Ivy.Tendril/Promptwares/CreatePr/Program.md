@@ -9,7 +9,7 @@ Create GitHub pull requests and apply PR rules.
 ## Context
 
 The firmware header contains:
-- **PlanFolder** — path to the plan folder
+- **TendrilPlanFolder** — path to the plan folder
 - **CurrentTime** — current UTC timestamp
 - **SourceUrl** — (optional) GitHub issue or PR URL from plan.yaml
 
@@ -25,7 +25,7 @@ Project configuration (repos, `prRule` settings) is available from the firmware 
 
 ### 0. Check Plan State
 
-Before processing, read `plan.yaml` and check the `state` field. After reading, report plan context: `tendril job status $env:TENDRIL_JOB_ID --message "Creating PR..." --plan-id <plan-id> --plan-title "<title>"`
+Before processing, read `plan.yaml` and check the `state` field. After reading, report plan context: `tendril job status TendrilJobId --message "Creating PR..." --plan-id <plan-id> --plan-title "<title>"`
 - If `state: Completed`, the plan was already processed. Exit early with a message indicating the plan is already completed and showing the existing PR URLs from the `prs` list.
 - Otherwise, proceed with step 1.
 
@@ -34,20 +34,17 @@ Before processing, read `plan.yaml` and check the `state` field. After reading, 
 - Read `plan.yaml` from the plan folder (project, commits, repos)
 - Read the latest revision for the plan title and description
 - Find the `prRule` for each repo from the firmware header
-- **Check for custom options:** If `<PlanFolder>/.custom-pr-options.yaml` exists, read it. The file contains:
-  ```yaml
-  merge: true/false
-  deleteBranch: true/false
-  includeArtifacts: true/false
-  assignee: "username"
-  comment: "Review comment text"
-  draft: true/false
-  ```
-  These flags override the default behavior in subsequent steps. If the file does not exist, all flags default to the behavior defined by the repo's `prRule`. **Delete the file after reading** so it doesn't affect future runs.
+- **Check for custom options:** Read the following firmware header values (if present). These override the default behavior in subsequent steps. If not present, all flags default to the behavior defined by the repo's `prRule`.
+  - `PrMerge` — `true`/`false` (default: `true`)
+  - `PrDeleteBranch` — `true`/`false` (default: `true`)
+  - `PrIncludeArtifacts` — `true`/`false` (default: `true`)
+  - `PrAssignee` — GitHub username (default: none)
+  - `PrComment` — Review comment text (default: none)
+  - `PrDraft` — `true`/`false` (default: `false`)
 
 ### 2. For Each Worktree
 
-Check `<PlanFolder>/worktrees/` for each repo worktree.
+Check `<TendrilPlanFolder>/worktrees/` for each repo worktree.
 
 > **Worktree already removed:** If the worktrees/ directory is empty (worktree was already cleaned up), fall back to `plan.yaml` to get the repo path and branch name (format: `tendril/<planId>-<SafeTitle>`, where SafeTitle is extracted from the plan folder name: e.g. `03158-ChangeBranchNaming` → `ChangeBranchNaming`). The commit objects may still exist in the original repo's object store. Use `git cat-file -t <sha>` to verify, then create or force-update the local branch: `git branch -f <branch-name> <sha>` (use `-f` because the branch may already exist from a WIP auto-commit) and push from the original repo path.
 >
@@ -68,7 +65,7 @@ For each worktree:
 
 **If custom options exist and `includeArtifacts` is `false`, skip this step entirely** (set artifact markdown to empty).
 
-Otherwise, if an artifact upload tool is available in `Tools/`, run it to upload screenshots and videos from `<PlanFolder>/artifacts/` to persistent storage.
+Otherwise, if an artifact upload tool is available in `Tools/`, run it to upload screenshots and videos from `<TendrilPlanFolder>/artifacts/` to persistent storage.
 
 Capture the returned markdown. If non-empty, it will be appended to the PR body under an `## Artifacts` heading in the next step. If no upload tool is available, skip this step.
 
@@ -91,7 +88,7 @@ EOF
 - **Title:** `[<planId>] <plan title>`
 - **Body:** 
   1. **If SourceUrl is present in firmware header** and it's a GitHub issue URL (format: `https://github.com/owner/repo/issues/NUMBER`), prepend `Fixes #NUMBER\n\n` to the body
-  2. If `<PlanFolder>/artifacts/summary.md` exists, use its content as the PR body (after the issue link)
+  2. If `<TendrilPlanFolder>/artifacts/summary.md` exists, use its content as the PR body (after the issue link)
   3. Otherwise, fall back to summary from Problem + Solution sections
   4. Append commit list
   5. If `$artifactMarkdown` from step 2.5 is non-empty, append it under an `## Artifacts` heading
@@ -153,7 +150,7 @@ done
 
 When the PR status is `CONFLICTING`, resolve the conflict locally before retrying:
 
-1. **Locate the worktree** for this repo. If the worktree still exists in `<PlanFolder>/worktrees/<repo-folder-name>`, use it. If the worktree was already removed, use the original repo path — create or force-update the local branch first: `git branch -f <branch-name> <sha>` and `git checkout <branch-name>`.
+1. **Locate the worktree** for this repo. If the worktree still exists in `<TendrilPlanFolder>/worktrees/<repo-folder-name>`, use it. If the worktree was already removed, use the original repo path — create or force-update the local branch first: `git branch -f <branch-name> <sha>` and `git checkout <branch-name>`.
 
 2. **Read the plan revision** to understand the intent of the plan's changes (what matters, what can be safely adapted).
 
@@ -209,24 +206,12 @@ After successful `yolo` merges (or custom options with `merge: true`), clean up 
 For each repo where the PR was merged:
 
 ```bash
-cd <original-repo-path>
-PLAN_FOLDER_NAME=$(basename "<PlanFolder>")
-PLAN_ID=$(echo "$PLAN_FOLDER_NAME" | grep -oP '^\d+')
-SAFE_TITLE=$(echo "$PLAN_FOLDER_NAME" | sed 's/^[0-9]\+-//')
-BRANCH_NAME="tendril/$PLAN_ID-$SAFE_TITLE"
-git worktree remove "<PlanFolder>/worktrees/<repo-folder-name>" --force
-git branch -D "$BRANCH_NAME" 2>/dev/null
-```
-
-If **all** worktrees were cleaned up, remove the now-empty `worktrees/` directory:
-
-```bash
-rm -rf "<PlanFolder>/worktrees"
+tendril plan remove-worktree <TendrilPlanId> <repo-folder-name>
 ```
 
 **Skip cleanup** for repos using the `default` PR rule (or custom options with `merge: false`) — the worktree is still needed for potential review revisions.
 
-If cleanup fails (e.g. locked files), log a warning but do not fail the overall CreatePr execution.
+If cleanup fails, log a warning but do not fail the overall CreatePr execution.
 
 ### 6. Update Plan via CLI
 

@@ -33,7 +33,7 @@ public class CompleteStepView(
 
                 if (projectsNeedingVerifications.Count == 0 && config.Settings.Projects.Count == 0)
                 {
-                    session.Error.Set("No project found from the previous step.");
+                    session.Started.Set(true);
                     session.Running.Set(false);
                     return;
                 }

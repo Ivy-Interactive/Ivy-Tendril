@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Ivy-Tendril macOS Installer
+# Ivy-Tendril macOS & Linux Installer
 # This script installs .NET 10 SDK, GitHub CLI, and Ivy-Tendril.
 
 set -e
@@ -10,19 +10,24 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-printf "%b\\n" "${BLUE}=== Ivy-Tendril Installer for macOS ===${NC}"
+printf "%b\\n" "${BLUE}=== Ivy-Tendril Installer (macOS/Linux) ===${NC}"
 
-if [[ "$OSTYPE" != "darwin"* ]]; then
-    printf "%b\\n" "${RED}Error: This script is only for macOS.${NC}"
+OS_TYPE="unknown"
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    OS_TYPE="macos"
+elif [[ "$OSTYPE" == "linux-gnu"* ]] || [[ "$OSTYPE" == "linux"* ]]; then
+    OS_TYPE="linux"
+else
+    printf "%b\\n" "${RED}Error: Unsupported operating system: $OSTYPE${NC}"
     exit 1
 fi
 
 ARCH=$(uname -m)
-if [[ "$ARCH" == "arm64" ]]; then
-    printf "%b\\n" "Detected Architecture: Apple Silicon (arm64)"
+if [[ "$ARCH" == "arm64" ]] || [[ "$ARCH" == "aarch64" ]]; then
+    printf "%b\\n" "Detected Architecture: ARM64"
     GH_ARCH="arm64"
-elif [[ "$ARCH" == "x86_64" ]]; then
-    printf "%b\\n" "Detected Architecture: Intel (x64)"
+elif [[ "$ARCH" == "x86_64" ]] || [[ "$ARCH" == "amd64" ]]; then
+    printf "%b\\n" "Detected Architecture: x64"
     GH_ARCH="amd64"
 else
     printf "%b\\n" "${RED}Error: Unsupported architecture: $ARCH${NC}"
@@ -52,13 +57,18 @@ else
 fi
 
 printf "%b\\n" "\n${BLUE}Step 3: Checking for Git...${NC}"
-if xcode-select -p &> /dev/null; then
+if command -v git &> /dev/null; then
     printf "%b\\n" "${GREEN}✓ Git is already installed.${NC}"
 else
-    printf "%b\\n" "Installing Git (via Xcode Command Line Tools)..."
-    xcode-select --install
-    printf "%b\\n" "${RED}Please complete the GUI installation prompt, then run this script again.${NC}"
-    exit 1
+    if [[ "$OS_TYPE" == "macos" ]]; then
+        printf "%b\\n" "Installing Git (via Xcode Command Line Tools)..."
+        xcode-select --install
+        printf "%b\\n" "${RED}Please complete the GUI installation prompt, then run this script again.${NC}"
+        exit 1
+    else
+        printf "%b\\n" "${RED}Error: Git is not installed. Please install Git using your package manager (e.g., apt, dnf, pacman) and run this script again.${NC}"
+        exit 1
+    fi
 fi
 
 printf "%b\\n" "\n${BLUE}Step 4: Checking for GitHub CLI (gh)...${NC}"
@@ -71,17 +81,24 @@ else
     GH_VERSION=${LATEST_GH#v}
     
     GH_TEMP=$(mktemp -d)
-    GH_ZIP="gh_${GH_VERSION}_macOS_${GH_ARCH}.zip"
     
-    printf "%b\\n" "Downloading gh ${GH_VERSION}..."
-    curl -sSL -o "$GH_TEMP/$GH_ZIP" "https://github.com/cli/cli/releases/download/${LATEST_GH}/${GH_ZIP}"
-    
-    cd "$GH_TEMP"
-    unzip -q "$GH_ZIP"
-    
-    # Install binary
-    sudo mkdir -p /usr/local/bin
-    sudo mv gh_${GH_VERSION}_macOS_${GH_ARCH}/bin/gh /usr/local/bin/
+    if [[ "$OS_TYPE" == "macos" ]]; then
+        GH_FILE="gh_${GH_VERSION}_macOS_${GH_ARCH}.zip"
+        printf "%b\\n" "Downloading gh ${GH_VERSION}..."
+        curl -sSL -o "$GH_TEMP/$GH_FILE" "https://github.com/cli/cli/releases/download/${LATEST_GH}/${GH_FILE}"
+        cd "$GH_TEMP"
+        unzip -q "$GH_FILE"
+        sudo mkdir -p /usr/local/bin
+        sudo mv gh_${GH_VERSION}_macOS_${GH_ARCH}/bin/gh /usr/local/bin/
+    else
+        GH_FILE="gh_${GH_VERSION}_linux_${GH_ARCH}.tar.gz"
+        printf "%b\\n" "Downloading gh ${GH_VERSION}..."
+        curl -sSL -o "$GH_TEMP/$GH_FILE" "https://github.com/cli/cli/releases/download/${LATEST_GH}/${GH_FILE}"
+        cd "$GH_TEMP"
+        tar -xzf "$GH_FILE"
+        sudo mkdir -p /usr/local/bin
+        sudo mv gh_${GH_VERSION}_linux_${GH_ARCH}/bin/gh /usr/local/bin/
+    fi
     
     cd - > /dev/null
     rm -rf "$GH_TEMP"

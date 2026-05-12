@@ -14,9 +14,9 @@ public partial class JobsApp
         IPlanReaderService planService,
         IJobService jobService,
         IClientProvider client,
-        IState<string?> showPlan,
-        IState<string?> showOutput,
-        IState<string?> showPrompt,
+        Action<string> showPlan,
+        Action<string> showOutput,
+        Action<string> showPrompt,
         List<JobItem> jobs,
         Dictionary<string, string> projectColors,
         StackedProgress jobsProgress)
@@ -91,7 +91,7 @@ public partial class JobsApp
                     {
                         var fullPath = Path.Combine(planService.PlansDirectory, job.PlanFile);
                         if (Directory.Exists(fullPath))
-                            showPlan.Set(fullPath);
+                            showPlan(fullPath);
                     }
                 }
                 return ValueTask.CompletedTask;
@@ -100,7 +100,7 @@ public partial class JobsApp
             {
                 var id = e.Value.RowId?.ToString();
                 if (!string.IsNullOrEmpty(id))
-                    showOutput.Set(id);
+                    showOutput(id);
                 return ValueTask.CompletedTask;
             })
             /*
@@ -128,7 +128,7 @@ public partial class JobsApp
                     {
                         var fullPrompt = GetFullPrompt(job, planService);
                         if (!string.IsNullOrEmpty(fullPrompt))
-                            showPrompt.Set(fullPrompt);
+                            showPrompt(fullPrompt);
                     }
                 }
                 return ValueTask.CompletedTask;
@@ -176,25 +176,24 @@ public partial class JobsApp
                     {
                         if (job.Status is JobStatus.Failed or JobStatus.Timeout or JobStatus.Stopped)
                         {
-                            if (job.Type == "CreatePlan" && !job.Args.Contains("-Description"))
+                            if (job.TypedArgs == null)
                             {
-                                client.Toast("Cannot rerun CreatePlan: original description was not preserved.", "Rerun Failed");
+                                client.Toast("Cannot rerun: original args were not preserved.", "Rerun Failed");
                                 return ValueTask.CompletedTask;
                             }
 
-                            if (job.Type is "ExecutePlan" or "ExpandPlan" && job.Args.Length > 0)
+                            var folder = job.TypedArgs.PlanFolder;
+                            if (job.TypedArgs is ExecutePlanArgs or ExpandPlanArgs && folder != null)
                             {
-                                var folderName = Path.GetFileName(job.Args[0]);
-                                planService.TransitionState(folderName, PlanStatus.Building);
+                                planService.TransitionState(Path.GetFileName(folder), PlanStatus.Building);
                             }
-                            else if (job is { Type: "UpdatePlan", Args.Length: > 0 })
+                            else if (job.TypedArgs is UpdatePlanArgs && folder != null)
                             {
-                                var folderName = Path.GetFileName(job.Args[0]);
-                                planService.TransitionState(folderName, PlanStatus.Updating);
+                                planService.TransitionState(Path.GetFileName(folder), PlanStatus.Updating);
                             }
 
                             jobService.DeleteJob(job.Id);
-                            jobService.StartJob(job.Type, job.Args);
+                            jobService.StartJob(job.TypedArgs);
 
                             refreshToken.Refresh();
                         }
@@ -219,13 +218,17 @@ public partial class JobsApp
                                   new MenuItem("Clear Completed", Icon: Icons.Trash, Tag: "ClearCompleted")
                                       .OnSelect(() =>
                                       {
+                                          var count = jobService.GetJobs().Count(j => j.Status == JobStatus.Completed);
                                           jobService.ClearCompletedJobs();
                                           refreshToken.Refresh();
+                                          client.Toast($"Cleared {count} completed job(s)", "Clear Completed");
                                       }),
                                   new MenuItem("Clear Failed", Icon: Icons.Trash, Tag: "ClearFailed").OnSelect(() =>
                                   {
+                                      var count = jobService.GetJobs().Count(j => j.Status is JobStatus.Failed or JobStatus.Timeout);
                                       jobService.ClearFailedJobs();
                                       refreshToken.Refresh();
+                                      client.Toast($"Cleared {count} failed job(s)", "Clear Failed");
                                   })
                               ));
     }

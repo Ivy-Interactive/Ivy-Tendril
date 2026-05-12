@@ -12,11 +12,13 @@ public class AgentProviderTests
         string effort = "high",
         string sessionId = "sess-123",
         IReadOnlyList<string>? allowedTools = null,
-        IReadOnlyList<string>? extraArgs = null)
+        IReadOnlyList<string>? extraArgs = null,
+        string? promptFilePath = null)
     {
         return new AgentInvocation(prompt, workDir, model, effort, sessionId,
             allowedTools ?? Array.Empty<string>(),
-            extraArgs ?? Array.Empty<string>());
+            extraArgs ?? Array.Empty<string>(),
+            promptFilePath);
     }
 
     // --- Claude Provider ---
@@ -76,16 +78,30 @@ public class AgentProviderTests
     }
 
     [Fact]
-    public void Claude_BuildProcessStart_PassesAllowedTools()
+    public void Claude_BuildProcessStart_PassesAllowedToolsAsSpaceSeparatedString()
     {
         var provider = new ClaudeAgentProvider();
         var psi = provider.BuildProcessStart(CreateInvocation(
-            allowedTools: new[] { "Read", "Glob", "Grep", "Bash" }));
+            allowedTools: new[] { "Read", "Glob", "Bash(git *)", "Write(/plans/**)" }));
 
         var args = psi.ArgumentList.ToList();
         var idx = args.IndexOf("--allowedTools");
         Assert.True(idx >= 0);
-        Assert.Equal("Read,Glob,Grep,Bash", args[idx + 1]);
+        Assert.Equal("Read Glob Bash(git *) Write(/plans/**)", args[idx + 1]);
+    }
+
+    [Fact]
+    public void Claude_BuildProcessStart_AllowedToolsBeforeStdinMarker()
+    {
+        var provider = new ClaudeAgentProvider();
+        var psi = provider.BuildProcessStart(CreateInvocation(
+            allowedTools: new[] { "Read", "Bash(tendril*)" }));
+
+        var args = psi.ArgumentList.ToList();
+        var toolsIdx = args.IndexOf("--allowedTools");
+        Assert.True(toolsIdx >= 0);
+        Assert.Equal("Read Bash(tendril*)", args[toolsIdx + 1]);
+        Assert.Equal("-", args[^1]);
     }
 
     [Fact]
@@ -100,15 +116,18 @@ public class AgentProviderTests
     }
 
     [Fact]
-    public void Claude_BuildProcessStart_PromptAfterDoubleDash()
+    public void Claude_BuildProcessStart_PromptViaStdin()
     {
         var provider = new ClaudeAgentProvider();
-        var psi = provider.BuildProcessStart(CreateInvocation("hello world"));
+        Assert.True(provider.UsesStdinPrompt);
 
+        var psi = provider.BuildProcessStart(CreateInvocation("hello world"));
         var args = psi.ArgumentList.ToList();
-        var dashIdx = args.IndexOf("--");
-        Assert.True(dashIdx >= 0);
-        Assert.Equal("hello world", args[dashIdx + 1]);
+
+        // Prompt read from stdin (indicated by "-"), not as a CLI argument
+        Assert.Contains("-", args);
+        Assert.DoesNotContain("--", args);
+        Assert.DoesNotContain("hello world", args);
     }
 
     [Fact]
@@ -361,6 +380,24 @@ public class AgentProviderTests
         var pIdx = args.IndexOf("-p");
         Assert.True(pIdx >= 0);
         Assert.Equal("hello world", args[pIdx + 1]);
+    }
+
+    [Fact]
+    public void Copilot_BuildProcessStart_UsesPromptFileWhenProvided()
+    {
+        var provider = new CopilotAgentProvider();
+        var psi = provider.BuildProcessStart(CreateInvocation(
+            "long prompt content",
+            promptFilePath: "/plans/00123-Test/temp/prompt-job-001.md"));
+
+        var args = psi.ArgumentList.ToList();
+        var pIdx = args.IndexOf("-p");
+        Assert.True(pIdx >= 0);
+        Assert.Contains("/plans/00123-Test/temp/prompt-job-001.md", args[pIdx + 1]);
+        Assert.DoesNotContain("long prompt content", args);
+        Assert.Contains("--add-dir", args);
+        var addDirIdx = args.IndexOf("--add-dir");
+        Assert.Contains("temp", args[addDirIdx + 1]);
     }
 
     [Fact]

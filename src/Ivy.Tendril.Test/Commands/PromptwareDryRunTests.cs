@@ -137,7 +137,7 @@ public class PromptwareDryRunTests : IDisposable
 
         Assert.Contains("PlansDirectory: /tmp/plans", output);
         Assert.Contains("Project: TestProject", output);
-        Assert.Contains("Program.md", output);
+        Assert.Contains("## Program", output);
     }
 
     [Fact]
@@ -157,7 +157,7 @@ public class PromptwareDryRunTests : IDisposable
         var output = RunDryRun("ExecutePlan", ["PlanFolder=/tmp/plans/00001-Test"]);
 
         Assert.Contains("PlanFolder: /tmp/plans/00001-Test", output);
-        Assert.Contains("Program.md", output);
+        Assert.Contains("## Program", output);
     }
 
     [Fact]
@@ -185,7 +185,7 @@ public class PromptwareDryRunTests : IDisposable
         var output = RunDryRun("ExpandPlan", ["PlanFolder=/tmp/plans/00002-Expand"]);
 
         Assert.Contains("PlanFolder: /tmp/plans/00002-Expand", output);
-        Assert.Contains("Program.md", output);
+        Assert.Contains("## Program", output);
     }
 
     [Fact]
@@ -205,7 +205,7 @@ public class PromptwareDryRunTests : IDisposable
         var output = RunDryRun("UpdatePlan", ["PlanFolder=/tmp/plans/00003-Update"]);
 
         Assert.Contains("PlanFolder: /tmp/plans/00003-Update", output);
-        Assert.Contains("Program.md", output);
+        Assert.Contains("## Program", output);
     }
 
     [Fact]
@@ -224,7 +224,7 @@ public class PromptwareDryRunTests : IDisposable
         var output = RunDryRun("SplitPlan", ["PlanFolder=/tmp/plans/00004-Split"]);
 
         Assert.Contains("PlanFolder: /tmp/plans/00004-Split", output);
-        Assert.Contains("Program.md", output);
+        Assert.Contains("## Program", output);
     }
 
     [Fact]
@@ -243,7 +243,7 @@ public class PromptwareDryRunTests : IDisposable
         var output = RunDryRun("CreatePr", ["PlanFolder=/tmp/plans/00005-PR"]);
 
         Assert.Contains("PlanFolder: /tmp/plans/00005-PR", output);
-        Assert.Contains("Program.md", output);
+        Assert.Contains("## Program", output);
     }
 
     [Fact]
@@ -271,7 +271,7 @@ public class PromptwareDryRunTests : IDisposable
 
         Assert.Contains("PlanFolder: /tmp/plans/00006-Issue", output);
         Assert.Contains("Repo: /repos/myapp", output);
-        Assert.Contains("Program.md", output);
+        Assert.Contains("## Program", output);
     }
 
     [Fact]
@@ -300,7 +300,7 @@ public class PromptwareDryRunTests : IDisposable
 
         Assert.Contains("ProjectName: TestProject", output);
         Assert.Contains("Instructions: Setup verifications", output);
-        Assert.Contains("Program.md", output);
+        Assert.Contains("## Program", output);
     }
 
     [Fact]
@@ -322,7 +322,7 @@ public class PromptwareDryRunTests : IDisposable
         foreach (var name in promptwares)
         {
             var output = RunDryRun(name, ["Args=test"]);
-            Assert.Contains("Program.md", output);
+            Assert.Contains("## Program", output);
             Assert.Contains($"promptware: {name}", output);
         }
     }

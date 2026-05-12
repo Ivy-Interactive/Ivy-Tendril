@@ -56,7 +56,7 @@ public class JobServiceHookTests : IDisposable
 
         try
         {
-            var id = service.StartJob("ExecutePlan", planFolder);
+            var id = service.StartJob(new ExecutePlanArgs(planFolder));
             var job = service.GetJob(id)!;
 
             // Before hooks should have run during StartJob
@@ -89,7 +89,7 @@ public class JobServiceHookTests : IDisposable
 
         try
         {
-            var id = service.StartJob("CreatePr", planFolder);
+            var id = service.StartJob(new CreatePrArgs(planFolder));
             var job = service.GetJob(id)!;
 
             Assert.Contains(job.OutputLines, l => l.Contains("[hook:Global Hook]"));
@@ -121,7 +121,7 @@ public class JobServiceHookTests : IDisposable
         try
         {
             // Start a CreatePr job — the hook should NOT match
-            var id = service.StartJob("CreatePr", planFolder);
+            var id = service.StartJob(new CreatePrArgs(planFolder));
             var job = service.GetJob(id)!;
 
             Assert.DoesNotContain(job.OutputLines, l => l.Contains("[hook:Execute Only]"));
@@ -151,7 +151,7 @@ public class JobServiceHookTests : IDisposable
 
         try
         {
-            var id = service.StartJob("ExecutePlan", planFolder);
+            var id = service.StartJob(new ExecutePlanArgs(planFolder));
             var job = service.GetJob(id)!;
 
             // Job should not be blocked/pending — the failing hook must not prevent launch.
@@ -184,7 +184,7 @@ public class JobServiceHookTests : IDisposable
 
         try
         {
-            var id = service.StartJob("ExecutePlan", planFolder);
+            var id = service.StartJob(new ExecutePlanArgs(planFolder));
             var job = service.GetJob(id)!;
 
             Assert.Contains(job.OutputLines,
@@ -248,7 +248,7 @@ public class JobServiceHookTests : IDisposable
 
         try
         {
-            var id = service.StartJob("ExecutePlan", planFolder);
+            var id = service.StartJob(new ExecutePlanArgs(planFolder));
             service.CompleteJob(id, 0);
 
             var job = service.GetJob(id)!;
@@ -285,7 +285,7 @@ public class JobServiceHookTests : IDisposable
 
         try
         {
-            var id = service.StartJob("ExecutePlan", planFolder);
+            var id = service.StartJob(new ExecutePlanArgs(planFolder));
             service.CompleteJob(id, 1);
 
             var job = service.GetJob(id)!;
@@ -316,7 +316,7 @@ public class JobServiceHookTests : IDisposable
 
         try
         {
-            var id = service.StartJob("ExecutePlan", planFolder);
+            var id = service.StartJob(new ExecutePlanArgs(planFolder));
             service.CompleteJob(id, 0);
 
             var job = service.GetJob(id)!;
@@ -334,7 +334,7 @@ public class JobServiceHookTests : IDisposable
         // Use the constructor that doesn't take ConfigService
         var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
 
-        var id = service.CreateTestJob("ExecutePlan", Path.GetTempPath());
+        var id = service.CreateTestJob(new ExecutePlanArgs(Path.GetTempPath()));
         var job = service.GetJob(id)!;
 
         // Should not throw, just silently skip hooks

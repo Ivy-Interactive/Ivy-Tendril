@@ -6,6 +6,7 @@ namespace Ivy.Tendril.Services.Agents;
 public class ClaudeAgentProvider : IAgentProvider
 {
     public string Name => "claude";
+    public bool UsesStdinPrompt => true;
 
     public ProcessStartInfo BuildProcessStart(AgentInvocation invocation)
     {
@@ -18,6 +19,7 @@ public class ClaudeAgentProvider : IAgentProvider
             RedirectStandardInput = true,
             UseShellExecute = false,
             CreateNoWindow = true,
+            StandardInputEncoding = System.Text.Encoding.UTF8,
             StandardOutputEncoding = System.Text.Encoding.UTF8,
             StandardErrorEncoding = System.Text.Encoding.UTF8
         };
@@ -50,14 +52,14 @@ public class ClaudeAgentProvider : IAgentProvider
         if (invocation.AllowedTools.Count > 0)
         {
             psi.ArgumentList.Add("--allowedTools");
-            psi.ArgumentList.Add(string.Join(",", invocation.AllowedTools));
+            psi.ArgumentList.Add(string.Join(" ", invocation.AllowedTools));
         }
 
         foreach (var arg in invocation.ExtraArgs)
             psi.ArgumentList.Add(arg);
 
-        psi.ArgumentList.Add("--");
-        psi.ArgumentList.Add(invocation.PromptContent);
+        // Prompt is read from stdin to avoid Windows command line length limits.
+        psi.ArgumentList.Add("-");
 
         psi.Environment["CI"] = "true";
         psi.Environment["TERM"] = "dumb";
@@ -85,5 +87,51 @@ public class ClaudeAgentProvider : IAgentProvider
         }
 
         return null;
+    }
+
+    public IReadOnlyList<PermissionDenial> ExtractPermissionDenials(IReadOnlyList<string> outputLines)
+    {
+        var denials = new List<PermissionDenial>();
+
+        for (var i = outputLines.Count - 1; i >= 0; i--)
+        {
+            var line = outputLines[i];
+            if (!line.Contains("\"type\":\"result\"")) continue;
+
+            try
+            {
+                using var doc = JsonDocument.Parse(line);
+                if (!doc.RootElement.TryGetProperty("permission_denials", out var arr))
+                    break;
+
+                foreach (var denial in arr.EnumerateArray())
+                {
+                    var toolName = denial.TryGetProperty("tool_name", out var tn) ? tn.GetString() : null;
+                    if (string.IsNullOrEmpty(toolName)) continue;
+
+                    string? inputSummary = null;
+                    if (denial.TryGetProperty("tool_input", out var input))
+                    {
+                        if (input.TryGetProperty("file_path", out var fp))
+                            inputSummary = fp.GetString();
+                        else if (input.TryGetProperty("command", out var cmd))
+                        {
+                            var cmdStr = cmd.GetString() ?? "";
+                            inputSummary = cmdStr.Length > 80 ? cmdStr[..80] + "..." : cmdStr;
+                        }
+                    }
+
+                    denials.Add(new PermissionDenial(toolName, inputSummary));
+                }
+            }
+            catch
+            {
+                // skip malformed JSON
+            }
+
+            break;
+        }
+
+        return denials;
     }
 }

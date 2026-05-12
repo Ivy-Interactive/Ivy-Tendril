@@ -66,9 +66,7 @@ public class SidebarView(
         var content = new List(filteredList.Select(plan =>
         {
             var clickablePlan = plan;
-            var stateBadgeVariant = StatusMappings.PlanStatusBadgeVariants.TryGetValue(plan.Status, out var variant)
-                ? variant
-                : BadgeVariant.Outline;
+            var stateBadgeVariant = StatusMappings.PlanStatusBadgeVariants.GetValueOrDefault(plan.Status, BadgeVariant.Outline);
 
             var badges = Layout.Horizontal().Gap(1);
             if (plan.Status != PlanStatus.Draft)

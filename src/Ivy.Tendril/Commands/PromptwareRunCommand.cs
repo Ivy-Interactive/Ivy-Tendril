@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services.Agents;
@@ -31,7 +32,7 @@ public class PromptwareRunSettings : CommandSettings
     public string[]? Values { get; init; }
 
     [CommandOption("--plan")]
-    [Description("Plan ID or folder path — populates PlanFolder, PlansDirectory, PlanId")]
+    [Description("Plan ID or folder path — populates TendrilPlanFolder, TendrilPlansFolder, TendrilPlanId")]
     public string? Plan { get; init; }
 
     [CommandOption("--promptware-path")]
@@ -74,35 +75,6 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         }
     }
 
-    private static string ResolvePromptwareFolder(string promptwareName, string? tendrilHome, string? promptwarePath)
-    {
-        // 1. --promptware-path override (highest priority)
-        if (!string.IsNullOrEmpty(promptwarePath))
-        {
-            var overrideFolder = Path.Combine(promptwarePath, promptwareName);
-            if (File.Exists(Path.Combine(overrideFolder, "Program.md")))
-                return overrideFolder;
-        }
-
-        // 2. Source/debug mode (AppContext.BaseDirectory relative)
-        var sourceRoot = PromptwareHelper.ResolvePromptsRoot(tendrilHome);
-        var sourceFolder = Path.Combine(sourceRoot, promptwareName);
-
-        if (File.Exists(Path.Combine(sourceFolder, "Program.md")))
-            return sourceFolder;
-
-        // 3. TENDRIL_HOME/Promptwares (deployed mode)
-        tendrilHome ??= Environment.GetEnvironmentVariable("TENDRIL_HOME");
-        if (!string.IsNullOrEmpty(tendrilHome))
-        {
-            var deployedRoot = Path.Combine(tendrilHome, "Promptwares");
-            var deployedFolder = Path.Combine(deployedRoot, promptwareName);
-            if (File.Exists(Path.Combine(deployedFolder, "Program.md")))
-                return deployedFolder;
-        }
-
-        return sourceFolder;
-    }
 
     internal int Run(PromptwareRunSettings settings, CancellationToken cancellationToken = default)
     {
@@ -112,7 +84,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
 
         var tendrilSettings = configService.Settings;
 
-        var programFolder = ResolvePromptwareFolder(settings.Promptware, configService.TendrilHome, settings.PromptwarePath);
+        var programFolder = PromptwareHelper.ResolvePromptwareFolder(settings.Promptware, configService.TendrilHome, settings.PromptwarePath);
         var programMd = Path.Combine(programFolder, "Program.md");
 
         if (!File.Exists(programMd))
@@ -127,9 +99,9 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         {
             ["PROMPTWARE_DIR"] = programFolder
         };
-        if (values.TryGetValue("PlansDirectory", out var plansDir))
+        if (values.TryGetValue("TendrilPlansFolder", out var plansDir))
             jobContext["PLANS_DIR"] = plansDir;
-        if (values.TryGetValue("PlanFolder", out var planFolder2))
+        if (values.TryGetValue("TendrilPlanFolder", out var planFolder2))
             jobContext["PLAN_DIR"] = planFolder2;
 
         var resolution = !string.IsNullOrEmpty(settings.Agent)
@@ -145,8 +117,8 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             && !string.IsNullOrWhiteSpace(specificCfg.CustomInstructions))
             customInstructions = specificCfg.CustomInstructions;
 
-        var logFile = FirmwareCompiler.GetNextLogFile(programFolder, values);
-        var firmwareContext = new FirmwareContext(programFolder, logFile, values, customInstructions);
+        var logFile = FirmwareCompiler.GetNextLogFile(programFolder);
+        var firmwareContext = new FirmwareContext(programFolder, values, customInstructions);
         var prompt = FirmwareCompiler.Compile(firmwareContext);
 
         // Emit resolved context as YAML for testability/debugging
@@ -159,9 +131,9 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             Console.WriteLine($"configPath: {configService.ConfigPath}");
             Console.WriteLine($"tendrilHome: {configService.TendrilHome}");
             Console.WriteLine($"plansDirectory: {configService.PlanFolder}");
-            if (values.TryGetValue("PlanId", out var planId))
+            if (values.TryGetValue("TendrilPlanId", out var planId))
                 Console.WriteLine($"planId: {planId}");
-            if (values.TryGetValue("PlanFolder", out var planPath))
+            if (values.TryGetValue("TendrilPlanFolder", out var planPath))
                 Console.WriteLine($"planPath: {planPath}");
             Console.WriteLine($"workingDirectory: {workDir}");
             Console.WriteLine($"logFile: {logFile}");
@@ -184,6 +156,14 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             return 0;
         }
 
+        string? promptFilePath = null;
+        if (!resolution.Provider.UsesStdinPrompt)
+        {
+            var tempDir = Path.GetTempPath();
+            promptFilePath = Path.Combine(tempDir, $"prompt-{Guid.NewGuid():N}.md");
+            File.WriteAllText(promptFilePath, prompt);
+        }
+
         var invocation = new AgentInvocation(
             PromptContent: prompt,
             WorkingDirectory: workDir,
@@ -191,7 +171,8 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             Effort: resolution.Effort,
             SessionId: "",
             AllowedTools: resolution.AllowedTools,
-            ExtraArgs: resolution.ExtraArgs);
+            ExtraArgs: resolution.ExtraArgs,
+            PromptFilePath: promptFilePath);
 
         var psi = resolution.Provider.BuildProcessStart(invocation);
 
@@ -204,11 +185,13 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         if (!string.IsNullOrEmpty(settings.CliLog))
             psi.Environment["TENDRIL_CLI_LOG"] = settings.CliLog;
 
-        JobLauncher.EnsureTendrilOnPath(psi);
-        JobLauncher.ResolveCommandShim(psi);
+        AgentProcessHelper.EnsureTendrilOnPath(psi);
+        AgentProcessHelper.ResolveCommandShim(psi);
 
         if (verbosityService.Level != VerbosityLevel.Quiet)
             _logger.LogInformation("Running {Promptware} via {ProviderName} (model={Model}, effort={Effort})", settings.Promptware, resolution.Provider.Name, resolution.Model, resolution.Effort);
+
+        var cliCommand = AgentProcessHelper.FormatCliCommand(psi);
 
         using var process = Process.Start(psi);
         if (process == null)
@@ -224,12 +207,18 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             process.StandardInput.Close();
         }
 
+        var outputLines = new List<string>();
+
         var outputTask = Task.Run(() =>
         {
             while (!process.StandardOutput.EndOfStream)
             {
                 var line = process.StandardOutput.ReadLine();
-                if (line != null) Console.WriteLine(line);
+                if (line != null)
+                {
+                    Console.WriteLine(line);
+                    outputLines.Add(line);
+                }
             }
         }, cancellationToken);
 
@@ -238,12 +227,36 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             while (!process.StandardError.EndOfStream)
             {
                 var line = process.StandardError.ReadLine();
-                if (line != null) Console.Error.WriteLine(line);
+                if (line != null)
+                {
+                    Console.Error.WriteLine(line);
+                    outputLines.Add($"[stderr] {line}");
+                }
             }
         }, cancellationToken);
 
         process.WaitForExit();
         Task.WaitAll([outputTask, errorTask], TimeSpan.FromSeconds(5));
+
+        try
+        {
+            var job = new JobItem
+            {
+                Provider = resolution.Provider.Name,
+                Status = process.ExitCode == 0 ? JobStatus.Completed : JobStatus.Failed,
+                CompletedAt = DateTime.UtcNow,
+                ExitCode = process.ExitCode,
+                LogFilePath = logFile,
+                CompiledPrompt = prompt,
+                CliCommand = cliCommand
+            };
+            foreach (var line in outputLines)
+                job.EnqueueOutput(line);
+
+            PromptwareLogWriter.WriteLog(job);
+            PromptwareLogWriter.WriteRawLog(logFile, outputLines);
+        }
+        catch { }
 
         return process.ExitCode;
     }
@@ -262,17 +275,17 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             try
             {
                 var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.Plan);
-                values["PlanFolder"] = planFolder;
-                values["PlansDirectory"] = Path.GetDirectoryName(planFolder) ?? "";
+                values["TendrilPlanFolder"] = planFolder;
+                values["TendrilPlansFolder"] = Path.GetDirectoryName(planFolder) ?? "";
                 var folderName = Path.GetFileName(planFolder);
                 var dashIdx = folderName.IndexOf('-');
-                if (dashIdx > 0) values["PlanId"] = folderName[..dashIdx];
+                if (dashIdx > 0) values["TendrilPlanId"] = folderName[..dashIdx];
             }
             catch (DirectoryNotFoundException)
             {
                 // If it looks like a direct folder path, use it as-is (for testing)
-                values["PlanFolder"] = settings.Plan;
-                values["PlansDirectory"] = Path.GetDirectoryName(settings.Plan) ?? "";
+                values["TendrilPlanFolder"] = settings.Plan;
+                values["TendrilPlansFolder"] = Path.GetDirectoryName(settings.Plan) ?? "";
             }
         }
 
