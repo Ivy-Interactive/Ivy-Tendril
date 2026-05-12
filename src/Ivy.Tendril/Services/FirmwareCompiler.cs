@@ -59,10 +59,10 @@ public static class FirmwareCompiler
 
         var header = string.Join("\n", headerValues
             .OrderBy(kv => kv.Key)
-            .Select(kv => $"{kv.Key}: {kv.Value}"));
+            .Select(kv => $"{kv.Key}: {NormalizeHeaderValue(kv.Key, kv.Value)}"));
 
-        var toolsListing = ListDirectoryFiles(Path.Combine(context.ProgramFolder, "Tools"));
-        var memoryListing = ListDirectoryFiles(Path.Combine(context.ProgramFolder, "Memory"));
+        var toolsListing = ListDirectoryFiles(Path.Combine(context.ProgramFolder, "Tools"), "(no tools yet)");
+        var memoryListing = ListDirectoryFiles(Path.Combine(context.ProgramFolder, "Memory"), "(no memory yet)");
 
         var firmware = FirmwareTemplate
             .Replace("{HEADER}", header)
@@ -95,18 +95,27 @@ public static class FirmwareCompiler
         return firmware;
     }
 
-    private static string ListDirectoryFiles(string directory)
+    private static readonly HashSet<string> PathKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Args", "TendrilConfigPath", "TendrilHome", "TendrilPlanFolder",
+        "TendrilPlansFolder", "SourceUrl", "SourcePath"
+    };
+
+    private static string NormalizeHeaderValue(string key, string value) =>
+        PathKeys.Contains(key) ? value.Replace('\\', '/') : value;
+
+    private static string ListDirectoryFiles(string directory, string emptyLabel = "(none)")
     {
         if (!Directory.Exists(directory))
-            return "(none)";
+            return emptyLabel;
 
         var files = Directory.GetFiles(directory)
             .Select(Path.GetFileName)
-            .Where(f => f != null)
+            .Where(f => f != null && !f.StartsWith('.'))
             .OrderBy(f => f)
             .ToList();
 
-        return files.Count == 0 ? "(none)" : string.Join(", ", files);
+        return files.Count == 0 ? emptyLabel : string.Join(", ", files);
     }
 
     public static string GetNextLogFile(string programFolder)

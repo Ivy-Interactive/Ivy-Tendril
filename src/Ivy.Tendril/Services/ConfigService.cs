@@ -311,10 +311,32 @@ public class ConfigService : IConfigService, IDisposable
     {
         Directory.CreateDirectory(TendrilHome);
         Directory.CreateDirectory(Path.Combine(TendrilHome, "Inbox"));
-        Directory.CreateDirectory(PlanFolder);
         Directory.CreateDirectory(Path.Combine(TendrilHome, "Trash"));
+        Directory.CreateDirectory(PlanFolder);
         Directory.CreateDirectory(Path.Combine(TendrilHome, "Promptwares"));
         Directory.CreateDirectory(Path.Combine(TendrilHome, "Hooks"));
+        CleanAndCreateTempDirectory();
+    }
+
+    private void CleanAndCreateTempDirectory()
+    {
+        var tempDir = Path.Combine(TendrilHome, "Temp");
+        try
+        {
+            if (Directory.Exists(tempDir))
+            {
+                foreach (var file in Directory.GetFiles(tempDir))
+                    File.Delete(file);
+            }
+            else
+            {
+                Directory.CreateDirectory(tempDir);
+            }
+        }
+        catch
+        {
+            Directory.CreateDirectory(tempDir);
+        }
     }
 
     private void ValidateSettings()
