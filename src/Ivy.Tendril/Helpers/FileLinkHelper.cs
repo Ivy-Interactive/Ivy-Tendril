@@ -69,13 +69,17 @@ public static class FileLinkHelper
             }
         }
 
+        var contentWithPath = Layout.Vertical().Gap(1);
+        contentWithPath |= Text.Block(filePath).Muted().Small();
+        contentWithPath |= sheetContent;
+
         var finalContent = File.Exists(filePath)
             ? new HeaderLayout(
                 new Button($"Open in {config.Editor.Label}").Icon(Icons.ExternalLink).Outline().OnClick(() =>
                 {
                     config.OpenInEditor(filePath);
                 }),
-                sheetContent
+                contentWithPath
             )
             : sheetContent;
 
