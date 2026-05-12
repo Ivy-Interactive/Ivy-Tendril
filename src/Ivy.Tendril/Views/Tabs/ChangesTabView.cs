@@ -109,7 +109,7 @@ public class ChangesTabView(
         }
 
         var treePanel = Layout.Vertical().Gap(2).Padding(1)
-            .Width(Size.Rem(16).Min(Size.Rem(16))).Scroll(Scroll.Auto).Height(Size.Full())
+            .Width(Size.Rem(12).Min(Size.Rem(12))).Scroll(Scroll.Auto).Height(Size.Full())
             | tree;
 
         return Layout.Horizontal().Height(Size.Full())
