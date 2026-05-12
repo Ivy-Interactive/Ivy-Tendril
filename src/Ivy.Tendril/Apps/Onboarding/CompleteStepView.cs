@@ -7,6 +7,7 @@ public class CompleteStepView(
     IState<int> stepperIndex,
     IState<List<RepoRef>> selectedRepos,
     IState<string> projectName,
+    IState<bool> isStepLoading,
     OnboardingVerificationSession session) : ViewBase
 {
     public override object Build()
@@ -44,6 +45,7 @@ public class CompleteStepView(
 
                 session.Started.Set(true);
                 session.Running.Set(true);
+                isStepLoading.Set(true);
 
                 foreach (var name in projectsNeedingVerifications)
                 {
@@ -83,6 +85,7 @@ public class CompleteStepView(
             finally
             {
                 session.Running.Set(false);
+                isStepLoading.Set(false);
             }
         }, [EffectTrigger.OnMount()]);
 
@@ -95,6 +98,7 @@ public class CompleteStepView(
         async Task OnFinish()
         {
             isFinishing.Set(true);
+            isStepLoading.Set(true);
             session.Error.Set(null);
             try
             {
@@ -106,6 +110,7 @@ public class CompleteStepView(
             {
                 session.Error.Set($"Failed to complete setup: {ex.Message}");
                 isFinishing.Set(false);
+                isStepLoading.Set(false);
             }
         }
 

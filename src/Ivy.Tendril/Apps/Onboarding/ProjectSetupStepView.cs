@@ -10,6 +10,7 @@ public class ProjectSetupStepView(
     IState<int> stepperIndex,
     IState<List<RepoRef>> selectedRepos,
     IState<string> projectName,
+    IState<bool> isStepLoading,
     OnboardingVerificationSession session) : ViewBase
 {
     public override object Build()
@@ -86,6 +87,7 @@ public class ProjectSetupStepView(
                         {
                             error.Set(null);
                             isCloning.Set(true);
+                            isStepLoading.Set(true);
 
                             var refs = await ResolveReposAsync(config, progressMessage, error, isCloning);
                             if (refs == null) return;
@@ -120,6 +122,7 @@ public class ProjectSetupStepView(
 
                         error.Set(null);
                         isCloning.Set(true);
+                        isStepLoading.Set(true);
 
                         var progressCts = new CancellationTokenSource();
                         _ = DriveProgressAsync(progressValue, progressCts.Token);
@@ -158,6 +161,7 @@ public class ProjectSetupStepView(
                             progressValue.Set(null);
                             progressMessage.Set(null);
                             isCloning.Set(false);
+                            isStepLoading.Set(false);
                             stepperIndex.Set(stepperIndex.Value + 1);
                         }
                         catch (Exception ex)
@@ -167,6 +171,7 @@ public class ProjectSetupStepView(
                             progressMessage.Set(null);
                             error.Set($"Failed to set up project: {ex.Message}");
                             isCloning.Set(false);
+                            isStepLoading.Set(false);
                         }
                     });
         }
@@ -272,6 +277,7 @@ public class ProjectSetupStepView(
                 {
                     error.Set($"Failed to fetch repository: {repo.Path}.");
                     isCloning.Set(false);
+                    isStepLoading.Set(false);
                     return null;
                 }
                 refs.Add(repo with { Path = destPath });
