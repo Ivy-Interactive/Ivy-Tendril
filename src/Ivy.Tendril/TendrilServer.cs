@@ -38,9 +38,10 @@ public static class TendrilServer
         // Store reference for cleanup on process exit
         Program.SetConfigServiceForCleanup(configService);
 
+        server.Services.AddHttpContextAccessor();
+
         if (configService.Settings.Auth != null)
         {
-            server.Services.AddHttpContextAccessor();
             server.UseAuth<Auth.TendrilAuthProvider>();
         }
 

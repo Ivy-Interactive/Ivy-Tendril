@@ -219,6 +219,9 @@ public class ConfigService : IConfigService, IDisposable
             Settings = new TendrilSettings();
             ConfigPath = Path.Combine(System.AppContext.BaseDirectory, "config.yaml");
             TendrilHome = "";
+            // Populate Auth from env vars in-memory so UseAuth middleware is registered even
+            // before onboarding completes (no config.yaml yet → nothing to persist here).
+            AuthEnvironmentBootstrapper.TrySyncFromEnvironment(Settings, _logger);
             return;
         }
 
@@ -230,6 +233,9 @@ public class ConfigService : IConfigService, IDisposable
         {
             NeedsOnboarding = true;
             Settings = new TendrilSettings();
+            // Populate Auth from env vars in-memory so UseAuth middleware is registered even
+            // before onboarding completes (config.yaml missing or unreadable → nothing to persist here).
+            AuthEnvironmentBootstrapper.TrySyncFromEnvironment(Settings, _logger);
             return;
         }
 
@@ -305,6 +311,26 @@ public class ConfigService : IConfigService, IDisposable
         ExpandRepoPaths();
         ValidateRepoPathsAreNotWorktrees();
         CreateRequiredDirectories();
+        SyncAuthFromEnvironmentAndPersistIfNeeded();
+    }
+
+    /// <summary>
+    /// If env supplies a session password (e.g. <c>TENDRIL_AUTH_PASSWORD</c> or <c>BasicAuth__Users</c>) that does not
+    /// match the Argon2 hash in config, re-hash and persist so <c>config.yaml</c> stays aligned with the deployment secret.
+    /// </summary>
+    private void SyncAuthFromEnvironmentAndPersistIfNeeded()
+    {
+        if (string.IsNullOrEmpty(TendrilHome)) return;
+
+        try
+        {
+            if (!AuthEnvironmentBootstrapper.TrySyncFromEnvironment(Settings, _logger)) return;
+            WriteSettingsToDisk();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to sync session auth from environment into config");
+        }
     }
 
     private void CreateRequiredDirectories()
@@ -403,6 +429,13 @@ public class ConfigService : IConfigService, IDisposable
 
     public void SaveSettings()
     {
+        WriteSettingsToDisk();
+        ReloadSettings();
+    }
+
+    /// <summary>Serializes current <see cref="Settings"/> and writes <see cref="ConfigPath"/> (with backup). Does not reload.</summary>
+    private void WriteSettingsToDisk()
+    {
         _levelNamesCache = null;
         var yaml = YamlHelper.SerializerCompact.Serialize(Settings);
 
@@ -419,7 +452,6 @@ public class ConfigService : IConfigService, IDisposable
 
         FileHelper.WriteAllText(ConfigPath, yaml);
         CreateConfigBackup();
-        ReloadSettings();
     }
 
     public void ReloadSettings()
@@ -440,6 +472,7 @@ public class ConfigService : IConfigService, IDisposable
             VariableExpansion.InitializeUserSecrets(_logger);
             ExpandSettingsVariables();
 
+            SyncAuthFromEnvironmentAndPersistIfNeeded();
             SettingsReloaded?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
@@ -607,6 +640,7 @@ public class ConfigService : IConfigService, IDisposable
                     VariableExpansion.InitializeUserSecrets(_logger);
                     ExpandSettingsVariables();
                     ExpandRepoPaths();
+                    SyncAuthFromEnvironmentAndPersistIfNeeded();
                     return true;
                 }
             }
@@ -620,6 +654,7 @@ public class ConfigService : IConfigService, IDisposable
         Settings = CreateMinimalSettings();
         var minimalYaml = YamlHelper.SerializerCompact.Serialize(Settings);
         FileHelper.WriteAllText(ConfigPath, minimalYaml);
+        SyncAuthFromEnvironmentAndPersistIfNeeded();
         return true;
     }
 
@@ -651,6 +686,7 @@ public class ConfigService : IConfigService, IDisposable
             VariableExpansion.InitializeUserSecrets(_logger);
             ExpandSettingsVariables();
             ExpandRepoPaths();
+            SyncAuthFromEnvironmentAndPersistIfNeeded();
             SettingsReloaded?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
@@ -788,6 +824,7 @@ public class ConfigService : IConfigService, IDisposable
         _levelNamesCache = null;
         VariableExpansion.InitializeUserSecrets(_logger);
         ExpandSettingsVariables();
+        SyncAuthFromEnvironmentAndPersistIfNeeded();
     }
 
     /// <summary>

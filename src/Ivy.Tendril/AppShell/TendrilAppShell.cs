@@ -3,11 +3,14 @@ using System.Reactive.Disposables;
 using System.Text.Json;
 using Ivy.Core;
 using Ivy.Core.Apps;
+using Ivy.Desktop;
+using Ivy.Tendril.AppShell.Dialogs;
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Views;
 using Ivy.Widgets.Internal;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.AppShell;
@@ -93,6 +96,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var appRepository = UseService<IAppRepository>();
         var client = UseService<IClientProvider>();
         Context.TryUseService<IAuthService>(out var auth);
+        Context.TryUseService<DesktopWindow>(out var desktopWindow);
+        var isDesktop = desktopWindow != null;
         var user = UseState<UserInfo?>();
         var currentApp = UseState<AppHost?>();
         var countsService = UseService<IPlanCountsService>();
@@ -103,6 +108,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var serverArgs = UseService<ServerArgs>();
         var navigate = Context.UseSignal<NavigateSignal, NavigateArgs, Unit>();
         var navigator = UseNavigation();
+        var httpContextAccessor = UseService<IHttpContextAccessor>();
+        var importIssuesDialogOpen = UseState(false);
         var newsArticles = UseState(Array.Empty<SidebarNewsArticle>());
         UseEffect(async () =>
         {
@@ -402,6 +409,39 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             OnCtrlRightClickSelect = new EventHandler<Event<SidebarMenu, object>>(OnCtrlRightClickSelect)
         };
 
+        var commonMenuItems = new[]
+        {
+            MenuItem.Default("Import Issues from GitHub")
+                .Tag("$import-issues")
+                .Icon(Icons.Download)
+                .OnSelect(() => importIssuesDialogOpen.Set(true)),
+            MenuItem.Default("Setup")
+                .Tag("$setup")
+                .Icon(Icons.Construction)
+                .OnSelect(() => navigator.Navigate<SettingsApp>()),
+            MenuItem.Default("Trash")
+                .Tag("$trash")
+                .Icon(Icons.Trash2)
+                .OnSelect(() => navigator.Navigate<TrashApp>()),
+            MenuItem.Default("Theme")
+                .Tag("$theme")
+                .Icon(Icons.SunMoon)
+                .Children(
+                    MenuItem.Checkbox("Light").Icon(Icons.Sun).OnSelect(() => client.SetThemeMode(ThemeMode.Light)),
+                    MenuItem.Checkbox("Dark").Icon(Icons.Moon).OnSelect(() => client.SetThemeMode(ThemeMode.Dark)),
+                    MenuItem.Checkbox("System").Icon(Icons.SunMoon)
+                        .OnSelect(() => client.SetThemeMode(ThemeMode.System))
+                ),
+            MenuItem.Default("Open config.yaml")
+                .Tag("$open-config")
+                .Icon(Icons.FileText)
+                .OnSelect(() =>
+                    ConfigYamlUiHelper.OpenOrNavigate(config, navigator, isDesktop, httpContextAccessor))
+        };
+
+        var authSession = auth?.GetAuthSession();
+        var isLoggedIn = authSession != null;
+
         void OnLogout()
         {
             _ = LogoutAsync();
@@ -451,14 +491,36 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                     profileTrigger)
                 .Top()
                 .Items(settings.FooterMenuItemsTransformer(
-                    [MenuItem.Default("Logout").Tag("$logout").Icon(Icons.LogOut).OnSelect(OnLogout)],
+                    [
+                        ..commonMenuItems,
+                        MenuItem.Default("Logout").Tag("$logout").Icon(Icons.LogOut).OnSelect(OnLogout)
+                    ],
                     navigator));
 
             footer = Layout.Vertical().Gap(1) | settingsButton | profileMenu;
         }
         else
         {
-            footer = settingsButton;
+            var settingsTrigger = new Button("Settings")
+                .Content(
+                    Layout.Horizontal().AlignContent(Align.Left)
+                    | Icons.Settings.ToIcon()
+                    | Text.P("Settings").Small().Muted()
+                )
+                .Variant(ButtonVariant.Ghost).Width(Size.Full());
+
+            var logoutItem = MenuItem.Default("Logout").Tag("$logout").Icon(Icons.LogOut).OnSelect(OnLogout);
+            MenuItem[] footerMenuItems = isLoggedIn
+                ? [..commonMenuItems, logoutItem]
+                : commonMenuItems;
+
+            footer = new DropDownMenu(
+                    DropDownMenu.DefaultSelectHandler(),
+                    settingsTrigger)
+                .Top()
+                .Items(
+                    settings.FooterMenuItemsTransformer(footerMenuItems, navigator)
+                );
         }
 
         if (config.ParseError != null)
@@ -466,20 +528,23 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
         if (config.NeedsOnboarding) return new OnboardingApp();
 
-        return new SidebarLayout(
-            body ?? null!,
-            sidebarMenu,
-            Layout.Vertical().Gap(2)
-            | settings.Header
-            | new NewPlanButton()
-            ,
-            Layout.Vertical(
-                new SidebarNews(newsArticles.Value),
-                settings.Footer,
-                footer
-            ),
-            settings.Width
-        ).Open(sidebarOpen.Value).MainAppSidebar();
+        return new Fragment(
+            new SidebarLayout(
+                body ?? null!,
+                sidebarMenu,
+                Layout.Vertical().Gap(2)
+                | settings.Header
+                | new NewPlanButton()
+                ,
+                Layout.Vertical(
+                    new SidebarNews(newsArticles.Value),
+                    settings.Footer,
+                    footer
+                ),
+                settings.Width
+            ).Open(sidebarOpen.Value).MainAppSidebar(),
+            new ImportIssuesDialog(importIssuesDialogOpen, config)
+        );
     }
 
     internal record TabState(string Id, string AppId, string Title, AppHost AppHost, Icons? Icon, string RefreshToken)

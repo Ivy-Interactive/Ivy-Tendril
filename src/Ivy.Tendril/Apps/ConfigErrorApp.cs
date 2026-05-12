@@ -1,5 +1,7 @@
-using Ivy.Tendril.Services;
+using Ivy.Desktop;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Services;
+using Microsoft.AspNetCore.Http;
 
 namespace Ivy.Tendril.Apps;
 
@@ -9,6 +11,10 @@ public class ConfigErrorApp(IConfigService config) : ViewBase
     {
         var showDetails = UseState(false);
         var client = UseService<IClientProvider>();
+        var navigator = UseNavigation();
+        var httpContextAccessor = UseService<IHttpContextAccessor>();
+        Context.TryUseService<DesktopWindow>(out var desktopWindow);
+        var isDesktopShell = desktopWindow != null;
         var parseError = config.ParseError;
 
         if (parseError == null)
@@ -33,7 +39,8 @@ public class ConfigErrorApp(IConfigService config) : ViewBase
         content |= Layout.Horizontal().Gap(2)
                    | new Button("Edit Config")
                        .Icon(Icons.FileText)
-                       .OnClick(() => config.OpenInEditor(config.ConfigPath))
+                       .OnClick(() =>
+                           ConfigYamlUiHelper.OpenOrNavigate(config, navigator, isDesktopShell, httpContextAccessor))
                    | new Button("Reload Config")
                        .Icon(Icons.RefreshCw)
                        .Variant(ButtonVariant.Outline)
