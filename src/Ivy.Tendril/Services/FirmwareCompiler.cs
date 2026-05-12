@@ -44,7 +44,13 @@ public static class FirmwareCompiler
 
         ## Reflection
 
-        Every execution needs to end with a reflection step. This is your opportunity to improve over time. What did we learn during this session. Save this in an applicable markdown file under {PROGRAMFOLDER}/Memory/.
+        Every execution needs to end with a reflection step. This is your opportunity to improve over time. What did we learn during this session? Save reflections using the CLI:
+
+        ```bash
+        tendril promptware write-memory {PROMPTWARE_NAME} <filename>.md <<'EOF'
+        <reflection content>
+        EOF
+        ```
 
         - Note that learnings might be falsified over time. Pruning memory is just as important as storing new memory.
         - Many sessions don't have any new learnings. Only store memory when you need it.
@@ -64,9 +70,12 @@ public static class FirmwareCompiler
         var toolsListing = ListDirectoryFiles(Path.Combine(context.ProgramFolder, "Tools"), "(no tools yet)");
         var memoryListing = ListDirectoryFiles(Path.Combine(context.ProgramFolder, "Memory"), "(no memory yet)");
 
+        var promptwareName = Path.GetFileName(context.ProgramFolder);
+
         var firmware = FirmwareTemplate
             .Replace("{HEADER}", header)
             .Replace("{PROGRAMFOLDER}", context.ProgramFolder)
+            .Replace("{PROMPTWARE_NAME}", promptwareName)
             .Replace("{TOOLS}", toolsListing)
             .Replace("{MEMORY}", memoryListing);
 

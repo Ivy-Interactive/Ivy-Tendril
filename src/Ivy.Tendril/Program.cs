@@ -177,7 +177,7 @@ public class Program
         {
             "doctor", "db-version", "db-migrate", "db-reset",
             "update-promptwares", "job", "plan", "promptware",
-            "verification", "project",
+            "trash", "verification", "project",
             "version", "--version"
         };
         return cliCommands.Contains(firstArg);
@@ -262,8 +262,15 @@ public class Program
             // Other commands
             config.AddCommand<UpdatePromptwaresCliCommand>("update-promptwares")
                 .WithDescription("Update embedded promptwares");
-            config.AddCommand<PromptwareRunCommand>("promptware")
-                .WithDescription("Run a promptware directly");
+            config.AddBranch("promptware", pw =>
+            {
+                pw.AddCommand<PromptwareRunCommand>("run")
+                    .WithDescription("Run a promptware directly");
+                pw.AddCommand<PromptwareWriteMemoryCommand>("write-memory")
+                    .WithDescription("Write a promptware memory file from STDIN");
+                pw.AddCommand<PromptwareWriteToolCommand>("write-tool")
+                    .WithDescription("Write a promptware tool file from STDIN");
+            });
             config.AddCommand<VersionCommand>("version")
                 .WithDescription("Show version information");
 
@@ -357,6 +364,12 @@ public class Program
                     .WithDescription("Remove a verification definition");
                 verification.AddCommand<VerificationSetCommand>("set")
                     .WithDescription("Update a verification definition field");
+            });
+
+            config.AddBranch("trash", trash =>
+            {
+                trash.AddCommand<TrashWriteCommand>("write")
+                    .WithDescription("Write a file to Trash from STDIN");
             });
 
             config.AddBranch("project", project =>

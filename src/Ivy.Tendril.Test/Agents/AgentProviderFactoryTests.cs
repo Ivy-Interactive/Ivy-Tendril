@@ -75,9 +75,6 @@ public class AgentProviderFactoryTests
         Assert.Contains("Read", resolution.AllowedTools);
         Assert.Contains("Write", resolution.AllowedTools);
         Assert.Contains("Bash(tendril*)", resolution.AllowedTools);
-        // Promptware-scoped tools
-        Assert.Contains("Write(/promptwares/UnknownPromptware/**)", resolution.AllowedTools);
-        Assert.Contains("Edit(/promptwares/UnknownPromptware/**)", resolution.AllowedTools);
     }
 
     [Fact]
@@ -192,8 +189,6 @@ public class AgentProviderFactoryTests
         Assert.Contains("Bash(tendril*)", resolution.AllowedTools);
         Assert.Contains("WebFetch", resolution.AllowedTools);
         Assert.Contains("WebSearch", resolution.AllowedTools);
-        Assert.Contains("Write(/promptwares/SomePromptware/**)", resolution.AllowedTools);
-        Assert.Contains("Edit(/promptwares/SomePromptware/**)", resolution.AllowedTools);
         Assert.Contains("Bash(/promptwares/SomePromptware/Tools/*)", resolution.AllowedTools);
         Assert.DoesNotContain("Bash", resolution.AllowedTools.Where(t => t == "Bash"));
         Assert.Empty(resolution.ExtraArgs);
@@ -354,9 +349,7 @@ public class AgentProviderFactoryTests
         Assert.Contains("Read", resolution.AllowedTools);
         Assert.Contains("Bash(tendril*)", resolution.AllowedTools);
         Assert.Contains("WebFetch", resolution.AllowedTools);
-        // Promptware self-modification tools
-        Assert.Contains("Write(D:/Tendril/Promptwares/CreatePlan/**)", resolution.AllowedTools);
-        Assert.Contains("Edit(D:/Tendril/Promptwares/CreatePlan/**)", resolution.AllowedTools);
+        // Promptware tool execution (scoped to own directory)
         Assert.Contains("Bash(D:/Tendril/Promptwares/CreatePlan/Tools/*)", resolution.AllowedTools);
         // Config extras with expanded variables
         Assert.Contains("Write(D:/Tendril/Plans/**)", resolution.AllowedTools);
@@ -424,9 +417,6 @@ public class AgentProviderFactoryTests
         Assert.Contains("Bash", resolution.AllowedTools);
         Assert.Contains("Write(/plans/01234-Test/**)", resolution.AllowedTools);
         Assert.Contains("Edit(/plans/01234-Test/**)", resolution.AllowedTools);
-        // Also gets promptware self-modification
-        Assert.Contains("Write(/promptwares/ExecutePlan/**)", resolution.AllowedTools);
-        Assert.Contains("Edit(/promptwares/ExecutePlan/**)", resolution.AllowedTools);
     }
 
     [Fact]
@@ -497,14 +487,12 @@ public class AgentProviderFactoryTests
         Assert.Contains("WebFetch", resolution.AllowedTools);
         Assert.Contains("WebSearch", resolution.AllowedTools);
 
-        // Promptware self-modification tools (scoped to own directory)
-        Assert.Contains("Write(/promptwares/UpdateProject/**)", resolution.AllowedTools);
-        Assert.Contains("Edit(/promptwares/UpdateProject/**)", resolution.AllowedTools);
+        // Promptware tool execution (scoped to own directory)
         Assert.Contains("Bash(/promptwares/UpdateProject/Tools/*)", resolution.AllowedTools);
 
         // Must NOT have unrestricted Bash
         Assert.DoesNotContain("Bash", resolution.AllowedTools.Where(t => t == "Bash"));
 
-        Assert.Equal(14, resolution.AllowedTools.Count);
+        Assert.Equal(12, resolution.AllowedTools.Count);
     }
 }

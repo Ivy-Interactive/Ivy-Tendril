@@ -47,10 +47,13 @@ If all questions are resolved and no new questions arose, omit the `## Questions
 ### 4. Apply Changes
 
 - Write the new revision via CLI (number auto-incremented):
-  1. Write the updated revision content to `<TendrilHome>/Temp/<short-random>.md` using the `Write` tool
-  2. Run: `tendril plan write-revision <plan-id> --file "<path-to-temp-file>"`
+  ```bash
+  tendril plan write-revision <plan-id> <<'EOF'
+  <updated revision content here>
+  EOF
+  ```
 
-  Do NOT use the Write or Edit tools to create revision files directly in `revisions/` — always use `tendril plan write-revision` with `--file`.
+  The command reads from STDIN and auto-creates the next numbered revision file. Do NOT use the Write or Edit tools to create revision files directly in `revisions/`.
 - Incorporate the intent of each instruction into the updated plan
 - Maintain the `## Questions` section (placed after the title, before `## Problem`) using `<details>` tags: (1) Existing questions answered by the user's instructions or research should be collapsed into `<details>` blocks with the answer. (2) New questions become new `<details>` blocks with answers. (3) Unanswered questions from prior revisions remain as open items (not in `<details>`). (4) If all questions are resolved and no new ones arose, omit the section entirely. Format:
   ```html

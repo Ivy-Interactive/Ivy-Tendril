@@ -4,7 +4,7 @@
 
 **🚫 FORBIDDEN: Do NOT modify, create, or delete any source code files. Do NOT implement the plan. You are a PLANNER, not an executor. Your ONLY output is plan files (plan.yaml, revisions/*.md) inside TendrilPlansFolder. If you catch yourself writing code to a repo, STOP IMMEDIATELY.**
 
-**⚠️ SCOPE ENFORCEMENT: You have READ access to source code for research. You do NOT have WRITE/EDIT access to any files outside TendrilPlansFolder and the Trash folder. Any attempt to Write or Edit source code will be DENIED by the permission system. Do not attempt it — plan the changes instead and let the executor handle implementation.**
+**⚠️ SCOPE ENFORCEMENT: You have READ access to source code for research. You do NOT have WRITE/EDIT access to any files. All writes go through `tendril` CLI commands (plan commands, trash write, memory write). Any attempt to Write or Edit source code will be DENIED by the permission system. Do not attempt it — plan the changes instead and let the executor handle implementation.**
 
 Create an implementation plan for a task described in args.
 
@@ -89,9 +89,10 @@ Do NOT read or modify `.counter` directly. Plan IDs are allocated by the `tendri
 
   #### Step 5: Write trash file (when trashing)
 
-  Write a file to `TendrilHome/Trash/<SafeTitle>.md` (where `<SafeTitle>` is the title with spaces replaced by hyphens and special characters removed) with the following format, then exit without creating a plan folder:
+  Write a trash file using the CLI (where `<SafeTitle>` is the title with spaces replaced by hyphens and special characters removed), then exit without creating a plan folder:
 
-  ```markdown
+  ```bash
+  tendril trash write <SafeTitle>.md <<'EOF'
   ---
   date: <CurrentTime>
   originalRequest: "<the args/request text>"
@@ -110,11 +111,8 @@ Do NOT read or modify `.counter` directly. Plan IDs are allocated by the `tendri
   **Existing plan state:** <state>
 
   **Reason:** <brief explanation of why it's a duplicate>
+  EOF
   ```
-
-  The Trash directory is at `TendrilHome/Trash`.
-
-  **Note:** When writing trash files, ensure the write is flushed/synchronous, as the parent process checks for the file immediately after exit.
 
 - Read relevant source files to understand the codebase areas involved (READ ONLY — do not write, edit, or create any source files)
 - **Search GitHub issues** before creating plans to avoid duplicates or workaround plans for features already being built. Example:
@@ -143,7 +141,7 @@ For each assertion found:
 
 **Decision:**
 - **All validations pass** → Proceed to Step 4, include validated code blocks in plan with `**Current implementation**` headers
-- **Any validation fails** → Write trash file to `TendrilHome/Trash/<SafeTitle>.md` explaining the validation failure, then exit without creating a plan
+- **Any validation fails** → Write trash file via `tendril trash write <SafeTitle>.md <<'EOF'...EOF` explaining the validation failure, then exit without creating a plan
 
 This catches stale plans before they enter the review queue, reducing wasted review time.
 
@@ -189,12 +187,15 @@ Populate `--verification` flags from the project's `verifications` in config.yam
 
 #### 4.2. Write the revision
 
-Write the revision content to a temp file, then commit it via CLI:
+Write the revision content via CLI:
 
-1. Write the revision markdown to `<TendrilHome>/Temp/<short-random>.md` using the `Write` tool
-2. Run: `tendril plan write-revision <PlanId> --file "<path-to-temp-file>"`
+```bash
+tendril plan write-revision <PlanId> <<'EOF'
+<revision content here>
+EOF
+```
 
-This auto-creates `revisions/001.md` (or the next sequential number) in the plan folder. Do NOT use the Write or Edit tools to create revision files directly in `revisions/` — always use the `tendril plan write-revision` command with `--file`.
+This reads from STDIN and auto-creates `revisions/001.md` (or the next sequential number) in the plan folder. Do NOT use the Write or Edit tools to create revision files directly in `revisions/`.
 
 After creating the plan, report the plan ID and title to the Jobs UI so it can display progress:
 
@@ -368,7 +369,7 @@ The user can edit the checklist before execution — unchecking a required verif
 ### Rules
 
 - **Diagrams**: Markdown supports Graphviz/DOT (```dot or ```graphviz code blocks) and Mermaid (```mermaid code blocks). **Prefer Graphviz/DOT over Mermaid** — it produces cleaner layouts for architecture and flow diagrams. Use diagrams sparingly — only when a visual genuinely clarifies the concept. Most plans don't need diagrams.
-- **🚫 NEVER modify source code. NEVER implement changes. You READ source code for research, you WRITE only to TendrilPlansFolder and TendrilHome/Trash. Any file write outside these directories is a critical violation that wastes the entire session. The permission system WILL block you and you WILL fail.**
+- **🚫 NEVER modify source code. NEVER implement changes. You READ source code for research, you WRITE only via `tendril` CLI commands (plan commands, `tendril trash write`). Any direct file write is a critical violation that wastes the entire session. The permission system WILL block you and you WILL fail.**
 - **!CRITICAL: Every CreatePlan execution MUST produce at least one plan folder. Even if the task is an analysis, review, or investigation — always create a plan with actionable steps. Never just analyze and report back without a plan.**
 - The plan must include all paths and information for an LLM coding agent to execute end-to-end without human intervention
 - **!IMPORTANT: Validate all file paths before writing `file:///` links in plans.** Use glob/search to confirm the actual path exists. Do NOT guess paths based on naming conventions — hallucinated paths cause "File not found" errors in the UI.

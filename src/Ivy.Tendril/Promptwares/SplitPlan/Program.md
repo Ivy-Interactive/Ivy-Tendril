@@ -54,10 +54,13 @@ Do NOT read or modify `.counter` directly — `tendril plan create` handles ID a
 
 After creating each plan, write the revision via CLI:
 
-1. Write revision content to `<TendrilHome>/Temp/<short-random>.md` using the `Write` tool
-2. Run: `tendril plan write-revision <PlanId> --file "<path-to-temp-file>"`
+```bash
+tendril plan write-revision <PlanId> <<'EOF'
+<revision content here>
+EOF
+```
 
-Fill in Problem, Solution, Remaining Design Questions, Tests sections. Each plan must be fully self-contained. Do NOT use the Write or Edit tools to create revision files directly in `revisions/`.
+The command reads from STDIN and auto-creates the next numbered revision file. Fill in Problem, Solution, Remaining Design Questions, Tests sections. Each plan must be fully self-contained. Do NOT use the Write or Edit tools to create revision files directly in `revisions/`.
 
 #### Project Assignment
 
