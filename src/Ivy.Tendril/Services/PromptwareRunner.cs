@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services.Agents;
 using Microsoft.Extensions.Logging;
 
@@ -18,6 +19,10 @@ public record PromptwareRunHandle : IDisposable
 {
     internal Process? Process { get; init; }
     internal CancellationTokenSource Cts { get; init; } = new();
+    internal string? LogFilePath { get; init; }
+    internal string? CompiledPrompt { get; set; }
+    internal string? CliCommand { get; set; }
+    internal string Provider { get; init; } = "claude";
 
     public bool IsRunning => Process is { HasExited: false };
     public int? ExitCode => Process is { HasExited: true } ? Process.ExitCode : null;
@@ -60,7 +65,7 @@ public class PromptwareRunner : IPromptwareRunner
     public PromptwareRunHandle Run(PromptwareRunOptions options, IWriteStream<string> outputStream)
     {
         var settings = _configService.Settings;
-        var programFolder = ResolvePromptwareFolder(options.Promptware, _configService.TendrilHome, options.PromptwarePath);
+        var programFolder = PromptwareHelper.ResolvePromptwareFolder(options.Promptware, _configService.TendrilHome, options.PromptwarePath);
         var programMd = Path.Combine(programFolder, "Program.md");
 
         if (!File.Exists(programMd))
@@ -76,9 +81,17 @@ public class PromptwareRunner : IPromptwareRunner
         var resolution = AgentProviderFactory.Resolve(settings, options.Promptware, options.Profile, jobContext);
         var workDir = options.WorkingDir ?? programFolder;
 
-        var logFile = FirmwareCompiler.GetNextLogFile(programFolder, values);
-        var firmwareContext = new FirmwareContext(programFolder, logFile, values);
+        var logFile = FirmwareCompiler.GetNextLogFile(programFolder);
+        var firmwareContext = new FirmwareContext(programFolder, values);
         var prompt = FirmwareCompiler.Compile(firmwareContext);
+
+        string? promptFilePath = null;
+        if (!resolution.Provider.UsesStdinPrompt)
+        {
+            var tempDir = Path.GetTempPath();
+            promptFilePath = Path.Combine(tempDir, $"prompt-{Guid.NewGuid():N}.md");
+            File.WriteAllText(promptFilePath, prompt);
+        }
 
         var invocation = new AgentInvocation(
             PromptContent: prompt,
@@ -87,7 +100,8 @@ public class PromptwareRunner : IPromptwareRunner
             Effort: resolution.Effort,
             SessionId: "",
             AllowedTools: resolution.AllowedTools,
-            ExtraArgs: resolution.ExtraArgs);
+            ExtraArgs: resolution.ExtraArgs,
+            PromptFilePath: promptFilePath);
 
         var psi = resolution.Provider.BuildProcessStart(invocation);
 
@@ -97,7 +111,7 @@ public class PromptwareRunner : IPromptwareRunner
         psi.Environment["TENDRIL_CONFIG"] = _configService.ConfigPath;
         psi.Environment["TENDRIL_PLANS"] = _configService.PlanFolder;
 
-        JobLauncher.EnsureTendrilOnPath(psi);
+        AgentProcessHelper.EnsureTendrilOnPath(psi);
 
         _logger.LogInformation("PromptwareRunner: launching {Promptware} via {Provider} (model={Model}, effort={Effort})",
             options.Promptware, resolution.Provider.Name, resolution.Model, resolution.Effort);
@@ -113,28 +127,46 @@ public class PromptwareRunner : IPromptwareRunner
             process.StandardInput.Close();
         }
 
-        var cts = new CancellationTokenSource();
-        var completion = Task.Run(() => PipeOutput(process, outputStream, cts.Token), cts.Token);
+        var cliCommand = AgentProcessHelper.FormatCliCommand(psi);
 
-        return new PromptwareRunHandle
+        var cts = new CancellationTokenSource();
+        var handle = new PromptwareRunHandle
         {
             Process = process,
             Cts = cts,
-            Completion = completion
+            LogFilePath = logFile,
+            CompiledPrompt = prompt,
+            CliCommand = cliCommand,
+            Provider = resolution.Provider.Name
         };
+
+        handle = handle with
+        {
+            Completion = Task.Run(() => PipeOutputAndLog(process, outputStream, handle, cts.Token), cts.Token)
+        };
+
+        return handle;
     }
 
-    private static async Task PipeOutput(Process process, IWriteStream<string> stream, CancellationToken ct)
+    private static async Task PipeOutputAndLog(Process process, IWriteStream<string> stream, PromptwareRunHandle handle, CancellationToken ct)
     {
+        var outputLines = new List<string>();
+
         process.OutputDataReceived += (_, e) =>
         {
             if (e.Data != null)
+            {
                 stream.Write(e.Data);
+                outputLines.Add(e.Data);
+            }
         };
         process.ErrorDataReceived += (_, e) =>
         {
             if (e.Data != null)
+            {
                 stream.Write($"[stderr] {e.Data}");
+                outputLines.Add($"[stderr] {e.Data}");
+            }
         };
         process.EnableRaisingEvents = true;
 
@@ -144,36 +176,36 @@ public class PromptwareRunner : IPromptwareRunner
         try
         {
             await process.WaitForExitAsync(ct);
-            // Give output handlers a moment to flush
             await Task.Delay(100, ct);
         }
         catch (OperationCanceledException) { }
+
+        if (!string.IsNullOrEmpty(handle.LogFilePath))
+        {
+            try
+            {
+                var job = new JobItem
+                {
+                    Provider = handle.Provider,
+                    Status = process.HasExited && process.ExitCode == 0 ? JobStatus.Completed : JobStatus.Failed,
+                    StartedAt = null,
+                    CompletedAt = DateTime.UtcNow,
+                    ExitCode = process.HasExited ? process.ExitCode : null,
+                    LogFilePath = handle.LogFilePath,
+                    CompiledPrompt = handle.CompiledPrompt,
+                    CliCommand = handle.CliCommand
+                };
+                foreach (var line in outputLines)
+                    job.EnqueueOutput(line);
+
+                PromptwareLogWriter.WriteLog(job);
+                PromptwareLogWriter.WriteRawLog(handle.LogFilePath, outputLines);
+            }
+            catch { }
+
+            handle.CompiledPrompt = null;
+            handle.CliCommand = null;
+        }
     }
 
-    private static string ResolvePromptwareFolder(string promptwareName, string? tendrilHome, string? promptwarePath)
-    {
-        if (!string.IsNullOrEmpty(promptwarePath))
-        {
-            var overrideFolder = Path.Combine(promptwarePath, promptwareName);
-            if (File.Exists(Path.Combine(overrideFolder, "Program.md")))
-                return overrideFolder;
-        }
-
-        var sourceRoot = PromptwareHelper.ResolvePromptsRoot(tendrilHome);
-        var sourceFolder = Path.Combine(sourceRoot, promptwareName);
-
-        if (File.Exists(Path.Combine(sourceFolder, "Program.md")))
-            return sourceFolder;
-
-        tendrilHome ??= Environment.GetEnvironmentVariable("TENDRIL_HOME");
-        if (!string.IsNullOrEmpty(tendrilHome))
-        {
-            var deployedRoot = Path.Combine(tendrilHome, "Promptwares");
-            var deployedFolder = Path.Combine(deployedRoot, promptwareName);
-            if (File.Exists(Path.Combine(deployedFolder, "Program.md")))
-                return deployedFolder;
-        }
-
-        return sourceFolder;
-    }
 }

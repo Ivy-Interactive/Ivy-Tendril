@@ -1,4 +1,5 @@
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 using System.Collections.Concurrent;
 using System.Linq;
 using Ivy.Helpers;
@@ -191,10 +192,8 @@ public class InboxWatcherService : IInboxWatcherService
             return;
         }
 
-        var args = new List<string> { "-Description", description, "-Project", project };
-        if (!string.IsNullOrEmpty(sourcePath))
-            args.AddRange(["-SourcePath", sourcePath]);
-        _jobService.StartJob(Constants.JobTypes.CreatePlan, args.ToArray(), processingPath);
+        var args = new CreatePlanArgs(description, project, SourcePath: sourcePath);
+        _jobService.StartJob(args, processingPath);
     }
 
     internal static (string project, string description, string? sourcePath) ParseContent(string content)

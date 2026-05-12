@@ -74,12 +74,12 @@ public class JobServiceRetryBlockedTests : IDisposable
             planReaderService: planReader);
 
         // Manually create a blocked job (simulating what StartJob does when dependencies aren't met)
-        var blockedId = service.CreateTestJob("ExecutePlan", dependentPlan);
+        var blockedId = service.CreateTestJob(new ExecutePlanArgs(dependentPlan));
         var blockedJob = service.GetJob(blockedId)!;
         blockedJob.Status = JobStatus.Blocked;
 
         // Create a completing CreatePr job to trigger RetryBlockedJobs
-        var completingId = service.CreateTestJob("CreatePr", Path.GetTempPath());
+        var completingId = service.CreateTestJob(new CreatePrArgs(Path.GetTempPath()));
 
         var notifications = new List<JobNotification>();
         service.NotificationReady += n => notifications.Add(n);
@@ -124,12 +124,12 @@ public class JobServiceRetryBlockedTests : IDisposable
             planReaderService: planReader);
 
         // Create a blocked job
-        var blockedId = service.CreateTestJob("ExecutePlan", dependentPlan);
+        var blockedId = service.CreateTestJob(new ExecutePlanArgs(dependentPlan));
         var blockedJob = service.GetJob(blockedId)!;
         blockedJob.Status = JobStatus.Blocked;
 
         // Create a completing job
-        var completingId = service.CreateTestJob("CreatePr", Path.GetTempPath());
+        var completingId = service.CreateTestJob(new CreatePrArgs(Path.GetTempPath()));
 
         var notifications = new List<JobNotification>();
         service.NotificationReady += n => notifications.Add(n);
@@ -169,7 +169,7 @@ public class JobServiceRetryBlockedTests : IDisposable
             planReaderService: planReader);
 
         // Create a blocked job for plan1
-        var blockedId = service.CreateTestJob("ExecutePlan", dependentPlan1);
+        var blockedId = service.CreateTestJob(new ExecutePlanArgs(dependentPlan1));
         var blockedJob = service.GetJob(blockedId)!;
         blockedJob.Status = JobStatus.Blocked;
 
@@ -180,13 +180,13 @@ public class JobServiceRetryBlockedTests : IDisposable
         Assert.True(removed);
 
         // Create a completing job to trigger RetryBlockedJobs
-        var completingId = service.CreateTestJob("CreatePr", Path.GetTempPath());
+        var completingId = service.CreateTestJob(new CreatePrArgs(Path.GetTempPath()));
         service.CompleteJob(completingId, 0);
 
         // Since the blocked job was already removed, no new ExecutePlan job should be created for it
         var jobs = service.GetJobs();
         var executePlanJobs =
-            jobs.Where(j => j.Type == "ExecutePlan" && j.Args.Length > 0 && j.Args[0] == dependentPlan1).ToList();
+            jobs.Where(j => j.Type == "ExecutePlan" && j.TypedArgs?.PlanFolder == dependentPlan1).ToList();
         Assert.Empty(executePlanJobs);
 
         // Cleanup
@@ -213,16 +213,16 @@ public class JobServiceRetryBlockedTests : IDisposable
             planReaderService: planReader);
 
         // Create a Running ExecutePlan job for the same plan folder (simulating an already active job)
-        var activeId = service.CreateTestJob("ExecutePlan", dependentPlan);
+        var activeId = service.CreateTestJob(new ExecutePlanArgs(dependentPlan));
         Assert.Equal(JobStatus.Running, service.GetJob(activeId)!.Status);
 
         // Create a blocked job for the same plan folder
-        var blockedId = service.CreateTestJob("ExecutePlan", dependentPlan);
+        var blockedId = service.CreateTestJob(new ExecutePlanArgs(dependentPlan));
         var blockedJob = service.GetJob(blockedId)!;
         blockedJob.Status = JobStatus.Blocked;
 
         // Create a completing job to trigger RetryBlockedJobs
-        var completingId = service.CreateTestJob("CreatePr", Path.GetTempPath());
+        var completingId = service.CreateTestJob(new CreatePrArgs(Path.GetTempPath()));
         service.CompleteJob(completingId, 0);
 
         // The blocked job should remain because an active job exists for the same plan
@@ -232,7 +232,7 @@ public class JobServiceRetryBlockedTests : IDisposable
 
         // The active job should still be running
         var executePlanJobs = service.GetJobs()
-            .Where(j => j.Type == "ExecutePlan" && j.Args.Length > 0 && j.Args[0] == dependentPlan)
+            .Where(j => j.Type == "ExecutePlan" && j.TypedArgs?.PlanFolder == dependentPlan)
             .ToList();
 
         Assert.Equal(2, executePlanJobs.Count);
@@ -270,11 +270,11 @@ public class JobServiceRetryBlockedTests : IDisposable
             planReaderService: planReader);
 
         // Start job A (this will hold the repo lock)
-        var jobAId = service.CreateTestJob("ExecutePlan", planA);
+        var jobAId = service.CreateTestJob(new ExecutePlanArgs(planA));
         Assert.Equal(JobStatus.Running, service.GetJob(jobAId)!.Status);
 
         // Attempt to start job B (should get blocked due to repo concurrency)
-        var jobBId = service.CreateTestJob("ExecutePlan", planB);
+        var jobBId = service.CreateTestJob(new ExecutePlanArgs(planB));
         var blockedJob = service.GetJob(jobBId)!;
         blockedJob.Status = JobStatus.Blocked;
 
@@ -289,7 +289,7 @@ public class JobServiceRetryBlockedTests : IDisposable
 
         // A new job should have been created (the restarted job B)
         var jobs = service.GetJobs();
-        var restartedJob = jobs.FirstOrDefault(j => j.Id != jobAId && j.Type == "ExecutePlan" && j.Args.Length > 0 && j.Args[0] == planB);
+        var restartedJob = jobs.FirstOrDefault(j => j.Id != jobAId && j.Type == "ExecutePlan" && j.TypedArgs?.PlanFolder == planB);
         Assert.NotNull(restartedJob);
         Assert.NotEqual(JobStatus.Blocked, restartedJob.Status);
 
@@ -323,11 +323,11 @@ public class JobServiceRetryBlockedTests : IDisposable
             planReaderService: planReader);
 
         // Start job A (this will hold the repo lock)
-        var jobAId = service.CreateTestJob("ExecutePlan", planA);
+        var jobAId = service.CreateTestJob(new ExecutePlanArgs(planA));
         Assert.Equal(JobStatus.Running, service.GetJob(jobAId)!.Status);
 
         // Attempt to start job B (should get blocked due to repo concurrency)
-        var jobBId = service.CreateTestJob("ExecutePlan", planB);
+        var jobBId = service.CreateTestJob(new ExecutePlanArgs(planB));
         var blockedJob = service.GetJob(jobBId)!;
         blockedJob.Status = JobStatus.Blocked;
 
@@ -342,7 +342,7 @@ public class JobServiceRetryBlockedTests : IDisposable
 
         // A new job should have been created (the restarted job B)
         var jobs = service.GetJobs();
-        var restartedJob = jobs.FirstOrDefault(j => j.Id != jobAId && j.Type == "ExecutePlan" && j.Args.Length > 0 && j.Args[0] == planB);
+        var restartedJob = jobs.FirstOrDefault(j => j.Id != jobAId && j.Type == "ExecutePlan" && j.TypedArgs?.PlanFolder == planB);
         Assert.NotNull(restartedJob);
         Assert.NotEqual(JobStatus.Blocked, restartedJob.Status);
 
@@ -379,16 +379,16 @@ public class JobServiceRetryBlockedTests : IDisposable
             planReaderService: planReader);
 
         // Start job A (this will hold the repo lock)
-        var jobAId = service.CreateTestJob("ExecutePlan", planA);
+        var jobAId = service.CreateTestJob(new ExecutePlanArgs(planA));
         Assert.Equal(JobStatus.Running, service.GetJob(jobAId)!.Status);
 
         // Attempt to start job B (should get blocked due to repo concurrency)
-        var jobBId = service.CreateTestJob("ExecutePlan", planB);
+        var jobBId = service.CreateTestJob(new ExecutePlanArgs(planB));
         var blockedJob = service.GetJob(jobBId)!;
         blockedJob.Status = JobStatus.Blocked;
 
         // Start job C on the same repo (simulating a new job starting before job A completes)
-        var jobCId = service.CreateTestJob("ExecutePlan", planC);
+        var jobCId = service.CreateTestJob(new ExecutePlanArgs(planC));
         Assert.Equal(JobStatus.Running, service.GetJob(jobCId)!.Status);
 
         var notifications = new List<JobNotification>();

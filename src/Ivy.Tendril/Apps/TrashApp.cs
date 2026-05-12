@@ -1,5 +1,6 @@
 using Ivy.Tendril.Apps.Trash;
 using Ivy.Tendril.Apps.Trash.Dialogs;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Views;
@@ -26,9 +27,16 @@ public class TrashApp : ViewBase
         var client = UseService<IClientProvider>();
         var refreshToken = UseRefreshToken();
         var selectedFile = UseState<string?>(null);
-        var confirmDelete = UseState(false);
         var searchFilter = UseState<string?>("");
         var openFile = UseState<string?>(null);
+
+        var (deleteDialog, showDeleteDialog) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value) return null;
+            var selected = LoadTrashFiles(Path.Combine(configService.TendrilHome, "Trash"))
+                .FirstOrDefault(f => f.FilePath == selectedFile.Value);
+            return new DeleteTrashFileDialog(isOpen, selected, selectedFile, refreshToken);
+        });
 
         UseInterval(() => refreshToken.Refresh(), TimeSpan.FromSeconds(10));
 
@@ -79,14 +87,13 @@ public class TrashApp : ViewBase
                              : Text.Muted($"Duplicate of: {selected.DuplicateOf}"));
 
             var actionBar = Layout.Horizontal().AlignContent(Align.Center).Gap(2).Padding(1)
-                            | new Button("Delete").Icon(Icons.Trash).Outline().OnClick(() => confirmDelete.Set(true))
+                            | new Button("Delete").Icon(Icons.Trash).Outline().OnClick(() => showDeleteDialog())
                             | new Button("Force Plan").Icon(Icons.Zap).Primary().OnClick(() =>
                             {
                                 if (!string.IsNullOrEmpty(selected.OriginalRequest))
                                 {
                                     var project = string.IsNullOrEmpty(selected.Project) ? "Auto" : selected.Project;
-                                    jobService.StartJob(Constants.JobTypes.CreatePlan, "-Description",
-                                        $"{selected.OriginalRequest} [FORCE]", "-Project", project);
+                                    jobService.StartJob(new CreatePlanArgs(selected.OriginalRequest, project, Force: true));
                                     client.Toast("CreatePlan job started", "Force Plan");
                                 }
                             });
@@ -127,7 +134,7 @@ public class TrashApp : ViewBase
                 elements.Add(fileLinkSheet);
         }
 
-        elements.Add(new DeleteTrashFileDialog(confirmDelete, selected, selectedFile, refreshToken));
+        elements.Add(deleteDialog);
 
         return new Fragment(elements.ToArray());
     }

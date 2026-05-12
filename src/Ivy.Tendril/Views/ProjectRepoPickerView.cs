@@ -145,7 +145,7 @@ public class ProjectRepoPickerView(
         }
 
         return Layout.Vertical().Gap(4).Width(Size.Full())
-               | Text.Muted("Add a repository to this project.")
+               | Text.Muted("Add repositories to this project (optional).")
                | (addingError.Value != null ? Text.Danger(addingError.Value) : null!)
                | pickerControls
                | (current.Count > 0 ? new Separator() : null!)

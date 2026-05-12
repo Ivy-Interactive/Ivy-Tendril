@@ -58,7 +58,7 @@ public class JobServiceResourceDisposalTests
     public void CompleteJob_DisposesResources()
     {
         var service = CreateService();
-        var id = service.CreateTestJob("ExecutePlan", "test-plan");
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
 
         // Start the job
         var job = service.GetJob(id);
@@ -81,7 +81,7 @@ public class JobServiceResourceDisposalTests
     public void StopJob_DisposesResources()
     {
         var service = CreateService();
-        var id = service.CreateTestJob("ExecutePlan", "test-plan");
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
 
         var job = service.GetJob(id);
         Assert.NotNull(job);
@@ -103,7 +103,7 @@ public class JobServiceResourceDisposalTests
     public void DeleteJob_DisposesResources()
     {
         var service = CreateService();
-        var id = service.CreateTestJob("ExecutePlan", "test-plan");
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
 
         var job = service.GetJob(id);
         Assert.NotNull(job);

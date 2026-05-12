@@ -48,10 +48,20 @@ public class ProjectsSetupView : ViewBase
                     {
                         if (result == AlertResult.Ok)
                         {
+                            var removedProject = projects[idx];
                             projects.RemoveAt(idx);
-                            config.SaveSettings();
-                            refreshToken.Refresh();
-                            client.Toast($"Project '{name}' deleted", "Deleted");
+                            try
+                            {
+                                config.SaveSettings();
+                                refreshToken.Refresh();
+                                client.Toast($"Project '{name}' deleted", "Deleted");
+                            }
+                            catch (Exception ex)
+                            {
+                                projects.Insert(idx, removedProject);
+                                refreshToken.Refresh();
+                                client.Toast($"Failed to delete project: {ex.Message}", "Error");
+                            }
                         }
                     }, "Delete Project", AlertButtonSet.OkCancel);
                 })

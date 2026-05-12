@@ -34,16 +34,13 @@ Before processing, read `plan.yaml` and check the `state` field. After reading, 
 - Read `plan.yaml` from the plan folder (project, commits, repos)
 - Read the latest revision for the plan title and description
 - Find the `prRule` for each repo from the firmware header
-- **Check for custom options:** If `<PlanFolder>/.custom-pr-options.yaml` exists, read it. The file contains:
-  ```yaml
-  merge: true/false
-  deleteBranch: true/false
-  includeArtifacts: true/false
-  assignee: "username"
-  comment: "Review comment text"
-  draft: true/false
-  ```
-  These flags override the default behavior in subsequent steps. If the file does not exist, all flags default to the behavior defined by the repo's `prRule`. **Delete the file after reading** so it doesn't affect future runs.
+- **Check for custom options:** Read the following firmware header values (if present). These override the default behavior in subsequent steps. If not present, all flags default to the behavior defined by the repo's `prRule`.
+  - `PrMerge` — `true`/`false` (default: `true`)
+  - `PrDeleteBranch` — `true`/`false` (default: `true`)
+  - `PrIncludeArtifacts` — `true`/`false` (default: `true`)
+  - `PrAssignee` — GitHub username (default: none)
+  - `PrComment` — Review comment text (default: none)
+  - `PrDraft` — `true`/`false` (default: `false`)
 
 ### 2. For Each Worktree
 

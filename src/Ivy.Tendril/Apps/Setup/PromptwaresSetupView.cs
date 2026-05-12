@@ -44,10 +44,20 @@ public class PromptwaresSetupView : ViewBase
                                showAlert($"Are you sure you want to delete '{name}'?", result =>
                                {
                                    if (result != AlertResult.Ok) return;
+                                   var removedValue = promptwares[name];
                                    promptwares.Remove(name);
-                                   config.SaveSettings();
-                                   client.Toast($"Promptware '{name}' deleted", "Deleted");
-                                   refreshToken.Refresh();
+                                   try
+                                   {
+                                       config.SaveSettings();
+                                       client.Toast($"Promptware '{name}' deleted", "Deleted");
+                                       refreshToken.Refresh();
+                                   }
+                                   catch (Exception ex)
+                                   {
+                                       promptwares[name] = removedValue;
+                                       refreshToken.Refresh();
+                                       client.Toast($"Failed to delete promptware: {ex.Message}", "Error");
+                                   }
                                }, "Delete Promptware");
                            }));
             }))
@@ -135,14 +145,36 @@ file class EditPromptwareDialogContent(
                             : editCustomInstructions.Value
                     };
 
-                    if (!isNew && existingKey != editName.Value)
+                    var wasRenamed = !isNew && existingKey != editName.Value;
+                    PromptwareConfig? oldValue = null;
+                    if (wasRenamed)
+                    {
+                        oldValue = promptwares[existingKey!];
                         promptwares.Remove(existingKey!);
+                    }
+                    else if (!isNew)
+                    {
+                        oldValue = promptwares[existingKey!];
+                    }
 
                     promptwares[editName.Value] = pwConfig;
-                    config.SaveSettings();
-                    isOpen.Set(false);
-                    refreshToken.Refresh();
-                    client.Toast("Promptware saved", "Saved");
+                    try
+                    {
+                        config.SaveSettings();
+                        isOpen.Set(false);
+                        refreshToken.Refresh();
+                        client.Toast("Promptware saved", "Saved");
+                    }
+                    catch (Exception ex)
+                    {
+                        promptwares.Remove(editName.Value);
+                        if (wasRenamed)
+                            promptwares[existingKey!] = oldValue!;
+                        else if (!isNew)
+                            promptwares[existingKey!] = oldValue!;
+                        refreshToken.Refresh();
+                        client.Toast($"Failed to save promptware: {ex.Message}", "Error");
+                    }
                 })
             )
         ).Width(Size.Rem(35));

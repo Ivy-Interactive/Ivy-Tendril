@@ -45,13 +45,13 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
             null, 10);
 
         // Start first UpdatePlan job (will be in Running state after CreateTestJob)
-        var firstJobId = service.CreateTestJob("UpdatePlan", _planFolder);
+        var firstJobId = service.CreateTestJob(new UpdatePlanArgs(_planFolder));
         var firstJob = service.GetJob(firstJobId);
         Assert.NotNull(firstJob);
         Assert.Equal(JobStatus.Running, firstJob.Status);
 
         // Try to start second UpdatePlan job for the same plan
-        var secondJobId = service.StartJob("UpdatePlan", _planFolder);
+        var secondJobId = service.StartJob(new UpdatePlanArgs(_planFolder));
         var secondJob = service.GetJob(secondJobId);
 
         // Second job should fail immediately with conflict message
@@ -68,8 +68,8 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
             TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
             null, 10);
 
-        _ = service.CreateTestJob("ExpandPlan", _planFolder);
-        var secondJobId = service.StartJob("ExpandPlan", _planFolder);
+        _ = service.CreateTestJob(new ExpandPlanArgs(_planFolder));
+        var secondJobId = service.StartJob(new ExpandPlanArgs(_planFolder));
         var secondJob = service.GetJob(secondJobId);
 
         Assert.NotNull(secondJob);
@@ -84,8 +84,8 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
             TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
             null, 10);
 
-        _ = service.CreateTestJob("SplitPlan", _planFolder);
-        var secondJobId = service.StartJob("SplitPlan", _planFolder);
+        _ = service.CreateTestJob(new SplitPlanArgs(_planFolder));
+        var secondJobId = service.StartJob(new SplitPlanArgs(_planFolder));
         var secondJob = service.GetJob(secondJobId);
 
         Assert.NotNull(secondJob);
@@ -101,7 +101,7 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
             null, 10);
 
         // Start and complete first job
-        var firstJobId = service.CreateTestJob("UpdatePlan", _planFolder);
+        var firstJobId = service.CreateTestJob(new UpdatePlanArgs(_planFolder));
         service.CompleteJob(firstJobId, 0);
         var firstJob = service.GetJob(firstJobId);
         Assert.NotNull(firstJob);
@@ -110,7 +110,7 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
         // Second job should be allowed (will fail to launch process, but should attempt)
         try
         {
-            var secondJobId = service.StartJob("UpdatePlan", _planFolder);
+            var secondJobId = service.StartJob(new UpdatePlanArgs(_planFolder));
             var secondJob = service.GetJob(secondJobId);
             Assert.NotNull(secondJob);
             // Should not be Failed due to conflict (might be Failed due to process launch, but that's OK)
@@ -132,13 +132,13 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
             TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
             null, 0);
 
-        var firstJobId = service.StartJob("UpdatePlan", _planFolder);
+        var firstJobId = service.StartJob(new UpdatePlanArgs(_planFolder));
         var firstJob = service.GetJob(firstJobId);
         Assert.NotNull(firstJob);
         Assert.Equal(JobStatus.Queued, firstJob.Status);
 
         // Second job should fail even though first is only queued
-        var secondJobId = service.StartJob("UpdatePlan", _planFolder);
+        var secondJobId = service.StartJob(new UpdatePlanArgs(_planFolder));
         var secondJob = service.GetJob(secondJobId);
 
         Assert.NotNull(secondJob);
@@ -154,13 +154,13 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
             null, 10);
 
         // Create a job manually in Pending state
-        var firstJobId = service.CreateTestJob("UpdatePlan", _planFolder);
+        var firstJobId = service.CreateTestJob(new UpdatePlanArgs(_planFolder));
         var firstJob = service.GetJob(firstJobId);
         Assert.NotNull(firstJob);
         firstJob.Status = JobStatus.Pending;
 
         // Second job should fail
-        var secondJobId = service.StartJob("UpdatePlan", _planFolder);
+        var secondJobId = service.StartJob(new UpdatePlanArgs(_planFolder));
         var secondJob = service.GetJob(secondJobId);
 
         Assert.NotNull(secondJob);
@@ -190,7 +190,7 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
             null, 10);
 
         // Start UpdatePlan for first plan
-        var firstJobId = service.CreateTestJob("UpdatePlan", _planFolder);
+        var firstJobId = service.CreateTestJob(new UpdatePlanArgs(_planFolder));
         var firstJob = service.GetJob(firstJobId);
         Assert.NotNull(firstJob);
         Assert.Equal(JobStatus.Running, firstJob.Status);
@@ -198,7 +198,7 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
         // Start UpdatePlan for different plan — should be allowed
         try
         {
-            var secondJobId = service.StartJob("UpdatePlan", otherPlanFolder);
+            var secondJobId = service.StartJob(new UpdatePlanArgs(otherPlanFolder));
             var secondJob = service.GetJob(secondJobId);
             Assert.NotNull(secondJob);
             // Should not fail due to conflict
@@ -220,12 +220,12 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
             null, 10);
 
         // Start UpdatePlan
-        _ = service.CreateTestJob("UpdatePlan", _planFolder);
+        _ = service.CreateTestJob(new UpdatePlanArgs(_planFolder));
 
         // ExecutePlan should not be blocked by UpdatePlan (they're different job types)
         try
         {
-            var executeJobId = service.StartJob("ExecutePlan", _planFolder);
+            var executeJobId = service.StartJob(new ExecutePlanArgs(_planFolder));
             var executeJob = service.GetJob(executeJobId);
             Assert.NotNull(executeJob);
             // Should not fail due to plan modification conflict
@@ -247,13 +247,13 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
             null, 10);
 
         // Start first ExecutePlan job
-        var firstJobId = service.CreateTestJob("ExecutePlan", _planFolder);
+        var firstJobId = service.CreateTestJob(new ExecutePlanArgs(_planFolder));
         var firstJob = service.GetJob(firstJobId);
         Assert.NotNull(firstJob);
         Assert.Equal(JobStatus.Running, firstJob.Status);
 
         // Try to start second ExecutePlan job for the same plan
-        var secondJobId = service.StartJob("ExecutePlan", _planFolder);
+        var secondJobId = service.StartJob(new ExecutePlanArgs(_planFolder));
         var secondJob = service.GetJob(secondJobId);
 
         // Second job should fail immediately with conflict message
@@ -278,10 +278,10 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
             service.NotificationReady += n => receivedNotification = n;
 
             // Start first job
-            _ = service.CreateTestJob("UpdatePlan", _planFolder);
+            _ = service.CreateTestJob(new UpdatePlanArgs(_planFolder));
 
             // Try to start conflicting second job
-            _ = service.StartJob("UpdatePlan", _planFolder);
+            _ = service.StartJob(new UpdatePlanArgs(_planFolder));
 
             // Should have received a notification
             Assert.NotNull(receivedNotification);

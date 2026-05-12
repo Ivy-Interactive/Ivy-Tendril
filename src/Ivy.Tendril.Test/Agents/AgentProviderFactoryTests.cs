@@ -422,8 +422,8 @@ public class AgentProviderFactoryTests
 
         Assert.Contains("Read", resolution.AllowedTools);
         Assert.Contains("Bash", resolution.AllowedTools);
-        Assert.Contains("Write(/plans/01234-Test/worktrees/**)", resolution.AllowedTools);
-        Assert.Contains("Edit(/plans/01234-Test/worktrees/**)", resolution.AllowedTools);
+        Assert.Contains("Write(/plans/01234-Test/**)", resolution.AllowedTools);
+        Assert.Contains("Edit(/plans/01234-Test/**)", resolution.AllowedTools);
         // Also gets promptware self-modification
         Assert.Contains("Write(/promptwares/ExecutePlan/**)", resolution.AllowedTools);
         Assert.Contains("Edit(/promptwares/ExecutePlan/**)", resolution.AllowedTools);
@@ -489,6 +489,8 @@ public class AgentProviderFactoryTests
         Assert.Contains("Glob", resolution.AllowedTools);
         Assert.Contains("Grep", resolution.AllowedTools);
         Assert.Contains("Bash(tendril*)", resolution.AllowedTools);
+        Assert.Contains("Bash(git *)", resolution.AllowedTools);
+        Assert.Contains("Bash(gh *)", resolution.AllowedTools);
         Assert.Contains("WebFetch", resolution.AllowedTools);
         Assert.Contains("WebSearch", resolution.AllowedTools);
 
@@ -500,6 +502,6 @@ public class AgentProviderFactoryTests
         // Must NOT have unrestricted Bash
         Assert.DoesNotContain("Bash", resolution.AllowedTools.Where(t => t == "Bash"));
 
-        Assert.Equal(9, resolution.AllowedTools.Count);
+        Assert.Equal(11, resolution.AllowedTools.Count);
     }
 }

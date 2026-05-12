@@ -2,8 +2,6 @@ using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
-using YamlDotNet.Serialization;
-using YamlDotNet.Serialization.NamingConventions;
 
 namespace Ivy.Tendril.Apps.Review.Dialogs;
 
@@ -85,21 +83,14 @@ public class CustomPrDialog(
                     if (!isCreating.Value)
                     {
                         isCreating.Set(true);
-                        var options = new Dictionary<string, object>
-                        {
-                            ["merge"] = customPrMerge.Value,
-                            ["deleteBranch"] = customPrDeleteBranch.Value && customPrMerge.Value,
-                            ["includeArtifacts"] = customPrIncludeArtifacts.Value,
-                            ["assignee"] = customPrAssignee.Value ?? "",
-                            ["comment"] = customPrComment.Value,
-                            ["draft"] = customPrDraft.Value
-                        };
-                        var serializer = new SerializerBuilder()
-                            .WithNamingConvention(CamelCaseNamingConvention.Instance)
-                            .Build();
-                        var optionsPath = Path.Combine(_selectedPlan.FolderPath, ".custom-pr-options.yaml");
-                        FileHelper.WriteAllText(optionsPath, serializer.Serialize(options));
-                        _jobService.StartJob(Constants.JobTypes.CreatePr, _selectedPlan.FolderPath);
+                        _jobService.StartJob(new CreatePrArgs(
+                            _selectedPlan.FolderPath,
+                            Merge: customPrMerge.Value,
+                            DeleteBranch: customPrDeleteBranch.Value && customPrMerge.Value,
+                            IncludeArtifacts: customPrIncludeArtifacts.Value,
+                            Assignee: customPrAssignee.Value,
+                            Comment: string.IsNullOrEmpty(customPrComment.Value) ? null : customPrComment.Value,
+                            Draft: customPrDraft.Value));
                         _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Building);
                         _refreshPlans();
                         isCreating.Set(false);

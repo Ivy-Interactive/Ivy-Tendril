@@ -1,4 +1,6 @@
 using System.Reactive.Linq;
+using Ivy.Tendril.Apps.Jobs;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps;
@@ -13,16 +15,57 @@ public partial class JobsApp : ViewBase
         var client = UseService<IClientProvider>();
         var config = UseService<IConfigService>();
         var refreshToken = UseRefreshToken();
-        var showPlan = UseState<string?>(null);
-        var showOutput = UseState<string?>(null);
-        var showPrompt = UseState<string?>(null);
         var openFile = UseState<string?>(null);
         var outputStream = UseStream<string>();
         var lastProcessedIndex = UseState(0);
+        var activeOutputJobId = UseState<string?>(null);
         var streamingJobId = UseState<string?>(null);
         var hasStreamContent = UseState(false);
 
-        UseInterval(() => StreamOutputLines(jobService, showOutput, streamingJobId, lastProcessedIndex, hasStreamContent, outputStream),
+        var (planSheet, showPlan) = UseTrigger<string>((isOpen, planPath) =>
+        {
+            if (!isOpen.Value) return null;
+            var planSheetView = new PlanSheet(planPath, planService, config, openFile);
+            var fileLinkSheet = planSheetView.BuildFileLinkSheet();
+            var sheet = new Sheet(
+                () => isOpen.Set(false),
+                planSheetView.Build(),
+                planSheetView.GetSheetTitle()
+            ).Width(Size.Half()).Resizable();
+            return fileLinkSheet is not null ? new Fragment(sheet, fileLinkSheet) : sheet;
+        });
+
+        var (outputSheet, showOutput) = UseTrigger<string>((isOpen, jobId) =>
+        {
+            if (!isOpen.Value)
+            {
+                activeOutputJobId.Set(null);
+                streamingJobId.Set(null);
+                hasStreamContent.Set(false);
+                lastProcessedIndex.Set(0);
+                return null;
+            }
+            activeOutputJobId.Set(jobId);
+            var outputSheetView = new OutputSheet(jobId, jobService, outputStream, hasStreamContent, streamingJobId);
+            return new Sheet(
+                () => isOpen.Set(false),
+                outputSheetView.Build(),
+                outputSheetView.GetSheetTitle()
+            ).Width(Size.Half()).Resizable();
+        });
+
+        var (promptSheet, showPrompt) = UseTrigger<string>((isOpen, promptText) =>
+        {
+            if (!isOpen.Value) return null;
+            var promptSheetView = new PromptSheet(promptText);
+            return new Sheet(
+                () => isOpen.Set(false),
+                promptSheetView.Build(),
+                "Full Prompt"
+            ).Width(Size.Half()).Resizable();
+        });
+
+        UseInterval(() => StreamOutputLines(jobService, activeOutputJobId, streamingJobId, lastProcessedIndex, hasStreamContent, outputStream),
             TimeSpan.FromMilliseconds(100));
         UseEffect(() => NotificationHookDisposable(jobService, client));
         UseEffect(() => JobChangeHookDisposable(jobService, refreshToken));
@@ -42,7 +85,6 @@ public partial class JobsApp : ViewBase
 
         var layout = Layout.Vertical().Height(Size.Full());
 
-        return RenderWithSheets(dataTable, showPlan, showOutput, showPrompt, planService,
-            config, openFile, jobService, outputStream, hasStreamContent, streamingJobId, layout);
+        return layout | new Fragment(dataTable, planSheet, outputSheet, promptSheet);
     }
 }
