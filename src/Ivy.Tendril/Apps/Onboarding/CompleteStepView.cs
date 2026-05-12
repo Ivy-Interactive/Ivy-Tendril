@@ -1,5 +1,5 @@
 using Ivy.Tendril.Services;
-using Ivy.Widgets.ClaudeJsonRenderer;
+using Ivy.Widgets.AgentOutputView;
 
 namespace Ivy.Tendril.Apps.Onboarding;
 
@@ -148,7 +148,6 @@ public class CompleteStepView(
         }
 
         var running = session.Running.Value;
-        var hasOutput = session.HasOutput.Value;
         var error = session.Error.Value;
 
         var headerText = running
@@ -165,17 +164,11 @@ public class CompleteStepView(
                | (error != null ? Text.Danger(error) : null!)
                | (running
                    ? (object)new Box(
-                       Layout.Vertical().Gap(4).Width(Size.Full()).Height(Size.Full())
-                       | (!hasOutput
-                           ? (object)(Layout.Vertical().Gap(2).AlignContent(Align.Center).Width(Size.Full()).Padding(8)
-                               | Icons.LoaderCircle.ToIcon().WithAnimation(AnimationType.Rotate).Duration(1)
-                               | Text.Muted("Starting agent..."))
-                           : null!)
-                       | new ClaudeJsonRenderer()
+                       new AgentOutputView()
+                           .Provider("claude")
                            .Stream(session.Stream)
-                           .ShowThinking(false)
-                           .ShowSystemEvents(false)
                            .AutoScroll(true)
+                           .ShowStatusLabel(true)
                            .Width(Size.Full())
                            .Height(Size.Full())
                      )
