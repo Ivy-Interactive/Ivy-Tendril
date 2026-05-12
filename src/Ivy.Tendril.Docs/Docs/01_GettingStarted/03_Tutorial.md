@@ -27,7 +27,7 @@ curl -sSf https://cdn.ivy.app/install-tendril.sh | sh
 ### Windows
 
 ```powershell
-Invoke-RestMethod -Uri https://cdn.ivy.app/install-tendril.ps1 | Invoke-Expression
+irm https://cdn.ivy.app/install-tendril.ps1 | iex
 ```
 
 The installer sets up the `tendril` binary and required dependencies. You can also install via .NET:

@@ -30,7 +30,7 @@ if ($hasDotNet10) {
 } else {
     Write-Host "Installing .NET 10 SDK..."
     $installScriptPath = Join-Path $env:TEMP "dotnet-install.ps1"
-    Invoke-WebRequest -Uri "https://dot.net/v1/dotnet-install.ps1" -OutFile $installScriptPath
+    irm -Uri "https://dot.net/v1/dotnet-install.ps1" -OutFile $installScriptPath
     
     # By default, dotnet-install.ps1 installs to $env:LOCALAPPDATA\Microsoft\dotnet
     & $installScriptPath -Channel 10.0

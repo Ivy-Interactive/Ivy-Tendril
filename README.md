@@ -34,7 +34,7 @@ curl -sSf https://cdn.ivy.app/install-tendril.sh | sh
 **Windows**
 
 ```powershell
-Invoke-RestMethod -Uri https://cdn.ivy.app/install-tendril.ps1 | Invoke-Expression
+irm https://cdn.ivy.app/install-tendril.ps1 | iex
 ```
 
 ### .NET Tool
