@@ -151,4 +151,4 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
     Write-Host "Note: You may need to restart your terminal for 'gh' or 'tendril' to be available." -ForegroundColor Red
 }
 
-Write-Host "`nTry running: tendril --version" -ForegroundColor Blue
+

@@ -166,4 +166,4 @@ if ! command -v gh &> /dev/null && ! /usr/local/bin/gh --version &> /dev/null; t
     printf "%b\\n" "${RED}Note: You may need to restart your terminal for 'gh' to be available.${NC}"
 fi
 
-printf "%b\\n" "\n${BLUE}Try running:${NC} tendril --version"
+
