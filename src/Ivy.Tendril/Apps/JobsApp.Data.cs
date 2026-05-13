@@ -27,7 +27,7 @@ public partial class JobsApp
             return new JobItemRow
             {
                 Id = j.Id,
-                Status = j.Status,
+                Status = FormatStatusBadge(j.Status),
                 PlanId = planId,
                 Plan = GetPromptDisplay(j, planService),
                 Type = j.Type,
@@ -87,7 +87,7 @@ public partial class JobsApp
                 new DataTableCellUpdate(j.Id, "Cost", j.Cost.HasValue ? $"${j.Cost.Value:F2}" : ""),
                 new DataTableCellUpdate(j.Id, "Tokens", j.Tokens.HasValue ? FormatHelper.FormatTokens(j.Tokens.Value) : ""),
                 new DataTableCellUpdate(j.Id, "LastOutput", FormatLastOutput(j)),
-                new DataTableCellUpdate(j.Id, "Status", j.Status),
+                new DataTableCellUpdate(j.Id, "Status", FormatStatusBadge(j.Status)),
                 new DataTableCellUpdate(j.Id, "StatusMessage", GetStatusMessage(j))
             });
     }
