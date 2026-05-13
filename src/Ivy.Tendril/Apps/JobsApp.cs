@@ -69,10 +69,9 @@ public partial class JobsApp : ViewBase
         var (debugSheet, showDebug) = UseTrigger<string>((isOpen, jobId) =>
         {
             if (!isOpen.Value) return null;
-            var debugSheetView = new JobDebugSheet(jobId, jobService, planService, config);
             return new Sheet(
                 () => isOpen.Set(false),
-                debugSheetView.Build(),
+                new JobDebugSheet(jobId, jobService, planService, config),
                 "Job Debug"
             ).Width(Size.Half()).Resizable();
         });
