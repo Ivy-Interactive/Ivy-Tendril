@@ -16,12 +16,12 @@ public class FileSheet(
         {
             if (url.StartsWith("file:///", StringComparison.OrdinalIgnoreCase))
             {
-                var filePath = url.Substring("file:///".Length);
+                var filePath = url["file:///".Length..];
                 openFileState.Set(filePath);
             }
             else if (url.StartsWith("plan://", StringComparison.OrdinalIgnoreCase))
             {
-                var planIdStr = url.Substring("plan://".Length);
+                var planIdStr = url["plan://".Length..];
                 if (int.TryParse(planIdStr, out var planId))
                     onPlanClick?.Invoke(planId);
             }
@@ -61,18 +61,17 @@ public class FileSheet(
         {
             sheetContent = new Markdown("File not found.");
         }
-
-        var contentWithPath = Layout.Vertical().Gap(1);
-        contentWithPath |= Text.Block(filePath).Muted().Small();
-        contentWithPath |= sheetContent;
-
+        
         var finalContent = fileExists
             ? new HeaderLayout(
-                new Button($"Open in {config.Editor.Label}").Icon(Icons.ExternalLink).Outline().OnClick(() =>
-                {
-                    config.OpenInEditor(filePath);
-                }),
-                contentWithPath
+                Layout.Vertical().Gap(2)
+                    | new Button($"Open in {config.Editor.Label}").Icon(Icons.ExternalLink).Outline().OnClick(() =>
+                    {
+                        config.OpenInEditor(filePath);
+                    })
+                    | Text.Block(filePath).Muted()
+                ,
+                sheetContent
             )
             : sheetContent;
 
