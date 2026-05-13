@@ -14,7 +14,6 @@ using Microsoft.Extensions.Logging;
 namespace Ivy.Tendril.AppShell;
 
 #pragma warning disable IVYAPP001
-#pragma warning disable IVYHOOK005
 
 public class TendrilAppShell(AppShellSettings settings) : ViewBase
 {
