@@ -351,7 +351,7 @@ public class ContentView(
         var planTabContent = Layout.Vertical().Height(Size.Full())
             | new Markdown(reviewAnnotated)
                 .DangerouslyAllowLocalFiles()
-                .OnLinkClick(FileLinkHelper.CreateFileLinkClickHandler(openFile, planId =>
+                .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile, planId =>
                 {
                     var planFolder = Directory.GetDirectories(planService.PlansDirectory, $"{planId:D5}-*")
                         .FirstOrDefault();
@@ -489,7 +489,7 @@ public class ContentView(
 
         if (openArtifact.Value is { } artifactPath)
         {
-            var language = FileApp.GetLanguage(Path.GetExtension(artifactPath));
+            var language = FileHelper.GetLanguage(Path.GetExtension(artifactPath));
             content |= new Sheet(
                 () => openArtifact.Set(null),
                 artifactContentQuery.Loading
@@ -501,13 +501,7 @@ public class ContentView(
             ).Width(Size.Half()).Resizable();
         }
 
-        if (selectedPlan is not null)
-        {
-            var fileRepoPaths = selectedPlan.GetEffectiveRepoPaths(config);
-            var fileLinkSheet =
-                FileLinkHelper.BuildFileLinkSheet(openFile.Value, () => openFile.Set(null), fileRepoPaths, config);
-            if (fileLinkSheet != null) content |= fileLinkSheet;
-        }
+        content |= new FileSheet(openFile, config);
 
         return content;
 

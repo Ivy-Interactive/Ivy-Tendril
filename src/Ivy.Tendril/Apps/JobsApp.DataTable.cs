@@ -17,6 +17,7 @@ public partial class JobsApp
         Action<string> showPlan,
         Action<string> showOutput,
         Action<string> showPrompt,
+        Action<string>? showDebug,
         List<JobItem> jobs,
         Dictionary<string, string> projectColors,
         StackedProgress jobsProgress)
@@ -37,6 +38,10 @@ public partial class JobsApp
             .Header(t => t.Cost, "Cost")
             .Header(t => t.Tokens, "Tokens")
             .Header(t => t.LastOutput, "Last Output")
+            .Renderer(t => t.LastOutput, new AnimatedStatusLabelDisplayRenderer
+            {
+                Mode = AnimatedStatusMode.SpinnerTimer
+            })
             .Header(t => t.StatusMessage, "Status")
             .Width(t => t.Status, Size.Px(100))
             .Width(t => t.PlanId, Size.Px(100))
@@ -48,8 +53,9 @@ public partial class JobsApp
             .Width(t => t.Cost, Size.Px(100))
             .Width(t => t.Tokens, Size.Px(100))
             .Width(t => t.StatusMessage, Size.Auto())
-            .Renderer(t => t.Status, new LabelsDisplayRenderer
+            .Renderer(t => t.Status, new AnimatedStatusLabelDisplayRenderer
             {
+                Mode = AnimatedStatusMode.Badge,
                 BadgeColorMapping = StatusMappings.JobStatusColors.ToDictionary(
                     kvp => kvp.Key.ToString(),
                     kvp => kvp.Value.ToString()
@@ -150,6 +156,12 @@ public partial class JobsApp
                         .Tooltip("Rerun this job"));
                 }
 
+                if (showDebug != null)
+                {
+                    actions.Add(new MenuItem("Debug", Icon: Icons.Bug, Tag: "debug-job")
+                        .Tooltip("Show debug details for this job"));
+                }
+
                 actions.Add(new MenuItem("Delete", Icon: Icons.Trash, Tag: "delete-job")
                     .Tooltip("Delete this job"));
 
@@ -163,7 +175,7 @@ public partial class JobsApp
 
                 if (job != null)
                 {
-                  
+
                     if (tag == "stop-job")
                     {
                         if (job.Status is JobStatus.Running or JobStatus.Queued)
@@ -198,6 +210,10 @@ public partial class JobsApp
                             refreshToken.Refresh();
                         }
                     }
+                    else if (tag == "debug-job")
+                    {
+                        showDebug?.Invoke(job.Id);
+                    }
                     else if (tag == "delete-job")
                     {
                         if (job.Status is JobStatus.Running or JobStatus.Queued)
@@ -221,14 +237,14 @@ public partial class JobsApp
                                           var count = jobService.GetJobs().Count(j => j.Status == JobStatus.Completed);
                                           jobService.ClearCompletedJobs();
                                           refreshToken.Refresh();
-                                          client.Toast($"Cleared {count} completed job(s)", "Clear Completed");
+                                          client.Toast($"Cleared {count} completed {(count == 1 ? "job" : "jobs")}.", "Clear Completed");
                                       }),
                                   new MenuItem("Clear Failed", Icon: Icons.Trash, Tag: "ClearFailed").OnSelect(() =>
                                   {
                                       var count = jobService.GetJobs().Count(j => j.Status is JobStatus.Failed or JobStatus.Timeout);
                                       jobService.ClearFailedJobs();
                                       refreshToken.Refresh();
-                                      client.Toast($"Cleared {count} failed job(s)", "Clear Failed");
+                                      client.Toast($"Cleared {count} failed {(count == 1 ? "job" : "jobs")}.", "Clear Failed");
                                   })
                               ));
     }

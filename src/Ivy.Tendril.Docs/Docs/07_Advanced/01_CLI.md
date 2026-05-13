@@ -68,7 +68,7 @@ tendril plan list --verbose
 tendril doctor --quiet
 
 # Verbose promptware execution
-tendril promptware CreatePlan --verbose D:\Plans\00123-MyPlan
+tendril promptware run CreatePlan --verbose D:\Plans\00123-MyPlan
 ```
 
 **Note:** Verbosity flags are inherited by child processes. When you run a promptware with `--verbose`, the spawned agent also runs in verbose mode.
@@ -478,7 +478,7 @@ Refreshes the embedded promptware templates from the bundled source. Use after u
 ### promptware
 
 ```bash
-tendril promptware <promptware-name> [args...] [options]
+tendril promptware run <promptware-name> [args...] [options]
 ```
 
 Runs a promptware by name. Used primarily for testing or manual promptware execution.
@@ -492,5 +492,5 @@ Runs a promptware by name. Used primarily for testing or manual promptware execu
 Example:
 
 ```bash
-tendril promptware CreatePlan "Fix the login bug" --value Project=Tendril
+tendril promptware run CreatePlan "Fix the login bug" --value Project=Tendril
 ```

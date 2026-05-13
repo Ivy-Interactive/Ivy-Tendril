@@ -1,6 +1,8 @@
-using Ivy.Tendril.AppShell.Dialogs;
+using Ivy.Desktop;
 using Ivy.Tendril.Apps.Setup;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
+using Microsoft.AspNetCore.Http;
 
 namespace Ivy.Tendril.Apps;
 
@@ -16,20 +18,16 @@ public class SettingsApp : ViewBase
     private const string TagPlugins = "plugins";
     private const string TagAdvanced = "advanced";
     private const string TagTheme = "theme";
-    private const string TagTrash = "trash";
-    private const string TagImportIssues = "import-issues";
     private const string TagOpenConfig = "open-config";
 
     public override object Build()
     {
         var config = UseService<IConfigService>();
+        var navigator = UseNavigation();
+        var httpContextAccessor = UseService<IHttpContextAccessor>();
         var selected = UseState(TagGeneral);
-
-        var (importIssuesDialog, showImportIssuesDialog) = UseTrigger((isOpen) =>
-        {
-            if (!isOpen.Value) return null;
-            return new ImportIssuesDialog(isOpen, config);
-        });
+        Context.TryUseService<DesktopWindow>(out var desktopWindow);
+        var isDesktop = desktopWindow != null;
 
         var menuItems = new[]
         {
@@ -51,8 +49,6 @@ public class SettingsApp : ViewBase
                 .Expanded()
                 .Children(
                     MenuItem.Default("Theme", TagTheme).Icon(Icons.SunMoon),
-                    MenuItem.Default("Trash", TagTrash).Icon(Icons.Trash2),
-                    MenuItem.Default("Import Issues from GitHub", TagImportIssues).Icon(Icons.Download),
                     MenuItem.Default("Open config.yaml", TagOpenConfig).Icon(Icons.FileText)
                 )
         };
@@ -62,11 +58,8 @@ public class SettingsApp : ViewBase
             if (@event.Value is not string tag) return;
             switch (tag)
             {
-                case TagImportIssues:
-                    showImportIssuesDialog();
-                    break;
                 case TagOpenConfig:
-                    config.OpenInEditor(config.ConfigPath);
+                    ConfigYamlUiHelper.OpenOrNavigate(config, navigator, isDesktop, httpContextAccessor);
                     break;
                 default:
                     selected.Set(tag);
@@ -87,13 +80,9 @@ public class SettingsApp : ViewBase
             TagPlugins => new PluginsSetupView(),
             TagAdvanced => new AdvancedSetupView(),
             TagTheme => new ThemeSettingsView(),
-            TagTrash => new TrashApp(),
             _ => new GeneralSetupView()
         };
 
-        return new Fragment(
-            new SidebarLayout(content, sidebar),
-            importIssuesDialog
-        );
+        return new SidebarLayout(content, sidebar);
     }
 }

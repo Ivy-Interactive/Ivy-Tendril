@@ -17,12 +17,10 @@ public class ProjectRepoPickerView(
         var inputValue = UseState("");
         var addingError = UseState<string?>(null);
         var isAdding = UseState(false);
-
         Context.TryUseService<DesktopWindow>(out var desktop);
-        var isDesktop = desktop != null;
+        Context.TryUseService<IConfigService>(out var configService);
 
-        IConfigService? configService = null;
-        Context.TryUseService<IConfigService>(out configService);
+        var isDesktop = desktop != null;
         var tendrilHome = configService?.TendrilHome;
 
         async Task AddAsync()
@@ -86,20 +84,18 @@ public class ProjectRepoPickerView(
                                      var picked = desktop!.ShowSelectFolderDialog("Select repository folder");
                                      if (picked != null && picked.Length > 0 && !string.IsNullOrEmpty(picked[0]))
                                          inputValue.Set(picked[0]);
-                                 })
-                             | new Button(isAdding.Value ? "Adding..." : "Add").Icon(Icons.Plus)
-                                 .Disabled(string.IsNullOrWhiteSpace(inputValue.Value) || isAdding.Value)
-                                 .OnClick(() => { _ = AddAsync(); });
+                                 });
         }
         else
         {
             pickerControls = Layout.Horizontal().Gap(2).Width(Size.Full())
                              | inputValue.ToTextInput("Repository URL or local path")
-                                 .Width(Size.Grow())
-                             | new Button(isAdding.Value ? "Adding..." : "Add").Icon(Icons.Plus)
-                                 .Disabled(string.IsNullOrWhiteSpace(inputValue.Value) || isAdding.Value)
-                                 .OnClick(() => { _ = AddAsync(); });
+                                 .Width(Size.Grow());
         }
+
+        var addButton = new Button(isAdding.Value ? "Adding..." : "Add").Icon(Icons.Plus)
+            .Disabled(string.IsNullOrWhiteSpace(inputValue.Value) || isAdding.Value)
+            .OnClick(() => { _ = AddAsync(); });
 
         var listLayout = Layout.Vertical().Gap(2);
         var current = repos.Value;
@@ -148,6 +144,7 @@ public class ProjectRepoPickerView(
                | Text.Muted("Add repositories to this project (optional).")
                | (addingError.Value != null ? Text.Danger(addingError.Value) : null!)
                | pickerControls
+               | addButton
                | (current.Count > 0 ? new Separator() : null!)
                | (current.Count > 0 ? listLayout : null!);
     }

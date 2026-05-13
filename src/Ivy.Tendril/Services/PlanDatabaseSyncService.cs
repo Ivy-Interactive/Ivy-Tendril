@@ -118,7 +118,7 @@ public class PlanDatabaseSyncService : IDisposable
         }
 
         if (recovered > 0)
-            _logger.LogInformation("Recovered {Count} stuck plan(s) in database", recovered);
+            _logger.LogInformation("Recovered {Count} stuck plans in database.", recovered);
     }
 
     private void SyncSinglePlan(string planFolder)

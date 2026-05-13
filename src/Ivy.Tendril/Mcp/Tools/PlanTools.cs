@@ -92,7 +92,7 @@ public sealed class PlanTools : AuthenticatedToolBase
                 if (count == 0)
                     return "No plans found matching the specified criteria.";
 
-                sb.Insert(0, $"Found {count} plan(s):\n");
+                sb.Insert(0, $"Found {count} {(count == 1 ? "plan" : "plans")}:\n");
                 return sb.ToString();
             }
             catch (Exception ex)
@@ -409,7 +409,7 @@ public sealed class PlanTools : AuthenticatedToolBase
                 return "No recommendations found.";
 
             var sb = new StringBuilder();
-            sb.AppendLine($"Found {recs.Count} recommendation(s):");
+            sb.AppendLine($"Found {recs.Count} {(recs.Count == 1 ? "recommendation" : "recommendations")}:");
             foreach (var rec in recs)
                 sb.AppendLine($"- {rec.Title} | State: {rec.State} | Impact: {rec.Impact ?? "-"} | Risk: {rec.Risk ?? "-"}");
 

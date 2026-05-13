@@ -224,7 +224,7 @@ internal class JobLauncher
 
         var settings = _configService.Settings;
         var (values, planYaml, profileOverride) = BuildFirmwareValues(ctx, programFolder);
-        values["Project"] = job.Project;
+        values["TendrilProject"] = job.Project;
 
         var jobContext = BuildJobContext(job, values, programFolder);
         var resolution = AgentProviderFactory.Resolve(settings, job.Type, profileOverride, jobContext);
@@ -234,7 +234,8 @@ internal class JobLauncher
         job.LogFilePath = logFile;
 
         var customInstructions = ResolveCustomInstructions(job.Type);
-        var prompt = FirmwareCompiler.Compile(new FirmwareContext(programFolder, values, customInstructions));
+        var projects = BuildProjectInfos(job);
+        var prompt = FirmwareCompiler.Compile(new FirmwareContext(programFolder, values, customInstructions, projects));
         job.CompiledPrompt = prompt;
 
         var promptFilePath = WritePromptFileIfNeeded(resolution, prompt, job.Id, values);
@@ -278,7 +279,7 @@ internal class JobLauncher
         if (resolution.Provider.UsesStdinPrompt)
             return null;
 
-        var tempDir = values.TryGetValue("PlanFolder", out var pf)
+        var tempDir = values.TryGetValue("TendrilPlanFolder", out var pf)
             ? Path.Combine(pf, "temp")
             : Path.GetTempPath();
         Directory.CreateDirectory(tempDir);
@@ -301,8 +302,13 @@ internal class JobLauncher
         var job = ctx.Job;
         var values = new Dictionary<string, string>
         {
-            ["ClaudeSessionId"] = job.SessionId ?? ""
+            ["AgentSessionId"] = job.SessionId ?? "",
+            ["TendrilJobId"] = job.Id,
+            ["TendrilHome"] = _configService.TendrilHome ?? ""
         };
+
+        if (job.Type == Constants.JobTypes.UpdateProject)
+            values["TendrilConfigPath"] = _configService!.ConfigPath;
 
         if (job.TypedArgs is CreatePlanArgs)
         {
@@ -319,7 +325,7 @@ internal class JobLauncher
         var cp = job.TypedArgs as CreatePlanArgs;
         var description = cp?.Description ?? "";
         values["Args"] = description;
-        values["PlansDirectory"] = _configService!.PlanFolder;
+        values["TendrilPlansFolder"] = _configService!.PlanFolder;
 
         if (cp?.Force == true)
             values["Force"] = "true";
@@ -337,12 +343,12 @@ internal class JobLauncher
         var planId = PlanYamlHelper.ExtractPlanIdFromFolder(planFolder);
         if (planId != null)
         {
-            values["PlanId"] = planId;
+            values["TendrilPlanId"] = planId;
             job.AllocatedPlanId ??= planId;
         }
 
-        values["PlanFolder"] = planFolder;
-        values["PlansDirectory"] = Path.GetDirectoryName(planFolder) ?? "";
+        values["TendrilPlanFolder"] = planFolder;
+        values["TendrilPlansFolder"] = Path.GetDirectoryName(planFolder) ?? "";
 
         var planYaml = PlanYamlHelper.ReadPlanYaml(planFolder);
         if (planYaml == null)
@@ -351,6 +357,9 @@ internal class JobLauncher
         // Add sourceUrl to firmware header if present
         if (!string.IsNullOrEmpty(planYaml.SourceUrl))
             values["SourceUrl"] = planYaml.SourceUrl;
+
+        if (job.TypedArgs is UpdatePlanArgs { Instructions: not null } updateArgs)
+            values["UpdateInstructions"] = updateArgs.Instructions;
 
         var profileOverride = ExtractExecutionProfile(job, planYaml);
         AddRepoConfigsIfNeeded(job, planYaml, values);
@@ -399,9 +408,9 @@ internal class JobLauncher
             ["PROMPTWARE_DIR"] = programFolder
         };
 
-        if (firmwareValues.TryGetValue("PlansDirectory", out var plansDir))
+        if (firmwareValues.TryGetValue("TendrilPlansFolder", out var plansDir))
             ctx["PLANS_DIR"] = plansDir;
-        if (firmwareValues.TryGetValue("PlanFolder", out var planFolder))
+        if (firmwareValues.TryGetValue("TendrilPlanFolder", out var planFolder))
             ctx["PLAN_DIR"] = planFolder;
 
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
@@ -536,5 +545,55 @@ internal class JobLauncher
         }
 
         return "main";
+    }
+
+    private ProjectInfo[]? BuildProjectInfos(JobItem job)
+    {
+        if (_configService == null) return null;
+
+        var projectNames = ProjectHelper.ParseProjects(job.Project);
+
+        if (projectNames.Length == 0 || (projectNames.Length == 1 && projectNames[0].Equals("Auto", StringComparison.OrdinalIgnoreCase)))
+            return BuildAllProjectInfos();
+
+        var result = projectNames
+            .Select(BuildSingleProjectInfo)
+            .Where(p => p != null)
+            .Select(p => p!)
+            .ToArray();
+
+        return result.Length > 0 ? result : null;
+    }
+
+    private ProjectInfo[] BuildAllProjectInfos()
+    {
+        return _configService!.Projects
+            .Select(BuildProjectInfoFromConfig)
+            .ToArray();
+    }
+
+    private ProjectInfo? BuildSingleProjectInfo(string name)
+    {
+        var config = _configService!.GetProject(name);
+        return config == null ? null : BuildProjectInfoFromConfig(config);
+    }
+
+    private ProjectInfo BuildProjectInfoFromConfig(ProjectConfig config)
+    {
+        var repos = config.Repos.Select(r =>
+        {
+            var expanded = Environment.ExpandEnvironmentVariables(r.Path);
+            var repoName = Path.GetFileName(expanded);
+            var ownerDir = Path.GetFileName(Path.GetDirectoryName(expanded) ?? "");
+            return new ProjectRepoInfo(expanded, $"{ownerDir}/{repoName}");
+        }).ToList();
+
+        var verifications = config.Verifications.Select(v =>
+        {
+            var delegated = _configService!.Settings.Promptwares.ContainsKey(v.Name);
+            return new ProjectVerificationInfo(v.Name, v.Required, delegated);
+        }).ToList();
+
+        return new ProjectInfo(config.Name, config.Context, repos, verifications);
     }
 }

@@ -67,15 +67,8 @@ public class UpdatePlanDialog(
                         };
                         _selectedPlanState.Set(optimisticPlan);
 
-                        // Append >> comments to the latest revision so UpdatePlan can process them
-                        var currentContent = _planService.ReadLatestRevision(_selectedPlan.FolderName);
-                        var comments = string.Join("\n", updateText.Value
-                            .Split('\n')
-                            .Select(line => $">> {line}"));
-                        _planService.SavePlan(_selectedPlan.FolderName, currentContent + "\n\n" + comments + "\n");
-
                         _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Updating);
-                        _jobService.StartJob(new UpdatePlanArgs(_selectedPlan.FolderPath));
+                        _jobService.StartJob(new UpdatePlanArgs(_selectedPlan.FolderPath, updateText.Value));
                         _refreshPlans();
                         updateText.Set("");
                         isCreating.Set(false);

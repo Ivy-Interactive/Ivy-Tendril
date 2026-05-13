@@ -60,7 +60,7 @@ public static class AgentProcessHelper
         return string.Join(" ", parts.Select(p => p.Contains(' ') ? $"\"{p}\"" : p));
     }
 
-    internal static void PrependToPath(ProcessStartInfo psi, string dir)
+    private static void PrependToPath(ProcessStartInfo psi, string dir)
     {
         var current = psi.Environment.TryGetValue("PATH", out var p) ? p : Environment.GetEnvironmentVariable("PATH");
         psi.Environment["PATH"] = $"{dir}{Path.PathSeparator}{current}";

@@ -125,6 +125,37 @@ verifications: []
         Assert.Equal("New prompt", reloaded.Settings.Verifications[0].Prompt);
     }
 
+    // --- Get Verification Definition ---
+
+    [Fact]
+    public void GetVerification_FindsByName_CaseInsensitive()
+    {
+        var config = CreateConfig();
+        config.Settings.Verifications.Add(new VerificationConfig { Name = "Build", Prompt = "dotnet build --warnaserror" });
+        config.SaveSettings();
+
+        var reloaded = CreateConfig();
+        var match = reloaded.Settings.Verifications
+            .FirstOrDefault(v => v.Name.Equals("build", StringComparison.OrdinalIgnoreCase));
+
+        Assert.NotNull(match);
+        Assert.Equal("dotnet build --warnaserror", match.Prompt);
+    }
+
+    [Fact]
+    public void GetVerification_ReturnsNull_WhenNotFound()
+    {
+        var config = CreateConfig();
+        config.Settings.Verifications.Add(new VerificationConfig { Name = "Build", Prompt = "x" });
+        config.SaveSettings();
+
+        var reloaded = CreateConfig();
+        var match = reloaded.Settings.Verifications
+            .FirstOrDefault(v => v.Name.Equals("NonExistent", StringComparison.OrdinalIgnoreCase));
+
+        Assert.Null(match);
+    }
+
     // --- Roundtrip ---
 
     [Fact]

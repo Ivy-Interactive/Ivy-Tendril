@@ -106,7 +106,7 @@ public class PlanToolsTests : IDisposable
         var result = _planTools.ListPlans();
         Assert.Contains("First Plan", result);
         Assert.Contains("Second Plan", result);
-        Assert.Contains("Found 2 plan(s)", result);
+        Assert.Contains("Found 2 plans:", result);
     }
 
     [Fact]

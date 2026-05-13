@@ -1,11 +1,12 @@
 # UpdatePlan
 
-Update an existing plan by applying user comments (lines prefixed with `>>`).
+Update an existing plan by applying user instructions from the firmware header.
 
 ## Context
 
 The firmware header contains:
-- **Args** / **PlanFolder** — path to the plan folder
+- **Args** / **TendrilPlanFolder** — path to the plan folder
+- **UpdateInstructions** — the user's update instructions (what to change)
 - **CurrentTime** — current UTC timestamp
 
 The plan structure and CLI commands are in the **Reference Documents** section of your firmware.
@@ -15,34 +16,31 @@ Project configuration is available from the firmware header.
 
 ### 1. Read the Plan
 
-- Read `plan.yaml` from the plan folder
 - Read the latest revision from `revisions/` (highest numbered .md file)
-- The latest revision contains `>>` comment lines — these are user instructions
-- Report plan context to Jobs UI: `tendril job status $env:TENDRIL_JOB_ID --message "Updating plan..." --plan-id <plan-id> --plan-title "<title>"`
+- Get the plan title: `tendril plan get <TendrilPlanId> title`
+- Report plan context to Jobs UI: `tendril job status TendrilJobId --message "Updating plan..." --plan-id <plan-id> --plan-title "<title>"`
 
-### 2. Parse Comments
+### 2. Parse Instructions
 
-Look for lines prefixed with `>>`. These are either:
+Read the `UpdateInstructions` value from the firmware header. Instructions are either:
 - **Questions** (contain `?` or start with question words) — research and answer them
 - **Instructions** — changes to incorporate into the plan
 
-If no `>>` lines exist, report "No comments found" and stop.
-
 ### 3. Research and Answer Questions
 
-For each question in the `>>` lines:
+For each question in the instructions:
 1. Read relevant source files to find the answer
 2. Use the firmware header for project context if needed
 
 ### 3.5. Resolve Answered Questions
 
 Compare each existing question in `## Questions` against:
-- The `>>` comments (user may have directly answered a question)
+- The user's instructions (user may have directly answered a question)
 - Your research findings from step 3
 
-For each question, determine if it has been answered — either explicitly by a `>>` comment or implicitly by a decision made in the updated plan. If answered:
+For each question, determine if it has been answered — either explicitly by the user's instructions or implicitly by a decision made in the updated plan. If answered:
 - Wrap the question in a `<details>` block (collapsed) with the answer as the body
-- The answer should reference the user's comment or the design decision that resolves it
+- The answer should reference the user's instruction or the design decision that resolves it
 
 If all questions are resolved and no new questions arose, omit the `## Questions` section entirely.
 
@@ -51,21 +49,22 @@ If all questions are resolved and no new questions arose, omit the `## Questions
 - Write the new revision via CLI (number auto-incremented):
   ```bash
   tendril plan write-revision <plan-id> <<'EOF'
-  <updated revision content>
+  <updated revision content here>
   EOF
   ```
-  Do NOT use the Write or Edit tools to create revision files.
-- Incorporate the intent of each `>>` instruction into the updated plan
-- Maintain the `## Questions` section (placed after the title, before `## Problem`) using `<details>` tags: (1) Existing questions answered by `>>` comments or research should be collapsed into `<details>` blocks with the answer. (2) New `>>` questions become new `<details>` blocks with answers. (3) Unanswered questions from prior revisions remain as open items (not in `<details>`). (4) If all questions are resolved and no new ones arose, omit the section entirely. Format:
+
+  The command reads from STDIN and auto-creates the next numbered revision file. Do NOT use the Write or Edit tools to create revision files directly in `revisions/`.
+- Incorporate the intent of each instruction into the updated plan
+- Maintain the `## Questions` section (placed after the title, before `## Problem`) using `<details>` tags: (1) Existing questions answered by the user's instructions or research should be collapsed into `<details>` blocks with the answer. (2) New questions become new `<details>` blocks with answers. (3) Unanswered questions from prior revisions remain as open items (not in `<details>`). (4) If all questions are resolved and no new ones arose, omit the section entirely. Format:
   ```html
   <details>
   <summary>Question</summary>
   Answer
   </details>
   ```
-- Remove all `>>` lines — they've been processed
 - Preserve the plan template structure
 - The updated plan must be at least as comprehensive as the original
+
 ### Rules
 
 - Do NOT modify any source code — only read files and update the plan

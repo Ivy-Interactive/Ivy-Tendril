@@ -61,6 +61,7 @@ internal class JobCompletionHandler
         HandlePlanStateTransition(job, isSuccess);
         TrackTelemetry(job, isSuccess);
         CleanupInboxFile(job);
+        CleanupOldTrashFiles();
         WriteJobLog(job);
         NotifyPlanWatcher(job);
         ScheduleCostCalculation(job, jobs, persistJob, raisePropertyChanged);
@@ -516,6 +517,28 @@ internal class JobCompletionHandler
         {
             if (File.Exists(job.InboxFile))
                 File.Delete(job.InboxFile);
+        }
+        catch
+        {
+        }
+    }
+
+    private static void CleanupOldTrashFiles()
+    {
+        var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
+        if (string.IsNullOrEmpty(tendrilHome)) return;
+
+        var trashDir = Path.Combine(tendrilHome, "Trash");
+        if (!Directory.Exists(trashDir)) return;
+
+        try
+        {
+            var cutoff = DateTime.UtcNow - TimeSpan.FromDays(7);
+            foreach (var file in Directory.GetFiles(trashDir))
+            {
+                if (File.GetLastWriteTimeUtc(file) < cutoff)
+                    File.Delete(file);
+            }
         }
         catch
         {

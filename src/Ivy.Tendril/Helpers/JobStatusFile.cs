@@ -46,19 +46,19 @@ public static class JobStatusFile
         catch { /* Best-effort */ }
     }
 
-    public static string GetJobLogPath(string statusFilePath) => statusFilePath + ".jsonl";
+    private static string GetJobLogPath(string statusFilePath) => statusFilePath + ".jsonl";
 
-    public static void AppendCliInvocation(string statusFilePath, string command, int exitCode, double durationMs)
-    {
-        try
-        {
-            var logPath = GetJobLogPath(statusFilePath);
-            var entry = new CliLogEntry(DateTime.UtcNow.ToString("O"), command, exitCode, durationMs);
-            var line = JsonSerializer.Serialize(entry, JsonOptions);
-            File.AppendAllText(logPath, line + "\n");
-        }
-        catch { /* Best-effort */ }
-    }
+    // public static void AppendCliInvocation(string statusFilePath, string command, int exitCode, double durationMs)
+    // {
+    //     try
+    //     {
+    //         var logPath = GetJobLogPath(statusFilePath);
+    //         var entry = new CliLogEntry(DateTime.UtcNow.ToString("O"), command, exitCode, durationMs);
+    //         var line = JsonSerializer.Serialize(entry, JsonOptions);
+    //         File.AppendAllText(logPath, line + "\n");
+    //     }
+    //     catch { /* Best-effort */ }
+    // }
 
     public static void AppendCliInvocationDirect(string logPath, string command, int exitCode, double durationMs)
     {

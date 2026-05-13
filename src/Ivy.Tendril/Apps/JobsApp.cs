@@ -2,6 +2,7 @@ using System.Reactive.Linq;
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Views.Sheets;
 
 namespace Ivy.Tendril.Apps;
 
@@ -25,14 +26,13 @@ public partial class JobsApp : ViewBase
         var (planSheet, showPlan) = UseTrigger<string>((isOpen, planPath) =>
         {
             if (!isOpen.Value) return null;
-            var planSheetView = new PlanSheet(planPath, planService, config, openFile);
-            var fileLinkSheet = planSheetView.BuildFileLinkSheet();
+            var planSheetView = new PlanSheet(planPath, planService, openFile);
             var sheet = new Sheet(
                 () => isOpen.Set(false),
                 planSheetView.Build(),
                 planSheetView.GetSheetTitle()
             ).Width(Size.Half()).Resizable();
-            return fileLinkSheet is not null ? new Fragment(sheet, fileLinkSheet) : sheet;
+            return new Fragment(sheet, new FileSheet(openFile, config));
         });
 
         var (outputSheet, showOutput) = UseTrigger<string>((isOpen, jobId) =>
@@ -65,6 +65,18 @@ public partial class JobsApp : ViewBase
             ).Width(Size.Half()).Resizable();
         });
 
+#if DEBUG
+        var (debugSheet, showDebug) = UseTrigger<string>((isOpen, jobId) =>
+        {
+            if (!isOpen.Value) return null;
+            return new Sheet(
+                () => isOpen.Set(false),
+                new JobDebugSheet(jobId, jobService, planService, config),
+                "Job Debug"
+            ).Width(Size.Half()).Resizable();
+        });
+#endif
+
         UseInterval(() => StreamOutputLines(jobService, activeOutputJobId, streamingJobId, lastProcessedIndex, hasStreamContent, outputStream),
             TimeSpan.FromMilliseconds(100));
         UseEffect(() => NotificationHookDisposable(jobService, client));
@@ -80,11 +92,20 @@ public partial class JobsApp : ViewBase
         var rows = BuildJobRows(jobs, planService);
         var jobsProgress = BuildStatusProgress(jobs, config);
 
+#if DEBUG
         var dataTable = BuildDataTable(rows, refreshToken, updateStream, config, planService,
-            jobService, client, showPlan, showOutput, showPrompt, jobs, projectColors, jobsProgress);
+            jobService, client, showPlan, showOutput, showPrompt, showDebug, jobs, projectColors, jobsProgress);
+#else
+        var dataTable = BuildDataTable(rows, refreshToken, updateStream, config, planService,
+            jobService, client, showPlan, showOutput, showPrompt, null, jobs, projectColors, jobsProgress);
+#endif
 
         var layout = Layout.Vertical().Height(Size.Full());
 
+#if DEBUG
+        return layout | new Fragment(dataTable, planSheet, outputSheet, promptSheet, debugSheet);
+#else
         return layout | new Fragment(dataTable, planSheet, outputSheet, promptSheet);
+#endif
     }
 }

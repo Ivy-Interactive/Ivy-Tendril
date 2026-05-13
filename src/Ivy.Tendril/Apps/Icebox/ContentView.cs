@@ -2,6 +2,7 @@ using Ivy.Core;
 using Ivy.Tendril.Apps.Icebox.Dialogs;
 using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Views;
+using Ivy.Tendril.Views.Sheets;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
@@ -53,7 +54,7 @@ public class ContentView(
                                 |
                                 new Markdown(MarkdownHelper.AnnotateAllBrokenLinks(selectedPlan.LatestRevisionContent, planService.PlansDirectory))
                                     .DangerouslyAllowLocalFiles()
-                                    .OnLinkClick(FileLinkHelper.CreateFileLinkClickHandler(openFile, planId =>
+                                    .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile, planId =>
                                     {
                                         var planFolder = Directory.GetDirectories(planService.PlansDirectory, $"{planId:D5}-*")
                                             .FirstOrDefault();
@@ -118,11 +119,7 @@ public class ContentView(
             deleteDialog
         };
 
-        var repoPaths = selectedPlan.GetEffectiveRepoPaths(config);
-        var fileLinkSheet = FileLinkHelper.BuildFileLinkSheet(
-            openFile.Value, () => openFile.Set(null), repoPaths, config);
-        if (fileLinkSheet is not null)
-            elements.Add(fileLinkSheet);
+        elements.Add(new FileSheet(openFile, config));
 
         return new Fragment(elements.ToArray());
     }

@@ -8,7 +8,7 @@ public partial class JobsApp
 {
     private const int PromptDisplayMaxLength = 500;
 
-    private static string? GetFullPrompt(JobItem job, IPlanReaderService? planService = null)
+    internal static string? GetFullPrompt(JobItem job, IPlanReaderService? planService = null)
     {
         if (job.TypedArgs is CreatePlanArgs cp)
             return cp.Description;
@@ -43,12 +43,27 @@ public partial class JobsApp
             if (job.LastOutputAt.HasValue)
             {
                 var elapsed = DateTime.UtcNow - job.LastOutputAt.Value;
-                return FormatTimeSpan(elapsed);
+                return AnimatedStatusValue.Running(FormatTimeSpan(elapsed));
             }
-            return "Starting...";
+            return AnimatedStatusValue.Running("Starting...");
         }
 
-        return "-";
+        if (job.Status == JobStatus.Completed)
+            return AnimatedStatusValue.Done("Done");
+
+        return AnimatedStatusValue.Idle("-");
+    }
+
+    /// <summary>
+    /// Encodes a <see cref="JobStatus"/> for the animated badge renderer.
+    /// Running jobs shimmer; everything else is a static badge.
+    /// </summary>
+    private static string FormatStatusBadge(JobStatus status)
+    {
+        var text = status.ToString();
+        return status == JobStatus.Running
+            ? AnimatedStatusValue.Running(text)
+            : AnimatedStatusValue.Idle(text);
     }
 
     private static string FormatTimer(JobItem job)
@@ -131,7 +146,7 @@ public partial class JobsApp
 
         return job.Status switch
         {
-            JobStatus.Blocked => "Waiting for dependency plan(s) to complete",
+            JobStatus.Blocked => "Waiting for dependency plans to complete.",
             JobStatus.Failed => "Job encountered an error during execution",
             JobStatus.Timeout => "Job exceeded the configured timeout",
             JobStatus.Queued => "Waiting for a job slot to become available",

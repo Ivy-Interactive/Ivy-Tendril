@@ -1,14 +1,14 @@
 using System.Diagnostics;
-using Ivy.Tendril.Apps;
-
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
-namespace Ivy.Tendril.Helpers;
 
-public static class FileLinkHelper
+namespace Ivy.Tendril.Views.Sheets;
+
+public class FileSheet(
+    IState<string?> openFile,
+    IConfigService config) : ViewBase
 {
-    private static readonly string[] ImageExtensions = [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"];
-
-    public static Action<string> CreateFileLinkClickHandler(
+    public static Action<string> CreateLinkClickHandler(
         IState<string?> openFileState,
         Action<int>? onPlanClick = null)
     {
@@ -16,19 +16,18 @@ public static class FileLinkHelper
         {
             if (url.StartsWith("file:///", StringComparison.OrdinalIgnoreCase))
             {
-                var filePath = url.Substring("file:///".Length);
+                var filePath = url["file:///".Length..];
                 openFileState.Set(filePath);
             }
             else if (url.StartsWith("plan://", StringComparison.OrdinalIgnoreCase))
             {
-                var planIdStr = url.Substring("plan://".Length);
+                var planIdStr = url["plan://".Length..];
                 if (int.TryParse(planIdStr, out var planId))
                     onPlanClick?.Invoke(planId);
             }
             else if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
                      url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             {
-                // Open external links in system default browser
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = url,
@@ -38,49 +37,46 @@ public static class FileLinkHelper
         };
     }
 
-    public static object? BuildFileLinkSheet(
-        string? filePath,
-        Action onClose,
-        IEnumerable<string> repoPaths,
-        IConfigService config)
+    public override object Build()
     {
-        if (filePath is null)
-            return null;
+        if (openFile.Value is not { } filePath)
+            return new Empty();
 
         var ext = Path.GetExtension(filePath);
+        var fileExists = File.Exists(filePath);
         object sheetContent;
 
-        if (ImageExtensions.Contains(ext, StringComparer.OrdinalIgnoreCase))
+        if (FileHelper.IsImageExtension(ext))
         {
             var imageUrl = $"/ivy/local-file?path={Uri.EscapeDataString(filePath)}";
             sheetContent = new Image(imageUrl) { ObjectFit = ImageFit.Contain, Alt = Path.GetFileName(filePath) };
         }
+        else if (fileExists)
+        {
+            var fileContent = FileHelper.ReadAllText(filePath);
+            var language = FileHelper.GetLanguage(ext);
+            sheetContent = new Markdown($"```{language.ToString().ToLowerInvariant()}\n{fileContent}\n```");
+        }
         else
         {
-            if (File.Exists(filePath))
-            {
-                var fileContent = FileHelper.ReadAllText(filePath);
-                var language = FileApp.GetLanguage(ext);
-                sheetContent = new Markdown($"```{language.ToString().ToLowerInvariant()}\n{fileContent}\n```");
-            }
-            else
-            {
-                sheetContent = new Markdown("File not found.");
-            }
+            sheetContent = new Markdown("File not found.");
         }
-
-        var finalContent = File.Exists(filePath)
+        
+        var finalContent = fileExists
             ? new HeaderLayout(
-                new Button($"Open in {config.Editor.Label}").Icon(Icons.ExternalLink).Outline().OnClick(() =>
-                {
-                    config.OpenInEditor(filePath);
-                }),
+                Layout.Vertical().Gap(2)
+                    | new Button($"Open in {config.Editor.Label}").Icon(Icons.ExternalLink).Outline().OnClick(() =>
+                    {
+                        config.OpenInEditor(filePath);
+                    })
+                    | Text.Block(filePath).Muted()
+                ,
                 sheetContent
             )
             : sheetContent;
 
         return new Sheet(
-            onClose,
+            () => openFile.Set(null),
             finalContent,
             Path.GetFileName(filePath)
         ).Width(Size.Half()).Resizable();

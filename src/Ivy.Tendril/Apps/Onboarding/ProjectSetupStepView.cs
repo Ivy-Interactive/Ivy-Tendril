@@ -10,6 +10,7 @@ public class ProjectSetupStepView(
     IState<int> stepperIndex,
     IState<List<RepoRef>> selectedRepos,
     IState<string> projectName,
+    IState<bool> isStepLoading,
     OnboardingVerificationSession session) : ViewBase
 {
     public override object Build()
@@ -57,10 +58,10 @@ public class ProjectSetupStepView(
         if (!canContinue)
         {
             buttonArea = Layout.Horizontal().Width(Size.Full())
-                | new Button("Back").Outline().Small().Icon(Icons.ArrowLeft)
+                | new Button("Back").Outline().Icon(Icons.ArrowLeft)
                     .OnClick(() => stepperIndex.Set(stepperIndex.Value - 1))
                 | new Spacer()
-                | new Button("Skip").Ghost().Small()
+                | new Button("Finish").Secondary()
                     .OnClick(async () =>
                     {
                         await setupService.FinalizeOnboardingAsync();
@@ -71,9 +72,10 @@ public class ProjectSetupStepView(
         else
         {
             buttonArea = Layout.Horizontal().Width(Size.Full())
-                | new Button("Back").Outline().Small().Icon(Icons.ArrowLeft)
+                | new Button("Back").Outline().Icon(Icons.ArrowLeft)
                     .OnClick(() => stepperIndex.Set(stepperIndex.Value - 1))
-                | new Button("Skip Verifications").Ghost().Small()
+                | new Spacer()
+                | new Button("Finish").Secondary()
                     .OnClick(async () =>
                     {
                         var name = SanitizeProjectName(projectName.Value);
@@ -86,6 +88,7 @@ public class ProjectSetupStepView(
                         {
                             error.Set(null);
                             isCloning.Set(true);
+                            isStepLoading.Set(true);
 
                             var refs = await ResolveReposAsync(config, progressMessage, error, isCloning);
                             if (refs == null) return;
@@ -106,8 +109,13 @@ public class ProjectSetupStepView(
                         await setupService.FinalizeOnboardingAsync();
                         await setupService.StartBackgroundServicesAsync();
                         clientProvider.ReloadPage();
-                    })
-                | new Spacer()
+                    });
+        }
+
+        var generateBlock = canContinue
+            ? (object)(Layout.Vertical().Gap(2)
+                | Text.Bold("Generate Verifications")
+                | Text.Muted("Automatically detect your project's tech stack and configure verification steps (build, test, lint, etc.) that run after each plan execution.")
                 | new Button("Generate Verifications").Primary().Large().Icon(Icons.Sparkles)
                     .OnClick(async () =>
                     {
@@ -120,6 +128,7 @@ public class ProjectSetupStepView(
 
                         error.Set(null);
                         isCloning.Set(true);
+                        isStepLoading.Set(true);
 
                         var progressCts = new CancellationTokenSource();
                         _ = DriveProgressAsync(progressValue, progressCts.Token);
@@ -158,6 +167,7 @@ public class ProjectSetupStepView(
                             progressValue.Set(null);
                             progressMessage.Set(null);
                             isCloning.Set(false);
+                            isStepLoading.Set(false);
                             stepperIndex.Set(stepperIndex.Value + 1);
                         }
                         catch (Exception ex)
@@ -167,15 +177,19 @@ public class ProjectSetupStepView(
                             progressMessage.Set(null);
                             error.Set($"Failed to set up project: {ex.Message}");
                             isCloning.Set(false);
+                            isStepLoading.Set(false);
                         }
-                    });
-        }
+                    }))
+            : null!;
 
         return Layout.Vertical().Gap(4).Margin(0, 0, 0, 20)
                | Text.H2("Setup your first project")
                | (error.Value != null ? Text.Danger(error.Value) : null!)
                | new ProjectRepoPickerView(selectedRepos, projectName)
                | projectName.ToTextInput().WithField().Required().Label("Project Name")
+               | (canContinue ? new Separator() : null!)
+               | generateBlock
+               | (canContinue ? new Separator() : null!)
                | buttonArea;
     }
 
@@ -272,6 +286,7 @@ public class ProjectSetupStepView(
                 {
                     error.Set($"Failed to fetch repository: {repo.Path}.");
                     isCloning.Set(false);
+                    isStepLoading.Set(false);
                     return null;
                 }
                 refs.Add(repo with { Path = destPath });

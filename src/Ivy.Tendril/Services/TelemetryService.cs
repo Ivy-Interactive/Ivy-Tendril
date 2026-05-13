@@ -190,9 +190,14 @@ public class TelemetryService : ITelemetryService, IAsyncDisposable
 
     private static string GetOrCreateAnonymousId()
     {
-        var dir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Tendril");
+        // In Docker, LocalApplicationData returns "" → Path.Combine gives "/Tendril" (root, denied).
+        // Fall back to TENDRIL_HOME (the mounted volume) or temp directory.
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (string.IsNullOrEmpty(localAppData))
+            localAppData = Environment.GetEnvironmentVariable("TENDRIL_HOME")
+                           ?? Path.GetTempPath();
+
+        var dir = Path.Combine(localAppData, "Tendril");
         Directory.CreateDirectory(dir);
         var idFile = Path.Combine(dir, ".anonymous-id");
 

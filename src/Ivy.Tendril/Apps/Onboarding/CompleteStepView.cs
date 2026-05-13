@@ -1,5 +1,5 @@
 using Ivy.Tendril.Services;
-using Ivy.Widgets.ClaudeJsonRenderer;
+using Ivy.Widgets.AgentOutputView;
 
 namespace Ivy.Tendril.Apps.Onboarding;
 
@@ -7,6 +7,7 @@ public class CompleteStepView(
     IState<int> stepperIndex,
     IState<List<RepoRef>> selectedRepos,
     IState<string> projectName,
+    IState<bool> isStepLoading,
     OnboardingVerificationSession session) : ViewBase
 {
     public override object Build()
@@ -44,6 +45,7 @@ public class CompleteStepView(
 
                 session.Started.Set(true);
                 session.Running.Set(true);
+                isStepLoading.Set(true);
 
                 foreach (var name in projectsNeedingVerifications)
                 {
@@ -83,6 +85,7 @@ public class CompleteStepView(
             finally
             {
                 session.Running.Set(false);
+                isStepLoading.Set(false);
             }
         }, [EffectTrigger.OnMount()]);
 
@@ -95,6 +98,7 @@ public class CompleteStepView(
         async Task OnFinish()
         {
             isFinishing.Set(true);
+            isStepLoading.Set(true);
             session.Error.Set(null);
             try
             {
@@ -106,6 +110,7 @@ public class CompleteStepView(
             {
                 session.Error.Set($"Failed to complete setup: {ex.Message}");
                 isFinishing.Set(false);
+                isStepLoading.Set(false);
             }
         }
 
@@ -143,7 +148,6 @@ public class CompleteStepView(
         }
 
         var running = session.Running.Value;
-        var hasOutput = session.HasOutput.Value;
         var error = session.Error.Value;
 
         var headerText = running
@@ -152,7 +156,7 @@ public class CompleteStepView(
 
         var subText = running
             ? "Tendril is detecting your tech stack and configuring verifications."
-            : $"{totalVerifications} verification(s) configured across {projects.Count} project(s). Click Finish to start using Tendril, or go back to add another project.";
+            : $"{totalVerifications} {(totalVerifications == 1 ? "verification" : "verifications")} configured across {projects.Count} {(projects.Count == 1 ? "project" : "projects")}. Click Finish to start using Tendril, or go back to add another project.";
 
         return Layout.Vertical().Gap(4).Margin(0, 0, 0, 20)
                | Text.H2(headerText)
@@ -160,17 +164,11 @@ public class CompleteStepView(
                | (error != null ? Text.Danger(error) : null!)
                | (running
                    ? (object)new Box(
-                       Layout.Vertical().Gap(4).Width(Size.Full()).Height(Size.Full())
-                       | (!hasOutput
-                           ? (object)(Layout.Vertical().Gap(2).AlignContent(Align.Center).Width(Size.Full()).Padding(8)
-                               | Icons.LoaderCircle.ToIcon().WithAnimation(AnimationType.Rotate).Duration(1)
-                               | Text.Muted("Starting agent..."))
-                           : null!)
-                       | new ClaudeJsonRenderer()
+                       new AgentOutputView()
+                           .Provider("claude")
                            .Stream(session.Stream)
-                           .ShowThinking(false)
-                           .ShowSystemEvents(false)
                            .AutoScroll(true)
+                           .ShowStatusLabel(true)
                            .Width(Size.Full())
                            .Height(Size.Full())
                      )
@@ -184,7 +182,7 @@ public class CompleteStepView(
                       .Disabled(isFinishing.Value)
                       .OnClick(OnBack)
                   | new Spacer()
-                  | new Button("Finish").Primary().Large().Icon(Icons.Check, Align.Right)
+                  | new Button("Finish").Primary().Icon(Icons.Check, Align.Right)
                       .Disabled(running || isFinishing.Value)
                       .Loading(isFinishing.Value)
                       .OnClick(async () => await OnFinish()));

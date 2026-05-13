@@ -5,7 +5,7 @@ Split a multi-issue plan into separate, self-contained plans.
 ## Context
 
 The firmware header contains:
-- **Args** / **PlanFolder** — path to the plan folder to split
+- **Args** / **TendrilPlanFolder** — path to the plan folder to split
 - **CurrentTime** — current UTC timestamp
 
 The plan structure and CLI commands are in the **Reference Documents** section of your firmware.
@@ -20,7 +20,7 @@ The plans directory path can be derived from the plan folder's parent directory.
 - Read `plan.yaml` via `tendril plan get <plan-id>` from the plan folder
 - Read the latest revision from `revisions/` (highest numbered .md file)
 - Identify distinct issues/tasks that should be separate plans
-- Report plan context to Jobs UI: `tendril job status $env:TENDRIL_JOB_ID --message "Splitting plan..." --plan-id <plan-id> --plan-title "<title>"`
+- Report plan context to Jobs UI: `tendril job status TendrilJobId --message "Splitting plan..." --plan-id <plan-id> --plan-title "<title>"`
 
 ### 2. Create Split Plans
 
@@ -28,8 +28,8 @@ For each distinct issue, use `tendril plan create` to allocate an ID, create the
 
 ```bash
 tendril plan create "<Title>" \
-  --plans-dir "<PlansDirectory>" \
-  --project "<Project>" \
+  --plans-dir "<TendrilPlansFolder>" \
+  --project "<TendrilProject>" \
   --level "<Level>" \
   --initial-prompt "<original plan's initialPrompt>" \
   --execution-profile "balanced" \
@@ -48,22 +48,24 @@ Include optional flags as needed:
 - `--depends-on "<sibling-plan-folder>"` — only when a sibling plan has a true blocking dependency (see Section 3)
 - `--priority <number>` — if non-default priority
 
-Populate `--verification` flags from the project's verifications in config.yaml, all set to `Pending`.
+Populate `--verification` flags from the project's verifications in the **Projects** section, all set to `Pending`.
 
 Do NOT read or modify `.counter` directly — `tendril plan create` handles ID allocation.
 
 After creating each plan, write the revision via CLI:
+
 ```bash
 tendril plan write-revision <PlanId> <<'EOF'
-<revision content>
+<revision content here>
 EOF
 ```
-Fill in Problem, Solution, Remaining Design Questions, Tests sections. Each plan must be fully self-contained. Do NOT use the Write or Edit tools to create revision files.
+
+The command reads from STDIN and auto-creates the next numbered revision file. Fill in Problem, Solution, Remaining Design Questions, Tests sections. Each plan must be fully self-contained. Do NOT use the Write or Edit tools to create revision files directly in `revisions/`.
 
 #### Project Assignment
 
 Each new plan may belong to a different project than the original. For each split plan:
-- Analyze which project(s) from `config.yaml` are relevant based on the files/repos involved
+- Analyze which project(s) from the **Projects** section are relevant based on the files/repos involved
 - Use the matching project's repos and verifications in the `tendril plan create` command
 - If a sub-plan spans multiple projects, prefer the primary project (where most changes occur)
 

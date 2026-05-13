@@ -57,7 +57,7 @@ public class PlanCleanupCommand : Command<PlanCleanupSettings>
             }
             else
             {
-                AnsiConsole.MarkupLine($"[yellow]{remaining} worktree(s) could not be removed.[/]");
+                AnsiConsole.MarkupLine($"[yellow]{remaining} {(remaining == 1 ? "worktree" : "worktrees")} could not be removed.[/]");
                 return 1;
             }
 

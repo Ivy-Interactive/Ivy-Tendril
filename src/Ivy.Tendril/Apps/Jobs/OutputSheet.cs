@@ -1,12 +1,10 @@
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Services.Agents;
-using Ivy.Tendril.Helpers;
-using Ivy.Widgets.ClaudeJsonRenderer;
+using Ivy.Widgets.AgentOutputView;
 
 namespace Ivy.Tendril.Apps.Jobs;
 
-public class OutputSheet(
+public partial class OutputSheet(
     string jobId,
     IJobService jobService,
     IWriteStream<string> outputStream,
@@ -16,54 +14,39 @@ public class OutputSheet(
     public override object Build()
     {
         var job = jobService.GetJob(jobId);
-        object outputContent;
+        object agentOutputView;
 
         if (job is { Status: JobStatus.Running })
         {
-            if (!hasStreamContent.Value)
-            {
-                outputContent = Text.P("Loading Output...");
-            }
-            else
-            {
-                outputContent = new ClaudeJsonRenderer()
-                    .Stream(outputStream)
-                    .ShowThinking(false)
-                    .ShowSystemEvents(false)
-                    .AutoScroll(true)
-                    .Height(Size.Full());
-            }
+            agentOutputView = new AgentOutputView()
+                .Provider(job.Provider)
+                .Stream(outputStream)
+                .Height(Size.Full());
         }
         else if (job is not null && hasStreamContent.Value && streamingJobId.Value == jobId)
         {
-            outputContent = new ClaudeJsonRenderer()
+            agentOutputView = new AgentOutputView()
+                .Provider(job.Provider)
                 .Stream(outputStream)
-                .ShowThinking(false)
-                .ShowSystemEvents(false)
                 .AutoScroll(false)
                 .Height(Size.Full());
         }
-        else if (job is not null && job.OutputLines.Count > 0)
+        else if (job is not null && !job.OutputLines.IsEmpty)
         {
-            // Job completed before user opened sheet — normalize stored output
-            var normalizer = OutputNormalizerFactory.Create(job.Provider);
-            var normalized = job.OutputLines
-                .SelectMany(line => normalizer.Normalize(line))
-                .Concat(normalizer.Flush());
-            var jsonStream = string.Join("\n", normalized);
-            outputContent = new ClaudeJsonRenderer()
+            var jsonStream = string.Join("\n", job.OutputLines);
+            agentOutputView = new AgentOutputView()
+                .Provider(job.Provider)
                 .JsonStream(jsonStream)
-                .ShowThinking(false)
-                .ShowSystemEvents(false)
                 .AutoScroll(false)
+                .ShowStatusLabel(false)
                 .Height(Size.Full());
         }
         else
         {
-            outputContent = Text.P("No output available.");
+            agentOutputView = Text.P("No output available.");
         }
 
-        return outputContent;
+        return agentOutputView;
     }
 
     public string GetSheetTitle()
@@ -75,7 +58,10 @@ public class OutputSheet(
     private static string ExtractPlanId(string planFile)
     {
         if (string.IsNullOrEmpty(planFile)) return "";
-        var match = System.Text.RegularExpressions.Regex.Match(planFile, @"^(\d{5})-");
+        var match = ExtractPlanIdRegex().Match(planFile);
         return match.Success ? match.Groups[1].Value : "";
     }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"^(\d{5})-")]
+    private static partial System.Text.RegularExpressions.Regex ExtractPlanIdRegex();
 }

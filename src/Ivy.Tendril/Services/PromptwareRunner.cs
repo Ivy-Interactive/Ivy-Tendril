@@ -75,7 +75,8 @@ public class PromptwareRunner : IPromptwareRunner
 
         var jobContext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            ["PROMPTWARE_DIR"] = programFolder
+            ["PROMPTWARE_DIR"] = programFolder,
+            ["TENDRIL_HOME"] = _configService.TendrilHome
         };
 
         var resolution = AgentProviderFactory.Resolve(settings, options.Promptware, options.Profile, jobContext);

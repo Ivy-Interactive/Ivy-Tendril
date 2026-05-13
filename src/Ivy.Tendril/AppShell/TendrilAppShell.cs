@@ -3,6 +3,7 @@ using System.Reactive.Disposables;
 using System.Text.Json;
 using Ivy.Core;
 using Ivy.Core.Apps;
+using Ivy.Tendril.AppShell.Dialogs;
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
@@ -13,7 +14,6 @@ using Microsoft.Extensions.Logging;
 namespace Ivy.Tendril.AppShell;
 
 #pragma warning disable IVYAPP001
-#pragma warning disable IVYHOOK005
 
 public class TendrilAppShell(AppShellSettings settings) : ViewBase
 {
@@ -103,11 +103,14 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var serverArgs = UseService<ServerArgs>();
         var navigate = Context.UseSignal<NavigateSignal, NavigateArgs, Unit>();
         var navigator = UseNavigation();
+        var importIssuesDialogOpen = UseState(false);
         var newsArticles = UseState(Array.Empty<SidebarNewsArticle>());
+        
         UseEffect(async () =>
         {
             newsArticles.Set(await FetchNewsAsync());
         });
+        
         UseEffect(() =>
         {
             void OnChanged()
@@ -402,6 +405,31 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             OnCtrlRightClickSelect = new EventHandler<Event<SidebarMenu, object>>(OnCtrlRightClickSelect)
         };
 
+        var settingsMenuItems = new[]
+        {
+            MenuItem.Default("Setup")
+                .Tag("$setup")
+                .Icon(Icons.Construction)
+                .OnSelect(() => navigator.Navigate<SettingsApp>()),
+            MenuItem.Default("Trash")
+                .Tag("$trash")
+                .Icon(Icons.Trash2)
+                .OnSelect(() => navigator.Navigate<TrashApp>()),
+            MenuItem.Default("Import Issues from GitHub")
+                .Tag("$import-issues")
+                .Icon(Icons.Download)
+                .OnSelect(() => importIssuesDialogOpen.Set(true)),
+            MenuItem.Default("Theme")
+                .Tag("$theme")
+                .Icon(Icons.SunMoon)
+                .Children(
+                    MenuItem.Checkbox("Light").Icon(Icons.Sun).OnSelect(() => client.SetThemeMode(ThemeMode.Light)),
+                    MenuItem.Checkbox("Dark").Icon(Icons.Moon).OnSelect(() => client.SetThemeMode(ThemeMode.Dark)),
+                    MenuItem.Checkbox("System").Icon(Icons.SunMoon)
+                        .OnSelect(() => client.SetThemeMode(ThemeMode.System))
+                )
+        };
+
         void OnLogout()
         {
             _ = LogoutAsync();
@@ -421,14 +449,19 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             }
         }
 
-        var settingsButton = new Button("Settings")
+        var settingsTrigger = new Button("Settings")
             .Content(
                 Layout.Horizontal().AlignContent(Align.Left)
                 | Icons.Settings.ToIcon()
                 | Text.P("Settings").Small().Muted()
             )
-            .Variant(ButtonVariant.Ghost).Width(Size.Full())
-            .OnClick(() => navigator.Navigate<SettingsApp>());
+            .Variant(ButtonVariant.Ghost).Width(Size.Full());
+
+        var settingsMenu = new DropDownMenu(
+                DropDownMenu.DefaultSelectHandler(),
+                settingsTrigger)
+            .Top()
+            .Items(settings.FooterMenuItemsTransformer(settingsMenuItems, navigator));
 
         object? footer;
         if (user.Value != null)
@@ -454,11 +487,11 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                     [MenuItem.Default("Logout").Tag("$logout").Icon(Icons.LogOut).OnSelect(OnLogout)],
                     navigator));
 
-            footer = Layout.Vertical().Gap(1) | settingsButton | profileMenu;
+            footer = Layout.Vertical().Gap(1) | settingsMenu | profileMenu;
         }
         else
         {
-            footer = settingsButton;
+            footer = settingsMenu;
         }
 
         if (config.ParseError != null)
@@ -466,20 +499,23 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
         if (config.NeedsOnboarding) return new OnboardingApp();
 
-        return new SidebarLayout(
-            body ?? null!,
-            sidebarMenu,
-            Layout.Vertical().Gap(2)
-            | settings.Header
-            | new NewPlanButton()
-            ,
-            Layout.Vertical(
-                new SidebarNews(newsArticles.Value),
-                settings.Footer,
-                footer
-            ),
-            settings.Width
-        ).Open(sidebarOpen.Value).MainAppSidebar();
+        return new Fragment(
+            new SidebarLayout(
+                body ?? null!,
+                sidebarMenu,
+                Layout.Vertical().Gap(2)
+                | settings.Header
+                | new NewPlanButton()
+                ,
+                Layout.Vertical(
+                    new SidebarNews(newsArticles.Value),
+                    settings.Footer,
+                    footer
+                ),
+                settings.Width
+            ).Open(sidebarOpen.Value).MainAppSidebar(),
+            new ImportIssuesDialog(importIssuesDialogOpen, config)
+        );
     }
 
     internal record TabState(string Id, string AppId, string Title, AppHost AppHost, Icons? Icon, string RefreshToken)

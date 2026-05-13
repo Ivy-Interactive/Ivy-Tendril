@@ -72,10 +72,14 @@ codingAgents:
 # The profile determines model and effort from the active coding agent above.
 #
 # All promptwares receive these base tools automatically:
-#   Read, Glob, Grep, Bash(tendril*), Bash(git *), Bash(gh *), WebFetch, WebSearch,
-#   Write(%PROMPTWARE_DIR%/**), Edit(%PROMPTWARE_DIR%/**), Bash(%PROMPTWARE_DIR%/Tools/*)
-# ExecutePlan additionally gets: Bash, Write(%PLAN_DIR%/worktrees/**), Edit(%PLAN_DIR%/worktrees/**)
+#   Read, Glob, Grep, Bash(tendril*), Bash(git *), Bash(gh *), Bash(ls *), Bash(find *), Bash(cat *),
+#   WebFetch, WebSearch, Bash(%PROMPTWARE_DIR%/Tools/*)
+# Memory/tool writes go through CLI: tendril promptware write-memory/write-tool <name> <file>
+# ExecutePlan additionally gets: Bash, Write(%PLAN_DIR%/**), Edit(%PLAN_DIR%/**)
+# UpdatePlan additionally gets: Write(%PLAN_DIR%/**) (for temp files used by --file flag)
+# ExpandPlan additionally gets: Write(%PLAN_DIR%/**) (for temp files used by --file flag)
 # CreatePr additionally gets: Bash (needs unrestricted shell for git/gh in worktrees)
+# CreateIssue additionally gets: Bash (needs unrestricted shell for gh in repo directories)
 #
 # Only specify allowedTools if you need ADDITIONAL tools beyond the defaults.
 # Tool format uses Claude Code syntax: Tool, Tool(path-glob).
@@ -178,10 +182,10 @@ verifications:
 - name: CheckResult
   prompt: >
     Verify the implementation matches what was requested in the plan.
-    1. Read the plan revision from `<PlanFolder>/revisions/` (latest numbered .md file)
+    1. Read the plan revision from `<TendrilPlanFolder>/revisions/` (latest numbered .md file)
     2. Review all commits made by this execution
     3. Compare the plan's Problem and Solution sections against the actual changes
-    4. Write the verification report to `<PlanFolder>/verification/CheckResult.md`
+    4. Write the verification report to `<TendrilPlanFolder>/verification/CheckResult.md`
 
 # Stack-specific verification examples (uncomment and customize for your stack):
 

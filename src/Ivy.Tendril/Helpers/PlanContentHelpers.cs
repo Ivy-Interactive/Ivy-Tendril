@@ -135,8 +135,7 @@ public static class PlanContentHelpers
     }
 
     public static object RenderCommitDetailSheet(CommitDetailData? data, bool loading, string? commitHash,
-        Action closeSheet, HashSet<string>? expandedFiles = null, Action<string>? onToggleFile = null,
-        Exception? error = null)
+        Action closeSheet, Exception? error = null)
     {
         if (commitHash is null) return new Empty();
 
@@ -167,46 +166,11 @@ public static class PlanContentHelpers
 
                 foreach (var fileDiff in fileDiffs)
                 {
-                    var isExpanded = expandedFiles?.Contains(fileDiff.FilePath) ?? false;
-                    var chevronIcon = isExpanded ? Icons.ChevronDown : Icons.ChevronRight;
-                    var (statusIcon, statusColor) = GetFileStatusIconAndColor(fileDiff.Status);
-                    var fileName = Path.GetFileName(fileDiff.FilePath);
-                    var isRenamed = fileDiff.OldFilePath != null;
-                    var oldFileName = isRenamed ? Path.GetFileName(fileDiff.OldFilePath!) : null;
-
-                    var header = Layout.Horizontal().Gap(2)
-                        | new Icon(chevronIcon).Small()
-                        | new Icon(statusIcon).Small().Color(statusColor);
-
-                    if (isRenamed)
-                    {
-                        header |= Text.Block(oldFileName!).Bold();
-                        header |= Text.Muted("→");
-                        header |= Text.Block(fileName).Bold();
-                        header |= Text.Muted(fileDiff.FilePath);
-                    }
-                    else
-                    {
-                        header |= Text.Block(fileName).Bold();
-                        header |= Text.Muted(fileDiff.FilePath);
-                    }
-
-                    if (onToggleFile != null)
-                    {
-                        var path = fileDiff.FilePath;
-                        commitSheetContent |= new Box(header)
-                            .BorderThickness(0).Padding(0)
-                            .OnClick(() => onToggleFile(path));
-                    }
-                    else
-                    {
-                        commitSheetContent |= header;
-                    }
-
-                    if (isExpanded)
-                    {
-                        commitSheetContent |= new DiffView().Diff(fileDiff.Diff).Split();
-                    }
+                    commitSheetContent |= new DiffView()
+                        .Diff(fileDiff.Diff)
+                        .Split()
+                        .Collapsible()
+                        .DefaultCollapsed();
                 }
             }
             else if (data.Files is { Count: > 0 })

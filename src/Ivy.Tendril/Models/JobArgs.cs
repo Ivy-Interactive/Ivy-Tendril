@@ -44,7 +44,8 @@ public record ExpandPlanArgs(
 }
 
 public record UpdatePlanArgs(
-    string FolderPath) : JobArgsBase
+    string FolderPath,
+    string? Instructions = null) : JobArgsBase
 {
     public override string Type => Constants.JobTypes.UpdatePlan;
     public override string PlanFolder => FolderPath;

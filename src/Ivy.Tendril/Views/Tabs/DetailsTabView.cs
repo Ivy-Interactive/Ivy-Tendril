@@ -12,14 +12,14 @@ public class DetailsTabView(PlanFile plan) : ViewBase
 
         var detailsData = new
         {
-            InitialPrompt = plan.InitialPrompt ?? "",
+            plan.InitialPrompt,
             Profile = planYaml?.ExecutionProfile ?? "",
             RelatedPlans = FormatPlanLinks(plan.RelatedPlans),
             DependsOn = FormatPlanLinks(plan.DependsOn),
             Issue = plan.SourceUrl ?? "",
             Created = plan.Created.ToString("yyyy-MM-dd"),
-            Level = plan.Level,
-            Project = plan.Project,
+            plan.Level,
+            plan.Project,
             State = plan.Status.ToString()
         };
 
@@ -28,6 +28,7 @@ public class DetailsTabView(PlanFile plan) : ViewBase
             .RemoveEmpty();
     }
 
+    //todo claude: seems there should be a shared functions somewhere for this?
     private static PlanYaml? ParsePlanYaml(string yamlRaw)
     {
         try

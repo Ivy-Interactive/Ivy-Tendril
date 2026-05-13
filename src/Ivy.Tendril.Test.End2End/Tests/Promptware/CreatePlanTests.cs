@@ -24,8 +24,8 @@ public class CreatePlanTests
             extraValues: new Dictionary<string, string>
             {
                 ["Args"] = description,
-                ["PlansDirectory"] = _fixture.PlansDir,
-                ["Project"] = "E2ETest"
+                ["TendrilPlansFolder"] = _fixture.PlansDir,
+                ["TendrilProject"] = "E2ETest"
             });
 
         PromptwareAssertions.AssertExitSuccess(result, $"CreatePlan ({agent})");
@@ -62,8 +62,8 @@ public class CreatePlanTests
                 extraValues: new Dictionary<string, string>
                 {
                     ["Args"] = "",
-                    ["PlansDirectory"] = _fixture.PlansDir,
-                    ["Project"] = "E2ETest"
+                    ["TendrilPlansFolder"] = _fixture.PlansDir,
+                    ["TendrilProject"] = "E2ETest"
                 },
                 timeout: TimeSpan.FromSeconds(120));
 

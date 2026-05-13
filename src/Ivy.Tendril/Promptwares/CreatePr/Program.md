@@ -1,6 +1,6 @@
 # CreatePr
 
-**Note:** This promptware is stack-agnostic. Stack-specific operations (build, format, test) are defined in `config.yaml` under `verifications`. Examples in this document use multiple tech stacks for illustration.
+**Note:** This promptware is stack-agnostic. Stack-specific operations (build, format, test) are defined as verifications in the project configuration. Examples in this document use multiple tech stacks for illustration.
 
 Create GitHub pull requests and apply PR rules.
 
@@ -9,14 +9,14 @@ Create GitHub pull requests and apply PR rules.
 ## Context
 
 The firmware header contains:
-- **PlanFolder** — path to the plan folder
+- **TendrilPlanFolder** — path to the plan folder
 - **CurrentTime** — current UTC timestamp
 - **SourceUrl** — (optional) GitHub issue or PR URL from plan.yaml
 
 The plan structure and CLI commands are in the **Reference Documents** section of your firmware.
 Project configuration (repos, `prRule` settings) is available from the firmware header.
 
-## PR Rules (from config.yaml per repo)
+## PR Rules (per repo, from RepoConfigs header)
 
 - **`default`** — Create the PR and stop
 - **`yolo`** — Create PR → auto-merge with `--admin` → delete remote branch → pull default branch into the original local repo
@@ -25,7 +25,7 @@ Project configuration (repos, `prRule` settings) is available from the firmware 
 
 ### 0. Check Plan State
 
-Before processing, read `plan.yaml` and check the `state` field. After reading, report plan context: `tendril job status $env:TENDRIL_JOB_ID --message "Creating PR..." --plan-id <plan-id> --plan-title "<title>"`
+Before processing, read `plan.yaml` and check the `state` field. After reading, report plan context: `tendril job status TendrilJobId --message "Creating PR..." --plan-id <plan-id> --plan-title "<title>"`
 - If `state: Completed`, the plan was already processed. Exit early with a message indicating the plan is already completed and showing the existing PR URLs from the `prs` list.
 - Otherwise, proceed with step 1.
 
@@ -44,7 +44,7 @@ Before processing, read `plan.yaml` and check the `state` field. After reading, 
 
 ### 2. For Each Worktree
 
-Check `<PlanFolder>/worktrees/` for each repo worktree.
+Check `<TendrilPlanFolder>/worktrees/` for each repo worktree.
 
 > **Worktree already removed:** If the worktrees/ directory is empty (worktree was already cleaned up), fall back to `plan.yaml` to get the repo path and branch name (format: `tendril/<planId>-<SafeTitle>`, where SafeTitle is extracted from the plan folder name: e.g. `03158-ChangeBranchNaming` → `ChangeBranchNaming`). The commit objects may still exist in the original repo's object store. Use `git cat-file -t <sha>` to verify, then create or force-update the local branch: `git branch -f <branch-name> <sha>` (use `-f` because the branch may already exist from a WIP auto-commit) and push from the original repo path.
 >
@@ -65,7 +65,7 @@ For each worktree:
 
 **If custom options exist and `includeArtifacts` is `false`, skip this step entirely** (set artifact markdown to empty).
 
-Otherwise, if an artifact upload tool is available in `Tools/`, run it to upload screenshots and videos from `<PlanFolder>/artifacts/` to persistent storage.
+Otherwise, if an artifact upload tool is available in `Tools/`, run it to upload screenshots and videos from `<TendrilPlanFolder>/artifacts/` to persistent storage.
 
 Capture the returned markdown. If non-empty, it will be appended to the PR body under an `## Artifacts` heading in the next step. If no upload tool is available, skip this step.
 
@@ -88,7 +88,7 @@ EOF
 - **Title:** `[<planId>] <plan title>`
 - **Body:** 
   1. **If SourceUrl is present in firmware header** and it's a GitHub issue URL (format: `https://github.com/owner/repo/issues/NUMBER`), prepend `Fixes #NUMBER\n\n` to the body
-  2. If `<PlanFolder>/artifacts/summary.md` exists, use its content as the PR body (after the issue link)
+  2. If `<TendrilPlanFolder>/artifacts/summary.md` exists, use its content as the PR body (after the issue link)
   3. Otherwise, fall back to summary from Problem + Solution sections
   4. Append commit list
   5. If `$artifactMarkdown` from step 2.5 is non-empty, append it under an `## Artifacts` heading
@@ -120,7 +120,7 @@ If no custom options or `comment` is empty, skip this step.
 
 ### 4. Apply PR Rule
 
-**!MANDATORY** — look up the `prRule` for this repo in config.yaml under the project's repos list.
+**!MANDATORY** — look up the `prRule` for this repo in the `RepoConfigs` firmware header.
 
 **Custom options override:** If custom options exist, the flags override the yolo behavior:
 - If `merge` is `false`: skip the entire merge step (treat as `default` rule regardless of prRule)
@@ -150,7 +150,7 @@ done
 
 When the PR status is `CONFLICTING`, resolve the conflict locally before retrying:
 
-1. **Locate the worktree** for this repo. If the worktree still exists in `<PlanFolder>/worktrees/<repo-folder-name>`, use it. If the worktree was already removed, use the original repo path — create or force-update the local branch first: `git branch -f <branch-name> <sha>` and `git checkout <branch-name>`.
+1. **Locate the worktree** for this repo. If the worktree still exists in `<TendrilPlanFolder>/worktrees/<repo-folder-name>`, use it. If the worktree was already removed, use the original repo path — create or force-update the local branch first: `git branch -f <branch-name> <sha>` and `git checkout <branch-name>`.
 
 2. **Read the plan revision** to understand the intent of the plan's changes (what matters, what can be safely adapted).
 
@@ -174,7 +174,7 @@ When the PR status is `CONFLICTING`, resolve the conflict locally before retryin
 
 6. **Quick build check** (if build-critical files were involved in conflicts):
    ```bash
-   # Run your project's build command from config.yaml verifications
+   # Fetch build command: tendril verification get Build
    ```
    If the build fails, fix the issue and amend the merge commit.
 
@@ -206,7 +206,7 @@ After successful `yolo` merges (or custom options with `merge: true`), clean up 
 For each repo where the PR was merged:
 
 ```bash
-tendril plan remove-worktree <PlanId> <repo-folder-name>
+tendril plan remove-worktree <TendrilPlanId> <repo-folder-name>
 ```
 
 **Skip cleanup** for repos using the `default` PR rule (or custom options with `merge: false`) — the worktree is still needed for potential review revisions.

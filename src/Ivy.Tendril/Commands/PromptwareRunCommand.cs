@@ -32,7 +32,7 @@ public class PromptwareRunSettings : CommandSettings
     public string[]? Values { get; init; }
 
     [CommandOption("--plan")]
-    [Description("Plan ID or folder path — populates PlanFolder, PlansDirectory, PlanId")]
+    [Description("Plan ID or folder path — populates TendrilPlanFolder, TendrilPlansFolder, TendrilPlanId")]
     public string? Plan { get; init; }
 
     [CommandOption("--promptware-path")]
@@ -99,9 +99,9 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         {
             ["PROMPTWARE_DIR"] = programFolder
         };
-        if (values.TryGetValue("PlansDirectory", out var plansDir))
+        if (values.TryGetValue("TendrilPlansFolder", out var plansDir))
             jobContext["PLANS_DIR"] = plansDir;
-        if (values.TryGetValue("PlanFolder", out var planFolder2))
+        if (values.TryGetValue("TendrilPlanFolder", out var planFolder2))
             jobContext["PLAN_DIR"] = planFolder2;
 
         var resolution = !string.IsNullOrEmpty(settings.Agent)
@@ -131,9 +131,9 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             Console.WriteLine($"configPath: {configService.ConfigPath}");
             Console.WriteLine($"tendrilHome: {configService.TendrilHome}");
             Console.WriteLine($"plansDirectory: {configService.PlanFolder}");
-            if (values.TryGetValue("PlanId", out var planId))
+            if (values.TryGetValue("TendrilPlanId", out var planId))
                 Console.WriteLine($"planId: {planId}");
-            if (values.TryGetValue("PlanFolder", out var planPath))
+            if (values.TryGetValue("TendrilPlanFolder", out var planPath))
                 Console.WriteLine($"planPath: {planPath}");
             Console.WriteLine($"workingDirectory: {workDir}");
             Console.WriteLine($"logFile: {logFile}");
@@ -275,17 +275,17 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             try
             {
                 var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.Plan);
-                values["PlanFolder"] = planFolder;
-                values["PlansDirectory"] = Path.GetDirectoryName(planFolder) ?? "";
+                values["TendrilPlanFolder"] = planFolder;
+                values["TendrilPlansFolder"] = Path.GetDirectoryName(planFolder) ?? "";
                 var folderName = Path.GetFileName(planFolder);
                 var dashIdx = folderName.IndexOf('-');
-                if (dashIdx > 0) values["PlanId"] = folderName[..dashIdx];
+                if (dashIdx > 0) values["TendrilPlanId"] = folderName[..dashIdx];
             }
             catch (DirectoryNotFoundException)
             {
                 // If it looks like a direct folder path, use it as-is (for testing)
-                values["PlanFolder"] = settings.Plan;
-                values["PlansDirectory"] = Path.GetDirectoryName(settings.Plan) ?? "";
+                values["TendrilPlanFolder"] = settings.Plan;
+                values["TendrilPlansFolder"] = Path.GetDirectoryName(settings.Plan) ?? "";
             }
         }
 
