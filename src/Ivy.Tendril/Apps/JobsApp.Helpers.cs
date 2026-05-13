@@ -41,19 +41,19 @@ public partial class JobsApp
         if (job.Status == JobStatus.Running)
         {
             if (!string.IsNullOrEmpty(job.StatusMessage))
-                return job.StatusMessage;
+                return AnimatedStatusValue.Running(job.StatusMessage);
             if (job.LastOutputAt.HasValue)
             {
                 var elapsed = DateTime.UtcNow - job.LastOutputAt.Value;
-                return FormatTimeSpan(elapsed);
+                return AnimatedStatusValue.Running(FormatTimeSpan(elapsed));
             }
-            return "Starting...";
+            return AnimatedStatusValue.Running("Starting...");
         }
 
         if (job.Status == JobStatus.Completed)
-            return "Done";
+            return AnimatedStatusValue.Done("Done");
 
-        return "-";
+        return AnimatedStatusValue.Idle("-");
     }
 
     private static string FormatTimer(JobItem job)
