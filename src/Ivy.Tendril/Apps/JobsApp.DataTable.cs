@@ -171,7 +171,7 @@ public partial class JobsApp
 
                 if (job != null)
                 {
-                  
+
                     if (tag == "stop-job")
                     {
                         if (job.Status is JobStatus.Running or JobStatus.Queued)
