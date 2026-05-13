@@ -1,6 +1,7 @@
 using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Views;
+using Ivy.Tendril.Views.Sheets;
 using Ivy.Tendril.Apps.Recommendations.Dialogs;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
@@ -32,11 +33,7 @@ public class ContentView(
                 ? Text.P("Plan not found or empty.")
                 : (object)new Markdown(MarkdownHelper.AnnotateAllBrokenLinks(content, planService.PlansDirectory))
                     .DangerouslyAllowLocalFiles()
-                    .OnLinkClick(FileLinkHelper.CreateFileLinkClickHandler(openFile));
-
-            var repoPaths = plan?.GetEffectiveRepoPaths(config) ?? [];
-            var fileLinkSheet = FileLinkHelper.BuildFileLinkSheet(
-                openFile.Value, () => openFile.Set(null), repoPaths, config);
+                    .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile));
 
             var sheet = new Sheet(
                 () => isOpen.Set(false),
@@ -44,7 +41,7 @@ public class ContentView(
                 plan?.Title ?? folderName
             ).Width(Size.Half()).Resizable();
 
-            return fileLinkSheet is not null ? new Fragment(sheet, fileLinkSheet) : sheet;
+            return new Fragment(sheet, new FileSheet(openFile, config));
         });
         var (notesDialog, showNotesDialog) = UseTrigger((isOpen) =>
         {

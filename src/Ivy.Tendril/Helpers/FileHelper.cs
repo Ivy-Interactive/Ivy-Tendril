@@ -320,4 +320,49 @@ internal static class FileHelper
                 Console.Error.WriteLine(message);
         }
     }
+
+    private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".svg", ".webp", ".ico"
+    };
+
+    private static readonly Dictionary<string, Languages> LanguageMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        { ".cs", Languages.Csharp },
+        { ".js", Languages.Javascript },
+        { ".ts", Languages.Typescript },
+        { ".tsx", Languages.Typescript },
+        { ".jsx", Languages.Javascript },
+        { ".py", Languages.Python },
+        { ".sql", Languages.Sql },
+        { ".html", Languages.Html },
+        { ".htm", Languages.Html },
+        { ".css", Languages.Css },
+        { ".json", Languages.Json },
+        { ".md", Languages.Markdown },
+        { ".xml", Languages.Xml },
+        { ".yaml", Languages.Yaml },
+        { ".yml", Languages.Yaml },
+        { ".csv", Languages.Csv },
+        { ".txt", Languages.Text },
+        { ".log", Languages.Text },
+        { ".env", Languages.Text },
+        { ".config", Languages.Xml },
+        { ".csproj", Languages.Xml },
+        { ".sln", Languages.Text },
+        { ".ps1", Languages.Powershell },
+        { ".psm1", Languages.Powershell },
+        { ".sh", Languages.Bash },
+        { ".bash", Languages.Bash }
+    };
+
+    public static Languages GetLanguage(string extension)
+    {
+        return LanguageMap.GetValueOrDefault(extension, Languages.Text);
+    }
+
+    public static bool IsImageExtension(string extension)
+    {
+        return ImageExtensions.Contains(extension);
+    }
 }

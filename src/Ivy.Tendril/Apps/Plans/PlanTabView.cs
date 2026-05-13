@@ -1,6 +1,7 @@
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Views.Sheets;
 using Ivy.Core;
 
 namespace Ivy.Tendril.Apps.Plans;
@@ -33,7 +34,7 @@ public class PlanTabView(
 
             planLayout |= new Markdown(annotatedContent)
                 .DangerouslyAllowLocalFiles()
-                .OnLinkClick(FileLinkHelper.CreateFileLinkClickHandler(openFileState, planId =>
+                .OnLinkClick(FileSheet.CreateLinkClickHandler(openFileState, planId =>
                 {
                     var planFolder = Directory.GetDirectories(planService.PlansDirectory, $"{planId:D5}-*")
                         .FirstOrDefault();
