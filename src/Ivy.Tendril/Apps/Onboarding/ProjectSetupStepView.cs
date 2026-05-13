@@ -187,7 +187,9 @@ public class ProjectSetupStepView(
                | (error.Value != null ? Text.Danger(error.Value) : null!)
                | new ProjectRepoPickerView(selectedRepos, projectName)
                | projectName.ToTextInput().WithField().Required().Label("Project Name")
+               | (canContinue ? new Separator() : null!)
                | generateBlock
+               | (canContinue ? new Separator() : null!)
                | buttonArea;
     }
 
