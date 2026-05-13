@@ -8,7 +8,7 @@ public partial class JobsApp
 {
     private const int PromptDisplayMaxLength = 500;
 
-    private static string? GetFullPrompt(JobItem job, IPlanReaderService? planService = null)
+    internal static string? GetFullPrompt(JobItem job, IPlanReaderService? planService = null)
     {
         if (job.TypedArgs is CreatePlanArgs cp)
             return cp.Description;

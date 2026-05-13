@@ -17,6 +17,7 @@ public partial class JobsApp
         Action<string> showPlan,
         Action<string> showOutput,
         Action<string> showPrompt,
+        Action<string>? showDebug,
         List<JobItem> jobs,
         Dictionary<string, string> projectColors,
         StackedProgress jobsProgress)
@@ -155,6 +156,12 @@ public partial class JobsApp
                         .Tooltip("Rerun this job"));
                 }
 
+                if (showDebug != null)
+                {
+                    actions.Add(new MenuItem("Debug", Icon: Icons.Bug, Tag: "debug-job")
+                        .Tooltip("Show debug details for this job"));
+                }
+
                 actions.Add(new MenuItem("Delete", Icon: Icons.Trash, Tag: "delete-job")
                     .Tooltip("Delete this job"));
 
@@ -202,6 +209,10 @@ public partial class JobsApp
 
                             refreshToken.Refresh();
                         }
+                    }
+                    else if (tag == "debug-job")
+                    {
+                        showDebug?.Invoke(job.Id);
                     }
                     else if (tag == "delete-job")
                     {

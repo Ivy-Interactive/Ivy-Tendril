@@ -65,6 +65,19 @@ public partial class JobsApp : ViewBase
             ).Width(Size.Half()).Resizable();
         });
 
+#if DEBUG
+        var (debugSheet, showDebug) = UseTrigger<string>((isOpen, jobId) =>
+        {
+            if (!isOpen.Value) return null;
+            var debugSheetView = new JobDebugSheet(jobId, jobService, planService, config);
+            return new Sheet(
+                () => isOpen.Set(false),
+                debugSheetView.Build(),
+                "Job Debug"
+            ).Width(Size.Half()).Resizable();
+        });
+#endif
+
         UseInterval(() => StreamOutputLines(jobService, activeOutputJobId, streamingJobId, lastProcessedIndex, hasStreamContent, outputStream),
             TimeSpan.FromMilliseconds(100));
         UseEffect(() => NotificationHookDisposable(jobService, client));
@@ -80,11 +93,20 @@ public partial class JobsApp : ViewBase
         var rows = BuildJobRows(jobs, planService);
         var jobsProgress = BuildStatusProgress(jobs, config);
 
+#if DEBUG
         var dataTable = BuildDataTable(rows, refreshToken, updateStream, config, planService,
-            jobService, client, showPlan, showOutput, showPrompt, jobs, projectColors, jobsProgress);
+            jobService, client, showPlan, showOutput, showPrompt, showDebug, jobs, projectColors, jobsProgress);
+#else
+        var dataTable = BuildDataTable(rows, refreshToken, updateStream, config, planService,
+            jobService, client, showPlan, showOutput, showPrompt, null, jobs, projectColors, jobsProgress);
+#endif
 
         var layout = Layout.Vertical().Height(Size.Full());
 
+#if DEBUG
+        return layout | new Fragment(dataTable, planSheet, outputSheet, promptSheet, debugSheet);
+#else
         return layout | new Fragment(dataTable, planSheet, outputSheet, promptSheet);
+#endif
     }
 }
