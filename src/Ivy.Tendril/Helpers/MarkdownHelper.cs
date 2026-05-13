@@ -2,15 +2,11 @@ using System.Text.RegularExpressions;
 
 namespace Ivy.Tendril.Helpers;
 
-public static class MarkdownHelper
+public static partial class MarkdownHelper
 {
-    private static readonly Regex FileLinkRegex = new(
-        @"\[([^\]]*)\]\((file:///[^)]+)\)",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex FileLinkRegex = _FileLinkRegex();
 
-    private static readonly Regex PlanLinkRegex = new(
-        @"\[([^\]]*)\]\((plan://(\d{1,5}))\)",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex PlanLinkRegex = _PlanLinkRegex();
 
     /// <summary>
     ///     Annotates broken file:/// links in markdown content with a warning indicator.
@@ -25,7 +21,7 @@ public static class MarkdownHelper
         {
             var linkText = match.Groups[1].Value;
             var url = match.Groups[2].Value;
-            var filePath = url.Substring("file:///".Length);
+            var filePath = url["file:///".Length..];
 
             if (File.Exists(filePath))
                 return match.Value;
@@ -96,4 +92,10 @@ public static class MarkdownHelper
 
         return [.. results];
     }
+
+    [GeneratedRegex(@"\[([^\]]*)\]\((file:///[^)]+)\)", RegexOptions.IgnoreCase | RegexOptions.Compiled, "en-US")]
+    private static partial Regex _FileLinkRegex();
+    
+    [GeneratedRegex(@"\[([^\]]*)\]\((plan://(\d{1,5}))\)", RegexOptions.IgnoreCase | RegexOptions.Compiled, "en-US")]
+    private static partial Regex _PlanLinkRegex();
 }

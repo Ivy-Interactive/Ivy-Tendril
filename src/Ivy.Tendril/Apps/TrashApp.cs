@@ -4,6 +4,7 @@ using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Views;
+using Ivy.Tendril.Views.Sheets;
 
 namespace Ivy.Tendril.Apps;
 
@@ -102,7 +103,7 @@ public class TrashApp : ViewBase
             var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200)))
                                     | new Markdown(annotatedContent)
                                         .DangerouslyAllowLocalFiles()
-                                        .OnLinkClick(FileLinkHelper.CreateFileLinkClickHandler(openFile));
+                                        .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile));
 
             var scrollWrapper = Layout.Vertical().Scroll(Scroll.Auto).Width(Size.Full())
                                 | scrollableContent;
@@ -123,16 +124,7 @@ public class TrashApp : ViewBase
             ).SidebarContentScroll(Scroll.None)
         };
 
-        if (openFile.Value is { } filePath)
-        {
-            var fileLinkSheet = FileLinkHelper.BuildFileLinkSheet(
-                filePath,
-                () => openFile.Set(null),
-                [],
-                configService);
-            if (fileLinkSheet is not null)
-                elements.Add(fileLinkSheet);
-        }
+        elements.Add(new FileSheet(openFile, configService));
 
         elements.Add(deleteDialog);
 

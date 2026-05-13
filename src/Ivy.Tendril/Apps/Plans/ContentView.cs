@@ -244,11 +244,7 @@ public class ContentView(
             createIssueDialog
         };
 
-        var repoPaths = selectedPlan.GetEffectiveRepoPaths(config);
-        var fileLinkSheet = FileLinkHelper.BuildFileLinkSheet(
-            openFile.Value, () => openFile.Set(null), repoPaths, config);
-        if (fileLinkSheet is not null)
-            elements.Add(fileLinkSheet);
+        elements.Add(new FileSheet(openFile, config));
 
         return new Fragment(elements.ToArray());
 

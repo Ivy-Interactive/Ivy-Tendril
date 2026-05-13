@@ -1,14 +1,14 @@
 using System.Diagnostics;
-using Ivy.Tendril.Apps;
-
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
-namespace Ivy.Tendril.Helpers;
 
-public static class FileLinkHelper
+namespace Ivy.Tendril.Views.Sheets;
+
+public class FileSheet(
+    IState<string?> openFile,
+    IConfigService config) : ViewBase
 {
-    private static readonly string[] ImageExtensions = [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"];
-
-    public static Action<string> CreateFileLinkClickHandler(
+    public static Action<string> CreateLinkClickHandler(
         IState<string?> openFileState,
         Action<int>? onPlanClick = null)
     {
@@ -28,7 +28,6 @@ public static class FileLinkHelper
             else if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
                      url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             {
-                // Open external links in system default browser
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = url,
@@ -38,42 +37,36 @@ public static class FileLinkHelper
         };
     }
 
-    public static object? BuildFileLinkSheet(
-        string? filePath,
-        Action onClose,
-        IEnumerable<string> repoPaths,
-        IConfigService config)
+    public override object Build()
     {
-        if (filePath is null)
-            return null;
+        if (openFile.Value is not { } filePath)
+            return new Empty();
 
         var ext = Path.GetExtension(filePath);
+        var fileExists = File.Exists(filePath);
         object sheetContent;
 
-        if (ImageExtensions.Contains(ext, StringComparer.OrdinalIgnoreCase))
+        if (FileHelper.IsImageExtension(ext))
         {
             var imageUrl = $"/ivy/local-file?path={Uri.EscapeDataString(filePath)}";
             sheetContent = new Image(imageUrl) { ObjectFit = ImageFit.Contain, Alt = Path.GetFileName(filePath) };
         }
+        else if (fileExists)
+        {
+            var fileContent = FileHelper.ReadAllText(filePath);
+            var language = FileHelper.GetLanguage(ext);
+            sheetContent = new Markdown($"```{language.ToString().ToLowerInvariant()}\n{fileContent}\n```");
+        }
         else
         {
-            if (File.Exists(filePath))
-            {
-                var fileContent = FileHelper.ReadAllText(filePath);
-                var language = FileApp.GetLanguage(ext);
-                sheetContent = new Markdown($"```{language.ToString().ToLowerInvariant()}\n{fileContent}\n```");
-            }
-            else
-            {
-                sheetContent = new Markdown("File not found.");
-            }
+            sheetContent = new Markdown("File not found.");
         }
 
         var contentWithPath = Layout.Vertical().Gap(1);
         contentWithPath |= Text.Block(filePath).Muted().Small();
         contentWithPath |= sheetContent;
 
-        var finalContent = File.Exists(filePath)
+        var finalContent = fileExists
             ? new HeaderLayout(
                 new Button($"Open in {config.Editor.Label}").Icon(Icons.ExternalLink).Outline().OnClick(() =>
                 {
@@ -84,7 +77,7 @@ public static class FileLinkHelper
             : sheetContent;
 
         return new Sheet(
-            onClose,
+            () => openFile.Set(null),
             finalContent,
             Path.GetFileName(filePath)
         ).Width(Size.Half()).Resizable();

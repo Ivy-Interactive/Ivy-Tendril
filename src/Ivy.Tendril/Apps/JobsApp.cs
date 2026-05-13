@@ -2,6 +2,7 @@ using System.Reactive.Linq;
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Views.Sheets;
 
 namespace Ivy.Tendril.Apps;
 
@@ -25,14 +26,13 @@ public partial class JobsApp : ViewBase
         var (planSheet, showPlan) = UseTrigger<string>((isOpen, planPath) =>
         {
             if (!isOpen.Value) return null;
-            var planSheetView = new PlanSheet(planPath, planService, config, openFile);
-            var fileLinkSheet = planSheetView.BuildFileLinkSheet();
+            var planSheetView = new PlanSheet(planPath, planService, openFile);
             var sheet = new Sheet(
                 () => isOpen.Set(false),
                 planSheetView.Build(),
                 planSheetView.GetSheetTitle()
             ).Width(Size.Half()).Resizable();
-            return fileLinkSheet is not null ? new Fragment(sheet, fileLinkSheet) : sheet;
+            return new Fragment(sheet, new FileSheet(openFile, config));
         });
 
         var (outputSheet, showOutput) = UseTrigger<string>((isOpen, jobId) =>
