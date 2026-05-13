@@ -13,133 +13,66 @@ public class JobDebugSheet(
 {
     public override object Build()
     {
-        var copyToClipboard = UseClipboard();
-        var client = UseService<IClientProvider>();
-
         var job = jobService.GetJob(jobId);
         if (job is null)
             return Text.P("Job not found.");
 
-        var layout = Layout.Vertical().Gap(4).Padding(4);
+        var data = new
+        {
+            JobId = job.Id,
+            PromptTitle = JobsApp.GetFullPrompt(job, planService) ?? "",
+            Status = $"{job.Status}{(job.StatusMessage != null ? $" — {job.StatusMessage}" : "")}",
+            job.Type,
+            job.Project,
+            job.Provider,
+            SessionId = job.SessionId ?? "",
+            Started = job.StartedAt?.ToString("u") ?? "",
+            Completed = job.CompletedAt?.ToString("u") ?? "",
+            Duration = job.DurationSeconds.HasValue ? $"{job.DurationSeconds}s" : "",
+            Cost = job.Cost.HasValue ? $"${job.Cost:F4}" : "",
+            Tokens = job.Tokens.HasValue ? $"{job.Tokens:N0}" : "",
+            PermissionDenials = FormatPermissionDenials(job),
+            PlanFolder = GetPlanFolderPath(job) ?? "",
+            PlanLog = GetPlanLogPath(job) ?? "",
+            PromptwareLog = GetPromptwareLogPath(job) ?? "",
+            PromptwareRawLog = GetPromptwareRawLogPath(job) ?? "",
+            ExitCode = job.ExitCode?.ToString() ?? ""
+        };
 
-        layout |= BuildSection("Job Id", job.Id);
-        layout |= BuildSection("Prompt/Title", JobsApp.GetFullPrompt(job, planService));
-        layout |= BuildSection("Status", $"{job.Status}{(job.StatusMessage != null ? $" — {job.StatusMessage}" : "")}");
-        layout |= BuildSection("Type", job.Type);
-        layout |= BuildSection("Project", job.Project);
-        layout |= BuildSection("Provider", job.Provider);
-        layout |= BuildSection("Session Id", job.SessionId ?? "-");
-
-        if (job.StartedAt.HasValue)
-            layout |= BuildSection("Started", job.StartedAt.Value.ToString("u"));
-        if (job.CompletedAt.HasValue)
-            layout |= BuildSection("Completed", job.CompletedAt.Value.ToString("u"));
-        if (job.DurationSeconds.HasValue)
-            layout |= BuildSection("Duration", $"{job.DurationSeconds}s");
-        if (job.Cost.HasValue)
-            layout |= BuildSection("Cost", $"${job.Cost:F4}");
-        if (job.Tokens.HasValue)
-            layout |= BuildSection("Tokens", $"{job.Tokens:N0}");
-
-        layout |= BuildPermissionDenials(job);
-        layout |= BuildPathSection("Plan Folder", GetPlanFolderPath(job), copyToClipboard, client);
-        layout |= BuildPathSection("Plan Log", GetPlanLogPath(job), copyToClipboard, client);
-        layout |= BuildPromptwareLogPaths(job, copyToClipboard, client);
-
-        if (job.ExitCode.HasValue)
-            layout |= BuildSection("Exit Code", job.ExitCode.Value.ToString());
-
-        return layout;
+        return data.ToDetails()
+            .Multiline(x => x.PromptTitle, x => x.PermissionDenials)
+            .Label(x => x.PromptTitle, "Prompt/Title")
+            .Label(x => x.SessionId, "Session Id")
+            .Label(x => x.PlanFolder, "Plan Folder")
+            .Label(x => x.PlanLog, "Plan Log")
+            .Label(x => x.PromptwareLog, "Promptware Log")
+            .Label(x => x.PromptwareRawLog, "Promptware Raw Log")
+            .Label(x => x.ExitCode, "Exit Code")
+            .Label(x => x.JobId, "Job Id")
+            .Builder(x => x.PlanFolder, f => f.CopyToClipboard())
+            .Builder(x => x.PlanLog, f => f.CopyToClipboard())
+            .Builder(x => x.PromptwareLog, f => f.CopyToClipboard())
+            .Builder(x => x.PromptwareRawLog, f => f.CopyToClipboard())
+            .RemoveEmpty();
     }
 
-    private static object BuildSection(string label, string? value)
+    private static string FormatPermissionDenials(JobItem job)
     {
-        if (string.IsNullOrEmpty(value)) return new Empty();
-
-        return Layout.Vertical().Gap(1)
-               | Text.Block(label).Bold()
-               | Text.Block(value).Muted();
-    }
-
-    private static object BuildPermissionDenials(JobItem job)
-    {
-        if (job.OutputLines.Count == 0)
-            return BuildSection("Permission Denials", "None");
+        if (job.OutputLines.Count == 0) return "None";
 
         try
         {
             var provider = AgentProviderFactory.GetProvider(job.Provider);
             var denials = provider.ExtractPermissionDenials(job.OutputLines.ToArray());
-            if (denials.Count == 0)
-                return BuildSection("Permission Denials", "None");
+            if (denials.Count == 0) return "None";
 
-            var layout = Layout.Vertical().Gap(1);
-            layout |= Text.Block("Permission Denials").Bold();
-            foreach (var d in denials)
-            {
-                var detail = d.InputSummary != null
-                    ? $"{d.ToolName}({d.InputSummary})"
-                    : d.ToolName;
-                layout |= Text.Block($"  - {detail}").Muted();
-            }
-            return layout;
+            return string.Join("\n", denials.Select(d =>
+                d.InputSummary != null ? $"{d.ToolName}({d.InputSummary})" : d.ToolName));
         }
         catch
         {
-            return BuildSection("Permission Denials", "Error parsing denials");
+            return "Error parsing denials";
         }
-    }
-
-    private object BuildPathSection(string label, string? path, Action<string> copy, IClientProvider client)
-    {
-        if (string.IsNullOrEmpty(path)) return new Empty();
-
-        return Layout.Vertical().Gap(1)
-               | Text.Block(label).Bold()
-               | (Layout.Horizontal().Gap(2).AlignContent(Align.Center)
-                  | Text.Block(path).Muted()
-                  | new Button("Copy").Icon(Icons.ClipboardCopy).Ghost().OnClick(() =>
-                  {
-                      copy(path);
-                      client.Toast($"Copied to clipboard", label);
-                  }));
-    }
-
-    private object BuildPromptwareLogPaths(JobItem job, Action<string> copy, IClientProvider client)
-    {
-        var promptsRoot = PromptwareHelper.ResolvePromptsRoot(config.TendrilHome);
-        var programFolder = Path.Combine(promptsRoot, job.Type);
-        var logsFolder = Path.Combine(programFolder, "Logs");
-
-        if (!Directory.Exists(logsFolder))
-            return BuildSection("Promptware Logs", "No logs directory");
-
-        var logFile = job.LogFilePath;
-        if (string.IsNullOrEmpty(logFile))
-            return BuildSection("Promptware Logs", "No log file recorded");
-
-        var rawFile = Path.ChangeExtension(logFile, ".raw.jsonl");
-
-        var layout = Layout.Vertical().Gap(1);
-        layout |= Text.Block("Promptware Logs").Bold();
-
-        layout |= Layout.Horizontal().Gap(2).AlignContent(Align.Center)
-                   | Text.Block(logFile).Muted()
-                   | new Button("Copy").Icon(Icons.ClipboardCopy).Ghost().OnClick(() =>
-                   {
-                       copy(logFile);
-                       client.Toast("Copied to clipboard", "Log Path");
-                   });
-
-        layout |= Layout.Horizontal().Gap(2).AlignContent(Align.Center)
-                   | Text.Block(rawFile).Muted()
-                   | new Button("Copy").Icon(Icons.ClipboardCopy).Ghost().OnClick(() =>
-                   {
-                       copy(rawFile);
-                       client.Toast("Copied to clipboard", "Raw Log Path");
-                   });
-
-        return layout;
     }
 
     private string? GetPlanFolderPath(JobItem job)
@@ -157,11 +90,28 @@ public class JobDebugSheet(
         var logsDir = Path.Combine(folder, "logs");
         if (!Directory.Exists(logsDir)) return null;
 
-        var latestLog = Directory.GetFiles(logsDir, "*.md")
+        return Directory.GetFiles(logsDir, "*.md")
             .OrderByDescending(File.GetLastWriteTimeUtc)
             .FirstOrDefault();
-
-        return latestLog;
     }
 
+    private string? GetPromptwareLogPath(JobItem job)
+    {
+        var logFile = job.LogFilePath;
+        if (!string.IsNullOrEmpty(logFile)) return logFile;
+
+        var promptsRoot = PromptwareHelper.ResolvePromptsRoot(config.TendrilHome);
+        var logsFolder = Path.Combine(promptsRoot, job.Type, "Logs");
+        if (!Directory.Exists(logsFolder)) return null;
+
+        return Directory.GetFiles(logsFolder, "*.md")
+            .OrderByDescending(File.GetLastWriteTimeUtc)
+            .FirstOrDefault();
+    }
+
+    private string? GetPromptwareRawLogPath(JobItem job)
+    {
+        var logPath = GetPromptwareLogPath(job);
+        return logPath != null ? Path.ChangeExtension(logPath, ".raw.jsonl") : null;
+    }
 }
