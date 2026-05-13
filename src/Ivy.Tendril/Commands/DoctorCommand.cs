@@ -217,7 +217,7 @@ public static class DoctorCommand
         if (pruneCandidates.Count > 0)
         {
             AnsiConsole.WriteLine();
-            AnsiConsole.MarkupLine($"[yellow]Found {pruneCandidates.Count} plan(s) that appear to be test/junk data:[/]");
+            AnsiConsole.MarkupLine($"[yellow]Found {pruneCandidates.Count} {(pruneCandidates.Count == 1 ? "plan that appears" : "plans that appear")} to be test/junk data:[/]");
             AnsiConsole.WriteLine();
 
             foreach (var (_, result, reason) in pruneCandidates)
@@ -244,7 +244,7 @@ public static class DoctorCommand
                 }
 
                 AnsiConsole.WriteLine();
-                AnsiConsole.WriteLine($"Pruned {removed} plan(s).");
+                AnsiConsole.WriteLine($"Pruned {removed} {(removed == 1 ? "plan" : "plans")}.");
             }
             else
             {

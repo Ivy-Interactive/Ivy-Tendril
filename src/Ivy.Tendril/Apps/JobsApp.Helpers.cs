@@ -131,7 +131,7 @@ public partial class JobsApp
 
         return job.Status switch
         {
-            JobStatus.Blocked => "Waiting for dependency plan(s) to complete",
+            JobStatus.Blocked => "Waiting for dependency plans to complete.",
             JobStatus.Failed => "Job encountered an error during execution",
             JobStatus.Timeout => "Job exceeded the configured timeout",
             JobStatus.Queued => "Waiting for a job slot to become available",

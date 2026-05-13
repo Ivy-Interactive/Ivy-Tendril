@@ -156,7 +156,7 @@ public class CompleteStepView(
 
         var subText = running
             ? "Tendril is detecting your tech stack and configuring verifications."
-            : $"{totalVerifications} verification(s) configured across {projects.Count} project(s). Click Finish to start using Tendril, or go back to add another project.";
+            : $"{totalVerifications} {(totalVerifications == 1 ? "verification" : "verifications")} configured across {projects.Count} {(projects.Count == 1 ? "project" : "projects")}. Click Finish to start using Tendril, or go back to add another project.";
 
         return Layout.Vertical().Gap(4).Margin(0, 0, 0, 20)
                | Text.H2(headerText)
