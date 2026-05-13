@@ -40,20 +40,15 @@ public partial class JobsApp
     {
         if (job.Status == JobStatus.Running)
         {
-            if (!string.IsNullOrEmpty(job.StatusMessage))
-                return AnimatedStatusValue.Running(job.StatusMessage);
             if (job.LastOutputAt.HasValue)
             {
                 var elapsed = DateTime.UtcNow - job.LastOutputAt.Value;
-                return AnimatedStatusValue.Running(FormatTimeSpan(elapsed));
+                return FormatTimeSpan(elapsed);
             }
-            return AnimatedStatusValue.Running("Starting...");
+            return "Starting...";
         }
 
-        if (job.Status == JobStatus.Completed)
-            return AnimatedStatusValue.Done("Done");
-
-        return AnimatedStatusValue.Idle("-");
+        return "-";
     }
 
     private static string FormatTimer(JobItem job)

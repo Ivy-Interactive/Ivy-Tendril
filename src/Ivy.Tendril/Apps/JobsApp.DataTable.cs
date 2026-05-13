@@ -37,7 +37,6 @@ public partial class JobsApp
             .Header(t => t.Cost, "Cost")
             .Header(t => t.Tokens, "Tokens")
             .Header(t => t.LastOutput, "Last Output")
-            .Renderer(t => t.LastOutput, new AnimatedStatusLabelDisplayRenderer())
             .Header(t => t.StatusMessage, "Status")
             .Width(t => t.Status, Size.Px(100))
             .Width(t => t.PlanId, Size.Px(100))
@@ -164,7 +163,7 @@ public partial class JobsApp
 
                 if (job != null)
                 {
-
+                  
                     if (tag == "stop-job")
                     {
                         if (job.Status is JobStatus.Running or JobStatus.Queued)
