@@ -4,7 +4,7 @@ using Ivy.Widgets.AgentOutputView;
 
 namespace Ivy.Tendril.Apps.Jobs;
 
-public class OutputSheet(
+public partial class OutputSheet(
     string jobId,
     IJobService jobService,
     IWriteStream<string> outputStream,
@@ -14,30 +14,27 @@ public class OutputSheet(
     public override object Build()
     {
         var job = jobService.GetJob(jobId);
-        object outputContent;
+        object agentOutputView;
 
         if (job is { Status: JobStatus.Running })
         {
-            outputContent = new AgentOutputView()
+            agentOutputView = new AgentOutputView()
                 .Provider(job.Provider)
                 .Stream(outputStream)
-                .AutoScroll(true)
-                .ShowStatusLabel(true)
                 .Height(Size.Full());
         }
         else if (job is not null && hasStreamContent.Value && streamingJobId.Value == jobId)
         {
-            outputContent = new AgentOutputView()
+            agentOutputView = new AgentOutputView()
                 .Provider(job.Provider)
                 .Stream(outputStream)
                 .AutoScroll(false)
-                .ShowStatusLabel(true)
                 .Height(Size.Full());
         }
-        else if (job is not null && job.OutputLines.Count > 0)
+        else if (job is not null && !job.OutputLines.IsEmpty)
         {
             var jsonStream = string.Join("\n", job.OutputLines);
-            outputContent = new AgentOutputView()
+            agentOutputView = new AgentOutputView()
                 .Provider(job.Provider)
                 .JsonStream(jsonStream)
                 .AutoScroll(false)
@@ -46,10 +43,10 @@ public class OutputSheet(
         }
         else
         {
-            outputContent = Text.P("No output available.");
+            agentOutputView = Text.P("No output available.");
         }
 
-        return outputContent;
+        return agentOutputView;
     }
 
     public string GetSheetTitle()
@@ -61,7 +58,10 @@ public class OutputSheet(
     private static string ExtractPlanId(string planFile)
     {
         if (string.IsNullOrEmpty(planFile)) return "";
-        var match = System.Text.RegularExpressions.Regex.Match(planFile, @"^(\d{5})-");
+        var match = ExtractPlanIdRegex().Match(planFile);
         return match.Success ? match.Groups[1].Value : "";
     }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"^(\d{5})-")]
+    private static partial System.Text.RegularExpressions.Regex ExtractPlanIdRegex();
 }
