@@ -134,7 +134,12 @@ public record JobItem
 public record JobItemRow
 {
     public string Id { get; init; } = "";
-    public JobStatus Status { get; init; }
+    /// <summary>
+    /// Encoded animated-status string: "running:Running" while the job is running
+    /// (so the Status column shimmers), "idle:Completed" / "idle:Failed" / etc.
+    /// otherwise. Built via <see cref="Ivy.AnimatedStatusValue"/>.
+    /// </summary>
+    public string Status { get; init; } = "";
     public string PlanId { get; init; } = "";
     public string Plan { get; init; } = "";
     public string Type { get; init; } = "";
