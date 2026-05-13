@@ -40,6 +40,8 @@ public partial class JobsApp
     {
         if (job.Status == JobStatus.Running)
         {
+            if (!string.IsNullOrEmpty(job.StatusMessage))
+                return job.StatusMessage;
             if (job.LastOutputAt.HasValue)
             {
                 var elapsed = DateTime.UtcNow - job.LastOutputAt.Value;
@@ -47,6 +49,9 @@ public partial class JobsApp
             }
             return "Starting...";
         }
+
+        if (job.Status == JobStatus.Completed)
+            return "Done";
 
         return "-";
     }

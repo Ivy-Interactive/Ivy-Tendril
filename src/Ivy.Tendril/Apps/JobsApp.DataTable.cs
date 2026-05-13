@@ -37,6 +37,14 @@ public partial class JobsApp
             .Header(t => t.Cost, "Cost")
             .Header(t => t.Tokens, "Tokens")
             .Header(t => t.LastOutput, "Last Output")
+            .Renderer(t => t.LastOutput, new LabelsDisplayRenderer
+            {
+                BadgeColorMapping = new Dictionary<string, string>
+                {
+                    ["Done"] = Colors.Green.ToString(),
+                    ["Starting..."] = Colors.Amber.ToString()
+                }
+            })
             .Header(t => t.StatusMessage, "Status")
             .Width(t => t.Status, Size.Px(100))
             .Width(t => t.PlanId, Size.Px(100))
