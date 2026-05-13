@@ -1,6 +1,6 @@
 # CreatePr
 
-**Note:** This promptware is stack-agnostic. Stack-specific operations (build, format, test) are defined in `config.yaml` under `verifications`. Examples in this document use multiple tech stacks for illustration.
+**Note:** This promptware is stack-agnostic. Stack-specific operations (build, format, test) are defined as verifications in the project configuration. Examples in this document use multiple tech stacks for illustration.
 
 Create GitHub pull requests and apply PR rules.
 
@@ -16,7 +16,7 @@ The firmware header contains:
 The plan structure and CLI commands are in the **Reference Documents** section of your firmware.
 Project configuration (repos, `prRule` settings) is available from the firmware header.
 
-## PR Rules (from config.yaml per repo)
+## PR Rules (per repo, from RepoConfigs header)
 
 - **`default`** — Create the PR and stop
 - **`yolo`** — Create PR → auto-merge with `--admin` → delete remote branch → pull default branch into the original local repo
@@ -120,7 +120,7 @@ If no custom options or `comment` is empty, skip this step.
 
 ### 4. Apply PR Rule
 
-**!MANDATORY** — look up the `prRule` for this repo in config.yaml under the project's repos list.
+**!MANDATORY** — look up the `prRule` for this repo in the `RepoConfigs` firmware header.
 
 **Custom options override:** If custom options exist, the flags override the yolo behavior:
 - If `merge` is `false`: skip the entire merge step (treat as `default` rule regardless of prRule)
@@ -174,7 +174,7 @@ When the PR status is `CONFLICTING`, resolve the conflict locally before retryin
 
 6. **Quick build check** (if build-critical files were involved in conflicts):
    ```bash
-   # Run your project's build command from config.yaml verifications
+   # Fetch build command: tendril verification get Build
    ```
    If the build fails, fix the issue and amend the merge commit.
 

@@ -190,4 +190,78 @@ public class FirmwareCompilerTests : IDisposable
         Assert.EndsWith("00002.md", second);
         Assert.NotEqual(first, second);
     }
+
+    // --- Projects Section ---
+
+    [Fact]
+    public void Compile_RendersProjectsSection()
+    {
+        var projects = new[]
+        {
+            new ProjectInfo("MyProject", "A test project",
+                new List<ProjectRepoInfo> { new("D:\\Repos\\my-app", "org/my-app") },
+                new List<ProjectVerificationInfo> { new("Build", true, false), new("Lint", false, true) })
+        };
+
+        var context = new FirmwareContext("/programs/Test", new Dictionary<string, string>(), Projects: projects);
+        var result = FirmwareCompiler.Compile(context);
+
+        Assert.Contains("## Projects", result);
+        Assert.Contains("### MyProject", result);
+        Assert.Contains("A test project", result);
+        Assert.Contains("org/my-app", result);
+        Assert.Contains("Build (required)", result);
+        Assert.Contains("Lint (optional, delegated)", result);
+    }
+
+    [Fact]
+    public void Compile_RendersMultipleProjects()
+    {
+        var projects = new[]
+        {
+            new ProjectInfo("Alpha", "", new List<ProjectRepoInfo>(), new List<ProjectVerificationInfo>()),
+            new ProjectInfo("Beta", "Beta context", new List<ProjectRepoInfo>(), new List<ProjectVerificationInfo>())
+        };
+
+        var context = new FirmwareContext("/programs/Test", new Dictionary<string, string>(), Projects: projects);
+        var result = FirmwareCompiler.Compile(context);
+
+        Assert.Contains("### Alpha", result);
+        Assert.Contains("### Beta", result);
+        Assert.Contains("Beta context", result);
+    }
+
+    [Fact]
+    public void Compile_OmitsProjectsSection_WhenNull()
+    {
+        var context = new FirmwareContext("/programs/Test", new Dictionary<string, string>());
+        var result = FirmwareCompiler.Compile(context);
+
+        Assert.DoesNotContain("## Projects", result);
+    }
+
+    [Fact]
+    public void Compile_OmitsProjectsSection_WhenEmpty()
+    {
+        var context = new FirmwareContext("/programs/Test", new Dictionary<string, string>(), Projects: Array.Empty<ProjectInfo>());
+        var result = FirmwareCompiler.Compile(context);
+
+        Assert.DoesNotContain("## Projects", result);
+    }
+
+    [Fact]
+    public void Compile_ProjectsSectionAppearsBeforeReferenceDocuments()
+    {
+        var projects = new[]
+        {
+            new ProjectInfo("TestProj", "ctx", new List<ProjectRepoInfo>(), new List<ProjectVerificationInfo>())
+        };
+
+        var context = new FirmwareContext("/programs/Test", new Dictionary<string, string>(), Projects: projects);
+        var result = FirmwareCompiler.Compile(context);
+
+        var projectsIdx = result.IndexOf("## Projects");
+        var referenceIdx = result.IndexOf("## Reference Documents");
+        Assert.True(projectsIdx < referenceIdx);
+    }
 }

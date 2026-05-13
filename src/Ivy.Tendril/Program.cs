@@ -358,6 +358,8 @@ public class Program
             {
                 verification.AddCommand<VerificationListCommand>("list")
                     .WithDescription("List global verification definitions");
+                verification.AddCommand<VerificationGetCommand>("get")
+                    .WithDescription("Get the full prompt for a verification definition");
                 verification.AddCommand<VerificationAddCommand>("add")
                     .WithDescription("Add a verification definition");
                 verification.AddCommand<VerificationRemoveCommand>("remove")

@@ -58,7 +58,7 @@ Example:
 - Include exact file paths for changes
 - Specify concrete code modifications or additions
 - Maintain all original context and problem description
-- Preserve the plan template structure (from `planTemplate` in config.yaml)
+- Preserve the plan template structure
 
 ### Rules
 

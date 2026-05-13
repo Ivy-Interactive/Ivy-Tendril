@@ -234,7 +234,8 @@ internal class JobLauncher
         job.LogFilePath = logFile;
 
         var customInstructions = ResolveCustomInstructions(job.Type);
-        var prompt = FirmwareCompiler.Compile(new FirmwareContext(programFolder, values, customInstructions));
+        var projects = BuildProjectInfos(job);
+        var prompt = FirmwareCompiler.Compile(new FirmwareContext(programFolder, values, customInstructions, projects));
         job.CompiledPrompt = prompt;
 
         var promptFilePath = WritePromptFileIfNeeded(resolution, prompt, job.Id, values);
@@ -303,9 +304,11 @@ internal class JobLauncher
         {
             ["AgentSessionId"] = job.SessionId ?? "",
             ["TendrilJobId"] = job.Id,
-            ["TendrilConfigPath"] = _configService!.ConfigPath,
             ["TendrilHome"] = _configService.TendrilHome ?? ""
         };
+
+        if (job.Type == Constants.JobTypes.UpdateProject)
+            values["TendrilConfigPath"] = _configService!.ConfigPath;
 
         if (job.TypedArgs is CreatePlanArgs)
         {
@@ -542,5 +545,55 @@ internal class JobLauncher
         }
 
         return "main";
+    }
+
+    private ProjectInfo[]? BuildProjectInfos(JobItem job)
+    {
+        if (_configService == null) return null;
+
+        var projectNames = ProjectHelper.ParseProjects(job.Project);
+
+        if (projectNames.Length == 0 || (projectNames.Length == 1 && projectNames[0].Equals("Auto", StringComparison.OrdinalIgnoreCase)))
+            return BuildAllProjectInfos();
+
+        var result = projectNames
+            .Select(BuildSingleProjectInfo)
+            .Where(p => p != null)
+            .Select(p => p!)
+            .ToArray();
+
+        return result.Length > 0 ? result : null;
+    }
+
+    private ProjectInfo[] BuildAllProjectInfos()
+    {
+        return _configService!.Projects
+            .Select(BuildProjectInfoFromConfig)
+            .ToArray();
+    }
+
+    private ProjectInfo? BuildSingleProjectInfo(string name)
+    {
+        var config = _configService!.GetProject(name);
+        return config == null ? null : BuildProjectInfoFromConfig(config);
+    }
+
+    private ProjectInfo BuildProjectInfoFromConfig(ProjectConfig config)
+    {
+        var repos = config.Repos.Select(r =>
+        {
+            var expanded = Environment.ExpandEnvironmentVariables(r.Path);
+            var repoName = Path.GetFileName(expanded);
+            var ownerDir = Path.GetFileName(Path.GetDirectoryName(expanded) ?? "");
+            return new ProjectRepoInfo(expanded, $"{ownerDir}/{repoName}");
+        }).ToList();
+
+        var verifications = config.Verifications.Select(v =>
+        {
+            var delegated = _configService!.Settings.Promptwares.ContainsKey(v.Name);
+            return new ProjectVerificationInfo(v.Name, v.Required, delegated);
+        }).ToList();
+
+        return new ProjectInfo(config.Name, config.Context, repos, verifications);
     }
 }

@@ -1,6 +1,6 @@
 # CreatePlan
 
-**Note:** This promptware is stack-agnostic. Stack-specific operations (build, format, test) are defined in `config.yaml` under `verifications`. Examples in this document use multiple tech stacks for illustration.
+**Note:** This promptware is stack-agnostic. Stack-specific operations (build, format, test) are defined as verifications in the project configuration. Examples in this document use multiple tech stacks for illustration.
 
 **🚫 FORBIDDEN: Do NOT modify, create, or delete any source code files. Do NOT implement the plan. You are a PLANNER, not an executor. Your ONLY output is plan files (plan.yaml, revisions/*.md) inside TendrilPlansFolder. If you catch yourself writing code to a repo, STOP IMMEDIATELY.**
 
@@ -16,11 +16,10 @@ The firmware header contains these key values:
 - **Force** (optional) — if `true`, skip duplicate detection entirely (see Step 3)
 - **SourcePath** (optional) — absolute path to the source that generated this plan (e.g. test working directory)
 - **TendrilJobId** — your job ID for status reporting (use this literal value in `tendril job status` commands)
-- **TendrilConfigPath** — absolute path to config.yaml (use `Read` tool directly on this path)
 - **TendrilHome** — the Tendril home directory (use for Trash path: `<TendrilHome>/Trash/`)
 
 The plan folder structure and CLI commands are in the **Reference Documents** section of your firmware.
-Project configuration is available from `config.yaml` — read it using the `Read` tool at the `TendrilConfigPath` path from the firmware header.
+Project information (repos, verifications, context) is in the **Projects** section of your firmware.
 
 ## Execution Steps
 
@@ -32,15 +31,15 @@ Args contains the user's task description. If it references related plans with `
 
 **Format screenshot paths**: If the description contains file paths to images (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`), include them in the plan revision as markdown images using `file:///` URLs. Convert backslashes to forward slashes. Example: a path like `D:\Screenshots\2026-05-07_17-16.png` in the description becomes `![screenshot](file:///D:/Screenshots/2026-05-07_17-16.png)` in the revision.
 
-### 1.5. Load Project Context
+### 1.5. Select Project
 
-Read `config.yaml` to understand all available projects, their repos, and context.
+The **Projects** section of your firmware lists all available projects with their repos, verifications, and context.
 
 **If `TendrilProject` is set to a specific project name** (not `Auto`):
-- Find that project in `config.yaml` and use its repos and context to scope your research
+- Use that project's repos and context from the **Projects** section to scope your research
 
 **If `TendrilProject: Auto`**:
-- Analyze the task description to infer the correct project from `config.yaml`
+- Analyze the task description to infer the correct project from the **Projects** section
 - Match based on keywords, repo paths, or component names in the description
 - If no project matches, set `project: Auto` in plan.yaml and leave `repos: []` empty
 - Use the matched project's context to scope your research
@@ -119,7 +118,7 @@ Do NOT read or modify `.counter` directly. Plan IDs are allocated by the `tendri
   ```bash
   gh search issues "<keyword>" --repo <owner>/<repo> --json title,url,number,state
   ```
-  Derive the repo owner/name from the repos in `config.yaml`. If an issue already covers the task, reference it in the plan and avoid creating workaround plans.
+  Derive the repo owner/name from the **Projects** section repos. If an issue already covers the task, reference it in the plan and avoid creating workaround plans.
 
 ### 3.5. Validate Code State
 
@@ -183,7 +182,7 @@ Include optional flags as needed:
 - `--depends-on "<folder-name>"` — for blocking dependencies (see Section 4.4)
 - `--priority <number>` — if non-default priority
 
-Populate `--verification` flags from the project's `verifications` in config.yaml, all set to `Pending`.
+Populate `--verification` flags from the project's verifications in the **Projects** section, all set to `Pending`.
 
 #### 4.2. Write the revision
 
@@ -217,9 +216,9 @@ tendril plan add-related-plan <PlanId> "<folder-name>"
 tendril plan add-depends-on <PlanId> "<folder-name>"
 ```
 
-**Validate repo paths**: After determining the project and repos from config.yaml, verify each repo path exists locally:
+**Validate repo paths**: After determining the project and repos from the **Projects** section, verify each repo path exists locally:
 - For each repo in the plan's repos list, check `Test-Path <repo-path>`
-- If any repo path doesn't exist, fail with error: "Repository path does not exist: `<path>`. Check config.yaml project configuration."
+- If any repo path doesn't exist, fail with error: "Repository path does not exist: `<path>`. Check project configuration."
 - This prevents creating plans targeting non-existent repo paths
 
 **Rename/refactor plans (caller enumeration)**: When creating plans that rename functions, change method signatures, extract interfaces, or otherwise require updating callers:
@@ -320,7 +319,7 @@ Analyze the task complexity and choose an `executionProfile`. This is passed via
 - Simple changes (docs, typos, version bumps, log statements)
 - When in doubt, use balanced
 
-If you cannot determine complexity (e.g., task is too vague), omit `--execution-profile` — ExecutePlan will use the config.yaml default.
+If you cannot determine complexity (e.g., task is too vague), omit `--execution-profile` — ExecutePlan will use the configured default.
 
 ### 4.6. Questions Section
 
@@ -336,7 +335,7 @@ The `## Tests` section MUST include two parts:
    To determine scope:
    - Identify the modules/classes being modified
    - Search for existing test classes that cover those areas
-   - **Filters MUST target specific test classes, not broad namespaces/directories.** Use the project's test runner syntax from config.yaml verifications.
+   - **Filters MUST target specific test classes, not broad namespaces/directories.** Use the project's test runner syntax from its verifications (fetch full prompts with `tendril verification get <name>` if needed).
    - **Exclude E2E/integration test classes** unless the plan specifically changes E2E-level behavior. E2E tests are environment-dependent and should only run when explicitly needed.
    - If no existing tests cover the changed code, state: "No existing test coverage for this area."
    - If the change is so broad that all tests are genuinely needed, explicitly state: "Run all tests (broad cross-cutting change)." and justify why.
@@ -345,13 +344,13 @@ The `## Tests` section MUST include two parts:
 
 ### 5. Verification Checklist
 
-In the `## Verification` section of the plan revision, generate a checklist from the project's `verifications` in `config.yaml`.
+In the `## Verification` section of the plan revision, generate a checklist from the project's verifications in the **Projects** section.
 
 For each verification assigned to the project:
-- **Required** (`required: true`) → `- [x] VerificationName`
-- **Optional** (`required: false`) → `- [ ] VerificationName`
+- **Required** → `- [x] VerificationName`
+- **Optional** → `- [ ] VerificationName`
 
-Example (verification names come from config.yaml):
+Example:
 ```markdown
 ## Verification
 

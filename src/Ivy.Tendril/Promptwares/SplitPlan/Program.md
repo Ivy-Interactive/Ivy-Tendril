@@ -48,7 +48,7 @@ Include optional flags as needed:
 - `--depends-on "<sibling-plan-folder>"` — only when a sibling plan has a true blocking dependency (see Section 3)
 - `--priority <number>` — if non-default priority
 
-Populate `--verification` flags from the project's verifications in config.yaml, all set to `Pending`.
+Populate `--verification` flags from the project's verifications in the **Projects** section, all set to `Pending`.
 
 Do NOT read or modify `.counter` directly — `tendril plan create` handles ID allocation.
 
@@ -65,7 +65,7 @@ The command reads from STDIN and auto-creates the next numbered revision file. F
 #### Project Assignment
 
 Each new plan may belong to a different project than the original. For each split plan:
-- Analyze which project(s) from `config.yaml` are relevant based on the files/repos involved
+- Analyze which project(s) from the **Projects** section are relevant based on the files/repos involved
 - Use the matching project's repos and verifications in the `tendril plan create` command
 - If a sub-plan spans multiple projects, prefer the primary project (where most changes occur)
 
