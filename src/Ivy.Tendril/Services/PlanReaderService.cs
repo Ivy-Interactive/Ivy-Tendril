@@ -131,7 +131,7 @@ public class PlanReaderService(
                 }
 
             if (failedFolders.Count > 0)
-                _logger.LogWarning("Failed to repair {Count} plan(s) due to file access errors: {Folders}",
+                _logger.LogWarning("Failed to repair {Count} plans due to file access errors: {Folders}.",
                     failedFolders.Count, string.Join(", ", failedFolders));
         }
         catch

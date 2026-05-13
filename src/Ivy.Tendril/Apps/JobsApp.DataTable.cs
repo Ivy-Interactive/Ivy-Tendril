@@ -237,14 +237,14 @@ public partial class JobsApp
                                           var count = jobService.GetJobs().Count(j => j.Status == JobStatus.Completed);
                                           jobService.ClearCompletedJobs();
                                           refreshToken.Refresh();
-                                          client.Toast($"Cleared {count} completed job(s)", "Clear Completed");
+                                          client.Toast($"Cleared {count} completed {(count == 1 ? "job" : "jobs")}.", "Clear Completed");
                                       }),
                                   new MenuItem("Clear Failed", Icon: Icons.Trash, Tag: "ClearFailed").OnSelect(() =>
                                   {
                                       var count = jobService.GetJobs().Count(j => j.Status is JobStatus.Failed or JobStatus.Timeout);
                                       jobService.ClearFailedJobs();
                                       refreshToken.Refresh();
-                                      client.Toast($"Cleared {count} failed job(s)", "Clear Failed");
+                                      client.Toast($"Cleared {count} failed {(count == 1 ? "job" : "jobs")}.", "Clear Failed");
                                   })
                               ));
     }

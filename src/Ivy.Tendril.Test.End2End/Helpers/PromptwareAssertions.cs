@@ -37,7 +37,7 @@ public static class PromptwareAssertions
 
         var files = Directory.GetFiles(revisionsDir, "*.md");
         Assert.True(files.Length >= minCount,
-            $"Expected at least {minCount} revision(s), found {files.Length} in {revisionsDir}");
+            $"Expected at least {minCount} {(minCount == 1 ? "revision" : "revisions")}, found {files.Length} in {revisionsDir}");
     }
 
     public static void AssertPlanFolderCreatedByAgent(string plansDir, string titleFragment)

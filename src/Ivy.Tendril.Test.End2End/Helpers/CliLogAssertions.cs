@@ -76,7 +76,7 @@ public static class CliLogAssertions
         var entries = ReadLog(cliLogPath);
         var count = entries.Count(e => e.Command.Contains(commandFragment, StringComparison.OrdinalIgnoreCase));
         Assert.True(count >= minCount,
-            $"Expected at least {minCount} call(s) containing '{commandFragment}', found {count}. " +
+            $"Expected at least {minCount} {(minCount == 1 ? "call" : "calls")} containing '{commandFragment}', found {count}. " +
             $"All calls: [{string.Join(", ", entries.Select(e => $"\"{e.Command}\""))}]");
     }
 }
