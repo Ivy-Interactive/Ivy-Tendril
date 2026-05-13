@@ -17,12 +17,10 @@ public class ProjectRepoPickerView(
         var inputValue = UseState("");
         var addingError = UseState<string?>(null);
         var isAdding = UseState(false);
-
         Context.TryUseService<DesktopWindow>(out var desktop);
-        var isDesktop = desktop != null;
+        Context.TryUseService<IConfigService>(out var configService);
 
-        IConfigService? configService = null;
-        Context.TryUseService<IConfigService>(out configService);
+        var isDesktop = desktop != null;
         var tendrilHome = configService?.TendrilHome;
 
         async Task AddAsync()

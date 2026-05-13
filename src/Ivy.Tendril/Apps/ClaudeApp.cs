@@ -8,15 +8,14 @@ public class ClaudeApp : ViewBase
     public override object Build()
     {
         var isOpen = UseState(false);
-
-        if (!isOpen.Value)
-            return new Button("Open Claude")
-                .OnClick(() => isOpen.Set(true));
-
         var pty = Context.UsePty(
             ["claude"],
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
         );
+
+        if (!isOpen.Value)
+            return new Button("Open Claude")
+                .OnClick(() => isOpen.Set(true));
 
         var terminal = new Widgets.Xterm.Terminal();
         terminal = Widgets.Xterm.TerminalExtensions.Stream(terminal, pty.Stream);
