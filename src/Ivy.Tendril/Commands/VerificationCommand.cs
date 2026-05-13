@@ -26,6 +26,13 @@ public class VerificationRemoveSettings : CommandSettings
     public string Name { get; set; } = "";
 }
 
+public class VerificationGetSettings : CommandSettings
+{
+    [Description("Verification name")]
+    [CommandArgument(0, "<name>")]
+    public string Name { get; set; } = "";
+}
+
 public class VerificationSetSettings : CommandSettings
 {
     [Description("Verification name")]
@@ -76,6 +83,37 @@ public class VerificationListCommand : Command<VerificationListSettings>
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to list verification definitions");
+            return 1;
+        }
+    }
+}
+
+public class VerificationGetCommand : Command<VerificationGetSettings>
+{
+    private readonly ILogger<VerificationGetCommand> _logger;
+
+    public VerificationGetCommand(ILogger<VerificationGetCommand> logger) => _logger = logger;
+
+    protected override int Execute(CommandContext context, VerificationGetSettings settings, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var config = new ConfigService();
+            var match = config.Settings.Verifications
+                .FirstOrDefault(v => v.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
+
+            if (match == null)
+            {
+                _logger.LogError("Verification not found: {Name}", settings.Name);
+                return 1;
+            }
+
+            Console.Write(match.Prompt);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get verification definition");
             return 1;
         }
     }

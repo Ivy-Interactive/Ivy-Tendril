@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text;
 
 namespace Ivy.Tendril.Services;
 
@@ -87,6 +88,12 @@ public static class FirmwareCompiler
             firmware += File.ReadAllText(programFile) + "\n";
         }
 
+        if (context.Projects is { Length: > 0 })
+        {
+            firmware += "\n\n## Projects\n\n";
+            firmware += RenderProjects(context.Projects);
+        }
+
         var plansContent = PlansReference.Value;
         if (plansContent != null)
         {
@@ -102,6 +109,45 @@ public static class FirmwareCompiler
         }
 
         return firmware;
+    }
+
+    private static string RenderProjects(ProjectInfo[] projects)
+    {
+        var sb = new StringBuilder();
+
+        foreach (var project in projects)
+        {
+            sb.AppendLine($"### {project.Name}");
+            sb.AppendLine();
+
+            if (!string.IsNullOrWhiteSpace(project.Context))
+            {
+                sb.AppendLine(project.Context);
+                sb.AppendLine();
+            }
+
+            if (project.Repos.Count > 0)
+            {
+                sb.AppendLine("**Repos:**");
+                foreach (var repo in project.Repos)
+                    sb.AppendLine($"- {repo.OwnerName} (`{repo.Path}`)");
+                sb.AppendLine();
+            }
+
+            if (project.Verifications.Count > 0)
+            {
+                sb.AppendLine("**Verifications:**");
+                foreach (var v in project.Verifications)
+                {
+                    var flag = v.Required ? "required" : "optional";
+                    if (v.Delegated) flag += ", delegated";
+                    sb.AppendLine($"- {v.Name} ({flag})");
+                }
+                sb.AppendLine();
+            }
+        }
+
+        return sb.ToString();
     }
 
     private static readonly HashSet<string> PathKeys = new(StringComparer.OrdinalIgnoreCase)
@@ -168,4 +214,20 @@ public static class FirmwareCompiler
 public record FirmwareContext(
     string ProgramFolder,
     Dictionary<string, string> Values,
-    string? CustomInstructions = null);
+    string? CustomInstructions = null,
+    ProjectInfo[]? Projects = null);
+
+public record ProjectInfo(
+    string Name,
+    string Context,
+    List<ProjectRepoInfo> Repos,
+    List<ProjectVerificationInfo> Verifications);
+
+public record ProjectRepoInfo(
+    string Path,
+    string OwnerName);
+
+public record ProjectVerificationInfo(
+    string Name,
+    bool Required,
+    bool Delegated);

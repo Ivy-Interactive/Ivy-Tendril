@@ -1,6 +1,6 @@
 # ExecutePlan
 
-**Note:** This promptware is stack-agnostic. Stack-specific operations (build, format, test) are defined in `config.yaml` under `verifications`. Examples in this document use multiple tech stacks for illustration.
+**Note:** This promptware is stack-agnostic. Stack-specific operations (build, format, test) are defined as verifications in the project configuration. Examples in this document use multiple tech stacks for illustration.
 
 Execute an approved plan in isolated git worktrees.
 
@@ -13,7 +13,7 @@ The firmware header contains:
 - **Note** (optional) — Additional instructions from the reviewer. If present, follow these instructions in addition to the plan.
 
 The plan structure and CLI commands are in the **Reference Documents** section of your firmware.
-Read the project configuration from `config.yaml` (use `Read` tool with the `TendrilConfigPath` from the firmware header) for project repos and context.
+Project repos, verifications, and context are in the **Projects** section of your firmware. Use `tendril verification get <name>` to fetch the full prompt for each verification at execution time.
 
 The launcher sets the working directory to the project's primary repo.
 
@@ -64,7 +64,7 @@ If `plan.yaml` has a `dependsOn` list, for each entry:
 Before creating worktrees, verify the execution environment is safe:
 
 1. **Check each repo is not itself a worktree** — If `<repo-path>/.git` is a file containing `gitdir:`, the repo is a worktree. Fail with error:
-   > ERROR: Repository at <repo-path> is itself a worktree. ExecutePlan cannot create worktrees inside worktrees. Update config.yaml to use the main repo path.
+   > ERROR: Repository at <repo-path> is itself a worktree. ExecutePlan cannot create worktrees inside worktrees. Update project configuration to use the main repo path.
 
 2. **Check Plans directory is not inside a worktree** — If `$TENDRIL_HOME` or its parent contains a worktree `.git` file, fail with error:
    > ERROR: TENDRIL_HOME is inside a git worktree. Move your Tendril installation or change the Plans directory.
@@ -77,7 +77,7 @@ cd <repo-path>
 if [ -f .git ] && grep -q "gitdir:" .git; then
     echo "ERROR: Repository at <repo-path> is itself a worktree."
     echo "ExecutePlan cannot create worktrees inside worktrees."
-    echo "Check that config.yaml repo paths point to main repositories, not worktrees."
+    echo "Check that project repo paths point to main repositories, not worktrees."
     exit 1
 fi
 
@@ -154,7 +154,7 @@ After reading the plan revision, scan it for code validation markers to detect s
 
 Before creating worktrees, check each repo for uncommitted changes and automatically commit them. This prevents silent data loss when worktrees are created from `origin/<default-branch>` and later merged back.
 
-For each repo listed in `plan.yaml` `repos` (or the project's repos from `config.yaml` if empty):
+For each repo listed in `plan.yaml` `repos` (or the project's repos from the **Projects** section if empty):
 
 ```bash
 cd <repo-path>
@@ -256,7 +256,7 @@ git worktree add "<TendrilPlanFolder>/worktrees/<RepoName>" -b "tendril/<Tendril
 
 **Important:** Always branch from `origin/<resolved-base-branch>`, not local HEAD. This ensures the PR only contains the plan's commits, not any unpushed local work. The `<resolved-base-branch>` comes from either the `RepoConfigs` firmware header (if `baseBranch` is configured) or auto-detection.
 
-**Note on `RepoConfigs`:** The firmware header may include a `RepoConfigs` value injected by Tendril. It contains per-repo configuration from `config.yaml`:
+**Note on `RepoConfigs`:** The firmware header may include a `RepoConfigs` value injected by Tendril. It contains per-repo configuration:
 ```yaml
 RepoConfigs: |
   - path: /home/user/repos/my-project
@@ -362,9 +362,9 @@ Work exclusively in the worktree directories. Follow the plan's latest revision:
 
 Make logically grouped commits in the worktree(s). Each commit should be a coherent unit of work.
 
-Before each commit, run formatting/linting as defined by the project's verifications in `config.yaml`. The exact commands depend on your stack's verification definitions.
+Before each commit, run formatting/linting as defined by the project's verifications. Fetch the full prompt for a verification with `tendril verification get <name>`.
 
-**Example patterns** (actual commands come from config.yaml verifications):
+**Example patterns** (actual commands come from verification prompts):
 
 ```bash
 # Get changed files from this execution's commits
@@ -447,15 +447,15 @@ Create a `verification/` directory in the plan folder if it doesn't exist.
 
 Check the `## Verification` section in the plan revision for checked items (`- [x]`). Skip unchecked items (`- [ ]`).
 
-**Delegated verifications:** Some verifications are implemented as separate promptwares (e.g., `IvyFrameworkVerification`). A verification is **delegated** if its name matches an entry in the `promptwares` section of `config.yaml`. Delegated verifications MUST be run via `tendril promptware run <Name>` — you are FORBIDDEN from writing their report files or setting their status to Pass yourself. If the `tendril` CLI is unavailable and you cannot invoke the sub-promptware, you MUST set the verification to `Fail` with a report explaining the CLI failure. Never self-certify a delegated verification.
+**Delegated verifications:** Some verifications are implemented as separate promptwares (e.g., `IvyFrameworkVerification`). The **Projects** section marks delegated verifications. Delegated verifications MUST be run via `tendril promptware run <Name>` — you are FORBIDDEN from writing their report files or setting their status to Pass yourself. If the `tendril` CLI is unavailable and you cannot invoke the sub-promptware, you MUST set the verification to `Fail` with a report explaining the CLI failure. Never self-certify a delegated verification.
 
-**IMPORTANT — delegated invocation syntax:** The `tendril promptware run` CLI takes the plan folder as a **positional argument** (NOT a named flag like `--plan-folder`). You MUST also pass `--value` flags for each required firmware value. The exact command is in the verification's `prompt` field in config.yaml — copy it character-for-character, only replacing angle-bracketed placeholders with actual paths. If the command is wrong, the child promptware receives no arguments and silently fails.
+**IMPORTANT — delegated invocation syntax:** The `tendril promptware run` CLI takes the plan folder as a **positional argument** (NOT a named flag like `--plan-folder`). You MUST also pass `--value` flags for each required firmware value. The exact command is in the verification's prompt (fetched via `tendril verification get <Name>`) — copy it character-for-character, only replacing angle-bracketed placeholders with actual paths. If the command is wrong, the child promptware receives no arguments and silently fails.
 
 For each checked verification:
 
 1. Send a status message: `tendril job status TendrilJobId --message "Verifying: <Name>"`
-2. Look up its `prompt` in the `verifications` list in `config.yaml`
-3. **Check if delegated:** If the verification name exists in config.yaml's `promptwares` section, it is a delegated verification — follow the prompt's instructions to invoke it as an external process. If the external process cannot be invoked (CLI broken, file lock, etc.), set the verification to `Fail` immediately. Do NOT attempt to do the verification inline or write the report yourself.
+2. Fetch its full prompt: `tendril verification get <Name>`
+3. **Check if delegated:** The **Projects** section indicates which verifications are delegated — follow the prompt's instructions to invoke it as an external process. If the external process cannot be invoked (CLI broken, file lock, etc.), set the verification to `Fail` immediately. Do NOT attempt to do the verification inline or write the report yourself.
 4. Execute the prompt in the worktree directory
 5. If it fails: diagnose, fix the issue, **commit the fix** (e.g. `[01105] Fix lint errors from Build`), and re-run. Repeat until it passes (fail the plan after 3+ failed attempts).
 6. Document all fix commits via CLI: `tendril plan add-commit <plan-id> <sha>`
