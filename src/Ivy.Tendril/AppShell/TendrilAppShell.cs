@@ -419,7 +419,16 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             MenuItem.Default("Import Issues from GitHub")
                 .Tag("$import-issues")
                 .Icon(Icons.Download)
-                .OnSelect(() => importIssuesDialogOpen.Set(true))
+                .OnSelect(() => importIssuesDialogOpen.Set(true)),
+            MenuItem.Default("Theme")
+                .Tag("$theme")
+                .Icon(Icons.SunMoon)
+                .Children(
+                    MenuItem.Checkbox("Light").Icon(Icons.Sun).OnSelect(() => client.SetThemeMode(ThemeMode.Light)),
+                    MenuItem.Checkbox("Dark").Icon(Icons.Moon).OnSelect(() => client.SetThemeMode(ThemeMode.Dark)),
+                    MenuItem.Checkbox("System").Icon(Icons.SunMoon)
+                        .OnSelect(() => client.SetThemeMode(ThemeMode.System))
+                )
         };
 
         void OnLogout()
