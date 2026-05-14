@@ -46,6 +46,7 @@ public class JobDebugSheet(
 
         return data.ToDetails()
             .Multiline(x => x.PromptTitle)
+            .Multiline(x => x.PermissionDenials)
             .Label(x => x.PromptTitle, "Prompt/Title")
             .Label(x => x.PlanId, "Plan Id")
             .Label(x => x.SessionId, "Session Id")
