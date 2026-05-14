@@ -251,6 +251,9 @@ public class JobService : IJobService
     public void ClearFailedJobs()
         => ClearJobsByStatus(j => j.Status is JobStatus.Failed or JobStatus.Timeout);
 
+    public void ClearAllJobs()
+        => ClearJobsByStatus(j => j.Status is not JobStatus.Running and not JobStatus.Queued);
+
     private void ClearJobsByStatus(Func<JobItem, bool> predicate)
     {
         var ids = _jobs.Values.Where(predicate).Select(j => j.Id).ToList();

@@ -245,6 +245,13 @@ public partial class JobsApp
                                       jobService.ClearFailedJobs();
                                       refreshToken.Refresh();
                                       client.Toast($"Cleared {count} failed {(count == 1 ? "job" : "jobs")}.", "Clear Failed");
+                                  }),
+                                  new MenuItem("Clear All", Icon: Icons.Trash, Tag: "ClearAll").OnSelect(() =>
+                                  {
+                                      var count = jobService.GetJobs().Count(j => j.Status is not JobStatus.Running and not JobStatus.Queued);
+                                      jobService.ClearAllJobs();
+                                      refreshToken.Refresh();
+                                      client.Toast($"Cleared {count} {(count == 1 ? "job" : "jobs")}.", "Clear All");
                                   })
                               ));
     }
