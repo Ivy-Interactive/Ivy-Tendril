@@ -157,7 +157,7 @@ public class TryBuildAgentProcessStartTests : IDisposable
         // Base tools + _default's Write should still be present
         Assert.Contains("Read", resolution.AllowedTools);
         Assert.Contains("Write", resolution.AllowedTools);
-        Assert.Contains("Bash(tendril*)", resolution.AllowedTools);
+        Assert.Contains("Bash", resolution.AllowedTools);
         Assert.Equal("haiku", resolution.Model);
     }
 

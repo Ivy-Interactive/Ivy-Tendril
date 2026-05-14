@@ -24,7 +24,7 @@ public class UpdateProjectTests
             cliLogPath: cliLog,
             extraValues: new Dictionary<string, string>
             {
-                ["Args"] = "Setup verifications for the E2ETest project. Add a dotnet build verification.",
+                ["Instructions"] = "Setup verifications for the E2ETest project. Add a dotnet build verification.",
                 ["TendrilProject"] = "E2ETest"
             });
 

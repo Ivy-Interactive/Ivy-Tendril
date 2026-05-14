@@ -19,15 +19,12 @@ public class AgentProviderFactory
     };
 
     internal static readonly IReadOnlyList<string> BaseTools =
-        ["Read", "Glob", "Grep", "Bash(tendril*)", "Bash(git *)", "Bash(gh *)", "Bash(ls *)", "Bash(find *)", "Bash(cat *)",
-         "WebFetch", "WebSearch"];
+        ["Read", "Glob", "Grep", "Bash", "WebFetch", "WebSearch"];
 
     private static readonly Dictionary<string, IReadOnlyList<string>> BuiltInExtraTools =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            ["ExecutePlan"] = ["Bash", "Write", "Edit"],
-            ["CreatePr"] = ["Bash"],
-            ["CreateIssue"] = ["Bash"]
+            ["ExecutePlan"] = ["Write", "Edit"],
         };
 
     public static IAgentProvider GetProvider(string name)

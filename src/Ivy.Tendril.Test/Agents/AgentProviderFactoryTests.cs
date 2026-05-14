@@ -74,7 +74,7 @@ public class AgentProviderFactoryTests
         // Base tools + _default's Write (unrestricted)
         Assert.Contains("Read", resolution.AllowedTools);
         Assert.Contains("Write", resolution.AllowedTools);
-        Assert.Contains("Bash(tendril*)", resolution.AllowedTools);
+        Assert.Contains("Bash", resolution.AllowedTools);
     }
 
     [Fact]
@@ -109,7 +109,6 @@ public class AgentProviderFactoryTests
         // Base tools + built-in ExecutePlan extras + config extras
         Assert.Contains("Read", resolution.AllowedTools);
         Assert.Contains("Bash", resolution.AllowedTools);
-        Assert.Contains("Bash(tendril*)", resolution.AllowedTools);
         Assert.Contains("WebFetch", resolution.AllowedTools);
         Assert.Contains("Write(/extra/**)", resolution.AllowedTools);
     }
@@ -186,10 +185,9 @@ public class AgentProviderFactoryTests
         Assert.Contains("Read", resolution.AllowedTools);
         Assert.Contains("Glob", resolution.AllowedTools);
         Assert.Contains("Grep", resolution.AllowedTools);
-        Assert.Contains("Bash(tendril*)", resolution.AllowedTools);
+        Assert.Contains("Bash", resolution.AllowedTools);
         Assert.Contains("WebFetch", resolution.AllowedTools);
         Assert.Contains("WebSearch", resolution.AllowedTools);
-        Assert.DoesNotContain("Bash", resolution.AllowedTools.Where(t => t == "Bash"));
         Assert.Empty(resolution.ExtraArgs);
     }
 
@@ -346,7 +344,7 @@ public class AgentProviderFactoryTests
 
         // Base tools always present
         Assert.Contains("Read", resolution.AllowedTools);
-        Assert.Contains("Bash(tendril*)", resolution.AllowedTools);
+        Assert.Contains("Bash", resolution.AllowedTools);
         Assert.Contains("WebFetch", resolution.AllowedTools);
         // Config extras with expanded variables
         Assert.Contains("Write(D:/Tendril/Plans/**)", resolution.AllowedTools);
@@ -390,7 +388,7 @@ public class AgentProviderFactoryTests
         Assert.Contains("Read", resolution.AllowedTools);
         Assert.Contains("Glob", resolution.AllowedTools);
         Assert.Contains("Grep", resolution.AllowedTools);
-        Assert.Contains("Bash(tendril*)", resolution.AllowedTools);
+        Assert.Contains("Bash", resolution.AllowedTools);
         Assert.Contains("WebFetch", resolution.AllowedTools);
         Assert.Contains("WebSearch", resolution.AllowedTools);
         // Config extra
@@ -440,7 +438,7 @@ public class AgentProviderFactoryTests
     [InlineData("gemini", typeof(GeminiAgentProvider))]
     [InlineData("copilot", typeof(CopilotAgentProvider))]
     [InlineData("opencode", typeof(OpenCodeAgentProvider))]
-    public void Resolve_UpdateProject_GetsBaseToolsWithPromptwareDirForAllAgents(string agent, Type expectedProviderType)
+    public void Resolve_UpdateProject_GetsBaseToolsForAllAgents(string agent, Type expectedProviderType)
     {
         var settings = CreateSettings(
             agent,
@@ -471,22 +469,14 @@ public class AgentProviderFactoryTests
         Assert.Equal("test-model", resolution.Model);
         Assert.Equal("max", resolution.Effort);
 
-        // Base read-only tools
+        // Base tools
         Assert.Contains("Read", resolution.AllowedTools);
         Assert.Contains("Glob", resolution.AllowedTools);
         Assert.Contains("Grep", resolution.AllowedTools);
-        Assert.Contains("Bash(tendril*)", resolution.AllowedTools);
-        Assert.Contains("Bash(git *)", resolution.AllowedTools);
-        Assert.Contains("Bash(gh *)", resolution.AllowedTools);
-        Assert.Contains("Bash(ls *)", resolution.AllowedTools);
-        Assert.Contains("Bash(find *)", resolution.AllowedTools);
-        Assert.Contains("Bash(cat *)", resolution.AllowedTools);
+        Assert.Contains("Bash", resolution.AllowedTools);
         Assert.Contains("WebFetch", resolution.AllowedTools);
         Assert.Contains("WebSearch", resolution.AllowedTools);
 
-        // Must NOT have unrestricted Bash
-        Assert.DoesNotContain("Bash", resolution.AllowedTools.Where(t => t == "Bash"));
-
-        Assert.Equal(11, resolution.AllowedTools.Count);
+        Assert.Equal(6, resolution.AllowedTools.Count);
     }
 }
