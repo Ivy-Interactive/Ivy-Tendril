@@ -53,8 +53,7 @@ public record JobItem
     public decimal? Cost { get; set; }
     public int? Tokens { get; set; }
 
-    [JsonIgnore]
-    public IOutputNormalizer? OutputNormalizer { get; set; }
+    private IOutputNormalizer? _outputNormalizer;
 
     // Process handle for non-interactive execution
     public Process? Process { get; set; }
@@ -91,8 +90,8 @@ public record JobItem
 
     public void EnqueueOutput(string line)
     {
-        OutputNormalizer ??= OutputNormalizerFactory.Create(Provider);
-        foreach (var normalized in OutputNormalizer.Normalize(line))
+        _outputNormalizer ??= OutputNormalizerFactory.Create(Provider);
+        foreach (var normalized in _outputNormalizer.Normalize(line))
         {
             OutputLines.Enqueue(normalized);
             while (OutputLines.Count > MaxOutputLines)
@@ -103,8 +102,8 @@ public record JobItem
 
     public void FlushNormalizer()
     {
-        if (OutputNormalizer is null) return;
-        foreach (var line in OutputNormalizer.Flush())
+        if (_outputNormalizer is null) return;
+        foreach (var line in _outputNormalizer.Flush())
         {
             OutputLines.Enqueue(line);
             _outputSubject.OnNext(line);
