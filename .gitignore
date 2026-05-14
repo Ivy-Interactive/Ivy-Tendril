@@ -41,3 +41,4 @@ msbuild.binlog
 ## Test results
 TestResults/
 **/TestResults/
+plugin-config.yaml
