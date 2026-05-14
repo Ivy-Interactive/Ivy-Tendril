@@ -66,6 +66,8 @@ public class JobServiceSplitPlanCompletionTests
             Transitions.Add((folderName, newState));
         }
 
+        public void ResetToDraft(string folderName) { }
+
         public void RecoverStuckPlans() { }
         public void RepairPlans() { }
         public List<PlanFile> GetPlans(PlanStatus? statusFilter = null) => [];

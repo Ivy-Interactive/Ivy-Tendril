@@ -119,6 +119,10 @@ public class UseStartJobTests
         {
         }
 
+        public void ClearAllJobs()
+        {
+        }
+
         public JobItem? GetJob(string id)
         {
             return null;
