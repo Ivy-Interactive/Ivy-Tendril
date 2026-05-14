@@ -193,6 +193,8 @@ public class JobService : IJobService
         if (job.StartedAt.HasValue)
             job.DurationSeconds = (int)(job.CompletedAt.Value - job.StartedAt.Value).TotalSeconds;
 
+        _completionHandler.WriteJobLog(job);
+
         // Release job slot if the job was running
         if (wasRunning)
             _jobSlotSemaphore.Release();
