@@ -314,26 +314,14 @@ public class PlanReaderService(
     /// <param name="folderName">Name of the plan folder.</param>
     /// <param name="action">Action name used in the log filename (e.g. <c>ExecutePlan</c>).</param>
     /// <param name="content">Markdown content of the log entry.</param>
-    public void AddLog(string folderName, string action, string content)
+    public void AddLog(string folderName, string action, string content, string? jobId = null)
     {
         var logsDir = Path.Combine(PlansDirectory, folderName, "logs");
         FileHelper.EnsureDirectory(logsDir);
 
-        var nextNumber = 1;
-        var existingLogs = Directory.GetFiles(logsDir, "*.md");
-        if (existingLogs.Length > 0)
-            nextNumber = existingLogs
-                .Select(f => Path.GetFileNameWithoutExtension(f))
-                .Select(n =>
-                {
-                    var dashIdx = n.IndexOf('-');
-                    var numPart = dashIdx >= 0 ? n.Substring(0, dashIdx) : n;
-                    return int.TryParse(numPart, out var num) ? num : 0;
-                })
-                .DefaultIfEmpty(0)
-                .Max() + 1;
-
-        var logPath = Path.Combine(logsDir, $"{nextNumber:D3}-{action}.md");
+        var logPath = !string.IsNullOrEmpty(jobId)
+            ? Path.Combine(logsDir, $"{jobId}-{action}.md")
+            : Path.Combine(logsDir, $"{action}.md");
         FileHelper.WriteAllText(logPath, content);
     }
 

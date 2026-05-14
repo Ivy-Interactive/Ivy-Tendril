@@ -82,7 +82,8 @@ public class PromptwareRunner : IPromptwareRunner
         var resolution = AgentProviderFactory.Resolve(settings, options.Promptware, options.Profile, jobContext);
         var workDir = options.WorkingDir ?? programFolder;
 
-        var logFile = FirmwareCompiler.GetNextLogFile(programFolder);
+        var jobId = JobIdAllocator.AllocateJobId(_configService.TendrilHome);
+        var logFile = FirmwareCompiler.GetLogFile(programFolder, jobId);
         var firmwareContext = new FirmwareContext(programFolder, values);
         var prompt = FirmwareCompiler.Compile(firmwareContext);
 

@@ -31,8 +31,6 @@ public class JobService : IJobService
     private readonly ILogger<JobService> _logger;
     private readonly JobLauncher _jobLauncher;
     private readonly JobCompletionHandler _completionHandler;
-    private int _counter;
-
     public JobService(
         IConfigService configService,
         ILogger<JobService>? logger = null,
@@ -65,6 +63,7 @@ public class JobService : IJobService
             configService, _logger, modelPricingService, planReaderService,
             telemetryService, planWatcherService, worktreeLifecycleLogger, promptsRoot);
         configService.SettingsReloaded += OnSettingsReloaded;
+        JobIdAllocator.SeedIfNeeded(configService.TendrilHome, promptsRoot);
         LoadHistoricalJobs();
     }
 
@@ -366,7 +365,9 @@ public class JobService : IJobService
 
     private string StartJobInternal(JobArgsBase args, string? inboxFilePath, bool skipDependencyCheck = false)
     {
-        var id = $"job-{Interlocked.Increment(ref _counter):D3}";
+        var id = _configService != null
+            ? JobIdAllocator.AllocateJobId(_configService.TendrilHome)
+            : Guid.NewGuid().ToString("N")[..5];
         var job = BuildJobItem(id, args, inboxFilePath);
 
         if (TryRejectConflictingJob(job))
@@ -511,7 +512,9 @@ public class JobService : IJobService
     /// </summary>
     internal string CreateTestJob(JobArgsBase args)
     {
-        var id = $"job-{Interlocked.Increment(ref _counter):D3}";
+        var id = _configService != null
+            ? JobIdAllocator.AllocateJobId(_configService.TendrilHome)
+            : $"test-{Guid.NewGuid().ToString("N")[..5]}";
         var job = new JobItem
         {
             Id = id,

@@ -630,7 +630,7 @@ internal class JobCompletionHandler
         try
         {
             var logContent = BuildJobLogContent(job);
-            _planReaderService.AddLog(job.PlanFile, job.Type, logContent);
+            _planReaderService.AddLog(job.PlanFile, job.Type, logContent, job.Id);
             WriteFailedJobOutputIfNeeded(job);
         }
         catch
@@ -644,13 +644,14 @@ internal class JobCompletionHandler
 
         var planFolder = ResolvePlanFolder(job);
         if (!string.IsNullOrEmpty(planFolder) && Directory.Exists(planFolder))
-            JobStatusFile.MoveLogToPlanFolder(job.StatusFilePath, planFolder, job.Type);
+            JobStatusFile.MoveLogToPlanFolder(job.StatusFilePath, planFolder, job.Type, job.Id);
     }
 
     private string BuildJobLogContent(JobItem job)
     {
         var duration = job.DurationSeconds.HasValue ? $"{job.DurationSeconds}s" : "unknown";
         var logContent = $"# {job.Type}\n\n" +
+                         $"- **JobId:** {job.Id}\n" +
                          $"- **Status:** {job.Status}\n" +
                          $"- **Started:** {job.StartedAt:u}\n" +
                          $"- **Completed:** {job.CompletedAt:u}\n" +

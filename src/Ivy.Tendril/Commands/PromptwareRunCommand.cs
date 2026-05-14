@@ -117,7 +117,8 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             && !string.IsNullOrWhiteSpace(specificCfg.CustomInstructions))
             customInstructions = specificCfg.CustomInstructions;
 
-        var logFile = FirmwareCompiler.GetNextLogFile(programFolder);
+        var jobId = JobIdAllocator.AllocateJobId(configService.TendrilHome);
+        var logFile = FirmwareCompiler.GetLogFile(programFolder, jobId);
         var firmwareContext = new FirmwareContext(programFolder, values, customInstructions);
         var prompt = FirmwareCompiler.Compile(firmwareContext);
 
