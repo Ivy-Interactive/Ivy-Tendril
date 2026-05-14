@@ -43,10 +43,10 @@ public class CreatePlanDialog(
             }
         );
 
-        var options = new List<string>();
+        var options = new List<IAnyOption>();
         if (projectNames.Count > 1)
-            options.Add("Auto");
-        options.AddRange(projectNames);
+            options.Add(new Option<string>("Auto", "Auto", icon: Icons.WandSparkles));
+        options.AddRange(projectNames.Select(p => new Option<string>(p, p)));
 
         return new Dialog(
             _ => onClose(),
