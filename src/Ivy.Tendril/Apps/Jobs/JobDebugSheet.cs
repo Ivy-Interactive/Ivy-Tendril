@@ -115,7 +115,9 @@ public class JobDebugSheet(
     {
         if (string.IsNullOrEmpty(job.PlanFile)) return null;
         var fullPath = Path.Combine(planService.PlansDirectory, job.PlanFile);
-        return Directory.Exists(fullPath) ? fullPath : job.TypedArgs?.PlanFolder;
+        if (Directory.Exists(fullPath)) return fullPath;
+        var fallback = job.TypedArgs?.PlanFolder;
+        return !string.IsNullOrEmpty(fallback) && Directory.Exists(fallback) ? fallback : null;
     }
 
     private string? GetPlanLogPath(JobItem job) => FindInLogsDir(job, "*.md");
@@ -139,7 +141,7 @@ public class JobDebugSheet(
     private string? GetPromptwareLogPath(JobItem job)
     {
         var logFile = job.LogFilePath;
-        if (!string.IsNullOrEmpty(logFile)) return logFile;
+        if (!string.IsNullOrEmpty(logFile) && File.Exists(logFile)) return logFile;
 
         var promptsRoot = PromptwareHelper.ResolvePromptsRoot(config.TendrilHome);
         var logsFolder = Path.Combine(promptsRoot, job.Type, "Logs");
@@ -153,6 +155,8 @@ public class JobDebugSheet(
     private string? GetPromptwareRawLogPath(JobItem job)
     {
         var logPath = GetPromptwareLogPath(job);
-        return logPath != null ? Path.ChangeExtension(logPath, ".raw.jsonl") : null;
+        if (logPath == null) return null;
+        var rawPath = Path.ChangeExtension(logPath, ".raw.jsonl");
+        return File.Exists(rawPath) ? rawPath : null;
     }
 }
