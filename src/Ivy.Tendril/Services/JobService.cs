@@ -112,6 +112,7 @@ public class JobService : IJobService
         if (!_jobs.TryGetValue(id, out var job)) return;
         if (!job.TryClaimCompletion()) return;
 
+        job.FlushNormalizer();
         var wasRunning = job.Status == JobStatus.Running;
         SetCompletionStatus(job, exitCode, timedOut, staleOutput);
         if (wasRunning)
@@ -166,6 +167,7 @@ public class JobService : IJobService
         if (!_jobs.TryGetValue(id, out var job)) return;
         if (!job.TryClaimCompletion()) return;
 
+        job.FlushNormalizer();
         var wasRunning = job.Status == JobStatus.Running;
         job.CancellationRequested = true;
         try

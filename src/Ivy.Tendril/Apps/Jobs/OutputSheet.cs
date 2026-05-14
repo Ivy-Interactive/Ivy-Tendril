@@ -4,52 +4,38 @@ using Ivy.Widgets.AgentOutputView;
 
 namespace Ivy.Tendril.Apps.Jobs;
 
-public partial class OutputSheet(
-    string jobId,
-    IJobService jobService,
-    IWriteStream<string> outputStream,
-    IState<bool> hasStreamContent,
-    IState<string?> streamingJobId,
-    IState<string?> initialContent) : ViewBase
+public partial class OutputSheet(string jobId, IJobService jobService) : ViewBase
 {
     public override object Build()
     {
+        var outputStream = UseStream<string>();
         var job = jobService.GetJob(jobId);
-        object agentOutputView;
 
-        if (job is { Status: JobStatus.Running })
+        UseEffect(() => job is { Status: JobStatus.Running }
+            ? job.OutputObservable.Subscribe(line => outputStream.Write(line))
+            : null);
+
+        if (job is null || (job.OutputLines.IsEmpty && job.Status != JobStatus.Running))
+            return Text.P("No output available.");
+
+        var snapshot = !job.OutputLines.IsEmpty
+            ? string.Join("\n", job.OutputLines) : null;
+
+        if (job.Status != JobStatus.Running)
         {
-            agentOutputView = new AgentOutputView()
+            return new AgentOutputView()
                 .Provider(job.Provider)
-                .JsonStream(initialContent.Value)
-                .Stream(outputStream)
-                .Height(Size.Full());
-        }
-        else if (job is not null && hasStreamContent.Value && streamingJobId.Value == jobId)
-        {
-            agentOutputView = new AgentOutputView()
-                .Provider(job.Provider)
-                .JsonStream(initialContent.Value)
-                .Stream(outputStream)
-                .AutoScroll(false)
-                .Height(Size.Full());
-        }
-        else if (job is not null && !job.OutputLines.IsEmpty)
-        {
-            var jsonStream = string.Join("\n", job.OutputLines);
-            agentOutputView = new AgentOutputView()
-                .Provider(job.Provider)
-                .JsonStream(jsonStream)
+                .JsonStream(snapshot)
                 .AutoScroll(false)
                 .ShowStatusLabel(false)
                 .Height(Size.Full());
         }
-        else
-        {
-            agentOutputView = Text.P("No output available.");
-        }
 
-        return agentOutputView;
+        return new AgentOutputView()
+            .Provider(job.Provider)
+            .JsonStream(snapshot)
+            .Stream(outputStream)
+            .Height(Size.Full());
     }
 
     public string GetSheetTitle()

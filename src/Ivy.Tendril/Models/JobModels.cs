@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Reactive.Subjects;
 using System.Text.Json.Serialization;
 using Ivy.Tendril.Services.Agents;
 using Microsoft.Extensions.Logging;
@@ -28,6 +29,10 @@ public record JobItem
     /// </summary>
     private const int MaxOutputLines = 10_000;
     private int _completionGuard;
+    private readonly Subject<string> _outputSubject = new();
+
+    [JsonIgnore]
+    public IObservable<string> OutputObservable => _outputSubject;
 
     public bool TryClaimCompletion() =>
         Interlocked.CompareExchange(ref _completionGuard, 1, 0) == 0;
@@ -86,13 +91,30 @@ public record JobItem
 
     public void EnqueueOutput(string line)
     {
-        OutputLines.Enqueue(line);
-        while (OutputLines.Count > MaxOutputLines)
-            OutputLines.TryDequeue(out _);
+        OutputNormalizer ??= OutputNormalizerFactory.Create(Provider);
+        foreach (var normalized in OutputNormalizer.Normalize(line))
+        {
+            OutputLines.Enqueue(normalized);
+            while (OutputLines.Count > MaxOutputLines)
+                OutputLines.TryDequeue(out _);
+            _outputSubject.OnNext(normalized);
+        }
+    }
+
+    public void FlushNormalizer()
+    {
+        if (OutputNormalizer is null) return;
+        foreach (var line in OutputNormalizer.Flush())
+        {
+            OutputLines.Enqueue(line);
+            _outputSubject.OnNext(line);
+        }
     }
 
     public void DisposeResources(ILogger? logger = null)
     {
+        _outputSubject.OnCompleted();
+
         try
         {
             Process?.Dispose();

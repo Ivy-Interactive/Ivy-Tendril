@@ -17,11 +17,6 @@ public partial class JobsApp : ViewBase
         var config = UseService<IConfigService>();
         var refreshToken = UseRefreshToken();
         var openFile = UseState<string?>(null);
-        var outputStream = UseStream<string>();
-        var lastProcessedIndex = UseState(0);
-        var activeOutputJobId = UseState<string?>(null);
-        var streamingJobId = UseState<string?>(null);
-        var hasStreamContent = UseState(false);
 
         var (planSheet, showPlan) = UseTrigger<string>((isOpen, planPath) =>
         {
@@ -35,24 +30,10 @@ public partial class JobsApp : ViewBase
             return new Fragment(sheet, new FileSheet(openFile, config));
         });
 
-        var outputInitialContent = UseState<string?>(null);
         var (outputSheet, showOutput) = UseTrigger<string>((isOpen, jobId) =>
         {
-            if (!isOpen.Value)
-            {
-                activeOutputJobId.Set(null);
-                streamingJobId.Set(null);
-                hasStreamContent.Set(false);
-                lastProcessedIndex.Set(0);
-                outputInitialContent.Set(null);
-                return null;
-            }
-            activeOutputJobId.Set(jobId);
-            var job = jobService.GetJob(jobId);
-            var snapshot = job is not null && !job.OutputLines.IsEmpty
-                ? string.Join("\n", job.OutputLines) : null;
-            outputInitialContent.Set(snapshot);
-            var outputSheetView = new OutputSheet(jobId, jobService, outputStream, hasStreamContent, streamingJobId, outputInitialContent);
+            if (!isOpen.Value) return null;
+            var outputSheetView = new OutputSheet(jobId, jobService);
             return new Sheet(
                 () => isOpen.Set(false),
                 outputSheetView.Build(),
@@ -83,8 +64,6 @@ public partial class JobsApp : ViewBase
         });
 #endif
 
-        UseInterval(() => StreamOutputLines(jobService, activeOutputJobId, streamingJobId, lastProcessedIndex, hasStreamContent, outputStream),
-            TimeSpan.FromMilliseconds(100));
         UseEffect(() => NotificationHookDisposable(jobService, client));
         UseEffect(() => JobChangeHookDisposable(jobService, refreshToken));
         UseInterval(() => AutoRefreshCheck(jobService, refreshToken), TimeSpan.FromSeconds(5));
