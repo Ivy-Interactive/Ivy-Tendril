@@ -221,6 +221,39 @@ public class PlanReaderService(
     }
 
     /// <summary>
+    ///     Resets a plan to Draft state, clearing commits, recommendations, and verification statuses.
+    /// </summary>
+    /// <param name="folderName">Name of the plan folder (e.g. <c>01105-TestPlan</c>).</param>
+    public void ResetToDraft(string folderName)
+    {
+        var planId = ExtractPlanId(folderName);
+
+        if (planId.HasValue && _database != null)
+            _database.UpdatePlanState(planId.Value, PlanStatus.Draft);
+
+        _planCountsCache.Invalidate();
+        _recommendationsCache.Invalidate();
+        CountsInvalidated?.Invoke();
+        _planWatcherService?.NotifyChanged(folderName);
+
+        WriteFileInBackground(() =>
+        {
+            var planYamlPath = Path.Combine(PlansDirectory, folderName, "plan.yaml");
+            if (!File.Exists(planYamlPath)) return;
+
+            var yaml = FileHelper.ReadAllText(planYamlPath);
+            var planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml) ?? new PlanYaml();
+            planYaml.State = PlanStatus.Draft.ToString();
+            planYaml.Updated = DateTime.UtcNow;
+            planYaml.Commits = new List<string>();
+            planYaml.Recommendations = null;
+            foreach (var v in planYaml.Verifications)
+                v.Status = "Pending";
+            FileHelper.WriteAllText(planYamlPath, YamlHelper.SerializerCompact.Serialize(planYaml));
+        });
+    }
+
+    /// <summary>
     ///     Creates a new revision file for a plan and updates the plan's timestamp.
     /// </summary>
     /// <param name="folderName">Name of the plan folder.</param>

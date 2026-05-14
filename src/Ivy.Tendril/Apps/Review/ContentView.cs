@@ -82,10 +82,12 @@ public class ContentView(
                 assigneesQuery, assigneesError);
         });
 
-        var (rerunDialog, showRerunDialog) = UseTrigger((isOpen) =>
+        var resetToDraftLogger = UseService<ILogger<ResetToDraftDialog>>();
+        var (resetToDraftDialog, showResetToDraftDialog) = UseTrigger((isOpen) =>
         {
             if (!isOpen.Value) return null;
-            return new RerunDialog(isOpen, selectedPlanState.Value!, jobService, planService, refreshPlans);
+            return new ResetToDraftDialog(isOpen, selectedPlanState.Value!, planService, refreshPlans,
+                resetToDraftLogger);
         });
 
         var artifactContentQuery = UseQuery<string, string>(
@@ -197,7 +199,7 @@ public class ContentView(
 
         var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, client, showCustomPrDialog, nav, args);
         var actionBar = BuildActionBar(
-            selectedPlanState.Value, showRerunDialog, showSuggestChangesDialog, showDiscardDialog,
+            selectedPlanState.Value, showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog,
             showCustomPrDialog, copyToClipboard, client, logger, nav, args);
         var content = BuildContent(
             selectedPlanState.Value, planData, planContentQuery, selectedTabIndex, tabNames, openVerification,
@@ -213,7 +215,7 @@ public class ContentView(
             ).Scroll(Scroll.None).Size(Size.Full())
         ).Scroll(Scroll.None).Size(Size.Full()).Key(selectedPlanState.Value.Id);
 
-        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, customPrDialog, rerunDialog);
+        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, customPrDialog, resetToDraftDialog);
     }
 
     private object BuildHeader(
@@ -262,7 +264,7 @@ public class ContentView(
 
     private object BuildActionBar(
         PlanFile selectedPlan,
-        Action showRerunDialog,
+        Action showResetToDraftDialog,
         Action showSuggestChangesDialog,
         Action showDiscardDialog,
         Action showCustomPrDialog,
@@ -273,9 +275,9 @@ public class ContentView(
         ReviewAppArgs? args)
     {
         return Layout.Horizontal().AlignContent(Align.Left).Gap(1)
-                | new Button("Rerun").Icon(Icons.RotateCw).Outline().ShortcutKey("r").OnClick(() =>
+                | new Button("Reset to Draft").Icon(Icons.RotateCcw).Outline().ShortcutKey("r").OnClick(() =>
                 {
-                    showRerunDialog();
+                    showResetToDraftDialog();
                 })
                 | new Button("Suggest Changes").Icon(Icons.MessageSquare).Outline().OnClick(() =>
                 {
