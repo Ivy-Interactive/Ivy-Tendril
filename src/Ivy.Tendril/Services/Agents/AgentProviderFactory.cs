@@ -20,12 +20,12 @@ public class AgentProviderFactory
 
     internal static readonly IReadOnlyList<string> BaseTools =
         ["Read", "Glob", "Grep", "Bash(tendril*)", "Bash(git *)", "Bash(gh *)", "Bash(ls *)", "Bash(find *)", "Bash(cat *)",
-         "WebFetch", "WebSearch", "Bash(%PROMPTWARE_DIR%/Tools/*)"];
+         "WebFetch", "WebSearch"];
 
     private static readonly Dictionary<string, IReadOnlyList<string>> BuiltInExtraTools =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            ["ExecutePlan"] = ["Bash", "Write(%PLAN_DIR%/**)", "Edit(%PLAN_DIR%/**)"],
+            ["ExecutePlan"] = ["Bash", "Write", "Edit"],
             ["CreatePr"] = ["Bash"],
             ["CreateIssue"] = ["Bash"]
         };
