@@ -34,10 +34,7 @@ public class JobStatusCommand : Command<JobStatusSettings>
     {
         try
         {
-            var statusFile = Environment.GetEnvironmentVariable("TENDRIL_CLI_LOG");
-            if (string.IsNullOrEmpty(statusFile))
-                statusFile = JobStatusFile.GetStatusFilePath(settings.JobId);
-
+            var statusFile = JobStatusFile.GetStatusFilePath(settings.JobId);
             JobStatusFile.Write(statusFile, settings.Message, settings.PlanId, settings.PlanTitle);
             return 0;
         }

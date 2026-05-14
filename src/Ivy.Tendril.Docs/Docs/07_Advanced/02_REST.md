@@ -187,4 +187,4 @@ tendril job status <job-id> --message "Running verifications..."
 tendril job status <job-id> --message "Planning..." --plan-id 01234 --plan-title "My Plan"
 ```
 
-The `<job-id>` is available as `$TENDRIL_JOB_ID` in all promptware processes.
+The `<job-id>` is provided as the `TendrilJobId` firmware header in the agent's prompt.
