@@ -1,6 +1,5 @@
 using Ivy.Plugins;
 using Ivy.Plugins.Messaging;
-using Microsoft.Extensions.Configuration;
 
 [assembly: IvyPlugin(typeof(Ivy.Plugin.Slack.SlackPlugin))]
 
@@ -51,13 +50,11 @@ public class SlackPlugin : IIvyPlugin
         if (context is not ITendrilPluginContext tendrilContext)
             return;
 
-        var section = context.Configuration.GetSection("Plugins:Slack");
-
         var config = new SlackConfig
         {
-            BotToken = section["BotToken"]!,
-            DefaultChannel = section["DefaultChannel"]!,
-            MaxRetries = int.Parse(section["MaxRetries"]!)
+            BotToken = context.Config.GetValue("BotToken")!,
+            DefaultChannel = context.Config.GetValue("DefaultChannel")!,
+            MaxRetries = int.Parse(context.Config.GetValue("MaxRetries")!)
         };
 
         tendrilContext.RegisterMessagingChannel(new SlackMessagingChannel(config));
