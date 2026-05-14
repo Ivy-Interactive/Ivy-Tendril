@@ -1,7 +1,6 @@
 using Ivy.Plugins;
 using Ivy.Plugins.Messaging;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 
 [assembly: IvyPlugin(typeof(Ivy.Plugin.Slack.SlackPlugin))]
 
@@ -46,10 +45,6 @@ public class SlackPlugin : IIvyPlugin
             }
         ]
     };
-
-    public void ConfigureServices(IServiceCollection services, IConfiguration configuration)
-    {
-    }
 
     public void Configure(IIvyPluginContext context)
     {

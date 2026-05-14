@@ -12,7 +12,8 @@ public class PluginsSetupView : ViewBase
         var pluginManager = UseService<IPluginManager>();
         UsePluginState();
 
-        var loadedPlugins = pluginManager.GetLoadedPluginIds();
+        var activePlugins = pluginManager.GetActivePluginIds();
+        var unconfiguredPlugins = pluginManager.GetUnconfiguredPlugins();
         var unloadedPlugins = pluginManager.GetUnloadedPlugins();
         var pluginsDir = Path.Combine(config.TendrilHome, "plugins");
 
@@ -21,10 +22,10 @@ public class PluginsSetupView : ViewBase
                | Text.Block("Manage installed Tendril plugins. Plugins are loaded from the plugins directory.").Muted().Small()
                | Text.Block(pluginsDir).Muted().Small()
                | new Separator()
-               | Text.Block("Loaded Plugins").Bold()
-               | (loadedPlugins.Count == 0
-                   ? (object)Text.Block("No plugins currently loaded.").Muted()
-                   : loadedPlugins.Select(id => (object)(Layout.Horizontal().Gap(2).AlignContent(Align.Left)
+               | Text.Block("Active Plugins").Bold()
+               | (activePlugins.Count == 0
+                   ? (object)Text.Block("No plugins currently active.").Muted()
+                   : activePlugins.Select(id => (object)(Layout.Horizontal().Gap(2).AlignContent(Align.Left)
                        | new Badge(id, BadgeVariant.Secondary)
                        | new Button("Reload", onClick: _ =>
                        {
@@ -40,6 +41,22 @@ public class PluginsSetupView : ViewBase
                                success ? "Unloaded" : "Error");
                            return ValueTask.CompletedTask;
                        }, variant: ButtonVariant.Outline, icon: Icons.Power)
+                   )).ToArray())
+               | new Separator()
+               | Text.Block("Unconfigured Plugins").Bold()
+               | (unconfiguredPlugins.Count == 0
+                   ? (object)Text.Block("No unconfigured plugins.").Muted()
+                   : unconfiguredPlugins.Select(p => (object)(Layout.Vertical().Gap(2)
+                       | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
+                           | new Badge(p.Id, BadgeVariant.Warning)
+                           | Text.Block(string.Join(", ", p.ValidationErrors)).Muted().Small())
+                       | new Button("Reconfigure", onClick: _ =>
+                       {
+                           var success = pluginManager.ReconfigurePlugin(p.Id);
+                           client.Toast(success ? $"Activated '{p.Id}'" : $"Configuration still invalid for '{p.Id}'",
+                               success ? "Activated" : "Error");
+                           return ValueTask.CompletedTask;
+                       }, variant: ButtonVariant.Outline, icon: Icons.Settings)
                    )).ToArray())
                | new Separator()
                | Text.Block("Unloaded Plugins").Bold()
