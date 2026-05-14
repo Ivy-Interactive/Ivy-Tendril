@@ -22,7 +22,7 @@ public static class FirmwareCompiler
 
         This prompt is your Firmware and is never allowed to change.
 
-        In the header above your arguments is specified.
+        The header above contains your named parameters for this execution.
 
         Your program folder is: {PROGRAMFOLDER}
 
@@ -152,7 +152,7 @@ public static class FirmwareCompiler
 
     private static readonly HashSet<string> PathKeys = new(StringComparer.OrdinalIgnoreCase)
     {
-        "Args", "TendrilConfigPath", "TendrilHome", "TendrilPlanFolder",
+        "TendrilConfigPath", "TendrilHome", "TendrilPlanFolder",
         "TendrilPlansFolder", "SourceUrl", "SourcePath"
     };
 

@@ -324,7 +324,7 @@ internal class JobLauncher
         var job = ctx.Job;
         var cp = job.TypedArgs as CreatePlanArgs;
         var description = cp?.Description ?? "";
-        values["Args"] = description;
+        values["TaskDescription"] = description;
         values["TendrilPlansFolder"] = _configService!.PlanFolder;
 
         if (cp?.Force == true)
@@ -335,7 +335,6 @@ internal class JobLauncher
         BuildNonCreatePlanFirmware(JobItem job, Dictionary<string, string> values)
     {
         var planFolder = job.TypedArgs?.PlanFolder ?? "";
-        values["Args"] = planFolder;
 
         if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder))
             return (values, null, null);

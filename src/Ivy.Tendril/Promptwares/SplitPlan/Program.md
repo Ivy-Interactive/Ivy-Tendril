@@ -5,7 +5,7 @@ Split a multi-issue plan into separate, self-contained plans.
 ## Context
 
 The firmware header contains:
-- **Args** / **TendrilPlanFolder** — path to the plan folder to split
+- **TendrilPlanFolder** — path to the plan folder to split
 - **CurrentTime** — current UTC timestamp
 
 The plan structure and CLI commands are in the **Reference Documents** section of your firmware.

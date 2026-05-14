@@ -8,7 +8,7 @@ Execute an approved plan in isolated git worktrees.
 
 The firmware header contains:
 
-- **Args** / **TendrilPlanFolder** — path to the plan folder
+- **TendrilPlanFolder** — path to the plan folder
 - **CurrentTime** — current UTC timestamp
 - **Note** (optional) — Additional instructions from the reviewer. If present, follow these instructions in addition to the plan.
 

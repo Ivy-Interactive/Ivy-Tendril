@@ -160,14 +160,14 @@ public class PromptwareRunCommandTests : IDisposable
 
         var values = new Dictionary<string, string>
         {
-            ["Args"] = "Setup verifications and review actions for this project."
+            ["TaskDescription"] = "Setup verifications and review actions for this project."
         };
 
         FirmwareCompiler.GetLogFile(promptwareDir, "test");
         var context = new FirmwareContext(promptwareDir, values);
         var prompt = FirmwareCompiler.Compile(context);
 
-        Assert.Contains("Args: Setup verifications and review actions for this project.", prompt);
+        Assert.Contains("TaskDescription: Setup verifications and review actions for this project.", prompt);
     }
 
     // --- Plan Resolution ---

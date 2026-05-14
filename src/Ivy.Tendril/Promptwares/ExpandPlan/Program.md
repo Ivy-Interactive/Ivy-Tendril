@@ -5,7 +5,7 @@ Transform investigation-heavy plans into concrete implementation plans.
 ## Context
 
 The firmware header contains:
-- **Args** / **TendrilPlanFolder** — path to the plan folder
+- **TendrilPlanFolder** — path to the plan folder
 - **CurrentTime** — current UTC timestamp
 
 The plan structure and CLI commands are in the **Reference Documents** section of your firmware.
