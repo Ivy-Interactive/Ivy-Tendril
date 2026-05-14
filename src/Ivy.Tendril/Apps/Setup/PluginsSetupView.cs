@@ -1,3 +1,4 @@
+using Ivy.Apps;
 using Ivy.Plugins;
 using Ivy.Tendril.Services;
 
@@ -10,6 +11,7 @@ public class PluginsSetupView : ViewBase
         var config = UseService<IConfigService>();
         var client = UseService<IClientProvider>();
         var pluginManager = UseService<IPluginManager>();
+        var configFactory = UseService<IIvyPluginConfigFactory>();
         UsePluginState();
 
         var activePlugins = pluginManager.GetActivePluginIds();
@@ -25,39 +27,47 @@ public class PluginsSetupView : ViewBase
                | Text.Block("Active Plugins").Bold()
                | (activePlugins.Count == 0
                    ? (object)Text.Block("No plugins currently active.").Muted()
-                   : activePlugins.Select(id => (object)(Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                       | new Badge(id, BadgeVariant.Secondary)
-                       | new Button("Reload", onClick: _ =>
-                       {
-                           var success = pluginManager.ReloadPlugin(id);
-                           client.Toast(success ? $"Reloaded '{id}'" : $"Failed to reload '{id}'",
-                               success ? "Reloaded" : "Error");
-                           return ValueTask.CompletedTask;
-                       }, variant: ButtonVariant.Outline, icon: Icons.RefreshCw)
-                       | new Button("Unload", onClick: _ =>
-                       {
-                           var success = pluginManager.UnloadPlugin(id);
-                           client.Toast(success ? $"Unloaded '{id}'" : $"Failed to unload '{id}'",
-                               success ? "Unloaded" : "Error");
-                           return ValueTask.CompletedTask;
-                       }, variant: ButtonVariant.Outline, icon: Icons.Power)
-                   )).ToArray())
+                   : activePlugins.Select(id =>
+                   {
+                       var schema = pluginManager.GetPluginSchema(id);
+                       var pluginConfig = configFactory.Create(id);
+                       var customView = pluginManager.BuildPluginConfigurationView(id, pluginConfig);
+                       return (object)new Card(content: Layout.Vertical().Gap(3)
+                           | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
+                               | new Badge(id, BadgeVariant.Secondary)
+                               | new Button("Reload", onClick: _ =>
+                               {
+                                   var success = pluginManager.ReloadPlugin(id);
+                                   client.Toast(success ? $"Reloaded '{id}'" : $"Failed to reload '{id}'",
+                                       success ? "Reloaded" : "Error");
+                                   return ValueTask.CompletedTask;
+                               }, variant: ButtonVariant.Outline, icon: Icons.RefreshCw)
+                               | new Button("Unload", onClick: _ =>
+                               {
+                                   var success = pluginManager.UnloadPlugin(id);
+                                   client.Toast(success ? $"Unloaded '{id}'" : $"Failed to unload '{id}'",
+                                       success ? "Unloaded" : "Error");
+                                   return ValueTask.CompletedTask;
+                               }, variant: ButtonVariant.Outline, icon: Icons.Power))
+                           | (customView
+                               ?? (schema is not null
+                                   ? new PluginConfigurationView(id, schema, configFactory)
+                                   : null)));
+                   }).ToArray())
                | new Separator()
                | Text.Block("Unconfigured Plugins").Bold()
                | (unconfiguredPlugins.Count == 0
                    ? (object)Text.Block("No unconfigured plugins.").Muted()
-                   : unconfiguredPlugins.Select(p => (object)(Layout.Vertical().Gap(2)
-                       | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                           | new Badge(p.Id, BadgeVariant.Warning)
-                           | Text.Block(string.Join(", ", p.ValidationErrors)).Muted().Small())
-                       | new Button("Reconfigure", onClick: _ =>
-                       {
-                           var success = pluginManager.ReconfigurePlugin(p.Id);
-                           client.Toast(success ? $"Activated '{p.Id}'" : $"Configuration still invalid for '{p.Id}'",
-                               success ? "Activated" : "Error");
-                           return ValueTask.CompletedTask;
-                       }, variant: ButtonVariant.Outline, icon: Icons.Settings)
-                   )).ToArray())
+                   : unconfiguredPlugins.Select(p =>
+                   {
+                       var pluginConfig = configFactory.Create(p.Id);
+                       var customView = pluginManager.BuildPluginConfigurationView(p.Id, pluginConfig);
+                       return (object)new Card(content: Layout.Vertical().Gap(3)
+                           | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
+                               | new Badge(p.Name, BadgeVariant.Warning)
+                               | Text.Block(string.Join(", ", p.ValidationErrors)).Muted().Small())
+                           | (customView ?? new PluginConfigurationView(p.Id, p.Schema, configFactory)));
+                   }).ToArray())
                | new Separator()
                | Text.Block("Unloaded Plugins").Bold()
                | (unloadedPlugins.Count == 0
