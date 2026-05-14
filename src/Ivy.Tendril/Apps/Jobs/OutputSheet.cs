@@ -14,11 +14,12 @@ public partial class OutputSheet(
     public override object Build()
     {
         var job = jobService.GetJob(jobId);
+        var initialContent = job is not null && !job.OutputLines.IsEmpty
+            ? string.Join("\n", job.OutputLines) : null;
         object agentOutputView;
 
         if (job is { Status: JobStatus.Running })
         {
-            var initialContent = job.OutputLines.IsEmpty ? null : string.Join("\n", job.OutputLines);
             agentOutputView = new AgentOutputView()
                 .Provider(job.Provider)
                 .JsonStream(initialContent)
@@ -27,7 +28,6 @@ public partial class OutputSheet(
         }
         else if (job is not null && hasStreamContent.Value && streamingJobId.Value == jobId)
         {
-            var initialContent = job.OutputLines.IsEmpty ? null : string.Join("\n", job.OutputLines);
             agentOutputView = new AgentOutputView()
                 .Provider(job.Provider)
                 .JsonStream(initialContent)
@@ -35,12 +35,11 @@ public partial class OutputSheet(
                 .AutoScroll(false)
                 .Height(Size.Full());
         }
-        else if (job is not null && !job.OutputLines.IsEmpty)
+        else if (initialContent is not null)
         {
-            var jsonStream = string.Join("\n", job.OutputLines);
             agentOutputView = new AgentOutputView()
-                .Provider(job.Provider)
-                .JsonStream(jsonStream)
+                .Provider(job!.Provider)
+                .JsonStream(initialContent)
                 .AutoScroll(false)
                 .ShowStatusLabel(false)
                 .Height(Size.Full());
