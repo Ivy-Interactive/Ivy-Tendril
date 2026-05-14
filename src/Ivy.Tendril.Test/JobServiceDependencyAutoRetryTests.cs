@@ -351,7 +351,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
             return [];
         }
 
-        public void AddLog(string folderName, string action, string content)
+        public void AddLog(string folderName, string action, string content, string? jobId = null)
         {
         }
 

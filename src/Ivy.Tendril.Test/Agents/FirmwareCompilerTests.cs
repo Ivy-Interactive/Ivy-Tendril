@@ -127,68 +127,41 @@ public class FirmwareCompilerTests : IDisposable
         Assert.Contains("**Tools:**", result);
     }
 
-    // --- GetNextLogFile ---
+    // --- GetLogFile ---
 
     [Fact]
-    public void GetNextLogFile_ReturnsFirst_WhenEmpty()
+    public void GetLogFile_CreatesFileWithJobId()
     {
         var programFolder = Path.Combine(_tempDir, "TestProgram");
         Directory.CreateDirectory(programFolder);
 
-        var logFile = FirmwareCompiler.GetNextLogFile(programFolder);
+        var logFile = FirmwareCompiler.GetLogFile(programFolder, "00042");
 
-        Assert.EndsWith("00001.md", logFile);
+        Assert.EndsWith("00042.md", logFile);
         Assert.Contains("Logs", logFile);
     }
 
     [Fact]
-    public void GetNextLogFile_IncrementsExisting()
-    {
-        var programFolder = Path.Combine(_tempDir, "TestProgram");
-        var logsFolder = Path.Combine(programFolder, "Logs");
-        Directory.CreateDirectory(logsFolder);
-        File.WriteAllText(Path.Combine(logsFolder, "00001.md"), "log 1");
-        File.WriteAllText(Path.Combine(logsFolder, "00002.md"), "log 2");
-
-        var logFile = FirmwareCompiler.GetNextLogFile(programFolder);
-
-        Assert.EndsWith("00003.md", logFile);
-    }
-
-    [Fact]
-    public void GetNextLogFile_CreatesLogsDirectory()
+    public void GetLogFile_CreatesLogsDirectory()
     {
         var programFolder = Path.Combine(_tempDir, "NewProgram");
         Directory.CreateDirectory(programFolder);
 
-        FirmwareCompiler.GetNextLogFile(programFolder);
+        FirmwareCompiler.GetLogFile(programFolder, "00001");
 
         Assert.True(Directory.Exists(Path.Combine(programFolder, "Logs")));
     }
 
     [Fact]
-    public void GetNextLogFile_ReservesFileOnDisk()
+    public void GetLogFile_WritesPlaceholderContent()
     {
         var programFolder = Path.Combine(_tempDir, "ReserveTest");
         Directory.CreateDirectory(programFolder);
 
-        var logFile = FirmwareCompiler.GetNextLogFile(programFolder);
+        var logFile = FirmwareCompiler.GetLogFile(programFolder, "00001");
 
         Assert.True(File.Exists(logFile));
-    }
-
-    [Fact]
-    public void GetNextLogFile_ConcurrentCalls_ProduceDifferentNumbers()
-    {
-        var programFolder = Path.Combine(_tempDir, "ConcurrentTest");
-        Directory.CreateDirectory(programFolder);
-
-        var first = FirmwareCompiler.GetNextLogFile(programFolder);
-        var second = FirmwareCompiler.GetNextLogFile(programFolder);
-
-        Assert.EndsWith("00001.md", first);
-        Assert.EndsWith("00002.md", second);
-        Assert.NotEqual(first, second);
+        Assert.Contains("Execution in progress", File.ReadAllText(logFile));
     }
 
     // --- Projects Section ---

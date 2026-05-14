@@ -187,4 +187,4 @@ tendril plan get <id>       # Show plan details
 - **Plan counter collisions**: `$TENDRIL_PLANS/.counter` is protected by file-based locking in `tendril plan create`. If plans get duplicate IDs, check for concurrent access issues.
 - **Plans not appearing in UI**: Run `tendril doctor plans` to check for malformed `plan.yaml` files. `PlanReaderService.RepairPlans()` runs on startup but silently skips plans it can't fix.
 - **Build errors from locked files**: Tendril locks its own exe while running. Use `--no-dependencies` or stop the running instance before building.
-- **Missing `.raw.jsonl` logs**: These are written by `PromptwareLogWriter.WriteRawLog` on job completion. The Logs directory is created automatically by `GetNextLogFile`.
+- **Missing `.raw.jsonl` logs**: These are written by `PromptwareLogWriter.WriteRawLog` on job completion. The Logs directory is created automatically by `FirmwareCompiler.GetLogFile`.

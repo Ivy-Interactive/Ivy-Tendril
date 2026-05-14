@@ -230,7 +230,7 @@ internal class JobLauncher
         var resolution = AgentProviderFactory.Resolve(settings, job.Type, profileOverride, jobContext);
         var workDir = ResolveWorkingDirectory(job, programFolder);
 
-        var logFile = FirmwareCompiler.GetNextLogFile(programFolder);
+        var logFile = FirmwareCompiler.GetLogFile(programFolder, job.Id);
         job.LogFilePath = logFile;
 
         var customInstructions = ResolveCustomInstructions(job.Type);
