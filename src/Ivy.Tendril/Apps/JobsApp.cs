@@ -35,6 +35,7 @@ public partial class JobsApp : ViewBase
             return new Fragment(sheet, new FileSheet(openFile, config));
         });
 
+        var outputInitialContent = UseState<string?>(null);
         var (outputSheet, showOutput) = UseTrigger<string>((isOpen, jobId) =>
         {
             if (!isOpen.Value)
@@ -43,10 +44,15 @@ public partial class JobsApp : ViewBase
                 streamingJobId.Set(null);
                 hasStreamContent.Set(false);
                 lastProcessedIndex.Set(0);
+                outputInitialContent.Set(null);
                 return null;
             }
             activeOutputJobId.Set(jobId);
-            var outputSheetView = new OutputSheet(jobId, jobService, outputStream, hasStreamContent, streamingJobId);
+            var job = jobService.GetJob(jobId);
+            var snapshot = job is not null && !job.OutputLines.IsEmpty
+                ? string.Join("\n", job.OutputLines) : null;
+            outputInitialContent.Set(snapshot);
+            var outputSheetView = new OutputSheet(jobId, jobService, outputStream, hasStreamContent, streamingJobId, outputInitialContent);
             return new Sheet(
                 () => isOpen.Set(false),
                 outputSheetView.Build(),

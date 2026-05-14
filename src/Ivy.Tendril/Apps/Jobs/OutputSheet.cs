@@ -9,13 +9,12 @@ public partial class OutputSheet(
     IJobService jobService,
     IWriteStream<string> outputStream,
     IState<bool> hasStreamContent,
-    IState<string?> streamingJobId) : ViewBase
+    IState<string?> streamingJobId,
+    IState<string?> initialContent) : ViewBase
 {
     public override object Build()
     {
         var job = jobService.GetJob(jobId);
-        var initialContent = UseState(() => job is not null && !job.OutputLines.IsEmpty
-            ? string.Join("\n", job.OutputLines) : null);
         object agentOutputView;
 
         if (job is { Status: JobStatus.Running })
