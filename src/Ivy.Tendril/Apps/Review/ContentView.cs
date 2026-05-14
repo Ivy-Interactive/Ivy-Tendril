@@ -82,10 +82,11 @@ public class ContentView(
                 assigneesQuery, assigneesError);
         });
 
-        var (rerunDialog, showRerunDialog) = UseTrigger((isOpen) =>
+        var (resetToDraftDialog, showResetToDraftDialog) = UseTrigger((isOpen) =>
         {
             if (!isOpen.Value) return null;
-            return new RerunDialog(isOpen, selectedPlanState.Value!, jobService, planService, refreshPlans);
+            return new ResetToDraftDialog(isOpen, selectedPlanState.Value!, planService, refreshPlans,
+                UseService<ILogger<ResetToDraftDialog>>());
         });
 
         var artifactContentQuery = UseQuery<string, string>(
@@ -213,7 +214,7 @@ public class ContentView(
             ).Scroll(Scroll.None).Size(Size.Full())
         ).Scroll(Scroll.None).Size(Size.Full()).Key(selectedPlanState.Value.Id);
 
-        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, customPrDialog, rerunDialog);
+        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, customPrDialog, resetToDraftDialog);
     }
 
     private object BuildHeader(
@@ -273,9 +274,9 @@ public class ContentView(
         ReviewAppArgs? args)
     {
         return Layout.Horizontal().AlignContent(Align.Left).Gap(1)
-                | new Button("Rerun").Icon(Icons.RotateCw).Outline().ShortcutKey("r").OnClick(() =>
+                | new Button("Reset to Draft").Icon(Icons.RotateCcw).Outline().ShortcutKey("r").OnClick(() =>
                 {
-                    showRerunDialog();
+                    showResetToDraftDialog();
                 })
                 | new Button("Suggest Changes").Icon(Icons.MessageSquare).Outline().OnClick(() =>
                 {
