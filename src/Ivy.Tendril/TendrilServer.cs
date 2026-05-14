@@ -251,6 +251,7 @@ public static class TendrilServer
             var pluginsDir = Path.Combine(configService.TendrilHome, "plugins");
             Directory.CreateDirectory(pluginsDir);
             server.UsePlugins(pluginsDir,
+                new TendrilPluginConfigFactory(pluginsDir),
                 contextFactory: (s, builder) => new TendrilPluginContext(s, builder),
                 sharedAssemblyNames: ["Ivy.Tendril.Plugin.Abstractions"],
                 buildSourcePlugins: true);
