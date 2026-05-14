@@ -38,6 +38,25 @@ All paths derive from these sources:
 
 **Never hardcode absolute paths** like `D:\Tendril` or `D:\Plans` in code or promptware instructions — always use the config values or firmware header variables.
 
+### Agent ↔ CLI Communication
+
+**Environment variables do NOT propagate reliably from agents to their tool calls.** When Tendril launches an agent (e.g., Claude Code), and that agent uses its bash tool to run `tendril job status`, process-specific env vars set on the agent process are not inherited by those nested CLI calls.
+
+**What works:**
+- **System-wide env vars** (`TENDRIL_HOME`, `TENDRIL_PLANS`) — these are set at the user/system level and are universally accessible from any process on the machine
+- **Firmware headers** (`TendrilJobId`, `TendrilPlanFolder`, etc.) — values injected into the agent's prompt that it uses as literal arguments in CLI calls
+- **CLI arguments** — the agent passes values explicitly (e.g., `tendril job status <TendrilJobId> --message "..."`)
+
+**What does NOT work in production:**
+- Setting process-specific env vars on the agent process and expecting nested `tendril` calls to read them (e.g., `TENDRIL_CLI_LOG`, `TENDRIL_JOB_ID`, `TENDRIL_SESSION_ID`)
+
+**Exception — E2E tests:** The `--cli-log` option on `tendril promptware` sets `TENDRIL_CLI_LOG` on the agent process. This works in E2E tests because the test agent (typically a simple script) properly inherits env vars from its parent process. This is intentionally kept for testing only.
+
+**Rule:** To pass information from Tendril to an agent and back through the CLI:
+1. Include it as a firmware header value (agent reads from prompt)
+2. The agent passes it as a CLI argument (not env var)
+3. The CLI command derives paths from system-wide vars + the argument
+
 ## MCP Server
 
 Tendril includes a built-in MCP (Model Context Protocol) server that exposes plan data and operations to agents. Start it with:
@@ -150,6 +169,14 @@ Each promptware keeps its own logs in `Promptwares/<Type>/Logs/`:
 - `{PlanId}.raw.jsonl` — Full stream-json output from the Claude session
 
 These are the primary debugging artifacts. The `.md` log tells you what the agent decided; the `.raw.jsonl` has every tool call, thinking block, and API response.
+
+### Jobs UI — Live Cell Updates
+
+The Jobs table uses `DataTableCellUpdate` for live updates (Timer, Cost, Tokens, StatusMessage columns). A 1-second `Observable.Interval` emits cell updates via `UseDataTableUpdates` — this is how values change without a full table refresh.
+
+**Status messages flow:** Agent calls `tendril job status <TendrilJobId> --message "..."` → writes `{TENDRIL_HOME}/Jobs/{jobId}.status` → `JobMonitor.RunStatusFilePoller` reads it every 1s → sets `job.StatusMessage` → DataTable cell update picks it up on next tick.
+
+Do not trigger `RaiseStructureChanged` or full-table refreshes for individual cell value changes — the cell update stream already handles it.
 
 ### Job Lifecycle and Failure Modes
 

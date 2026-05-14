@@ -92,11 +92,6 @@ internal class JobCompletionHandler
             var toolNames = denials.Select(d => d.ToolName).Distinct().ToList();
             var summary = $"Permission denied: {string.Join(", ", toolNames)} ({denials.Count} call{(denials.Count > 1 ? "s" : "")})";
 
-            if (string.IsNullOrEmpty(job.StatusMessage))
-                job.StatusMessage = summary;
-            else
-                job.StatusMessage += $" | {summary}";
-
             job.EnqueueOutput($"[Tendril] {summary}");
             foreach (var d in denials.Take(5))
             {

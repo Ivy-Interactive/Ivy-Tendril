@@ -437,18 +437,12 @@ internal class JobLauncher
 
     private void SetTendrilEnvironment(ProcessStartInfo psi, JobItem job)
     {
-        psi.Environment["TENDRIL_JOB_ID"] = job.Id;
-        psi.Environment["TENDRIL_SESSION_ID"] = job.SessionId;
         var tendrilHome = _configService!.TendrilHome;
         if (!string.IsNullOrEmpty(tendrilHome))
             psi.Environment["TENDRIL_HOME"] = tendrilHome;
-        psi.Environment["TENDRIL_CONFIG"] = _configService.ConfigPath;
         psi.Environment["TENDRIL_PLANS"] = _configService.PlanFolder;
 
-        var statusFile = JobStatusFile.GetStatusFilePath(job.Id);
-        psi.Environment["TENDRIL_CLI_LOG"] = statusFile;
-        job.StatusFilePath = statusFile;
-
+        job.StatusFilePath = JobStatusFile.GetStatusFilePath(job.Id);
         EnsureTendrilOnPath(psi);
     }
 
