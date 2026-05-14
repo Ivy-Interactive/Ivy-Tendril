@@ -259,6 +259,9 @@ public class Program
             config.AddCommand<DbResetCommand>("db-reset")
                 .WithDescription("Reset database");
 
+            config.AddCommand<ResetCommand>("reset")
+                .WithDescription("Remove all Tendril data and environment variables");
+
             // Other commands
             config.AddCommand<UpdatePromptwaresCliCommand>("update-promptwares")
                 .WithDescription("Update embedded promptwares");
