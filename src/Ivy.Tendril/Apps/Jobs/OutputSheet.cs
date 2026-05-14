@@ -18,15 +18,19 @@ public partial class OutputSheet(
 
         if (job is { Status: JobStatus.Running })
         {
+            var initialContent = job.OutputLines.IsEmpty ? null : string.Join("\n", job.OutputLines);
             agentOutputView = new AgentOutputView()
                 .Provider(job.Provider)
+                .JsonStream(initialContent)
                 .Stream(outputStream)
                 .Height(Size.Full());
         }
         else if (job is not null && hasStreamContent.Value && streamingJobId.Value == jobId)
         {
+            var initialContent = job.OutputLines.IsEmpty ? null : string.Join("\n", job.OutputLines);
             agentOutputView = new AgentOutputView()
                 .Provider(job.Provider)
+                .JsonStream(initialContent)
                 .Stream(outputStream)
                 .AutoScroll(false)
                 .Height(Size.Full());

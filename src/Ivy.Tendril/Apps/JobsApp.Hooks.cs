@@ -20,35 +20,19 @@ public partial class JobsApp
         var activeJob = jobService.GetJob(activeJobId);
         if (activeJob is not { Status: JobStatus.Running }) return;
 
-        var startIdx = lastProcessedIndex.Value;
-
         if (streamingJobId.Value != activeJobId)
         {
             streamingJobId.Set(activeJobId);
             hasStreamContent.Set(false);
-
-            var normalizer = activeJob.OutputNormalizer
-                ??= OutputNormalizerFactory.Create(activeJob.Provider);
-
-            var existingLines = activeJob.OutputLines.ToArray();
-            foreach (var line in existingLines)
-            {
-                foreach (var normalized in normalizer.Normalize(line))
-                    outputStream.Write(normalized);
-            }
-
-            if (existingLines.Length > 0 && !hasStreamContent.Value)
-            {
-                hasStreamContent.Set(true);
-            }
-
-            lastProcessedIndex.Set(existingLines.Length);
+            // Skip existing lines — OutputSheet provides them via JsonStream
+            lastProcessedIndex.Set(activeJob.OutputLines.Count);
         }
         else
         {
             var normalizer = activeJob.OutputNormalizer
                 ??= OutputNormalizerFactory.Create(activeJob.Provider);
 
+            var startIdx = lastProcessedIndex.Value;
             var currentLines = activeJob.OutputLines.ToArray();
             for (var i = startIdx; i < currentLines.Length; i++)
             {
@@ -56,7 +40,7 @@ public partial class JobsApp
                     outputStream.Write(normalized);
             }
 
-            if (currentLines.Length > 0 && !hasStreamContent.Value)
+            if (currentLines.Length > startIdx && !hasStreamContent.Value)
             {
                 hasStreamContent.Set(true);
             }
