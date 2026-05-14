@@ -82,11 +82,12 @@ public class ContentView(
                 assigneesQuery, assigneesError);
         });
 
+        var resetToDraftLogger = UseService<ILogger<ResetToDraftDialog>>();
         var (resetToDraftDialog, showResetToDraftDialog) = UseTrigger((isOpen) =>
         {
             if (!isOpen.Value) return null;
             return new ResetToDraftDialog(isOpen, selectedPlanState.Value!, planService, refreshPlans,
-                UseService<ILogger<ResetToDraftDialog>>());
+                resetToDraftLogger);
         });
 
         var artifactContentQuery = UseQuery<string, string>(
@@ -198,7 +199,7 @@ public class ContentView(
 
         var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, client, showCustomPrDialog, nav, args);
         var actionBar = BuildActionBar(
-            selectedPlanState.Value, showRerunDialog, showSuggestChangesDialog, showDiscardDialog,
+            selectedPlanState.Value, showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog,
             showCustomPrDialog, copyToClipboard, client, logger, nav, args);
         var content = BuildContent(
             selectedPlanState.Value, planData, planContentQuery, selectedTabIndex, tabNames, openVerification,
@@ -263,7 +264,7 @@ public class ContentView(
 
     private object BuildActionBar(
         PlanFile selectedPlan,
-        Action showRerunDialog,
+        Action showResetToDraftDialog,
         Action showSuggestChangesDialog,
         Action showDiscardDialog,
         Action showCustomPrDialog,
