@@ -27,6 +27,7 @@ public class SettingsApp : ViewBase
         var selected = UseState(TagGeneral);
         Context.TryUseService<DesktopWindow>(out var desktopWindow);
         var isDesktop = desktopWindow != null;
+        var capturedHost = ConfigYamlUiHelper.CaptureHost(httpContextAccessor);
 
         var menuItems = new[]
         {
@@ -57,7 +58,7 @@ public class SettingsApp : ViewBase
             switch (tag)
             {
                 case TagOpenConfig:
-                    ConfigYamlUiHelper.OpenOrNavigate(config, navigator, isDesktop, httpContextAccessor);
+                    ConfigYamlUiHelper.OpenOrNavigate(config, navigator, isDesktop, capturedHost);
                     break;
                 default:
                     selected.Set(tag);

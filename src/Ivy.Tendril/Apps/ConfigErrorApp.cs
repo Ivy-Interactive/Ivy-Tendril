@@ -15,6 +15,7 @@ public class ConfigErrorApp(IConfigService config) : ViewBase
         var httpContextAccessor = UseService<IHttpContextAccessor>();
         Context.TryUseService<DesktopWindow>(out var desktopWindow);
         var isDesktopShell = desktopWindow != null;
+        var capturedHost = ConfigYamlUiHelper.CaptureHost(httpContextAccessor);
         var parseError = config.ParseError;
 
         if (parseError == null)
@@ -40,7 +41,7 @@ public class ConfigErrorApp(IConfigService config) : ViewBase
                    | new Button("Edit Config")
                        .Icon(Icons.FileText)
                        .OnClick(() =>
-                           ConfigYamlUiHelper.OpenOrNavigate(config, navigator, isDesktopShell, httpContextAccessor))
+                           ConfigYamlUiHelper.OpenOrNavigate(config, navigator, isDesktopShell, capturedHost))
                    | new Button("Reload Config")
                        .Icon(Icons.RefreshCw)
                        .Variant(ButtonVariant.Outline)
