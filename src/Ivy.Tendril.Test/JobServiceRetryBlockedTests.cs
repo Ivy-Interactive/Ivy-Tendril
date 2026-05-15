@@ -454,6 +454,10 @@ public class JobServiceRetryBlockedTests : IDisposable
         {
         }
 
+        public void ResetVerificationsForRetry(string folderName)
+        {
+        }
+
         public void SaveRevision(string folderName, string content)
         {
         }

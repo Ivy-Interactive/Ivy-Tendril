@@ -4,6 +4,7 @@ namespace Ivy.Tendril.Models;
 
 [JsonDerivedType(typeof(CreatePlanArgs), "CreatePlan")]
 [JsonDerivedType(typeof(ExecutePlanArgs), "ExecutePlan")]
+[JsonDerivedType(typeof(RetryPlanArgs), "RetryPlan")]
 [JsonDerivedType(typeof(ExpandPlanArgs), "ExpandPlan")]
 [JsonDerivedType(typeof(UpdatePlanArgs), "UpdatePlan")]
 [JsonDerivedType(typeof(SplitPlanArgs), "SplitPlan")]
@@ -33,6 +34,14 @@ public record ExecutePlanArgs(
     string? Note = null) : JobArgsBase
 {
     public override string Type => Constants.JobTypes.ExecutePlan;
+    public override string PlanFolder => FolderPath;
+}
+
+public record RetryPlanArgs(
+    string FolderPath,
+    string ChangeRequest) : JobArgsBase
+{
+    public override string Type => Constants.JobTypes.RetryPlan;
     public override string PlanFolder => FolderPath;
 }
 

@@ -76,6 +76,7 @@ codingAgents:
 #   WebFetch, WebSearch, Bash(%PROMPTWARE_DIR%/Tools/*)
 # Memory/tool writes go through CLI: tendril promptware write-memory/write-tool <name> <file>
 # ExecutePlan additionally gets: Bash, Write(%PLAN_DIR%/**), Edit(%PLAN_DIR%/**)
+# RetryPlan additionally gets: Bash, Write(%PLAN_DIR%/**), Edit(%PLAN_DIR%/**)
 # UpdatePlan additionally gets: Write(%PLAN_DIR%/**) (for temp files used by --file flag)
 # ExpandPlan additionally gets: Write(%PLAN_DIR%/**) (for temp files used by --file flag)
 # CreatePr additionally gets: Bash (needs unrestricted shell for git/gh in worktrees)
@@ -95,6 +96,8 @@ promptwares:
   CreatePlan:
     profile: deep
   ExecutePlan:
+    profile: deep
+  RetryPlan:
     profile: deep
   ExpandPlan:
     profile: balanced

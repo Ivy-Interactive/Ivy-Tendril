@@ -253,6 +253,28 @@ public class PlanReaderService(
         });
     }
 
+    public void ResetVerificationsForRetry(string folderName)
+    {
+        _planWatcherService?.NotifyChanged(folderName);
+
+        WriteFileInBackground(() =>
+        {
+            var planYamlPath = Path.Combine(PlansDirectory, folderName, "plan.yaml");
+            if (!File.Exists(planYamlPath)) return;
+
+            var yaml = FileHelper.ReadAllText(planYamlPath);
+            var planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml) ?? new PlanYaml();
+            planYaml.Updated = DateTime.UtcNow;
+            planYaml.Commits = new List<string>();
+            foreach (var v in planYaml.Verifications)
+            {
+                if (!v.Status.Equals("Skipped", StringComparison.OrdinalIgnoreCase))
+                    v.Status = "Pending";
+            }
+            FileHelper.WriteAllText(planYamlPath, YamlHelper.SerializerCompact.Serialize(planYaml));
+        });
+    }
+
     /// <summary>
     ///     Creates a new revision file for a plan and updates the plan's timestamp.
     /// </summary>
