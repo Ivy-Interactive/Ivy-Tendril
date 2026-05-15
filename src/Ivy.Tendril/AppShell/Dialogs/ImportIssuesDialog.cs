@@ -297,7 +297,7 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
             new DialogBody(
                 Layout.Vertical().Gap(3)
                 | selectedRepo.ToSelectInput(repositoryOptions.ToOptions())
-                    .AutoFocus().WithField().Label("Repository").Required()
+                    .WithField().Label("Repository").Required()
                 | searchQuery.ToTextInput().Placeholder("Search").WithField().Label("Search")
                 | selectedAssignee.ToSelectInput(assigneesQuery.Value.ToOptions())
                     .Nullable().WithField().Label("Assignee")
