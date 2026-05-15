@@ -152,7 +152,7 @@ public static class FirmwareCompiler
 
     private static readonly HashSet<string> PathKeys = new(StringComparer.OrdinalIgnoreCase)
     {
-        "TendrilConfigPath", "TendrilHome", "TendrilPlanFolder",
+        "TendrilHome", "TendrilPlanFolder",
         "TendrilPlansFolder", "SourceUrl", "SourcePath"
     };
 
