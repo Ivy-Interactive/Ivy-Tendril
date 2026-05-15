@@ -548,7 +548,7 @@ Worktrees are **not** cleaned up by ExecutePlan. They remain on disk so that Cre
 
 ### 9. Plan State
 
-The launcher script handles state transitions (Completed/Failed) based on exit code.
+**🚫 FORBIDDEN:** Do NOT call `tendril plan set <plan-id> state <anything>`. The Tendril server handles all state transitions automatically based on your exit code and verification statuses. Setting state manually causes the plan to appear in Review prematurely while your job is still running.
 
 ### Ambiguity Handling
 
