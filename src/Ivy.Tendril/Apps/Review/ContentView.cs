@@ -292,28 +292,16 @@ public class ContentView(
         INavigator nav,
         ReviewAppArgs? args)
     {
-        return Layout.Horizontal().AlignContent(Align.Left).Gap(1)
-                | new Button("Reset to Draft").Icon(Icons.RotateCcw).Outline().ShortcutKey("r").OnClick(() =>
-                {
-                    showResetToDraftDialog();
-                })
-                | new Button("Suggest Changes").Icon(Icons.MessageSquare).Outline().OnClick(() =>
-                {
-                    showSuggestChangesDialog();
-                }).ShortcutKey("d")
-                | new Button("Discard").Icon(Icons.Trash).Outline().ShortcutKey("Backspace").OnClick(() =>
-                {
-                    showDiscardDialog();
-                })
+        return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
+                | new Button("Reset to Draft").Icon(Icons.RotateCcw).Outline().ShortcutKey("r").OnClick(showResetToDraftDialog)
+                | new Button("Suggest Changes").Icon(Icons.MessageSquare).Outline().OnClick(showSuggestChangesDialog).ShortcutKey("d")
+                | new Button("Discard").Icon(Icons.Trash).Outline().ShortcutKey("Backspace").OnClick(showDiscardDialog)
                 | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(() => GoToPrevious(nav, args))
                     .ShortcutKey("p")
                 | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().OnClick(() => GoToNext(nav, args))
                     .ShortcutKey("n")
                 | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
-                    new MenuItem("Custom PR", Icon: Icons.GitPullRequest, Tag: "CustomPR").OnSelect(() =>
-                    {
-                        showCustomPrDialog();
-                    }),
+                    new MenuItem("Custom PR", Icon: Icons.GitPullRequest, Tag: "CustomPR").OnSelect(showCustomPrDialog),
                     new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
                     {
                         planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
