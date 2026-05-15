@@ -461,6 +461,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 DropDownMenu.DefaultSelectHandler(),
                 settingsTrigger)
             .Top()
+            .StayOpen()
             .Items(settings.FooterMenuItemsTransformer(settingsMenuItems, navigator));
 
         object? footer;
