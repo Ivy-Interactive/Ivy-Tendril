@@ -9,7 +9,13 @@ public class OutputSheet(string jobId, IJobService jobService) : ViewBase
     public override object Build()
     {
         var outputStream = UseStream<string>();
+        var initialSnapshot = UseRef<string?>(null);
+
         var job = jobService.GetJob(jobId);
+
+        initialSnapshot.Value ??= job is { OutputLines.IsEmpty: false }
+            ? string.Join("\n", job.OutputLines)
+            : null;
 
         UseEffect(() => job is { Status: JobStatus.Running }
             ? job.OutputObservable.Subscribe(line => outputStream.Write(line))
@@ -18,11 +24,11 @@ public class OutputSheet(string jobId, IJobService jobService) : ViewBase
         if (job is null || (job.OutputLines.IsEmpty && job.Status != JobStatus.Running))
             return Text.P("No output available.");
 
-        var snapshot = !job.OutputLines.IsEmpty
-            ? string.Join("\n", job.OutputLines) : null;
-
         if (job.Status != JobStatus.Running)
         {
+            var snapshot = !job.OutputLines.IsEmpty
+                ? string.Join("\n", job.OutputLines) : null;
+
             return new AgentOutputView()
                 .Provider(job.Provider)
                 .JsonStream(snapshot)
@@ -33,7 +39,7 @@ public class OutputSheet(string jobId, IJobService jobService) : ViewBase
 
         return new AgentOutputView()
             .Provider(job.Provider)
-            .JsonStream(snapshot)
+            .JsonStream(initialSnapshot.Value)
             .Stream(outputStream)
             .Height(Size.Full());
     }
