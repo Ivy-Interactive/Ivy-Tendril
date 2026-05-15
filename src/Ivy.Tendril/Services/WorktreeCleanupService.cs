@@ -15,7 +15,7 @@ public class WorktreeCleanupService : IStartable, IDisposable
 {
     private static readonly Regex SafeTitleRegex = new(@"^\d{5}-(.+)", RegexOptions.Compiled);
     private static readonly HashSet<string> TerminalStates = new(StringComparer.OrdinalIgnoreCase)
-        { "Completed", "Failed", "Skipped", "Icebox" };
+        { "Completed", "Skipped", "Icebox" };
 
     private static readonly TimeSpan GracePeriod = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan TimerInterval = TimeSpan.FromMinutes(30);
