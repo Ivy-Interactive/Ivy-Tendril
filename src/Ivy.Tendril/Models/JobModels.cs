@@ -166,7 +166,7 @@ public record JobItemRow
     public string Type { get; init; } = "";
     public string Project { get; init; } = "";
     public string Timer { get; init; } = "";
-    public string LastOutput { get; init; } = "";
+    public string AgentOutput { get; init; } = "";
     public DateTime? LastOutputTimestamp { get; init; }
     public string Cost { get; init; } = "";
     public string Tokens { get; init; } = "";

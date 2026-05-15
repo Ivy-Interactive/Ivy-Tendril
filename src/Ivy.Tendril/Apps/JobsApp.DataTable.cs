@@ -37,8 +37,8 @@ public partial class JobsApp
             .Header(t => t.Timer, "Timer")
             .Header(t => t.Cost, "Cost")
             .Header(t => t.Tokens, "Tokens")
-            .Header(t => t.LastOutput, "Last Output")
-            .Renderer(t => t.LastOutput, new AnimatedStatusLabelDisplayRenderer
+            .Header(t => t.AgentOutput, "Agent Output")
+            .Renderer(t => t.AgentOutput, new AnimatedStatusLabelDisplayRenderer
             {
                 Mode = AnimatedStatusMode.SpinnerTimer
             })
@@ -49,7 +49,7 @@ public partial class JobsApp
             .Width(t => t.Plan, Size.Px(250))
             .Width(t => t.Project, Size.Px(100))
             .Width(t => t.Timer, Size.Px(100))
-            .Width(t => t.LastOutput, Size.Px(100))
+            .Width(t => t.AgentOutput, Size.Px(100))
             .Width(t => t.Cost, Size.Px(100))
             .Width(t => t.Tokens, Size.Px(100))
             .Width(t => t.StatusMessage, Size.Auto())
@@ -102,7 +102,7 @@ public partial class JobsApp
                 }
                 return ValueTask.CompletedTask;
             })
-            .OnCellAction(t => t.LastOutput, e =>
+            .OnCellAction(t => t.AgentOutput, e =>
             {
                 var id = e.Value.RowId?.ToString();
                 if (!string.IsNullOrEmpty(id))

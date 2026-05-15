@@ -34,10 +34,12 @@ public partial class JobsApp : ViewBase
         {
             if (!isOpen.Value) return null;
             var outputSheetView = new OutputSheet(jobId, jobService);
+            var job = jobService.GetJob(jobId);
+            var title = job is not null ? $"{job.Type} {ExtractPlanId(job.PlanFile)}" : "Job Output";
             return new Sheet(
                 () => isOpen.Set(false),
                 outputSheetView.Build(),
-                outputSheetView.GetSheetTitle()
+                title
             ).Width(Size.Half()).Resizable();
         });
 
