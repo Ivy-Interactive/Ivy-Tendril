@@ -67,7 +67,7 @@ public class ContentView(
                                     }));
 
         var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(1)
-                        | new Button("Delete").Icon(Icons.Trash).Outline().OnClick(() => showDeleteDialog())
+                        | new Button("Delete").Icon(Icons.Trash).Outline().ShortcutKey("Backspace").OnClick(() => showDeleteDialog())
                         | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(() => GoToPrevious())
                             .ShortcutKey("p")
                         | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().OnClick(() => GoToNext())
