@@ -320,11 +320,34 @@ public class ContentView(
                             client.Toast("Copied path to clipboard", "Path Copied");
                         }),
                     new MenuItem($"Open in {config.Editor.Label}", Icon: Icons.Code, Tag: "OpenInEditor")
-                        .OnSelect(() => { config.OpenInEditor(selectedPlan.FolderPath); }),
+                        .OnSelect(() =>
+                        {
+                            try
+                            {
+                                config.OpenInEditor(selectedPlan.FolderPath);
+                            }
+                            catch (EditorNotAvailableException ex)
+                            {
+                                client.Toast(
+                                    $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
+                                    "Editor Not Available",
+                                    variant: ToastVariant.Destructive);
+                            }
+                        }),
                     new MenuItem("Open plan.yaml", Icon: Icons.FileText, Tag: "OpenPlanYaml").OnSelect(() =>
                     {
                         var yamlPath = Path.Combine(selectedPlan.FolderPath, "plan.yaml");
-                        config.OpenInEditor(yamlPath);
+                        try
+                        {
+                            config.OpenInEditor(yamlPath);
+                        }
+                        catch (EditorNotAvailableException ex)
+                        {
+                            client.Toast(
+                                $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
+                                "Editor Not Available",
+                                variant: ToastVariant.Destructive);
+                        }
                     })
                 );
     }

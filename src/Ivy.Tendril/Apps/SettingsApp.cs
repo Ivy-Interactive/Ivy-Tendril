@@ -23,6 +23,7 @@ public class SettingsApp : ViewBase
     {
         var config = UseService<IConfigService>();
         var navigator = UseNavigation();
+        var client = UseService<IClientProvider>();
         var httpContextAccessor = UseService<IHttpContextAccessor>();
         var selected = UseState(TagGeneral);
         Context.TryUseService<DesktopWindow>(out var desktopWindow);
@@ -63,7 +64,7 @@ public class SettingsApp : ViewBase
             switch (tag)
             {
                 case TagOpenConfig:
-                    ConfigYamlUiHelper.OpenOrNavigate(config, navigator, isDesktop, capturedHost);
+                    ConfigYamlUiHelper.OpenOrNavigate(config, navigator, client, isDesktop, capturedHost);
                     break;
                 default:
                     selected.Set(tag);

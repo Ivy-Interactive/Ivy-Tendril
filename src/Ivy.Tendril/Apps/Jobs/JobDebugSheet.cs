@@ -15,6 +15,7 @@ public class JobDebugSheet(
     public override object Build()
     {
         var copyToClipboard = UseClipboard();
+        var client = UseService<IClientProvider>();
 
         var job = jobService.GetJob(jobId);
         if (job is null)
@@ -60,15 +61,15 @@ public class JobDebugSheet(
             .Label(x => x.JobId, "Job Id")
             .Builder(x => x.PermissionDenials, f => f.Func((string denials) =>
                 new CodeBlock(denials)))
-            .Builder(x => x.PlanFolder, f => f.Func((string path) => PathDropDown(path, copyToClipboard)))
-            .Builder(x => x.PlanLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard)))
-            .Builder(x => x.PlanCliLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard)))
-            .Builder(x => x.PromptwareLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard)))
-            .Builder(x => x.PromptwareRawLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard)))
+            .Builder(x => x.PlanFolder, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
+            .Builder(x => x.PlanLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
+            .Builder(x => x.PlanCliLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
+            .Builder(x => x.PromptwareLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
+            .Builder(x => x.PromptwareRawLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .RemoveEmpty();
     }
 
-    private object PathDropDown(string path, Action<string> copyToClipboard)
+    private object PathDropDown(string path, Action<string> copyToClipboard, IClientProvider client)
     {
         return Layout.Horizontal().Gap(2).AlignContent(Align.Center)
             | Text.Block(path)
@@ -77,7 +78,20 @@ public class JobDebugSheet(
                     new MenuItem("Copy to Clipboard", Icon: Icons.ClipboardCopy, Tag: "Copy")
                         .OnSelect(() => copyToClipboard(path)),
                     new MenuItem($"Open in {config.Editor.Label}", Icon: Icons.Code, Tag: "OpenInEditor")
-                        .OnSelect(() => config.OpenInEditor(path))
+                        .OnSelect(() =>
+                        {
+                            try
+                            {
+                                config.OpenInEditor(path);
+                            }
+                            catch (EditorNotAvailableException ex)
+                            {
+                                client.Toast(
+                                    $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
+                                    "Editor Not Available",
+                                    variant: ToastVariant.Destructive);
+                            }
+                        })
                 );
     }
 

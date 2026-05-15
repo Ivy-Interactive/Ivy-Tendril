@@ -41,7 +41,7 @@ public class ConfigErrorApp(IConfigService config) : ViewBase
                    | new Button("Edit Config")
                        .Icon(Icons.FileText)
                        .OnClick(() =>
-                           ConfigYamlUiHelper.OpenOrNavigate(config, navigator, isDesktopShell, capturedHost))
+                           ConfigYamlUiHelper.OpenOrNavigate(config, navigator, client, isDesktopShell, capturedHost))
                    | new Button("Reload Config")
                        .Icon(Icons.RefreshCw)
                        .Variant(ButtonVariant.Outline)

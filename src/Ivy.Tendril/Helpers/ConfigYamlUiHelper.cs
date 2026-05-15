@@ -18,11 +18,12 @@ public static class ConfigYamlUiHelper
     public static void OpenOrNavigate(
         IConfigService config,
         INavigator navigator,
+        IClientProvider client,
         bool isDesktopShell,
         IHttpContextAccessor? httpContextAccessor = null)
     {
         var capturedHost = httpContextAccessor?.HttpContext?.Request.Host.Host;
-        OpenOrNavigate(config, navigator, isDesktopShell, capturedHost);
+        OpenOrNavigate(config, navigator, client, isDesktopShell, capturedHost);
     }
 
     /// <summary>
@@ -31,11 +32,24 @@ public static class ConfigYamlUiHelper
     public static void OpenOrNavigate(
         IConfigService config,
         INavigator navigator,
+        IClientProvider client,
         bool isDesktopShell,
         string? capturedHost)
     {
         if (isDesktopShell || IsLoopbackHost(capturedHost))
-            config.OpenInEditor(config.ConfigPath);
+        {
+            try
+            {
+                config.OpenInEditor(config.ConfigPath);
+            }
+            catch (EditorNotAvailableException ex)
+            {
+                client.Toast(
+                    $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
+                    "Editor Not Available",
+                    variant: ToastVariant.Destructive);
+            }
+        }
         else
             navigator.Navigate<ConfigEditorApp>();
     }
