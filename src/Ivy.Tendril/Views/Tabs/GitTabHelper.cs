@@ -111,7 +111,20 @@ public static class GitTabHelper
                             new MenuItem("Open in Terminal", Icon: Icons.Terminal, Tag: "OpenInTerminal")
                                 .OnSelect(() => PlatformHelper.OpenInTerminal(path, logger)),
                             new MenuItem($"Open in {config.Editor.Label}", Icon: Icons.Code, Tag: "OpenInEditor")
-                                .OnSelect(() => config.OpenInEditor(path)),
+                                .OnSelect(() =>
+                                {
+                                    try
+                                    {
+                                        config.OpenInEditor(path);
+                                    }
+                                    catch (EditorNotAvailableException ex)
+                                    {
+                                        client.Toast(
+                                            $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
+                                            "Editor Not Available",
+                                            variant: "destructive");
+                                    }
+                                }),
                             new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
                                 .OnSelect(() => copyToClipboard(path))
                         )));

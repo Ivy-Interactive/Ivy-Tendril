@@ -1695,4 +1695,43 @@ maxConcurrentJobs: 10
             _logAction(logLevel, formatter(state, exception));
         }
     }
+
+    [Fact]
+    public void OpenInEditor_WhenEditorUnavailable_ThrowsEditorNotAvailableException()
+    {
+        var yaml = @"
+editor:
+  command: nonexistent-editor-xyz-12345
+  label: Nonexistent Editor
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+
+            var testFilePath = Path.Combine(tempDir, "test.txt");
+            File.WriteAllText(testFilePath, "test content");
+
+            var exception = Assert.Throws<EditorNotAvailableException>(() =>
+                service.OpenInEditor(testFilePath));
+
+            Assert.Equal("nonexistent-editor-xyz-12345", exception.Command);
+            Assert.Equal("Nonexistent Editor", exception.Label);
+            Assert.Contains("nonexistent-editor-xyz-12345", exception.Message);
+            Assert.Contains("Nonexistent Editor", exception.Message);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void IsCommandAvailable_WithInvalidCommand_ReturnsFalse()
+    {
+        var result = ConfigService.IsCommandAvailable("definitely-not-a-real-command-xyz-999");
+        Assert.False(result);
+    }
 }

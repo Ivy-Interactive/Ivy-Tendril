@@ -10,7 +10,8 @@ public class ConfigErrorApp(IConfigService config) : ViewBase
     public override object Build()
     {
         var showDetails = UseState(false);
-        var client = UseService<IClientProvider>();
+        var client = UseClient();
+        var clientProvider = UseService<IClientProvider>();
         var navigator = UseNavigation();
         var httpContextAccessor = UseService<IHttpContextAccessor>();
         Context.TryUseService<DesktopWindow>(out var desktopWindow);
@@ -20,7 +21,7 @@ public class ConfigErrorApp(IConfigService config) : ViewBase
 
         if (parseError == null)
         {
-            client.Redirect("/", true);
+            clientProvider.Redirect("/", true);
             return Text.P("Redirecting...");
         }
 
@@ -41,7 +42,7 @@ public class ConfigErrorApp(IConfigService config) : ViewBase
                    | new Button("Edit Config")
                        .Icon(Icons.FileText)
                        .OnClick(() =>
-                           ConfigYamlUiHelper.OpenOrNavigate(config, navigator, isDesktopShell, capturedHost))
+                           ConfigYamlUiHelper.OpenOrNavigate(config, navigator, client, isDesktopShell, capturedHost))
                    | new Button("Reload Config")
                        .Icon(Icons.RefreshCw)
                        .Variant(ButtonVariant.Outline)
@@ -49,7 +50,7 @@ public class ConfigErrorApp(IConfigService config) : ViewBase
                        {
                            config.RetryLoadConfig();
                            if (config.ParseError == null)
-                               client.Redirect("/", true);
+                               clientProvider.Redirect("/", true);
                        })
                    | new Button("Reset to Defaults")
                        .Icon(Icons.RotateCcw)
@@ -57,7 +58,7 @@ public class ConfigErrorApp(IConfigService config) : ViewBase
                        .OnClick(() =>
                        {
                            config.ResetToDefaults();
-                           client.Redirect("/", true);
+                           clientProvider.Redirect("/", true);
                        })
                    | new Button(showDetails.Value ? "Hide Details" : "View Details")
                        .Icon(Icons.Info)
