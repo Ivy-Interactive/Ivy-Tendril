@@ -15,7 +15,7 @@ icon: Rocket
 Tendril is an open source, local-first desktop application that serves as the operating system for AI-powered software development — orchestrating coding agents like Claude Code, Codex, Gemini, and Copilot through a structured lifecycle from idea to merged pull request.
 </Ingress>
 
-<Embed Url="https://youtu.be/X-zkkI8ah-E"/>
+<Embed Url="https://youtu.be/Lpv0JiGOU5w"/>
 
 ## The Concept
 
