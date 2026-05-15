@@ -102,7 +102,7 @@ public class CustomPrDialog(
                     customPrDraft.Set(false);
                     _dialogOpen.Set(false);
                 }
-                )
+                })
             )
         ).Width(Size.Rem(30));
     }
