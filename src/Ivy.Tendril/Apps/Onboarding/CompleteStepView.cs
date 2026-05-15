@@ -174,7 +174,7 @@ public class CompleteStepView(
                      )
                        .Width(Size.Full())
                        .Height(Size.Units(100).Max(Size.Fraction(0.6f)))
-                       .Padding(0)
+                       .Padding(4)
                    : null!)
                | (!running && totalVerifications > 0 ? (object)listLayout : null!)
                | (Layout.Horizontal().Width(Size.Full())
