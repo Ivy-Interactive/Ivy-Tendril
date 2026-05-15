@@ -28,42 +28,40 @@ public class DeletePlanDialog(
                 Text.P($"What would you like to do with plan #{_selectedPlan.Id}?")
             ),
             new DialogFooter(
-                Layout.Vertical().Gap(2)
-                | (Layout.Horizontal().Gap(2).Right()
-                   | new Button("Cancel").Outline().ShortcutKey("Escape").OnClick(() => _dialogOpen.Set(false))
-                   | new Button("Move to Skipped").Outline().ShortcutKey("s").OnClick(() =>
-                   {
-                       // Optimistically update UI state before disk I/O
-                       var optimisticPlan = _selectedPlan with
-                       {
-                           Metadata = _selectedPlan.Metadata with { State = PlanStatus.Skipped }
-                       };
-                       _selectedPlanState.Set(optimisticPlan);
+                Layout.Horizontal().Gap(2).Right()
+                | new Button("Cancel").Outline().ShortcutKey("Escape").OnClick(() => _dialogOpen.Set(false))
+                | new Button("Move to Skipped").Outline().ShortcutKey("s").OnClick(() =>
+                {
+                    // Optimistically update UI state before disk I/O
+                    var optimisticPlan = _selectedPlan with
+                    {
+                        Metadata = _selectedPlan.Metadata with { State = PlanStatus.Skipped }
+                    };
+                    _selectedPlanState.Set(optimisticPlan);
 
-                       _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Skipped);
-                       _refreshPlans();
-                       _dialogOpen.Set(false);
-                   })
-                   | new Button("Move to Icebox").Outline().ShortcutKey("b").OnClick(() =>
-                   {
-                       // Optimistically update UI state before disk I/O
-                       var optimisticPlan = _selectedPlan with
-                       {
-                           Metadata = _selectedPlan.Metadata with { State = PlanStatus.Icebox }
-                       };
-                       _selectedPlanState.Set(optimisticPlan);
+                    _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Skipped);
+                    _refreshPlans();
+                    _dialogOpen.Set(false);
+                })
+                | new Button("Move to Icebox").Outline().ShortcutKey("b").OnClick(() =>
+                {
+                    // Optimistically update UI state before disk I/O
+                    var optimisticPlan = _selectedPlan with
+                    {
+                        Metadata = _selectedPlan.Metadata with { State = PlanStatus.Icebox }
+                    };
+                    _selectedPlanState.Set(optimisticPlan);
 
-                       _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Icebox);
-                       _refreshPlans();
-                       _dialogOpen.Set(false);
-                   }))
-                | (Layout.Horizontal().Right()
-                   | new Button("Delete").Destructive().ShortcutKey("Enter").AutoFocus().OnClick(() =>
-                   {
-                       _planService.DeletePlan(_selectedPlan.FolderName);
-                       _refreshPlans();
-                       _dialogOpen.Set(false);
-                   }))
+                    _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Icebox);
+                    _refreshPlans();
+                    _dialogOpen.Set(false);
+                })
+                | new Button("Delete").Destructive().ShortcutKey("Enter").AutoFocus().OnClick(() =>
+                {
+                    _planService.DeletePlan(_selectedPlan.FolderName);
+                    _refreshPlans();
+                    _dialogOpen.Set(false);
+                })
             )
         ).Width(Size.Rem(40));
     }
