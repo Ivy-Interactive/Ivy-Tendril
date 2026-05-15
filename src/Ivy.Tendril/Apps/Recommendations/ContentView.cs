@@ -87,7 +87,7 @@ public class ContentView(
                      | Text.Rich()
                          .Bold($"{(currentIndex == -1 ? "?" : (currentIndex + 1).ToString())}/{allRecommendations.Count}", word: true)
                          .Muted("recommendations", word: true)
-                     | new Button("Decline").Icon(Icons.X).Outline().ShortcutKey("x").OnClick(() =>
+                     | new Button("Decline").Icon(Icons.X).Outline().ShortcutKey("Backspace").OnClick(() =>
                      {
                          showDeclineDialog();
                      })
