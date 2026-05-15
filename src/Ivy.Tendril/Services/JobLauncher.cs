@@ -307,8 +307,6 @@ internal class JobLauncher
             ["TendrilHome"] = _configService.TendrilHome ?? ""
         };
 
-        if (job.Type == Constants.JobTypes.UpdateProject)
-            values["TendrilConfigPath"] = _configService!.ConfigPath;
 
         if (job.TypedArgs is CreatePlanArgs)
         {

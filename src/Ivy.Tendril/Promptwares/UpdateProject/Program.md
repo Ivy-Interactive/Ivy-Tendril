@@ -9,7 +9,7 @@ The firmware header contains:
 - **Instructions** — what to do (e.g. "Setup verifications and review actions for this project.")
 - **CurrentTime** — current UTC timestamp
 
-Project and verification configuration is available via `tendril project list`, `tendril verification list`, and by reading the config file at the `TendrilConfigPath` from the firmware header (use `Read` tool).
+Project and verification configuration is available via `tendril project list` and `tendril verification list`.
 
 ## Rules
 
