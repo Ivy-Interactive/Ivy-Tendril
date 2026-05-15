@@ -277,10 +277,9 @@ public class ContentView(
             }
         }).ShortcutKey("m");
 
-        if (allYolo)
-            createPrBtn = createPrBtn.WithConfetti(AnimationTrigger.Click);
-
-        header |= createPrBtn;
+        header |= allYolo
+            ? createPrBtn.WithConfetti(AnimationTrigger.Click)
+            : createPrBtn;
 
         return header;
     }
