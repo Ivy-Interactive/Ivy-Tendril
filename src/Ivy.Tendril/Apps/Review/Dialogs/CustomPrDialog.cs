@@ -80,29 +80,29 @@ public class CustomPrDialog(
                 }),
                 new Button("Create PR").Primary().Disabled(isCreating.Value).ShortcutKey("Ctrl+Enter").OnClick(() =>
                 {
-                    if (!isCreating.Value)
-                    {
-                        isCreating.Set(true);
-                        _jobService.StartJob(new CreatePrArgs(
-                            _selectedPlan.FolderPath,
-                            Merge: customPrMerge.Value,
-                            DeleteBranch: customPrDeleteBranch.Value && customPrMerge.Value,
-                            IncludeArtifacts: customPrIncludeArtifacts.Value,
-                            Assignee: customPrAssignee.Value,
-                            Comment: string.IsNullOrEmpty(customPrComment.Value) ? null : customPrComment.Value,
-                            Draft: customPrDraft.Value));
-                        _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Building);
-                        _refreshPlans();
-                        isCreating.Set(false);
-                        customPrMerge.Set(true);
-                        customPrDeleteBranch.Set(true);
-                        customPrIncludeArtifacts.Set(true);
-                        customPrAssignee.Set(null);
-                        customPrComment.Set("");
-                        customPrDraft.Set(false);
-                        _dialogOpen.Set(false);
-                    }
-                }).WithConfetti(AnimationTrigger.Click)
+                if (!isCreating.Value)
+                {
+                    isCreating.Set(true);
+                    _jobService.StartJob(new CreatePrArgs(
+                        _selectedPlan.FolderPath,
+                        Merge: customPrMerge.Value,
+                        DeleteBranch: customPrDeleteBranch.Value && customPrMerge.Value,
+                        IncludeArtifacts: customPrIncludeArtifacts.Value,
+                        Assignee: customPrAssignee.Value,
+                        Comment: string.IsNullOrEmpty(customPrComment.Value) ? null : customPrComment.Value,
+                        Draft: customPrDraft.Value));
+                    _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Building);
+                    _refreshPlans();
+                    isCreating.Set(false);
+                    customPrMerge.Set(true);
+                    customPrDeleteBranch.Set(true);
+                    customPrIncludeArtifacts.Set(true);
+                    customPrAssignee.Set(null);
+                    customPrComment.Set("");
+                    customPrDraft.Set(false);
+                    _dialogOpen.Set(false);
+                }
+                )
             )
         ).Width(Size.Rem(30));
     }

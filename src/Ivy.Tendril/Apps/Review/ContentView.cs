@@ -258,13 +258,13 @@ public class ContentView(
                          .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
                          .Muted("plans", word: true);
 
-        header |= new Button("Create PR").Icon(Icons.GitPullRequest).Primary().OnClick(() =>
-        {
-            var repoPaths = selectedPlan.GetEffectiveRepoPaths(config);
-            var project = config.GetProject(selectedPlan.Project);
-            var allYolo = repoPaths.All(rp =>
-                project?.GetRepoRef(rp)?.PrRule == "yolo");
+        var repoPaths = selectedPlan.GetEffectiveRepoPaths(config);
+        var project = config.GetProject(selectedPlan.Project);
+        var allYolo = repoPaths.All(rp =>
+            project?.GetRepoRef(rp)?.PrRule == "yolo");
 
+        var createPrBtn = new Button("Create PR").Icon(Icons.GitPullRequest).Primary().OnClick(() =>
+        {
             if (allYolo)
             {
                 jobService.StartJob(new CreatePrArgs(selectedPlan.FolderPath));
@@ -275,7 +275,12 @@ public class ContentView(
             {
                 showCustomPrDialog();
             }
-        }).ShortcutKey("m").WithConfetti(AnimationTrigger.Click);
+        }).ShortcutKey("m");
+
+        if (allYolo)
+            createPrBtn = createPrBtn.WithConfetti(AnimationTrigger.Click);
+
+        header |= createPrBtn;
 
         return header;
     }
