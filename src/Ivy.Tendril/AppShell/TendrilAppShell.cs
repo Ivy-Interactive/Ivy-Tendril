@@ -105,12 +105,12 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var navigator = UseNavigation();
         var importIssuesDialogOpen = UseState(false);
         var newsArticles = UseState(Array.Empty<SidebarNewsArticle>());
-        
+
         UseEffect(async () =>
         {
             newsArticles.Set(await FetchNewsAsync());
         });
-        
+
         UseEffect(() =>
         {
             void OnChanged()
