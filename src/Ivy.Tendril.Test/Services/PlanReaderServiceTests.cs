@@ -85,6 +85,56 @@ public class PlanReaderServiceTests
         }
     }
 
+    [Fact]
+    public async Task ResetVerificationsForRetry_ResetsNonSkippedToPending_PreservesSkipped_ClearsCommits()
+    {
+        // Arrange
+        var tempDir = Path.Combine(Path.GetTempPath(), $"ivy-test-{Guid.NewGuid()}");
+        Directory.CreateDirectory(tempDir);
+        var testConfig = new TempDirConfigService(tempDir);
+        var testLogger = new TestLogger();
+        var testWatcher = new TestPlanWatcherService();
+
+        var service = new PlanReaderService(
+            testConfig,
+            testLogger,
+            planWatcherService: testWatcher);
+
+        var folderName = "01234-TestPlan";
+        var planFolder = Path.Combine(tempDir, folderName);
+        Directory.CreateDirectory(planFolder);
+
+        var planYaml = "state: ReadyForReview\nproject: TestProject\ncommits:\n- abc1234\n- def5678\nverifications:\n- name: Build\n  status: Pass\n- name: Test\n  status: Fail\n- name: Lint\n  status: Skipped\n- name: Format\n  status: Pending\n";
+        File.WriteAllText(Path.Combine(planFolder, "plan.yaml"), planYaml);
+
+        try
+        {
+            // Act
+            service.ResetVerificationsForRetry(folderName);
+            await service.FlushPendingWritesAsync();
+
+            // Assert
+            var result = File.ReadAllText(Path.Combine(planFolder, "plan.yaml"));
+            Assert.Contains("status: Pending", result);
+            Assert.Contains("status: Skipped", result);
+            Assert.DoesNotContain("status: Pass", result);
+            Assert.DoesNotContain("status: Fail", result);
+            Assert.DoesNotContain("abc1234", result);
+            Assert.DoesNotContain("def5678", result);
+            Assert.Contains(folderName, testWatcher.NotifiedFolders);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    private class TempDirConfigService(string planFolder) : StubConfigService, IConfigService
+    {
+        string IConfigService.PlanFolder => planFolder;
+    }
+
     private class TestPlanWatcherService : IPlanWatcherService
     {
         public List<string> NotifiedFolders { get; } = new();

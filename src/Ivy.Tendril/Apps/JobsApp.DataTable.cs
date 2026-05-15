@@ -195,7 +195,7 @@ public partial class JobsApp
                             }
 
                             var folder = job.TypedArgs.PlanFolder;
-                            if (job.TypedArgs is ExecutePlanArgs or ExpandPlanArgs && folder != null)
+                            if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or ExpandPlanArgs && folder != null)
                             {
                                 planService.TransitionState(Path.GetFileName(folder), PlanStatus.Building);
                             }

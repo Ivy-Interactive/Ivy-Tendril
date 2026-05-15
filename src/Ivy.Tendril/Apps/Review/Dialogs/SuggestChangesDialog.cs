@@ -50,8 +50,9 @@ public class SuggestChangesDialog(
                     {
                         isCreating.Set(true);
 
-                        _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Updating);
-                        _jobService.StartJob(new UpdatePlanArgs(_selectedPlan.FolderPath, suggestText.Value));
+                        _planService.ResetVerificationsForRetry(_selectedPlan.FolderName);
+                        _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Executing);
+                        _jobService.StartJob(new RetryPlanArgs(_selectedPlan.FolderPath, suggestText.Value));
                         _refreshPlans();
                         isCreating.Set(false);
                         suggestText.Set("");

@@ -69,10 +69,10 @@ internal class JobCompletionHandler
         if (job.Status is JobStatus.Failed or JobStatus.Timeout)
             ScheduleWorktreeCleanup(job);
 
-        if (job.TypedArgs is ExecutePlanArgs or CreatePrArgs)
+        if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
             _dependencyChecker.RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck);
 
-        if (isSuccess && job.TypedArgs is ExecutePlanArgs or CreatePrArgs or CreateIssueArgs)
+        if (isSuccess && job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs or CreateIssueArgs)
         {
             var planFolder = job.TypedArgs?.PlanFolder ?? "";
             _dependencyChecker.RetryBlockedDependents(planFolder, jobs, startJobSkipDepCheck);
@@ -136,6 +136,7 @@ internal class JobCompletionHandler
         switch (job.TypedArgs)
         {
             case ExecutePlanArgs:
+            case RetryPlanArgs:
                 _artifactSyncer.SyncPlanArtifacts(job);
                 EnsurePlanStateTransitioned(job);
                 break;
@@ -480,7 +481,7 @@ internal class JobCompletionHandler
             if (job.TypedArgs is CreatePlanArgs or CreatePrArgs or CreateIssueArgs) return;
 
             var planFolder = job.TypedArgs?.PlanFolder ?? "";
-            var newState = job.TypedArgs is ExecutePlanArgs ? "Failed" : "Draft";
+            var newState = job.TypedArgs is ExecutePlanArgs or RetryPlanArgs ? "Failed" : "Draft";
             PlanYamlHelper.SetPlanStateByFolder(planFolder, newState);
         }
         catch (Exception ex)
@@ -539,7 +540,7 @@ internal class JobCompletionHandler
 
     private void ScheduleWorktreeCleanup(JobItem job)
     {
-        if (job.TypedArgs is not ExecutePlanArgs) return;
+        if (job.TypedArgs is not (ExecutePlanArgs or RetryPlanArgs)) return;
 
         var planFolder = job.TypedArgs?.PlanFolder ?? "";
         if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder)) return;
@@ -693,7 +694,7 @@ internal class JobCompletionHandler
 
     private static string BuildPlanOutcomeSummary(JobItem job)
     {
-        if (job.TypedArgs is not ExecutePlanArgs)
+        if (job.TypedArgs is not (ExecutePlanArgs or RetryPlanArgs))
             return "";
 
         var planFolder = job.TypedArgs?.PlanFolder ?? "";

@@ -875,6 +875,7 @@ public class PlanDatabaseService : IPlanDatabaseService
                 GetLegacyArg(args, "-Description") ?? string.Join(" ", args),
                 GetLegacyArg(args, "-Project") ?? "Auto"),
             Constants.JobTypes.ExecutePlan => new ExecutePlanArgs(args[0]),
+            Constants.JobTypes.RetryPlan => new RetryPlanArgs(args[0], ""),
             Constants.JobTypes.ExpandPlan => new ExpandPlanArgs(args[0]),
             Constants.JobTypes.UpdatePlan => new UpdatePlanArgs(args[0]),
             Constants.JobTypes.SplitPlan => new SplitPlanArgs(args[0]),

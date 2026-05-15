@@ -82,7 +82,7 @@ internal class JobLauncher
         var planFolderForHooks = job.TypedArgs is not CreatePlanArgs ? (job.TypedArgs?.PlanFolder ?? "") : "";
         ctx.RunHooks("before", type, planFolderForHooks, job.Project, job);
 
-        if (job.TypedArgs is ExecutePlanArgs && !string.IsNullOrEmpty(job.TypedArgs?.PlanFolder))
+        if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs && !string.IsNullOrEmpty(job.TypedArgs?.PlanFolder))
             PlanYamlHelper.SetPlanStateByFolder(job.TypedArgs!.PlanFolder!, "Executing");
 
         job.SessionId = Guid.NewGuid().ToString();
@@ -360,6 +360,9 @@ internal class JobLauncher
         if (job.TypedArgs is UpdatePlanArgs { Instructions: not null } updateArgs)
             values["UpdateInstructions"] = updateArgs.Instructions;
 
+        if (job.TypedArgs is RetryPlanArgs retryArgs)
+            values["ChangeRequest"] = retryArgs.ChangeRequest;
+
         var profileOverride = ExtractExecutionProfile(job, planYaml);
         AddRepoConfigsIfNeeded(job, planYaml, values);
         AddCreatePrOptions(job, values);
@@ -370,14 +373,14 @@ internal class JobLauncher
 
     private static string? ExtractExecutionProfile(JobItem job, PlanYaml planYaml)
     {
-        if (job.TypedArgs is ExecutePlanArgs && !string.IsNullOrEmpty(planYaml.ExecutionProfile))
+        if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs && !string.IsNullOrEmpty(planYaml.ExecutionProfile))
             return planYaml.ExecutionProfile;
         return null;
     }
 
     private void AddRepoConfigsIfNeeded(JobItem job, PlanYaml planYaml, Dictionary<string, string> values)
     {
-        if (job.TypedArgs is not (ExecutePlanArgs or CreatePrArgs))
+        if (job.TypedArgs is not (ExecutePlanArgs or RetryPlanArgs or CreatePrArgs))
             return;
 
         var repoConfigs = BuildRepoConfigsYaml(planYaml, job.Project);

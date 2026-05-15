@@ -25,6 +25,7 @@ public class AgentProviderFactory
         new(StringComparer.OrdinalIgnoreCase)
         {
             ["ExecutePlan"] = ["Write", "Edit"],
+            ["RetryPlan"] = ["Write", "Edit"],
         };
 
     public static IAgentProvider GetProvider(string name)

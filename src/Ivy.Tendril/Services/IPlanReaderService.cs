@@ -15,6 +15,7 @@ public interface IPlanReaderService
     List<PlanFile> GetIceboxPlans();
     void TransitionState(string folderName, PlanStatus newState);
     void ResetToDraft(string folderName);
+    void ResetVerificationsForRetry(string folderName);
     void SaveRevision(string folderName, string content);
     string ReadLatestRevision(string folderName);
     List<(int Number, string Content, DateTime Modified)> GetRevisions(string folderName);

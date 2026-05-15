@@ -204,7 +204,7 @@ public class JobService : IJobService
         JobCompletionHandler.CleanupInboxFile(job);
         _completionHandler.ResetPlanState(job);
 
-        if (job.TypedArgs is ExecutePlanArgs or CreatePrArgs)
+        if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
             _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);
 
         RaiseJobsStructureChanged();
@@ -385,7 +385,7 @@ public class JobService : IJobService
         if (TryBlockForDependencies(job, skipDependencyCheck))
             return id;
 
-        if (job.TypedArgs is ExecutePlanArgs or ExpandPlanArgs or UpdatePlanArgs or SplitPlanArgs)
+        if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or ExpandPlanArgs or UpdatePlanArgs or SplitPlanArgs)
             _planReaderService?.FlushPendingWritesAsync().GetAwaiter().GetResult();
 
         if (!_jobSlotSemaphore.Wait(0))
@@ -467,7 +467,7 @@ public class JobService : IJobService
 
     private bool TryRejectConflictingJob(JobItem job)
     {
-        if (job.TypedArgs is not (ExecutePlanArgs or UpdatePlanArgs or ExpandPlanArgs or SplitPlanArgs))
+        if (job.TypedArgs is not (ExecutePlanArgs or RetryPlanArgs or UpdatePlanArgs or ExpandPlanArgs or SplitPlanArgs))
             return false;
 
         var planFolder = job.TypedArgs?.PlanFolder ?? "";
@@ -495,7 +495,7 @@ public class JobService : IJobService
 
     private bool TryBlockForDependencies(JobItem job, bool skipDependencyCheck)
     {
-        if (job.TypedArgs is not ExecutePlanArgs || skipDependencyCheck)
+        if (job.TypedArgs is not (ExecutePlanArgs or RetryPlanArgs) || skipDependencyCheck)
             return false;
 
         var planFolder = job.TypedArgs?.PlanFolder ?? "";

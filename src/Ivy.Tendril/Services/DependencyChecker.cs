@@ -92,7 +92,7 @@ internal class DependencyChecker
         Func<JobArgsBase, string> startJobSkipDepCheck)
     {
         var blockedJobs = jobs.Values
-            .Where(j => j.Status == JobStatus.Blocked && j.TypedArgs is ExecutePlanArgs)
+            .Where(j => j.Status == JobStatus.Blocked && j.TypedArgs is ExecutePlanArgs or RetryPlanArgs)
             .ToList();
 
         foreach (var blockedJob in blockedJobs)
@@ -156,7 +156,7 @@ internal class DependencyChecker
         if (!planYaml.DependsOn.Contains(completedFolderName, StringComparer.OrdinalIgnoreCase)) return false;
 
         return !jobs.Values.Any(j =>
-            j.TypedArgs is ExecutePlanArgs &&
+            j.TypedArgs is ExecutePlanArgs or RetryPlanArgs &&
             j.Status is JobStatus.Blocked or JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
             j.TypedArgs?.PlanFolder != null &&
             j.TypedArgs.PlanFolder.Equals(dir, StringComparison.OrdinalIgnoreCase));
@@ -168,7 +168,7 @@ internal class DependencyChecker
 
         return jobs.Values.Any(j =>
         {
-            if (j.TypedArgs is not ExecutePlanArgs) return false;
+            if (j.TypedArgs is not (ExecutePlanArgs or RetryPlanArgs)) return false;
             if (j.Status is not (JobStatus.Running or JobStatus.Queued or JobStatus.Pending)) return false;
 
             var otherFolder = j.TypedArgs?.PlanFolder;
