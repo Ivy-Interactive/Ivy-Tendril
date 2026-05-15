@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using Ivy.Core.Hooks;
+using Ivy.Tendril.Apps.Onboarding;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Views;
+using Ivy.Widgets.AgentOutputView;
 
 namespace Ivy.Tendril.Apps.Setup.Dialogs;
 
@@ -29,6 +31,13 @@ public class EditProjectDialog(
         var editContext = UseState("");
         var editRepos = UseState(new List<RepoRef>());
         var editVerifications = UseState(new List<ProjectVerificationRef>());
+
+        var runner = UseService<IPromptwareRunner>();
+        var generateStream = UseStream<string>();
+        var showGenerateDialog = UseState(false);
+        var generateHandle = UseState<PromptwareRunHandle?>(null);
+        var isGenerating = UseState(false);
+        var generateCancelled = UseState(false);
 
         UseEffect(() =>
         {
@@ -122,7 +131,7 @@ public class EditProjectDialog(
                                        : new Spacer());
         }
 
-        return new Dialog(
+        var mainDialog = new Dialog(
             _ => _editIndex.Set(-1),
             new DialogHeader(isNew ? "Add Project" : $"Edit Project: {editName.Value}"),
             new DialogBody(
@@ -136,7 +145,96 @@ public class EditProjectDialog(
                    | new ProjectRepoPickerView(editRepos, onAdd: cloneRemoteOnAdd, showPrRule: true))
                 | (Layout.Vertical().Gap(2)
                    | Text.Block("Verifications").Bold()
-                   | verificationsLayout)
+                   | verificationsLayout
+                   | new Button("Generate Verifications").Secondary().Icon(Icons.Sparkles)
+                       .Disabled(isGenerating.Value || string.IsNullOrWhiteSpace(editName.Value))
+                       .OnClick(() =>
+                       {
+                           generateCancelled.Set(false);
+                           showGenerateDialog.Set(true);
+                           isGenerating.Set(true);
+
+                           // Save current project state to config so UpdateProject can find it
+                           var project = isNew ? new ProjectConfig() : _projects[_editIndex.Value!.Value];
+                           project.Name = editName.Value;
+                           project.Color = editColor.Value?.ToString() ?? "";
+                           project.Context = editContext.Value;
+                           project.Repos = new List<RepoRef>(editRepos.Value);
+                           project.Verifications = new List<ProjectVerificationRef>(editVerifications.Value);
+                           if (isNew) _projects.Add(project);
+                           try
+                           {
+                               _config.SaveSettings();
+                           }
+                           catch
+                           {
+                               if (isNew) _projects.Remove(project);
+                               isGenerating.Set(false);
+                               showGenerateDialog.Set(false);
+                               _client.Toast("Failed to save project before generating verifications", "Error");
+                               return;
+                           }
+
+                           var notifyingStream = new NotifyingStream<string>(generateStream, () => { });
+
+                           var handle = runner.Run(new PromptwareRunOptions
+                           {
+                               Promptware = "UpdateProject",
+                               Values = new()
+                               {
+                                   ["ProjectName"] = editName.Value,
+                                   ["Instructions"] = "Setup verifications"
+                               }
+                           }, notifyingStream);
+
+                           generateHandle.Set(handle);
+
+                           // Run detached so the click returns immediately and the dialog
+                           // stays responsive — cancelling the handle resolves Completion.
+                           _ = Task.Run(async () =>
+                           {
+                               try
+                               {
+                                   await handle.Completion;
+                               }
+                               catch (OperationCanceledException) { }
+                               catch (Exception ex)
+                               {
+                                   if (!generateCancelled.Value)
+                                       _client.Toast($"Verification generation failed: {ex.Message}", "Error");
+                               }
+                               finally
+                               {
+                                   if (!generateCancelled.Value)
+                                   {
+                                       _config.ReloadSettings();
+
+                                       var updatedProject = _config.Settings.Projects
+                                           .FirstOrDefault(p => p.Name == editName.Value);
+                                       if (updatedProject != null)
+                                       {
+                                           var merged = new List<ProjectVerificationRef>(editVerifications.Value);
+                                           foreach (var v in updatedProject.Verifications)
+                                           {
+                                               if (!merged.Any(m => m.Name == v.Name))
+                                                   merged.Add(new ProjectVerificationRef { Name = v.Name, Required = true });
+                                           }
+                                           editVerifications.Set(merged);
+
+                                           // Add any new verification names to the rendered list
+                                           foreach (var vc in _config.Settings.Verifications)
+                                           {
+                                               if (!_allVerifications.Contains(vc.Name))
+                                                   _allVerifications.Add(vc.Name);
+                                           }
+                                       }
+                                   }
+
+                                   generateHandle.Set(null);
+                                   isGenerating.Set(false);
+                               }
+                           });
+                       }))
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() => _editIndex.Set(-1)),
@@ -180,6 +278,41 @@ public class EditProjectDialog(
                 })
             )
         ).Width(Size.Rem(40));
+
+        void CancelGenerate()
+        {
+            if (isGenerating.Value)
+            {
+                generateCancelled.Set(true);
+                generateHandle.Value?.Cancel();
+                generateHandle.Set(null);
+                isGenerating.Set(false);
+            }
+            showGenerateDialog.Set(false);
+        }
+
+        object? generateDialog = showGenerateDialog.Value
+            ? new Dialog(
+                _ => CancelGenerate(),
+                new DialogHeader("Generating Verifications..."),
+                new DialogBody(
+                    new AgentOutputView()
+                        .Provider("claude")
+                        .Stream(generateStream)
+                        .AutoScroll(true)
+                        .ShowStatusLabel(true)
+                        .Width(Size.Full())
+                        .Height(Size.Rem(30))
+                ),
+                new DialogFooter(
+                    isGenerating.Value
+                        ? new Button("Cancel").Outline().OnClick(CancelGenerate)
+                        : new Button("Done").Primary().OnClick(() => showGenerateDialog.Set(false))
+                )
+            ).Width(Size.Rem(40))
+            : null;
+
+        return new Fragment(mainDialog, generateDialog!);
     }
 
     private static async Task<bool> CloneRepositoryAsync(string url, string destinationPath)
