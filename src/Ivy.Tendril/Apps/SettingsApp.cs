@@ -16,7 +16,6 @@ public class SettingsApp : ViewBase
     private const string TagPromptwares = "promptwares";
     private const string TagProjects = "projects";
     private const string TagAdvanced = "advanced";
-    private const string TagTheme = "theme";
     private const string TagOpenConfig = "open-config";
     private const string TagAccount = "account";
 
@@ -48,7 +47,6 @@ public class SettingsApp : ViewBase
                 .Icon(Icons.Wrench)
                 .Expanded()
                 .Children(
-                    MenuItem.Default("Theme", TagTheme).Icon(Icons.SunMoon),
                     MenuItem.Default("Open config.yaml", TagOpenConfig).Icon(Icons.FileText)
                 ),
             MenuItem.Default("Account")
@@ -84,7 +82,6 @@ public class SettingsApp : ViewBase
             TagPromptwares => new PromptwaresSetupView(),
             TagProjects => new ProjectsSetupView(),
             TagAdvanced => new AdvancedSetupView(),
-            TagTheme => new ThemeSettingsView(),
             TagAccount => new AccountSetupView(),
             _ => new GeneralSetupView()
         };

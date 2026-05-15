@@ -39,7 +39,16 @@ public class GeneralSetupView : ViewBase
                            config.Settings.PlanTemplate = planTemplate.Value;
                            config.SaveSettings();
                            client.Toast("Settings saved and applied", "Saved");
-                       });
+                       })
+                   | Text.Block("Theme").Bold()
+                   | Text.Block("Choose how Tendril appears. System matches your OS setting.").Muted().Small()
+                   | (Layout.Horizontal().Gap(2)
+                      | new Button("Light").Variant(ButtonVariant.Outline).Icon(Icons.Sun)
+                          .OnClick(() => client.SetThemeMode(ThemeMode.Light))
+                      | new Button("Dark").Variant(ButtonVariant.Outline).Icon(Icons.Moon)
+                          .OnClick(() => client.SetThemeMode(ThemeMode.Dark))
+                      | new Button("System").Variant(ButtonVariant.Outline).Icon(Icons.SunMoon)
+                          .OnClick(() => client.SetThemeMode(ThemeMode.System)));
 
         return form;
     }
