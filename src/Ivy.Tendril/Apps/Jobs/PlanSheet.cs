@@ -17,6 +17,7 @@ public class PlanSheet(
         object sheetContent = string.IsNullOrEmpty(content)
             ? Text.P("Plan not found or empty.")
             : new Markdown(MarkdownHelper.AnnotateAllBrokenLinks(content, planService.PlansDirectory))
+                .Article()
                 .DangerouslyAllowLocalFiles()
                 .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile));
 
