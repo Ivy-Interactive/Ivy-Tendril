@@ -17,6 +17,7 @@ public class SettingsApp : ViewBase
     private const string TagProjects = "projects";
     private const string TagAdvanced = "advanced";
     private const string TagOpenConfig = "open-config";
+    private const string TagApplyConfig = "apply-config";
     private const string TagAccount = "account";
 
     public override object Build()
@@ -48,7 +49,8 @@ public class SettingsApp : ViewBase
                 .Icon(Icons.Wrench)
                 .Expanded()
                 .Children(
-                    MenuItem.Default("Open config.yaml", TagOpenConfig).Icon(Icons.FileText)
+                    MenuItem.Default("Open config.yaml", TagOpenConfig).Icon(Icons.FileText),
+                    MenuItem.Default("Apply config.yaml", TagApplyConfig).Icon(Icons.RefreshCw)
                 ),
             MenuItem.Default("Account")
                 .Icon(Icons.User)
@@ -65,6 +67,17 @@ public class SettingsApp : ViewBase
             {
                 case TagOpenConfig:
                     ConfigYamlUiHelper.OpenOrNavigate(config, navigator, client, isDesktop, capturedHost);
+                    break;
+                case TagApplyConfig:
+                    try
+                    {
+                        config.ReloadSettings();
+                        client.Toast("config.yaml has been applied successfully.", "Config reloaded");
+                    }
+                    catch (Exception ex)
+                    {
+                        client.Toast(ex.Message, "Reload failed", variant: ToastVariant.Destructive);
+                    }
                     break;
                 default:
                     selected.Set(tag);
