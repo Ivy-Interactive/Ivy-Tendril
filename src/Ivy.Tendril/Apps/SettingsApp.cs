@@ -18,6 +18,7 @@ public class SettingsApp : ViewBase
     private const string TagAdvanced = "advanced";
     private const string TagTheme = "theme";
     private const string TagOpenConfig = "open-config";
+    private const string TagAccount = "account";
 
     public override object Build()
     {
@@ -49,6 +50,12 @@ public class SettingsApp : ViewBase
                 .Children(
                     MenuItem.Default("Theme", TagTheme).Icon(Icons.SunMoon),
                     MenuItem.Default("Open config.yaml", TagOpenConfig).Icon(Icons.FileText)
+                ),
+            MenuItem.Default("Account")
+                .Icon(Icons.User)
+                .Expanded()
+                .Children(
+                    MenuItem.Default("Profile", TagAccount).Icon(Icons.CircleUser)
                 )
         };
 
@@ -78,6 +85,7 @@ public class SettingsApp : ViewBase
             TagProjects => new ProjectsSetupView(),
             TagAdvanced => new AdvancedSetupView(),
             TagTheme => new ThemeSettingsView(),
+            TagAccount => new AccountSetupView(),
             _ => new GeneralSetupView()
         };
 
