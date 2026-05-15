@@ -37,6 +37,7 @@ public class EditProjectDialog(
         var showGenerateDialog = UseState(false);
         var generateHandle = UseState<PromptwareRunHandle?>(null);
         var isGenerating = UseState(false);
+        var generateCancelled = UseState(false);
 
         UseEffect(() =>
         {
@@ -147,8 +148,9 @@ public class EditProjectDialog(
                    | verificationsLayout
                    | new Button("Generate Verifications").Secondary().Icon(Icons.Sparkles)
                        .Disabled(isGenerating.Value || string.IsNullOrWhiteSpace(editName.Value))
-                       .OnClick(async () =>
+                       .OnClick(() =>
                        {
+                           generateCancelled.Set(false);
                            showGenerateDialog.Set(true);
                            isGenerating.Set(true);
 
@@ -168,6 +170,7 @@ public class EditProjectDialog(
                            {
                                if (isNew) _projects.Remove(project);
                                isGenerating.Set(false);
+                               showGenerateDialog.Set(false);
                                _client.Toast("Failed to save project before generating verifications", "Error");
                                return;
                            }
@@ -186,42 +189,51 @@ public class EditProjectDialog(
 
                            generateHandle.Set(handle);
 
-                           try
+                           // Run detached so the click returns immediately and the dialog
+                           // stays responsive — cancelling the handle resolves Completion.
+                           _ = Task.Run(async () =>
                            {
-                               await handle.Completion;
-                           }
-                           catch (OperationCanceledException) { }
-                           catch (Exception ex)
-                           {
-                               _client.Toast($"Verification generation failed: {ex.Message}", "Error");
-                           }
-                           finally
-                           {
-                               _config.ReloadSettings();
-
-                               var updatedProject = _config.Settings.Projects
-                                   .FirstOrDefault(p => p.Name == editName.Value);
-                               if (updatedProject != null)
+                               try
                                {
-                                   var merged = new List<ProjectVerificationRef>(editVerifications.Value);
-                                   foreach (var v in updatedProject.Verifications)
-                                   {
-                                       if (!merged.Any(m => m.Name == v.Name))
-                                           merged.Add(new ProjectVerificationRef { Name = v.Name, Required = true });
-                                   }
-                                   editVerifications.Set(merged);
-
-                                   // Add any new verification names to the rendered list
-                                   foreach (var vc in _config.Settings.Verifications)
-                                   {
-                                       if (!_allVerifications.Contains(vc.Name))
-                                           _allVerifications.Add(vc.Name);
-                                   }
+                                   await handle.Completion;
                                }
+                               catch (OperationCanceledException) { }
+                               catch (Exception ex)
+                               {
+                                   if (!generateCancelled.Value)
+                                       _client.Toast($"Verification generation failed: {ex.Message}", "Error");
+                               }
+                               finally
+                               {
+                                   if (!generateCancelled.Value)
+                                   {
+                                       _config.ReloadSettings();
 
-                               generateHandle.Set(null);
-                               isGenerating.Set(false);
-                           }
+                                       var updatedProject = _config.Settings.Projects
+                                           .FirstOrDefault(p => p.Name == editName.Value);
+                                       if (updatedProject != null)
+                                       {
+                                           var merged = new List<ProjectVerificationRef>(editVerifications.Value);
+                                           foreach (var v in updatedProject.Verifications)
+                                           {
+                                               if (!merged.Any(m => m.Name == v.Name))
+                                                   merged.Add(new ProjectVerificationRef { Name = v.Name, Required = true });
+                                           }
+                                           editVerifications.Set(merged);
+
+                                           // Add any new verification names to the rendered list
+                                           foreach (var vc in _config.Settings.Verifications)
+                                           {
+                                               if (!_allVerifications.Contains(vc.Name))
+                                                   _allVerifications.Add(vc.Name);
+                                           }
+                                       }
+                                   }
+
+                                   generateHandle.Set(null);
+                                   isGenerating.Set(false);
+                               }
+                           });
                        }))
             ),
             new DialogFooter(
@@ -267,14 +279,21 @@ public class EditProjectDialog(
             )
         ).Width(Size.Rem(40));
 
+        void CancelGenerate()
+        {
+            if (isGenerating.Value)
+            {
+                generateCancelled.Set(true);
+                generateHandle.Value?.Cancel();
+                generateHandle.Set(null);
+                isGenerating.Set(false);
+            }
+            showGenerateDialog.Set(false);
+        }
+
         object? generateDialog = showGenerateDialog.Value
             ? new Dialog(
-                _ =>
-                {
-                    if (isGenerating.Value)
-                        generateHandle.Value?.Cancel();
-                    showGenerateDialog.Set(false);
-                },
+                _ => CancelGenerate(),
                 new DialogHeader("Generating Verifications..."),
                 new DialogBody(
                     new AgentOutputView()
@@ -287,10 +306,7 @@ public class EditProjectDialog(
                 ),
                 new DialogFooter(
                     isGenerating.Value
-                        ? new Button("Cancel").Outline().OnClick(() =>
-                        {
-                            generateHandle.Value?.Cancel();
-                        })
+                        ? new Button("Cancel").Outline().OnClick(CancelGenerate)
                         : new Button("Done").Primary().OnClick(() => showGenerateDialog.Set(false))
                 )
             ).Width(Size.Rem(40))
