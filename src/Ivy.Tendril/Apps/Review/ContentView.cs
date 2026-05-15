@@ -1,3 +1,4 @@
+using System.Reactive.Disposables;
 using Ivy.Core;
 using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Models;
@@ -107,7 +108,7 @@ public class ContentView(
         );
 
         var planContentQuery = UseQuery<PlanContentData, string>(
-            selectedPlanState.Value?.FolderPath ?? "",
+            selectedPlanState.Value?.FolderPath,
             async (folderPath, ct) =>
             {
                 return await Task.Run(() =>
@@ -180,6 +181,23 @@ public class ContentView(
                 new Dictionary<string, List<string>>(), new List<PlanContentHelpers.CommitRow>(), new Dictionary<string, bool>(),
                 new List<(string Name, bool ConditionMet)>(), null)
         );
+
+        var planWatcher = UseService<IPlanWatcherService>();
+        var localRefresh = UseRefreshToken();
+
+        UseEffect(() =>
+        {
+            void OnChanged(string? _) => localRefresh.Refresh();
+            planWatcher.PlansChanged += OnChanged;
+            return Disposable.Create(() => planWatcher.PlansChanged -= OnChanged);
+        });
+
+        UseEffect(() =>
+        {
+            if (localRefresh.IsRefreshed)
+                planContentQuery.Mutator.Revalidate();
+            return Disposable.Empty;
+        }, [localRefresh]);
 
         var tabNames = new[] { "summary", "plan", "details", "verifications", "git", "changes", "artifacts", "recommendations" };
         var selectedTabIndex = Array.IndexOf(tabNames, args?.Tab ?? "summary");
@@ -365,7 +383,7 @@ public class ContentView(
                     }
                 }));
 
-        if (planContentQuery.Loading)
+        if (planContentQuery.Loading && planData is null)
         {
             content |= Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
                        | Text.Muted("Loading...");

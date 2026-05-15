@@ -96,15 +96,17 @@ public class GitService : IGitService
                 return GitResult<string>.Failure(GitError.GitNotFound, "Failed to start git process");
             }
 
-            var output = process.StandardOutput.ReadToEnd();
+            var outputTask = process.StandardOutput.ReadToEndAsync();
             var timedOut = !process.WaitForExit(_timeoutMs);
 
             if (timedOut)
             {
-                process.Kill();
+                try { process.Kill(); } catch { }
                 _logger.LogWarning("Git command timed out after {Timeout}ms", _timeoutMs);
                 return GitResult<string>.Failure(GitError.Timeout, $"Git command timed out after {_timeoutMs}ms");
             }
+
+            var output = outputTask.GetAwaiter().GetResult();
 
             if (process.ExitCode != 0)
             {
@@ -151,15 +153,17 @@ public class GitService : IGitService
                 return GitResult<int>.Failure(GitError.GitNotFound, "Failed to start git process");
             }
 
-            var output = process.StandardOutput.ReadToEnd();
+            var outputTask = process.StandardOutput.ReadToEndAsync();
             var timedOut = !process.WaitForExit(_timeoutMs);
 
             if (timedOut)
             {
-                process.Kill();
+                try { process.Kill(); } catch { }
                 _logger.LogWarning("Git command timed out after {Timeout}ms", _timeoutMs);
                 return GitResult<int>.Failure(GitError.Timeout, $"Git command timed out after {_timeoutMs}ms");
             }
+
+            var output = outputTask.GetAwaiter().GetResult();
 
             if (process.ExitCode != 0)
             {
@@ -207,15 +211,17 @@ public class GitService : IGitService
                 return GitResult<List<(string Status, string FilePath)>>.Failure(GitError.GitNotFound, "Failed to start git process");
             }
 
-            var output = process.StandardOutput.ReadToEnd();
+            var outputTask = process.StandardOutput.ReadToEndAsync();
             var timedOut = !process.WaitForExit(_timeoutMs);
 
             if (timedOut)
             {
-                process.Kill();
+                try { process.Kill(); } catch { }
                 _logger.LogWarning("Git command timed out after {Timeout}ms", _timeoutMs);
                 return GitResult<List<(string Status, string FilePath)>>.Failure(GitError.Timeout, $"Git command timed out after {_timeoutMs}ms");
             }
+
+            var output = outputTask.GetAwaiter().GetResult();
 
             if (process.ExitCode != 0)
             {
@@ -270,15 +276,17 @@ public class GitService : IGitService
                 return GitResult<string>.Failure(GitError.GitNotFound, "Failed to start git process");
             }
 
-            var output = process.StandardOutput.ReadToEnd();
+            var outputTask = process.StandardOutput.ReadToEndAsync();
             var timedOut = !process.WaitForExit(_timeoutMs);
 
             if (timedOut)
             {
-                process.Kill();
+                try { process.Kill(); } catch { }
                 _logger.LogWarning("Git command timed out after {Timeout}ms", _timeoutMs);
                 return GitResult<string>.Failure(GitError.Timeout, $"Git command timed out after {_timeoutMs}ms");
             }
+
+            var output = outputTask.GetAwaiter().GetResult();
 
             if (process.ExitCode != 0)
             {
@@ -325,15 +333,17 @@ public class GitService : IGitService
                 return GitResult<List<(string Status, string FilePath)>>.Failure(GitError.GitNotFound, "Failed to start git process");
             }
 
-            var output = process.StandardOutput.ReadToEnd();
+            var outputTask = process.StandardOutput.ReadToEndAsync();
             var timedOut = !process.WaitForExit(_timeoutMs);
 
             if (timedOut)
             {
-                process.Kill();
+                try { process.Kill(); } catch { }
                 _logger.LogWarning("Git command timed out after {Timeout}ms", _timeoutMs);
                 return GitResult<List<(string Status, string FilePath)>>.Failure(GitError.Timeout, $"Git command timed out after {_timeoutMs}ms");
             }
+
+            var output = outputTask.GetAwaiter().GetResult();
 
             if (process.ExitCode != 0)
             {
@@ -400,15 +410,17 @@ public class GitService : IGitService
                 process.StandardInput.WriteLine(hash);
             process.StandardInput.Close();
 
-            var output = process.StandardOutput.ReadToEnd();
+            var outputTask = process.StandardOutput.ReadToEndAsync();
             var timedOut = !process.WaitForExit(_timeoutMs);
 
             if (timedOut)
             {
-                process.Kill();
+                try { process.Kill(); } catch { }
                 _logger.LogWarning("Git command timed out after {Timeout}ms", _timeoutMs);
                 return GitResult<Dictionary<string, (string Title, int FileCount)>>.Failure(GitError.Timeout, $"Git command timed out after {_timeoutMs}ms");
             }
+
+            var output = outputTask.GetAwaiter().GetResult();
 
             if (process.ExitCode != 0)
             {
@@ -505,15 +517,17 @@ public class GitService : IGitService
                 return GitResult<List<WorktreeInfo>>.Failure(GitError.GitNotFound, "Failed to start git process");
             }
 
-            var output = process.StandardOutput.ReadToEnd();
+            var outputTask = process.StandardOutput.ReadToEndAsync();
             var timedOut = !process.WaitForExit(_timeoutMs);
 
             if (timedOut)
             {
-                process.Kill();
+                try { process.Kill(); } catch { }
                 _logger.LogWarning("Git command timed out after {Timeout}ms", _timeoutMs);
                 return GitResult<List<WorktreeInfo>>.Failure(GitError.Timeout, $"Git command timed out after {_timeoutMs}ms");
             }
+
+            var output = outputTask.GetAwaiter().GetResult();
 
             if (process.ExitCode != 0)
             {
