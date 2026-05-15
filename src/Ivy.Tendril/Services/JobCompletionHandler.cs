@@ -350,18 +350,15 @@ internal class JobCompletionHandler
             var planYaml = PlanYamlHelper.ReadPlanYaml(planFolder);
             if (planYaml == null) return;
 
-            if (planYaml.State is "Executing" or "Building" or "Draft")
-            {
-                var hasIncomplete = planYaml.Verifications?
-                    .Any(v => v.Status is "Pending" or "Fail") ?? false;
-                var targetState = hasIncomplete ? PlanStatus.Failed : PlanStatus.ReadyForReview;
+            var hasIncomplete = planYaml.Verifications?
+                .Any(v => v.Status is "Pending" or "Fail") ?? false;
+            var targetState = hasIncomplete ? PlanStatus.Failed : PlanStatus.ReadyForReview;
 
-                var folderName = Path.GetFileName(planFolder);
-                if (_planReaderService != null)
-                    _planReaderService.TransitionState(folderName, targetState);
-                else
-                    PlanYamlHelper.SetPlanStateByFolder(planFolder, targetState.ToString());
-            }
+            var folderName = Path.GetFileName(planFolder);
+            if (_planReaderService != null)
+                _planReaderService.TransitionState(folderName, targetState);
+            else
+                PlanYamlHelper.SetPlanStateByFolder(planFolder, targetState.ToString());
         }
         catch (Exception ex)
         {

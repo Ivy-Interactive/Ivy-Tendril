@@ -36,8 +36,25 @@ public class PlansApp : ViewBase
 
         var previousPlans = UseRef(new List<PlanFile>());
 
+        var activeJobs = jobService.GetJobs()
+            .Where(j => j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked)
+            .ToList();
+
+        var activePlanFolders = activeJobs
+            .Select(j => j.TypedArgs?.PlanFolder)
+            .Where(f => f != null)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var activeCreatePlanIds = activeJobs
+            .Where(j => j.TypedArgs is CreatePlanArgs)
+            .Select(j => j.ReportedPlanId ?? j.AllocatedPlanId)
+            .Where(id => id != null)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         var plans = planService.GetPlans()
             .Where(p => p.Status is PlanStatus.Draft or PlanStatus.Blocked)
+            .Where(p => !activePlanFolders.Contains(p.FolderPath) &&
+                        !activeCreatePlanIds.Any(id => p.FolderName.StartsWith(id + "-", StringComparison.OrdinalIgnoreCase)))
             .ToList();
         var filteredPlans = PlanFilters.ApplyFilters(plans, projectFilter.Value, levelFilter.Value, textFilter.Value)
             .ToList();
