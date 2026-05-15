@@ -78,6 +78,7 @@ public class ProjectRepoPickerView(
             pickerControls = Layout.Horizontal().Gap(2).Width(Size.Full())
                              | inputValue.ToTextInput("Repository URL or local path")
                                  .Width(Size.Grow())
+                                 .OnSubmit(() => { _ = AddAsync(); })
                              | new Button("Browse").Icon(Icons.FolderOpen).Outline()
                                  .OnClick(() =>
                                  {
@@ -90,7 +91,8 @@ public class ProjectRepoPickerView(
         {
             pickerControls = Layout.Horizontal().Gap(2).Width(Size.Full())
                              | inputValue.ToTextInput("Repository URL or local path")
-                                 .Width(Size.Grow());
+                                 .Width(Size.Grow())
+                                 .OnSubmit(() => { _ = AddAsync(); });
         }
 
         var addButton = new Button(isAdding.Value ? "Adding..." : "Add").Icon(Icons.Plus)
