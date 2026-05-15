@@ -66,7 +66,6 @@ public partial class JobsApp : ViewBase
         });
 #endif
 
-        UseEffect(() => NotificationHookDisposable(jobService, client));
         UseEffect(() => JobChangeHookDisposable(jobService, refreshToken));
         UseInterval(() => AutoRefreshCheck(jobService, refreshToken), TimeSpan.FromSeconds(5));
 

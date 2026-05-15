@@ -6,20 +6,6 @@ namespace Ivy.Tendril.Apps;
 
 public partial class JobsApp
 {
-    private static IDisposable NotificationHookDisposable(IJobService jobService, IClientProvider client)
-    {
-        void OnNotification(JobNotification notification)
-        {
-            if (notification.IsSuccess)
-                client.Toast(notification.Message, notification.Title);
-            else
-                client.Toast(notification.Message, notification.Title).Destructive();
-        }
-
-        jobService.NotificationReady += OnNotification;
-        return Disposable.Create(() => jobService.NotificationReady -= OnNotification);
-    }
-
     private static IDisposable JobChangeHookDisposable(IJobService jobService, RefreshToken refreshToken)
     {
         void OnJobsChanged()

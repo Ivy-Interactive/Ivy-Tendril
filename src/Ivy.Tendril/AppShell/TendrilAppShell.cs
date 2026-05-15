@@ -7,6 +7,7 @@ using Ivy.Tendril.AppShell.Dialogs;
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Views;
 using Ivy.Widgets.Internal;
 using Microsoft.Extensions.Logging;
@@ -131,6 +132,22 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
         UseEffect(() => { menuItems.Set(BuildMenuItems(appRepository, counts.Value)); },
             appRepository.Reloaded.ToTrigger(), counts);
+
+        var jobService = UseService<IJobService>();
+
+        UseEffect(() =>
+        {
+            void OnNotification(JobNotification notification)
+            {
+                if (notification.IsSuccess)
+                    client.Toast(notification.Message, notification.Title);
+                else
+                    client.Toast(notification.Message, notification.Title).Destructive();
+            }
+
+            jobService.NotificationReady += OnNotification;
+            return Disposable.Create(() => jobService.NotificationReady -= OnNotification);
+        });
 
         UseEffect(async () =>
         {
