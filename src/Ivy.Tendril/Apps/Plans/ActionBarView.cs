@@ -123,7 +123,7 @@ public class ActionBarView(
                                client.Toast(
                                    $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
                                    "Editor Not Available",
-                                   variant: "destructive");
+                                   variant: ToastVariant.Destructive);
                            }
                        }),
                    new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
@@ -157,7 +157,7 @@ public class ActionBarView(
                            client.Toast(
                                $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
                                "Editor Not Available",
-                               variant: "destructive");
+                               variant: ToastVariant.Destructive);
                        }
                    })
                );

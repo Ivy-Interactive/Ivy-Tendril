@@ -23,7 +23,7 @@ public class SettingsApp : ViewBase
     {
         var config = UseService<IConfigService>();
         var navigator = UseNavigation();
-        var client = UseClient();
+        var client = UseService<IClientProvider>();
         var httpContextAccessor = UseService<IHttpContextAccessor>();
         var selected = UseState(TagGeneral);
         Context.TryUseService<DesktopWindow>(out var desktopWindow);

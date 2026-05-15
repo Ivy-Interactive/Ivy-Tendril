@@ -1,5 +1,4 @@
 using Ivy.Core.Apps;
-using Ivy.Core.Client;
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Services;
 using Microsoft.AspNetCore.Http;
@@ -19,7 +18,7 @@ public static class ConfigYamlUiHelper
     public static void OpenOrNavigate(
         IConfigService config,
         INavigator navigator,
-        IClient client,
+        IClientProvider client,
         bool isDesktopShell,
         IHttpContextAccessor? httpContextAccessor = null)
     {
@@ -33,7 +32,7 @@ public static class ConfigYamlUiHelper
     public static void OpenOrNavigate(
         IConfigService config,
         INavigator navigator,
-        IClient client,
+        IClientProvider client,
         bool isDesktopShell,
         string? capturedHost)
     {
@@ -48,7 +47,7 @@ public static class ConfigYamlUiHelper
                 client.Toast(
                     $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
                     "Editor Not Available",
-                    variant: "destructive");
+                    variant: ToastVariant.Destructive);
             }
         }
         else

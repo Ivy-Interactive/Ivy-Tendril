@@ -10,8 +10,7 @@ public class ConfigErrorApp(IConfigService config) : ViewBase
     public override object Build()
     {
         var showDetails = UseState(false);
-        var client = UseClient();
-        var clientProvider = UseService<IClientProvider>();
+        var client = UseService<IClientProvider>();
         var navigator = UseNavigation();
         var httpContextAccessor = UseService<IHttpContextAccessor>();
         Context.TryUseService<DesktopWindow>(out var desktopWindow);
@@ -21,7 +20,7 @@ public class ConfigErrorApp(IConfigService config) : ViewBase
 
         if (parseError == null)
         {
-            clientProvider.Redirect("/", true);
+            client.Redirect("/", true);
             return Text.P("Redirecting...");
         }
 
@@ -50,7 +49,7 @@ public class ConfigErrorApp(IConfigService config) : ViewBase
                        {
                            config.RetryLoadConfig();
                            if (config.ParseError == null)
-                               clientProvider.Redirect("/", true);
+                               client.Redirect("/", true);
                        })
                    | new Button("Reset to Defaults")
                        .Icon(Icons.RotateCcw)
@@ -58,7 +57,7 @@ public class ConfigErrorApp(IConfigService config) : ViewBase
                        .OnClick(() =>
                        {
                            config.ResetToDefaults();
-                           clientProvider.Redirect("/", true);
+                           client.Redirect("/", true);
                        })
                    | new Button(showDetails.Value ? "Hide Details" : "View Details")
                        .Icon(Icons.Info)
