@@ -381,6 +381,8 @@ public class Program
             {
                 project.AddCommand<ProjectListCommand>("list")
                     .WithDescription("List all projects");
+                project.AddCommand<ProjectGetCommand>("get")
+                    .WithDescription("Show details of a project");
                 project.AddCommand<ProjectAddCommand>("add")
                     .WithDescription("Add a project");
                 project.AddCommand<ProjectRemoveCommand>("remove")
