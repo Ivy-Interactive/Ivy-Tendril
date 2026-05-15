@@ -103,4 +103,27 @@ public class ResetToDraftDialogTests
                 Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public void CleanPlanState_DeletesWorktreesDirectory()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"ivy-test-{Guid.NewGuid()}");
+        try
+        {
+            var planDir = Path.Combine(tempDir, "00001-TestPlan");
+            var worktreesDir = Path.Combine(planDir, "worktrees");
+            var repoDir = Path.Combine(worktreesDir, "Ivy-Framework");
+            Directory.CreateDirectory(repoDir);
+            File.WriteAllText(Path.Combine(repoDir, "dummy.txt"), "test");
+
+            ResetToDraftDialog.CleanPlanState(planDir);
+
+            Assert.False(Directory.Exists(worktreesDir));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
 }

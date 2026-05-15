@@ -81,5 +81,12 @@ public class ResetToDraftDialog(
         }
 
         WorktreeCleanupService.RemoveWorktrees(planFolderPath, logger);
+
+        var worktreesDir = Path.Combine(planFolderPath, "worktrees");
+        if (Directory.Exists(worktreesDir))
+        {
+            logger?.LogInformation("Cleaning worktrees directory: {Path}", worktreesDir);
+            WorktreeCleanupService.ForceDeleteDirectory(worktreesDir, logger);
+        }
     }
 }
