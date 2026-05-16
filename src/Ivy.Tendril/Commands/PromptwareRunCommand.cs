@@ -117,7 +117,8 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             && !string.IsNullOrWhiteSpace(specificCfg.CustomInstructions))
             customInstructions = specificCfg.CustomInstructions;
 
-        var logFile = FirmwareCompiler.GetNextLogFile(programFolder);
+        var jobId = JobIdAllocator.AllocateJobId(configService.TendrilHome);
+        var logFile = FirmwareCompiler.GetLogFile(programFolder, jobId);
         var firmwareContext = new FirmwareContext(programFolder, values, customInstructions);
         var prompt = FirmwareCompiler.Compile(firmwareContext);
 
@@ -265,9 +266,9 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
     {
         var values = new Dictionary<string, string>();
 
-        // Free-form args joined into a single Args value
+        // Free-form args joined into TaskDescription header value
         if (settings.Args.Length > 0)
-            values["Args"] = string.Join(" ", settings.Args);
+            values["TaskDescription"] = string.Join(" ", settings.Args);
 
         // --plan resolves plan context
         if (!string.IsNullOrEmpty(settings.Plan))

@@ -23,7 +23,7 @@ public class CreatePlanTests
             agent: agent,
             extraValues: new Dictionary<string, string>
             {
-                ["Args"] = description,
+                ["TaskDescription"] = description,
                 ["TendrilPlansFolder"] = _fixture.PlansDir,
                 ["TendrilProject"] = "E2ETest"
             });
@@ -61,7 +61,7 @@ public class CreatePlanTests
                 agent: agent,
                 extraValues: new Dictionary<string, string>
                 {
-                    ["Args"] = "",
+                    ["TaskDescription"] = "",
                     ["TendrilPlansFolder"] = _fixture.PlansDir,
                     ["TendrilProject"] = "E2ETest"
                 },

@@ -1,3 +1,4 @@
+using System.Reactive.Disposables;
 using Ivy.Core;
 using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Models;
@@ -82,10 +83,12 @@ public class ContentView(
                 assigneesQuery, assigneesError);
         });
 
-        var (rerunDialog, showRerunDialog) = UseTrigger((isOpen) =>
+        var resetToDraftLogger = UseService<ILogger<ResetToDraftDialog>>();
+        var (resetToDraftDialog, showResetToDraftDialog) = UseTrigger((isOpen) =>
         {
             if (!isOpen.Value) return null;
-            return new RerunDialog(isOpen, selectedPlanState.Value!, jobService, planService, refreshPlans);
+            return new ResetToDraftDialog(isOpen, selectedPlanState.Value!, planService, refreshPlans,
+                resetToDraftLogger);
         });
 
         var artifactContentQuery = UseQuery<string, string>(
@@ -105,7 +108,7 @@ public class ContentView(
         );
 
         var planContentQuery = UseQuery<PlanContentData, string>(
-            selectedPlanState.Value?.FolderPath ?? "",
+            selectedPlanState.Value?.FolderPath,
             async (folderPath, ct) =>
             {
                 return await Task.Run(() =>
@@ -179,7 +182,24 @@ public class ContentView(
                 new List<(string Name, bool ConditionMet)>(), null)
         );
 
-        var tabNames = new[] { "summary", "verifications", "git", "changes", "artifacts", "recommendations", "plan" };
+        var planWatcher = UseService<IPlanWatcherService>();
+        var localRefresh = UseRefreshToken();
+
+        UseEffect(() =>
+        {
+            void OnChanged(string? _) => localRefresh.Refresh();
+            planWatcher.PlansChanged += OnChanged;
+            return Disposable.Create(() => planWatcher.PlansChanged -= OnChanged);
+        });
+
+        UseEffect(() =>
+        {
+            if (localRefresh.IsRefreshed)
+                planContentQuery.Mutator.Revalidate();
+            return Disposable.Empty;
+        }, [localRefresh]);
+
+        var tabNames = new[] { "summary", "plan", "details", "verifications", "git", "changes", "artifacts", "recommendations" };
         var selectedTabIndex = Array.IndexOf(tabNames, args?.Tab ?? "summary");
         if (selectedTabIndex < 0) selectedTabIndex = 0;
 
@@ -197,7 +217,7 @@ public class ContentView(
 
         var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, client, showCustomPrDialog, nav, args);
         var actionBar = BuildActionBar(
-            selectedPlanState.Value, showRerunDialog, showSuggestChangesDialog, showDiscardDialog,
+            selectedPlanState.Value, showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog,
             showCustomPrDialog, copyToClipboard, client, logger, nav, args);
         var content = BuildContent(
             selectedPlanState.Value, planData, planContentQuery, selectedTabIndex, tabNames, openVerification,
@@ -213,7 +233,7 @@ public class ContentView(
             ).Scroll(Scroll.None).Size(Size.Full())
         ).Scroll(Scroll.None).Size(Size.Full()).Key(selectedPlanState.Value.Id);
 
-        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, customPrDialog, rerunDialog);
+        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, customPrDialog, resetToDraftDialog);
     }
 
     private object BuildHeader(
@@ -238,13 +258,13 @@ public class ContentView(
                          .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
                          .Muted("plans", word: true);
 
-        header |= new Button("Create PR").Icon(Icons.GitPullRequest).Primary().OnClick(() =>
-        {
-            var repoPaths = selectedPlan.GetEffectiveRepoPaths(config);
-            var project = config.GetProject(selectedPlan.Project);
-            var allYolo = repoPaths.All(rp =>
-                project?.GetRepoRef(rp)?.PrRule == "yolo");
+        var repoPaths = selectedPlan.GetEffectiveRepoPaths(config);
+        var project = config.GetProject(selectedPlan.Project);
+        var allYolo = repoPaths.All(rp =>
+            project?.GetRepoRef(rp)?.PrRule == "yolo");
 
+        var createPrBtn = new Button("Create PR").Icon(Icons.GitPullRequest).Primary().OnClick(() =>
+        {
             if (allYolo)
             {
                 jobService.StartJob(new CreatePrArgs(selectedPlan.FolderPath));
@@ -255,14 +275,18 @@ public class ContentView(
             {
                 showCustomPrDialog();
             }
-        }).ShortcutKey("m").WithConfetti(AnimationTrigger.Click);
+        }).ShortcutKey("m");
+
+        header |= allYolo
+            ? createPrBtn.WithConfetti(AnimationTrigger.Click)
+            : createPrBtn;
 
         return header;
     }
 
     private object BuildActionBar(
         PlanFile selectedPlan,
-        Action showRerunDialog,
+        Action showResetToDraftDialog,
         Action showSuggestChangesDialog,
         Action showDiscardDialog,
         Action showCustomPrDialog,
@@ -272,28 +296,16 @@ public class ContentView(
         INavigator nav,
         ReviewAppArgs? args)
     {
-        return Layout.Horizontal().AlignContent(Align.Left).Gap(1)
-                | new Button("Rerun").Icon(Icons.RotateCw).Outline().ShortcutKey("r").OnClick(() =>
-                {
-                    showRerunDialog();
-                })
-                | new Button("Suggest Changes").Icon(Icons.MessageSquare).Outline().OnClick(() =>
-                {
-                    showSuggestChangesDialog();
-                }).ShortcutKey("d")
-                | new Button("Discard").Icon(Icons.Trash).Outline().ShortcutKey("Backspace").OnClick(() =>
-                {
-                    showDiscardDialog();
-                })
+        return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
+                | new Button("Reset to Draft").Icon(Icons.RotateCcw).Outline().ShortcutKey("r").OnClick(showResetToDraftDialog)
+                | new Button("Suggest Changes").Icon(Icons.MessageSquare).Outline().OnClick(showSuggestChangesDialog).ShortcutKey("d")
+                | new Button("Discard").Icon(Icons.Trash).Outline().ShortcutKey("Backspace").OnClick(showDiscardDialog)
                 | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(() => GoToPrevious(nav, args))
                     .ShortcutKey("p")
                 | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().OnClick(() => GoToNext(nav, args))
                     .ShortcutKey("n")
                 | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
-                    new MenuItem("Custom PR", Icon: Icons.GitPullRequest, Tag: "CustomPR").OnSelect(() =>
-                    {
-                        showCustomPrDialog();
-                    }),
+                    new MenuItem("Custom PR", Icon: Icons.GitPullRequest, Tag: "CustomPR").OnSelect(showCustomPrDialog),
                     new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
                     {
                         planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
@@ -312,11 +324,34 @@ public class ContentView(
                             client.Toast("Copied path to clipboard", "Path Copied");
                         }),
                     new MenuItem($"Open in {config.Editor.Label}", Icon: Icons.Code, Tag: "OpenInEditor")
-                        .OnSelect(() => { config.OpenInEditor(selectedPlan.FolderPath); }),
+                        .OnSelect(() =>
+                        {
+                            try
+                            {
+                                config.OpenInEditor(selectedPlan.FolderPath);
+                            }
+                            catch (EditorNotAvailableException ex)
+                            {
+                                client.Toast(
+                                    $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
+                                    "Editor Not Available",
+                                    variant: ToastVariant.Destructive);
+                            }
+                        }),
                     new MenuItem("Open plan.yaml", Icon: Icons.FileText, Tag: "OpenPlanYaml").OnSelect(() =>
                     {
                         var yamlPath = Path.Combine(selectedPlan.FolderPath, "plan.yaml");
-                        config.OpenInEditor(yamlPath);
+                        try
+                        {
+                            config.OpenInEditor(yamlPath);
+                        }
+                        catch (EditorNotAvailableException ex)
+                        {
+                            client.Toast(
+                                $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
+                                "Editor Not Available",
+                                variant: ToastVariant.Destructive);
+                        }
                     })
                 );
     }
@@ -363,7 +398,7 @@ public class ContentView(
                     }
                 }));
 
-        if (planContentQuery.Loading)
+        if (planContentQuery.Loading && planData is null)
         {
             content |= Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
                        | Text.Muted("Loading...");
@@ -467,14 +502,15 @@ public class ContentView(
 
             var tabs = Layout.Tabs(
                 new Tab("Summary", Cap(new SummaryTabView(planData.SummaryMarkdown))),
+                new Tab("Plan", Cap(planTabContent)),
+                new Tab("Details", Cap(new DetailsTabView(selectedPlan))),
                 new Tab("Verifications", Cap(new VerificationsTabView(
                     selectedPlan.Verifications, planData.VerificationReports,
                     v => openVerification.Set(v)))).Badge(selectedPlan.Verifications.Count.ToString()),
                 new Tab("Git", Cap(gitLayout)).Badge((gitData.WorktreeRows.Count + selectedPlan.Commits.Count + selectedPlan.Prs.Count).ToString()),
                 new Tab("Changes", Layout.Vertical().Width(Size.Full()).Height(Size.Full()) | changesTabView).Badge(changesTabView.FileCount > 0 ? changesTabView.FileCount.ToString() : ""),
                 new Tab("Artifacts", Cap(new ArtifactsTabView(planData.Artifacts))).Badge(totalArtifacts.ToString()),
-                new Tab("Recommendations", Cap(recommendationsLayout)).Badge(planData.Recommendations.Count.ToString()),
-                new Tab("Plan", Cap(planTabContent))
+                new Tab("Recommendations", Cap(recommendationsLayout)).Badge(planData.Recommendations.Count.ToString())
             ).OnSelect(v =>
             {
                 if (v >= 0 && v < tabNames.Length && selectedPlanState.Value != null)

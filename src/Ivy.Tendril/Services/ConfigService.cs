@@ -551,6 +551,12 @@ public class ConfigService : IConfigService, IDisposable
     public void OpenInEditor(string path)
     {
         var processedPath = PreprocessForEditing(path);
+
+        if (!Editor.IsAvailable)
+        {
+            throw new EditorNotAvailableException(Editor.Command, Editor.Label);
+        }
+
         PlatformHelper.OpenInEditor(Editor.Command, processedPath);
     }
 

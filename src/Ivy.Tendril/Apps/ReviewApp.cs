@@ -65,10 +65,17 @@ public class ReviewApp : ViewBase
 
         var previousPlans = UseRef(new List<PlanFile>());
 
+        var activePlanFolders = jobService.GetJobs()
+            .Where(j => j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked)
+            .Select(j => j.TypedArgs?.PlanFolder)
+            .Where(f => f != null)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         var plans = planService.GetPlans()
             .Where(p => showCompleted.Value
                 ? p.Status is PlanStatus.ReadyForReview or PlanStatus.Failed or PlanStatus.Completed
                 : p.Status is PlanStatus.ReadyForReview or PlanStatus.Failed)
+            .Where(p => !activePlanFolders.Contains(p.FolderPath))
             .ToList();
         var filteredPlans = PlanFilters.ApplyFilters(plans, projectFilter.Value, levelFilter.Value, textFilter.Value).ToList();
 

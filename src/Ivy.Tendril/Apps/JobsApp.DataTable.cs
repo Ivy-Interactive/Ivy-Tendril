@@ -37,8 +37,8 @@ public partial class JobsApp
             .Header(t => t.Timer, "Timer")
             .Header(t => t.Cost, "Cost")
             .Header(t => t.Tokens, "Tokens")
-            .Header(t => t.LastOutput, "Last Output")
-            .Renderer(t => t.LastOutput, new AnimatedStatusLabelDisplayRenderer
+            .Header(t => t.AgentOutput, "Agent Output")
+            .Renderer(t => t.AgentOutput, new AnimatedStatusLabelDisplayRenderer
             {
                 Mode = AnimatedStatusMode.SpinnerTimer
             })
@@ -49,7 +49,7 @@ public partial class JobsApp
             .Width(t => t.Plan, Size.Px(250))
             .Width(t => t.Project, Size.Px(100))
             .Width(t => t.Timer, Size.Px(100))
-            .Width(t => t.LastOutput, Size.Px(100))
+            .Width(t => t.AgentOutput, Size.Px(100))
             .Width(t => t.Cost, Size.Px(100))
             .Width(t => t.Tokens, Size.Px(100))
             .Width(t => t.StatusMessage, Size.Auto())
@@ -102,7 +102,7 @@ public partial class JobsApp
                 }
                 return ValueTask.CompletedTask;
             })
-            .OnCellAction(t => t.LastOutput, e =>
+            .OnCellAction(t => t.AgentOutput, e =>
             {
                 var id = e.Value.RowId?.ToString();
                 if (!string.IsNullOrEmpty(id))
@@ -195,7 +195,7 @@ public partial class JobsApp
                             }
 
                             var folder = job.TypedArgs.PlanFolder;
-                            if (job.TypedArgs is ExecutePlanArgs or ExpandPlanArgs && folder != null)
+                            if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or ExpandPlanArgs && folder != null)
                             {
                                 planService.TransitionState(Path.GetFileName(folder), PlanStatus.Building);
                             }
@@ -245,6 +245,13 @@ public partial class JobsApp
                                       jobService.ClearFailedJobs();
                                       refreshToken.Refresh();
                                       client.Toast($"Cleared {count} failed {(count == 1 ? "job" : "jobs")}.", "Clear Failed");
+                                  }),
+                                  new MenuItem("Clear All", Icon: Icons.Trash, Tag: "ClearAll").OnSelect(() =>
+                                  {
+                                      var count = jobService.GetJobs().Count(j => j.Status is not JobStatus.Running and not JobStatus.Queued);
+                                      jobService.ClearAllJobs();
+                                      refreshToken.Refresh();
+                                      client.Toast($"Cleared {count} {(count == 1 ? "job" : "jobs")}.", "Clear All");
                                   })
                               ));
     }

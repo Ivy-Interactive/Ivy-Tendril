@@ -105,6 +105,10 @@ public class InboxControllerTests
         {
         }
 
+        public void ClearAllJobs()
+        {
+        }
+
         public List<JobItem> GetJobs()
         {
             return new List<JobItem>();

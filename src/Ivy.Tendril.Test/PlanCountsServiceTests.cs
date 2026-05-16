@@ -216,6 +216,11 @@ public class PlanCountsServiceTests : IDisposable
             throw new NotImplementedException();
         }
 
+        public void ClearAllJobs()
+        {
+            throw new NotImplementedException();
+        }
+
         public bool IsInboxFileTracked(string filePath)
         {
             throw new NotImplementedException();

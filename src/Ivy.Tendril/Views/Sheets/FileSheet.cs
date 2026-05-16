@@ -39,6 +39,8 @@ public class FileSheet(
 
     public override object Build()
     {
+        var client = UseService<IClientProvider>();
+
         if (openFile.Value is not { } filePath)
             return new Empty();
 
@@ -67,7 +69,17 @@ public class FileSheet(
                 Layout.Vertical().Gap(2)
                     | new Button($"Open in {config.Editor.Label}").Icon(Icons.ExternalLink).Outline().OnClick(() =>
                     {
-                        config.OpenInEditor(filePath);
+                        try
+                        {
+                            config.OpenInEditor(filePath);
+                        }
+                        catch (EditorNotAvailableException ex)
+                        {
+                            client.Toast(
+                                $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
+                                "Editor Not Available",
+                                variant: ToastVariant.Destructive);
+                        }
                     })
                     | Text.Block(filePath).Muted()
                 ,

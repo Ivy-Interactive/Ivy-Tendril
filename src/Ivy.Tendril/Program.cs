@@ -259,6 +259,9 @@ public class Program
             config.AddCommand<DbResetCommand>("db-reset")
                 .WithDescription("Reset database");
 
+            config.AddCommand<ResetCommand>("reset")
+                .WithDescription("Remove all Tendril data and environment variables");
+
             // Other commands
             config.AddCommand<UpdatePromptwaresCliCommand>("update-promptwares")
                 .WithDescription("Update embedded promptwares");
@@ -378,6 +381,8 @@ public class Program
             {
                 project.AddCommand<ProjectListCommand>("list")
                     .WithDescription("List all projects");
+                project.AddCommand<ProjectGetCommand>("get")
+                    .WithDescription("Show details of a project");
                 project.AddCommand<ProjectAddCommand>("add")
                     .WithDescription("Add a project");
                 project.AddCommand<ProjectRemoveCommand>("remove")

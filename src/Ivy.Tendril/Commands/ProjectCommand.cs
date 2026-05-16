@@ -25,6 +25,13 @@ public class ProjectAddSettings : CommandSettings
     public string? Context { get; set; }
 }
 
+public class ProjectGetSettings : CommandSettings
+{
+    [Description("Project name")]
+    [CommandArgument(0, "<name>")]
+    public string Name { get; set; } = "";
+}
+
 public class ProjectRemoveSettings : CommandSettings
 {
     [Description("Project name")]
@@ -199,6 +206,92 @@ public class ProjectListCommand : Command<ProjectListSettings>
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to list projects");
+            return 1;
+        }
+    }
+}
+
+public class ProjectGetCommand : Command<ProjectGetSettings>
+{
+    private readonly ILogger<ProjectGetCommand> _logger;
+
+    public ProjectGetCommand(ILogger<ProjectGetCommand> logger) => _logger = logger;
+
+    protected override int Execute(CommandContext context, ProjectGetSettings settings, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var config = new ConfigService();
+            var project = config.Settings.Projects
+                .FirstOrDefault(p => p.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
+
+            if (project == null)
+            {
+                _logger.LogError("Project not found: {Name}", settings.Name);
+                return 1;
+            }
+
+            AnsiConsole.MarkupLine($"[bold]{project.Name.EscapeMarkup()}[/]");
+            if (!string.IsNullOrEmpty(project.Color))
+                AnsiConsole.MarkupLine($"  Color: {project.Color.EscapeMarkup()}");
+            if (!string.IsNullOrEmpty(project.Context))
+                AnsiConsole.MarkupLine($"  Context: {project.Context.EscapeMarkup()}");
+
+            if (project.Repos.Count > 0)
+            {
+                AnsiConsole.MarkupLine("\n[bold]Repositories[/]");
+                var repoTable = new Spectre.Console.Table();
+                repoTable.AddColumn("Path");
+                repoTable.AddColumn("PR Rule");
+                repoTable.AddColumn("Base Branch");
+                repoTable.AddColumn("Sync");
+                foreach (var r in project.Repos)
+                    repoTable.AddRow(
+                        r.Path.EscapeMarkup(),
+                        r.PrRule.EscapeMarkup(),
+                        (r.BaseBranch ?? "-").EscapeMarkup(),
+                        r.SyncStrategy.EscapeMarkup());
+                AnsiConsole.Write(repoTable);
+            }
+
+            if (project.Verifications.Count > 0)
+            {
+                AnsiConsole.MarkupLine("\n[bold]Verifications[/]");
+                var verTable = new Spectre.Console.Table();
+                verTable.AddColumn("Name");
+                verTable.AddColumn("Required");
+                foreach (var v in project.Verifications)
+                    verTable.AddRow(v.Name.EscapeMarkup(), v.Required ? "Yes" : "No");
+                AnsiConsole.Write(verTable);
+            }
+
+            if (project.ReviewActions.Count > 0)
+            {
+                AnsiConsole.MarkupLine("\n[bold]Review Actions[/]");
+                var raTable = new Spectre.Console.Table();
+                raTable.AddColumn("Name");
+                raTable.AddColumn("Command");
+                raTable.AddColumn("Condition");
+                foreach (var ra in project.ReviewActions)
+                    raTable.AddRow(
+                        ra.Name.EscapeMarkup(),
+                        ra.Command.EscapeMarkup(),
+                        ra.Condition.EscapeMarkup());
+                AnsiConsole.Write(raTable);
+            }
+
+            if (project.BuildDependencies.Count > 0)
+            {
+                AnsiConsole.MarkupLine("\n[bold]Build Dependencies[/]");
+                foreach (var dep in project.BuildDependencies)
+                    AnsiConsole.MarkupLine($"  - {dep.EscapeMarkup()}");
+            }
+
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get project");
             return 1;
         }
     }

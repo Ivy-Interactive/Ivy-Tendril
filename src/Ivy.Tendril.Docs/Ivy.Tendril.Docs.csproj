@@ -24,6 +24,7 @@
 
     <ItemGroup>
         <EmbeddedResource Include="Assets/**/*" />
+        <EmbeddedResource Include="../Tendril.svg" Link="Assets/Tendril.svg" />
         <EmbeddedResource Include="Generated/**/*.md" />
     </ItemGroup>
 

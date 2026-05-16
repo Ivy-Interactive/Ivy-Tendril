@@ -25,6 +25,7 @@ public class DetailsTabView(PlanFile plan) : ViewBase
 
         return detailsData.ToDetails()
             .Multiline(x => x.InitialPrompt)
+            .Builder(x => x.Issue, f => f.Link())
             .RemoveEmpty();
     }
 

@@ -36,7 +36,7 @@ public partial class JobsApp
         return match.Success ? match.Groups[1].Value : "";
     }
 
-    private static string FormatLastOutput(JobItem job)
+    private static string FormatAgentOutput(JobItem job)
     {
         if (job.Status == JobStatus.Running)
         {

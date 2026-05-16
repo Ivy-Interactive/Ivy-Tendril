@@ -33,6 +33,7 @@ public class PlanTabView(
                 planService.PlansDirectory);
 
             planLayout |= new Markdown(annotatedContent)
+                .Article()
                 .DangerouslyAllowLocalFiles()
                 .OnLinkClick(FileSheet.CreateLinkClickHandler(openFileState, planId =>
                 {

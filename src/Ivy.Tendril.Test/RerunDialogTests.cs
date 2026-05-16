@@ -2,7 +2,7 @@ using Ivy.Tendril.Apps.Review.Dialogs;
 
 namespace Ivy.Tendril.Test;
 
-public class RerunDialogTests
+public class ResetToDraftDialogTests
 {
     [Fact]
     public void CleanPlanState_DeletesArtifactsAndLogs()
@@ -18,7 +18,7 @@ public class RerunDialogTests
             File.WriteAllText(Path.Combine(artifactsDir, "summary.md"), "test");
             File.WriteAllText(Path.Combine(logsDir, "001.md"), "test");
 
-            RerunDialog.CleanPlanState(planDir);
+            ResetToDraftDialog.CleanPlanState(planDir);
 
             Assert.False(Directory.Exists(artifactsDir));
             Assert.False(Directory.Exists(logsDir));
@@ -39,7 +39,7 @@ public class RerunDialogTests
             var planDir = Path.Combine(tempDir, "00001-TestPlan");
             Directory.CreateDirectory(planDir);
 
-            var ex = Record.Exception(() => RerunDialog.CleanPlanState(planDir));
+            var ex = Record.Exception(() => ResetToDraftDialog.CleanPlanState(planDir));
             Assert.Null(ex);
         }
         finally
@@ -65,7 +65,7 @@ public class RerunDialogTests
             Directory.CreateDirectory(verificationDir);
             Directory.CreateDirectory(revisionsDir);
 
-            RerunDialog.CleanPlanState(planDir);
+            ResetToDraftDialog.CleanPlanState(planDir);
 
             Assert.False(Directory.Exists(artifactsDir));
             Assert.False(Directory.Exists(logsDir));
@@ -93,9 +93,32 @@ public class RerunDialogTests
             File.WriteAllText(Path.Combine(screenshotsDir, "img.png"), "test");
             File.WriteAllText(Path.Combine(sampleDir, "app.dll"), "test");
 
-            RerunDialog.CleanPlanState(planDir);
+            ResetToDraftDialog.CleanPlanState(planDir);
 
             Assert.False(Directory.Exists(Path.Combine(planDir, "artifacts")));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void CleanPlanState_DeletesWorktreesDirectory()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"ivy-test-{Guid.NewGuid()}");
+        try
+        {
+            var planDir = Path.Combine(tempDir, "00001-TestPlan");
+            var worktreesDir = Path.Combine(planDir, "worktrees");
+            var repoDir = Path.Combine(worktreesDir, "Ivy-Framework");
+            Directory.CreateDirectory(repoDir);
+            File.WriteAllText(Path.Combine(repoDir, "dummy.txt"), "test");
+
+            ResetToDraftDialog.CleanPlanState(planDir);
+
+            Assert.False(Directory.Exists(worktreesDir));
         }
         finally
         {

@@ -66,6 +66,9 @@ public class JobServiceSplitPlanCompletionTests
             Transitions.Add((folderName, newState));
         }
 
+        public void ResetToDraft(string folderName) { }
+        public void ResetVerificationsForRetry(string folderName) { }
+
         public void RecoverStuckPlans() { }
         public void RepairPlans() { }
         public List<PlanFile> GetPlans(PlanStatus? statusFilter = null) => [];
@@ -74,7 +77,7 @@ public class JobServiceSplitPlanCompletionTests
         public void SaveRevision(string folderName, string content) { }
         public string ReadLatestRevision(string folderName) => "";
         public List<(int Number, string Content, DateTime Modified)> GetRevisions(string folderName) => [];
-        public void AddLog(string folderName, string action, string content) { }
+        public void AddLog(string folderName, string action, string content, string? jobId = null) { }
         public void DeletePlan(string folderName) { }
         public string ReadRawPlan(string folderName) => "";
         public void SavePlan(string folderName, string fullContent) { }

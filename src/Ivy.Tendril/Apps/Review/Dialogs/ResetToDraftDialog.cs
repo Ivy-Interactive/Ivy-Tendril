@@ -6,66 +6,51 @@ using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Apps.Review.Dialogs;
 
-public class RerunDialog(
+public class ResetToDraftDialog(
     IState<bool> dialogOpen,
     PlanFile selectedPlan,
-    IJobService jobService,
     IPlanReaderService planService,
-    Action refreshPlans) : ViewBase
+    Action refreshPlans,
+    ILogger<ResetToDraftDialog> logger) : ViewBase
 {
     private readonly IState<bool> _dialogOpen = dialogOpen;
-    private readonly IJobService _jobService = jobService;
     private readonly IPlanReaderService _planService = planService;
     private readonly Action _refreshPlans = refreshPlans;
     private readonly PlanFile _selectedPlan = selectedPlan;
+    private readonly ILogger<ResetToDraftDialog> _logger = logger;
 
     public override object? Build()
     {
-        var isRerunningClean = UseState(false);
-        var isRerunningCurrent = UseState(false);
-        var logger = UseService<ILogger<RerunDialog>>();
+        var isResetting = UseState(false);
 
         if (!_dialogOpen.Value) return null;
 
         return new Dialog(
             _ =>
             {
-                isRerunningClean.Set(false);
-                isRerunningCurrent.Set(false);
+                isResetting.Set(false);
                 _dialogOpen.Set(false);
             },
-            new DialogHeader($"Rerun Plan #{_selectedPlan.Id}"),
+            new DialogHeader($"Reset Plan #{_selectedPlan.Id} to Draft"),
             new DialogBody(
-                Text.P("How would you like to rerun this plan?")
+                Text.P("Are you sure you want to reset this plan? Will remove all worktrees and artifacts.")
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().ShortcutKey("Escape").OnClick(() => _dialogOpen.Set(false)),
-                new Button("Rerun from Scratch").Warning().Disabled(isRerunningClean.Value).OnClick(() =>
+                new Button("Reset to Draft").Warning().Disabled(isResetting.Value).ShortcutKey("Enter").AutoFocus().OnClick(() =>
                 {
-                    if (!isRerunningClean.Value)
+                    if (!isResetting.Value)
                     {
-                        isRerunningClean.Set(true);
+                        isResetting.Set(true);
                         _dialogOpen.Set(false);
-                        _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Building);
-                        _refreshPlans();
 
                         var folderPath = _selectedPlan.FolderPath;
                         Task.Run(() =>
                         {
-                            CleanPlanState(folderPath, logger);
-                            _jobService.StartJob(new ExecutePlanArgs(folderPath, Note: "User requested a clean rerun. All artifacts, logs, and worktrees have been cleaned. Execute this plan from scratch."));
+                            CleanPlanState(folderPath, _logger);
+                            _planService.ResetToDraft(_selectedPlan.FolderName);
+                            _refreshPlans();
                         });
-                    }
-                }),
-                new Button("Rerun with Current").Primary().Disabled(isRerunningCurrent.Value).ShortcutKey("Enter").AutoFocus().OnClick(() =>
-                {
-                    if (!isRerunningCurrent.Value)
-                    {
-                        isRerunningCurrent.Set(true);
-                        _dialogOpen.Set(false);
-                        _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Building);
-                        _jobService.StartJob(new ExecutePlanArgs(_selectedPlan.FolderPath, Note: "User requested you to execute this plan another time. Go through all code, verifications and artifacts one more time."));
-                        _refreshPlans();
                     }
                 })
             )
@@ -96,5 +81,12 @@ public class RerunDialog(
         }
 
         WorktreeCleanupService.RemoveWorktrees(planFolderPath, logger);
+
+        var worktreesDir = Path.Combine(planFolderPath, "worktrees");
+        if (Directory.Exists(worktreesDir))
+        {
+            logger?.LogInformation("Cleaning worktrees directory: {Path}", worktreesDir);
+            WorktreeCleanupService.ForceDeleteDirectory(worktreesDir, logger);
+        }
     }
 }

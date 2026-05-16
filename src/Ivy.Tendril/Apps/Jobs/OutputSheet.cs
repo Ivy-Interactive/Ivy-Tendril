@@ -4,64 +4,43 @@ using Ivy.Widgets.AgentOutputView;
 
 namespace Ivy.Tendril.Apps.Jobs;
 
-public partial class OutputSheet(
-    string jobId,
-    IJobService jobService,
-    IWriteStream<string> outputStream,
-    IState<bool> hasStreamContent,
-    IState<string?> streamingJobId) : ViewBase
+public class OutputSheet(string jobId, IJobService jobService) : ViewBase
 {
     public override object Build()
     {
-        var job = jobService.GetJob(jobId);
-        object agentOutputView;
+        var outputStream = UseStream<string>();
+        var initialSnapshot = UseRef<string?>(null);
 
-        if (job is { Status: JobStatus.Running })
+        var job = jobService.GetJob(jobId);
+
+        initialSnapshot.Value ??= job is { OutputLines.IsEmpty: false }
+            ? string.Join("\n", job.OutputLines)
+            : null;
+
+        UseEffect(() => job is { Status: JobStatus.Running }
+            ? job.OutputObservable.Subscribe(line => outputStream.Write(line))
+            : null);
+
+        if (job is null || (job.OutputLines.IsEmpty && job.Status != JobStatus.Running))
+            return Text.P("No output available.");
+
+        if (job.Status != JobStatus.Running)
         {
-            agentOutputView = new AgentOutputView()
+            var snapshot = !job.OutputLines.IsEmpty
+                ? string.Join("\n", job.OutputLines) : null;
+
+            return new AgentOutputView()
                 .Provider(job.Provider)
-                .Stream(outputStream)
-                .Height(Size.Full());
-        }
-        else if (job is not null && hasStreamContent.Value && streamingJobId.Value == jobId)
-        {
-            agentOutputView = new AgentOutputView()
-                .Provider(job.Provider)
-                .Stream(outputStream)
-                .AutoScroll(false)
-                .Height(Size.Full());
-        }
-        else if (job is not null && !job.OutputLines.IsEmpty)
-        {
-            var jsonStream = string.Join("\n", job.OutputLines);
-            agentOutputView = new AgentOutputView()
-                .Provider(job.Provider)
-                .JsonStream(jsonStream)
+                .JsonStream(snapshot)
                 .AutoScroll(false)
                 .ShowStatusLabel(false)
                 .Height(Size.Full());
         }
-        else
-        {
-            agentOutputView = Text.P("No output available.");
-        }
 
-        return agentOutputView;
+        return new AgentOutputView()
+            .Provider(job.Provider)
+            .JsonStream(initialSnapshot.Value)
+            .Stream(outputStream)
+            .Height(Size.Full());
     }
-
-    public string GetSheetTitle()
-    {
-        var job = jobService.GetJob(jobId);
-        return job is not null ? $"{job.Type} {ExtractPlanId(job.PlanFile)}" : "Job Output";
-    }
-
-    private static string ExtractPlanId(string planFile)
-    {
-        if (string.IsNullOrEmpty(planFile)) return "";
-        var match = ExtractPlanIdRegex().Match(planFile);
-        return match.Success ? match.Groups[1].Value : "";
-    }
-
-    [System.Text.RegularExpressions.GeneratedRegex(@"^(\d{5})-")]
-    private static partial System.Text.RegularExpressions.Regex ExtractPlanIdRegex();
 }

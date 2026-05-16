@@ -82,7 +82,7 @@ internal class JobLauncher
         var planFolderForHooks = job.TypedArgs is not CreatePlanArgs ? (job.TypedArgs?.PlanFolder ?? "") : "";
         ctx.RunHooks("before", type, planFolderForHooks, job.Project, job);
 
-        if (job.TypedArgs is ExecutePlanArgs && !string.IsNullOrEmpty(job.TypedArgs?.PlanFolder))
+        if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs && !string.IsNullOrEmpty(job.TypedArgs?.PlanFolder))
             PlanYamlHelper.SetPlanStateByFolder(job.TypedArgs!.PlanFolder!, "Executing");
 
         job.SessionId = Guid.NewGuid().ToString();
@@ -230,7 +230,7 @@ internal class JobLauncher
         var resolution = AgentProviderFactory.Resolve(settings, job.Type, profileOverride, jobContext);
         var workDir = ResolveWorkingDirectory(job, programFolder);
 
-        var logFile = FirmwareCompiler.GetNextLogFile(programFolder);
+        var logFile = FirmwareCompiler.GetLogFile(programFolder, job.Id);
         job.LogFilePath = logFile;
 
         var customInstructions = ResolveCustomInstructions(job.Type);
@@ -307,8 +307,6 @@ internal class JobLauncher
             ["TendrilHome"] = _configService.TendrilHome ?? ""
         };
 
-        if (job.Type == Constants.JobTypes.UpdateProject)
-            values["TendrilConfigPath"] = _configService!.ConfigPath;
 
         if (job.TypedArgs is CreatePlanArgs)
         {
@@ -324,7 +322,7 @@ internal class JobLauncher
         var job = ctx.Job;
         var cp = job.TypedArgs as CreatePlanArgs;
         var description = cp?.Description ?? "";
-        values["Args"] = description;
+        values["TaskDescription"] = description;
         values["TendrilPlansFolder"] = _configService!.PlanFolder;
 
         if (cp?.Force == true)
@@ -335,7 +333,6 @@ internal class JobLauncher
         BuildNonCreatePlanFirmware(JobItem job, Dictionary<string, string> values)
     {
         var planFolder = job.TypedArgs?.PlanFolder ?? "";
-        values["Args"] = planFolder;
 
         if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder))
             return (values, null, null);
@@ -361,6 +358,9 @@ internal class JobLauncher
         if (job.TypedArgs is UpdatePlanArgs { Instructions: not null } updateArgs)
             values["UpdateInstructions"] = updateArgs.Instructions;
 
+        if (job.TypedArgs is RetryPlanArgs retryArgs)
+            values["ChangeRequest"] = retryArgs.ChangeRequest;
+
         var profileOverride = ExtractExecutionProfile(job, planYaml);
         AddRepoConfigsIfNeeded(job, planYaml, values);
         AddCreatePrOptions(job, values);
@@ -371,14 +371,14 @@ internal class JobLauncher
 
     private static string? ExtractExecutionProfile(JobItem job, PlanYaml planYaml)
     {
-        if (job.TypedArgs is ExecutePlanArgs && !string.IsNullOrEmpty(planYaml.ExecutionProfile))
+        if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs && !string.IsNullOrEmpty(planYaml.ExecutionProfile))
             return planYaml.ExecutionProfile;
         return null;
     }
 
     private void AddRepoConfigsIfNeeded(JobItem job, PlanYaml planYaml, Dictionary<string, string> values)
     {
-        if (job.TypedArgs is not (ExecutePlanArgs or CreatePrArgs))
+        if (job.TypedArgs is not (ExecutePlanArgs or RetryPlanArgs or CreatePrArgs))
             return;
 
         var repoConfigs = BuildRepoConfigsYaml(planYaml, job.Project);
@@ -437,18 +437,12 @@ internal class JobLauncher
 
     private void SetTendrilEnvironment(ProcessStartInfo psi, JobItem job)
     {
-        psi.Environment["TENDRIL_JOB_ID"] = job.Id;
-        psi.Environment["TENDRIL_SESSION_ID"] = job.SessionId;
         var tendrilHome = _configService!.TendrilHome;
         if (!string.IsNullOrEmpty(tendrilHome))
             psi.Environment["TENDRIL_HOME"] = tendrilHome;
-        psi.Environment["TENDRIL_CONFIG"] = _configService.ConfigPath;
         psi.Environment["TENDRIL_PLANS"] = _configService.PlanFolder;
 
-        var statusFile = JobStatusFile.GetStatusFilePath(job.Id);
-        psi.Environment["TENDRIL_CLI_LOG"] = statusFile;
-        job.StatusFilePath = statusFile;
-
+        job.StatusFilePath = JobStatusFile.GetStatusFilePath(job.Id);
         EnsureTendrilOnPath(psi);
     }
 

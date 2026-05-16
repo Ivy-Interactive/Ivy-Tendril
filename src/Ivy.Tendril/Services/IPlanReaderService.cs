@@ -14,10 +14,12 @@ public interface IPlanReaderService
     PlanFile? GetPlanByFolder(string folderPath);
     List<PlanFile> GetIceboxPlans();
     void TransitionState(string folderName, PlanStatus newState);
+    void ResetToDraft(string folderName);
+    void ResetVerificationsForRetry(string folderName);
     void SaveRevision(string folderName, string content);
     string ReadLatestRevision(string folderName);
     List<(int Number, string Content, DateTime Modified)> GetRevisions(string folderName);
-    void AddLog(string folderName, string action, string content);
+    void AddLog(string folderName, string action, string content, string? jobId = null);
     void DeletePlan(string folderName);
     string ReadRawPlan(string folderName);
     void SavePlan(string folderName, string fullContent);

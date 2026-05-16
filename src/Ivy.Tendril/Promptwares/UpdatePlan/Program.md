@@ -5,7 +5,7 @@ Update an existing plan by applying user instructions from the firmware header.
 ## Context
 
 The firmware header contains:
-- **Args** / **TendrilPlanFolder** — path to the plan folder
+- **TendrilPlanFolder** — path to the plan folder
 - **UpdateInstructions** — the user's update instructions (what to change)
 - **CurrentTime** — current UTC timestamp
 

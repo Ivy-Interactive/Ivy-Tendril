@@ -69,10 +69,10 @@ internal class JobCompletionHandler
         if (job.Status is JobStatus.Failed or JobStatus.Timeout)
             ScheduleWorktreeCleanup(job);
 
-        if (job.TypedArgs is ExecutePlanArgs or CreatePrArgs)
+        if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
             _dependencyChecker.RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck);
 
-        if (isSuccess && job.TypedArgs is ExecutePlanArgs or CreatePrArgs or CreateIssueArgs)
+        if (isSuccess && job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs or CreateIssueArgs)
         {
             var planFolder = job.TypedArgs?.PlanFolder ?? "";
             _dependencyChecker.RetryBlockedDependents(planFolder, jobs, startJobSkipDepCheck);
@@ -91,11 +91,6 @@ internal class JobCompletionHandler
 
             var toolNames = denials.Select(d => d.ToolName).Distinct().ToList();
             var summary = $"Permission denied: {string.Join(", ", toolNames)} ({denials.Count} call{(denials.Count > 1 ? "s" : "")})";
-
-            if (string.IsNullOrEmpty(job.StatusMessage))
-                job.StatusMessage = summary;
-            else
-                job.StatusMessage += $" | {summary}";
 
             job.EnqueueOutput($"[Tendril] {summary}");
             foreach (var d in denials.Take(5))
@@ -141,6 +136,7 @@ internal class JobCompletionHandler
         switch (job.TypedArgs)
         {
             case ExecutePlanArgs:
+            case RetryPlanArgs:
                 _artifactSyncer.SyncPlanArtifacts(job);
                 EnsurePlanStateTransitioned(job);
                 break;
@@ -355,18 +351,15 @@ internal class JobCompletionHandler
             var planYaml = PlanYamlHelper.ReadPlanYaml(planFolder);
             if (planYaml == null) return;
 
-            if (planYaml.State is "Executing" or "Building" or "Draft")
-            {
-                var hasIncomplete = planYaml.Verifications?
-                    .Any(v => v.Status is "Pending" or "Fail") ?? false;
-                var targetState = hasIncomplete ? PlanStatus.Failed : PlanStatus.ReadyForReview;
+            var hasIncomplete = planYaml.Verifications?
+                .Any(v => v.Status is "Pending" or "Fail") ?? false;
+            var targetState = hasIncomplete ? PlanStatus.Failed : PlanStatus.ReadyForReview;
 
-                var folderName = Path.GetFileName(planFolder);
-                if (_planReaderService != null)
-                    _planReaderService.TransitionState(folderName, targetState);
-                else
-                    PlanYamlHelper.SetPlanStateByFolder(planFolder, targetState.ToString());
-            }
+            var folderName = Path.GetFileName(planFolder);
+            if (_planReaderService != null)
+                _planReaderService.TransitionState(folderName, targetState);
+            else
+                PlanYamlHelper.SetPlanStateByFolder(planFolder, targetState.ToString());
         }
         catch (Exception ex)
         {
@@ -488,7 +481,7 @@ internal class JobCompletionHandler
             if (job.TypedArgs is CreatePlanArgs or CreatePrArgs or CreateIssueArgs) return;
 
             var planFolder = job.TypedArgs?.PlanFolder ?? "";
-            var newState = job.TypedArgs is ExecutePlanArgs ? "Failed" : "Draft";
+            var newState = job.TypedArgs is ExecutePlanArgs or RetryPlanArgs ? "Failed" : "Draft";
             PlanYamlHelper.SetPlanStateByFolder(planFolder, newState);
         }
         catch (Exception ex)
@@ -547,7 +540,7 @@ internal class JobCompletionHandler
 
     private void ScheduleWorktreeCleanup(JobItem job)
     {
-        if (job.TypedArgs is not ExecutePlanArgs) return;
+        if (job.TypedArgs is not (ExecutePlanArgs or RetryPlanArgs)) return;
 
         var planFolder = job.TypedArgs?.PlanFolder ?? "";
         if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder)) return;
@@ -630,7 +623,7 @@ internal class JobCompletionHandler
         try
         {
             var logContent = BuildJobLogContent(job);
-            _planReaderService.AddLog(job.PlanFile, job.Type, logContent);
+            _planReaderService.AddLog(job.PlanFile, job.Type, logContent, job.Id);
             WriteFailedJobOutputIfNeeded(job);
         }
         catch
@@ -644,13 +637,14 @@ internal class JobCompletionHandler
 
         var planFolder = ResolvePlanFolder(job);
         if (!string.IsNullOrEmpty(planFolder) && Directory.Exists(planFolder))
-            JobStatusFile.MoveLogToPlanFolder(job.StatusFilePath, planFolder, job.Type);
+            JobStatusFile.MoveLogToPlanFolder(job.StatusFilePath, planFolder, job.Type, job.Id);
     }
 
     private string BuildJobLogContent(JobItem job)
     {
         var duration = job.DurationSeconds.HasValue ? $"{job.DurationSeconds}s" : "unknown";
         var logContent = $"# {job.Type}\n\n" +
+                         $"- **JobId:** {job.Id}\n" +
                          $"- **Status:** {job.Status}\n" +
                          $"- **Started:** {job.StartedAt:u}\n" +
                          $"- **Completed:** {job.CompletedAt:u}\n" +
@@ -700,7 +694,7 @@ internal class JobCompletionHandler
 
     private static string BuildPlanOutcomeSummary(JobItem job)
     {
-        if (job.TypedArgs is not ExecutePlanArgs)
+        if (job.TypedArgs is not (ExecutePlanArgs or RetryPlanArgs))
             return "";
 
         var planFolder = job.TypedArgs?.PlanFolder ?? "";

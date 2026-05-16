@@ -337,6 +337,14 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         {
         }
 
+        public void ResetToDraft(string folderName)
+        {
+        }
+
+        public void ResetVerificationsForRetry(string folderName)
+        {
+        }
+
         public void SaveRevision(string folderName, string content)
         {
         }
@@ -351,7 +359,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
             return [];
         }
 
-        public void AddLog(string folderName, string action, string content)
+        public void AddLog(string folderName, string action, string content, string? jobId = null)
         {
         }
 

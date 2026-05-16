@@ -35,6 +35,9 @@ public class AdvancedSetupView : ViewBase
                    | Text.Block("Editor").Bold()
                    | editorCommand.ToTextInput("e.g. code, vim")
                        .WithField().Label("Command")
+                       .Description(!config.Editor.IsAvailable
+                           ? $"⚠ '{config.Editor.Command}' was not found in PATH"
+                           : null)
                    | editorLabel.ToTextInput("e.g. VS Code, Vim")
                        .WithField().Label("Label")
                    | new Button("Save").Primary()

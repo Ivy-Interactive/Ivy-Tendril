@@ -8,7 +8,7 @@ Execute an approved plan in isolated git worktrees.
 
 The firmware header contains:
 
-- **Args** / **TendrilPlanFolder** — path to the plan folder
+- **TendrilPlanFolder** — path to the plan folder
 - **CurrentTime** — current UTC timestamp
 - **Note** (optional) — Additional instructions from the reviewer. If present, follow these instructions in addition to the plan.
 
@@ -532,7 +532,9 @@ After all verifications pass:
 
 3. Run `git status` in every worktree. If there are any uncommitted files (from verification fixes, generated files, etc.), commit or discard them. The worktrees must be completely clean before finishing.
 
-4. Verify `<TendrilPlanFolder>/artifacts/recommendations.md` exists. If missing, the plan **must fail** — go back to Step 7.5.
+4. Verify `<TendrilPlanFolder>/artifacts/recommendations.md` exists. If missing, go back to Step 7.5.
+
+5. Verify `<TendrilPlanFolder>/artifacts/summary.md` exists. If missing, go back to Step 5.5.
 
 ### 8.5. Worktree Lifecycle
 
@@ -548,7 +550,7 @@ Worktrees are **not** cleaned up by ExecutePlan. They remain on disk so that Cre
 
 ### 9. Plan State
 
-The launcher script handles state transitions (Completed/Failed) based on exit code.
+**🚫 FORBIDDEN:** Do NOT call `tendril plan set <plan-id> state <anything>`. The Tendril server handles all state transitions automatically based on your exit code and verification statuses. Setting state manually causes the plan to appear in Review prematurely while your job is still running.
 
 ### Ambiguity Handling
 

@@ -11,25 +11,57 @@ namespace Ivy.Tendril.Helpers;
 /// </summary>
 public static class ConfigYamlUiHelper
 {
+    /// <summary>
+    /// Call this overload only from <c>Build()</c> — HttpContext is available there.
+    /// Captures the host immediately so the click handler doesn't rely on HttpContext.
+    /// </summary>
     public static void OpenOrNavigate(
         IConfigService config,
         INavigator navigator,
+        IClientProvider client,
         bool isDesktopShell,
         IHttpContextAccessor? httpContextAccessor = null)
     {
-        if (isDesktopShell || IsLikelyLocalLoopbackBrowser(httpContextAccessor))
-            config.OpenInEditor(config.ConfigPath);
+        var capturedHost = httpContextAccessor?.HttpContext?.Request.Host.Host;
+        OpenOrNavigate(config, navigator, client, isDesktopShell, capturedHost);
+    }
+
+    /// <summary>
+    /// Use this overload inside click handlers — pass the host captured during <c>Build()</c>.
+    /// </summary>
+    public static void OpenOrNavigate(
+        IConfigService config,
+        INavigator navigator,
+        IClientProvider client,
+        bool isDesktopShell,
+        string? capturedHost)
+    {
+        if (isDesktopShell || IsLoopbackHost(capturedHost))
+        {
+            try
+            {
+                config.OpenInEditor(config.ConfigPath);
+            }
+            catch (EditorNotAvailableException ex)
+            {
+                client.Toast(
+                    $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
+                    "Editor Not Available",
+                    variant: ToastVariant.Destructive);
+            }
+        }
         else
             navigator.Navigate<ConfigEditorApp>();
     }
 
     /// <summary>
-    /// True when the HTTP Host is loopback (e.g. user opened <c>http://localhost:5010/</c> on the same machine
-    /// that runs Tendril, so spawning <c>code</c> / the configured editor is meaningful).
+    /// Captures the request host during Build/render so it can be safely used inside click handlers.
     /// </summary>
-    public static bool IsLikelyLocalLoopbackBrowser(IHttpContextAccessor? httpContextAccessor)
+    public static string? CaptureHost(IHttpContextAccessor? httpContextAccessor) =>
+        httpContextAccessor?.HttpContext?.Request.Host.Host;
+
+    public static bool IsLoopbackHost(string? host)
     {
-        var host = httpContextAccessor?.HttpContext?.Request.Host.Host;
         if (string.IsNullOrEmpty(host)) return false;
 
         if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase)) return true;

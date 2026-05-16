@@ -87,7 +87,7 @@ public class ContentView(
                      | Text.Rich()
                          .Bold($"{(currentIndex == -1 ? "?" : (currentIndex + 1).ToString())}/{allRecommendations.Count}", word: true)
                          .Muted("recommendations", word: true)
-                     | new Button("Decline").Icon(Icons.X).Outline().ShortcutKey("x").OnClick(() =>
+                     | new Button("Decline").Icon(Icons.X).Outline().ShortcutKey("Backspace").OnClick(() =>
                      {
                          showDeclineDialog();
                      })
@@ -164,7 +164,17 @@ public class ContentView(
                             {
                                 var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
                                 var yamlPath = Path.Combine(fullPath, "plan.yaml");
-                                config.OpenInEditor(yamlPath);
+                                try
+                                {
+                                    config.OpenInEditor(yamlPath);
+                                }
+                                catch (EditorNotAvailableException ex)
+                                {
+                                    client.Toast(
+                                        $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
+                                        "Editor Not Available",
+                                        variant: ToastVariant.Destructive);
+                                }
                             })
                         );
 

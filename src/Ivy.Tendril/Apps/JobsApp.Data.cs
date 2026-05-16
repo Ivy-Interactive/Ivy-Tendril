@@ -35,7 +35,7 @@ public partial class JobsApp
                 Timer = FormatTimer(j),
                 Cost = j.Cost.HasValue ? $"${j.Cost.Value:F2}" : "",
                 Tokens = j.Tokens.HasValue ? FormatHelper.FormatTokens(j.Tokens.Value) : "",
-                LastOutput = FormatLastOutput(j),
+                AgentOutput = FormatAgentOutput(j),
                 LastOutputTimestamp = j.LastOutputAt,
                 StatusMessage = GetStatusMessage(j),
                 ErrorContext = j.Status is JobStatus.Failed or JobStatus.Timeout
@@ -83,12 +83,12 @@ public partial class JobsApp
                          && DateTime.UtcNow - j.CompletedAt.Value < TimeSpan.FromMinutes(1)))
             .SelectMany(j => new[]
             {
-                new DataTableCellUpdate(j.Id, "Timer", FormatTimer(j)),
-                new DataTableCellUpdate(j.Id, "Cost", j.Cost.HasValue ? $"${j.Cost.Value:F2}" : ""),
-                new DataTableCellUpdate(j.Id, "Tokens", j.Tokens.HasValue ? FormatHelper.FormatTokens(j.Tokens.Value) : ""),
-                new DataTableCellUpdate(j.Id, "LastOutput", FormatLastOutput(j)),
-                new DataTableCellUpdate(j.Id, "Status", FormatStatusBadge(j.Status)),
-                new DataTableCellUpdate(j.Id, "StatusMessage", GetStatusMessage(j))
+                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Timer), FormatTimer(j)),
+                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Cost), j.Cost.HasValue ? $"${j.Cost.Value:F2}" : ""),
+                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Tokens), j.Tokens.HasValue ? FormatHelper.FormatTokens(j.Tokens.Value) : ""),
+                new DataTableCellUpdate(j.Id, nameof(JobItemRow.AgentOutput), FormatAgentOutput(j)),
+                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Status), FormatStatusBadge(j.Status)),
+                new DataTableCellUpdate(j.Id, nameof(JobItemRow.StatusMessage), GetStatusMessage(j))
             });
     }
 }

@@ -22,7 +22,7 @@ public static class FirmwareCompiler
 
         This prompt is your Firmware and is never allowed to change.
 
-        In the header above your arguments is specified.
+        The header above contains your named parameters for this execution.
 
         Your program folder is: {PROGRAMFOLDER}
 
@@ -152,7 +152,7 @@ public static class FirmwareCompiler
 
     private static readonly HashSet<string> PathKeys = new(StringComparer.OrdinalIgnoreCase)
     {
-        "Args", "TendrilConfigPath", "TendrilHome", "TendrilPlanFolder",
+        "TendrilHome", "TendrilPlanFolder",
         "TendrilPlansFolder", "SourceUrl", "SourcePath"
     };
 
@@ -173,40 +173,13 @@ public static class FirmwareCompiler
         return files.Count == 0 ? emptyLabel : string.Join(", ", files);
     }
 
-    public static string GetNextLogFile(string programFolder)
+    public static string GetLogFile(string programFolder, string jobId)
     {
         var logsFolder = Path.Combine(programFolder, "Logs");
         Directory.CreateDirectory(logsFolder);
-
-        var maxNumber = 0;
-        foreach (var file in Directory.GetFiles(logsFolder, "*.md"))
-        {
-            var baseName = Path.GetFileNameWithoutExtension(file);
-            if (int.TryParse(baseName, out var num) && num > maxNumber)
-                maxNumber = num;
-        }
-
-        // Use CreateNew to atomically claim the slot; retry on collision
-        for (var attempt = maxNumber + 1; attempt < maxNumber + 100; attempt++)
-        {
-            var logFile = Path.Combine(logsFolder, $"{attempt:D5}.md");
-            try
-            {
-                using var fs = new FileStream(logFile, FileMode.CreateNew, FileAccess.Write);
-                using var writer = new StreamWriter(fs);
-                writer.Write("*Execution in progress...*\n");
-                return logFile;
-            }
-            catch (IOException)
-            {
-                // File already exists (race with another process), try next number
-            }
-        }
-
-        // Fallback: should never reach here
-        var fallback = Path.Combine(logsFolder, $"{maxNumber + 1:D5}.md");
-        File.WriteAllText(fallback, "*Execution in progress...*\n");
-        return fallback;
+        var logFile = Path.Combine(logsFolder, $"{jobId}.md");
+        File.WriteAllText(logFile, "*Execution in progress...*\n");
+        return logFile;
     }
 
 }

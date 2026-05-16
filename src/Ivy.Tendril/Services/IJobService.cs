@@ -16,6 +16,7 @@ public interface IJobService : IDisposable
     void DeleteJob(string id);
     void ClearCompletedJobs();
     void ClearFailedJobs();
+    void ClearAllJobs();
     List<JobItem> GetJobs();
     JobItem? GetJob(string id);
     bool IsInboxFileTracked(string filePath);

@@ -131,10 +131,10 @@ The tests use `Ivy-Interactive/Ivy-Templates` — a real dotnet project with `Pr
 Promptwares report progress via `tendril job status`:
 
 ```
-tendril job status $TENDRIL_JOB_ID --message "Creating plan..." --plan-id 00001 --plan-title "My Plan"
+tendril job status <TendrilJobId> --message "Creating plan..." --plan-id 00001 --plan-title "My Plan"
 ```
 
-This writes a JSON status file to `$TENDRIL_HOME/jobs/{jobId}.status`, which is polled by JobLauncher every 1 second and forwarded to the Jobs UI.
+The `<TendrilJobId>` value is provided as a firmware header in the agent's prompt. This writes a JSON status file to `$TENDRIL_HOME/Jobs/{jobId}.status`, which is polled by JobMonitor every 1 second and forwarded to the Jobs UI.
 
 ### Verifiable status fields
 

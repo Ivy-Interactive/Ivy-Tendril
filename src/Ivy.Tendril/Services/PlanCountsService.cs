@@ -86,10 +86,43 @@ public class PlanCountsService : IPlanCountsService
         var snapshot = _planReaderService.ComputePlanCounts();
         var jobs = _jobService.GetJobs();
 
+        var activeJobs = jobs
+            .Where(j => j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked)
+            .ToList();
+
+        var activePlanFolders = activeJobs
+            .Select(j => j.TypedArgs?.PlanFolder)
+            .Where(f => f != null)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var activeCreatePlanIds = activeJobs
+            .Where(j => j.TypedArgs is CreatePlanArgs)
+            .Select(j => j.ReportedPlanId ?? j.AllocatedPlanId)
+            .Where(id => id != null)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var prematureReviews = 0;
+        var prematureDrafts = 0;
+
+        if (activePlanFolders.Count > 0 || activeCreatePlanIds.Count > 0)
+        {
+            foreach (var p in _planReaderService.GetPlans())
+            {
+                var hasActiveJob = activePlanFolders.Contains(p.FolderPath) ||
+                    activeCreatePlanIds.Any(id => p.FolderName.StartsWith(id + "-", StringComparison.OrdinalIgnoreCase));
+                if (!hasActiveJob) continue;
+
+                if (p.Status is PlanStatus.ReadyForReview or PlanStatus.Failed)
+                    prematureReviews++;
+                else if (p.Status is PlanStatus.Draft or PlanStatus.Blocked)
+                    prematureDrafts++;
+            }
+        }
+
         return new PlanCounts(
-            snapshot.Drafts,
+            Math.Max(0, snapshot.Drafts - prematureDrafts),
             jobs.Count(j => j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Blocked),
-            snapshot.ReadyForReview + snapshot.Failed,
+            Math.Max(0, snapshot.ReadyForReview + snapshot.Failed - prematureReviews),
             snapshot.Icebox,
             snapshot.PendingRecommendations,
             snapshot.TotalPlans

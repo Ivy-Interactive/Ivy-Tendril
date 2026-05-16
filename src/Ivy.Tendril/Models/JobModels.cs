@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Reactive.Subjects;
 using System.Text.Json.Serialization;
 using Ivy.Tendril.Services.Agents;
 using Microsoft.Extensions.Logging;
@@ -28,6 +29,10 @@ public record JobItem
     /// </summary>
     private const int MaxOutputLines = 10_000;
     private int _completionGuard;
+    private readonly Subject<string> _outputSubject = new();
+
+    [JsonIgnore]
+    public IObservable<string> OutputObservable => _outputSubject;
 
     public bool TryClaimCompletion() =>
         Interlocked.CompareExchange(ref _completionGuard, 1, 0) == 0;
@@ -48,8 +53,7 @@ public record JobItem
     public decimal? Cost { get; set; }
     public int? Tokens { get; set; }
 
-    [JsonIgnore]
-    public IOutputNormalizer? OutputNormalizer { get; set; }
+    private IOutputNormalizer? _outputNormalizer;
 
     // Process handle for non-interactive execution
     public Process? Process { get; set; }
@@ -86,13 +90,30 @@ public record JobItem
 
     public void EnqueueOutput(string line)
     {
-        OutputLines.Enqueue(line);
-        while (OutputLines.Count > MaxOutputLines)
-            OutputLines.TryDequeue(out _);
+        _outputNormalizer ??= OutputNormalizerFactory.Create(Provider);
+        foreach (var normalized in _outputNormalizer.Normalize(line))
+        {
+            OutputLines.Enqueue(normalized);
+            while (OutputLines.Count > MaxOutputLines)
+                OutputLines.TryDequeue(out _);
+            _outputSubject.OnNext(normalized);
+        }
+    }
+
+    public void FlushNormalizer()
+    {
+        if (_outputNormalizer is null) return;
+        foreach (var line in _outputNormalizer.Flush())
+        {
+            OutputLines.Enqueue(line);
+            _outputSubject.OnNext(line);
+        }
     }
 
     public void DisposeResources(ILogger? logger = null)
     {
+        _outputSubject.OnCompleted();
+
         try
         {
             Process?.Dispose();
@@ -145,7 +166,7 @@ public record JobItemRow
     public string Type { get; init; } = "";
     public string Project { get; init; } = "";
     public string Timer { get; init; } = "";
-    public string LastOutput { get; init; } = "";
+    public string AgentOutput { get; init; } = "";
     public DateTime? LastOutputTimestamp { get; init; }
     public string Cost { get; init; } = "";
     public string Tokens { get; init; } = "";

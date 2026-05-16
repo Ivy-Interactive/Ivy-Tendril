@@ -221,6 +221,61 @@ public class PlanReaderService(
     }
 
     /// <summary>
+    ///     Resets a plan to Draft state, clearing commits, recommendations, and verification statuses.
+    /// </summary>
+    /// <param name="folderName">Name of the plan folder (e.g. <c>01105-TestPlan</c>).</param>
+    public void ResetToDraft(string folderName)
+    {
+        var planId = ExtractPlanId(folderName);
+
+        if (planId.HasValue && _database != null)
+            _database.UpdatePlanState(planId.Value, PlanStatus.Draft);
+
+        _planCountsCache.Invalidate();
+        _recommendationsCache.Invalidate();
+        CountsInvalidated?.Invoke();
+        _planWatcherService?.NotifyChanged(folderName);
+
+        WriteFileInBackground(() =>
+        {
+            var planYamlPath = Path.Combine(PlansDirectory, folderName, "plan.yaml");
+            if (!File.Exists(planYamlPath)) return;
+
+            var yaml = FileHelper.ReadAllText(planYamlPath);
+            var planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml) ?? new PlanYaml();
+            planYaml.State = PlanStatus.Draft.ToString();
+            planYaml.Updated = DateTime.UtcNow;
+            planYaml.Commits = new List<string>();
+            planYaml.Recommendations = null;
+            foreach (var v in planYaml.Verifications)
+                v.Status = "Pending";
+            FileHelper.WriteAllText(planYamlPath, YamlHelper.SerializerCompact.Serialize(planYaml));
+        });
+    }
+
+    public void ResetVerificationsForRetry(string folderName)
+    {
+        _planWatcherService?.NotifyChanged(folderName);
+
+        WriteFileInBackground(() =>
+        {
+            var planYamlPath = Path.Combine(PlansDirectory, folderName, "plan.yaml");
+            if (!File.Exists(planYamlPath)) return;
+
+            var yaml = FileHelper.ReadAllText(planYamlPath);
+            var planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml) ?? new PlanYaml();
+            planYaml.Updated = DateTime.UtcNow;
+            planYaml.Commits = new List<string>();
+            foreach (var v in planYaml.Verifications)
+            {
+                if (!v.Status.Equals("Skipped", StringComparison.OrdinalIgnoreCase))
+                    v.Status = "Pending";
+            }
+            FileHelper.WriteAllText(planYamlPath, YamlHelper.SerializerCompact.Serialize(planYaml));
+        });
+    }
+
+    /// <summary>
     ///     Creates a new revision file for a plan and updates the plan's timestamp.
     /// </summary>
     /// <param name="folderName">Name of the plan folder.</param>
@@ -314,26 +369,14 @@ public class PlanReaderService(
     /// <param name="folderName">Name of the plan folder.</param>
     /// <param name="action">Action name used in the log filename (e.g. <c>ExecutePlan</c>).</param>
     /// <param name="content">Markdown content of the log entry.</param>
-    public void AddLog(string folderName, string action, string content)
+    public void AddLog(string folderName, string action, string content, string? jobId = null)
     {
         var logsDir = Path.Combine(PlansDirectory, folderName, "logs");
         FileHelper.EnsureDirectory(logsDir);
 
-        var nextNumber = 1;
-        var existingLogs = Directory.GetFiles(logsDir, "*.md");
-        if (existingLogs.Length > 0)
-            nextNumber = existingLogs
-                .Select(f => Path.GetFileNameWithoutExtension(f))
-                .Select(n =>
-                {
-                    var dashIdx = n.IndexOf('-');
-                    var numPart = dashIdx >= 0 ? n.Substring(0, dashIdx) : n;
-                    return int.TryParse(numPart, out var num) ? num : 0;
-                })
-                .DefaultIfEmpty(0)
-                .Max() + 1;
-
-        var logPath = Path.Combine(logsDir, $"{nextNumber:D3}-{action}.md");
+        var logPath = !string.IsNullOrEmpty(jobId)
+            ? Path.Combine(logsDir, $"{jobId}-{action}.md")
+            : Path.Combine(logsDir, $"{action}.md");
         FileHelper.WriteAllText(logPath, content);
     }
 

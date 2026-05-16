@@ -17,17 +17,20 @@ public class SettingsApp : ViewBase
     private const string TagProjects = "projects";
     private const string TagPlugins = "plugins";
     private const string TagAdvanced = "advanced";
-    private const string TagTheme = "theme";
     private const string TagOpenConfig = "open-config";
+    private const string TagApplyConfig = "apply-config";
+    private const string TagAccount = "account";
 
     public override object Build()
     {
         var config = UseService<IConfigService>();
         var navigator = UseNavigation();
+        var client = UseService<IClientProvider>();
         var httpContextAccessor = UseService<IHttpContextAccessor>();
         var selected = UseState(TagGeneral);
         Context.TryUseService<DesktopWindow>(out var desktopWindow);
         var isDesktop = desktopWindow != null;
+        var capturedHost = ConfigYamlUiHelper.CaptureHost(httpContextAccessor);
 
         var menuItems = new[]
         {
@@ -48,8 +51,14 @@ public class SettingsApp : ViewBase
                 .Icon(Icons.Wrench)
                 .Expanded()
                 .Children(
-                    MenuItem.Default("Theme", TagTheme).Icon(Icons.SunMoon),
-                    MenuItem.Default("Open config.yaml", TagOpenConfig).Icon(Icons.FileText)
+                    MenuItem.Default("Open config.yaml", TagOpenConfig).Icon(Icons.FileText),
+                    MenuItem.Default("Apply config.yaml", TagApplyConfig).Icon(Icons.RefreshCw)
+                ),
+            MenuItem.Default("Account")
+                .Icon(Icons.User)
+                .Expanded()
+                .Children(
+                    MenuItem.Default("Profile", TagAccount).Icon(Icons.CircleUser)
                 )
         };
 
@@ -59,7 +68,18 @@ public class SettingsApp : ViewBase
             switch (tag)
             {
                 case TagOpenConfig:
-                    ConfigYamlUiHelper.OpenOrNavigate(config, navigator, isDesktop, httpContextAccessor);
+                    ConfigYamlUiHelper.OpenOrNavigate(config, navigator, client, isDesktop, capturedHost);
+                    break;
+                case TagApplyConfig:
+                    try
+                    {
+                        config.ReloadSettings();
+                        client.Toast("config.yaml has been applied successfully.", "Config reloaded");
+                    }
+                    catch (Exception ex)
+                    {
+                        client.Toast(ex.Message, "Reload failed", variant: ToastVariant.Destructive);
+                    }
                     break;
                 default:
                     selected.Set(tag);
@@ -79,7 +99,7 @@ public class SettingsApp : ViewBase
             TagProjects => new ProjectsSetupView(),
             TagPlugins => new PluginsSetupView(),
             TagAdvanced => new AdvancedSetupView(),
-            TagTheme => new ThemeSettingsView(),
+            TagAccount => new AccountSetupView(),
             _ => new GeneralSetupView()
         };
 

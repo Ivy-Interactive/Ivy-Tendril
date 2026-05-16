@@ -31,8 +31,6 @@ public class JobService : IJobService
     private readonly ILogger<JobService> _logger;
     private readonly JobLauncher _jobLauncher;
     private readonly JobCompletionHandler _completionHandler;
-    private int _counter;
-
     public JobService(
         IConfigService configService,
         ILogger<JobService>? logger = null,
@@ -65,6 +63,7 @@ public class JobService : IJobService
             configService, _logger, modelPricingService, planReaderService,
             telemetryService, planWatcherService, worktreeLifecycleLogger, promptsRoot);
         configService.SettingsReloaded += OnSettingsReloaded;
+        JobIdAllocator.SeedIfNeeded(configService.TendrilHome, promptsRoot);
         LoadHistoricalJobs();
     }
 
@@ -113,6 +112,7 @@ public class JobService : IJobService
         if (!_jobs.TryGetValue(id, out var job)) return;
         if (!job.TryClaimCompletion()) return;
 
+        job.FlushNormalizer();
         var wasRunning = job.Status == JobStatus.Running;
         SetCompletionStatus(job, exitCode, timedOut, staleOutput);
         if (wasRunning)
@@ -167,6 +167,7 @@ public class JobService : IJobService
         if (!_jobs.TryGetValue(id, out var job)) return;
         if (!job.TryClaimCompletion()) return;
 
+        job.FlushNormalizer();
         var wasRunning = job.Status == JobStatus.Running;
         job.CancellationRequested = true;
         try
@@ -194,6 +195,8 @@ public class JobService : IJobService
         if (job.StartedAt.HasValue)
             job.DurationSeconds = (int)(job.CompletedAt.Value - job.StartedAt.Value).TotalSeconds;
 
+        _completionHandler.WriteJobLog(job);
+
         // Release job slot if the job was running
         if (wasRunning)
             _jobSlotSemaphore.Release();
@@ -201,7 +204,7 @@ public class JobService : IJobService
         JobCompletionHandler.CleanupInboxFile(job);
         _completionHandler.ResetPlanState(job);
 
-        if (job.TypedArgs is ExecutePlanArgs or CreatePrArgs)
+        if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
             _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);
 
         RaiseJobsStructureChanged();
@@ -249,6 +252,9 @@ public class JobService : IJobService
 
     public void ClearFailedJobs()
         => ClearJobsByStatus(j => j.Status is JobStatus.Failed or JobStatus.Timeout);
+
+    public void ClearAllJobs()
+        => ClearJobsByStatus(j => j.Status is not JobStatus.Running and not JobStatus.Queued);
 
     private void ClearJobsByStatus(Func<JobItem, bool> predicate)
     {
@@ -366,7 +372,9 @@ public class JobService : IJobService
 
     private string StartJobInternal(JobArgsBase args, string? inboxFilePath, bool skipDependencyCheck = false)
     {
-        var id = $"job-{Interlocked.Increment(ref _counter):D3}";
+        var id = _configService != null
+            ? JobIdAllocator.AllocateJobId(_configService.TendrilHome)
+            : Guid.NewGuid().ToString("N")[..5];
         var job = BuildJobItem(id, args, inboxFilePath);
 
         if (TryRejectConflictingJob(job))
@@ -377,7 +385,7 @@ public class JobService : IJobService
         if (TryBlockForDependencies(job, skipDependencyCheck))
             return id;
 
-        if (job.TypedArgs is ExecutePlanArgs or ExpandPlanArgs or UpdatePlanArgs or SplitPlanArgs)
+        if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or ExpandPlanArgs or UpdatePlanArgs or SplitPlanArgs)
             _planReaderService?.FlushPendingWritesAsync().GetAwaiter().GetResult();
 
         if (!_jobSlotSemaphore.Wait(0))
@@ -459,7 +467,7 @@ public class JobService : IJobService
 
     private bool TryRejectConflictingJob(JobItem job)
     {
-        if (job.TypedArgs is not (ExecutePlanArgs or UpdatePlanArgs or ExpandPlanArgs or SplitPlanArgs))
+        if (job.TypedArgs is not (ExecutePlanArgs or RetryPlanArgs or UpdatePlanArgs or ExpandPlanArgs or SplitPlanArgs))
             return false;
 
         var planFolder = job.TypedArgs?.PlanFolder ?? "";
@@ -487,7 +495,7 @@ public class JobService : IJobService
 
     private bool TryBlockForDependencies(JobItem job, bool skipDependencyCheck)
     {
-        if (job.TypedArgs is not ExecutePlanArgs || skipDependencyCheck)
+        if (job.TypedArgs is not (ExecutePlanArgs or RetryPlanArgs) || skipDependencyCheck)
             return false;
 
         var planFolder = job.TypedArgs?.PlanFolder ?? "";
@@ -511,7 +519,9 @@ public class JobService : IJobService
     /// </summary>
     internal string CreateTestJob(JobArgsBase args)
     {
-        var id = $"job-{Interlocked.Increment(ref _counter):D3}";
+        var id = _configService != null
+            ? JobIdAllocator.AllocateJobId(_configService.TendrilHome)
+            : $"test-{Guid.NewGuid().ToString("N")[..5]}";
         var job = new JobItem
         {
             Id = id,

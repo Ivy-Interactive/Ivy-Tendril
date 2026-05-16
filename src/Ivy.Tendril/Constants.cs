@@ -30,6 +30,7 @@ public static class Constants
     {
         public const string CreatePlan = "CreatePlan";
         public const string ExecutePlan = "ExecutePlan";
+        public const string RetryPlan = "RetryPlan";
         public const string ExpandPlan = "ExpandPlan";
         public const string UpdatePlan = "UpdatePlan";
         public const string SplitPlan = "SplitPlan";
@@ -39,7 +40,7 @@ public static class Constants
 
         public static readonly HashSet<string> BuiltIn = new(StringComparer.OrdinalIgnoreCase)
         {
-            CreatePlan, ExecutePlan, ExpandPlan, UpdatePlan, SplitPlan, CreatePr, CreateIssue, UpdateProject
+            CreatePlan, ExecutePlan, RetryPlan, ExpandPlan, UpdatePlan, SplitPlan, CreatePr, CreateIssue, UpdateProject
         };
     }
 }

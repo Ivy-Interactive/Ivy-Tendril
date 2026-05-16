@@ -157,23 +157,19 @@ public class TryBuildAgentProcessStartTests : IDisposable
         // Base tools + _default's Write should still be present
         Assert.Contains("Read", resolution.AllowedTools);
         Assert.Contains("Write", resolution.AllowedTools);
-        Assert.Contains("Bash(tendril*)", resolution.AllowedTools);
+        Assert.Contains("Bash", resolution.AllowedTools);
         Assert.Equal("haiku", resolution.Model);
     }
 
     [Fact]
-    public void FirmwareCompiler_GetNextLogFile_HandlesNonNumericFiles()
+    public void FirmwareCompiler_GetLogFile_CreatesNamedLogFile()
     {
         var programFolder = Path.Combine(_tempDir, "TestProgram");
-        var logsFolder = Path.Combine(programFolder, "Logs");
-        Directory.CreateDirectory(logsFolder);
+        Directory.CreateDirectory(programFolder);
 
-        // Create files that don't match the numeric pattern
-        File.WriteAllText(Path.Combine(logsFolder, "readme.md"), "ignore me");
-        File.WriteAllText(Path.Combine(logsFolder, "00003.md"), "log 3");
-
-        var logFile = FirmwareCompiler.GetNextLogFile(programFolder);
-        Assert.EndsWith("00004.md", logFile);
+        var logFile = FirmwareCompiler.GetLogFile(programFolder, "00099");
+        Assert.EndsWith("00099.md", logFile);
+        Assert.True(File.Exists(logFile));
     }
 
     [Fact]
