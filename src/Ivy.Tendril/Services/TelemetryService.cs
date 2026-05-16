@@ -27,13 +27,15 @@ public class TelemetryService : ITelemetryService, IAsyncDisposable
         {
             // Public key — safe to expose (like a website tracking snippet)
             var sessionId = Guid.NewGuid().ToString();
+            // GeoIP enabled so we can see which countries have active users
             _client = new PostHogClient(new PostHogOptions
             {
                 ProjectApiKey = "phc_uHeJHFURzThFPnizzGMzLEimLWnRAuqy8DunK8N3oYcd",
                 HostUrl = new Uri("https://eu.i.posthog.com"),
                 SuperProperties = new Dictionary<string, object>
                 {
-                    ["$session_id"] = sessionId
+                    ["$session_id"] = sessionId,
+                    ["$geoip_disable"] = false
                 }
             });
             _distinctId = GetOrCreateAnonymousId();
