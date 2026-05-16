@@ -586,4 +586,99 @@ public class GitService : IGitService
             return GitResult<List<WorktreeInfo>>.Failure(GitError.UnknownError, ex.Message);
         }
     }
+
+    public GitResult<bool> HasUncommittedChanges(string repoPath)
+    {
+        try
+        {
+            if (!Directory.Exists(repoPath))
+                return GitResult<bool>.Failure(GitError.InvalidRepoPath, $"Repository path does not exist: {repoPath}");
+
+            var psi = new ProcessStartInfo("git", "status --porcelain")
+            {
+                WorkingDirectory = repoPath,
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                StandardOutputEncoding = Encoding.UTF8
+            };
+            using var process = Process.Start(psi);
+            if (process == null)
+                return GitResult<bool>.Failure(GitError.GitNotFound, "Failed to start git process");
+
+            var output = process.StandardOutput.ReadToEnd();
+            var timedOut = !process.WaitForExit(_timeoutMs);
+
+            if (timedOut)
+            {
+                try { process.Kill(); } catch { }
+                return GitResult<bool>.Failure(GitError.Timeout, $"Git command timed out after {_timeoutMs}ms");
+            }
+
+            if (process.ExitCode != 0)
+                return GitResult<bool>.Failure(GitError.CommandFailed, $"Git command failed with exit code {process.ExitCode}");
+
+            return GitResult<bool>.Success(!string.IsNullOrWhiteSpace(output));
+        }
+        catch (FileNotFoundException ex)
+        {
+            _logger.LogWarning(ex, "Git executable not found");
+            return GitResult<bool>.Failure(GitError.GitNotFound, "Git executable not found");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Unknown error executing git command");
+            return GitResult<bool>.Failure(GitError.UnknownError, ex.Message);
+        }
+    }
+
+    public GitResult<List<string>> GetReachableCommits(string repoPath, IEnumerable<string> candidateHashes)
+    {
+        try
+        {
+            if (!Directory.Exists(repoPath))
+                return GitResult<List<string>>.Failure(GitError.InvalidRepoPath, $"Repository path does not exist: {repoPath}");
+
+            var hashes = candidateHashes.ToList();
+            if (hashes.Count == 0)
+                return GitResult<List<string>>.Success(new List<string>());
+
+            var reachable = new List<string>();
+            foreach (var hash in hashes)
+            {
+                var psi = new ProcessStartInfo("git", $"merge-base --is-ancestor {hash} HEAD")
+                {
+                    WorkingDirectory = repoPath,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var process = Process.Start(psi);
+                if (process == null) continue;
+
+                var timedOut = !process.WaitForExit(_timeoutMs);
+                if (timedOut)
+                {
+                    try { process.Kill(); } catch { }
+                    continue;
+                }
+
+                if (process.ExitCode == 0)
+                    reachable.Add(hash);
+            }
+
+            return GitResult<List<string>>.Success(reachable);
+        }
+        catch (FileNotFoundException ex)
+        {
+            _logger.LogWarning(ex, "Git executable not found");
+            return GitResult<List<string>>.Failure(GitError.GitNotFound, "Git executable not found");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Unknown error executing git command");
+            return GitResult<List<string>>.Failure(GitError.UnknownError, ex.Message);
+        }
+    }
 }

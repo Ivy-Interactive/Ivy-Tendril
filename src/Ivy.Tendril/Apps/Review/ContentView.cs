@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reactive.Disposables;
 using Ivy.Core;
 using Ivy.Tendril.Apps.Plans;
@@ -30,6 +31,7 @@ public class ContentView(
         var openArtifact = UseState<string?>(null);
         var openFile = UseState<string?>(null);
         var openCommit = UseState<string?>(null);
+        var syncingWorktrees = UseState(new HashSet<string>());
         var args = UseArgs<ReviewAppArgs>();
         var nav = UseNavigation();
 
@@ -222,7 +224,7 @@ public class ContentView(
         var content = BuildContent(
             selectedPlanState.Value, planData, planContentQuery, selectedTabIndex, tabNames, openVerification,
             openCommit, openFile, openArtifact, artifactContentQuery, assigneesQuery,
-            assigneesError,
+            assigneesError, syncingWorktrees,
             client, copyToClipboard, logger, nav, args);
 
         var mainLayout = new HeaderLayout(
@@ -369,6 +371,7 @@ public class ContentView(
         QueryResult<string> artifactContentQuery,
         QueryResult<string[]> assigneesQuery,
         IState<string?> assigneesError,
+        IState<HashSet<string>> syncingWorktrees,
         IClientProvider client,
         Action<string> copyToClipboard,
         ILogger<ContentView> logger,
@@ -426,6 +429,8 @@ public class ContentView(
                     client.Toast("Copied path to clipboard", "Path Copied");
                     return null!;
                 },
+                syncingWorktrees.Value,
+                worktreePath => SynchronizeWorktreeAsync(worktreePath, syncingWorktrees, planContentQuery, client, logger),
                 logger
             );
 
@@ -507,7 +512,7 @@ public class ContentView(
                 new Tab("Verifications", Cap(new VerificationsTabView(
                     selectedPlan.Verifications, planData.VerificationReports,
                     v => openVerification.Set(v)))).Badge(selectedPlan.Verifications.Count.ToString()),
-                new Tab("Git", Cap(gitLayout)).Badge((gitData.WorktreeRows.Count + selectedPlan.Commits.Count + selectedPlan.Prs.Count).ToString()),
+                new Tab("Git", Cap(gitLayout)).Badge((gitData.WorktreeSections.Count + selectedPlan.Commits.Count + selectedPlan.Prs.Count).ToString()),
                 new Tab("Changes", Layout.Vertical().Width(Size.Full()).Height(Size.Full()) | changesTabView).Badge(changesTabView.FileCount > 0 ? changesTabView.FileCount.ToString() : ""),
                 new Tab("Artifacts", Cap(new ArtifactsTabView(planData.Artifacts))).Badge(totalArtifacts.ToString()),
                 new Tab("Recommendations", Cap(recommendationsLayout)).Badge(planData.Recommendations.Count.ToString())
@@ -576,6 +581,60 @@ public class ContentView(
         var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlanState.Value?.FolderName);
         var prevIndex = (currentIndex - 1 + allPlans.Count) % allPlans.Count;
         selectedPlanState.Set(allPlans[prevIndex]);
+    }
+
+    private static async void SynchronizeWorktreeAsync(
+        string worktreePath,
+        IState<HashSet<string>> syncingState,
+        QueryResult<PlanContentData> query,
+        IClientProvider client,
+        ILogger? logger)
+    {
+        var paths = new HashSet<string>(syncingState.Value) { worktreePath };
+        syncingState.Set(paths);
+
+        try
+        {
+            var (exitCode, error) = await Task.Run(() =>
+            {
+                var psi = new ProcessStartInfo("git", "fetch origin")
+                {
+                    WorkingDirectory = worktreePath,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var process = Process.Start(psi);
+                if (process == null)
+                    return (1, "Failed to start git process");
+
+                var stderr = process.StandardError.ReadToEnd();
+                process.WaitForExit(60000);
+                return (process.ExitCode, stderr);
+            });
+
+            if (exitCode == 0)
+            {
+                client.Toast("Worktree synchronized successfully", "Synchronized");
+            }
+            else
+            {
+                client.Toast($"git fetch failed: {error}", "Synchronize Failed", variant: ToastVariant.Destructive);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to synchronize worktree at {Path}", worktreePath);
+            client.Toast($"Failed to synchronize: {ex.Message}", "Synchronize Failed", variant: ToastVariant.Destructive);
+        }
+        finally
+        {
+            var updated = new HashSet<string>(syncingState.Value);
+            updated.Remove(worktreePath);
+            syncingState.Set(updated);
+            query.Mutator.Revalidate();
+        }
     }
 
     private record PlanContentData(

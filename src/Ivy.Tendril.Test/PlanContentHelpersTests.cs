@@ -428,5 +428,15 @@ public class PlanContentHelpersTests
             var summaries = commitHashes.ToDictionary(h => h, _ => (commitTitle, commitFiles?.Count ?? 0));
             return GitResult<Dictionary<string, (string Title, int FileCount)>>.Success(summaries);
         }
+
+        public GitResult<bool> HasUncommittedChanges(string repoPath)
+        {
+            return GitResult<bool>.Success(false);
+        }
+
+        public GitResult<List<string>> GetReachableCommits(string repoPath, IEnumerable<string> candidateHashes)
+        {
+            return GitResult<List<string>>.Success(candidateHashes.ToList());
+        }
     }
 }
