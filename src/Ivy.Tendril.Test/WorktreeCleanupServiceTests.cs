@@ -71,7 +71,7 @@ public class WorktreeCleanupServiceTests : IDisposable
     [Fact]
     public void RunCleanup_Cleans_Terminal_State_Plans_Past_Grace_Period()
     {
-        var terminalStates = new[] { "Completed", "Failed", "Skipped", "Icebox" };
+        var terminalStates = new[] { "Completed", "Skipped", "Icebox" };
         foreach (var state in terminalStates)
         {
             var dir = CreatePlan($"02{Array.IndexOf(terminalStates, state):D3}-{state}Plan", state,
@@ -184,7 +184,7 @@ public class WorktreeCleanupServiceTests : IDisposable
     {
         // Worktree directory with a .git file pointing to a non-existent repo entry —
         // git worktree remove will fail, but force-delete fallback should clean it up
-        var dir = CreatePlan("09001-OrphanStaleGit", "Failed", DateTime.UtcNow.AddHours(-2));
+        var dir = CreatePlan("09001-OrphanStaleGit", "Completed", DateTime.UtcNow.AddHours(-2));
         var worktreeDir = Path.Combine(dir, "Worktrees", "TestRepo");
         Directory.CreateDirectory(worktreeDir);
         File.WriteAllText(Path.Combine(worktreeDir, ".git"),
