@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Ivy.Core;
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Models;
@@ -20,7 +21,10 @@ public static class GitTabHelper
         string Branch,
         string ShortHash,
         bool HasUncommittedChanges,
-        List<PlanContentHelpers.CommitRow> CommitRows
+        List<PlanContentHelpers.CommitRow> CommitRows,
+        string? ParentRepoPath = null,
+        string? ParentBranch = null,
+        string? ParentShortHash = null
     );
 
     public static GitTabData BuildGitTabData(
@@ -111,13 +115,52 @@ public static class GitTabHelper
             }
         }
 
+        string? parentRepoPath = null;
+        string? parentBranch = null;
+        string? parentShortHash = null;
+
+        var mainWorktree = worktreesResult.Value.FirstOrDefault(w =>
+            !Path.GetFullPath(w.Path).Equals(Path.GetFullPath(repoDir), StringComparison.OrdinalIgnoreCase));
+        if (mainWorktree != null)
+        {
+            parentRepoPath = mainWorktree.Path;
+            parentBranch = mainWorktree.Branch;
+            parentShortHash = mainWorktree.CommitHash.Length > 9
+                ? mainWorktree.CommitHash[..9]
+                : mainWorktree.CommitHash;
+        }
+        else
+        {
+            var resolvedRoot = ResolveRepoRootFromWorktree(repoDir);
+            if (resolvedRoot != null)
+            {
+                parentRepoPath = resolvedRoot;
+                var parentWorktrees = gitService.GetWorktrees(resolvedRoot);
+                if (parentWorktrees.IsSuccess && parentWorktrees.Value != null)
+                {
+                    var main = parentWorktrees.Value.FirstOrDefault(w =>
+                        Path.GetFullPath(w.Path).Equals(Path.GetFullPath(resolvedRoot), StringComparison.OrdinalIgnoreCase));
+                    if (main != null)
+                    {
+                        parentBranch = main.Branch;
+                        parentShortHash = main.CommitHash.Length > 9
+                            ? main.CommitHash[..9]
+                            : main.CommitHash;
+                    }
+                }
+            }
+        }
+
         return new WorktreeSection(
             Path.GetFileName(repoDir),
             repoDir,
             worktree.Branch,
             shortHash,
             hasUncommitted,
-            worktreeCommits
+            worktreeCommits,
+            parentRepoPath,
+            parentBranch,
+            parentShortHash
         );
     }
 
@@ -231,6 +274,29 @@ public static class GitTabHelper
             | Text.Muted("Based on:")
             | new Badge($"{section.Branch}@{section.ShortHash}").Variant(BadgeVariant.Outline).Small();
 
+        // Worktrees tile
+        if (section.ParentRepoPath != null)
+        {
+            var worktreeDetails = Layout.Vertical().Gap(1);
+            worktreeDetails |= Layout.Horizontal().Gap(1)
+                | Text.Muted("Repository:")
+                | Text.Block(section.ParentRepoPath.Replace('\\', '/'));
+            if (section.ParentBranch != null && section.ParentShortHash != null)
+            {
+                worktreeDetails |= Layout.Horizontal().Gap(1)
+                    | Text.Muted("Parent:")
+                    | Text.Block($"{section.ParentBranch}@{section.ParentShortHash}");
+            }
+            worktreeDetails |= Layout.Horizontal().Gap(1)
+                | Text.Muted("Worktree:")
+                | Text.Block(section.Path.Replace('\\', '/'));
+            worktreeDetails |= Layout.Horizontal().Gap(1)
+                | Text.Muted("Head:")
+                | Text.Block($"{section.Branch}@{section.ShortHash}");
+
+            sectionLayout |= new Card(worktreeDetails).Title("Worktrees");
+        }
+
         // Syncing state
         if (isSyncing)
         {
@@ -282,6 +348,20 @@ public static class GitTabHelper
                     setOpenCommit(row.Hash);
                 })))
             .Remove(t => t.Hash);
+    }
+
+    private static string? ResolveRepoRootFromWorktree(string wtDir)
+    {
+        var gitFile = Path.Combine(wtDir, ".git");
+        if (!File.Exists(gitFile)) return null;
+        var gitContent = FileHelper.ReadAllText(gitFile).Trim();
+        var gitDirMatch = Regex.Match(gitContent, @"gitdir:\s*(.+)");
+        if (!gitDirMatch.Success) return null;
+
+        var gitDir = gitDirMatch.Groups[1].Value.Trim();
+        var repoGitDir = Path.GetFullPath(Path.Combine(wtDir, gitDir, "..", ".."));
+        var repoRoot = Path.GetDirectoryName(repoGitDir);
+        return repoRoot != null && Directory.Exists(repoRoot) ? repoRoot : null;
     }
 
     private record CommitTableRow(string Commit, string Hash, string Message, string Files);
