@@ -160,7 +160,7 @@ internal class JobCompletionHandler
         if (isSuccess)
             TrackSuccessTelemetry(job);
 
-        _telemetryService?.TrackJobCompleted(job.Type, job.Status, job.DurationSeconds);
+        _telemetryService?.TrackJobCompleted(job.Type, job.Status, job.DurationSeconds, job.Provider);
         FlushTelemetryAsync();
     }
 
@@ -175,11 +175,11 @@ internal class JobCompletionHandler
                 var plan = PlanYamlHelper.ReadPlanYaml(planFolder);
                 if (plan != null) level = plan.Level;
             }
-            _telemetryService?.TrackPlanCreated(new PlanCreatedContext(level, job.DurationSeconds));
+            _telemetryService?.TrackPlanCreated(new PlanCreatedContext(level, job.DurationSeconds, job.Provider));
         }
         else if (job.TypedArgs is CreatePrArgs)
         {
-            _telemetryService?.TrackPrCreated(new PrCreatedContext(job.DurationSeconds));
+            _telemetryService?.TrackPrCreated(new PrCreatedContext(job.DurationSeconds, job.Provider));
         }
     }
 

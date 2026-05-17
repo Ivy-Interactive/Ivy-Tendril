@@ -13,7 +13,8 @@ This document defines what data Tendril may and may not send to third-party tele
 - **Durations**: Time taken to complete operations (in seconds)
 - **States/Types**: Enum values, state names, job types (e.g., "CreatePlan", "ExecutePlan")
 - **Levels**: Plan levels (e.g., "Bug", "Critical", "NiceToHave")
-- **Versions**: Application version strings
+- **Versions**: Application version strings, OS version strings
+- **Agent providers**: Coding agent name (e.g., "claude", "codex", "gemini")
 - **Booleans**: Feature flags, configuration states (e.g., llm_configured: true)
 - **Status codes**: Success/failure indicators, verification results
 
@@ -55,15 +56,15 @@ When adding new telemetry events, ask:
 
 ## Current Events Audit
 
-All events comply with this policy as of Plan 02085:
+All events comply with this policy:
 
 | Event | Status | Notes |
 |-------|--------|-------|
 | app_started | Compliant | Aggregate counts only |
-| plan_created | Compliant | Project name removed |
-| pr_created | Compliant | Project name removed |
-| job_completed | Compliant | Job types + status enums |
-| plan_state_transition | Compliant | Plan ID removed |
+| plan_created | Compliant | Level, duration, agent provider |
+| pr_created | Compliant | Duration, agent provider |
+| job_completed | Compliant | Job types, status enums, agent provider |
+| plan_state_transition | Compliant | State names only |
 
 ## Implementation
 
@@ -71,5 +72,6 @@ See [ITelemetryService.cs](Services/ITelemetryService.cs) for typed context obje
 
 ## History
 
+- 2026-05-17: Added OS version, app_version as super properties; added agent provider to job/plan/pr events
 - 2026-04-06: Plan 02069 removed repo_url from pr_created event
 - 2026-04-06: Plan 02085 established this policy document and removed project names and plan IDs

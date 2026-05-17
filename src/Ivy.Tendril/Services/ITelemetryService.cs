@@ -8,7 +8,7 @@ public interface ITelemetryService
     void TrackAppStarted(AppStartContext context);
     void TrackPlanCreated(PlanCreatedContext context);
     void TrackPrCreated(PrCreatedContext context);
-    void TrackJobCompleted(string jobType, JobStatus status, int? durationSeconds);
+    void TrackJobCompleted(string jobType, JobStatus status, int? durationSeconds, string? agent = null);
     void TrackPlanStateTransition(string fromState, string toState);
     Task IdentifyAsync(string appVersion);
     Task FlushAsync();
@@ -21,7 +21,9 @@ public record AppStartContext(
 
 public record PlanCreatedContext(
     string Level,
-    int? DurationSeconds);
+    int? DurationSeconds,
+    string? Agent = null);
 
 public record PrCreatedContext(
-    int? DurationSeconds);
+    int? DurationSeconds,
+    string? Agent = null);
