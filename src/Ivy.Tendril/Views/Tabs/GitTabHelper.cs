@@ -115,41 +115,7 @@ public static class GitTabHelper
             }
         }
 
-        string? parentRepoPath = null;
-        string? parentBranch = null;
-        string? parentShortHash = null;
-
-        var mainWorktree = worktreesResult.Value.FirstOrDefault(w =>
-            !Path.GetFullPath(w.Path).Equals(Path.GetFullPath(repoDir), StringComparison.OrdinalIgnoreCase));
-        if (mainWorktree != null)
-        {
-            parentRepoPath = mainWorktree.Path;
-            parentBranch = mainWorktree.Branch;
-            parentShortHash = mainWorktree.CommitHash.Length > 9
-                ? mainWorktree.CommitHash[..9]
-                : mainWorktree.CommitHash;
-        }
-        else
-        {
-            var resolvedRoot = ResolveRepoRootFromWorktree(repoDir);
-            if (resolvedRoot != null)
-            {
-                parentRepoPath = resolvedRoot;
-                var parentWorktrees = gitService.GetWorktrees(resolvedRoot);
-                if (parentWorktrees.IsSuccess && parentWorktrees.Value != null)
-                {
-                    var main = parentWorktrees.Value.FirstOrDefault(w =>
-                        Path.GetFullPath(w.Path).Equals(Path.GetFullPath(resolvedRoot), StringComparison.OrdinalIgnoreCase));
-                    if (main != null)
-                    {
-                        parentBranch = main.Branch;
-                        parentShortHash = main.CommitHash.Length > 9
-                            ? main.CommitHash[..9]
-                            : main.CommitHash;
-                    }
-                }
-            }
-        }
+        var (parentRepoPath, parentBranch, parentShortHash) = ResolveParentInfo(repoDir, worktreesResult.Value, gitService);
 
         return new WorktreeSection(
             Path.GetFileName(repoDir),
@@ -348,6 +314,39 @@ public static class GitTabHelper
                     setOpenCommit(row.Hash);
                 })))
             .Remove(t => t.Hash);
+    }
+
+    private static (string? Path, string? Branch, string? ShortHash) ResolveParentInfo(
+        string repoDir, List<WorktreeInfo> worktrees, IGitService gitService)
+    {
+        var mainWorktree = worktrees.FirstOrDefault(w =>
+            !Path.GetFullPath(w.Path).Equals(Path.GetFullPath(repoDir), StringComparison.OrdinalIgnoreCase));
+
+        if (mainWorktree != null)
+        {
+            return (
+                mainWorktree.Path,
+                mainWorktree.Branch,
+                mainWorktree.CommitHash.Length > 9 ? mainWorktree.CommitHash[..9] : mainWorktree.CommitHash
+            );
+        }
+
+        var resolvedRoot = ResolveRepoRootFromWorktree(repoDir);
+        if (resolvedRoot == null) return (null, null, null);
+
+        var parentWorktrees = gitService.GetWorktrees(resolvedRoot);
+        if (!parentWorktrees.IsSuccess || parentWorktrees.Value == null) return (resolvedRoot, null, null);
+
+        var main = parentWorktrees.Value.FirstOrDefault(w =>
+            Path.GetFullPath(w.Path).Equals(Path.GetFullPath(resolvedRoot), StringComparison.OrdinalIgnoreCase));
+
+        if (main == null) return (resolvedRoot, null, null);
+
+        return (
+            resolvedRoot,
+            main.Branch,
+            main.CommitHash.Length > 9 ? main.CommitHash[..9] : main.CommitHash
+        );
     }
 
     private static string? ResolveRepoRootFromWorktree(string wtDir)
