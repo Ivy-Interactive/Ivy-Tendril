@@ -143,7 +143,7 @@ public class JobDebugSheet(
         var folder = GetPlanFolderPath(job);
         if (string.IsNullOrEmpty(folder)) return null;
 
-        var logsDir = Path.Combine(folder, "logs");
+        var logsDir = Path.Combine(folder, "Logs");
         if (!Directory.Exists(logsDir)) return null;
 
         var files = Directory.GetFiles(logsDir, pattern);

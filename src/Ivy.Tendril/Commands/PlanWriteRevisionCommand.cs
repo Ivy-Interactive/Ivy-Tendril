@@ -27,7 +27,7 @@ public class PlanWriteRevisionCommand : Command<PlanWriteRevisionSettings>
         try
         {
             var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
-            var revisionsDir = Path.Combine(planFolder, "revisions");
+            var revisionsDir = Path.Combine(planFolder, "Revisions");
             Directory.CreateDirectory(revisionsDir);
 
             var number = ResolveRevisionNumber(revisionsDir);

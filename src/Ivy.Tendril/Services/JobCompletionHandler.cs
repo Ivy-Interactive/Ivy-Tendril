@@ -545,7 +545,7 @@ internal class JobCompletionHandler
         var planFolder = job.TypedArgs?.PlanFolder ?? "";
         if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder)) return;
 
-        var worktreesDir = Path.Combine(planFolder, "worktrees");
+        var worktreesDir = Path.Combine(planFolder, "Worktrees");
         if (!Directory.Exists(worktreesDir)) return;
 
         ScheduleWorktreeRemoval(planFolder, worktreesDir);
@@ -684,7 +684,7 @@ internal class JobCompletionHandler
             planFolder = logRoot;
         }
 
-        var logsDir = Path.Combine(planFolder, "logs");
+        var logsDir = Path.Combine(planFolder, "Logs");
         FileHelper.EnsureDirectory(logsDir);
         var outputFile = Path.Combine(logsDir, $"{job.Type}-{job.Id}.output.log");
         File.WriteAllLines(outputFile, job.OutputLines);

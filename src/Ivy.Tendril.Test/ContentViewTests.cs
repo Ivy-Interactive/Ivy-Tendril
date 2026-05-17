@@ -21,7 +21,7 @@ public class ContentViewTests
         try
         {
             var planDir = Path.Combine(tempDir, "00001-TestPlan");
-            var logsDir = Path.Combine(planDir, "logs");
+            var logsDir = Path.Combine(planDir, "Logs");
             Directory.CreateDirectory(logsDir);
 
             File.WriteAllText(Path.Combine(logsDir, "001-ExecutePlan.md"),
@@ -48,7 +48,7 @@ public class ContentViewTests
         try
         {
             var planDir = Path.Combine(tempDir, "00001-TestPlan");
-            var logsDir = Path.Combine(planDir, "logs");
+            var logsDir = Path.Combine(planDir, "Logs");
             Directory.CreateDirectory(logsDir);
 
             File.WriteAllText(Path.Combine(logsDir, "001-ExecutePlan.md"),
@@ -97,7 +97,7 @@ public class ContentViewTests
         try
         {
             var planDir = Path.Combine(tempDir, "00001-TestPlan");
-            var logsDir = Path.Combine(planDir, "logs");
+            var logsDir = Path.Combine(planDir, "Logs");
             Directory.CreateDirectory(logsDir);
 
             File.WriteAllText(Path.Combine(logsDir, "001-ExecutePlan.md"),

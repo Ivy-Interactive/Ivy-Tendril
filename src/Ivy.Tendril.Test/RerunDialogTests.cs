@@ -11,8 +11,8 @@ public class ResetToDraftDialogTests
         try
         {
             var planDir = Path.Combine(tempDir, "00001-TestPlan");
-            var artifactsDir = Path.Combine(planDir, "artifacts");
-            var logsDir = Path.Combine(planDir, "logs");
+            var artifactsDir = Path.Combine(planDir, "Artifacts");
+            var logsDir = Path.Combine(planDir, "Logs");
             Directory.CreateDirectory(artifactsDir);
             Directory.CreateDirectory(logsDir);
             File.WriteAllText(Path.Combine(artifactsDir, "summary.md"), "test");
@@ -56,10 +56,10 @@ public class ResetToDraftDialogTests
         try
         {
             var planDir = Path.Combine(tempDir, "00001-TestPlan");
-            var artifactsDir = Path.Combine(planDir, "artifacts");
-            var logsDir = Path.Combine(planDir, "logs");
-            var verificationDir = Path.Combine(planDir, "verification");
-            var revisionsDir = Path.Combine(planDir, "revisions");
+            var artifactsDir = Path.Combine(planDir, "Artifacts");
+            var logsDir = Path.Combine(planDir, "Logs");
+            var verificationDir = Path.Combine(planDir, "Verification");
+            var revisionsDir = Path.Combine(planDir, "Revisions");
             Directory.CreateDirectory(artifactsDir);
             Directory.CreateDirectory(logsDir);
             Directory.CreateDirectory(verificationDir);
@@ -86,8 +86,8 @@ public class ResetToDraftDialogTests
         try
         {
             var planDir = Path.Combine(tempDir, "00001-TestPlan");
-            var screenshotsDir = Path.Combine(planDir, "artifacts", "screenshots");
-            var sampleDir = Path.Combine(planDir, "artifacts", "sample", "bin");
+            var screenshotsDir = Path.Combine(planDir, "Artifacts", "screenshots");
+            var sampleDir = Path.Combine(planDir, "Artifacts", "sample", "bin");
             Directory.CreateDirectory(screenshotsDir);
             Directory.CreateDirectory(sampleDir);
             File.WriteAllText(Path.Combine(screenshotsDir, "img.png"), "test");
@@ -95,7 +95,7 @@ public class ResetToDraftDialogTests
 
             ResetToDraftDialog.CleanPlanState(planDir);
 
-            Assert.False(Directory.Exists(Path.Combine(planDir, "artifacts")));
+            Assert.False(Directory.Exists(Path.Combine(planDir, "Artifacts")));
         }
         finally
         {
@@ -111,7 +111,7 @@ public class ResetToDraftDialogTests
         try
         {
             var planDir = Path.Combine(tempDir, "00001-TestPlan");
-            var worktreesDir = Path.Combine(planDir, "worktrees");
+            var worktreesDir = Path.Combine(planDir, "Worktrees");
             var repoDir = Path.Combine(worktreesDir, "Ivy-Framework");
             Directory.CreateDirectory(repoDir);
             File.WriteAllText(Path.Combine(repoDir, "dummy.txt"), "test");

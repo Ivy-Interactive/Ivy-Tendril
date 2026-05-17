@@ -197,7 +197,7 @@ tendril plan write-revision <PlanId> <<'EOF'
 EOF
 ```
 
-This reads from STDIN and auto-creates `revisions/001.md` (or the next sequential number) in the plan folder. Do NOT use the Write or Edit tools to create revision files directly in `revisions/`.
+This reads from STDIN and auto-creates `Revisions/001.md` (or the next sequential number) in the plan folder. Do NOT use the Write or Edit tools to create revision files directly in `Revisions/`.
 
 After creating the plan, report the plan ID and title to the Jobs UI so it can display progress:
 

@@ -30,7 +30,7 @@ public class ExecutePlanWorktreeCleanupTests : IDisposable
 
     private string CreateWorktreeDir(string planDir, string repoName, bool withGitFile = false)
     {
-        var wtDir = Path.Combine(planDir, "worktrees", repoName);
+        var wtDir = Path.Combine(planDir, "Worktrees", repoName);
         Directory.CreateDirectory(wtDir);
         File.WriteAllText(Path.Combine(wtDir, "dummy.cs"), "// test");
 
@@ -97,9 +97,9 @@ public class ExecutePlanWorktreeCleanupTests : IDisposable
 
         WorktreeCleanupService.RemoveWorktrees(planDir);
 
-        Assert.False(Directory.Exists(Path.Combine(planDir, "worktrees", "RepoA")));
-        Assert.False(Directory.Exists(Path.Combine(planDir, "worktrees", "RepoB")));
-        Assert.False(Directory.Exists(Path.Combine(planDir, "worktrees", "RepoC")));
+        Assert.False(Directory.Exists(Path.Combine(planDir, "Worktrees", "RepoA")));
+        Assert.False(Directory.Exists(Path.Combine(planDir, "Worktrees", "RepoB")));
+        Assert.False(Directory.Exists(Path.Combine(planDir, "Worktrees", "RepoC")));
     }
 
     [Fact]

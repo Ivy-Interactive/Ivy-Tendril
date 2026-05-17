@@ -50,7 +50,7 @@ internal class PlanArtifactSyncer
 
     private bool SyncVerificationsFromReports(string planFolder, PlanYaml plan)
     {
-        var verificationDir = Path.Combine(planFolder, "verification");
+        var verificationDir = Path.Combine(planFolder, "Verification");
         if (!Directory.Exists(verificationDir)) return false;
         if (plan.Verifications == null || plan.Verifications.Count == 0) return false;
 
@@ -88,7 +88,7 @@ internal class PlanArtifactSyncer
     {
         if (plan.Commits.Count > 0) return false;
 
-        var worktreesDir = Path.Combine(planFolder, "worktrees");
+        var worktreesDir = Path.Combine(planFolder, "Worktrees");
         if (!Directory.Exists(worktreesDir)) return false;
 
         var planId = PlanYamlHelper.ExtractPlanIdFromFolder(planFolder);

@@ -37,7 +37,7 @@ public class WorktreeCleanupServiceTests : IDisposable
 
     private void CreateWorktreeDir(string planDir, string repoName, bool withContent = true)
     {
-        var worktreeDir = Path.Combine(planDir, "worktrees", repoName);
+        var worktreeDir = Path.Combine(planDir, "Worktrees", repoName);
         Directory.CreateDirectory(worktreeDir);
         if (withContent)
             File.WriteAllText(Path.Combine(worktreeDir, "dummy.txt"), "test");
@@ -45,7 +45,7 @@ public class WorktreeCleanupServiceTests : IDisposable
 
     private static void CreateEmptyWorktreesDir(string planDir)
     {
-        Directory.CreateDirectory(Path.Combine(planDir, "worktrees"));
+        Directory.CreateDirectory(Path.Combine(planDir, "Worktrees"));
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public class WorktreeCleanupServiceTests : IDisposable
         foreach (var state in activeStates)
         {
             var worktreesDir = Path.Combine(_plansDir, $"01{Array.IndexOf(activeStates, state):D3}-{state}Plan",
-                "worktrees");
+                "Worktrees");
             Assert.True(Directory.Exists(worktreesDir), $"Worktrees for {state} plan should not be removed");
         }
     }
@@ -85,7 +85,7 @@ public class WorktreeCleanupServiceTests : IDisposable
         foreach (var state in terminalStates)
         {
             var worktreesDir = Path.Combine(_plansDir, $"02{Array.IndexOf(terminalStates, state):D3}-{state}Plan",
-                "worktrees");
+                "Worktrees");
             Assert.False(Directory.Exists(worktreesDir), $"Empty worktrees dir for {state} plan should be removed");
         }
     }
@@ -99,7 +99,7 @@ public class WorktreeCleanupServiceTests : IDisposable
 
         _service.RunCleanup();
 
-        var worktreesDir = Path.Combine(dir, "worktrees");
+        var worktreesDir = Path.Combine(dir, "Worktrees");
         Assert.True(Directory.Exists(worktreesDir), "Recently failed plan should keep worktrees during grace period");
     }
 
@@ -117,7 +117,7 @@ public class WorktreeCleanupServiceTests : IDisposable
     {
         var dir = Path.Combine(_plansDir, "05000-NoPlanYaml");
         Directory.CreateDirectory(dir);
-        var worktreeDir = Path.Combine(dir, "worktrees", "Repo");
+        var worktreeDir = Path.Combine(dir, "Worktrees", "Repo");
         Directory.CreateDirectory(worktreeDir);
 
         // Should not throw
@@ -134,7 +134,7 @@ public class WorktreeCleanupServiceTests : IDisposable
 
         WorktreeCleanupService.CleanupPlanWorktrees(dir);
 
-        var worktreesDir = Path.Combine(dir, "worktrees");
+        var worktreesDir = Path.Combine(dir, "Worktrees");
         Assert.False(Directory.Exists(worktreesDir));
     }
 
@@ -146,7 +146,7 @@ public class WorktreeCleanupServiceTests : IDisposable
 
         WorktreeCleanupService.CleanupPlanWorktrees(dir);
 
-        var worktreesDir = Path.Combine(dir, "worktrees");
+        var worktreesDir = Path.Combine(dir, "Worktrees");
         Assert.True(Directory.Exists(worktreesDir));
     }
 
@@ -154,7 +154,7 @@ public class WorktreeCleanupServiceTests : IDisposable
     public void RemoveWorktrees_ForceDeletes_Directory_Without_GitFile()
     {
         var dir = CreatePlan("08000-ExtractTest", "Failed", DateTime.UtcNow.AddHours(-2));
-        var worktreeDir = Path.Combine(dir, "worktrees", "TestRepo");
+        var worktreeDir = Path.Combine(dir, "Worktrees", "TestRepo");
         Directory.CreateDirectory(worktreeDir);
         File.WriteAllText(Path.Combine(worktreeDir, "file.txt"), "test");
 
@@ -169,14 +169,14 @@ public class WorktreeCleanupServiceTests : IDisposable
         // Worktree directory with no .git file — RemoveWorktrees skips it,
         // but the force-delete fallback should clean it up
         var dir = CreatePlan("09000-OrphanNoGit", "Completed", DateTime.UtcNow.AddHours(-2));
-        var worktreeDir = Path.Combine(dir, "worktrees", "TestRepo");
+        var worktreeDir = Path.Combine(dir, "Worktrees", "TestRepo");
         Directory.CreateDirectory(worktreeDir);
         File.WriteAllText(Path.Combine(worktreeDir, "file.txt"), "orphaned content");
 
         WorktreeCleanupService.CleanupPlanWorktrees(dir);
 
         Assert.False(Directory.Exists(worktreeDir), "Orphan directory without .git should be force-deleted");
-        Assert.False(Directory.Exists(Path.Combine(dir, "worktrees")), "Worktrees directory should be removed");
+        Assert.False(Directory.Exists(Path.Combine(dir, "Worktrees")), "Worktrees directory should be removed");
     }
 
     [Fact]
@@ -185,7 +185,7 @@ public class WorktreeCleanupServiceTests : IDisposable
         // Worktree directory with a .git file pointing to a non-existent repo entry —
         // git worktree remove will fail, but force-delete fallback should clean it up
         var dir = CreatePlan("09001-OrphanStaleGit", "Failed", DateTime.UtcNow.AddHours(-2));
-        var worktreeDir = Path.Combine(dir, "worktrees", "TestRepo");
+        var worktreeDir = Path.Combine(dir, "Worktrees", "TestRepo");
         Directory.CreateDirectory(worktreeDir);
         File.WriteAllText(Path.Combine(worktreeDir, ".git"),
             "gitdir: /nonexistent/path/.git/worktrees/TestRepo");
@@ -194,7 +194,7 @@ public class WorktreeCleanupServiceTests : IDisposable
         WorktreeCleanupService.CleanupPlanWorktrees(dir);
 
         Assert.False(Directory.Exists(worktreeDir), "Orphan directory with stale .git should be force-deleted");
-        Assert.False(Directory.Exists(Path.Combine(dir, "worktrees")), "Worktrees directory should be removed");
+        Assert.False(Directory.Exists(Path.Combine(dir, "Worktrees")), "Worktrees directory should be removed");
     }
 
     [Fact]
@@ -203,7 +203,7 @@ public class WorktreeCleanupServiceTests : IDisposable
         // Worktree directory with read-only files (common in git objects) —
         // ClearReadOnlyAttributes should make them deletable
         var dir = CreatePlan("09002-ReadOnlyFiles", "Completed", DateTime.UtcNow.AddHours(-2));
-        var worktreeDir = Path.Combine(dir, "worktrees", "TestRepo");
+        var worktreeDir = Path.Combine(dir, "Worktrees", "TestRepo");
         var subDir = Path.Combine(worktreeDir, "objects");
         Directory.CreateDirectory(subDir);
 
@@ -217,7 +217,7 @@ public class WorktreeCleanupServiceTests : IDisposable
         WorktreeCleanupService.CleanupPlanWorktrees(dir);
 
         Assert.False(Directory.Exists(worktreeDir), "Directory with read-only files should be force-deleted");
-        Assert.False(Directory.Exists(Path.Combine(dir, "worktrees")), "Worktrees directory should be removed");
+        Assert.False(Directory.Exists(Path.Combine(dir, "Worktrees")), "Worktrees directory should be removed");
     }
 
     [Fact]
@@ -276,7 +276,7 @@ public class WorktreeCleanupServiceTests : IDisposable
     public void RemoveWorktrees_Logs_Info_And_ForceDeletes_When_GitFile_Missing()
     {
         var dir = CreatePlan("10000-LogWarningTest", "Failed", DateTime.UtcNow.AddHours(-2));
-        var worktreeDir = Path.Combine(dir, "worktrees", "TestRepo");
+        var worktreeDir = Path.Combine(dir, "Worktrees", "TestRepo");
         Directory.CreateDirectory(worktreeDir);
         File.WriteAllText(Path.Combine(worktreeDir, "file.txt"), "test");
 
@@ -294,7 +294,7 @@ public class WorktreeCleanupServiceTests : IDisposable
     public void CleanupPlanWorktrees_FallbackRemoves_DirectoryMissedByRemoveWorktrees()
     {
         var dir = CreatePlan("10003-TestFallback", "Completed", DateTime.UtcNow.AddHours(-2));
-        var worktreeDir = Path.Combine(dir, "worktrees", "TestRepo");
+        var worktreeDir = Path.Combine(dir, "Worktrees", "TestRepo");
         Directory.CreateDirectory(worktreeDir);
         File.WriteAllText(Path.Combine(worktreeDir, ".git"),
             "gitdir: /nonexistent/repo/.git/worktrees/TestRepo");
@@ -315,7 +315,7 @@ public class WorktreeCleanupServiceTests : IDisposable
         // Simulates the real-world failure: cleanup must succeed over a deeply nested
         // node_modules tree like the one that crashed on 'helper-string-parser'.
         var dir = CreatePlan("11000-DeepNodeModules", "Completed", DateTime.UtcNow.AddHours(-2));
-        var worktreeDir = Path.Combine(dir, "worktrees", "TestRepo");
+        var worktreeDir = Path.Combine(dir, "Worktrees", "TestRepo");
 
         var deep = Path.Combine(
             worktreeDir,
@@ -335,7 +335,7 @@ public class WorktreeCleanupServiceTests : IDisposable
 
         Assert.False(Directory.Exists(worktreeDir),
             "Deeply nested node_modules worktree should be force-deleted");
-        Assert.False(Directory.Exists(Path.Combine(dir, "worktrees")),
+        Assert.False(Directory.Exists(Path.Combine(dir, "Worktrees")),
             "Worktrees directory should be removed");
     }
 
@@ -406,7 +406,7 @@ public class WorktreeCleanupServiceTests : IDisposable
     public void CleanupPlanWorktrees_LogsMissingGitFileAge()
     {
         var dir = CreatePlan("12000-MissingGitAge", "Completed", DateTime.UtcNow.AddHours(-2));
-        var worktreeDir = Path.Combine(dir, "worktrees", "TestRepo");
+        var worktreeDir = Path.Combine(dir, "Worktrees", "TestRepo");
         Directory.CreateDirectory(worktreeDir);
         File.WriteAllText(Path.Combine(worktreeDir, "file.txt"), "content");
 
@@ -423,7 +423,7 @@ public class WorktreeCleanupServiceTests : IDisposable
     public void CleanupPlanWorktrees_HandlesVeryRecentOrphanedDirectory()
     {
         var dir = CreatePlan("12001-RecentOrphan", "Completed", DateTime.UtcNow.AddHours(-2));
-        var worktreeDir = Path.Combine(dir, "worktrees", "TestRepo");
+        var worktreeDir = Path.Combine(dir, "Worktrees", "TestRepo");
         Directory.CreateDirectory(worktreeDir);
         File.WriteAllText(Path.Combine(worktreeDir, "file.txt"), "content");
 
@@ -462,7 +462,7 @@ public class WorktreeCleanupServiceTests : IDisposable
         foreach (var (folderName, _) in testCases)
         {
             var dir = CreatePlan(folderName, "Failed", DateTime.UtcNow.AddHours(-2));
-            var worktreeDir = Path.Combine(dir, "worktrees", "TestRepo");
+            var worktreeDir = Path.Combine(dir, "Worktrees", "TestRepo");
             Directory.CreateDirectory(worktreeDir);
 
             var logEntries = new List<string>();
@@ -481,7 +481,7 @@ public class WorktreeCleanupServiceTests : IDisposable
     public void RemoveWorktrees_LogsBranchDeletionAttempt()
     {
         var dir = CreatePlan("14001-TestBranchDeletion", "Failed", DateTime.UtcNow.AddHours(-2));
-        var worktreeDir = Path.Combine(dir, "worktrees", "TestRepo");
+        var worktreeDir = Path.Combine(dir, "Worktrees", "TestRepo");
         Directory.CreateDirectory(worktreeDir);
 
         var logEntries = new List<string>();
@@ -502,7 +502,7 @@ public class WorktreeCleanupServiceTests : IDisposable
     {
         // Verify that if branch deletion fails, the method still completes successfully
         var dir = CreatePlan("14002-BranchDeletionFailure", "Completed", DateTime.UtcNow.AddHours(-2));
-        var worktreeDir = Path.Combine(dir, "worktrees", "TestRepo");
+        var worktreeDir = Path.Combine(dir, "Worktrees", "TestRepo");
         Directory.CreateDirectory(worktreeDir);
 
         var logEntries = new List<string>();
