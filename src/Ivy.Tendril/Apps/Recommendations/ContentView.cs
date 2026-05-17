@@ -33,6 +33,7 @@ public class ContentView(
                 ? Text.P("Plan not found or empty.")
                 : (object)new Markdown(MarkdownHelper.AnnotateAllBrokenLinks(content, planService.PlansDirectory))
                     .DangerouslyAllowLocalFiles()
+                    .Article()
                     .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile));
 
             var sheet = new Sheet(

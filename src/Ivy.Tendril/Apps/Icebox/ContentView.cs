@@ -53,6 +53,7 @@ public class ContentView(
         var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200)))
                                 |
                                 new Markdown(MarkdownHelper.AnnotateAllBrokenLinks(selectedPlan.LatestRevisionContent, planService.PlansDirectory))
+                                    .Article()
                                     .DangerouslyAllowLocalFiles()
                                     .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile, planId =>
                                     {

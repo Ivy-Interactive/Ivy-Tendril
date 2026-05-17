@@ -389,6 +389,7 @@ public class ContentView(
         var planTabContent = Layout.Vertical().Height(Size.Full())
             | new Markdown(reviewAnnotated)
                 .DangerouslyAllowLocalFiles()
+                .Article()
                 .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile, planId =>
                 {
                     var planFolder = Directory.GetDirectories(planService.PlansDirectory, $"{planId:D5}-*")
@@ -498,7 +499,7 @@ public class ContentView(
 
                     var card = Layout.Vertical().Gap(1)
                                | titleRow
-                               | new Markdown(rec.Description).DangerouslyAllowLocalFiles();
+                               | new Markdown(rec.Description).DangerouslyAllowLocalFiles().Article();
                     recommendationsLayout |= card;
                     recommendationsLayout |= new Separator();
                 }
