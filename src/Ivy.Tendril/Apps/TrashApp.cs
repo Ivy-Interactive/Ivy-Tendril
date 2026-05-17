@@ -103,6 +103,7 @@ public class TrashApp : ViewBase
             var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200)))
                                     | new Markdown(annotatedContent)
                                         .DangerouslyAllowLocalFiles()
+                                        .Article()
                                         .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile));
 
             var scrollWrapper = Layout.Vertical().Scroll(Scroll.Auto).Width(Size.Full())

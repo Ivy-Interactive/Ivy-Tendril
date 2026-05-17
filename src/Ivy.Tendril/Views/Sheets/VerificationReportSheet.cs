@@ -34,7 +34,7 @@ public class VerificationReportSheet(
                 ? Text.Muted("Loading...")
                 : verificationReportQuery.Error is { } err
                     ? Text.Muted($"Failed to load verification report: {err.Message}")
-                    : new Markdown(verificationReportQuery.Value).DangerouslyAllowLocalFiles(),
+                    : new Markdown(verificationReportQuery.Value).DangerouslyAllowLocalFiles().Article(),
             verName
         ).Width(Size.Half()).Resizable();
     }
