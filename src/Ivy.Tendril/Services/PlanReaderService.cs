@@ -56,28 +56,33 @@ public class PlanReaderService(
     {
         if (!Directory.Exists(PlansDirectory)) return;
 
-        var renames = new[] { "revisions", "logs", "artifacts", "verification", "worktrees" };
-        var titleCase = new[] { "Revisions", "Logs", "Artifacts", "Verification", "Worktrees" };
+        var titleCase = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["revisions"] = "Revisions",
+            ["logs"] = "Logs",
+            ["artifacts"] = "Artifacts",
+            ["verification"] = "Verification",
+            ["worktrees"] = "Worktrees"
+        };
 
         foreach (var dir in Directory.GetDirectories(PlansDirectory))
         {
-            for (var i = 0; i < renames.Length; i++)
+            foreach (var subDir in Directory.GetDirectories(dir))
             {
-                var oldPath = Path.Combine(dir, renames[i]);
-                var newPath = Path.Combine(dir, titleCase[i]);
-                if (!Directory.Exists(oldPath) || Directory.Exists(newPath)) continue;
+                var actualName = Path.GetFileName(subDir);
+                if (!titleCase.TryGetValue(actualName, out var desired)) continue;
+                if (actualName == desired) continue;
 
                 try
                 {
-                    // Two-step rename for case-insensitive filesystems (Windows)
-                    var tmpPath = oldPath + "_tmp";
-                    Directory.Move(oldPath, tmpPath);
-                    Directory.Move(tmpPath, newPath);
-                    _logger.LogDebug("Renamed {Old} → {New}", oldPath, newPath);
+                    var tmpPath = subDir + "_tmp";
+                    Directory.Move(subDir, tmpPath);
+                    Directory.Move(tmpPath, Path.Combine(dir, desired));
+                    _logger.LogDebug("Renamed {Old} → {New}", actualName, desired);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Failed to rename {Old} to {New}", oldPath, newPath);
+                    _logger.LogWarning(ex, "Failed to rename {Old} to {New}", subDir, desired);
                 }
             }
         }
