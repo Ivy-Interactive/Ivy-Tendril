@@ -36,7 +36,7 @@ public class ResetToDraftDialog(
                 Text.P("Are you sure you want to reset this plan? Will remove all worktrees and artifacts.")
             ),
             new DialogFooter(
-                new Button("Cancel").Outline().ShortcutKey("Escape").OnClick(() => _dialogOpen.Set(false)),
+                new Button("Cancel").Outline().OnClick(() => _dialogOpen.Set(false)),
                 new Button("Reset to Draft").Warning().Disabled(isResetting.Value).ShortcutKey("Enter").AutoFocus().OnClick(() =>
                 {
                     if (!isResetting.Value)
