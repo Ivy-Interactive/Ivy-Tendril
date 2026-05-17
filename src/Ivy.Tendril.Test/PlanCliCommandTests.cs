@@ -77,9 +77,9 @@ public class PlanCliCommandTests : IDisposable
             """;
 
         var folder = Path.Combine(_plansDir, $"{planId}-TestPlan");
-        Directory.CreateDirectory(Path.Combine(folder, "revisions"));
+        Directory.CreateDirectory(Path.Combine(folder, "Revisions"));
         File.WriteAllText(Path.Combine(folder, "plan.yaml"), yaml);
-        File.WriteAllText(Path.Combine(folder, "revisions", "001.md"), "# Test Plan");
+        File.WriteAllText(Path.Combine(folder, "Revisions", "001.md"), "# Test Plan");
         return folder;
     }
 
@@ -917,7 +917,7 @@ public class PlanCliCommandTests : IDisposable
     public void PlanList_FilterHasWorktree()
     {
         CreatePlanFolder("20170", "WithWt");
-        var wtDir = Path.Combine(_plansDir, "20170-WithWt", "worktrees", "SomeRepo");
+        var wtDir = Path.Combine(_plansDir, "20170-WithWt", "Worktrees", "SomeRepo");
         Directory.CreateDirectory(wtDir);
 
         CreatePlanFolder("20171", "NoWt");
@@ -1067,7 +1067,7 @@ public class PlanCliCommandTests : IDisposable
 
         _ = PlanAddLogCommand.WriteLog(planDir, "CreatePlan");
 
-        var logsDir = Path.Combine(planDir, "logs");
+        var logsDir = Path.Combine(planDir, "Logs");
         Assert.True(Directory.Exists(logsDir));
         var logFiles = Directory.GetFiles(logsDir, "*.md");
         Assert.Single(logFiles);
@@ -1083,7 +1083,7 @@ public class PlanCliCommandTests : IDisposable
     {
         CreatePlanFolder("30002", "TestLogIncr");
         var planDir = Path.Combine(_plansDir, "30002-TestLogIncr");
-        var logsDir = Path.Combine(planDir, "logs");
+        var logsDir = Path.Combine(planDir, "Logs");
         Directory.CreateDirectory(logsDir);
         File.WriteAllText(Path.Combine(logsDir, "001-ExpandPlan.md"), "first");
         File.WriteAllText(Path.Combine(logsDir, "002-ExecutePlan.md"), "second");
@@ -1101,7 +1101,7 @@ public class PlanCliCommandTests : IDisposable
 
         PlanAddLogCommand.WriteLog(planDir, "ExecutePlan", "Completed all verifications successfully");
 
-        var logsDir = Path.Combine(planDir, "logs");
+        var logsDir = Path.Combine(planDir, "Logs");
         var logFile = Directory.GetFiles(logsDir, "*.md").Single();
         var content = File.ReadAllText(logFile);
         Assert.Contains("Completed all verifications successfully", content);

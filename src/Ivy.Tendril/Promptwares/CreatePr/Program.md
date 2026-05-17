@@ -44,9 +44,9 @@ Before processing, read `plan.yaml` and check the `state` field. After reading, 
 
 ### 2. For Each Worktree
 
-Check `<TendrilPlanFolder>/worktrees/` for each repo worktree.
+Check `<TendrilPlanFolder>/Worktrees/` for each repo worktree.
 
-> **Worktree already removed:** If the worktrees/ directory is empty (worktree was already cleaned up), fall back to `plan.yaml` to get the repo path and branch name (format: `tendril/<planId>-<SafeTitle>`, where SafeTitle is extracted from the plan folder name: e.g. `03158-ChangeBranchNaming` → `ChangeBranchNaming`). The commit objects may still exist in the original repo's object store. Use `git cat-file -t <sha>` to verify, then create or force-update the local branch: `git branch -f <branch-name> <sha>` (use `-f` because the branch may already exist from a WIP auto-commit) and push from the original repo path.
+> **Worktree already removed:** If the Worktrees/ directory is empty (worktree was already cleaned up), fall back to `plan.yaml` to get the repo path and branch name (format: `tendril/<planId>-<SafeTitle>`, where SafeTitle is extracted from the plan folder name: e.g. `03158-ChangeBranchNaming` → `ChangeBranchNaming`). The commit objects may still exist in the original repo's object store. Use `git cat-file -t <sha>` to verify, then create or force-update the local branch: `git branch -f <branch-name> <sha>` (use `-f` because the branch may already exist from a WIP auto-commit) and push from the original repo path.
 >
 > **Commit lost (object GC'd):** If `git cat-file -t <sha>` fails, the commit was garbage-collected after worktree removal. In this case: (1) check if the change is already on main, (2) if not, recreate the change from the plan revision — create a new branch from main, apply the changes as described in the revision, commit with the standard `[<planId>] <title>` message, and push. Update commits via CLI: `tendril plan add-commit <plan-id> <new-sha>`.
 
@@ -65,7 +65,7 @@ For each worktree:
 
 **If custom options exist and `includeArtifacts` is `false`, skip this step entirely** (set artifact markdown to empty).
 
-Otherwise, if an artifact upload tool is available in `Tools/`, run it to upload screenshots and videos from `<TendrilPlanFolder>/artifacts/` to persistent storage.
+Otherwise, if an artifact upload tool is available in `Tools/`, run it to upload screenshots and videos from `<TendrilPlanFolder>/Artifacts/` to persistent storage.
 
 Capture the returned markdown. If non-empty, it will be appended to the PR body under an `## Artifacts` heading in the next step. If no upload tool is available, skip this step.
 
@@ -88,7 +88,7 @@ EOF
 - **Title:** `[<planId>] <plan title>`
 - **Body:** 
   1. **If SourceUrl is present in firmware header** and it's a GitHub issue URL (format: `https://github.com/owner/repo/issues/NUMBER`), prepend `Fixes #NUMBER\n\n` to the body
-  2. If `<TendrilPlanFolder>/artifacts/summary.md` exists, use its content as the PR body (after the issue link)
+  2. If `<TendrilPlanFolder>/Artifacts/summary.md` exists, use its content as the PR body (after the issue link)
   3. Otherwise, fall back to summary from Problem + Solution sections
   4. Append commit list
   5. If `$artifactMarkdown` from step 2.5 is non-empty, append it under an `## Artifacts` heading
@@ -150,7 +150,7 @@ done
 
 When the PR status is `CONFLICTING`, resolve the conflict locally before retrying:
 
-1. **Locate the worktree** for this repo. If the worktree still exists in `<TendrilPlanFolder>/worktrees/<repo-folder-name>`, use it. If the worktree was already removed, use the original repo path — create or force-update the local branch first: `git branch -f <branch-name> <sha>` and `git checkout <branch-name>`.
+1. **Locate the worktree** for this repo. If the worktree still exists in `<TendrilPlanFolder>/Worktrees/<repo-folder-name>`, use it. If the worktree was already removed, use the original repo path — create or force-update the local branch first: `git branch -f <branch-name> <sha>` and `git checkout <branch-name>`.
 
 2. **Read the plan revision** to understand the intent of the plan's changes (what matters, what can be safely adapted).
 

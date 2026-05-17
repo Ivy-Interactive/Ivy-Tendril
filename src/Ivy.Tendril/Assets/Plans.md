@@ -9,23 +9,23 @@ Plans live under `planFolder` from `config.yaml`.
 ├── .counter                          # Next plan ID (integer, auto-incremented)
 ├── 01098-MakeAnEmptyAppCalledReview/
 │   ├── plan.yaml                     # Plan metadata
-│   ├── revisions/                    # Plan content versions
+│   ├── Revisions/                    # Plan content versions
 │   │   ├── 001.md                    # Initial revision (created by CreatePlan)
 │   │   ├── 002.md                    # After ExpandPlan/UpdatePlan/SplitPlan
 │   │   └── ...
-│   ├── logs/                         # Execution logs per promptware run
+│   ├── Logs/                         # Execution logs per promptware run
 │   │   ├── 001-CreatePlan.md
 │   │   ├── 002-ExpandPlan.md
 │   │   └── ...
-│   ├── artifacts/                    # Output artifacts from execution
+│   ├── Artifacts/                    # Output artifacts from execution
 │   │   ├── tests/                    # Test scripts and data
 │   │   ├── screenshots/              # UI screenshots
 │   │   └── sample/                   # Sample apps exercising new functionality
-│   ├── verification/                 # Verification reports
+│   ├── Verification/                 # Verification reports
 │   │   ├── DotnetBuild.md
 │   │   ├── DotnetTest.md
 │   │   └── ...
-│   ├── worktrees/                    # Git worktrees used during execution
+│   ├── Worktrees/                    # Git worktrees used during execution
 └── ...
 ```
 

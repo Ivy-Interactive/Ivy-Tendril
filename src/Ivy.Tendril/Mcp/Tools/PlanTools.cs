@@ -517,7 +517,7 @@ public sealed class PlanTools : AuthenticatedToolBase
             sb.AppendLine(plan.InitialPrompt);
         }
 
-        var revisionsDir = Path.Combine(planFolder, "revisions");
+        var revisionsDir = Path.Combine(planFolder, "Revisions");
         if (Directory.Exists(revisionsDir))
         {
             var revFiles = Directory.GetFiles(revisionsDir, "*.md").OrderByDescending(f => f).ToArray();

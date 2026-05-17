@@ -18,7 +18,7 @@ The plans directory path can be derived from the plan folder's parent directory.
 ### 1. Read the Plan
 
 - Read `plan.yaml` via `tendril plan get <plan-id>` from the plan folder
-- Read the latest revision from `revisions/` (highest numbered .md file)
+- Read the latest revision from `Revisions/` (highest numbered .md file)
 - Identify distinct issues/tasks that should be separate plans
 - Report plan context to Jobs UI: `tendril job status TendrilJobId --message "Splitting plan..." --plan-id <plan-id> --plan-title "<title>"`
 
@@ -60,7 +60,7 @@ tendril plan write-revision <PlanId> <<'EOF'
 EOF
 ```
 
-The command reads from STDIN and auto-creates the next numbered revision file. Fill in Problem, Solution, Remaining Design Questions, Tests sections. Each plan must be fully self-contained. Do NOT use the Write or Edit tools to create revision files directly in `revisions/`.
+The command reads from STDIN and auto-creates the next numbered revision file. Fill in Problem, Solution, Remaining Design Questions, Tests sections. Each plan must be fully self-contained. Do NOT use the Write or Edit tools to create revision files directly in `Revisions/`.
 
 #### Project Assignment
 

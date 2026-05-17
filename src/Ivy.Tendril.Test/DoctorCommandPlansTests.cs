@@ -88,7 +88,7 @@ public class DoctorCommandPlansTests : IDisposable
     public void DoctorPlans_WithWorktrees_CountsCorrectly()
     {
         var planDir = CreatePlan("00004-WithWorktrees", ValidYaml);
-        var wtDir = Path.Combine(planDir, "worktrees");
+        var wtDir = Path.Combine(planDir, "Worktrees");
         Directory.CreateDirectory(Path.Combine(wtDir, "RepoA"));
         Directory.CreateDirectory(Path.Combine(wtDir, "RepoB"));
 
@@ -118,7 +118,7 @@ public class DoctorCommandPlansTests : IDisposable
     public void HasStaleWorktrees_WithStaleDir_ReturnsTrue()
     {
         var planDir = CreatePlan("00022-Stale", ValidYaml);
-        var wtDir = Path.Combine(planDir, "worktrees", "StaleRepo");
+        var wtDir = Path.Combine(planDir, "Worktrees", "StaleRepo");
         Directory.CreateDirectory(wtDir);
 
         var result = DoctorCommand.HasStaleWorktrees(planDir);
@@ -130,7 +130,7 @@ public class DoctorCommandPlansTests : IDisposable
     public void HasStaleWorktrees_WithValidGit_ReturnsFalse()
     {
         var planDir = CreatePlan("00023-Valid", ValidYaml);
-        var wtDir = Path.Combine(planDir, "worktrees", "ValidRepo");
+        var wtDir = Path.Combine(planDir, "Worktrees", "ValidRepo");
         Directory.CreateDirectory(wtDir);
         File.WriteAllText(Path.Combine(wtDir, ".git"), "gitdir: /some/path");
 
@@ -143,7 +143,7 @@ public class DoctorCommandPlansTests : IDisposable
     public void RepairPlan_StaleWorktree_RemovesDirectory()
     {
         var planDir = CreatePlan("00024-RepairStale", ValidYaml);
-        var wtDir = Path.Combine(planDir, "worktrees", "StaleRepo");
+        var wtDir = Path.Combine(planDir, "Worktrees", "StaleRepo");
         Directory.CreateDirectory(wtDir);
         File.WriteAllText(Path.Combine(wtDir, "dummy.txt"), "test");
 
@@ -341,7 +341,7 @@ public class DoctorCommandPlansTests : IDisposable
                                                        commits: []
                                                        prs: []
                                                        """);
-        var revisionsDir = Path.Combine(planDir, "revisions");
+        var revisionsDir = Path.Combine(planDir, "Revisions");
         Directory.CreateDirectory(revisionsDir);
         File.WriteAllText(Path.Combine(revisionsDir, "v1.md"), "# Plan v1");
 

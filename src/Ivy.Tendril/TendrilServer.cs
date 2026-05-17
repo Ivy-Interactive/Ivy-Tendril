@@ -91,6 +91,7 @@ public static class TendrilServer
                 sp.GetRequiredService<ILogger<PlanReaderService>>(),
                 sp.GetRequiredService<ITelemetryService>(),
                 sp.GetRequiredService<IWorktreeLifecycleLogger>());
+            planService.MigratePlanSubfolderCasing();
             planService.RepairPlans();
             planService.RecoverStuckPlans();
             return planService;

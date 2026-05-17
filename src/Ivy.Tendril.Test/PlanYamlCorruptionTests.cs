@@ -21,7 +21,7 @@ public class PlanYamlCorruptionTests : IClassFixture<ConfigServiceFixture>
         var safeTitle = PlanYamlHelper.ToSafeTitle(title);
         var planFolder = Path.Combine(_testPlansDir, $"{planId}-{safeTitle}");
         Directory.CreateDirectory(planFolder);
-        Directory.CreateDirectory(Path.Combine(planFolder, "revisions"));
+        Directory.CreateDirectory(Path.Combine(planFolder, "Revisions"));
 
         var repoDir = Path.Combine(planFolder, "repo");
         Directory.CreateDirectory(repoDir);
@@ -46,7 +46,7 @@ public class PlanYamlCorruptionTests : IClassFixture<ConfigServiceFixture>
         PlanCommandHelpers.WritePlan(planFolder, plan, watcher: null);
 
         // Create initial revision
-        var revisionPath = Path.Combine(planFolder, "revisions", "001.md");
+        var revisionPath = Path.Combine(planFolder, "Revisions", "001.md");
         File.WriteAllText(revisionPath, "# Test Plan\n\n## Problem\n\nTest problem");
 
         return planFolder;

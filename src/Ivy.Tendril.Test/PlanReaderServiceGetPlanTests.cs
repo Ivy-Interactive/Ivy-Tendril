@@ -32,7 +32,7 @@ public class PlanReaderServiceGetPlanTests : IDisposable
 
         if (revisionContent != null)
         {
-            var revisionsDir = Path.Combine(dir, "revisions");
+            var revisionsDir = Path.Combine(dir, "Revisions");
             Directory.CreateDirectory(revisionsDir);
             File.WriteAllText(Path.Combine(revisionsDir, "001.md"), revisionContent);
         }

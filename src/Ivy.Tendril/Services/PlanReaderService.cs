@@ -49,6 +49,41 @@ public class PlanReaderService(
     public event Action? CountsInvalidated;
 
     /// <summary>
+    ///     On startup, rename plan subfolders from lowercase to Title Case for consistency
+    ///     with TENDRIL_HOME folder naming (Inbox, Trash, Plans, etc.).
+    /// </summary>
+    public void MigratePlanSubfolderCasing()
+    {
+        if (!Directory.Exists(PlansDirectory)) return;
+
+        var renames = new[] { "revisions", "logs", "artifacts", "verification", "worktrees" };
+        var titleCase = new[] { "Revisions", "Logs", "Artifacts", "Verification", "Worktrees" };
+
+        foreach (var dir in Directory.GetDirectories(PlansDirectory))
+        {
+            for (var i = 0; i < renames.Length; i++)
+            {
+                var oldPath = Path.Combine(dir, renames[i]);
+                var newPath = Path.Combine(dir, titleCase[i]);
+                if (!Directory.Exists(oldPath) || Directory.Exists(newPath)) continue;
+
+                try
+                {
+                    // Two-step rename for case-insensitive filesystems (Windows)
+                    var tmpPath = oldPath + "_tmp";
+                    Directory.Move(oldPath, tmpPath);
+                    Directory.Move(tmpPath, newPath);
+                    _logger.LogDebug("Renamed {Old} → {New}", oldPath, newPath);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to rename {Old} to {New}", oldPath, newPath);
+                }
+            }
+        }
+    }
+
+    /// <summary>
     ///     On startup, reset any plans stuck in transient states (Building, Executing, Updating)
     ///     back to Failed. These are leftovers from a previous Tendril shutdown.
     /// </summary>
@@ -300,7 +335,7 @@ public class PlanReaderService(
         // Write to disk in background for durability.
         WriteFileInBackground(() =>
         {
-            var revisionsDir = Path.Combine(PlansDirectory, folderName, "revisions");
+            var revisionsDir = Path.Combine(PlansDirectory, folderName, "Revisions");
             FileHelper.EnsureDirectory(revisionsDir);
 
             var nextNumber = GetNextRevisionNumber(revisionsDir);
@@ -347,7 +382,7 @@ public class PlanReaderService(
     /// <returns>List of tuples containing revision number, content, and last-modified timestamp (UTC).</returns>
     public List<(int Number, string Content, DateTime Modified)> GetRevisions(string folderName)
     {
-        var revisionsDir = Path.Combine(PlansDirectory, folderName, "revisions");
+        var revisionsDir = Path.Combine(PlansDirectory, folderName, "Revisions");
         if (!Directory.Exists(revisionsDir)) return new List<(int, string, DateTime)>();
 
         return Directory.GetFiles(revisionsDir, "*.md")
@@ -371,7 +406,7 @@ public class PlanReaderService(
     /// <param name="content">Markdown content of the log entry.</param>
     public void AddLog(string folderName, string action, string content, string? jobId = null)
     {
-        var logsDir = Path.Combine(PlansDirectory, folderName, "logs");
+        var logsDir = Path.Combine(PlansDirectory, folderName, "Logs");
         FileHelper.EnsureDirectory(logsDir);
 
         var logPath = !string.IsNullOrEmpty(jobId)
@@ -450,7 +485,7 @@ public class PlanReaderService(
         // Write to disk in background for durability.
         WriteFileInBackground(() =>
         {
-            var revisionsDir = Path.Combine(PlansDirectory, folderName, "revisions");
+            var revisionsDir = Path.Combine(PlansDirectory, folderName, "Revisions");
             if (!Directory.Exists(revisionsDir)) return;
 
             var latestFile = Directory.GetFiles(revisionsDir, "*.md")
@@ -691,7 +726,7 @@ public class PlanReaderService(
                 continue;
 
             // Ensure at least one revision file exists before yielding the plan
-            var revisionsDir = Path.Combine(dir, "revisions");
+            var revisionsDir = Path.Combine(dir, "Revisions");
             if (!Directory.Exists(revisionsDir))
                 continue;
 
@@ -744,7 +779,7 @@ public class PlanReaderService(
     /// </summary>
     private string ReadLatestRevisionFromFileSystem(string folderName)
     {
-        var revisionsDir = Path.Combine(PlansDirectory, folderName, "revisions");
+        var revisionsDir = Path.Combine(PlansDirectory, folderName, "Revisions");
         if (!Directory.Exists(revisionsDir)) return string.Empty;
 
         var latestFile = Directory.GetFiles(revisionsDir, "*.md")
@@ -845,7 +880,7 @@ public class PlanReaderService(
 
     private static int GetLatestRevisionNumber(string folderPath)
     {
-        var revisionsDir = Path.Combine(folderPath, "revisions");
+        var revisionsDir = Path.Combine(folderPath, "Revisions");
         var revisionCount = Directory.Exists(revisionsDir)
             ? Directory.GetFiles(revisionsDir, "*.md").Length
             : 1;

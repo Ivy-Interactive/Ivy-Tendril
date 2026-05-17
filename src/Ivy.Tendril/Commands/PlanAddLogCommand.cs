@@ -46,7 +46,7 @@ public class PlanAddLogCommand : Command<PlanAddLogSettings>
 
     internal static string WriteLog(string planFolder, string action, string? summary = null)
     {
-        var logsDir = Path.Combine(planFolder, "logs");
+        var logsDir = Path.Combine(planFolder, "Logs");
         Directory.CreateDirectory(logsDir);
 
         var maxNumber = 0;

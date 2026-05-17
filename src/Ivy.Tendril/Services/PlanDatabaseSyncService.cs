@@ -152,7 +152,7 @@ public class PlanDatabaseSyncService : IDisposable
         try
         {
             var lines = FileHelper.ReadAllLines(costsPath);
-            var logsDir = Path.Combine(plan.FolderPath, "logs");
+            var logsDir = Path.Combine(plan.FolderPath, "Logs");
 
             // Build log file map for timestamp correlation
             var logsByPromptware =

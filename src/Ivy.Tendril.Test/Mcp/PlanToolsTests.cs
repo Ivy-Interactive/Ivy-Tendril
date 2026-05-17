@@ -309,7 +309,7 @@ public class PlanToolsTests : IDisposable
         var result = _planTools.AddLog("00001", "ExecutePlan", "Test summary");
         Assert.Contains("Log written", result);
 
-        var logsDir = Path.Combine(planFolder, "logs");
+        var logsDir = Path.Combine(planFolder, "Logs");
         Assert.True(Directory.Exists(logsDir));
         var logFiles = Directory.GetFiles(logsDir, "*.md");
         Assert.Single(logFiles);

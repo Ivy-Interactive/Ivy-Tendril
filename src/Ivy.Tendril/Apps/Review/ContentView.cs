@@ -99,7 +99,7 @@ public class ContentView(
             {
                 if (string.IsNullOrEmpty(filePath)) return "";
                 if (selectedPlanState.Value is null) return "";
-                var artifactsDir = Path.GetFullPath(Path.Combine(selectedPlanState.Value.FolderPath, "artifacts"));
+                var artifactsDir = Path.GetFullPath(Path.Combine(selectedPlanState.Value.FolderPath, "Artifacts"));
                 var resolvedPath = Path.GetFullPath(filePath);
                 if (!resolvedPath.StartsWith(artifactsDir, StringComparison.OrdinalIgnoreCase))
                     return "Access denied: file is outside the artifacts folder.";
@@ -143,7 +143,7 @@ public class ContentView(
                     }
 
                     // Summary
-                    var summPath = Path.Combine(folderPath, "artifacts", "summary.md");
+                    var summPath = Path.Combine(folderPath, "Artifacts", "summary.md");
                     var summaryMd = File.Exists(summPath) ? FileHelper.ReadAllText(summPath) : null;
 
                     // Artifacts
@@ -158,7 +158,7 @@ public class ContentView(
                     // Verification report existence
                     var verReports = selectedPlanState.Value.Verifications.ToDictionary(
                         v => v.Name,
-                        v => File.Exists(Path.Combine(folderPath, "verification", $"{v.Name}.md")));
+                        v => File.Exists(Path.Combine(folderPath, "Verification", $"{v.Name}.md")));
 
                     // Review action conditions
                     var projectConfig = config.GetProject(selectedPlanState.Value.Project);
@@ -201,7 +201,7 @@ public class ContentView(
             return Disposable.Empty;
         }, [localRefresh]);
 
-        var tabNames = new[] { "summary", "plan", "details", "verifications", "git", "changes", "artifacts", "recommendations" };
+        var tabNames = new[] { "summary", "plan", "details", "verifications", "git", "changes", "Artifacts", "recommendations" };
         var selectedTabIndex = Array.IndexOf(tabNames, args?.Tab ?? "summary");
         if (selectedTabIndex < 0) selectedTabIndex = 0;
 
@@ -556,14 +556,14 @@ public class ContentView(
 
     internal static bool ValidateArtifactPath(string filePath, string planFolderPath)
     {
-        var artifactsDir = Path.GetFullPath(Path.Combine(planFolderPath, "artifacts"));
+        var artifactsDir = Path.GetFullPath(Path.Combine(planFolderPath, "Artifacts"));
         var resolvedPath = Path.GetFullPath(filePath);
         return resolvedPath.StartsWith(artifactsDir, StringComparison.OrdinalIgnoreCase);
     }
 
     internal static bool ValidateVerificationPath(string name, string planFolderPath)
     {
-        var verificationDir = Path.GetFullPath(Path.Combine(planFolderPath, "verification"));
+        var verificationDir = Path.GetFullPath(Path.Combine(planFolderPath, "Verification"));
         var resolvedPath = Path.GetFullPath(Path.Combine(verificationDir, $"{name}.md"));
         return resolvedPath.StartsWith(verificationDir, StringComparison.OrdinalIgnoreCase);
     }

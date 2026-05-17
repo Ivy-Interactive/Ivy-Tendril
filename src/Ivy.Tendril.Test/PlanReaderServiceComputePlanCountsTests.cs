@@ -34,7 +34,7 @@ public class PlanReaderServiceComputePlanCountsTests : IDisposable
         File.WriteAllText(Path.Combine(dir, "plan.yaml"),
             $"state: {state}\nproject: Tendril\ntitle: Test\nrepos: []\ncommits: []\nprs: []\nverifications: []\nrelatedPlans: []\ndependsOn: []\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\n");
 
-        var revisionsDir = Path.Combine(dir, "revisions");
+        var revisionsDir = Path.Combine(dir, "Revisions");
         Directory.CreateDirectory(revisionsDir);
         File.WriteAllText(Path.Combine(revisionsDir, "001.md"), "# Test");
     }

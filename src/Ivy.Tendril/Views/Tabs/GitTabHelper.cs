@@ -53,7 +53,7 @@ public static class GitTabHelper
     {
         var sections = new List<WorktreeSection>();
         var assignedCommitHashes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var worktreesDir = Path.Combine(plan.FolderPath, "worktrees");
+        var worktreesDir = Path.Combine(plan.FolderPath, "Worktrees");
 
         if (Directory.Exists(worktreesDir))
         {

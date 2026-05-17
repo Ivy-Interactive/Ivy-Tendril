@@ -16,7 +16,7 @@ Project configuration is available from the firmware header.
 ### 1. Read the Plan
 
 - Read `plan.yaml` from the plan folder
-- Read the latest revision from `revisions/` (highest numbered .md file)
+- Read the latest revision from `Revisions/` (highest numbered .md file)
 - Identify sections with investigative/exploratory language ("Investigate...", "Check if...", "Research...", "Explore...")
 - Report plan context to Jobs UI: `tendril job status TendrilJobId --message "Expanding plan..." --plan-id <plan-id> --plan-title "<title>"`
 
@@ -53,7 +53,7 @@ Example:
   EOF
   ```
 
-  The command reads from STDIN and auto-creates the next numbered revision file. Do NOT use the Write or Edit tools to create revision files directly in `revisions/`.
+  The command reads from STDIN and auto-creates the next numbered revision file. Do NOT use the Write or Edit tools to create revision files directly in `Revisions/`.
 - Replace all investigative/exploratory language with specific actions
 - Include exact file paths for changes
 - Specify concrete code modifications or additions

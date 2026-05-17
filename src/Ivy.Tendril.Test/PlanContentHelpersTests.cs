@@ -14,7 +14,7 @@ public class PlanContentHelpersTests
         try
         {
             var planDir = Path.Combine(tempDir, "00001-TestPlan");
-            var screenshotsDir = Path.Combine(planDir, "artifacts", "screenshots");
+            var screenshotsDir = Path.Combine(planDir, "Artifacts", "screenshots");
             Directory.CreateDirectory(screenshotsDir);
             File.WriteAllText(Path.Combine(screenshotsDir, "shot1.png"), "fake");
             File.WriteAllText(Path.Combine(screenshotsDir, "shot2.png"), "fake");

@@ -35,7 +35,7 @@ public class PlanRemoveWorktreeCommand : Command<PlanRemoveWorktreeSettings>
         try
         {
             var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
-            var worktreePath = Path.Combine(planFolder, "worktrees", settings.RepoName);
+            var worktreePath = Path.Combine(planFolder, "Worktrees", settings.RepoName);
 
             if (!Directory.Exists(worktreePath))
             {

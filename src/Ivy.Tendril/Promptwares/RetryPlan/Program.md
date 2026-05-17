@@ -44,7 +44,7 @@ Focus on making progress, not achieving perfect understanding. A working impleme
 ### 1. Read Plan
 
 - Read `plan.yaml` from the plan folder (project, repos, title)
-- Read the latest revision from `revisions/` (highest numbered .md file)
+- Read the latest revision from `Revisions/` (highest numbered .md file)
 - Extract the plan ID from the folder name (e.g. `01105` from `01105-TestPlan`)
 - Report plan context to Jobs UI: `tendril job status TendrilJobId --message "Retrying plan..." --plan-id <plan-id> --plan-title "<title>"`
 
@@ -125,7 +125,7 @@ After reading the plan revision, scan it for code validation markers to detect s
    - **If all validation blocks pass** → Proceed to worktree creation
    - **If any validation fails** → Fail the plan immediately with a detailed report
 
-4. **Write validation report** — Create `<TendrilPlanFolder>/verification/PreExecution.md`:
+4. **Write validation report** — Create `<TendrilPlanFolder>/Verification/PreExecution.md`:
 
 ```markdown
 # PreExecution
@@ -154,7 +154,7 @@ After reading the plan revision, scan it for code validation markers to detect s
    - A `<details><summary>Still relevant?</summary>` block whose body starts with `No.`
    - Phrases like *"Already applied"*, *"This plan is redundant"*, *"This plan is superseded"*, or *"previously attempted … was merged to main via PR #NNNN"* in the `## Problem` or `## Solution` sections.
 
-   If any marker is found, verify the claim: run `gh pr view <cited PR> --json state,mergeCommit` (must be `MERGED`), confirm the cited commit is in `git log origin/<default-branch>`, and byte-compare the plan's proposed code against the current file contents. If all three checks pass, write `verification/PreExecution.md` with `Result: Fail`, write `artifacts/summary.md` documenting the no-op, set every verification to `Skipped` via `tendril plan set-verification <plan-id> <name> Skipped`, and fail the plan **without creating a worktree** — running verifications on unchanged code wastes the time budget and produces a 0-commit PR that CreatePr cannot process.
+   If any marker is found, verify the claim: run `gh pr view <cited PR> --json state,mergeCommit` (must be `MERGED`), confirm the cited commit is in `git log origin/<default-branch>`, and byte-compare the plan's proposed code against the current file contents. If all three checks pass, write `Verification/PreExecution.md` with `Result: Fail`, write `Artifacts/summary.md` documenting the no-op, set every verification to `Skipped` via `tendril plan set-verification <plan-id> <name> Skipped`, and fail the plan **without creating a worktree** — running verifications on unchanged code wastes the time budget and produces a 0-commit PR that CreatePr cannot process.
 
 ### 1.8. Auto-Commit Uncommitted Changes
 
@@ -249,7 +249,7 @@ PLAN_FOLDER_NAME=$(basename "<TendrilPlanFolder>")
 PLAN_ID=$(echo "$PLAN_FOLDER_NAME" | grep -oP '^\d+')
 SAFE_TITLE=$(echo "$PLAN_FOLDER_NAME" | sed 's/^[0-9]\+-//')
 BRANCH_NAME="tendril/$PLAN_ID-$SAFE_TITLE"
-git worktree add "<TendrilPlanFolder>/worktrees/<repo-folder-name>" -b "$BRANCH_NAME" "origin/<resolved-base-branch>"
+git worktree add "<TendrilPlanFolder>/Worktrees/<repo-folder-name>" -b "$BRANCH_NAME" "origin/<resolved-base-branch>"
 ```
 
 Example:
@@ -257,7 +257,7 @@ Example:
 ```bash
 cd <RepoPath>
 git fetch origin
-git worktree add "<TendrilPlanFolder>/worktrees/<RepoName>" -b "tendril/<TendrilPlanId>-<SafeTitle>" origin/<resolved-base-branch>
+git worktree add "<TendrilPlanFolder>/Worktrees/<RepoName>" -b "tendril/<TendrilPlanId>-<SafeTitle>" origin/<resolved-base-branch>
 ```
 
 **Important:** Always branch from `origin/<resolved-base-branch>`, not local HEAD. This ensures the PR only contains the plan's commits, not any unpushed local work. The `<resolved-base-branch>` comes from either the `RepoConfigs` firmware header (if `baseBranch` is configured) or auto-detection.
@@ -282,12 +282,12 @@ If `baseBranch` is present for a repo, use it instead of auto-detecting. If abse
 4. After creating the worktree, **verify the `.git` file exists** and fail fast if it's missing:
 
 ```bash
-if [ ! -f "<TendrilPlanFolder>/worktrees/<repo-folder-name>/.git" ]; then
-    echo "ERROR: Worktree creation failed - .git file missing at <TendrilPlanFolder>/worktrees/<repo-folder-name>/.git"
+if [ ! -f "<TendrilPlanFolder>/Worktrees/<repo-folder-name>/.git" ]; then
+    echo "ERROR: Worktree creation failed - .git file missing at <TendrilPlanFolder>/Worktrees/<repo-folder-name>/.git"
     echo "This indicates git worktree add did not fully initialize the worktree."
     exit 1
 fi
-cat "<TendrilPlanFolder>/worktrees/<repo-folder-name>/.git"
+cat "<TendrilPlanFolder>/Worktrees/<repo-folder-name>/.git"
 ```
 
 This ensures RetryPlan fails immediately if worktree creation is incomplete, rather than leaving orphaned directories that trigger warnings during cleanup.
@@ -297,7 +297,7 @@ This ensures RetryPlan fails immediately if worktree creation is incomplete, rat
    ```bash
    SYNC_STRATEGY="<from RepoConfigs or 'fetch' if not specified>"
    BASE_BRANCH="<resolved-base-branch>"
-   WORKTREE_PATH="<TendrilPlanFolder>/worktrees/<repo-folder-name>"
+   WORKTREE_PATH="<TendrilPlanFolder>/Worktrees/<repo-folder-name>"
 
    tendril plan sync-worktree "$WORKTREE_PATH" --strategy "$SYNC_STRATEGY" --base-branch "$BASE_BRANCH"
    ```
@@ -402,7 +402,7 @@ If there are uncommitted changes, either commit them or discard them with a clea
 
 ### 5.5. Generate Summary
 
-After all implementation commits are made, create `<TendrilPlanFolder>/artifacts/summary.md` summarizing what was done.
+After all implementation commits are made, create `<TendrilPlanFolder>/Artifacts/summary.md` summarizing what was done.
 
 The summary should follow this structure:
 
@@ -454,7 +454,7 @@ If the plan references other plans (e.g. split-from, follow-up), add them via CL
 
 ### 7. Run Verifications
 
-Create a `verification/` directory in the plan folder if it doesn't exist.
+Create a `Verification/` directory in the plan folder if it doesn't exist.
 
 Check the `## Verification` section in the plan revision for checked items (`- [x]`). Skip unchecked items (`- [ ]`).
 
@@ -474,7 +474,7 @@ For each checked verification:
 
 **CRITICAL:** You MUST call `tendril plan set-verification` after EACH verification. The verification report file alone is NOT sufficient — plan.yaml must also be updated via the CLI. Failing to call this command will result in the plan being marked as Failed.
 
-**!IMPORTANT: Every verification MUST produce a report** at `<TendrilPlanFolder>/verification/<VerificationName>.md` using YAML frontmatter:
+**!IMPORTANT: Every verification MUST produce a report** at `<TendrilPlanFolder>/Verification/<VerificationName>.md` using YAML frontmatter:
 
 ```markdown
 ---
@@ -518,7 +518,7 @@ tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown descriptio
 
 Do NOT include items that are part of the current plan's scope. Do NOT include recommendations about code formatting, linting, or style issues — those are handled by verifications.
 
-**After registering any recommendations via the CLI**, create `<TendrilPlanFolder>/artifacts/recommendations.md`. Having zero recommendations is fine — but the file must still be created:
+**After registering any recommendations via the CLI**, create `<TendrilPlanFolder>/Artifacts/recommendations.md`. Having zero recommendations is fine — but the file must still be created:
 
 ~~~markdown
 # Recommendations
@@ -543,7 +543,7 @@ After all verifications pass:
 
 3. Run `git status` in every worktree. If there are any uncommitted files (from verification fixes, generated files, etc.), commit or discard them. The worktrees must be completely clean before finishing.
 
-4. Verify `<TendrilPlanFolder>/artifacts/recommendations.md` exists. If missing, the plan **must fail** — go back to Step 7.5.
+4. Verify `<TendrilPlanFolder>/Artifacts/recommendations.md` exists. If missing, the plan **must fail** — go back to Step 7.5.
 
 ### 8.5. Worktree Lifecycle
 
@@ -555,7 +555,7 @@ Worktrees are **not** cleaned up by RetryPlan. They remain on disk so that Creat
 
 **Git branches are preserved** until CreatePr consumes them — only the worktree filesystem directories are removed.
 
-**Manual inspection:** If you need to inspect worktrees after failure, check the plan folder's `worktrees/` directory before CreatePr runs. After PR creation, worktrees are cleaned up automatically. You can also temporarily pause WorktreeCleanupService if needed for extended debugging.
+**Manual inspection:** If you need to inspect worktrees after failure, check the plan folder's `Worktrees/` directory before CreatePr runs. After PR creation, worktrees are cleaned up automatically. You can also temporarily pause WorktreeCleanupService if needed for extended debugging.
 
 ### 9. Plan State
 
@@ -575,6 +575,6 @@ You are running in non-interactive mode and CANNOT ask questions. If you are uns
 - Do NOT skip tests or pre-commit formatting
 - Commit messages must reference the plan ID
 - Convert `file:///` paths in plans to local filesystem paths appropriate for your OS
-- Do NOT commit artifact files (screenshots, images) to the repo. Test artifacts belong in `<TendrilPlanFolder>/artifacts/` only — CreatePr handles uploading them to persistent storage.
+- Do NOT commit artifact files (screenshots, images) to the repo. Test artifacts belong in `<TendrilPlanFolder>/Artifacts/` only — CreatePr handles uploading them to persistent storage.
 - If the project uses private package registries, ensure authentication is configured before running dependency installation in worktrees. Credentials should come from environment variables or project-level configuration.
 - Do NOT create filesystem aliases or shortcuts (e.g. symlinks, drive mappings) to worktree paths. The plans directory path is managed by Tendril — additional indirection causes cleanup issues.
