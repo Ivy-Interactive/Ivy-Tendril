@@ -269,6 +269,8 @@ public class Program
             {
                 pw.AddCommand<PromptwareRunCommand>("run")
                     .WithDescription("Run a promptware directly");
+                pw.AddCommand<PromptwareReadMemoryCommand>("read-memory")
+                    .WithDescription("Read a promptware memory file to STDOUT");
                 pw.AddCommand<PromptwareWriteMemoryCommand>("write-memory")
                     .WithDescription("Write a promptware memory file from STDIN");
                 pw.AddCommand<PromptwareWriteToolCommand>("write-tool")

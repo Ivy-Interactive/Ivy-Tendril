@@ -38,6 +38,9 @@ x86/
 **/tmp_out/
 msbuild.binlog
 
+## Config backups
+*.yaml.backup
+
 ## Test results
 TestResults/
 **/TestResults/

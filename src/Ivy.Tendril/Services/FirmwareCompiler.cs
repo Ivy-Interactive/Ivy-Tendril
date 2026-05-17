@@ -38,8 +38,13 @@ public static class FirmwareCompiler
         **Tools:** 
         {TOOLS}
         
-        **Memory:** 
+        **Memory:**
         {MEMORY}
+
+        To read a memory file:
+        ```bash
+        tendril promptware read-memory {PROMPTWARE_NAME} <filename>.md
+        ```
 
         Complete your task and present the user with a summary.
 
