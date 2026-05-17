@@ -32,6 +32,8 @@ The `TaskDescription` header value contains the user's task description. If it r
 
 **Format screenshot paths**: If the task description contains file paths to images (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`), include them in the plan revision as markdown images using `file:///` URLs. Convert backslashes to forward slashes. Example: a path like `D:\Screenshots\2026-05-07_17-16.png` in the description becomes `![screenshot](file:///D:/Screenshots/2026-05-07_17-16.png)` in the revision.
 
+**Preserve remote images**: If the task description contains markdown image references with remote URLs (`![...](https://...)`), include relevant ones in the plan revision as-is. Images showing bugs, UI mockups, error messages, or expected behavior are relevant. Decorative or unrelated images may be omitted.
+
 ### 1.1. Select Project
 
 The **Projects** section of your firmware lists all available projects with their repos, verifications, and context.
