@@ -24,7 +24,7 @@ public class DeleteTrashFileDialog(
                 Text.P($"Permanently delete {_selected.FileName}?")
             ),
             new DialogFooter(
-                new Button("Cancel").Outline().ShortcutKey("Escape").OnClick(() => _confirmDelete.Set(false)),
+                new Button("Cancel").Outline().OnClick(() => _confirmDelete.Set(false)),
                 new Button("Delete").Destructive().ShortcutKey("Enter").AutoFocus().OnClick(() =>
                 {
                     if (File.Exists(deletePath))

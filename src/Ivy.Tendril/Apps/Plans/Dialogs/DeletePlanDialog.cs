@@ -29,7 +29,7 @@ public class DeletePlanDialog(
             ),
             new DialogFooter(
                 Layout.Horizontal().Gap(2).Right()
-                | new Button("Cancel").Outline().ShortcutKey("Escape").OnClick(() => _dialogOpen.Set(false))
+                | new Button("Cancel").Outline().OnClick(() => _dialogOpen.Set(false))
                 | new Button("Move to Skipped").Outline().ShortcutKey("s").OnClick(() =>
                 {
                     // Optimistically update UI state before disk I/O

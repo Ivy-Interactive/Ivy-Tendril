@@ -67,7 +67,7 @@ public class CustomPrDialog(
                 | customPrComment.ToTextareaInput("Comment").Rows(3)
             ),
             new DialogFooter(
-                new Button("Cancel").Outline().ShortcutKey("Escape").OnClick(() =>
+                new Button("Cancel").Outline().OnClick(() =>
                 {
                     isCreating.Set(false);
                     customPrMerge.Set(true);
