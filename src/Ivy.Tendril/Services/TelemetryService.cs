@@ -28,6 +28,7 @@ public class TelemetryService : ITelemetryService, IAsyncDisposable
             // Public key — safe to expose (like a website tracking snippet)
             var sessionId = Guid.NewGuid().ToString();
             // GeoIP enabled so we can see which countries have active users
+            var appVersion = typeof(TelemetryService).Assembly.GetName().Version?.ToString(3) ?? "unknown";
             _client = new PostHogClient(new PostHogOptions
             {
                 ProjectApiKey = "phc_uHeJHFURzThFPnizzGMzLEimLWnRAuqy8DunK8N3oYcd",
@@ -35,7 +36,10 @@ public class TelemetryService : ITelemetryService, IAsyncDisposable
                 SuperProperties = new Dictionary<string, object>
                 {
                     ["$session_id"] = sessionId,
-                    ["$geoip_disable"] = false
+                    ["$geoip_disable"] = false,
+                    ["app_version"] = appVersion,
+                    ["os"] = Environment.OSVersion.Platform.ToString(),
+                    ["os_version"] = Environment.OSVersion.VersionString
                 }
             });
             _distinctId = GetOrCreateAnonymousId();
@@ -74,7 +78,8 @@ public class TelemetryService : ITelemetryService, IAsyncDisposable
                 personPropertiesToSet: new Dictionary<string, object>
                 {
                     ["app_version"] = appVersion,
-                    ["os"] = Environment.OSVersion.Platform.ToString()
+                    ["os"] = Environment.OSVersion.Platform.ToString(),
+                    ["os_version"] = Environment.OSVersion.VersionString
                 },
                 personPropertiesToSetOnce: new Dictionary<string, object>
                 {
@@ -111,11 +116,13 @@ public class TelemetryService : ITelemetryService, IAsyncDisposable
     {
         try
         {
-            _client?.Capture(_distinctId, "plan_created", new Dictionary<string, object>
+            var properties = new Dictionary<string, object>
             {
                 ["level"] = context.Level,
                 ["duration_seconds"] = context.DurationSeconds ?? 0
-            });
+            };
+            if (context.Agent != null) properties["agent"] = context.Agent;
+            _client?.Capture(_distinctId, "plan_created", properties);
             _logger?.LogDebug("Tracked plan_created event");
         }
         catch (Exception ex)
@@ -128,10 +135,12 @@ public class TelemetryService : ITelemetryService, IAsyncDisposable
     {
         try
         {
-            _client?.Capture(_distinctId, "pr_created", new Dictionary<string, object>
+            var properties = new Dictionary<string, object>
             {
                 ["duration_seconds"] = context.DurationSeconds ?? 0
-            });
+            };
+            if (context.Agent != null) properties["agent"] = context.Agent;
+            _client?.Capture(_distinctId, "pr_created", properties);
             _logger?.LogDebug("Tracked pr_created event");
         }
         catch (Exception ex)
@@ -140,16 +149,18 @@ public class TelemetryService : ITelemetryService, IAsyncDisposable
         }
     }
 
-    public void TrackJobCompleted(string jobType, JobStatus status, int? durationSeconds)
+    public void TrackJobCompleted(string jobType, JobStatus status, int? durationSeconds, string? agent = null)
     {
         try
         {
-            _client?.Capture(_distinctId, "job_completed", new Dictionary<string, object>
+            var properties = new Dictionary<string, object>
             {
                 ["job_type"] = jobType,
                 ["status"] = status.ToString(),
                 ["duration_seconds"] = durationSeconds ?? 0
-            });
+            };
+            if (agent != null) properties["agent"] = agent;
+            _client?.Capture(_distinctId, "job_completed", properties);
             _logger?.LogDebug("Tracked job_completed event: {JobType} - {Status}", jobType, status);
         }
         catch (Exception ex)
