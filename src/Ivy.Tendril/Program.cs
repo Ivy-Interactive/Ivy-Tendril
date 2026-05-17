@@ -178,7 +178,7 @@ public class Program
             "doctor", "db-version", "db-migrate", "db-reset",
             "update-promptwares", "job", "plan", "promptware",
             "trash", "verification", "project",
-            "version", "--version"
+            "version", "--version", "report-bug"
         };
         return cliCommands.Contains(firstArg);
     }
@@ -276,6 +276,8 @@ public class Program
             });
             config.AddCommand<VersionCommand>("version")
                 .WithDescription("Show version information");
+            config.AddCommand<ReportBugCommand>("report-bug")
+                .WithDescription("Report a bug with plan/job context");
 
             // Job management commands
             config.AddBranch("job", job =>
