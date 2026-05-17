@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using Ivy.Tendril.Apps.Setup.Dialogs;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Views;
@@ -23,6 +24,10 @@ public class ProjectSetupStepView(
         var progressMessage = UseState<string?>(null);
         var progressValue = UseState<int?>(null);
         var error = UseState<string?>(null);
+        var reviewActions = UseState(new List<ReviewActionConfig>());
+        var (reviewActionTriggerView, showReviewActionTrigger) = UseTrigger((IState<bool> isOpen, int? existingIndex) =>
+            new EditReviewActionDialogContent(isOpen, existingIndex, reviewActions));
+        var (reviewActionAlertView, showReviewActionAlert) = UseAlert();
 
         UseEffect(() =>
         {
@@ -99,7 +104,8 @@ public class ProjectSetupStepView(
                                 Color = "Green",
                                 Repos = refs,
                                 Context = "",
-                                Verifications = new List<ProjectVerificationRef>()
+                                Verifications = new List<ProjectVerificationRef>(),
+                                ReviewActions = new List<ReviewActionConfig>(reviewActions.Value)
                             };
 
                             config.SetPendingProject(project);
@@ -150,7 +156,8 @@ public class ProjectSetupStepView(
                                 Color = "Green",
                                 Repos = refs,
                                 Context = "",
-                                Verifications = new List<ProjectVerificationRef>()
+                                Verifications = new List<ProjectVerificationRef>(),
+                                ReviewActions = new List<ReviewActionConfig>(reviewActions.Value)
                             };
 
                             config.SetPendingProject(project);
@@ -187,6 +194,14 @@ public class ProjectSetupStepView(
                | (error.Value != null ? Text.Danger(error.Value) : null!)
                | new ProjectRepoPickerView(selectedRepos, projectName)
                | projectName.ToTextInput().WithField().Required().Label("Project Name")
+               | (Layout.Vertical().Gap(2)
+                  | Text.Block("Review Actions").Bold()
+                  | Text.Block("Commands that run during plan review (e.g., tests, linting).").Muted().Small()
+                  | new ReviewActionsTableView(reviewActions, showReviewActionTrigger, showReviewActionAlert)
+                  | new Button("Add Review Action").Icon(Icons.Plus).Outline()
+                      .OnClick(() => showReviewActionTrigger(null)))
+               | reviewActionTriggerView
+               | reviewActionAlertView
                | (canContinue ? new Separator() : null!)
                | generateBlock
                | (canContinue ? new Separator() : null!)
