@@ -20,16 +20,16 @@ Manage the local SQLite database that stores plan sync data, recommendations, an
 
 #### db-version
 
-```bash
-tendril db-version
+```terminal
+>tendril db-version
 ```
 
 Prints the current schema version number.
 
 #### db-migrate
 
-```bash
-tendril db-migrate
+```terminal
+>tendril db-migrate
 ```
 
 Applies any pending migrations to bring the database schema up to date. Safe to run repeatedly — already-applied migrations are skipped.
@@ -38,8 +38,8 @@ Applies any pending migrations to bring the database schema up to date. Safe to 
 
 #### db-reset
 
-```bash
-tendril db-reset [--force]
+```terminal
+>tendril db-reset [--force]
 ```
 
 Wipes all data and recreates the schema from scratch. Use `--force` to skip the confirmation prompt.

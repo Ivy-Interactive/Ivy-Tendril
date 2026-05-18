@@ -15,12 +15,12 @@ Manage global verification definitions stored in `config.yaml`. These can be ref
 
 ## Commands
 
-```bash
-tendril verification list
-tendril verification get <name>
-tendril verification add <name> [--prompt <text>]
-tendril verification remove <name>
-tendril verification set <name> <field> <value>
+```terminal
+>tendril verification list
+>tendril verification get <name>
+>tendril verification add <name> [--prompt <text>]
+>tendril verification remove <name>
+>tendril verification set <name> <field> <value>
 ```
 
 - **list** — shows all definitions with a preview of the prompt
@@ -30,19 +30,19 @@ tendril verification set <name> <field> <value>
 
 ## Examples
 
-```bash
-# Add with inline prompt
-tendril verification add BuildPasses --prompt "Run dotnet build and confirm exit code 0"
+```terminal
+># Add with inline prompt
+>tendril verification add BuildPasses --prompt "Run dotnet build and confirm exit code 0"
 
-# Add from file
-cat prompt.md | tendril verification add BuildPasses
+># Add from file
+>cat prompt.md | tendril verification add BuildPasses
 
-# Update the prompt
-tendril verification set BuildPasses prompt "Run dotnet build --no-restore and check for errors"
+># Update the prompt
+>tendril verification set BuildPasses prompt "Run dotnet build --no-restore and check for errors"
 
-# List all definitions
-tendril verification list
+># List all definitions
+>tendril verification list
 
-# View full prompt
-tendril verification get BuildPasses
+># View full prompt
+>tendril verification get BuildPasses
 ```

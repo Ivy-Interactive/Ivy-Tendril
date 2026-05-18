@@ -31,8 +31,8 @@ Create, read, update, and validate plans from the terminal. All subcommands reso
 
 #### plan create
 
-```bash
-tendril plan create <title> [options]
+```terminal
+>tendril plan create <title> [options]
 ```
 
 Creates a new plan folder and `plan.yaml` scaffold with state `Draft`. The plan ID is auto-allocated from the `.counter` file.
@@ -52,8 +52,8 @@ Creates a new plan folder and `plan.yaml` scaffold with state `Draft`. The plan 
 
 #### plan list
 
-```bash
-tendril plan list [options]
+```terminal
+>tendril plan list [options]
 ```
 
 Lists plans with optional filters.
@@ -68,17 +68,17 @@ Lists plans with optional filters.
 | `--limit <n>` | Maximum number of results |
 | `--format <fmt>` | Output format: `table` (default), `ids`, `folders`, `json` |
 
-```bash
-tendril plan list --state Draft
-tendril plan list --project Tendril --level Critical
-tendril plan list --state Failed --format ids
-tendril plan list --format json --limit 10
+```terminal
+>tendril plan list --state Draft
+>tendril plan list --project Tendril --level Critical
+>tendril plan list --state Failed --format ids
+>tendril plan list --format json --limit 10
 ```
 
 #### plan get
 
-```bash
-tendril plan get <plan-id> [field]
+```terminal
+>tendril plan get <plan-id> [field]
 ```
 
 Prints the full YAML, or a single field value when `[field]` is provided.
@@ -89,57 +89,57 @@ Prints the full YAML, or a single field value when `[field]` is provided.
 
 #### plan set
 
-```bash
-tendril plan set <plan-id> <field> <value>
+```terminal
+>tendril plan set <plan-id> <field> <value>
 ```
 
 Updates a single field and bumps the `updated` timestamp automatically.
 
 #### plan update
 
-```bash
-cat revised.yaml | tendril plan update <plan-id>
+```terminal
+>cat revised.yaml | tendril plan update <plan-id>
 ```
 
 Replaces the entire `plan.yaml` content from stdin.
 
 #### plan validate
 
-```bash
-tendril plan validate <plan-id>
+```terminal
+>tendril plan validate <plan-id>
 ```
 
 Checks that the plan has all required fields and is internally consistent. Exits with code `1` on failure.
 
 ## Repos
 
-```bash
-tendril plan add-repo <plan-id> <repo-path>
-tendril plan remove-repo <plan-id> <repo-path>
+```terminal
+>tendril plan add-repo <plan-id> <repo-path>
+>tendril plan remove-repo <plan-id> <repo-path>
 ```
 
 Manage the list of repositories associated with a plan. Adding an existing repo is a no-op.
 
 ## Links
 
-```bash
-tendril plan add-pr <plan-id> <pr-url>
-tendril plan add-commit <plan-id> <sha>
-tendril plan add-related-plan <plan-id> <folder-name>
-tendril plan remove-related-plan <plan-id> <folder-name>
-tendril plan add-depends-on <plan-id> <folder-name>
-tendril plan remove-depends-on <plan-id> <folder-name>
+```terminal
+>tendril plan add-pr <plan-id> <pr-url>
+>tendril plan add-commit <plan-id> <sha>
+>tendril plan add-related-plan <plan-id> <folder-name>
+>tendril plan remove-related-plan <plan-id> <folder-name>
+>tendril plan add-depends-on <plan-id> <folder-name>
+>tendril plan remove-depends-on <plan-id> <folder-name>
 ```
 
 Manage PR URLs, commit SHAs, related plans, and blocking dependencies. `add-depends-on` makes ExecutePlan wait for the dependency to reach `Completed` state before executing. All names are matched case-insensitively.
 
 ## Verifications
 
-```bash
-tendril plan set-verification <plan-id> <name> <status>
-tendril plan verification list <plan-id> [--status <status>]
-tendril plan verification add <plan-id> <name> [--status <status>]
-tendril plan verification remove <plan-id> <name>
+```terminal
+>tendril plan set-verification <plan-id> <name> <status>
+>tendril plan verification list <plan-id> [--status <status>]
+>tendril plan verification add <plan-id> <name> [--status <status>]
+>tendril plan verification remove <plan-id> <name>
 ```
 
 Manage verifications on a plan. Valid statuses: `Pending`, `Pass`, `Fail`, `Skipped`. Default status for `add` is `Pending`.
@@ -148,52 +148,52 @@ Manage verifications on a plan. Valid statuses: `Pending`, `Pass`, `Fail`, `Skip
 
 #### plan cleanup
 
-```bash
-tendril plan cleanup <plan-id> [--force]
+```terminal
+>tendril plan cleanup <plan-id> [--force]
 ```
 
 Removes all git worktrees associated with a plan. By default only runs on plans in a terminal state (`Completed`, `Failed`, `Skipped`, `Icebox`). Use `--force` to skip that check.
 
 #### plan remove-worktree
 
-```bash
-tendril plan remove-worktree <plan-id> <repo-name> [--branch <branch>]
+```terminal
+>tendril plan remove-worktree <plan-id> <repo-name> [--branch <branch>]
 ```
 
 Removes a single worktree from `Worktrees/<repo-name>`. Attempts `git worktree remove --force` first; falls back to a force-delete. Also deletes the associated branch (`tendril/<plan-folder>` by default).
 
 #### plan sync-worktree
 
-```bash
-tendril plan sync-worktree <worktree-path> [--strategy <strategy>] [--base-branch <branch>]
+```terminal
+>tendril plan sync-worktree <worktree-path> [--strategy <strategy>] [--base-branch <branch>]
 ```
 
 Applies a sync strategy to a worktree (absolute path). Strategies: `fetch` (default, no-op), `rebase`, `merge`. `--base-branch` is required for `rebase` and `merge`.
 
 ## Logs & Revisions
 
-```bash
-tendril plan add-log <plan-id> <action> [--summary <text>]
+```terminal
+>tendril plan add-log <plan-id> <action> [--summary <text>]
 ```
 
 Appends a numbered log entry to `Logs/` (e.g. `003-ExecutePlan.md`) and prints the path to stdout.
 
-```bash
-cat revision.md | tendril plan write-revision <plan-id>
-tendril plan write-revision <plan-id> --file revision.md
+```terminal
+>cat revision.md | tendril plan write-revision <plan-id>
+>tendril plan write-revision <plan-id> --file revision.md
 ```
 
 Writes a numbered revision file to `Revisions/` (e.g. `002.md`) from stdin or `--file`. Prints the path to stdout.
 
 ## Recommendations
 
-```bash
-tendril plan rec list <plan-id> [--state <state>]
-tendril plan rec add <plan-id> <title> [-d <description>] [--impact <level>] [--risk <level>]
-tendril plan rec set <plan-id> <title> <field> <value>
-tendril plan rec accept <plan-id> <title> [--notes <text>]
-tendril plan rec decline <plan-id> <title> [--reason <text>]
-tendril plan rec remove <plan-id> <title>
+```terminal
+>tendril plan rec list <plan-id> [--state <state>]
+>tendril plan rec add <plan-id> <title> [-d <description>] [--impact <level>] [--risk <level>]
+>tendril plan rec set <plan-id> <title> <field> <value>
+>tendril plan rec accept <plan-id> <title> [--notes <text>]
+>tendril plan rec decline <plan-id> <title> [--reason <text>]
+>tendril plan rec remove <plan-id> <title>
 ```
 
 Manage recommendations stored in a plan's YAML.
@@ -206,8 +206,8 @@ Manage recommendations stored in a plan's YAML.
 
 ## Doctor
 
-```bash
-tendril plan doctor [options]
+```terminal
+>tendril plan doctor [options]
 ```
 
 Scans every folder in the plans directory and reports health issues.
@@ -232,8 +232,8 @@ Scans every folder in the plans directory and reports health issues.
 
 With `--fix`: creates scaffold YAML for missing files, fills in missing fields, and removes stale or nested worktrees.
 
-```bash
-tendril plan doctor
-tendril plan doctor --fix
-tendril plan doctor --prune
+```terminal
+>tendril plan doctor
+>tendril plan doctor --fix
+>tendril plan doctor --prune
 ```

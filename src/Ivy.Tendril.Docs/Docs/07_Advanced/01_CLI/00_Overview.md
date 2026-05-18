@@ -30,32 +30,32 @@ Tendril CLI gives you complete control over your workflow without touching the U
 
 **1. Check your installation**
 
-```bash
-tendril doctor
+```terminal
+>tendril doctor
 ```
 
 **2. Start the web server**
 
-```bash
-tendril run
+```terminal
+>tendril run
 ```
 
 **3. Create a new plan**
 
-```bash
-tendril plan create "Fix login bug" --project MyProject
+```terminal
+>tendril plan create "Fix login bug" --project MyProject
 ```
 
 **4. List active plans**
 
-```bash
-tendril plan list --state Executing
+```terminal
+>tendril plan list --state Executing
 ```
 
 **5. Reset everything and start fresh**
 
-```bash
-tendril reset
+```terminal
+>tendril reset
 ```
 
 <Callout type="Tip">
@@ -83,26 +83,26 @@ Every command supports `--help` for detailed usage. For example: `tendril plan c
 
 #### doctor
 
-```bash
-tendril doctor
+```terminal
+>tendril doctor
 ```
 
 Validates your Tendril installation — checks `TENDRIL_HOME`, `config.yaml`, required tools (`gh`, `git`), optional tools (`pandoc`, `pwsh`), database schema, and agent model availability. Always a good first step when something isn't working.
 
 #### run
 
-```bash
-tendril run
-tendril run --port 8080
+```terminal
+>tendril run
+>tendril run --port 8080
 ```
 
 Starts the Tendril web server. Automatically applies pending database migrations before serving. Default port is `5010`.
 
 #### reset
 
-```bash
-tendril reset
-tendril reset --force
+```terminal
+>tendril reset
+>tendril reset --force
 ```
 
 Removes all Tendril data from the machine — deletes `TENDRIL_HOME`, `TENDRIL_PLANS`, and clears environment variables. On macOS/Linux, prints a reminder to remove the `export` lines from your shell rc file manually.
@@ -114,10 +114,10 @@ This permanently deletes all data. There is no undo.
 
 #### report-bug
 
-```bash
-tendril report-bug --plan 03430
-tendril report-bug --job 00042 --description "Agent crashes on worktree creation"
-tendril report-bug --plan 03430 --dry-run
+```terminal
+>tendril report-bug --plan 03430
+>tendril report-bug --job 00042 --description "Agent crashes on worktree creation"
+>tendril report-bug --plan 03430 --dry-run
 ```
 
 Collects plan files and agent logs into a zip archive and submits them to the Tendril bug report API, which opens a GitHub issue automatically.
@@ -137,16 +137,16 @@ Attached files are posted to a **public** GitHub issue. If your plan contains se
 
 #### version
 
-```bash
-tendril version
+```terminal
+>tendril version
 ```
 
 Prints the installed Tendril version (e.g. `1.0.34`).
 
 #### update-promptwares
 
-```bash
-tendril update-promptwares
+```terminal
+>tendril update-promptwares
 ```
 
 Refreshes the embedded promptware templates from the bundled source. Run after upgrading Tendril to pick up new or updated promptwares.
