@@ -472,11 +472,12 @@ public class ContentView(
                 content |= actionsBar;
             }
 
+            var pendingRecs = planData.Recommendations.Where(r => r.State == "Pending").ToList();
             var recommendationsLayout = Layout.Vertical().Gap(4).Padding(2);
-            if (planData.Recommendations.Count == 0)
+            if (pendingRecs.Count == 0)
                 recommendationsLayout |= Text.Muted("No recommendations.");
             else
-                foreach (var rec in planData.Recommendations)
+                foreach (var rec in pendingRecs)
                 {
                     var titleRow = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
                                    | Text.Block(rec.Title).Bold();
@@ -500,7 +501,25 @@ public class ContentView(
                     var card = Layout.Vertical().Gap(1)
                                | titleRow
                                | new Markdown(rec.Description).DangerouslyAllowLocalFiles().Article();
+
+                    var recTitle = rec.Title;
+                    var buttonRow = Layout.Horizontal().Gap(1)
+                                    | new Button("Accept").Icon(Icons.Check).Primary().OnClick(() =>
+                                    {
+                                        planService.ResetVerificationsForRetry(selectedPlan.FolderName);
+                                        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Executing);
+                                        planService.UpdateRecommendationState(selectedPlan.FolderName, recTitle, "Accepted");
+                                        jobService.StartJob(new RetryPlanArgs(selectedPlan.FolderPath, rec.Description));
+                                        refreshPlans();
+                                    })
+                                    | new Button("Decline").Icon(Icons.X).Outline().OnClick(() =>
+                                    {
+                                        planService.UpdateRecommendationState(selectedPlan.FolderName, recTitle, "Declined");
+                                        refreshPlans();
+                                    });
+
                     recommendationsLayout |= card;
+                    recommendationsLayout |= buttonRow;
                     recommendationsLayout |= new Separator();
                 }
 
@@ -516,7 +535,7 @@ public class ContentView(
                 new Tab("Git", Cap(gitLayout)).Badge((gitData.WorktreeSections.Count + selectedPlan.Commits.Count + selectedPlan.Prs.Count).ToString()),
                 new Tab("Changes", Layout.Vertical().Width(Size.Full()).Height(Size.Full()) | changesTabView).Badge(changesTabView.FileCount > 0 ? changesTabView.FileCount.ToString() : ""),
                 new Tab("Artifacts", Cap(new ArtifactsTabView(planData.Artifacts))).Badge(totalArtifacts.ToString()),
-                new Tab("Recommendations", Cap(recommendationsLayout)).Badge(planData.Recommendations.Count.ToString())
+                new Tab("Recommendations", Cap(recommendationsLayout)).Badge(pendingRecs.Count > 0 ? pendingRecs.Count.ToString() : "")
             ).OnSelect(v =>
             {
                 if (v >= 0 && v < tabNames.Length && selectedPlanState.Value != null)
