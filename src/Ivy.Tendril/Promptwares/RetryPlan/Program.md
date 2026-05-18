@@ -101,31 +101,21 @@ git status
 
 If there are uncommitted changes, either commit them or discard them with a clear reason. The worktree must be clean.
 
-### 4.5. Generate Summary
+### 4.5. Update Summary
 
-After all implementation commits are made, create `<TendrilPlanFolder>/Artifacts/summary.md` summarizing what was done.
+The prior ExecutePlan run created `<TendrilPlanFolder>/Artifacts/summary.md`. **Do not replace it** — append a new section documenting this retry's changes:
 
 ~~~markdown
-# Summary
+## Fix: <short description>
 
-## Changes
+<What was changed and why, referencing the ChangeRequest. 2-3 sentences.>
 
-<Brief description of what was implemented — 2-3 sentences max>
+### Files Modified
 
-## Change Request Addressed
-
-<How the reviewer's feedback was incorporated>
-
-## API Changes
-
-<List any new/changed/removed public APIs. If no API changes, write "None.">
-
-## Files Modified
-
-<Bulleted list of key files changed, grouped by category.>
+<Bulleted list of files changed in this retry.>
 ~~~
 
-Update the summary after verification fixes too.
+Add one such section per logical fix. If the retry addresses multiple items from the ChangeRequest, add a section for each.
 
 ### 5. Document Commits
 
