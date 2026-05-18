@@ -32,11 +32,13 @@ Read the ChangeRequest carefully before starting implementation. The original pl
 - Extract the plan ID from the folder name (e.g. `00012` from `00012-AddNewsletterSignupToHelpApp`)
 - Report plan context to Jobs UI: `tendril job status TendrilJobId --message "Retrying plan..." --plan-id <plan-id> --plan-title "<title>"`
 
-### 2. Enter Existing Worktree
+### 2. Enter Existing Worktrees
 
-The worktree was created by the prior ExecutePlan run and already contains the branch with previous commits.
+The worktrees were created by the prior ExecutePlan run and already contain branches with previous commits. A project may consist of multiple repos — each has its own worktree under `<TendrilPlanFolder>/Worktrees/`.
 
-1. **Locate the worktree** at `<TendrilPlanFolder>/Worktrees/<repo-folder-name>` for each repo in `plan.yaml`.
+For each repo in `plan.yaml` `repos` (or the project's repos from the **Projects** section if empty):
+
+1. **Locate the worktree** at `<TendrilPlanFolder>/Worktrees/<repo-folder-name>`.
 
 2. **Verify it exists:**
 
