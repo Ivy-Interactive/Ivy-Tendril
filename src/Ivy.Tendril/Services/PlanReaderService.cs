@@ -690,6 +690,12 @@ public class PlanReaderService(
         });
     }
 
+    public void SyncPlanArtifacts(string planFolder)
+    {
+        var syncer = new PlanArtifactSyncer(_config, _logger, _planWatcherService);
+        syncer.SyncPlanArtifacts(planFolder);
+    }
+
     public void InvalidateCaches()
     {
         _planCountsCache.Invalidate();
