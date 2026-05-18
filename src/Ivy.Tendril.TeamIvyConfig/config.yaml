@@ -228,6 +228,10 @@ promptwares:
     profile: deep
     allowedTools:
     - Bash(ivy *)
+  RetryPlan:
+    profile: deep
+    allowedTools:
+    - Bash(ivy *)
   ExpandPlan:
     profile: balanced
     allowedTools:
@@ -255,8 +259,6 @@ promptwares:
   IvyFrameworkVerification:
     profile: balanced
     allowedTools:
-    - Write(%PLAN_DIR%\**)
-    - Edit(%PLAN_DIR%\**)
     - Bash(ivy *)
 codingAgents:
 - name: claude
