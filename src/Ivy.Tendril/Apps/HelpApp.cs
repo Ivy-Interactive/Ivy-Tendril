@@ -19,6 +19,7 @@ public class HelpApp : ViewBase
         var email = UseState("");
         var subscribed = UseState(false);
         var error = UseState<string?>(null);
+        var isLoading = UseState(false);
 
         bool IsValidEmail(string emailAddress) =>
             !string.IsNullOrWhiteSpace(emailAddress) && EmailRegex.IsMatch(emailAddress);
@@ -31,6 +32,7 @@ public class HelpApp : ViewBase
                 return;
             }
 
+            isLoading.Value = true;
             try
             {
                 using var http = httpClientFactory.CreateClient();
@@ -46,6 +48,10 @@ public class HelpApp : ViewBase
             catch (Exception ex)
             {
                 error.Value = ex.Message;
+            }
+            finally
+            {
+                isLoading.Value = false;
             }
         }
 
@@ -80,6 +86,7 @@ public class HelpApp : ViewBase
                          | new Button("Subscribe")
                              .Primary()
                              .Disabled(!IsValidEmail(email.Value))
+                             .Loading(isLoading.Value)
                              .OnClick(Subscribe)))
                   | (error.Value != null ? Text.Danger(error.Value) : null)
                );
