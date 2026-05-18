@@ -251,10 +251,16 @@ public static class TendrilServer
         {
             var pluginsDir = Path.Combine(configService.TendrilHome, "plugins");
             Directory.CreateDirectory(pluginsDir);
+            TendrilPluginContext? tendrilPluginContext = null;
             server.UsePlugins(pluginsDir,
                 new TendrilPluginConfigFactory(pluginsDir),
-                contextFactory: (s, builder) => new TendrilPluginContext(s, builder),
-                sharedAssemblyNames: ["Ivy.Tendril.Plugin.Abstractions"],
+                contextFactory: (s, builder) =>
+                {
+                    tendrilPluginContext = new TendrilPluginContext(s, builder);
+                    builder.Services.AddSingleton<AppShell.ISettingsMenuItemsProvider>(tendrilPluginContext);
+                    return tendrilPluginContext;
+                },
+                sharedAssemblyNames: ["Ivy.Tendril.Plugin.Abstractions", "Ivy.Tendril.Plugin.Extended.Abstractions"],
                 buildSourcePlugins: true);
         }
 
