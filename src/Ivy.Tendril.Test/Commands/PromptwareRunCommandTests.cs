@@ -4,6 +4,7 @@ using Ivy.Tendril.Services.Agents;
 
 namespace Ivy.Tendril.Test.Commands;
 
+[Collection("TendrilHome")]
 public class PromptwareRunCommandTests : IDisposable
 {
     private readonly string _tempDir;
