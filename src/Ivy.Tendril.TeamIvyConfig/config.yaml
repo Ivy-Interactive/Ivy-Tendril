@@ -79,10 +79,10 @@ projects:
   reviewActions:
   - name: Tendril
     condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril"
-    command: '& worktrees\Ivy-Tendril\src\Ivy.Tendril\Run.ps1'
+    command: "& '.\\worktrees\\Ivy-Tendril\\src\\Ivy.Tendril\\Run.ps1'"
   - name: Docs
     condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril.Docs"
-    command: '& worktrees\Ivy-Tendril\src\Ivy.Tendril.Docs\Run.ps1'
+    command: "& '.\\worktrees\\Ivy-Tendril\\src\\Ivy.Tendril.Docs\\Run.ps1'"
   hooks:
   - name: SlackNotify
     when: after
