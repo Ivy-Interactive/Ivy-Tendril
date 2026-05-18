@@ -51,12 +51,6 @@ projects:
     - CreatePr
     condition: ''
     action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
-  - name: PlanEvaluator
-    when: after
-    promptwares:
-    - CreatePr
-    condition: ''
-    action: Start-Process -FilePath 'tendril' -ArgumentList 'promptware','PlanEvaluator',$PWD -WindowStyle Hidden
   buildDependencies: []
 - name: Tendril
   color: Emerald
