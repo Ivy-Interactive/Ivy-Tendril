@@ -511,11 +511,13 @@ public class ContentView(
                                         planService.UpdateRecommendationState(selectedPlan.FolderName, recTitle, "Accepted");
                                         jobService.StartJob(new RetryPlanArgs(selectedPlan.FolderPath, rec.Description));
                                         refreshPlans();
+                                        planContentQuery.Mutator.Revalidate();
                                     })
                                     | new Button("Decline").Icon(Icons.X).Outline().OnClick(() =>
                                     {
                                         planService.UpdateRecommendationState(selectedPlan.FolderName, recTitle, "Declined");
                                         refreshPlans();
+                                        planContentQuery.Mutator.Revalidate();
                                     });
 
                     recommendationsLayout |= card;
