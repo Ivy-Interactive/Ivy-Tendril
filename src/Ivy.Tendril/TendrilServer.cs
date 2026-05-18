@@ -257,7 +257,7 @@ public static class TendrilServer
                 contextFactory: (s, builder) =>
                 {
                     tendrilPluginContext = new TendrilPluginContext(s, builder);
-                    builder.Services.AddSingleton<AppShell.ISettingsMenuItemsProvider>(tendrilPluginContext);
+                    builder.Services.AddSingleton<AppShell.ITendrilPluginContributions>(tendrilPluginContext);
                     return tendrilPluginContext;
                 },
                 sharedAssemblyNames: ["Ivy.Tendril.Plugin.Abstractions", "Ivy.Tendril.Plugin.Extended.Abstractions"],

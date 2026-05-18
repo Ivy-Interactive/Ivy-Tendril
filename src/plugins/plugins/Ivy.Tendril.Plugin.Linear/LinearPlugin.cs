@@ -38,12 +38,15 @@ public class LinearPlugin : IIvyPlugin
 
         var extendedContext = context.AsTendrilExtendedContext();
 
+        var openImportDialog = extendedContext.RegisterDialog(
+            "$linear-import-dialog",
+            dialogOpen => new ImportFromLinearDialog(dialogOpen, apiKey));
+
         extendedContext.AddSettingsMenuItem(
             MenuItem.Default("Import Issues from Linear")
                 .Tag("$linear-import-issues")
-                .Icon(Icons.Download),
+                .Icon(Icons.Download)
+                .OnSelect(() => openImportDialog()),
             FooterMenuPosition.ImportIssues);
-
-        // TODO: Register Linear services
     }
 }

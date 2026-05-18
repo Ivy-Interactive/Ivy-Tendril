@@ -14,4 +14,10 @@ public interface ITendrilExtendedPluginContext : IIvyExtendedPluginContext
     /// within the same position bucket.
     /// </summary>
     void AddSettingsMenuItem(MenuItem item, FooterMenuPosition position);
+
+    /// <summary>
+    /// Registers a dialog factory and returns an Action that, when invoked, opens it.
+    /// The factory receives an IState&lt;bool&gt; controlling the dialog's open/close state.
+    /// </summary>
+    Action RegisterDialog(string id, Func<IState<bool>, object?> factory);
 }

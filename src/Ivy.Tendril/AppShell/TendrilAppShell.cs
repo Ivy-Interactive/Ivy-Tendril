@@ -103,7 +103,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var navigate = Context.UseSignal<NavigateSignal, NavigateArgs, Unit>();
         var navigator = UseNavigation();
         var importIssuesDialogOpen = UseState(false);
-        Context.TryUseService<ISettingsMenuItemsProvider>(out var settingsMenuItemsProvider);
+        Context.TryUseService<ITendrilPluginContributions>(out var pluginContext);
         var newsArticles = UseState(Array.Empty<SidebarNewsArticle>());
 
         UseEffect(async () =>
@@ -440,8 +440,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 )
         };
 
-        var settingsMenuItems = settingsMenuItemsProvider != null
-            ? SettingsMenuBuilder.Build(builtInSettingsMenuItems, settingsMenuItemsProvider.SettingsMenuItems)
+        var settingsMenuItems = pluginContext != null
+            ? SettingsMenuBuilder.Build(builtInSettingsMenuItems, pluginContext.SettingsMenuItems)
             : builtInSettingsMenuItems;
 
         var settingsTrigger = new Button("Settings")
@@ -481,7 +481,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 ),
                 settings.Width
             ).Open(sidebarOpen.Value).MainAppSidebar(),
-            new ImportIssuesDialog(importIssuesDialogOpen, config)
+            new ImportIssuesDialog(importIssuesDialogOpen, config),
+            pluginContext != null ? new PluginDialogHost(pluginContext) : null
         );
     }
 
