@@ -201,8 +201,7 @@ public class ContentView(
             return Disposable.Empty;
         }, [localRefresh]);
 
-        var tabNamesList = new List<string> { "summary", "plan", "details", "verifications", "git", "changes" };
-        var tabNames = tabNamesList.ToArray();
+        var tabNames = new[] { "summary", "plan", "details", "verifications", "git", "changes", "Artifacts", "recommendations" };
         var selectedTabIndex = Array.IndexOf(tabNames, args?.Tab ?? "summary");
         if (selectedTabIndex < 0) selectedTabIndex = 0;
 
@@ -528,6 +527,7 @@ public class ContentView(
 
             var changesTabView = new ChangesTabView(planData.AllChanges, planContentQuery.Loading, planContentQuery.Error);
 
+            var tabNamesList = new List<string> { "summary", "plan", "details", "verifications", "git", "changes" };
             var tabList = new List<Tab>
             {
                 new Tab("Summary", Cap(new SummaryTabView(planData.SummaryMarkdown))),
@@ -552,15 +552,15 @@ public class ContentView(
                 tabNamesList.Add("recommendations");
             }
 
-            tabNames = tabNamesList.ToArray();
-            selectedTabIndex = Array.IndexOf(tabNames, args?.Tab ?? "summary");
-            if (selectedTabIndex < 0) selectedTabIndex = 0;
+            var actualTabNames = tabNamesList.ToArray();
+            var actualSelectedTabIndex = Array.IndexOf(actualTabNames, args?.Tab ?? "summary");
+            if (actualSelectedTabIndex < 0) actualSelectedTabIndex = 0;
 
             var tabs = Layout.Tabs(tabList.ToArray()).OnSelect(v =>
             {
-                if (v >= 0 && v < tabNames.Length && selectedPlanState.Value != null)
-                    nav.Navigate<ReviewApp>(new ReviewAppArgs(selectedPlanState.Value.FolderName, tabNames[v]));
-            }).SelectedIndex(selectedTabIndex).Variant(TabsVariant.Content);
+                if (v >= 0 && v < actualTabNames.Length && selectedPlanState.Value != null)
+                    nav.Navigate<ReviewApp>(new ReviewAppArgs(selectedPlanState.Value.FolderName, actualTabNames[v]));
+            }).SelectedIndex(actualSelectedTabIndex).Variant(TabsVariant.Content);
 
             content |= (Layout.Vertical().Padding(2, 0).Height(Size.Full()) | tabs);
         }
