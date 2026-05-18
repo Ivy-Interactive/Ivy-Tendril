@@ -1,1 +1,1 @@
-dotnet watch --browse --find-available-port
+dotnet watch --project "$PSScriptRoot" --browse --find-available-port
