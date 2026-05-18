@@ -1,3 +1,6 @@
+using System.Net.Http.Json;
+using Ivy.Tendril.Services;
+
 namespace Ivy.Tendril.Apps;
 
 [App(title: "Help", icon: Icons.CircleQuestionMark, group: ["Apps"], order: Constants.Help)]
@@ -60,7 +63,7 @@ public class HelpApp : ViewBase
                       ? Text.Success("Subscribed!")
                       : (Layout.Horizontal()
                          | email.ToTextInput("you@example.com")
-                         | new Button("Subscribe").Primary().OnClick(Subscribe)))
+                         | new Button("Subscribe").Primary().OnClick(async () => await Subscribe())))
                   | (error.Value != null ? Text.Danger(error.Value) : null)
                );
     }
