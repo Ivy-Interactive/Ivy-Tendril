@@ -305,7 +305,6 @@ public class PlanReaderService(
             var yaml = FileHelper.ReadAllText(planYamlPath);
             var planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml) ?? new PlanYaml();
             planYaml.Updated = DateTime.UtcNow;
-            planYaml.Commits = new List<string>();
             foreach (var v in planYaml.Verifications)
             {
                 if (!v.Status.Equals("Skipped", StringComparison.OrdinalIgnoreCase))

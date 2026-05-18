@@ -86,8 +86,6 @@ internal class PlanArtifactSyncer
 
     private bool SyncCommitsFromWorktrees(string planFolder, PlanYaml plan)
     {
-        if (plan.Commits.Count > 0) return false;
-
         var worktreesDir = Path.Combine(planFolder, "Worktrees");
         if (!Directory.Exists(worktreesDir)) return false;
 
