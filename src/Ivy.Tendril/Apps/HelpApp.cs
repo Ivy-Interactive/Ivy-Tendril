@@ -15,7 +15,7 @@ public class HelpApp : ViewBase
         var subscribed = UseState(false);
         var error = UseState<string?>(null);
 
-        async Task Subscribe()
+        async ValueTask Subscribe(Event<Button> e)
         {
             try
             {
@@ -63,7 +63,7 @@ public class HelpApp : ViewBase
                       ? Text.Success("Subscribed!")
                       : (Layout.Horizontal()
                          | email.ToTextInput("you@example.com")
-                         | new Button("Subscribe").Primary().OnClick(async () => await Subscribe())))
+                         | new Button("Subscribe").Primary().OnClick(Subscribe)))
                   | (error.Value != null ? Text.Danger(error.Value) : null)
                );
     }

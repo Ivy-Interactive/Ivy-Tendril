@@ -95,7 +95,7 @@ public static partial class MarkdownHelper
 
     [GeneratedRegex(@"\[([^\]]*)\]\((file:///[^)]+)\)", RegexOptions.IgnoreCase | RegexOptions.Compiled, "en-US")]
     private static partial Regex _FileLinkRegex();
-    
+
     [GeneratedRegex(@"\[([^\]]*)\]\((plan://(\d{1,5}))\)", RegexOptions.IgnoreCase | RegexOptions.Compiled, "en-US")]
     private static partial Regex _PlanLinkRegex();
 }

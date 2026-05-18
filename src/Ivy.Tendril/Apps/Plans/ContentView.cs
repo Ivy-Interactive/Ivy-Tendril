@@ -336,7 +336,7 @@ public class ContentView(
         var prevIndex = (currentIndex - 1 + allPlans.Count) % allPlans.Count;
         selectedPlanState.Set(allPlans[prevIndex]);
     }
-    
+
     private record PlanContentData(
         string? SummaryMarkdown,
         Dictionary<string, List<string>> Artifacts,
