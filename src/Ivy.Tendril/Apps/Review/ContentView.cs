@@ -527,7 +527,9 @@ public class ContentView(
 
             var changesTabView = new ChangesTabView(planData.AllChanges, planContentQuery.Loading, planContentQuery.Error);
 
-            var tabs = Layout.Tabs(
+            var tabNamesList = new List<string> { "summary", "plan", "details", "verifications", "git", "changes" };
+            var tabList = new List<Tab>
+            {
                 new Tab("Summary", Cap(new SummaryTabView(planData.SummaryMarkdown))),
                 new Tab("Plan", Cap(planTabContent)),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan))),
@@ -535,14 +537,30 @@ public class ContentView(
                     selectedPlan.Verifications, planData.VerificationReports,
                     v => openVerification.Set(v)))).Badge(selectedPlan.Verifications.Count.ToString()),
                 new Tab("Git", Cap(gitLayout)).Badge((gitData.WorktreeSections.Count + selectedPlan.Commits.Count + selectedPlan.Prs.Count).ToString()),
-                new Tab("Changes", Layout.Vertical().Width(Size.Full()).Height(Size.Full()) | changesTabView).Badge(changesTabView.FileCount > 0 ? changesTabView.FileCount.ToString() : ""),
-                new Tab("Artifacts", Cap(new ArtifactsTabView(planData.Artifacts))).Badge(totalArtifacts.ToString()),
-                new Tab("Recommendations", Cap(recommendationsLayout)).Badge(pendingRecs.Count > 0 ? pendingRecs.Count.ToString() : "")
-            ).OnSelect(v =>
+                new Tab("Changes", Layout.Vertical().Width(Size.Full()).Height(Size.Full()) | changesTabView).Badge(changesTabView.FileCount > 0 ? changesTabView.FileCount.ToString() : "")
+            };
+
+            if (totalArtifacts > 0)
             {
-                if (v >= 0 && v < tabNames.Length && selectedPlanState.Value != null)
-                    nav.Navigate<ReviewApp>(new ReviewAppArgs(selectedPlanState.Value.FolderName, tabNames[v]));
-            }).SelectedIndex(selectedTabIndex).Variant(TabsVariant.Content);
+                tabList.Add(new Tab("Artifacts", Cap(new ArtifactsTabView(planData.Artifacts))).Badge(totalArtifacts.ToString()));
+                tabNamesList.Add("Artifacts");
+            }
+
+            if (pendingRecs.Count > 0)
+            {
+                tabList.Add(new Tab("Recommendations", Cap(recommendationsLayout)).Badge(pendingRecs.Count.ToString()));
+                tabNamesList.Add("recommendations");
+            }
+
+            var actualTabNames = tabNamesList.ToArray();
+            var actualSelectedTabIndex = Array.IndexOf(actualTabNames, args?.Tab ?? "summary");
+            if (actualSelectedTabIndex < 0) actualSelectedTabIndex = 0;
+
+            var tabs = Layout.Tabs(tabList.ToArray()).OnSelect(v =>
+            {
+                if (v >= 0 && v < actualTabNames.Length && selectedPlanState.Value != null)
+                    nav.Navigate<ReviewApp>(new ReviewAppArgs(selectedPlanState.Value.FolderName, actualTabNames[v]));
+            }).SelectedIndex(actualSelectedTabIndex).Variant(TabsVariant.Content);
 
             content |= (Layout.Vertical().Padding(2, 0).Height(Size.Full()) | tabs);
         }
