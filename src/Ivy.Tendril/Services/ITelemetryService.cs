@@ -5,6 +5,7 @@ namespace Ivy.Tendril.Services;
 
 public interface ITelemetryService
 {
+    string AnonymousId { get; }
     void TrackAppStarted(AppStartContext context);
     void TrackPlanCreated(PlanCreatedContext context);
     void TrackPrCreated(PrCreatedContext context);

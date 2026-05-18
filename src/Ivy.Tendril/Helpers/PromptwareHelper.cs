@@ -49,7 +49,7 @@ public static class PromptwareHelper
         // 3. Fallback (will fail at runtime, but gives a clear error location)
         if (!string.IsNullOrEmpty(tendrilHome))
             return Path.Combine(tendrilHome, "Promptwares");
-            
+
         return sourceRoot;
     }
 }

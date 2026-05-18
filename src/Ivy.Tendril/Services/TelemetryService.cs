@@ -12,6 +12,8 @@ public class TelemetryService : ITelemetryService, IAsyncDisposable
     private readonly string _distinctId;
     private readonly ILogger<TelemetryService>? _logger;
 
+    public string AnonymousId => _distinctId;
+
     public TelemetryService(bool enabled, ILogger<TelemetryService>? logger = null)
     {
         _logger = logger;
