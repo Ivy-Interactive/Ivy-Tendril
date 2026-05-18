@@ -379,10 +379,10 @@ CHANGED_FILES=$(git diff --name-only --diff-filter=ACM HEAD~1)
 
 If your formatter requires a workspace/solution file that isn't in the current directory, pass it as an explicit argument. Check `Memory/` for repo-specific workspace paths.
 
-Commit messages should reference the plan ID:
+Commit messages should be clear and descriptive:
 
 ```
-[01105] Add settings app with config display
+Add settings app with config display
 ```
 
 After all commits, verify no uncommitted files remain:
@@ -457,7 +457,7 @@ For each checked verification:
 2. Fetch its full prompt: `tendril verification get <Name>`
 3. **Check if delegated:** The **Projects** section indicates which verifications are delegated — follow the prompt's instructions to invoke it as an external process. If the external process cannot be invoked (CLI broken, file lock, etc.), set the verification to `Fail` immediately. Do NOT attempt to do the verification inline or write the report yourself.
 4. Execute the prompt in the worktree directory
-5. If it fails: diagnose, fix the issue, **commit the fix** (e.g. `[01105] Fix lint errors from Build`), and re-run. Repeat until it passes (fail the plan after 3+ failed attempts).
+5. If it fails: diagnose, fix the issue, **commit the fix** (e.g. `Fix lint errors from Build`), and re-run. Repeat until it passes (fail the plan after 3+ failed attempts).
 6. Document all fix commits via CLI: `tendril plan add-commit <plan-id> <sha>`
 7. Update the verification status via CLI: `tendril plan set-verification <plan-id> <Name> Pass` (or `Fail`)
 

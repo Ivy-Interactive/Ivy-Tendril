@@ -89,10 +89,10 @@ Make logically grouped commits in the worktree(s). Each commit should be a coher
 
 Before each commit, run formatting/linting as defined by the project's verifications. Fetch the full prompt for a verification with `tendril verification get <name>`.
 
-Commit messages should reference the plan ID:
+Write clear commit messages describing the change:
 
 ```
-[00012] Improve error handling per review feedback
+Improve error handling per review feedback
 ```
 
 After all commits, verify no uncommitted files remain:
