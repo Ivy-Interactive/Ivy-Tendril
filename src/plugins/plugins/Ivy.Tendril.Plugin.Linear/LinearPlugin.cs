@@ -1,4 +1,5 @@
 using Ivy.Plugins;
+using Ivy.Tendril.Plugins;
 
 [assembly: IvyPlugin(typeof(Ivy.Tendril.Plugin.Linear.LinearPlugin))]
 
@@ -34,6 +35,14 @@ public class LinearPlugin : IIvyPlugin
 
         if (context is not ITendrilPluginContext tendrilContext)
             return;
+
+        var extendedContext = context.AsTendrilExtendedContext();
+
+        extendedContext.AddSettingsMenuItem(
+            MenuItem.Default("Import Issues from Linear")
+                .Tag("$linear-import-issues")
+                .Icon(Icons.Download),
+            FooterMenuPosition.ImportIssues);
 
         // TODO: Register Linear services
     }

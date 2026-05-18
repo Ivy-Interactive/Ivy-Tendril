@@ -8,10 +8,12 @@
 
   <ItemGroup Condition="'$(IvySource)' == 'true'">
     <ProjectReference Include="../../../Ivy.Tendril.Plugin.Abstractions/Ivy.Tendril.Plugin.Abstractions.csproj" />
+    <ProjectReference Include="../../../Ivy.Tendril.Plugin.Extended.Abstractions/Ivy.Tendril.Plugin.Extended.Abstractions.csproj" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(IvySource)' != 'true'">
     <PackageReference Include="Ivy.Tendril.Plugin.Abstractions" Version="1.0.34" />
+    <PackageReference Include="Ivy.Tendril.Plugin.Extended.Abstractions" Version="1.0.34" />
   </ItemGroup>
 
 </Project>
