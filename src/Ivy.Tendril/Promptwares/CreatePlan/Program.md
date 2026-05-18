@@ -139,7 +139,7 @@ For each assertion found:
 3. If validation fails, investigate:
    - Check `git log --oneline -10 --all -- <file>` for recent changes
    - Check `git blame <file>` to find who/when the code changed
-   - Look for plan IDs in commit messages (e.g., `[01234]`)
+   - Look for plan IDs in commit messages (legacy pattern: `[01234]`)
 
 **Decision:**
 - **All validations pass** → Proceed to Step 4, include validated code blocks in plan with `**Current implementation**` headers
