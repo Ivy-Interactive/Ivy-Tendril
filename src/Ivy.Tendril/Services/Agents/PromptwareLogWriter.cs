@@ -59,6 +59,8 @@ public static class PromptwareLogWriter
     public static void WriteRawLog(string logFilePath, IEnumerable<string> outputLines)
     {
         var rawFile = Path.ChangeExtension(logFilePath, ".raw.jsonl");
+        if (File.Exists(rawFile) && new FileInfo(rawFile).Length > 0)
+            return;
         File.WriteAllLines(rawFile, outputLines);
     }
 

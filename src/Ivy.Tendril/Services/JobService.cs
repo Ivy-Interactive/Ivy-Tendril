@@ -128,6 +128,7 @@ public class JobService : IJobService
             }
         }
 
+        job.CloseRawLog();
         _completionHandler.HandleCompletion(
             job, _jobs, PersistJob, RaiseNotification, RaiseJobsPropertyChanged, StartJobSkipDepCheck);
 
