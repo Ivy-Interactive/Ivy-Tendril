@@ -530,7 +530,7 @@ public class ContentView(
             var tabNamesList = new List<string> { "summary", "plan", "details", "verifications", "git", "changes" };
             var tabList = new List<Tab>
             {
-                new Tab("Summary", Cap(new SummaryTabView(planData.SummaryMarkdown))),
+                new Tab("Summary", Cap(new SummaryTabView(planData.SummaryMarkdown, planContentQuery.Loading))),
                 new Tab("Plan", Cap(planTabContent)),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan))),
                 new Tab("Verifications", Cap(new VerificationsTabView(
