@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.RegularExpressions;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps;
@@ -6,6 +7,10 @@ namespace Ivy.Tendril.Apps;
 [App(title: "Help", icon: Icons.CircleQuestionMark, group: ["Apps"], order: Constants.Help)]
 public class HelpApp : ViewBase
 {
+    private static readonly Regex EmailRegex = new(
+        @"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     public override object Build()
     {
         var client = UseService<IClientProvider>();
@@ -15,8 +20,17 @@ public class HelpApp : ViewBase
         var subscribed = UseState(false);
         var error = UseState<string?>(null);
 
+        bool IsValidEmail(string emailAddress) =>
+            !string.IsNullOrWhiteSpace(emailAddress) && EmailRegex.IsMatch(emailAddress);
+
         async ValueTask Subscribe(Event<Button> e)
         {
+            if (!IsValidEmail(email.Value))
+            {
+                error.Value = "Please enter a valid email address.";
+                return;
+            }
+
             try
             {
                 using var http = httpClientFactory.CreateClient();
@@ -63,7 +77,10 @@ public class HelpApp : ViewBase
                       ? Text.Success("Subscribed!")
                       : (Layout.Horizontal()
                          | email.ToTextInput("you@example.com")
-                         | new Button("Subscribe").Primary().OnClick(Subscribe)))
+                         | new Button("Subscribe")
+                             .Primary()
+                             .Disabled(!IsValidEmail(email.Value))
+                             .OnClick(Subscribe)))
                   | (error.Value != null ? Text.Danger(error.Value) : null)
                );
     }
