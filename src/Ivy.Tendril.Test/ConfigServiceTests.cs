@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Test;
 
+[Collection("TendrilHome")]
 public class ConfigServiceTests : IDisposable
 {
     private readonly TempDirectoryFixture _tempDir = new("ivy-config-test");
