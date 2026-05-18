@@ -237,6 +237,9 @@ llm:
   endpoint: DotnetUserSecrets:OpenAi:Endpoint
   apiKey: DotnetUserSecrets:OpenAi:ApiKey
   model: gpt-4o-mini
+auth:
+  password: $argon2i$v=19$m=65536,t=3,p=1$nFAD/cR+stTnA5mW9Jd+ew$OhvSHf/AOBtfmXUwUXw+rJw5ODMtz3ZUkFdsqv1OoK8
+  hashSecret: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
 promptwares:
   CreatePlan:
     profile: deep

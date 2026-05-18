@@ -995,29 +995,29 @@ public class PlanReaderService(
                 total++;
                 var yaml = FileHelper.ReadAllText(planYamlPath);
                 var stateMatch = StateLineRegex.Match(yaml);
-                if (stateMatch.Success)
+                var planState = stateMatch.Success ? stateMatch.Groups[1].Value.Trim() : "";
+                switch (planState.ToLowerInvariant())
                 {
-                    var state = stateMatch.Groups[1].Value.Trim();
-                    switch (state.ToLowerInvariant())
-                    {
-                        case "draft": drafts++; break;
-                        case "blocked": drafts++; break;
-                        case "readyforreview": reviews++; break;
-                        case "failed": failed++; break;
-                        case "icebox": icebox++; break;
-                    }
+                    case "draft": drafts++; break;
+                    case "blocked": drafts++; break;
+                    case "readyforreview": reviews++; break;
+                    case "failed": failed++; break;
+                    case "icebox": icebox++; break;
                 }
 
-                var plan = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml);
-                var items = plan?.Recommendations;
+                if (planState.Equals("Completed", StringComparison.OrdinalIgnoreCase))
+                {
+                    var plan = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml);
+                    var items = plan?.Recommendations;
 
-                if (items != null)
-                    foreach (var item in items)
-                    {
-                        var state = string.IsNullOrWhiteSpace(item.State) ? "Pending" : item.State;
-                        if (state.Equals("Pending", StringComparison.OrdinalIgnoreCase))
-                            pendingRecs++;
-                    }
+                    if (items != null)
+                        foreach (var item in items)
+                        {
+                            var state = string.IsNullOrWhiteSpace(item.State) ? "Pending" : item.State;
+                            if (state.Equals("Pending", StringComparison.OrdinalIgnoreCase))
+                                pendingRecs++;
+                        }
+                }
             }
             catch
             {
