@@ -201,7 +201,8 @@ public class ContentView(
             return Disposable.Empty;
         }, [localRefresh]);
 
-        var tabNames = new[] { "summary", "plan", "details", "verifications", "git", "changes", "Artifacts", "recommendations" };
+        var tabNamesList = new List<string> { "summary", "plan", "details", "verifications", "git", "changes" };
+        var tabNames = tabNamesList.ToArray();
         var selectedTabIndex = Array.IndexOf(tabNames, args?.Tab ?? "summary");
         if (selectedTabIndex < 0) selectedTabIndex = 0;
 
@@ -527,7 +528,8 @@ public class ContentView(
 
             var changesTabView = new ChangesTabView(planData.AllChanges, planContentQuery.Loading, planContentQuery.Error);
 
-            var tabs = Layout.Tabs(
+            var tabList = new List<Tab>
+            {
                 new Tab("Summary", Cap(new SummaryTabView(planData.SummaryMarkdown))),
                 new Tab("Plan", Cap(planTabContent)),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan))),
@@ -535,10 +537,26 @@ public class ContentView(
                     selectedPlan.Verifications, planData.VerificationReports,
                     v => openVerification.Set(v)))).Badge(selectedPlan.Verifications.Count.ToString()),
                 new Tab("Git", Cap(gitLayout)).Badge((gitData.WorktreeSections.Count + selectedPlan.Commits.Count + selectedPlan.Prs.Count).ToString()),
-                new Tab("Changes", Layout.Vertical().Width(Size.Full()).Height(Size.Full()) | changesTabView).Badge(changesTabView.FileCount > 0 ? changesTabView.FileCount.ToString() : ""),
-                new Tab("Artifacts", Cap(new ArtifactsTabView(planData.Artifacts))).Badge(totalArtifacts.ToString()),
-                new Tab("Recommendations", Cap(recommendationsLayout)).Badge(pendingRecs.Count > 0 ? pendingRecs.Count.ToString() : "")
-            ).OnSelect(v =>
+                new Tab("Changes", Layout.Vertical().Width(Size.Full()).Height(Size.Full()) | changesTabView).Badge(changesTabView.FileCount > 0 ? changesTabView.FileCount.ToString() : "")
+            };
+
+            if (totalArtifacts > 0)
+            {
+                tabList.Add(new Tab("Artifacts", Cap(new ArtifactsTabView(planData.Artifacts))).Badge(totalArtifacts.ToString()));
+                tabNamesList.Add("Artifacts");
+            }
+
+            if (pendingRecs.Count > 0)
+            {
+                tabList.Add(new Tab("Recommendations", Cap(recommendationsLayout)).Badge(pendingRecs.Count.ToString()));
+                tabNamesList.Add("recommendations");
+            }
+
+            tabNames = tabNamesList.ToArray();
+            selectedTabIndex = Array.IndexOf(tabNames, args?.Tab ?? "summary");
+            if (selectedTabIndex < 0) selectedTabIndex = 0;
+
+            var tabs = Layout.Tabs(tabList.ToArray()).OnSelect(v =>
             {
                 if (v >= 0 && v < tabNames.Length && selectedPlanState.Value != null)
                     nav.Navigate<ReviewApp>(new ReviewAppArgs(selectedPlanState.Value.FolderName, tabNames[v]));
