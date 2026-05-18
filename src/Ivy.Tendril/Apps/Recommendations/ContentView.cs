@@ -1,8 +1,8 @@
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Apps.Recommendations.Dialogs;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Views;
 using Ivy.Tendril.Views.Sheets;
-using Ivy.Tendril.Apps.Recommendations.Dialogs;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 
@@ -33,6 +33,7 @@ public class ContentView(
                 ? Text.P("Plan not found or empty.")
                 : (object)new Markdown(MarkdownHelper.AnnotateAllBrokenLinks(content, planService.PlansDirectory))
                     .DangerouslyAllowLocalFiles()
+                    .Article()
                     .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile));
 
             var sheet = new Sheet(
@@ -60,12 +61,6 @@ public class ContentView(
                 });
         });
 
-        var (declineDialog, showDeclineDialog) = UseTrigger((isOpen) =>
-        {
-            if (!isOpen.Value || selectedRecommendation is null) return null;
-            return new DeclineRecommendationDialog(
-                isOpen, selectedRecommendation, planService, refresh, GoToNext);
-        });
 
         if (selectedRecommendation is null)
         {
@@ -89,7 +84,9 @@ public class ContentView(
                          .Muted("recommendations", word: true)
                      | new Button("Decline").Icon(Icons.X).Outline().ShortcutKey("Backspace").OnClick(() =>
                      {
-                         showDeclineDialog();
+                         planService.UpdateRecommendationState(selectedRecommendation.PlanFolderName, selectedRecommendation.Title, "Declined");
+                         refresh();
+                         GoToNext();
                      })
                      | new Button("Accept").Icon(Icons.Check).Primary().ShortcutKey("a").OnClick(() =>
                      {
@@ -186,7 +183,7 @@ public class ContentView(
             ).Size(Size.Full())
         ).Scroll(Scroll.None).Size(Size.Full());
 
-        return new Fragment(mainLayout, planSheet, notesDialog, declineDialog);
+        return new Fragment(mainLayout, planSheet, notesDialog);
     }
 
     private void GoToNext()

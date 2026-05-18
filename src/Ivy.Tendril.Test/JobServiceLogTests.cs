@@ -35,7 +35,7 @@ public class JobServiceLogTests : IDisposable
 
         jobService.WriteJobLog(job);
 
-        var logsDir = Path.Combine(_tempDir.Path, "Plans", "00001-TestPlan", "logs");
+        var logsDir = Path.Combine(_tempDir.Path, "Plans", "00001-TestPlan", "Logs");
         var logFiles = Directory.GetFiles(logsDir, "*.md");
         Assert.Single(logFiles);
 
@@ -66,7 +66,7 @@ public class JobServiceLogTests : IDisposable
 
         jobService.WriteJobLog(job);
 
-        var logsDir = Path.Combine(_tempDir.Path, "Plans", "00002-TestPlan", "logs");
+        var logsDir = Path.Combine(_tempDir.Path, "Plans", "00002-TestPlan", "Logs");
         var logFiles = Directory.GetFiles(logsDir, "*.md");
         Assert.Single(logFiles);
 

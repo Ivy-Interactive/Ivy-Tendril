@@ -378,7 +378,7 @@ public static class DoctorCommand
 
     internal static int CountWorktrees(string planPath)
     {
-        var worktreesPath = Path.Combine(planPath, "worktrees");
+        var worktreesPath = Path.Combine(planPath, "Worktrees");
         if (!Directory.Exists(worktreesPath))
             return 0;
 
@@ -387,7 +387,7 @@ public static class DoctorCommand
 
     internal static bool HasStaleWorktrees(string planPath)
     {
-        var worktreesPath = Path.Combine(planPath, "worktrees");
+        var worktreesPath = Path.Combine(planPath, "Worktrees");
         if (!Directory.Exists(worktreesPath))
             return false;
 
@@ -503,7 +503,7 @@ public static class DoctorCommand
 
             if (healthResult.Health.Contains("StaleWorktree"))
             {
-                var worktreesPath = Path.Combine(planPath, "worktrees");
+                var worktreesPath = Path.Combine(planPath, "Worktrees");
                 if (Directory.Exists(worktreesPath))
                 {
                     foreach (var wtDir in Directory.GetDirectories(worktreesPath))
@@ -618,7 +618,7 @@ public static class DoctorCommand
             hasCommits = HasYamlListItems(content, "commits");
         }
 
-        var revisionsDir = Path.Combine(planPath, "revisions");
+        var revisionsDir = Path.Combine(planPath, "Revisions");
         if (Directory.Exists(revisionsDir))
             hasRevisions = Directory.GetFiles(revisionsDir, "*.md").Length > 0;
 

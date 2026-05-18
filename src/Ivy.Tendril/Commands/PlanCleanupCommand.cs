@@ -41,7 +41,7 @@ public class PlanCleanupCommand : Command<PlanCleanupSettings>
                 return 1;
             }
 
-            var worktreesDir = Path.Combine(planFolder, "worktrees");
+            var worktreesDir = Path.Combine(planFolder, "Worktrees");
             if (!Directory.Exists(worktreesDir) || Directory.GetDirectories(worktreesDir).Length == 0)
             {
                 AnsiConsole.MarkupLine("[green]No worktrees to clean up.[/]");
@@ -57,7 +57,7 @@ public class PlanCleanupCommand : Command<PlanCleanupSettings>
             }
             else
             {
-                AnsiConsole.MarkupLine($"[yellow]{remaining} {(remaining == 1 ? "worktree" : "worktrees")} could not be removed.[/]");
+                AnsiConsole.MarkupLine($"[yellow]{remaining} {(remaining == 1 ? "worktree" : "Worktrees")} could not be removed.[/]");
                 return 1;
             }
 

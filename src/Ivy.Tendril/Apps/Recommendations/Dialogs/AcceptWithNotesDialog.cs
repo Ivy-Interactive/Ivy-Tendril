@@ -32,7 +32,7 @@ public class AcceptWithNotesDialog(
                 | notesText.ToTextareaInput("Enter your notes...").Rows(6).AutoFocus()
             ),
             new DialogFooter(
-                new Button("Cancel").Outline().ShortcutKey("Escape").OnClick(() =>
+                new Button("Cancel").Outline().OnClick(() =>
                 {
                     notesText.Set("");
                     _dialogOpen.Set(false);

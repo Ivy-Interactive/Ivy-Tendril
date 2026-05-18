@@ -10,6 +10,8 @@ public interface IGitService
     GitResult<List<(string Status, string FilePath)>> GetCombinedChangedFiles(string repoPath, string firstCommit, string lastCommit);
     GitResult<List<WorktreeInfo>> GetWorktrees(string repoPath);
     GitResult<Dictionary<string, (string Title, int FileCount)>> GetCommitSummaries(string repoPath, IEnumerable<string> commitHashes);
+    GitResult<bool> HasUncommittedChanges(string repoPath);
+    GitResult<List<string>> GetReachableCommits(string repoPath, IEnumerable<string> candidateHashes);
 }
 
 public record WorktreeInfo(string Path, string Branch, string CommitHash);

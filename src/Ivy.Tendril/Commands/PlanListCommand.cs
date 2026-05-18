@@ -172,7 +172,7 @@ public class PlanListCommand : Command<PlanListSettings>
 
             if (settings.HasWorktree)
             {
-                var wtDir = Path.Combine(dir, "worktrees");
+                var wtDir = Path.Combine(dir, "Worktrees");
                 if (!Directory.Exists(wtDir) || Directory.GetDirectories(wtDir).Length == 0)
                     continue;
             }

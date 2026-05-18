@@ -160,7 +160,7 @@ internal class JobCompletionHandler
         if (isSuccess)
             TrackSuccessTelemetry(job);
 
-        _telemetryService?.TrackJobCompleted(job.Type, job.Status, job.DurationSeconds);
+        _telemetryService?.TrackJobCompleted(job.Type, job.Status, job.DurationSeconds, job.Provider);
         FlushTelemetryAsync();
     }
 
@@ -175,11 +175,11 @@ internal class JobCompletionHandler
                 var plan = PlanYamlHelper.ReadPlanYaml(planFolder);
                 if (plan != null) level = plan.Level;
             }
-            _telemetryService?.TrackPlanCreated(new PlanCreatedContext(level, job.DurationSeconds));
+            _telemetryService?.TrackPlanCreated(new PlanCreatedContext(level, job.DurationSeconds, job.Provider));
         }
         else if (job.TypedArgs is CreatePrArgs)
         {
-            _telemetryService?.TrackPrCreated(new PrCreatedContext(job.DurationSeconds));
+            _telemetryService?.TrackPrCreated(new PrCreatedContext(job.DurationSeconds, job.Provider));
         }
     }
 
@@ -545,7 +545,7 @@ internal class JobCompletionHandler
         var planFolder = job.TypedArgs?.PlanFolder ?? "";
         if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder)) return;
 
-        var worktreesDir = Path.Combine(planFolder, "worktrees");
+        var worktreesDir = Path.Combine(planFolder, "Worktrees");
         if (!Directory.Exists(worktreesDir)) return;
 
         ScheduleWorktreeRemoval(planFolder, worktreesDir);
@@ -684,7 +684,7 @@ internal class JobCompletionHandler
             planFolder = logRoot;
         }
 
-        var logsDir = Path.Combine(planFolder, "logs");
+        var logsDir = Path.Combine(planFolder, "Logs");
         FileHelper.EnsureDirectory(logsDir);
         var outputFile = Path.Combine(logsDir, $"{job.Type}-{job.Id}.output.log");
         File.WriteAllLines(outputFile, job.OutputLines);

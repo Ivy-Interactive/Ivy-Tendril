@@ -27,7 +27,7 @@ public class DiscardPlanDialog(
                 Text.P($"Are you sure you want to discard plan #{_selectedPlan.Id}?")
             ),
             new DialogFooter(
-                new Button("Cancel").Outline().ShortcutKey("Escape").OnClick(() => _dialogOpen.Set(false)),
+                new Button("Cancel").Outline().OnClick(() => _dialogOpen.Set(false)),
                 new Button("Discard").Destructive().ShortcutKey("Enter").AutoFocus().OnClick(() =>
                 {
                     _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Skipped);

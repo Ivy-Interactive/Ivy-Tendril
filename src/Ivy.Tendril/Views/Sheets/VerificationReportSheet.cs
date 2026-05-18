@@ -15,7 +15,7 @@ public class VerificationReportSheet(
             async (name, ct) =>
             {
                 if (string.IsNullOrEmpty(name) || selectedPlan is null) return "";
-                var verificationDir = Path.GetFullPath(Path.Combine(selectedPlan.FolderPath, "verification"));
+                var verificationDir = Path.GetFullPath(Path.Combine(selectedPlan.FolderPath, "Verification"));
                 var resolvedPath = Path.GetFullPath(Path.Combine(verificationDir, $"{name}.md"));
                 if (!resolvedPath.StartsWith(verificationDir, StringComparison.OrdinalIgnoreCase))
                     return "Access denied: file is outside the verification folder.";
@@ -34,7 +34,7 @@ public class VerificationReportSheet(
                 ? Text.Muted("Loading...")
                 : verificationReportQuery.Error is { } err
                     ? Text.Muted($"Failed to load verification report: {err.Message}")
-                    : new Markdown(verificationReportQuery.Value).DangerouslyAllowLocalFiles(),
+                    : new Markdown(verificationReportQuery.Value).DangerouslyAllowLocalFiles().Article(),
             verName
         ).Width(Size.Half()).Resizable();
     }

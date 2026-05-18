@@ -20,15 +20,15 @@ public class PlanDownloadHelperTests
         // Create test plan folder structures
         var planFolder = Path.Combine(tempDir, "00001-TestPlan");
         Directory.CreateDirectory(planFolder);
-        Directory.CreateDirectory(Path.Combine(planFolder, "revisions"));
-        File.WriteAllText(Path.Combine(planFolder, "revisions", "001.md"), "# Test Plan\n\nTest content");
+        Directory.CreateDirectory(Path.Combine(planFolder, "Revisions"));
+        File.WriteAllText(Path.Combine(planFolder, "Revisions", "001.md"), "# Test Plan\n\nTest content");
         File.WriteAllText(Path.Combine(planFolder, "plan.yaml"),
             "state: Draft\nproject: Test\nlevel: Test\ntitle: Test Plan\nrepos: []\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\ninitialPrompt: test\nprs: []\ncommits: []\n");
 
         var planFolder2 = Path.Combine(tempDir, "00002-OtherPlan");
         Directory.CreateDirectory(planFolder2);
-        Directory.CreateDirectory(Path.Combine(planFolder2, "revisions"));
-        File.WriteAllText(Path.Combine(planFolder2, "revisions", "001.md"), "# Other Plan\n\nOther content");
+        Directory.CreateDirectory(Path.Combine(planFolder2, "Revisions"));
+        File.WriteAllText(Path.Combine(planFolder2, "Revisions", "001.md"), "# Other Plan\n\nOther content");
         File.WriteAllText(Path.Combine(planFolder2, "plan.yaml"),
             "state: Draft\nproject: Test\nlevel: Test\ntitle: Other Plan\nrepos: []\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\ninitialPrompt: test\nprs: []\ncommits: []\n");
 

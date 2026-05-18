@@ -14,7 +14,7 @@ public class PlanContentHelpersTests
         try
         {
             var planDir = Path.Combine(tempDir, "00001-TestPlan");
-            var screenshotsDir = Path.Combine(planDir, "artifacts", "screenshots");
+            var screenshotsDir = Path.Combine(planDir, "Artifacts", "screenshots");
             Directory.CreateDirectory(screenshotsDir);
             File.WriteAllText(Path.Combine(screenshotsDir, "shot1.png"), "fake");
             File.WriteAllText(Path.Combine(screenshotsDir, "shot2.png"), "fake");
@@ -427,6 +427,16 @@ public class PlanContentHelpersTests
 
             var summaries = commitHashes.ToDictionary(h => h, _ => (commitTitle, commitFiles?.Count ?? 0));
             return GitResult<Dictionary<string, (string Title, int FileCount)>>.Success(summaries);
+        }
+
+        public GitResult<bool> HasUncommittedChanges(string repoPath)
+        {
+            return GitResult<bool>.Success(false);
+        }
+
+        public GitResult<List<string>> GetReachableCommits(string repoPath, IEnumerable<string> candidateHashes)
+        {
+            return GitResult<List<string>>.Success(candidateHashes.ToList());
         }
     }
 }

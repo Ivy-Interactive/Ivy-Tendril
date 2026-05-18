@@ -65,7 +65,7 @@ public class ContentView(
                             new Dictionary<string, List<string>>(), [],
                             new Dictionary<string, bool>(), null);
 
-                    var summaryPath = Path.Combine(folderPath, "artifacts", "summary.md");
+                    var summaryPath = Path.Combine(folderPath, "Artifacts", "summary.md");
                     var summaryMd = File.Exists(summaryPath) ? FileHelper.ReadAllText(summaryPath) : null;
 
                     var artifacts = PlanContentHelpers.GetArtifacts(folderPath);
@@ -76,7 +76,7 @@ public class ContentView(
 
                     var verReports = selectedPlan.Verifications.ToDictionary(
                         v => v.Name,
-                        v => File.Exists(Path.Combine(folderPath, "verification", $"{v.Name}.md")));
+                        v => File.Exists(Path.Combine(folderPath, "Verification", $"{v.Name}.md")));
 
                     return new PlanContentData(summaryMd, artifacts, commitRows, verReports, allChanges);
                 }, ct);
@@ -254,7 +254,7 @@ public class ContentView(
 
     internal static object BuildFailureCallout(PlanFile plan)
     {
-        var verificationDir = Path.Combine(plan.FolderPath, "verification");
+        var verificationDir = Path.Combine(plan.FolderPath, "Verification");
         var failedVerifications = plan.Verifications
             .Where(v => v.Status is "Fail" or "Pending")
             .ToList();
@@ -295,7 +295,7 @@ public class ContentView(
         }
 
         // Fall back to last execution log
-        var logsDir = Path.Combine(plan.FolderPath, "logs");
+        var logsDir = Path.Combine(plan.FolderPath, "Logs");
         if (!Directory.Exists(logsDir))
             return Callout.Destructive("No details available. Check the logs folder.", "Execution Failed");
         var lastLog = Directory.GetFiles(logsDir, "*.md")

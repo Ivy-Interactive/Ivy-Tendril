@@ -81,7 +81,7 @@ public static class JobStatusFile
             var logPath = GetJobLogPath(statusFilePath);
             if (!File.Exists(logPath)) return;
 
-            var logsDir = Path.Combine(planFolder, "logs");
+            var logsDir = Path.Combine(planFolder, "Logs");
             FileHelper.EnsureDirectory(logsDir);
 
             var filename = !string.IsNullOrEmpty(jobId)

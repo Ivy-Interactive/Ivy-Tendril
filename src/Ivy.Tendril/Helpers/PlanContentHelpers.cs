@@ -55,7 +55,7 @@ public static class PlanContentHelpers
 
     public static Dictionary<string, List<string>> GetArtifacts(string folderPath)
     {
-        var artifactsDir = Path.Combine(folderPath, "artifacts");
+        var artifactsDir = Path.Combine(folderPath, "Artifacts");
         var result = new Dictionary<string, List<string>>();
         if (!Directory.Exists(artifactsDir)) return result;
 

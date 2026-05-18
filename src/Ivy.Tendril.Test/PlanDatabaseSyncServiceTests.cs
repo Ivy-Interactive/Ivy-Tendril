@@ -44,7 +44,7 @@ public class PlanDatabaseSyncServiceTests : IDisposable
 
         if (revisionContent != null)
         {
-            var revisionsDir = Path.Combine(dir, "revisions");
+            var revisionsDir = Path.Combine(dir, "Revisions");
             Directory.CreateDirectory(revisionsDir);
             File.WriteAllText(Path.Combine(revisionsDir, "001.md"), revisionContent);
         }
@@ -89,7 +89,7 @@ public class PlanDatabaseSyncServiceTests : IDisposable
         var dir = Path.Combine(_planReader.PlansDirectory, "01500-CostPlan");
         Directory.CreateDirectory(dir);
         File.WriteAllText(Path.Combine(dir, "plan.yaml"), yaml);
-        var revisionsDir = Path.Combine(dir, "revisions");
+        var revisionsDir = Path.Combine(dir, "Revisions");
         Directory.CreateDirectory(revisionsDir);
         File.WriteAllText(Path.Combine(revisionsDir, "001.md"), "# Cost Plan");
         File.WriteAllText(Path.Combine(dir, "costs.csv"),
@@ -109,7 +109,7 @@ public class PlanDatabaseSyncServiceTests : IDisposable
         var dir = Path.Combine(_planReader.PlansDirectory, "01500-RecPlan");
         Directory.CreateDirectory(dir);
         File.WriteAllText(Path.Combine(dir, "plan.yaml"), yaml);
-        var revisionsDir = Path.Combine(dir, "revisions");
+        var revisionsDir = Path.Combine(dir, "Revisions");
         Directory.CreateDirectory(revisionsDir);
         File.WriteAllText(Path.Combine(revisionsDir, "001.md"), "# Rec Plan");
 
@@ -128,7 +128,7 @@ public class PlanDatabaseSyncServiceTests : IDisposable
         var dir = Path.Combine(_planReader.PlansDirectory, "01502-BadRecsPlan");
         Directory.CreateDirectory(dir);
         File.WriteAllText(Path.Combine(dir, "plan.yaml"), yaml);
-        var revisionsDir = Path.Combine(dir, "revisions");
+        var revisionsDir = Path.Combine(dir, "Revisions");
         Directory.CreateDirectory(revisionsDir);
         File.WriteAllText(Path.Combine(revisionsDir, "001.md"), "# Bad Recs Plan");
 

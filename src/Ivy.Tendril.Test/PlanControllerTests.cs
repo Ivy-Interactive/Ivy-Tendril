@@ -433,7 +433,7 @@ public class PlanControllerTests : IDisposable
         var result = controller.AddLog("00001", new AddLogRequest("ExecutePlan", "Test summary"));
 
         Assert.IsType<OkObjectResult>(result);
-        var logsDir = Path.Combine(planFolder, "logs");
+        var logsDir = Path.Combine(planFolder, "Logs");
         Assert.True(Directory.Exists(logsDir));
         var logFiles = Directory.GetFiles(logsDir, "*.md");
         Assert.Single(logFiles);

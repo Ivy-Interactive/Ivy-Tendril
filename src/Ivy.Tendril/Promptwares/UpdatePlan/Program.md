@@ -16,7 +16,7 @@ Project configuration is available from the firmware header.
 
 ### 1. Read the Plan
 
-- Read the latest revision from `revisions/` (highest numbered .md file)
+- Read the latest revision from `Revisions/` (highest numbered .md file)
 - Get the plan title: `tendril plan get <TendrilPlanId> title`
 - Report plan context to Jobs UI: `tendril job status TendrilJobId --message "Updating plan..." --plan-id <plan-id> --plan-title "<title>"`
 
@@ -53,7 +53,7 @@ If all questions are resolved and no new questions arose, omit the `## Questions
   EOF
   ```
 
-  The command reads from STDIN and auto-creates the next numbered revision file. Do NOT use the Write or Edit tools to create revision files directly in `revisions/`.
+  The command reads from STDIN and auto-creates the next numbered revision file. Do NOT use the Write or Edit tools to create revision files directly in `Revisions/`.
 - Incorporate the intent of each instruction into the updated plan
 - Maintain the `## Questions` section (placed after the title, before `## Problem`) using `<details>` tags: (1) Existing questions answered by the user's instructions or research should be collapsed into `<details>` blocks with the answer. (2) New questions become new `<details>` blocks with answers. (3) Unanswered questions from prior revisions remain as open items (not in `<details>`). (4) If all questions are resolved and no new ones arose, omit the section entirely. Format:
   ```html

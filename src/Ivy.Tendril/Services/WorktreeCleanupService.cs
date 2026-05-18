@@ -69,7 +69,7 @@ public class WorktreeCleanupService : IStartable, IDisposable
 
     internal static void CleanupPlanWorktrees(string planFolderPath, ILogger? logger = null, IWorktreeLifecycleLogger? lifecycleLogger = null)
     {
-        var worktreesDir = Path.Combine(planFolderPath, "worktrees");
+        var worktreesDir = Path.Combine(planFolderPath, "Worktrees");
         if (!Directory.Exists(worktreesDir)) return;
 
         var planYamlPath = Path.Combine(planFolderPath, "plan.yaml");
@@ -287,7 +287,7 @@ public class WorktreeCleanupService : IStartable, IDisposable
 
     internal static void RemoveWorktrees(string planFolderPath, ILogger? logger = null, IWorktreeLifecycleLogger? lifecycleLogger = null)
     {
-        var worktreesDir = Path.Combine(planFolderPath, "worktrees");
+        var worktreesDir = Path.Combine(planFolderPath, "Worktrees");
         if (!Directory.Exists(worktreesDir)) return;
 
         var planId = WorktreeLifecycleLogger.ExtractPlanId(planFolderPath);

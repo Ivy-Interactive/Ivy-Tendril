@@ -36,7 +36,7 @@ public class ResetToDraftDialog(
                 Text.P("Are you sure you want to reset this plan? Will remove all worktrees and artifacts.")
             ),
             new DialogFooter(
-                new Button("Cancel").Outline().ShortcutKey("Escape").OnClick(() => _dialogOpen.Set(false)),
+                new Button("Cancel").Outline().OnClick(() => _dialogOpen.Set(false)),
                 new Button("Reset to Draft").Warning().Disabled(isResetting.Value).ShortcutKey("Enter").AutoFocus().OnClick(() =>
                 {
                     if (!isResetting.Value)
@@ -59,21 +59,21 @@ public class ResetToDraftDialog(
 
     internal static void CleanPlanState(string planFolderPath, ILogger? logger = null)
     {
-        var artifactsDir = Path.Combine(planFolderPath, "artifacts");
+        var artifactsDir = Path.Combine(planFolderPath, "Artifacts");
         if (Directory.Exists(artifactsDir))
         {
             logger?.LogInformation("Cleaning artifacts directory: {Path}", artifactsDir);
             WorktreeCleanupService.ForceDeleteDirectory(artifactsDir, logger);
         }
 
-        var logsDir = Path.Combine(planFolderPath, "logs");
+        var logsDir = Path.Combine(planFolderPath, "Logs");
         if (Directory.Exists(logsDir))
         {
             logger?.LogInformation("Cleaning logs directory: {Path}", logsDir);
             WorktreeCleanupService.ForceDeleteDirectory(logsDir, logger);
         }
 
-        var verificationDir = Path.Combine(planFolderPath, "verification");
+        var verificationDir = Path.Combine(planFolderPath, "Verification");
         if (Directory.Exists(verificationDir))
         {
             logger?.LogInformation("Cleaning verification directory: {Path}", verificationDir);
@@ -82,7 +82,7 @@ public class ResetToDraftDialog(
 
         WorktreeCleanupService.RemoveWorktrees(planFolderPath, logger);
 
-        var worktreesDir = Path.Combine(planFolderPath, "worktrees");
+        var worktreesDir = Path.Combine(planFolderPath, "Worktrees");
         if (Directory.Exists(worktreesDir))
         {
             logger?.LogInformation("Cleaning worktrees directory: {Path}", worktreesDir);

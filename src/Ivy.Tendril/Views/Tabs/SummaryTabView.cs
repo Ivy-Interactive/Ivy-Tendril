@@ -7,7 +7,7 @@ public class SummaryTabView(string? summaryMarkdown) : ViewBase
         if (summaryMarkdown is { } md)
         {
             var layout = Layout.Vertical().Gap(2);
-            layout |= new Markdown(md).DangerouslyAllowLocalFiles();
+            layout |= new Markdown(md).DangerouslyAllowLocalFiles().Article();
             return layout;
         }
 

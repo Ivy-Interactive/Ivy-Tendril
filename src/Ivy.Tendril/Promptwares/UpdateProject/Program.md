@@ -93,20 +93,20 @@ tendril project add-verification <project-name> CheckResult --required
 Review actions make it easy to start the application from a worktree during code review.
 
 Inspect each repo to determine how to run the application:
-- .NET project with a runnable entry point: `dotnet run --project worktrees/<RepoName>/<path-to-project> --browse --find-available-port`
-- Node.js app: `cd worktrees/<RepoName> && npm run dev`
-- Python app: `cd worktrees/<RepoName> && python -m <module>` or `flask run`
-- Static docs: `start worktrees/<RepoName>/docs/index.html`
+- .NET project with a runnable entry point: `dotnet run --project Worktrees/<RepoName>/<path-to-project> --browse --find-available-port`
+- Node.js app: `cd Worktrees/<RepoName> && npm run dev`
+- Python app: `cd Worktrees/<RepoName> && python -m <module>` or `flask run`
+- Static docs: `start Worktrees/<RepoName>/docs/index.html`
 
 For each review action:
 - **name**: Short descriptive name (e.g. "App", "Docs", "Frontend", "API")
-- **condition**: A `Test-Path` expression that checks if the worktree path exists (e.g. `Test-Path "worktrees/<RepoName>/src/<Project>"`)
+- **condition**: A `Test-Path` expression that checks if the worktree path exists (e.g. `Test-Path "Worktrees/<RepoName>/src/<Project>"`)
 - **command**: The command to launch the application
 
 ```bash
 tendril project add-review-action <project-name> "<name>" \
   --command "<launch command>" \
-  --condition "Test-Path \"worktrees/<RepoName>/<path>\""
+  --condition "Test-Path \"Worktrees/<RepoName>/<path>\""
 ```
 
 ### 4. Summary

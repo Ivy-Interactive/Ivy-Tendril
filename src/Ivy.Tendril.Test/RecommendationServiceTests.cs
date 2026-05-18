@@ -41,7 +41,7 @@ public class RecommendationServiceTests : IDisposable
             $"state: {state}\nproject: {project}\ntitle: Test Plan\nrepos: []\ncommits: []\nprs: []\nverifications: []\nrelatedPlans: []\ndependsOn: []\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nrecommendations:\n{indented}\n";
         File.WriteAllText(Path.Combine(dir, "plan.yaml"), planYaml);
 
-        var revisionsDir = Path.Combine(dir, "revisions");
+        var revisionsDir = Path.Combine(dir, "Revisions");
         Directory.CreateDirectory(revisionsDir);
         File.WriteAllText(Path.Combine(revisionsDir, "001.md"), "# Test");
 

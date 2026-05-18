@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reactive.Disposables;
 using Ivy.Core;
 using Ivy.Tendril.Apps.Plans;
@@ -30,6 +31,7 @@ public class ContentView(
         var openArtifact = UseState<string?>(null);
         var openFile = UseState<string?>(null);
         var openCommit = UseState<string?>(null);
+        var syncingWorktrees = UseState(new HashSet<string>());
         var args = UseArgs<ReviewAppArgs>();
         var nav = UseNavigation();
 
@@ -97,7 +99,7 @@ public class ContentView(
             {
                 if (string.IsNullOrEmpty(filePath)) return "";
                 if (selectedPlanState.Value is null) return "";
-                var artifactsDir = Path.GetFullPath(Path.Combine(selectedPlanState.Value.FolderPath, "artifacts"));
+                var artifactsDir = Path.GetFullPath(Path.Combine(selectedPlanState.Value.FolderPath, "Artifacts"));
                 var resolvedPath = Path.GetFullPath(filePath);
                 if (!resolvedPath.StartsWith(artifactsDir, StringComparison.OrdinalIgnoreCase))
                     return "Access denied: file is outside the artifacts folder.";
@@ -141,7 +143,7 @@ public class ContentView(
                     }
 
                     // Summary
-                    var summPath = Path.Combine(folderPath, "artifacts", "summary.md");
+                    var summPath = Path.Combine(folderPath, "Artifacts", "summary.md");
                     var summaryMd = File.Exists(summPath) ? FileHelper.ReadAllText(summPath) : null;
 
                     // Artifacts
@@ -156,7 +158,7 @@ public class ContentView(
                     // Verification report existence
                     var verReports = selectedPlanState.Value.Verifications.ToDictionary(
                         v => v.Name,
-                        v => File.Exists(Path.Combine(folderPath, "verification", $"{v.Name}.md")));
+                        v => File.Exists(Path.Combine(folderPath, "Verification", $"{v.Name}.md")));
 
                     // Review action conditions
                     var projectConfig = config.GetProject(selectedPlanState.Value.Project);
@@ -199,7 +201,7 @@ public class ContentView(
             return Disposable.Empty;
         }, [localRefresh]);
 
-        var tabNames = new[] { "summary", "plan", "details", "verifications", "git", "changes", "artifacts", "recommendations" };
+        var tabNames = new[] { "summary", "plan", "details", "verifications", "git", "changes", "Artifacts", "recommendations" };
         var selectedTabIndex = Array.IndexOf(tabNames, args?.Tab ?? "summary");
         if (selectedTabIndex < 0) selectedTabIndex = 0;
 
@@ -222,7 +224,7 @@ public class ContentView(
         var content = BuildContent(
             selectedPlanState.Value, planData, planContentQuery, selectedTabIndex, tabNames, openVerification,
             openCommit, openFile, openArtifact, artifactContentQuery, assigneesQuery,
-            assigneesError,
+            assigneesError, syncingWorktrees,
             client, copyToClipboard, logger, nav, args);
 
         var mainLayout = new HeaderLayout(
@@ -369,6 +371,7 @@ public class ContentView(
         QueryResult<string> artifactContentQuery,
         QueryResult<string[]> assigneesQuery,
         IState<string?> assigneesError,
+        IState<HashSet<string>> syncingWorktrees,
         IClientProvider client,
         Action<string> copyToClipboard,
         ILogger<ContentView> logger,
@@ -386,6 +389,7 @@ public class ContentView(
         var planTabContent = Layout.Vertical().Height(Size.Full())
             | new Markdown(reviewAnnotated)
                 .DangerouslyAllowLocalFiles()
+                .Article()
                 .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile, planId =>
                 {
                     var planFolder = Directory.GetDirectories(planService.PlansDirectory, $"{planId:D5}-*")
@@ -426,6 +430,8 @@ public class ContentView(
                     client.Toast("Copied path to clipboard", "Path Copied");
                     return null!;
                 },
+                syncingWorktrees.Value,
+                worktreePath => SynchronizeWorktreeAsync(worktreePath, syncingWorktrees, planContentQuery, client, logger),
                 logger
             );
 
@@ -493,7 +499,7 @@ public class ContentView(
 
                     var card = Layout.Vertical().Gap(1)
                                | titleRow
-                               | new Markdown(rec.Description).DangerouslyAllowLocalFiles();
+                               | new Markdown(rec.Description).DangerouslyAllowLocalFiles().Article();
                     recommendationsLayout |= card;
                     recommendationsLayout |= new Separator();
                 }
@@ -507,7 +513,7 @@ public class ContentView(
                 new Tab("Verifications", Cap(new VerificationsTabView(
                     selectedPlan.Verifications, planData.VerificationReports,
                     v => openVerification.Set(v)))).Badge(selectedPlan.Verifications.Count.ToString()),
-                new Tab("Git", Cap(gitLayout)).Badge((gitData.WorktreeRows.Count + selectedPlan.Commits.Count + selectedPlan.Prs.Count).ToString()),
+                new Tab("Git", Cap(gitLayout)).Badge((gitData.WorktreeSections.Count + selectedPlan.Commits.Count + selectedPlan.Prs.Count).ToString()),
                 new Tab("Changes", Layout.Vertical().Width(Size.Full()).Height(Size.Full()) | changesTabView).Badge(changesTabView.FileCount > 0 ? changesTabView.FileCount.ToString() : ""),
                 new Tab("Artifacts", Cap(new ArtifactsTabView(planData.Artifacts))).Badge(totalArtifacts.ToString()),
                 new Tab("Recommendations", Cap(recommendationsLayout)).Badge(planData.Recommendations.Count.ToString())
@@ -550,14 +556,14 @@ public class ContentView(
 
     internal static bool ValidateArtifactPath(string filePath, string planFolderPath)
     {
-        var artifactsDir = Path.GetFullPath(Path.Combine(planFolderPath, "artifacts"));
+        var artifactsDir = Path.GetFullPath(Path.Combine(planFolderPath, "Artifacts"));
         var resolvedPath = Path.GetFullPath(filePath);
         return resolvedPath.StartsWith(artifactsDir, StringComparison.OrdinalIgnoreCase);
     }
 
     internal static bool ValidateVerificationPath(string name, string planFolderPath)
     {
-        var verificationDir = Path.GetFullPath(Path.Combine(planFolderPath, "verification"));
+        var verificationDir = Path.GetFullPath(Path.Combine(planFolderPath, "Verification"));
         var resolvedPath = Path.GetFullPath(Path.Combine(verificationDir, $"{name}.md"));
         return resolvedPath.StartsWith(verificationDir, StringComparison.OrdinalIgnoreCase);
     }
@@ -576,6 +582,60 @@ public class ContentView(
         var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlanState.Value?.FolderName);
         var prevIndex = (currentIndex - 1 + allPlans.Count) % allPlans.Count;
         selectedPlanState.Set(allPlans[prevIndex]);
+    }
+
+    private static async void SynchronizeWorktreeAsync(
+        string worktreePath,
+        IState<HashSet<string>> syncingState,
+        QueryResult<PlanContentData> query,
+        IClientProvider client,
+        ILogger? logger)
+    {
+        var paths = new HashSet<string>(syncingState.Value) { worktreePath };
+        syncingState.Set(paths);
+
+        try
+        {
+            var (exitCode, error) = await Task.Run(() =>
+            {
+                var psi = new ProcessStartInfo("git", "fetch origin")
+                {
+                    WorkingDirectory = worktreePath,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var process = Process.Start(psi);
+                if (process == null)
+                    return (1, "Failed to start git process");
+
+                var stderr = process.StandardError.ReadToEnd();
+                process.WaitForExit(60000);
+                return (process.ExitCode, stderr);
+            });
+
+            if (exitCode == 0)
+            {
+                client.Toast("Worktree synchronized successfully", "Synchronized");
+            }
+            else
+            {
+                client.Toast($"git fetch failed: {error}", "Synchronize Failed", variant: ToastVariant.Destructive);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to synchronize worktree at {Path}", worktreePath);
+            client.Toast($"Failed to synchronize: {ex.Message}", "Synchronize Failed", variant: ToastVariant.Destructive);
+        }
+        finally
+        {
+            var updated = new HashSet<string>(syncingState.Value);
+            updated.Remove(worktreePath);
+            syncingState.Set(updated);
+            query.Mutator.Revalidate();
+        }
     }
 
     private record PlanContentData(

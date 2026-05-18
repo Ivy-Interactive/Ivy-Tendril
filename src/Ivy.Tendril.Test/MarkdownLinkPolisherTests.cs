@@ -66,7 +66,7 @@ public class MarkdownLinkPolisherTests : IDisposable
     [Fact]
     public void PolishLinks_FixesScreenshotPathToArtifactsFolder()
     {
-        var artifactsDir = Path.Combine(_planFolder, "artifacts");
+        var artifactsDir = Path.Combine(_planFolder, "Artifacts");
         Directory.CreateDirectory(artifactsDir);
         File.WriteAllText(Path.Combine(artifactsDir, "screenshot.png"), "img");
 
