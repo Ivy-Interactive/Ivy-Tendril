@@ -80,9 +80,14 @@ tendril promptware run CreatePlan --verbose D:\Plans\00123-MyPlan
 | `run` | Start the Tendril server (with optional `--port`) |
 | `version` | Print the installed version |
 | `doctor` | System health check |
+| `reset` | Remove all Tendril data and environment variables |
+| `report-bug` | Submit a bug report with plan/job context |
 | `plan <subcommand>` | Create and manage plans |
 | `plan doctor` | Scan and repair plan folders |
-| `promptware <name>` | Run a promptware by name |
+| `verification <subcommand>` | Manage global verification definitions |
+| `project <subcommand>` | Manage projects |
+| `promptware <subcommand>` | Run promptwares and manage their memory/tools |
+| `trash write` | Write a file to the Trash directory |
 | `db-version` | Show database schema version |
 | `db-migrate` | Apply pending migrations |
 | `db-reset` | Reset the database |
@@ -123,6 +128,84 @@ Validates your Tendril installation:
 To check plan health specifically, use `tendril plan doctor` — see the plan section below.
 
 </Callout>
+
+## reset
+
+Remove all Tendril data from the machine — use this to start fresh or fully uninstall.
+
+```bash
+tendril reset [--force]
+```
+
+Shows a summary of what will be deleted (directories and environment variables), asks for confirmation, then performs the deletion.
+
+| Option | Effect |
+|--------|--------|
+| `--force` | Skip the interactive confirmation prompt |
+
+What gets removed:
+
+- The `TENDRIL_HOME` directory (config, database, inbox, plans if not overridden)
+- The `TENDRIL_PLANS` directory if it differs from `TENDRIL_HOME`
+- On **Windows**: the `TENDRIL_HOME` and `TENDRIL_PLANS` user-level environment variables are cleared automatically
+- On **macOS/Linux**: a reminder is printed to manually remove the `export` lines from your shell rc file (`.bashrc`, `.zshrc`, etc.)
+
+<Callout type="Warning">
+This permanently deletes all Tendril data. Plan YAML files, logs, and the database are removed. There is no undo.
+
+</Callout>
+
+Example output:
+
+```
+The following items will be deleted:
+
+Directory: /home/user/.tendril (exists, 142 files)
+Env var: TENDRIL_HOME (check shell rc)
+
+Proceed with reset? [y/n] y
+✓ Deleted directory: /home/user/.tendril
+Note: On Linux/Mac, please manually remove the export lines from your shell rc file.
+
+Reset complete.
+Please restart your terminal for environment variable changes to take effect.
+```
+
+## report-bug
+
+Submit a bug report to the Tendril team with plan and job context attached.
+
+```bash
+tendril report-bug (--plan <plan-id> | --job <job-id>) [options]
+```
+
+Collects relevant files (plan YAML, logs, agent conversation transcripts) into a zip archive and uploads them to the Tendril bug report API, which creates a GitHub issue automatically. Either `--plan` or `--job` must be provided.
+
+| Option | Effect |
+|--------|--------|
+| `--plan <plan-id>` | Include files from this plan folder |
+| `--job <job-id>` | Include log files for this job ID |
+| `--description` / `-d` | Bug description (prompted interactively if omitted) |
+| `--yes` / `-y` | Skip the confirmation prompt |
+| `--dry-run` | Show what would be sent without uploading |
+
+<Callout type="Warning">
+Collected files are attached to a **public** GitHub issue. If your plan contains sensitive data, use another reporting channel.
+
+</Callout>
+
+Example:
+
+```bash
+# Report a bug for a specific plan
+tendril report-bug --plan 03430 --description "ExecutePlan crashes on worktree creation"
+
+# Preview what would be sent without submitting
+tendril report-bug --plan 03430 --dry-run
+
+# Report by job ID, skip confirmation
+tendril report-bug --job 00042 -y
+```
 
 ## plan
 
@@ -264,6 +347,22 @@ tendril plan add-depends-on <plan-id> <folder-name>
 
 Add a blocking dependency on another plan. ExecutePlan will wait for the dependency to reach `Completed` state before executing this plan.
 
+### plan remove-depends-on
+
+```bash
+tendril plan remove-depends-on <plan-id> <folder-name>
+```
+
+Remove a blocking dependency from the plan. The folder name must match exactly (case-insensitive).
+
+### plan remove-related-plan
+
+```bash
+tendril plan remove-related-plan <plan-id> <folder-name>
+```
+
+Remove a related plan reference from the plan's `relatedPlans` list. The folder name must match exactly (case-insensitive).
+
 ### plan set-verification
 
 ```bash
@@ -279,6 +378,100 @@ tendril plan validate <plan-id>
 ```
 
 Checks that the plan has all required fields and is internally consistent. Exits with code `1` on failure.
+
+### plan add-log
+
+```bash
+tendril plan add-log <plan-id> <action> [--summary <text>]
+```
+
+Appends a log entry to the plan's `Logs/` directory. Log files are numbered sequentially (`001-CreatePlan.md`, `002-ExecutePlan.md`, etc.) and printed to stdout so callers can capture the path.
+
+| Option | Effect |
+|--------|--------|
+| `<action>` | Action name used as the filename suffix (e.g., `CreatePlan`, `ExecutePlan`) |
+| `--summary` | Optional summary text appended to the log body |
+
+Example:
+
+```bash
+tendril plan add-log 03430 ExecutePlan --summary "Completed in 4m 12s"
+# prints: /path/to/Plans/03430-MyPlan/Logs/003-ExecutePlan.md
+```
+
+### plan write-revision
+
+```bash
+cat revision.md | tendril plan write-revision <plan-id>
+tendril plan write-revision <plan-id> --file revision.md
+```
+
+Writes a revision file to the plan's `Revisions/` directory. Revisions are numbered sequentially (`001.md`, `002.md`, etc.). Content is read from stdin unless `--file` is provided. Prints the written file path to stdout.
+
+| Option | Effect |
+|--------|--------|
+| `--file` / `-f` | Read content from a file instead of stdin |
+
+### plan remove-worktree
+
+```bash
+tendril plan remove-worktree <plan-id> <repo-name> [--branch <branch>]
+```
+
+Removes a single git worktree from a plan's `Worktrees/` directory. Attempts a clean `git worktree remove --force` first; falls back to a force-delete if that fails. Also deletes the associated branch (`tendril/<plan-folder>` by default).
+
+| Option | Effect |
+|--------|--------|
+| `<repo-name>` | Repository folder name inside the plan's `Worktrees/` directory |
+| `--branch` | Branch name to delete (auto-derived from the plan folder name if omitted) |
+
+### plan sync-worktree
+
+```bash
+tendril plan sync-worktree <worktree-path> [--strategy <strategy>] [--base-branch <branch>]
+```
+
+Applies a sync strategy to an existing worktree. Accepts an absolute path to the worktree directory.
+
+| Option | Effect |
+|--------|--------|
+| `--strategy` | `fetch` (default, no-op), `rebase`, or `merge` |
+| `--base-branch` | Base branch to sync with (required for `rebase` and `merge`) |
+
+Example:
+
+```bash
+tendril plan sync-worktree /path/to/Plans/03430-MyPlan/Worktrees/MyRepo \
+  --strategy rebase --base-branch main
+```
+
+### plan verification
+
+Manage verifications directly on a plan's YAML.
+
+#### plan verification list
+
+```bash
+tendril plan verification list <plan-id> [--status <status>]
+```
+
+Lists all verifications on the plan. Optionally filter by status (`Pending`, `Pass`, `Fail`, `Skipped`).
+
+#### plan verification add
+
+```bash
+tendril plan verification add <plan-id> <name> [--status <status>]
+```
+
+Adds a verification entry to the plan. Default status is `Pending`.
+
+#### plan verification remove
+
+```bash
+tendril plan verification remove <plan-id> <name>
+```
+
+Removes a verification entry from the plan by name (case-insensitive).
 
 ### plan rec (recommendations)
 
@@ -493,4 +686,231 @@ Example:
 
 ```bash
 tendril promptware run CreatePlan "Fix the login bug" --value Project=Tendril
+```
+
+### promptware read-memory
+
+```bash
+tendril promptware read-memory <name> <filename>
+```
+
+Reads a memory file from a promptware's `Memory/` directory and prints its contents to stdout. Used by agents to load persisted learnings.
+
+```bash
+tendril promptware read-memory ExecutePlan cli-quirks.md
+```
+
+### promptware write-memory
+
+```bash
+cat content.md | tendril promptware write-memory <name> <filename>
+```
+
+Writes a memory file to a promptware's `Memory/` directory from stdin. Creates the directory if it does not exist. Prints the written file path to stdout.
+
+```bash
+echo "Always use --force when cleaning worktrees" | \
+  tendril promptware write-memory ExecutePlan cli-quirks.md
+```
+
+### promptware write-tool
+
+```bash
+cat tool.md | tendril promptware write-tool <name> <filename>
+```
+
+Writes a tool definition file to a promptware's `Tools/` directory from stdin. Creates the directory if it does not exist. Prints the written file path to stdout.
+
+```bash
+cat my-tool.md | tendril promptware write-tool CreatePlan my-tool.md
+```
+
+## verification
+
+Manage global verification definitions stored in `config.yaml`. These definitions can be referenced by projects and plans.
+
+### verification list
+
+```bash
+tendril verification list
+```
+
+Lists all verification definitions with their name and a preview of the prompt.
+
+### verification get
+
+```bash
+tendril verification get <name>
+```
+
+Prints the full prompt for a verification definition to stdout.
+
+### verification add
+
+```bash
+tendril verification add <name> [--prompt <text>]
+```
+
+Adds a new verification definition. If `--prompt` is omitted, reads the prompt from stdin.
+
+```bash
+# Inline prompt
+tendril verification add BuildPasses --prompt "Run dotnet build and confirm exit code 0"
+
+# From file
+cat build-check-prompt.md | tendril verification add BuildPasses
+```
+
+### verification remove
+
+```bash
+tendril verification remove <name>
+```
+
+Removes a verification definition by name (case-insensitive).
+
+### verification set
+
+```bash
+tendril verification set <name> <field> <value>
+```
+
+Updates a single field on a verification definition. Supported fields: `name`, `prompt`.
+
+```bash
+tendril verification set BuildPasses prompt "Run dotnet build --no-restore and check for errors"
+```
+
+## project
+
+Manage projects stored in `config.yaml`. Projects group repositories, verifications, build dependencies, and review actions together.
+
+### project list
+
+```bash
+tendril project list
+```
+
+Lists all projects showing name, color, number of repos, and number of verifications.
+
+### project get
+
+```bash
+tendril project get <name>
+```
+
+Shows full details for a project: repos, verifications, review actions, and build dependencies.
+
+### project add
+
+```bash
+tendril project add <name> [--color <color>] [--context <text>]
+```
+
+Creates a new project.
+
+| Option | Effect |
+|--------|--------|
+| `--color` | Display color for the project (e.g., `blue`, `#3b82f6`) |
+| `--context` | Context/prompt text injected into agents working on this project |
+
+### project remove
+
+```bash
+tendril project remove <name>
+```
+
+Removes a project by name (case-insensitive).
+
+### project set
+
+```bash
+tendril project set <name> <field> <value>
+```
+
+Updates a single field on a project. Supported fields: `name`, `color`, `context`.
+
+### project add-repo / remove-repo
+
+```bash
+tendril project add-repo <project-name> <repo-path> [options]
+tendril project remove-repo <project-name> <repo-path>
+```
+
+Add or remove a repository from a project.
+
+| Option | Effect |
+|--------|--------|
+| `--pr-rule` | PR rule for this repo (`default`, `yolo`) |
+| `--base-branch` | Default base branch (e.g., `main`, `development`) |
+| `--sync-strategy` | Worktree sync strategy (`fetch`, `pull`) |
+
+### project add-verification / remove-verification
+
+```bash
+tendril project add-verification <project-name> <verification-name> [--required]
+tendril project remove-verification <project-name> <verification-name>
+```
+
+Add or remove a verification from a project. Use `--required` to mark the verification as mandatory for plan completion.
+
+### project add-build-dep / remove-build-dep
+
+```bash
+tendril project add-build-dep <project-name> <dependency>
+tendril project remove-build-dep <project-name> <dependency>
+```
+
+Add or remove a build dependency from a project. Build dependencies are checked before an agent starts executing a plan.
+
+### project add-review-action / remove-review-action
+
+```bash
+tendril project add-review-action <project-name> <name> [--command <cmd>] [--condition <expr>]
+tendril project remove-review-action <project-name> <name>
+```
+
+Add or remove a review action from a project. Review actions are shell commands run automatically during plan review.
+
+| Option | Effect |
+|--------|--------|
+| `--command` | Shell command to execute |
+| `--condition` | Optional condition expression (e.g., `Test-Path "..."`) — action is skipped if condition is false |
+
+Example:
+
+```bash
+tendril project add-review-action Tendril RunTests \
+  --command "dotnet test --no-build" \
+  --condition 'Test-Path "tests/"'
+```
+
+## job
+
+### job status
+
+```bash
+tendril job status <job-id> --message <text> [--plan-id <id>] [--plan-title <title>]
+```
+
+Writes a status update file for a running job. Used internally by agents to report progress visible in the Tendril UI.
+
+| Option | Effect |
+|--------|--------|
+| `--message` / `-m` | Status message to display |
+| `--plan-id` | Plan ID associated with the job |
+| `--plan-title` | Plan title associated with the job |
+
+## trash
+
+### trash write
+
+```bash
+cat content.md | tendril trash write <filename>
+```
+
+Writes a file to the `$TENDRIL_HOME/Trash/` directory from stdin. Used by agents to soft-delete content (e.g., duplicate plan files) instead of permanently removing it. Prints the written file path to stdout.
+
+```bash
+echo "# Duplicate plan" | tendril trash write DuplicateTitle.md
 ```
