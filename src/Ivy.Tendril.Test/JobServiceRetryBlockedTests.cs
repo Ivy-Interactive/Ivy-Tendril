@@ -533,6 +533,10 @@ public class JobServiceRetryBlockedTests : IDisposable
         {
         }
 
+        public void SyncPlanArtifacts(string planFolder)
+        {
+        }
+
         public void InvalidateCaches()
         {
         }

@@ -23,6 +23,11 @@ internal class PlanArtifactSyncer
     internal void SyncPlanArtifacts(JobItem job)
     {
         var planFolder = job.TypedArgs?.PlanFolder ?? "";
+        SyncPlanArtifacts(planFolder);
+    }
+
+    internal void SyncPlanArtifacts(string planFolder)
+    {
         if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder)) return;
 
         try

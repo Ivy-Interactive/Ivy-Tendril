@@ -291,6 +291,10 @@ public class JobServiceCompletionGuardTests : IDisposable
         {
         }
 
+        public void SyncPlanArtifacts(string planFolder)
+        {
+        }
+
         public void InvalidateCaches()
         {
         }
