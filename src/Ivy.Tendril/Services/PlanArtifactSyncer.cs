@@ -143,7 +143,7 @@ internal class PlanArtifactSyncer
             {
                 var hash = line.Trim();
                 if (hash.Length >= 7)
-                    commits.Add(hash.Length > 9 ? hash[..9] : hash);
+                    commits.Add(hash);
             }
         }
         catch (Exception ex)
@@ -190,7 +190,11 @@ internal class PlanArtifactSyncer
         var changed = false;
         foreach (var commit in commits)
         {
-            if (!plan.Commits.Contains(commit))
+            var alreadyPresent = plan.Commits.Any(existing =>
+                existing.StartsWith(commit, StringComparison.OrdinalIgnoreCase) ||
+                commit.StartsWith(existing, StringComparison.OrdinalIgnoreCase));
+
+            if (!alreadyPresent)
             {
                 plan.Commits.Add(commit);
                 changed = true;

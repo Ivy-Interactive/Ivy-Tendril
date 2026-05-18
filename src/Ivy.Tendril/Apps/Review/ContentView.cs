@@ -431,7 +431,7 @@ public class ContentView(
                     return null!;
                 },
                 syncingWorktrees.Value,
-                worktreePath => SynchronizeWorktreeAsync(worktreePath, syncingWorktrees, planContentQuery, client, planService, logger),
+                worktreePath => SynchronizeWorktreeAsync(worktreePath, syncingWorktrees, planContentQuery, client, planService, selectedPlanState, logger),
                 logger
             );
 
@@ -611,6 +611,7 @@ public class ContentView(
         QueryResult<PlanContentData> query,
         IClientProvider client,
         IPlanReaderService planService,
+        IState<PlanFile?> selectedPlanState,
         ILogger? logger)
     {
         var paths = new HashSet<string>(syncingState.Value) { worktreePath };
@@ -641,6 +642,9 @@ public class ContentView(
             {
                 var planFolder = Path.GetFullPath(Path.Combine(worktreePath, "..", ".."));
                 planService.SyncPlanArtifacts(planFolder);
+                var refreshed = planService.GetPlanByFolder(planFolder);
+                if (refreshed != null)
+                    selectedPlanState.Set(refreshed);
                 client.Toast("Worktree synchronized successfully", "Synchronized");
             }
             else
