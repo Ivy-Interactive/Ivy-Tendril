@@ -104,7 +104,7 @@ public class ProjectSetupStepView(
                                 Color = "Green",
                                 Repos = refs,
                                 Context = "",
-                                Verifications = new List<ProjectVerificationRef>(),
+                                Verifications = [],
                                 ReviewActions = new List<ReviewActionConfig>(reviewActions.Value)
                             };
 
@@ -144,7 +144,7 @@ public class ProjectSetupStepView(
                             var refs = await ResolveReposAsync(config, progressMessage, error, isCloning);
                             if (refs == null)
                             {
-                                progressCts.Cancel();
+                                await progressCts.CancelAsync();
                                 progressValue.Set(null);
                                 progressMessage.Set(null);
                                 return;
@@ -156,20 +156,20 @@ public class ProjectSetupStepView(
                                 Color = "Green",
                                 Repos = refs,
                                 Context = "",
-                                Verifications = new List<ProjectVerificationRef>(),
+                                Verifications = [],
                                 ReviewActions = new List<ReviewActionConfig>(reviewActions.Value)
                             };
 
                             config.SetPendingProject(project);
-                            config.SetPendingVerificationDefinitions(new List<VerificationConfig>());
+                            config.SetPendingVerificationDefinitions([]);
 
-                            progressCts.Cancel();
+                            await progressCts.CancelAsync();
                             progressValue.Set(100);
                             progressMessage.Set("Done");
 
                             await StartVerificationSessionAsync(config, setupService, runner, name);
 
-                            await Task.Delay(250);
+                            await Task.Delay(250, progressCts.Token);
 
                             progressValue.Set(null);
                             progressMessage.Set(null);
@@ -179,7 +179,7 @@ public class ProjectSetupStepView(
                         }
                         catch (Exception ex)
                         {
-                            progressCts.Cancel();
+                            await progressCts.CancelAsync();
                             progressValue.Set(null);
                             progressMessage.Set(null);
                             error.Set($"Failed to set up project: {ex.Message}");

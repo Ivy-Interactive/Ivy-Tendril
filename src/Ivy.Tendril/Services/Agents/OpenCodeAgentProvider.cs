@@ -1,14 +1,24 @@
 using System.Diagnostics;
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 
 namespace Ivy.Tendril.Services.Agents;
 
-// OpenCode has no runtime tool restriction mechanism in non-interactive mode.
-// --dangerously-skip-permissions overrides all agent permission rules.
-// Tool restrictions rely on prompt instructions and working directory scoping only.
 public class OpenCodeAgentProvider : IAgentProvider
 {
     public string Name => "opencode";
     public bool UsesStdinPrompt => true;
+
+    public AgentOnboardingInfo OnboardingInfo => new(
+        "OpenCode CLI", "https://opencode.ai", "--version",
+        () =>
+        {
+            var authPath = OperatingSystem.IsWindows()
+                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "opencode", "auth.json")
+                : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share", "opencode", "auth.json");
+            return ProcessCheckHelper.CheckFileAuth(authPath, minSize: 2);
+        },
+        "Sign in to OpenCode");
 
     public ProcessStartInfo BuildProcessStart(AgentInvocation invocation)
     {

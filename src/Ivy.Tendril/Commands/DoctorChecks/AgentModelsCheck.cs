@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Ivy.Helpers;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Commands.DoctorChecks;
@@ -57,7 +58,7 @@ internal class AgentModelsCheck : IDoctorCheck
             }
 
             var cliName = ResolveCliName(agent.Name, codingAgent);
-            var cliInstalled = cliName != null && await ProcessHelper.CheckCommand(cliName, VersionArgs.GetValueOrDefault(cliName, "--version"));
+            var cliInstalled = cliName != null && await ProcessCheckHelper.CheckCommand(cliName, VersionArgs.GetValueOrDefault(cliName, "--version"));
 
             if (!cliInstalled)
             {
@@ -133,7 +134,7 @@ internal class AgentModelsCheck : IDoctorCheck
         {
             return await Task.Run(() =>
             {
-                var proc = Process.Start(ProcessHelper.MakeStartInfo(cli, args));
+                var proc = Process.Start(ProcessCheckHelper.MakeStartInfo(cli, args));
                 if (proc is null) return ModelResult.Unknown;
 
                 var stderr = "";
