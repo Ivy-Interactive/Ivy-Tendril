@@ -59,7 +59,8 @@ public class Program
         if (filteredArgs.Length > 0)
         {
             var cliServices = new ServiceCollection();
-            cliServices.AddLogging(builder => builder.AddConsole());
+            var cliLogLevel = verbose ? LogLevel.Debug : quiet ? LogLevel.Warning : LogLevel.Information;
+            cliServices.AddLogging(builder => builder.AddConsole().SetMinimumLevel(cliLogLevel));
             cliServices.AddSingleton<IPlanWatcherService, NullPlanWatcherService>();
 
             var app = ConfigureCliCommands(cliServices);
