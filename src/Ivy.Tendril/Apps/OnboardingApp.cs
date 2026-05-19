@@ -1,4 +1,5 @@
 using Ivy.Tendril.Apps.Onboarding;
+using Ivy.Tendril.Apps.Onboarding.Models;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps;

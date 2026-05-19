@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Ivy.Core;
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Models;
@@ -331,7 +330,7 @@ public static class GitTabHelper
             );
         }
 
-        var resolvedRoot = ResolveRepoRootFromWorktree(repoDir);
+        var resolvedRoot = GitHelper.ResolveRepoRootFromWorktree(repoDir);
         if (resolvedRoot == null) return (null, null, null);
 
         var parentWorktrees = gitService.GetWorktrees(resolvedRoot);
@@ -347,20 +346,6 @@ public static class GitTabHelper
             main.Branch,
             main.CommitHash.Length > 9 ? main.CommitHash[..9] : main.CommitHash
         );
-    }
-
-    private static string? ResolveRepoRootFromWorktree(string wtDir)
-    {
-        var gitFile = Path.Combine(wtDir, ".git");
-        if (!File.Exists(gitFile)) return null;
-        var gitContent = FileHelper.ReadAllText(gitFile).Trim();
-        var gitDirMatch = Regex.Match(gitContent, @"gitdir:\s*(.+)");
-        if (!gitDirMatch.Success) return null;
-
-        var gitDir = gitDirMatch.Groups[1].Value.Trim();
-        var repoGitDir = Path.GetFullPath(Path.Combine(wtDir, gitDir, "..", ".."));
-        var repoRoot = Path.GetDirectoryName(repoGitDir);
-        return repoRoot != null && Directory.Exists(repoRoot) ? repoRoot : null;
     }
 
     private record CommitTableRow(string Commit, string Hash, string Message, string Files);

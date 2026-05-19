@@ -1,6 +1,6 @@
-using System.Diagnostics;
 using Ivy.Core.Hooks;
 using Ivy.Tendril.Apps.Onboarding;
+using Ivy.Tendril.Apps.Onboarding.Models;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Views;
@@ -89,7 +89,7 @@ public class EditProjectDialog(
             var repoName = RepoPathValidator.ExtractRepoName(draft.Path) ?? Guid.NewGuid().ToString();
             var destPath = Path.Combine(reposDir, repoName);
 
-            var success = await CloneRepositoryAsync(draft.Path, destPath);
+            var success = await ProcessCheckHelper.CloneRepositoryAsync(draft.Path, destPath);
             if (!success)
             {
                 _client.Toast($"Failed to fetch repository: {draft.Path}", "Error");
@@ -335,45 +335,6 @@ public class EditProjectDialog(
         return new Fragment(mainDialog, generateDialog!);
     }
 
-    private static async Task<bool> CloneRepositoryAsync(string url, string destinationPath)
-    {
-        try
-        {
-            var shell = "pwsh";
-
-            if (url.Contains('\'') || url.Contains('"')) return false;
-
-            string cmd;
-            if (Directory.Exists(destinationPath))
-            {
-                cmd = $"git -C '{destinationPath}' pull";
-            }
-            else
-            {
-                cmd = $"git clone '{url}' '{destinationPath}'";
-            }
-
-            var psi = new ProcessStartInfo
-            {
-                FileName = shell,
-                Arguments = $"-NoProfile -Command \"{cmd}\"",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using var process = Process.Start(psi);
-            if (process == null) return false;
-
-            await process.WaitForExitAsync();
-            return process.ExitCode == 0;
-        }
-        catch
-        {
-            return false;
-        }
-    }
 }
 
 internal class ReviewActionsTableView(

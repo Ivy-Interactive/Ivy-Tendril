@@ -1,6 +1,6 @@
 using Ivy.Tendril.Models;
 
-namespace Ivy.Tendril.Apps.Onboarding;
+namespace Ivy.Tendril.Apps.Onboarding.Models;
 
 public record SoftwareCheck(
     string Name,
