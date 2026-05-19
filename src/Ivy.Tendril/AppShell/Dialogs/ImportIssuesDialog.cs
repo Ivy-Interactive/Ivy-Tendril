@@ -306,6 +306,7 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
                     return (object)new ImportIssueRowView(
                         issue,
                         selectedIssueNumbers,
+                        selectedAssignee.Value,
                         issueUrl,
                         ToggleIssueSelection,
                         () => { if (issueUrl != null) client.OpenUrl(issueUrl); });
@@ -411,9 +412,23 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
         return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength] + "…";
     }
 
+    private static string[] GetIssueAssignees(GitHubIssue issue) =>
+        issue.Assignees.Where(a => !string.IsNullOrWhiteSpace(a)).ToArray();
+
+    private static bool ShouldShowAssignees(GitHubIssue issue, string? assigneeFilter)
+    {
+        var assignees = GetIssueAssignees(issue);
+        if (assignees.Length == 0) return false;
+        if (string.IsNullOrWhiteSpace(assigneeFilter)) return true;
+
+        return assignees.Length > 1
+            || !assignees[0].Equals(assigneeFilter, StringComparison.OrdinalIgnoreCase);
+    }
+
     private sealed class ImportIssueRowView(
         GitHubIssue issue,
         IState<HashSet<int>> selectedNumbers,
+        string? assigneeFilter,
         string? issueUrl,
         Action<int> onToggle,
         Action onOpenUrl) : ViewBase
@@ -422,19 +437,26 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
         {
             var isSelected = selectedNumbers.Value.Contains(issue.Number);
 
-            object? labelsRow = null;
+            var bodyContent = Layout.Vertical().Gap(2);
+
+            bodyContent |= string.IsNullOrWhiteSpace(issue.Body)
+                ? Text.Muted("No description provided.")
+                : Text.Block(TruncateBody(issue.Body));
+
             if (issue.Labels.Length > 0)
             {
-                labelsRow = Layout.Horizontal().Gap(1).Wrap()
+                bodyContent |= Layout.Horizontal().Gap(2).AlignContent(Align.TopLeft).Wrap()
+                    | Text.Muted("Labels:")
                     | issue.Labels.Select(label => new Badge(label).Variant(BadgeVariant.Outline).Small())
                         .Cast<object>().ToArray();
             }
 
-            var bodyContent = Layout.Vertical().Gap(2)
-                | (string.IsNullOrWhiteSpace(issue.Body)
-                    ? Text.Muted("No description provided.")
-                    : Text.Block(TruncateBody(issue.Body)))
-                | labelsRow;
+            if (ShouldShowAssignees(issue, assigneeFilter))
+            {
+                bodyContent |= Layout.Horizontal().Gap(2).AlignContent(Align.TopLeft).Wrap()
+                    | Text.Muted("Assigned to:")
+                    | Text.Block(string.Join(", ", GetIssueAssignees(issue)));
+            }
 
             return Layout.Horizontal().Gap(2).AlignContent(Align.Center).Width(Size.Full())
                 | new Button()
