@@ -48,7 +48,7 @@ public class OnboardingApp : ViewBase
         var stepperIndex = UseState(0);
         var commonChecksPassed = UseState(false);
         var homeBootstrapped = UseState(false);
-        var completedAgentKey = UseState<string?>((string?)null);
+        var completedAgentKey = UseState<string?>();
         var tendrilHomePath = UseState(() =>
             Environment.GetEnvironmentVariable("TENDRIL_HOME")
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril"));
@@ -57,12 +57,12 @@ public class OnboardingApp : ViewBase
         var isStepLoading = UseState(false);
 
         var verificationStream = UseStream<string>();
-        var verificationHandle = UseState<PromptwareRunHandle?>((PromptwareRunHandle?)null);
+        var verificationHandle = UseState<PromptwareRunHandle?>();
         var verificationHasOutput = UseState(false);
         var verificationRunning = UseState(false);
         var verificationStarted = UseState(false);
         var verificationCancelled = UseState(false);
-        var verificationError = UseState<string?>((string?)null);
+        var verificationError = UseState<string?>();
         var verificationRefreshToken = UseState(0);
         var session = new OnboardingVerificationSession(
             verificationStream,
@@ -84,6 +84,7 @@ public class OnboardingApp : ViewBase
         return Layout.TopCenter() |
                (Layout.Vertical().Margin(0, 20).Width(150)
                 | header
+                | new Spacer().Height(Size.Units(2))
                 | new Stepper(OnSelect, stepperIndex.Value, steps).Width(Size.Full()).Disabled(isStepLoading.Value || verificationRunning.Value)
                 | new Spacer().Height(Size.Units(2))
                 | GetStepViews(stepperIndex,
@@ -94,11 +95,7 @@ public class OnboardingApp : ViewBase
         ValueTask OnSelect(Event<Stepper, int> e)
         {
             if (isStepLoading.Value || verificationRunning.Value) return ValueTask.CompletedTask;
-            if (e.Value < stepperIndex.Value)
-            {
-                stepperIndex.Set(e.Value);
-            }
-            else if (stepperIndex.Value != 3)
+            if (e.Value < stepperIndex.Value || stepperIndex.Value != 3)
             {
                 stepperIndex.Set(e.Value);
             }

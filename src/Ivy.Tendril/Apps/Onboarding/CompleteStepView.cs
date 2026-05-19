@@ -199,7 +199,7 @@ public class CompleteStepView(
         }
 
         return Layout.Vertical().Gap(4).Margin(0, 0, 0, 20)
-               | Text.H2(headerText)
+               | Text.H3(headerText)
                | Text.Muted(subText)
                | (error != null ? Text.Danger(error) : null!)
                | (running
