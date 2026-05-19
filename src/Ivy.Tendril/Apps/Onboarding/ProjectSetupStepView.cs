@@ -195,7 +195,7 @@ public class ProjectSetupStepView(
 
             await StartVerificationSessionAsync(config, setupService, runner, name);
 
-            await Task.Delay(250, progressCts.Token);
+            await Task.Delay(250); // no token — progressCts is already cancelled
 
             progressValue.Set(null);
             progressMessage.Set(null);
