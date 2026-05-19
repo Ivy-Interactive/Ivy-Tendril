@@ -136,6 +136,7 @@ public class Program
 
             var window = new DesktopWindow(server)
                 .Title("Ivy Tendril")
+                .AppId("Ivy Tendril")
                 .Size(1400, 900)
                 .UseDpiScaling(false)
                 .Icon(typeof(Program), iconResource)
@@ -149,6 +150,22 @@ public class Program
                             UpdateBadge(w, countsService.Current.ActiveJobs);
                             countsService.CountsChanged += () =>
                                 UpdateBadge(w, countsService.Current.ActiveJobs);
+                        }
+
+                        var jobService = sp.GetService<IJobService>();
+                        var configService = sp.GetService<IConfigService>();
+                        if (jobService != null)
+                        {
+                            jobService.NotificationReady += notification =>
+                            {
+                                if (configService?.Settings.DesktopNotifications != false)
+                                {
+                                    DesktopWindow.ShowNotification(
+                                        notification.Title,
+                                        notification.Message,
+                                        appId: "Ivy Tendril");
+                                }
+                            };
                         }
                     }
                 });

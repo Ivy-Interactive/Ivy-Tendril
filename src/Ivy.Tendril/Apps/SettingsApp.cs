@@ -10,6 +10,7 @@ namespace Ivy.Tendril.Apps;
 public class SettingsApp : ViewBase
 {
     private const string TagGeneral = "general";
+    private const string TagNotifications = "notifications";
     private const string TagSecurity = "security";
     private const string TagLevels = "levels";
     private const string TagVerifications = "verifications";
@@ -36,6 +37,7 @@ public class SettingsApp : ViewBase
                 .Expanded()
                 .Children(
                     MenuItem.Default("General", TagGeneral).Icon(Icons.Settings),
+                    MenuItem.Default("Notifications", TagNotifications).Icon(Icons.Bell),
                     MenuItem.Default("Security", TagSecurity).Icon(Icons.Lock),
                     MenuItem.Default("Levels", TagLevels).Icon(Icons.ListOrdered),
                     MenuItem.Default("Verifications", TagVerifications).Icon(Icons.CircleCheck),
@@ -65,6 +67,7 @@ public class SettingsApp : ViewBase
         object content = selected.Value switch
         {
             TagGeneral => new GeneralSetupView(),
+            TagNotifications => new NotificationsSetupView(),
             TagSecurity => new SecuritySetupView(),
             TagLevels => new LevelsSetupView(),
             TagVerifications => new VerificationsSetupView(),
