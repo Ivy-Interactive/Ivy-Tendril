@@ -31,9 +31,6 @@ public static class TendrilServer
         server.Services.AddSingleton<IExceptionHandler>(sp =>
             new LoggingExceptionHandler(sp.GetRequiredService<ILogger<LoggingExceptionHandler>>()));
 
-        // Register VerbosityService before other services
-        server.Services.AddSingleton<IVerbosityService, VerbosityService>();
-
         var configService = new ConfigService(Microsoft.Extensions.Logging.Abstractions.NullLogger<ConfigService>.Instance);
         server.Services.AddSingleton<IConfigService>(configService);
         server.Services.AddSingleton<ConfigService>(configService);
@@ -186,13 +183,9 @@ public static class TendrilServer
         // We set levels via configuration (not SetMinimumLevel) because the Ivy framework
         // calls SetMinimumLevel after UseWebApplicationBuilder mods, which would override ours.
         // Configuration-based rules take precedence over SetMinimumLevel.
-        var verbosityService = new VerbosityService();
-        var logLevel = verbosityService.Level switch
-        {
-            VerbosityLevel.Verbose => "Debug",
-            VerbosityLevel.Quiet => "Warning",
-            _ => "Error"
-        };
+        var logLevel = Environment.GetEnvironmentVariable("TENDRIL_VERBOSE") == "1" ? "Debug"
+            : Environment.GetEnvironmentVariable("TENDRIL_QUIET") == "1" ? "Warning"
+            : "Error";
         server.UseWebApplicationBuilder(builder =>
         {
             builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>

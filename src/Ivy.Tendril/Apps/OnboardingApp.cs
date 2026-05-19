@@ -16,8 +16,8 @@ public class OnboardingApp : ViewBase
         return
         [
             new("1", selectedIndex > 0 ? Icons.Check : null, "Coding Agent"),
-            new("2", selectedIndex > 1 ? Icons.Check : null, "Data Location"),
-            new("3", selectedIndex > 2 ? Icons.Check : null, "Your first project"),
+            new("2", selectedIndex > 1 ? Icons.Check : null, "Data Storage"),
+            new("3", selectedIndex > 2 ? Icons.Check : null, "Your First Project"),
             new("4", selectedIndex > 3 ? Icons.Check : null, "Complete")
         ];
     }
