@@ -151,4 +151,4 @@ The agent worked in an isolated worktree, ran your verification suite, and the r
 - Learn more about [Plans](../02_Concepts/01_Plans.md) and plan states
 - Explore [Promptwares](../02_Concepts/02_Promptwares.md) to customize agent behavior
 - Configure [Projects](../03_Configuration/02_Projects.md) with per-repo verification rules
-- See the full [CLI reference](../07_Advanced/01_CLI.md) for power-user workflows
+- See the full [CLI reference](../07_Advanced/01_CLI/_Index.md) for power-user workflows

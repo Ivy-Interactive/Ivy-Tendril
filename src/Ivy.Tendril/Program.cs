@@ -178,7 +178,7 @@ public class Program
             "doctor", "db-version", "db-migrate", "db-reset",
             "update-promptwares", "job", "plan", "promptware",
             "trash", "verification", "project",
-            "version", "--version", "report-bug"
+            "version", "--version", "report-bug", "reset"
         };
         return cliCommands.Contains(firstArg);
     }
