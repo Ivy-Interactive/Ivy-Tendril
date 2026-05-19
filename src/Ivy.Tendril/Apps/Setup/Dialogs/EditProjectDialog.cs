@@ -258,7 +258,7 @@ public class EditProjectDialog(
                            });
                         })
                     )
-                ).Variant(TabsVariant.Content).Width(Size.Full()).Height(Size.Rem(28))
+                ).Variant(TabsVariant.Content).Width(Size.Full())
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() => _editIndex.Set(-1)),

@@ -141,8 +141,8 @@ public class ProjectRepoPickerView(
             listLayout |= new Box(row).BorderStyle(BorderStyle.None).Background(Colors.Muted).Padding(4, 2, 2, 2).Width(Size.Full());
         }
 
-        return Layout.Vertical().Gap(4).Width(Size.Full())
-               | Text.Muted("Add repositories to this project (optional).")
+        return Layout.Vertical().Width(Size.Full())
+               | Text.Block("Add repositories to this project (optional).")
                | (addingError.Value != null ? Text.Danger(addingError.Value) : null!)
                | pickerControls
                | addButton
