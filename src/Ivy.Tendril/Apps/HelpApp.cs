@@ -1,11 +1,11 @@
 using System.Net.Http.Json;
-using System.Text.RegularExpressions;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps;
 
 [App(title: "Help", icon: Icons.CircleQuestionMark, group: ["Apps"], order: Constants.Help)]
-public partial class HelpApp : ViewBase
+public class HelpApp : ViewBase
 {
     public override object Build()
     {
@@ -46,7 +46,7 @@ public partial class HelpApp : ViewBase
                          | email.ToTextInput("you@example.com")
                          | new Button("Subscribe")
                              .Primary()
-                             .Disabled(!IsValidEmail(email.Value))
+                             .Disabled(!InputSanitizer.IsValidEmail(email.Value))
                              .Loading(isLoading.Value)
                              .OnClick(Subscribe)))
                   | (error.Value != null ? Text.Danger(error.Value) : null)
@@ -54,7 +54,7 @@ public partial class HelpApp : ViewBase
 
         async ValueTask Subscribe(Event<Button> e)
         {
-            if (!IsValidEmail(email.Value))
+            if (!InputSanitizer.IsValidEmail(email.Value))
             {
                 error.Value = "Please enter a valid email address.";
                 return;
@@ -83,12 +83,7 @@ public partial class HelpApp : ViewBase
             }
         }
 
-        bool IsValidEmail(string emailAddress) =>
-            !string.IsNullOrWhiteSpace(emailAddress) && EmailRegex().IsMatch(emailAddress);
     }
-
-    [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.IgnoreCase | RegexOptions.Compiled, "en-US")]
-    private static partial Regex EmailRegex();
 }
 
 

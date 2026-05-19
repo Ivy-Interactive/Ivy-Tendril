@@ -1,5 +1,4 @@
-using System.Diagnostics;
-using System.Text.RegularExpressions;
+using Ivy.Tendril.Apps.Onboarding.Models;
 using Ivy.Tendril.Apps.Setup.Dialogs;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
@@ -42,7 +41,7 @@ public class ProjectSetupStepView(
         UseEffect(() =>
         {
             var raw = projectName.Value ?? "";
-            var sanitized = SanitizeProjectName(raw);
+            var sanitized = InputSanitizer.SanitizeProjectName(raw);
             if (sanitized != raw) projectName.Set(sanitized);
         }, projectName);
 
@@ -59,134 +58,19 @@ public class ProjectSetupStepView(
         var canContinue = selectedRepos.Value.Count > 0
                           && !string.IsNullOrWhiteSpace(projectName.Value);
 
-        object buttonArea;
-        if (!canContinue)
-        {
-            buttonArea = Layout.Horizontal().Width(Size.Full())
-                | new Button("Back").Outline().Icon(Icons.ArrowLeft)
-                    .OnClick(() => stepperIndex.Set(stepperIndex.Value - 1))
-                | new Spacer()
-                | new Button("Finish").Secondary()
-                    .OnClick(async () =>
-                    {
-                        await setupService.FinalizeOnboardingAsync();
-                        await setupService.StartBackgroundServicesAsync();
-                        clientProvider.ReloadPage();
-                    });
-        }
-        else
-        {
-            buttonArea = Layout.Horizontal().Width(Size.Full())
-                | new Button("Back").Outline().Icon(Icons.ArrowLeft)
-                    .OnClick(() => stepperIndex.Set(stepperIndex.Value - 1))
-                | new Spacer()
-                | new Button("Finish").Secondary()
-                    .OnClick(async () =>
-                    {
-                        var name = SanitizeProjectName(projectName.Value);
-                        if (string.IsNullOrWhiteSpace(name)) return;
-
-                        var existingProject = config.Settings.Projects
-                            .FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-
-                        if (existingProject == null)
-                        {
-                            error.Set(null);
-                            isCloning.Set(true);
-                            isStepLoading.Set(true);
-
-                            var refs = await ResolveReposAsync(config, progressMessage, error, isCloning);
-                            if (refs == null) return;
-
-                            var project = new ProjectConfig
-                            {
-                                Name = name,
-                                Color = "Green",
-                                Repos = refs,
-                                Context = "",
-                                Verifications = [],
-                                ReviewActions = new List<ReviewActionConfig>(reviewActions.Value)
-                            };
-
-                            config.SetPendingProject(project);
-                            config.SetPendingVerificationDefinitions(new List<VerificationConfig>());
-                        }
-
-                        await setupService.FinalizeOnboardingAsync();
-                        await setupService.StartBackgroundServicesAsync();
-                        clientProvider.ReloadPage();
-                    });
-        }
+        var buttonArea = Layout.Horizontal().Width(Size.Full())
+            | new Button("Back").Outline().Icon(Icons.ArrowLeft)
+                .OnClick(() => stepperIndex.Set(stepperIndex.Value - 1))
+            | new Spacer()
+            | new Button("Finish").Secondary()
+                .OnClick(() => _ = FinishAsync(config, setupService, clientProvider, reviewActions, error, isCloning, progressMessage));
 
         var generateBlock = canContinue
             ? (object)(Layout.Vertical().Gap(2)
                 | Text.Bold("Generate Verifications")
                 | Text.Muted("Automatically detect your project's tech stack and configure verification steps (build, test, lint, etc.) that run after each plan execution.")
                 | new Button("Generate Verifications").Primary().Large().Icon(Icons.Sparkles)
-                    .OnClick(async () =>
-                    {
-                        var name = SanitizeProjectName(projectName.Value);
-                        if (string.IsNullOrWhiteSpace(name))
-                        {
-                            error.Set("Please enter a valid project name.");
-                            return;
-                        }
-
-                        error.Set(null);
-                        isCloning.Set(true);
-                        isStepLoading.Set(true);
-
-                        var progressCts = new CancellationTokenSource();
-                        _ = DriveProgressAsync(progressValue, progressCts.Token);
-
-                        try
-                        {
-                            var refs = await ResolveReposAsync(config, progressMessage, error, isCloning);
-                            if (refs == null)
-                            {
-                                await progressCts.CancelAsync();
-                                progressValue.Set(null);
-                                progressMessage.Set(null);
-                                return;
-                            }
-
-                            var project = new ProjectConfig
-                            {
-                                Name = name,
-                                Color = "Green",
-                                Repos = refs,
-                                Context = "",
-                                Verifications = [],
-                                ReviewActions = new List<ReviewActionConfig>(reviewActions.Value)
-                            };
-
-                            config.SetPendingProject(project);
-                            config.SetPendingVerificationDefinitions([]);
-
-                            await progressCts.CancelAsync();
-                            progressValue.Set(100);
-                            progressMessage.Set("Done");
-
-                            await StartVerificationSessionAsync(config, setupService, runner, name);
-
-                            await Task.Delay(250, progressCts.Token);
-
-                            progressValue.Set(null);
-                            progressMessage.Set(null);
-                            isCloning.Set(false);
-                            isStepLoading.Set(false);
-                            stepperIndex.Set(stepperIndex.Value + 1);
-                        }
-                        catch (Exception ex)
-                        {
-                            await progressCts.CancelAsync();
-                            progressValue.Set(null);
-                            progressMessage.Set(null);
-                            error.Set($"Failed to set up project: {ex.Message}");
-                            isCloning.Set(false);
-                            isStepLoading.Set(false);
-                        }
-                    }))
+                    .OnClick(() => _ = GenerateVerificationsAsync(config, setupService, runner, reviewActions, error, isCloning, progressMessage, progressValue)))
             : null!;
 
         return Layout.Vertical().Gap(4).Margin(0, 0, 0, 20)
@@ -208,6 +92,128 @@ public class ProjectSetupStepView(
                | buttonArea;
     }
 
+    private async Task FinishAsync(
+        IConfigService config,
+        IOnboardingSetupService setupService,
+        IClientProvider clientProvider,
+        IState<List<ReviewActionConfig>> reviewActions,
+        IState<string?> error,
+        IState<bool> isCloning,
+        IState<string?> progressMessage)
+    {
+        var name = InputSanitizer.SanitizeProjectName(projectName.Value);
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            await setupService.FinalizeOnboardingAsync();
+            await setupService.StartBackgroundServicesAsync();
+            clientProvider.ReloadPage();
+            return;
+        }
+
+        var existingProject = config.Settings.Projects
+            .FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+        if (existingProject == null)
+        {
+            error.Set(null);
+            isCloning.Set(true);
+            isStepLoading.Set(true);
+
+            var refs = await ResolveReposAsync(config, progressMessage, error, isCloning);
+            if (refs == null) return;
+
+            var project = new ProjectConfig
+            {
+                Name = name,
+                Color = "Green",
+                Repos = refs,
+                Context = "",
+                Verifications = [],
+                ReviewActions = new List<ReviewActionConfig>(reviewActions.Value)
+            };
+
+            config.SetPendingProject(project);
+            config.SetPendingVerificationDefinitions([]);
+        }
+
+        await setupService.FinalizeOnboardingAsync();
+        await setupService.StartBackgroundServicesAsync();
+        clientProvider.ReloadPage();
+    }
+
+    private async Task GenerateVerificationsAsync(
+        IConfigService config,
+        IOnboardingSetupService setupService,
+        IPromptwareRunner runner,
+        IState<List<ReviewActionConfig>> reviewActions,
+        IState<string?> error,
+        IState<bool> isCloning,
+        IState<string?> progressMessage,
+        IState<int?> progressValue)
+    {
+        var name = InputSanitizer.SanitizeProjectName(projectName.Value);
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            error.Set("Please enter a valid project name.");
+            return;
+        }
+
+        error.Set(null);
+        isCloning.Set(true);
+        isStepLoading.Set(true);
+
+        var progressCts = new CancellationTokenSource();
+        _ = UxHelper.AnimateProgressAsync(progressValue, progressCts.Token);
+
+        try
+        {
+            var refs = await ResolveReposAsync(config, progressMessage, error, isCloning);
+            if (refs == null)
+            {
+                await progressCts.CancelAsync();
+                progressValue.Set(null);
+                progressMessage.Set(null);
+                return;
+            }
+
+            var project = new ProjectConfig
+            {
+                Name = name,
+                Color = "Green",
+                Repos = refs,
+                Context = "",
+                Verifications = [],
+                ReviewActions = new List<ReviewActionConfig>(reviewActions.Value)
+            };
+
+            config.SetPendingProject(project);
+            config.SetPendingVerificationDefinitions([]);
+
+            await progressCts.CancelAsync();
+            progressValue.Set(100);
+            progressMessage.Set("Done");
+
+            await StartVerificationSessionAsync(config, setupService, runner, name);
+
+            await Task.Delay(250, progressCts.Token);
+
+            progressValue.Set(null);
+            progressMessage.Set(null);
+            isCloning.Set(false);
+            isStepLoading.Set(false);
+            stepperIndex.Set(stepperIndex.Value + 1);
+        }
+        catch (Exception ex)
+        {
+            await progressCts.CancelAsync();
+            progressValue.Set(null);
+            progressMessage.Set(null);
+            error.Set($"Failed to set up project: {ex.Message}");
+            isCloning.Set(false);
+            isStepLoading.Set(false);
+        }
+    }
+
     private async Task StartVerificationSessionAsync(
         IConfigService config,
         IOnboardingSetupService setupService,
@@ -224,7 +230,7 @@ public class ProjectSetupStepView(
         var handle = runner.Run(new PromptwareRunOptions
         {
             Promptware = "UpdateProject",
-            Values = new()
+            Values = new Dictionary<string, string>
             {
                 ["ProjectName"] = projectName,
                 ["Instructions"] = "Setup verifications"
@@ -254,7 +260,7 @@ public class ProjectSetupStepView(
                     config.ReloadSettings();
                     session.RefreshToken.Set(session.RefreshToken.Value + 1);
                 }
-                session.Handle.Set((PromptwareRunHandle?)null);
+                session.Handle.Set(null);
                 session.Running.Set(false);
             }
         });
@@ -296,7 +302,7 @@ public class ProjectSetupStepView(
                 var repoName = RepoPathValidator.ExtractRepoName(repo.Path) ?? Guid.NewGuid().ToString();
                 progressMessage.Set($"Fetching {repoName} ({i}/{total})...");
                 var destPath = Path.Combine(reposDir, repoName);
-                var success = await CloneRepositoryAsync(repo.Path, destPath);
+                var success = await ProcessCheckHelper.CloneRepositoryAsync(repo.Path, destPath);
                 if (!success)
                 {
                     error.Set($"Failed to fetch repository: {repo.Path}.");
@@ -311,65 +317,4 @@ public class ProjectSetupStepView(
         return refs;
     }
 
-    private static async Task DriveProgressAsync(IState<int?> value, CancellationToken ct)
-    {
-        value.Set(0);
-        double current = 0;
-        const double ceiling = 92.0;
-        while (!ct.IsCancellationRequested)
-        {
-            var remaining = ceiling - current;
-            var step = remaining * 0.06 + 0.4;
-            current = Math.Min(ceiling - 0.5, current + step);
-            value.Set((int)Math.Round(current));
-            try { await Task.Delay(150, ct); }
-            catch (OperationCanceledException) { return; }
-        }
-    }
-
-    private static string SanitizeProjectName(string input)
-    {
-        if (string.IsNullOrEmpty(input)) return "";
-        return Regex.Replace(input, @"[^A-Za-z0-9._-]", "");
-    }
-
-    private static async Task<bool> CloneRepositoryAsync(string url, string destinationPath)
-    {
-        try
-        {
-            var shell = "pwsh";
-
-            if (url.Contains('\'') || url.Contains('"')) return false;
-
-            string cmd;
-            if (Directory.Exists(destinationPath))
-            {
-                cmd = $"git -C '{destinationPath}' pull";
-            }
-            else
-            {
-                cmd = $"git clone '{url}' '{destinationPath}'";
-            }
-
-            var psi = new ProcessStartInfo
-            {
-                FileName = shell,
-                Arguments = $"-NoProfile -Command \"{cmd}\"",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using var process = Process.Start(psi);
-            if (process == null) return false;
-
-            await process.WaitForExitAsync();
-            return process.ExitCode == 0;
-        }
-        catch
-        {
-            return false;
-        }
-    }
 }

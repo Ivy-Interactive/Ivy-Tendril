@@ -1,6 +1,6 @@
 using Ivy.Tendril.Services;
 
-namespace Ivy.Tendril.Apps.Onboarding;
+namespace Ivy.Tendril.Apps.Onboarding.Models;
 
 public class OnboardingVerificationSession(
     IWriteStream<string> stream,
@@ -29,7 +29,7 @@ public class OnboardingVerificationSession(
         Running.Set(false);
         Started.Set(false);
         Cancelled.Set(false);
-        Error.Set((string?)null);
+        Error.Set(null);
     }
 }
 

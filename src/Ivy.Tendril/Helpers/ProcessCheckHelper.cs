@@ -80,4 +80,36 @@ public static class ProcessCheckHelper
             }
         });
     }
+
+    public static async Task<bool> CloneRepositoryAsync(string url, string destinationPath)
+    {
+        try
+        {
+            if (url.Contains('\'') || url.Contains('"')) return false;
+
+            var cmd = Directory.Exists(destinationPath)
+                ? $"git -C '{destinationPath}' pull"
+                : $"git clone '{url}' '{destinationPath}'";
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = "pwsh",
+                Arguments = $"-NoProfile -Command \"{cmd}\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(psi);
+            if (process is null) return false;
+
+            await process.WaitForExitAsync();
+            return process.ExitCode == 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }

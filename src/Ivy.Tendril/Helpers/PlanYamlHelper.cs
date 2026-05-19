@@ -5,19 +5,22 @@ namespace Ivy.Tendril.Helpers;
 
 internal static class PlanYamlHelper
 {
-    internal static PlanYaml? ReadPlanYaml(string planFolder)
+    internal static PlanYaml? ParsePlanYaml(string yamlRaw)
     {
-        var yaml = ReadPlanYamlRaw(planFolder);
-        if (yaml == null) return null;
-
         try
         {
-            return YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml);
+            return YamlHelper.Deserializer.Deserialize<PlanYaml>(yamlRaw);
         }
         catch
         {
             return null;
         }
+    }
+
+    internal static PlanYaml? ReadPlanYaml(string planFolder)
+    {
+        var yaml = ReadPlanYamlRaw(planFolder);
+        return yaml == null ? null : ParsePlanYaml(yaml);
     }
 
     internal static string? ReadPlanYamlRaw(string planFolder)
