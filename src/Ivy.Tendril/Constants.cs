@@ -1,3 +1,7 @@
+using Ivy.Tendril.Apps.Jobs;
+using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Models;
+
 namespace Ivy.Tendril;
 
 /// <summary>
@@ -22,6 +26,51 @@ public static class Constants
     public const string DiscordUrl = "https://discord.gg/FHgxkDga3y";
     public const string IssuesUrl = "https://github.com/Ivy-Interactive/Ivy-Tendril/issues/new";
     public const string NewsBaseUrl = "https://cdn.ivy.app/tendril/";
+
+    public static readonly Dictionary<PlanStatus, BadgeVariant> PlanStatusBadgeVariants = new()
+    {
+        [PlanStatus.Building] = BadgeVariant.Info,
+        [PlanStatus.Updating] = BadgeVariant.Info,
+        [PlanStatus.Executing] = BadgeVariant.Info,
+        [PlanStatus.ReadyForReview] = BadgeVariant.Success,
+        [PlanStatus.Failed] = BadgeVariant.Destructive,
+        [PlanStatus.Draft] = BadgeVariant.Outline,
+        [PlanStatus.Completed] = BadgeVariant.Success,
+        [PlanStatus.Skipped] = BadgeVariant.Outline,
+        [PlanStatus.Icebox] = BadgeVariant.Outline,
+        [PlanStatus.Blocked] = BadgeVariant.Warning
+    };
+
+    public static readonly Dictionary<string, BadgeVariant> VerificationStatusBadgeVariants = new()
+    {
+        ["Pass"] = BadgeVariant.Success,
+        ["Fail"] = BadgeVariant.Destructive,
+        ["Pending"] = BadgeVariant.Outline,
+        ["Skipped"] = BadgeVariant.Outline
+    };
+
+    public static readonly Dictionary<JobStatus, Colors> JobStatusColors = new()
+    {
+        [JobStatus.Running] = Colors.Blue,
+        [JobStatus.Completed] = Colors.Green,
+        [JobStatus.Failed] = Colors.Red,
+        [JobStatus.Timeout] = Colors.Red,
+        [JobStatus.Queued] = Colors.Amber,
+        [JobStatus.Pending] = Colors.Amber,
+        [JobStatus.Stopped] = Colors.Gray,
+        [JobStatus.Blocked] = Colors.Orange
+    };
+
+    public static readonly Dictionary<string, Colors> JobTypeColors = new()
+    {
+        [JobTypes.CreatePlan] = Colors.Purple,
+        [JobTypes.ExecutePlan] = Colors.Blue,
+        [JobTypes.UpdatePlan] = Colors.Cyan,
+        [JobTypes.ExpandPlan] = Colors.Teal,
+        [JobTypes.SplitPlan] = Colors.Indigo,
+        [JobTypes.CreatePr] = Colors.Green,
+        [JobTypes.CreateIssue] = Colors.Rose
+    };
 
     /// <summary>
     ///     Job type identifiers for the Tendril promptware execution system.
