@@ -32,7 +32,6 @@ public class SidebarView(
                 new Button()
                     .Icon(filtersOpen.Value ? Icons.ChevronUp : Icons.ChevronDown)
                     .Ghost()
-                    .Small()
                     .OnClick(() => filtersOpen.Set(!filtersOpen.Value))
             );
 
