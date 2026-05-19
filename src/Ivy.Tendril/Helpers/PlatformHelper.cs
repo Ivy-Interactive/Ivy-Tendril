@@ -146,7 +146,7 @@ public static class PlatformHelper
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = "cmd.exe",
-                    Arguments = $"/c \"{editorCommand} \"{target}\"\"",
+                    Arguments = $"/c \"{editorCommand} \"{target}\" > NUL 2>&1\"",
                     UseShellExecute = false,
                     CreateNoWindow = true
                 });
@@ -155,12 +155,15 @@ public static class PlatformHelper
 
             // UseShellExecute = false prevents the OS from printing "The file X does not exist"
             // to the terminal before .NET gets a chance to catch the exception.
-            Process.Start(new ProcessStartInfo
+            var psi = new ProcessStartInfo
             {
                 FileName = editorCommand,
                 Arguments = $"\"{target}\"",
-                UseShellExecute = false
-            });
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            using var proc = Process.Start(psi);
             return true;
         }
         catch (Exception)
