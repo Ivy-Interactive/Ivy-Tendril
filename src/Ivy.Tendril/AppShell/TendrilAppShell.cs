@@ -416,7 +416,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
         var settingsMenuItems = new[]
         {
-            MenuItem.Default("Setup")
+            MenuItem.Default("Configuration")
                 .Tag("$setup")
                 .Icon(Icons.Construction)
                 .OnSelect(() => navigator.Navigate<SettingsApp>()),
