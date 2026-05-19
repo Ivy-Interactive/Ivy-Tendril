@@ -98,7 +98,7 @@ file class EditVerificationDialogContent(
             new DialogBody(
                 Layout.Vertical().Gap(4)
                 | editName.ToTextInput("Verification name...").WithField().Label("Name")
-                | editPrompt.ToTextareaInput("Verification prompt...").Rows(8).WithField().Label("Prompt")
+                | editPrompt.ToCodeInput("Verification prompt...").Language(Languages.Markdown).Height(Size.Units(60)).WithField().Label("Prompt")
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() => isOpen.Set(false)),

@@ -37,12 +37,12 @@ public class SettingsApp : ViewBase
                 .Expanded()
                 .Children(
                     MenuItem.Default("General", TagGeneral).Icon(Icons.Settings),
-                    MenuItem.Default("Notifications", TagNotifications).Icon(Icons.Bell),
-                    MenuItem.Default("Security", TagSecurity).Icon(Icons.Lock),
-                    MenuItem.Default("Levels", TagLevels).Icon(Icons.ListOrdered),
+                    MenuItem.Default("Projects", TagProjects).Icon(Icons.Folder),
                     MenuItem.Default("Verifications", TagVerifications).Icon(Icons.CircleCheck),
                     MenuItem.Default("Promptwares", TagPromptwares).Icon(Icons.Wand),
-                    MenuItem.Default("Projects", TagProjects).Icon(Icons.Folder),
+                    MenuItem.Default("Levels", TagLevels).Icon(Icons.ListOrdered),
+                    MenuItem.Default("Notifications", TagNotifications).Icon(Icons.Bell),
+                    MenuItem.Default("Security", TagSecurity).Icon(Icons.Lock),
                     MenuItem.Default("Advanced", TagAdvanced).Icon(Icons.Cog),
                     MenuItem.Default("Open config.yaml", TagOpenConfig).Icon(Icons.FileText)
                 )
