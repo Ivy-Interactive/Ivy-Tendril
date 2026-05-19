@@ -378,7 +378,7 @@ public class ContentView(
         INavigator nav,
         ReviewAppArgs? args)
     {
-        var content = Layout.Vertical().Height(Size.Full()).Gap(1);
+        var content = Layout.Vertical().Height(Size.Full()).Gap(0);
 
         if (selectedPlan is null)
         {
@@ -562,7 +562,7 @@ public class ContentView(
                     nav.Navigate<ReviewApp>(new ReviewAppArgs(selectedPlanState.Value.FolderName, actualTabNames[v]));
             }).SelectedIndex(actualSelectedTabIndex).Variant(TabsVariant.Content);
 
-            content |= (Layout.Vertical().Padding(2, 0).Height(Size.Full()) | tabs);
+            content |= (Layout.Vertical().Padding(2).Gap(0).Height(Size.Full()) | tabs);
         }
 
         content |= new VerificationReportSheet(openVerification, selectedPlan);
