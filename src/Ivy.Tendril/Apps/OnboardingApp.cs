@@ -24,6 +24,7 @@ public class OnboardingApp : ViewBase
 
     private static object GetStepViews(
         IState<int> stepperIndex,
+        IState<int> projectSubStep,
         IState<bool> commonChecksPassed,
         IState<bool> homeBootstrapped,
         IState<string?> completedAgentKey,
@@ -37,8 +38,14 @@ public class OnboardingApp : ViewBase
         {
             0 => new CodingAgentStepView(stepperIndex, commonChecksPassed, completedAgentKey, isStepLoading),
             1 => new TendrilHomeStepView(stepperIndex, tendrilHomePath, homeBootstrapped, isStepLoading),
-            2 => new ProjectSetupStepView(stepperIndex, selectedRepos, projectName, isStepLoading, session),
-            3 => new CompleteStepView(stepperIndex, selectedRepos, projectName, isStepLoading, session),
+            2 => projectSubStep.Value switch
+            {
+                0 => new ProjectInputStepView(stepperIndex, projectSubStep, selectedRepos, projectName, isStepLoading),
+                1 => new ProjectAgentStepView(projectSubStep, selectedRepos, projectName, isStepLoading, session),
+                2 => new ProjectCrudStepView(stepperIndex, projectSubStep, projectName, isStepLoading, session),
+                _ => throw new ArgumentOutOfRangeException()
+            },
+            3 => new CompleteStepView(stepperIndex, projectSubStep, isStepLoading),
             _ => throw new ArgumentOutOfRangeException()
         };
     }
@@ -46,6 +53,7 @@ public class OnboardingApp : ViewBase
     public override object Build()
     {
         var stepperIndex = UseState(0);
+        var projectSubStep = UseState(0);
         var commonChecksPassed = UseState(false);
         var homeBootstrapped = UseState(false);
         var completedAgentKey = UseState<string?>();
@@ -80,14 +88,14 @@ public class OnboardingApp : ViewBase
                      | new Image("/tendril/assets/Tendril.svg").Width(Size.Units(15)).Height(Size.Auto())
                      | Text.H2("Welcome to Ivy Tendril")
             ;
-        
+
         return Layout.TopCenter() |
                (Layout.Vertical().Margin(0, 20).Width(150)
                 | header
                 | new Spacer().Height(Size.Units(2))
                 | new Stepper(OnSelect, stepperIndex.Value, steps).Width(Size.Full()).Disabled(isStepLoading.Value || verificationRunning.Value)
                 | new Spacer().Height(Size.Units(2))
-                | GetStepViews(stepperIndex,
+                | GetStepViews(stepperIndex, projectSubStep,
                                commonChecksPassed, homeBootstrapped, completedAgentKey,
                                tendrilHomePath, selectedRepos, projectName, isStepLoading, session)
                );
@@ -97,6 +105,7 @@ public class OnboardingApp : ViewBase
             if (isStepLoading.Value || verificationRunning.Value) return ValueTask.CompletedTask;
             if (e.Value < stepperIndex.Value || stepperIndex.Value != 3)
             {
+                if (e.Value == 2) projectSubStep.Set(0);
                 stepperIndex.Set(e.Value);
             }
             return ValueTask.CompletedTask;

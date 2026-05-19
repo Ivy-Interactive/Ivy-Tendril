@@ -354,7 +354,7 @@ internal class ReviewActionsTableView(
         var actions = reviewActions.Value;
         if (actions.Count == 0) return null;
 
-        var rows = actions.Select((a, i) => new ReviewActionRow(a.Name, a.Condition, a.Command, i)).ToList();
+        var rows = actions.Select((a, i) => new ReviewActionRow(a.Name, i)).ToList();
 
         return new TableBuilder<ReviewActionRow>(rows)
             .Header(t => t.Index, "")
@@ -378,7 +378,7 @@ internal class ReviewActionsTableView(
             .Width(Size.Fit());
     }
 
-    private record ReviewActionRow(string Name, string Condition, string Command, int Index);
+    private record ReviewActionRow(string Name, int Index);
 }
 
 internal class EditReviewActionDialogContent(
