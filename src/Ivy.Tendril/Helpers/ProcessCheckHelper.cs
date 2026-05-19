@@ -24,8 +24,8 @@ public static class ProcessCheckHelper
             {
                 var proc = Process.Start(MakeStartInfo(fileName, arguments));
                 if (proc is null) return false;
-                proc.StandardOutput.ReadToEnd();
-                proc.StandardError.ReadToEnd();
+                _ = proc.StandardOutput.ReadToEndAsync();
+                _ = proc.StandardError.ReadToEndAsync();
                 proc.WaitForExitOrKill(timeoutMs);
                 return proc.ExitCode == 0;
             });
@@ -44,8 +44,8 @@ public static class ProcessCheckHelper
             {
                 var proc = Process.Start(MakeStartInfo(fileName, arguments));
                 if (proc is null) return HealthCheckStatus.CheckFailed;
-                proc.StandardOutput.ReadToEnd();
-                proc.StandardError.ReadToEnd();
+                _ = proc.StandardOutput.ReadToEndAsync();
+                _ = proc.StandardError.ReadToEndAsync();
                 var exited = proc.WaitForExitOrKill(timeoutMs);
                 if (!exited) return HealthCheckStatus.CheckFailed;
                 return proc.ExitCode == 0
