@@ -137,7 +137,20 @@ public class Program
                 .Title("Ivy Tendril")
                 .Size(1400, 900)
                 .UseDpiScaling(false)
-                .Icon(typeof(Program), iconResource);
+                .Icon(typeof(Program), iconResource)
+                .OnReady(w =>
+                {
+                    if (server.ServiceProvider is { } sp)
+                    {
+                        var countsService = sp.GetService<IPlanCountsService>();
+                        if (countsService != null)
+                        {
+                            UpdateBadge(w, countsService.Current.ActiveJobs);
+                            countsService.CountsChanged += () =>
+                                UpdateBadge(w, countsService.Current.ActiveJobs);
+                        }
+                    }
+                });
 
             return window.Run();
         }
@@ -484,5 +497,13 @@ public class Program
         {
             return "Memory stats unavailable";
         }
+    }
+
+    private static void UpdateBadge(DesktopWindow window, int activeJobs)
+    {
+        if (activeJobs > 0)
+            window.SetBadgeCount(activeJobs);
+        else
+            window.ClearBadge();
     }
 }
