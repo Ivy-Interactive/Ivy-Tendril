@@ -190,7 +190,7 @@ public class CodingAgentStepView(
                 await progressCts.CancelAsync();
                 progressValue.Set(100);
                 progressMessage.Set("Done");
-                await Task.Delay(250, progressCts.Token);
+                await Task.Delay(250); // no token — progressCts is already cancelled
 
                 progressValue.Set(null);
                 progressMessage.Set(null);
