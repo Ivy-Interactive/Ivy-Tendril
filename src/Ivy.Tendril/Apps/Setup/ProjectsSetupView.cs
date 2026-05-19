@@ -12,7 +12,26 @@ public class ProjectsSetupView : ViewBase
         var client = UseService<IClientProvider>();
         var refreshToken = UseRefreshToken();
         var editIndex = UseState<int?>(-1);
+        var isAddingProject = UseState(false);
         var (alertView, showAlert) = UseAlert();
+
+        object? addDialog = isAddingProject.Value
+            ? new Dialog(
+                _ => isAddingProject.Set(false),
+                new DialogHeader("Add Project"),
+                new DialogBody(
+                    new SharedProjectSetupWizard(
+                        onCancel: () => isAddingProject.Set(false),
+                        onFinish: () =>
+                        {
+                            isAddingProject.Set(false);
+                            refreshToken.Refresh();
+                            return Task.CompletedTask;
+                        }
+                    )
+                )
+            ).Width(Size.Rem(50))
+            : null;
 
         var projects = config.Settings.Projects;
         var allVerifications = config.Settings.Verifications.Select(v => v.Name).ToList();
@@ -74,9 +93,10 @@ public class ProjectsSetupView : ViewBase
                | table
                | new Button("Add Project").Icon(Icons.Plus).Outline().OnClick(() =>
                {
-                   editIndex.Set(null);
+                   isAddingProject.Set(true);
                })
                | new EditProjectDialog(editIndex, projects, allVerifications, config, client, refreshToken)
+               | addDialog
                | alertView;
     }
 

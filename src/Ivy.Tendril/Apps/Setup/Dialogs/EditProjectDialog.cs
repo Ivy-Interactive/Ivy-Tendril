@@ -72,9 +72,7 @@ public class EditProjectDialog(
             }
         }, _editIndex);
 
-        if (_editIndex.Value == -1) return null;
-
-        var isNew = _editIndex.Value == null;
+        if (_editIndex.Value == -1 || _editIndex.Value == null) return null;
 
         Func<RepoRef, Task<RepoRef?>> cloneRemoteOnAdd = async draft =>
         {
@@ -142,7 +140,7 @@ public class EditProjectDialog(
 
         var mainDialog = new Dialog(
             _ => _editIndex.Set(-1),
-            new DialogHeader(isNew ? "Add Project" : $"Edit Project: {editName.Value}"),
+            new DialogHeader($"Edit Project: {editName.Value}"),
             new DialogBody(
                 Layout.Tabs(
                     new Tab("Basic",
@@ -176,21 +174,18 @@ public class EditProjectDialog(
                            showGenerateDialog.Set(true);
                            isGenerating.Set(true);
 
-                           // Save current project state to config so UpdateProject can find it
-                           var project = isNew ? new ProjectConfig() : _projects[_editIndex.Value!.Value];
+                           var project = _projects[_editIndex.Value!.Value];
                            project.Name = editName.Value;
                            project.Color = editColor.Value?.ToString() ?? "";
                            project.Context = editContext.Value;
                            project.Repos = new List<RepoRef>(editRepos.Value);
                            project.Verifications = new List<ProjectVerificationRef>(editVerifications.Value);
-                           if (isNew) _projects.Add(project);
                            try
                            {
                                _config.SaveSettings();
                            }
                            catch
                            {
-                               if (isNew) _projects.Remove(project);
                                isGenerating.Set(false);
                                showGenerateDialog.Set(false);
                                _client.Toast("Failed to save project before generating verifications", "Error");
@@ -262,10 +257,10 @@ public class EditProjectDialog(
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() => _editIndex.Set(-1)),
-                new Button(isNew ? "Add" : "Save").Primary().OnClick(() =>
+                new Button("Save").Primary().OnClick(() =>
                 {
                     if (string.IsNullOrWhiteSpace(editName.Value)) return;
-                    var project = isNew ? new ProjectConfig() : _projects[_editIndex.Value!.Value];
+                    var project = _projects[_editIndex.Value!.Value];
                     var oldName = project.Name;
                     var oldColor = project.Color;
                     var oldContext = project.Context;
@@ -278,7 +273,6 @@ public class EditProjectDialog(
                     project.Repos = new List<RepoRef>(editRepos.Value);
                     project.Verifications = new List<ProjectVerificationRef>(editVerifications.Value);
                     project.ReviewActions = new List<ReviewActionConfig>(editReviewActions.Value);
-                    if (isNew) _projects.Add(project);
                     try
                     {
                         _config.SaveSettings();
@@ -288,17 +282,12 @@ public class EditProjectDialog(
                     }
                     catch (Exception ex)
                     {
-                        if (isNew)
-                            _projects.Remove(project);
-                        else
-                        {
-                            project.Name = oldName;
-                            project.Color = oldColor;
-                            project.Context = oldContext;
-                            project.Repos = oldRepos;
-                            project.Verifications = oldVerifications;
-                            project.ReviewActions = oldReviewActions;
-                        }
+                        project.Name = oldName;
+                        project.Color = oldColor;
+                        project.Context = oldContext;
+                        project.Repos = oldRepos;
+                        project.Verifications = oldVerifications;
+                        project.ReviewActions = oldReviewActions;
                         _refreshToken.Refresh();
                         _client.Toast($"Failed to save project: {ex.Message}", "Error");
                     }

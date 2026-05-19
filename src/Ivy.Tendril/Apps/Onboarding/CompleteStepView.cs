@@ -11,7 +11,9 @@ public class CompleteStepView(
     IState<List<RepoRef>> selectedRepos,
     IState<string> projectName,
     IState<bool> isStepLoading,
-    OnboardingVerificationSession session) : ViewBase
+    OnboardingVerificationSession session,
+    bool isOnboarding = true,
+    Func<Task>? onFinish = null) : ViewBase
 {
     public override object Build()
     {
@@ -34,12 +36,26 @@ public class CompleteStepView(
 
             try
             {
-                await setupService.CommitPendingProjectAsync();
+                List<string> projectsNeedingVerifications;
+                
+                if (isOnboarding)
+                {
+                    await setupService.CommitPendingProjectAsync();
 
-                var projectsNeedingVerifications = config.Settings.Projects
-                    .Where(p => p.Verifications == null || p.Verifications.Count == 0)
-                    .Select(p => p.Name)
-                    .ToList();
+                    projectsNeedingVerifications = config.Settings.Projects
+                        .Where(p => p.Verifications == null || p.Verifications.Count == 0)
+                        .Select(p => p.Name)
+                        .ToList();
+                }
+                else
+                {
+                    projectsNeedingVerifications = new List<string>();
+                    var proj = config.Settings.Projects.FirstOrDefault(p => p.Name.Equals(projectName.Value, StringComparison.OrdinalIgnoreCase));
+                    if (proj != null && (proj.Verifications == null || proj.Verifications.Count == 0))
+                    {
+                        projectsNeedingVerifications.Add(proj.Name);
+                    }
+                }
 
                 if (projectsNeedingVerifications.Count == 0 && config.Settings.Projects.Count == 0)
                 {
@@ -111,9 +127,16 @@ public class CompleteStepView(
             session.Error.Set(null);
             try
             {
-                await setupService.FinalizeOnboardingAsync();
-                await setupService.StartBackgroundServicesAsync();
-                client.ReloadPage();
+                if (isOnboarding)
+                {
+                    await setupService.FinalizeOnboardingAsync();
+                    await setupService.StartBackgroundServicesAsync();
+                    client.ReloadPage();
+                }
+                else if (onFinish != null)
+                {
+                    await onFinish();
+                }
             }
             catch (Exception ex)
             {
@@ -165,7 +188,9 @@ public class CompleteStepView(
 
         var subText = running
             ? "Tendril is detecting your tech stack and configuring verifications."
-            : $"{totalVerifications} {(totalVerifications == 1 ? "verification" : "verifications")} configured across {projects.Count} {(projects.Count == 1 ? "project" : "projects")}. Click Finish to start using Tendril, or go back to add another project.";
+            : isOnboarding
+                ? $"{totalVerifications} {(totalVerifications == 1 ? "verification" : "verifications")} configured across {projects.Count} {(projects.Count == 1 ? "project" : "projects")}. Click Finish to start using Tendril, or go back to add another project."
+                : $"{totalVerifications} {(totalVerifications == 1 ? "verification" : "verifications")} configured. Click Finish to complete.";
 
         async ValueTask Subscribe(Event<Button> e)
         {
@@ -220,18 +245,20 @@ public class CompleteStepView(
                | (!running
                    ? (object)(Layout.Vertical().Gap(2)
                      | new Separator()
-                     | Text.H3("Newsletter")
-                     | Text.Muted("Be the first to know when we have a new release!")
-                     | (newsletterSubscribed.Value
-                         ? Text.Success("Subscribed!")
-                         : (Layout.Horizontal()
-                            | newsletterEmail.ToTextInput("you@example.com")
-                            | new Button("Subscribe")
-                                .Primary()
-                                .Disabled(!InputSanitizer.IsValidEmail(newsletterEmail.Value))
-                                .Loading(newsletterLoading.Value)
-                                .OnClick(Subscribe)))
-                     | (newsletterError.Value != null ? Text.Danger(newsletterError.Value) : null!))
+                     | (isOnboarding ? (object)(Layout.Vertical().Gap(2)
+                         | Text.H3("Newsletter")
+                         | Text.Muted("Be the first to know when we have a new release!")
+                         | (newsletterSubscribed.Value
+                             ? Text.Success("Subscribed!")
+                             : (Layout.Horizontal()
+                                | newsletterEmail.ToTextInput("you@example.com")
+                                | new Button("Subscribe")
+                                    .Primary()
+                                    .Disabled(!InputSanitizer.IsValidEmail(newsletterEmail.Value))
+                                    .Loading(newsletterLoading.Value)
+                                    .OnClick(Subscribe)))
+                         | (newsletterError.Value != null ? Text.Danger(newsletterError.Value) : null!))
+                       : null!))
                    : null!)
                | (Layout.Horizontal().Width(Size.Full())
                   | new Button("Back").Outline().Icon(Icons.ArrowLeft)

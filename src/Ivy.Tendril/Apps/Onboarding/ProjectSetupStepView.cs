@@ -11,7 +11,10 @@ public class ProjectSetupStepView(
     IState<List<RepoRef>> selectedRepos,
     IState<string> projectName,
     IState<bool> isStepLoading,
-    OnboardingVerificationSession session) : ViewBase
+    OnboardingVerificationSession session,
+    bool isOnboarding = true,
+    Action? onCancel = null,
+    Func<Task>? onFinish = null) : ViewBase
 {
     public override object Build()
     {
@@ -60,7 +63,11 @@ public class ProjectSetupStepView(
 
         var buttonArea = Layout.Horizontal().Width(Size.Full())
             | new Button("Back").Outline().Icon(Icons.ArrowLeft)
-                .OnClick(() => stepperIndex.Set(stepperIndex.Value - 1))
+                .OnClick(() =>
+                {
+                    if (onCancel != null) onCancel();
+                    else stepperIndex.Set(stepperIndex.Value - 1);
+                })
             | new Spacer()
             | new Button("Finish").Secondary()
                 .OnClick(() => _ = FinishAsync(config, setupService, clientProvider, reviewActions, error, isCloning, progressMessage));
@@ -104,9 +111,16 @@ public class ProjectSetupStepView(
         var name = InputSanitizer.SanitizeProjectName(projectName.Value);
         if (string.IsNullOrWhiteSpace(name))
         {
-            await setupService.FinalizeOnboardingAsync();
-            await setupService.StartBackgroundServicesAsync();
-            clientProvider.ReloadPage();
+            if (isOnboarding)
+            {
+                await setupService.FinalizeOnboardingAsync();
+                await setupService.StartBackgroundServicesAsync();
+                clientProvider.ReloadPage();
+            }
+            else if (onFinish != null)
+            {
+                await onFinish();
+            }
             return;
         }
 
@@ -132,13 +146,28 @@ public class ProjectSetupStepView(
                 ReviewActions = new List<ReviewActionConfig>(reviewActions.Value)
             };
 
-            config.SetPendingProject(project);
-            config.SetPendingVerificationDefinitions([]);
+            if (isOnboarding)
+            {
+                config.SetPendingProject(project);
+                config.SetPendingVerificationDefinitions([]);
+            }
+            else
+            {
+                config.Settings.Projects.Add(project);
+                config.SaveSettings();
+            }
         }
 
-        await setupService.FinalizeOnboardingAsync();
-        await setupService.StartBackgroundServicesAsync();
-        clientProvider.ReloadPage();
+        if (isOnboarding)
+        {
+            await setupService.FinalizeOnboardingAsync();
+            await setupService.StartBackgroundServicesAsync();
+            clientProvider.ReloadPage();
+        }
+        else if (onFinish != null)
+        {
+            await onFinish();
+        }
     }
 
     private async Task GenerateVerificationsAsync(
@@ -186,8 +215,16 @@ public class ProjectSetupStepView(
                 ReviewActions = new List<ReviewActionConfig>(reviewActions.Value)
             };
 
-            config.SetPendingProject(project);
-            config.SetPendingVerificationDefinitions([]);
+            if (isOnboarding)
+            {
+                config.SetPendingProject(project);
+                config.SetPendingVerificationDefinitions([]);
+            }
+            else
+            {
+                config.Settings.Projects.Add(project);
+                config.SaveSettings();
+            }
 
             await progressCts.CancelAsync();
             progressValue.Set(100);
@@ -221,7 +258,11 @@ public class ProjectSetupStepView(
         string projectName)
     {
         session.Reset();
-        await setupService.CommitPendingProjectAsync();
+        
+        if (isOnboarding)
+        {
+            await setupService.CommitPendingProjectAsync();
+        }
 
         var notifyingStream = new NotifyingStream<string>(
             session.Stream,
