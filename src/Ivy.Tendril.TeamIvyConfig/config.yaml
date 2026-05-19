@@ -28,6 +28,7 @@ projects:
   - name: IvyFrameworkVerification
     required: true
   - name: NewWidgetChecklist
+    required: false
   - name: VitePlusCheck
     required: true
   - &o2
@@ -69,6 +70,7 @@ projects:
     required: true
   - *o1
   - name: DotnetTest
+    required: false
   - *o2
   context: >
     Plan management TUI. Key folders: - src\Ivy.Tendril\Services\ — ConfigService, PlanReaderService, JobService - src\Ivy.Tendril\Apps\ — PlansApp, JobsApp UI - src\Ivy.Tendril\Promptwares\ — CreatePlan, UpdatePlan, SplitPlan, ExpandPlan This project uses the Ivy Framework - there's CLI helper methods you can use:  ivy docs AGENTS.md  ivy question "How do I make a button in Ivy?"
@@ -131,6 +133,31 @@ projects:
   verifications: []
   context: ''
   reviewActions: []
+  hooks: []
+  buildDependencies: []
+- name: SlayZone
+  color: Green
+  meta: {}
+  repos:
+  - path: D:\Tendril\Repos\SlayZone
+    prRule: default
+    syncStrategy: fetch
+  verifications:
+  - name: NpmLint
+    required: true
+  - name: NpmBuild
+    required: true
+  - name: NpmTest
+    required: true
+  - *o2
+  context: ''
+  reviewActions:
+  - name: App
+    condition: Test-Path "Worktrees\SlayZone\package.json"
+    command: cd Worktrees\SlayZone && pnpm dev
+  - name: Website
+    condition: Test-Path "Worktrees/SlayZone/website/package.json"
+    command: cd Worktrees/SlayZone && pnpm dev:website
   hooks: []
   buildDependencies: []
 verifications:
@@ -207,6 +234,12 @@ verifications:
 - name: VitePlusCheck
   prompt: >
     Run `vp check` in the VitePlus frontend directory of the project repo. For PrCostCalculator: run in repo root. For Framework: `cd src\frontend && vp check` For Console: `cd Ivy.Studio\Widgets\frontend && vp check` If `vp check` reports fixable issues, run `vp check --fix`, then stage and commit the changes. Also run `vp build` to verify the production build succeeds.
+- name: NpmLint
+  prompt: "Run the linter in the plan's worktree directory (not the original repo). Use the package manager detected in the repo (npm\\pnpm\\yarn). Typically: run 'pnpm lint' or 'npm run lint'. Report any lint errors on changed files. If the project uses an auto-fix mode, run that first and commit fixes."
+- name: NpmBuild
+  prompt: "Run the TypeScript type checker and\\or build in the plan's worktree directory (not the original repo). Typically: run 'pnpm typecheck' or 'npm run build'. Verify zero type errors and zero build errors. Report any failures with file paths and error messages."
+- name: NpmTest
+  prompt: "Run unit tests in the plan's worktree directory (not the original repo). Use the package manager detected in the repo (npm\\pnpm\\yarn). Typically: run 'pnpm test:unit' or 'npm test'. If the plan's revision specifies particular test files or patterns, filter to those. Report pass\\fail counts and any failure details."
 planTemplate: >
   # {title}
 
@@ -335,6 +368,7 @@ codingAgents:
     effort: low
     arguments: ''
 telemetry: true
+desktopNotifications: true
 levels:
 - name: Bug
   badge: Destructive

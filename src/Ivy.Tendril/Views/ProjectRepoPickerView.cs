@@ -142,7 +142,7 @@ public class ProjectRepoPickerView(
         }
 
         return Layout.Vertical().Width(Size.Full())
-               | Text.Block("Add repositories to this project (optional).")
+               | Text.H4("Add one or more Git repositories")
                | (addingError.Value != null ? Text.Danger(addingError.Value) : null!)
                | pickerControls
                | addButton
