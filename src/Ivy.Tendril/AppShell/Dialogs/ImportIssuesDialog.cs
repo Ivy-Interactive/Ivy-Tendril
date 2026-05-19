@@ -298,20 +298,20 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
             {
                 var repo = repos.FirstOrDefault(r => r.DisplayName == selectedRepo.Value);
                 var selectedCount = selectedIssueNumbers.Value.Count;
-                var listItems = issues.Select(issue =>
+                var issueRows = issues.Select(issue =>
                 {
                     var issueUrl = repo != null
                         ? $"https://github.com/{repo.Owner}/{repo.Name}/issues/{issue.Number}"
                         : null;
-                    return new ListItem().Content(new ImportIssueRowView(
+                    return (object)new ImportIssueRowView(
                         issue,
                         selectedIssueNumbers,
                         issueUrl,
                         ToggleIssueSelection,
-                        () => { if (issueUrl != null) client.OpenUrl(issueUrl); }));
-                });
+                        () => { if (issueUrl != null) client.OpenUrl(issueUrl); });
+                }).ToArray();
 
-                issuesPanel = Layout.Vertical().Gap(2)
+                issuesPanel = Layout.Vertical().Gap(2).Width(Size.Full())
                     | Layout.Horizontal().Gap(2).AlignContent(Align.SpaceBetween).Width(Size.Full())
                         | Text.Label($"Found {issues.Count} issue{(issues.Count == 1 ? "" : "s")} · {selectedCount} selected")
                         | (Layout.Horizontal().Gap(1)
@@ -320,7 +320,7 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
                             | new Button("None").Ghost().Small().Disabled(selectedCount == 0)
                                 .OnClick(SelectNoIssues))
                     | (Layout.Vertical().Scroll(Scroll.Auto).Height(Size.Rem(22)).Width(Size.Full())
-                        | new List(listItems));
+                        | new List(issueRows).Width(Size.Full()));
             }
         }
         else
@@ -440,11 +440,14 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
                 | new Button()
                     .Icon(isSelected ? Icons.Check : Icons.Square)
                     .Ghost().Small()
+                    .Width(Size.Shrink())
                     .OnClick(() => onToggle(issue.Number))
-                | Layout.Vertical().Width(Size.Grow().Min(Size.Px(0)))
-                    | new Expandable($"#{issue.Number} — {issue.Title}", bodyContent)
+                | new Expandable($"#{issue.Number} — {issue.Title}", bodyContent)
+                    .Width(Size.Grow().Min(Size.Px(0)))
                 | (issueUrl != null
-                    ? new Button().Icon(Icons.ExternalLink).Ghost().Small().Tooltip("Open on GitHub")
+                    ? new Button().Icon(Icons.ExternalLink).Ghost().Small()
+                        .Width(Size.Shrink())
+                        .Tooltip("Open on GitHub")
                         .OnClick(onOpenUrl)
                     : null);
         }
