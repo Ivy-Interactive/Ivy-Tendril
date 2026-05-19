@@ -56,14 +56,14 @@ public partial class JobsApp
             .Renderer(t => t.Status, new AnimatedStatusLabelDisplayRenderer
             {
                 Mode = AnimatedStatusMode.Badge,
-                BadgeColorMapping = StatusMappings.JobStatusColors.ToDictionary(
+                BadgeColorMapping = Constants.JobStatusColors.ToDictionary(
                     kvp => kvp.Key.ToString(),
                     kvp => kvp.Value.ToString()
                 )
             })
             .Renderer(t => t.Type, new LabelsDisplayRenderer
             {
-                BadgeColorMapping = StatusMappings.JobTypeColors.ToDictionary(
+                BadgeColorMapping = Constants.JobTypeColors.ToDictionary(
                     kvp => kvp.Key,
                     kvp => kvp.Value.ToString()
                 )

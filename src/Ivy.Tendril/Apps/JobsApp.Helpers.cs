@@ -171,6 +171,6 @@ public partial class JobsApp
 
     private static Colors GetStatusColor(JobStatus status)
     {
-        return StatusMappings.JobStatusColors.GetValueOrDefault(status, Colors.Slate);
+        return Constants.JobStatusColors.GetValueOrDefault(status, Colors.Slate);
     }
 }

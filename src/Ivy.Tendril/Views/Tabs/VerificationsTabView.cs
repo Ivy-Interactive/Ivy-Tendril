@@ -22,7 +22,7 @@ public class VerificationsTabView(
             .Order(t => t.Status, t => t.Name)
             .Builder(t => t.Status, f => f.Func<VerificationRow, string>(status =>
                 new Badge(status).Variant(
-                    StatusMappings.VerificationStatusBadgeVariants.TryGetValue(status, out var variant)
+                    Constants.VerificationStatusBadgeVariants.TryGetValue(status, out var variant)
                         ? variant
                         : BadgeVariant.Outline)))
             .Builder(t => t.Name, f => f.Func<VerificationRow, string>(name =>
