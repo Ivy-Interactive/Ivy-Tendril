@@ -1,3 +1,5 @@
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Commands.DoctorChecks;
@@ -54,7 +56,7 @@ internal class SoftwareCheck : IDoctorCheck
         {
             var isRequired = RequiredSoftware.Contains(sw) || agentClis.Contains(sw);
             var versionArg = VersionArgs.GetValueOrDefault(sw, "--version");
-            var installed = await ProcessHelper.CheckCommand(sw, versionArg);
+            var installed = await ProcessCheckHelper.CheckCommand(sw, versionArg);
 
             if (!installed)
             {
@@ -66,13 +68,13 @@ internal class SoftwareCheck : IDoctorCheck
 
             if (HealthArgs.TryGetValue(sw, out var healthArg))
             {
-                var health = await ProcessHelper.CheckHealth(sw, healthArg);
+                var health = await ProcessCheckHelper.CheckHealth(sw, healthArg);
                 switch (health)
                 {
-                    case HealthResult.Authenticated:
+                    case HealthCheckStatus.Authenticated:
                         statuses.Add(new CheckStatus(sw, "Ready", StatusKind.Ok));
                         break;
-                    case HealthResult.NotAuthenticated:
+                    case HealthCheckStatus.NotAuthenticated:
                         statuses.Add(new CheckStatus(sw, "Installed but not authenticated", isRequired ? StatusKind.Error : StatusKind.Warn));
                         if (isRequired) hasErrors = true;
                         break;
@@ -89,14 +91,14 @@ internal class SoftwareCheck : IDoctorCheck
         }
 
         // PowerShell check with fallback (pwsh → powershell)
-        var pwshInstalled = await ProcessHelper.CheckCommand("pwsh", "-Version");
+        var pwshInstalled = await ProcessCheckHelper.CheckCommand("pwsh", "-Version");
         if (pwshInstalled)
         {
             statuses.Add(new CheckStatus("powershell", "OK (pwsh)", StatusKind.Ok));
         }
         else
         {
-            var legacyInstalled = await ProcessHelper.CheckCommand("powershell", "-Version");
+            var legacyInstalled = await ProcessCheckHelper.CheckCommand("powershell", "-Version");
             if (legacyInstalled)
             {
                 statuses.Add(new CheckStatus("powershell", "OK (powershell)", StatusKind.Ok));

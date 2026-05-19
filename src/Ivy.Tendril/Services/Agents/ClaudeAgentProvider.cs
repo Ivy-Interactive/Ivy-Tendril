@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 
 namespace Ivy.Tendril.Services.Agents;
 
@@ -7,6 +9,11 @@ public class ClaudeAgentProvider : IAgentProvider
 {
     public string Name => "claude";
     public bool UsesStdinPrompt => true;
+
+    public AgentOnboardingInfo OnboardingInfo => new(
+        "Claude CLI", "https://docs.anthropic.com/en/docs/claude-code", "--version",
+        () => ProcessCheckHelper.CheckHealth("claude", "-p \"ping\" --max-turns 1"),
+        "Sign in to Claude");
 
     public ProcessStartInfo BuildProcessStart(AgentInvocation invocation)
     {

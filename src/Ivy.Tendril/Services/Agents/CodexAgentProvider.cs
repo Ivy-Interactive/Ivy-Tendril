@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 
 namespace Ivy.Tendril.Services.Agents;
 
@@ -7,6 +9,11 @@ public class CodexAgentProvider : IAgentProvider
 {
     public string Name => "codex";
     public bool UsesStdinPrompt => true;
+
+    public AgentOnboardingInfo OnboardingInfo => new(
+        "Codex CLI", "https://openai.com/index/codex/", "--version",
+        () => ProcessCheckHelper.CheckHealth("codex", "login status"),
+        "Sign in to Codex");
 
     public ProcessStartInfo BuildProcessStart(AgentInvocation invocation)
     {
