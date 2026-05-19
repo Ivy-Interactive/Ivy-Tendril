@@ -74,7 +74,7 @@ public class ProjectSetupStepView(
             : null!;
 
         return Layout.Vertical().Gap(4).Margin(0, 0, 0, 20)
-               | Text.H2("Setup your first project")
+               | Text.H3("Setup your first project")
                | (error.Value != null ? Text.Danger(error.Value) : null!)
                | new ProjectRepoPickerView(selectedRepos, projectName)
                | projectName.ToTextInput().WithField().Required().Label("Project Name")

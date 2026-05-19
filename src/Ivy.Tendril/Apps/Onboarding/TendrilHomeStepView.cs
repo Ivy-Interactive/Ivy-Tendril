@@ -22,7 +22,7 @@ public class TendrilHomeStepView(
             ".tendril");
 
         return Layout.Vertical().Gap(4).Margin(0, 0, 0, 20)
-               | Text.H2("This is where we store your data")
+               | Text.H3("This is where we store your data")
                | Text.Muted(
                    "Tendril keeps your config, plans, inbox, trash, hooks, promptwares, and a local " +
                    "SQLite database in this folder. The default works for most people. Change it if " +
