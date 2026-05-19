@@ -144,28 +144,33 @@ public class EditProjectDialog(
             _ => _editIndex.Set(-1),
             new DialogHeader(isNew ? "Add Project" : $"Edit Project: {editName.Value}"),
             new DialogBody(
-                Layout.Vertical().Gap(4)
-                | editName.ToTextInput("Project name...").WithField().Label("Name")
-                | editColor.ToColorInput().Variant(ColorInputVariant.SwatchPicker).Nullable().WithField().Label("Color")
-                | editContext.ToTextareaInput("Project context or prompt for AI agents (optional)...").Rows(4)
-                    .WithField().Label("Context / Prompt (Optional)")
-                | (Layout.Vertical().Gap(2)
-                   | Text.Block("Repositories").Bold()
-                   | new ProjectRepoPickerView(editRepos, onAdd: cloneRemoteOnAdd, showPrRule: true))
-                | (Layout.Vertical().Gap(2)
-                   | Text.Block("Review Actions").Bold()
-                   | Text.Block("Commands that run during plan review (e.g., tests, linting).").Muted().Small()
-                   | new ReviewActionsTableView(editReviewActions, showReviewActionTrigger, showReviewActionAlert)
-                   | new Button("Add Review Action").Icon(Icons.Plus).Outline()
-                       .OnClick(() => showReviewActionTrigger(null)))
-                | reviewActionTriggerView
-                | reviewActionAlertView
-                | (Layout.Vertical().Gap(2)
-                   | Text.Block("Verifications").Bold()
-                   | verificationsLayout
-                   | new Button("Generate Verifications").Secondary().Icon(Icons.Sparkles)
-                       .Disabled(isGenerating.Value || string.IsNullOrWhiteSpace(editName.Value))
-                       .OnClick(() =>
+                Layout.Tabs(
+                    new Tab("Basic",
+                        Layout.Vertical().Gap(4)
+                        | editName.ToTextInput("Project name...").WithField().Label("Name")
+                        | editColor.ToColorInput().Variant(ColorInputVariant.SwatchPicker).Nullable().WithField().Label("Color")
+                        | editContext.ToTextareaInput("Project context or prompt for AI agents (optional)...").Rows(4)
+                            .WithField().Label("Context / Prompt (Optional)")
+                    ),
+                    new Tab("Repositories",
+                        Layout.Vertical().Gap(2)
+                        | new ProjectRepoPickerView(editRepos, onAdd: cloneRemoteOnAdd, showBaseBranchPicker: true)
+                    ),
+                    new Tab("Review Actions",
+                        Layout.Vertical().Gap(2)
+                        | Text.Block("Commands that run during plan review (e.g., tests, linting).").Muted().Small()
+                        | new ReviewActionsTableView(editReviewActions, showReviewActionTrigger, showReviewActionAlert)
+                        | new Button("Add Review Action").Icon(Icons.Plus).Outline()
+                            .OnClick(() => showReviewActionTrigger(null))
+                        | reviewActionTriggerView
+                        | reviewActionAlertView
+                    ),
+                    new Tab("Verifications",
+                        Layout.Vertical().Gap(2)
+                        | verificationsLayout
+                        | new Button("Generate Verifications").Secondary().Icon(Icons.Sparkles)
+                            .Disabled(isGenerating.Value || string.IsNullOrWhiteSpace(editName.Value))
+                            .OnClick(() =>
                        {
                            generateCancelled.Set(false);
                            showGenerateDialog.Set(true);
@@ -251,7 +256,9 @@ public class EditProjectDialog(
                                    isGenerating.Set(false);
                                }
                            });
-                       }))
+                        })
+                    )
+                ).Variant(TabsVariant.Content).Width(Size.Full()).Height(Size.Rem(28))
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() => _editIndex.Set(-1)),

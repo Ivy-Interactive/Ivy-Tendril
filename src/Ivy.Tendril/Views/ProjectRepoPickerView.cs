@@ -9,7 +9,7 @@ public class ProjectRepoPickerView(
     IState<List<RepoRef>> repos,
     IState<string>? projectName = null,
     Func<RepoRef, Task<RepoRef?>>? onAdd = null,
-    bool showPrRule = false) : ViewBase
+    bool showBaseBranchPicker = false) : ViewBase
 {
     public override object Build()
     {
@@ -128,8 +128,8 @@ public class ProjectRepoPickerView(
                          | (validityIcon ?? null!)
                          | pathLabel
                          | new Spacer()
-                         | (showPrRule
-                             ? (object)BuildPrRuleSelector(repos, idx)
+                         | (showBaseBranchPicker
+                             ? (object)BuildBaseBranchSelector(repos, idx)
                              : null!)
                          | new Button().Icon(Icons.X).Ghost().OnClick(() =>
                          {
@@ -150,20 +150,20 @@ public class ProjectRepoPickerView(
                | (current.Count > 0 ? listLayout : null!);
     }
 
-    private static object BuildPrRuleSelector(IState<List<RepoRef>> repos, int idx)
+    private static object BuildBaseBranchSelector(IState<List<RepoRef>> repos, int idx)
     {
         var bridge = new ConvertedState<List<RepoRef>, string>(
             repos,
-            list => idx < list.Count ? list[idx].PrRule : "default",
+            list => idx < list.Count ? (list[idx].BaseBranch ?? "") : "",
             value =>
             {
                 var list = new List<RepoRef>(repos.Value);
                 if (idx < list.Count)
-                    list[idx] = list[idx] with { PrRule = value };
+                    list[idx] = list[idx] with { BaseBranch = string.IsNullOrWhiteSpace(value) ? null : value.Trim() };
                 return list;
             });
 
-        return bridge.ToSelectInput(new List<string> { "default", "yolo" }).Width(Size.Units(20));
+        return bridge.ToTextInput("Base branch").Width(Size.Units(40)).WithTooltip("Default branch for this repository");
     }
 
     private static string GetDisplayLabel(RepoRef repo)
