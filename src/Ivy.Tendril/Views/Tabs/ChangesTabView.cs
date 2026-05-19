@@ -45,7 +45,7 @@ public class ChangesTabView(
         var statsText =
             $"{changesData.Files.Count} files changed ({changesData.AddedCount} added, {changesData.ModifiedCount} modified, {changesData.DeletedCount} deleted)";
 
-        var diffsLayout = Layout.Vertical().Gap(2).Width(Size.Grow().Min(Size.Px(0))).Scroll(Scroll.Auto).Height(Size.Full());
+        var diffsLayout = Layout.Vertical().Gap(2).Width(Size.Grow().Min(Size.Px(0))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)));
         diffsLayout |= Text.Block(statsText).Bold();
 
         foreach (var fileDiff in sortedFileDiffs)
@@ -60,10 +60,10 @@ public class ChangesTabView(
         }
 
         var treePanel = Layout.Vertical().Gap(2).Padding(1)
-            .Width(Size.Rem(12).Min(Size.Rem(12))).Scroll(Scroll.Auto).Height(Size.Full())
+            .Width(Size.Rem(12).Min(Size.Rem(12))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)))
             | tree;
 
-        return Layout.Horizontal().Height(Size.Full())
+        return Layout.Horizontal().Height(Size.Full().Min(Size.Px(0)))
             | treePanel
             | diffsLayout;
     }
