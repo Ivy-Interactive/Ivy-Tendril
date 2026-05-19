@@ -298,18 +298,18 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
             {
                 var repo = repos.FirstOrDefault(r => r.DisplayName == selectedRepo.Value);
                 var selectedCount = selectedIssueNumbers.Value.Count;
-                var issueRows = issues.Select(issue =>
+                var listItems = issues.Select(issue =>
                 {
                     var issueUrl = repo != null
                         ? $"https://github.com/{repo.Owner}/{repo.Name}/issues/{issue.Number}"
                         : null;
-                    return new ImportIssueRowView(
+                    return new ListItem().Content(new ImportIssueRowView(
                         issue,
                         selectedIssueNumbers,
                         issueUrl,
                         ToggleIssueSelection,
-                        () => { if (issueUrl != null) client.OpenUrl(issueUrl); });
-                }).Cast<object>().ToArray();
+                        () => { if (issueUrl != null) client.OpenUrl(issueUrl); }));
+                });
 
                 issuesPanel = Layout.Vertical().Gap(2)
                     | Layout.Horizontal().Gap(2).AlignContent(Align.SpaceBetween).Width(Size.Full())
@@ -319,8 +319,8 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
                                 .OnClick(SelectAllIssues)
                             | new Button("None").Ghost().Small().Disabled(selectedCount == 0)
                                 .OnClick(SelectNoIssues))
-                    | (Layout.Vertical().Gap(2).Scroll(Scroll.Auto).Height(Size.Rem(22)).Width(Size.Full())
-                        | issueRows);
+                    | (Layout.Vertical().Scroll(Scroll.Auto).Height(Size.Rem(22)).Width(Size.Full())
+                        | new List(listItems));
             }
         }
         else
@@ -430,28 +430,23 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
                         .Cast<object>().ToArray();
             }
 
-            var metaParts = new List<string>();
-            if (issue.Assignees.Length > 0)
-                metaParts.Add(string.Join(", ", issue.Assignees));
+            var bodyContent = Layout.Vertical().Gap(2)
+                | (string.IsNullOrWhiteSpace(issue.Body)
+                    ? Text.Muted("No description provided.")
+                    : Text.Block(TruncateBody(issue.Body)))
+                | labelsRow;
 
-            var bodyContent = string.IsNullOrWhiteSpace(issue.Body)
-                ? Text.Muted("No description provided.")
-                : Text.Block(TruncateBody(issue.Body));
-
-            return Layout.Vertical().Gap(1).Width(Size.Full())
-                | Layout.Horizontal().Gap(2).AlignContent(Align.Center).Width(Size.Full())
-                    | new Button()
-                        .Icon(isSelected ? Icons.Check : Icons.Square)
-                        .Ghost().Small()
-                        .OnClick(() => onToggle(issue.Number))
-                    | Layout.Vertical().Gap(1).Grow()
-                        | new Expandable($"#{issue.Number} — {issue.Title}", bodyContent)
-                        | (metaParts.Count > 0 ? Text.Muted(string.Join(" · ", metaParts)).Small() : null)
-                        | labelsRow
-                    | (issueUrl != null
-                        ? new Button().Icon(Icons.ExternalLink).Ghost().Small().Tooltip("Open on GitHub")
-                            .OnClick(onOpenUrl)
-                        : null);
+            return Layout.Horizontal().Gap(2).AlignContent(Align.Center).Width(Size.Full())
+                | new Button()
+                    .Icon(isSelected ? Icons.Check : Icons.Square)
+                    .Ghost().Small()
+                    .OnClick(() => onToggle(issue.Number))
+                | Layout.Vertical().Width(Size.Grow().Min(Size.Px(0)))
+                    | new Expandable($"#{issue.Number} — {issue.Title}", bodyContent)
+                | (issueUrl != null
+                    ? new Button().Icon(Icons.ExternalLink).Ghost().Small().Tooltip("Open on GitHub")
+                        .OnClick(onOpenUrl)
+                    : null);
         }
     }
 }
