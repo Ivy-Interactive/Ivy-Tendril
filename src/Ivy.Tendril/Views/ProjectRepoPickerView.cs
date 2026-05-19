@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Ivy.Core.Hooks;
 using Ivy.Desktop;
 using Ivy.Tendril.Helpers;
@@ -58,7 +57,7 @@ public class ProjectRepoPickerView(
                 repos.Set(list);
 
                 if (projectName != null && string.IsNullOrEmpty(projectName.Value) && !string.IsNullOrEmpty(suggestedName))
-                    projectName.Set(SanitizeProjectName(suggestedName));
+                    projectName.Set(InputSanitizer.SanitizeProjectName(suggestedName));
 
                 inputValue.Set("");
             }
@@ -197,9 +196,4 @@ public class ProjectRepoPickerView(
         return repo.Path;
     }
 
-    private static string SanitizeProjectName(string input)
-    {
-        if (string.IsNullOrEmpty(input)) return "";
-        return Regex.Replace(input, @"[^A-Za-z0-9._-]", "");
-    }
 }

@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Text.RegularExpressions;
 using Ivy.Helpers;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
@@ -132,7 +131,7 @@ internal class PlanArtifactSyncer
         var commits = new List<string>();
         try
         {
-            var repoRoot = ResolveRepoRootFromWorktree(wtDir);
+            var repoRoot = GitHelper.ResolveRepoRootFromWorktree(wtDir);
             if (repoRoot == null) return commits;
 
             var baseBranch = ResolveBaseBranch(repoRoot, plan);
@@ -154,18 +153,6 @@ internal class PlanArtifactSyncer
         return commits;
     }
 
-    private static string? ResolveRepoRootFromWorktree(string wtDir)
-    {
-        var gitFile = Path.Combine(wtDir, ".git");
-        var gitContent = FileHelper.ReadAllText(gitFile).Trim();
-        var gitDirMatch = Regex.Match(gitContent, @"gitdir:\s*(.+)");
-        if (!gitDirMatch.Success) return null;
-
-        var gitDir = gitDirMatch.Groups[1].Value.Trim();
-        var repoGitDir = Path.GetFullPath(Path.Combine(gitDir, "..", ".."));
-        var repoRoot = Path.GetDirectoryName(repoGitDir);
-        return repoRoot != null && Directory.Exists(repoRoot) ? repoRoot : null;
-    }
 
     private static string? RunGitLog(string repoRoot, string baseBranch, string branchName)
     {

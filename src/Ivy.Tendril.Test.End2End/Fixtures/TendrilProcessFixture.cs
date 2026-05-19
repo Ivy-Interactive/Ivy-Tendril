@@ -6,11 +6,11 @@ using Xunit.Abstractions;
 
 namespace Ivy.Tendril.Test.End2End.Fixtures;
 
-public class TendrilProcessFixture : IAsyncLifetime
+public partial class TendrilProcessFixture : IAsyncLifetime
 {
     private Process? _tendrilProcess;
-    private readonly List<string> _stdoutLines = new();
-    private readonly List<string> _stderrLines = new();
+    private readonly List<string> _stdoutLines = [];
+    private readonly List<string> _stderrLines = [];
     private readonly string _runId = Guid.NewGuid().ToString("N")[..12];
 
     public string TendrilHome { get; private set; } = "";
@@ -37,14 +37,16 @@ public class TendrilProcessFixture : IAsyncLifetime
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
+            Environment =
+            {
+                ["TENDRIL_HOME"] = TendrilHome,
+                ["TENDRIL_PLANS"] = TendrilPlans,
+                ["TENDRIL_E2E"] = "1"
+            }
         };
 
-        psi.Environment["TENDRIL_HOME"] = TendrilHome;
-        psi.Environment["TENDRIL_PLANS"] = TendrilPlans;
-        psi.Environment["TENDRIL_E2E"] = "1";
-
         _tendrilProcess = Process.Start(psi)
-            ?? throw new InvalidOperationException("Failed to start Tendril process");
+                          ?? throw new InvalidOperationException("Failed to start Tendril process");
 
         TendrilUrl = await WaitForServerUrlAsync(
             TimeSpan.FromSeconds(settings.StartupTimeoutSeconds));
@@ -74,7 +76,7 @@ public class TendrilProcessFixture : IAsyncLifetime
     {
         // Ivy framework outputs: "Ivy is running on https://localhost:5010 [PID]."
         // ASP.NET outputs: "Now listening on: https://localhost:5010"
-        var urlPattern = new Regex(@"(?:running on|listening on:?)\s*(https?://[^\s\[\]]+)", RegexOptions.IgnoreCase);
+        var urlPattern = UrlRegex();
         var tcs = new TaskCompletionSource<string>();
         using var cts = new CancellationTokenSource(timeout);
 
@@ -106,17 +108,16 @@ public class TendrilProcessFixture : IAsyncLifetime
         var url = await tcs.Task;
 
         // Poll until the server actually responds (bypass SSL for self-signed dev certs)
-        using var handler = new HttpClientHandler
-        {
-            ServerCertificateCustomValidationCallback = (_, _, _, _) => true,
-        };
-        using var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(5) };
+        using var handler = new HttpClientHandler();
+        handler.ServerCertificateCustomValidationCallback = (_, _, _, _) => true;
+        using var http = new HttpClient(handler);
+        http.Timeout = TimeSpan.FromSeconds(5);
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
         while (DateTime.UtcNow < deadline)
         {
             try
             {
-                var response = await http.GetAsync(url);
+                var response = await http.GetAsync(url, cts.Token);
                 if (response.StatusCode != HttpStatusCode.ServiceUnavailable)
                     return url;
             }
@@ -124,7 +125,7 @@ public class TendrilProcessFixture : IAsyncLifetime
             {
                 // Server not ready yet
             }
-            await Task.Delay(500);
+            await Task.Delay(500, cts.Token);
         }
 
         return url;
@@ -151,4 +152,7 @@ public class TendrilProcessFixture : IAsyncLifetime
             }
         }
     }
+
+    [GeneratedRegex(@"(?:running on|listening on:?)\s*(https?://[^\s\[\]]+)", RegexOptions.IgnoreCase, "en-US")]
+    private static partial Regex UrlRegex();
 }

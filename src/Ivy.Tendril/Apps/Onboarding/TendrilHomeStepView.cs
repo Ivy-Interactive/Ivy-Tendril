@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 
@@ -51,7 +50,7 @@ public class TendrilHomeStepView(
                           string resolved;
                           try
                           {
-                              resolved = ResolvePath(tendrilHomePath.Value);
+                              resolved = PathHelper.ResolvePath(tendrilHomePath.Value);
                           }
                           catch (Exception ex)
                           {
@@ -82,29 +81,4 @@ public class TendrilHomeStepView(
                       }));
     }
 
-    private static string ResolvePath(string raw)
-    {
-        var path = VariableExpansion.ExpandVariables(raw, "");
-
-        if (path.StartsWith("~"))
-        {
-            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            if (path == "~") path = home;
-            else if (path.StartsWith("~/") || path.StartsWith("~\\"))
-                path = Path.Combine(home, path.Substring(2));
-        }
-        else if (path.StartsWith("$"))
-        {
-            var match = Regex.Match(path, @"^\$([A-Za-z_][A-Za-z0-9_]*)");
-            if (match.Success)
-            {
-                var varName = match.Groups[1].Value;
-                var varValue = Environment.GetEnvironmentVariable(varName);
-                if (!string.IsNullOrEmpty(varValue))
-                    path = varValue + path.Substring(match.Length);
-            }
-        }
-
-        return Path.GetFullPath(path);
-    }
 }

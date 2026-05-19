@@ -1,11 +1,12 @@
 using System.Net.Http.Json;
-using System.Text.RegularExpressions;
+using Ivy.Tendril.Apps.Onboarding.Models;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Ivy.Widgets.AgentOutputView;
 
 namespace Ivy.Tendril.Apps.Onboarding;
 
-public partial class CompleteStepView(
+public class CompleteStepView(
     IState<int> stepperIndex,
     IState<List<RepoRef>> selectedRepos,
     IState<string> projectName,
@@ -168,7 +169,7 @@ public partial class CompleteStepView(
 
         async ValueTask Subscribe(Event<Button> e)
         {
-            if (!IsValidEmail(newsletterEmail.Value))
+            if (!InputSanitizer.IsValidEmail(newsletterEmail.Value))
             {
                 newsletterError.Set("Please enter a valid email address.");
                 return;
@@ -227,7 +228,7 @@ public partial class CompleteStepView(
                             | newsletterEmail.ToTextInput("you@example.com")
                             | new Button("Subscribe")
                                 .Primary()
-                                .Disabled(!IsValidEmail(newsletterEmail.Value))
+                                .Disabled(!InputSanitizer.IsValidEmail(newsletterEmail.Value))
                                 .Loading(newsletterLoading.Value)
                                 .OnClick(Subscribe)))
                      | (newsletterError.Value != null ? Text.Danger(newsletterError.Value) : null!))
@@ -243,9 +244,4 @@ public partial class CompleteStepView(
                       .OnClick(async () => await OnFinish()));
     }
 
-    internal static bool IsValidEmail(string emailAddress) =>
-        !string.IsNullOrWhiteSpace(emailAddress) && EmailRegex().IsMatch(emailAddress);
-
-    [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.IgnoreCase, "en-US")]
-    private static partial Regex EmailRegex();
 }
