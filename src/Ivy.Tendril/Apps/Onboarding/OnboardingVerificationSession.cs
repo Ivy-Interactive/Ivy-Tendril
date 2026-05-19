@@ -2,41 +2,29 @@ using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps.Onboarding;
 
-public class OnboardingVerificationSession
+public class OnboardingVerificationSession(
+    IWriteStream<string> stream,
+    IState<PromptwareRunHandle?> handle,
+    IState<bool> hasOutput,
+    IState<bool> running,
+    IState<bool> started,
+    IState<bool> cancelled,
+    IState<string?> error,
+    IState<int> refreshToken)
 {
-    public IWriteStream<string> Stream { get; }
-    public IState<PromptwareRunHandle?> Handle { get; }
-    public IState<bool> HasOutput { get; }
-    public IState<bool> Running { get; }
-    public IState<bool> Started { get; }
-    public IState<bool> Cancelled { get; }
-    public IState<string?> Error { get; }
-    public IState<int> RefreshToken { get; }
-
-    public OnboardingVerificationSession(
-        IWriteStream<string> stream,
-        IState<PromptwareRunHandle?> handle,
-        IState<bool> hasOutput,
-        IState<bool> running,
-        IState<bool> started,
-        IState<bool> cancelled,
-        IState<string?> error,
-        IState<int> refreshToken)
-    {
-        Stream = stream;
-        Handle = handle;
-        HasOutput = hasOutput;
-        Running = running;
-        Started = started;
-        Cancelled = cancelled;
-        Error = error;
-        RefreshToken = refreshToken;
-    }
+    public IWriteStream<string> Stream { get; } = stream;
+    public IState<PromptwareRunHandle?> Handle { get; } = handle;
+    public IState<bool> HasOutput { get; } = hasOutput;
+    public IState<bool> Running { get; } = running;
+    public IState<bool> Started { get; } = started;
+    public IState<bool> Cancelled { get; } = cancelled;
+    public IState<string?> Error { get; } = error;
+    public IState<int> RefreshToken { get; } = refreshToken;
 
     public void Reset()
     {
         Handle.Value?.Cancel();
-        Handle.Set((PromptwareRunHandle?)null);
+        Handle.Set(null);
         HasOutput.Set(false);
         Running.Set(false);
         Started.Set(false);
@@ -45,19 +33,11 @@ public class OnboardingVerificationSession
     }
 }
 
-internal class NotifyingStream<T> : IWriteStream<T>
+internal class NotifyingStream<T>(IWriteStream<T> inner, Action onFirstWrite) : IWriteStream<T>
 {
-    private readonly IWriteStream<T> _inner;
-    private readonly Action _onFirstWrite;
     private bool _notified;
 
-    public NotifyingStream(IWriteStream<T> inner, Action onFirstWrite)
-    {
-        _inner = inner;
-        _onFirstWrite = onFirstWrite;
-    }
-
-    public string Id => _inner.Id;
+    public string Id => inner.Id;
 
     public void Write(T data)
     {
@@ -67,9 +47,9 @@ internal class NotifyingStream<T> : IWriteStream<T>
             if (!trimmed.StartsWith("{\"type\":\"system\"") && !trimmed.StartsWith("{\"type\":\"user\""))
             {
                 _notified = true;
-                _onFirstWrite();
+                onFirstWrite();
             }
         }
-        _inner.Write(data);
+        inner.Write(data);
     }
 }

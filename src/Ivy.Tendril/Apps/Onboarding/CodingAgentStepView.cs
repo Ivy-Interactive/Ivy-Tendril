@@ -36,118 +36,6 @@ public class CodingAgentStepView(
         var authCode = UseState<string?>(null);
         var error = UseState<string?>(null);
 
-        async Task RunFlowAsync(string agentKey)
-        {
-            error.Set(null);
-            authCode.Set(null);
-
-            if (completedAgentKey.Value == agentKey)
-            {
-                stepperIndex.Set(stepperIndex.Value + 1);
-                return;
-            }
-
-            isStepLoading.Set(true);
-            var progressCts = new CancellationTokenSource();
-            _ = DriveProgressAsync(progressValue, progressCts.Token);
-
-            try
-            {
-                var checks = commonChecksPassed.Value
-                    ? new List<SoftwareCheck> { BuildAgentCheck(agentKey) }
-                    : BuildChecks(agentKey);
-
-                while (true)
-                {
-                    SoftwareCheck? missing = null;
-                    foreach (var c in checks)
-                    {
-                        progressMessage.Set($"Checking {c.Name}...");
-                        if (!await c.InstallCheck())
-                        {
-                            missing = c;
-                            break;
-                        }
-                    }
-
-                    if (missing is null) break;
-
-                    // Pause the progress bar while the install-missing dialog is up
-                    progressCts.Cancel();
-                    progressValue.Set(null);
-                    progressMessage.Set(null);
-
-                    var tcs = new TaskCompletionSource<bool>();
-                    pendingDialogTcs.Set(tcs);
-                    missingCheck.Set(missing);
-                    var resumed = await tcs.Task;
-                    pendingDialogTcs.Set(null);
-                    missingCheck.Set(null);
-
-                    if (!resumed)
-                    {
-                        isStepLoading.Set(false);
-                        selectedAgent.Set(null);
-                        return;
-                    }
-
-                    // Resume progress for the next pass
-                    progressCts = new CancellationTokenSource();
-                    _ = DriveProgressAsync(progressValue, progressCts.Token);
-                }
-
-                foreach (var c in checks.Where(c => c.HealthCheck != null))
-                {
-                    progressMessage.Set($"Verifying {c.Name} Authentication...");
-                    var status = await c.HealthCheck!();
-                    if (status == HealthCheckStatus.Authenticated) continue;
-
-                    progressMessage.Set($"Signing In to {c.Name}... (Browser Will Open)");
-                    authCode.Set(null);
-                    await authRunner.RunAuthAsync(c.Key, client, code => authCode.Set(code), CancellationToken.None);
-                    authCode.Set(null);
-
-                    progressMessage.Set($"Verifying {c.Name} Authentication...");
-                    status = await c.HealthCheck!();
-                    if (status != HealthCheckStatus.Authenticated)
-                    {
-                        progressCts.Cancel();
-                        progressValue.Set(null);
-                        progressMessage.Set(null);
-                        isStepLoading.Set(false);
-                        error.Set($"Could not authenticate {c.Name}. Please try again.");
-                        selectedAgent.Set(null);
-                        return;
-                    }
-                }
-
-                commonChecksPassed.Set(true);
-
-                config.Settings.CodingAgent = agentKey;
-                config.SetPendingCodingAgent(agentKey);
-
-                completedAgentKey.Set(agentKey);
-
-                progressCts.Cancel();
-                progressValue.Set(100);
-                progressMessage.Set("Done");
-                await Task.Delay(250);
-
-                progressValue.Set(null);
-                progressMessage.Set(null);
-                isStepLoading.Set(false);
-                stepperIndex.Set(stepperIndex.Value + 1);
-            }
-            catch
-            {
-                progressCts.Cancel();
-                progressValue.Set(null);
-                progressMessage.Set(null);
-                isStepLoading.Set(false);
-                throw;
-            }
-        }
-
         if (selectedAgent.Value is null)
         {
             return BuildPicker(agentKey =>
@@ -191,6 +79,118 @@ public class CodingAgentStepView(
                        )
                    ).Width(Size.Rem(28))
                    : null!);
+
+        async Task RunFlowAsync(string agentKey)
+        {
+            error.Set(null);
+            authCode.Set(null);
+
+            if (completedAgentKey.Value == agentKey)
+            {
+                stepperIndex.Set(stepperIndex.Value + 1);
+                return;
+            }
+
+            isStepLoading.Set(true);
+            var progressCts = new CancellationTokenSource();
+            _ = DriveProgressAsync(progressValue, progressCts.Token);
+
+            try
+            {
+                var checks = commonChecksPassed.Value
+                    ? [BuildAgentCheck(agentKey)]
+                    : BuildChecks(agentKey);
+
+                while (true)
+                {
+                    SoftwareCheck? missing = null;
+                    foreach (var c in checks)
+                    {
+                        progressMessage.Set($"Checking {c.Name}...");
+                        if (!await c.InstallCheck())
+                        {
+                            missing = c;
+                            break;
+                        }
+                    }
+
+                    if (missing is null) break;
+
+                    // Pause the progress bar while the install-missing dialog is up
+                    await progressCts.CancelAsync();
+                    progressValue.Set(null);
+                    progressMessage.Set(null);
+
+                    var tcs = new TaskCompletionSource<bool>();
+                    pendingDialogTcs.Set(tcs);
+                    missingCheck.Set(missing);
+                    var resumed = await tcs.Task;
+                    pendingDialogTcs.Set(null);
+                    missingCheck.Set(null);
+
+                    if (!resumed)
+                    {
+                        isStepLoading.Set(false);
+                        selectedAgent.Set(null);
+                        return;
+                    }
+
+                    // Resume progress for the next pass
+                    progressCts = new CancellationTokenSource();
+                    _ = DriveProgressAsync(progressValue, progressCts.Token);
+                }
+
+                foreach (var c in checks.Where(c => c.HealthCheck != null))
+                {
+                    progressMessage.Set($"Verifying {c.Name} Authentication...");
+                    var status = await c.HealthCheck!();
+                    if (status == HealthCheckStatus.Authenticated) continue;
+
+                    progressMessage.Set($"Signing In to {c.Name}... (Browser Will Open)");
+                    authCode.Set(null);
+                    await authRunner.RunAuthAsync(c.Key, client, code => authCode.Set(code), CancellationToken.None);
+                    authCode.Set(null);
+
+                    progressMessage.Set($"Verifying {c.Name} Authentication...");
+                    status = await c.HealthCheck!();
+                    if (status != HealthCheckStatus.Authenticated)
+                    {
+                        await progressCts.CancelAsync();
+                        progressValue.Set(null);
+                        progressMessage.Set(null);
+                        isStepLoading.Set(false);
+                        error.Set($"Could not authenticate {c.Name}. Please try again.");
+                        selectedAgent.Set(null);
+                        return;
+                    }
+                }
+
+                commonChecksPassed.Set(true);
+
+                config.Settings.CodingAgent = agentKey;
+                config.SetPendingCodingAgent(agentKey);
+
+                completedAgentKey.Set(agentKey);
+
+                await progressCts.CancelAsync();
+                progressValue.Set(100);
+                progressMessage.Set("Done");
+                await Task.Delay(250, progressCts.Token);
+
+                progressValue.Set(null);
+                progressMessage.Set(null);
+                isStepLoading.Set(false);
+                stepperIndex.Set(stepperIndex.Value + 1);
+            }
+            catch
+            {
+                await progressCts.CancelAsync();
+                progressValue.Set(null);
+                progressMessage.Set(null);
+                isStepLoading.Set(false);
+                throw;
+            }
+        }
     }
 
     private static object BuildPicker(Action<string> onSelect, string? errorMessage)
@@ -206,9 +206,9 @@ public class CodingAgentStepView(
         }
 
         return Layout.Vertical().Margin(0, 0, 0, 20).Gap(4)
-               | Text.H2("Welcome to Ivy Tendril")
+               | Text.H2("What is your coding agent?")
                | Text.Muted(
-                   "Tendril is a coding orchestrator powered by AI agents. Pick the agent you'd like to use — we'll check the required software and sign you in.")
+                   "Tendril is a coding orchestrator that run on top of your own coding agent. Pick the agent you'd like to use.")
                | (errorMessage != null ? Text.Danger(errorMessage) : null!)
                | grid;
     }
@@ -220,9 +220,9 @@ public class CodingAgentStepView(
             new("Git", "git", "https://git-scm.com/downloads", true,
                 () => CheckCommand("git", "--version")),
             new("PowerShell", "powershell", "https://github.com/PowerShell/PowerShell", true,
-                CheckPowerShell)
+                CheckPowerShell),
+            BuildAgentCheck(agentKey)
         };
-        list.Add(BuildAgentCheck(agentKey));
         return list;
     }
 

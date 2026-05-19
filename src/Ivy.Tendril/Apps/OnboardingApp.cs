@@ -75,10 +75,16 @@ public class OnboardingApp : ViewBase
 
         var steps = GetSteps(stepperIndex.Value);
 
+        var header = Layout.Horizontal().AlignContent(Align.BottomLeft)
+                     | new Image("/tendril/assets/Tendril.svg").Width(Size.Units(15)).Height(Size.Auto())
+                     | Text.H2("Welcome to Ivy Tendril")
+            ;
+        
         return Layout.TopCenter() |
                (Layout.Vertical().Margin(0, 20).Width(150)
-                | new Image("/tendril/assets/Tendril.svg").Width(Size.Units(15)).Height(Size.Auto())
+                | header
                 | new Stepper(OnSelect, stepperIndex.Value, steps).Width(Size.Full()).Disabled(isStepLoading.Value || verificationRunning.Value)
+                | new Spacer().Height(Size.Units(2))
                 | GetStepViews(stepperIndex,
                                commonChecksPassed, homeBootstrapped, completedAgentKey,
                                tendrilHomePath, selectedRepos, projectName, isStepLoading, session)
