@@ -79,6 +79,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../Ivy.Widget.TendrilProcessView/Ivy.Widget.TendrilProcessView.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="example.config.yaml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
