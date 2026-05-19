@@ -24,6 +24,9 @@ importers:
         specifier: 19.2.3
         version: 19.2.3(react@19.2.3)
     devDependencies:
+      '@types/node':
+        specifier: ^25.9.0
+        version: 25.9.0
       '@types/react':
         specifier: 19.2.8
         version: 19.2.8
@@ -32,7 +35,7 @@ importers:
         version: 19.2.3(@types/react@19.2.8)
       '@vitejs/plugin-react':
         specifier: 6.0.1
-        version: 6.0.1(@voidzero-dev/vite-plus-core@0.1.20(jiti@1.21.7)(typescript@5.9.3))
+        version: 6.0.1(@voidzero-dev/vite-plus-core@0.1.20(@types/node@25.9.0)(jiti@1.21.7)(typescript@5.9.3))
       autoprefixer:
         specifier: 10.4.23
         version: 10.4.23(postcss@8.5.10)
@@ -47,10 +50,10 @@ importers:
         version: 5.9.3
       vite:
         specifier: npm:@voidzero-dev/vite-plus-core@0.1.20
-        version: '@voidzero-dev/vite-plus-core@0.1.20(jiti@1.21.7)(typescript@5.9.3)'
+        version: '@voidzero-dev/vite-plus-core@0.1.20(@types/node@25.9.0)(jiti@1.21.7)(typescript@5.9.3)'
       vite-plus:
         specifier: 0.1.20
-        version: 0.1.20(@voidzero-dev/vite-plus-core@0.1.20(jiti@1.21.7)(typescript@5.9.3))(jiti@1.21.7)(typescript@5.9.3)
+        version: 0.1.20(@types/node@25.9.0)(@voidzero-dev/vite-plus-core@0.1.20(@types/node@25.9.0)(jiti@1.21.7)(typescript@5.9.3))(jiti@1.21.7)(typescript@5.9.3)
 
 packages:
 
@@ -378,6 +381,9 @@ packages:
 
   '@types/deep-eql@4.0.2':
     resolution: {integrity: sha512-c9h9dVVMigMPc4bwTvC5dxqtqJZwQPePsWjPlpSOnojbor6pGqdk541lfA7AqFQr5pB1BRdq0juY9db81BwyFw==}
+
+  '@types/node@25.9.0':
+    resolution: {integrity: sha512-AOQwYUNolgy3VosiRqXrACUXTN8nJUtPl7FJXMqZVyxiiCLhQuG3jXKvCS1ALr+Y2OmZhzzLVlYPEqJaiqkaJQ==}
 
   '@types/react-dom@19.2.3':
     resolution: {integrity: sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ==}
@@ -1013,6 +1019,9 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
+  undici-types@7.24.6:
+    resolution: {integrity: sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg==}
+
   update-browserslist-db@1.2.3:
     resolution: {integrity: sha512-Js0m9cx+qOgDxo0eMiFGEueWztz+d4+M3rGlmKPT+T4IS/jP4ylw3Nwpu6cpTTP8R1MAC1kF4VbdLt3ARf209w==}
     hasBin: true
@@ -1218,6 +1227,10 @@ snapshots:
 
   '@types/deep-eql@4.0.2': {}
 
+  '@types/node@25.9.0':
+    dependencies:
+      undici-types: 7.24.6
+
   '@types/react-dom@19.2.3(@types/react@19.2.8)':
     dependencies:
       '@types/react': 19.2.8
@@ -1226,18 +1239,19 @@ snapshots:
     dependencies:
       csstype: 3.2.3
 
-  '@vitejs/plugin-react@6.0.1(@voidzero-dev/vite-plus-core@0.1.20(jiti@1.21.7)(typescript@5.9.3))':
+  '@vitejs/plugin-react@6.0.1(@voidzero-dev/vite-plus-core@0.1.20(@types/node@25.9.0)(jiti@1.21.7)(typescript@5.9.3))':
     dependencies:
       '@rolldown/pluginutils': 1.0.0-rc.7
-      vite: '@voidzero-dev/vite-plus-core@0.1.20(jiti@1.21.7)(typescript@5.9.3)'
+      vite: '@voidzero-dev/vite-plus-core@0.1.20(@types/node@25.9.0)(jiti@1.21.7)(typescript@5.9.3)'
 
-  '@voidzero-dev/vite-plus-core@0.1.20(jiti@1.21.7)(typescript@5.9.3)':
+  '@voidzero-dev/vite-plus-core@0.1.20(@types/node@25.9.0)(jiti@1.21.7)(typescript@5.9.3)':
     dependencies:
       '@oxc-project/runtime': 0.127.0
       '@oxc-project/types': 0.127.0
       lightningcss: 1.32.0
       postcss: 8.5.10
     optionalDependencies:
+      '@types/node': 25.9.0
       fsevents: 2.3.3
       jiti: 1.21.7
       typescript: 5.9.3
@@ -1260,11 +1274,11 @@ snapshots:
   '@voidzero-dev/vite-plus-linux-x64-musl@0.1.20':
     optional: true
 
-  '@voidzero-dev/vite-plus-test@0.1.20(@voidzero-dev/vite-plus-core@0.1.20(jiti@1.21.7)(typescript@5.9.3))(jiti@1.21.7)(typescript@5.9.3)':
+  '@voidzero-dev/vite-plus-test@0.1.20(@types/node@25.9.0)(@voidzero-dev/vite-plus-core@0.1.20(@types/node@25.9.0)(jiti@1.21.7)(typescript@5.9.3))(jiti@1.21.7)(typescript@5.9.3)':
     dependencies:
       '@standard-schema/spec': 1.1.0
       '@types/chai': 5.2.3
-      '@voidzero-dev/vite-plus-core': 0.1.20(jiti@1.21.7)(typescript@5.9.3)
+      '@voidzero-dev/vite-plus-core': 0.1.20(@types/node@25.9.0)(jiti@1.21.7)(typescript@5.9.3)
       es-module-lexer: 1.7.0
       obug: 2.1.1
       pixelmatch: 7.2.0
@@ -1274,8 +1288,10 @@ snapshots:
       tinybench: 2.9.0
       tinyexec: 1.1.2
       tinyglobby: 0.2.16
-      vite: '@voidzero-dev/vite-plus-core@0.1.20(jiti@1.21.7)(typescript@5.9.3)'
+      vite: '@voidzero-dev/vite-plus-core@0.1.20(@types/node@25.9.0)(jiti@1.21.7)(typescript@5.9.3)'
       ws: 8.20.1
+    optionalDependencies:
+      '@types/node': 25.9.0
     transitivePeerDependencies:
       - '@arethetypeswrong/core'
       - '@tsdown/css'
@@ -1738,6 +1754,8 @@ snapshots:
 
   typescript@5.9.3: {}
 
+  undici-types@7.24.6: {}
+
   update-browserslist-db@1.2.3(browserslist@4.28.2):
     dependencies:
       browserslist: 4.28.2
@@ -1746,11 +1764,11 @@ snapshots:
 
   util-deprecate@1.0.2: {}
 
-  vite-plus@0.1.20(@voidzero-dev/vite-plus-core@0.1.20(jiti@1.21.7)(typescript@5.9.3))(jiti@1.21.7)(typescript@5.9.3):
+  vite-plus@0.1.20(@types/node@25.9.0)(@voidzero-dev/vite-plus-core@0.1.20(@types/node@25.9.0)(jiti@1.21.7)(typescript@5.9.3))(jiti@1.21.7)(typescript@5.9.3):
     dependencies:
       '@oxc-project/types': 0.127.0
-      '@voidzero-dev/vite-plus-core': 0.1.20(jiti@1.21.7)(typescript@5.9.3)
-      '@voidzero-dev/vite-plus-test': 0.1.20(@voidzero-dev/vite-plus-core@0.1.20(jiti@1.21.7)(typescript@5.9.3))(jiti@1.21.7)(typescript@5.9.3)
+      '@voidzero-dev/vite-plus-core': 0.1.20(@types/node@25.9.0)(jiti@1.21.7)(typescript@5.9.3)
+      '@voidzero-dev/vite-plus-test': 0.1.20(@types/node@25.9.0)(@voidzero-dev/vite-plus-core@0.1.20(@types/node@25.9.0)(jiti@1.21.7)(typescript@5.9.3))(jiti@1.21.7)(typescript@5.9.3)
       oxfmt: 0.46.0
       oxlint: 1.61.0(oxlint-tsgolint@0.22.0)
       oxlint-tsgolint: 0.22.0
