@@ -123,8 +123,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         var prompt = FirmwareCompiler.Compile(firmwareContext);
 
         // Emit resolved context as YAML for testability/debugging
-        var verbosityService = new VerbosityService();
-        if (verbosityService.Level != VerbosityLevel.Quiet)
+        if (Environment.GetEnvironmentVariable("TENDRIL_QUIET") != "1")
         {
             Console.WriteLine("---");
             Console.WriteLine($"promptware: {settings.Promptware}");
@@ -189,8 +188,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         AgentProcessHelper.EnsureTendrilOnPath(psi);
         AgentProcessHelper.ResolveCommandShim(psi);
 
-        if (verbosityService.Level != VerbosityLevel.Quiet)
-            _logger.LogInformation("Running {Promptware} via {ProviderName} (model={Model}, effort={Effort})", settings.Promptware, resolution.Provider.Name, resolution.Model, resolution.Effort);
+        _logger.LogInformation("Running {Promptware} via {ProviderName} (model={Model}, effort={Effort})", settings.Promptware, resolution.Provider.Name, resolution.Model, resolution.Effort);
 
         var cliCommand = AgentProcessHelper.FormatCliCommand(psi);
 
