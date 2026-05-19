@@ -216,6 +216,32 @@ public class PlanDatabaseServiceTests : IDisposable
     }
 
     [Fact]
+    public void GetPendingRecommendationsCount_ExcludesNonCompletedPlans()
+    {
+        _db.UpsertPlan(CreateTestPlan(1600, "Draft Plan", PlanStatus.Draft));
+        _db.UpsertPlan(CreateTestPlan(1601, "Completed Plan", PlanStatus.Completed));
+
+        var recs = new List<RecommendationYaml>
+        {
+            new() { Title = "Draft Rec", Description = "From draft", State = "Pending" }
+        };
+        _db.UpsertRecommendations(1600, "01600-DraftPlan", recs, "Tendril", "Draft Plan",
+            DateTime.UtcNow, PlanStatus.Draft);
+
+        var completedRecs = new List<RecommendationYaml>
+        {
+            new() { Title = "Completed Rec", Description = "From completed", State = "Pending" }
+        };
+        _db.UpsertRecommendations(1601, "01601-CompletedPlan", completedRecs, "Tendril", "Completed Plan",
+            DateTime.UtcNow, PlanStatus.Completed);
+
+        Assert.Equal(1, _db.GetPendingRecommendationsCount());
+
+        var counts = _db.ComputePlanCounts();
+        Assert.Equal(1, counts.PendingRecommendations);
+    }
+
+    [Fact]
     public void UpsertRecommendations_WithImpactAndRisk_StoresInDatabase()
     {
         _db.UpsertPlan(CreateTestPlan(1510));

@@ -141,7 +141,7 @@ promptwares:
 #     reviewActions:
 #       - name: RunSample
 #         condition: Test-Path "artifacts/sample"
-#         action: <command to run your sample app>
+#         command: <command to run your sample app>
 #     hooks:
 #       - name: SlackNotify
 #         when: after

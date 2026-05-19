@@ -35,6 +35,7 @@ public interface IPlanReaderService
     void UpdateRecommendationState(string planFolderName, string recommendationTitle, string newState,
         string? declineReason = null);
 
+    void SyncPlanArtifacts(string planFolder);
     void InvalidateCaches();
     Task FlushPendingWritesAsync();
 

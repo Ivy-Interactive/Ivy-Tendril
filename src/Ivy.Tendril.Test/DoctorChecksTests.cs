@@ -4,6 +4,7 @@ using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
 
+[Collection("TendrilHome")]
 public class DoctorChecksTests : IDisposable
 {
     private readonly TempDirectoryFixture _tempDir = new("ivy-doctor-test");

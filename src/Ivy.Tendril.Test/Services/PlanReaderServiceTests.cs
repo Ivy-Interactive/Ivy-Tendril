@@ -86,7 +86,7 @@ public class PlanReaderServiceTests
     }
 
     [Fact]
-    public async Task ResetVerificationsForRetry_ResetsNonSkippedToPending_PreservesSkipped_ClearsCommits()
+    public async Task ResetVerificationsForRetry_ResetsNonSkippedToPending_PreservesSkipped_PreservesCommits()
     {
         // Arrange
         var tempDir = Path.Combine(Path.GetTempPath(), $"ivy-test-{Guid.NewGuid()}");
@@ -119,8 +119,8 @@ public class PlanReaderServiceTests
             Assert.Contains("status: Skipped", result);
             Assert.DoesNotContain("status: Pass", result);
             Assert.DoesNotContain("status: Fail", result);
-            Assert.DoesNotContain("abc1234", result);
-            Assert.DoesNotContain("def5678", result);
+            Assert.Contains("abc1234", result);
+            Assert.Contains("def5678", result);
             Assert.Contains(folderName, testWatcher.NotifiedFolders);
         }
         finally

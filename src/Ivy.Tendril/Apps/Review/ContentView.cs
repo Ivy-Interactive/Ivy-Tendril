@@ -431,7 +431,7 @@ public class ContentView(
                     return null!;
                 },
                 syncingWorktrees.Value,
-                worktreePath => SynchronizeWorktreeAsync(worktreePath, syncingWorktrees, planContentQuery, client, logger),
+                worktreePath => SynchronizeWorktreeAsync(worktreePath, syncingWorktrees, planContentQuery, client, planService, selectedPlanState, logger),
                 logger
             );
 
@@ -472,11 +472,12 @@ public class ContentView(
                 content |= actionsBar;
             }
 
+            var pendingRecs = planData.Recommendations.Where(r => r.State == "Pending").ToList();
             var recommendationsLayout = Layout.Vertical().Gap(4).Padding(2);
-            if (planData.Recommendations.Count == 0)
+            if (pendingRecs.Count == 0)
                 recommendationsLayout |= Text.Muted("No recommendations.");
             else
-                foreach (var rec in planData.Recommendations)
+                foreach (var rec in pendingRecs)
                 {
                     var titleRow = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
                                    | Text.Block(rec.Title).Bold();
@@ -500,28 +501,66 @@ public class ContentView(
                     var card = Layout.Vertical().Gap(1)
                                | titleRow
                                | new Markdown(rec.Description).DangerouslyAllowLocalFiles().Article();
+
+                    var recTitle = rec.Title;
+                    var buttonRow = Layout.Horizontal().Gap(1)
+                                    | new Button("Accept").Icon(Icons.Check).Primary().OnClick(() =>
+                                    {
+                                        planService.ResetVerificationsForRetry(selectedPlan.FolderName);
+                                        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Executing);
+                                        planService.UpdateRecommendationState(selectedPlan.FolderName, recTitle, "Accepted");
+                                        jobService.StartJob(new RetryPlanArgs(selectedPlan.FolderPath, rec.Description));
+                                        refreshPlans();
+                                        planContentQuery.Mutator.Revalidate();
+                                    })
+                                    | new Button("Decline").Icon(Icons.X).Outline().OnClick(() =>
+                                    {
+                                        planService.UpdateRecommendationState(selectedPlan.FolderName, recTitle, "Declined");
+                                        refreshPlans();
+                                        planContentQuery.Mutator.Revalidate();
+                                    });
+
                     recommendationsLayout |= card;
+                    recommendationsLayout |= buttonRow;
                     recommendationsLayout |= new Separator();
                 }
 
             var changesTabView = new ChangesTabView(planData.AllChanges, planContentQuery.Loading, planContentQuery.Error);
 
-            var tabs = Layout.Tabs(
-                new Tab("Summary", Cap(new SummaryTabView(planData.SummaryMarkdown))),
+            var tabNamesList = new List<string> { "summary", "plan", "details", "verifications", "git", "changes" };
+            var tabList = new List<Tab>
+            {
+                new Tab("Summary", Cap(new SummaryTabView(planData.SummaryMarkdown, planContentQuery.Loading))),
                 new Tab("Plan", Cap(planTabContent)),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan))),
                 new Tab("Verifications", Cap(new VerificationsTabView(
                     selectedPlan.Verifications, planData.VerificationReports,
                     v => openVerification.Set(v)))).Badge(selectedPlan.Verifications.Count.ToString()),
                 new Tab("Git", Cap(gitLayout)).Badge((gitData.WorktreeSections.Count + selectedPlan.Commits.Count + selectedPlan.Prs.Count).ToString()),
-                new Tab("Changes", Layout.Vertical().Width(Size.Full()).Height(Size.Full()) | changesTabView).Badge(changesTabView.FileCount > 0 ? changesTabView.FileCount.ToString() : ""),
-                new Tab("Artifacts", Cap(new ArtifactsTabView(planData.Artifacts))).Badge(totalArtifacts.ToString()),
-                new Tab("Recommendations", Cap(recommendationsLayout)).Badge(planData.Recommendations.Count.ToString())
-            ).OnSelect(v =>
+                new Tab("Changes", Layout.Vertical().Width(Size.Full()).Height(Size.Full()) | changesTabView).Badge(changesTabView.FileCount > 0 ? changesTabView.FileCount.ToString() : "")
+            };
+
+            if (totalArtifacts > 0)
             {
-                if (v >= 0 && v < tabNames.Length && selectedPlanState.Value != null)
-                    nav.Navigate<ReviewApp>(new ReviewAppArgs(selectedPlanState.Value.FolderName, tabNames[v]));
-            }).SelectedIndex(selectedTabIndex).Variant(TabsVariant.Content);
+                tabList.Add(new Tab("Artifacts", Cap(new ArtifactsTabView(planData.Artifacts))).Badge(totalArtifacts.ToString()));
+                tabNamesList.Add("Artifacts");
+            }
+
+            if (pendingRecs.Count > 0)
+            {
+                tabList.Add(new Tab("Recommendations", Cap(recommendationsLayout)).Badge(pendingRecs.Count.ToString()));
+                tabNamesList.Add("recommendations");
+            }
+
+            var actualTabNames = tabNamesList.ToArray();
+            var actualSelectedTabIndex = Array.IndexOf(actualTabNames, args?.Tab ?? "summary");
+            if (actualSelectedTabIndex < 0) actualSelectedTabIndex = 0;
+
+            var tabs = Layout.Tabs(tabList.ToArray()).OnSelect(v =>
+            {
+                if (v >= 0 && v < actualTabNames.Length && selectedPlanState.Value != null)
+                    nav.Navigate<ReviewApp>(new ReviewAppArgs(selectedPlanState.Value.FolderName, actualTabNames[v]));
+            }).SelectedIndex(actualSelectedTabIndex).Variant(TabsVariant.Content);
 
             content |= (Layout.Vertical().Padding(2, 0).Height(Size.Full()) | tabs);
         }
@@ -589,6 +628,8 @@ public class ContentView(
         IState<HashSet<string>> syncingState,
         QueryResult<PlanContentData> query,
         IClientProvider client,
+        IPlanReaderService planService,
+        IState<PlanFile?> selectedPlanState,
         ILogger? logger)
     {
         var paths = new HashSet<string>(syncingState.Value) { worktreePath };
@@ -617,6 +658,11 @@ public class ContentView(
 
             if (exitCode == 0)
             {
+                var planFolder = Path.GetFullPath(Path.Combine(worktreePath, "..", ".."));
+                planService.SyncPlanArtifacts(planFolder);
+                var refreshed = planService.GetPlanByFolder(planFolder);
+                if (refreshed != null)
+                    selectedPlanState.Set(refreshed);
                 client.Toast("Worktree synchronized successfully", "Synchronized");
             }
             else

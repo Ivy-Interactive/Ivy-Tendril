@@ -1,4 +1,5 @@
 using System.ClientModel;
+using Ivy.Core.Exceptions;
 using Ivy.Helpers;
 using Ivy.Tendril.AppShell;
 using Ivy.Tendril.Controllers;
@@ -27,6 +28,8 @@ public static class TendrilServer
         server.SetMetaTitle("Ivy Tendril");
 
         server.Services.AddHttpClient();
+        server.Services.AddSingleton<IExceptionHandler>(sp =>
+            new LoggingExceptionHandler(sp.GetRequiredService<ILogger<LoggingExceptionHandler>>()));
 
         // Register VerbosityService before other services
         server.Services.AddSingleton<IVerbosityService, VerbosityService>();

@@ -215,7 +215,7 @@ public class PlanDatabaseService : IPlanDatabaseService
                                   COALESCE(SUM(CASE WHEN State = 'ReadyForReview' THEN 1 ELSE 0 END), 0) AS ReadyForReviewCount,
                                   COALESCE(SUM(CASE WHEN State = 'Failed' THEN 1 ELSE 0 END), 0) AS FailedCount,
                                   COALESCE(SUM(CASE WHEN State = 'Icebox' THEN 1 ELSE 0 END), 0) AS IceboxCount,
-                                  (SELECT COUNT(*) FROM Recommendations WHERE State = 'Pending') AS PendingRecommendationsCount,
+                                  (SELECT COUNT(*) FROM Recommendations WHERE State = 'Pending' AND SourcePlanStatus = 'Completed') AS PendingRecommendationsCount,
                                   COUNT(*) AS TotalPlans
                               FROM Plans
                               """;
@@ -366,7 +366,7 @@ public class PlanDatabaseService : IPlanDatabaseService
     {
         using (new ReadLockHandle(_lock))
         {
-            return ExecuteScalar<int>("SELECT COUNT(*) FROM Recommendations WHERE State = 'Pending'");
+            return ExecuteScalar<int>("SELECT COUNT(*) FROM Recommendations WHERE State = 'Pending' AND SourcePlanStatus = 'Completed'");
         }
     }
 

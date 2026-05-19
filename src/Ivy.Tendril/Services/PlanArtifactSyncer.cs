@@ -23,6 +23,11 @@ internal class PlanArtifactSyncer
     internal void SyncPlanArtifacts(JobItem job)
     {
         var planFolder = job.TypedArgs?.PlanFolder ?? "";
+        SyncPlanArtifacts(planFolder);
+    }
+
+    internal void SyncPlanArtifacts(string planFolder)
+    {
         if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder)) return;
 
         try
@@ -86,8 +91,6 @@ internal class PlanArtifactSyncer
 
     private bool SyncCommitsFromWorktrees(string planFolder, PlanYaml plan)
     {
-        if (plan.Commits.Count > 0) return false;
-
         var worktreesDir = Path.Combine(planFolder, "Worktrees");
         if (!Directory.Exists(worktreesDir)) return false;
 
@@ -140,7 +143,7 @@ internal class PlanArtifactSyncer
             {
                 var hash = line.Trim();
                 if (hash.Length >= 7)
-                    commits.Add(hash.Length > 9 ? hash[..9] : hash);
+                    commits.Add(hash);
             }
         }
         catch (Exception ex)
@@ -187,7 +190,11 @@ internal class PlanArtifactSyncer
         var changed = false;
         foreach (var commit in commits)
         {
-            if (!plan.Commits.Contains(commit))
+            var alreadyPresent = plan.Commits.Any(existing =>
+                existing.StartsWith(commit, StringComparison.OrdinalIgnoreCase) ||
+                commit.StartsWith(existing, StringComparison.OrdinalIgnoreCase));
+
+            if (!alreadyPresent)
             {
                 plan.Commits.Add(commit);
                 changed = true;

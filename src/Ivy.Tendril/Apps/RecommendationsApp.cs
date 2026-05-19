@@ -1,4 +1,5 @@
 using Ivy.Tendril.Apps.Recommendations;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 
@@ -23,7 +24,9 @@ public class RecommendationsApp : ViewBase
 
         var recommendations = planService.GetRecommendations();
 
-        var allPending = recommendations.Where(r => r.State == "Pending").ToList();
+        var allPending = recommendations
+            .Where(r => r.State == "Pending" && r.SourcePlanStatus == PlanStatus.Completed)
+            .ToList();
 
         var filtered = allPending
             .Where(r => projectFilter.Value == null || r.Project == projectFilter.Value)

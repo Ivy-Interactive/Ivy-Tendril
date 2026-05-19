@@ -1,9 +1,11 @@
+using System.Net.Http.Json;
+using System.Text.RegularExpressions;
 using Ivy.Tendril.Services;
 using Ivy.Widgets.AgentOutputView;
 
 namespace Ivy.Tendril.Apps.Onboarding;
 
-public class CompleteStepView(
+public partial class CompleteStepView(
     IState<int> stepperIndex,
     IState<List<RepoRef>> selectedRepos,
     IState<string> projectName,
@@ -16,8 +18,14 @@ public class CompleteStepView(
         var setupService = UseService<IOnboardingSetupService>();
         var runner = UseService<IPromptwareRunner>();
         var client = UseService<IClientProvider>();
+        var httpClientFactory = UseService<IHttpClientFactory>();
+        var telemetry = UseService<ITelemetryService>();
 
         var isFinishing = UseState(false);
+        var newsletterEmail = UseState("");
+        var newsletterSubscribed = UseState(false);
+        var newsletterError = UseState<string?>(null);
+        var newsletterLoading = UseState(false);
 
         UseEffect(async () =>
         {
@@ -158,6 +166,37 @@ public class CompleteStepView(
             ? "Tendril is detecting your tech stack and configuring verifications."
             : $"{totalVerifications} {(totalVerifications == 1 ? "verification" : "verifications")} configured across {projects.Count} {(projects.Count == 1 ? "project" : "projects")}. Click Finish to start using Tendril, or go back to add another project.";
 
+        async ValueTask Subscribe(Event<Button> e)
+        {
+            if (!IsValidEmail(newsletterEmail.Value))
+            {
+                newsletterError.Set("Please enter a valid email address.");
+                return;
+            }
+
+            newsletterLoading.Set(true);
+            try
+            {
+                using var http = httpClientFactory.CreateClient();
+                var response = await http.PostAsJsonAsync("https://tendril-api.ivy.app/subscribers", new
+                {
+                    email = newsletterEmail.Value,
+                    anonymousId = telemetry.AnonymousId
+                });
+                response.EnsureSuccessStatusCode();
+                newsletterSubscribed.Set(true);
+                newsletterError.Set(null);
+            }
+            catch
+            {
+                newsletterError.Set("Subscription failed. Please try again.");
+            }
+            finally
+            {
+                newsletterLoading.Set(false);
+            }
+        }
+
         return Layout.Vertical().Gap(4).Margin(0, 0, 0, 20)
                | Text.H2(headerText)
                | Text.Muted(subText)
@@ -177,6 +216,22 @@ public class CompleteStepView(
                        .Padding(4)
                    : null!)
                | (!running && totalVerifications > 0 ? (object)listLayout : null!)
+               | (!running
+                   ? (object)(Layout.Vertical().Gap(2)
+                     | new Separator()
+                     | Text.H3("Newsletter")
+                     | Text.Muted("Be the first to know when we have a new release!")
+                     | (newsletterSubscribed.Value
+                         ? Text.Success("Subscribed!")
+                         : (Layout.Horizontal()
+                            | newsletterEmail.ToTextInput("you@example.com")
+                            | new Button("Subscribe")
+                                .Primary()
+                                .Disabled(!IsValidEmail(newsletterEmail.Value))
+                                .Loading(newsletterLoading.Value)
+                                .OnClick(Subscribe)))
+                     | (newsletterError.Value != null ? Text.Danger(newsletterError.Value) : null!))
+                   : null!)
                | (Layout.Horizontal().Width(Size.Full())
                   | new Button("Back").Outline().Icon(Icons.ArrowLeft)
                       .Disabled(isFinishing.Value)
@@ -187,4 +242,10 @@ public class CompleteStepView(
                       .Loading(isFinishing.Value)
                       .OnClick(async () => await OnFinish()));
     }
+
+    internal static bool IsValidEmail(string emailAddress) =>
+        !string.IsNullOrWhiteSpace(emailAddress) && EmailRegex().IsMatch(emailAddress);
+
+    [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.IgnoreCase, "en-US")]
+    private static partial Regex EmailRegex();
 }

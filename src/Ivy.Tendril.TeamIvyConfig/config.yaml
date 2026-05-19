@@ -51,12 +51,6 @@ projects:
     - CreatePr
     condition: ''
     action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
-  - name: PlanEvaluator
-    when: after
-    promptwares:
-    - CreatePr
-    condition: ''
-    action: Start-Process -FilePath 'tendril' -ArgumentList 'promptware','PlanEvaluator',$PWD -WindowStyle Hidden
   buildDependencies: []
 - name: Tendril
   color: Emerald
@@ -79,10 +73,10 @@ projects:
   reviewActions:
   - name: Tendril
     condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril"
-    command: dotnet run --browse --find-available-port --project worktrees\Ivy-Tendril\src\Ivy.Tendril
+    command: "& '.\\worktrees\\Ivy-Tendril\\src\\Ivy.Tendril\\Run.ps1'"
   - name: Docs
     condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril.Docs"
-    command: dotnet run --browse --find-available-port --project worktrees\Ivy-Tendril\src\Ivy.Tendril.Docs
+    command: "& '.\\worktrees\\Ivy-Tendril\\src\\Ivy.Tendril.Docs\\Run.ps1'"
   hooks:
   - name: SlackNotify
     when: after
@@ -90,12 +84,6 @@ projects:
     - CreatePr
     condition: ''
     action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
-  - name: PlanEvaluator
-    when: after
-    promptwares:
-    - CreatePr
-    condition: ''
-    action: Start-Process -FilePath 'tendril' -ArgumentList 'promptware','PlanEvaluator',$PWD -WindowStyle Hidden
   buildDependencies:
   - D:\Repos\_Ivy\Ivy-Framework
 - name: Rustino
@@ -131,12 +119,6 @@ projects:
     - CreatePr
     condition: ''
     action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
-  - name: PlanEvaluator
-    when: after
-    promptwares:
-    - CreatePr
-    condition: ''
-    action: Start-Process -FilePath 'tendril' -ArgumentList 'promptware','PlanEvaluator',$PWD -WindowStyle Hidden
   buildDependencies: []
 verifications:
 - name: FrameworkDotnetBuild
@@ -246,6 +228,10 @@ promptwares:
     profile: deep
     allowedTools:
     - Bash(ivy *)
+  RetryPlan:
+    profile: deep
+    allowedTools:
+    - Bash(ivy *)
   ExpandPlan:
     profile: balanced
     allowedTools:
@@ -273,8 +259,6 @@ promptwares:
   IvyFrameworkVerification:
     profile: balanced
     allowedTools:
-    - Write(%PLAN_DIR%\**)
-    - Edit(%PLAN_DIR%\**)
     - Bash(ivy *)
 codingAgents:
 - name: claude

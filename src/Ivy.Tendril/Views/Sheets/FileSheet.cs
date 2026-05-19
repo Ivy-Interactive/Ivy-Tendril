@@ -63,7 +63,7 @@ public class FileSheet(
         {
             sheetContent = new Markdown("File not found.");
         }
-        
+
         var finalContent = fileExists
             ? new HeaderLayout(
                 Layout.Vertical().Gap(2)

@@ -14,7 +14,7 @@ public class ChangesTabView(
     {
         var client = UseService<IClientProvider>();
 
-        if (loading)
+        if (loading && changesData is null)
             return Text.Muted("Loading...");
 
         if (changesData is null)

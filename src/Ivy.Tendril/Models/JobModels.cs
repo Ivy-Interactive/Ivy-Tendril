@@ -30,6 +30,8 @@ public record JobItem
     private const int MaxOutputLines = 10_000;
     private int _completionGuard;
     private readonly Subject<string> _outputSubject = new();
+    private StreamWriter? _rawLogWriter;
+    private readonly object _rawLogLock = new();
 
     [JsonIgnore]
     public IObservable<string> OutputObservable => _outputSubject;
@@ -83,10 +85,21 @@ public record JobItem
     public string? StatusFilePath { get; set; }
 
     // Automatic logging metadata (transient, not persisted)
-    [JsonIgnore] public string? LogFilePath { get; set; }
     [JsonIgnore] public string? CompiledPrompt { get; set; }
     [JsonIgnore] public string? CliCommand { get; set; }
     [JsonIgnore] public int? ExitCode { get; set; }
+
+    private string? _logFilePath;
+    [JsonIgnore]
+    public string? LogFilePath
+    {
+        get => _logFilePath;
+        set
+        {
+            _logFilePath = value;
+            OpenRawLogWriter();
+        }
+    }
 
     public void EnqueueOutput(string line)
     {
@@ -97,6 +110,7 @@ public record JobItem
             while (OutputLines.Count > MaxOutputLines)
                 OutputLines.TryDequeue(out _);
             _outputSubject.OnNext(normalized);
+            AppendToRawLog(normalized);
         }
     }
 
@@ -107,12 +121,51 @@ public record JobItem
         {
             OutputLines.Enqueue(line);
             _outputSubject.OnNext(line);
+            AppendToRawLog(line);
+        }
+    }
+
+    private void OpenRawLogWriter()
+    {
+        if (string.IsNullOrEmpty(_logFilePath)) return;
+        var rawPath = Path.ChangeExtension(_logFilePath, ".raw.jsonl");
+        try
+        {
+            _rawLogWriter = new StreamWriter(rawPath, append: true, System.Text.Encoding.UTF8)
+            {
+                AutoFlush = true
+            };
+        }
+        catch
+        {
+            _rawLogWriter = null;
+        }
+    }
+
+    private void AppendToRawLog(string line)
+    {
+        if (_rawLogWriter is null) return;
+        lock (_rawLogLock)
+        {
+            try { _rawLogWriter.WriteLine(line); }
+            catch { /* best-effort — don't crash the job */ }
+        }
+    }
+
+    internal void CloseRawLog()
+    {
+        lock (_rawLogLock)
+        {
+            try { _rawLogWriter?.Dispose(); }
+            catch { }
+            _rawLogWriter = null;
         }
     }
 
     public void DisposeResources(ILogger? logger = null)
     {
         _outputSubject.OnCompleted();
+        CloseRawLog();
 
         try
         {
