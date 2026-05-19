@@ -61,6 +61,10 @@ projects:
     prRule: yolo
     baseBranch: development
     syncStrategy: fetch
+  - path: D:\Repos\_Ivy\Ivy-Framework
+    prRule: yolo
+    baseBranch: development
+    syncStrategy: fetch
   verifications:
   - &o2
     name: DotnetBuild
@@ -84,8 +88,7 @@ projects:
     - CreatePr
     condition: ''
     action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
-  buildDependencies:
-  - D:\Repos\_Ivy\Ivy-Framework
+  buildDependencies: []
 - name: Rustino
   color: Orange
   meta:
