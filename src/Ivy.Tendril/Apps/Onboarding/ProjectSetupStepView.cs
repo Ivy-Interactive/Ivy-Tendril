@@ -30,16 +30,6 @@ public class ProjectSetupStepView(
 
         UseEffect(() =>
         {
-            if (selectedRepos.Value.Count == 0 && config.Settings.Projects.Count > 0)
-            {
-                var lastProject = config.Settings.Projects.Last();
-                projectName.Set(lastProject.Name);
-                selectedRepos.Set(lastProject.Repos.ToList());
-            }
-        }, [EffectTrigger.OnMount()]);
-
-        UseEffect(() =>
-        {
             var raw = projectName.Value ?? "";
             var sanitized = InputSanitizer.SanitizeProjectName(raw);
             if (sanitized != raw) projectName.Set(sanitized);
@@ -69,12 +59,13 @@ public class ProjectSetupStepView(
             ? (object)(Layout.Vertical().Gap(2)
                 | Text.Bold("Generate Verifications")
                 | Text.Muted("Automatically detect your project's tech stack and configure verification steps (build, test, lint, etc.) that run after each plan execution.")
-                | new Button("Generate Verifications").Primary().Large().Icon(Icons.Sparkles)
+                | new Button("Generate Verifications").Primary().Icon(Icons.Sparkles)
                     .OnClick(() => _ = GenerateVerificationsAsync(config, setupService, runner, reviewActions, error, isCloning, progressMessage, progressValue)))
             : null!;
 
         return Layout.Vertical().Gap(4).Margin(0, 0, 0, 20)
                | Text.H3("Setup your first project")
+               | Text.Muted("A project groups one or more repositories together so Tendril can plan and verify changes across them.")
                | (error.Value != null ? Text.Danger(error.Value) : null!)
                | new ProjectRepoPickerView(selectedRepos, projectName)
                | projectName.ToTextInput().WithField().Required().Label("Project Name")

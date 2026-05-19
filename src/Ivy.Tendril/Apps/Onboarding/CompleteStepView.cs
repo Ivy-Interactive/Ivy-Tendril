@@ -160,7 +160,7 @@ public class CompleteStepView(
         var error = session.Error.Value;
 
         var headerText = running
-            ? "Setting up verifications…"
+            ? "Setting up verifications"
             : "Ready to Go!";
 
         var subText = running

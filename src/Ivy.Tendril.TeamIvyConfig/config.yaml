@@ -9,17 +9,18 @@ projects:
   meta:
     slackEmoji: ':hammer_and_wrench:'
   repos:
-  - path: D:\Repos\_Ivy\Ivy-Framework
+  - &o0
+    path: D:\Repos\_Ivy\Ivy-Framework
     prRule: yolo
     baseBranch: development
     syncStrategy: fetch
   verifications:
   - name: FrameworkDotnetBuild
     required: true
-  - &o0
+  - &o1
     name: DotnetFormat
     required: true
-  - &o3
+  - &o4
     name: DotnetTest
     required: true
   - name: FrameworkFrontendLint
@@ -29,7 +30,7 @@ projects:
   - name: NewWidgetChecklist
   - name: VitePlusCheck
     required: true
-  - &o1
+  - &o2
     name: CheckResult
     required: true
   context: >
@@ -61,17 +62,14 @@ projects:
     prRule: yolo
     baseBranch: development
     syncStrategy: fetch
-  - path: D:\Repos\_Ivy\Ivy-Framework
-    prRule: yolo
-    baseBranch: development
-    syncStrategy: fetch
+  - *o0
   verifications:
-  - &o2
+  - &o3
     name: DotnetBuild
     required: true
-  - *o0
-  - name: DotnetTest
   - *o1
+  - name: DotnetTest
+  - *o2
   context: >
     Plan management TUI. Key folders: - src\Ivy.Tendril\Services\ — ConfigService, PlanReaderService, JobService - src\Ivy.Tendril\Apps\ — PlansApp, JobsApp UI - src\Ivy.Tendril\Promptwares\ — CreatePlan, UpdatePlan, SplitPlan, ExpandPlan This project uses the Ivy Framework - there's CLI helper methods you can use:  ivy docs AGENTS.md  ivy question "How do I make a button in Ivy?"
   reviewActions:
@@ -99,16 +97,16 @@ projects:
     baseBranch: development
     syncStrategy: fetch
   verifications:
-  - *o2
-  - *o0
   - *o3
+  - *o1
+  - *o4
   - name: RustBuild
     required: true
   - name: RustTest
     required: true
   - name: RustClippy
     required: true
-  - *o1
+  - *o2
   context: >
     Rustino — cross-platform native desktop windows with embedded web views (Rust + .NET). Key folders: - src\Rustino.Native\ — Rust cdylib (wry + tao for webview\window) - src\Rustino.NET\ — C# P\Invoke wrapper - src\Rustino.NET.Reactive\ — IObservable extensions - src\Rustino.Samples\ — demo applications Build: `cd src\Rustino.Native && cargo build --release`, then `dotnet build`
   reviewActions:
@@ -122,6 +120,18 @@ projects:
     - CreatePr
     condition: ''
     action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
+  buildDependencies: []
+- name: Ivy-Examples
+  color: Green
+  meta: {}
+  repos:
+  - path: D:\Tendril\Repos\Ivy-Examples
+    prRule: default
+    syncStrategy: fetch
+  verifications: []
+  context: ''
+  reviewActions: []
+  hooks: []
   buildDependencies: []
 verifications:
 - name: FrameworkDotnetBuild

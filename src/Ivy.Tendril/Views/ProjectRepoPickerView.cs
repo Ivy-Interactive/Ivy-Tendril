@@ -75,21 +75,21 @@ public class ProjectRepoPickerView(
         if (isDesktop)
         {
             pickerControls = Layout.Horizontal().Gap(2).Width(Size.Full())
-                             | inputValue.ToTextInput("Repository URL or local path")
+                             | inputValue.ToTextInput("Repository URL or Local Path")
                                  .Width(Size.Grow())
                                  .OnSubmit(() => { _ = AddAsync(); })
                              | new Button("Browse").Icon(Icons.FolderOpen).Outline()
                                  .OnClick(() =>
                                  {
                                      var picked = desktop!.ShowSelectFolderDialog("Select repository folder");
-                                     if (picked != null && picked.Length > 0 && !string.IsNullOrEmpty(picked[0]))
+                                     if (picked is { Length: > 0 } && !string.IsNullOrEmpty(picked[0]))
                                          inputValue.Set(picked[0]);
                                  });
         }
         else
         {
             pickerControls = Layout.Horizontal().Gap(2).Width(Size.Full())
-                             | inputValue.ToTextInput("Repository URL or local path")
+                             | inputValue.ToTextInput("Repository URL or Local Path")
                                  .Width(Size.Grow())
                                  .OnSubmit(() => { _ = AddAsync(); });
         }

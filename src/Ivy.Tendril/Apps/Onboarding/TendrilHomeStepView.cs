@@ -22,21 +22,20 @@ public class TendrilHomeStepView(
             ".tendril");
 
         return Layout.Vertical().Gap(4).Margin(0, 0, 0, 20)
-               | Text.H3("This is where we store your data")
+               | Text.H3("Where should we store your data?")
                | Text.Muted(
-                   "Tendril keeps your config, plans, inbox, trash, hooks, promptwares, and a local " +
-                   "SQLite database in this folder. The default works for most people. Change it if " +
-                   "you want this data on a different drive, synced via Dropbox/iCloud, or shared " +
-                   "between machines.")
+                   """
+                   Tendril keeps your config and work in this folder.
+                   """)
                | (error.Value != null ? Text.Danger(error.Value) : null!)
                | tendrilHomePath.ToTextInput(defaultHome)
                    .WithField().Label("Tendril Home")
                | (Layout.Horizontal().Width(Size.Full())
-                  | new Button("Back").Outline().Large().Icon(Icons.ArrowLeft)
+                  | new Button("Back").Outline().Icon(Icons.ArrowLeft)
                       .Disabled(isBootstrapping.Value)
                       .OnClick(() => stepperIndex.Set(stepperIndex.Value - 1))
                   | new Spacer()
-                  | new Button("Next").Primary().Large().Icon(Icons.ArrowRight, Align.Right)
+                  | new Button("Next").Primary().Icon(Icons.ArrowRight, Align.Right)
                       .Disabled(isBootstrapping.Value || string.IsNullOrWhiteSpace(tendrilHomePath.Value))
                       .Loading(isBootstrapping.Value)
                       .OnClick(async () =>
