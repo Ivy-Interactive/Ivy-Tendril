@@ -11,7 +11,8 @@ public class ProjectInputStepView(
     Action onBack,
     Action onNext,
     Action? onSkip = null,
-    string skipButtonText = "Skip Setup") : ViewBase
+    string skipButtonText = "Skip Setup",
+    string title = "Setup your first project") : ViewBase
 {
     public override object Build()
     {
@@ -41,7 +42,7 @@ public class ProjectInputStepView(
                 .OnClick(onNext);
 
         return Layout.Vertical()
-               | Text.H3("Setup your first project")
+               | Text.H3(title)
                | Text.Muted("A project groups one or more repositories together so Tendril can plan and verify changes across them.")
                | new ProjectRepoPickerView(selectedRepos, projectName)
                | new Spacer()
