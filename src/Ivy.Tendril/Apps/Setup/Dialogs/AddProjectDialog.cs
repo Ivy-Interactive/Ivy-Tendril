@@ -104,7 +104,8 @@ public class AddProjectDialog(
                     skipAgent.Set(true);
                     step.Set(1);
                 },
-                skipButtonText: "Skip AI Setup"),
+                skipButtonText: "Skip AI Setup",
+                title: "Add a project"),
             1 => new ProjectAgentStepView(
                 editRepos,
                 editName,
