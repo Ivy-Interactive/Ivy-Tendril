@@ -25,7 +25,7 @@ public class TendrilHomeStepView(
                | Text.H3("Where should we store your data?")
                | Text.Muted(
                    """
-                   Tendril keeps your config and work in this folder.
+                   Tendril keeps your config and plans in this folder.
                    """)
                | (error.Value != null ? Text.Danger(error.Value) : null!)
                | tendrilHomePath.ToTextInput(defaultHome)

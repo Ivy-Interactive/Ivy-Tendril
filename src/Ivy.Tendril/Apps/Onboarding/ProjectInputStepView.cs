@@ -27,7 +27,7 @@ public class ProjectInputStepView(
             | new Button("Back").Outline().Large().Icon(Icons.ArrowLeft)
                 .OnClick(() => stepperIndex.Set(stepperIndex.Value - 1))
             | new Spacer()
-            | new Button("Skip").Ghost().Large()
+            | new Button("Skip Setup").Ghost().Large()
                 .OnClick(() => stepperIndex.Set(3))
             | new Button("Create Project").Secondary().Large().Icon(Icons.ArrowRight, Align.Right)
                 .Disabled(!canContinue)

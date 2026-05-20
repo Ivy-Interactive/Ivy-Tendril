@@ -57,6 +57,7 @@ public class CreatePlanDialog(
                 | selectedPriority.ToSelectInput(PriorityOptions).Variant(SelectInputVariant.Toggle).WithField().Label("Priority")
                 | createPlanText.ToTextareaInput("Enter task description...").Rows(6).AutoFocus().WithField()
                     .Label("Describe the task for the new plan")
+                    .Required()
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(onClose),
