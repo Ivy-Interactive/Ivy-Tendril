@@ -10,6 +10,7 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>tendril</ToolCommandName>
     <DefaultItemExcludes>$(DefaultItemExcludes);Promptwares\**</DefaultItemExcludes>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
   <PropertyGroup>
     <PackageId>Ivy.Tendril</PackageId>

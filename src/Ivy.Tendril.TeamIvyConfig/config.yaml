@@ -123,48 +123,6 @@ projects:
     condition: ''
     action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
   buildDependencies: []
-- name: SlayZone
-  color: Green
-  meta: {}
-  repos:
-  - &o5
-    path: D:\Tendril\Repos\SlayZone
-    prRule: default
-    syncStrategy: fetch
-  verifications:
-  - &o6
-    name: NpmLint
-    required: true
-  - &o7
-    name: NpmBuild
-    required: true
-  - &o8
-    name: NpmTest
-    required: true
-  - *o2
-  context: ''
-  reviewActions:
-  - &o9
-    name: App
-    condition: Test-Path "Worktrees\SlayZone\package.json"
-    command: cd Worktrees\SlayZone && pnpm dev
-  hooks: []
-  buildDependencies: []
-- name: SlayZone3
-  color: Green
-  meta: {}
-  repos:
-  - *o5
-  verifications:
-  - *o6
-  - *o7
-  - *o8
-  - *o2
-  context: ''
-  reviewActions:
-  - *o9
-  hooks: []
-  buildDependencies: []
 verifications:
 - name: FrameworkDotnetBuild
   prompt: >
