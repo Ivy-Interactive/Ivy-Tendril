@@ -11,8 +11,10 @@ public class ProjectInputStepView(
     Action onBack,
     Action onNext,
     Action? onSkip = null,
-    string skipButtonText = "Skip Setup",
-    string title = "Setup your first project") : ViewBase
+    string skipButtonText = "Skip",
+    string nextButtonText = "AI Setup",
+    string title = "Setup your first project",
+    bool disableSkipWhenCannotContinue = false) : ViewBase
 {
     public override object Build()
     {
@@ -36,8 +38,8 @@ public class ProjectInputStepView(
             | new Button("Back").Outline().Large().Icon(Icons.ArrowLeft)
                 .OnClick(onBack)
             | new Spacer()
-            | (onSkip != null ? (object)new Button(skipButtonText).Ghost().Large().OnClick(() => onSkip()) : new Spacer())
-            | new Button("Create Project").Secondary().Large().Icon(Icons.ArrowRight, Align.Right)
+            | (onSkip != null ? (object)new Button(skipButtonText).Ghost().Large().Disabled(disableSkipWhenCannotContinue && !canContinue).OnClick(() => onSkip()) : new Spacer())
+            | new Button(nextButtonText).Secondary().Large().Icon(Icons.ArrowRight, Align.Right)
                 .Disabled(!canContinue)
                 .OnClick(onNext);
 
