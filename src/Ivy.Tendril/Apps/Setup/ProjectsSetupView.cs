@@ -12,6 +12,7 @@ public class ProjectsSetupView : ViewBase
         var client = UseService<IClientProvider>();
         var refreshToken = UseRefreshToken();
         var editIndex = UseState<int?>(-1);
+        var isAddOpen = UseState(false);
         var (alertView, showAlert) = UseAlert();
 
         var projects = config.Settings.Projects;
@@ -74,9 +75,10 @@ public class ProjectsSetupView : ViewBase
                | table
                | new Button("Add Project").Icon(Icons.Plus).Outline().OnClick(() =>
                {
-                   editIndex.Set(null);
+                   isAddOpen.Set(true);
                })
                | new EditProjectDialog(editIndex, projects, allVerifications, config, client, refreshToken)
+               | new AddProjectDialog(isAddOpen, config, client, refreshToken)
                | alertView;
     }
 

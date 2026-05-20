@@ -5,14 +5,18 @@ using Ivy.Tendril.Views;
 namespace Ivy.Tendril.Apps.Onboarding;
 
 public class ProjectInputStepView(
-    IState<int> stepperIndex,
-    IState<int> projectSubStep,
     IState<List<RepoRef>> selectedRepos,
     IState<string> projectName,
-    IState<bool> isStepLoading) : ViewBase
+    IState<bool> isStepLoading,
+    Action onBack,
+    Action onNext,
+    Action? onSkip = null,
+    string skipButtonText = "Skip") : ViewBase
 {
     public override object Build()
     {
+        var config = UseService<IConfigService>();
+
         UseEffect(() =>
         {
             var raw = projectName.Value ?? "";
@@ -20,24 +24,28 @@ public class ProjectInputStepView(
             if (sanitized != raw) projectName.Set(sanitized);
         }, projectName);
 
+        var nameExists = !string.IsNullOrWhiteSpace(projectName.Value) &&
+                         config.Settings.Projects.Any(p => p.Name.Equals(projectName.Value.Trim(), StringComparison.OrdinalIgnoreCase));
+
         var canContinue = selectedRepos.Value.Count > 0
-                          && !string.IsNullOrWhiteSpace(projectName.Value);
+                          && !string.IsNullOrWhiteSpace(projectName.Value)
+                          && !nameExists;
 
         var buttonArea = Layout.Horizontal().Width(Size.Full())
             | new Button("Back").Outline().Large().Icon(Icons.ArrowLeft)
-                .OnClick(() => stepperIndex.Set(stepperIndex.Value - 1))
+                .OnClick(() => onBack())
             | new Spacer()
-            | new Button("Skip Setup").Ghost().Large()
-                .OnClick(() => stepperIndex.Set(3))
+            | (onSkip != null ? (object)new Button(skipButtonText).Ghost().Large().OnClick(() => onSkip()) : new Spacer())
             | new Button("Create Project").Secondary().Large().Icon(Icons.ArrowRight, Align.Right)
                 .Disabled(!canContinue)
-                .OnClick(() => projectSubStep.Set(1));
+                .OnClick(() => onNext());
 
         return Layout.Vertical().Gap(4).Margin(0, 0, 0, 20)
                | Text.H3("Setup your first project")
                | Text.Muted("A project groups one or more repositories together so Tendril can plan and verify changes across them.")
                | new ProjectRepoPickerView(selectedRepos, projectName)
                | projectName.ToTextInput().WithField().Required().Label("Project Name")
+               | (nameExists ? Text.Danger("A project with this name already exists.") : null!)
                | new Spacer()
                | buttonArea;
     }

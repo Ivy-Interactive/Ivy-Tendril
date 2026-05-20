@@ -62,7 +62,7 @@ jobs:
           version: 10.33.0
 
       - name: Install vite-plus (vp)
-        run: npm install -g vite-plus@0.1.13
+        run: npm install -g vite-plus@0.1.22
 
       - name: Setup Java (for ANTLR4)
         uses: actions/setup-java@v4
@@ -164,7 +164,7 @@ jobs:
           version: 10.33.0
 
       - name: Install vite-plus (vp)
-        run: npm install -g vite-plus@0.1.13
+        run: npm install -g vite-plus@0.1.22
 
       - name: Install PowerShell
         run: |

@@ -54,14 +54,14 @@
     <ProjectReference Include="../../../Ivy-Framework/src/Ivy.Desktop/Ivy.Desktop.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(IvySource)' != 'true'">
-    <PackageReference Include="Ivy" Version="1.2.56" />
-    <PackageReference Include="Ivy.Hooks.Pty" Version="1.2.56" />
-    <PackageReference Include="Ivy.Widgets.Xterm" Version="1.2.56" />
-    <PackageReference Include="Ivy.Widgets.DiffView" Version="1.2.56" />
-    <PackageReference Include="Ivy.Widgets.ClaudeJsonRenderer" Version="1.2.56" />
-    <PackageReference Include="Ivy.Widgets.AnimatedStatusLabel" Version="1.2.56" />
-    <PackageReference Include="Ivy.Widgets.AgentOutputView" Version="1.2.56" />
-    <PackageReference Include="Ivy.Desktop" Version="1.2.56" />
+    <PackageReference Include="Ivy" Version="1.2.58" />
+    <PackageReference Include="Ivy.Hooks.Pty" Version="1.2.58" />
+    <PackageReference Include="Ivy.Widgets.Xterm" Version="1.2.58" />
+    <PackageReference Include="Ivy.Widgets.DiffView" Version="1.2.58" />
+    <PackageReference Include="Ivy.Widgets.ClaudeJsonRenderer" Version="1.2.58" />
+    <PackageReference Include="Ivy.Widgets.AnimatedStatusLabel" Version="1.2.58" />
+    <PackageReference Include="Ivy.Widgets.AgentOutputView" Version="1.2.58" />
+    <PackageReference Include="Ivy.Desktop" Version="1.2.58" />
   </ItemGroup>
   <ItemGroup Condition="'$(IvySource)' == 'true'">
     <ProjectReference Include="../../../Ivy-Framework/src/Ivy.Analyser/Ivy.Analyser.csproj">
@@ -72,7 +72,7 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup Condition="'$(IvySource)' != 'true'">
-    <PackageReference Include="Ivy.Analyser" Version="1.2.56">
+    <PackageReference Include="Ivy.Analyser" Version="1.2.58">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>

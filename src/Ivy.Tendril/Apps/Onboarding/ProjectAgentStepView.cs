@@ -7,11 +7,14 @@ using Ivy.Widgets.AgentOutputView;
 namespace Ivy.Tendril.Apps.Onboarding;
 
 public class ProjectAgentStepView(
-    IState<int> projectSubStep,
     IState<List<RepoRef>> selectedRepos,
     IState<string> projectName,
     IState<bool> isStepLoading,
-    OnboardingVerificationSession session) : ViewBase
+    OnboardingVerificationSession session,
+    Action onBack,
+    Action onNext,
+    Action? onSkip = null,
+    bool skipAgent = false) : ViewBase
 {
     public override object Build()
     {
@@ -86,6 +89,13 @@ public class ProjectAgentStepView(
                 progressValue.Set(null);
                 progressMessage.Set(null);
 
+                if (skipAgent)
+                {
+                    isStepLoading.Set(false);
+                    onNext();
+                    return;
+                }
+
                 var notifyingStream = new NotifyingStream<string>(
                     session.Stream,
                     () => session.HasOutput.Set(true));
@@ -140,22 +150,16 @@ public class ProjectAgentStepView(
             }
         }, [EffectTrigger.OnMount()]);
 
-        void OnBack()
-        {
-            session.Reset();
-            isStepLoading.Set(false);
-            projectSubStep.Set(0);
-        }
-
         var running = session.Running.Value || isCloning.Value;
 
         var buttonArea = Layout.Horizontal().Width(Size.Full())
             | new Button("Back").Outline().Large().Icon(Icons.ArrowLeft)
-                .OnClick(OnBack)
+                .OnClick(() => onBack())
             | new Spacer()
+            | (onSkip != null ? (object)new Button("Skip").Ghost().Large().OnClick(() => onSkip()) : new Spacer())
             | new Button("Next").Secondary().Large().Icon(Icons.ArrowRight, Align.Right)
                 .Disabled(running)
-                .OnClick(() => projectSubStep.Set(2));
+                .OnClick(() => onNext());
 
         var awaitingOutput = !isCloning.Value && session.Running.Value && !session.HasOutput.Value;
 
@@ -176,17 +180,17 @@ public class ProjectAgentStepView(
                    : null!)
                | (session.HasOutput.Value
                    ? (object)new Box(
-                       new AgentOutputView()
-                           .Provider("claude")
-                           .Stream(session.Stream)
-                           .AutoScroll(true)
-                           .ShowStatusLabel(true)
-                           .Width(Size.Full())
-                           .Height(Size.Full())
-                     )
-                       .Width(Size.Full())
-                       .Height(Size.Units(100).Max(Size.Fraction(0.6f)))
-                       .Padding(4)
+                        new AgentOutputView()
+                            .Provider("claude")
+                            .Stream(session.Stream)
+                            .AutoScroll(true)
+                            .ShowStatusLabel(true)
+                            .Width(Size.Full())
+                            .Height(Size.Full())
+                      )
+                        .Width(Size.Full())
+                        .Height(Size.Units(100).Max(Size.Fraction(0.6f)))
+                        .Padding(4)
                    : null!)
                | buttonArea;
     }
