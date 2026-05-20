@@ -127,12 +127,42 @@ projects:
   color: Green
   meta: {}
   repos:
-  - path: D:\Tendril\Repos\SlayZone
+  - &o5
+    path: D:\Tendril\Repos\SlayZone
     prRule: default
     syncStrategy: fetch
-  verifications: []
+  verifications:
+  - &o6
+    name: NpmLint
+    required: true
+  - &o7
+    name: NpmBuild
+    required: true
+  - &o8
+    name: NpmTest
+    required: true
+  - *o2
   context: ''
-  reviewActions: []
+  reviewActions:
+  - &o9
+    name: App
+    condition: Test-Path "Worktrees\SlayZone\package.json"
+    command: cd Worktrees\SlayZone && pnpm dev
+  hooks: []
+  buildDependencies: []
+- name: SlayZone3
+  color: Green
+  meta: {}
+  repos:
+  - *o5
+  verifications:
+  - *o6
+  - *o7
+  - *o8
+  - *o2
+  context: ''
+  reviewActions:
+  - *o9
   hooks: []
   buildDependencies: []
 verifications:
@@ -209,6 +239,12 @@ verifications:
 - name: VitePlusCheck
   prompt: >
     Run `vp check` in the VitePlus frontend directory of the project repo. For PrCostCalculator: run in repo root. For Framework: `cd src\frontend && vp check` For Console: `cd Ivy.Studio\Widgets\frontend && vp check` If `vp check` reports fixable issues, run `vp check --fix`, then stage and commit the changes. Also run `vp build` to verify the production build succeeds.
+- name: NpmTest
+  prompt: Run `pnpm test:unit` (or `npm test`) in the plan's worktree directory. Filter to tests relevant to the plan's changes if a Tests section exists. Report pass\fail counts.
+- name: NpmLint
+  prompt: Run `pnpm lint` (or the project's lint script) in the plan's worktree directory. Report any lint errors or warnings. If there are auto-fixable issues, run `pnpm check` or `pnpm lint --fix` and commit the fixes.
+- name: NpmBuild
+  prompt: Run `pnpm build` (or the project's build\typecheck script) in the plan's worktree directory. Verify the build completes with zero errors. Report any type errors or build failures.
 planTemplate: >
   # {title}
 
