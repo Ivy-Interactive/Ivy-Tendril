@@ -42,14 +42,22 @@ public class ResetToDraftDialog(
                     if (!isResetting.Value)
                     {
                         isResetting.Set(true);
+
+                        _planService.ResetToDraft(_selectedPlan.FolderName);
+                        _refreshPlans();
                         _dialogOpen.Set(false);
 
                         var folderPath = _selectedPlan.FolderPath;
                         Task.Run(() =>
                         {
-                            CleanPlanState(folderPath, _logger);
-                            _planService.ResetToDraft(_selectedPlan.FolderName);
-                            _refreshPlans();
+                            try
+                            {
+                                CleanPlanState(folderPath, _logger);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "Failed to clean plan state for {FolderPath}", folderPath);
+                            }
                         });
                     }
                 })
