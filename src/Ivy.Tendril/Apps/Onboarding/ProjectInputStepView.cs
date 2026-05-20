@@ -44,6 +44,7 @@ public class ProjectInputStepView(
                | Text.H3("Setup your first project")
                | Text.Muted("A project groups one or more repositories together so Tendril can plan and verify changes across them.")
                | new ProjectRepoPickerView(selectedRepos, projectName)
+               | new Spacer()
                | projectName.ToTextInput().WithField().Required().Label("Project Name")
                | (nameExists ? Text.Danger("A project with this name already exists.") : null!)
                | new Spacer()
