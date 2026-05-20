@@ -1,0 +1,199 @@
+using Ivy.Core.Hooks;
+using Ivy.Desktop;
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Services;
+
+namespace Ivy.Tendril.Apps.Views;
+
+public class ProjectRepoPickerView(
+    IState<List<RepoRef>> repos,
+    IState<string>? projectName = null,
+    Func<RepoRef, Task<RepoRef?>>? onAdd = null,
+    bool showBaseBranchPicker = false) : ViewBase
+{
+    public override object Build()
+    {
+        var inputValue = UseState("");
+        var addingError = UseState<string?>(null);
+        var isAdding = UseState(false);
+        Context.TryUseService<DesktopWindow>(out var desktop);
+        Context.TryUseService<IConfigService>(out var configService);
+
+        var isDesktop = desktop != null;
+        var tendrilHome = configService?.TendrilHome;
+
+        async Task AddAsync()
+        {
+            var path = (inputValue.Value ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(path)) return;
+
+            if (!RepoPathValidator.IsValid(path))
+            {
+                addingError.Set("Invalid repository path.");
+                return;
+            }
+
+            if (repos.Value.Any(r => string.Equals(r.Path, path, StringComparison.OrdinalIgnoreCase)))
+            {
+                inputValue.Set("");
+                return;
+            }
+
+            var draft = new RepoRef { Path = path, PrRule = "default" };
+            var suggestedName = RepoPathValidator.ExtractRepoName(path) ?? path;
+
+            addingError.Set(null);
+            isAdding.Set(true);
+            try
+            {
+                RepoRef? toAdd = draft;
+                if (onAdd != null)
+                {
+                    toAdd = await onAdd(draft);
+                    if (toAdd == null) return;
+                }
+
+                var list = new List<RepoRef>(repos.Value) { toAdd };
+                repos.Set(list);
+
+                if (projectName != null && string.IsNullOrEmpty(projectName.Value) && !string.IsNullOrEmpty(suggestedName))
+                    projectName.Set(InputSanitizer.SanitizeProjectName(suggestedName));
+
+                inputValue.Set("");
+            }
+            catch (Exception ex)
+            {
+                addingError.Set(ex.Message);
+            }
+            finally
+            {
+                isAdding.Set(false);
+            }
+        }
+
+        object pickerControls;
+        if (isDesktop)
+        {
+            pickerControls = Layout.Horizontal().Gap(2).Width(Size.Full())
+                             | inputValue.ToTextInput("Repository URL or Local Path")
+                                 .Width(Size.Grow())
+                                 .OnSubmit(() => { _ = AddAsync(); })
+                             | new Button("Browse").Icon(Icons.FolderOpen).Outline()
+                                 .OnClick(() =>
+                                 {
+                                     var picked = desktop!.ShowSelectFolderDialog("Select repository folder");
+                                     if (picked is { Length: > 0 } && !string.IsNullOrEmpty(picked[0]))
+                                         inputValue.Set(picked[0]);
+                                 });
+        }
+        else
+        {
+            pickerControls = Layout.Horizontal().Gap(2).Width(Size.Full())
+                             | inputValue.ToTextInput("Repository URL or Local Path")
+                                 .Width(Size.Grow())
+                                 .OnSubmit(() => { _ = AddAsync(); });
+        }
+
+        var addButton = new Button("Add Repository").Icon(Icons.Plus)
+            .Disabled(string.IsNullOrWhiteSpace(inputValue.Value) || isAdding.Value)
+            .Loading(isAdding.Value)
+            .OnClick(() => { _ = AddAsync(); });
+
+        var listLayout = Layout.Vertical().Gap(2);
+        var current = repos.Value;
+        for (var i = 0; i < current.Count; i++)
+        {
+            var idx = i;
+            var item = current[idx];
+            var itemKind = RepoPathValidator.Classify(item.Path);
+            var isLocal = itemKind == RepoPathKind.LocalPath;
+
+            object? validityIcon = null;
+            object pathLabel = Text.Block(GetDisplayLabel(item)).Color(Colors.Primary);
+            if (isLocal)
+            {
+                var expanded = VariableExpansion.ExpandVariables(item.Path, tendrilHome);
+                var pathExists = Directory.Exists(expanded);
+                var isGitRepo = pathExists && Path.Exists(Path.Combine(expanded, ".git"));
+                if (!isGitRepo)
+                {
+                    pathLabel = Text.Block(item.Path).Color(Colors.Destructive);
+                    validityIcon = new Icon(Icons.TriangleAlert, Colors.Warning).Small()
+                        .WithTooltip(!pathExists
+                            ? $"Path does not exist: {expanded}"
+                            : $"Not a git repository: {expanded}");
+                }
+            }
+
+            object row = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.Center).Gap(2)
+                         | (validityIcon ?? null!)
+                         | pathLabel
+                         | new Spacer()
+                         | (showBaseBranchPicker
+                             ? (object)BuildBaseBranchSelector(repos, idx)
+                             : null!)
+                         | new Button().Icon(Icons.X).Ghost().OnClick(() =>
+                         {
+                             var list = new List<RepoRef>(repos.Value);
+                             if (idx < list.Count) list.RemoveAt(idx);
+                             repos.Set(list);
+                         }).WithTooltip("Remove");
+
+            listLayout |= new Box(row).BorderStyle(BorderStyle.None).Background(Colors.Muted).Padding(4, 2, 2, 2).Width(Size.Full());
+        }
+
+        return Layout.Vertical().Width(Size.Full())
+               | Text.H4("Add one or more Git repositories")
+               | (addingError.Value != null ? Text.Danger(addingError.Value) : null!)
+               | (Layout.Horizontal() | pickerControls  | addButton)
+               //| (current.Count > 0 ? new Separator() : null!)
+               | (current.Count > 0 ? listLayout : null!);
+    }
+
+    private static object BuildBaseBranchSelector(IState<List<RepoRef>> repos, int idx)
+    {
+        var bridge = new ConvertedState<List<RepoRef>, string>(
+            repos,
+            list => idx < list.Count ? (list[idx].BaseBranch ?? "") : "",
+            value =>
+            {
+                var list = new List<RepoRef>(repos.Value);
+                if (idx < list.Count)
+                    list[idx] = list[idx] with { BaseBranch = string.IsNullOrWhiteSpace(value) ? null : value.Trim() };
+                return list;
+            });
+
+        return bridge.ToTextInput("Base branch").Width(Size.Units(40)).WithTooltip("Default branch for this repository");
+    }
+
+    private static string GetDisplayLabel(RepoRef repo)
+    {
+        var name = RepoPathValidator.ExtractRepoName(repo.Path);
+        if (name != null)
+        {
+            var kind = RepoPathValidator.Classify(repo.Path);
+            if (kind == RepoPathKind.HttpUrl || kind == RepoPathKind.SshUrl)
+            {
+                // Show owner/repo for remote URLs
+                var trimmed = repo.Path;
+                if (trimmed.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
+                    trimmed = trimmed[..^4];
+                if (kind == RepoPathKind.SshUrl)
+                {
+                    var colonIdx = trimmed.IndexOf(':');
+                    if (colonIdx >= 0)
+                        return trimmed[(colonIdx + 1)..];
+                }
+                else
+                {
+                    var parts = trimmed.Split('/');
+                    if (parts.Length >= 2)
+                        return $"{parts[^2]}/{parts[^1]}";
+                }
+            }
+            return name;
+        }
+        return repo.Path;
+    }
+
+}

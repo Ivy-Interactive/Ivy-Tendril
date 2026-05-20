@@ -1,6 +1,6 @@
+using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
-using Ivy.Tendril.Views;
 
 namespace Ivy.Tendril.Apps;
 
@@ -118,7 +118,7 @@ public class DashboardApp : ViewBase
         // Per-project breakdown (always shows all projects)
         var projectData = stats.ProjectCounts;
 
-        var projectProgress = new StackedProgress(
+        var projectProgress = Layout.Vertical().Padding(2, 0) | new StackedProgress(
                     projectData.Select(p => new ProgressSegment(
                         p.Count,
                         configService.GetProjectColor(p.Project),

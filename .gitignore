@@ -38,6 +38,9 @@ x86/
 **/tmp_out/
 msbuild.binlog
 
+## Updater binaries (CI-generated, embedded as resources)
+**/PublishedBinaries/
+
 ## Config backups
 *.yaml.backup
 

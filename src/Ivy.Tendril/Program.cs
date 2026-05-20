@@ -59,7 +59,8 @@ public class Program
         if (filteredArgs.Length > 0)
         {
             var cliServices = new ServiceCollection();
-            cliServices.AddLogging(builder => builder.AddConsole());
+            var cliLogLevel = verbose ? LogLevel.Debug : quiet ? LogLevel.Warning : LogLevel.Information;
+            cliServices.AddLogging(builder => builder.AddConsole().SetMinimumLevel(cliLogLevel));
             cliServices.AddSingleton<IPlanWatcherService, NullPlanWatcherService>();
 
             var app = ConfigureCliCommands(cliServices);
@@ -135,9 +136,39 @@ public class Program
 
             var window = new DesktopWindow(server)
                 .Title("Ivy Tendril")
-                .Size(1400, 900)
+                .AppId("Ivy Tendril")
+                .Size(1800, 1200)
                 .UseDpiScaling(false)
-                .Icon(typeof(Program), iconResource);
+                .Icon(typeof(Program), iconResource)
+                .OnReady(w =>
+                {
+                    if (server.ServiceProvider is { } sp)
+                    {
+                        var countsService = sp.GetService<IPlanCountsService>();
+                        if (countsService != null)
+                        {
+                            UpdateBadge(w, countsService.Current.ActiveJobs);
+                            countsService.CountsChanged += () =>
+                                UpdateBadge(w, countsService.Current.ActiveJobs);
+                        }
+
+                        var jobService = sp.GetService<IJobService>();
+                        var configService = sp.GetService<IConfigService>();
+                        if (jobService != null)
+                        {
+                            jobService.NotificationReady += notification =>
+                            {
+                                if (configService?.Settings.DesktopNotifications != false)
+                                {
+                                    DesktopWindow.ShowNotification(
+                                        notification.Title,
+                                        notification.Message,
+                                        appId: "Ivy Tendril");
+                                }
+                            };
+                        }
+                    }
+                });
 
             return window.Run();
         }
@@ -178,7 +209,7 @@ public class Program
             "doctor", "db-version", "db-migrate", "db-reset",
             "update-promptwares", "job", "plan", "promptware",
             "trash", "verification", "project",
-            "version", "--version", "report-bug"
+            "version", "--version", "report-bug", "reset", "update"
         };
         return cliCommands.Contains(firstArg);
     }
@@ -278,6 +309,8 @@ public class Program
             });
             config.AddCommand<VersionCommand>("version")
                 .WithDescription("Show version information");
+            config.AddCommand<UpdateCliCommand>("update")
+                .WithDescription("Update Tendril to the latest version");
             config.AddCommand<ReportBugCommand>("report-bug")
                 .WithDescription("Report a bug with plan/job context");
 
@@ -401,6 +434,8 @@ public class Program
                     .WithDescription("Add a verification to a project");
                 project.AddCommand<ProjectRemoveVerificationCommand>("remove-verification")
                     .WithDescription("Remove a verification from a project");
+                project.AddCommand<ProjectMoveVerificationCommand>("move-verification")
+                    .WithDescription("Move a verification to a different position in the list");
                 project.AddCommand<ProjectAddBuildDepCommand>("add-build-dep")
                     .WithDescription("Add a build dependency to a project");
                 project.AddCommand<ProjectRemoveBuildDepCommand>("remove-build-dep")
@@ -484,5 +519,13 @@ public class Program
         {
             return "Memory stats unavailable";
         }
+    }
+
+    private static void UpdateBadge(DesktopWindow window, int activeJobs)
+    {
+        if (activeJobs > 0)
+            window.SetBadgeCount(activeJobs);
+        else
+            window.ClearBadge();
     }
 }

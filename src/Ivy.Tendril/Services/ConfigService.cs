@@ -173,6 +173,7 @@ public class TendrilSettings
     public Dictionary<string, PromptwareConfig> Promptwares { get; set; } = new();
     public List<AgentConfig> CodingAgents { get; set; } = new();
     public bool Telemetry { get; set; } = true;
+    public bool DesktopNotifications { get; set; } = true;
 
     public List<LevelConfig> Levels { get; set; } = new()
     {

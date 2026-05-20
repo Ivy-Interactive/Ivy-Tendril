@@ -14,6 +14,79 @@ icon: ScrollText
 Version history, new features, improvements, and bug fixes for each Tendril release.
 </Ingress>
 
+## 1.0.35 (2026-05-20)
+
+### Features
+
+- **Native OS toast notifications** — Desktop notifications for plan completions, failures, and other events, with a dedicated Notifications tab in Settings.
+- **Taskbar badge** — Active job count displayed in the desktop taskbar badge for at-a-glance status.
+- **Wizard-based Add Project** — New project setup now uses a guided wizard flow matching onboarding, with skip capability for experienced users.
+- **Move-verification CLI command** — Reorder verifications via `tendril project move-verification` with ordering instructions.
+- **Redesigned onboarding** — "Your First Project" is now a 3-step flow with fresh project setup, progressive feedback, and newsletter signup on completion.
+- **CLI CRUD commands** — Full CRUD for verifications and projects via the CLI (`tendril project get`, `tendril verification add/remove/move`).
+- **Plan commit sync** — Synchronize plan commits on demand via the Synchronize button in Review.
+- **ReviewAction CRUD UI** — Configure review actions directly from Settings and onboarding.
+- **`tendril reset` command** — Reset Tendril state via the CLI.
+- **`tendril report-bug` command** — File bug reports with system context directly from the CLI.
+- **`promptware read-memory` command** — Inspect promptware memory from the CLI.
+- **Draft mode for PR creation** — Option to create PRs as GitHub drafts.
+- **Recommendations Accept/Decline** — Accept or decline recommendations directly in the Review app, with filtering by Completed plans.
+- **Git tab: Worktrees tile** — Shows parent repo details and groups commits under worktree sections.
+- **Keep worktrees alive for Failed plans** — Failed plan worktrees are preserved for debugging instead of being cleaned up.
+- **OpenCode agent provider** — Added OpenCode as a supported coding agent.
+- **Copilot CLI agent provider** — Added GitHub Copilot CLI as a supported coding agent.
+- **`--plans-dir` CLI flag** — Override the plans directory for E2E testing and custom setups.
+- **TendrilProcessView widget** — External widget for visualizing Tendril processes.
+
+### Improvements
+
+- **Git tab polish** — Icons on section headers and empty state, hierarchical tree with color indicators for changed files.
+- **Changes tab stability** — Fixed blinking during 30s background revalidation, expand-by-default behavior, and full-width layout.
+- **Review tab cleanup** — Empty Artifacts and Recommendations tabs are now hidden; plan views use article typography.
+- **Commit messages simplified** — Removed plan ID prefix from commit message instructions for cleaner git history.
+- **Import Issues from GitHub polished** — Improved UX for the GitHub issue import flow.
+- **Window sizing** — Updated default window dimensions to work properly on macOS Retina displays, with minimum size enforced.
+- **RetryPlan improvements** — Appends fix sections to existing summary, clarifies multi-repo worktree setup, streams raw log to disk.
+- **VerbosityService removed** — Replaced with standard ILogger levels for simpler logging configuration.
+- **ServiceRegistration extraction** — Service registrations moved from TendrilServer into a dedicated `ServiceRegistration.cs`.
+- **Onboarding code health** — Extracted helpers, added AgentOnboardingInfo, primary constructors, and improved UX copy.
+- **Promptware tool permissions** — Updated default tool permissions for safer agent execution.
+- **CLI documentation restructured** — Comprehensive rewrite of CLI reference with updated command syntax and examples.
+- **Full-width markdown in plan views** — Scrollable content with max-width constraint for readability.
+- **Responsive Jobs table** — Large density on tablet, Medium on desktop for better space usage.
+- **Remove generate verifications** — Removed from project edit dialog in favor of CLI-based verification management.
+- **Framework exceptions hidden** — Framework-internal exceptions no longer surface as user-facing notifications.
+
+### Bug Fixes
+
+- Fixed reset-to-draft not updating UI immediately after confirmation.
+- Fixed project verification order not preserved in onboarding review step.
+- Fixed onboarding steps stuck after progress completes.
+- Fixed "No summary available" flash when opening a plan in Review.
+- Fixed Changes tab blinking every 30s during background revalidation.
+- Fixed test parallelism contaminating TeamIvyConfig `config.yaml`.
+- Fixed commit hashes stored as short hashes in syncer — now stores full hashes and refreshes UI after sync.
+- Fixed commits lost across RetryPlan executions.
+- Fixed review action command paths to use quoted PowerShell syntax.
+- Fixed error notification when canceling dialogs with ESC.
+- Fixed subfolder casing migration and broken cleanup tests.
+- Fixed `plan.yaml` corruption during UpdatePlan execution.
+- Fixed duplicate content in Agent Output during live streaming.
+- Fixed job output rendered twice when job completes.
+- Fixed PromptwareRoot resolution bug causing missing promptwares.
+- Fixed Update Available toast spacing and position.
+- Fixed incomplete "You have ." message in WallpaperApp.
+- Fixed missing application window icon by updating resource names.
+- Fixed `gh auth status` failing with multiple GitHub accounts.
+- Fixed output sheet showing empty panel for completed jobs.
+- Fixed bogus ReportedPlanId when no matching plan folder exists.
+- Fixed Jobs table sorting to show newest jobs first.
+- Fixed completed jobs filtered out on restart.
+- Fixed delegated verification invocation syntax causing IvyFrameworkVerification failures.
+- Fixed onboarding Complete Setup button hanging indefinitely.
+- Fixed infinite hang in background service startup.
+- Fixed tab name scoping issue in Review.
+
 ## 1.0.22 (2026-04-27)
 
 ### Improvements

@@ -1,7 +1,7 @@
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Views;
+using Ivy.Tendril.Apps.Views;
 
 namespace Ivy.Tendril.Apps.Plans;
 
@@ -32,7 +32,6 @@ public class SidebarView(
                 new Button()
                     .Icon(filtersOpen.Value ? Icons.ChevronUp : Icons.ChevronDown)
                     .Ghost()
-                    .Small()
                     .OnClick(() => filtersOpen.Set(!filtersOpen.Value))
             );
 
@@ -66,7 +65,7 @@ public class SidebarView(
         var content = new List(filteredList.Select(plan =>
         {
             var clickablePlan = plan;
-            var stateBadgeVariant = StatusMappings.PlanStatusBadgeVariants.GetValueOrDefault(plan.Status, BadgeVariant.Outline);
+            var stateBadgeVariant = Constants.PlanStatusBadgeVariants.GetValueOrDefault(plan.Status, BadgeVariant.Outline);
 
             var badges = Layout.Horizontal().Gap(1);
             if (plan.Status != PlanStatus.Draft)

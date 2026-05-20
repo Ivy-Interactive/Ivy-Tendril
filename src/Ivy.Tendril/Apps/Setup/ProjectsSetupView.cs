@@ -12,6 +12,7 @@ public class ProjectsSetupView : ViewBase
         var client = UseService<IClientProvider>();
         var refreshToken = UseRefreshToken();
         var editIndex = UseState<int?>(-1);
+        var isAddOpen = UseState(false);
         var (alertView, showAlert) = UseAlert();
 
         var projects = config.Settings.Projects;
@@ -68,15 +69,16 @@ public class ProjectsSetupView : ViewBase
             ))
             .Width(Size.Fit());
 
-        return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(200)))
+        return Layout.Vertical().Padding(4).Width(Size.Auto().Max(Size.Units(200)))
                | Text.Block("Projects").Bold()
                | Text.Block("Manage projects, their repositories, and verification assignments.").Muted().Small()
                | table
                | new Button("Add Project").Icon(Icons.Plus).Outline().OnClick(() =>
                {
-                   editIndex.Set(null);
+                   isAddOpen.Set(true);
                })
                | new EditProjectDialog(editIndex, projects, allVerifications, config, client, refreshToken)
+               | new AddProjectDialog(isAddOpen, config, client, refreshToken)
                | alertView;
     }
 

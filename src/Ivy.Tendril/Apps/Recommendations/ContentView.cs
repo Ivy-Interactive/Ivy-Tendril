@@ -1,8 +1,8 @@
 using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Apps.Recommendations.Dialogs;
+using Ivy.Tendril.Apps.Views;
+using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Models;
-using Ivy.Tendril.Views;
-using Ivy.Tendril.Views.Sheets;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 
@@ -98,7 +98,7 @@ public class ContentView(
                      });
 
         // Content
-        var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200))).Gap(4).Padding(2);
+        var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200))).Padding(2);
 
         // Source plan info and Impact/Risk badges
         var metaRow = Layout.Horizontal().Gap(2).AlignContent(Align.Left)

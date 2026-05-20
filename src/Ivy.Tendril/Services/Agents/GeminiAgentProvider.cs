@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 
 namespace Ivy.Tendril.Services.Agents;
 
@@ -6,6 +8,16 @@ public class GeminiAgentProvider : IAgentProvider
 {
     public string Name => "gemini";
     public bool UsesStdinPrompt => true;
+
+    public AgentOnboardingInfo OnboardingInfo => new(
+        "Gemini CLI", "https://github.com/google-gemini/gemini-cli", "--version",
+        () =>
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var path = Path.Combine(home, ".gemini", "oauth_creds.json");
+            return ProcessCheckHelper.CheckFileAuth(path, minSize: 0);
+        },
+        "Sign in to Gemini");
 
     public ProcessStartInfo BuildProcessStart(AgentInvocation invocation)
     {

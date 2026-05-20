@@ -27,7 +27,7 @@
     body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
     table { border-spacing: 0; border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
     img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; display: block; }
-    body { margin: 0; padding: 0; width: 100% !important; min-width: 100%; background-color: #202221; -webkit-font-smoothing: antialiased; }
+    body { margin: 0; padding: 0; width: 100% !important; min-width: 100%; background-color: #ffffff; -webkit-font-smoothing: antialiased; }
     .preheader { display: none !important; visibility: hidden; mso-hide: all; font-size: 1px; line-height: 1px; max-height: 0; max-width: 0; opacity: 0; overflow: hidden; }
 
     u + .body .wrapper { min-width: 100vw; }
@@ -44,12 +44,9 @@
       border-radius: 6px;
       mso-padding-alt: 0;
     }
-    <!--[if mso]>
-    .btn-td a { padding: 14px 32px; }
-    <![endif]-->
 
     @media only screen and (max-width: 620px) {
-      .wrapper-inner { padding: 16px !important; }
+      .wrapper-inner { padding: 0 !important; }
       .main-table { width: 100% !important; border-radius: 0 !important; }
       .header-td { padding: 24px 20px !important; }
       .content-td { padding: 28px 20px !important; }
@@ -70,7 +67,7 @@
     }
 
     @media (prefers-color-scheme: dark) {
-      .body, body { background-color: #1a1b1a !important; }
+      .body, body { background-color: #ffffff !important; }
       .main-table { background-color: #2a2b2a !important; }
       .content-td { background-color: #2a2b2a !important; }
       h2, .section-title { color: #0ccb91 !important; }
@@ -83,23 +80,32 @@
     }
   </style>
 </head>
-<body class="body" style="margin: 0; padding: 0; background-color: #202221;">
+<body class="body" style="margin: 0; padding: 0; background-color: #ffffff;">
   <span class="preheader" style="display: none !important; visibility: hidden; mso-hide: all; font-size: 1px; line-height: 1px; max-height: 0; max-width: 0; opacity: 0; overflow: hidden;">{{{PREVIEW_TEXT}}}&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;</span>
 
-  <div class="wrapper" style="background-color: #202221; width: 100%; table-layout: fixed;">
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #202221;">
+  <div class="wrapper" style="background-color: #ffffff; width: 100%; table-layout: fixed;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #ffffff;">
       <tr>
-        <td class="wrapper-inner" align="center" style="padding: 40px 16px;">
+        <td class="wrapper-inner" align="center" style="padding: 0;">
           <!--[if mso]>
           <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center"><tr><td>
           <![endif]-->
-          <table class="main-table" role="presentation" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden;">
+          <table class="main-table" role="presentation" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%; margin: 0 auto; background-color: #ffffff;">
 
             <!-- Header -->
             <tr>
               <td class="header-td" style="background-color: #0D4A2F; padding: 40px 40px 36px;">
-                <h1 class="headline" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #ffffff; font-size: 24px; font-weight: 700; line-height: 1.3; margin: 0 0 12px; padding: 0;">{{{HEADLINE}}}</h1>
-                <p class="body-text" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #D4F6ED; font-size: 16px; line-height: 1.65; margin: 0; padding: 0;">{{{INTRO_TEXT}}}</p>
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 16px;">
+                  <tr>
+                    <td style="vertical-align: middle; padding-right: 10px;">
+                      <img src="https://cdn.ivy.app/logo_green_w200.png" width="32" height="32" alt="Ivy" style="display: block; border: 0; outline: none;">
+                    </td>
+                    <td style="vertical-align: middle; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 22px; font-weight: 600; color: #ffffff; letter-spacing: -0.5px;">
+                      Tendril
+                    </td>
+                  </tr>
+                </table>
+                <h1 class="headline" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #ffffff; font-size: 24px; font-weight: 700; line-height: 1.3; margin: 0 0 12px; padding: 0;">Headline</h1>
               </td>
             </tr>
 
@@ -108,29 +114,12 @@
               <td class="content-td" style="background-color: #ffffff; padding: 40px;">
 
                 <!-- Section 1 -->
-                <h2 class="section-title" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #0D4A2F; font-size: 20px; font-weight: 600; line-height: 1.3; margin: 0 0 12px; padding: 0;">{{{SECTION_1_TITLE}}}</h2>
+                <h2 class="section-title" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #0D4A2F; font-size: 20px; font-weight: 600; line-height: 1.3; margin: 0 0 12px; padding: 0;">Lorem Ipsum Dolor Sit</h2>
 
-                <p class="body-text" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #5A6361; font-size: 16px; line-height: 1.65; margin: 0 0 16px; padding: 0;">{{{SECTION_1_BODY}}}</p>
+                <p class="body-text" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #5A6361; font-size: 16px; line-height: 1.65; margin: 0 0 16px; padding: 0;">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.</p>
 
-                <!-- Highlight -->
-                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 24px 0;">
-                  <tr>
-                    <td class="highlight-wrapper" style="background-color: #E8F7F0; border-left: 4px solid #0ccb91; border-radius: 0 6px 6px 0;">
-                      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
-                        <tr>
-                          <td class="highlight-td" style="padding: 16px 20px;">
-                            <p class="highlight-text" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #0D4A2F; font-size: 15px; line-height: 1.55; margin: 0; padding: 0;">{{{HIGHLIGHT_TEXT}}}</p>
-                          </td>
-                        </tr>
-                      </table>
-                    </td>
-                  </tr>
-                </table>
+                <p class="body-text" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #5A6361; font-size: 16px; line-height: 1.65; margin: 0 0 16px; padding: 0;">Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
 
-                <!-- Section 2 -->
-                <h2 class="section-title" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #0D4A2F; font-size: 20px; font-weight: 600; line-height: 1.3; margin: 0 0 12px; padding: 0;">{{{SECTION_2_TITLE}}}</h2>
-
-                <p class="body-text" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #5A6361; font-size: 16px; line-height: 1.65; margin: 0 0 16px; padding: 0;">{{{SECTION_2_BODY}}}</p>
 
                 <!-- CTA Button -->
                 <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin: 32px 0;">
@@ -148,12 +137,29 @@
                   </tr>
                 </table>
 
-                <!-- Divider -->
-                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
-                  <tr><td class="divider" style="padding: 16px 0;"><hr style="border: none; border-top: 1px solid #D8DCDB; margin: 0;"></td></tr>
+
+                <!-- Update Tendril Section -->
+                <h2 class="section-title" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #0D4A2F; font-size: 20px; font-weight: 600; line-height: 1.3; margin: 0 0 8px; padding: 0;">Update Tendril</h2>
+
+                <p class="body-text" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #5A6361; font-size: 16px; line-height: 1.65; margin: 0 0 12px; padding: 0;">Type this in your terminal to update Tendril to the latest version:</p>
+
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 0 0 12px;">
+                  <tr>
+                    <td style="background-color: #1e1e1e; border-radius: 6px; padding: 16px 20px; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 14px; line-height: 1.6; color: #d4d4d4;">
+                      <span style="color: #6A9955;">$</span> dotnet tool update -g Ivy.Tendril
+                    </td>
+                  </tr>
                 </table>
 
-                <p class="closing-text" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #5A6361; font-size: 14px; line-height: 1.6; margin: 0 0 8px; padding: 0;">{{{CLOSING_TEXT}}}</p>
+                <p style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #9CA3A1; font-size: 13px; line-height: 1.5; margin: 0 0 24px; padding: 0;">If you experience issues after updating try <span style="font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 12px; color: #202221;">tendril reset</span> to get a clean installation.</p>
+
+                <!-- Feature Requests Section -->
+                <h2 class="section-title" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #0D4A2F; font-size: 20px; font-weight: 600; line-height: 1.3; margin: 0 0 12px; padding: 0;">Feature Requests?</h2>
+
+                <p class="body-text" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #5A6361; font-size: 16px; line-height: 1.65; margin: 0 0 12px; padding: 0;">Email us at <a href="mailto:tendril@ivy.app" style="color: #0ccb91; text-decoration: underline;">tendril@ivy.app</a> or submit a ticket on <a href="https://github.com/Ivy-Interactive/Ivy-Tendril/issues" style="color: #0ccb91; text-decoration: underline;">GitHub Issues</a>. Our goal is to make you and your colleagues as productive as possible when coding with AI.</p>
+
+                <p class="body-text" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #5A6361; font-size: 16px; line-height: 1.65; margin: 0 0 24px; padding: 0;">Please consider giving us a&nbsp;&#11088;&nbsp;on <a href="https://github.com/Ivy-Interactive/Ivy-Tendril" style="color: #0ccb91; text-decoration: underline;">GitHub</a>!</p>
+
                 <p class="signoff" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #202221; font-size: 14px; font-weight: 500; line-height: 1.6; margin: 0; padding: 0;">— Niels & the Tendril team</p>
 
               </td>
@@ -162,11 +168,38 @@
             <!-- Footer -->
             <tr>
               <td class="footer-td" align="center" style="background-color: #0D4A2F; padding: 28px 40px;">
-                <p style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #D4F6ED; font-size: 13px; line-height: 1.5; margin: 0 0 10px; padding: 0;">Ivy Interactive AB &middot; Stockholm, Sweden</p>
+                <!-- Social Icons -->
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin: 0 auto 16px;">
+                  <tr>
+                    <td align="center" style="padding: 0 8px;">
+                      <a href="https://www.linkedin.com/company/ivy-interactive/" style="text-decoration: none;">
+                        <img src="https://cdn.ivy.app/tendril/images/social/linkedin.png" width="24" height="24" alt="LinkedIn" style="display: block; border: 0; outline: none;">
+                      </a>
+                    </td>
+                    <td align="center" style="padding: 0 8px;">
+                      <a href="https://www.youtube.com/@IvyInteractive" style="text-decoration: none;">
+                        <img src="https://cdn.ivy.app/tendril/images/social/youtube.png" width="24" height="24" alt="YouTube" style="display: block; border: 0; outline: none;">
+                      </a>
+                    </td>
+                    <td align="center" style="padding: 0 8px;">
+                      <a href="https://x.com/ivy_interactive" style="text-decoration: none;">
+                        <img src="https://cdn.ivy.app/tendril/images/social/x.png" width="24" height="24" alt="X" style="display: block; border: 0; outline: none;">
+                      </a>
+                    </td>
+                    <td align="center" style="padding: 0 8px;">
+                      <a href="https://github.com/Ivy-Interactive/Ivy-Tendril" style="text-decoration: none;">
+                        <img src="https://cdn.ivy.app/tendril/images/social/github.png" width="24" height="24" alt="GitHub" style="display: block; border: 0; outline: none;">
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+                <p style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #D4F6ED; font-size: 13px; line-height: 1.5; margin: 0 0 10px; padding: 0;">Ivy Interactive AB &middot; Stockholm &middot; Sweden</p>
                 <p style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #D4F6ED; font-size: 13px; line-height: 1.5; margin: 0; padding: 0;">
                   <a href="{{{RESEND_UNSUBSCRIBE_URL}}}" style="color: #0ccb91; text-decoration: underline;">Unsubscribe</a>
                   <span style="color: #5A8A75;">&nbsp;&middot;&nbsp;</span>
-                  <a href="https://ivy.app" style="color: #0ccb91; text-decoration: underline;">ivy.app</a>
+                  <a href="https://ivy.app" style="color: #0ccb91; text-decoration: underline;">Website</a>
+                  <span style="color: #5A8A75;">&nbsp;&middot;&nbsp;</span>
+                  <a href="https://tendril.ivy.app" style="color: #0ccb91; text-decoration: underline;">Documentation</a>
                 </p>
               </td>
             </tr>

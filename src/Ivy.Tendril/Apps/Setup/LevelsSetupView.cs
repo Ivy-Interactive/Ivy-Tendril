@@ -59,7 +59,7 @@ public class LevelsSetupView : ViewBase
             ))
             .Width(Size.Fit());
 
-        return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(200)))
+        return Layout.Vertical().Padding(4).Width(Size.Auto().Max(Size.Units(200)))
                | Text.Block("Priority Levels").Bold()
                | Text.Block("Define priority levels used to categorize plans.").Muted().Small()
                | table
@@ -103,7 +103,7 @@ file class EditLevelDialogContent(
             _ => isOpen.Set(false),
             new DialogHeader(isNew ? "Add Level" : "Edit Level"),
             new DialogBody(
-                Layout.Vertical().Gap(4)
+                Layout.Vertical()
                 | editName.ToTextInput("Level name...").WithField().Label("Name")
                 | editBadge.ToSelectInput(badgeOptions).WithField().Label("Badge Variant")
             ),

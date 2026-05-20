@@ -11,6 +11,7 @@ public interface IAgentProvider
     ProcessStartInfo BuildProcessStart(AgentInvocation invocation);
     string? ExtractResult(IReadOnlyList<string> outputLines);
     IReadOnlyList<PermissionDenial> ExtractPermissionDenials(IReadOnlyList<string> outputLines) => [];
+    AgentOnboardingInfo? OnboardingInfo => null;
 }
 
 public record AgentInvocation(

@@ -4,11 +4,11 @@ using Ivy.Core;
 using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Apps.Review.Dialogs;
+using Ivy.Tendril.Apps.Views;
+using Ivy.Tendril.Apps.Views.Sheets;
+using Ivy.Tendril.Apps.Views.Tabs;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
-using Ivy.Tendril.Views;
-using Ivy.Tendril.Views.Sheets;
-using Ivy.Tendril.Views.Tabs;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Apps.Review;
@@ -378,7 +378,7 @@ public class ContentView(
         INavigator nav,
         ReviewAppArgs? args)
     {
-        var content = Layout.Vertical().Height(Size.Full()).Gap(1);
+        var content = Layout.Vertical().Height(Size.Full()).Gap(0);
 
         if (selectedPlan is null)
         {
@@ -417,12 +417,10 @@ public class ContentView(
         }
         else
         {
-            var gitData = GitTabHelper.BuildGitTabData(planData.CommitRows, selectedPlan!, config, gitService);
-            var gitLayout = GitTabHelper.RenderGitTab(
+            var gitData = GitTabDataBuilder.BuildGitTabData(planData.CommitRows, selectedPlan!, config, gitService);
+            var gitTabView = new GitTabView(
                 gitData,
                 selectedPlan!,
-                client,
-                config,
                 hash => openCommit.Set(hash),
                 path =>
                 {
@@ -431,8 +429,7 @@ public class ContentView(
                     return null!;
                 },
                 syncingWorktrees.Value,
-                worktreePath => SynchronizeWorktreeAsync(worktreePath, syncingWorktrees, planContentQuery, client, planService, selectedPlanState, logger),
-                logger
+                worktreePath => SynchronizeWorktreeAsync(worktreePath, syncingWorktrees, planContentQuery, client, planService, selectedPlanState, logger)
             );
 
             var totalArtifacts = (planData.Artifacts.GetValueOrDefault("screenshots")?.Count ?? 0)
@@ -473,7 +470,7 @@ public class ContentView(
             }
 
             var pendingRecs = planData.Recommendations.Where(r => r.State == "Pending").ToList();
-            var recommendationsLayout = Layout.Vertical().Gap(4).Padding(2);
+            var recommendationsLayout = Layout.Vertical().Padding(2);
             if (pendingRecs.Count == 0)
                 recommendationsLayout |= Text.Muted("No recommendations.");
             else
@@ -536,8 +533,8 @@ public class ContentView(
                 new Tab("Verifications", Cap(new VerificationsTabView(
                     selectedPlan.Verifications, planData.VerificationReports,
                     v => openVerification.Set(v)))).Badge(selectedPlan.Verifications.Count.ToString()),
-                new Tab("Git", Cap(gitLayout)).Badge((gitData.WorktreeSections.Count + selectedPlan.Commits.Count + selectedPlan.Prs.Count).ToString()),
-                new Tab("Changes", Layout.Vertical().Width(Size.Full()).Height(Size.Full()) | changesTabView).Badge(changesTabView.FileCount > 0 ? changesTabView.FileCount.ToString() : "")
+                new Tab("Git", Cap(gitTabView)).Badge((gitData.WorktreeSections.Count + selectedPlan.Commits.Count + selectedPlan.Prs.Count).ToString()),
+                new Tab("Changes", Layout.Vertical().Width(Size.Full()).Height(Size.Full().Min(Size.Px(0))) | changesTabView).Badge(changesTabView.FileCount > 0 ? changesTabView.FileCount.ToString() : "")
             };
 
             if (totalArtifacts > 0)
@@ -562,7 +559,7 @@ public class ContentView(
                     nav.Navigate<ReviewApp>(new ReviewAppArgs(selectedPlanState.Value.FolderName, actualTabNames[v]));
             }).SelectedIndex(actualSelectedTabIndex).Variant(TabsVariant.Content);
 
-            content |= (Layout.Vertical().Padding(2, 0).Height(Size.Full()) | tabs);
+            content |= (Layout.Vertical().Padding(2).Gap(0).Height(Size.Grow().Min(Size.Px(0))) | tabs);
         }
 
         content |= new VerificationReportSheet(openVerification, selectedPlan);

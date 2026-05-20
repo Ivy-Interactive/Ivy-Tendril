@@ -1,6 +1,6 @@
+using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
-using Ivy.Tendril.Views;
 
 namespace Ivy.Tendril.Apps;
 
@@ -50,7 +50,7 @@ public class WallpaperApp : ViewBase
             var updateCommand = "dotnet tool update -g Ivy.Tendril";
             var notification = new FloatingPanel(
                 new Card(
-                    Layout.Vertical().Gap(4)
+                    Layout.Vertical()
                     | Text.Rich()
                         .Bold($"v{versionInfo.Value.LatestVersion}")
                         .Run($" is available (you have v{versionInfo.Value.CurrentVersion})")

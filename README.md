@@ -19,6 +19,10 @@ Tendril is a web application built on [Ivy Framework](https://github.com/Ivy-Int
 - **GitHub PR integration** — Automated pull request creation from completed plans
 - **Plan review workflow** — Review diffs, run sample apps, approve or send back for revision
 
+## Demo
+
+https://www.youtube.com/watch?v=Lpv0JiGOU5w
+
 ## Installation
 
 ### Quick Install

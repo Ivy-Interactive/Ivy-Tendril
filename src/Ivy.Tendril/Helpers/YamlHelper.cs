@@ -32,6 +32,6 @@ public static class YamlHelper
     /// </summary>
     public static readonly ISerializer SerializerCompact = new SerializerBuilder()
         .WithNamingConvention(CamelCaseNamingConvention.Instance)
-        .ConfigureDefaultValuesHandling(DefaultValuesHandling.OmitDefaults)
+        .ConfigureDefaultValuesHandling(DefaultValuesHandling.OmitNull)
         .Build();
 }

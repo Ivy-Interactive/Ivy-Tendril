@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 
 namespace Ivy.Tendril.Services.Agents;
 
@@ -8,6 +10,11 @@ public class CopilotAgentProvider : IAgentProvider
 {
     public string Name => "copilot";
     public bool UsesStdinPrompt => false;
+
+    public AgentOnboardingInfo OnboardingInfo => new(
+        "Copilot CLI", "https://githubnext.com/projects/copilot-cli", "--version",
+        () => ProcessCheckHelper.CheckHealth("copilot", "-p \"ping\" --allow-all -s"),
+        "Sign in to Copilot");
 
     private static readonly string ShellToolName =
         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "powershell" : "bash";

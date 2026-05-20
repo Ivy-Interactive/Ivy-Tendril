@@ -53,7 +53,7 @@ public class VerificationsSetupView : ViewBase
             ))
             .Width(Size.Fit());
 
-        return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(400)))
+        return Layout.Vertical().Padding(4).Width(Size.Auto().Max(Size.Units(400)))
                | Text.Block("Verification Definitions").Bold()
                | Text.Block("Define verification steps that run after plan execution.").Muted().Small()
                | table
@@ -96,9 +96,9 @@ file class EditVerificationDialogContent(
             _ => isOpen.Set(false),
             new DialogHeader(isNew ? "Add Verification" : "Edit Verification"),
             new DialogBody(
-                Layout.Vertical().Gap(4)
+                Layout.Vertical()
                 | editName.ToTextInput("Verification name...").WithField().Label("Name")
-                | editPrompt.ToTextareaInput("Verification prompt...").Rows(8).WithField().Label("Prompt")
+                | editPrompt.ToCodeInput("Verification prompt...").Language(Languages.Markdown).Height(Size.Units(60)).WithField().Label("Prompt")
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() => isOpen.Set(false)),

@@ -10,6 +10,7 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>tendril</ToolCommandName>
     <DefaultItemExcludes>$(DefaultItemExcludes);Promptwares\**</DefaultItemExcludes>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
   <PropertyGroup>
     <PackageId>Ivy.Tendril</PackageId>
@@ -28,6 +29,9 @@
   <ItemGroup>
     <EmbeddedResource Include="Assets/**/*" />
     <EmbeddedResource Include="../Tendril.svg" Link="Assets/Tendril.svg" />
+  </ItemGroup>
+  <ItemGroup Condition="Exists('PublishedBinaries')">
+    <EmbeddedResource Include="PublishedBinaries/**/*.zip" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.5" />
@@ -56,14 +60,14 @@
     <ProjectReference Include="../Ivy.Tendril.Plugin.Extended.Abstractions/Ivy.Tendril.Plugin.Extended.Abstractions.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(IvySource)' != 'true'">
-    <PackageReference Include="Ivy" Version="1.2.56" />
-    <PackageReference Include="Ivy.Hooks.Pty" Version="1.2.56" />
-    <PackageReference Include="Ivy.Widgets.Xterm" Version="1.2.56" />
-    <PackageReference Include="Ivy.Widgets.DiffView" Version="1.2.56" />
-    <PackageReference Include="Ivy.Widgets.ClaudeJsonRenderer" Version="1.2.56" />
-    <PackageReference Include="Ivy.Widgets.AnimatedStatusLabel" Version="1.2.56" />
-    <PackageReference Include="Ivy.Widgets.AgentOutputView" Version="1.2.56" />
-    <PackageReference Include="Ivy.Desktop" Version="1.2.56" />
+    <PackageReference Include="Ivy" Version="1.2.58" />
+    <PackageReference Include="Ivy.Hooks.Pty" Version="1.2.58" />
+    <PackageReference Include="Ivy.Widgets.Xterm" Version="1.2.58" />
+    <PackageReference Include="Ivy.Widgets.DiffView" Version="1.2.58" />
+    <PackageReference Include="Ivy.Widgets.ClaudeJsonRenderer" Version="1.2.58" />
+    <PackageReference Include="Ivy.Widgets.AnimatedStatusLabel" Version="1.2.58" />
+    <PackageReference Include="Ivy.Widgets.AgentOutputView" Version="1.2.58" />
+    <PackageReference Include="Ivy.Desktop" Version="1.2.58" />
     <PackageReference Include="Ivy.Tendril.Plugin.Abstractions" Version="1.0.34" />
     <PackageReference Include="Ivy.Tendril.Plugin.Extended.Abstractions" Version="1.0.34" />
   </ItemGroup>
@@ -76,10 +80,14 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup Condition="'$(IvySource)' != 'true'">
-    <PackageReference Include="Ivy.Analyser" Version="1.2.56">
+    <PackageReference Include="Ivy.Analyser" Version="1.2.58">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Ivy.Widget.TendrilProcessView/Ivy.Widget.TendrilProcessView.csproj" />
   </ItemGroup>
 
   <ItemGroup>

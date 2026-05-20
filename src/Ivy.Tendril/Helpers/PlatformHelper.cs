@@ -139,14 +139,31 @@ public static class PlatformHelper
     {
         try
         {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                // Use cmd.exe /c to resolve .cmd wrappers (like 'code') on Windows 
+                // while keeping UseShellExecute = false to prevent OS error dialogs/text.
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = $"/c \"{editorCommand} \"{target}\" > NUL 2>&1\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
+                return true;
+            }
+
             // UseShellExecute = false prevents the OS from printing "The file X does not exist"
             // to the terminal before .NET gets a chance to catch the exception.
-            Process.Start(new ProcessStartInfo
+            var psi = new ProcessStartInfo
             {
                 FileName = editorCommand,
                 Arguments = $"\"{target}\"",
-                UseShellExecute = false
-            });
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            using var proc = Process.Start(psi);
             return true;
         }
         catch (Exception)

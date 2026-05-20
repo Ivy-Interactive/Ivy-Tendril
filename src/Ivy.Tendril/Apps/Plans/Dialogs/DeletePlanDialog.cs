@@ -11,56 +11,50 @@ public class DeletePlanDialog(
     IPlanReaderService planService,
     Action refreshPlans) : ViewBase
 {
-    private readonly IState<bool> _dialogOpen = dialogOpen;
-    private readonly IPlanReaderService _planService = planService;
-    private readonly Action _refreshPlans = refreshPlans;
-    private readonly PlanFile _selectedPlan = selectedPlan;
-    private readonly IState<PlanFile?> _selectedPlanState = selectedPlanState;
-
     public override object? Build()
     {
-        if (!_dialogOpen.Value) return null;
+        if (!dialogOpen.Value) return null;
 
         return new Dialog(
-            _ => _dialogOpen.Set(false),
+            _ => dialogOpen.Set(false),
             new DialogHeader("Delete Plan"),
             new DialogBody(
-                Text.P($"What would you like to do with plan #{_selectedPlan.Id}?")
+                Text.P($"What would you like to do with plan #{selectedPlan.Id}?")
             ),
             new DialogFooter(
                 Layout.Horizontal().Gap(2).Right()
-                | new Button("Cancel").Outline().OnClick(() => _dialogOpen.Set(false))
+                | new Button("Cancel").Outline().OnClick(() => dialogOpen.Set(false))
                 | new Button("Move to Skipped").Outline().ShortcutKey("s").OnClick(() =>
                 {
                     // Optimistically update UI state before disk I/O
-                    var optimisticPlan = _selectedPlan with
+                    var optimisticPlan = selectedPlan with
                     {
-                        Metadata = _selectedPlan.Metadata with { State = PlanStatus.Skipped }
+                        Metadata = selectedPlan.Metadata with { State = PlanStatus.Skipped }
                     };
-                    _selectedPlanState.Set(optimisticPlan);
+                    selectedPlanState.Set(optimisticPlan);
 
-                    _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Skipped);
-                    _refreshPlans();
-                    _dialogOpen.Set(false);
+                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Skipped);
+                    refreshPlans();
+                    dialogOpen.Set(false);
                 })
                 | new Button("Move to Icebox").Outline().ShortcutKey("b").OnClick(() =>
                 {
                     // Optimistically update UI state before disk I/O
-                    var optimisticPlan = _selectedPlan with
+                    var optimisticPlan = selectedPlan with
                     {
-                        Metadata = _selectedPlan.Metadata with { State = PlanStatus.Icebox }
+                        Metadata = selectedPlan.Metadata with { State = PlanStatus.Icebox }
                     };
-                    _selectedPlanState.Set(optimisticPlan);
+                    selectedPlanState.Set(optimisticPlan);
 
-                    _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Icebox);
-                    _refreshPlans();
-                    _dialogOpen.Set(false);
+                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Icebox);
+                    refreshPlans();
+                    dialogOpen.Set(false);
                 })
                 | new Button("Delete").Destructive().ShortcutKey("Enter").AutoFocus().OnClick(() =>
                 {
-                    _planService.DeletePlan(_selectedPlan.FolderName);
-                    _refreshPlans();
-                    _dialogOpen.Set(false);
+                    planService.DeletePlan(selectedPlan.FolderName);
+                    refreshPlans();
+                    dialogOpen.Set(false);
                 })
             )
         ).Width(Size.Rem(40));

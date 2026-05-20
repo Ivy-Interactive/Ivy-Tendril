@@ -5,10 +5,10 @@ using Ivy.Core;
 using Ivy.Core.Apps;
 using Ivy.Tendril.AppShell.Dialogs;
 using Ivy.Tendril.Apps;
+using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
-using Ivy.Tendril.Views;
 using Ivy.Widgets.Internal;
 using Microsoft.Extensions.Logging;
 
@@ -417,7 +417,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
         var builtInSettingsMenuItems = new[]
         {
-            MenuItem.Default("Setup")
+            MenuItem.Default("Configuration")
                 .Tag("$setup")
                 .Icon(Icons.Construction)
                 .OnSelect(() => navigator.Navigate<SettingsApp>()),
