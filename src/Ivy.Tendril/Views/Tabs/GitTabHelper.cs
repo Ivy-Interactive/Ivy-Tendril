@@ -1,3 +1,4 @@
+using System.Formats.Tar;
 using Ivy.Core;
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Models;
@@ -140,7 +141,9 @@ public static class GitTabHelper
         Action<string>? onSynchronize = null,
         ILogger? logger = null)
     {
-        var gitLayout = Layout.Vertical().Gap(4);
+        var gitLayout = Layout.Vertical().Gap(8);
+
+        gitLayout |= Text.H2("Worktrees");
 
         foreach (var section in gitData.WorktreeSections)
         {
@@ -196,17 +199,16 @@ public static class GitTabHelper
         Action<string>? onSynchronize,
         ILogger? logger)
     {
-        var sectionLayout = Layout.Vertical().Gap(2);
-
-        // Header row: name + ... menu
+        var sectionLayout = Layout.Vertical();
+        
         var syncMenuItem = new MenuItem("Synchronize", Icon: Icons.RefreshCw, Tag: "Synchronize");
         if (onSynchronize != null && !isSyncing)
             syncMenuItem = syncMenuItem.OnSelect(() => onSynchronize(section.Path));
 
-        var headerRow = Layout.Horizontal().Gap(2).AlignContent(Align.SpaceBetween)
-            | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                | Text.Block(section.Name).Bold())
-            | new Button().Icon(Icons.EllipsisVertical).Ghost().Small()
+        var headerRow = Layout.Horizontal().AlignContent(Align.SpaceBetween)
+            | (Layout.Horizontal().AlignContent(Align.Left)
+                | Text.H3(section.Name))
+            | new Button().Icon(Icons.EllipsisVertical).Ghost()
                 .WithDropDown(
                     syncMenuItem,
                     new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
@@ -234,32 +236,22 @@ public static class GitTabHelper
 
         sectionLayout |= headerRow;
 
-        // "Based on" line
-        sectionLayout |= Layout.Horizontal().Gap(1).AlignContent(Align.Left)
-            | Text.Muted("Based on:")
-            | new Badge($"{section.Branch}@{section.ShortHash}").Variant(BadgeVariant.Outline).Small();
-
         // Worktrees tile
         if (section.ParentRepoPath != null)
         {
-            var worktreeDetails = Layout.Vertical().Gap(1);
-            worktreeDetails |= Layout.Horizontal().Gap(1)
-                | Text.Muted("Repository:")
-                | Text.Block(section.ParentRepoPath.Replace('\\', '/'));
-            if (section.ParentBranch != null && section.ParentShortHash != null)
+            List<Detail> detailsList = [
+                new("Repository", Text.Monospaced(section.ParentRepoPath.Replace('\\', '/')))
+            ];
+            
+            if (section is { ParentBranch: not null, ParentShortHash: not null })
             {
-                worktreeDetails |= Layout.Horizontal().Gap(1)
-                    | Text.Muted("Parent:")
-                    | Text.Block($"{section.ParentBranch}@{section.ParentShortHash}");
+                detailsList.Add(new("Parent", Text.Monospaced($"{section.ParentBranch}@{section.ParentShortHash}")));
             }
-            worktreeDetails |= Layout.Horizontal().Gap(1)
-                | Text.Muted("Worktree:")
-                | Text.Block(section.Path.Replace('\\', '/'));
-            worktreeDetails |= Layout.Horizontal().Gap(1)
-                | Text.Muted("Head:")
-                | Text.Block($"{section.Branch}@{section.ShortHash}");
-
-            sectionLayout |= new Card(worktreeDetails).Title("Worktrees");
+            
+            detailsList.Add(new("Worktree", Text.Monospaced(section.Path.Replace('\\', '/'))));
+            detailsList.Add(new("Head", Text.Monospaced($"{section.Branch}@{section.ShortHash}")));
+            
+            sectionLayout |= new Details(detailsList);
         }
 
         // Syncing state
@@ -287,7 +279,7 @@ public static class GitTabHelper
         }
         else
         {
-            sectionLayout |= Text.Muted("(no commits)");
+            sectionLayout |= new Card() | Text.Muted("(no commits)");
         }
 
         return sectionLayout;
@@ -312,7 +304,8 @@ public static class GitTabHelper
                     var row = tableRows.First(r => r.Commit == shortHash);
                     setOpenCommit(row.Hash);
                 })))
-            .Remove(t => t.Hash);
+            .Remove(t => t.Hash)
+            .ColumnWidth(t => t.Message, Size.Grow());
     }
 
     private static (string? Path, string? Branch, string? ShortHash) ResolveParentInfo(
