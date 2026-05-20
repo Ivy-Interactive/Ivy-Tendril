@@ -40,9 +40,31 @@ public class OnboardingApp : ViewBase
             1 => new TendrilHomeStepView(stepperIndex, tendrilHomePath, homeBootstrapped, isStepLoading),
             2 => projectSubStep.Value switch
             {
-                0 => new ProjectInputStepView(stepperIndex, projectSubStep, selectedRepos, projectName, isStepLoading),
-                1 => new ProjectAgentStepView(projectSubStep, selectedRepos, projectName, isStepLoading, session),
-                2 => new ProjectCrudStepView(stepperIndex, projectSubStep, projectName, isStepLoading, session),
+                0 => new ProjectInputStepView(
+                    selectedRepos,
+                    projectName,
+                    isStepLoading,
+                    onBack: () => stepperIndex.Set(stepperIndex.Value - 1),
+                    onNext: () => projectSubStep.Set(1),
+                    onSkip: () => stepperIndex.Set(3)),
+                1 => new ProjectAgentStepView(
+                    selectedRepos,
+                    projectName,
+                    isStepLoading,
+                    session,
+                    onBack: () =>
+                    {
+                        session.Reset();
+                        isStepLoading.Set(false);
+                        projectSubStep.Set(0);
+                    },
+                    onNext: () => projectSubStep.Set(2)),
+                2 => new ProjectCrudStepView(
+                    projectName,
+                    isStepLoading,
+                    session,
+                    onBack: () => projectSubStep.Set(0),
+                    onNext: () => stepperIndex.Set(3)),
                 _ => throw new ArgumentOutOfRangeException()
             },
             3 => new CompleteStepView(stepperIndex, projectSubStep, isStepLoading),

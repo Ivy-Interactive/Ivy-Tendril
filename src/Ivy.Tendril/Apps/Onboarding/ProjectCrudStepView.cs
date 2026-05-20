@@ -5,11 +5,12 @@ using Ivy.Tendril.Services;
 namespace Ivy.Tendril.Apps.Onboarding;
 
 public class ProjectCrudStepView(
-    IState<int> stepperIndex,
-    IState<int> projectSubStep,
     IState<string> projectName,
     IState<bool> isStepLoading,
-    OnboardingVerificationSession session) : ViewBase
+    OnboardingVerificationSession session,
+    Action onBack,
+    Action onNext,
+    string nextButtonText = "Next") : ViewBase
 {
     public override object Build()
     {
@@ -85,10 +86,10 @@ public class ProjectCrudStepView(
 
         var buttonArea = Layout.Horizontal().Width(Size.Full())
             | new Button("Back").Outline().Large().Icon(Icons.ArrowLeft)
-                .OnClick(() => projectSubStep.Set(0))
+                .OnClick(() => onBack())
             | new Spacer()
-            | new Button("Next").Secondary().Large().Icon(Icons.ArrowRight, Align.Right)
-                .OnClick(() => stepperIndex.Set(3));
+            | new Button(nextButtonText).Secondary().Large().Icon(Icons.ArrowRight, Align.Right)
+                .OnClick(() => onNext());
 
         return Layout.Vertical().Gap(4).Margin(0, 0, 0, 20)
                | Text.H3("Review Configuration")
