@@ -94,8 +94,9 @@ public class ProjectRepoPickerView(
                                  .OnSubmit(() => { _ = AddAsync(); });
         }
 
-        var addButton = new Button(isAdding.Value ? "Adding..." : "Add").Icon(Icons.Plus)
+        var addButton = new Button("Add Repository").Icon(Icons.Plus)
             .Disabled(string.IsNullOrWhiteSpace(inputValue.Value) || isAdding.Value)
+            .Loading(isAdding.Value)
             .OnClick(() => { _ = AddAsync(); });
 
         var listLayout = Layout.Vertical().Gap(2);
@@ -144,9 +145,8 @@ public class ProjectRepoPickerView(
         return Layout.Vertical().Width(Size.Full())
                | Text.H4("Add one or more Git repositories")
                | (addingError.Value != null ? Text.Danger(addingError.Value) : null!)
-               | pickerControls
-               | addButton
-               | (current.Count > 0 ? new Separator() : null!)
+               | (Layout.Horizontal() | pickerControls  | addButton)
+               //| (current.Count > 0 ? new Separator() : null!)
                | (current.Count > 0 ? listLayout : null!);
     }
 
