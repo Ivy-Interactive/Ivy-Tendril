@@ -22,7 +22,7 @@ public class GeneralSetupView : ViewBase
         var hasChanges = codingAgent.Value != currentCodingAgent
                           || planTemplate.Value != config.Settings.PlanTemplate;
 
-        var form = Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(120)))
+        var form = Layout.Vertical().Padding(4).Width(Size.Auto().Max(Size.Units(120)))
                    | Text.Block("General Settings").Bold()
                    | Text.Block("Configure the default coding agent and plan template.").Muted().Small()
                    | codingAgent.ToSelectInput(CodingAgentOptions)

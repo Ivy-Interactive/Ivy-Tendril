@@ -3,7 +3,7 @@ using Ivy.Desktop;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 
-namespace Ivy.Tendril.Views;
+namespace Ivy.Tendril.Apps.Views;
 
 public class ProjectRepoPickerView(
     IState<List<RepoRef>> repos,

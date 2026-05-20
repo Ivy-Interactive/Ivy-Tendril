@@ -3,7 +3,7 @@ using Ivy.Tendril.Apps.Onboarding;
 using Ivy.Tendril.Apps.Onboarding.Models;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Views;
+using Ivy.Tendril.Apps.Views;
 using Ivy.Widgets.AgentOutputView;
 
 namespace Ivy.Tendril.Apps.Setup.Dialogs;
@@ -141,7 +141,7 @@ public class EditProjectDialog(
             new DialogBody(
                 Layout.Tabs(
                     new Tab("Basic",
-                        Layout.Vertical().Gap(4)
+                        Layout.Vertical()
                         | editName.ToTextInput("Project name...").WithField().Label("Name")
                         | editColor.ToColorInput().Variant(ColorInputVariant.SwatchPicker).Nullable().WithField().Label("Color")
                         | editContext.ToTextareaInput("Project context or prompt for AI agents (optional)...").Rows(4)
@@ -282,7 +282,7 @@ internal class EditReviewActionDialogContent(
             _ => isOpen.Set(false),
             new DialogHeader(isNew ? "Add Review Action" : "Edit Review Action"),
             new DialogBody(
-                Layout.Vertical().Gap(4)
+                Layout.Vertical()
                 | editName.ToTextInput("Action name...").WithField().Label("Name").Required()
                 | editCommand.ToTextareaInput("e.g. dotnet test").Rows(2).WithField().Label("Command").Required()
                 | editCondition.ToTextareaInput("e.g. ${hasChanges}").Rows(2).WithField().Label("Condition (optional)")

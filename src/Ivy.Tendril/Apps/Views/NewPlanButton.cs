@@ -1,4 +1,4 @@
-namespace Ivy.Tendril.Views;
+namespace Ivy.Tendril.Apps.Views;
 
 public class NewPlanButton : ViewBase
 {

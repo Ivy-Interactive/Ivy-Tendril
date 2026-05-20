@@ -1,7 +1,6 @@
-using Ivy.Tendril.Apps;
 using Ivy.Tendril.Models;
 
-namespace Ivy.Tendril.Views.Tabs;
+namespace Ivy.Tendril.Apps.Views.Tabs;
 
 public class VerificationsTabView(
     List<PlanVerificationEntry> verifications,

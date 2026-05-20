@@ -21,7 +21,7 @@ public class TendrilHomeStepView(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             ".tendril");
 
-        return Layout.Vertical().Gap(4).Margin(0, 0, 0, 20)
+        return Layout.Vertical().Margin(0, 0, 0, 20)
                | Text.H3("Where should we store your data?")
                | Text.Muted(
                    """

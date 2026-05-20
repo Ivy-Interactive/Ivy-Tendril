@@ -1,7 +1,7 @@
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 
-namespace Ivy.Tendril.Views.Tabs;
+namespace Ivy.Tendril.Apps.Views.Tabs;
 
 public class DetailsTabView(PlanFile plan) : ViewBase
 {

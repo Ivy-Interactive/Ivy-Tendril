@@ -22,7 +22,7 @@ public class AdvancedSetupView : ViewBase
                          || editorCommand.Value != config.Settings.Editor.Command
                          || editorLabel.Value != config.Settings.Editor.Label;
 
-        var form = Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(120)))
+        var form = Layout.Vertical().Padding(4).Width(Size.Auto().Max(Size.Units(120)))
                    | Text.Block("Advanced Settings").Bold()
                    | Text.Block("Configure timeouts, concurrency limits, and editor preferences.").Muted().Small()
                    | Text.Block("Timeouts").Bold()

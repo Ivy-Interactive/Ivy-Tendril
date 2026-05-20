@@ -1,4 +1,4 @@
-using Ivy.Tendril.Views;
+using Ivy.Tendril.Apps.Views;
 
 namespace Ivy.Tendril.Apps.Trash;
 

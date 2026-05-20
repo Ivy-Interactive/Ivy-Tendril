@@ -24,7 +24,7 @@ public class AccountSetupView : ViewBase
             catch { /* ignore */ }
         }
 
-        var form = Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(120)))
+        var form = Layout.Vertical().Padding(4).Width(Size.Auto().Max(Size.Units(120)))
                    | Text.Block("Account").Bold()
                    | Text.Block("Your account details.").Muted().Small();
 

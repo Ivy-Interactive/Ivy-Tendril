@@ -90,16 +90,16 @@ public class ProjectCrudStepView(
             | new Button(nextButtonText).Secondary().Large().Icon(Icons.ArrowRight, Align.Right)
                 .OnClick(onNext);
 
-        return Layout.Vertical().Gap(4).Margin(0, 0, 0, 20)
+        return Layout.Vertical().Margin(0, 0, 0, 20)
                | Text.H3("Review Harness")
                | Text.Muted("Review and edit the configuration generated for your project.")
-               | (Layout.Vertical().Gap(4)
+               | (Layout.Vertical()
                   | Text.H4("Verifications")
                   | Text.Muted("The steps run after each plan execution to validate changes.")
                   | (verificationRows.Count > 0 ? (object)verificationTable : Text.Muted("No verifications configured."))
                   | new Button("Add Verification").Icon(Icons.Plus).Outline()
                       .OnClick(() => showVerificationTrigger(null)))
-               | (Layout.Vertical().Gap(4)
+               | (Layout.Vertical()
                   | Text.H4("Review Actions")
                   | Text.Muted("Commands that makes it easy to start you project for manual testing.")
                   | new ReviewActionsTableView(reviewActions, showReviewActionTrigger, showReviewActionAlert)
@@ -144,7 +144,7 @@ internal class OnboardingEditVerificationDialog(
             _ => isOpen.Set(false),
             new DialogHeader(isNew ? "Add Verification" : "Edit Verification"),
             new DialogBody(
-                Layout.Vertical().Gap(4)
+                Layout.Vertical()
                 | editName.ToTextInput("Verification name...").WithField().Label("Name")
                 | editPrompt.ToTextareaInput("Verification prompt...").Rows(8).WithField().Label("Prompt")
             ),

@@ -1,8 +1,7 @@
-using Ivy.Core;
-using Ivy.Tendril.Models;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 
-namespace Ivy.Tendril.Views.Sheets;
+namespace Ivy.Tendril.Apps.Views.Sheets;
 
 public class VerificationReportSheet(
     IState<string?> openVerification,
