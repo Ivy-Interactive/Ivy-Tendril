@@ -4,9 +4,9 @@ using Ivy.Tendril.Models;
 using Ivy.Tendril.Apps.Plans.Dialogs;
 using Ivy.Tendril.Apps.PullRequest;
 using Ivy.Tendril.Apps.PullRequest.Dialogs;
+using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
-using Ivy.Tendril.Views.Sheets;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Apps;

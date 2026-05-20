@@ -156,7 +156,7 @@ public static class PlanContentHelpers
         }
         else
         {
-            var commitSheetContent = Layout.Vertical().Gap(4).Padding(2);
+            var commitSheetContent = Layout.Vertical().Padding(2);
 
             if (!string.IsNullOrWhiteSpace(data.Diff) && data.Files is { Count: > 0 })
             {

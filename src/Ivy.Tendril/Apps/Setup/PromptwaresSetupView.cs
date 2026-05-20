@@ -119,7 +119,7 @@ file class EditPromptwareDialogContent(
             _ => isOpen.Set(false),
             new DialogHeader(isNew ? "Add Promptware" : "Edit Promptware"),
             new DialogBody(
-                Layout.Vertical().Gap(4)
+                Layout.Vertical()
                 | editName.ToTextInput("Promptware name (e.g. CreatePlan)...").WithField().Label("Name")
                 | editProfile.ToSelectInput(profileOptions).Variant(SelectInputVariant.Toggle).WithField().Label("Profile")
                 | editAllowedTools.ToCodeInput().WithField().Label("Allowed Tools")

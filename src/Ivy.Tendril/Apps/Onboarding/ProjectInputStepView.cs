@@ -1,6 +1,6 @@
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Views;
+using Ivy.Tendril.Apps.Views;
 
 namespace Ivy.Tendril.Apps.Onboarding;
 
@@ -40,7 +40,7 @@ public class ProjectInputStepView(
                 .Disabled(!canContinue)
                 .OnClick(onNext);
 
-        return Layout.Vertical().Gap(4).Margin(0, 0, 0, 20)
+        return Layout.Vertical().Margin(0, 0, 0, 20)
                | Text.H3("Setup your first project")
                | Text.Muted("A project groups one or more repositories together so Tendril can plan and verify changes across them.")
                | new ProjectRepoPickerView(selectedRepos, projectName)

@@ -1,6 +1,6 @@
 using Ivy.Tendril.Helpers;
 
-namespace Ivy.Tendril.Views.Tabs;
+namespace Ivy.Tendril.Apps.Views.Tabs;
 
 public class ArtifactsTabView(Dictionary<string, List<string>> artifacts) : ViewBase
 {

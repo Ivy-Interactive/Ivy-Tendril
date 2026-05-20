@@ -2,7 +2,7 @@ using Ivy.Core.Hooks;
 using Ivy.Tendril.Apps.Onboarding;
 using Ivy.Tendril.Apps.Onboarding.Models;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Views;
+using Ivy.Tendril.Apps.Views;
 
 namespace Ivy.Tendril.Apps.Setup.Dialogs;
 
@@ -132,7 +132,7 @@ public class AddProjectDialog(
             _ => throw new ArgumentOutOfRangeException()
         };
 
-        var dialogBody = Layout.Vertical().Gap(4)
+        var dialogBody = Layout.Vertical()
             | stepper
             | new Separator()
             | activeView;

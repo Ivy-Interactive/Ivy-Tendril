@@ -1,4 +1,4 @@
-namespace Ivy.Tendril.Views.Tabs;
+namespace Ivy.Tendril.Apps.Views.Tabs;
 
 public class SummaryTabView(string? summaryMarkdown, bool loading = false) : ViewBase
 {

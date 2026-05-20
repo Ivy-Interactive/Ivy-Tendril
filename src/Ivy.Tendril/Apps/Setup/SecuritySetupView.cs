@@ -24,7 +24,7 @@ public class SecuritySetupView : ViewBase
             && !string.IsNullOrWhiteSpace(newPassword.Value)
             && passwordsMatch;
 
-        var form = Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(120)))
+        var form = Layout.Vertical().Padding(4).Width(Size.Auto().Max(Size.Units(120)))
                    | Text.Block("Session Protection").Bold()
                    | Text.Block("Require a password to access the Tendril interface.").Muted().Small()
                    | isEnabled.ToBoolInput("Enable Password Protection")

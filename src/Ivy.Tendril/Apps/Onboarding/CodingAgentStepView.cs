@@ -89,7 +89,7 @@ public class CodingAgentStepView(
 
         var selected = Agents.First(a => a.Key == selectedAgent.Value);
 
-        return Layout.Vertical().Margin(0, 0, 0, 20).Gap(4)
+        return Layout.Vertical().Margin(0, 0, 0, 20)
                | Text.Block(progressMessage.Value ?? $"Setting Up {selected.Label}")
                | (progressValue.Value != null
                    ? new Progress(progressValue.Value.Value)
@@ -214,7 +214,7 @@ public class CodingAgentStepView(
         
         grid = Agents.Aggregate(grid, (current, a) => current | new Card(Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(0) | a.Logo.ToIcon().Width(Size.Px(32)).Height(Size.Px(32)) | Text.Block(a.Label)).OnClick(() => onSelect(a.Key)));
 
-        return Layout.Vertical().Margin(0, 0, 0, 20).Gap(4)
+        return Layout.Vertical().Margin(0, 0, 0, 20)
                | Text.H3("What is your coding agent?")
                | Text.Muted(
                    "Tendril is a coding orchestrator that runs on top of your own coding agent. Pick the agent you'd like to use:")

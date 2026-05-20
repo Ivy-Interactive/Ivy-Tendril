@@ -1,7 +1,7 @@
 using Ivy.Tendril.Helpers;
 using Ivy.Widgets.DiffView;
 
-namespace Ivy.Tendril.Views.Tabs;
+namespace Ivy.Tendril.Apps.Views.Tabs;
 
 public class ChangesTabView(
     PlanContentHelpers.AllChangesData? changesData,

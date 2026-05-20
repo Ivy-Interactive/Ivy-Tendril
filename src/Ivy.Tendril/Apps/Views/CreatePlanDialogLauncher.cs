@@ -1,10 +1,8 @@
-using Ivy.Tendril.Apps;
 using Ivy.Tendril.Apps.Plans.Dialogs;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Helpers;
 
-namespace Ivy.Tendril.Views;
+namespace Ivy.Tendril.Apps.Views;
 
 public class CreatePlanDialogLauncher(Func<Action, object> renderTrigger) : ViewBase
 {
@@ -23,7 +21,7 @@ public class CreatePlanDialogLauncher(Func<Action, object> renderTrigger) : View
                     () => isOpen.Set(false),
                     () => navigator.Navigate<SettingsApp>()
                 );
-            return (object)new CreatePlanDialog(
+            return new CreatePlanDialog(
                 projectNames,
                 (description, projects, priority) =>
                 {

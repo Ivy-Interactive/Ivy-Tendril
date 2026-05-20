@@ -1,7 +1,7 @@
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Views;
+using Ivy.Tendril.Apps.Views;
 
 namespace Ivy.Tendril.Apps.Plans;
 

@@ -28,7 +28,7 @@ public class ConfigErrorApp(IConfigService config) : ViewBase
             ? parseError.Message[..200] + "..."
             : parseError.Message;
 
-        var content = Layout.Vertical().Gap(4);
+        var content = Layout.Vertical();
 
         content |= new Image("/tendril/assets/Tendril.svg").Width(Size.Units(20)).Height(Size.Auto());
 

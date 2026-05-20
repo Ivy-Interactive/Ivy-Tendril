@@ -1,10 +1,10 @@
 using Ivy.Tendril.Apps.Trash;
 using Ivy.Tendril.Apps.Trash.Dialogs;
+using Ivy.Tendril.Apps.Views;
+using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
-using Ivy.Tendril.Views;
-using Ivy.Tendril.Views.Sheets;
 
 namespace Ivy.Tendril.Apps;
 

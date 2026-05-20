@@ -14,7 +14,7 @@ public class NotificationsSetupView : ViewBase
 
         var hasChanges = desktopNotifications.Value != config.Settings.DesktopNotifications;
 
-        var form = Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(120)))
+        var form = Layout.Vertical().Padding(4).Width(Size.Auto().Max(Size.Units(120)))
                    | Text.Block("Notification Settings").Bold()
                    | Text.Block("Configure how Tendril notifies you about job completions, failures, and other events.").Muted().Small()
 

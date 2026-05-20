@@ -69,7 +69,7 @@ public class ProjectsSetupView : ViewBase
             ))
             .Width(Size.Fit());
 
-        return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(200)))
+        return Layout.Vertical().Padding(4).Width(Size.Auto().Max(Size.Units(200)))
                | Text.Block("Projects").Bold()
                | Text.Block("Manage projects, their repositories, and verification assignments.").Muted().Small()
                | table
