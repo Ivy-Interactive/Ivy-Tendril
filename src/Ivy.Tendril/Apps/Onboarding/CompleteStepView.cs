@@ -79,23 +79,26 @@ public class CompleteStepView(
             stepperIndex.Set(2);
         }
 
-        return Layout.Vertical().Gap(4).Margin(0, 0, 0, 20)
+        var newsletter = new Box().Padding(4) | (Layout.Vertical().Gap(2)
+                          | Text.H3("Newsletter")
+                          | Text.Muted("Be the first to know when we have a new release!")
+                          | (newsletterSubscribed.Value
+                              ? Text.Success("Subscribed!")
+                              : (Layout.Horizontal().Gap(2)
+                                 | newsletterEmail.ToTextInput("you@example.com")
+                                 | new Button("Subscribe")
+                                     .Primary()
+                                     .Disabled(!InputSanitizer.IsValidEmail(newsletterEmail.Value))
+                                     .Loading(newsletterLoading.Value)
+                                     .OnClick(Subscribe)))
+                          | (newsletterError.Value != null ? Text.Danger(newsletterError.Value) : null!));
+
+        return Layout.Vertical().Margin(0, 0, 0, 20)
                | Text.H3("Ready to Go!")
                | Text.Muted("Your project is configured. Click Finish to start using Tendril.")
                | (error.Value != null ? Text.Danger(error.Value) : null!)
-               | (Layout.Vertical().Gap(2)
-                  | Text.H3("Newsletter")
-                  | Text.Muted("Be the first to know when we have a new release!")
-                  | (newsletterSubscribed.Value
-                      ? Text.Success("Subscribed!")
-                      : (Layout.Horizontal()
-                         | newsletterEmail.ToTextInput("you@example.com")
-                         | new Button("Subscribe")
-                             .Primary()
-                             .Disabled(!InputSanitizer.IsValidEmail(newsletterEmail.Value))
-                             .Loading(newsletterLoading.Value)
-                             .OnClick(Subscribe)))
-                  | (newsletterError.Value != null ? Text.Danger(newsletterError.Value) : null!))
+               | newsletter
+               | new Spacer().Height(Size.Units(4))
                | (Layout.Horizontal().Width(Size.Full())
                   | new Button("Back").Outline().Large().Icon(Icons.ArrowLeft)
                       .Disabled(isFinishing.Value)

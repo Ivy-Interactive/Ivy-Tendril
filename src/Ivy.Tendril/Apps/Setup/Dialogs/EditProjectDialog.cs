@@ -268,7 +268,7 @@ internal class EditReviewActionDialogContent(
         UseEffect(() =>
         {
             var actions = reviewActions.Value;
-            if (existingIndex != null && existingIndex >= 0 && existingIndex < actions.Count)
+            if (existingIndex is >= 0 && existingIndex < actions.Count)
             {
                 editName.Set(actions[existingIndex.Value].Name);
                 editCondition.Set(actions[existingIndex.Value].Condition);
@@ -283,9 +283,9 @@ internal class EditReviewActionDialogContent(
             new DialogHeader(isNew ? "Add Review Action" : "Edit Review Action"),
             new DialogBody(
                 Layout.Vertical().Gap(4)
-                | editName.ToTextInput("Action name...").WithField().Label("Name")
+                | editName.ToTextInput("Action name...").WithField().Label("Name").Required()
+                | editCommand.ToTextareaInput("e.g. dotnet test").Rows(2).WithField().Label("Command").Required()
                 | editCondition.ToTextareaInput("e.g. ${hasChanges}").Rows(2).WithField().Label("Condition (optional)")
-                | editCommand.ToTextareaInput("e.g. dotnet test").Rows(2).WithField().Label("Command")
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() => isOpen.Set(false)),
