@@ -163,7 +163,7 @@ public class ProjectAgentStepView(
 
         var awaitingOutput = !isCloning.Value && session.Running.Value && !session.HasOutput.Value;
 
-        return Layout.Vertical().Margin(0, 0, 0, 20)
+        return Layout.Vertical()
                | Text.H3("Setting up your project")
                | Text.Muted(isCloning.Value
                    ? (progressMessage.Value ?? "Setting up your project...")

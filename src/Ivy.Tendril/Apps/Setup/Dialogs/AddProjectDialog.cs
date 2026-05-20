@@ -49,6 +49,20 @@ public class AddProjectDialog(
             }
         }, step);
 
+        UseEffect(() =>
+        {
+            if (isOpen.Value)
+            {
+                step.Set(0);
+                editName.Set("");
+                editRepos.Set(new List<RepoRef>());
+                isStepLoading.Set(false);
+                hasCreated.Set(false);
+                skipAgent.Set(false);
+                session.Reset();
+            }
+        }, isOpen);
+
         if (!isOpen.Value) return null;
 
         void CancelAndClose()
@@ -73,15 +87,7 @@ public class AddProjectDialog(
             refreshToken.Refresh();
         }
 
-        // Stepper steps
-        var steps = new StepperItem[]
-        {
-            new("1", step.Value > 0 ? Icons.Check : null, "Details"),
-            new("2", step.Value > 1 ? Icons.Check : null, "Analyze"),
-            new("3", step.Value > 2 ? Icons.Check : null, "Configure")
-        };
 
-        var stepper = new Stepper((_) => ValueTask.CompletedTask, step.Value, steps).Width(Size.Full()).Disabled(true);
 
         object activeView = step.Value switch
         {
@@ -133,8 +139,6 @@ public class AddProjectDialog(
         };
 
         var dialogBody = Layout.Vertical()
-            | stepper
-            | new Separator()
             | activeView;
 
         return new Dialog(
