@@ -123,6 +123,18 @@ projects:
     condition: ''
     action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
   buildDependencies: []
+- name: SlayZone
+  color: Green
+  meta: {}
+  repos:
+  - path: D:\Tendril\Repos\SlayZone
+    prRule: default
+    syncStrategy: fetch
+  verifications: []
+  context: ''
+  reviewActions: []
+  hooks: []
+  buildDependencies: []
 verifications:
 - name: FrameworkDotnetBuild
   prompt: >

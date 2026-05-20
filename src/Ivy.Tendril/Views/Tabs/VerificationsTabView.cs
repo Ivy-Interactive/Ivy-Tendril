@@ -22,14 +22,13 @@ public class VerificationsTabView(
             .Order(t => t.Status, t => t.Name)
             .Builder(t => t.Status, f => f.Func<VerificationRow, string>(status =>
                 new Badge(status).Variant(
-                    Constants.VerificationStatusBadgeVariants.TryGetValue(status, out var variant)
-                        ? variant
-                        : BadgeVariant.Outline)))
+                    Constants.VerificationStatusBadgeVariants.GetValueOrDefault(status, BadgeVariant.Outline))))
             .Builder(t => t.Name, f => f.Func<VerificationRow, string>(name =>
                 reportLookup.GetValueOrDefault(name)
                     ? new Button(name).Inline().OnClick(() => openVerification(name))
                     : (object)Text.Block(name)))
-            .Remove(t => t.HasReport);
+            .Remove(t => t.HasReport)
+            .ColumnWidth(t => t.Name, Size.Grow());
     }
 
     private record VerificationRow(string Status, string Name, bool HasReport);

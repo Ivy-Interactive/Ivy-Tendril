@@ -42,11 +42,11 @@ public class ChangesTabView(
                 client.Redirect($"#{path}");
             });
 
-        var statsText =
-            $"{changesData.Files.Count} files changed ({changesData.AddedCount} added, {changesData.ModifiedCount} modified, {changesData.DeletedCount} deleted)";
+        // var statsText =
+        //     $"{changesData.Files.Count} files changed ({changesData.AddedCount} added, {changesData.ModifiedCount} modified, {changesData.DeletedCount} deleted)";
 
         var diffsLayout = Layout.Vertical().Gap(2).Width(Size.Grow().Min(Size.Px(0))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)));
-        diffsLayout |= Text.Block(statsText).Bold();
+        //diffsLayout |= Text.Block(statsText).Bold();
 
         foreach (var fileDiff in sortedFileDiffs)
         {
