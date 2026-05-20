@@ -209,7 +209,7 @@ public class Program
             "doctor", "db-version", "db-migrate", "db-reset",
             "update-promptwares", "job", "plan", "promptware",
             "trash", "verification", "project",
-            "version", "--version", "report-bug", "reset"
+            "version", "--version", "report-bug", "reset", "update"
         };
         return cliCommands.Contains(firstArg);
     }
@@ -309,6 +309,8 @@ public class Program
             });
             config.AddCommand<VersionCommand>("version")
                 .WithDescription("Show version information");
+            config.AddCommand<UpdateCliCommand>("update")
+                .WithDescription("Update Tendril to the latest version");
             config.AddCommand<ReportBugCommand>("report-bug")
                 .WithDescription("Report a bug with plan/job context");
 
