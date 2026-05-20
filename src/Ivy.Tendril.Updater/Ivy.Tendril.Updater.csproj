@@ -54,11 +54,5 @@
     <Content Include="../Ivy.Tendril/Assets/icon.png" Link="icon.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Include="build/Ivy.Tendril.Updater.targets" Pack="true" PackagePath="build/Ivy.Tendril.Updater.targets" />
-    <None Include="build/Ivy.Tendril.Updater.targets" Pack="true" PackagePath="buildTransitive/Ivy.Tendril.Updater.targets" />
-  </ItemGroup>
-
-  <Import Project="build/Ivy.Tendril.Updater.targets" />
 
 </Project>
