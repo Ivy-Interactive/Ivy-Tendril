@@ -72,7 +72,7 @@ public class EditProjectDialog(
             }
         }, _editIndex);
 
-        if (_editIndex.Value == -1) return null;
+        if (_editIndex.Value == null || _editIndex.Value == -1) return null;
 
         var isNew = _editIndex.Value == null;
 
