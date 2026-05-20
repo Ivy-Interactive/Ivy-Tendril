@@ -61,7 +61,10 @@ public class PromptwaresSetupView : ViewBase
                                }, "Delete Promptware");
                            }));
             }))
-            .Width(Size.Fit());
+            .ColumnWidth(t => t.Index, Size.Units(8))
+            .ColumnWidth(t => t.Name, Size.Units(50))
+            .ColumnWidth(t => t.Profile, Size.Units(20))
+            .Width(Size.Full());
 
         return Layout.Vertical().Padding(4).Width(Size.Auto().Max(Size.Units(200)))
                | Text.Block("Promptware Configuration").Bold()

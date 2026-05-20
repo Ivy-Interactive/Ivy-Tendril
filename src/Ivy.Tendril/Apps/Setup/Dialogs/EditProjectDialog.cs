@@ -248,7 +248,9 @@ internal class ReviewActionsTableView(
                     }, "Delete Review Action");
                 })
             ))
-            .Width(Size.Fit());
+            .ColumnWidth(t => t.Index, Size.Units(8))
+            .ColumnWidth(t => t.Name, Size.Units(50))
+            .Width(Size.Full());
     }
 
     private record ReviewActionRow(string Name, int Index);

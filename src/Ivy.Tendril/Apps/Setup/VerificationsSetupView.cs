@@ -51,7 +51,9 @@ public class VerificationsSetupView : ViewBase
                     }, "Delete Verification", AlertButtonSet.OkCancel);
                 })
             ))
-            .Width(Size.Fit());
+            .ColumnWidth(t => t.Index, Size.Units(8))
+            .ColumnWidth(t => t.Name, Size.Units(50))
+            .Width(Size.Full());
 
         return Layout.Vertical().Padding(4).Width(Size.Auto().Max(Size.Units(400)))
                | Text.Block("Verification Definitions").Bold()

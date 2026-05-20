@@ -121,7 +121,7 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
                 reposError.Set($"Failed to load repositories: {ex.Message}");
                 logger.LogWarning(ex, "Exception loading repos");
             }
-        }, _dialogOpen);
+        }, _dialogOpen, EffectTrigger.OnMount());
 
         if (!_dialogOpen.Value) return null;
 

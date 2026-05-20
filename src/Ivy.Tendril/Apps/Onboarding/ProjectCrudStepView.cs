@@ -81,7 +81,9 @@ public class ProjectCrudStepView(
                     }, "Delete Verification", AlertButtonSet.OkCancel);
                 })
             ))
-            .Width(Size.Fit());
+            .ColumnWidth(t => t.Index, Size.Units(8))
+            .ColumnWidth(t => t.Name, Size.Units(50))
+            .Width(Size.Full());
 
         var buttonArea = Layout.Horizontal().Width(Size.Full())
             | new Button("Back").Outline().Large().Icon(Icons.ArrowLeft)

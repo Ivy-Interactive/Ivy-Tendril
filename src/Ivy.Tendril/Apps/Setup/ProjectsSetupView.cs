@@ -67,7 +67,10 @@ public class ProjectsSetupView : ViewBase
                     }, "Delete Project", AlertButtonSet.OkCancel);
                 })
             ))
-            .Width(Size.Fit());
+            .ColumnWidth(t => t.Index, Size.Units(8))
+            .ColumnWidth(t => t.Name, Size.Units(50))
+            .ColumnWidth(t => t.Repos, Size.Grow())
+            .Width(Size.Full());
 
         return Layout.Vertical().Padding(4).Width(Size.Auto().Max(Size.Units(200)))
                | Text.Block("Projects").Bold()
