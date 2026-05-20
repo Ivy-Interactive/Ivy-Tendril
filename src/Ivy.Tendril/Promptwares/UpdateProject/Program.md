@@ -30,8 +30,11 @@ tendril verification set <name> <field> <value>
 
 ### Project verifications (references)
 ```bash
-tendril project add-verification <project-name> <verification-name> --required
+tendril project add-verification <project-name> <verification-name> --required [--after <other>]
 tendril project remove-verification <project-name> <verification-name>
+tendril project move-verification <project-name> <verification-name> --after <other>
+tendril project move-verification <project-name> <verification-name> --before <other>
+tendril project move-verification <project-name> <verification-name> --position <n>
 ```
 
 ### Review actions
@@ -86,6 +89,27 @@ For each verification:
 Always add `CheckResult` as a verification (it exists in the default config):
 ```bash
 tendril project add-verification <project-name> CheckResult --required
+```
+
+### 2.5. Ensure Correct Verification Order
+
+Verifications run top-to-bottom during plan execution. The correct order is:
+
+1. **Linting/Formatting** — e.g. `DotnetFormat`, `NpmLint`, `RustClippy`, `GoFmt`, `FrameworkFrontendLint`, `VitePlusCheck`
+2. **Build** — e.g. `DotnetBuild`, `FrameworkDotnetBuild`, `NpmBuild`, `RustBuild`, `GoBuild`
+3. **Tests** — e.g. `DotnetTest`, `NpmTest`, `RustTest`, `GoTest`
+4. **CheckResult** — always last
+
+After adding all verifications, verify ordering with `tendril project get <project-name>` and fix with:
+```bash
+tendril project move-verification <project-name> <name> --after <other>
+```
+
+Use `--after` when adding verifications to place them correctly from the start:
+```bash
+tendril project add-verification <project-name> DotnetBuild --required --after DotnetFormat
+tendril project add-verification <project-name> DotnetTest --required --after DotnetBuild
+tendril project add-verification <project-name> CheckResult --required --after DotnetTest
 ```
 
 ### 3. Setup Review Actions

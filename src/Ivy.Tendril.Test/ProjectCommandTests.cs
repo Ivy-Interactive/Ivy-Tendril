@@ -221,6 +221,154 @@ verifications: []
         Assert.Equal("Keep", reloaded.Settings.Projects[0].Verifications[0].Name);
     }
 
+    // --- Move Verification ---
+
+    [Fact]
+    public void MoveVerification_After_InsertsCorrectly()
+    {
+        var config = CreateConfig();
+        config.Settings.Projects.Add(new ProjectConfig
+        {
+            Name = "Test",
+            Verifications = [
+                new ProjectVerificationRef { Name = "Lint" },
+                new ProjectVerificationRef { Name = "Build" },
+                new ProjectVerificationRef { Name = "Test" },
+                new ProjectVerificationRef { Name = "CheckResult" }
+            ]
+        });
+        config.SaveSettings();
+
+        var config2 = CreateConfig();
+        var project = config2.Settings.Projects[0];
+        var item = project.Verifications.First(v => v.Name == "CheckResult");
+        project.Verifications.Remove(item);
+        var afterIndex = project.Verifications.FindIndex(v => v.Name == "Lint");
+        project.Verifications.Insert(afterIndex + 1, item);
+        config2.SaveSettings();
+
+        var reloaded = CreateConfig();
+        Assert.Equal("Lint", reloaded.Settings.Projects[0].Verifications[0].Name);
+        Assert.Equal("CheckResult", reloaded.Settings.Projects[0].Verifications[1].Name);
+        Assert.Equal("Build", reloaded.Settings.Projects[0].Verifications[2].Name);
+        Assert.Equal("Test", reloaded.Settings.Projects[0].Verifications[3].Name);
+    }
+
+    [Fact]
+    public void MoveVerification_Before_InsertsCorrectly()
+    {
+        var config = CreateConfig();
+        config.Settings.Projects.Add(new ProjectConfig
+        {
+            Name = "Test",
+            Verifications = [
+                new ProjectVerificationRef { Name = "Lint" },
+                new ProjectVerificationRef { Name = "Build" },
+                new ProjectVerificationRef { Name = "Test" },
+                new ProjectVerificationRef { Name = "CheckResult" }
+            ]
+        });
+        config.SaveSettings();
+
+        var config2 = CreateConfig();
+        var project = config2.Settings.Projects[0];
+        var item = project.Verifications.First(v => v.Name == "CheckResult");
+        project.Verifications.Remove(item);
+        var beforeIndex = project.Verifications.FindIndex(v => v.Name == "Build");
+        project.Verifications.Insert(beforeIndex, item);
+        config2.SaveSettings();
+
+        var reloaded = CreateConfig();
+        Assert.Equal("Lint", reloaded.Settings.Projects[0].Verifications[0].Name);
+        Assert.Equal("CheckResult", reloaded.Settings.Projects[0].Verifications[1].Name);
+        Assert.Equal("Build", reloaded.Settings.Projects[0].Verifications[2].Name);
+        Assert.Equal("Test", reloaded.Settings.Projects[0].Verifications[3].Name);
+    }
+
+    [Fact]
+    public void MoveVerification_Position_InsertsCorrectly()
+    {
+        var config = CreateConfig();
+        config.Settings.Projects.Add(new ProjectConfig
+        {
+            Name = "Test",
+            Verifications = [
+                new ProjectVerificationRef { Name = "A" },
+                new ProjectVerificationRef { Name = "B" },
+                new ProjectVerificationRef { Name = "C" }
+            ]
+        });
+        config.SaveSettings();
+
+        var config2 = CreateConfig();
+        var project = config2.Settings.Projects[0];
+        var item = project.Verifications.First(v => v.Name == "C");
+        project.Verifications.Remove(item);
+        project.Verifications.Insert(0, item);
+        config2.SaveSettings();
+
+        var reloaded = CreateConfig();
+        Assert.Equal("C", reloaded.Settings.Projects[0].Verifications[0].Name);
+        Assert.Equal("A", reloaded.Settings.Projects[0].Verifications[1].Name);
+        Assert.Equal("B", reloaded.Settings.Projects[0].Verifications[2].Name);
+    }
+
+    [Fact]
+    public void MoveVerification_PositionClamped_ClampsToEnd()
+    {
+        var config = CreateConfig();
+        config.Settings.Projects.Add(new ProjectConfig
+        {
+            Name = "Test",
+            Verifications = [
+                new ProjectVerificationRef { Name = "A" },
+                new ProjectVerificationRef { Name = "B" },
+                new ProjectVerificationRef { Name = "C" }
+            ]
+        });
+        config.SaveSettings();
+
+        var config2 = CreateConfig();
+        var project = config2.Settings.Projects[0];
+        var item = project.Verifications.First(v => v.Name == "A");
+        project.Verifications.Remove(item);
+        var clampedPos = Math.Clamp(999, 0, project.Verifications.Count);
+        project.Verifications.Insert(clampedPos, item);
+        config2.SaveSettings();
+
+        var reloaded = CreateConfig();
+        Assert.Equal("B", reloaded.Settings.Projects[0].Verifications[0].Name);
+        Assert.Equal("C", reloaded.Settings.Projects[0].Verifications[1].Name);
+        Assert.Equal("A", reloaded.Settings.Projects[0].Verifications[2].Name);
+    }
+
+    [Fact]
+    public void AddVerification_WithAfter_InsertsAtCorrectPosition()
+    {
+        var config = CreateConfig();
+        config.Settings.Projects.Add(new ProjectConfig
+        {
+            Name = "Test",
+            Verifications = [
+                new ProjectVerificationRef { Name = "Lint" },
+                new ProjectVerificationRef { Name = "CheckResult" }
+            ]
+        });
+        config.SaveSettings();
+
+        var config2 = CreateConfig();
+        var project = config2.Settings.Projects[0];
+        var afterIndex = project.Verifications.FindIndex(v => v.Name == "Lint");
+        project.Verifications.Insert(afterIndex + 1, new ProjectVerificationRef { Name = "Build", Required = true });
+        config2.SaveSettings();
+
+        var reloaded = CreateConfig();
+        Assert.Equal(3, reloaded.Settings.Projects[0].Verifications.Count);
+        Assert.Equal("Lint", reloaded.Settings.Projects[0].Verifications[0].Name);
+        Assert.Equal("Build", reloaded.Settings.Projects[0].Verifications[1].Name);
+        Assert.Equal("CheckResult", reloaded.Settings.Projects[0].Verifications[2].Name);
+    }
+
     // --- Add/Remove Build Dependency ---
 
     [Fact]
