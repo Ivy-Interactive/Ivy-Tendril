@@ -44,12 +44,11 @@ public class ProjectCrudStepView(
             config.SaveSettings();
         }, reviewActions);
 
-        var projectVerificationNames = project?.Verifications?.Select(v => v.Name).ToHashSet(StringComparer.OrdinalIgnoreCase) ?? [];
         var allVerifications = config.Settings.Verifications;
-        var verificationRows = allVerifications
-            .Select((v, i) => (v, i))
-            .Where(x => projectVerificationNames.Contains(x.v.Name))
-            .Select(x => new VerificationRow(x.v.Name, x.i))
+        var verificationRows = (project?.Verifications ?? [])
+            .Select(pv => (pv, idx: allVerifications.FindIndex(v => v.Name.Equals(pv.Name, StringComparison.OrdinalIgnoreCase))))
+            .Where(x => x.idx >= 0)
+            .Select(x => new VerificationRow(x.pv.Name, x.idx))
             .ToList();
 
         var verificationTable = new TableBuilder<VerificationRow>(verificationRows)
