@@ -432,6 +432,8 @@ public class Program
                     .WithDescription("Add a verification to a project");
                 project.AddCommand<ProjectRemoveVerificationCommand>("remove-verification")
                     .WithDescription("Remove a verification from a project");
+                project.AddCommand<ProjectMoveVerificationCommand>("move-verification")
+                    .WithDescription("Move a verification to a different position in the list");
                 project.AddCommand<ProjectAddBuildDepCommand>("add-build-dep")
                     .WithDescription("Add a build dependency to a project");
                 project.AddCommand<ProjectRemoveBuildDepCommand>("remove-build-dep")

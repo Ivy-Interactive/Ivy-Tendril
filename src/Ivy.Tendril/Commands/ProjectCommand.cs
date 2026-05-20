@@ -101,6 +101,10 @@ public class ProjectAddVerificationSettings : CommandSettings
     [CommandOption("--required")]
     [Description("Whether the verification is required")]
     public bool Required { get; set; }
+
+    [CommandOption("--after")]
+    [Description("Place after this verification (default: append to end)")]
+    public string? After { get; set; }
 }
 
 public class ProjectRemoveVerificationSettings : CommandSettings
@@ -112,6 +116,29 @@ public class ProjectRemoveVerificationSettings : CommandSettings
     [Description("Verification name")]
     [CommandArgument(1, "<verification-name>")]
     public string VerificationName { get; set; } = "";
+}
+
+public class ProjectMoveVerificationSettings : CommandSettings
+{
+    [Description("Project name")]
+    [CommandArgument(0, "<project-name>")]
+    public string ProjectName { get; set; } = "";
+
+    [Description("Verification name to move")]
+    [CommandArgument(1, "<verification-name>")]
+    public string VerificationName { get; set; } = "";
+
+    [CommandOption("--before")]
+    [Description("Place before this verification")]
+    public string? Before { get; set; }
+
+    [CommandOption("--after")]
+    [Description("Place after this verification")]
+    public string? After { get; set; }
+
+    [CommandOption("--position")]
+    [Description("Place at this zero-based index position")]
+    public int? Position { get; set; }
 }
 
 public class ProjectAddBuildDepSettings : CommandSettings
@@ -527,11 +554,27 @@ public class ProjectAddVerificationCommand : Command<ProjectAddVerificationSetti
                 return 1;
             }
 
-            project.Verifications.Add(new ProjectVerificationRef
+            var newRef = new ProjectVerificationRef
             {
                 Name = settings.VerificationName,
                 Required = settings.Required
-            });
+            };
+
+            if (!string.IsNullOrEmpty(settings.After))
+            {
+                var afterIndex = project.Verifications
+                    .FindIndex(v => v.Name.Equals(settings.After, StringComparison.OrdinalIgnoreCase));
+                if (afterIndex < 0)
+                {
+                    _logger.LogError("Verification not found for --after: {Name}", settings.After);
+                    return 1;
+                }
+                project.Verifications.Insert(afterIndex + 1, newRef);
+            }
+            else
+            {
+                project.Verifications.Add(newRef);
+            }
 
             config.SaveSettings();
             _logger.LogInformation("Added verification: {Name}", settings.VerificationName);
@@ -582,6 +625,87 @@ public class ProjectRemoveVerificationCommand : Command<ProjectRemoveVerificatio
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to remove verification from project");
+            return 1;
+        }
+    }
+}
+
+public class ProjectMoveVerificationCommand : Command<ProjectMoveVerificationSettings>
+{
+    private readonly ILogger<ProjectMoveVerificationCommand> _logger;
+
+    public ProjectMoveVerificationCommand(ILogger<ProjectMoveVerificationCommand> logger) => _logger = logger;
+
+    protected override int Execute(CommandContext context, ProjectMoveVerificationSettings settings, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var optionCount = (settings.Before != null ? 1 : 0) + (settings.After != null ? 1 : 0) + (settings.Position != null ? 1 : 0);
+            if (optionCount != 1)
+            {
+                _logger.LogError("Specify exactly one of --before, --after, or --position");
+                return 1;
+            }
+
+            var config = new ConfigService();
+            var project = config.Settings.Projects
+                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+            if (project == null)
+            {
+                _logger.LogError("Project not found: {Name}", settings.ProjectName);
+                return 1;
+            }
+
+            var item = project.Verifications
+                .FirstOrDefault(v => v.Name.Equals(settings.VerificationName, StringComparison.OrdinalIgnoreCase));
+
+            if (item == null)
+            {
+                _logger.LogError("Verification not found in project: {Name}", settings.VerificationName);
+                return 1;
+            }
+
+            project.Verifications.Remove(item);
+
+            int insertIndex;
+            if (settings.Before != null)
+            {
+                var targetIndex = project.Verifications
+                    .FindIndex(v => v.Name.Equals(settings.Before, StringComparison.OrdinalIgnoreCase));
+                if (targetIndex < 0)
+                {
+                    project.Verifications.Add(item);
+                    _logger.LogError("Target verification not found for --before: {Name}", settings.Before);
+                    return 1;
+                }
+                insertIndex = targetIndex;
+            }
+            else if (settings.After != null)
+            {
+                var targetIndex = project.Verifications
+                    .FindIndex(v => v.Name.Equals(settings.After, StringComparison.OrdinalIgnoreCase));
+                if (targetIndex < 0)
+                {
+                    project.Verifications.Add(item);
+                    _logger.LogError("Target verification not found for --after: {Name}", settings.After);
+                    return 1;
+                }
+                insertIndex = targetIndex + 1;
+            }
+            else
+            {
+                insertIndex = Math.Clamp(settings.Position!.Value, 0, project.Verifications.Count);
+            }
+
+            project.Verifications.Insert(insertIndex, item);
+            config.SaveSettings();
+            _logger.LogInformation("Moved verification '{Name}' to position {Position}", settings.VerificationName, insertIndex);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to move verification in project");
             return 1;
         }
     }

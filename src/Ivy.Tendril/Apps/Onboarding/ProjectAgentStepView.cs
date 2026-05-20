@@ -154,12 +154,12 @@ public class ProjectAgentStepView(
 
         var buttonArea = Layout.Horizontal().Width(Size.Full())
             | new Button("Back").Outline().Large().Icon(Icons.ArrowLeft)
-                .OnClick(() => onBack())
+                .OnClick(onBack)
             | new Spacer()
-            | (onSkip != null ? (object)new Button("Skip").Ghost().Large().OnClick(() => onSkip()) : new Spacer())
+            | (onSkip != null ? (object)new Button("Skip").Ghost().Large().OnClick(onSkip) : new Spacer())
             | new Button("Next").Secondary().Large().Icon(Icons.ArrowRight, Align.Right)
                 .Disabled(running)
-                .OnClick(() => onNext());
+                .OnClick(onNext);
 
         var awaitingOutput = !isCloning.Value && session.Running.Value && !session.HasOutput.Value;
 
