@@ -7,6 +7,8 @@ namespace Ivy.Tendril.AppShell.Dialogs;
 
 public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) : ViewBase
 {
+    private sealed record FetchedIssueGroup(string? Assignee, IReadOnlyList<GitHubIssue> Issues);
+
     private readonly IConfigService _config = config;
     private readonly IState<bool> _dialogOpen = dialogOpen;
 
@@ -18,9 +20,10 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
 
         var selectedRepo = UseState<string?>(null);
         var searchQuery = UseState("");
-        var selectedAssignee = UseState<string?>(null);
+        var selectedAssignees = UseState(Array.Empty<string>());
         var selectedLabels = UseState(Array.Empty<string>());
-        var fetchedIssues = UseState<List<GitHubIssue>?>(null);
+        var fetchedIssueGroups = UseState<IReadOnlyList<FetchedIssueGroup>?>(null);
+        var selectedIssueNumbers = UseState<HashSet<int>>([]);
         var errorMessage = UseState<string?>(null);
         var isFetching = UseState(false);
         var isImporting = UseState(false);
@@ -33,7 +36,6 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
             $"assignees:{selectedRepo.Value ?? ""}",
             async (key, _) =>
             {
-                // Strip the "assignees:" prefix to get the actual repo name
                 var repoName = key.StartsWith("assignees:") ? key.Substring("assignees:".Length) : key;
 
                 if (string.IsNullOrEmpty(repoName))
@@ -60,7 +62,6 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
             $"labels:{selectedRepo.Value ?? ""}",
             async (key, _) =>
             {
-                // Strip the "labels:" prefix to get the actual repo name
                 var repoName = key.StartsWith("labels:") ? key.Substring("labels:".Length) : key;
 
                 if (string.IsNullOrEmpty(repoName))
@@ -85,9 +86,10 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
 
         UseEffect(() =>
         {
-            fetchedIssues.Set(null);
+            fetchedIssueGroups.Set(null);
+            selectedIssueNumbers.Set([]);
             errorMessage.Set(null);
-            selectedAssignee.Set(null);
+            selectedAssignees.Set(Array.Empty<string>());
             selectedLabels.Set(Array.Empty<string>());
             assigneesError.Set(null);
             labelsError.Set(null);
@@ -129,11 +131,11 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
                 _ => _dialogOpen.Set(false),
                 new DialogHeader("Import Issues from GitHub"),
                 new DialogBody(
-                    Layout.Vertical().Gap(3)
+                    Layout.Vertical().Gap(3).AlignContent(Align.Center)
                     | Text.Muted("Loading repositories...")
                     | new Loading()
                 )
-            ).Width(Size.Rem(36));
+            ).Width(Size.Rem(42));
         }
 
         if (reposError.Value is { } repoErr)
@@ -146,11 +148,48 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
                 },
                 new DialogHeader("Import Issues from GitHub"),
                 new DialogBody(Text.Danger(repoErr))
-            ).Width(Size.Rem(36));
+            ).Width(Size.Rem(42));
         }
 
         var repos = reposState.Value!;
         var repositoryOptions = repos.Select(r => r.DisplayName).ToArray();
+        var hasRepo = !string.IsNullOrEmpty(selectedRepo.Value);
+        var filtersLoading = hasRepo && (assigneesQuery.Loading || labelsQuery.Loading);
+
+        void ResetDialogState()
+        {
+            fetchedIssueGroups.Set(null);
+            selectedIssueNumbers.Set([]);
+            errorMessage.Set(null);
+            searchQuery.Set("");
+            selectedAssignees.Set(Array.Empty<string>());
+            selectedLabels.Set(Array.Empty<string>());
+            selectedRepo.Set(null);
+        }
+
+        void SelectAllInGroup(IReadOnlyList<GitHubIssue> issues)
+        {
+            var next = new HashSet<int>(selectedIssueNumbers.Value);
+            foreach (var issue in issues)
+                next.Add(issue.Number);
+            selectedIssueNumbers.Set(next);
+        }
+
+        void SelectNoneInGroup(IReadOnlyList<GitHubIssue> issues)
+        {
+            var next = new HashSet<int>(selectedIssueNumbers.Value);
+            foreach (var issue in issues)
+                next.Remove(issue.Number);
+            selectedIssueNumbers.Set(next);
+        }
+
+        void ToggleIssueSelection(int issueNumber)
+        {
+            var next = new HashSet<int>(selectedIssueNumbers.Value);
+            if (!next.Remove(issueNumber))
+                next.Add(issueNumber);
+            selectedIssueNumbers.Set(next);
+        }
 
         async Task FetchIssues()
         {
@@ -160,29 +199,56 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
 
             isFetching.Set(true);
             errorMessage.Set(null);
+            fetchedIssueGroups.Set(null);
+            selectedIssueNumbers.Set([]);
             try
             {
                 var labels = selectedLabels.Value.Length > 0 ? selectedLabels.Value : null;
-                var (issues, error) = await githubService.SearchIssuesAsync(new IssueSearchRequest(
-                    repo.Owner, repo.Name,
-                    string.IsNullOrWhiteSpace(searchQuery.Value) ? null : searchQuery.Value,
-                    selectedAssignee.Value,
-                    labels));
+                var query = string.IsNullOrWhiteSpace(searchQuery.Value) ? null : searchQuery.Value;
+                var assigneeFilters = selectedAssignees.Value
+                    .Where(a => !string.IsNullOrWhiteSpace(a))
+                    .ToArray();
 
-                if (error is not null)
+                var groups = new List<FetchedIssueGroup>();
+                if (assigneeFilters.Length == 0)
                 {
-                    errorMessage.Set(error);
-                    fetchedIssues.Set(null);
+                    var (issues, error) = await githubService.SearchIssuesAsync(new IssueSearchRequest(
+                        repo.Owner, repo.Name, query, null, labels));
+                    if (error is not null)
+                    {
+                        errorMessage.Set(error);
+                        return;
+                    }
+
+                    groups.Add(new FetchedIssueGroup(null, issues));
                 }
                 else
                 {
-                    fetchedIssues.Set(issues);
+                    foreach (var assignee in assigneeFilters)
+                    {
+                        var (issues, error) = await githubService.SearchIssuesAsync(new IssueSearchRequest(
+                            repo.Owner, repo.Name, query, assignee, labels));
+                        if (error is not null)
+                        {
+                            errorMessage.Set(error);
+                            return;
+                        }
+
+                        groups.Add(new FetchedIssueGroup(assignee, issues));
+                    }
                 }
+
+                fetchedIssueGroups.Set(groups);
+                var allIssueNumbers = groups
+                    .SelectMany(g => g.Issues)
+                    .Select(i => i.Number)
+                    .ToHashSet();
+                selectedIssueNumbers.Set(allIssueNumbers);
             }
             catch (Exception ex)
             {
                 errorMessage.Set($"Failed to fetch issues: {ex.Message}");
-                fetchedIssues.Set(null);
+                fetchedIssueGroups.Set(null);
             }
             finally
             {
@@ -190,12 +256,21 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
             }
         }
 
-        async Task ImportAll()
+        async Task ImportSelected()
         {
-            if (fetchedIssues.Value is not { Count: > 0 } issues) return;
+            if (fetchedIssueGroups.Value is not { Count: > 0 } groups) return;
+            var allIssues = groups.SelectMany(g => g.Issues).ToList();
+            if (allIssues.Count == 0) return;
+            if (selectedIssueNumbers.Value.Count == 0) return;
             if (selectedRepo.Value is not { } repoName) return;
             var repo = repos.FirstOrDefault(r => r.DisplayName == repoName);
             if (repo is null) return;
+
+            var issuesToImport = allIssues
+                .Where(i => selectedIssueNumbers.Value.Contains(i.Number))
+                .DistinctBy(i => i.Number)
+                .ToList();
+            if (issuesToImport.Count == 0) return;
 
             isImporting.Set(true);
             try
@@ -206,7 +281,7 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
                 var projectName = GetProjectForRepo(githubService, repo.Owner, repo.Name);
                 var importedCount = 0;
 
-                foreach (var issue in issues)
+                foreach (var issue in issuesToImport)
                 {
                     var safeName = SanitizeFileName(issue.Title);
                     var fileName = $"{issue.Number}-{safeName}.md";
@@ -228,6 +303,7 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
                 }
 
                 client.Toast($"Imported {importedCount} issue{(importedCount == 1 ? "" : "s")} to Inbox", "Import Complete");
+                ResetDialogState();
                 _dialogOpen.Set(false);
             }
             catch (Exception ex)
@@ -241,56 +317,77 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
             }
         }
 
-        object? issuesList = null;
+        object? issuesPanel;
         if (isFetching.Value)
         {
-            issuesList = Text.Muted("Fetching issues...");
+            issuesPanel = Layout.Vertical().Gap(2).AlignContent(Align.Center)
+                .Height(Size.Rem(16)).Width(Size.Full())
+                | new Loading()
+                | Text.Muted("Fetching issues from GitHub...");
         }
-        else if (fetchedIssues.Value is { } issues)
+        else if (fetchedIssueGroups.Value is { } groups)
         {
-            if (issues.Count == 0)
+            if (groups.All(g => g.Issues.Count == 0))
             {
-                issuesList = Text.Muted("No issues found matching the filters.");
+                issuesPanel = Layout.Vertical().AlignContent(Align.Center)
+                    .Height(Size.Rem(10)).Width(Size.Full())
+                    | Text.Muted("No issues found matching the filters.");
             }
             else
             {
                 var repo = repos.FirstOrDefault(r => r.DisplayName == selectedRepo.Value);
-                var issueRows = issues.Select(i => new
-                {
-                    Title = repo != null
-                        ? $"[#{i.Number} - {i.Title}](https://github.com/{repo.Owner}/{repo.Name}/issues/{i.Number})"
-                        : $"#{i.Number} - {i.Title}",
-                    Labels = string.Join(", ", i.Labels),
-                    Assignees = string.Join(", ", i.Assignees)
-                }).ToList();
+                var scrollContent = Layout.Vertical().Gap(4).Width(Size.Full());
 
-                issuesList = Layout.Vertical().Gap(1)
-                    | Text.Label($"Found {issues.Count} issue{(issues.Count == 1 ? "" : "s")}")
-                    | issueRows.AsQueryable()
-                        .ToDataTable(i => i.Title)
-                        .Width(Size.Full())
-                        .Height(Size.Rem(20))
-                        .Header(i => i.Title, "Issue")
-                        .Header(i => i.Labels, "Labels")
-                        .Header(i => i.Assignees, "Assignees")
-                        .Width(i => i.Title, Size.Auto())
-                        .Width(i => i.Labels, Size.Px(200))
-                        .Width(i => i.Assignees, Size.Px(150))
-                        .Renderer(i => i.Title, new LinkDisplayRenderer())
-                        .Renderer(i => i.Labels, new TextDisplayRenderer())
-                        .Renderer(i => i.Assignees, new TextDisplayRenderer());
+                foreach (var group in groups)
+                {
+                    var groupIssues = group.Issues;
+                    var groupSelectedCount = groupIssues.Count(i => selectedIssueNumbers.Value.Contains(i.Number));
+                    var issueRows = groupIssues.Select(issue =>
+                    {
+                        var issueUrl = repo != null
+                            ? $"https://github.com/{repo.Owner}/{repo.Name}/issues/{issue.Number}"
+                            : null;
+                        return (object)new ImportIssueRowView(
+                            issue,
+                            selectedIssueNumbers,
+                            group.Assignee,
+                            issueUrl,
+                            ToggleIssueSelection,
+                            () => { if (issueUrl != null) client.OpenUrl(issueUrl); });
+                    }).ToArray();
+
+                    scrollContent |= Layout.Vertical().Gap(2).Width(Size.Full())
+                        | Layout.Horizontal().Gap(2).AlignContent(Align.SpaceBetween).Width(Size.Full())
+                            | Text.Label(FormatGroupHeader(group, groupSelectedCount))
+                            | (Layout.Horizontal().Gap(1)
+                                | new Button("All").Ghost().Small()
+                                    .Disabled(groupSelectedCount == groupIssues.Count || groupIssues.Count == 0)
+                                    .OnClick(() => SelectAllInGroup(groupIssues))
+                                | new Button("None").Ghost().Small()
+                                    .Disabled(groupSelectedCount == 0)
+                                    .OnClick(() => SelectNoneInGroup(groupIssues)))
+                        | (groupIssues.Count > 0
+                            ? new List(issueRows).Width(Size.Full())
+                            : Text.Muted("No issues for this assignee."));
+                }
+
+                issuesPanel = Layout.Vertical().Scroll(Scroll.Auto).Height(Size.Rem(22)).Width(Size.Full())
+                    | scrollContent;
             }
         }
+        else
+        {
+            issuesPanel = Layout.Vertical().AlignContent(Align.Center)
+                .Height(Size.Rem(10)).Width(Size.Full())
+                | Text.Muted("Choose a repository, set filters, and click Fetch Issues.");
+        }
+
+        var selectedForImport = selectedIssueNumbers.Value.Count;
 
         return new Dialog(
             _ =>
             {
-                fetchedIssues.Set(null);
-                errorMessage.Set(null);
-                searchQuery.Set("");
-                selectedAssignee.Set(null);
-                selectedLabels.Set(Array.Empty<string>());
-                selectedRepo.Set(null);
+                ResetDialogState();
                 _dialogOpen.Set(false);
             },
             new DialogHeader("Import Issues from GitHub"),
@@ -298,11 +395,15 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
                 Layout.Vertical().Gap(3)
                 | selectedRepo.ToSelectInput(repositoryOptions.ToOptions())
                     .WithField().Label("Repository").Required()
-                | searchQuery.ToTextInput().Placeholder("Search").WithField().Label("Search")
-                | selectedAssignee.ToSelectInput(assigneesQuery.Value.ToOptions())
-                    .Nullable().WithField().Label("Assignee")
+                | searchQuery.ToTextInput().Placeholder("Search titles and descriptions").WithField().Label("Search")
+                | selectedAssignees.ToSelectInput(assigneesQuery.Value.ToOptions())
+                    .Disabled(!hasRepo || filtersLoading)
+                    .Placeholder(filtersLoading ? "Loading assignees..." : "Select assignees...")
+                    .WithField().Label("Assignees")
                 | selectedLabels.ToSelectInput(labelsQuery.Value.ToOptions())
-                    .Placeholder("Select labels...").WithField().Label("Labels")
+                    .Disabled(!hasRepo || filtersLoading)
+                    .Placeholder(filtersLoading ? "Loading labels..." : "Select labels...")
+                    .WithField().Label("Labels")
                 | (assigneesError.Value is { } assigneeErr
                     ? Text.Danger(assigneeErr).Small()
                     : null)
@@ -310,29 +411,30 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
                     ? Text.Danger(labelErr).Small()
                     : null)
                 | new Button("Fetch Issues").Outline().Loading(isFetching.Value)
+                    .Disabled(!hasRepo || isFetching.Value)
                     .OnClick(async () => await FetchIssues())
                 | (errorMessage.Value is { } error
                     ? Text.Danger(error).Small()
                     : null)
-                | issuesList
+                | issuesPanel
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() =>
                 {
-                    fetchedIssues.Set(null);
-                    errorMessage.Set(null);
-                    searchQuery.Set("");
-                    selectedAssignee.Set(null);
-                    selectedLabels.Set(Array.Empty<string>());
-                    selectedRepo.Set(null);
+                    ResetDialogState();
                     _dialogOpen.Set(false);
                 }),
-                new Button("Import All").Primary()
+                new Button(selectedForImport > 0
+                        ? $"Import Selected ({selectedForImport})"
+                        : "Import Selected")
+                    .Primary()
                     .Loading(isImporting.Value)
-                    .Disabled(fetchedIssues.Value is not { Count: > 0 })
-                    .OnClick(async () => await ImportAll())
+                    .Disabled(selectedForImport == 0
+                        || fetchedIssueGroups.Value is null
+                        || !fetchedIssueGroups.Value.SelectMany(g => g.Issues).Any())
+                    .OnClick(async () => await ImportSelected())
             )
-        ).Width(Size.Rem(36));
+        ).Width(Size.Rem(42));
     }
 
     private string GetProjectForRepo(IGithubService githubService, string owner, string repo)
@@ -353,5 +455,85 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
         sanitized = Regex.Replace(sanitized, @"\s+", "-");
         sanitized = sanitized.Trim('-').ToLowerInvariant();
         return sanitized.Length > 60 ? sanitized[..60].TrimEnd('-') : sanitized;
+    }
+
+    private static string TruncateBody(string? body, int maxLength = 500)
+    {
+        if (string.IsNullOrWhiteSpace(body)) return "";
+        var trimmed = body.Trim();
+        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength] + "…";
+    }
+
+    private static string FormatGroupHeader(FetchedIssueGroup group, int selectedCount)
+    {
+        var count = group.Issues.Count;
+        var issueLabel = count == 1 ? "issue" : "issues";
+        if (group.Assignee is { } assignee)
+            return $"Found {count} {issueLabel} for {assignee} · {selectedCount} selected";
+
+        return $"Found {count} {issueLabel} · {selectedCount} selected";
+    }
+
+    private static string[] GetIssueAssignees(GitHubIssue issue) =>
+        issue.Assignees.Where(a => !string.IsNullOrWhiteSpace(a)).ToArray();
+
+    private static bool ShouldShowAssignees(GitHubIssue issue, string? assigneeFilter)
+    {
+        var assignees = GetIssueAssignees(issue);
+        if (assignees.Length == 0) return false;
+        if (string.IsNullOrWhiteSpace(assigneeFilter)) return true;
+
+        return assignees.Length > 1
+            || !assignees[0].Equals(assigneeFilter, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed class ImportIssueRowView(
+        GitHubIssue issue,
+        IState<HashSet<int>> selectedNumbers,
+        string? assigneeFilter,
+        string? issueUrl,
+        Action<int> onToggle,
+        Action onOpenUrl) : ViewBase
+    {
+        public override object? Build()
+        {
+            var isSelected = selectedNumbers.Value.Contains(issue.Number);
+
+            var bodyContent = Layout.Vertical().Gap(2);
+
+            bodyContent |= string.IsNullOrWhiteSpace(issue.Body)
+                ? Text.Muted("No description provided.")
+                : Text.Block(TruncateBody(issue.Body));
+
+            if (issue.Labels.Length > 0)
+            {
+                bodyContent |= Layout.Horizontal().Gap(2).AlignContent(Align.TopLeft).Wrap()
+                    | Text.Muted("Labels:")
+                    | issue.Labels.Select(label => new Badge(label).Variant(BadgeVariant.Outline).Small())
+                        .Cast<object>().ToArray();
+            }
+
+            if (ShouldShowAssignees(issue, assigneeFilter))
+            {
+                bodyContent |= Layout.Horizontal().Gap(2).AlignContent(Align.TopLeft).Wrap()
+                    | Text.Muted("Assigned to:")
+                    | Text.Block(string.Join(", ", GetIssueAssignees(issue)));
+            }
+
+            return Layout.Horizontal().Gap(2).AlignContent(Align.Center).Width(Size.Full())
+                | new Button()
+                    .Icon(isSelected ? Icons.Check : Icons.Square)
+                    .Ghost().Small()
+                    .Width(Size.Shrink())
+                    .OnClick(() => onToggle(issue.Number))
+                | new Expandable($"#{issue.Number} — {issue.Title}", bodyContent)
+                    .Width(Size.Grow().Min(Size.Px(0)))
+                | (issueUrl != null
+                    ? new Button().Icon(Icons.ExternalLink).Ghost().Small()
+                        .Width(Size.Shrink())
+                        .Tooltip("Open on GitHub")
+                        .OnClick(onOpenUrl)
+                    : null);
+        }
     }
 }
