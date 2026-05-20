@@ -78,7 +78,8 @@ public class GitTabView(
             syncMenuItem = syncMenuItem.OnSelect(() => onSynchronize(section.Path));
 
         var headerRow = Layout.Horizontal().AlignContent(Align.SpaceBetween)
-            | (Layout.Horizontal().AlignContent(Align.Left)
+            | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
+                | Icons.GitBranchPlus.ToIcon().Color(Colors.Muted)
                 | Text.H3(section.Name))
             | new Button().Icon(Icons.EllipsisVertical).Ghost()
                 .WithDropDown(
@@ -146,7 +147,11 @@ public class GitTabView(
         }
         else
         {
-            sectionLayout |= new Card() | Text.Muted("(no commits)");
+            sectionLayout |= new Card() |
+                             (Layout.Vertical().Gap(0).AlignContent(Align.Center)
+                              | Icons.GitCommitHorizontal.ToIcon().Color(Colors.Muted)
+                              | Text.Muted("(no commits)"))
+                ;
         }
 
         return sectionLayout;
