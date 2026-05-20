@@ -298,7 +298,7 @@ public class ContentView(
         INavigator nav,
         ReviewAppArgs? args)
     {
-        return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
+        return Layout.Horizontal().AlignContent(Align.Left).Gap(2).Scroll(Scroll.Horizontal)
                 | new Button("Reset to Draft").Icon(Icons.RotateCcw).Outline().ShortcutKey("r").OnClick(showResetToDraftDialog)
                 | new Button("Suggest Changes").Icon(Icons.MessageSquare).Outline().OnClick(showSuggestChangesDialog).ShortcutKey("d")
                 | new Button("Discard").Icon(Icons.Trash).Outline().ShortcutKey("Backspace").OnClick(showDiscardDialog)

@@ -33,7 +33,7 @@ public class ActionBarView(
         if (isEditingState.Value)
         {
             // Edit mode: show only Save and Cancel buttons
-            return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
+            return Layout.Horizontal().AlignContent(Align.Left).Gap(2).Scroll(Scroll.Horizontal)
                 | new Button("Save Revision").Icon(Icons.Save).Primary().ShortcutKey("S").OnClick(() =>
                 {
                     if (editContentState.Value != originalContentState.Value)
@@ -53,7 +53,7 @@ public class ActionBarView(
         }
 
         // Normal mode: show all action buttons (Edit first)
-        return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
+        return Layout.Horizontal().AlignContent(Align.Left).Gap(2).Scroll(Scroll.Horizontal)
                | new Button("Edit").Icon(Icons.Pencil).Outline().ShortcutKey("E")
                    .OnClick(() => isEditingState.Set(true))
                | new Button("Update").Icon(Icons.WandSparkles).Outline().ShortcutKey("u")

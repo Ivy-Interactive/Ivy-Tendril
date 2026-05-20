@@ -129,7 +129,7 @@ public class ContentView(
         scrollableContent |= new Markdown(selectedRecommendation.Description);
 
         // Action bar (secondary actions)
-        var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(1)
+        var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(1).Scroll(Scroll.Horizontal)
                         | new Button("Accept with Notes").Icon(Icons.CircleCheck).Outline().ShortcutKey("w")
                             .OnClick(() => showNotesDialog())
                         | new Button("View Plan").Icon(Icons.ExternalLink).Outline().ShortcutKey("d").OnClick(() =>
