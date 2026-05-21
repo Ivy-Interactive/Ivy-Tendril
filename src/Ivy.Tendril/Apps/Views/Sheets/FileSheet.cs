@@ -57,11 +57,11 @@ public class FileSheet(
         {
             var fileContent = FileHelper.ReadAllText(filePath);
             var language = FileHelper.GetLanguage(ext);
-            sheetContent = new Markdown($"```{language.ToString().ToLowerInvariant()}\n{fileContent}\n```");
+            sheetContent =  new CodeBlock($"{language.ToString().ToLowerInvariant()}\n{fileContent}", Languages.Text);
         }
         else
         {
-            sheetContent = new Markdown("File not found.");
+            sheetContent = Text.Block("File not found.");
         }
 
         var finalContent = fileExists
