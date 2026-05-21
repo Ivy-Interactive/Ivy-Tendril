@@ -300,7 +300,7 @@ public class ContentView(
     {
         var overflow = BuildReviewOverflowMenu(selectedPlan, showCustomPrDialog, copyToClipboard, client, logger);
 
-        return Layout.Horizontal().AlignContent(Align.Left).Gap(2).Scroll(Scroll.Horizontal)
+        return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
                | ActionBarResponsive.WideAndDesktopCompact(new Button("Reset to Draft").Icon(Icons.RotateCcw).Outline()
                    .ShortcutKey("r").OnClick(showResetToDraftDialog))
                | ActionBarResponsive.AtWide(new Button("Suggest Changes").Icon(Icons.MessageSquare).Outline()

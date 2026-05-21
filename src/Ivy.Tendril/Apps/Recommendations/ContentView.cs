@@ -159,7 +159,7 @@ public class ContentView(
         var planFolderPath = Path.Combine(planService.PlansDirectory, recommendation.PlanFolderName);
         var overflow = BuildOverflowMenu(client, config, planFolderPath, copyToClipboard);
 
-        return Layout.Horizontal().AlignContent(Align.Left).Gap(2).Scroll(Scroll.Horizontal)
+        return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
                | ActionBarResponsive.WideAndDesktopCompact(new Button("Accept with Notes").Icon(Icons.CircleCheck).Outline()
                    .ShortcutKey("w").OnClick(showNotesDialog))
                | ActionBarResponsive.AtWide(new Button("View Plan").Icon(Icons.ExternalLink).Outline().ShortcutKey("d")

@@ -32,7 +32,7 @@ public class ActionBarView(
 
         if (isEditingState.Value)
         {
-            return Layout.Horizontal().AlignContent(Align.Left).Gap(2).Scroll(Scroll.Horizontal)
+            return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
                 | ActionBarResponsive.WideAndDesktopCompact(new Button("Save Revision").Icon(Icons.Save).Primary().ShortcutKey("S").OnClick(() =>
                 {
                     if (editContentState.Value != originalContentState.Value)
@@ -51,7 +51,7 @@ public class ActionBarView(
                 }));
         }
 
-        return Layout.Horizontal().AlignContent(Align.Left).Gap(2).Scroll(Scroll.Horizontal)
+        return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
                | ActionBarResponsive.WideAndDesktopCompact(new Button("Edit").Icon(Icons.Pencil).Outline().ShortcutKey("E")
                    .OnClick(() => isEditingState.Set(true)))
                | ActionBarResponsive.AtWide(new Button("Update").Icon(Icons.WandSparkles).Outline().ShortcutKey("u")
