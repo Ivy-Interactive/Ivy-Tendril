@@ -57,7 +57,9 @@ public sealed class CopilotPty : IAgentPty
 
     public AgentPtySpec BuildPtySpec(AgentPtyConfig config)
     {
-        var args = new List<string> { "copilot" };
+        var (fileName, prefixArgs) = CopilotBinaryResolver.Resolve();
+        var args = new List<string> { fileName };
+        args.AddRange(prefixArgs);
 
         if (!string.IsNullOrEmpty(config.Model))
         {

@@ -9,9 +9,10 @@ public sealed class CopilotHealthCheck : IAgentHealthCheck
 
     public async Task<AgentInstallStatus> CheckInstallAsync(CancellationToken ct = default)
     {
-        var path = BinaryResolver.FindOnPath("copilot");
+        var (fileName, _) = CopilotBinaryResolver.Resolve();
+        var path = BinaryResolver.FindOnPath(fileName);
         if (path is null)
-            return new AgentInstallStatus { IsInstalled = false, Error = "copilot not found on PATH" };
+            return new AgentInstallStatus { IsInstalled = false, Error = "copilot (or gh) not found on PATH" };
 
         var version = await GetVersionAsync(ct);
         return new AgentInstallStatus { IsInstalled = true, Version = version, BinaryPath = path };
@@ -19,9 +20,10 @@ public sealed class CopilotHealthCheck : IAgentHealthCheck
 
     public async Task<AgentAuthResult> CheckAuthAsync(CancellationToken ct = default)
     {
+        var (fileName, prefixArgs) = CopilotBinaryResolver.Resolve();
         var (exitCode, _, stderr) = await HealthCheckRunner.RunAsync(
-            "copilot",
-            ["-p", "ping", "--allow-all-paths", "--allow-all-urls", "--allow-all-tools", "-s"],
+            fileName,
+            [..prefixArgs, "-p", "ping", "--allow-all-paths", "--allow-all-urls", "--allow-all-tools", "-s"],
             TimeSpan.FromSeconds(30),
             ct);
 
@@ -35,7 +37,7 @@ public sealed class CopilotHealthCheck : IAgentHealthCheck
             {
                 Status = AuthStatus.NotAuthenticated,
                 Error = stderr,
-                SignInHint = "Run 'copilot login' to authenticate",
+                SignInHint = "Run 'copilot login' or 'gh auth login' to authenticate",
             };
 
         return new AgentAuthResult { Status = AuthStatus.CheckFailed, Error = stderr };
@@ -43,8 +45,9 @@ public sealed class CopilotHealthCheck : IAgentHealthCheck
 
     public async Task<string?> GetVersionAsync(CancellationToken ct = default)
     {
+        var (fileName, prefixArgs) = CopilotBinaryResolver.Resolve();
         var (exitCode, stdout, _) = await HealthCheckRunner.RunAsync(
-            "copilot", ["--version"], TimeSpan.FromSeconds(10), ct);
+            fileName, [..prefixArgs, "--version"], TimeSpan.FromSeconds(10), ct);
 
         if (exitCode != 0) return null;
         return stdout.Trim();
@@ -52,9 +55,10 @@ public sealed class CopilotHealthCheck : IAgentHealthCheck
 
     public async Task<ModelValidationResult> ValidateModelAsync(string model, CancellationToken ct = default)
     {
+        var (fileName, prefixArgs) = CopilotBinaryResolver.Resolve();
         var (exitCode, _, stderr) = await HealthCheckRunner.RunAsync(
-            "copilot",
-            ["-p", "ping", "--model", model, "--allow-all-paths", "--allow-all-urls", "--allow-all-tools", "-s"],
+            fileName,
+            [..prefixArgs, "-p", "ping", "--model", model, "--allow-all-paths", "--allow-all-urls", "--allow-all-tools", "-s"],
             TimeSpan.FromSeconds(30),
             ct);
 

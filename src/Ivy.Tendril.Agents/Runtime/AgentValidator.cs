@@ -41,12 +41,14 @@ public sealed class AgentValidator
             });
         }
 
-        if (!BinaryResolver.IsInstalled(cli.Id switch
+        var binaryName = cli.Id switch
         {
             AgentId.Antigravity => "agy",
             AgentId.Claude => "claude",
+            AgentId.Copilot => Providers.Copilot.CopilotBinaryResolver.Resolve().FileName,
             _ => cli.Id
-        }))
+        };
+        if (!BinaryResolver.IsInstalled(binaryName))
         {
             problems.Add(new ValidationProblem
             {

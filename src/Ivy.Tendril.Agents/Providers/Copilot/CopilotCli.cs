@@ -2,6 +2,7 @@ using System.Collections.Frozen;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Helpers;
 
 namespace Ivy.Tendril.Agents.Providers.Copilot;
 
@@ -134,10 +135,12 @@ public sealed class CopilotCli : IAgentCli
                 env[key] = value;
         }
 
+        var (fileName, prefixArgs) = CopilotBinaryResolver.Resolve();
+
         return new AgentProcessSpec
         {
-            FileName = "copilot",
-            Arguments = args,
+            FileName = fileName,
+            Arguments = [..prefixArgs, ..args],
             WorkingDirectory = config.WorkingDirectory,
             Environment = env,
             StdinContent = null,

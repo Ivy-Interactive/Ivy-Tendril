@@ -200,7 +200,8 @@ public class CopilotCliTests
 
         var spec = _cli.BuildProcessSpec(config);
 
-        Assert.Equal("copilot", spec.FileName);
+        Assert.True(spec.FileName == "copilot" || spec.FileName == "gh",
+            $"Expected 'copilot' or 'gh', got '{spec.FileName}'");
         Assert.Contains("-p", spec.Arguments);
         Assert.Contains("Hello world", spec.Arguments);
         Assert.Contains("--allow-all-paths", spec.Arguments);
