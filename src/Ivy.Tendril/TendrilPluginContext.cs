@@ -8,9 +8,10 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Ivy.Tendril;
 
-internal class TendrilPluginContext(Server server, WebApplicationBuilder builder)
+internal class TendrilPluginContext(Server server, WebApplicationBuilder builder, string tendrilHome)
     : PluginContextBase(server, builder), ITendrilPluginContext, ITendrilExtendedPluginContext, ITendrilPluginContributions
 {
+    public string TendrilHome { get; } = tendrilHome;
     private readonly List<(MenuItem Item, FooterMenuPosition Position)> _settingsMenuItems = [];
     private readonly Dictionary<string, Func<IState<bool>, object?>> _dialogFactories = [];
 

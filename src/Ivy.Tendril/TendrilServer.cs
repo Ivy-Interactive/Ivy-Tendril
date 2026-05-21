@@ -99,7 +99,7 @@ public static class TendrilServer
                 new TendrilPluginConfigFactory(pluginsDir),
                 contextFactory: (s, builder) =>
                 {
-                    tendrilPluginContext = new TendrilPluginContext(s, builder);
+                    tendrilPluginContext = new TendrilPluginContext(s, builder, configService.TendrilHome);
                     builder.Services.AddSingleton<AppShell.ITendrilPluginContributions>(tendrilPluginContext);
                     return tendrilPluginContext;
                 },
