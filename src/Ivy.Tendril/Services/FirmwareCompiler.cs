@@ -186,7 +186,6 @@ public static class FirmwareCompiler
         File.WriteAllText(logFile, "*Execution in progress...*\n");
         return logFile;
     }
-
 }
 
 public record FirmwareContext(

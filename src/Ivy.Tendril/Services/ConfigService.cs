@@ -68,7 +68,7 @@ public record ProjectConfig
         catch
         {
             // If Path.GetFullPath fails (e.g., invalid path), return original with trimmed separators
-            return path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            return path.TrimEnd('/', '\\');
         }
     }
 }

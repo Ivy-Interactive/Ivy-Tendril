@@ -92,7 +92,7 @@ internal class DependencyChecker
         Func<JobArgsBase, string> startJobSkipDepCheck)
     {
         var blockedJobs = jobs.Values
-            .Where(j => j.Status == JobStatus.Blocked && j.TypedArgs is ExecutePlanArgs or RetryPlanArgs)
+            .Where(j => j is { Status: JobStatus.Blocked, TypedArgs: ExecutePlanArgs or RetryPlanArgs })
             .ToList();
 
         foreach (var blockedJob in blockedJobs)
@@ -142,6 +142,7 @@ internal class DependencyChecker
         }
         catch
         {
+            // ignored
         }
     }
 
@@ -177,14 +178,9 @@ internal class DependencyChecker
             if (otherFolder.Equals(planFolder, StringComparison.OrdinalIgnoreCase))
                 return true;
 
-            if (planRepos is { Count: > 0 })
-            {
-                var otherRepos = PlanYamlHelper.ReadPlanYaml(otherFolder)?.Repos;
-                if (otherRepos != null && planRepos.Any(r => otherRepos.Contains(r, StringComparer.OrdinalIgnoreCase)))
-                    return true;
-            }
-
-            return false;
+            if (planRepos is not { Count: > 0 }) return false;
+            var otherRepos = PlanYamlHelper.ReadPlanYaml(otherFolder)?.Repos;
+            return otherRepos != null && planRepos.Any(r => otherRepos.Contains(r, StringComparer.OrdinalIgnoreCase));
         });
     }
 }

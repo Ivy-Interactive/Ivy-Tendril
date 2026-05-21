@@ -4,6 +4,18 @@ namespace Ivy.Tendril.Helpers;
 
 public static class PathHelper
 {
+    /// <summary>
+    /// Gets the file/folder name from a path, handling both Windows and Unix separators
+    /// regardless of the current platform.
+    /// </summary>
+    public static string GetFileNameCrossPlatform(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return path;
+        var trimmed = path.TrimEnd('/', '\\');
+        var lastSep = trimmed.LastIndexOfAny(['/', '\\']);
+        return lastSep >= 0 ? trimmed[(lastSep + 1)..] : trimmed;
+    }
+
     public static string ResolvePath(string raw)
     {
         var path = VariableExpansion.ExpandVariables(raw, "");
