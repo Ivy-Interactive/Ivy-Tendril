@@ -56,7 +56,7 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
 
         if (!dialogOpen.Value) return null;
 
-        if (loading.Value)
+        if (teams.Value is null && error.Value is null)
         {
             return new Dialog(
                 _ => dialogOpen.Set(false),
