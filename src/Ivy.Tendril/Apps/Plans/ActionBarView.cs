@@ -1,4 +1,3 @@
-using Ivy;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
@@ -27,42 +26,14 @@ public class ActionBarView(
     Action goToPrevious,
     string downloadUrl) : ViewBase
 {
-    // >= 1024 (Wide): all buttons. 768–1023 (Desktop): Edit, Delete, Prev, Next + …. < 768: Prev, Next + …
-    // Ivy renders <kbd> only when Title is set; nbsp hides the label on the Desktop tier.
-    private const string HiddenTitle = "\u00A0";
-
-    private static readonly Responsive<bool?> VisibleAtWide = new() { Default = false, Desktop = false, Wide = true };
-    private static readonly Responsive<bool?> DesktopOnly = new() { Default = false, Desktop = true, Wide = false };
-    private static readonly Responsive<bool?> BelowTablet = new() { Default = true, Desktop = false };
-
-    private static Fragment AtWide(Button template) =>
-        new(template with { ResponsiveVisible = VisibleAtWide });
-
-    private static Fragment WideAndDesktopCompact(Button template)
-    {
-        var label = template.Title;
-        return new Fragment(
-            template with { Title = label, ResponsiveVisible = VisibleAtWide },
-            template with { Title = HiddenTitle, ResponsiveVisible = DesktopOnly });
-    }
-
-    private static Fragment WideDesktopAndMobileNav(Button template)
-    {
-        var label = template.Title;
-        return new Fragment(
-            template with { Title = label, ResponsiveVisible = VisibleAtWide },
-            template with { Title = HiddenTitle, ResponsiveVisible = DesktopOnly },
-            template with { Title = HiddenTitle, ResponsiveVisible = BelowTablet });
-    }
-
     public override object Build()
     {
         var client = UseService<IClientProvider>();
 
         if (isEditingState.Value)
         {
-            return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
-                | WideAndDesktopCompact(new Button("Save Revision").Icon(Icons.Save).Primary().ShortcutKey("S").OnClick(() =>
+            return Layout.Horizontal().AlignContent(Align.Left).Gap(2).Scroll(Scroll.Horizontal)
+                | ActionBarResponsive.WideAndDesktopCompact(new Button("Save Revision").Icon(Icons.Save).Primary().ShortcutKey("S").OnClick(() =>
                 {
                     if (editContentState.Value != originalContentState.Value)
                     {
@@ -73,35 +44,36 @@ public class ActionBarView(
                     }
                     isEditingState.Set(false);
                 }))
-                | WideAndDesktopCompact(new Button("Cancel").Outline().ShortcutKey("Escape").OnClick(() =>
+                | ActionBarResponsive.WideAndDesktopCompact(new Button("Cancel").Outline().ShortcutKey("Escape").OnClick(() =>
                 {
                     editContentState.Set(originalContentState.Value);
                     isEditingState.Set(false);
                 }));
         }
-        return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
-               | WideAndDesktopCompact(new Button("Edit").Icon(Icons.Pencil).Outline().ShortcutKey("E")
+
+        return Layout.Horizontal().AlignContent(Align.Left).Gap(2).Scroll(Scroll.Horizontal)
+               | ActionBarResponsive.WideAndDesktopCompact(new Button("Edit").Icon(Icons.Pencil).Outline().ShortcutKey("E")
                    .OnClick(() => isEditingState.Set(true)))
-               | AtWide(new Button("Update").Icon(Icons.WandSparkles).Outline().ShortcutKey("u")
+               | ActionBarResponsive.AtWide(new Button("Update").Icon(Icons.WandSparkles).Outline().ShortcutKey("u")
                    .OnClick(showUpdateDialog))
-               | AtWide(new Button("Split").Icon(Icons.Scissors).Outline().ShortcutKey("s")
+               | ActionBarResponsive.AtWide(new Button("Split").Icon(Icons.Scissors).Outline().ShortcutKey("s")
                    .Disabled(hasActiveSplitJob)
                    .OnClick(SplitPlan))
-               | AtWide(new Button("Expand").Icon(Icons.UnfoldVertical).Outline().ShortcutKey("x")
+               | ActionBarResponsive.AtWide(new Button("Expand").Icon(Icons.UnfoldVertical).Outline().ShortcutKey("x")
                    .Disabled(hasActiveExpandJob)
                    .OnClick(ExpandPlan))
-               | WideAndDesktopCompact(new Button("Delete").Icon(Icons.Trash).Outline().ShortcutKey("Backspace")
+               | ActionBarResponsive.WideAndDesktopCompact(new Button("Delete").Icon(Icons.Trash).Outline().ShortcutKey("Backspace")
                    .OnClick(showDeleteDialog))
-               | WideDesktopAndMobileNav(new Button("Previous").Icon(Icons.ChevronLeft).Outline()
+               | ActionBarResponsive.WideDesktopAndMobileNav(new Button("Previous").Icon(Icons.ChevronLeft).Outline()
                    .ShortcutKey("p").OnClick(goToPrevious))
-               | WideDesktopAndMobileNav(new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline()
+               | ActionBarResponsive.WideDesktopAndMobileNav(new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline()
                    .ShortcutKey("n").OnClick(goToNext))
-               | (new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(BuildMobileMenu(client))
-                   with { ResponsiveVisible = BelowTablet })
-               | (new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(BuildDesktopCompactMenu(client))
-                   with { ResponsiveVisible = DesktopOnly })
-               | (new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(BuildOverflowMenu(client))
-                   with { ResponsiveVisible = VisibleAtWide });
+               | ActionBarResponsive.BelowTabletMenu(
+                   new Button().Icon(Icons.EllipsisVertical).Ghost(), BuildMobileMenu(client))
+               | ActionBarResponsive.DesktopOnlyMenu(
+                   new Button().Icon(Icons.EllipsisVertical).Ghost(), BuildDesktopCompactMenu(client))
+               | ActionBarResponsive.WideOnlyMenu(
+                   new Button().Icon(Icons.EllipsisVertical).Ghost(), BuildOverflowMenu(client));
     }
 
     private void SplitPlan()
