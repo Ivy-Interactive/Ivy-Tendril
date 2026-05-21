@@ -574,7 +574,7 @@ public class ContentView(
                     ? Text.Muted("Loading...")
                     : artifactContentQuery.Error is { } err
                         ? Text.Muted($"Failed to load artifact: {err.Message}")
-                        : new Markdown($"```{language.ToString().ToLowerInvariant()}\n{artifactContentQuery.Value}\n```"),
+                        : new CodeBlock($"{language.ToString().ToLowerInvariant()}\n{artifactContentQuery.Value}\n", Languages.Text),
                 Path.GetFileName(artifactPath)
             ).Width(Size.Half()).Resizable();
         }

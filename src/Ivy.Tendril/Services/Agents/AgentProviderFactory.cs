@@ -103,25 +103,20 @@ public class AgentProviderFactory
             (a.Name.Equals("Copilot", StringComparison.OrdinalIgnoreCase) && codingAgent == "copilot") ||
             (a.Name.Equals("OpenCode", StringComparison.OrdinalIgnoreCase) && codingAgent == "opencode"));
 
-        if (agentConfig != null)
-        {
-            if (!string.IsNullOrWhiteSpace(agentConfig.Arguments))
-                extraArgs.AddRange(SplitArgs(agentConfig.Arguments));
+        if (agentConfig == null) return new AgentResolution(provider, model, effort, allowedTools, extraArgs);
+        if (!string.IsNullOrWhiteSpace(agentConfig.Arguments))
+            extraArgs.AddRange(SplitArgs(agentConfig.Arguments));
 
-            if (!string.IsNullOrEmpty(profileName))
-            {
-                var profile = agentConfig.Profiles.FirstOrDefault(p =>
-                    p.Name.Equals(profileName, StringComparison.OrdinalIgnoreCase));
+        if (string.IsNullOrEmpty(profileName))
+            return new AgentResolution(provider, model, effort, allowedTools, extraArgs);
+        var profile = agentConfig.Profiles.FirstOrDefault(p =>
+            p.Name.Equals(profileName, StringComparison.OrdinalIgnoreCase));
 
-                if (profile != null)
-                {
-                    if (!string.IsNullOrEmpty(profile.Model)) model = profile.Model;
-                    if (!string.IsNullOrEmpty(profile.Effort)) effort = profile.Effort;
-                    if (!string.IsNullOrWhiteSpace(profile.Arguments))
-                        extraArgs.AddRange(SplitArgs(profile.Arguments));
-                }
-            }
-        }
+        if (profile == null) return new AgentResolution(provider, model, effort, allowedTools, extraArgs);
+        if (!string.IsNullOrEmpty(profile.Model)) model = profile.Model;
+        if (!string.IsNullOrEmpty(profile.Effort)) effort = profile.Effort;
+        if (!string.IsNullOrWhiteSpace(profile.Arguments))
+            extraArgs.AddRange(SplitArgs(profile.Arguments));
 
         return new AgentResolution(provider, model, effort, allowedTools, extraArgs);
     }
