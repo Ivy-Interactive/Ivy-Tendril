@@ -11,52 +11,41 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
         var client = UseService<IClientProvider>();
         var logger = UseService<ILogger<ImportFromLinearDialog>>();
 
-        var teams = UseState<IReadOnlyList<LinearTeamInfo>?>(null);
         var selectedTeam = UseState<string?>(null);
         var issues = UseState<IReadOnlyList<LinearIssueInfo>?>(null);
         var selectedIssueIds = UseState<HashSet<string>>([]);
-        var loading = UseState(false);
         var isFetching = UseState(false);
         var isImporting = UseState(false);
         var error = UseState<string?>(null);
 
-        UseEffect(async () =>
+        var teamsQuery = UseQuery<IReadOnlyList<LinearTeamInfo>, bool>(
+            dialogOpen.Value,
+            async (isOpen, _) =>
+            {
+                if (!isOpen) return [];
+                var result = await clientFactory.Client.GetTeams.ExecuteAsync();
+                if (result.Errors is { Count: > 0 } errors)
+                    throw new Exception(errors[0].Message);
+                return result.Data!.Teams.Nodes
+                    .Select(t => new LinearTeamInfo(t.Id, t.Name, t.Key))
+                    .ToList();
+            },
+            initialValue: []);
+
+        UseEffect(() =>
         {
             if (!dialogOpen.Value)
             {
-                teams.Set(null);
                 selectedTeam.Set(null);
                 issues.Set(null);
                 selectedIssueIds.Set([]);
                 error.Set(null);
-                return;
-            }
-
-            loading.Set(true);
-            error.Set(null);
-            try
-            {
-                var result = await clientFactory.Client.GetTeams.ExecuteAsync();
-                if (result.Errors is { Count: > 0 } errors)
-                    throw new Exception(errors[0].Message);
-                teams.Set(result.Data!.Teams.Nodes
-                    .Select(t => new LinearTeamInfo(t.Id, t.Name, t.Key))
-                    .ToList());
-            }
-            catch (Exception ex)
-            {
-                error.Set($"Failed to load teams: {ex.Message}");
-                logger.LogWarning(ex, "Failed to load Linear teams");
-            }
-            finally
-            {
-                loading.Set(false);
             }
         }, dialogOpen);
 
         if (!dialogOpen.Value) return null;
 
-        if (teams.Value is null && error.Value is null)
+        if (teamsQuery.Loading)
         {
             return new Dialog(
                 _ => dialogOpen.Set(false),
@@ -69,16 +58,16 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
             ).Width(Size.Rem(42));
         }
 
-        if (error.Value is { } err && teams.Value is null)
+        if (teamsQuery.Error is { } err)
         {
             return new Dialog(
                 _ => dialogOpen.Set(false),
                 new DialogHeader("Import Issues from Linear"),
-                new DialogBody(Text.Danger(err))
+                new DialogBody(Text.Danger(err.Message))
             ).Width(Size.Rem(42));
         }
 
-        var teamList = teams.Value ?? [];
+        var teamList = teamsQuery.Value ?? [];
         var teamOptions = teamList.Select(t => $"{t.Key} — {t.Name}").ToArray();
 
         async Task FetchIssues()
