@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UserSecretsId>ac4d1fa6-ed93-4e5e-b123-e294dbb880e2</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IvySource)' == 'true'">
+    <ProjectReference Include="../../../../../Ivy-Framework/src/Ivy/Ivy.csproj" />
+    <ProjectReference Include="../../../Ivy.Tendril.Plugin.Abstractions/Ivy.Tendril.Plugin.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(IvySource)' != 'true'">
+    <PackageReference Include="Ivy" Version="1.2.56" />
+    <PackageReference Include="Ivy.Tendril.Plugin.Abstractions" Version="1.0.34" />
+  </ItemGroup>
+
+</Project>

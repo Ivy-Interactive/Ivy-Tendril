@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IvySource)' == 'true'">
+    <ProjectReference Include="../../../Ivy.Tendril.Plugin.Abstractions/Ivy.Tendril.Plugin.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(IvySource)' != 'true'">
+    <PackageReference Include="Ivy.Tendril.Plugin.Abstractions" Version="1.0.34" />
+  </ItemGroup>
+
+</Project>

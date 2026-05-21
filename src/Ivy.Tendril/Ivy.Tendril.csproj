@@ -56,6 +56,8 @@
     <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.AnimatedStatusLabel/Ivy.Widgets.AnimatedStatusLabel.csproj" />
     <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.AgentOutputView/Ivy.Widgets.AgentOutputView.csproj" />
     <ProjectReference Include="../../../Ivy-Framework/src/Ivy.Desktop/Ivy.Desktop.csproj" />
+    <ProjectReference Include="../Ivy.Tendril.Plugin.Abstractions/Ivy.Tendril.Plugin.Abstractions.csproj" />
+    <ProjectReference Include="../Ivy.Tendril.Plugin.Extended.Abstractions/Ivy.Tendril.Plugin.Extended.Abstractions.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(IvySource)' != 'true'">
     <PackageReference Include="Ivy" Version="1.2.58" />
@@ -66,6 +68,8 @@
     <PackageReference Include="Ivy.Widgets.AnimatedStatusLabel" Version="1.2.58" />
     <PackageReference Include="Ivy.Widgets.AgentOutputView" Version="1.2.58" />
     <PackageReference Include="Ivy.Desktop" Version="1.2.58" />
+    <PackageReference Include="Ivy.Tendril.Plugin.Abstractions" Version="1.0.34" />
+    <PackageReference Include="Ivy.Tendril.Plugin.Extended.Abstractions" Version="1.0.34" />
   </ItemGroup>
   <ItemGroup Condition="'$(IvySource)' == 'true'">
     <ProjectReference Include="../../../Ivy-Framework/src/Ivy.Analyser/Ivy.Analyser.csproj">
