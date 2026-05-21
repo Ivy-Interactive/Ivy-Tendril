@@ -19,6 +19,7 @@ public class PlanReaderServiceTests
     [InlineData("03314-MyPlan\\", "MyPlan")]
     [InlineData("03314-MyPlan/", "MyPlan")]
     [InlineData("03314-MyPlan\\/", "MyPlan")]
+    [InlineData("03314-MyPlan", "MyPlan")]
     public void ExtractSafeTitle_WithTrailingSeparators_TrimsAndReturnsTitle(string folderPath, string expectedTitle)
     {
         var result = WorktreeCleanupService.ExtractSafeTitle(folderPath);

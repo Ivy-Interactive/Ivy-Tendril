@@ -172,21 +172,24 @@ public class WorktreeCleanupService : IStartable, IDisposable
             }
             catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
             {
-                if (!OperatingSystem.IsWindows()) throw;
-
-                if (!buildServersShutdown)
+                if (OperatingSystem.IsWindows())
                 {
-                    TryShutdownBuildServers(logger);
-                    buildServersShutdown = true;
-                }
+                    if (!buildServersShutdown)
+                    {
+                        TryShutdownBuildServers(logger);
+                        buildServersShutdown = true;
+                    }
 
-                if (attempt == maxRetries - 1)
-                    TryKillLockingProcesses(path, logger);
+                    if (attempt == maxRetries - 1)
+                        TryKillLockingProcesses(path, logger);
+                }
 
                 if (attempt < maxRetries)
                     continue;
 
-                TryLogHandleHolders(path, logger);
+                if (OperatingSystem.IsWindows())
+                    TryLogHandleHolders(path, logger);
+
                 throw new IOException($"Failed to delete '{Path.GetFileName(path)}' after {maxRetries} retries", ex);
             }
         }
@@ -374,7 +377,7 @@ public class WorktreeCleanupService : IStartable, IDisposable
     {
         if (string.IsNullOrEmpty(planFolderPath))
             return "Unknown";
-        var folderName = Path.GetFileName(planFolderPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        var folderName = PathHelper.GetFileNameCrossPlatform(planFolderPath);
         var match = SafeTitleRegex.Match(folderName);
         return match.Success ? match.Groups[1].Value : "Unknown";
     }

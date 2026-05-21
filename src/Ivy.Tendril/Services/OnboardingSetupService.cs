@@ -146,7 +146,7 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
         var pendingDefinitions = config.GetPendingVerificationDefinitions();
         if (pendingDefinitions != null)
             foreach (var def in pendingDefinitions)
-                if (!config.Settings.Verifications.Any(v => v.Name == def.Name))
+                if (config.Settings.Verifications.All(v => v.Name != def.Name))
                     config.Settings.Verifications.Add(def);
 
         var pendingProject = config.GetPendingProject();

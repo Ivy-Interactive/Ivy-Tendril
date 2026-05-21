@@ -51,17 +51,21 @@ projects:
         }
     }
 
-    [Fact]
-    public void ExtractPlanIdFromFolder_ReturnsCorrectId()
+    [Theory]
+    [InlineData("D:\\Plans\\01234-TestPlan")]
+    [InlineData("/home/user/Plans/01234-TestPlan")]
+    public void ExtractPlanIdFromFolder_ReturnsCorrectId(string path)
     {
-        var result = PlanYamlHelper.ExtractPlanIdFromFolder("D:\\Plans\\01234-TestPlan");
+        var result = PlanYamlHelper.ExtractPlanIdFromFolder(path);
         Assert.Equal("01234", result);
     }
 
-    [Fact]
-    public void ExtractPlanIdFromFolder_HandlesNoDash()
+    [Theory]
+    [InlineData("D:\\Plans\\SomePlan")]
+    [InlineData("/home/user/Plans/SomePlan")]
+    public void ExtractPlanIdFromFolder_HandlesNoDash(string path)
     {
-        var result = PlanYamlHelper.ExtractPlanIdFromFolder("D:\\Plans\\SomePlan");
+        var result = PlanYamlHelper.ExtractPlanIdFromFolder(path);
         Assert.Null(result);
     }
 

@@ -120,10 +120,12 @@ public class PlanYamlHelperVerificationTests
         Assert.Null(PlanYamlHelper.ParseVerificationResultFromReport(content));
     }
 
-    [Fact]
-    public void ExtractPlanIdFromFolder_StandardFolder()
+    [Theory]
+    [InlineData(@"D:\Plans\03538-DataTableCellActions")]
+    [InlineData("/home/user/Plans/03538-DataTableCellActions")]
+    public void ExtractPlanIdFromFolder_StandardFolder(string path)
     {
-        Assert.Equal("03538", PlanYamlHelper.ExtractPlanIdFromFolder(@"D:\Plans\03538-DataTableCellActions"));
+        Assert.Equal("03538", PlanYamlHelper.ExtractPlanIdFromFolder(path));
     }
 
     [Fact]
