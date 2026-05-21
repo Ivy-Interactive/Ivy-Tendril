@@ -37,10 +37,12 @@ public class LinearPlugin : IIvyPlugin
             return;
 
         var extendedContext = context.AsTendrilExtendedContext();
+        var clientFactory = new LinearClientFactory(apiKey);
+        var tendrilHome = tendrilContext.TendrilHome;
 
         var openImportDialog = extendedContext.RegisterDialog(
             "$linear-import-dialog",
-            dialogOpen => new ImportFromLinearDialog(dialogOpen, apiKey));
+            dialogOpen => new ImportFromLinearDialog(dialogOpen, clientFactory, tendrilHome));
 
         extendedContext.AddSettingsMenuItem(
             MenuItem.Default("Import Issues from Linear")
