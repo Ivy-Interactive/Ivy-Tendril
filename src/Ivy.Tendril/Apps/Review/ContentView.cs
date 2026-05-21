@@ -298,65 +298,103 @@ public class ContentView(
         INavigator nav,
         ReviewAppArgs? args)
     {
+        var overflow = BuildReviewOverflowMenu(selectedPlan, showCustomPrDialog, copyToClipboard, client, logger);
+
         return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
-                | new Button("Reset to Draft").Icon(Icons.RotateCcw).Outline().ShortcutKey("r").OnClick(showResetToDraftDialog)
-                | new Button("Suggest Changes").Icon(Icons.MessageSquare).Outline().OnClick(showSuggestChangesDialog).ShortcutKey("d")
-                | new Button("Discard").Icon(Icons.Trash).Outline().ShortcutKey("Backspace").OnClick(showDiscardDialog)
-                | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(() => GoToPrevious(nav, args))
-                    .ShortcutKey("p")
-                | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().OnClick(() => GoToNext(nav, args))
-                    .ShortcutKey("n")
-                | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
-                    new MenuItem("Custom PR", Icon: Icons.GitPullRequest, Tag: "CustomPR").OnSelect(showCustomPrDialog),
-                    new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
-                    {
-                        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
-                        refreshPlans();
-                    }),
-                    new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
-                        .OnSelect(() => { PlatformHelper.OpenInFileManager(selectedPlan.FolderPath, logger); }),
-                    new MenuItem("Open in Terminal", Icon: Icons.Terminal, Tag: "OpenInTerminal").OnSelect(() =>
-                    {
-                        PlatformHelper.OpenInTerminal(selectedPlan.FolderPath, logger);
-                    }),
-                    new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
-                        .OnSelect(() =>
-                        {
-                            copyToClipboard(selectedPlan.FolderPath);
-                            client.Toast("Copied path to clipboard", "Path Copied");
-                        }),
-                    new MenuItem($"Open in {config.Editor.Label}", Icon: Icons.Code, Tag: "OpenInEditor")
-                        .OnSelect(() =>
-                        {
-                            try
-                            {
-                                config.OpenInEditor(selectedPlan.FolderPath);
-                            }
-                            catch (EditorNotAvailableException ex)
-                            {
-                                client.Toast(
-                                    $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
-                                    "Editor Not Available",
-                                    variant: ToastVariant.Destructive);
-                            }
-                        }),
-                    new MenuItem("Open plan.yaml", Icon: Icons.FileText, Tag: "OpenPlanYaml").OnSelect(() =>
-                    {
-                        var yamlPath = Path.Combine(selectedPlan.FolderPath, "plan.yaml");
-                        try
-                        {
-                            config.OpenInEditor(yamlPath);
-                        }
-                        catch (EditorNotAvailableException ex)
-                        {
-                            client.Toast(
-                                $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
-                                "Editor Not Available",
-                                variant: ToastVariant.Destructive);
-                        }
-                    })
-                );
+               | ActionBarResponsive.WideAndDesktopCompact(new Button("Reset to Draft").Icon(Icons.RotateCcw).Outline()
+                   .ShortcutKey("r").OnClick(showResetToDraftDialog))
+               | ActionBarResponsive.AtWide(new Button("Suggest Changes").Icon(Icons.MessageSquare).Outline()
+                   .ShortcutKey("d").OnClick(showSuggestChangesDialog))
+               | ActionBarResponsive.WideAndDesktopCompact(new Button("Discard").Icon(Icons.Trash).Outline()
+                   .ShortcutKey("Backspace").OnClick(showDiscardDialog))
+               | ActionBarResponsive.WideDesktopAndMobileNav(new Button("Previous").Icon(Icons.ChevronLeft).Outline()
+                   .ShortcutKey("p").OnClick(() => GoToPrevious(nav, args)))
+               | ActionBarResponsive.WideDesktopAndMobileNav(new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline()
+                   .ShortcutKey("n").OnClick(() => GoToNext(nav, args)))
+               | ActionBarResponsive.BelowTabletMenu(
+                   new Button().Icon(Icons.EllipsisVertical).Ghost(),
+                   BuildReviewMobileMenu(showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog, overflow))
+               | ActionBarResponsive.DesktopOnlyMenu(
+                   new Button().Icon(Icons.EllipsisVertical).Ghost(),
+                   BuildReviewDesktopCompactMenu(showSuggestChangesDialog, overflow))
+               | ActionBarResponsive.WideOnlyMenu(
+                   new Button().Icon(Icons.EllipsisVertical).Ghost(), overflow);
     }
+
+    private MenuItem[] BuildReviewMobileMenu(
+        Action showResetToDraftDialog,
+        Action showSuggestChangesDialog,
+        Action showDiscardDialog,
+        MenuItem[] overflow) =>
+    [
+        new MenuItem("Reset to Draft", Icon: Icons.RotateCcw).OnSelect(showResetToDraftDialog),
+        new MenuItem("Suggest Changes", Icon: Icons.MessageSquare).OnSelect(showSuggestChangesDialog),
+        new MenuItem("Discard", Icon: Icons.Trash).OnSelect(showDiscardDialog),
+        ..overflow,
+    ];
+
+    private MenuItem[] BuildReviewDesktopCompactMenu(Action showSuggestChangesDialog, MenuItem[] overflow) =>
+    [
+        new MenuItem("Suggest Changes", Icon: Icons.MessageSquare).OnSelect(showSuggestChangesDialog),
+        ..overflow,
+    ];
+
+    private MenuItem[] BuildReviewOverflowMenu(
+        PlanFile selectedPlan,
+        Action showCustomPrDialog,
+        Action<string> copyToClipboard,
+        IClientProvider client,
+        ILogger<ContentView> logger) =>
+    [
+        new MenuItem("Custom PR", Icon: Icons.GitPullRequest, Tag: "CustomPR").OnSelect(showCustomPrDialog),
+        new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
+        {
+            planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+            refreshPlans();
+        }),
+        new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
+            .OnSelect(() => PlatformHelper.OpenInFileManager(selectedPlan.FolderPath, logger)),
+        new MenuItem("Open in Terminal", Icon: Icons.Terminal, Tag: "OpenInTerminal").OnSelect(() =>
+        {
+            PlatformHelper.OpenInTerminal(selectedPlan.FolderPath, logger);
+        }),
+        new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
+            .OnSelect(() =>
+            {
+                copyToClipboard(selectedPlan.FolderPath);
+                client.Toast("Copied path to clipboard", "Path Copied");
+            }),
+        new MenuItem($"Open in {config.Editor.Label}", Icon: Icons.Code, Tag: "OpenInEditor")
+            .OnSelect(() =>
+            {
+                try
+                {
+                    config.OpenInEditor(selectedPlan.FolderPath);
+                }
+                catch (EditorNotAvailableException ex)
+                {
+                    client.Toast(
+                        $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
+                        "Editor Not Available",
+                        variant: ToastVariant.Destructive);
+                }
+            }),
+        new MenuItem("Open plan.yaml", Icon: Icons.FileText, Tag: "OpenPlanYaml").OnSelect(() =>
+        {
+            var yamlPath = Path.Combine(selectedPlan.FolderPath, "plan.yaml");
+            try
+            {
+                config.OpenInEditor(yamlPath);
+            }
+            catch (EditorNotAvailableException ex)
+            {
+                client.Toast(
+                    $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
+                    "Editor Not Available",
+                    variant: ToastVariant.Destructive);
+            }
+        }),
+    ];
 
     private object BuildContent(
         PlanFile selectedPlan,

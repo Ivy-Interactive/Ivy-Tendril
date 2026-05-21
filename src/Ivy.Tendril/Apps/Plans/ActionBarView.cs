@@ -32,9 +32,8 @@ public class ActionBarView(
 
         if (isEditingState.Value)
         {
-            // Edit mode: show only Save and Cancel buttons
             return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
-                | new Button("Save Revision").Icon(Icons.Save).Primary().ShortcutKey("S").OnClick(() =>
+                | ActionBarResponsive.WideAndDesktopCompact(new Button("Save Revision").Icon(Icons.Save).Primary().ShortcutKey("S").OnClick(() =>
                 {
                     if (editContentState.Value != originalContentState.Value)
                     {
@@ -44,122 +43,144 @@ public class ActionBarView(
                         refreshPlans();
                     }
                     isEditingState.Set(false);
-                })
-                | new Button("Cancel").Outline().ShortcutKey("Escape").OnClick(() =>
+                }))
+                | ActionBarResponsive.WideAndDesktopCompact(new Button("Cancel").Outline().ShortcutKey("Escape").OnClick(() =>
                 {
                     editContentState.Set(originalContentState.Value);
                     isEditingState.Set(false);
-                });
+                }));
         }
 
-        // Normal mode: show all action buttons (Edit first)
         return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
-               | new Button("Edit").Icon(Icons.Pencil).Outline().ShortcutKey("E")
-                   .OnClick(() => isEditingState.Set(true))
-               | new Button("Update").Icon(Icons.WandSparkles).Outline().ShortcutKey("u")
-                   .OnClick(showUpdateDialog)
-               | new Button("Split").Icon(Icons.Scissors).Outline().ShortcutKey("s")
+               | ActionBarResponsive.WideAndDesktopCompact(new Button("Edit").Icon(Icons.Pencil).Outline().ShortcutKey("E")
+                   .OnClick(() => isEditingState.Set(true)))
+               | ActionBarResponsive.AtWide(new Button("Update").Icon(Icons.WandSparkles).Outline().ShortcutKey("u")
+                   .OnClick(showUpdateDialog))
+               | ActionBarResponsive.AtWide(new Button("Split").Icon(Icons.Scissors).Outline().ShortcutKey("s")
                    .Disabled(hasActiveSplitJob)
-                   .OnClick(() =>
-                   {
-                       if (hasActiveSplitJob) return;
-
-                       // Optimistically update UI state before disk I/O
-                       var optimisticPlan = selectedPlan with
-                       {
-                           Metadata = selectedPlan.Metadata with { State = PlanStatus.Updating }
-                       };
-                       selectedPlanState.Set(optimisticPlan);
-
-                       planService.TransitionState(selectedPlan.FolderName, PlanStatus.Updating);
-                       jobService.StartJob(new SplitPlanArgs(selectedPlan.FolderPath));
-                       refreshPlans();
-                   })
-               | new Button("Expand").Icon(Icons.UnfoldVertical).Outline().ShortcutKey("x")
+                   .OnClick(SplitPlan))
+               | ActionBarResponsive.AtWide(new Button("Expand").Icon(Icons.UnfoldVertical).Outline().ShortcutKey("x")
                    .Disabled(hasActiveExpandJob)
-                   .OnClick(() =>
-                   {
-                       if (hasActiveExpandJob) return;
-
-                       // Optimistically update UI state before disk I/O
-                       var optimisticPlan = selectedPlan with
-                       {
-                           Metadata = selectedPlan.Metadata with { State = PlanStatus.Building }
-                       };
-                       selectedPlanState.Set(optimisticPlan);
-
-                       planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
-                       var planPath = selectedPlan.FolderPath;
-                       jobService.StartJob(new ExpandPlanArgs(planPath));
-                       refreshPlans();
-                   })
-               | new Button("Delete").Icon(Icons.Trash).Outline().ShortcutKey("Backspace")
-                   .OnClick(showDeleteDialog)
-               | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(goToPrevious)
-                   .ShortcutKey("p")
-               | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().OnClick(goToNext)
-                   .ShortcutKey("n")
-               | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
-                   new MenuItem("Create Issue", Icon: Icons.Github, Tag: "CreateIssue").OnSelect(showCreateIssueDialog),
-                   new MenuItem("Download", Icon: Icons.Download, Tag: "Download").OnSelect(() =>
-                   {
-                       if (!string.IsNullOrEmpty(downloadUrl)) client.OpenUrl(downloadUrl);
-                   }),
-                   new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
-                       .OnSelect(() => { PlatformHelper.OpenInFileManager(selectedPlan.FolderPath); }),
-                   new MenuItem("Open in Terminal", Icon: Icons.Terminal, Tag: "OpenInTerminal").OnSelect(() =>
-                   {
-                       PlatformHelper.OpenInTerminal(selectedPlan.FolderPath);
-                   }),
-                   new MenuItem($"Open in {config.Editor.Label}", Icon: Icons.Code, Tag: "OpenInEditor")
-                       .OnSelect(() =>
-                       {
-                           try
-                           {
-                               config.OpenInEditor(selectedPlan.FolderPath);
-                           }
-                           catch (EditorNotAvailableException ex)
-                           {
-                               client.Toast(
-                                   $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
-                                   "Editor Not Available",
-                                   variant: ToastVariant.Destructive);
-                           }
-                       }),
-                   new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
-                       .OnSelect(() =>
-                       {
-                           copyToClipboard(selectedPlan.FolderPath);
-                           client.Toast("Copied path to clipboard", "Path Copied");
-                       }),
-                   new MenuItem("Copy Plan to Clipboard", Icon: Icons.Share, Tag: "CopyPlan")
-                       .OnSelect(() =>
-                       {
-                           var exported = PlanExportHelper.ExportToClipboard(selectedPlan);
-                           copyToClipboard(exported);
-                           client.Toast("Plan copied to clipboard", "Plan Exported");
-                       }),
-                   new MenuItem("Mark as Completed", Icon: Icons.CircleCheck, Tag: "MarkCompleted")
-                       .OnSelect(() =>
-                       {
-                           planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
-                           refreshPlans();
-                       }),
-                   new MenuItem("Open plan.yaml", Icon: Icons.FileText, Tag: "OpenPlanYaml").OnSelect(() =>
-                   {
-                       var yamlPath = Path.Combine(selectedPlan.FolderPath, "plan.yaml");
-                       try
-                       {
-                           config.OpenInEditor(yamlPath);
-                       }
-                       catch (EditorNotAvailableException ex)
-                       {
-                           client.Toast(
-                               $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
-                               "Editor Not Available",
-                               variant: ToastVariant.Destructive);
-                       }
-                   })
-               );
+                   .OnClick(ExpandPlan))
+               | ActionBarResponsive.WideAndDesktopCompact(new Button("Delete").Icon(Icons.Trash).Outline().ShortcutKey("Backspace")
+                   .OnClick(showDeleteDialog))
+               | ActionBarResponsive.WideDesktopAndMobileNav(new Button("Previous").Icon(Icons.ChevronLeft).Outline()
+                   .ShortcutKey("p").OnClick(goToPrevious))
+               | ActionBarResponsive.WideDesktopAndMobileNav(new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline()
+                   .ShortcutKey("n").OnClick(goToNext))
+               | ActionBarResponsive.BelowTabletMenu(
+                   new Button().Icon(Icons.EllipsisVertical).Ghost(), BuildMobileMenu(client))
+               | ActionBarResponsive.DesktopOnlyMenu(
+                   new Button().Icon(Icons.EllipsisVertical).Ghost(), BuildDesktopCompactMenu(client))
+               | ActionBarResponsive.WideOnlyMenu(
+                   new Button().Icon(Icons.EllipsisVertical).Ghost(), BuildOverflowMenu(client));
     }
+
+    private void SplitPlan()
+    {
+        if (hasActiveSplitJob) return;
+
+        var optimisticPlan = selectedPlan with
+        {
+            Metadata = selectedPlan.Metadata with { State = PlanStatus.Updating }
+        };
+        selectedPlanState.Set(optimisticPlan);
+
+        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Updating);
+        jobService.StartJob(new SplitPlanArgs(selectedPlan.FolderPath));
+        refreshPlans();
+    }
+
+    private void ExpandPlan()
+    {
+        if (hasActiveExpandJob) return;
+
+        var optimisticPlan = selectedPlan with
+        {
+            Metadata = selectedPlan.Metadata with { State = PlanStatus.Building }
+        };
+        selectedPlanState.Set(optimisticPlan);
+
+        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
+        jobService.StartJob(new ExpandPlanArgs(selectedPlan.FolderPath));
+        refreshPlans();
+    }
+
+    private MenuItem[] BuildMobileMenu(IClientProvider client) =>
+    [
+        new MenuItem("Edit", Icon: Icons.Pencil).OnSelect(() => isEditingState.Set(true)),
+        new MenuItem("Update", Icon: Icons.WandSparkles).OnSelect(showUpdateDialog),
+        new MenuItem("Split", Icon: Icons.Scissors).OnSelect(SplitPlan),
+        new MenuItem("Expand", Icon: Icons.UnfoldVertical).OnSelect(ExpandPlan),
+        new MenuItem("Delete", Icon: Icons.Trash).OnSelect(showDeleteDialog),
+        ..BuildOverflowMenu(client),
+    ];
+
+    private MenuItem[] BuildDesktopCompactMenu(IClientProvider client) =>
+    [
+        new MenuItem("Update", Icon: Icons.WandSparkles).OnSelect(showUpdateDialog),
+        new MenuItem("Split", Icon: Icons.Scissors).OnSelect(SplitPlan),
+        new MenuItem("Expand", Icon: Icons.UnfoldVertical).OnSelect(ExpandPlan),
+        ..BuildOverflowMenu(client),
+    ];
+
+    private MenuItem[] BuildOverflowMenu(IClientProvider client) =>
+    [
+        new MenuItem("Create Issue", Icon: Icons.Github, Tag: "CreateIssue").OnSelect(showCreateIssueDialog),
+        new MenuItem("Download", Icon: Icons.Download, Tag: "Download").OnSelect(() =>
+        {
+            if (!string.IsNullOrEmpty(downloadUrl)) client.OpenUrl(downloadUrl);
+        }),
+        new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
+            .OnSelect(() => PlatformHelper.OpenInFileManager(selectedPlan.FolderPath)),
+        new MenuItem("Open in Terminal", Icon: Icons.Terminal, Tag: "OpenInTerminal").OnSelect(() =>
+        {
+            PlatformHelper.OpenInTerminal(selectedPlan.FolderPath);
+        }),
+        new MenuItem($"Open in {config.Editor.Label}", Icon: Icons.Code, Tag: "OpenInEditor").OnSelect(() =>
+        {
+            try
+            {
+                config.OpenInEditor(selectedPlan.FolderPath);
+            }
+            catch (EditorNotAvailableException ex)
+            {
+                client.Toast(
+                    $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
+                    "Editor Not Available",
+                    variant: ToastVariant.Destructive);
+            }
+        }),
+        new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath").OnSelect(() =>
+        {
+            copyToClipboard(selectedPlan.FolderPath);
+            client.Toast("Copied path to clipboard", "Path Copied");
+        }),
+        new MenuItem("Copy Plan to Clipboard", Icon: Icons.Share, Tag: "CopyPlan").OnSelect(() =>
+        {
+            var exported = PlanExportHelper.ExportToClipboard(selectedPlan);
+            copyToClipboard(exported);
+            client.Toast("Plan copied to clipboard", "Plan Exported");
+        }),
+        new MenuItem("Mark as Completed", Icon: Icons.CircleCheck, Tag: "MarkCompleted").OnSelect(() =>
+        {
+            planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+            refreshPlans();
+        }),
+        new MenuItem("Open plan.yaml", Icon: Icons.FileText, Tag: "OpenPlanYaml").OnSelect(() =>
+        {
+            var yamlPath = Path.Combine(selectedPlan.FolderPath, "plan.yaml");
+            try
+            {
+                config.OpenInEditor(yamlPath);
+            }
+            catch (EditorNotAvailableException ex)
+            {
+                client.Toast(
+                    $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
+                    "Editor Not Available",
+                    variant: ToastVariant.Destructive);
+            }
+        }),
+    ];
 }

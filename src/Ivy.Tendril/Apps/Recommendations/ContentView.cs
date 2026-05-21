@@ -1,3 +1,4 @@
+using Ivy.Core;
 using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Apps.Recommendations.Dialogs;
 using Ivy.Tendril.Apps.Views;
@@ -128,52 +129,13 @@ public class ContentView(
         scrollableContent |= new Separator();
         scrollableContent |= new Markdown(selectedRecommendation.Description);
 
-        // Action bar (secondary actions)
-        var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(1)
-                        | new Button("Accept with Notes").Icon(Icons.CircleCheck).Outline().ShortcutKey("w")
-                            .OnClick(() => showNotesDialog())
-                        | new Button("View Plan").Icon(Icons.ExternalLink).Outline().ShortcutKey("d").OnClick(() =>
-                        {
-                            var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
-                            if (Directory.Exists(fullPath))
-                                showPlan(fullPath);
-                        })
-                        | new Button("Previous").Icon(Icons.ChevronLeft).Outline().ShortcutKey("p")
-                            .OnClick(() => GoToPrevious())
-                        | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().ShortcutKey("n")
-                            .OnClick(() => GoToNext())
-                        | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
-                            new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
-                                .OnSelect(() =>
-                                {
-                                    var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
-                                    if (Directory.Exists(fullPath))
-                                        PlatformHelper.OpenInFileManager(fullPath);
-                                }),
-                            new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
-                                .OnSelect(() =>
-                                {
-                                    var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
-                                    copyToClipboard(fullPath);
-                                    client.Toast("Copied path to clipboard", "Path Copied");
-                                }),
-                            new MenuItem("Open plan.yaml", Icon: Icons.FileText, Tag: "OpenPlanYaml").OnSelect(() =>
-                            {
-                                var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
-                                var yamlPath = Path.Combine(fullPath, "plan.yaml");
-                                try
-                                {
-                                    config.OpenInEditor(yamlPath);
-                                }
-                                catch (EditorNotAvailableException ex)
-                                {
-                                    client.Toast(
-                                        $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
-                                        "Editor Not Available",
-                                        variant: ToastVariant.Destructive);
-                                }
-                            })
-                        );
+        var actionBar = BuildActionBar(
+            selectedRecommendation,
+            () => showNotesDialog(),
+            showPlan,
+            copyToClipboard,
+            client,
+            config);
 
         var mainLayout = new HeaderLayout(
             header,
@@ -185,6 +147,103 @@ public class ContentView(
 
         return new Fragment(mainLayout, planSheet, notesDialog);
     }
+
+    private object BuildActionBar(
+        Recommendation recommendation,
+        Action showNotesDialog,
+        Action<string> showPlan,
+        Action<string> copyToClipboard,
+        IClientProvider client,
+        IConfigService config)
+    {
+        var planFolderPath = Path.Combine(planService.PlansDirectory, recommendation.PlanFolderName);
+        var overflow = BuildOverflowMenu(client, config, planFolderPath, copyToClipboard);
+
+        return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
+               | ActionBarResponsive.WideAndDesktopCompact(new Button("Accept with Notes").Icon(Icons.CircleCheck).Outline()
+                   .ShortcutKey("w").OnClick(showNotesDialog))
+               | ActionBarResponsive.AtWide(new Button("View Plan").Icon(Icons.ExternalLink).Outline().ShortcutKey("d")
+                   .OnClick(() =>
+                   {
+                       if (Directory.Exists(planFolderPath))
+                           showPlan(planFolderPath);
+                   }))
+               | ActionBarResponsive.WideDesktopAndMobileNav(new Button("Previous").Icon(Icons.ChevronLeft).Outline()
+                   .ShortcutKey("p").OnClick(GoToPrevious))
+               | ActionBarResponsive.WideDesktopAndMobileNav(new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline()
+                   .ShortcutKey("n").OnClick(GoToNext))
+               | ActionBarResponsive.BelowTabletMenu(
+                   new Button().Icon(Icons.EllipsisVertical).Ghost(),
+                   BuildMobileMenu(showNotesDialog, showPlan, planFolderPath, overflow))
+               | ActionBarResponsive.DesktopOnlyMenu(
+                   new Button().Icon(Icons.EllipsisVertical).Ghost(),
+                   BuildDesktopCompactMenu(showPlan, planFolderPath, overflow))
+               | ActionBarResponsive.WideOnlyMenu(
+                   new Button().Icon(Icons.EllipsisVertical).Ghost(), overflow);
+    }
+
+    private static MenuItem[] BuildMobileMenu(
+        Action showNotesDialog,
+        Action<string> showPlan,
+        string planFolderPath,
+        MenuItem[] overflow) =>
+    [
+        new MenuItem("Accept with Notes", Icon: Icons.CircleCheck).OnSelect(showNotesDialog),
+        new MenuItem("View Plan", Icon: Icons.ExternalLink).OnSelect(() =>
+        {
+            if (Directory.Exists(planFolderPath))
+                showPlan(planFolderPath);
+        }),
+        ..overflow,
+    ];
+
+    private static MenuItem[] BuildDesktopCompactMenu(
+        Action<string> showPlan,
+        string planFolderPath,
+        MenuItem[] overflow) =>
+    [
+        new MenuItem("View Plan", Icon: Icons.ExternalLink).OnSelect(() =>
+        {
+            if (Directory.Exists(planFolderPath))
+                showPlan(planFolderPath);
+        }),
+        ..overflow,
+    ];
+
+    private static MenuItem[] BuildOverflowMenu(
+        IClientProvider client,
+        IConfigService config,
+        string planFolderPath,
+        Action<string> copyToClipboard) =>
+    [
+        new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
+            .OnSelect(() =>
+            {
+                if (Directory.Exists(planFolderPath))
+                    PlatformHelper.OpenInFileManager(planFolderPath);
+            }),
+        new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
+            .OnSelect(() =>
+            {
+                copyToClipboard(planFolderPath);
+                client.Toast("Copied path to clipboard", "Path Copied");
+            }),
+        new MenuItem("Open plan.yaml", Icon: Icons.FileText, Tag: "OpenPlanYaml").OnSelect(() =>
+        {
+            var yamlPath = Path.Combine(planFolderPath, "plan.yaml");
+            try
+            {
+                config.OpenInEditor(yamlPath);
+            }
+            catch (EditorNotAvailableException ex)
+            {
+                client.Toast(
+                    $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
+                    "Editor Not Available",
+                    variant: ToastVariant.Destructive);
+            }
+        }),
+    ];
 
     private void GoToNext()
     {
