@@ -1,8 +1,8 @@
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Apps.Onboarding.Models;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Services.Agents;
 
 namespace Ivy.Tendril.Apps.Onboarding;
 
@@ -58,7 +58,7 @@ public class CodingAgentStepView(
     [
         new("claude",   "Claude",   Icons.ClaudeCode),
         new("codex",    "Codex",    Icons.OpenAI),
-        new("gemini",   "Gemini",   Icons.Gemini),
+        new("antigravity", "Antigravity", Icons.Rocket),
         new("copilot",  "Copilot",  Icons.Copilot),
         new("opencode", "OpenCode", Icons.OpenCode)
     ];
@@ -67,7 +67,7 @@ public class CodingAgentStepView(
     {
         var config = UseService<IConfigService>();
         var client = UseService<IClientProvider>();
-        var authRunner = UseService<IOnboardingAuthRunner>();
+        var agentRunner = UseService<IAgentRunner>();
 
         var selectedAgent = UseState<string?>(null);
         var progressMessage = UseState<string?>(null);
@@ -118,8 +118,8 @@ public class CodingAgentStepView(
             try
             {
                 var checks = commonChecksPassed.Value
-                    ? [BuildAgentCheck(agentKey)]
-                    : BuildChecks(agentKey);
+                    ? [BuildAgentCheck(agentRunner, agentKey)]
+                    : BuildChecks(agentRunner, agentKey);
 
                 while (true)
                 {
@@ -163,7 +163,14 @@ public class CodingAgentStepView(
 
                     progressMessage.Set($"Signing In to {c.Name}... (Browser Will Open)");
                     authCode.Set(null);
-                    await authRunner.RunAuthAsync(c.Key, client, code => authCode.Set(code), CancellationToken.None);
+
+                    var hc = agentRunner.GetHealthCheck(c.Key);
+                    var callbacks = new AuthFlowCallbacks
+                    {
+                        OnUrl = url => { client.OpenUrl(url); return Task.CompletedTask; },
+                        OnCode = code => authCode.Set(code),
+                    };
+                    await hc.RunAuthFlowAsync(callbacks, CancellationToken.None);
                     authCode.Set(null);
 
                     progressMessage.Set($"Verifying {c.Name} Authentication...");
@@ -222,23 +229,29 @@ public class CodingAgentStepView(
                | grid;
     }
 
-    private static List<SoftwareCheck> BuildChecks(string agentKey) =>
+    private static List<SoftwareCheck> BuildChecks(IAgentRunner runner, string agentKey) =>
     [
         new("Git", "git", "https://git-scm.com/downloads", true,
             () => ProcessCheckHelper.CheckCommand("git", "--version")),
         new("PowerShell", "powershell", "https://github.com/PowerShell/PowerShell", true,
             ProcessCheckHelper.CheckPowerShell),
-        BuildAgentCheck(agentKey)
+        BuildAgentCheck(runner, agentKey)
     ];
 
-    private static SoftwareCheck BuildAgentCheck(string agentKey)
+    private static SoftwareCheck BuildAgentCheck(IAgentRunner runner, string agentKey)
     {
-        var provider = AgentProviderFactory.GetProvider(agentKey);
-        var info = provider.OnboardingInfo
-                   ?? throw new ArgumentException($"No onboarding info for agent '{agentKey}'");
-        return new SoftwareCheck(info.DisplayName, agentKey, info.InstallUrl, true,
-            () => ProcessCheckHelper.CheckCommand(agentKey, info.VersionArgs),
-            info.HealthCheck, info.SignInHint);
+        var healthCheck = runner.GetHealthCheck(agentKey);
+        var info = healthCheck.GetOnboardingInfo();
+        return new SoftwareCheck(info.DisplayName, agentKey, info.InstallUrl ?? "", true,
+            async () => (await healthCheck.CheckInstallAsync()).IsInstalled,
+            async () =>
+            {
+                var result = await healthCheck.CheckAuthAsync();
+                return result.Status == AuthStatus.Authenticated
+                    ? HealthCheckStatus.Authenticated
+                    : HealthCheckStatus.NotAuthenticated;
+            },
+            info.SignInHint);
     }
 
 }

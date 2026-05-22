@@ -1,6 +1,8 @@
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Agents;
 
 namespace Ivy.Tendril.Commands.DoctorChecks;
 
@@ -9,31 +11,13 @@ internal class SoftwareCheck : IDoctorCheck
     private static readonly string[] RequiredSoftware = ["gh", "git"];
     private static readonly string[] OptionalSoftware = ["pandoc"];
 
-    private static readonly Dictionary<string, string> VersionArgs = new()
-    {
-        ["gh"] = "--version",
-        ["claude"] = "--version",
-        ["codex"] = "--version",
-        ["gemini"] = "--version",
-        ["copilot"] = "--version",
-        ["git"] = "--version",
-        ["pwsh"] = "-Version",
-        ["pandoc"] = "--version"
-    };
-
-    private static readonly Dictionary<string, string> HealthArgs = new()
-    {
-        ["gh"] = "auth status --active",
-        ["claude"] = "-p \"ping\" --max-turns 1",
-        ["codex"] = "login status",
-        ["copilot"] = "-p \"ping\" --allow-all -s"
-    };
-
     private readonly ConfigService? _configService;
+    private readonly IAgentRunner? _agentRunner;
 
-    public SoftwareCheck(ConfigService? configService = null)
+    public SoftwareCheck(ConfigService? configService = null, IAgentRunner? agentRunner = null)
     {
         _configService = configService;
+        _agentRunner = agentRunner;
     }
 
     public string Name => "Software";
@@ -41,108 +25,122 @@ internal class SoftwareCheck : IDoctorCheck
     public async Task<CheckResult> RunAsync()
     {
         var statuses = new List<CheckStatus>();
+
+        var reqErrors = await CheckRequiredSoftware(statuses);
+        var agentErrors = await CheckAgentClis(statuses);
+        await CheckOptionalSoftware(statuses);
+        var pwshErrors = await CheckPowerShell(statuses);
+
+        return new CheckResult(reqErrors || agentErrors || pwshErrors, statuses);
+    }
+
+    private static async Task<bool> CheckRequiredSoftware(List<CheckStatus> statuses)
+    {
         var hasErrors = false;
-
-        var codingAgent = _configService?.Settings.CodingAgent ?? "claude";
-        var agentClis = GetAgentClis(_configService);
-
-        var allSoftware = RequiredSoftware
-            .Concat(agentClis)
-            .Concat(OptionalSoftware)
-            .Distinct()
-            .ToList();
-
-        foreach (var sw in allSoftware)
+        foreach (var sw in RequiredSoftware)
         {
-            var isRequired = RequiredSoftware.Contains(sw) || agentClis.Contains(sw);
-            var versionArg = VersionArgs.GetValueOrDefault(sw, "--version");
-            var installed = await ProcessCheckHelper.CheckCommand(sw, versionArg);
-
+            var installed = await ProcessCheckHelper.CheckCommand(sw, "--version");
             if (!installed)
             {
-                var kind = isRequired ? StatusKind.Error : StatusKind.Warn;
-                statuses.Add(new CheckStatus(sw, "Not found", kind));
-                if (isRequired) hasErrors = true;
+                statuses.Add(new CheckStatus(sw, "Not found", StatusKind.Error));
+                hasErrors = true;
                 continue;
             }
 
-            if (HealthArgs.TryGetValue(sw, out var healthArg))
+            if (sw == "gh")
             {
-                var health = await ProcessCheckHelper.CheckHealth(sw, healthArg);
-                switch (health)
+                var health = await ProcessCheckHelper.CheckHealth(sw, "auth status --active");
+                statuses.Add(health switch
                 {
-                    case HealthCheckStatus.Authenticated:
-                        statuses.Add(new CheckStatus(sw, "Ready", StatusKind.Ok));
-                        break;
-                    case HealthCheckStatus.NotAuthenticated:
-                        statuses.Add(new CheckStatus(sw, "Installed but not authenticated", isRequired ? StatusKind.Error : StatusKind.Warn));
-                        if (isRequired) hasErrors = true;
-                        break;
-                    default:
-                        statuses.Add(new CheckStatus(sw, "Installed (health check failed)", isRequired ? StatusKind.Error : StatusKind.Warn));
-                        if (isRequired) hasErrors = true;
-                        break;
-                }
+                    HealthCheckStatus.Authenticated => new CheckStatus(sw, "Ready", StatusKind.Ok),
+                    HealthCheckStatus.NotAuthenticated => new CheckStatus(sw, "Installed but not authenticated", StatusKind.Error),
+                    _ => new CheckStatus(sw, "Installed (health check failed)", StatusKind.Error),
+                });
+                if (health != HealthCheckStatus.Authenticated) hasErrors = true;
             }
             else
             {
                 statuses.Add(new CheckStatus(sw, "OK", StatusKind.Ok));
             }
         }
+        return hasErrors;
+    }
 
-        // PowerShell check with fallback (pwsh → powershell)
+    private async Task<bool> CheckAgentClis(List<CheckStatus> statuses)
+    {
+        if (_agentRunner == null) return false;
+
+        var hasErrors = false;
+        var codingAgent = _configService?.Settings.CodingAgent ?? "claude";
+        var agentIds = GetAgentIds();
+
+        foreach (var agentId in agentIds)
+        {
+            var isActive = agentId.Equals(codingAgent, StringComparison.OrdinalIgnoreCase);
+            var healthCheck = _agentRunner.GetHealthCheck(agentId);
+            var descriptor = _agentRunner.GetDescriptor(agentId);
+
+            var installStatus = await healthCheck.CheckInstallAsync();
+            if (!installStatus.IsInstalled)
+            {
+                statuses.Add(new CheckStatus(descriptor.DisplayName, "Not found", isActive ? StatusKind.Error : StatusKind.Warn));
+                if (isActive) hasErrors = true;
+                continue;
+            }
+
+            var authResult = await healthCheck.CheckAuthAsync();
+            var (message, kind) = authResult.Status switch
+            {
+                AuthStatus.Authenticated => ($"Ready ({installStatus.Version ?? "installed"})", StatusKind.Ok),
+                AuthStatus.NotAuthenticated => ("Installed but not authenticated", isActive ? StatusKind.Error : StatusKind.Warn),
+                _ => ("Installed (health check failed)", isActive ? StatusKind.Error : StatusKind.Warn),
+            };
+            statuses.Add(new CheckStatus(descriptor.DisplayName, message, kind));
+            if (authResult.Status != AuthStatus.Authenticated && isActive) hasErrors = true;
+        }
+        return hasErrors;
+    }
+
+    private static async Task CheckOptionalSoftware(List<CheckStatus> statuses)
+    {
+        foreach (var sw in OptionalSoftware)
+        {
+            var installed = await ProcessCheckHelper.CheckCommand(sw, "--version");
+            statuses.Add(installed
+                ? new CheckStatus(sw, "OK", StatusKind.Ok)
+                : new CheckStatus(sw, "Not found", StatusKind.Warn));
+        }
+    }
+
+    private static async Task<bool> CheckPowerShell(List<CheckStatus> statuses)
+    {
         var pwshInstalled = await ProcessCheckHelper.CheckCommand("pwsh", "-Version");
         if (pwshInstalled)
         {
             statuses.Add(new CheckStatus("powershell", "OK (pwsh)", StatusKind.Ok));
-        }
-        else
-        {
-            var legacyInstalled = await ProcessCheckHelper.CheckCommand("powershell", "-Version");
-            if (legacyInstalled)
-            {
-                statuses.Add(new CheckStatus("powershell", "OK (powershell)", StatusKind.Ok));
-            }
-            else
-            {
-                statuses.Add(new CheckStatus("powershell", "Not found", StatusKind.Error));
-                hasErrors = true;
-            }
+            return false;
         }
 
-        return new CheckResult(hasErrors, statuses);
+        var legacyInstalled = await ProcessCheckHelper.CheckCommand("powershell", "-Version");
+        statuses.Add(legacyInstalled
+            ? new CheckStatus("powershell", "OK (powershell)", StatusKind.Ok)
+            : new CheckStatus("powershell", "Not found", StatusKind.Error));
+        return !legacyInstalled;
     }
 
-    private static string[] GetAgentClis(ConfigService? configService)
+    private string[] GetAgentIds()
     {
-        var codingAgent = configService?.Settings.CodingAgent ?? "claude";
-        var clis = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (_agentRunner == null) return [];
 
-        if (configService?.Settings.CodingAgents is { Count: > 0 } agents)
+        if (_configService?.Settings.CodingAgents is { Count: > 0 } agents)
         {
-            foreach (var agent in agents)
-            {
-                var cli = ResolveCliName(agent.Name, codingAgent);
-                if (cli != null) clis.Add(cli);
-            }
-        }
-        else
-        {
-            clis.Add(codingAgent);
+            return agents
+                .Select(a => AgentProviderFactory.NormalizeAgentName(a.Name))
+                .Where(id => _agentRunner.RegisteredAgents.Contains(id, StringComparer.OrdinalIgnoreCase))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
         }
 
-        return clis.ToArray();
-    }
-
-    private static string? ResolveCliName(string agentName, string codingAgent)
-    {
-        return agentName.ToLower() switch
-        {
-            "claude" or "claudecode" => "claude",
-            "codex" => "codex",
-            "gemini" => "gemini",
-            "copilot" => "copilot",
-            _ => null
-        };
+        return [_configService?.Settings.CodingAgent ?? "claude"];
     }
 }

@@ -32,16 +32,16 @@ public class JobItemOutputObservableTests
     }
 
     [Fact]
-    public void FlushNormalizer_EmitsRemainingBufferedContent()
+    public void FlushParser_EmitsRemainingBufferedContent()
     {
-        var job = new JobItem { Id = "test-3", Provider = "gemini" };
+        var job = new JobItem { Id = "test-3", Provider = "antigravity" };
         var received = new List<string>();
         using var sub = job.OutputObservable.Subscribe(received.Add);
 
         job.EnqueueOutput("partial");
         var countAfterEnqueue = received.Count;
 
-        job.FlushNormalizer();
+        job.FlushParser();
 
         Assert.True(received.Count >= countAfterEnqueue);
     }

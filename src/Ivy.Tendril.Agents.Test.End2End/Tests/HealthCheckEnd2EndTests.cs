@@ -11,7 +11,6 @@ public class HealthCheckEnd2EndTests(AgentFixture fixture)
     [InlineData(AgentId.Claude)]
     [InlineData(AgentId.Codex)]
     [InlineData(AgentId.Copilot)]
-    [InlineData(AgentId.Gemini)]
     [InlineData(AgentId.OpenCode)]
     public async Task CheckInstall_ReturnsExpectedResult(string agentId)
     {
@@ -30,7 +29,6 @@ public class HealthCheckEnd2EndTests(AgentFixture fixture)
     [InlineData(AgentId.Claude)]
     [InlineData(AgentId.Codex)]
     [InlineData(AgentId.Copilot)]
-    [InlineData(AgentId.Gemini)]
     [InlineData(AgentId.OpenCode)]
     public async Task CheckAuth_WhenInstalled_ReturnsStatus(string agentId)
     {
@@ -47,7 +45,6 @@ public class HealthCheckEnd2EndTests(AgentFixture fixture)
     [InlineData(AgentId.Claude)]
     [InlineData(AgentId.Codex)]
     [InlineData(AgentId.Copilot)]
-    [InlineData(AgentId.Gemini)]
     [InlineData(AgentId.OpenCode)]
     public async Task GetVersion_WhenInstalled_ReturnsNonNull(string agentId)
     {

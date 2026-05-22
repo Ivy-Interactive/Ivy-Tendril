@@ -74,14 +74,14 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
                                   "  - name: quick\n" +
                                   "    model: gpt-5.3-codex\n" +
                                   "    effort: low\n" +
-                                  "- name: Gemini\n" +
+                                  "- name: Antigravity\n" +
                                   "  profiles:\n" +
                                   "  - name: deep\n" +
-                                  "    model: gemini-3-flash-preview\n" +
+                                  "    model: antigravity-max\n" +
                                   "  - name: balanced\n" +
-                                  "    model: gemini-3-flash-preview\n" +
+                                  "    model: antigravity-default\n" +
                                   "  - name: quick\n" +
-                                  "    model: gemini-3-flash-preview\n" +
+                                  "    model: antigravity-lite\n" +
                                   "- name: Copilot\n" +
                                   "  profiles:\n" +
                                   "  - name: deep\n" +
@@ -129,7 +129,7 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
 
                 var content = File.Exists(rcFile) ? await FileHelper.ReadAllTextAsync(rcFile) : "";
                 if (!content.Contains(exportLine))
-                    await File.AppendAllLinesAsync(rcFile, new[] { "", "# Tendril Home", exportLine });
+                    await File.AppendAllLinesAsync(rcFile, ["", "# Tendril Home", exportLine]);
             }
         }
         catch (Exception ex)

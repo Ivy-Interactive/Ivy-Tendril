@@ -14,7 +14,7 @@ This document defines what data Tendril may and may not send to third-party tele
 - **States/Types**: Enum values, state names, job types (e.g., "CreatePlan", "ExecutePlan")
 - **Levels**: Plan levels (e.g., "Bug", "Critical", "NiceToHave")
 - **Versions**: Application version strings, OS version strings
-- **Agent providers**: Coding agent name (e.g., "claude", "codex", "gemini")
+- **Agent providers**: Coding agent name (e.g., "claude", "codex", "antigravity")
 - **Booleans**: Feature flags, configuration states (e.g., llm_configured: true)
 - **Status codes**: Success/failure indicators, verification results
 

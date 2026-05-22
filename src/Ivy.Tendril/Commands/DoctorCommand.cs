@@ -1,9 +1,9 @@
+using Ivy.Tendril.Agents;
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Models;
-using System.Diagnostics;
-using Ivy.Helpers;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
-using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
 using Ivy.Tendril.Commands.DoctorChecks;
 
@@ -11,27 +11,6 @@ namespace Ivy.Tendril.Commands;
 
 public static class DoctorCommand
 {
-    private static readonly string[] RequiredSoftware = ["gh", "git"];
-    private static readonly string[] OptionalSoftware = ["pandoc"];
-
-    private static readonly Dictionary<string, string> VersionArgs = new()
-    {
-        ["gh"] = "--version",
-        ["claude"] = "--version",
-        ["codex"] = "--version",
-        ["gemini"] = "--version",
-        ["git"] = "--version",
-        ["pwsh"] = "-Version",
-        ["pandoc"] = "--version"
-    };
-
-    private static readonly Dictionary<string, string> HealthArgs = new()
-    {
-        ["gh"] = "auth status --active",
-        ["claude"] = "-p \"ping\" --max-turns 1",
-        ["codex"] = "login status"
-    };
-
     public static int Handle(string[] args)
     {
         if (args.Length == 0 || args[0] != "doctor") return -1;
@@ -54,12 +33,17 @@ public static class DoctorCommand
             // ConfigService will be null, which checks will handle
         }
 
+        var services = new ServiceCollection();
+        services.AddAgentInfrastructure();
+        using var sp = services.BuildServiceProvider();
+        var agentRunner = sp.GetRequiredService<IAgentRunner>();
+
         var checks = new IDoctorCheck[]
         {
             new EnvironmentCheck(),
-            new SoftwareCheck(configService),
+            new SoftwareCheck(configService, agentRunner),
             new DatabaseCheck(),
-            new AgentModelsCheck(configService)
+            new AgentModelsCheck(configService, agentRunner)
         };
 
         var hasErrors = false;

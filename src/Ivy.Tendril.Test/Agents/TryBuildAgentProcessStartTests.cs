@@ -1,3 +1,4 @@
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Agents;
 
@@ -13,8 +14,9 @@ public class TryBuildAgentProcessStartTests : IDisposable
         _tempDir = Path.Combine(Path.GetTempPath(), $"agent-launch-test-{Guid.NewGuid():N}");
         _promptsDir = Path.Combine(_tempDir, "Promptwares");
         Directory.CreateDirectory(_promptsDir);
-
     }
+
+    private static IAgentRunner CreateRunner() => TestAgentRunner.Create();
 
     public void Dispose()
     {
@@ -52,6 +54,7 @@ public class TryBuildAgentProcessStartTests : IDisposable
     [Fact]
     public void AgentProviderFactory_Resolve_NormalizesToolPaths()
     {
+        var runner = CreateRunner();
         var settings = new TendrilSettings
         {
             CodingAgent = "claude",
@@ -65,63 +68,17 @@ public class TryBuildAgentProcessStartTests : IDisposable
             CodingAgents = new List<AgentConfig>()
         };
 
-        var resolution = AgentProviderFactory.Resolve(settings, "Test");
+        var resolution = AgentProviderFactory.Resolve(runner, settings, "Test");
 
         // Backslashes should be converted to forward slashes
         Assert.Contains("D:/Repos/Tools/script.ps1", resolution.AllowedTools);
     }
 
-    [Fact]
-    public void ClaudeProvider_ExtractResult_HandlesMultipleResults()
-    {
-        var provider = new ClaudeAgentProvider();
-        var lines = new List<string>
-        {
-            "{\"type\":\"result\",\"result\":\"first result\"}",
-            "{\"type\":\"status\",\"message\":\"working\"}",
-            "{\"type\":\"result\",\"result\":\"final result\"}"
-        };
-
-        // Should return the LAST result
-        var result = provider.ExtractResult(lines);
-        Assert.Equal("final result", result);
-    }
-
-    [Fact]
-    public void ClaudeProvider_ExtractResult_HandlesmalformedJson()
-    {
-        var provider = new ClaudeAgentProvider();
-        var lines = new List<string>
-        {
-            "not json at all",
-            "{\"type\":\"result\",\"result\":\"actual result\"}",
-            "garbage after result"
-        };
-
-        var result = provider.ExtractResult(lines);
-        Assert.Equal("actual result", result);
-    }
-
-    [Fact]
-    public void CodexProvider_ExtractResult_ReturnsLastNonEmpty()
-    {
-        var provider = new CodexAgentProvider();
-        var lines = new List<string>
-        {
-            "Working on the task...",
-            "Applying changes...",
-            "Done! All changes applied.",
-            "",
-            ""
-        };
-
-        var result = provider.ExtractResult(lines);
-        Assert.Equal("Done! All changes applied.", result);
-    }
 
     [Fact]
     public void AgentProviderFactory_Resolve_EmptyAllowedToolsFromSpecificDoesNotOverride()
     {
+        var runner = CreateRunner();
         var settings = new TendrilSettings
         {
             CodingAgent = "claude",
@@ -152,7 +109,7 @@ public class TryBuildAgentProcessStartTests : IDisposable
             }
         };
 
-        var resolution = AgentProviderFactory.Resolve(settings, "SimpleTask");
+        var resolution = AgentProviderFactory.Resolve(runner, settings, "SimpleTask");
 
         // Base tools + _default's Write should still be present
         Assert.Contains("Read", resolution.AllowedTools);
@@ -172,31 +129,4 @@ public class TryBuildAgentProcessStartTests : IDisposable
         Assert.True(File.Exists(logFile));
     }
 
-    [Fact]
-    public void ClaudeProvider_BuildProcessStart_WorkingDirectory()
-    {
-        var provider = new ClaudeAgentProvider();
-        var invocation = new AgentInvocation(
-            "prompt", "/work/dir", "sonnet", "high", "sess-1",
-            Array.Empty<string>(), Array.Empty<string>());
-
-        var psi = provider.BuildProcessStart(invocation);
-        Assert.Equal("/work/dir", psi.WorkingDirectory);
-    }
-
-    [Fact]
-    public void ClaudeProvider_BuildProcessStart_RedirectsAllStreams()
-    {
-        var provider = new ClaudeAgentProvider();
-        var invocation = new AgentInvocation(
-            "prompt", "/work", "", "", "",
-            Array.Empty<string>(), Array.Empty<string>());
-
-        var psi = provider.BuildProcessStart(invocation);
-        Assert.True(psi.RedirectStandardOutput);
-        Assert.True(psi.RedirectStandardError);
-        Assert.True(psi.RedirectStandardInput);
-        Assert.False(psi.UseShellExecute);
-        Assert.True(psi.CreateNoWindow);
-    }
 }

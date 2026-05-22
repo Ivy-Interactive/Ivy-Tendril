@@ -1,9 +1,32 @@
 using System.Diagnostics;
+using Ivy.Tendril.Agents.Abstractions;
 
 namespace Ivy.Tendril.Helpers;
 
 public static class AgentProcessHelper
 {
+    public static ProcessStartInfo ToPsi(AgentProcessSpec spec)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = spec.FileName,
+            WorkingDirectory = spec.WorkingDirectory,
+            RedirectStandardOutput = spec.RedirectStdout,
+            RedirectStandardError = spec.RedirectStderr,
+            RedirectStandardInput = spec.RedirectStdin,
+            UseShellExecute = spec.UseShellExecute,
+            CreateNoWindow = spec.CreateNoWindow,
+        };
+
+        foreach (var arg in spec.Arguments)
+            psi.ArgumentList.Add(arg);
+
+        foreach (var (key, value) in spec.Environment)
+            psi.Environment[key] = value;
+
+        return psi;
+    }
+
     public static void EnsureTendrilOnPath(ProcessStartInfo psi)
     {
         var processPath = Environment.ProcessPath;

@@ -1,6 +1,5 @@
 using Ivy.Tendril.Commands;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Services.Agents;
 
 namespace Ivy.Tendril.Test.Commands;
 
@@ -95,12 +94,12 @@ public class PromptwareRunCommandTests : IDisposable
         {
             Promptware = "TestPromptware",
             ConfigPath = "/tmp/test-config.yaml",
-            Agent = "gemini",
+            Agent = "antigravity",
             DryRun = true
         };
 
         Assert.Equal("/tmp/test-config.yaml", settings.ConfigPath);
-        Assert.Equal("gemini", settings.Agent);
+        Assert.Equal("antigravity", settings.Agent);
         Assert.True(settings.DryRun);
     }
 

@@ -1,46 +1,15 @@
+using System.Reflection;
 using Ivy.Tendril.Agents.Abstractions;
+using YamlDotNet.Serialization;
 
 namespace Ivy.Tendril.Agents.Runtime;
 
 public sealed class ModelPricingProvider : IModelPricingProvider
 {
-    private static readonly Dictionary<string, ModelPricing> KnownPricing = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["claude-opus-4-20250514"] = new()
-        {
-            Model = "claude-opus-4-20250514",
-            InputPerMillion = 15m,
-            OutputPerMillion = 75m,
-            CacheWritePerMillion = 18.75m,
-            CacheReadPerMillion = 1.50m,
-        },
-        ["claude-sonnet-4-5-20250514"] = new()
-        {
-            Model = "claude-sonnet-4-5-20250514",
-            InputPerMillion = 3m,
-            OutputPerMillion = 15m,
-            CacheWritePerMillion = 3.75m,
-            CacheReadPerMillion = 0.30m,
-        },
-        ["claude-sonnet-4-20250514"] = new()
-        {
-            Model = "claude-sonnet-4-20250514",
-            InputPerMillion = 3m,
-            OutputPerMillion = 15m,
-            CacheWritePerMillion = 3.75m,
-            CacheReadPerMillion = 0.30m,
-        },
-        ["claude-haiku-3-5-20241022"] = new()
-        {
-            Model = "claude-haiku-3-5-20241022",
-            InputPerMillion = 0.80m,
-            OutputPerMillion = 4m,
-            CacheWritePerMillion = 1m,
-            CacheReadPerMillion = 0.08m,
-        },
-    };
+    private static readonly IDeserializer YamlDeserializer = new DeserializerBuilder().Build();
 
     private readonly Dictionary<string, ModelPricing> _pricing;
+    private readonly string[] _sortedKeys;
 
     public ModelPricingProvider()
         : this([])
@@ -49,9 +18,10 @@ public sealed class ModelPricingProvider : IModelPricingProvider
 
     public ModelPricingProvider(IEnumerable<ModelPricing> additionalPricing)
     {
-        _pricing = new Dictionary<string, ModelPricing>(KnownPricing, StringComparer.OrdinalIgnoreCase);
+        _pricing = LoadEmbeddedPricing();
         foreach (var p in additionalPricing)
             _pricing[p.Model] = p;
+        _sortedKeys = _pricing.Keys.OrderByDescending(k => k.Length).ToArray();
     }
 
     public ModelPricing? GetPricing(string modelName)
@@ -59,10 +29,10 @@ public sealed class ModelPricingProvider : IModelPricingProvider
         if (_pricing.TryGetValue(modelName, out var pricing))
             return pricing;
 
-        foreach (var (key, value) in _pricing)
+        foreach (var key in _sortedKeys)
         {
             if (modelName.Contains(key, StringComparison.OrdinalIgnoreCase))
-                return value;
+                return _pricing[key];
         }
 
         return null;
@@ -77,5 +47,42 @@ public sealed class ModelPricingProvider : IModelPricingProvider
              + (outputTokens * pricing.OutputPerMillion / 1_000_000m)
              + (cacheReadTokens * pricing.CacheReadPerMillion / 1_000_000m)
              + (cacheWriteTokens * pricing.CacheWritePerMillion / 1_000_000m);
+    }
+
+    private static Dictionary<string, ModelPricing> LoadEmbeddedPricing()
+    {
+        var assembly = Assembly.GetExecutingAssembly();
+        var resourceName = "Ivy.Tendril.Agents.Assets.models.yaml";
+
+        using var stream = assembly.GetManifestResourceStream(resourceName);
+        if (stream == null)
+            return new Dictionary<string, ModelPricing>(StringComparer.OrdinalIgnoreCase);
+
+        using var reader = new StreamReader(stream);
+        var yaml = reader.ReadToEnd();
+
+        var config = YamlDeserializer.Deserialize<Dictionary<string, object>>(yaml);
+        var result = new Dictionary<string, ModelPricing>(StringComparer.OrdinalIgnoreCase);
+
+        if (config.TryGetValue("models", out var modelsObj) && modelsObj is Dictionary<object, object> models)
+        {
+            foreach (var kvp in models)
+            {
+                var modelName = kvp.Key.ToString() ?? "";
+                if (kvp.Value is Dictionary<object, object> props)
+                {
+                    result[modelName] = new ModelPricing
+                    {
+                        Model = modelName,
+                        InputPerMillion = Convert.ToDecimal(props["input"]),
+                        OutputPerMillion = Convert.ToDecimal(props["output"]),
+                        CacheWritePerMillion = Convert.ToDecimal(props["cacheWrite"]),
+                        CacheReadPerMillion = Convert.ToDecimal(props["cacheRead"]),
+                    };
+                }
+            }
+        }
+
+        return result;
     }
 }

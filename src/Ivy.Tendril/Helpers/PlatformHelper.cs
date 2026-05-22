@@ -141,8 +141,21 @@ public static class PlatformHelper
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                // Use cmd.exe /c to resolve .cmd wrappers (like 'code') on Windows 
-                // while keeping UseShellExecute = false to prevent OS error dialogs/text.
+                // Verify the command exists via 'where' before launching.
+                // cmd.exe /c always succeeds even if the inner command is invalid.
+                using var check = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "where",
+                    Arguments = editorCommand,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                });
+                check?.WaitForExit(3000);
+                if (check is null || check.ExitCode != 0)
+                    return false;
+
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = "cmd.exe",

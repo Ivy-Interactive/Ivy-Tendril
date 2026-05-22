@@ -27,7 +27,7 @@ public class VerificationTests : IAsyncLifetime
             {
                 "claude" => "Claude",
                 "codex" => "Codex",
-                "gemini" => "Gemini",
+                "antigravity" => "Antigravity",
                 _ => _fixture.Settings.Agent,
             };
             await onboarding.CompleteOnboarding(

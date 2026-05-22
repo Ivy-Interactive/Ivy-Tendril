@@ -30,7 +30,6 @@ public class OutputSheet(string jobId, IJobService jobService) : ViewBase
                 ? string.Join("\n", job.OutputLines) : null;
 
             return new AgentOutputView()
-                .Provider(job.Provider)
                 .JsonStream(snapshot)
                 .AutoScroll(false)
                 .ShowStatusLabel(false)
@@ -38,7 +37,6 @@ public class OutputSheet(string jobId, IJobService jobService) : ViewBase
         }
 
         return new AgentOutputView()
-            .Provider(job.Provider)
             .JsonStream(initialSnapshot.Value)
             .Stream(outputStream)
             .Height(Size.Full());

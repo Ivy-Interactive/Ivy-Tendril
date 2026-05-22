@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
-using Ivy.Tendril.Apps.Jobs;
-using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Microsoft.Extensions.Logging;
@@ -39,7 +38,8 @@ public class JobService : IJobService
         ITelemetryService? telemetryService = null,
         IPlanWatcherService? planWatcherService = null,
         IPlanDatabaseService? database = null,
-        IWorktreeLifecycleLogger? worktreeLifecycleLogger = null)
+        IWorktreeLifecycleLogger? worktreeLifecycleLogger = null,
+        IAgentRunner? agentRunner = null)
     {
         _syncContext = SynchronizationContext.Current;
         _configService = configService;
@@ -58,7 +58,7 @@ public class JobService : IJobService
             : new SemaphoreSlim(0, 1);
         _inboxPath = Path.Combine(configService.TendrilHome, "Inbox");
         var promptsRoot = Ivy.Tendril.Helpers.PromptwareHelper.ResolvePromptsRoot(configService.TendrilHome);
-        _jobLauncher = new JobLauncher(configService, _logger, promptsRoot);
+        _jobLauncher = new JobLauncher(configService, agentRunner, _logger, promptsRoot);
         _completionHandler = new JobCompletionHandler(
             configService, _logger, modelPricingService, planReaderService,
             telemetryService, planWatcherService, worktreeLifecycleLogger, promptsRoot);
@@ -75,7 +75,8 @@ public class JobService : IJobService
         IPlanReaderService? planReaderService = null,
         ITelemetryService? telemetryService = null,
         IPlanDatabaseService? database = null,
-        ILogger<JobService>? logger = null)
+        ILogger<JobService>? logger = null,
+        IAgentRunner? agentRunner = null)
     {
         _syncContext = SynchronizationContext.Current;
         _logger = logger ?? NullLogger<JobService>.Instance;
@@ -90,7 +91,7 @@ public class JobService : IJobService
         _telemetryService = telemetryService;
         _database = database;
         var promptsRoot = Ivy.Tendril.Helpers.PromptwareHelper.ResolvePromptsRoot();
-        _jobLauncher = new JobLauncher(null, _logger, promptsRoot);
+        _jobLauncher = new JobLauncher(null, agentRunner!, _logger, promptsRoot);
         _completionHandler = new JobCompletionHandler(
             null, _logger, null, planReaderService, telemetryService,
             null, null, promptsRoot);
@@ -112,7 +113,7 @@ public class JobService : IJobService
         if (!_jobs.TryGetValue(id, out var job)) return;
         if (!job.TryClaimCompletion()) return;
 
-        job.FlushNormalizer();
+        job.FlushParser();
         var wasRunning = job.Status == JobStatus.Running;
         SetCompletionStatus(job, exitCode, timedOut, staleOutput);
         if (wasRunning)
@@ -168,7 +169,7 @@ public class JobService : IJobService
         if (!_jobs.TryGetValue(id, out var job)) return;
         if (!job.TryClaimCompletion()) return;
 
-        job.FlushNormalizer();
+        job.FlushParser();
         var wasRunning = job.Status == JobStatus.Running;
         job.CancellationRequested = true;
         try

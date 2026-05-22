@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using Ivy.Helpers;
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services.Agents;
@@ -28,12 +29,14 @@ internal record RepoConfigEntry(
 internal class JobLauncher
 {
     private readonly IConfigService? _configService;
+    private readonly IAgentRunner? _agentRunner;
     private readonly ILogger _logger;
     private readonly string _promptsRoot;
 
-    internal JobLauncher(IConfigService? configService, ILogger logger, string promptsRoot)
+    internal JobLauncher(IConfigService? configService, IAgentRunner? agentRunner, ILogger logger, string promptsRoot)
     {
         _configService = configService;
+        _agentRunner = agentRunner;
         _logger = logger;
         _promptsRoot = promptsRoot;
     }
@@ -203,7 +206,7 @@ internal class JobLauncher
             {
                 if (e.Data != null)
                 {
-                    job.EnqueueOutput($"[stderr] {e.Data}");
+                    job.EnqueueSystemOutput($"[stderr] {e.Data}");
                     job.LastOutputAt = DateTime.UtcNow;
                 }
             }
@@ -216,7 +219,7 @@ internal class JobLauncher
 
     private (ProcessStartInfo? Psi, string? StdinContent) TryBuildAgentProcessStart(JobLaunchContext ctx)
     {
-        if (_configService == null) return (null, null);
+        if (_configService == null || _agentRunner == null) return (null, null);
 
         var job = ctx.Job;
         var programFolder = Path.Combine(_promptsRoot, job.Type);
@@ -227,7 +230,8 @@ internal class JobLauncher
         values["TendrilProject"] = job.Project;
 
         var jobContext = BuildJobContext(job, values, programFolder);
-        var resolution = AgentProviderFactory.Resolve(settings, job.Type, profileOverride, jobContext);
+        var resolution = AgentProviderFactory.Resolve(_agentRunner, settings, job.Type, profileOverride, jobContext);
+        job.EventParser = _agentRunner.GetParser(resolution.AgentId);
         var workDir = ResolveWorkingDirectory(job, programFolder);
 
         var logFile = FirmwareCompiler.GetLogFile(programFolder, job.Id);
@@ -240,25 +244,29 @@ internal class JobLauncher
 
         var promptFilePath = WritePromptFileIfNeeded(resolution, prompt, job.Id, values);
 
-        var invocation = new AgentInvocation(
-            PromptContent: prompt,
-            WorkingDirectory: workDir,
-            Model: resolution.Model,
-            Effort: resolution.Effort,
-            SessionId: job.SessionId ?? "",
-            AllowedTools: resolution.AllowedTools,
-            ExtraArgs: resolution.ExtraArgs,
-            PromptFilePath: promptFilePath);
+        var launchConfig = new AgentLaunchConfig
+        {
+            Prompt = prompt,
+            WorkingDirectory = workDir,
+            Model = string.IsNullOrEmpty(resolution.Model) ? null : resolution.Model,
+            Effort = AgentProviderFactory.ParseEffort(resolution.Effort),
+            SessionId = job.SessionId,
+            PermissionMode = PermissionMode.FullAuto,
+            AllowedTools = resolution.AllowedTools,
+            ExtraArguments = resolution.ExtraArgs,
+            PromptFilePath = promptFilePath,
+        };
 
-        var psi = resolution.Provider.BuildProcessStart(invocation);
+        var spec = resolution.Cli.BuildProcessSpec(launchConfig);
+        var psi = AgentProcessHelper.ToPsi(spec);
         SetTendrilEnvironment(psi, job);
         job.CliCommand = AgentProcessHelper.FormatCliCommand(psi);
 
         _logger.LogInformation(
             "Job {JobId}: Agent-direct launch ({Provider}, model={Model}, effort={Effort})",
-            job.Id, resolution.Provider.Name, resolution.Model, resolution.Effort);
+            job.Id, resolution.AgentId, resolution.Model, resolution.Effort);
 
-        return (psi, resolution.Provider.UsesStdinPrompt ? prompt : null);
+        return (psi, spec.StdinContent);
     }
 
     private string? ResolveCustomInstructions(string promptwareName)
@@ -276,7 +284,7 @@ internal class JobLauncher
     private static string? WritePromptFileIfNeeded(
         AgentResolution resolution, string prompt, string jobId, Dictionary<string, string> values)
     {
-        if (resolution.Provider.UsesStdinPrompt)
+        if (resolution.UsesStdinPrompt)
             return null;
 
         var tempDir = values.TryGetValue("TendrilPlanFolder", out var pf)

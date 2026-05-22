@@ -180,7 +180,6 @@ public class ProjectAgentStepView(
                | (session.HasOutput.Value
                    ? (object)new Box(
                         new AgentOutputView()
-                            .Provider("claude")
                             .Stream(session.Stream)
                             .AutoScroll(true)
                             .ShowStatusLabel(true)

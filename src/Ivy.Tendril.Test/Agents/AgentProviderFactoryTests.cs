@@ -1,3 +1,4 @@
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Agents;
 
@@ -5,6 +6,8 @@ namespace Ivy.Tendril.Test.Agents;
 
 public class AgentProviderFactoryTests
 {
+    private static IAgentRunner CreateRunner() => TestAgentRunner.Create();
+
     private static TendrilSettings CreateSettings(
         string codingAgent = "claude",
         Dictionary<string, PromptwareConfig>? promptwares = null,
@@ -19,32 +22,37 @@ public class AgentProviderFactoryTests
     }
 
     [Theory]
-    [InlineData("claude", typeof(ClaudeAgentProvider))]
-    [InlineData("codex", typeof(CodexAgentProvider))]
-    [InlineData("gemini", typeof(GeminiAgentProvider))]
-    [InlineData("copilot", typeof(CopilotAgentProvider))]
-    public void GetProvider_ReturnsCorrectType(string name, Type expectedType)
+    [InlineData("claude")]
+    [InlineData("codex")]
+    [InlineData("antigravity")]
+    [InlineData("copilot")]
+    [InlineData("opencode")]
+    public void GetCli_ReturnsCorrectAgent(string name)
     {
-        var provider = AgentProviderFactory.GetProvider(name);
-        Assert.IsType(expectedType, provider);
+        var runner = CreateRunner();
+        var cli = runner.GetCli(name);
+        Assert.Equal(name, cli.Id);
     }
 
     [Fact]
-    public void GetProvider_CaseInsensitive()
+    public void GetCli_CaseInsensitive()
     {
-        var provider = AgentProviderFactory.GetProvider("Claude");
-        Assert.IsType<ClaudeAgentProvider>(provider);
+        var runner = CreateRunner();
+        var cli = runner.GetCli("Claude");
+        Assert.Equal("claude", cli.Id);
     }
 
     [Fact]
-    public void GetProvider_ThrowsForUnknown()
+    public void GetCli_ThrowsForUnknown()
     {
-        Assert.Throws<ArgumentException>(() => AgentProviderFactory.GetProvider("unknown-agent"));
+        var runner = CreateRunner();
+        Assert.Throws<ArgumentException>(() => runner.GetCli("unknown-agent"));
     }
 
     [Fact]
     public void Resolve_UsesDefaultProfile()
     {
+        var runner = CreateRunner();
         var settings = CreateSettings(
             promptwares: new Dictionary<string, PromptwareConfig>
             {
@@ -66,9 +74,9 @@ public class AgentProviderFactoryTests
         {
             ["PROMPTWARE_DIR"] = "/promptwares/UnknownPromptware"
         };
-        var resolution = AgentProviderFactory.Resolve(settings, "UnknownPromptware", jobContext: jobContext);
+        var resolution = AgentProviderFactory.Resolve(runner, settings, "UnknownPromptware", jobContext: jobContext);
 
-        Assert.IsType<ClaudeAgentProvider>(resolution.Provider);
+        Assert.Equal("claude", resolution.AgentId);
         Assert.Equal("sonnet", resolution.Model);
         Assert.Equal("high", resolution.Effort);
         // Base tools + _default's Write (unrestricted)
@@ -80,6 +88,7 @@ public class AgentProviderFactoryTests
     [Fact]
     public void Resolve_ExecutePlanGetsUnrestrictedBash()
     {
+        var runner = CreateRunner();
         var settings = CreateSettings(
             promptwares: new Dictionary<string, PromptwareConfig>
             {
@@ -102,7 +111,7 @@ public class AgentProviderFactoryTests
         {
             ["PROMPTWARE_DIR"] = "/promptwares/ExecutePlan"
         };
-        var resolution = AgentProviderFactory.Resolve(settings, "ExecutePlan", jobContext: jobContext);
+        var resolution = AgentProviderFactory.Resolve(runner, settings, "ExecutePlan", jobContext: jobContext);
 
         Assert.Equal("opus", resolution.Model);
         Assert.Equal("max", resolution.Effort);
@@ -116,6 +125,7 @@ public class AgentProviderFactoryTests
     [Fact]
     public void Resolve_ProfileOverrideTakesPrecedence()
     {
+        var runner = CreateRunner();
         var settings = CreateSettings(
             promptwares: new Dictionary<string, PromptwareConfig>
             {
@@ -134,7 +144,7 @@ public class AgentProviderFactoryTests
                 }
             });
 
-        var resolution = AgentProviderFactory.Resolve(settings, "CreatePlan", "deep");
+        var resolution = AgentProviderFactory.Resolve(runner, settings, "CreatePlan", "deep");
 
         Assert.Equal("opus", resolution.Model);
         Assert.Equal("max", resolution.Effort);
@@ -143,6 +153,7 @@ public class AgentProviderFactoryTests
     [Fact]
     public void Resolve_IncludesBaseAgentArguments()
     {
+        var runner = CreateRunner();
         var settings = CreateSettings(
             promptwares: new Dictionary<string, PromptwareConfig>
             {
@@ -161,7 +172,7 @@ public class AgentProviderFactoryTests
                 }
             });
 
-        var resolution = AgentProviderFactory.Resolve(settings, "Test");
+        var resolution = AgentProviderFactory.Resolve(runner, settings, "Test");
 
         Assert.Contains("--skip-confirm", resolution.ExtraArgs);
         Assert.Contains("--verbose", resolution.ExtraArgs);
@@ -172,14 +183,15 @@ public class AgentProviderFactoryTests
     [Fact]
     public void Resolve_NoConfigStillReturnsBaseTools()
     {
+        var runner = CreateRunner();
         var settings = CreateSettings();
         var jobContext = new Dictionary<string, string>
         {
             ["PROMPTWARE_DIR"] = "/promptwares/SomePromptware"
         };
-        var resolution = AgentProviderFactory.Resolve(settings, "SomePromptware", jobContext: jobContext);
+        var resolution = AgentProviderFactory.Resolve(runner, settings, "SomePromptware", jobContext: jobContext);
 
-        Assert.IsType<ClaudeAgentProvider>(resolution.Provider);
+        Assert.Equal("claude", resolution.AgentId);
         Assert.Equal("", resolution.Model);
         Assert.Equal("", resolution.Effort);
         Assert.Contains("Read", resolution.AllowedTools);
@@ -194,6 +206,7 @@ public class AgentProviderFactoryTests
     [Fact]
     public void Resolve_CodexProvider()
     {
+        var runner = CreateRunner();
         var settings = CreateSettings(
             "codex",
             codingAgents: new List<AgentConfig>
@@ -212,16 +225,17 @@ public class AgentProviderFactoryTests
                 ["_default"] = new() { Profile = "default" }
             });
 
-        var resolution = AgentProviderFactory.Resolve(settings, "Test");
+        var resolution = AgentProviderFactory.Resolve(runner, settings, "Test");
 
-        Assert.IsType<CodexAgentProvider>(resolution.Provider);
+        Assert.Equal("codex", resolution.AgentId);
         Assert.Equal("o4-mini", resolution.Model);
-        Assert.Equal("medium", resolution.Effort);
+        Assert.Equal("", resolution.Effort); // Codex CLI doesn't support EffortControl
     }
 
     [Fact]
     public void Resolve_MatchesCapitalizedAgentName_ClaudeCode()
     {
+        var runner = CreateRunner();
         var settings = CreateSettings(codingAgents: new List<AgentConfig>
             {
                 new()
@@ -238,13 +252,14 @@ public class AgentProviderFactoryTests
                 ["_default"] = new() { Profile = "balanced" }
             });
 
-        var resolution = AgentProviderFactory.Resolve(settings, "Test");
+        var resolution = AgentProviderFactory.Resolve(runner, settings, "Test");
         Assert.Equal("sonnet", resolution.Model);
     }
 
     [Fact]
     public void Resolve_MatchesCapitalizedAgentName_Codex()
     {
+        var runner = CreateRunner();
         var settings = CreateSettings(
             "codex",
             codingAgents: new List<AgentConfig>
@@ -263,23 +278,24 @@ public class AgentProviderFactoryTests
                 ["_default"] = new() { Profile = "default" }
             });
 
-        var resolution = AgentProviderFactory.Resolve(settings, "Test");
+        var resolution = AgentProviderFactory.Resolve(runner, settings, "Test");
         Assert.Equal("o4-mini", resolution.Model);
     }
 
     [Fact]
-    public void Resolve_MatchesCapitalizedAgentName_Gemini()
+    public void Resolve_MatchesCapitalizedAgentName_Antigravity()
     {
+        var runner = CreateRunner();
         var settings = CreateSettings(
-            "gemini",
+            "antigravity",
             codingAgents: new List<AgentConfig>
             {
                 new()
                 {
-                    Name = "Gemini",
+                    Name = "Antigravity",
                     Profiles = new List<AgentProfileConfig>
                     {
-                        new() { Name = "default", Model = "gemini-2.5-pro" }
+                        new() { Name = "default", Model = "antigravity-2.5-pro" }
                     }
                 }
             },
@@ -288,13 +304,14 @@ public class AgentProviderFactoryTests
                 ["_default"] = new() { Profile = "default" }
             });
 
-        var resolution = AgentProviderFactory.Resolve(settings, "Test");
-        Assert.Equal("gemini-2.5-pro", resolution.Model);
+        var resolution = AgentProviderFactory.Resolve(runner, settings, "Test");
+        Assert.Equal("", resolution.Model); // Antigravity CLI doesn't support ModelSelection
     }
 
     [Fact]
     public void Resolve_MatchesCapitalizedAgentName_Copilot()
     {
+        var runner = CreateRunner();
         var settings = CreateSettings(
             "copilot",
             codingAgents: new List<AgentConfig>
@@ -313,13 +330,14 @@ public class AgentProviderFactoryTests
                 ["_default"] = new() { Profile = "default" }
             });
 
-        var resolution = AgentProviderFactory.Resolve(settings, "Test");
+        var resolution = AgentProviderFactory.Resolve(runner, settings, "Test");
         Assert.Equal("gpt-5.2", resolution.Model);
     }
 
     [Fact]
     public void Resolve_ExpandsJobContextVariables()
     {
+        var runner = CreateRunner();
         var settings = CreateSettings(
             promptwares: new Dictionary<string, PromptwareConfig>
             {
@@ -340,7 +358,7 @@ public class AgentProviderFactoryTests
             ["PLAN_DIR"] = @"D:\Tendril\Plans\01234-MyPlan"
         };
 
-        var resolution = AgentProviderFactory.Resolve(settings, "CreatePlan", jobContext: jobContext);
+        var resolution = AgentProviderFactory.Resolve(runner, settings, "CreatePlan", jobContext: jobContext);
 
         // Base tools always present
         Assert.Contains("Read", resolution.AllowedTools);
@@ -354,6 +372,7 @@ public class AgentProviderFactoryTests
     [Fact]
     public void Resolve_JobContextExpansionIsCaseInsensitive()
     {
+        var runner = CreateRunner();
         var settings = CreateSettings(
             promptwares: new Dictionary<string, PromptwareConfig>
             {
@@ -365,7 +384,7 @@ public class AgentProviderFactoryTests
 
         var jobContext = new Dictionary<string, string> { ["PLANS_DIR"] = "/home/plans" };
 
-        var resolution = AgentProviderFactory.Resolve(settings, "Test", jobContext: jobContext);
+        var resolution = AgentProviderFactory.Resolve(runner, settings, "Test", jobContext: jobContext);
 
         Assert.Contains("Write(/home/plans/**)", resolution.AllowedTools);
     }
@@ -373,6 +392,7 @@ public class AgentProviderFactoryTests
     [Fact]
     public void Resolve_ConfigToolsAddToBaseTools()
     {
+        var runner = CreateRunner();
         var settings = CreateSettings(
             promptwares: new Dictionary<string, PromptwareConfig>
             {
@@ -382,7 +402,7 @@ public class AgentProviderFactoryTests
                 }
             });
 
-        var resolution = AgentProviderFactory.Resolve(settings, "Test");
+        var resolution = AgentProviderFactory.Resolve(runner, settings, "Test");
 
         // Base tools present
         Assert.Contains("Read", resolution.AllowedTools);
@@ -398,6 +418,7 @@ public class AgentProviderFactoryTests
     [Fact]
     public void Resolve_ExecutePlanGetsBuiltInWriteEditAndBash()
     {
+        var runner = CreateRunner();
         var settings = CreateSettings();
 
         var jobContext = new Dictionary<string, string>
@@ -406,7 +427,7 @@ public class AgentProviderFactoryTests
             ["PLAN_DIR"] = "/plans/01234-Test"
         };
 
-        var resolution = AgentProviderFactory.Resolve(settings, "ExecutePlan", jobContext: jobContext);
+        var resolution = AgentProviderFactory.Resolve(runner, settings, "ExecutePlan", jobContext: jobContext);
 
         Assert.Contains("Read", resolution.AllowedTools);
         Assert.Contains("Bash", resolution.AllowedTools);
@@ -417,6 +438,7 @@ public class AgentProviderFactoryTests
     [Fact]
     public void Resolve_DeduplicatesTools()
     {
+        var runner = CreateRunner();
         var settings = CreateSettings(
             promptwares: new Dictionary<string, PromptwareConfig>
             {
@@ -426,20 +448,21 @@ public class AgentProviderFactoryTests
                 }
             });
 
-        var resolution = AgentProviderFactory.Resolve(settings, "Test");
+        var resolution = AgentProviderFactory.Resolve(runner, settings, "Test");
 
         // Should not have duplicate Read or Bash
         Assert.Equal(resolution.AllowedTools.Count, resolution.AllowedTools.Distinct(StringComparer.OrdinalIgnoreCase).Count());
     }
 
     [Theory]
-    [InlineData("claude", typeof(ClaudeAgentProvider))]
-    [InlineData("codex", typeof(CodexAgentProvider))]
-    [InlineData("gemini", typeof(GeminiAgentProvider))]
-    [InlineData("copilot", typeof(CopilotAgentProvider))]
-    [InlineData("opencode", typeof(OpenCodeAgentProvider))]
-    public void Resolve_UpdateProject_GetsBaseToolsForAllAgents(string agent, Type expectedProviderType)
+    [InlineData("claude")]
+    [InlineData("codex")]
+    [InlineData("antigravity")]
+    [InlineData("copilot")]
+    [InlineData("opencode")]
+    public void Resolve_UpdateProject_GetsBaseToolsForAllAgents(string agent)
     {
+        var runner = CreateRunner();
         var settings = CreateSettings(
             agent,
             promptwares: new Dictionary<string, PromptwareConfig>
@@ -463,11 +486,18 @@ public class AgentProviderFactoryTests
             ["PROMPTWARE_DIR"] = "/promptwares/UpdateProject"
         };
 
-        var resolution = AgentProviderFactory.Resolve(settings, "UpdateProject", jobContext: jobContext);
+        var resolution = AgentProviderFactory.Resolve(runner, settings, "UpdateProject", jobContext: jobContext);
 
-        Assert.IsType(expectedProviderType, resolution.Provider);
-        Assert.Equal("test-model", resolution.Model);
-        Assert.Equal("max", resolution.Effort);
+        Assert.Equal(agent, resolution.AgentId);
+        var cli = runner.GetCli(agent);
+        if (cli.Capabilities.HasFlag(AgentCapabilities.ModelSelection))
+            Assert.Equal("test-model", resolution.Model);
+        else
+            Assert.Equal("", resolution.Model);
+        if (cli.Capabilities.HasFlag(AgentCapabilities.EffortControl))
+            Assert.Equal("max", resolution.Effort);
+        else
+            Assert.Equal("", resolution.Effort);
 
         // Base tools
         Assert.Contains("Read", resolution.AllowedTools);

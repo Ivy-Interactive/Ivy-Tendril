@@ -70,8 +70,15 @@ public static class PromptwareLogWriter
 
         try
         {
-            var provider = AgentProviderFactory.GetProvider(job.Provider);
-            return provider.ExtractResult(job.OutputLines.ToArray());
+            var serializer = new Ivy.Tendril.Agents.Runtime.JsonEventSerializer();
+            string? lastResult = null;
+            foreach (var line in job.OutputLines)
+            {
+                var evt = serializer.Deserialize(line);
+                if (evt is Ivy.Tendril.Agents.Abstractions.ResultEvent r && r.Response != null)
+                    lastResult = r.Response;
+            }
+            return lastResult;
         }
         catch
         {

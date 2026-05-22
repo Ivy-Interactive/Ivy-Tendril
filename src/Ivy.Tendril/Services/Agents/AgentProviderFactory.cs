@@ -1,23 +1,21 @@
+using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Runtime;
+
 namespace Ivy.Tendril.Services.Agents;
 
 public record AgentResolution(
-    IAgentProvider Provider,
+    IAgentCli Cli,
     string Model,
     string Effort,
     IReadOnlyList<string> AllowedTools,
-    IReadOnlyList<string> ExtraArgs);
+    IReadOnlyList<string> ExtraArgs)
+{
+    public string AgentId => Cli.Id;
+    public bool UsesStdinPrompt => Cli.PromptTransport == PromptTransport.Stdin;
+}
 
 public class AgentProviderFactory
 {
-    private static readonly Dictionary<string, IAgentProvider> Providers = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["claude"] = new ClaudeAgentProvider(),
-        ["codex"] = new CodexAgentProvider(),
-        ["gemini"] = new GeminiAgentProvider(),
-        ["copilot"] = new CopilotAgentProvider(),
-        ["opencode"] = new OpenCodeAgentProvider()
-    };
-
     internal static readonly IReadOnlyList<string> BaseTools =
         ["Read", "Glob", "Grep", "Bash", "WebFetch", "WebSearch"];
 
@@ -28,15 +26,8 @@ public class AgentProviderFactory
             ["RetryPlan"] = ["Write", "Edit"],
         };
 
-    public static IAgentProvider GetProvider(string name)
-    {
-        if (Providers.TryGetValue(name, out var provider))
-            return provider;
-
-        throw new ArgumentException($"Unknown agent provider: {name}. Available: {string.Join(", ", Providers.Keys)}");
-    }
-
     public static AgentResolution Resolve(
+        IAgentRunner runner,
         TendrilSettings settings,
         string promptwareName,
         string? profileOverride = null,
@@ -44,37 +35,35 @@ public class AgentProviderFactory
         string? agentOverride = null)
     {
         var codingAgent = agentOverride ?? settings.CodingAgent;
-        var provider = GetProvider(codingAgent);
+        if (string.IsNullOrEmpty(codingAgent))
+            throw new InvalidOperationException("No coding agent configured. Set 'codingAgent' in config.yaml.");
+        var cli = runner.GetCli(codingAgent);
 
-        // Built-in defaults: BaseTools + per-promptware extras
-        string profileName = "";
+        var allowedTools = ResolveAllowedTools(settings, promptwareName, jobContext);
+        var (profileName, extraArgs) = ResolveAgentConfig(settings, codingAgent, promptwareName, profileOverride);
+        var (model, effort) = ApplyProfile(settings, codingAgent, profileName, cli, extraArgs);
+
+        return new AgentResolution(cli, model, effort, allowedTools, extraArgs);
+    }
+
+    private static List<string> ResolveAllowedTools(
+        TendrilSettings settings,
+        string promptwareName,
+        IReadOnlyDictionary<string, string>? jobContext)
+    {
         var allowedTools = new List<string>(BaseTools);
 
         if (BuiltInExtraTools.TryGetValue(promptwareName, out var builtInExtras))
             allowedTools.AddRange(builtInExtras);
 
-        // Layer config on top: _default → specific promptware → profileOverride
-        if (settings.Promptwares.TryGetValue("_default", out var defaultConfig))
-        {
-            if (!string.IsNullOrEmpty(defaultConfig.Profile))
-                profileName = defaultConfig.Profile;
-            if (defaultConfig.AllowedTools.Count > 0)
-                allowedTools.AddRange(defaultConfig.AllowedTools);
-        }
+        if (settings.Promptwares.TryGetValue("_default", out var defaultConfig) && defaultConfig.AllowedTools.Count > 0)
+            allowedTools.AddRange(defaultConfig.AllowedTools);
 
         if (!string.IsNullOrEmpty(promptwareName) &&
-            settings.Promptwares.TryGetValue(promptwareName, out var specificConfig))
-        {
-            if (!string.IsNullOrEmpty(specificConfig.Profile))
-                profileName = specificConfig.Profile;
-            if (specificConfig.AllowedTools.Count > 0)
-                allowedTools.AddRange(specificConfig.AllowedTools);
-        }
+            settings.Promptwares.TryGetValue(promptwareName, out var specificConfig) &&
+            specificConfig.AllowedTools.Count > 0)
+            allowedTools.AddRange(specificConfig.AllowedTools);
 
-        if (!string.IsNullOrEmpty(profileOverride))
-            profileName = profileOverride;
-
-        // Expand job context variables (%PLAN_DIR%, %PLANS_DIR%, etc.) then env vars
         for (var i = 0; i < allowedTools.Count; i++)
         {
             var tool = allowedTools[i];
@@ -83,43 +72,94 @@ public class AgentProviderFactory
                 foreach (var (key, value) in jobContext)
                     tool = tool.Replace($"%{key}%", value, StringComparison.OrdinalIgnoreCase);
             }
-            allowedTools[i] = Environment.ExpandEnvironmentVariables(tool)
-                .Replace('\\', '/');
+            allowedTools[i] = Environment.ExpandEnvironmentVariables(tool).Replace('\\', '/');
         }
 
-        // Deduplicate (config may re-state base tools)
-        allowedTools = allowedTools.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        return allowedTools.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
 
-        // Resolve model, effort, and extra args from agent config + profile
-        string model = "";
-        string effort = "";
+    private static (string ProfileName, List<string> ExtraArgs) ResolveAgentConfig(
+        TendrilSettings settings,
+        string codingAgent,
+        string promptwareName,
+        string? profileOverride)
+    {
+        var profileName = "";
         var extraArgs = new List<string>();
 
-        var agentConfig = settings.CodingAgents.FirstOrDefault(a =>
-            a.Name.Equals(codingAgent, StringComparison.OrdinalIgnoreCase) ||
-            (a.Name.Equals("ClaudeCode", StringComparison.OrdinalIgnoreCase) && codingAgent == "claude") ||
-            (a.Name.Equals("Codex", StringComparison.OrdinalIgnoreCase) && codingAgent == "codex") ||
-            (a.Name.Equals("Gemini", StringComparison.OrdinalIgnoreCase) && codingAgent == "gemini") ||
-            (a.Name.Equals("Copilot", StringComparison.OrdinalIgnoreCase) && codingAgent == "copilot") ||
-            (a.Name.Equals("OpenCode", StringComparison.OrdinalIgnoreCase) && codingAgent == "opencode"));
+        if (settings.Promptwares.TryGetValue("_default", out var defaultConfig) &&
+            !string.IsNullOrEmpty(defaultConfig.Profile))
+            profileName = defaultConfig.Profile;
 
-        if (agentConfig == null) return new AgentResolution(provider, model, effort, allowedTools, extraArgs);
-        if (!string.IsNullOrWhiteSpace(agentConfig.Arguments))
+        if (!string.IsNullOrEmpty(promptwareName) &&
+            settings.Promptwares.TryGetValue(promptwareName, out var specificConfig) &&
+            !string.IsNullOrEmpty(specificConfig.Profile))
+            profileName = specificConfig.Profile;
+
+        if (!string.IsNullOrEmpty(profileOverride))
+            profileName = profileOverride;
+
+        var agentConfig = settings.CodingAgents.FirstOrDefault(a =>
+            NormalizeAgentName(a.Name).Equals(codingAgent, StringComparison.OrdinalIgnoreCase));
+
+        if (agentConfig != null && !string.IsNullOrWhiteSpace(agentConfig.Arguments))
             extraArgs.AddRange(SplitArgs(agentConfig.Arguments));
 
+        return (profileName, extraArgs);
+    }
+
+    private static (string Model, string Effort) ApplyProfile(
+        TendrilSettings settings,
+        string codingAgent,
+        string profileName,
+        IAgentCli cli,
+        List<string> extraArgs)
+    {
         if (string.IsNullOrEmpty(profileName))
-            return new AgentResolution(provider, model, effort, allowedTools, extraArgs);
+            return ("", "");
+
+        var agentConfig = settings.CodingAgents.FirstOrDefault(a =>
+            NormalizeAgentName(a.Name).Equals(codingAgent, StringComparison.OrdinalIgnoreCase));
+
+        if (agentConfig == null)
+            return ("", "");
+
         var profile = agentConfig.Profiles.FirstOrDefault(p =>
             p.Name.Equals(profileName, StringComparison.OrdinalIgnoreCase));
 
-        if (profile == null) return new AgentResolution(provider, model, effort, allowedTools, extraArgs);
-        if (!string.IsNullOrEmpty(profile.Model)) model = profile.Model;
-        if (!string.IsNullOrEmpty(profile.Effort)) effort = profile.Effort;
+        if (profile == null)
+            return ("", "");
+
+        var model = "";
+        var effort = "";
+
+        if (!string.IsNullOrEmpty(profile.Model) &&
+            cli.Capabilities.HasFlag(AgentCapabilities.ModelSelection))
+            model = profile.Model;
+        if (!string.IsNullOrEmpty(profile.Effort) &&
+            cli.Capabilities.HasFlag(AgentCapabilities.EffortControl))
+            effort = profile.Effort;
         if (!string.IsNullOrWhiteSpace(profile.Arguments))
             extraArgs.AddRange(SplitArgs(profile.Arguments));
 
-        return new AgentResolution(provider, model, effort, allowedTools, extraArgs);
+        return (model, effort);
     }
+
+    internal static string NormalizeAgentName(string name) => name.ToLowerInvariant() switch
+    {
+        "claudecode" => "claude",
+        _ => name.ToLowerInvariant()
+    };
+
+    internal static EffortLevel? ParseEffort(string effort) => effort.ToLowerInvariant() switch
+    {
+        "low" => EffortLevel.Low,
+        "medium" => EffortLevel.Medium,
+        "high" => EffortLevel.High,
+        "xhigh" => EffortLevel.XHigh,
+        "max" => EffortLevel.Max,
+        _ => string.IsNullOrEmpty(effort) ? null : EffortLevel.Medium
+    };
 
     private static IEnumerable<string> SplitArgs(string args) =>
         args.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
