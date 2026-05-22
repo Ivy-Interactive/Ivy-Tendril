@@ -12,6 +12,22 @@ import { AnimatedStatus } from "./animated-status";
 import { ToolUseCard } from "./tool-use-card";
 import { ResultSummary } from "./result-summary";
 
+function buildSuppressIndices(events: PresentationEvent[]): Set<number> {
+  const indices = new Set<number>();
+  for (let i = 0; i < events.length - 1; i++) {
+    const cur = events[i];
+    const next = events[i + 1];
+    if (
+      cur.kind === "assistant-text" &&
+      next.kind === "result" &&
+      next.wire.response?.trim() === cur.text.trim()
+    ) {
+      indices.add(i);
+    }
+  }
+  return indices;
+}
+
 type StreamSubscriber = (streamId: string, onData: (data: unknown) => void) => () => void;
 
 interface AgentOutputViewProps {
@@ -51,7 +67,7 @@ export const AgentOutputView: React.FC<AgentOutputViewProps> = ({
 
   useEffect(() => {
     setStreamedLines([]);
-  }, [resetToken]);
+  }, [resetToken, jsonStream]);
 
   useEffect(() => {
     if (!stream?.id || !subscribeToStream) return;
@@ -111,19 +127,10 @@ export const AgentOutputView: React.FC<AgentOutputViewProps> = ({
     ...getHeight(height),
   };
 
-  // Suppress the final assistant-text when the next event is a result whose response matches
-  const suppressIndices = new Set<number>();
-  for (let i = 0; i < parsedEvents.length - 1; i++) {
-    const cur = parsedEvents[i];
-    const next = parsedEvents[i + 1];
-    if (
-      cur.kind === "assistant-text" &&
-      next.kind === "result" &&
-      next.wire.response?.trim() === cur.text.trim()
-    ) {
-      suppressIndices.add(i);
-    }
-  }
+  const suppressIndices = useMemo(
+    () => buildSuppressIndices(parsedEvents),
+    [parsedEvents],
+  );
 
   return (
     <div style={shellStyle} className="aov-shell">

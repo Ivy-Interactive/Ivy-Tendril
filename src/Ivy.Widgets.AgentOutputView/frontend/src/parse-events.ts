@@ -64,7 +64,7 @@ export function parseEventWireStream(jsonStream: string): PresentationEvent[] {
       case "tool_result": {
         const existing = toolMap.get(evt.tool_use_id);
         if (existing) {
-          existing.result = evt.output ?? undefined;
+          existing.result = evt.output ?? "";
           existing.isError = evt.is_error;
         }
         break;
