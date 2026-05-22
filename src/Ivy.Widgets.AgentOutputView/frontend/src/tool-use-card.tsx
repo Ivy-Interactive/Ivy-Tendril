@@ -65,7 +65,7 @@ export const ToolUseCard: React.FC<ToolUseCardProps> = ({ tool }) => {
 
   const summary = inputSummary(tool.name, tool.input);
   let headerPreview = summary || "";
-  if (tool.result != null) {
+  if (tool.result != null && tool.result.length > 0) {
     const firstLine = tool.result.split("\n")[0].slice(0, 80);
     headerPreview += tool.isError ? ` → ✗ ${firstLine}` : ` → ${firstLine}`;
   }
@@ -100,7 +100,7 @@ export const ToolUseCard: React.FC<ToolUseCardProps> = ({ tool }) => {
               <code>{displayInput(tool.name, tool.input)}</code>
             </pre>
           </div>
-          {tool.result != null && (
+          {tool.result != null && tool.result.length > 0 && (
             <div className="aov-tool-section">
               <span className="aov-tool-label">OUT</span>
               <pre className="aov-tool-pre">

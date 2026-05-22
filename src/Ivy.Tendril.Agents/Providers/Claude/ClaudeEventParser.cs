@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Text;
 using System.Text.Json;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Helpers;
 
 namespace Ivy.Tendril.Agents.Providers.Claude;
 
@@ -204,7 +205,7 @@ public sealed class ClaudeEventParser : IEventParser
 
                 case "tool_result":
                     var resultToolId = block.TryGetProperty("tool_use_id", out var rtidProp) ? rtidProp.GetString() ?? "" : "";
-                    var output = block.TryGetProperty("content", out var outProp) ? outProp.GetString() : null;
+                    var output = block.TryGetProperty("content", out var outProp) ? ContentExtractor.ExtractText(outProp) : null;
                     var isError = block.TryGetProperty("is_error", out var errProp) && errProp.GetBoolean();
 
                     events.Add(new ToolResultEvent

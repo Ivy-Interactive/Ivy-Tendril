@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Text;
 using System.Text.Json;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Helpers;
 
 namespace Ivy.Tendril.Agents.Providers.Copilot;
 
@@ -204,9 +205,7 @@ public sealed class CopilotEventParser : IEventParser
         {
             if (result.TryGetProperty("content", out var content))
             {
-                output = content.ValueKind == JsonValueKind.String
-                    ? content.GetString()
-                    : content.GetRawText();
+                output = ContentExtractor.ExtractText(content);
             }
         }
 
