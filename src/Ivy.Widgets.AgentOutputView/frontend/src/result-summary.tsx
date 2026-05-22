@@ -39,9 +39,6 @@ export const ResultSummary: React.FC<ResultSummaryProps> = ({ wire }) => {
             Tokens: {usage.input_tokens.toLocaleString()} in / {usage.output_tokens.toLocaleString()} out
           </span>
         )}
-        {usage?.cache_read_tokens != null && usage.cache_read_tokens > 0 && (
-          <span>Cache: {usage.cache_read_tokens.toLocaleString()} read</span>
-        )}
         {usage?.premium_requests != null && usage.premium_requests > 0 && (
           <span>Premium: {usage.premium_requests}</span>
         )}

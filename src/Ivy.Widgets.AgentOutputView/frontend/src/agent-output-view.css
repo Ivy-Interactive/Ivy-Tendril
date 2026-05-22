@@ -311,8 +311,27 @@
   }
 }
 
+.aov-tool-section {
+  display: flex;
+  gap: 0;
+  margin: 0 0 4px;
+}
+
+.aov-tool-label {
+  flex-shrink: 0;
+  width: 36px;
+  padding: 8px 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--aov-fg-muted);
+  text-align: center;
+  user-select: none;
+}
+
 .aov-tool-pre {
-  margin: 0 0 6px;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
   background: var(--aov-bg-deep);
   border-radius: 4px;
   padding: 8px 10px;
@@ -330,11 +349,6 @@
   padding: 0;
 }
 
-.aov-tool-separator {
-  border: none;
-  border-top: 1px solid var(--aov-border);
-  margin: 8px 0 4px;
-}
 
 /* ─── Result summary ────────────────────────────────────────────────────── */
 .aov-result {

@@ -32,12 +32,6 @@ function inputSummary(name: string, input: Record<string, unknown>): string {
   return "";
 }
 
-function basename(p: string): string {
-  if (!p) return p;
-  const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
-  return i >= 0 ? p.slice(i + 1) : p;
-}
-
 const ChevronDownIcon: React.FC = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -70,7 +64,11 @@ export const ToolUseCard: React.FC<ToolUseCardProps> = ({ tool }) => {
   const handleToggle = () => setOpen((o) => !o);
 
   const summary = inputSummary(tool.name, tool.input);
-  const headerPreview = summary ? basename(summary) : "";
+  let headerPreview = summary || "";
+  if (tool.result != null) {
+    const firstLine = tool.result.split("\n")[0].slice(0, 80);
+    headerPreview += tool.isError ? ` → ✗ ${firstLine}` : ` → ${firstLine}`;
+  }
 
   return (
     <div className={`aov-tool ${open ? "open" : ""}`}>
@@ -96,16 +94,19 @@ export const ToolUseCard: React.FC<ToolUseCardProps> = ({ tool }) => {
       </div>
       {open && (
         <div className="aov-tool-body">
-          <pre className="aov-tool-pre">
-            <code>{displayInput(tool.name, tool.input)}</code>
-          </pre>
+          <div className="aov-tool-section">
+            <span className="aov-tool-label">IN</span>
+            <pre className="aov-tool-pre">
+              <code>{displayInput(tool.name, tool.input)}</code>
+            </pre>
+          </div>
           {tool.result != null && (
-            <>
-              <hr className="aov-tool-separator" />
+            <div className="aov-tool-section">
+              <span className="aov-tool-label">OUT</span>
               <pre className="aov-tool-pre">
                 <code>{tool.result}</code>
               </pre>
-            </>
+            </div>
           )}
         </div>
       )}
