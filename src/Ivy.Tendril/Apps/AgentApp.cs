@@ -1,6 +1,7 @@
 using Ivy.Hooks.Pty;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Services;
+using Xterm = Ivy.Widgets.Xterm;
 
 namespace Ivy.Tendril.Apps;
 
@@ -24,12 +25,12 @@ public class AgentApp : ViewBase
             return new Button($"Open {cli.DisplayName}")
                 .OnClick(() => isOpen.Set(true));
 
-        var terminal = new Widgets.Xterm.Terminal();
-        terminal = Widgets.Xterm.TerminalExtensions.Stream(terminal, ptyHandle.Stream);
-        terminal = Widgets.Xterm.TerminalExtensions.OnInput(terminal, ptyHandle.HandleInput);
-        terminal = Widgets.Xterm.TerminalExtensions.OnResize(terminal, ptyHandle.HandleResize);
-        terminal = Widgets.Xterm.TerminalExtensions.Closed(terminal, ptyHandle.Closed);
-        terminal = Widgets.Xterm.TerminalExtensions.AllowClipboard(terminal);
+        var terminal = new Xterm.Terminal();
+        terminal = Xterm.TerminalExtensions.Stream(terminal, ptyHandle.Stream);
+        terminal = Xterm.TerminalExtensions.OnInput(terminal, ptyHandle.HandleInput);
+        terminal = Xterm.TerminalExtensions.OnResize(terminal, ptyHandle.HandleResize);
+        terminal = Xterm.TerminalExtensions.Closed(terminal, ptyHandle.Closed);
+        terminal = Xterm.TerminalExtensions.AllowClipboard(terminal);
 
         return terminal
             .WithLayout()
