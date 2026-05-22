@@ -14,6 +14,7 @@ public sealed class AntigravityPty : IAgentPty
         AgentCapabilities.SessionResume;
 
     public TransportKind SupportedTransports => TransportKind.Pty;
+    public IReadOnlyList<AgentProfileDefault> DefaultProfiles => [];
 
     public string? TranslateToolName(string canonicalTool) => null;
 

@@ -19,6 +19,7 @@ public sealed class OpenCodePty : IAgentPty
         AgentCapabilities.ExtraArgPassthrough;
 
     public TransportKind SupportedTransports => TransportKind.Pty;
+    public IReadOnlyList<AgentProfileDefault> DefaultProfiles => [];
 
     private static readonly FrozenDictionary<string, string> ToolMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
@@ -60,11 +61,8 @@ public sealed class OpenCodePty : IAgentPty
             args.Add(config.Model);
         }
 
-        if (!string.IsNullOrEmpty(config.SessionId))
-        {
-            args.Add("--session");
-            args.Add(config.SessionId);
-        }
+        // OpenCode's --session resumes an existing session; it does not accept
+        // caller-assigned IDs for new sessions (unlike Claude's --session-id).
 
         foreach (var arg in config.ExtraArguments)
             args.Add(arg);

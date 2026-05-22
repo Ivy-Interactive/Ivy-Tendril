@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Text;
 using System.Text.Json;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Helpers;
 
 namespace Ivy.Tendril.Agents.Providers.Codex;
 
@@ -145,7 +146,7 @@ public sealed class CodexEventParser : IEventParser
     private static IReadOnlyList<AgentEvent> ParseCommandExecution(JsonElement item, string itemId, string rawLine)
     {
         var command = item.TryGetProperty("command", out var cmdProp) ? cmdProp.GetString() ?? "" : "";
-        var output = item.TryGetProperty("aggregated_output", out var outProp) ? outProp.GetString() : null;
+        var output = item.TryGetProperty("aggregated_output", out var outProp) ? ContentExtractor.ExtractText(outProp) : null;
 
         return
         [

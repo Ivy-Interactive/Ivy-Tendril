@@ -3,7 +3,6 @@ using Ivy.Tendril.Agents.Providers.Antigravity;
 using Ivy.Tendril.Agents.Providers.Claude;
 using Ivy.Tendril.Agents.Providers.Codex;
 using Ivy.Tendril.Agents.Providers.Copilot;
-using Ivy.Tendril.Agents.Providers.Gemini;
 using Ivy.Tendril.Agents.Providers.OpenCode;
 using Ivy.Tendril.Agents.Runtime;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,7 +15,6 @@ public sealed class AgentInfrastructureOptions
 {
     public IInteractionHandler? DefaultInteractionHandler { get; set; }
     public IEnumerable<ModelPricing> AdditionalPricing { get; set; } = [];
-    public string? RecordingBasePath { get; set; }
     public ConcurrencyOptions? Concurrency { get; set; }
 }
 
@@ -75,13 +73,6 @@ public static class AgentServiceCollectionExtensions
                 new CopilotSessionCostParser(),
                 new CopilotPty());
             runner.Register(
-                new GeminiCli(),
-                new GeminiEventParser(),
-                new GeminiHealthCheck(),
-                new GeminiFailureAnalyzer(),
-                new GeminiSessionCostParser(),
-                new GeminiPty());
-            runner.Register(
                 new OpenCodeCli(),
                 new OpenCodeEventParser(),
                 new OpenCodeHealthCheck(),
@@ -91,18 +82,6 @@ public static class AgentServiceCollectionExtensions
             return runner;
         });
 
-        return services;
-    }
-
-    public static IServiceCollection AddAgent<TCli, TParser, THealthCheck>(
-        this IServiceCollection services)
-        where TCli : class, IAgentCli
-        where TParser : class, IEventParser
-        where THealthCheck : class, IAgentHealthCheck
-    {
-        services.AddSingleton<TCli>();
-        services.AddTransient<TParser>();
-        services.AddSingleton<THealthCheck>();
         return services;
     }
 }

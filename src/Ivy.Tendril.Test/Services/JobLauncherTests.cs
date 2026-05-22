@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test.Services;
 
@@ -76,7 +75,6 @@ projects:
         Directory.CreateDirectory(programFolder);
         File.WriteAllText(Path.Combine(programFolder, "Program.md"), "# Test Program");
 
-        var launcher = new JobLauncher(null, NullLogger.Instance, _tempPromptsRoot);
         var method = typeof(JobLauncher).GetMethod("HasAgentDirectProgram",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
 
@@ -93,7 +91,6 @@ projects:
         File.WriteAllText(Path.Combine(programFolder, "Program.md"), "# Test Program");
         File.WriteAllText(Path.Combine(programFolder, "TestPromptware.ps1"), "# Script");
 
-        var launcher = new JobLauncher(null, NullLogger.Instance, _tempPromptsRoot);
         var method = typeof(JobLauncher).GetMethod("HasAgentDirectProgram",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
 
@@ -108,7 +105,6 @@ projects:
         var programFolder = Path.Combine(_tempPromptsRoot, "TestPromptware");
         Directory.CreateDirectory(programFolder);
 
-        var launcher = new JobLauncher(null, NullLogger.Instance, _tempPromptsRoot);
         var method = typeof(JobLauncher).GetMethod("HasAgentDirectProgram",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
 

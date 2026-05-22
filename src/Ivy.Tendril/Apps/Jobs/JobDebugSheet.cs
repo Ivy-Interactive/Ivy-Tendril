@@ -1,8 +1,8 @@
 using System.Text.RegularExpressions;
+using Ivy.Tendril.Agents;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Services.Agents;
 
 namespace Ivy.Tendril.Apps.Jobs;
 
@@ -101,12 +101,15 @@ public class JobDebugSheet(
 
         try
         {
-            var provider = AgentProviderFactory.GetProvider(job.Provider);
-            var denials = provider.ExtractPermissionDenials(job.OutputLines.ToArray());
-            if (denials.Count == 0) return "";
-
-            return string.Join("\n", denials.Select(d =>
-                d.InputSummary != null ? $"{d.ToolName}({d.InputSummary})" : d.ToolName));
+            var serializer = new Agents.Runtime.JsonEventSerializer();
+            var denials = new List<string>();
+            foreach (var line in job.OutputLines)
+            {
+                var evt = serializer.Deserialize(line);
+                if (evt is Agents.Abstractions.PermissionDenialEvent d)
+                    denials.Add(d.InputSummary != null ? $"{d.ToolName}({d.InputSummary})" : d.ToolName);
+            }
+            return denials.Count == 0 ? "" : string.Join("\n", denials);
         }
         catch
         {

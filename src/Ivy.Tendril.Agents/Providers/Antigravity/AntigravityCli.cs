@@ -18,6 +18,13 @@ public sealed class AntigravityCli : IAgentCli
     public PromptTransport PromptTransport => PromptTransport.Argument;
     public OutputFormat PreferredOutputFormat => OutputFormat.Text;
 
+    public IReadOnlyList<AgentProfileDefault> DefaultProfiles { get; } =
+    [
+        new(ProfileTier.Deep, "antigravity-max", null),
+        new(ProfileTier.Balanced, "antigravity-default", null),
+        new(ProfileTier.Quick, "antigravity-lite", null),
+    ];
+
     public string? TranslateToolName(string canonicalTool) => null;
 
     public string? ReverseTranslateToolName(string nativeTool) => null;

@@ -1,11 +1,10 @@
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps.Setup;
 
 public class GeneralSetupView : ViewBase
 {
-    private static readonly string[] CodingAgentOptions = ["claude", "codex", "gemini", "copilot", "opencode"];
+    private static readonly string[] CodingAgentOptions = ["claude", "codex", "antigravity", "copilot", "opencode"];
 
     public override object Build()
     {

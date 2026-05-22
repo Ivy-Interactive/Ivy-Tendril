@@ -6,7 +6,6 @@ public static class AgentId
     public const string Claude = "claude";
     public const string Codex = "codex";
     public const string Copilot = "copilot";
-    public const string Gemini = "gemini";
     public const string OpenCode = "opencode";
 }
 

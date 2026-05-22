@@ -159,6 +159,49 @@ public class ClaudeEventParserTests
     }
 
     [Fact]
+    public void ParseLine_AssistantToolResult_ContentAsArray_ExtractsText()
+    {
+        var json = """{"type":"assistant","message":{"id":"msg_01","content":[{"type":"tool_result","tool_use_id":"tu_03","content":[{"type":"text","text":"file contents here"}],"is_error":false}]}}""";
+        var events = _parser.ParseLine(json);
+
+        Assert.Single(events);
+        var resultEvt = Assert.IsType<ToolResultEvent>(events[0]);
+        Assert.Equal("tu_03", resultEvt.ToolUseId);
+        Assert.Equal("file contents here", resultEvt.Output);
+        Assert.False(resultEvt.IsError);
+    }
+
+    [Fact]
+    public void ParseLine_AssistantToolResult_ContentAsArrayMultipleBlocks_ConcatenatesText()
+    {
+        var json = """{"type":"assistant","message":{"id":"msg_01","content":[{"type":"tool_result","tool_use_id":"tu_04","content":[{"type":"text","text":"line 1"},{"type":"text","text":"line 2"}],"is_error":false}]}}""";
+        var events = _parser.ParseLine(json);
+
+        var resultEvt = Assert.IsType<ToolResultEvent>(events[0]);
+        Assert.Equal("line 1\nline 2", resultEvt.Output);
+    }
+
+    [Fact]
+    public void ParseLine_AssistantToolResult_ContentNull_OutputIsNull()
+    {
+        var json = """{"type":"assistant","message":{"id":"msg_01","content":[{"type":"tool_result","tool_use_id":"tu_05","content":null,"is_error":false}]}}""";
+        var events = _parser.ParseLine(json);
+
+        var resultEvt = Assert.IsType<ToolResultEvent>(events[0]);
+        Assert.Null(resultEvt.Output);
+    }
+
+    [Fact]
+    public void ParseLine_AssistantToolResult_NoContentField_OutputIsNull()
+    {
+        var json = """{"type":"assistant","message":{"id":"msg_01","content":[{"type":"tool_result","tool_use_id":"tu_06","is_error":false}]}}""";
+        var events = _parser.ParseLine(json);
+
+        var resultEvt = Assert.IsType<ToolResultEvent>(events[0]);
+        Assert.Null(resultEvt.Output);
+    }
+
+    [Fact]
     public void ParseLine_AssistantMultipleBlocks_ParsesAll()
     {
         var json = """{"type":"assistant","message":{"id":"msg_01","content":[{"type":"thinking","thinking":"planning"},{"type":"text","text":"answer"},{"type":"tool_use","id":"tu_01","name":"Bash","input":{"command":"ls"}}]}}""";

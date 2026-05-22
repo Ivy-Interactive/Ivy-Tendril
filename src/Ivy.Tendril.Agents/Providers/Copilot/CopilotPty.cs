@@ -19,6 +19,7 @@ public sealed class CopilotPty : IAgentPty
         AgentCapabilities.ExtraArgPassthrough;
 
     public TransportKind SupportedTransports => TransportKind.Pty;
+    public IReadOnlyList<AgentProfileDefault> DefaultProfiles => [];
 
     private static readonly string ShellToolName =
         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "powershell" : "bash";

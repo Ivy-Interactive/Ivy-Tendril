@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Text;
 using System.Text.Json;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Helpers;
 
 namespace Ivy.Tendril.Agents.Providers.OpenCode;
 
@@ -164,7 +165,7 @@ public sealed class OpenCodeEventParser : IEventParser
             stateEl.TryGetProperty("status", out var statusProp) &&
             statusProp.GetString() == "completed")
         {
-            var output = stateEl.TryGetProperty("output", out var outProp) ? outProp.GetString() : null;
+            var output = stateEl.TryGetProperty("output", out var outProp) ? ContentExtractor.ExtractText(outProp) : null;
             events.Add(new ToolResultEvent
             {
                 Kind = AgentEventKind.ToolResult,

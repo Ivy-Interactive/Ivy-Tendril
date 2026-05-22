@@ -1,7 +1,7 @@
 using System.Diagnostics;
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
-using Ivy.Tendril.Services.Agents;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services;
@@ -23,6 +23,7 @@ public record PromptwareRunHandle : IDisposable
     internal string? CompiledPrompt { get; set; }
     internal string? CliCommand { get; set; }
     internal string Provider { get; init; } = "claude";
+    internal IEventParser? EventParser { get; init; }
 
     public bool IsRunning => Process is { HasExited: false };
     public int? ExitCode => Process is { HasExited: true } ? Process.ExitCode : null;
@@ -54,11 +55,13 @@ public interface IPromptwareRunner
 public class PromptwareRunner : IPromptwareRunner
 {
     private readonly IConfigService _configService;
+    private readonly IAgentRunner _agentRunner;
     private readonly ILogger<PromptwareRunner> _logger;
 
-    public PromptwareRunner(IConfigService configService, ILogger<PromptwareRunner> logger)
+    public PromptwareRunner(IConfigService configService, IAgentRunner agentRunner, ILogger<PromptwareRunner> logger)
     {
         _configService = configService;
+        _agentRunner = agentRunner;
         _logger = logger;
     }
 
@@ -79,7 +82,7 @@ public class PromptwareRunner : IPromptwareRunner
             ["TENDRIL_HOME"] = _configService.TendrilHome
         };
 
-        var resolution = AgentProviderFactory.Resolve(settings, options.Promptware, options.Profile, jobContext);
+        var resolution = AgentProviderFactory.Resolve(_agentRunner, settings, options.Promptware, options.Profile, jobContext);
         var workDir = options.WorkingDir ?? programFolder;
 
         var jobId = JobIdAllocator.AllocateJobId(_configService.TendrilHome);
@@ -88,24 +91,27 @@ public class PromptwareRunner : IPromptwareRunner
         var prompt = FirmwareCompiler.Compile(firmwareContext);
 
         string? promptFilePath = null;
-        if (!resolution.Provider.UsesStdinPrompt)
+        if (!resolution.UsesStdinPrompt)
         {
             var tempDir = Path.GetTempPath();
             promptFilePath = Path.Combine(tempDir, $"prompt-{Guid.NewGuid():N}.md");
             File.WriteAllText(promptFilePath, prompt);
         }
 
-        var invocation = new AgentInvocation(
-            PromptContent: prompt,
-            WorkingDirectory: workDir,
-            Model: resolution.Model,
-            Effort: resolution.Effort,
-            SessionId: "",
-            AllowedTools: resolution.AllowedTools,
-            ExtraArgs: resolution.ExtraArgs,
-            PromptFilePath: promptFilePath);
+        var launchConfig = new AgentLaunchConfig
+        {
+            Prompt = prompt,
+            WorkingDirectory = workDir,
+            Model = string.IsNullOrEmpty(resolution.Model) ? null : resolution.Model,
+            Effort = AgentProviderFactory.ParseEffort(resolution.Effort),
+            PermissionMode = PermissionMode.FullAuto,
+            AllowedTools = resolution.AllowedTools,
+            ExtraArguments = resolution.ExtraArgs,
+            PromptFilePath = promptFilePath,
+        };
 
-        var psi = resolution.Provider.BuildProcessStart(invocation);
+        var spec = resolution.Cli.BuildProcessSpec(launchConfig);
+        var psi = AgentProcessHelper.ToPsi(spec);
 
         var tendrilHome = _configService.TendrilHome;
         if (!string.IsNullOrEmpty(tendrilHome))
@@ -116,13 +122,13 @@ public class PromptwareRunner : IPromptwareRunner
         AgentProcessHelper.EnsureTendrilOnPath(psi);
 
         _logger.LogInformation("PromptwareRunner: launching {Promptware} via {Provider} (model={Model}, effort={Effort})",
-            options.Promptware, resolution.Provider.Name, resolution.Model, resolution.Effort);
+            options.Promptware, resolution.AgentId, resolution.Model, resolution.Effort);
 
         var process = Process.Start(psi);
         if (process == null)
             throw new InvalidOperationException("Failed to start agent process");
 
-        if (resolution.Provider.UsesStdinPrompt && psi.RedirectStandardInput)
+        if (resolution.UsesStdinPrompt && psi.RedirectStandardInput)
         {
             process.StandardInput.Write(prompt);
             process.StandardInput.Flush();
@@ -139,7 +145,8 @@ public class PromptwareRunner : IPromptwareRunner
             LogFilePath = logFile,
             CompiledPrompt = prompt,
             CliCommand = cliCommand,
-            Provider = resolution.Provider.Name
+            Provider = resolution.AgentId,
+            EventParser = _agentRunner.GetParser(resolution.AgentId)
         };
 
         handle = handle with
@@ -189,6 +196,7 @@ public class PromptwareRunner : IPromptwareRunner
                 var job = new JobItem
                 {
                     Provider = handle.Provider,
+                    EventParser = handle.EventParser,
                     Status = process.HasExited && process.ExitCode == 0 ? JobStatus.Completed : JobStatus.Failed,
                     StartedAt = null,
                     CompletedAt = DateTime.UtcNow,

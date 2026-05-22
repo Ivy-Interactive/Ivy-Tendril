@@ -20,11 +20,6 @@ public class PlanReaderService(
 
     private static readonly HashSet<string> TerminalStates = new(StringComparer.OrdinalIgnoreCase)
         { "Completed", "Skipped" };
-    private readonly IConfigService _config = config;
-
-    private readonly ILogger<PlanReaderService> _logger = logger;
-    private readonly IWorktreeLifecycleLogger? _worktreeLifecycleLogger = worktreeLifecycleLogger;
-    private readonly IPlanWatcherService? _planWatcherService = planWatcherService;
 
     private readonly TimeCache<Dictionary<string, DashboardModels>> _dashboardCache =
         new(TimeSpan.FromSeconds(10));
@@ -38,12 +33,11 @@ public class PlanReaderService(
     private readonly TimeCache<PlanCountSnapshot> _planCountsCache = new(TimeSpan.FromMinutes(2));
 
     private readonly TimeCache<List<Recommendation>> _recommendationsCache = new(TimeSpan.FromMinutes(2));
-    private readonly ITelemetryService? _telemetryService = telemetryService;
 
     private IPlanDatabaseService? _database;
     private volatile bool _useDatabaseForReads;
 
-    public string PlansDirectory => _config.PlanFolder;
+    public string PlansDirectory => config.PlanFolder;
     public bool IsDatabaseReady => _useDatabaseForReads;
 
     public event Action? CountsInvalidated;
@@ -78,11 +72,11 @@ public class PlanReaderService(
                     var tmpPath = subDir + "_tmp";
                     Directory.Move(subDir, tmpPath);
                     Directory.Move(tmpPath, Path.Combine(dir, desired));
-                    _logger.LogDebug("Renamed {Old} → {New}", actualName, desired);
+                    logger.LogDebug("Renamed {Old} → {New}", actualName, desired);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Failed to rename {Old} to {New}", subDir, desired);
+                    logger.LogWarning(ex, "Failed to rename {Old} to {New}", subDir, desired);
                 }
             }
         }
@@ -119,14 +113,14 @@ public class PlanReaderService(
                     updated = Regex.Replace(updated, @"(?m)^updated:\s*.*$",
                         $"updated: {DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ}");
                     FileHelper.WriteAllText(planYamlPath, updated);
-                    _planWatcherService?.NotifyChanged(Path.GetFileName(dir));
+                    planWatcherService?.NotifyChanged(Path.GetFileName(dir));
                     _planCountsCache.Invalidate();
                     _recommendationsCache.Invalidate();
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to recover plan in {Folder}", Path.GetFileName(dir));
+                logger.LogWarning(ex, "Failed to recover plan in {Folder}", Path.GetFileName(dir));
             }
     }
 
@@ -159,8 +153,8 @@ public class PlanReaderService(
                     if (repaired != yaml)
                     {
                         FileHelper.WriteAllText(planYamlPath, repaired);
-                        _logger.LogInformation("Repaired plan.yaml in {Folder}", Path.GetFileName(dir));
-                        _planWatcherService?.NotifyChanged(Path.GetFileName(dir));
+                        logger.LogInformation("Repaired plan.yaml in {Folder}", Path.GetFileName(dir));
+                        planWatcherService?.NotifyChanged(Path.GetFileName(dir));
                         _planCountsCache.Invalidate();
                         _recommendationsCache.Invalidate();
                     }
@@ -171,7 +165,7 @@ public class PlanReaderService(
                 }
 
             if (failedFolders.Count > 0)
-                _logger.LogWarning("Failed to repair {Count} plans due to file access errors: {Folders}.",
+                logger.LogWarning("Failed to repair {Count} plans due to file access errors: {Folders}.",
                     failedFolders.Count, string.Join(", ", failedFolders));
         }
         catch
@@ -228,11 +222,11 @@ public class PlanReaderService(
         {
             var currentPlan = GetPlanByFolder(Path.Combine(PlansDirectory, folderName));
             var oldState = currentPlan?.Status.ToString() ?? "Unknown";
-            _telemetryService?.TrackPlanStateTransition(oldState, newState.ToString());
+            telemetryService?.TrackPlanStateTransition(oldState, newState.ToString());
 
             // Flush telemetry events to ensure they reach PostHog
-            if (_telemetryService != null)
-                _ = Task.Run(async () => await _telemetryService.FlushAsync());
+            if (telemetryService != null)
+                _ = Task.Run(async () => await telemetryService.FlushAsync());
         }
 
         // Update database first for instant UI feedback.
@@ -244,7 +238,7 @@ public class PlanReaderService(
         CountsInvalidated?.Invoke();
 
         // Notify watcher for instant UI feedback
-        _planWatcherService?.NotifyChanged(folderName);
+        planWatcherService?.NotifyChanged(folderName);
 
         // Write to disk in background for durability.
         WriteFileInBackground(() =>
@@ -274,7 +268,7 @@ public class PlanReaderService(
         _planCountsCache.Invalidate();
         _recommendationsCache.Invalidate();
         CountsInvalidated?.Invoke();
-        _planWatcherService?.NotifyChanged(folderName);
+        planWatcherService?.NotifyChanged(folderName);
 
         WriteFileInBackground(() =>
         {
@@ -295,7 +289,7 @@ public class PlanReaderService(
 
     public void ResetVerificationsForRetry(string folderName)
     {
-        _planWatcherService?.NotifyChanged(folderName);
+        planWatcherService?.NotifyChanged(folderName);
 
         WriteFileInBackground(() =>
         {
@@ -334,7 +328,7 @@ public class PlanReaderService(
         CountsInvalidated?.Invoke();
 
         // Notify watcher for instant UI feedback
-        _planWatcherService?.NotifyChanged(folderName);
+        planWatcherService?.NotifyChanged(folderName);
 
         // Write to disk in background for durability.
         WriteFileInBackground(() =>
@@ -443,8 +437,8 @@ public class PlanReaderService(
         WriteFileInBackground(() =>
         {
             if (!Directory.Exists(folderPath)) return;
-            WorktreeCleanupService.RemoveWorktrees(folderPath, _logger, _worktreeLifecycleLogger);
-            WorktreeCleanupService.ForceDeleteDirectory(folderPath, _logger);
+            WorktreeCleanupService.RemoveWorktrees(folderPath, logger, worktreeLifecycleLogger);
+            WorktreeCleanupService.ForceDeleteDirectory(folderPath, logger);
         });
     }
 
@@ -692,7 +686,7 @@ public class PlanReaderService(
 
     public void SyncPlanArtifacts(string planFolder)
     {
-        var syncer = new PlanArtifactSyncer(_config, _logger, _planWatcherService);
+        var syncer = new PlanArtifactSyncer(config, logger, planWatcherService);
         syncer.SyncPlanArtifacts(planFolder);
     }
 
@@ -818,7 +812,7 @@ public class PlanReaderService(
 
             if (!File.Exists(planYamlPath))
             {
-                _logger.LogWarning("Plan folder is missing plan.yaml: {FolderPath}", folderPath);
+                logger.LogWarning("Plan folder is missing plan.yaml: {FolderPath}", folderPath);
                 return null;
             }
 
@@ -860,7 +854,7 @@ public class PlanReaderService(
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to parse plan folder: {FolderPath}", folderPath);
+            logger.LogWarning(ex, "Failed to parse plan folder: {FolderPath}", folderPath);
             return null;
         }
     }
@@ -877,7 +871,7 @@ public class PlanReaderService(
         catch (Exception ex)
         {
             // Fall back to the repair pass for malformed agent-generated YAML.
-            _logger.LogWarning(ex, "Failed to parse plan YAML {PlanYamlPath}, attempting repair", planYamlPath);
+            logger.LogWarning(ex, "Failed to parse plan YAML {PlanYamlPath}, attempting repair", planYamlPath);
             var repaired = PlanYamlRepairService.RepairPlanYaml(yamlContent);
             if (repaired != yamlContent)
                 FileHelper.WriteAllText(planYamlPath, repaired);
@@ -980,7 +974,7 @@ public class PlanReaderService(
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(
+                logger.LogWarning(
                     "Failed to load recommendations from {PlanFolder}: {Message}",
                     folderName,
                     ex.Message);
@@ -1048,7 +1042,7 @@ public class PlanReaderService(
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Background file write failed");
+                logger.LogWarning(ex, "Background file write failed");
             }
         });
     }
@@ -1063,7 +1057,7 @@ public class PlanReaderService(
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "File write failed");
+                logger.LogWarning(ex, "File write failed");
             }
 
             return;

@@ -1,9 +1,9 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
-using Ivy.Tendril.Services.Agents;
 using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
@@ -44,7 +44,7 @@ public class PromptwareRunSettings : CommandSettings
     public string? ConfigPath { get; init; }
 
     [CommandOption("--agent")]
-    [Description("Override agent provider (claude, gemini, codex, copilot, opencode)")]
+    [Description("Override agent provider (claude, antigravity, codex, copilot, opencode)")]
     public string? Agent { get; init; }
 
     [CommandOption("--cli-log")]
@@ -58,9 +58,14 @@ public class PromptwareRunSettings : CommandSettings
 
 public class PromptwareRunCommand : Command<PromptwareRunSettings>
 {
+    private readonly IAgentRunner _agentRunner;
     private readonly ILogger<PromptwareRunCommand> _logger;
 
-    public PromptwareRunCommand(ILogger<PromptwareRunCommand> logger) => _logger = logger;
+    public PromptwareRunCommand(IAgentRunner agentRunner, ILogger<PromptwareRunCommand> logger)
+    {
+        _agentRunner = agentRunner;
+        _logger = logger;
+    }
 
     protected override int Execute(CommandContext context, PromptwareRunSettings settings, CancellationToken cancellationToken)
     {
@@ -104,9 +109,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         if (values.TryGetValue("TendrilPlanFolder", out var planFolder2))
             jobContext["PLAN_DIR"] = planFolder2;
 
-        var resolution = !string.IsNullOrEmpty(settings.Agent)
-            ? AgentProviderFactory.Resolve(tendrilSettings, settings.Promptware, settings.Profile, jobContext, settings.Agent)
-            : AgentProviderFactory.Resolve(tendrilSettings, settings.Promptware, settings.Profile, jobContext);
+        var resolution = AgentProviderFactory.Resolve(_agentRunner, tendrilSettings, settings.Promptware, settings.Profile, jobContext, settings.Agent);
 
         var workDir = settings.WorkingDir ?? programFolder;
 
@@ -137,7 +140,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
                 Console.WriteLine($"planPath: {planPath}");
             Console.WriteLine($"workingDirectory: {workDir}");
             Console.WriteLine($"logFile: {logFile}");
-            Console.WriteLine($"agent: {resolution.Provider.Name}");
+            Console.WriteLine($"agent: {resolution.AgentId}");
             Console.WriteLine($"model: {resolution.Model}");
             Console.WriteLine($"effort: {resolution.Effort}");
             Console.WriteLine($"profile: {settings.Profile ?? "(from config)"}");
@@ -157,24 +160,27 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         }
 
         string? promptFilePath = null;
-        if (!resolution.Provider.UsesStdinPrompt)
+        if (!resolution.UsesStdinPrompt)
         {
             var tempDir = Path.GetTempPath();
             promptFilePath = Path.Combine(tempDir, $"prompt-{Guid.NewGuid():N}.md");
             File.WriteAllText(promptFilePath, prompt);
         }
 
-        var invocation = new AgentInvocation(
-            PromptContent: prompt,
-            WorkingDirectory: workDir,
-            Model: resolution.Model,
-            Effort: resolution.Effort,
-            SessionId: "",
-            AllowedTools: resolution.AllowedTools,
-            ExtraArgs: resolution.ExtraArgs,
-            PromptFilePath: promptFilePath);
+        var launchConfig = new AgentLaunchConfig
+        {
+            Prompt = prompt,
+            WorkingDirectory = workDir,
+            Model = string.IsNullOrEmpty(resolution.Model) ? null : resolution.Model,
+            Effort = AgentProviderFactory.ParseEffort(resolution.Effort),
+            PermissionMode = PermissionMode.FullAuto,
+            AllowedTools = resolution.AllowedTools,
+            ExtraArguments = resolution.ExtraArgs,
+            PromptFilePath = promptFilePath,
+        };
 
-        var psi = resolution.Provider.BuildProcessStart(invocation);
+        var spec = resolution.Cli.BuildProcessSpec(launchConfig);
+        var psi = AgentProcessHelper.ToPsi(spec);
 
         var tendrilHome = configService.TendrilHome;
         if (!string.IsNullOrEmpty(tendrilHome))
@@ -188,7 +194,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         AgentProcessHelper.EnsureTendrilOnPath(psi);
         AgentProcessHelper.ResolveCommandShim(psi);
 
-        _logger.LogInformation("Running {Promptware} via {ProviderName} (model={Model}, effort={Effort})", settings.Promptware, resolution.Provider.Name, resolution.Model, resolution.Effort);
+        _logger.LogInformation("Running {Promptware} via {ProviderName} (model={Model}, effort={Effort})", settings.Promptware, resolution.AgentId, resolution.Model, resolution.Effort);
 
         var cliCommand = AgentProcessHelper.FormatCliCommand(psi);
 
@@ -199,7 +205,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             return 1;
         }
 
-        if (resolution.Provider.UsesStdinPrompt && psi.RedirectStandardInput)
+        if (resolution.UsesStdinPrompt && psi.RedirectStandardInput)
         {
             process.StandardInput.Write(prompt);
             process.StandardInput.Flush();
@@ -241,7 +247,8 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         {
             var job = new JobItem
             {
-                Provider = resolution.Provider.Name,
+                Provider = resolution.AgentId,
+                EventParser = _agentRunner.GetParser(resolution.AgentId),
                 Status = process.ExitCode == 0 ? JobStatus.Completed : JobStatus.Failed,
                 CompletedAt = DateTime.UtcNow,
                 ExitCode = process.ExitCode,

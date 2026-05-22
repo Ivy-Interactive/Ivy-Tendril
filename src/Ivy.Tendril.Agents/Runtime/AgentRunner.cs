@@ -287,7 +287,7 @@ public sealed class AgentRunner(ILogger<AgentRunner> logger, ConcurrencyOptions?
         await Task.WhenAll(tasks);
     }
 
-    private IEventParser GetParser(string agentId)
+    public IEventParser GetParser(string agentId)
     {
         if (!_parsers.TryGetValue(agentId, out var parser))
             throw new ArgumentException($"No event parser registered for agent '{agentId}'", nameof(agentId));

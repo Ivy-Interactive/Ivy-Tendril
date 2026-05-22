@@ -8,6 +8,11 @@ public interface IAgentRunner
     IObservable<IAgentSession> Sessions { get; }
     Task StopAllAsync(CancellationToken ct = default);
     IReadOnlyList<string> RegisteredAgents { get; }
+    IAgentCli GetCli(string agentId);
+    IEventParser GetParser(string agentId);
     IAgentHealthCheck GetHealthCheck(string agentId);
     IAgentDescriptor GetDescriptor(string agentId);
+    IFailureAnalyzer? GetFailureAnalyzer(string agentId);
+    ISessionCostParser? GetCostParser(string agentId);
+    IAgentPty? GetPty(string agentId);
 }

@@ -22,6 +22,13 @@ public sealed class OpenCodeCli : IAgentCli
     public PromptTransport PromptTransport => PromptTransport.Stdin;
     public OutputFormat PreferredOutputFormat => OutputFormat.StreamJson;
 
+    public IReadOnlyList<AgentProfileDefault> DefaultProfiles { get; } =
+    [
+        new(ProfileTier.Deep, "opencode-advanced", "high"),
+        new(ProfileTier.Balanced, "opencode-advanced", "medium"),
+        new(ProfileTier.Quick, "opencode-advanced", "low"),
+    ];
+
     private static readonly FrozenDictionary<string, string> ToolMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
         [CanonicalTools.Read] = "read",
@@ -75,11 +82,8 @@ public sealed class OpenCodeCli : IAgentCli
             });
         }
 
-        if (!string.IsNullOrEmpty(config.SessionId))
-        {
-            args.Add("--session");
-            args.Add(config.SessionId);
-        }
+        // OpenCode's --session resumes an existing session; it does not accept
+        // caller-assigned IDs for new sessions (unlike Claude's --session-id).
 
         foreach (var arg in config.ExtraArguments)
             args.Add(arg);

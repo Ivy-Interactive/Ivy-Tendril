@@ -143,8 +143,8 @@ public class JobServiceCompletionGuardTests : IDisposable
 
         var job = service.GetJob(id);
         Assert.NotNull(job);
-        job.EnqueueOutput("Processing...");
-        job.EnqueueOutput("Plan created: 02353-FixLoginBug");
+        job.EnqueueOutput("{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Processing...\"}]}}");
+        job.EnqueueOutput("{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Plan created: 02353-FixLoginBug\"}]}}");
 
         service.CompleteJob(id, 0);
 
@@ -162,8 +162,8 @@ public class JobServiceCompletionGuardTests : IDisposable
         var job = service.GetJob(id);
         Assert.NotNull(job);
         var originalPlanFile = job.PlanFile;
-        job.EnqueueOutput("Processing...");
-        job.EnqueueOutput("identified as duplicate: 01234-ExistingPlan");
+        job.EnqueueOutput("{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Processing...\"}]}}");
+        job.EnqueueOutput("{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"identified as duplicate: 01234-ExistingPlan\"}]}}");
 
         service.CompleteJob(id, 0);
 

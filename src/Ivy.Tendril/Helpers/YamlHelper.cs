@@ -23,6 +23,7 @@ public static class YamlHelper
     /// </summary>
     public static readonly ISerializer Serializer = new SerializerBuilder()
         .WithNamingConvention(CamelCaseNamingConvention.Instance)
+        .DisableAliases()
         .Build();
 
     /// <summary>
@@ -33,5 +34,6 @@ public static class YamlHelper
     public static readonly ISerializer SerializerCompact = new SerializerBuilder()
         .WithNamingConvention(CamelCaseNamingConvention.Instance)
         .ConfigureDefaultValuesHandling(DefaultValuesHandling.OmitNull)
+        .DisableAliases()
         .Build();
 }

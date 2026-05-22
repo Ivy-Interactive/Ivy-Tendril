@@ -3,9 +3,10 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
 using Ivy.Helpers;
+using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Runtime;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
-using Ivy.Tendril.Services.Agents;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services;
@@ -85,26 +86,38 @@ internal class JobCompletionHandler
 
         try
         {
-            var provider = AgentProviderFactory.GetProvider(job.Provider);
-            var denials = provider.ExtractPermissionDenials(job.OutputLines.ToArray());
+            var denials = ExtractPermissionDenialsFromEventWire(job.OutputLines.ToArray());
             if (denials.Count == 0) return;
 
             var toolNames = denials.Select(d => d.ToolName).Distinct().ToList();
             var summary = $"Permission denied: {string.Join(", ", toolNames)} ({denials.Count} call{(denials.Count > 1 ? "s" : "")})";
 
-            job.EnqueueOutput($"[Tendril] {summary}");
+            job.EnqueueSystemOutput($"[Tendril] {summary}");
             foreach (var d in denials.Take(5))
             {
                 var detail = d.InputSummary != null ? $"  → {d.ToolName}({d.InputSummary})" : $"  → {d.ToolName}";
-                job.EnqueueOutput($"[Tendril] {detail}");
+                job.EnqueueSystemOutput($"[Tendril] {detail}");
             }
             if (denials.Count > 5)
-                job.EnqueueOutput($"[Tendril]   ... and {denials.Count - 5} more");
+                job.EnqueueSystemOutput($"[Tendril]   ... and {denials.Count - 5} more");
         }
         catch (Exception)
         {
             // Don't fail completion handling due to denial parsing
         }
+    }
+
+    private static IReadOnlyList<PermissionDenialEvent> ExtractPermissionDenialsFromEventWire(IReadOnlyList<string> outputLines)
+    {
+        var serializer = new JsonEventSerializer();
+        var denials = new List<PermissionDenialEvent>();
+        foreach (var line in outputLines)
+        {
+            var evt = serializer.Deserialize(line);
+            if (evt is PermissionDenialEvent d)
+                denials.Add(d);
+        }
+        return denials;
     }
 
     private void RunAfterHooks(JobItem job)
@@ -271,7 +284,7 @@ internal class JobCompletionHandler
         }
         catch (Exception ex)
         {
-            job.EnqueueOutput($"[hook:{hook.Name}] Error: {ex.Message}");
+            job.EnqueueSystemOutput($"[hook:{hook.Name}] Error: {ex.Message}");
         }
     }
 
@@ -297,7 +310,7 @@ internal class JobCompletionHandler
 
         if (condProc?.ExitCode != 0 || condOutput.Equals("False", StringComparison.OrdinalIgnoreCase))
         {
-            job.EnqueueOutput($"[hook:{hook.Name}] Condition not met, skipping");
+            job.EnqueueSystemOutput($"[hook:{hook.Name}] Condition not met, skipping");
             return false;
         }
 
@@ -329,12 +342,12 @@ internal class JobCompletionHandler
         actionProc.WaitForExitOrKill(30000);
 
         if (!string.IsNullOrEmpty(output))
-            job.EnqueueOutput($"[hook:{hook.Name}] {output}");
+            job.EnqueueSystemOutput($"[hook:{hook.Name}] {output}");
         if (!string.IsNullOrEmpty(stderr))
-            job.EnqueueOutput($"[hook:{hook.Name}] [stderr] {stderr}");
+            job.EnqueueSystemOutput($"[hook:{hook.Name}] [stderr] {stderr}");
 
         if (actionProc?.ExitCode != 0)
-            job.EnqueueOutput($"[hook:{hook.Name}] Hook failed with exit code {actionProc?.ExitCode}");
+            job.EnqueueSystemOutput($"[hook:{hook.Name}] Hook failed with exit code {actionProc?.ExitCode}");
     }
 
     private static string EncodeForPowerShell(string command)
@@ -410,7 +423,7 @@ internal class JobCompletionHandler
 
     private static void MarkCreatePlanFailed(JobItem job)
     {
-        job.EnqueueOutput(
+        job.EnqueueSystemOutput(
             "[Tendril] WARNING: CreatePlan completed but no plan folder or trash entry was found.");
         job.Status = JobStatus.Failed;
         job.StatusMessage = JobFailureAnalyzer.TryReadFailureArtifact(job.OutputLines.ToList()) ?? "No plan created";
@@ -435,7 +448,7 @@ internal class JobCompletionHandler
     private static bool TryVerifyByOutputRegex(JobItem job)
     {
         var outputText = string.Join("\n", job.OutputLines);
-        var createdMatch = Regex.Match(outputText, @"Plan created:\s*(\S+)");
+        var createdMatch = Regex.Match(outputText, @"Plan created:\s*([\w-]+)");
         if (createdMatch.Success)
         {
             job.PlanFile = createdMatch.Groups[1].Value;
@@ -689,7 +702,7 @@ internal class JobCompletionHandler
         var outputFile = Path.Combine(logsDir, $"{job.Type}-{job.Id}.output.log");
         File.WriteAllLines(outputFile, job.OutputLines);
 
-        job.EnqueueOutput($"[Tendril] Full output saved to: {outputFile}");
+        job.EnqueueSystemOutput($"[Tendril] Full output saved to: {outputFile}");
     }
 
     private static string BuildPlanOutcomeSummary(JobItem job)

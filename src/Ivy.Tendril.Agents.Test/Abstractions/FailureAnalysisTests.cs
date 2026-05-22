@@ -29,7 +29,7 @@ public class FailureAnalysisTests
         var ctx = new FailureContext
         {
             Events = [],
-            AgentId = AgentId.Gemini,
+            AgentId = AgentId.Antigravity,
         };
 
         Assert.Empty(ctx.StderrLines);

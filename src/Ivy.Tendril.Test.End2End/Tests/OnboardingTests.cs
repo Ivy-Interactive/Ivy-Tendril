@@ -40,7 +40,7 @@ public class OnboardingTests : IAsyncLifetime
             {
                 "claude" => "Claude",
                 "codex" => "Codex",
-                "gemini" => "Gemini",
+                "antigravity" => "Antigravity",
                 _ => settings.Agent,
             };
 
