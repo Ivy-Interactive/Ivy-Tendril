@@ -19,6 +19,7 @@ public sealed class OpenCodePty : IAgentPty
         AgentCapabilities.ExtraArgPassthrough;
 
     public TransportKind SupportedTransports => TransportKind.Pty;
+    public IReadOnlyList<AgentProfileDefault> DefaultProfiles => [];
 
     private static readonly FrozenDictionary<string, string> ToolMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {

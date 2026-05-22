@@ -24,6 +24,13 @@ public sealed class CopilotCli : IAgentCli
     public PromptTransport PromptTransport => PromptTransport.Argument;
     public OutputFormat PreferredOutputFormat => OutputFormat.StreamJson;
 
+    public IReadOnlyList<AgentProfileDefault> DefaultProfiles { get; } =
+    [
+        new(ProfileTier.Deep, "gpt-5.2", "high"),
+        new(ProfileTier.Balanced, "gpt-5.2", "medium"),
+        new(ProfileTier.Quick, "gpt-5.2", "low"),
+    ];
+
     private static readonly string ShellToolName =
         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "powershell" : "bash";
 

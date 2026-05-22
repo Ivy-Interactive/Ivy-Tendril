@@ -22,6 +22,7 @@ public sealed class ClaudePty : IAgentPty
         AgentCapabilities.MaxTurns;
 
     public TransportKind SupportedTransports => TransportKind.Pty;
+    public IReadOnlyList<AgentProfileDefault> DefaultProfiles => [];
 
     private static readonly FrozenDictionary<string, string> ToolNameMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {

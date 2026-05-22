@@ -2,7 +2,6 @@ using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Services.Agents;
 
 namespace Ivy.Tendril.Commands.DoctorChecks;
 

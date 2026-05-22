@@ -1,6 +1,5 @@
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Services.Agents;
 
 namespace Ivy.Tendril.Test.Agents;
 
@@ -9,14 +8,13 @@ public class AgentProviderParityTests
     private static IAgentRunner CreateRunner() => TestAgentRunner.Create();
 
     public static IEnumerable<object[]> AgentIds =>
-        new[]
-        {
-            new object[] { "claude" },
-            new object[] { "codex" },
-            new object[] { "antigravity" },
-            new object[] { "copilot" },
-            new object[] { "opencode" }
-        };
+    [
+        ["claude"],
+        ["codex"],
+        ["antigravity"],
+        ["copilot"],
+        ["opencode"]
+    ];
 
     // --- Non-empty Id ---
 

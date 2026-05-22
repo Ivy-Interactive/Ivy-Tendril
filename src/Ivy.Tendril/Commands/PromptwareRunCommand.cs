@@ -4,7 +4,6 @@ using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
-using Ivy.Tendril.Services.Agents;
 using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 

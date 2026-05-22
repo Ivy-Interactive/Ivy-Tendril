@@ -4,7 +4,6 @@ using Ivy.Helpers;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
-using Ivy.Tendril.Services.Agents;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services;

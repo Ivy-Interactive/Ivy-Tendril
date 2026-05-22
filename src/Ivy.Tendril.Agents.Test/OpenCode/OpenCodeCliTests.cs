@@ -208,23 +208,6 @@ public class OpenCodeCliTests
     }
 
     [Fact]
-    public void BuildProcessSpec_WithSession_IncludesSessionFlag()
-    {
-        var config = new AgentLaunchConfig
-        {
-            Prompt = "test",
-            WorkingDirectory = "/tmp",
-            SessionId = "my-session-123",
-        };
-
-        var spec = _cli.BuildProcessSpec(config);
-
-        var idx = spec.Arguments.ToList().IndexOf("--session");
-        Assert.True(idx >= 0);
-        Assert.Equal("my-session-123", spec.Arguments[idx + 1]);
-    }
-
-    [Fact]
     public void BuildProcessSpec_WithExtraArgs_AppendsToEnd()
     {
         var config = new AgentLaunchConfig

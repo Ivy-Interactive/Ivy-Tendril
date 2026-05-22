@@ -25,6 +25,13 @@ public sealed class ClaudeCli : IAgentCli
     public PromptTransport PromptTransport => PromptTransport.Stdin;
     public OutputFormat PreferredOutputFormat => OutputFormat.StreamJson;
 
+    public IReadOnlyList<AgentProfileDefault> DefaultProfiles { get; } =
+    [
+        new(ProfileTier.Deep, "opus", "max"),
+        new(ProfileTier.Balanced, "sonnet", "high"),
+        new(ProfileTier.Quick, "haiku", "low"),
+    ];
+
     private static readonly FrozenDictionary<string, string> ToolNameMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
         [CanonicalTools.Read] = "Read",

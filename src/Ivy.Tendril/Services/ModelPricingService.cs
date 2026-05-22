@@ -9,25 +9,17 @@ public record CostCalculation
     public double TotalCost { get; init; }
 }
 
-public class ModelPricingService
+public class ModelPricingService(
+    ILogger<ModelPricingService> logger,
+    IAgentRunner agentRunner,
+    IModelPricingProvider pricingProvider)
 {
-    private readonly ILogger<ModelPricingService> _logger;
-    private readonly IAgentRunner _agentRunner;
-    private readonly IModelPricingProvider _pricingProvider;
-
-    public ModelPricingService(ILogger<ModelPricingService> logger, IAgentRunner agentRunner, IModelPricingProvider pricingProvider)
-    {
-        _logger = logger;
-        _agentRunner = agentRunner;
-        _pricingProvider = pricingProvider;
-    }
-
     public CostCalculation CalculateSessionCost(string sessionId, string provider)
     {
-        var costParser = _agentRunner.GetCostParser(provider);
+        var costParser = agentRunner.GetCostParser(provider);
         if (costParser == null)
         {
-            _logger.LogDebug("No cost parser registered for provider '{Provider}'", provider);
+            logger.LogDebug("No cost parser registered for provider '{Provider}'", provider);
             return new CostCalculation();
         }
 
@@ -38,11 +30,11 @@ public class ModelPricingService
 
         if (sessionFile == null)
         {
-            _logger.LogDebug("Session file not found for session '{SessionId}' (provider: {Provider})", sessionId, provider);
+            logger.LogDebug("Session file not found for session '{SessionId}' (provider: {Provider})", sessionId, provider);
             return new CostCalculation();
         }
 
-        var result = costParser.Parse(sessionFile, _pricingProvider);
+        var result = costParser.Parse(sessionFile, pricingProvider);
 
         // For Claude, also parse subagent sessions
         if (provider.Equals("claude", StringComparison.OrdinalIgnoreCase))
@@ -56,7 +48,7 @@ public class ModelPricingService
             {
                 foreach (var subFile in Directory.GetFiles(subagentDir, "*.jsonl"))
                 {
-                    var subResult = costParser.Parse(subFile, _pricingProvider);
+                    var subResult = costParser.Parse(subFile, pricingProvider);
                     result = result with
                     {
                         InputTokens = result.InputTokens + subResult.InputTokens,

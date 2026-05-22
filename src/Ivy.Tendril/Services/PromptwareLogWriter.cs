@@ -1,7 +1,7 @@
 using System.Text;
 using Ivy.Tendril.Models;
 
-namespace Ivy.Tendril.Services.Agents;
+namespace Ivy.Tendril.Services;
 
 public static class PromptwareLogWriter
 {

@@ -6,15 +6,8 @@ using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services;
 
-public class PlanPdfService
+public class PlanPdfService(ILogger<PlanPdfService> logger)
 {
-    private readonly ILogger<PlanPdfService> _logger;
-
-    public PlanPdfService(ILogger<PlanPdfService> logger)
-    {
-        _logger = logger;
-    }
-
     public byte[] GeneratePdf(string title, int planId, string markdownContent)
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "tendril-pdf", Guid.NewGuid().ToString("N"));
@@ -32,7 +25,7 @@ public class PlanPdfService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to delete temporary PDF directory {TempDir}", tempDir);
+                logger.LogWarning(ex, "Failed to delete temporary PDF directory {TempDir}", tempDir);
             }
         }
     }

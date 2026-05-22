@@ -57,9 +57,9 @@ public class CodingAgentStepView(
     private static readonly AgentInfo[] Agents =
     [
         new("claude",   "Claude",   Icons.ClaudeCode),
-        new("codex",    "Codex",    Icons.OpenAI),
-        new("antigravity", "Antigravity", Icons.Rocket),
         new("copilot",  "Copilot",  Icons.Copilot),
+        new("codex",    "Codex",    Icons.OpenAI),
+        new("antigravity", "Antigravity", Icons.Antigravity),
         new("opencode", "OpenCode", Icons.OpenCode)
     ];
 

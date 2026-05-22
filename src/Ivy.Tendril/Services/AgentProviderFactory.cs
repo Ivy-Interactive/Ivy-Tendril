@@ -1,7 +1,6 @@
 using Ivy.Tendril.Agents.Abstractions;
-using Ivy.Tendril.Agents.Runtime;
 
-namespace Ivy.Tendril.Services.Agents;
+namespace Ivy.Tendril.Services;
 
 public record AgentResolution(
     IAgentCli Cli,
@@ -14,7 +13,7 @@ public record AgentResolution(
     public bool UsesStdinPrompt => Cli.PromptTransport == PromptTransport.Stdin;
 }
 
-public class AgentProviderFactory
+public static class AgentProviderFactory
 {
     internal static readonly IReadOnlyList<string> BaseTools =
         ["Read", "Glob", "Grep", "Bash", "WebFetch", "WebSearch"];
