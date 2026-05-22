@@ -45,6 +45,7 @@ public sealed class ClaudeEventParser : IEventParser
             {
                 "system" => ParseSystem(root, rawLine),
                 "assistant" => ParseAssistant(root, rawLine),
+                "user" => ParseUser(root, rawLine),
                 "result" => ParseResult(root, rawLine),
                 _ => Empty
             };
@@ -218,6 +219,36 @@ public sealed class ClaudeEventParser : IEventParser
                     });
                     break;
             }
+        }
+
+        return events.Count > 0 ? events : Empty;
+    }
+
+    private static IReadOnlyList<AgentEvent> ParseUser(JsonElement root, string rawLine)
+    {
+        if (!root.TryGetProperty("message", out var message)) return Empty;
+        if (!message.TryGetProperty("content", out var content)) return Empty;
+        if (content.ValueKind != JsonValueKind.Array) return Empty;
+
+        var events = new List<AgentEvent>();
+
+        foreach (var block in content.EnumerateArray())
+        {
+            if (!block.TryGetProperty("type", out var blockType)) continue;
+            if (blockType.GetString() != "tool_result") continue;
+
+            var toolUseId = block.TryGetProperty("tool_use_id", out var tidProp) ? tidProp.GetString() ?? "" : "";
+            var output = block.TryGetProperty("content", out var outProp) ? ContentExtractor.ExtractText(outProp) : null;
+            var isError = block.TryGetProperty("is_error", out var errProp) && errProp.GetBoolean();
+
+            events.Add(new ToolResultEvent
+            {
+                Kind = AgentEventKind.ToolResult,
+                ToolUseId = toolUseId,
+                Output = output,
+                IsError = isError,
+                RawLine = rawLine,
+            });
         }
 
         return events.Count > 0 ? events : Empty;

@@ -371,6 +371,50 @@ public class ClaudeEventParserTests
     }
 
     [Fact]
+    public void ParseLine_UserMessageToolResult_ParsesResult()
+    {
+        var json = """{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_01","type":"tool_result","content":"file contents here"}]}}""";
+        var events = _parser.ParseLine(json);
+
+        Assert.Single(events);
+        var resultEvt = Assert.IsType<ToolResultEvent>(events[0]);
+        Assert.Equal("toolu_01", resultEvt.ToolUseId);
+        Assert.Equal("file contents here", resultEvt.Output);
+        Assert.False(resultEvt.IsError);
+    }
+
+    [Fact]
+    public void ParseLine_UserMessageToolResult_WithArrayContent_ParsesResult()
+    {
+        var json = """{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_02","type":"tool_result","content":[{"type":"text","text":"line 1"},{"type":"text","text":"line 2"}]}]}}""";
+        var events = _parser.ParseLine(json);
+
+        Assert.Single(events);
+        var resultEvt = Assert.IsType<ToolResultEvent>(events[0]);
+        Assert.Equal("toolu_02", resultEvt.ToolUseId);
+        Assert.Equal("line 1\nline 2", resultEvt.Output);
+    }
+
+    [Fact]
+    public void ParseLine_UserMessageToolResult_WithError_ParsesIsError()
+    {
+        var json = """{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_03","type":"tool_result","content":"Permission denied","is_error":true}]}}""";
+        var events = _parser.ParseLine(json);
+
+        var resultEvt = Assert.IsType<ToolResultEvent>(events[0]);
+        Assert.True(resultEvt.IsError);
+        Assert.Equal("Permission denied", resultEvt.Output);
+    }
+
+    [Fact]
+    public void ParseLine_UserMessageWithoutToolResult_ReturnsEmpty()
+    {
+        var json = """{"type":"user","message":{"role":"user","content":[{"type":"text","text":"hello"}]}}""";
+        var events = _parser.ParseLine(json);
+        Assert.Empty(events);
+    }
+
+    [Fact]
     public void ParseLine_PartialJsonTruncated_ReturnsUnknown()
     {
         var json = """{"type":"assistant","message":{"id":"msg_01","content":[{"type":"te""";

@@ -44,7 +44,6 @@ interface AgentOutputViewProps {
   showSystemEvents?: boolean;
   showStatusLabel?: boolean;
   statusLabelOverride?: string;
-  resetToken?: number;
 }
 
 export const AgentOutputView: React.FC<AgentOutputViewProps> = ({
@@ -61,13 +60,12 @@ export const AgentOutputView: React.FC<AgentOutputViewProps> = ({
   showSystemEvents = false,
   showStatusLabel = true,
   statusLabelOverride,
-  resetToken = 0,
 }) => {
   const [streamedLines, setStreamedLines] = useState<string[]>([]);
 
   useEffect(() => {
     setStreamedLines([]);
-  }, [resetToken, jsonStream]);
+  }, [jsonStream]);
 
   useEffect(() => {
     if (!stream?.id || !subscribeToStream) return;

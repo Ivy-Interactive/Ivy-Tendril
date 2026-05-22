@@ -47,13 +47,11 @@ class LiveStreamDemo : ViewBase
     {
         var stream = UseStream<string>();
         var running = UseState(false);
-        var resetToken = UseState(0);
 
         var button = running.Value
             ? new Button("Running...").Disabled()
             : new Button("Start").Primary().OnClick(async () =>
             {
-                resetToken.Set(resetToken.Value + 1);
                 running.Set(true);
                 foreach (var evt in SampleData.Events)
                 {
@@ -67,7 +65,6 @@ class LiveStreamDemo : ViewBase
                | button
                | new AgentOutputView()
                    .Stream(stream)
-                   .ResetToken(resetToken.Value)
                    .ShowStatusLabel(true)
                    .Height(Size.Full());
     }

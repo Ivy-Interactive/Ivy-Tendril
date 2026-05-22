@@ -26,9 +26,6 @@ public record AgentOutputView : WidgetBase<AgentOutputView>
     /// <summary>Override the auto-derived status label text. Null = derive from latest event.</summary>
     [Prop] public string? StatusLabelOverride { get; init; }
 
-    /// <summary>Changing this value clears all accumulated stream output.</summary>
-    [Prop] public int ResetToken { get; init; } = 0;
-
     [Event] public Func<Event<AgentOutputView, string>, ValueTask>? OnComplete { get; init; }
 }
 
@@ -54,9 +51,6 @@ public static class AgentOutputViewExtensions
 
     public static AgentOutputView StatusLabel(this AgentOutputView w, string? statusLabel) =>
         w with { StatusLabelOverride = statusLabel };
-
-    public static AgentOutputView ResetToken(this AgentOutputView w, int resetToken) =>
-        w with { ResetToken = resetToken };
 
     public static AgentOutputView OnComplete(
         this AgentOutputView w,
