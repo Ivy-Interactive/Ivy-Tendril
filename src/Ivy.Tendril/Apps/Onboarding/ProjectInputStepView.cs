@@ -8,12 +8,11 @@ public class ProjectInputStepView(
     IState<List<RepoRef>> selectedRepos,
     IState<string> projectName,
     IState<bool> isStepLoading,
-    Action onBack,
     Action onNext,
+    Action? onBack = null,
     Action? onSkip = null,
     string skipButtonText = "Skip",
     string nextButtonText = "AI Setup",
-    string backButtonText = "Back",
     string title = "Setup your first project",
     bool disableSkipWhenCannotContinue = false) : ViewBase
 {
@@ -35,11 +34,8 @@ public class ProjectInputStepView(
                           && !string.IsNullOrWhiteSpace(projectName.Value)
                           && !nameExists;
 
-        var backButton = new Button(backButtonText).Outline().Large().OnClick(onBack);
-        if (backButtonText == "Back") backButton.Icon(Icons.ArrowLeft);
-
         var buttonArea = Layout.Horizontal().Width(Size.Full())
-            | backButton
+            | (onBack != null ? (object)new Button("Back").Outline().Large().Icon(Icons.ArrowLeft).OnClick(onBack) : new Spacer())
             | new Spacer()
             | (onSkip != null ? (object)new Button(skipButtonText).Ghost().Large().Disabled(disableSkipWhenCannotContinue && !canContinue).OnClick(() => onSkip()) : new Spacer())
             | new Button(nextButtonText).Secondary().Large().Icon(Icons.ArrowRight, Align.Right)
