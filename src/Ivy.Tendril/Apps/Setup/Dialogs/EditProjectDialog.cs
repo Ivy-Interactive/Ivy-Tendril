@@ -135,6 +135,9 @@ public class EditProjectDialog(
                                        : new Spacer());
         }
 
+        var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
+        var hasInvalidRepos = RepoPathValidator.HasInvalidLocalRepos(editRepos.Value, tendrilHome);
+
         var mainDialog = new Dialog(
             _ => _editIndex.Set(-1),
             new DialogHeader(isNew ? "Add Project" : $"Edit Project: {editName.Value}"),
@@ -168,7 +171,9 @@ public class EditProjectDialog(
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() => _editIndex.Set(-1)),
-                new Button(isNew ? "Add" : "Save").Primary().OnClick(() =>
+                new Button(isNew ? "Add" : "Save").Primary()
+                    .Disabled(hasInvalidRepos)
+                    .OnClick(() =>
                 {
                     if (string.IsNullOrWhiteSpace(editName.Value)) return;
                     var project = isNew ? new ProjectConfig() : _projects[_editIndex.Value!.Value];
@@ -208,7 +213,8 @@ public class EditProjectDialog(
                         _refreshToken.Refresh();
                         _client.Toast($"Failed to save project: {ex.Message}", "Error");
                     }
-                })
+                    })
+                    .WithTooltip(hasInvalidRepos ? "Fix or remove invalid repositories before saving" : null)
             )
         ).Width(Size.Rem(40));
 
