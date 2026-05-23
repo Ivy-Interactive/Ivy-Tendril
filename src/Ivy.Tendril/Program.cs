@@ -26,6 +26,9 @@ public class Program
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool SetConsoleCtrlHandler(ConsoleCtrlHandlerDelegate handler, bool add);
 
+    [DllImport("shell32.dll", SetLastError = true)]
+    private static extern void SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string appId);
+
     // Must be a static field to prevent GC from collecting the delegate
     private static ConsoleCtrlHandlerDelegate? _consoleCtrlHandler;
 
@@ -35,6 +38,15 @@ public class Program
     [STAThread]
     public static async Task<int> Main(string[] args)
     {
+        if (OperatingSystem.IsWindows())
+        {
+            try
+            {
+                SetCurrentProcessExplicitAppUserModelID("Ivy Tendril");
+            }
+            catch { }
+        }
+
         Console.InputEncoding = System.Text.Encoding.UTF8;
         Console.OutputEncoding = System.Text.Encoding.UTF8;
 
@@ -249,14 +261,12 @@ public class Program
 
         var startInfo = new ProcessStartInfo(processPath)
         {
-            UseShellExecute = true
+            UseShellExecute = false,
+            CreateNoWindow = true
         };
 
         foreach (var arg in childArgs)
             startInfo.ArgumentList.Add(arg);
-
-        if (OperatingSystem.IsWindows())
-            startInfo.CreateNoWindow = true;
 
         try
         {
