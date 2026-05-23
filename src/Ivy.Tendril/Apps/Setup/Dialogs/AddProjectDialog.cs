@@ -95,7 +95,6 @@ public class AddProjectDialog(
                 editRepos,
                 editName,
                 isStepLoading,
-                onBack: CancelAndClose,
                 onNext: () => {
                     skipAgent.Set(false);
                     step.Set(1);
