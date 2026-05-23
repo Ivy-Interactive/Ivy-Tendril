@@ -221,7 +221,8 @@ public class Program
             "doctor", "db-version", "db-migrate", "db-reset",
             "update-promptwares", "job", "plan", "promptware",
             "trash", "verification", "project",
-            "version", "--version", "report-bug", "reset", "update"
+            "version", "--version", "report-bug", "reset", "update",
+            "--help", "-h"
         };
         return cliCommands.Contains(firstArg);
     }
