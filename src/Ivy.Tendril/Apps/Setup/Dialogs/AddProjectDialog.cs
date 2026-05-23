@@ -106,6 +106,7 @@ public class AddProjectDialog(
                 },
                 skipButtonText: "Manual Setup",
                 nextButtonText: "AI Setup",
+                backButtonText: "Cancel",
                 title: "Add a project",
                 disableSkipWhenCannotContinue: true),
             1 => new ProjectAgentStepView(

@@ -13,6 +13,7 @@ public class ProjectInputStepView(
     Action? onSkip = null,
     string skipButtonText = "Skip",
     string nextButtonText = "AI Setup",
+    string backButtonText = "Back",
     string title = "Setup your first project",
     bool disableSkipWhenCannotContinue = false) : ViewBase
 {
@@ -34,9 +35,11 @@ public class ProjectInputStepView(
                           && !string.IsNullOrWhiteSpace(projectName.Value)
                           && !nameExists;
 
+        var backButton = new Button(backButtonText).Outline().Large().OnClick(onBack);
+        if (backButtonText == "Back") backButton.Icon(Icons.ArrowLeft);
+
         var buttonArea = Layout.Horizontal().Width(Size.Full())
-            | new Button("Back").Outline().Large().Icon(Icons.ArrowLeft)
-                .OnClick(onBack)
+            | backButton
             | new Spacer()
             | (onSkip != null ? (object)new Button(skipButtonText).Ghost().Large().Disabled(disableSkipWhenCannotContinue && !canContinue).OnClick(() => onSkip()) : new Spacer())
             | new Button(nextButtonText).Secondary().Large().Icon(Icons.ArrowRight, Align.Right)
