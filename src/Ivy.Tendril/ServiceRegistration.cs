@@ -156,5 +156,17 @@ internal static class ServiceRegistration
             return new PrStatusSyncService(database, githubService, planReader, logger);
         });
         server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<PrStatusSyncService>());
+
+        server.Services.AddSingleton<Services.Tunnel.CloudflaredService>(sp =>
+        {
+            var config = sp.GetRequiredService<IConfigService>();
+            var httpFactory = sp.GetRequiredService<IHttpClientFactory>();
+            var logger = sp.GetRequiredService<ILogger<Services.Tunnel.CloudflaredService>>();
+            return new Services.Tunnel.CloudflaredService(config, httpFactory, logger);
+        });
+        server.Services.AddSingleton<Services.Tunnel.ICloudflaredService>(sp =>
+            sp.GetRequiredService<Services.Tunnel.CloudflaredService>());
+        server.Services.AddSingleton<IStartable>(sp =>
+            sp.GetRequiredService<Services.Tunnel.CloudflaredService>());
     }
 }
