@@ -20,9 +20,9 @@ public sealed class AntigravityCli : IAgentCli
 
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles { get; } =
     [
-        new(ProfileTier.Deep, "antigravity-max", null),
-        new(ProfileTier.Balanced, "antigravity-default", null),
-        new(ProfileTier.Quick, "antigravity-lite", null),
+        new(ProfileTier.Deep, "default", null),
+        new(ProfileTier.Balanced, "default", null),
+        new(ProfileTier.Quick, "default", null),
     ];
 
     public string? TranslateToolName(string canonicalTool) => null;

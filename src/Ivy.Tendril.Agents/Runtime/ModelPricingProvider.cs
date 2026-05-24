@@ -1,26 +1,55 @@
-using System.Reflection;
 using Ivy.Tendril.Agents.Abstractions;
-using YamlDotNet.Serialization;
 
 namespace Ivy.Tendril.Agents.Runtime;
 
 public sealed class ModelPricingProvider : IModelPricingProvider
 {
-    private static readonly IDeserializer YamlDeserializer = new DeserializerBuilder().Build();
-
     private readonly Dictionary<string, ModelPricing> _pricing;
-    private readonly string[] _sortedKeys;
+    private string[] _sortedKeys;
 
     public ModelPricingProvider()
-        : this([])
+        : this(DefaultCatalogs())
     {
     }
 
     public ModelPricingProvider(IEnumerable<ModelPricing> additionalPricing)
+        : this(DefaultCatalogs())
     {
-        _pricing = LoadEmbeddedPricing();
         foreach (var p in additionalPricing)
+        {
             _pricing[p.Model] = p;
+        }
+        _sortedKeys = _pricing.Keys.OrderByDescending(k => k.Length).ToArray();
+    }
+
+    public ModelPricingProvider(IEnumerable<IModelCatalogProvider> catalogs)
+    {
+        _pricing = new Dictionary<string, ModelPricing>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var catalog in catalogs)
+        {
+            foreach (var model in catalog.GetStaticModels())
+            {
+                var pricing = new ModelPricing
+                {
+                    Model = model.Id,
+                    InputPerMillion = model.InputPerMillion,
+                    OutputPerMillion = model.OutputPerMillion,
+                    CacheWritePerMillion = model.CacheWritePerMillion,
+                    CacheReadPerMillion = model.CacheReadPerMillion,
+                };
+
+                var hasPricing = model.InputPerMillion > 0 || model.OutputPerMillion > 0;
+                if (hasPricing)
+                    _pricing[model.Id] = pricing;
+                else
+                    _pricing.TryAdd(model.Id, pricing);
+
+                if (model.Alias is not null)
+                    _pricing.TryAdd(model.Alias, pricing);
+            }
+        }
+
         _sortedKeys = _pricing.Keys.OrderByDescending(k => k.Length).ToArray();
     }
 
@@ -49,40 +78,24 @@ public sealed class ModelPricingProvider : IModelPricingProvider
              + (cacheWriteTokens * pricing.CacheWritePerMillion / 1_000_000m);
     }
 
-    private static Dictionary<string, ModelPricing> LoadEmbeddedPricing()
+    public void AddPricing(IEnumerable<ModelPricing> additional)
     {
-        var assembly = Assembly.GetExecutingAssembly();
-        var resourceName = "Ivy.Tendril.Agents.Assets.models.yaml";
-
-        using var stream = assembly.GetManifestResourceStream(resourceName);
-        if (stream == null)
-            return new Dictionary<string, ModelPricing>(StringComparer.OrdinalIgnoreCase);
-
-        using var reader = new StreamReader(stream);
-        var yaml = reader.ReadToEnd();
-
-        var config = YamlDeserializer.Deserialize<Dictionary<string, object>>(yaml);
-        var result = new Dictionary<string, ModelPricing>(StringComparer.OrdinalIgnoreCase);
-
-        if (config.TryGetValue("models", out var modelsObj) && modelsObj is Dictionary<object, object> models)
+        var changed = false;
+        foreach (var p in additional)
         {
-            foreach (var kvp in models)
-            {
-                var modelName = kvp.Key.ToString() ?? "";
-                if (kvp.Value is Dictionary<object, object> props)
-                {
-                    result[modelName] = new ModelPricing
-                    {
-                        Model = modelName,
-                        InputPerMillion = Convert.ToDecimal(props["input"]),
-                        OutputPerMillion = Convert.ToDecimal(props["output"]),
-                        CacheWritePerMillion = Convert.ToDecimal(props["cacheWrite"]),
-                        CacheReadPerMillion = Convert.ToDecimal(props["cacheRead"]),
-                    };
-                }
-            }
+            _pricing[p.Model] = p;
+            changed = true;
         }
-
-        return result;
+        if (changed)
+            _sortedKeys = _pricing.Keys.OrderByDescending(k => k.Length).ToArray();
     }
+
+    private static IModelCatalogProvider[] DefaultCatalogs() =>
+    [
+        new Providers.Antigravity.AntigravityModelCatalog(),
+        new Providers.Claude.ClaudeModelCatalog(),
+        new Providers.Codex.CodexModelCatalog(),
+        new Providers.Copilot.CopilotModelCatalog(),
+        new Providers.OpenCode.OpenCodeModelCatalog(),
+    ];
 }
