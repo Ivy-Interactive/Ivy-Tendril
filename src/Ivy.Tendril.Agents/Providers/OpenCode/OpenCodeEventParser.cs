@@ -185,6 +185,12 @@ public sealed class OpenCodeEventParser : IEventParser
         if (!root.TryGetProperty("part", out var part)) return Empty;
 
         var reason = part.TryGetProperty("reason", out var rProp) ? rProp.GetString() : null;
+
+        // Intermediate steps (reason == "tool-calls") are not terminal — suppress them
+        // to avoid the UI rendering each step as an error.
+        if (reason is not ("stop" or "error"))
+            return Empty;
+
         var cost = part.TryGetProperty("cost", out var cProp) ? cProp.GetDecimal() : (decimal?)null;
 
         int inputTokens = 0;
