@@ -78,7 +78,7 @@ public static class GitHelper
                             {
                                 var refName = parts[1].Trim();
                                 if (refName.Equals($"refs/heads/{branchName}", StringComparison.OrdinalIgnoreCase) ||
-                                    refName.StartsWith("refs/remotes/", StringComparison.OrdinalIgnoreCase) && refName.EndsWith($"/{branchName}", StringComparison.OrdinalIgnoreCase))
+                                    (refName.StartsWith("refs/remotes/", StringComparison.OrdinalIgnoreCase) && refName.EndsWith($"/{branchName}", StringComparison.OrdinalIgnoreCase)))
                                 {
                                     return true;
                                 }
