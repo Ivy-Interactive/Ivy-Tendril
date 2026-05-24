@@ -133,6 +133,7 @@ public static class AgentProviderFactory
         var effort = "";
 
         if (!string.IsNullOrEmpty(profile.Model) &&
+            !profile.Model.Equals("default", StringComparison.OrdinalIgnoreCase) &&
             cli.Capabilities.HasFlag(AgentCapabilities.ModelSelection))
             model = profile.Model;
         if (!string.IsNullOrEmpty(profile.Effort) &&

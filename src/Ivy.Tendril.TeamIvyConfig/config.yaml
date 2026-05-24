@@ -1,4 +1,4 @@
-codingAgent: claude
+codingAgent: opencode
 jobTimeout: 30
 staleOutputTimeout: 10
 gitTimeout: 10
@@ -9,19 +9,16 @@ projects:
   meta:
     slackEmoji: ':hammer_and_wrench:'
   repos:
-  - &o0
-    path: D:\Repos\_Ivy\Ivy-Framework
+  - path: D:\Repos\_Ivy\Ivy-Framework
     prRule: yolo
     baseBranch: development
     syncStrategy: fetch
   verifications:
   - name: FrameworkDotnetBuild
     required: true
-  - &o1
-    name: DotnetFormat
+  - name: DotnetFormat
     required: true
-  - &o4
-    name: DotnetTest
+  - name: DotnetTest
     required: true
   - name: FrameworkFrontendLint
     required: true
@@ -31,8 +28,7 @@ projects:
     required: false
   - name: VitePlusCheck
     required: true
-  - &o2
-    name: CheckResult
+  - name: CheckResult
     required: true
   context: >
     Ivy Framework is the core UI framework. Key folders: - src\Ivy\Widgets\ — backend widget classes - src\frontend\src\widgets\ — React widget components - src\Ivy.Docs.Shared\Docs\ — documentation - src\Ivy.Samples.Shared\ — sample apps Instructions: See AGENTS.md in repo root
@@ -63,15 +59,19 @@ projects:
     prRule: yolo
     baseBranch: development
     syncStrategy: fetch
-  - *o0
+  - path: D:\Repos\_Ivy\Ivy-Framework
+    prRule: yolo
+    baseBranch: development
+    syncStrategy: fetch
   verifications:
-  - &o3
-    name: DotnetBuild
+  - name: DotnetBuild
     required: true
-  - *o1
+  - name: DotnetFormat
+    required: true
   - name: DotnetTest
     required: false
-  - *o2
+  - name: CheckResult
+    required: true
   context: >
     Plan management TUI. Key folders: - src\Ivy.Tendril\Services\ — ConfigService, PlanReaderService, JobService - src\Ivy.Tendril\Apps\ — PlansApp, JobsApp UI - src\Ivy.Tendril\Promptwares\ — CreatePlan, UpdatePlan, SplitPlan, ExpandPlan This project uses the Ivy Framework - there's CLI helper methods you can use:  ivy docs AGENTS.md  ivy question "How do I make a button in Ivy?"
   reviewActions:
@@ -99,16 +99,20 @@ projects:
     baseBranch: development
     syncStrategy: fetch
   verifications:
-  - *o3
-  - *o1
-  - *o4
+  - name: DotnetBuild
+    required: true
+  - name: DotnetFormat
+    required: true
+  - name: DotnetTest
+    required: true
   - name: RustBuild
     required: true
   - name: RustTest
     required: true
   - name: RustClippy
     required: true
-  - *o2
+  - name: CheckResult
+    required: true
   context: >
     Rustino — cross-platform native desktop windows with embedded web views (Rust + .NET). Key folders: - src\Rustino.Native\ — Rust cdylib (wry + tao for webview\window) - src\Rustino.NET\ — C# P\Invoke wrapper - src\Rustino.NET.Reactive\ — IObservable extensions - src\Rustino.Samples\ — demo applications Build: `cd src\Rustino.Native && cargo build --release`, then `dotnet build`
   reviewActions:
@@ -319,15 +323,15 @@ codingAgents:
   arguments: ''
   profiles:
   - name: deep
-    model: opencode-advanced
+    model: default
     effort: high
     arguments: ''
   - name: balanced
-    model: opencode-standard
+    model: default
     effort: medium
     arguments: ''
   - name: quick
-    model: opencode-fast
+    model: default
     effort: low
     arguments: ''
 telemetry: true

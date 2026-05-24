@@ -24,9 +24,9 @@ public sealed class OpenCodeCli : IAgentCli
 
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles { get; } =
     [
-        new(ProfileTier.Deep, "opencode-advanced", "high"),
-        new(ProfileTier.Balanced, "opencode-advanced", "medium"),
-        new(ProfileTier.Quick, "opencode-advanced", "low"),
+        new(ProfileTier.Deep, "default", "high"),
+        new(ProfileTier.Balanced, "default", "medium"),
+        new(ProfileTier.Quick, "default", "low"),
     ];
 
     private static readonly FrozenDictionary<string, string> ToolMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
