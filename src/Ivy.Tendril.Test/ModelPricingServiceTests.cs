@@ -79,6 +79,8 @@ public class ModelPricingServiceTests
         public IFailureAnalyzer? GetFailureAnalyzer(string agentId) => null;
         public ISessionCostParser? GetCostParser(string agentId) => costParser;
         public IAgentPty? GetPty(string agentId) => null;
+        public IModelCatalogProvider? GetModelCatalog(string agentId) => null;
+        public IEnumerable<IModelCatalogProvider> ModelCatalogs => [];
         public Task<IAgentSession> LaunchAsync(AgentResolutionContext context, CancellationToken ct = default)
             => throw new NotImplementedException();
         public Task<ResultEvent> RunToCompletionAsync(AgentResolutionContext context, CancellationToken ct = default)

@@ -51,11 +51,11 @@ codingAgents:
 - name: antigravity
   profiles:
   - name: deep
-    model: antigravity-max
+    model: default
   - name: balanced
-    model: antigravity-default
+    model: default
   - name: quick
-    model: antigravity-lite
+    model: default
 - name: copilot
   profiles:
   - name: deep

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Ivy.Desktop;
 using Ivy.Helpers;
+using Ivy.Tendril.Agents;
 using Ivy.Tendril.Commands;
 using Ivy.Tendril.Database;
 using Ivy.Tendril.Infrastructure;
@@ -74,6 +75,7 @@ public class Program
             var cliLogLevel = verbose ? LogLevel.Debug : quiet ? LogLevel.Warning : LogLevel.Information;
             cliServices.AddLogging(builder => builder.AddConsole().SetMinimumLevel(cliLogLevel));
             cliServices.AddSingleton<IPlanWatcherService, NullPlanWatcherService>();
+            cliServices.AddAgentInfrastructure();
 
             var app = ConfigureCliCommands(cliServices);
             var firstArg = filteredArgs[0];
@@ -220,7 +222,7 @@ public class Program
         {
             "doctor", "db-version", "db-migrate", "db-reset",
             "update-promptwares", "job", "plan", "promptware",
-            "trash", "verification", "project",
+            "trash", "verification", "project", "models",
             "version", "--version", "report-bug", "reset", "update",
             "--help", "-h"
         };
@@ -418,6 +420,9 @@ public class Program
                 verification.AddCommand<VerificationSetCommand>("set")
                     .WithDescription("Update a verification definition field");
             });
+
+            config.AddCommand<ModelsCommand>("models")
+                .WithDescription("List available models and pricing for agent CLIs");
 
             config.AddBranch("trash", trash =>
             {
