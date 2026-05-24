@@ -11,14 +11,14 @@ interface LogEntry {
 export function App() {
   const [endpoint, setEndpoint] = useState("wss://tendril-api.ivy.app/transcribe/ws");
   const [language, setLanguage] = useState("");
-  const [format, setFormat] = useState("webm");
   const [cleanup, setCleanup] = useState(true);
   const [status, setStatus] = useState<Status>("idle");
   const [result, setResult] = useState("");
   const [log, setLog] = useState<LogEntry[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
   const addLog = useCallback(
@@ -34,7 +34,9 @@ export function App() {
     setLog([]);
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { sampleRate: 24000, channelCount: 1, echoCancellation: true },
+      });
       streamRef.current = stream;
 
       setStatus("connecting");
@@ -47,7 +49,7 @@ export function App() {
         const startMsg = {
           type: "start",
           ...(language && { language }),
-          format,
+          format: "pcm16",
           cleanup,
         };
         ws.send(JSON.stringify(startMsg));
@@ -60,7 +62,7 @@ export function App() {
 
         if (data.type === "ready") {
           setStatus("recording");
-          beginMediaRecording(stream, ws);
+          beginPcmCapture(stream, ws);
         } else if (data.type === "result") {
           setResult(data.text);
           setStatus("idle");
@@ -77,49 +79,59 @@ export function App() {
 
       ws.onclose = (event) => {
         addLog("info", `Connection closed (code: ${event.code})`);
-        if (status === "recording" || status === "processing") {
-          setStatus("idle");
-        }
+        setStatus("idle");
       };
     } catch (err) {
       addLog("error", `Microphone access denied: ${err}`);
       setStatus("idle");
     }
-  }, [endpoint, language, format, cleanup, addLog, status]);
+  }, [endpoint, language, cleanup, addLog]);
 
-  const beginMediaRecording = useCallback(
-    (stream: MediaStream, ws: WebSocket) => {
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : "audio/webm";
+  const beginPcmCapture = useCallback(
+    async (stream: MediaStream, ws: WebSocket) => {
+      const audioContext = new AudioContext({ sampleRate: 24000 });
+      audioContextRef.current = audioContext;
 
-      const recorder = new MediaRecorder(stream, { mimeType });
-      mediaRecorderRef.current = recorder;
+      await audioContext.audioWorklet.addModule(pcmWorkletUrl());
+
+      const source = audioContext.createMediaStreamSource(stream);
+      const workletNode = new AudioWorkletNode(audioContext, "pcm-capture");
+      workletNodeRef.current = workletNode;
 
       let chunkCount = 0;
 
-      recorder.ondataavailable = async (event) => {
-        if (event.data.size > 0 && ws.readyState === WebSocket.OPEN) {
-          const buffer = await event.data.arrayBuffer();
-          ws.send(buffer);
+      workletNode.port.onmessage = (event) => {
+        const pcm16 = event.data as Int16Array;
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(pcm16.buffer);
           chunkCount++;
-          addLog("sent", `[binary chunk ${chunkCount}: ${buffer.byteLength} bytes]`);
+          if (chunkCount % 10 === 0) {
+            addLog("sent", `[pcm16 chunks sent: ${chunkCount}]`);
+          }
         }
       };
 
-      recorder.start(1000);
-      addLog("info", `Recording started (${mimeType}, 1s chunks)`);
+      source.connect(workletNode);
+      workletNode.connect(audioContext.destination);
+      addLog("info", `Recording started (PCM16, 24kHz, mono)`);
     },
     [addLog]
   );
 
   const stopRecording = useCallback(() => {
-    const recorder = mediaRecorderRef.current;
     const ws = wsRef.current;
     const stream = streamRef.current;
+    const audioContext = audioContextRef.current;
+    const workletNode = workletNodeRef.current;
 
-    if (recorder && recorder.state !== "inactive") {
-      recorder.stop();
+    if (workletNode) {
+      workletNode.disconnect();
+      workletNodeRef.current = null;
+    }
+
+    if (audioContext) {
+      audioContext.close();
+      audioContextRef.current = null;
     }
 
     if (stream) {
@@ -159,22 +171,6 @@ export function App() {
               placeholder="auto"
               disabled={status !== "idle"}
             />
-          </label>
-          <label style={styles.label}>
-            Format
-            <select
-              style={styles.inputSmall}
-              value={format}
-              onChange={(e) => setFormat(e.target.value)}
-              disabled={status !== "idle"}
-            >
-              <option value="webm">webm</option>
-              <option value="mp3">mp3</option>
-              <option value="wav">wav</option>
-              <option value="ogg">ogg</option>
-              <option value="flac">flac</option>
-              <option value="m4a">m4a</option>
-            </select>
           </label>
           <label style={styles.checkLabel}>
             <input
@@ -238,6 +234,44 @@ export function App() {
       </div>
     </div>
   );
+}
+
+function pcmWorkletUrl(): string {
+  const code = `
+class PcmCaptureProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this._buffer = [];
+    this._samplesPerChunk = 2400; // 100ms at 24kHz
+  }
+
+  process(inputs) {
+    const input = inputs[0];
+    if (!input || !input[0]) return true;
+
+    const samples = input[0];
+    for (let i = 0; i < samples.length; i++) {
+      this._buffer.push(samples[i]);
+    }
+
+    while (this._buffer.length >= this._samplesPerChunk) {
+      const chunk = this._buffer.splice(0, this._samplesPerChunk);
+      const pcm16 = new Int16Array(chunk.length);
+      for (let i = 0; i < chunk.length; i++) {
+        const s = Math.max(-1, Math.min(1, chunk[i]));
+        pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+      }
+      this.port.postMessage(pcm16);
+    }
+
+    return true;
+  }
+}
+
+registerProcessor('pcm-capture', PcmCaptureProcessor);
+`;
+  const blob = new Blob([code], { type: "application/javascript" });
+  return URL.createObjectURL(blob);
 }
 
 const styles: Record<string, React.CSSProperties> = {
