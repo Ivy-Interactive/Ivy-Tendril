@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using Ivy.Core.Hooks;
 using Ivy.Tendril.Apps.Onboarding;
 using Ivy.Tendril.Apps.Onboarding.Models;
@@ -173,9 +174,25 @@ public class EditProjectDialog(
                 new Button("Cancel").Outline().OnClick(() => _editIndex.Set(-1)),
                 new Button(isNew ? "Add" : "Save").Primary()
                     .Disabled(hasInvalidRepos)
-                    .OnClick(() =>
+                    .OnClick(async () =>
                 {
                     if (string.IsNullOrWhiteSpace(editName.Value)) return;
+
+                    // Perform base branch validation
+                    foreach (var repo in editRepos.Value)
+                    {
+                        if (!string.IsNullOrWhiteSpace(repo.BaseBranch))
+                        {
+                            var isValid = await GitHelper.IsValidBranchAsync(repo.Path, repo.BaseBranch, _config.TendrilHome);
+                            if (!isValid)
+                            {
+                                var repoName = RepoPathValidator.ExtractRepoName(repo.Path) ?? repo.Path;
+                                _client.Toast($"Branch '{repo.BaseBranch}' does not exist in repository '{repoName}'", "Error");
+                                return;
+                            }
+                        }
+                    }
+
                     var project = isNew ? new ProjectConfig() : _projects[_editIndex.Value!.Value];
                     var oldName = project.Name;
                     var oldColor = project.Color;

@@ -468,6 +468,16 @@ public class ProjectAddRepoCommand : Command<ProjectAddRepoSettings>
                 return 1;
             }
 
+            if (!string.IsNullOrWhiteSpace(settings.BaseBranch))
+            {
+                var isValid = Ivy.Tendril.Helpers.GitHelper.IsValidBranchAsync(settings.RepoPath, settings.BaseBranch, config.TendrilHome).GetAwaiter().GetResult();
+                if (!isValid)
+                {
+                    _logger.LogError("Branch '{Branch}' does not exist in repository: {Path}", settings.BaseBranch, settings.RepoPath);
+                    return 1;
+                }
+            }
+
             project.Repos.Add(new RepoRef
             {
                 Path = settings.RepoPath,
