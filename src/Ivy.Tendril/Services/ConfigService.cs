@@ -172,6 +172,7 @@ public class TendrilSettings
     public ApiSettings? Api { get; set; }
     public Dictionary<string, PromptwareConfig> Promptwares { get; set; } = new();
     public List<AgentConfig> CodingAgents { get; set; } = new();
+    public Tunnel.TunnelConfig? Tunnel { get; set; }
     public bool Telemetry { get; set; } = true;
     public bool DesktopNotifications { get; set; } = true;
 

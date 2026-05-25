@@ -53,6 +53,7 @@ public record JobItem
     public bool CancellationRequested { get; set; }
     public string? SessionId { get; set; }
     public string Provider { get; init; } = "claude";
+    public string? Model { get; set; }
     public int Priority { get; init; }
     public decimal? Cost { get; set; }
     public int? Tokens { get; set; }
@@ -111,6 +112,9 @@ public record JobItem
         _eventSerializer ??= new JsonEventSerializer();
         foreach (var evt in EventParser.ParseLine(line))
         {
+            if (evt is SessionInitEvent { Model: not null } initEvt)
+                Model = initEvt.Model;
+
             var serialized = _eventSerializer.Serialize(evt);
             OutputLines.Enqueue(serialized);
             while (OutputLines.Count > MaxOutputLines)

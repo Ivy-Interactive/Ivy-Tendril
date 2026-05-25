@@ -30,6 +30,7 @@ public class JobDebugSheet(
             job.Type,
             job.Project,
             job.Provider,
+            Model = job.Model ?? "",
             SessionId = job.SessionId ?? "",
             Started = job.StartedAt?.ToString("u") ?? "",
             Completed = job.CompletedAt?.ToString("u") ?? "",

@@ -15,4 +15,6 @@ public interface IAgentRunner
     IFailureAnalyzer? GetFailureAnalyzer(string agentId);
     ISessionCostParser? GetCostParser(string agentId);
     IAgentPty? GetPty(string agentId);
+    IModelCatalogProvider? GetModelCatalog(string agentId);
+    IEnumerable<IModelCatalogProvider> ModelCatalogs { get; }
 }

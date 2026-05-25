@@ -30,9 +30,6 @@ public static class AgentServiceCollectionExtensions
         services.AddSingleton<IInteractionHandler>(
             options.DefaultInteractionHandler ?? PassthroughHandler.Instance);
 
-        services.AddSingleton<IModelPricingProvider>(
-            new ModelPricingProvider(options.AdditionalPricing));
-
         services.AddSingleton<IEventSerializer, JsonEventSerializer>();
         services.AddSingleton<AgentValidator>();
         services.AddSingleton(TimeProvider.System);
@@ -50,36 +47,49 @@ public static class AgentServiceCollectionExtensions
                 new AntigravityHealthCheck(),
                 new AntigravityFailureAnalyzer(),
                 new AntigravitySessionCostParser(),
-                new AntigravityPty());
+                new AntigravityPty(),
+                new AntigravityModelCatalog());
             runner.Register(
                 new ClaudeCli(),
                 new ClaudeEventParser(),
                 new ClaudeHealthCheck(),
                 new ClaudeFailureAnalyzer(),
                 new ClaudeSessionCostParser(),
-                new ClaudePty());
+                new ClaudePty(),
+                new ClaudeModelCatalog());
             runner.Register(
                 new CodexCli(),
                 new CodexEventParser(),
                 new CodexHealthCheck(),
                 new CodexFailureAnalyzer(),
                 new CodexSessionCostParser(),
-                new CodexPty());
+                new CodexPty(),
+                new CodexModelCatalog());
             runner.Register(
                 new CopilotCli(),
                 new CopilotEventParser(),
                 new CopilotHealthCheck(),
                 new CopilotFailureAnalyzer(),
                 new CopilotSessionCostParser(),
-                new CopilotPty());
+                new CopilotPty(),
+                new CopilotModelCatalog());
             runner.Register(
                 new OpenCodeCli(),
                 new OpenCodeEventParser(),
                 new OpenCodeHealthCheck(),
                 new OpenCodeFailureAnalyzer(),
                 new OpenCodeSessionCostParser(),
-                new OpenCodePty());
+                new OpenCodePty(),
+                new OpenCodeModelCatalog());
             return runner;
+        });
+
+        services.AddSingleton<IModelPricingProvider>(sp =>
+        {
+            var runner = sp.GetRequiredService<IAgentRunner>();
+            var provider = new ModelPricingProvider(runner.ModelCatalogs);
+            provider.AddPricing(options.AdditionalPricing);
+            return provider;
         });
 
         return services;

@@ -47,3 +47,7 @@ msbuild.binlog
 ## Test results
 TestResults/
 **/TestResults/
+
+## Frontend build artifacts
+node_modules/
+dist/

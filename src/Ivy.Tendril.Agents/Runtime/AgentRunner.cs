@@ -17,6 +17,7 @@ public sealed class AgentRunner(ILogger<AgentRunner> logger, ConcurrencyOptions?
     private readonly Dictionary<string, IFailureAnalyzer> _failureAnalyzers = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ISessionCostParser> _costParsers = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, IAgentPty> _ptys = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, IModelCatalogProvider> _modelCatalogs = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<IAgentSession> _activeSessions = [];
     private readonly ReplaySubject<IAgentSession> _sessions = new();
     private readonly ConcurrencyLimiter? _concurrencyLimiter = concurrency is not null ? new ConcurrencyLimiter(concurrency) : null;
@@ -53,7 +54,8 @@ public sealed class AgentRunner(ILogger<AgentRunner> logger, ConcurrencyOptions?
         IAgentHealthCheck healthCheck,
         IFailureAnalyzer? failureAnalyzer = null,
         ISessionCostParser? costParser = null,
-        IAgentPty? pty = null)
+        IAgentPty? pty = null,
+        IModelCatalogProvider? modelCatalog = null)
     {
         _clis[cli.Id] = cli;
         _parsers[cli.Id] = parser;
@@ -61,6 +63,7 @@ public sealed class AgentRunner(ILogger<AgentRunner> logger, ConcurrencyOptions?
         if (failureAnalyzer is not null) _failureAnalyzers[cli.Id] = failureAnalyzer;
         if (costParser is not null) _costParsers[cli.Id] = costParser;
         if (pty is not null) _ptys[cli.Id] = pty;
+        if (modelCatalog is not null) _modelCatalogs[cli.Id] = modelCatalog;
         return this;
     }
 
@@ -72,6 +75,11 @@ public sealed class AgentRunner(ILogger<AgentRunner> logger, ConcurrencyOptions?
 
     public IAgentPty? GetPty(string agentId)
         => _ptys.GetValueOrDefault(agentId);
+
+    public IModelCatalogProvider? GetModelCatalog(string agentId)
+        => _modelCatalogs.GetValueOrDefault(agentId);
+
+    public IEnumerable<IModelCatalogProvider> ModelCatalogs => _modelCatalogs.Values;
 
     public IAgentHealthCheck GetHealthCheck(string agentId)
     {

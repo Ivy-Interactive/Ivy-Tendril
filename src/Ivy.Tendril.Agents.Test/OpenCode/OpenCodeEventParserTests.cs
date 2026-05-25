@@ -158,7 +158,7 @@ public class OpenCodeEventParserTests
     }
 
     [Fact]
-    public void ParseLine_StepFinish_WithReasonNotStop_ReturnsFailureResult()
+    public void ParseLine_StepFinish_WithReasonError_ReturnsFailureResult()
     {
         var json = """{"type":"step_finish","part":{"reason":"error"}}""";
         var events = _parser.ParseLine(json);
@@ -166,6 +166,15 @@ public class OpenCodeEventParserTests
         Assert.Single(events);
         var result = Assert.IsType<ResultEvent>(events[0]);
         Assert.False(result.IsSuccess);
+    }
+
+    [Fact]
+    public void ParseLine_StepFinish_WithReasonToolCalls_SuppressedAsEmpty()
+    {
+        var json = """{"type":"step_finish","part":{"reason":"tool-calls","cost":0.012,"tokens":{"input":14000,"output":134}}}""";
+        var events = _parser.ParseLine(json);
+
+        Assert.Empty(events);
     }
 
     [Fact]
