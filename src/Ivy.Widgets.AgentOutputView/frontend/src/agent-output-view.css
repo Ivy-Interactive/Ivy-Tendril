@@ -34,6 +34,9 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .aov-body > * {
@@ -67,7 +70,6 @@
 .aov-status-row {
   display: flex;
   align-items: center;
-  padding: 8px 0;
   font-size: 14px;
   min-height: 32px;
 }
@@ -146,7 +148,6 @@
 
 /* ─── Assistant text (markdown) ─────────────────────────────────────────── */
 .aov-assistant {
-  margin: 16px 0;
 }
 
 .aov-markdown {
@@ -220,7 +221,6 @@
 /* ─── Tool use card (collapsed by default, no outer chrome) ─────────────── */
 .aov-tool {
   font-family: var(--aov-mono);
-  margin: 4px 0;
   padding: 2px 6px;
   border-radius: 4px;
 }
@@ -356,7 +356,6 @@
   background: var(--aov-accent-soft);
   border-radius: 6px;
   padding: 10px 12px;
-  margin: 10px 0;
 }
 
 .aov-result.error {
@@ -408,7 +407,6 @@
 .aov-thinking {
   color: var(--aov-fg-muted);
   font-style: italic;
-  margin: 6px 0;
   padding-left: 8px;
   border-left: 2px solid var(--aov-border-strong);
 }
