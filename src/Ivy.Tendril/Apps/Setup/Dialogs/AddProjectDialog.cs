@@ -104,7 +104,7 @@ public class AddProjectDialog(
                     step.Set(1);
                 },
                 skipButtonText: "Manual Setup",
-                nextButtonText: "AI Setup",
+                nextButtonText: "Create Project",
                 title: "Add a project",
                 disableSkipWhenCannotContinue: true),
             1 => new ProjectAgentStepView(
