@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Runtime;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Microsoft.Extensions.Logging;
@@ -160,21 +161,43 @@ public class PromptwareRunner : IPromptwareRunner
     private static async Task PipeOutputAndLog(Process process, IWriteStream<string> stream, PromptwareRunHandle handle, CancellationToken ct)
     {
         var outputLines = new List<string>();
+        var serializer = new JsonEventSerializer();
+        var parser = handle.EventParser;
 
         process.OutputDataReceived += (_, e) =>
         {
             if (e.Data != null)
             {
-                stream.Write(e.Data);
                 outputLines.Add(e.Data);
+                if (parser != null)
+                {
+                    foreach (var evt in parser.ParseLine(e.Data))
+                    {
+                        var serialized = serializer.Serialize(evt);
+                        stream.Write(serialized);
+                    }
+                }
+                else
+                {
+                    stream.Write(e.Data);
+                }
             }
         };
         process.ErrorDataReceived += (_, e) =>
         {
             if (e.Data != null)
             {
-                stream.Write($"[stderr] {e.Data}");
-                outputLines.Add($"[stderr] {e.Data}");
+                var stderrLine = $"[stderr] {e.Data}";
+                outputLines.Add(stderrLine);
+                if (parser != null)
+                {
+                    var evt = new TextEvent { Kind = AgentEventKind.Text, Text = stderrLine };
+                    stream.Write(serializer.Serialize(evt));
+                }
+                else
+                {
+                    stream.Write(stderrLine);
+                }
             }
         };
         process.EnableRaisingEvents = true;
@@ -188,6 +211,14 @@ public class PromptwareRunner : IPromptwareRunner
             await Task.Delay(100, ct);
         }
         catch (OperationCanceledException) { }
+
+        if (parser != null)
+        {
+            foreach (var evt in parser.Flush())
+            {
+                stream.Write(serializer.Serialize(evt));
+            }
+        }
 
         if (!string.IsNullOrEmpty(handle.LogFilePath))
         {
