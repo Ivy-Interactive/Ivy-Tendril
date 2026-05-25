@@ -57,7 +57,7 @@ public class FileSheet(
         {
             var fileContent = FileHelper.ReadAllText(filePath);
             var language = FileHelper.GetLanguage(ext);
-            sheetContent =  new CodeBlock($"{language.ToString().ToLowerInvariant()}\n{fileContent}", Languages.Text);
+            sheetContent = new Markdown($"```{language.ToString().ToLowerInvariant()}\n{fileContent}\n```");
         }
         else
         {
