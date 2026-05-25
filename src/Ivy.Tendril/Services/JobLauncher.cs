@@ -27,6 +27,11 @@ internal record RepoConfigEntry(
 
 internal class JobLauncher
 {
+    private static readonly HashSet<string> PlanWritingTypes = new(StringComparer.Ordinal)
+    {
+        "CreatePlan", "SplitPlan", "UpdatePlan", "ExpandPlan"
+    };
+
     private readonly IConfigService? _configService;
     private readonly IAgentRunner? _agentRunner;
     private readonly ILogger _logger;
@@ -238,7 +243,10 @@ internal class JobLauncher
 
         var customInstructions = ResolveCustomInstructions(job.Type);
         var projects = BuildProjectInfos(job);
-        var prompt = FirmwareCompiler.Compile(new FirmwareContext(programFolder, values, customInstructions, projects));
+        var planTemplate = PlanWritingTypes.Contains(job.Type)
+            ? _configService.Settings.PlanTemplate
+            : null;
+        var prompt = FirmwareCompiler.Compile(new FirmwareContext(programFolder, values, customInstructions, projects, planTemplate));
         job.CompiledPrompt = prompt;
 
         var promptFilePath = WritePromptFileIfNeeded(resolution, prompt, job.Id, values);
@@ -255,6 +263,8 @@ internal class JobLauncher
             ExtraArguments = resolution.ExtraArgs,
             PromptFilePath = promptFilePath,
         };
+
+        job.Model = launchConfig.Model;
 
         var spec = resolution.Cli.BuildProcessSpec(launchConfig);
         var psi = AgentProcessHelper.ToPsi(spec);
