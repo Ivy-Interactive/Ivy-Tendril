@@ -27,8 +27,19 @@ public class ProjectInputStepView(
             if (sanitized != raw) projectName.Set(sanitized);
         }, projectName);
 
-        var nameExists = !string.IsNullOrWhiteSpace(projectName.Value) &&
-                         config.Settings.Projects.Any(p => p.Name.Equals(projectName.Value.Trim(), StringComparison.OrdinalIgnoreCase));
+        var existingProject = !string.IsNullOrWhiteSpace(projectName.Value)
+            ? config.Settings.Projects.FirstOrDefault(p => p.Name.Equals(projectName.Value.Trim(), StringComparison.OrdinalIgnoreCase))
+            : null;
+        var nameExists = existingProject != null;
+
+        void UseExisting()
+        {
+            if (existingProject != null)
+            {
+                selectedRepos.Set(new List<RepoRef>(existingProject.Repos));
+                onNext();
+            }
+        }
 
         var canContinue = selectedRepos.Value.Count > 0
                           && !string.IsNullOrWhiteSpace(projectName.Value)
@@ -48,7 +59,22 @@ public class ProjectInputStepView(
                | new ProjectRepoPickerView(selectedRepos, projectName)
                | new Spacer()
                | projectName.ToTextInput().WithField().Required().Label("Project Name")
-               | (nameExists ? Text.Danger("A project with this name already exists.") : null!)
+               | (nameExists ? new Box()
+                   .Background(Colors.Destructive)
+                   .Padding(8)
+                   .BorderRadius(BorderRadius.Rounded)
+                   .Content(
+                       Layout.Vertical().Gap(2)
+                       | Text.Block("A project with this name already exists.").Bold().Color(Colors.White)
+                       | Text.Block("To resolve this conflict, you can either enter a different name above, or proceed using the existing project's configuration (its repository path and settings will be preserved).").Color(Colors.White).Small()
+                       | (Layout.Horizontal().Margin(0, 0, 4, 0)
+                           | new Button("Use Existing Project Configuration")
+                               .Outline()
+                               .Small()
+                               .OnClick(UseExisting)
+                         )
+                   )
+                   : null!)
                | new Spacer()
                | buttonArea;
     }
