@@ -12,7 +12,7 @@ public class ProjectInputStepView(
     Action? onBack = null,
     Action? onSkip = null,
     string skipButtonText = "Skip",
-    string nextButtonText = "AI Setup",
+    string nextButtonText = "Create Project",
     string title = "Setup your first project",
     bool disableSkipWhenCannotContinue = false) : ViewBase
 {
