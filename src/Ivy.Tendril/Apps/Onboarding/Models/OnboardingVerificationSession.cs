@@ -44,7 +44,8 @@ internal class NotifyingStream<T>(IWriteStream<T> inner, Action onFirstWrite) : 
         if (!_notified && data is string json)
         {
             var trimmed = json.TrimStart();
-            if (!trimmed.StartsWith("{\"type\":\"system\"") && !trimmed.StartsWith("{\"type\":\"user\""))
+            if (!trimmed.StartsWith("{\"type\":\"system\"") && !trimmed.StartsWith("{\"type\":\"user\"") &&
+                !trimmed.StartsWith("{\"kind\":\"session_init\""))
             {
                 _notified = true;
                 onFirstWrite();
