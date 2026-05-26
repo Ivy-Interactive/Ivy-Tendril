@@ -34,17 +34,19 @@ public class WallpaperApp : ViewBase
 
         var status = processStatus.Value;
 
-        var processView = new TendrilProcessView()
-            .DraftCount(status.DraftCount)
-            .ReviewCount(status.ReviewCount)
-            .CreatingPlansCount(status.CreatingPlansCount)
-            .UpdatingPlansCount(status.UpdatingPlansCount)
-            .ExecutingPlansCount(status.ExecutingPlansCount)
-            .RetryingPlansCount(status.RetryingPlansCount)
-            .OnCreate(() => navigator.Navigate<DraftsApp>())
-            .OnDrafts(() => navigator.Navigate<DraftsApp>())
-            .OnReview(() => navigator.Navigate<ReviewApp>())
-            .OnJobs(() => navigator.Navigate<JobsApp>());
+        var processView = new CreatePlanDialogLauncher(open =>
+            new TendrilProcessView()
+                .DraftCount(status.DraftCount)
+                .ReviewCount(status.ReviewCount)
+                .CreatingPlansCount(status.CreatingPlansCount)
+                .UpdatingPlansCount(status.UpdatingPlansCount)
+                .ExecutingPlansCount(status.ExecutingPlansCount)
+                .RetryingPlansCount(status.RetryingPlansCount)
+                .OnCreate(open)
+                .OnDrafts(() => navigator.Navigate<DraftsApp>())
+                .OnReview(() => navigator.Navigate<ReviewApp>())
+                .OnJobs(() => navigator.Navigate<JobsApp>())
+        );
 
         var elements = new List<object>
         {
