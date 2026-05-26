@@ -3,11 +3,13 @@
 [![NuGet](https://img.shields.io/nuget/v/Ivy.Tendril?style=flat)](https://www.nuget.org/packages/Ivy.Tendril)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/Ivy.Tendril?style=flat)](https://www.nuget.org/packages/Ivy.Tendril)
 [![CI](https://img.shields.io/github/actions/workflow/status/Ivy-Interactive/Ivy-Tendril/publish-tendril.yml?style=flat&label=CI)](https://github.com/Ivy-Interactive/Ivy-Tendril/actions/workflows/publish-tendril.yml)
-[![website](https://img.shields.io/badge/website-ivy.app-green?style=flat)](https://tendril.ivy.app)
+[![Documentation](https://img.shields.io/badge/docs-tendril.ivy.app-blue?style=flat)](https://tendril.ivy.app)
 
 # Ivy Tendril - AI Coding Agent Orchestrator
 
 Tendril is a web application built on [Ivy Framework](https://github.com/Ivy-Interactive/Ivy-Framework) that manages AI coding plans end-to-end. It orchestrates coding agents (Claude, Codex, Antigravity, Copilot, OpenCode) through a structured lifecycle — from plan creation and expansion to execution, verification, and PR generation. Tendril tracks jobs, costs, tokens, and verification results, giving you full visibility into your AI-assisted development workflow.
+
+For complete documentation, configuration options, and guides, visit the Tendril documentation at [tendril.ivy.app](https://tendril.ivy.app).
 
 ## Features
 
