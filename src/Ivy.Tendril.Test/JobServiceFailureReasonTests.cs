@@ -61,14 +61,13 @@ public class JobServiceFailureReasonTests : IDisposable
     }
 
     [Fact]
-    public void ExtractFailureReason_LongLine_TruncatesTo200Chars()
+    public void ExtractFailureReason_LongLine_PreservesFullLength()
     {
         var longLine = new string('x', 300);
         var lines = new List<string> { longLine };
 
         var result = JobService.ExtractFailureReason(lines, "test");
-        Assert.Equal(203, result.Length); // 200 + "..."
-        Assert.EndsWith("...", result);
+        Assert.Equal(300, result.Length);
     }
 
     [Fact]

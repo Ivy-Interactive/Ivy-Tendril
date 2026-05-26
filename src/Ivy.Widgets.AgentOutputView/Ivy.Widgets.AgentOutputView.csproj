@@ -47,6 +47,11 @@
     <Compile Remove="frontend\node_modules\**" />
   </ItemGroup>
 
+<ItemGroup>
+    <Compile Remove=".samples\**\*.cs" />
+    <None Include=".samples\**\*" CopyToOutputDirectory="Never" />
+</ItemGroup>
+
   <!-- Import framework targets from sibling Ivy-Framework repo if present (local dev) -->
   <Import Project="../../../Ivy-Framework/src/Ivy/Build/Ivy.ExternalWidget.targets" Condition="Exists('../../../Ivy-Framework/src/Ivy/Build/Ivy.ExternalWidget.targets')" />
 

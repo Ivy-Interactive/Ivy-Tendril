@@ -88,10 +88,9 @@ internal static class JobFailureAnalyzer
         text = Regex.Replace(text, @"\x1B\[[0-9;]*[A-Za-z]", "");
         text = Regex.Replace(text, @"[\x00-\x1F]", " ");
         text = Regex.Replace(text, " {2,}", " ");
+        if (text.StartsWith("undefined:", StringComparison.OrdinalIgnoreCase))
+            text = text["undefined:".Length..];
         text = text.Trim();
-
-        if (text.Length > 200)
-            text = text[..200] + "...";
 
         return text;
     }
