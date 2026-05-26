@@ -207,7 +207,7 @@ public class ContentView(
         if (selectedPlanState.Value is null)
         {
             if (allPlans.Count == 0)
-                return new NoContentView("No plans to review", "Completed plans will appear here for review.");
+                return new NoContentView("No plans to review", "Completed plans will appear here for review.", new NewPlanButton().Width(Size.Fit()));
 
             return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
                    | Text.Muted("Select a completed plan to review");

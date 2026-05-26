@@ -182,7 +182,7 @@ internal static class PlanYamlHelper
                     if (trimmed.StartsWith("result:", StringComparison.OrdinalIgnoreCase))
                     {
                         var value = trimmed["result:".Length..].Trim();
-                        if (value is "Pass" or "Fail" or "Skipped") return value;
+                        if (value is VerificationStatus.Pass or VerificationStatus.Fail or VerificationStatus.Skipped) return value;
                     }
                 }
             }

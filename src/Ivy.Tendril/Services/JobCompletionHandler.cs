@@ -365,7 +365,7 @@ internal class JobCompletionHandler
             if (planYaml == null) return;
 
             var hasIncomplete = planYaml.Verifications?
-                .Any(v => v.Status is "Pending" or "Fail") ?? false;
+                .Any(v => v.Status is VerificationStatus.Pending or VerificationStatus.Fail) ?? false;
             var targetState = hasIncomplete ? PlanStatus.Failed : PlanStatus.ReadyForReview;
 
             var folderName = Path.GetFileName(planFolder);

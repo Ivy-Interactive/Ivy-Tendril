@@ -4,7 +4,7 @@ using Ivy.Tendril.Apps.Onboarding.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Apps.Views;
 
-namespace Ivy.Tendril.Apps.Setup.Dialogs;
+namespace Ivy.Tendril.Apps.Settings.Dialogs;
 
 public class AddProjectDialog(
     IState<bool> isOpen,

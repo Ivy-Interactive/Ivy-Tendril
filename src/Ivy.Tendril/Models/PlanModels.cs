@@ -102,10 +102,18 @@ public static class PlanFilters
     }
 }
 
+public static class VerificationStatus
+{
+    public const string Pending = nameof(Pending);
+    public const string Pass = nameof(Pass);
+    public const string Fail = nameof(Fail);
+    public const string Skipped = nameof(Skipped);
+}
+
 public class PlanVerificationEntry
 {
     public string Name { get; set; } = "";
-    public string Status { get; set; } = "Pending";
+    public string Status { get; set; } = VerificationStatus.Pending;
 }
 
 public class PlanYaml

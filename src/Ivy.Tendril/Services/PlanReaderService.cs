@@ -281,7 +281,7 @@ public class PlanReaderService(
             planYaml.Commits = new List<string>();
             planYaml.Recommendations = null;
             foreach (var v in planYaml.Verifications)
-                v.Status = "Pending";
+                v.Status = VerificationStatus.Pending;
             FileHelper.WriteAllText(planYamlPath, YamlHelper.SerializerCompact.Serialize(planYaml));
         });
     }
@@ -300,8 +300,8 @@ public class PlanReaderService(
             planYaml.Updated = DateTime.UtcNow;
             foreach (var v in planYaml.Verifications)
             {
-                if (!v.Status.Equals("Skipped", StringComparison.OrdinalIgnoreCase))
-                    v.Status = "Pending";
+                if (!v.Status.Equals(VerificationStatus.Skipped, StringComparison.OrdinalIgnoreCase))
+                    v.Status = VerificationStatus.Pending;
             }
             FileHelper.WriteAllText(planYamlPath, YamlHelper.SerializerCompact.Serialize(planYaml));
         });

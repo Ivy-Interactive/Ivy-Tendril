@@ -256,7 +256,7 @@ public class ContentView(
     {
         var verificationDir = Path.Combine(plan.FolderPath, "Verification");
         var failedVerifications = plan.Verifications
-            .Where(v => v.Status is "Fail" or "Pending")
+            .Where(v => v.Status is VerificationStatus.Fail or VerificationStatus.Pending)
             .ToList();
 
         if (failedVerifications.Count > 0 && Directory.Exists(verificationDir))

@@ -10,7 +10,7 @@ public class SidebarView(
     private object BuildHeader()
     {
         return Layout.Vertical().Height(Size.Px(40)).AlignContent(Align.Center)
-            | searchFilter.ToSearchInput().Placeholder("Search trash...");
+            | searchFilter.ToSearchInput().Placeholder("Search");
     }
 
     public override object Build()
@@ -36,11 +36,7 @@ public class SidebarView(
 
         if (filteredList.Count == 0)
         {
-            var emptyContent = Layout.Vertical().AlignContent(Align.Center).Gap(2).Padding(4)
-                   | new Icon(Icons.Trash2).Size(Size.Units(6)).Color(Colors.Gray)
-                   | Text.Muted("No trash items")
-                   | Text.Muted("Duplicate plans will appear here").Small();
-            return new HeaderLayout(BuildHeader(), emptyContent);
+            return new HeaderLayout(BuildHeader(), null!);
         }
 
         var content = new List(filteredList.Select(f =>

@@ -7,7 +7,7 @@ using Ivy.Tendril.Services;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Widgets.AgentOutputView;
 
-namespace Ivy.Tendril.Apps.Setup.Dialogs;
+namespace Ivy.Tendril.Apps.Settings.Dialogs;
 
 public class EditProjectDialog(
     IState<int?> editIndex,
