@@ -52,12 +52,9 @@ public class CodingAgentSetupView : ViewBase
             lastAgent.Set(selectedAgent.Value);
         }
 
+        var models = modelsQuery.Value ?? [];
         var modelOptions = new[] { new Option<string>("Default", "") }
-            .Concat(modelsQuery.Value.Select(m =>
-            {
-                var label = !string.IsNullOrEmpty(m.Alias) ? $"{m.DisplayName} ({m.Alias})" : m.DisplayName;
-                return new Option<string>(label, m.Id);
-            }))
+            .Concat(models.Select(m => new Option<string>(m.DisplayName, m.Id)))
             .ToArray<IAnyOption>();
 
         var hasProfileChanges =
@@ -85,9 +82,9 @@ public class CodingAgentSetupView : ViewBase
                | grid
                | Text.Block("Model Per Profile").Bold()
                | Text.Muted("Override the model used for each profile tier:")
-               | deepModel.ToSelectInput(modelOptions).WithField().Label("Deep")
-               | balancedModel.ToSelectInput(modelOptions).WithField().Label("Balanced")
-               | quickModel.ToSelectInput(modelOptions).WithField().Label("Quick")
+               | deepModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Deep")
+               | balancedModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Balanced")
+               | quickModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Quick")
                | new Button("Save").Primary()
                    .Disabled(!hasChanges)
                    .OnClick(() =>
