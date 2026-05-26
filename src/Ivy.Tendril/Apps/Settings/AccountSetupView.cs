@@ -1,6 +1,6 @@
 using Ivy.Desktop;
 
-namespace Ivy.Tendril.Apps.Setup;
+namespace Ivy.Tendril.Apps.Settings;
 
 public class AccountSetupView : ViewBase
 {

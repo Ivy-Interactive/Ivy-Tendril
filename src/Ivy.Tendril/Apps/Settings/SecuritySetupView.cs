@@ -3,7 +3,7 @@ using Isopoh.Cryptography.Argon2;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 
-namespace Ivy.Tendril.Apps.Setup;
+namespace Ivy.Tendril.Apps.Settings;
 
 public class SecuritySetupView : ViewBase
 {

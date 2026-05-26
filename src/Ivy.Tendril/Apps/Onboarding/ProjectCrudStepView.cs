@@ -1,5 +1,5 @@
 using Ivy.Tendril.Apps.Onboarding.Models;
-using Ivy.Tendril.Apps.Setup.Dialogs;
+using Ivy.Tendril.Apps.Settings.Dialogs;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps.Onboarding;

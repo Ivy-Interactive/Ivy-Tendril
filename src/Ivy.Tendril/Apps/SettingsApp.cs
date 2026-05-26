@@ -1,5 +1,5 @@
 using Ivy.Desktop;
-using Ivy.Tendril.Apps.Setup;
+using Ivy.Tendril.Apps.Settings;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Microsoft.AspNetCore.Http;

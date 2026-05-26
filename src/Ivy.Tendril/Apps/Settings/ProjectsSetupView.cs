@@ -1,8 +1,8 @@
-using Ivy.Tendril.Apps.Setup.Dialogs;
+using Ivy.Tendril.Apps.Settings.Dialogs;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 
-namespace Ivy.Tendril.Apps.Setup;
+namespace Ivy.Tendril.Apps.Settings;
 
 public class ProjectsSetupView : ViewBase
 {

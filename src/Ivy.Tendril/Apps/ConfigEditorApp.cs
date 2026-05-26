@@ -1,4 +1,4 @@
-using Ivy.Tendril.Apps.Setup;
+using Ivy.Tendril.Apps.Settings;
 
 namespace Ivy.Tendril.Apps;
 

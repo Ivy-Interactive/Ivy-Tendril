@@ -1,6 +1,6 @@
 using Ivy.Tendril.Services;
 
-namespace Ivy.Tendril.Apps.Setup;
+namespace Ivy.Tendril.Apps.Settings;
 
 public class PlansSetupView : ViewBase
 {
