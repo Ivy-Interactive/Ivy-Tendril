@@ -102,6 +102,40 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
         _supervisorTask = Task.Run(() => SupervisorLoopAsync(_cts.Token));
     }
 
+    private async Task WaitForTunnelHealthyAsync(string tunnelUrl, CancellationToken ct)
+    {
+        using var http = _httpClientFactory.CreateClient("TunnelHealthCheck");
+        http.Timeout = TimeSpan.FromSeconds(10);
+
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(60);
+        _logger.LogInformation("Waiting for tunnel to become routable: {Url}", tunnelUrl);
+
+        while (DateTime.UtcNow < deadline && !ct.IsCancellationRequested)
+        {
+            try
+            {
+                var response = await http.GetAsync(tunnelUrl, ct);
+                if (response.StatusCode != System.Net.HttpStatusCode.BadGateway)
+                {
+                    _logger.LogInformation("Tunnel is routable (HTTP {Status})", (int)response.StatusCode);
+                    return;
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug("Tunnel health check attempt failed: {Error}", ex.Message);
+            }
+
+            await Task.Delay(2000, ct);
+        }
+
+        _logger.LogWarning("Tunnel health check timed out after 60s, proceeding anyway");
+    }
+
     private async Task SupervisorLoopAsync(CancellationToken ct)
     {
         var tunnelConfig = _config.Settings.Tunnel!;
@@ -138,6 +172,7 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
             {
                 _currentSession = new TunnelSession(binaryPath, originUrl, _logger);
                 var url = await _currentSession.StartAsync(ct);
+                await WaitForTunnelHealthyAsync(url, ct);
                 consecutiveFailures = 0;
                 TunnelConnected?.Invoke(url);
 
