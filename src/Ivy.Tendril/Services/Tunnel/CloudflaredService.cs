@@ -10,6 +10,7 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
     private CancellationTokenSource? _cts;
     private Task? _supervisorTask;
     private TunnelSession? _currentSession;
+    private bool _isInstalled;
 
     public CloudflaredService(
         IConfigService config,
@@ -23,6 +24,7 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
 
     public string? TunnelUrl => _currentSession?.TunnelUrl;
     public bool IsConnected => _currentSession?.IsRunning == true && TunnelUrl is not null;
+    public bool IsInstalled => _isInstalled;
 
     public event Action<string>? TunnelConnected;
     public event Action? TunnelDisconnected;
@@ -36,6 +38,62 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
             return;
         }
 
+        StartSupervisor();
+    }
+
+    public async Task<bool> CheckInstalledAsync(CancellationToken ct = default)
+    {
+        var installer = new CloudflaredInstaller(
+            _config.TendrilHome, _httpClientFactory, _logger);
+        var existing = installer.FindExisting();
+        _isInstalled = existing is not null;
+        return _isInstalled;
+    }
+
+    public async Task InstallAsync(CancellationToken ct = default)
+    {
+        var installer = new CloudflaredInstaller(
+            _config.TendrilHome, _httpClientFactory, _logger);
+        await installer.DownloadAsync(ct);
+        _isInstalled = true;
+    }
+
+    public async Task ActivateAsync(CancellationToken ct = default)
+    {
+        if (IsConnected) return;
+
+        _config.Settings.Tunnel ??= new TunnelConfig();
+        _config.Settings.Tunnel.Enabled = true;
+        _config.SaveSettings();
+
+        StartSupervisor();
+    }
+
+    public void Deactivate()
+    {
+        _cts?.Cancel();
+        _currentSession?.Stop();
+        _currentSession?.Dispose();
+        _currentSession = null;
+
+        try { _supervisorTask?.Wait(TimeSpan.FromSeconds(5)); }
+        catch (AggregateException) { }
+
+        _cts?.Dispose();
+        _cts = null;
+        _supervisorTask = null;
+
+        _config.Settings.Tunnel ??= new TunnelConfig();
+        _config.Settings.Tunnel.Enabled = false;
+        _config.SaveSettings();
+
+        TunnelDisconnected?.Invoke();
+    }
+
+    private void StartSupervisor()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
         _cts = new CancellationTokenSource();
         _supervisorTask = Task.Run(() => SupervisorLoopAsync(_cts.Token));
     }
