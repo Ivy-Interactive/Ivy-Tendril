@@ -33,7 +33,7 @@ public class TelemetryService : ITelemetryService, IAsyncDisposable
             var appVersion = typeof(TelemetryService).Assembly.GetName().Version?.ToString(3) ?? "unknown";
             _client = new PostHogClient(new PostHogOptions
             {
-                ProjectApiKey = "phc_uHeJHFURzThFPnizzGMzLEimLWnRAuqy8DunK8N3oYcd",
+                ProjectToken = "phc_uHeJHFURzThFPnizzGMzLEimLWnRAuqy8DunK8N3oYcd",
                 HostUrl = new Uri("https://eu.i.posthog.com"),
                 SuperProperties = new Dictionary<string, object>
                 {
