@@ -93,7 +93,7 @@ public class PlanDatabaseService : IPlanDatabaseService
         migrator.ApplyMigrations();
         _logger.LogInformation("Database migrations applied");
 
-        _dashboardRepository = new DashboardRepository(_connection, _lock, _logger);
+        _dashboardRepository = new DashboardRepository(_connection, _lock);
     }
 
     public List<PlanFile> GetPlans(PlanStatus? statusFilter = null)
@@ -588,7 +588,7 @@ public class PlanDatabaseService : IPlanDatabaseService
                 insertCmd.Parameters["@planId"].Value = planId;
                 insertCmd.Parameters["@title"].Value = rec.Title;
                 insertCmd.Parameters["@description"].Value = rec.Description;
-                insertCmd.Parameters["@state"].Value = string.IsNullOrWhiteSpace(rec.State) ? "Pending" : rec.State;
+                insertCmd.Parameters["@state"].Value = string.IsNullOrWhiteSpace(rec.State) ? RecommendationStatus.Pending : rec.State;
                 insertCmd.Parameters["@declineReason"].Value = (object?)rec.DeclineReason ?? DBNull.Value;
                 insertCmd.Parameters["@planTitle"].Value = planTitle;
                 insertCmd.Parameters["@planFolderName"].Value = folderName;

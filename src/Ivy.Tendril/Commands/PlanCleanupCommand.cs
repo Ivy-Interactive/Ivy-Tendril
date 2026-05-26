@@ -33,7 +33,7 @@ public class PlanCleanupCommand : Command<PlanCleanupSettings>
             var plan = PlanCommandHelpers.ReadPlan(planFolder);
 
             var terminalStates = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                { "Completed", "Failed", "Skipped", "Icebox" };
+                { nameof(PlanStatus.Completed), nameof(PlanStatus.Failed), nameof(PlanStatus.Skipped), nameof(PlanStatus.Icebox) };
 
             if (!settings.Force && !terminalStates.Contains(plan.State))
             {

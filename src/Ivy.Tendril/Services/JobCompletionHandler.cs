@@ -154,13 +154,13 @@ internal class JobCompletionHandler
                 EnsurePlanStateTransitioned(job);
                 break;
             case CreateIssueArgs:
-                SetPlanState(job, "Completed");
+                SetPlanState(job, nameof(PlanStatus.Completed));
                 break;
             case UpdatePlanArgs or ExpandPlanArgs:
-                SetPlanState(job, "Draft");
+                SetPlanState(job, nameof(PlanStatus.Draft));
                 break;
             case SplitPlanArgs:
-                SetPlanState(job, "Skipped");
+                SetPlanState(job, nameof(PlanStatus.Skipped));
                 break;
             case CreatePlanArgs:
                 VerifyCreatePlanResult(job);
@@ -494,7 +494,7 @@ internal class JobCompletionHandler
             if (job.TypedArgs is CreatePlanArgs or CreatePrArgs or CreateIssueArgs) return;
 
             var planFolder = job.TypedArgs?.PlanFolder ?? "";
-            var newState = job.TypedArgs is ExecutePlanArgs or RetryPlanArgs ? "Failed" : "Draft";
+            var newState = job.TypedArgs is ExecutePlanArgs or RetryPlanArgs ? nameof(PlanStatus.Failed) : nameof(PlanStatus.Draft);
             PlanYamlHelper.SetPlanStateByFolder(planFolder, newState);
         }
         catch (Exception ex)
@@ -508,7 +508,7 @@ internal class JobCompletionHandler
         try
         {
             var planFolder = job.TypedArgs?.PlanFolder ?? "";
-            PlanYamlHelper.SetPlanStateByFolder(planFolder, "Blocked");
+            PlanYamlHelper.SetPlanStateByFolder(planFolder, nameof(PlanStatus.Blocked));
         }
         catch (Exception ex)
         {
