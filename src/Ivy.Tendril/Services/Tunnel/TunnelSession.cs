@@ -9,15 +9,15 @@ public sealed partial class TunnelSession : IDisposable
     private static readonly TimeSpan UrlTimeout = TimeSpan.FromSeconds(30);
 
     private readonly string _binaryPath;
-    private readonly int _port;
+    private readonly string _originUrl;
     private readonly ILogger _logger;
     private Process? _process;
     private TaskCompletionSource<string>? _urlTcs;
 
-    public TunnelSession(string binaryPath, int port, ILogger logger)
+    public TunnelSession(string binaryPath, string originUrl, ILogger logger)
     {
         _binaryPath = binaryPath;
-        _port = port;
+        _originUrl = originUrl;
         _logger = logger;
     }
 
@@ -31,12 +31,16 @@ public sealed partial class TunnelSession : IDisposable
         var psi = new ProcessStartInfo
         {
             FileName = _binaryPath,
-            ArgumentList = { "tunnel", "--url", $"http://localhost:{_port}" },
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+        psi.ArgumentList.Add("tunnel");
+        psi.ArgumentList.Add("--url");
+        psi.ArgumentList.Add(_originUrl);
+        if (_originUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            psi.ArgumentList.Add("--no-tls-verify");
 
         _process = Process.Start(psi)
             ?? throw new InvalidOperationException("Failed to start cloudflared process");

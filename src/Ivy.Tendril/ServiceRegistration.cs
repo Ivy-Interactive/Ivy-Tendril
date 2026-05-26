@@ -163,8 +163,9 @@ internal static class ServiceRegistration
         {
             var config = sp.GetRequiredService<IConfigService>();
             var httpFactory = sp.GetRequiredService<IHttpClientFactory>();
+            var appLifetime = sp.GetRequiredService<Microsoft.Extensions.Hosting.IHostApplicationLifetime>();
             var logger = sp.GetRequiredService<ILogger<Services.Tunnel.CloudflaredService>>();
-            return new Services.Tunnel.CloudflaredService(config, httpFactory, logger);
+            return new Services.Tunnel.CloudflaredService(config, httpFactory, appLifetime, logger);
         });
         server.Services.AddSingleton<Services.Tunnel.ICloudflaredService>(sp =>
             sp.GetRequiredService<Services.Tunnel.CloudflaredService>());

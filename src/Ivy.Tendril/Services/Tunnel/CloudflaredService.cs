@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services.Tunnel;
@@ -6,6 +7,7 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
 {
     private readonly IConfigService _config;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IHostApplicationLifetime _appLifetime;
     private readonly ILogger<CloudflaredService> _logger;
     private CancellationTokenSource? _cts;
     private Task? _supervisorTask;
@@ -15,10 +17,12 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
     public CloudflaredService(
         IConfigService config,
         IHttpClientFactory httpClientFactory,
+        IHostApplicationLifetime appLifetime,
         ILogger<CloudflaredService> logger)
     {
         _config = config;
         _httpClientFactory = httpClientFactory;
+        _appLifetime = appLifetime;
         _logger = logger;
     }
 
@@ -115,13 +119,24 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
             binaryPath = await installer.EnsureInstalledAsync(ct);
         }
 
+        if (!_appLifetime.ApplicationStarted.IsCancellationRequested)
+        {
+            _logger.LogInformation("Waiting for server before launching tunnel");
+            await Task.Delay(Timeout.Infinite, _appLifetime.ApplicationStarted)
+                .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            if (ct.IsCancellationRequested) return;
+        }
+
+        var originUrl = Environment.GetEnvironmentVariable("TENDRIL_URL")
+            ?? $"http://localhost:{tunnelConfig.Port}";
+
         var consecutiveFailures = 0;
 
         while (!ct.IsCancellationRequested && consecutiveFailures < maxRestarts)
         {
             try
             {
-                _currentSession = new TunnelSession(binaryPath, tunnelConfig.Port, _logger);
+                _currentSession = new TunnelSession(binaryPath, originUrl, _logger);
                 var url = await _currentSession.StartAsync(ct);
                 consecutiveFailures = 0;
                 TunnelConnected?.Invoke(url);
