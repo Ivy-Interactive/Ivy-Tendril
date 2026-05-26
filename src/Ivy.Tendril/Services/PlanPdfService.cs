@@ -56,7 +56,7 @@ public class PlanPdfService(ILogger<PlanPdfService> logger)
         {
             FileName = "pandoc",
             Arguments =
-                $"\"{inputPath}\" -o \"{outputPath}\" --pdf-engine=xelatex -V geometry:margin=2.5cm -V fontsize=11pt -V header-includes=\"\\usepackage{{fancyhdr}}\\pagestyle{{fancy}}\\fancyhead[L]{{Ivy Tendril — Plan \\#{planId}}}\"",
+                $"\"{inputPath}\" -o \"{outputPath}\" --pdf-engine=xelatex -V geometry:margin=2.5cm -V fontsize=11pt -V header-includes=\"\\usepackage{{fancyhdr}}\\pagestyle{{fancy}}\\fancyhead[L]{{Ivy Tendril Plan \\#{planId}}}\"",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
