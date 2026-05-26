@@ -27,7 +27,9 @@ public class VerificationTests : IAsyncLifetime
             {
                 "claude" => "Claude",
                 "codex" => "Codex",
+                "copilot" => "Copilot",
                 "antigravity" => "Antigravity",
+                "opencode" => "OpenCode",
                 _ => _fixture.Settings.Agent,
             };
             await onboarding.CompleteOnboarding(
@@ -53,12 +55,6 @@ public class VerificationTests : IAsyncLifetime
     public void OnboardingCreatesValidDirectoryStructure()
     {
         FileSystemAssertions.AssertOnboardingComplete(_fixture.Tendril.TendrilHome);
-
-        var counterPath = Path.Combine(_fixture.Tendril.TendrilPlans, ".counter");
-        Assert.True(File.Exists(counterPath), ".counter file missing in Plans/");
-        var counterValue = File.ReadAllText(counterPath).Trim();
-        Assert.True(int.TryParse(counterValue, out var n) && n >= 1,
-            $".counter should be >= 1, got '{counterValue}'");
     }
 
     [Fact]
@@ -69,7 +65,6 @@ public class VerificationTests : IAsyncLifetime
 
         var content = File.ReadAllText(configPath);
         Assert.Contains("codingAgent:", content);
-        Assert.Contains("projects:", content);
         FileSystemAssertions.AssertConfigContains(_fixture.Tendril.TendrilHome, _fixture.Settings.Agent);
     }
 

@@ -32,7 +32,9 @@ public class AgentExecutionTests : IAsyncLifetime
             {
                 "claude" => "Claude",
                 "codex" => "Codex",
+                "copilot" => "Copilot",
                 "antigravity" => "Antigravity",
+                "opencode" => "OpenCode",
                 _ => _fixture.Settings.Agent,
             };
             await onboarding.CompleteOnboarding(
