@@ -90,7 +90,7 @@ public class CloudflaredEnd2EndTests
 
         var binaryPath = BinaryResolver.FindOnPath("cloudflared")!;
 
-        using var session = new TunnelSession(binaryPath, 19999, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+        using var session = new TunnelSession(binaryPath, "http://localhost:19999", Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         var url = await session.StartAsync(cts.Token);
