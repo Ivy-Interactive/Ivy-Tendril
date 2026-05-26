@@ -6,6 +6,6 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Ivy.Widget.TendrilProcessView.csproj" />
+    <ProjectReference Include="..\Ivy.Widgets.TendrilProcessView.csproj" />
   </ItemGroup>
 </Project>

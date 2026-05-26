@@ -148,6 +148,7 @@
 
 /* ─── Assistant text (markdown) ─────────────────────────────────────────── */
 .aov-assistant {
+  margin: 8px 0;
 }
 
 .aov-markdown {
@@ -352,6 +353,7 @@
 
 /* ─── Result summary ────────────────────────────────────────────────────── */
 .aov-result {
+  margin-top: 8px;
   border: 1px solid var(--aov-border);
   background: var(--aov-accent-soft);
   border-radius: 6px;

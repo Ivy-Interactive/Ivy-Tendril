@@ -191,7 +191,7 @@ export const AgentOutputView: React.FC<AgentOutputViewProps> = ({
               return null;
           }
         })}
-        {showStatusLabel && (
+        {showStatusLabel && !isComplete && (
           <div className="aov-status-row">
             <AnimatedStatus statusText={statusText} isComplete={isComplete} />
           </div>
