@@ -113,7 +113,7 @@ internal class JobLauncher
             var programFolder = Path.Combine(_promptsRoot, type);
             _logger.LogError("Job {JobId}: No agent program found for '{Type}' in {Folder}", id, type, programFolder);
             job.Status = JobStatus.Failed;
-            job.StatusMessage = $"No agent program found for '{type}' — ensure {programFolder}/Program.md exists and config is loaded";
+            job.StatusMessage = $"No agent program found for '{type}'. Ensure {programFolder}/Program.md exists and config is loaded";
             job.CompletedAt = DateTime.UtcNow;
             ctx.JobSlotSemaphore.Release();
             ctx.RaiseStructureChanged();

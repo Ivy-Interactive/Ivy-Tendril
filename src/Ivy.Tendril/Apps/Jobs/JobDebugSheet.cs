@@ -26,7 +26,7 @@ public class JobDebugSheet(
             JobId = job.Id,
             PlanId = GetPlanId(job),
             PromptTitle = JobsApp.GetFullPrompt(job, planService) ?? "",
-            Status = $"{job.Status}{(job.StatusMessage != null ? $" — {job.StatusMessage}" : "")}",
+            Status = $"{job.Status}{(job.StatusMessage != null ? $": {job.StatusMessage}" : "")}",
             job.Type,
             job.Project,
             job.Provider,
@@ -49,6 +49,7 @@ public class JobDebugSheet(
         var detailsView = data.ToDetails()
             .Multiline(x => x.PromptTitle)
             .Multiline(x => x.PermissionDenials)
+            .Multiline(x => x.Status)
             .Label(x => x.PromptTitle, "Prompt/Title")
             .Label(x => x.PlanId, "Plan Id")
             .Label(x => x.SessionId, "Session Id")
