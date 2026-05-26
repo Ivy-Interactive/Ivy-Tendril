@@ -9,7 +9,9 @@ namespace Ivy.Tendril.Apps;
 [App(title: "Configuration", icon: Icons.Settings, isVisible: false)]
 public class SettingsApp : ViewBase
 {
-    private const string TagGeneral = "general";
+    private const string TagCodingAgent = "coding-agent";
+    private const string TagPlans = "plans";
+    private const string TagAppearance = "appearance";
     private const string TagNotifications = "notifications";
     private const string TagSecurity = "security";
     private const string TagLevels = "levels";
@@ -25,7 +27,7 @@ public class SettingsApp : ViewBase
         var navigator = UseNavigation();
         var client = UseService<IClientProvider>();
         var httpContextAccessor = UseService<IHttpContextAccessor>();
-        var selected = UseState(TagGeneral);
+        var selected = UseState(TagCodingAgent);
         Context.TryUseService<DesktopWindow>(out var desktopWindow);
         var isDesktop = desktopWindow != null;
         var capturedHost = ConfigYamlUiHelper.CaptureHost(httpContextAccessor);
@@ -36,7 +38,9 @@ public class SettingsApp : ViewBase
                 .Icon(Icons.Settings2)
                 .Expanded()
                 .Children(
-                    MenuItem.Default("General", TagGeneral).Icon(Icons.Settings),
+                    MenuItem.Default("Coding Agent", TagCodingAgent).Icon(Icons.Bot),
+                    MenuItem.Default("Plans", TagPlans).Icon(Icons.FileText),
+                    MenuItem.Default("Appearance", TagAppearance).Icon(Icons.Palette),
                     MenuItem.Default("Projects", TagProjects).Icon(Icons.Folder),
                     MenuItem.Default("Verifications", TagVerifications).Icon(Icons.CircleCheck),
                     MenuItem.Default("Promptwares", TagPromptwares).Icon(Icons.Wand),
@@ -66,7 +70,9 @@ public class SettingsApp : ViewBase
 
         object content = selected.Value switch
         {
-            TagGeneral => new GeneralSetupView(),
+            TagCodingAgent => new CodingAgentSetupView(),
+            TagPlans => new PlansSetupView(),
+            TagAppearance => new AppearanceSetupView(),
             TagNotifications => new NotificationsSetupView(),
             TagSecurity => new SecuritySetupView(),
             TagLevels => new LevelsSetupView(),
@@ -74,7 +80,7 @@ public class SettingsApp : ViewBase
             TagPromptwares => new PromptwaresSetupView(),
             TagProjects => new ProjectsSetupView(),
             TagAdvanced => new AdvancedSetupView(),
-            _ => new GeneralSetupView()
+            _ => new CodingAgentSetupView()
         };
 
         return new SidebarLayout(content, sidebar);
