@@ -1,5 +1,5 @@
 import React from "react";
-import { Plus, Pencil, ThumbsUp, LoaderCircle } from "lucide-react";
+import { Plus, Feather, ThumbsUp, LoaderCircle } from "lucide-react";
 import { TendrilProcessViewProps } from "./types";
 import { getWidth, getHeight } from "./styles";
 import "./TendrilProcessView.css";
@@ -12,17 +12,19 @@ interface ArrowProps {
 
 const Arrow: React.FC<ArrowProps> = ({ count, spinning, onClick }) => (
   <div className="tpv-arrow-segment">
-    <button className="tpv-arrow-label" onClick={onClick}>
-      <span className="tpv-arrow-count">{count}</span>
-      {spinning && <LoaderCircle className="tpv-spinner" size={13} />}
-    </button>
+    {count > 0 && (
+      <button className="tpv-arrow-label" onClick={onClick}>
+        <span className="tpv-arrow-count">{count}</span>
+        {spinning && <LoaderCircle className="tpv-spinner" size={13} />}
+      </button>
+    )}
     <svg className="tpv-arrow-svg" viewBox="0 0 80 12" preserveAspectRatio="none">
       <defs>
         <marker id="arrowhead" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
           <polygon points="0,0 6,3 0,6" fill="currentColor" />
         </marker>
       </defs>
-      <line x1="0" y1="6" x2="72" y2="6" stroke="currentColor" strokeWidth="1.5" markerEnd="url(#arrowhead)" />
+      <line x1="0" y1="6" x2="78" y2="6" stroke="currentColor" strokeWidth="1.5" markerEnd="url(#arrowhead)" />
     </svg>
   </div>
 );
@@ -38,14 +40,14 @@ const LoopArrow: React.FC<LoopArrowProps> = ({ count, onClick }) => (
       <span className="tpv-arrow-count">{count}</span>
       <LoaderCircle className="tpv-spinner" size={13} />
     </button>
-    <svg className="tpv-curve-svg" viewBox="0 0 100 32" fill="none">
+    <svg className="tpv-curve-svg" viewBox="0 0 100 30" fill="none">
       <defs>
-        <marker id="arrowhead-curve" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto">
-          <polygon points="0,0 7,3.5 0,7" fill="currentColor" />
+        <marker id="arrowhead-curve" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+          <polygon points="0,0 6,3 0,6" fill="currentColor" />
         </marker>
       </defs>
       <path
-        d="M80 30 L80 12 Q80 4, 72 4 L28 4 Q20 4, 20 12 L20 30"
+        d="M75 30 L75 10 Q75 4, 68 4 L32 4 Q25 4, 25 10 L25 25"
         stroke="currentColor"
         strokeWidth="1.5"
         fill="none"
@@ -73,6 +75,9 @@ export const TendrilProcessView: React.FC<TendrilProcessViewProps> = ({
     ...getHeight(height),
   };
 
+  const allZero = draftCount === 0 && reviewCount === 0 && creatingPlansCount === 0
+    && updatingPlansCount === 0 && executingPlansCount === 0 && retryingPlansCount === 0;
+
   const fireEvent = (eventName: string) => {
     if (events.includes(eventName)) {
       eventHandler(eventName, id, []);
@@ -82,7 +87,7 @@ export const TendrilProcessView: React.FC<TendrilProcessViewProps> = ({
   return (
     <div className="tpv-container" style={style}>
       <div className="tpv-flow">
-        <button className="tpv-box tpv-box-create" onClick={() => fireEvent("OnCreate")}>
+        <button className={`tpv-box tpv-box-create${allZero ? " tpv-pulse" : ""}`} onClick={() => fireEvent("OnCreate")}>
           <span className="tpv-box-label">Create Plan</span>
           <Plus size={16} className="tpv-box-icon" />
         </button>
@@ -99,8 +104,8 @@ export const TendrilProcessView: React.FC<TendrilProcessViewProps> = ({
             <LoopArrow count={executingPlansCount} onClick={() => fireEvent("OnJobs")} />
           )}
           <button className="tpv-box tpv-box-stage" onClick={() => fireEvent("OnDrafts")}>
-            <Pencil size={14} className="tpv-box-stage-icon" />
-            <span className="tpv-box-label">Drafts {draftCount}</span>
+            <Feather size={14} className="tpv-box-stage-icon" />
+            <span className="tpv-box-label">Drafts{draftCount > 0 && <span className="tpv-box-count">{draftCount}</span>}</span>
           </button>
         </div>
 
@@ -117,7 +122,7 @@ export const TendrilProcessView: React.FC<TendrilProcessViewProps> = ({
           )}
           <button className="tpv-box tpv-box-stage" onClick={() => fireEvent("OnReview")}>
             <ThumbsUp size={14} className="tpv-box-stage-icon" />
-            <span className="tpv-box-label">Review {reviewCount}</span>
+            <span className="tpv-box-label">Review{reviewCount > 0 && <span className="tpv-box-count">{reviewCount}</span>}</span>
           </button>
         </div>
       </div>

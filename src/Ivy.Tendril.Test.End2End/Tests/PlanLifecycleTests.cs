@@ -27,7 +27,9 @@ public class PlanLifecycleTests : IAsyncLifetime
             {
                 "claude" => "Claude",
                 "codex" => "Codex",
+                "copilot" => "Copilot",
                 "antigravity" => "Antigravity",
+                "opencode" => "OpenCode",
                 _ => _fixture.Settings.Agent,
             };
             await onboarding.CompleteOnboarding(

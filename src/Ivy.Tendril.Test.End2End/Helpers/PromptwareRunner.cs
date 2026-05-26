@@ -40,6 +40,7 @@ public class PromptwareRunner
         };
 
         arguments.Add("promptware");
+        arguments.Add("run");
         arguments.Add(promptwareName);
         arguments.AddRange(args);
 
