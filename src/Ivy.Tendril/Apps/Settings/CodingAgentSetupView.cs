@@ -53,7 +53,7 @@ public class CodingAgentSetupView : ViewBase
         }
 
         var models = modelsQuery.Value ?? [];
-        var modelOptions = new[] { new Option<string>("Default", "") }
+        var modelOptions = new[] { new Option<string>("Default", "default") }
             .Concat(models.Select(m => new Option<string>(m.DisplayName, m.Id)))
             .ToArray<IAnyOption>();
 
@@ -101,7 +101,8 @@ public class CodingAgentSetupView : ViewBase
         var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
             AgentProviderFactory.NormalizeAgentName(a.Name).Equals(agentId, StringComparison.OrdinalIgnoreCase));
         var profile = ac?.Profiles.FirstOrDefault(p => p.Name.Equals(profileName, StringComparison.OrdinalIgnoreCase));
-        return profile?.Model ?? "";
+        var value = profile?.Model;
+        return string.IsNullOrEmpty(value) ? "default" : value;
     }
 
     private static void SaveProfiles(IConfigService config, string agentId, string deep, string balanced, string quick)
