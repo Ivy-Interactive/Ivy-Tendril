@@ -21,7 +21,8 @@ public class CreateIssueTests
             $"Fix Null Reference Bug {agent}",
             "There is a null reference exception when the config file is missing",
             "E2ETest",
-            steps: ["Add null check before accessing config properties"]);
+            steps: ["Add null check before accessing config properties"],
+            repoPath: _fixture.TestRepo.LocalClonePath);
 
         var result = await _fixture.Runner.RunAsync(
             "CreateIssue",
