@@ -113,7 +113,7 @@ public class PlanVerificationAddCommand : Command<PlanVerificationAddSettings>
             plan.Verifications.Add(new PlanVerificationEntry
             {
                 Name = settings.Name,
-                Status = settings.Status ?? "Pending"
+                Status = settings.Status ?? VerificationStatus.Pending
             });
 
             plan.Updated = DateTime.UtcNow;
