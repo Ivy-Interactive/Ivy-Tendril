@@ -29,60 +29,9 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
         var isImporting = UseState(false);
         var assigneesError = UseState<string?>(null);
         var labelsError = UseState<string?>(null);
-        var reposState = UseState<List<RepoConfig>?>(null);
-        var reposError = UseState<string?>(null);
-
-        var assigneesQuery = UseQuery<string[], string>(
-            $"assignees:{selectedRepo.Value ?? ""}",
-            async (key, _) =>
-            {
-                var repoName = key.StartsWith("assignees:") ? key.Substring("assignees:".Length) : key;
-
-                if (string.IsNullOrEmpty(repoName))
-                {
-                    assigneesError.Set(null);
-                    return Array.Empty<string>();
-                }
-                var repos = githubService.GetRepos();
-                var repo = repos.FirstOrDefault(r => r.DisplayName == repoName);
-                if (repo is null)
-                {
-                    assigneesError.Set(null);
-                    return Array.Empty<string>();
-                }
-
-                var (assignees, error) = await githubService.GetAssigneesAsync(repo.Owner, repo.Name);
-                assigneesError.Set(error);
-                return assignees.ToArray();
-            },
-            initialValue: Array.Empty<string>()
-        );
-
-        var labelsQuery = UseQuery<string[], string>(
-            $"labels:{selectedRepo.Value ?? ""}",
-            async (key, _) =>
-            {
-                var repoName = key.StartsWith("labels:") ? key.Substring("labels:".Length) : key;
-
-                if (string.IsNullOrEmpty(repoName))
-                {
-                    labelsError.Set(null);
-                    return Array.Empty<string>();
-                }
-                var repos = githubService.GetRepos();
-                var repo = repos.FirstOrDefault(r => r.DisplayName == repoName);
-                if (repo is null)
-                {
-                    labelsError.Set(null);
-                    return Array.Empty<string>();
-                }
-
-                var (labels, error) = await githubService.GetLabelsAsync(repo.Owner, repo.Name);
-                labelsError.Set(error);
-                return labels.ToArray();
-            },
-            initialValue: Array.Empty<string>()
-        );
+        var assigneeOptions = UseState<string[]>([]);
+        var labelOptions = UseState<string[]>([]);
+        var filtersLoading = UseState(false);
 
         UseEffect(() =>
         {
@@ -93,68 +42,90 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
             selectedLabels.Set(Array.Empty<string>());
             assigneesError.Set(null);
             labelsError.Set(null);
+            assigneeOptions.Set([]);
+            labelOptions.Set([]);
         }, selectedRepo);
 
-        UseEffect(() =>
+        UseEffect(async () =>
         {
-            if (!_dialogOpen.Value)
+            if (string.IsNullOrEmpty(selectedRepo.Value))
             {
-                reposState.Set(null);
-                reposError.Set(null);
+                filtersLoading.Set(false);
                 return;
             }
 
+            var repoName = selectedRepo.Value;
+            var repo = githubService.GetRepos().FirstOrDefault(r => r.DisplayName == repoName);
+            if (repo is null)
+            {
+                filtersLoading.Set(false);
+                return;
+            }
+
+            filtersLoading.Set(true);
+            assigneesError.Set(null);
+            labelsError.Set(null);
+
             try
             {
-                var repos = githubService.GetRepos();
-                if (repos.Count == 0)
-                {
-                    reposError.Set("No GitHub repositories found. Check that your projects in config.yaml have valid git repositories with 'origin' remotes.");
-                }
-                else
-                {
-                    reposState.Set(repos);
-                }
+                var assigneesTask = githubService.GetAssigneesAsync(repo.Owner, repo.Name);
+                var labelsTask = githubService.GetLabelsAsync(repo.Owner, repo.Name);
+                await Task.WhenAll(assigneesTask, labelsTask);
+
+                if (selectedRepo.Value != repoName)
+                    return;
+
+                var (assignees, assigneesErr) = await assigneesTask;
+                var (labels, labelsErr) = await labelsTask;
+
+                assigneesError.Set(assigneesErr);
+                labelsError.Set(labelsErr);
+                assigneeOptions.Set(assignees.ToArray());
+                labelOptions.Set(labels.ToArray());
             }
             catch (Exception ex)
             {
-                reposError.Set($"Failed to load repositories: {ex.Message}");
-                logger.LogWarning(ex, "Exception loading repos");
+                logger.LogWarning(ex, "Failed to load assignees/labels for {Repo}", repoName);
+                if (selectedRepo.Value == repoName)
+                    assigneesError.Set($"Failed to load filter options: {ex.Message}");
             }
-        }, _dialogOpen);
+            finally
+            {
+                if (selectedRepo.Value == repoName)
+                    filtersLoading.Set(false);
+            }
+        }, selectedRepo);
 
         if (!_dialogOpen.Value) return null;
 
-        if (reposState.Value is null && reposError.Value is null)
+        List<RepoConfig> repos;
+        try
+        {
+            repos = githubService.GetRepos();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Exception loading repos");
+            return new Dialog(
+                _ => _dialogOpen.Set(false),
+                new DialogHeader("Import Issues from GitHub"),
+                new DialogBody(Text.Danger($"Failed to load repositories: {ex.Message}"))
+            ).Width(Size.Rem(42));
+        }
+
+        if (repos.Count == 0)
         {
             return new Dialog(
                 _ => _dialogOpen.Set(false),
                 new DialogHeader("Import Issues from GitHub"),
-                new DialogBody(
-                    Layout.Vertical().Gap(3).AlignContent(Align.Center)
-                    | Text.Muted("Loading repositories...")
-                    | new Loading()
-                )
+                new DialogBody(Text.Danger(
+                    "No GitHub repositories found. Check that your projects in config.yaml have valid git repositories with 'origin' remotes."))
             ).Width(Size.Rem(42));
         }
 
-        if (reposError.Value is { } repoErr)
-        {
-            return new Dialog(
-                _ =>
-                {
-                    reposError.Set(null);
-                    _dialogOpen.Set(false);
-                },
-                new DialogHeader("Import Issues from GitHub"),
-                new DialogBody(Text.Danger(repoErr))
-            ).Width(Size.Rem(42));
-        }
-
-        var repos = reposState.Value!;
         var repositoryOptions = repos.Select(r => r.DisplayName).ToArray();
         var hasRepo = !string.IsNullOrEmpty(selectedRepo.Value);
-        var filtersLoading = hasRepo && (assigneesQuery.Loading || labelsQuery.Loading);
+        var filtersBusy = hasRepo && filtersLoading.Value;
 
         void ResetDialogState()
         {
@@ -396,13 +367,13 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
                 | selectedRepo.ToSelectInput(repositoryOptions.ToOptions())
                     .WithField().Label("Repository").Required()
                 | searchQuery.ToTextInput().Placeholder("Search titles and descriptions").WithField().Label("Search")
-                | selectedAssignees.ToSelectInput(assigneesQuery.Value.ToOptions())
-                    .Disabled(!hasRepo || filtersLoading)
-                    .Placeholder(filtersLoading ? "Loading assignees..." : "Select assignees...")
+                | selectedAssignees.ToSelectInput(assigneeOptions.Value.ToOptions())
+                    .Disabled(!hasRepo || filtersBusy)
+                    .Placeholder(filtersBusy ? "Loading assignees..." : "Select assignees...")
                     .WithField().Label("Assignees")
-                | selectedLabels.ToSelectInput(labelsQuery.Value.ToOptions())
-                    .Disabled(!hasRepo || filtersLoading)
-                    .Placeholder(filtersLoading ? "Loading labels..." : "Select labels...")
+                | selectedLabels.ToSelectInput(labelOptions.Value.ToOptions())
+                    .Disabled(!hasRepo || filtersBusy)
+                    .Placeholder(filtersBusy ? "Loading labels..." : "Select labels...")
                     .WithField().Label("Labels")
                 | (assigneesError.Value is { } assigneeErr
                     ? Text.Danger(assigneeErr).Small()
