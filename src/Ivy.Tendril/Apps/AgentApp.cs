@@ -1,5 +1,6 @@
 using Ivy.Hooks.Pty;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Helpers;
 using Ivy.Tendril.Services;
 using Ivy.Widgets.Xterm;
 using Xterm = Ivy.Widgets.Xterm;
@@ -42,7 +43,7 @@ public class AgentApp : ViewBase
             WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             PermissionMode = PermissionMode.Default,
         });
-        return spec?.CommandLine.ToArray() ?? [cli.Id];
+        return spec?.ResolveCommand().CommandLine.ToArray() ?? [cli.Id];
     }
 
     private static string GetWorkDir(IConfigService config, IAgentRunner runner)
