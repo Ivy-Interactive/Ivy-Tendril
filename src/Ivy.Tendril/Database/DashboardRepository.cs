@@ -2,7 +2,7 @@ using System.Globalization;
 using Ivy.Tendril.Models;
 using Microsoft.Data.Sqlite;
 
-namespace Ivy.Tendril.Repositories;
+namespace Ivy.Tendril.Database;
 
 public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSlim lockSlim)
 {
