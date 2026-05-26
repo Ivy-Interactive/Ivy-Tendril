@@ -11,6 +11,7 @@ public class TunnelSetupView : ViewBase
     {
         var client = UseService<IClientProvider>();
         var tunnelService = UseService<ICloudflaredService>();
+        var copyToClipboard = UseClipboard();
 
         var isLoading = UseState(false);
         var error = UseState<string?>(null);
@@ -55,11 +56,22 @@ public class TunnelSetupView : ViewBase
             form |= Callout.Error(error.Value, "Error");
         }
 
-        if (isConnected.Value && tunnelUrl.Value is not null)
+        if (isLoading.Value)
+        {
+            form |= Callout.Info("Starting tunnel and waiting for it to become routable. This typically takes 15-30 seconds.", "Tunnel Starting...");
+            form |= new Loading();
+        }
+        else if (isConnected.Value && tunnelUrl.Value is not null)
         {
             form |= Callout.Success("Your tunnel is running and accessible at the URL below.", "Tunnel Active");
             form |= Text.Block("Tunnel URL").Bold().Small();
             form |= Text.Monospaced(tunnelUrl.Value);
+            form |= new Button("Copy URL").Icon(Icons.ClipboardCopy).Outline()
+                .OnClick(() =>
+                {
+                    copyToClipboard(tunnelUrl.Value!);
+                    client.Toast("Tunnel URL copied to clipboard", "URL Copied");
+                });
             form |= Text.Block("Scan QR Code").Bold().Small();
             form |= new QRCode { Value = tunnelUrl.Value, PixelSize = 200, ErrorCorrectionLevel = QrErrorCorrectionLevel.Medium };
             form |= new Button("Deactivate").Secondary()
