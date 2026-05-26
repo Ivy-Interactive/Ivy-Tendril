@@ -88,7 +88,7 @@ export const TendrilProcessView: React.FC<TendrilProcessViewProps> = ({
     <div className="tpv-container" style={style}>
       <div className="tpv-flow">
         <button className={`tpv-box tpv-box-create${allZero ? " tpv-pulse" : ""}`} onClick={() => fireEvent("OnCreate")}>
-          <span className="tpv-box-label">Create Plan</span>
+          <span className="tpv-box-label">New Plan</span>
           <Plus size={16} className="tpv-box-icon" />
         </button>
 
