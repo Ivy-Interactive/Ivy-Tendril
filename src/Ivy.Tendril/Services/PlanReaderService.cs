@@ -18,7 +18,7 @@ public class PlanReaderService(
     private static readonly Regex StateLineRegex = new(@"(?m)^state:\s*(.+)$", RegexOptions.Compiled);
 
     private static readonly HashSet<string> TerminalStates = new(StringComparer.OrdinalIgnoreCase)
-        { "Completed", "Skipped" };
+        { nameof(PlanStatus.Completed), nameof(PlanStatus.Skipped) };
 
     private readonly TimeCache<Dictionary<string, DashboardModels>> _dashboardCache =
         new(TimeSpan.FromSeconds(10));
@@ -88,7 +88,7 @@ public class PlanReaderService(
     public void RecoverStuckPlans()
     {
         var stuckStates = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            { "Building", "Executing", "Updating", "Blocked" };
+            { nameof(PlanStatus.Building), nameof(PlanStatus.Executing), nameof(PlanStatus.Updating), nameof(PlanStatus.Blocked) };
 
         if (!Directory.Exists(PlansDirectory)) return;
 
@@ -105,9 +105,9 @@ public class PlanReaderService(
                 var state = stateMatch.Groups[1].Value.Trim();
                 if (stuckStates.Contains(state))
                 {
-                    var newState = state.Equals("Executing", StringComparison.OrdinalIgnoreCase)
-                        ? "Failed"
-                        : "Draft";
+                    var newState = state.Equals(nameof(PlanStatus.Executing), StringComparison.OrdinalIgnoreCase)
+                        ? nameof(PlanStatus.Failed)
+                        : nameof(PlanStatus.Draft);
                     var updated = Regex.Replace(yaml, @"(?m)^state:\s*.*$", $"state: {newState}");
                     updated = Regex.Replace(updated, @"(?m)^updated:\s*.*$",
                         $"updated: {DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ}");
@@ -674,7 +674,7 @@ public class PlanReaderService(
             if (item == null) return;
 
             item.State = newState;
-            if (newState == "Declined" && !string.IsNullOrWhiteSpace(declineReason))
+            if (newState == RecommendationStatus.Declined && !string.IsNullOrWhiteSpace(declineReason))
                 item.DeclineReason = declineReason;
             else
                 item.DeclineReason = null;
@@ -948,7 +948,7 @@ public class PlanReaderService(
             yield return new Recommendation(
                 item.Title,
                 item.Description,
-                string.IsNullOrWhiteSpace(item.State) ? "Pending" : item.State,
+                string.IsNullOrWhiteSpace(item.State) ? RecommendationStatus.Pending : item.State,
                 planId,
                 plan.Title ?? "",
                 folderName,
@@ -1003,7 +1003,7 @@ public class PlanReaderService(
                     case "icebox": icebox++; break;
                 }
 
-                if (planState.Equals("Completed", StringComparison.OrdinalIgnoreCase))
+                if (planState.Equals(nameof(PlanStatus.Completed), StringComparison.OrdinalIgnoreCase))
                 {
                     var plan = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml);
                     var items = plan?.Recommendations;
@@ -1011,8 +1011,8 @@ public class PlanReaderService(
                     if (items != null)
                         foreach (var item in items)
                         {
-                            var state = string.IsNullOrWhiteSpace(item.State) ? "Pending" : item.State;
-                            if (state.Equals("Pending", StringComparison.OrdinalIgnoreCase))
+                            var state = string.IsNullOrWhiteSpace(item.State) ? RecommendationStatus.Pending : item.State;
+                            if (state.Equals(RecommendationStatus.Pending, StringComparison.OrdinalIgnoreCase))
                                 pendingRecs++;
                         }
                 }

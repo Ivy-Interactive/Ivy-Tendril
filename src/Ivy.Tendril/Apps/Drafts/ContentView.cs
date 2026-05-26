@@ -313,7 +313,7 @@ public class ContentView(
         if (!statusMatch.Success)
             return Callout.Destructive("No details available. Check the logs folder.", "Execution Failed");
         var status = statusMatch.Groups[1].Value.Trim();
-        if (status == "Completed")
+        if (status == nameof(PlanStatus.Completed))
             return Callout.Warning(
                 "Execution reported as completed but plan is in Failed state. The process may have crashed during state transition.",
                 "State Mismatch");

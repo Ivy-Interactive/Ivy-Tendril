@@ -49,7 +49,7 @@ internal class DependencyChecker
         if (depPlan == null)
             return (false, $"Dependency '{dep}' not found");
 
-        if (!depPlan.State.Equals("Completed", StringComparison.OrdinalIgnoreCase))
+        if (!depPlan.State.Equals(nameof(PlanStatus.Completed), StringComparison.OrdinalIgnoreCase))
             return (false, $"Dependency '{dep}' is '{depPlan.State}', not Completed");
 
         foreach (var prUrl in depPlan.Prs.Where(PullRequestApp.IsValidUrl))
@@ -106,7 +106,7 @@ internal class DependencyChecker
             if (HasActiveJobForPlan(planFolder, jobs)) continue;
             if (!jobs.TryRemove(blockedJob.Id, out _)) continue;
 
-            PlanYamlHelper.SetPlanStateByFolder(planFolder, "Building");
+            PlanYamlHelper.SetPlanStateByFolder(planFolder, nameof(PlanStatus.Building));
             startJobSkipDepCheck(blockedJob.TypedArgs!);
 
             raiseNotification(new JobNotification(
@@ -135,7 +135,7 @@ internal class DependencyChecker
                 var (allMet, _) = CheckDependencies(dir);
                 if (allMet)
                 {
-                    PlanYamlHelper.SetPlanStateByFolder(dir, "Building");
+                    PlanYamlHelper.SetPlanStateByFolder(dir, nameof(PlanStatus.Building));
                     startJobSkipDepCheck(new ExecutePlanArgs(dir));
                 }
             }
@@ -153,7 +153,7 @@ internal class DependencyChecker
     {
         var planYaml = PlanYamlHelper.ReadPlanYaml(dir);
         if (planYaml == null) return false;
-        if (!planYaml.State.Equals("Blocked", StringComparison.OrdinalIgnoreCase)) return false;
+        if (!planYaml.State.Equals(nameof(PlanStatus.Blocked), StringComparison.OrdinalIgnoreCase)) return false;
         if (!planYaml.DependsOn.Contains(completedFolderName, StringComparer.OrdinalIgnoreCase)) return false;
 
         return !jobs.Values.Any(j =>

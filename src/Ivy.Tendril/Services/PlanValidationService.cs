@@ -11,8 +11,8 @@ public static class PlanValidationService
 {
     private static readonly string[] ValidStates =
     [
-        "Draft", "Building", "Updating", "Executing", "ReadyForReview",
-        "Failed", "Completed", "Skipped", "Blocked", "Icebox"
+        nameof(PlanStatus.Draft), nameof(PlanStatus.Building), nameof(PlanStatus.Updating), nameof(PlanStatus.Executing), nameof(PlanStatus.ReadyForReview),
+        nameof(PlanStatus.Failed), nameof(PlanStatus.Completed), nameof(PlanStatus.Skipped), nameof(PlanStatus.Blocked), nameof(PlanStatus.Icebox)
     ];
 
     private static readonly string[] ValidLevels =
@@ -52,7 +52,7 @@ public static class PlanValidationService
         // Validate repos (unless Completed with PRs/commits)
         if (plan.Repos == null || plan.Repos.Count == 0)
         {
-            var isCompleted = plan.State.Equals("Completed", StringComparison.OrdinalIgnoreCase);
+            var isCompleted = plan.State.Equals(nameof(PlanStatus.Completed), StringComparison.OrdinalIgnoreCase);
             var hasPrsOrCommits = (plan.Prs?.Count > 0) || (plan.Commits?.Count > 0);
             if (!isCompleted || !hasPrsOrCommits)
                 throw new ArgumentException("Field 'repos' is empty. At least one repository is required.");

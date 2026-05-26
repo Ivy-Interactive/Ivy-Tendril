@@ -91,7 +91,7 @@ public class PlanCreateCommand : Command<PlanCreateSettings>
 
             var plan = new PlanYaml
             {
-                State = "Draft",
+                State = nameof(PlanStatus.Draft),
                 Project = settings.Project ?? "Auto",
                 Level = settings.Level ?? "NiceToHave",
                 Title = settings.Title,

@@ -468,7 +468,7 @@ public class ContentView(
                 content |= actionsBar;
             }
 
-            var pendingRecs = planData.Recommendations.Where(r => r.State == "Pending").ToList();
+            var pendingRecs = planData.Recommendations.Where(r => r.State == RecommendationStatus.Pending).ToList();
             var recommendationsLayout = Layout.Vertical().Padding(2);
             if (pendingRecs.Count == 0)
                 recommendationsLayout |= Text.Muted("No recommendations.");
@@ -504,14 +504,14 @@ public class ContentView(
                                     {
                                         planService.ResetVerificationsForRetry(selectedPlan.FolderName);
                                         planService.TransitionState(selectedPlan.FolderName, PlanStatus.Executing);
-                                        planService.UpdateRecommendationState(selectedPlan.FolderName, recTitle, "Accepted");
+                                        planService.UpdateRecommendationState(selectedPlan.FolderName, recTitle, RecommendationStatus.Accepted);
                                         jobService.StartJob(new RetryPlanArgs(selectedPlan.FolderPath, rec.Description));
                                         refreshPlans();
                                         planContentQuery.Mutator.Revalidate();
                                     })
                                     | new Button("Decline").Icon(Icons.X).Outline().OnClick(() =>
                                     {
-                                        planService.UpdateRecommendationState(selectedPlan.FolderName, recTitle, "Declined");
+                                        planService.UpdateRecommendationState(selectedPlan.FolderName, recTitle, RecommendationStatus.Declined);
                                         refreshPlans();
                                         planContentQuery.Mutator.Revalidate();
                                     });
