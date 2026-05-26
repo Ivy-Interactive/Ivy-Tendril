@@ -158,12 +158,11 @@ public class Program
                 {
                     if (server.ServiceProvider is { } sp)
                     {
-                        var countsService = sp.GetService<IPlanCountsService>();
-                        if (countsService != null)
+                        var statusService = sp.GetService<ITendrilProcessStatusService>();
+                        if (statusService != null)
                         {
-                            UpdateBadge(w, countsService.Current.ActiveJobs);
-                            countsService.CountsChanged += () =>
-                                UpdateBadge(w, countsService.Current.ActiveJobs);
+                            UpdateBadge(w, statusService.Current.JobCount);
+                            statusService.Status.Subscribe(s => UpdateBadge(w, s.JobCount));
                         }
 
                         var jobService = sp.GetService<IJobService>();
