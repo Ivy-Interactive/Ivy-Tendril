@@ -334,6 +334,11 @@ codingAgents:
     model: default
     effort: low
     arguments: ''
+tunnel:
+  enabled: true
+  port: 5010
+  binaryPath: ''
+  maxRestarts: 10
 telemetry: true
 desktopNotifications: true
 levels:
