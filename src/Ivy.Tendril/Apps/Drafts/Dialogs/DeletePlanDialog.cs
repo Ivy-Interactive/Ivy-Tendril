@@ -1,8 +1,7 @@
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Helpers;
 
-namespace Ivy.Tendril.Apps.Plans.Dialogs;
+namespace Ivy.Tendril.Apps.Drafts.Dialogs;
 
 public class DeletePlanDialog(
     IState<bool> dialogOpen,

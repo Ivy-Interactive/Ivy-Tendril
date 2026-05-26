@@ -1,5 +1,5 @@
 using System.Reactive.Disposables;
-using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Apps.Drafts;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
@@ -7,7 +7,7 @@ using Ivy.Tendril.Helpers;
 namespace Ivy.Tendril.Apps;
 
 [App(title: "Drafts", icon: Icons.Feather, group: ["Apps"], order: Constants.Drafts)]
-public class PlansApp : ViewBase
+public class DraftsApp : ViewBase
 {
     public override object Build()
     {

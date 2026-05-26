@@ -1,9 +1,9 @@
-using Ivy.Tendril.Models;
-using Ivy.Tendril.Helpers;
-using Ivy.Tendril.Services;
 using Ivy.Tendril.Apps.Views;
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
+using Ivy.Tendril.Services;
 
-namespace Ivy.Tendril.Apps.Plans;
+namespace Ivy.Tendril.Apps.Drafts;
 
 public class SidebarView(
     List<PlanFile> plans,

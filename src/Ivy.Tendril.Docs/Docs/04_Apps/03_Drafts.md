@@ -11,7 +11,7 @@ icon: Feather
 # Drafts
 
 <Ingress>
-Plans in **Draft** (or **Blocked**): shape the work before execution (`PlansApp`).
+Plans in **Draft** (or **Blocked**): shape the work before execution (`DraftsApp`).
 </Ingress>
 
 ## Role

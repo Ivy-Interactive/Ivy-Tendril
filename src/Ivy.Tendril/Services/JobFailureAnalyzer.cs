@@ -1,4 +1,6 @@
 using System.Text.RegularExpressions;
+using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Runtime;
 using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Services;
@@ -134,6 +136,17 @@ internal static class JobFailureAnalyzer
         catch { }
 
         return "Claude API error (see output for details)";
+    }
+
+    internal static string? TryExtractErrorEvent(IEnumerable<string> outputLines)
+    {
+        var serializer = new JsonEventSerializer();
+        foreach (var line in outputLines.Reverse())
+        {
+            if (serializer.Deserialize(line) is ErrorEvent { Message.Length: > 0 } e)
+                return SanitizeForDisplay(e.Message);
+        }
+        return null;
     }
 
     internal static string? TryReadFailureArtifact(List<string> outputLines)

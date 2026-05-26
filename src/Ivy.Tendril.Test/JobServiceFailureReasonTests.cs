@@ -180,4 +180,37 @@ public class JobServiceFailureReasonTests : IDisposable
         Assert.Equal(JobStatus.Failed, job.Status);
         Assert.Equal("Execution failed (exit code: 1)", job.StatusMessage);
     }
+
+    [Fact]
+    public void CompleteJob_ZeroExitCode_WithErrorEvent_MarksAsFailed()
+    {
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
+        var id = service.CreateTestJob(new ExecutePlanArgs(Path.GetTempPath()));
+        var job = service.GetJob(id)!;
+        job.OutputLines.Enqueue(
+            """{"kind":"error","timestamp":"2026-05-26T12:18:29Z","message":"Access to Meta Llama models is not allowed from unsupported regions","is_retryable":false,"is_auth_error":false}""");
+
+        service.CompleteJob(id, 0);
+
+        job = service.GetJob(id)!;
+        Assert.Equal(JobStatus.Failed, job.Status);
+        Assert.Contains("Access to Meta Llama models", job.StatusMessage);
+    }
+
+    [Fact]
+    public void CompleteJob_ZeroExitCode_WithoutErrorEvent_RemainsCompleted()
+    {
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
+        var planFolder = CreateValidPlanFolder();
+        var id = service.StartJob(new ExecutePlanArgs(planFolder));
+        var job = service.GetJob(id)!;
+        job.OutputLines.Enqueue(
+            """{"kind":"text","timestamp":"2026-05-26T12:18:29Z","text":"All done"}""");
+
+        service.CompleteJob(id, 0);
+
+        job = service.GetJob(id)!;
+        Assert.Equal(JobStatus.Completed, job.Status);
+        Assert.Null(job.StatusMessage);
+    }
 }

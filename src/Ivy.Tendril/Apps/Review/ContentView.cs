@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Reactive.Disposables;
 using Ivy.Core;
-using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Apps.Review.Dialogs;
 using Ivy.Tendril.Apps.Views;

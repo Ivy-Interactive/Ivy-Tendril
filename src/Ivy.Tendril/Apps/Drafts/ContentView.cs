@@ -1,14 +1,14 @@
-using Ivy.Tendril.Models;
 using System.Text.RegularExpressions;
 using Ivy.Core;
-using Ivy.Tendril.Apps.Plans.Dialogs;
+using Ivy.Tendril.Apps.Drafts.Dialogs;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Apps.Views.Tabs;
-using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
+using Ivy.Tendril.Services;
 
-namespace Ivy.Tendril.Apps.Plans;
+namespace Ivy.Tendril.Apps.Drafts;
 
 public class ContentView(
     PlanFile? selectedPlan,

@@ -1,6 +1,5 @@
 using Ivy.Core;
 using Ivy.Tendril.Apps.Icebox.Dialogs;
-using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Models;

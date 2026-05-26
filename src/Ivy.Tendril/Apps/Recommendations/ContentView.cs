@@ -1,4 +1,3 @@
-using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Apps.Recommendations.Dialogs;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Apps.Views.Sheets;

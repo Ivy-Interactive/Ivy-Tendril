@@ -1,6 +1,6 @@
 using Ivy.Core.Hooks;
 
-namespace Ivy.Tendril.Apps.Plans.Dialogs;
+namespace Ivy.Tendril.Apps.Drafts.Dialogs;
 
 public class CreatePlanDialog(
     List<string> projectNames,

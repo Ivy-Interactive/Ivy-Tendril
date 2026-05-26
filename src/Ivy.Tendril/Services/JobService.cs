@@ -152,10 +152,23 @@ public class JobService : IJobService
         else
         {
             var success = exitCode == 0;
-            if (!success)
-                job.StatusMessage ??= ExtractFailureReason(job.OutputLines.ToList(), job.Type);
+            if (success)
+            {
+                var errorMessage = JobFailureAnalyzer.TryExtractErrorEvent(job.OutputLines);
+                if (errorMessage != null)
+                {
+                    success = false;
+                    job.StatusMessage = errorMessage;
+                }
+                else
+                {
+                    job.StatusMessage = null;
+                }
+            }
             else
-                job.StatusMessage = null;
+            {
+                job.StatusMessage ??= ExtractFailureReason(job.OutputLines.ToList(), job.Type);
+            }
             job.Status = success ? JobStatus.Completed : JobStatus.Failed;
         }
 

@@ -1,9 +1,8 @@
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Helpers;
-using Ivy.Core;
 
-namespace Ivy.Tendril.Apps.Plans;
+namespace Ivy.Tendril.Apps.Drafts;
 
 public class ActionBarView(
     PlanFile selectedPlan,
