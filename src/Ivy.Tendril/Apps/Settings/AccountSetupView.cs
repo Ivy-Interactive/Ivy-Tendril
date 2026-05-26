@@ -6,8 +6,6 @@ public class AccountSetupView : ViewBase
 {
     public override object Build()
     {
-        // Hooks first, then Context.TryUseService, then UseEffect — matches analyzer rules
-        var client = UseService<IClientProvider>();
         var user = UseState<UserInfo?>();
         Context.TryUseService<IAuthService>(out var auth);
 

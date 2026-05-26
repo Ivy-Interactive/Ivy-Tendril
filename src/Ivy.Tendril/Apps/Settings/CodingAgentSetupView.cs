@@ -33,7 +33,7 @@ public class CodingAgentSetupView : ViewBase
                 | a.Logo.ToIcon().Width(Size.Px(32)).Height(Size.Px(32))
                 | Text.Block(a.Label)
                 | (a.Key == selectedAgent.Value ? Icons.Check.ToIcon() : null)
-            ).Width(Size.Px(150)).OnClick(() =>
+            ).Width(Size.Px(200)).OnClick(() =>
             {
                 config.Settings.CodingAgent = a.Key;
                 config.SaveSettings();
