@@ -67,7 +67,7 @@ internal class PlanArtifactSyncer
 
             var verification = plan.Verifications.FirstOrDefault(v =>
                 v.Name.Equals(reportName, StringComparison.OrdinalIgnoreCase));
-            if (verification == null || verification.Status != "Pending") continue;
+            if (verification == null || verification.Status != VerificationStatus.Pending) continue;
 
             try
             {
