@@ -18,6 +18,7 @@ public class SettingsApp : ViewBase
     private const string TagVerifications = "verifications";
     private const string TagPromptwares = "promptwares";
     private const string TagProjects = "projects";
+    private const string TagTunnel = "tunnel";
     private const string TagAdvanced = "advanced";
     private const string TagOpenConfig = "open-config";
 
@@ -47,6 +48,7 @@ public class SettingsApp : ViewBase
                     MenuItem.Default("Levels", TagLevels).Icon(Icons.ListOrdered),
                     MenuItem.Default("Notifications", TagNotifications).Icon(Icons.Bell),
                     MenuItem.Default("Security", TagSecurity).Icon(Icons.Lock),
+                    MenuItem.Default("Tunnel", TagTunnel).Icon(Icons.Globe),
                     MenuItem.Default("Advanced", TagAdvanced).Icon(Icons.Cog),
                     MenuItem.Default("Open config.yaml", TagOpenConfig).Icon(Icons.FileText)
                 )
@@ -79,6 +81,7 @@ public class SettingsApp : ViewBase
             TagVerifications => new VerificationsSetupView(),
             TagPromptwares => new PromptwaresSetupView(),
             TagProjects => new ProjectsSetupView(),
+            TagTunnel => new TunnelSetupView(),
             TagAdvanced => new AdvancedSetupView(),
             _ => new CodingAgentSetupView()
         };
