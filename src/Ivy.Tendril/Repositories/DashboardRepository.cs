@@ -1,16 +1,11 @@
 using System.Globalization;
 using Ivy.Tendril.Models;
 using Microsoft.Data.Sqlite;
-using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Repositories;
 
-public class DashboardRepository
+public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSlim lockSlim)
 {
-    private readonly SqliteConnection _connection;
-    private readonly ILogger _logger;
-    private readonly ReaderWriterLockSlim _lock;
-
     private sealed class ReadLockHandle : IDisposable
     {
         private readonly ReaderWriterLockSlim _lock;
@@ -22,16 +17,9 @@ public class DashboardRepository
         public void Dispose() => _lock.ExitReadLock();
     }
 
-    public DashboardRepository(SqliteConnection connection, ReaderWriterLockSlim lockSlim, ILogger logger)
-    {
-        _connection = connection;
-        _lock = lockSlim;
-        _logger = logger;
-    }
-
     public DashboardModels GetDashboardData(string? projectFilter)
     {
-        using (new ReadLockHandle(_lock))
+        using (new ReadLockHandle(lockSlim))
         {
             var cutoff = DateTime.UtcNow.Date.AddDays(-6).ToString("yyyy-MM-dd");
             var pf = projectFilter != null ? " AND Project = @project" : "";
@@ -41,7 +29,7 @@ public class DashboardRepository
             // Query 1: Status counts + avg cost (LAST 7 DAYS - filtered by cutoff)
             int totalCount, draftCount, inProgressCount, reviewCount, completedCount, failedCount;
             decimal avgCost;
-            using (var cmd = _connection.CreateCommand())
+            using (var cmd = connection.CreateCommand())
             {
                 cmd.CommandText = $"""
                     SELECT
@@ -84,7 +72,7 @@ public class DashboardRepository
             var dailyCosts = new Dictionary<string, decimal>();
             var dailyTokens = new Dictionary<string, int>();
 
-            using (var cmd = _connection.CreateCommand())
+            using (var cmd = connection.CreateCommand())
             {
                 // Build day list for IN clause
                 var days = new List<string>();
@@ -173,7 +161,7 @@ public class DashboardRepository
 
             // Query 3: Project counts (LAST 7 DAYS - filtered by cutoff)
             var projectCounts = new List<ProjectCount>();
-            using (var cmd = _connection.CreateCommand())
+            using (var cmd = connection.CreateCommand())
             {
                 cmd.CommandText = "SELECT Project, COUNT(*) FROM Plans WHERE Created >= @cutoff GROUP BY Project ORDER BY COUNT(*) DESC";
                 cmd.Parameters.AddWithValue("@cutoff", cutoff);

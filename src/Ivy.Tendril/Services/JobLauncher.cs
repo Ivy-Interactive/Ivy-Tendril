@@ -90,7 +90,7 @@ internal class JobLauncher
         ctx.RunHooks("before", type, planFolderForHooks, job.Project, job);
 
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs && !string.IsNullOrEmpty(job.TypedArgs?.PlanFolder))
-            PlanYamlHelper.SetPlanStateByFolder(job.TypedArgs!.PlanFolder!, "Executing");
+            PlanYamlHelper.SetPlanStateByFolder(job.TypedArgs!.PlanFolder!, nameof(PlanStatus.Executing));
 
         job.SessionId = Guid.NewGuid().ToString();
     }

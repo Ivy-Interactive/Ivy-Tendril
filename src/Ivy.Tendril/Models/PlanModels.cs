@@ -60,11 +60,19 @@ public record PlanFile(
     public string FolderName => Path.GetFileName(FolderPath);
 }
 
+public static class RecommendationStatus
+{
+    public const string Pending = nameof(Pending);
+    public const string Accepted = nameof(Accepted);
+    public const string AcceptedWithNotes = nameof(AcceptedWithNotes);
+    public const string Declined = nameof(Declined);
+}
+
 public class RecommendationYaml
 {
     public string Title { get; set; } = "";
     public string Description { get; set; } = "";
-    public string State { get; set; } = "Pending";
+    public string State { get; set; } = RecommendationStatus.Pending;
     public string? DeclineReason { get; set; }
     public string? Impact { get; set; }
     public string? Risk { get; set; }
@@ -118,7 +126,7 @@ public class PlanVerificationEntry
 
 public class PlanYaml
 {
-    public string State { get; set; } = "Draft";
+    public string State { get; set; } = nameof(PlanStatus.Draft);
     public string Project { get; set; } = "Auto";
     public string Level { get; set; } = "NiceToHave";
     public string Title { get; set; } = "";
