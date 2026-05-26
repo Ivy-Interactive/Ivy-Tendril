@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Text;
 using System.Text.RegularExpressions;
-using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Commands;
 using Ivy.Tendril.Services;

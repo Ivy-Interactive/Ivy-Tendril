@@ -1,4 +1,4 @@
-namespace Ivy.Tendril.Apps.Plans.Dialogs;
+namespace Ivy.Tendril.Apps.Drafts.Dialogs;
 
 public class NoProjectsDialog(Action onClose, Action onGoToProjects) : ViewBase
 {

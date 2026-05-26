@@ -1,10 +1,9 @@
+using Ivy.Tendril.Apps.Views.Sheets;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Helpers;
-using Ivy.Core;
-using Ivy.Tendril.Apps.Views.Sheets;
 
-namespace Ivy.Tendril.Apps.Plans;
+namespace Ivy.Tendril.Apps.Drafts;
 
 public class PlanTabView(
     PlanFile selectedPlan,

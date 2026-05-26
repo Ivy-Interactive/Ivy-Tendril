@@ -70,7 +70,7 @@ public class JobDebugSheet(
             .RemoveEmpty();
 
         return new HeaderLayout(
-            new Button("Copy all Details").Icon(Icons.ClipboardCopy).Outline().OnClick(() =>
+            new Button("Copy Details").Icon(Icons.ClipboardCopy).Outline().OnClick(() =>
             {
                 var lines = new List<(string Label, string Value)>
                 {
@@ -102,6 +102,7 @@ public class JobDebugSheet(
                     .Select(l => $"{l.Label}: {l.Value}"));
 
                 copyToClipboard(formatted);
+                client.Toast("Job details copied to clipboard", "Copied");
             }),
             detailsView
         );

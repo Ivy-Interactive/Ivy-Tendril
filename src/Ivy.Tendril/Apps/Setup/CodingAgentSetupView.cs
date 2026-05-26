@@ -20,9 +20,10 @@ public class CodingAgentSetupView : ViewBase
         var config = UseService<IConfigService>();
         var client = UseService<IClientProvider>();
 
-        var currentAgent = string.IsNullOrWhiteSpace(config.Settings.CodingAgent)
-            ? "claude"
-            : config.Settings.CodingAgent;
+        var selectedAgent = UseState(
+            string.IsNullOrWhiteSpace(config.Settings.CodingAgent)
+                ? "claude"
+                : config.Settings.CodingAgent);
 
         var grid = Layout.Grid().Columns(3).Gap(2);
 
@@ -31,11 +32,12 @@ public class CodingAgentSetupView : ViewBase
                 Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(0)
                 | a.Logo.ToIcon().Width(Size.Px(32)).Height(Size.Px(32))
                 | Text.Block(a.Label)
-                | (a.Key == currentAgent ? Icons.Check.ToIcon() : null)
-            ).OnClick(() =>
+                | (a.Key == selectedAgent.Value ? Icons.Check.ToIcon() : null)
+            ).Width(Size.Px(150)).OnClick(() =>
             {
                 config.Settings.CodingAgent = a.Key;
                 config.SaveSettings();
+                selectedAgent.Set(a.Key);
                 client.Toast($"Coding agent set to {a.Label}", "Saved");
             }));
 

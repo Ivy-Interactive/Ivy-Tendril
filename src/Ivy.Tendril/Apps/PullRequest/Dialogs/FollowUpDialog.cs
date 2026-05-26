@@ -1,4 +1,4 @@
-using Ivy.Tendril.Apps.Plans.Dialogs;
+using Ivy.Tendril.Apps.Drafts.Dialogs;
 
 namespace Ivy.Tendril.Apps.PullRequest.Dialogs;
 

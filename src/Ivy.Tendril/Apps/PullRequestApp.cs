@@ -1,7 +1,5 @@
 using System.Text.RegularExpressions;
-using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Models;
-using Ivy.Tendril.Apps.Plans.Dialogs;
 using Ivy.Tendril.Apps.PullRequest;
 using Ivy.Tendril.Apps.PullRequest.Dialogs;
 using Ivy.Tendril.Apps.Views.Sheets;
