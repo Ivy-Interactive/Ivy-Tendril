@@ -9,7 +9,10 @@ public class NoContentView(string title, string description, object? cta = null)
                      | Text.Muted(description);
 
         if (cta is not null)
+        {
+            layout |= new Spacer();
             layout |= cta;
+        }
 
         return layout;
     }
