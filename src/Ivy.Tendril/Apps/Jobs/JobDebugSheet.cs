@@ -46,7 +46,7 @@ public class JobDebugSheet(
             ExitCode = job.ExitCode?.ToString() ?? ""
         };
 
-        return data.ToDetails()
+        var detailsView = data.ToDetails()
             .Multiline(x => x.PromptTitle)
             .Multiline(x => x.PermissionDenials)
             .Label(x => x.PromptTitle, "Prompt/Title")
@@ -68,6 +68,43 @@ public class JobDebugSheet(
             .Builder(x => x.PromptwareLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .Builder(x => x.PromptwareRawLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .RemoveEmpty();
+
+        return new HeaderLayout(
+            new Button("Copy all Details").Icon(Icons.ClipboardCopy).Outline().OnClick(() =>
+            {
+                var lines = new List<(string Label, string Value)>
+                {
+                    ("Job Id", data.JobId),
+                    ("Plan Id", data.PlanId),
+                    ("Prompt/Title", data.PromptTitle),
+                    ("Status", data.Status),
+                    ("Type", data.Type),
+                    ("Project", data.Project),
+                    ("Provider", data.Provider),
+                    ("Model", data.Model),
+                    ("Session Id", data.SessionId),
+                    ("Started", data.Started),
+                    ("Completed", data.Completed),
+                    ("Duration", data.Duration),
+                    ("Cost", data.Cost),
+                    ("Tokens", data.Tokens),
+                    ("Exit Code", data.ExitCode),
+                    ("Permission Denials", data.PermissionDenials),
+                    ("Plan Folder", data.PlanFolder),
+                    ("Plan Log", data.PlanLog),
+                    ("Plan CLI Log", data.PlanCliLog),
+                    ("Promptware Log", data.PromptwareLog),
+                    ("Promptware Raw Log", data.PromptwareRawLog),
+                };
+
+                var formatted = string.Join("\n", lines
+                    .Where(l => !string.IsNullOrEmpty(l.Value))
+                    .Select(l => $"{l.Label}: {l.Value}"));
+
+                copyToClipboard(formatted);
+            }),
+            detailsView
+        );
     }
 
     private object PathDropDown(string path, Action<string> copyToClipboard, IClientProvider client)
