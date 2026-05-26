@@ -1,4 +1,4 @@
-codingAgent: copilot
+codingAgent: claude
 jobTimeout: 30
 staleOutputTimeout: 10
 gitTimeout: 10
@@ -333,6 +333,21 @@ codingAgents:
   - name: quick
     model: default
     effort: low
+    arguments: ''
+- name: antigravity
+  arguments: ''
+  profiles:
+  - name: deep
+    model: ''
+    effort: ''
+    arguments: ''
+  - name: balanced
+    model: ''
+    effort: ''
+    arguments: ''
+  - name: quick
+    model: ''
+    effort: ''
     arguments: ''
 tunnel:
   enabled: true
