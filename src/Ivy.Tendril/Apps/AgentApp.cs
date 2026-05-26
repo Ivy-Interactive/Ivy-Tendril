@@ -5,7 +5,7 @@ using Xterm = Ivy.Widgets.Xterm;
 
 namespace Ivy.Tendril.Apps;
 
-[App(title: "Agent", icon: Icons.Terminal, group: ["Apps"], order: Constants.Agent, isVisible: false)]
+[App(title: "Agent", icon: Icons.Terminal, group: ["Apps"], order: Constants.Agent, isVisible: true, allowDuplicateTabs:true)]
 public class AgentApp : ViewBase
 {
     public override object Build()
@@ -13,11 +13,10 @@ public class AgentApp : ViewBase
         var isOpen = UseState(false);
         var configService = UseService<IConfigService>();
         var agentRunner = UseService<IAgentRunner>();
-#pragma warning disable IVYHOOK005
         var ptyHandle = Context.UsePty(
             GetCommandLine(configService, agentRunner),
-            GetWorkDir(configService, agentRunner));
-#pragma warning restore IVYHOOK005
+            GetWorkDir(configService, agentRunner)
+        );
 
         var cli = agentRunner.GetCli(configService.Settings.CodingAgent);
 
@@ -25,13 +24,15 @@ public class AgentApp : ViewBase
             return new Button($"Open {cli.DisplayName}")
                 .OnClick(() => isOpen.Set(true));
 
-        var terminal = new Xterm.Terminal();
-        terminal = Xterm.TerminalExtensions.Stream(terminal, ptyHandle.Stream);
-        terminal = Xterm.TerminalExtensions.OnInput(terminal, ptyHandle.HandleInput);
-        terminal = Xterm.TerminalExtensions.OnResize(terminal, ptyHandle.HandleResize);
-        terminal = Xterm.TerminalExtensions.Closed(terminal, ptyHandle.Closed);
-        terminal = Xterm.TerminalExtensions.AllowClipboard(terminal);
-
+        var terminal = new Xterm.Terminal
+        {
+            Stream = ptyHandle.Stream,
+            OnInput = e => { ptyHandle.HandleInput(e.Value); return ValueTask.CompletedTask; },
+            OnResize = e => { ptyHandle.HandleResize(e.Value.Cols, e.Value.Rows); return ValueTask.CompletedTask; },
+            Closed = ptyHandle.Closed,
+            AllowClipboard = true
+        };
+        
         return terminal
             .WithLayout()
             .Full()
