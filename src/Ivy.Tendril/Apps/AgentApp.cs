@@ -11,20 +11,14 @@ public class AgentApp : ViewBase
 {
     public override object Build()
     {
-        var isOpen = UseState(false);
         var configService = UseService<IConfigService>();
         var agentRunner = UseService<IAgentRunner>();
+        
         var ptyHandle = Context.UsePty(
             GetCommandLine(configService, agentRunner),
             GetWorkDir(configService, agentRunner)
         );
-
-        var cli = agentRunner.GetCli(configService.Settings.CodingAgent);
-
-        if (!isOpen.Value)
-            return new Button($"Open {cli.DisplayName}")
-                .OnClick(() => isOpen.Set(true));
-
+        
         var terminal = new Xterm.Terminal()
             .Stream(ptyHandle.Stream)
             .OnInput(ptyHandle.HandleInput)
