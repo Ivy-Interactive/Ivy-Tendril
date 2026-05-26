@@ -36,6 +36,9 @@ public static class HealthCheckRunner
         psi.Environment["CI"] = "true";
         psi.Environment["TERM"] = "dumb";
 
+        if (ct.IsCancellationRequested)
+            return (-1, string.Empty, "Cancelled");
+
         using var process = new Process();
         process.StartInfo = psi;
         var stdout = new StringBuilder();
