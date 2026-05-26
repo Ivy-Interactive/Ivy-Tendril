@@ -38,18 +38,18 @@ const LoopArrow: React.FC<LoopArrowProps> = ({ count, onClick }) => (
       <span className="tpv-arrow-count">{count}</span>
       <LoaderCircle className="tpv-spinner" size={13} />
     </button>
-    <svg className="tpv-curve-svg" viewBox="0 0 140 44" fill="none">
+    <svg className="tpv-curve-svg" viewBox="0 0 100 32" fill="none">
       <defs>
-        <marker id="arrowhead-curve" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-          <polygon points="0,0 6,3 0,6" fill="currentColor" />
+        <marker id="arrowhead-curve" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto">
+          <polygon points="0,0 7,3.5 0,7" fill="currentColor" />
         </marker>
       </defs>
       <path
-        d="M25 42 C25 8, 115 8, 115 42"
+        d="M80 30 L80 12 Q80 4, 72 4 L28 4 Q20 4, 20 12 L20 30"
         stroke="currentColor"
         strokeWidth="1.5"
         fill="none"
-        markerStart="url(#arrowhead-curve)"
+        markerEnd="url(#arrowhead-curve)"
       />
     </svg>
   </div>
@@ -93,7 +93,7 @@ export const TendrilProcessView: React.FC<TendrilProcessViewProps> = ({
           onClick={() => fireEvent("OnJobs")}
         />
 
-        {/* Drafts with executing loop arrow */}
+        {/* Drafts with executing loop */}
         <div className="tpv-stage-wrapper">
           {executingPlansCount > 0 && (
             <LoopArrow count={executingPlansCount} onClick={() => fireEvent("OnJobs")} />
@@ -110,7 +110,7 @@ export const TendrilProcessView: React.FC<TendrilProcessViewProps> = ({
           onClick={() => fireEvent("OnJobs")}
         />
 
-        {/* Review with retrying loop arrow */}
+        {/* Review with retrying loop */}
         <div className="tpv-stage-wrapper">
           {retryingPlansCount > 0 && (
             <LoopArrow count={retryingPlansCount} onClick={() => fireEvent("OnJobs")} />
