@@ -106,7 +106,8 @@ public class AddProjectDialog(
                 skipButtonText: "Manual Setup",
                 nextButtonText: "Create Project",
                 title: "Add a project",
-                disableSkipWhenCannotContinue: true),
+                disableSkipWhenCannotContinue: true,
+                showHeader: false),
             1 => new ProjectAgentStepView(
                 editRepos,
                 editName,
@@ -121,7 +122,8 @@ public class AddProjectDialog(
                     step.Set(2);
                 },
                 onSkip: null,
-                skipAgent: skipAgent.Value),
+                skipAgent: skipAgent.Value,
+                showHeader: false),
             2 => new ProjectCrudStepView(
                 editName,
                 isStepLoading,
@@ -136,16 +138,25 @@ public class AddProjectDialog(
                     refreshToken.Refresh();
                     client.Toast($"Project '{editName.Value}' added successfully", "Success");
                 },
-                nextButtonText: "Finish"),
+                nextButtonText: "Finish",
+                showHeader: false),
             _ => throw new ArgumentOutOfRangeException()
         };
 
         var dialogBody = Layout.Vertical()
             | activeView;
 
+        var headerTitle = step.Value switch
+        {
+            0 => "Add a project",
+            1 => "Setting up your project",
+            2 => "Review Harness",
+            _ => "Add Project"
+        };
+
         return new Dialog(
             _ => CancelAndClose(),
-            new DialogHeader("Add Project"),
+            new DialogHeader(headerTitle),
             new DialogBody(dialogBody)
         ).Width(Size.Rem(40));
     }
