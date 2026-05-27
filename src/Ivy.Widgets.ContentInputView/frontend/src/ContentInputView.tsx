@@ -30,7 +30,6 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
   placeholder = "How can I help you today?",
   value = "",
   transcriptionUrl = "wss://tendril-api.ivy.app/transcribe/ws",
-  models = ["Build", "Edit", "Chat"],
   selectedModel = "Build",
   attachedFiles = [],
   onIvyEvent,
@@ -39,7 +38,6 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
 }) => {
   const dispatchEvent = onIvyEvent || eventHandler;
   const [text, setText] = useState(value);
-  const [model, setModel] = useState(selectedModel);
   const [menuOpen, setMenuOpen] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>("idle");
   const [duration, setDuration] = useState(0);
@@ -55,11 +53,6 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
   useEffect(() => {
     setText(value);
   }, [value]);
-
-  // Sync selectedModel prop to model state
-  useEffect(() => {
-    setModel(selectedModel);
-  }, [selectedModel]);
 
   // Close plus-menu on click outside
   useEffect(() => {
@@ -99,13 +92,12 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
     };
   }, [voiceStatus]);
 
-  // Event handlers to match C# callbacks
   const handleSubmit = () => {
     if (voiceStatus !== "idle") return;
     if (events.includes("OnSubmit") && dispatchEvent) {
       dispatchEvent("OnSubmit", id, [{
         Value: text,
-        SelectedModel: model,
+        SelectedModel: selectedModel,
         AttachedFiles: attachedFiles,
       }]);
     }
@@ -123,13 +115,6 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
-    }
-  };
-
-  const handleModelChange = (selected: string) => {
-    setModel(selected);
-    if (events.includes("OnModelChanged") && dispatchEvent) {
-      dispatchEvent("OnModelChanged", id, [selected]);
     }
   };
 
@@ -301,27 +286,6 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
 
           {/* Right Side Buttons */}
           <div className="civ-right-actions">
-            {/* Model Selector */}
-            {models.length > 0 && (
-              <div className="civ-model-select-wrapper">
-                <select
-                  value={model}
-                  onChange={(e) => handleModelChange(e.target.value)}
-                  className="civ-model-select"
-                  disabled={voiceStatus !== "idle"}
-                >
-                  {models.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-                <svg className="civ-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              </div>
-            )}
-
             {/* Voice Input Container */}
             <div className={`civ-voice-container ${voiceStatus !== "idle" ? "active" : ""}`}>
               {voiceStatus !== "idle" && (

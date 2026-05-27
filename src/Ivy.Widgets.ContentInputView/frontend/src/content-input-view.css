@@ -60,7 +60,7 @@
 .civ-input-card {
   background: var(--civ-bg);
   border: 1px solid var(--civ-border);
-  border-radius: 16px;
+  border-radius: var(--radius-boxes);
   padding: 14px;
   box-shadow: var(--civ-card-shadow);
   backdrop-filter: blur(12px);
@@ -72,8 +72,8 @@
 }
 
 .civ-input-card:focus-within {
-  border-color: var(--civ-accent);
-  box-shadow: 0 0 0 1px var(--civ-accent), 0 8px 20px -6px var(--civ-accent-glow);
+  border-color: var(--ring);
+  box-shadow: 0 0 0 1px var(--ring);
 }
 
 /* Attached Files List */
@@ -311,42 +311,6 @@
   align-items: center;
   gap: 10px;
 }
-
-/* Model Selector */
-.civ-model-select-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.civ-model-select {
-  appearance: none;
-  -webkit-appearance: none;
-  background: var(--civ-pill-bg);
-  border: 1px solid var(--civ-border);
-  border-radius: 20px;
-  padding: 6px 30px 6px 14px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--civ-text);
-  cursor: pointer;
-  transition: background-color 0.2s, border-color 0.2s;
-  outline: none;
-}
-
-.civ-model-select:hover {
-  background: var(--civ-pill-hover);
-}
-
-.civ-select-chevron {
-  position: absolute;
-  right: 10px;
-  width: 12px;
-  height: 12px;
-  color: var(--civ-placeholder);
-  pointer-events: none;
-}
-
 /* Voice Container */
 .civ-voice-container {
   display: flex;
