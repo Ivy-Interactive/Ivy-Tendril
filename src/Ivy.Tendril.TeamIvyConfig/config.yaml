@@ -1,4 +1,4 @@
-codingAgent: copilot
+codingAgent: opencode
 jobTimeout: 30
 staleOutputTimeout: 10
 gitTimeout: 10
@@ -350,15 +350,15 @@ codingAgents:
   arguments: ''
   profiles:
   - name: deep
-    model: ''
+    model: default
     effort: ''
     arguments: ''
   - name: balanced
-    model: ''
+    model: default
     effort: ''
     arguments: ''
   - name: quick
-    model: ''
+    model: default
     effort: ''
     arguments: ''
 - name: copilot
