@@ -38,7 +38,6 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
   submitLabel,
   onIvyEvent,
   eventHandler,
-  events = [],
 }) => {
   const dispatchEvent = onIvyEvent || eventHandler;
   const [text, setText] = useState(value);
@@ -87,7 +86,7 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
 
   const handleSubmit = () => {
     if (voiceStatus !== "idle") return;
-    if (events.includes("OnSubmit") && dispatchEvent) {
+    if (dispatchEvent) {
       dispatchEvent("OnSubmit", id, [{
         value: text,
         Value: text,
@@ -102,7 +101,7 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
 
   const handleTextChange = (val: string) => {
     setText(val);
-    if (events.includes("OnChange") && dispatchEvent) {
+    if (dispatchEvent) {
       dispatchEvent("OnChange", id, [val]);
     }
   };
@@ -120,7 +119,7 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
       reader.onload = async () => {
         const result = reader.result as string;
         const base64Data = result.split(",")[1];
-        if (events.includes("OnUploadFile") && dispatchEvent) {
+        if (dispatchEvent) {
           dispatchEvent("OnUploadFile", id, [{
             name: file.name,
             Name: file.name,
@@ -195,7 +194,7 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
   };
 
   const handleRemoveAttachment = (fileName: string) => {
-    if (events.includes("OnRemoveAttachment") && dispatchEvent) {
+    if (dispatchEvent) {
       dispatchEvent("OnRemoveAttachment", id, [fileName]);
     }
   };
@@ -213,7 +212,7 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
           setText((prev) => {
             const next = prev ? `${prev} ${transcription}` : transcription;
             console.log("[ContentInputView] Next text state:", next);
-            if (events.includes("OnChange") && dispatchEvent) {
+            if (dispatchEvent) {
               dispatchEvent("OnChange", id, [next]);
             }
             return next;

@@ -9,7 +9,7 @@ namespace Ivy.Tendril.Apps.Drafts.Dialogs;
 
 public class CreatePlanDialog(
     List<string> projectNames,
-    Action<string, string[], int, string> onCreatePlan,
+    Action<string, string[], int, string?> onCreatePlan,
     Action onClose,
     string[]? defaultProjects = null) : ViewBase
 {
@@ -35,9 +35,7 @@ public class CreatePlanDialog(
         var selectedPriority = UseState("Normal");
         var configService = UseService<IConfigService>();
 
-        var plansDir = configService.PlanFolder;
-        var uploadSessionId = PlanYamlHelper.GetNextPlanId(plansDir);
-        PlanYamlHelper.CleanupTemporaryPlanFolders(plansDir, uploadSessionId);
+        var uploadedFiles = UseState(new List<string>());
 
         var exclusiveProjects = new ConvertedState<string[], string[]>(
             selectedProjects,
@@ -63,17 +61,19 @@ public class CreatePlanDialog(
         {
             if (!planWasCreated)
             {
-                try
+                foreach (var filePath in uploadedFiles.Value)
                 {
-                    var attachmentsDir = Path.Combine(configService.PlanFolder, uploadSessionId);
-                    if (Directory.Exists(attachmentsDir))
+                    try
                     {
-                        Directory.Delete(attachmentsDir, true);
+                        if (File.Exists(filePath))
+                        {
+                            File.Delete(filePath);
+                        }
                     }
-                }
-                catch
-                {
-                    // Best-effort cleanup
+                    catch
+                    {
+                        // Best-effort cleanup
+                    }
                 }
             }
             onClose();
@@ -96,7 +96,7 @@ public class CreatePlanDialog(
                                 var base64 = e.Value?.Base64Data;
                                 Ivy.Helpers.CrashLog.Write($"[{DateTime.UtcNow:O}] OnUploadFile called. Name='{name ?? "null"}', Base64Length={base64?.Length ?? 0}");
 
-                                var attachmentsDir = Path.Combine(configService.PlanFolder, uploadSessionId);
+                                var attachmentsDir = Path.Combine(configService.TendrilHome, "Attachments");
                                 Directory.CreateDirectory(attachmentsDir);
 
                                 var fileName = Path.GetFileName(e.Value.Name);
@@ -110,6 +110,9 @@ public class CreatePlanDialog(
 
                                 var fileRef = $" [file: {filePath}]";
                                 createPlanText.Set(createPlanText.Value + fileRef);
+
+                                var newList = new List<string>(uploadedFiles.Value) { filePath };
+                                uploadedFiles.Set(newList);
                             }
                             catch (Exception ex)
                             {
@@ -125,7 +128,7 @@ public class CreatePlanDialog(
                                 var projects = selectedProjects.Value.Any()
                                     ? selectedProjects.Value
                                     : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
-                                onCreatePlan(createPlanText.Value, projects, ParsePriority(selectedPriority.Value), uploadSessionId);
+                                onCreatePlan(createPlanText.Value, projects, ParsePriority(selectedPriority.Value), null);
                                 onClose();
                             }
                             return ValueTask.CompletedTask;

@@ -113,24 +113,12 @@ public static class ContentInputViewExtensions
             },
             OnUploadFile = w.OnUploadFile ?? (async e =>
             {
-                string planFolder = Environment.GetEnvironmentVariable("TENDRIL_PLANS")?.Trim() ?? "";
-                if (string.IsNullOrEmpty(planFolder))
+                var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
+                if (string.IsNullOrEmpty(tendrilHome))
                 {
-                    var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
-                    if (!string.IsNullOrEmpty(tendrilHome))
-                    {
-                        planFolder = Path.Combine(tendrilHome, "Plans");
-                    }
+                    tendrilHome = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
                 }
-
-                var attachmentsDir = !string.IsNullOrEmpty(planFolder)
-                    ? Path.Combine(planFolder, ".upcoming-attachments", Guid.NewGuid().ToString()[..8])
-                    : Path.Combine(
-                        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                        ".tendril",
-                        "attachments"
-                    );
-
+                var attachmentsDir = Path.Combine(tendrilHome, "Attachments");
                 Directory.CreateDirectory(attachmentsDir);
 
                 var fileName = Path.GetFileName(e.Value.Name);
