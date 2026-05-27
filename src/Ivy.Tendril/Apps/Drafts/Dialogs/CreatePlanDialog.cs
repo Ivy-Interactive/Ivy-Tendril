@@ -1,11 +1,14 @@
 using Ivy.Core.Hooks;
 using Ivy.Widgets.ContentInputView;
+using Ivy.Tendril.Services;
+using System;
+using System.IO;
 
 namespace Ivy.Tendril.Apps.Drafts.Dialogs;
 
 public class CreatePlanDialog(
     List<string> projectNames,
-    Action<string, string[], int> onCreatePlan,
+    Action<string, string[], int, string> onCreatePlan,
     Action onClose,
     string[]? defaultProjects = null) : ViewBase
 {
@@ -29,6 +32,9 @@ public class CreatePlanDialog(
         var createPlanText = UseState("");
         var selectedProjects = UseState(_defaultProjects);
         var selectedPriority = UseState("Normal");
+        var configService = UseService<IConfigService>();
+
+        var uploadSessionId = Guid.NewGuid().ToString()[..8];
 
         var exclusiveProjects = new ConvertedState<string[], string[]>(
             selectedProjects,
@@ -49,28 +55,78 @@ public class CreatePlanDialog(
             options.Add(new Option<string>("Auto", "Auto", icon: Icons.WandSparkles));
         options.AddRange(projectNames.Select(p => new Option<string>(p, p)));
 
+        var planWasCreated = false;
+        void HandleClose()
+        {
+            if (!planWasCreated)
+            {
+                try
+                {
+                    var attachmentsDir = Path.Combine(configService.PlanFolder, ".upcoming-attachments", uploadSessionId);
+                    if (Directory.Exists(attachmentsDir))
+                    {
+                        Directory.Delete(attachmentsDir, true);
+                    }
+
+                    var parentDir = Path.Combine(configService.PlanFolder, ".upcoming-attachments");
+                    if (Directory.Exists(parentDir) && Directory.GetFileSystemEntries(parentDir).Length == 0)
+                    {
+                        Directory.Delete(parentDir, true);
+                    }
+                }
+                catch
+                {
+                    // Best-effort cleanup
+                }
+            }
+            onClose();
+        }
+
         return new Dialog(
-            _ => onClose(),
+            _ => HandleClose(),
             new DialogHeader("Create New Plan"),
             new DialogBody(
                 Layout.Vertical()
                 | exclusiveProjects.ToSelectInput(options).Variant(SelectInputVariant.Toggle).WithField().Label("Select project(s)")
                 | selectedPriority.ToSelectInput(PriorityOptions).Variant(SelectInputVariant.Toggle).WithField().Label("Priority")
-                | new ContentInputView().Bind(createPlanText).Placeholder("Enter task description...").WithField()
+                | new ContentInputView
+                    {
+                        OnUploadFile = async e =>
+                        {
+                            var attachmentsDir = Path.Combine(configService.PlanFolder, ".upcoming-attachments", uploadSessionId);
+                            Directory.CreateDirectory(attachmentsDir);
+
+                            var fileName = Path.GetFileName(e.Value.Name);
+                            var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+                            var ext = Path.GetExtension(fileName);
+                            var uniqueName = $"{nameWithoutExt}_{Guid.NewGuid().ToString()[..8]}{ext}";
+                            var filePath = Path.Combine(attachmentsDir, uniqueName);
+
+                            var bytes = Convert.FromBase64String(e.Value.Base64Data);
+                            await File.WriteAllBytesAsync(filePath, bytes);
+
+                            var fileRef = $" [file: {filePath}]";
+                            createPlanText.Set(createPlanText.Value + fileRef);
+                        }
+                    }
+                    .Bind(createPlanText)
+                    .Placeholder("Enter task description...")
+                    .WithField()
                     .Label("Describe the task for the new plan")
                     .Required()
             ),
             new DialogFooter(
-                new Button("Cancel").Outline().OnClick(onClose),
+                new Button("Cancel").Outline().OnClick(HandleClose),
                 new Button("Create").Primary().Disabled(isCreating.Value || string.IsNullOrWhiteSpace(createPlanText.Value)).ShortcutKey("Ctrl+Enter").OnClick(() =>
                 {
                     if (!string.IsNullOrWhiteSpace(createPlanText.Value) && !isCreating.Value)
                     {
                         isCreating.Set(true);
+                        planWasCreated = true;
                         var projects = selectedProjects.Value.Any()
                             ? selectedProjects.Value
                             : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
-                        onCreatePlan(createPlanText.Value, projects, ParsePriority(selectedPriority.Value));
+                        onCreatePlan(createPlanText.Value, projects, ParsePriority(selectedPriority.Value), uploadSessionId);
                         onClose();
                     }
                 })

@@ -407,13 +407,29 @@ internal class JobCompletionHandler
             var plansDir = _planReaderService?.PlansDirectory;
             if (plansDir == null || !Directory.Exists(plansDir)) return;
 
-            if (TryVerifyByReportedId(job, plansDir)) return;
-            if (TryVerifyByOutputRegex(job)) return;
-            if (IsDuplicatePlan(job)) return;
-            if (TryVerifyByFilesystem(job, plansDir)) return;
-            if (IsInTrash(job)) return;
+            bool isSuccess = false;
+            try
+            {
+                if (TryVerifyByReportedId(job, plansDir) ||
+                    TryVerifyByOutputRegex(job) ||
+                    TryVerifyByFilesystem(job, plansDir))
+                {
+                    RelocateUpcomingAttachments(plansDir, job);
+                    isSuccess = true;
+                    return;
+                }
 
-            MarkCreatePlanFailed(job);
+                if (IsDuplicatePlan(job) || IsInTrash(job)) return;
+
+                MarkCreatePlanFailed(job);
+            }
+            finally
+            {
+                if (!isSuccess)
+                {
+                    CleanupUpcomingAttachments(plansDir, job);
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -759,5 +775,235 @@ internal class JobCompletionHandler
         foreach (var v in plan.Verifications)
             sb.AppendLine($"- {v.Name}: {v.Status}");
         sb.AppendLine();
+    }
+
+    private void RelocateUpcomingAttachments(string plansDir, JobItem job)
+    {
+        if (string.IsNullOrEmpty(job.PlanFile)) return;
+
+        var planFolder = Path.Combine(plansDir, job.PlanFile);
+        if (!Directory.Exists(planFolder)) return;
+
+        var cp = job.TypedArgs as CreatePlanArgs;
+        var description = cp?.Description ?? "";
+        if (string.IsNullOrEmpty(description)) return;
+
+        var uploadSessionId = cp?.UploadSessionId;
+        if (!string.IsNullOrEmpty(uploadSessionId))
+        {
+            var sessionDir = Path.Combine(plansDir, ".upcoming-attachments", uploadSessionId);
+            if (Directory.Exists(sessionDir))
+            {
+                var files = Directory.GetFiles(sessionDir);
+                foreach (var tempFilePath in files)
+                {
+                    var fileName = Path.GetFileName(tempFilePath);
+                    var targetAttachmentsDir = Path.Combine(planFolder, "attachments");
+                    Directory.CreateDirectory(targetAttachmentsDir);
+                    var targetFilePath = Path.Combine(targetAttachmentsDir, fileName);
+
+                    try
+                    {
+                        if (File.Exists(targetFilePath)) File.Delete(targetFilePath);
+                        File.Move(tempFilePath, targetFilePath);
+
+                        // Now replace the path in all files in the plan folder
+                        ReplaceTextInPlanFiles(planFolder, tempFilePath, targetFilePath);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to relocate upcoming attachment {TempPath} to {TargetPath}", tempFilePath, targetFilePath);
+                    }
+                }
+
+                // Clean up the temp directory
+                try
+                {
+                    Directory.Delete(sessionDir, true);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Failed to clean up temp attachments directory {SessionDir}", sessionDir);
+                }
+            }
+        }
+        else
+        {
+            // Fallback for when UploadSessionId is not available
+            var matches = Regex.Matches(description, @"[^\s\]\)]*?\.upcoming-attachments[^\s\]\)]*");
+            if (matches.Count > 0)
+            {
+                var tempDirsToClean = new HashSet<string>();
+
+                foreach (Match match in matches)
+                {
+                    var tempFilePath = match.Value.Trim();
+                    if (string.IsNullOrEmpty(tempFilePath) || !File.Exists(tempFilePath)) continue;
+
+                    var tempDir = Path.GetDirectoryName(tempFilePath);
+                    if (tempDir == null || !Directory.Exists(tempDir)) continue;
+
+                    tempDirsToClean.Add(tempDir);
+
+                    var targetAttachmentsDir = Path.Combine(planFolder, "attachments");
+                    Directory.CreateDirectory(targetAttachmentsDir);
+
+                    var fileName = Path.GetFileName(tempFilePath);
+                    var targetFilePath = Path.Combine(targetAttachmentsDir, fileName);
+
+                    try
+                    {
+                        if (File.Exists(targetFilePath)) File.Delete(targetFilePath);
+                        File.Move(tempFilePath, targetFilePath);
+
+                        // Now replace the path in all files in the plan folder
+                        ReplaceTextInPlanFiles(planFolder, tempFilePath, targetFilePath);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to relocate upcoming attachment {TempPath} to {TargetPath}", tempFilePath, targetFilePath);
+                    }
+                }
+
+                // Clean up the temp directories
+                foreach (var tempDir in tempDirsToClean)
+                {
+                    try
+                    {
+                        if (Directory.Exists(tempDir))
+                        {
+                            Directory.Delete(tempDir, true);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug(ex, "Failed to clean up temp attachments directory {TempDir}", tempDir);
+                    }
+                }
+            }
+        }
+
+        // Clean up parent directory if empty
+        try
+        {
+            var parentDir = Path.Combine(plansDir, ".upcoming-attachments");
+            if (Directory.Exists(parentDir) && Directory.GetFileSystemEntries(parentDir).Length == 0)
+            {
+                Directory.Delete(parentDir, true);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to clean up parent temp attachments directory");
+        }
+    }
+
+    private void CleanupUpcomingAttachments(string plansDir, JobItem job)
+    {
+        var cp = job.TypedArgs as CreatePlanArgs;
+        if (cp == null) return;
+
+        var uploadSessionId = cp.UploadSessionId;
+        if (!string.IsNullOrEmpty(uploadSessionId))
+        {
+            var sessionDir = Path.Combine(plansDir, ".upcoming-attachments", uploadSessionId);
+            try
+            {
+                if (Directory.Exists(sessionDir))
+                {
+                    Directory.Delete(sessionDir, true);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to clean up temp attachments directory {SessionDir} on job completion", sessionDir);
+            }
+        }
+        else
+        {
+            // Fallback: parse description
+            var description = cp.Description;
+            if (string.IsNullOrEmpty(description)) return;
+
+            var matches = Regex.Matches(description, @"[^\s\]\)]*?\.upcoming-attachments[^\s\]\)]*");
+            foreach (Match match in matches)
+            {
+                var tempFilePath = match.Value.Trim();
+                if (string.IsNullOrEmpty(tempFilePath) || !File.Exists(tempFilePath)) continue;
+
+                var tempDir = Path.GetDirectoryName(tempFilePath);
+                if (tempDir == null || !Directory.Exists(tempDir)) continue;
+
+                try
+                {
+                    if (Directory.Exists(tempDir))
+                    {
+                        Directory.Delete(tempDir, true);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Failed to clean up temp attachments directory {TempDir} on job completion", tempDir);
+                }
+            }
+        }
+
+        // Clean up parent directory if empty
+        try
+        {
+            var parentDir = Path.Combine(plansDir, ".upcoming-attachments");
+            if (Directory.Exists(parentDir) && Directory.GetFileSystemEntries(parentDir).Length == 0)
+            {
+                Directory.Delete(parentDir, true);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to clean up parent temp attachments directory");
+        }
+    }
+
+    private void ReplaceTextInPlanFiles(string planFolder, string oldText, string newText)
+    {
+        // 1. Update plan.yaml
+        var planYamlPath = Path.Combine(planFolder, "plan.yaml");
+        if (File.Exists(planYamlPath))
+        {
+            try
+            {
+                var content = File.ReadAllText(planYamlPath);
+                if (content.Contains(oldText))
+                {
+                    content = content.Replace(oldText, newText);
+                    File.WriteAllText(planYamlPath, content);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to update plan.yaml at {Path}", planYamlPath);
+            }
+        }
+
+        // 2. Update all revisions
+        var revisionsDir = Path.Combine(planFolder, "Revisions");
+        if (Directory.Exists(revisionsDir))
+        {
+            try
+            {
+                foreach (var file in Directory.GetFiles(revisionsDir, "*.md"))
+                {
+                    var content = File.ReadAllText(file);
+                    if (content.Contains(oldText))
+                    {
+                        content = content.Replace(oldText, newText);
+                        File.WriteAllText(file, content);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to update revision files in {Dir}", revisionsDir);
+            }
+        }
     }
 }

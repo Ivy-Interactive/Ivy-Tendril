@@ -23,11 +23,11 @@ public class CreatePlanDialogLauncher(Func<Action, object> renderTrigger) : View
                 );
             return new CreatePlanDialog(
                 projectNames,
-                (description, projects, priority) =>
+                (description, projects, priority, uploadSessionId) =>
                 {
                     lastSelectedProjects.Set(projects);
                     var project = string.Join(",", projects);
-                    jobService.StartJob(new CreatePlanArgs(description, project, priority, Force: true));
+                    jobService.StartJob(new CreatePlanArgs(description, project, priority, Force: true, UploadSessionId: uploadSessionId));
                 },
                 () => isOpen.Set(false),
                 lastSelectedProjects.Value

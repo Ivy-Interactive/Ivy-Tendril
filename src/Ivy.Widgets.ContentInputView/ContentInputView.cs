@@ -2,6 +2,7 @@ using Ivy;
 using Ivy.Core;
 using Ivy.Core.ExternalWidgets;
 using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -36,6 +37,7 @@ public record ContentInputView : WidgetBase<ContentInputView>, IAnyInput
     [Event] public Func<Event<ContentInputView, string>, ValueTask>? OnMenuAction { get; init; }
     [Event] public Func<Event<ContentInputView, string>, ValueTask>? OnQuickAction { get; init; }
     [Event] public Func<Event<ContentInputView, string>, ValueTask>? OnRemoveAttachment { get; init; }
+    [Event] public Func<Event<ContentInputView, UploadFileEventArgs>, ValueTask>? OnUploadFile { get; init; }
 
     public Type[] SupportedStateTypes() => [typeof(string)];
 }
@@ -43,6 +45,8 @@ public record ContentInputView : WidgetBase<ContentInputView>, IAnyInput
 public record AttachedFile(string Name, string Type, string? Size = null);
 
 public record SubmitEventArgs(string Value, string SelectedModel, List<AttachedFile> AttachedFiles);
+
+public record UploadFileEventArgs(string Name, string Base64Data);
 
 public static class ContentInputViewExtensions
 {
@@ -102,8 +106,47 @@ public static class ContentInputViewExtensions
             {
                 state.Set(e.Value);
                 return ValueTask.CompletedTask;
-            }
+            },
+            OnUploadFile = w.OnUploadFile ?? (async e =>
+            {
+                string planFolder = Environment.GetEnvironmentVariable("TENDRIL_PLANS")?.Trim() ?? "";
+                if (string.IsNullOrEmpty(planFolder))
+                {
+                    var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
+                    if (!string.IsNullOrEmpty(tendrilHome))
+                    {
+                        planFolder = Path.Combine(tendrilHome, "Plans");
+                    }
+                }
+
+                var attachmentsDir = !string.IsNullOrEmpty(planFolder)
+                    ? Path.Combine(planFolder, ".upcoming-attachments", Guid.NewGuid().ToString()[..8])
+                    : Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                        ".tendril",
+                        "attachments"
+                    );
+
+                Directory.CreateDirectory(attachmentsDir);
+
+                var fileName = Path.GetFileName(e.Value.Name);
+                var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+                var ext = Path.GetExtension(fileName);
+                var uniqueName = $"{nameWithoutExt}_{Guid.NewGuid().ToString()[..8]}{ext}";
+                var filePath = Path.Combine(attachmentsDir, uniqueName);
+
+                var bytes = Convert.FromBase64String(e.Value.Base64Data);
+                await File.WriteAllBytesAsync(filePath, bytes);
+
+                var fileRef = $" [file: {filePath}]";
+                state.Set(state.Value + fileRef);
+            })
         };
+
+    public static ContentInputView OnUploadFile(
+        this ContentInputView w,
+        Func<Event<ContentInputView, UploadFileEventArgs>, Task> handler
+    ) => w with { OnUploadFile = async e => await handler(e) };
 
     public static ContentInputView OnModelChanged(
         this ContentInputView w,

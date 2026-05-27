@@ -38,32 +38,21 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
 }) => {
   const dispatchEvent = onIvyEvent || eventHandler;
   const [text, setText] = useState(value);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>("idle");
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0);
   const [recordError, setRecordError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const recorderRef = useRef<VoiceRecorder | null>(null);
   const timerRef = useRef<number | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sync value prop to text state
   useEffect(() => {
     setText(value);
   }, [value]);
-
-  // Close plus-menu on click outside
-  useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, []);
 
   // Textarea Auto-Growing Height
   useEffect(() => {
@@ -118,10 +107,75 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
     }
   };
 
-  const handleMenuAction = (action: string) => {
-    setMenuOpen(false);
-    if (events.includes("OnMenuAction") && dispatchEvent) {
-      dispatchEvent("OnMenuAction", id, [action]);
+  const handleUploadFile = async (file: File) => {
+    return new Promise<void>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const result = reader.result as string;
+        const base64Data = result.split(",")[1];
+        if (events.includes("OnUploadFile") && dispatchEvent) {
+          dispatchEvent("OnUploadFile", id, [{
+            Name: file.name,
+            Base64Data: base64Data,
+          }]);
+        }
+        resolve();
+      };
+      reader.onerror = (err) => {
+        setRecordError("Failed to read file");
+        reject(err);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFiles = async (files: FileList | File[]) => {
+    const list = Array.from(files);
+    for (const file of list) {
+      await handleUploadFile(file);
+    }
+  };
+
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData.items;
+    const files: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].kind === "file") {
+        const file = items[i].getAsFile();
+        if (file) {
+          files.push(file);
+        }
+      }
+    }
+    if (files.length > 0) {
+      e.preventDefault();
+      await handleFiles(files);
+    }
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      await handleFiles(e.dataTransfer.files);
     }
   };
 
@@ -184,7 +238,13 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
         </div>
       )}
 
-      <div className="civ-input-card">
+      <div
+        className={`civ-input-card ${isDragging ? "dragging" : ""}`}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
         {/* Render Attached Files */}
         {attachedFiles.length > 0 && (
           <div className="civ-attachments-list">
@@ -220,6 +280,7 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
           value={text}
           onChange={(e) => handleTextChange(e.target.value)}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           placeholder={placeholder}
           rows={1}
           disabled={voiceStatus === "connecting" || voiceStatus === "processing"}
@@ -227,61 +288,30 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
 
         {/* Action Controls Row */}
         <div className="civ-control-bar">
-          {/* Plus Menu dropdown */}
-          <div className="civ-plus-container" ref={menuRef}>
+          {/* Attachment upload button */}
+          <div className="civ-attachment-upload-container">
+            <input
+              type="file"
+              multiple
+              ref={fileInputRef}
+              style={{ display: "none" }}
+              onChange={(e) => {
+                if (e.target.files) {
+                  handleFiles(e.target.files);
+                  e.target.value = "";
+                }
+              }}
+            />
             <button
-              className={`civ-plus-btn ${menuOpen ? "active" : ""}`}
-              onClick={() => setMenuOpen(!menuOpen)}
+              className="civ-plus-btn"
+              onClick={() => fileInputRef.current?.click()}
               type="button"
+              title="Attach files"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
+                <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
               </svg>
             </button>
-
-            {menuOpen && (
-              <div className="civ-menu-dropdown">
-                <div className="civ-menu-search">
-                  <svg className="civ-icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="11" cy="11" r="8" />
-                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                  </svg>
-                  <input type="text" placeholder="Search..." onClick={(e) => e.stopPropagation()} />
-                </div>
-                <div className="civ-menu-divider" />
-                <button onClick={() => handleMenuAction("Attach")} className="civ-menu-item">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                  </svg>
-                  <span>Attach</span>
-                  <span className="civ-menu-arrow">›</span>
-                </button>
-                <button onClick={() => handleMenuAction("Design")} className="civ-menu-item">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
-                  </svg>
-                  <span>Design</span>
-                  <span className="civ-menu-arrow">›</span>
-                </button>
-                <button onClick={() => handleMenuAction("Connectors")} className="civ-menu-item">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/>
-                  </svg>
-                  <span>Connectors</span>
-                  <span className="civ-menu-arrow">›</span>
-                </button>
-                <button onClick={() => handleMenuAction("Databases")} className="civ-menu-item">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <ellipse cx="12" cy="5" rx="9" ry="3" />
-                    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
-                    <path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3" />
-                  </svg>
-                  <span>Databases</span>
-                  <span className="civ-menu-arrow">›</span>
-                </button>
-              </div>
-            )}
           </div>
 
           {/* Right Side Buttons */}
