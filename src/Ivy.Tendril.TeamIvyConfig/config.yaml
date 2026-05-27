@@ -1,4 +1,4 @@
-codingAgent: claude
+codingAgent: codex
 jobTimeout: 30
 staleOutputTimeout: 10
 gitTimeout: 10
@@ -293,15 +293,15 @@ codingAgents:
   arguments: ''
   profiles:
   - name: deep
-    model: gpt-5.4
+    model: default
     effort: high
     arguments: ''
   - name: balanced
-    model: gpt-5.4-mini
+    model: default
     effort: medium
     arguments: ''
   - name: quick
-    model: gpt-5.3-codex
+    model: default
     effort: low
     arguments: ''
 - name: gemini

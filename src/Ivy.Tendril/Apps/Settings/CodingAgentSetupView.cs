@@ -69,23 +69,25 @@ public class CodingAgentSetupView : ViewBase
         var grid = Layout.Grid().Columns(3).Gap(2);
         grid = Agents.Aggregate(grid, (current, a) =>
             current | new Card(
-                Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(0)
+                Layout.Horizontal().Gap(2).Padding(0)
                 | a.Logo.ToIcon().Width(Size.Px(32)).Height(Size.Px(32))
                 | Text.Block(a.Label)
+                | new Spacer()
                 | (a.Key == selectedAgent.Value ? Icons.Check.ToIcon() : null)
-            ).Width(Size.Px(200)).OnClick(() =>
+            ).Width(Size.Full()).OnClick(() =>
             {
                 selectedAgent.Set(a.Key);
             }));
 
-        return Layout.Vertical().Padding(4).Width(Size.Auto().Max(Size.Units(120)))
+        return Layout.Vertical().Padding(4)
                | Text.Block("Coding Agent").Bold()
-               | grid
-               | Text.Block("Model Per Profile").Bold()
-               | Text.Muted("Promptwares are configured to use different profiles depending on the complexity of the task. You can specify what model to use for each profile.").Small()
-               | deepModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Deep")
-               | balancedModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Balanced")
-               | quickModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Quick")
+               | grid.Width(Size.Units(170))
+               | (Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+                   | Text.Block("Profile Models").Bold()
+                   | Text.Muted("Promptwares are configured to use different profiles depending on the complexity of the task. You can specify what model to use for each profile.").Small()
+                   | deepModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Deep")
+                   | balancedModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Balanced")
+                   | quickModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Quick"))
                | new Spacer().Height(Size.Units(4))
                | (Layout.Horizontal().Gap(2)
                    | new Button("Test Agent").Outline()
