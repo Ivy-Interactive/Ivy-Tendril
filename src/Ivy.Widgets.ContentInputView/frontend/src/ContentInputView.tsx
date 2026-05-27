@@ -209,8 +209,10 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
         endpoint: transcriptionUrl,
         onStatusChange: (status) => setVoiceStatus(status),
         onResult: (transcription) => {
+          console.log("[ContentInputView] Transcription result received:", transcription);
           setText((prev) => {
             const next = prev ? `${prev} ${transcription}` : transcription;
+            console.log("[ContentInputView] Next text state:", next);
             if (events.includes("OnChange") && dispatchEvent) {
               dispatchEvent("OnChange", id, [next]);
             }

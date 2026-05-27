@@ -143,12 +143,13 @@ internal static class PlanYamlHelper
         return counter.ToString("D5");
     }
 
-    internal static void CleanupTemporaryPlanFolders(string plansDir)
+    internal static void CleanupTemporaryPlanFolders(string plansDir, string? activePlanId = null)
     {
         if (!Directory.Exists(plansDir)) return;
         foreach (var dir in Directory.GetDirectories(plansDir))
         {
             var name = Path.GetFileName(dir);
+            if (activePlanId != null && name == activePlanId) continue;
             if (name.Length == 5 && int.TryParse(name, out _))
             {
                 try
@@ -200,7 +201,7 @@ internal static class PlanYamlHelper
         var csvPath = Path.Combine(planFolder, "costs.csv");
         if (!File.Exists(csvPath)) FileHelper.WriteAllText(csvPath, "Promptware,Tokens,Cost\n");
 
-        var line = $"{jobType},{tokens},{cost:F4}\n";
+        var line = $"{jobType},{tokens},{cost.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)}\n";
         FileHelper.AppendAllText(csvPath, line);
     }
 

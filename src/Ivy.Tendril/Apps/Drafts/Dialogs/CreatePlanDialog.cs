@@ -36,8 +36,8 @@ public class CreatePlanDialog(
         var configService = UseService<IConfigService>();
 
         var plansDir = configService.PlanFolder;
-        PlanYamlHelper.CleanupTemporaryPlanFolders(plansDir);
         var uploadSessionId = PlanYamlHelper.GetNextPlanId(plansDir);
+        PlanYamlHelper.CleanupTemporaryPlanFolders(plansDir, uploadSessionId);
 
         var exclusiveProjects = new ConvertedState<string[], string[]>(
             selectedProjects,
