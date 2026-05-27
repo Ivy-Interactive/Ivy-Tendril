@@ -157,7 +157,8 @@ public class CodexCliTests
 
         Assert.Equal("codex", spec.FileName);
         Assert.Contains("exec", spec.Arguments);
-        Assert.Contains("--full-auto", spec.Arguments);
+        Assert.Contains("--sandbox", spec.Arguments);
+        Assert.Contains("workspace-write", spec.Arguments);
         Assert.Contains("--json", spec.Arguments);
         Assert.Contains("--skip-git-repo-check", spec.Arguments);
         Assert.Contains("-", spec.Arguments);
