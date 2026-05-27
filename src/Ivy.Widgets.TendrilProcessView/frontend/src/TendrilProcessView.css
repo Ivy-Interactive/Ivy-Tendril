@@ -86,7 +86,7 @@
 .tpv-box-stage {
   background: var(--card, #ffffff);
   color: var(--card-foreground, #0f172a);
-  border-color: var(--border, #e2e8f0);
+  border-color: color-mix(in srgb, var(--foreground, #0f172a) 20%, transparent);
 }
 
 .tpv-box-stage-icon {

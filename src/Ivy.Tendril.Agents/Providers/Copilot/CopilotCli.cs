@@ -12,7 +12,6 @@ public sealed class CopilotCli : IAgentCli
     public string DisplayName => "GitHub Copilot";
 
     public AgentCapabilities Capabilities =>
-        AgentCapabilities.ArgumentPrompt |
         AgentCapabilities.StreamJsonOutput |
         AgentCapabilities.ModelSelection |
         AgentCapabilities.EffortControl |
@@ -21,7 +20,7 @@ public sealed class CopilotCli : IAgentCli
         AgentCapabilities.ExtraArgPassthrough;
 
     public TransportKind SupportedTransports => TransportKind.CliSpawn;
-    public PromptTransport PromptTransport => PromptTransport.Argument;
+    public PromptTransport PromptTransport => PromptTransport.Stdin;
     public OutputFormat PreferredOutputFormat => OutputFormat.StreamJson;
 
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles { get; } =
@@ -82,7 +81,6 @@ public sealed class CopilotCli : IAgentCli
     {
         var args = new List<string>
         {
-            "-p", config.Prompt,
             "--allow-all-paths",
             "--allow-all-urls",
             "--output-format", "json",
@@ -150,8 +148,8 @@ public sealed class CopilotCli : IAgentCli
             Arguments = [..prefixArgs, ..args],
             WorkingDirectory = config.WorkingDirectory,
             Environment = env,
-            StdinContent = null,
-            RedirectStdin = false,
+            StdinContent = config.Prompt,
+            RedirectStdin = true,
         };
     }
 
