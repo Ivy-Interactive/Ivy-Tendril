@@ -10,8 +10,8 @@ public class NoContentView(string title, string description, object? cta = null)
 
         if (cta is not null)
         {
-            layout |= new Spacer().Height(Size.Units(4));
-            layout |= cta;
+            //layout |= new Spacer().Height(Size.Units(4));
+            layout |= cta; //.WithMargin(0,4,0,0);
         }
 
         return layout;

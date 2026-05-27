@@ -316,21 +316,6 @@ codingAgents:
     model: default
     effort: low
     arguments: ''
-- name: gemini
-  arguments: ''
-  profiles:
-  - name: deep
-    model: gemini-3-flash-preview
-    effort: ''
-    arguments: ''
-  - name: balanced
-    model: gemini-2.5-flash
-    effort: ''
-    arguments: ''
-  - name: quick
-    model: gemini-2.5-flash-lite
-    effort: ''
-    arguments: ''
 - name: opencode
   arguments: ''
   profiles:

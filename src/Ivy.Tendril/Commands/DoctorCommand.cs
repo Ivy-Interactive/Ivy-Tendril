@@ -92,7 +92,7 @@ public static class DoctorCommand
             DoctorChecks.StatusKind.Error => ("✗", "red"),
             _ => (" ", "grey")
         };
-        AnsiConsole.MarkupLine($"[{color}]  {symbol} {label.PadRight(40)}{value}[/]");
+        AnsiConsole.MarkupLine($"[{color}]{symbol} {label.PadRight(40)}{value}[/]");
     }
 
     // --- doctor plans subcommand ---

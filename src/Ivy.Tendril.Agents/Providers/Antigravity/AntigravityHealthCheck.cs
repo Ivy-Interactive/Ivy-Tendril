@@ -50,14 +50,29 @@ public sealed class AntigravityHealthCheck : IAgentHealthCheck
         return stdout.Trim();
     }
 
-    public Task<ModelValidationResult> ValidateModelAsync(string model, CancellationToken ct = default)
+    public async Task<ModelValidationResult> ValidateModelAsync(string model, CancellationToken ct = default)
     {
-        return Task.FromResult(new ModelValidationResult
+        if (!string.IsNullOrEmpty(model) && !string.Equals(model, "default", StringComparison.OrdinalIgnoreCase))
+            return new ModelValidationResult
+            {
+                Status = ModelValidationStatus.Unknown,
+                Model = model,
+                ErrorMessage = "Model validation not supported via Antigravity CLI",
+            };
+
+        var (exitCode, _, stderr) = await HealthCheckRunner.RunAsync(
+            "agy", ["--print", "ping", "--dangerously-skip-permissions"],
+            TimeSpan.FromSeconds(30), ct);
+
+        if (exitCode == 0)
+            return new ModelValidationResult { Status = ModelValidationStatus.Ok, Model = model };
+
+        return new ModelValidationResult
         {
             Status = ModelValidationStatus.Unknown,
             Model = model,
-            ErrorMessage = "Model validation not supported via Antigravity CLI",
-        });
+            ErrorMessage = stderr,
+        };
     }
 
     public Task<bool> RunAuthFlowAsync(AuthFlowCallbacks callbacks, CancellationToken ct = default)
