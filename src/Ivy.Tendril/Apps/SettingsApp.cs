@@ -37,8 +37,8 @@ public class SettingsApp : ViewBase
         var children = new List<MenuItem>
         {
             MenuItem.Default("Coding Agent", TagCodingAgent).Icon(Icons.Bot),
-            MenuItem.Default("Plans", TagPlans).Icon(Icons.FileText),
-            MenuItem.Default("Appearance", TagAppearance).Icon(Icons.Palette),
+            MenuItem.Default("Plans", TagPlans).Icon(Icons.Feather),
+            MenuItem.Default("Appearance", TagAppearance).Icon(Icons.Sun),
             MenuItem.Default("Projects", TagProjects).Icon(Icons.Folder),
             MenuItem.Default("Verifications", TagVerifications).Icon(Icons.CircleCheck),
             MenuItem.Default("Promptwares", TagPromptwares).Icon(Icons.Wand),
