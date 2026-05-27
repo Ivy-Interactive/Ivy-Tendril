@@ -1,4 +1,4 @@
-codingAgent: claude
+codingAgent: codex
 jobTimeout: 30
 staleOutputTimeout: 10
 gitTimeout: 10
@@ -278,15 +278,15 @@ codingAgents:
   arguments: ''
   profiles:
   - name: deep
-    model: opus
+    model: claude-opus-4-7
     effort: max
     arguments: ''
   - name: balanced
-    model: sonnet
+    model: claude-sonnet-4-6
     effort: high
     arguments: ''
   - name: quick
-    model: haiku
+    model: claude-haiku-4-5
     effort: low
     arguments: ''
 - name: codex
@@ -349,8 +349,23 @@ codingAgents:
     model: ''
     effort: ''
     arguments: ''
+- name: copilot
+  arguments: ''
+  profiles:
+  - name: deep
+    model: default
+    effort: ''
+    arguments: ''
+  - name: balanced
+    model: default
+    effort: ''
+    arguments: ''
+  - name: quick
+    model: default
+    effort: ''
+    arguments: ''
 tunnel:
-  enabled: true
+  enabled: false
   port: 5010
   binaryPath: ''
   maxRestarts: 10
