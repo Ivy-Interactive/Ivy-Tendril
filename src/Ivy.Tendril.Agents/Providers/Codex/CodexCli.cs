@@ -64,7 +64,7 @@ public sealed class CodexCli : IAgentCli
         var args = new List<string>
         {
             "exec",
-            "--full-auto",
+            "--sandbox", "workspace-write",
             "--json",
             "--skip-git-repo-check",
         };

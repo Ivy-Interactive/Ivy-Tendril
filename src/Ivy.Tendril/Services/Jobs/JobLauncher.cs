@@ -260,6 +260,7 @@ internal class JobLauncher
             SessionId = job.SessionId,
             PermissionMode = PermissionMode.FullAuto,
             AllowedTools = resolution.AllowedTools,
+            WritableDirectories = ResolveWritableDirectories(job.Type),
             ExtraArguments = resolution.ExtraArgs,
             PromptFilePath = promptFilePath,
         };
@@ -450,6 +451,21 @@ internal class JobLauncher
             }
         }
         return workDir;
+    }
+
+    private IReadOnlyList<string> ResolveWritableDirectories(string promptwareType)
+    {
+        if (_configService == null) return [];
+
+        var dirs = new List<string>();
+
+        if (PlanWritingTypes.Contains(promptwareType))
+        {
+            dirs.Add(_configService.PlanFolder);
+            dirs.Add(Path.Combine(_configService.TendrilHome, "Trash"));
+        }
+
+        return dirs;
     }
 
     private void SetTendrilEnvironment(ProcessStartInfo psi, JobItem job)
