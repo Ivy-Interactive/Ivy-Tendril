@@ -34,7 +34,7 @@
 .tpv-curve-svg {
   width: 100%;
   height: 30px;
-  color: var(--color-muted-foreground, #6b7280);
+  color: var(--muted-foreground, #6b7280);
   display: block;
   overflow: visible;
 }
@@ -65,12 +65,12 @@
 
 .tpv-box:hover {
   opacity: 0.85;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-foreground, #0f172a) 8%, transparent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--foreground, #0f172a) 8%, transparent);
 }
 
 .tpv-box-create {
-  background: var(--color-primary, #4db6a0);
-  color: var(--color-primary-foreground, #ffffff);
+  background: var(--primary, #4db6a0);
+  color: var(--primary-foreground, #ffffff);
   border-radius: 0.5rem;
   padding: 0.5rem 1rem;
   font-weight: 600;
@@ -84,9 +84,9 @@
 }
 
 .tpv-box-stage {
-  background: var(--color-card, #ffffff);
-  color: var(--color-card-foreground, #0f172a);
-  border-color: var(--color-border, #e2e8f0);
+  background: var(--card, #ffffff);
+  color: var(--card-foreground, #0f172a);
+  border-color: var(--border, #e2e8f0);
 }
 
 .tpv-box-stage-icon {
@@ -95,7 +95,7 @@
 
 .tpv-box-count {
   margin-left: 0.25rem;
-  color: var(--color-muted-foreground, #6b7280);
+  color: var(--muted-foreground, #6b7280);
 }
 
 /* Arrow segments between boxes */
@@ -117,7 +117,7 @@
 .tpv-arrow-svg {
   width: 80px;
   height: 12px;
-  color: var(--color-muted-foreground, #6b7280);
+  color: var(--muted-foreground, #6b7280);
 }
 
 /* Arrow label (count + spinner) */
@@ -129,7 +129,7 @@
   border: none;
   background: transparent;
   cursor: pointer;
-  color: var(--color-muted-foreground, #6b7280);
+  color: var(--muted-foreground, #6b7280);
   font-size: 0.8125rem;
   font-weight: 500;
   border-radius: 0.25rem;
@@ -137,8 +137,8 @@
 }
 
 .tpv-arrow-label:hover {
-  color: var(--color-foreground, #0f172a);
-  background: var(--color-muted, #f1f5f9);
+  color: var(--foreground, #0f172a);
+  background: var(--muted, #f1f5f9);
 }
 
 .tpv-arrow-count {
@@ -152,10 +152,10 @@
 
 @keyframes tpv-pulse {
   0%, 100% {
-    box-shadow: 0 1px 2px color-mix(in srgb, var(--color-foreground, #0f172a) 5%, transparent);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground, #0f172a) 5%, transparent);
   }
   50% {
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-muted-foreground, #6b7280) 50%, transparent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--muted-foreground, #6b7280) 50%, transparent);
   }
 }
 

@@ -45,11 +45,6 @@ public static class TendrilServer
         {
             app.UseMiddleware<ApiKeyAuthMiddleware>();
 
-            // Publish the actual bound URL so child processes can reach this server
-            var serverUrl = app.Urls.FirstOrDefault();
-            if (serverUrl != null)
-                Environment.SetEnvironmentVariable("TENDRIL_URL", serverUrl);
-
             if (!configService.NeedsOnboarding)
             {
                 // Auto-update promptwares if the running version is newer than what's deployed
