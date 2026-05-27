@@ -60,7 +60,7 @@
 .civ-input-card {
   background: var(--civ-bg);
   border: 1px solid var(--civ-border);
-  border-radius: var(--radius-boxes);
+  border-radius: var(--radius-fields);
   padding: 14px;
   box-shadow: var(--civ-card-shadow);
   backdrop-filter: blur(12px);
@@ -68,12 +68,11 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: border-color 0.2s;
 }
 
 .civ-input-card:focus-within {
   border-color: var(--ring);
-  box-shadow: 0 0 0 1px var(--ring);
 }
 
 /* Attached Files List */
