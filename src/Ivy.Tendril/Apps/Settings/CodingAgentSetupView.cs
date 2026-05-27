@@ -7,6 +7,9 @@ public class CodingAgentSetupView : ViewBase
 {
     private record AgentInfo(string Key, string Label, Icons Logo);
 
+    private enum TestStatus { Running, Passed, Failed, Warning }
+    private record AgentTestResult(string Label, TestStatus Status, string? Message = null);
+
     private static readonly AgentInfo[] Agents =
     [
         new("claude", "Claude", Icons.ClaudeCode),
@@ -31,6 +34,8 @@ public class CodingAgentSetupView : ViewBase
         var balancedModel = UseState(GetProfileModel(config, selectedAgent.Value, "balanced"));
         var quickModel = UseState(GetProfileModel(config, selectedAgent.Value, "quick"));
         var lastAgent = UseState(selectedAgent.Value);
+        var isTesting = UseState(false);
+        var testResults = UseState<List<AgentTestResult>?>(null);
 
         var modelsQuery = UseQuery<ModelInfo[], string>(
             selectedAgent.Value,
@@ -49,6 +54,7 @@ public class CodingAgentSetupView : ViewBase
             deepModel.Set(GetProfileModel(config, selectedAgent.Value, "deep"));
             balancedModel.Set(GetProfileModel(config, selectedAgent.Value, "balanced"));
             quickModel.Set(GetProfileModel(config, selectedAgent.Value, "quick"));
+            testResults.Set(null);
             lastAgent.Set(selectedAgent.Value);
         }
 
@@ -76,6 +82,74 @@ public class CodingAgentSetupView : ViewBase
                 selectedAgent.Set(a.Key);
             }));
 
+        async Task RunTestsAsync()
+        {
+            isTesting.Set(true);
+            var results = new List<AgentTestResult>();
+            testResults.Set(results);
+
+            try
+            {
+                var healthCheck = runner.GetHealthCheck(selectedAgent.Value);
+
+                results.Add(new AgentTestResult("Installation", TestStatus.Running));
+                testResults.Set([..results]);
+
+                var installStatus = await healthCheck.CheckInstallAsync();
+                results[^1] = installStatus.IsInstalled
+                    ? new AgentTestResult("Installation", TestStatus.Passed, installStatus.Version != null ? $"v{installStatus.Version}" : "Installed")
+                    : new AgentTestResult("Installation", TestStatus.Failed, installStatus.Error ?? "Not installed");
+                testResults.Set([..results]);
+
+                if (!installStatus.IsInstalled)
+                {
+                    isTesting.Set(false);
+                    return;
+                }
+
+                results.Add(new AgentTestResult("Authentication", TestStatus.Running));
+                testResults.Set([..results]);
+
+                var authResult = await healthCheck.CheckAuthAsync();
+                results[^1] = authResult.Status switch
+                {
+                    AuthStatus.Authenticated => new AgentTestResult("Authentication", TestStatus.Passed, "Authenticated"),
+                    AuthStatus.NotAuthenticated => new AgentTestResult("Authentication", TestStatus.Failed, "Not authenticated"),
+                    _ => new AgentTestResult("Authentication", TestStatus.Warning, authResult.Error ?? "Check inconclusive")
+                };
+                testResults.Set([..results]);
+
+                var modelValues = new[] { deepModel.Value, balancedModel.Value, quickModel.Value }
+                    .Where(m => !string.IsNullOrEmpty(m) && !m.Equals("default", StringComparison.OrdinalIgnoreCase))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                foreach (var model in modelValues)
+                {
+                    results.Add(new AgentTestResult($"Model: {model}", TestStatus.Running));
+                    testResults.Set([..results]);
+
+                    var modelResult = await healthCheck.ValidateModelAsync(model);
+                    results[^1] = modelResult.Status switch
+                    {
+                        ModelValidationStatus.Ok => new AgentTestResult($"Model: {model}", TestStatus.Passed),
+                        ModelValidationStatus.InvalidModel => new AgentTestResult($"Model: {model}", TestStatus.Failed, modelResult.ErrorMessage ?? "Invalid model"),
+                        ModelValidationStatus.AuthError => new AgentTestResult($"Model: {model}", TestStatus.Failed, modelResult.ErrorMessage ?? "Auth error"),
+                        ModelValidationStatus.Timeout => new AgentTestResult($"Model: {model}", TestStatus.Warning, "Timed out"),
+                        _ => new AgentTestResult($"Model: {model}", TestStatus.Warning, modelResult.ErrorMessage ?? "Unknown")
+                    };
+                    testResults.Set([..results]);
+                }
+            }
+            catch
+            {
+                results.Add(new AgentTestResult("Unexpected error", TestStatus.Failed, "Test run failed"));
+                testResults.Set([..results]);
+            }
+
+            isTesting.Set(false);
+        }
+
         return Layout.Vertical().Padding(4).Width(Size.Auto().Max(Size.Units(120)))
                | Text.Block("Coding Agent").Bold()
                | Text.Muted("Pick the coding agent Tendril orchestrates:")
@@ -85,15 +159,22 @@ public class CodingAgentSetupView : ViewBase
                | deepModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Deep")
                | balancedModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Balanced")
                | quickModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Quick")
-               | new Button("Save").Primary()
-                   .Disabled(!hasChanges)
-                   .OnClick(() =>
-                   {
-                       config.Settings.CodingAgent = selectedAgent.Value;
-                       SaveProfiles(config, selectedAgent.Value, deepModel.Value, balancedModel.Value, quickModel.Value);
-                       config.SaveSettings();
-                       client.Toast("Coding agent settings saved", "Saved");
-                   });
+               | new Separator()
+               | (Layout.Horizontal().Gap(2)
+                   | new Button("Test Agent").Outline()
+                       .Loading(isTesting.Value)
+                       .Disabled(isTesting.Value || modelsQuery.Loading)
+                       .OnClick(async () => await RunTestsAsync())
+                   | new Button("Save").Primary()
+                       .Disabled(!hasChanges)
+                       .OnClick(() =>
+                       {
+                           config.Settings.CodingAgent = selectedAgent.Value;
+                           SaveProfiles(config, selectedAgent.Value, deepModel.Value, balancedModel.Value, quickModel.Value);
+                           config.SaveSettings();
+                           client.Toast("Coding agent settings saved", "Saved");
+                       }))
+               | BuildTestResults(testResults.Value);
     }
 
     private static string GetProfileModel(IConfigService config, string agentId, string profileName)
@@ -133,5 +214,29 @@ public class CodingAgentSetupView : ViewBase
         }
 
         profile.Model = model;
+    }
+
+    private static object? BuildTestResults(List<AgentTestResult>? results)
+    {
+        if (results is not { Count: > 0 }) return null;
+
+        var layout = Layout.Vertical().Gap(1);
+        foreach (var r in results)
+        {
+            var (icon, color) = r.Status switch
+            {
+                TestStatus.Passed => (Icons.CircleCheck, Colors.Success),
+                TestStatus.Failed => (Icons.CircleX, Colors.Destructive),
+                TestStatus.Warning => (Icons.Info, Colors.Warning),
+                _ => (Icons.RotateCw, Colors.Muted)
+            };
+
+            layout |= Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+                      | icon.ToIcon().Color(color)
+                      | Text.Block(r.Label)
+                      | (r.Message != null ? Text.Muted(r.Message) : null);
+        }
+
+        return layout;
     }
 }
