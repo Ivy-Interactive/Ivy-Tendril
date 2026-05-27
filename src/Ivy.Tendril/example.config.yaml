@@ -48,14 +48,14 @@ codingAgents:
   - name: quick
     model: gpt-5.3-codex
     effort: low
-- name: gemini
+- name: antigravity
   profiles:
   - name: deep
-    model: gemini-3-flash-preview
+    model: default
   - name: balanced
-    model: gemini-3-flash-preview
+    model: default
   - name: quick
-    model: gemini-3-flash-preview
+    model: default
 - name: copilot
   profiles:
   - name: deep
@@ -90,7 +90,7 @@ codingAgents:
 #   %PLAN_DIR%       — the specific plan folder (e.g., /home/user/tendril/Plans/01234-MyPlan)
 #   %TENDRIL_HOME%   — the TENDRIL_HOME environment variable
 # For Codex: Write/Edit path scopes are translated to --add-dir flags.
-# For Gemini: Write/Edit path scopes are translated to --include-directories flags.
+# For Antigravity: Write/Edit path scopes are translated to --include-directories flags.
 # For Copilot: Write/Edit path scopes are translated to --add-dir flags.
 promptwares:
   CreatePlan:
@@ -175,7 +175,7 @@ promptwares:
 #         required: true
 #     context: >
 #       AI coding agent orchestrator built on Ivy Framework. Manages plan lifecycles,
-#       orchestrates Claude/Codex/Gemini agents, and provides GitHub PR integration.
+#       orchestrates Claude/Codex/Antigravity agents, and provides GitHub PR integration.
 #       Key folders: src/Ivy.Tendril/Services/, src/Ivy.Tendril/Apps/, src/Ivy.Tendril/Promptwares/
 projects: []
 

@@ -33,6 +33,13 @@ public class ProjectRepoPickerView(
                 return;
             }
 
+            var localRepoError = RepoPathValidator.ValidateLocalRepo(path, tendrilHome);
+            if (localRepoError != null)
+            {
+                addingError.Set(localRepoError);
+                return;
+            }
+
             if (repos.Value.Any(r => string.Equals(r.Path, path, StringComparison.OrdinalIgnoreCase)))
             {
                 inputValue.Set("");

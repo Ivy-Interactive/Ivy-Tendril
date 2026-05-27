@@ -1,3 +1,4 @@
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Commands;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -103,9 +104,11 @@ public class PromptwareDryRunTests : IDisposable
         return root;
     }
 
+    private static IAgentRunner CreateRunner() => TestAgentRunner.Create();
+
     private string RunDryRun(string promptware, string[]? values = null, string? plan = null)
     {
-        var command = new PromptwareRunCommand(NullLogger<PromptwareRunCommand>.Instance);
+        var command = new PromptwareRunCommand(CreateRunner(), NullLogger<PromptwareRunCommand>.Instance);
         var originalOut = Console.Out;
         using var sw = new StringWriter();
         Console.SetOut(sw);
@@ -339,7 +342,7 @@ public class PromptwareDryRunTests : IDisposable
     public void DryRun_DoesNotLaunchProcess()
     {
         // Dry-run with a non-existent agent command — should not error since no process is started
-        var command = new PromptwareRunCommand(NullLogger<PromptwareRunCommand>.Instance);
+        var command = new PromptwareRunCommand(CreateRunner(), NullLogger<PromptwareRunCommand>.Instance);
         var originalOut = Console.Out;
         using var sw = new StringWriter();
         Console.SetOut(sw);

@@ -40,7 +40,9 @@ public class OnboardingTests : IAsyncLifetime
             {
                 "claude" => "Claude",
                 "codex" => "Codex",
-                "gemini" => "Gemini",
+                "copilot" => "Copilot",
+                "antigravity" => "Antigravity",
+                "opencode" => "OpenCode",
                 _ => settings.Agent,
             };
 
@@ -67,8 +69,7 @@ public class OnboardingTests : IAsyncLifetime
         // Verify filesystem structure
         FileSystemAssertions.AssertOnboardingComplete(_fixture.Tendril.TendrilHome);
 
-        // Verify config.yaml contains the project and agent
-        FileSystemAssertions.AssertConfigContains(_fixture.Tendril.TendrilHome, "E2ETest");
+        // Verify config.yaml contains the agent
         FileSystemAssertions.AssertConfigContains(_fixture.Tendril.TendrilHome, _fixture.Settings.Agent);
     }
 }

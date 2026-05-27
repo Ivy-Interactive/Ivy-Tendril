@@ -130,6 +130,7 @@ verifications: []
     [Fact]
     public void AddRepo_AddsToProject()
     {
+        var repoPath = Path.Combine(_tempDir.Path, "MyRepo");
         var config = CreateConfig();
         config.Settings.Projects.Add(new ProjectConfig { Name = "Test" });
         config.SaveSettings();
@@ -137,7 +138,7 @@ verifications: []
         var config2 = CreateConfig();
         config2.Settings.Projects[0].Repos.Add(new RepoRef
         {
-            Path = @"D:\Repos\MyRepo",
+            Path = repoPath,
             PrRule = "default",
             SyncStrategy = "fetch"
         });
@@ -145,32 +146,34 @@ verifications: []
 
         var reloaded = CreateConfig();
         Assert.Single(reloaded.Settings.Projects[0].Repos);
-        Assert.Equal(@"D:\Repos\MyRepo", reloaded.Settings.Projects[0].Repos[0].Path);
+        Assert.Equal(repoPath, reloaded.Settings.Projects[0].Repos[0].Path);
     }
 
     [Fact]
     public void RemoveRepo_RemovesFromProject()
     {
+        var keepPath = Path.Combine(_tempDir.Path, "Keep");
+        var removePath = Path.Combine(_tempDir.Path, "Remove");
         var config = CreateConfig();
         config.Settings.Projects.Add(new ProjectConfig
         {
             Name = "Test",
             Repos = [
-                new RepoRef { Path = @"D:\Repos\Keep" },
-                new RepoRef { Path = @"D:\Repos\Remove" }
+                new RepoRef { Path = keepPath },
+                new RepoRef { Path = removePath }
             ]
         });
         config.SaveSettings();
 
         var config2 = CreateConfig();
-        var match = config2.Settings.Projects[0].GetRepoRef(@"D:\Repos\Remove");
+        var match = config2.Settings.Projects[0].GetRepoRef(removePath);
         Assert.NotNull(match);
         config2.Settings.Projects[0].Repos.Remove(match);
         config2.SaveSettings();
 
         var reloaded = CreateConfig();
         Assert.Single(reloaded.Settings.Projects[0].Repos);
-        Assert.Equal(@"D:\Repos\Keep", reloaded.Settings.Projects[0].Repos[0].Path);
+        Assert.Equal(keepPath, reloaded.Settings.Projects[0].Repos[0].Path);
     }
 
     // --- Add/Remove Verification ---

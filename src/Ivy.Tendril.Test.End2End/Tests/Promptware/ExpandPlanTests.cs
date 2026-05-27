@@ -26,7 +26,8 @@ public class ExpandPlanTests
                 "Add logging to startup",
                 "Add logging to request handling",
                 "Add logging to error paths"
-            ]);
+            ],
+            repoPath: _fixture.TestRepo.LocalClonePath);
 
         var result = await _fixture.Runner.RunAsync(
             "ExpandPlan",

@@ -12,6 +12,7 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);Promptwares\**</DefaultItemExcludes>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
+
   <PropertyGroup>
     <PackageId>Ivy.Tendril</PackageId>
     <IsPackable>true</IsPackable>
@@ -23,54 +24,59 @@
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+
   <ItemGroup>
     <InternalsVisibleTo Include="Ivy.Tendril.Test" />
   </ItemGroup>
+
   <ItemGroup>
     <EmbeddedResource Include="Assets/**/*" />
     <EmbeddedResource Include="../Tendril.svg" Link="Assets/Tendril.svg" />
   </ItemGroup>
+
   <ItemGroup Condition="Exists('PublishedBinaries')">
     <EmbeddedResource Include="PublishedBinaries/**/*.zip" />
   </ItemGroup>
+
+  <!-- PackageReferences -->
   <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.4.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.5" />
     <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="10.0.5" />
-    <PackageReference Include="ModelContextProtocol" Version="1.2.0" />
-    <PackageReference Include="YamlDotNet" Version="16.3.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.5" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.5" />
+    <PackageReference Include="ModelContextProtocol" Version="1.2.0" />
     <PackageReference Include="OpenAI" Version="2.9.1" />
-    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.4.1" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.0" />
-    <PackageReference Include="PostHog" Version="1.0.8" />
+    <PackageReference Include="PostHog" Version="2.6.0" />
     <PackageReference Include="Spectre.Console.Cli" Version="1.0.0-alpha.0.16" />
     <PackageReference Include="Velopack" Version="0.0.1298" />
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>
+
+  <!-- Ivy Framework (source) -->
   <ItemGroup Condition="'$(IvySource)' == 'true'">
     <ProjectReference Include="../../../Ivy-Framework/src/Ivy/Ivy.csproj" />
-    <ProjectReference Include="../../../Ivy-Framework/src/Ivy.Hooks.Pty/Ivy.Hooks.Pty.csproj" />
-    <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.Xterm/Ivy.Widgets.Xterm.csproj" />
-    <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.DiffView/Ivy.Widgets.DiffView.csproj" />
-    <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.ClaudeJsonRenderer/Ivy.Widgets.ClaudeJsonRenderer.csproj" />
-    <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.AnimatedStatusLabel/Ivy.Widgets.AnimatedStatusLabel.csproj" />
-    <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.AgentOutputView/Ivy.Widgets.AgentOutputView.csproj" />
     <ProjectReference Include="../../../Ivy-Framework/src/Ivy.Desktop/Ivy.Desktop.csproj" />
-    <ProjectReference Include="../Ivy.Tendril.Plugin.Abstractions/Ivy.Tendril.Plugin.Abstractions.csproj" />
-    <ProjectReference Include="../Ivy.Tendril.Plugin.Extended.Abstractions/Ivy.Tendril.Plugin.Extended.Abstractions.csproj" />
+    <ProjectReference Include="../../../Ivy-Framework/src/Ivy.Hooks.Pty/Ivy.Hooks.Pty.csproj" />
+    <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.AnimatedStatusLabel/Ivy.Widgets.AnimatedStatusLabel.csproj" />
+    <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.DiffView/Ivy.Widgets.DiffView.csproj" />
+    <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.QRCode/Ivy.Widgets.QRCode.csproj" />
+    <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.Xterm/Ivy.Widgets.Xterm.csproj" />
   </ItemGroup>
+
+  <!-- Ivy Framework (NuGet) -->
   <ItemGroup Condition="'$(IvySource)' != 'true'">
     <PackageReference Include="Ivy" Version="1.2.58" />
-    <PackageReference Include="Ivy.Hooks.Pty" Version="1.2.58" />
-    <PackageReference Include="Ivy.Widgets.Xterm" Version="1.2.58" />
-    <PackageReference Include="Ivy.Widgets.DiffView" Version="1.2.58" />
-    <PackageReference Include="Ivy.Widgets.ClaudeJsonRenderer" Version="1.2.58" />
-    <PackageReference Include="Ivy.Widgets.AnimatedStatusLabel" Version="1.2.58" />
-    <PackageReference Include="Ivy.Widgets.AgentOutputView" Version="1.2.58" />
     <PackageReference Include="Ivy.Desktop" Version="1.2.58" />
-    <PackageReference Include="Ivy.Tendril.Plugin.Abstractions" Version="1.0.34" />
-    <PackageReference Include="Ivy.Tendril.Plugin.Extended.Abstractions" Version="1.0.34" />
+    <PackageReference Include="Ivy.Hooks.Pty" Version="1.2.58" />
+    <PackageReference Include="Ivy.Widgets.AnimatedStatusLabel" Version="1.2.58" />
+    <PackageReference Include="Ivy.Widgets.DiffView" Version="1.2.58" />
+    <PackageReference Include="Ivy.Widgets.QRCode" Version="1.2.58" />
+    <PackageReference Include="Ivy.Widgets.Xterm" Version="1.2.58" />
   </ItemGroup>
+
+  <!-- Ivy Analyser -->
   <ItemGroup Condition="'$(IvySource)' == 'true'">
     <ProjectReference Include="../../../Ivy-Framework/src/Ivy.Analyser/Ivy.Analyser.csproj">
       <PrivateAssets>all</PrivateAssets>
@@ -86,8 +92,13 @@
     </PackageReference>
   </ItemGroup>
 
+  <!-- Tendril ProjectReferences -->
   <ItemGroup>
-    <ProjectReference Include="../Ivy.Widget.TendrilProcessView/Ivy.Widget.TendrilProcessView.csproj" />
+    <ProjectReference Include="../Ivy.Tendril.Agents/Ivy.Tendril.Agents.csproj" />
+    <ProjectReference Include="../Ivy.Tendril.Plugin.Abstractions/Ivy.Tendril.Plugin.Abstractions.csproj" />
+    <ProjectReference Include="../Ivy.Tendril.Plugin.Extended.Abstractions/Ivy.Tendril.Plugin.Extended.Abstractions.csproj" />
+    <ProjectReference Include="../Ivy.Widgets.AgentOutputView/Ivy.Widgets.AgentOutputView.csproj" />
+    <ProjectReference Include="../Ivy.Widgets.TendrilProcessView/Ivy.Widgets.TendrilProcessView.csproj" />
   </ItemGroup>
 
   <ItemGroup>

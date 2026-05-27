@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <NoWarn>CS1591;CS1573</NoWarn>
+    <PackageId>Ivy.Widgets.AgentOutputView</PackageId>
+    <Description>Terminal-themed agent output view with universal EventWire rendering</Description>
+    <Authors>Ivy Interactive</Authors>
+    <Company>Ivy Interactive</Company>
+    <PackageTags>ivy;widget;agent;output;terminal</PackageTags>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/Ivy-Interactive/Ivy-Tendril</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Ivy-Interactive/Ivy-Tendril</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <CI Condition="'$(GITHUB_ACTIONS)' == 'true'">true</CI>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(CI)' == 'true'">
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(CI)' != 'true'">
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(IvySource)' == 'true'">
+    <ProjectReference Include="../../../Ivy-Framework/src/Ivy/Ivy.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(IvySource)' != 'true'">
+    <PackageReference Include="Ivy" Version="1.2.58" GeneratePathProperty="true" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="frontend\node_modules\**" />
+  </ItemGroup>
+
+<ItemGroup>
+    <Compile Remove=".samples\**\*.cs" />
+    <None Include=".samples\**\*" CopyToOutputDirectory="Never" />
+</ItemGroup>
+
+  <!-- Import framework targets from sibling Ivy-Framework repo if present (local dev) -->
+  <Import Project="../../../Ivy-Framework/src/Ivy/Build/Ivy.ExternalWidget.targets" Condition="Exists('../../../Ivy-Framework/src/Ivy/Build/Ivy.ExternalWidget.targets')" />
+
+  <!-- Fallback to the targets in the Ivy NuGet package if local sibling is not present (CI / standalone) -->
+  <Import Project="$(PkgIvy)\build\Ivy.ExternalWidget.targets" Condition="!Exists('../../../Ivy-Framework/src/Ivy/Build/Ivy.ExternalWidget.targets') And '$(PkgIvy)' != '' And Exists('$(PkgIvy)\build\Ivy.ExternalWidget.targets')" />
+
+</Project>

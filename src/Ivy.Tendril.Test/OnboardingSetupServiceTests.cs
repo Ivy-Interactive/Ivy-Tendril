@@ -35,6 +35,7 @@ public class OnboardingSetupServiceTests : IDisposable
         var onboardingService = new OnboardingSetupService(
             configService,
             null!,
+            null!,
             NullLogger<OnboardingSetupService>.Instance);
 
         // Act

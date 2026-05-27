@@ -11,3 +11,7 @@ Shipped promptwares are used by all Tendril customers across different teams, te
 - **Tool references.** Refer to shipped tools by name without file extension: `Tools/Apply-SyncStrategy`, not `Tools/Apply-SyncStrategy.ps1`. The runtime resolves the correct script format.
 - **Config over convention.** Anything that varies between customers belongs in config.yaml or the firmware header, not in Program.md. If you find yourself writing "if using X, do Y" for a customer-specific X, it should be a config option instead.
 - **Keep it concise.** The limiting factor is a human reading the plan. Every sentence must earn its place.
+
+## Reference
+
+For detailed intel on CLI coding agents (capabilities, quirks, configuration tips), see the companion repository at `D:\Repos\_Ivy\Coding-Agent-Experiments`.

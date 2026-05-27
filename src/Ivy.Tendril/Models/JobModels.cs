@@ -2,7 +2,9 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Reactive.Subjects;
 using System.Text.Json.Serialization;
-using Ivy.Tendril.Services.Agents;
+using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Providers.Claude;
+using Ivy.Tendril.Agents.Runtime;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Models;
@@ -51,11 +53,14 @@ public record JobItem
     public bool CancellationRequested { get; set; }
     public string? SessionId { get; set; }
     public string Provider { get; init; } = "claude";
+    public string? Model { get; set; }
     public int Priority { get; init; }
     public decimal? Cost { get; set; }
     public int? Tokens { get; set; }
 
-    private IOutputNormalizer? _outputNormalizer;
+    [JsonIgnore]
+    public IEventParser? EventParser { get; set; }
+    private IEventSerializer? _eventSerializer;
 
     // Process handle for non-interactive execution
     public Process? Process { get; set; }
@@ -103,25 +108,44 @@ public record JobItem
 
     public void EnqueueOutput(string line)
     {
-        _outputNormalizer ??= OutputNormalizerFactory.Create(Provider);
-        foreach (var normalized in _outputNormalizer.Normalize(line))
+        EventParser ??= new ClaudeEventParser();
+        _eventSerializer ??= new JsonEventSerializer();
+        foreach (var evt in EventParser.ParseLine(line))
         {
-            OutputLines.Enqueue(normalized);
+            if (evt is SessionInitEvent { Model: not null } initEvt)
+                Model = initEvt.Model;
+
+            var serialized = _eventSerializer.Serialize(evt);
+            OutputLines.Enqueue(serialized);
             while (OutputLines.Count > MaxOutputLines)
                 OutputLines.TryDequeue(out _);
-            _outputSubject.OnNext(normalized);
-            AppendToRawLog(normalized);
+            _outputSubject.OnNext(serialized);
+            AppendToRawLog(serialized);
         }
     }
 
-    public void FlushNormalizer()
+    public void EnqueueSystemOutput(string message)
     {
-        if (_outputNormalizer is null) return;
-        foreach (var line in _outputNormalizer.Flush())
+        _eventSerializer ??= new JsonEventSerializer();
+        var evt = new TextEvent { Kind = AgentEventKind.Text, Text = message };
+        var serialized = _eventSerializer.Serialize(evt);
+        OutputLines.Enqueue(serialized);
+        while (OutputLines.Count > MaxOutputLines)
+            OutputLines.TryDequeue(out _);
+        _outputSubject.OnNext(serialized);
+        AppendToRawLog(serialized);
+    }
+
+    public void FlushParser()
+    {
+        if (EventParser is null) return;
+        _eventSerializer ??= new JsonEventSerializer();
+        foreach (var evt in EventParser.Flush())
         {
-            OutputLines.Enqueue(line);
-            _outputSubject.OnNext(line);
-            AppendToRawLog(line);
+            var serialized = _eventSerializer.Serialize(evt);
+            OutputLines.Enqueue(serialized);
+            _outputSubject.OnNext(serialized);
+            AppendToRawLog(serialized);
         }
     }
 

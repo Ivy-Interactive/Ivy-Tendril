@@ -22,7 +22,8 @@ public class ExecutePlanTests
             "Add a single-line comment '// E2E test' at the top of Program.cs",
             "E2ETest",
             steps: ["Add the comment '// E2E test' as the first line of Program.cs"],
-            verifications: ["DotnetBuild"]);
+            verifications: ["DotnetBuild"],
+            repoPath: _fixture.TestRepo.LocalClonePath);
 
         var result = await _fixture.Runner.RunAsync(
             "ExecutePlan",
@@ -55,7 +56,8 @@ public class ExecutePlanTests
             "Add a using directive 'using System.Text;' at the top of Program.cs",
             "E2ETest",
             steps: ["Add 'using System.Text;' as the first using directive in Program.cs"],
-            verifications: ["DotnetBuild"]);
+            verifications: ["DotnetBuild"],
+            repoPath: _fixture.TestRepo.LocalClonePath);
 
         var planId = PlanSetupHelper.GetPlanId(planFolder);
 

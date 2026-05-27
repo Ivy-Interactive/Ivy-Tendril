@@ -68,7 +68,7 @@ public record ProjectConfig
         catch
         {
             // If Path.GetFullPath fails (e.g., invalid path), return original with trimmed separators
-            return path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            return path.TrimEnd('/', '\\');
         }
     }
 }
@@ -172,6 +172,7 @@ public class TendrilSettings
     public ApiSettings? Api { get; set; }
     public Dictionary<string, PromptwareConfig> Promptwares { get; set; } = new();
     public List<AgentConfig> CodingAgents { get; set; } = new();
+    public Tunnel.TunnelConfig? Tunnel { get; set; }
     public bool Telemetry { get; set; } = true;
     public bool DesktopNotifications { get; set; } = true;
 

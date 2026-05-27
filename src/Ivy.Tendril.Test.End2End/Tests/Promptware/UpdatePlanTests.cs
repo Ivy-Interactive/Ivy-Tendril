@@ -21,7 +21,8 @@ public class UpdatePlanTests
             $"Simple File Change {agent}",
             "Make a simple change to a file",
             "E2ETest",
-            steps: ["Modify Program.cs"]);
+            steps: ["Modify Program.cs"],
+            repoPath: _fixture.TestRepo.LocalClonePath);
 
         var originalYaml = File.ReadAllText(Path.Combine(planFolder, "plan.yaml"));
 

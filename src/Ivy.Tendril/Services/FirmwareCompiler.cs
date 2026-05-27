@@ -106,6 +106,13 @@ public static class FirmwareCompiler
             firmware += $"\n### Plans\n\n{plansContent}\n";
         }
 
+        if (!string.IsNullOrWhiteSpace(context.PlanTemplate))
+        {
+            firmware += "\n\n## Plan Template\n\n";
+            firmware += "Use this template structure when writing plan revisions:\n\n";
+            firmware += "```markdown\n" + context.PlanTemplate + "\n```\n";
+        }
+
         if (!string.IsNullOrWhiteSpace(context.CustomInstructions))
         {
             firmware += "\n\n## Custom Instructions\n\n";
@@ -186,14 +193,14 @@ public static class FirmwareCompiler
         File.WriteAllText(logFile, "*Execution in progress...*\n");
         return logFile;
     }
-
 }
 
 public record FirmwareContext(
     string ProgramFolder,
     Dictionary<string, string> Values,
     string? CustomInstructions = null,
-    ProjectInfo[]? Projects = null);
+    ProjectInfo[]? Projects = null,
+    string? PlanTemplate = null);
 
 public record ProjectInfo(
     string Name,

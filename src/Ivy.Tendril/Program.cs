@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Ivy.Desktop;
 using Ivy.Helpers;
+using Ivy.Tendril.Agents;
 using Ivy.Tendril.Commands;
 using Ivy.Tendril.Database;
 using Ivy.Tendril.Infrastructure;
@@ -26,6 +27,9 @@ public class Program
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool SetConsoleCtrlHandler(ConsoleCtrlHandlerDelegate handler, bool add);
 
+    [DllImport("shell32.dll", SetLastError = true)]
+    private static extern void SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string appId);
+
     // Must be a static field to prevent GC from collecting the delegate
     private static ConsoleCtrlHandlerDelegate? _consoleCtrlHandler;
 
@@ -35,6 +39,15 @@ public class Program
     [STAThread]
     public static async Task<int> Main(string[] args)
     {
+        if (OperatingSystem.IsWindows())
+        {
+            try
+            {
+                SetCurrentProcessExplicitAppUserModelID("Ivy Tendril");
+            }
+            catch { }
+        }
+
         Console.InputEncoding = System.Text.Encoding.UTF8;
         Console.OutputEncoding = System.Text.Encoding.UTF8;
 
@@ -62,6 +75,7 @@ public class Program
             var cliLogLevel = verbose ? LogLevel.Debug : quiet ? LogLevel.Warning : LogLevel.Information;
             cliServices.AddLogging(builder => builder.AddConsole().SetMinimumLevel(cliLogLevel));
             cliServices.AddSingleton<IPlanWatcherService, NullPlanWatcherService>();
+            cliServices.AddAgentInfrastructure();
 
             var app = ConfigureCliCommands(cliServices);
             var firstArg = filteredArgs[0];
@@ -144,12 +158,11 @@ public class Program
                 {
                     if (server.ServiceProvider is { } sp)
                     {
-                        var countsService = sp.GetService<IPlanCountsService>();
-                        if (countsService != null)
+                        var statusService = sp.GetService<ITendrilProcessStatusService>();
+                        if (statusService != null)
                         {
-                            UpdateBadge(w, countsService.Current.ActiveJobs);
-                            countsService.CountsChanged += () =>
-                                UpdateBadge(w, countsService.Current.ActiveJobs);
+                            UpdateBadge(w, statusService.Current.JobCount);
+                            statusService.Status.Subscribe(s => UpdateBadge(w, s.JobCount));
                         }
 
                         var jobService = sp.GetService<IJobService>();
@@ -208,8 +221,9 @@ public class Program
         {
             "doctor", "db-version", "db-migrate", "db-reset",
             "update-promptwares", "job", "plan", "promptware",
-            "trash", "verification", "project",
-            "version", "--version", "report-bug", "reset", "update"
+            "trash", "verification", "project", "models",
+            "version", "--version", "report-bug", "reset", "update",
+            "--help", "-h"
         };
         return cliCommands.Contains(firstArg);
     }
@@ -249,14 +263,12 @@ public class Program
 
         var startInfo = new ProcessStartInfo(processPath)
         {
-            UseShellExecute = true
+            UseShellExecute = false,
+            CreateNoWindow = true
         };
 
         foreach (var arg in childArgs)
             startInfo.ArgumentList.Add(arg);
-
-        if (OperatingSystem.IsWindows())
-            startInfo.CreateNoWindow = true;
 
         try
         {
@@ -408,6 +420,9 @@ public class Program
                     .WithDescription("Update a verification definition field");
             });
 
+            config.AddCommand<ModelsCommand>("models")
+                .WithDescription("List available models and pricing for agent CLIs");
+
             config.AddBranch("trash", trash =>
             {
                 trash.AddCommand<TrashWriteCommand>("write")
@@ -524,7 +539,7 @@ public class Program
     private static void UpdateBadge(DesktopWindow window, int activeJobs)
     {
         if (activeJobs > 0)
-            window.SetBadgeCount(activeJobs);
+            window.SetBadgeCount(activeJobs, background: "#4A154B", foreground: "#FFFFFF");
         else
             window.ClearBadge();
     }

@@ -1,0 +1,346 @@
+using System.Text.RegularExpressions;
+using Ivy.Core;
+using Ivy.Tendril.Apps.Drafts.Dialogs;
+using Ivy.Tendril.Apps.Views;
+using Ivy.Tendril.Apps.Views.Sheets;
+using Ivy.Tendril.Apps.Views.Tabs;
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
+using Ivy.Tendril.Services;
+
+namespace Ivy.Tendril.Apps.Drafts;
+
+public class ContentView(
+    PlanFile? selectedPlan,
+    List<PlanFile> allPlans,
+    IState<PlanFile?> selectedPlanState,
+    IPlanReaderService planService,
+    IJobService jobService,
+    Action refreshPlans,
+    IConfigService config,
+    IGitService gitService) : ViewBase
+{
+    public override object Build()
+    {
+        var downloadUrl = PlanDownloadHelper.UsePlanDownload(Context, planService, selectedPlan);
+        var client = UseService<IClientProvider>();
+        var copyToClipboard = UseClipboard();
+        var openFile = UseState<string?>(null);
+        var selectedRepoState = UseState<string?>(null);
+        var issueAssigneeState = UseState<string?>(null);
+        var issueLabelsState = UseState<string[]>([]);
+        var issueCommentState = UseState("");
+
+        var (updateDialog, showUpdateDialog) = UseTrigger((isOpen) => !isOpen.Value ? null : new UpdatePlanDialog(isOpen, selectedPlan!, selectedPlanState, jobService, planService, refreshPlans));
+
+        var (deleteDialog, showDeleteDialog) = UseTrigger((isOpen) => !isOpen.Value ? null : new DeletePlanDialog(isOpen, selectedPlan!, selectedPlanState, planService, refreshPlans));
+
+        var (createIssueDialog, showCreateIssueDialog) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value) return null;
+            return new CreateIssueDialog(isOpen, selectedRepoState, issueAssigneeState, issueLabelsState,
+                issueCommentState, selectedPlan!, jobService);
+        });
+
+        var isEditing = UseState(false);
+        var editContent = UseState("");
+        var originalContent = UseState("");
+        var isEditingPrev = UseState(false);
+        var lastPlanId = UseState(selectedPlan?.Id ?? -1);
+
+        var selectedTab = UseState(0);
+        var openVerification = UseState<string?>(null);
+        var openCommit = UseState<string?>(null);
+
+        var selectedPlanRef = UseRef(selectedPlan);
+
+        var planContentQuery = UseQuery<PlanContentData, string>(
+            selectedPlan?.FolderPath ?? "",
+            async (folderPath, ct) =>
+            {
+                return await Task.Run(() =>
+                {
+                    if (selectedPlan is null)
+                        return new PlanContentData(null,
+                            new Dictionary<string, List<string>>(), [],
+                            new Dictionary<string, bool>(), null);
+
+                    var summaryPath = Path.Combine(folderPath, "Artifacts", "summary.md");
+                    var summaryMd = File.Exists(summaryPath) ? FileHelper.ReadAllText(summaryPath) : null;
+
+                    var artifacts = PlanContentHelpers.GetArtifacts(folderPath);
+
+                    var commitRows = PlanContentHelpers.BuildCommitRows(selectedPlan!, config, gitService);
+
+                    var allChanges = PlanContentHelpers.GetAllChangesData(selectedPlan!, config, gitService);
+
+                    var verReports = selectedPlan.Verifications.ToDictionary(
+                        v => v.Name,
+                        v => File.Exists(Path.Combine(folderPath, "Verification", $"{v.Name}.md")));
+
+                    return new PlanContentData(summaryMd, artifacts, commitRows, verReports, allChanges);
+                }, ct);
+            },
+            initialValue: new PlanContentData(null,
+                new Dictionary<string, List<string>>(), new List<PlanContentHelpers.CommitRow>(), new Dictionary<string, bool>(), null)
+        );
+
+        // Authentication effects (was UseAuthenticationEffects)
+        UseEffect(() =>
+        {
+            var plan = selectedPlanRef.Value;
+            if (isEditing.Value && !isEditingPrev.Value)
+            {
+                if (plan != null)
+                {
+                    var raw = planService.ReadRawPlan(plan.FolderName);
+                    editContent.Set(raw);
+                    originalContent.Set(raw);
+                }
+                else
+                {
+                    isEditing.Set(false);
+                }
+            }
+
+            isEditingPrev.Set(isEditing.Value);
+        }, isEditing);
+
+        // Navigation effects (was UseNavigationEffects)
+        UseEffect(() => { selectedTab.Set(0); }, selectedPlanState);
+
+#pragma warning disable CS8601
+        selectedPlanRef.Value = selectedPlan;
+#pragma warning restore CS8601
+
+        if (lastPlanId.Value != (selectedPlan?.Id ?? -1))
+        {
+            lastPlanId.Set(selectedPlan?.Id ?? -1);
+            isEditing.Set(false);
+        }
+
+        if (selectedPlan is null)
+        {
+            if (allPlans.Count == 0)
+                return new NoContentView("No draft plans", "Plans you create will appear here.", new NewPlanButton().Width(Size.Fit()));
+
+            return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
+                   | Text.Muted("Select a plan from the sidebar");
+        }
+
+        var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan.FolderName);
+
+        var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(40)).Gap(2)
+                     | Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold();
+        header |= Text.Muted($"rev:{selectedPlan.RevisionCount}");
+
+        if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
+            header |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
+                .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
+
+        if (selectedPlan.DependsOn.Count > 0)
+        {
+            var depIds = string.Join(", ", selectedPlan.DependsOn.Select(d =>
+            {
+                var name = Path.GetFileName(d);
+                var dashIdx = name.IndexOf('-');
+                return dashIdx > 0 ? name[..dashIdx] : name;
+            }));
+            header |= new Badge($"Depends on: {depIds}").Variant(BadgeVariant.Secondary);
+        }
+
+        header |= new Spacer().Width(Size.Grow());
+        header |= Text.Rich()
+            .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
+            .Muted("plans", word: true);
+        header |= new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("e").OnClick(() =>
+        {
+            // Optimistically update UI state before disk I/O
+            var optimisticPlan = selectedPlan with
+            {
+                Metadata = selectedPlan.Metadata with { State = PlanStatus.Building }
+            };
+            selectedPlanState.Set(optimisticPlan);
+
+            planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
+            jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath));
+            refreshPlans();
+        });
+
+        var content = Layout.Vertical().Height(Size.Full());
+
+        var planTabContent = new PlanTabView(
+            selectedPlan,
+            selectedPlanState,
+            isEditing.Value,
+            editContent,
+            openFile,
+            planService);
+
+        if (planContentQuery.Loading)
+        {
+            content |= Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
+                       | Text.Muted("Loading...");
+        }
+        else
+        {
+            var tabs = Layout.Tabs(
+                new Tab("Plan", Cap(planTabContent)),
+                new Tab("Details", Cap(new DetailsTabView(selectedPlan!)))
+            ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content);
+
+            content |= (Layout.Vertical().Padding(2).Height(Size.Full()) | tabs);
+        }
+
+        content |= new VerificationReportSheet(openVerification, selectedPlan);
+        content |= new CommitDetailSheet(openCommit, selectedPlan, config, gitService);
+
+        // Check for active ExpandPlan job
+        var hasActiveExpandJob = jobService.GetJobs().Any(j =>
+            j is { TypedArgs: ExpandPlanArgs, Status: JobStatus.Running or JobStatus.Queued or JobStatus.Pending } &&
+            j.TypedArgs?.PlanFolder != null &&
+            j.TypedArgs.PlanFolder.Equals(selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
+
+        // Check for active SplitPlan job
+        var hasActiveSplitJob = jobService.GetJobs().Any(j =>
+            j is { TypedArgs: SplitPlanArgs, Status: JobStatus.Running or JobStatus.Queued or JobStatus.Pending } &&
+            j.TypedArgs?.PlanFolder != null &&
+            j.TypedArgs.PlanFolder.Equals(selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
+
+        var actionBar = new ActionBarView(
+            selectedPlan,
+            allPlans,
+            selectedPlanState,
+            isEditing,
+            editContent,
+            originalContent,
+            showUpdateDialog,
+            showDeleteDialog,
+            showCreateIssueDialog,
+            planService,
+            jobService,
+            config,
+            refreshPlans,
+            copyToClipboard,
+            hasActiveExpandJob,
+            hasActiveSplitJob,
+            GoToNext,
+            GoToPrevious,
+            downloadUrl.Value);
+
+        var mainLayout = new HeaderLayout(
+            header,
+            new FooterLayout(
+                actionBar,
+                content
+            ).Scroll(Scroll.None).Size(Size.Full())
+        ).Scroll(Scroll.None).Size(Size.Full()).Key(selectedPlan.Id);
+
+        var elements = new List<object>
+        {
+            mainLayout,
+            updateDialog,
+            deleteDialog,
+            createIssueDialog
+        };
+
+        elements.Add(new FileSheet(openFile, config));
+
+        return new Fragment(elements.ToArray());
+
+        object Cap(object inner) => Layout.Vertical().Scroll().Width(Size.Full()).Height(Size.Full())
+            | (Layout.Vertical().Width(Size.Full().Max(Size.Units(200))) | inner);
+    }
+
+    internal static object BuildFailureCallout(PlanFile plan)
+    {
+        var verificationDir = Path.Combine(plan.FolderPath, "Verification");
+        var failedVerifications = plan.Verifications
+            .Where(v => v.Status is VerificationStatus.Fail or VerificationStatus.Pending)
+            .ToList();
+
+        if (failedVerifications.Count > 0 && Directory.Exists(verificationDir))
+        {
+            var parts = new List<string>();
+            foreach (var v in failedVerifications)
+            {
+                var reportPath = Path.Combine(verificationDir, $"{v.Name}.md");
+                if (!File.Exists(reportPath))
+                {
+                    parts.Add($"**{v.Name}** {v.Status}, no report generated");
+                    continue;
+                }
+
+                var report = FileHelper.ReadAllText(reportPath);
+
+                // Extract the Output section content
+                var outputMatch = Regex.Match(
+                    report, @"## Output\s*\n([\s\S]*?)(?=\n## |\z)");
+                var output = outputMatch.Success
+                    ? outputMatch.Groups[1].Value.Trim()
+                    : null;
+
+                // Extract Issues Found section
+                var issuesMatch = Regex.Match(
+                    report, @"## Issues Found\s*\n([\s\S]*?)(?=\n## |\z)");
+                var issues = issuesMatch.Success
+                    ? issuesMatch.Groups[1].Value.Trim()
+                    : null;
+
+                var detail = output ?? issues ?? "See verification report for details";
+                parts.Add($"**{v.Name}** {detail}");
+            }
+
+            return Callout.Destructive(string.Join("\n\n", parts), "Execution Failed");
+        }
+
+        // Fall back to last execution log
+        var logsDir = Path.Combine(plan.FolderPath, "Logs");
+        if (!Directory.Exists(logsDir))
+            return Callout.Destructive("No details available. Check the logs folder.", "Execution Failed");
+        var lastLog = Directory.GetFiles(logsDir, "*.md")
+            .OrderByDescending(f => f)
+            .FirstOrDefault();
+        if (lastLog == null)
+            return Callout.Destructive("No details available. Check the logs folder.", "Execution Failed");
+        var logContent = FileHelper.ReadAllText(lastLog);
+        var summaryMatch = Regex.Match(
+            logContent, @"## Summary\s*\n([\s\S]*?)(?=\n## |\z)");
+        if (summaryMatch.Success)
+            return Callout.Destructive(summaryMatch.Groups[1].Value.Trim(), "Execution Failed");
+        var statusMatch = Regex.Match(
+            logContent, @"\*\*Status:\*\*\s*(.+)");
+        if (!statusMatch.Success)
+            return Callout.Destructive("No details available. Check the logs folder.", "Execution Failed");
+        var status = statusMatch.Groups[1].Value.Trim();
+        if (status == nameof(PlanStatus.Completed))
+            return Callout.Warning(
+                "Execution reported as completed but plan is in Failed state. The process may have crashed during state transition.",
+                "State Mismatch");
+        return Callout.Destructive($"Last execution status: {status}", "Execution Failed");
+
+    }
+
+    private void GoToNext()
+    {
+        if (allPlans.Count == 0) return;
+        var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan?.FolderName);
+        var nextIndex = (currentIndex + 1) % allPlans.Count;
+        selectedPlanState.Set(allPlans[nextIndex]);
+    }
+
+    private void GoToPrevious()
+    {
+        if (allPlans.Count == 0) return;
+        var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan?.FolderName);
+        var prevIndex = (currentIndex - 1 + allPlans.Count) % allPlans.Count;
+        selectedPlanState.Set(allPlans[prevIndex]);
+    }
+
+    private record PlanContentData(
+        string? SummaryMarkdown,
+        Dictionary<string, List<string>> Artifacts,
+        List<PlanContentHelpers.CommitRow> CommitRows,
+        Dictionary<string, bool> VerificationReports,
+        PlanContentHelpers.AllChangesData? AllChanges);
+}

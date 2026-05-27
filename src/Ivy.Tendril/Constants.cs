@@ -1,5 +1,3 @@
-using Ivy.Tendril.Apps.Jobs;
-using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Models;
 
 namespace Ivy.Tendril;
@@ -17,7 +15,7 @@ public static class Constants
     public const int Jobs = 50;
     public const int PullRequests = 60;
     public const int Icebox = 70;
-    public const int Claude = 80;
+    public const int Agent = 80;
     public const int Trash = 90;
     public const int Help = 100;
     public const int Onboarding = 110;
@@ -43,10 +41,10 @@ public static class Constants
 
     public static readonly Dictionary<string, BadgeVariant> VerificationStatusBadgeVariants = new()
     {
-        ["Pass"] = BadgeVariant.Success,
-        ["Fail"] = BadgeVariant.Destructive,
-        ["Pending"] = BadgeVariant.Outline,
-        ["Skipped"] = BadgeVariant.Outline
+        [VerificationStatus.Pass] = BadgeVariant.Success,
+        [VerificationStatus.Fail] = BadgeVariant.Destructive,
+        [VerificationStatus.Pending] = BadgeVariant.Outline,
+        [VerificationStatus.Skipped] = BadgeVariant.Outline
     };
 
     public static readonly Dictionary<JobStatus, Colors> JobStatusColors = new()

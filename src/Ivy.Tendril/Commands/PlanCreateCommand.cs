@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
@@ -92,7 +91,7 @@ public class PlanCreateCommand : Command<PlanCreateSettings>
 
             var plan = new PlanYaml
             {
-                State = "Draft",
+                State = nameof(PlanStatus.Draft),
                 Project = settings.Project ?? "Auto",
                 Level = settings.Level ?? "NiceToHave",
                 Title = settings.Title,

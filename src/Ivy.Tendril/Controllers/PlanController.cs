@@ -1,4 +1,3 @@
-using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Commands;
 using Ivy.Tendril.Services;
@@ -321,7 +320,7 @@ public class PlanController : ControllerBase
             {
                 Title = request.Title,
                 Description = request.Description ?? "",
-                State = "Pending",
+                State = RecommendationStatus.Pending,
                 Impact = request.Impact,
                 Risk = request.Risk
             });
@@ -338,7 +337,7 @@ public class PlanController : ControllerBase
             if (rec == null)
                 return (false, $"Recommendation '{title}' not found", 404);
 
-            rec.State = string.IsNullOrEmpty(request?.Notes) ? "Accepted" : "AcceptedWithNotes";
+            rec.State = string.IsNullOrEmpty(request?.Notes) ? RecommendationStatus.Accepted : RecommendationStatus.AcceptedWithNotes;
             rec.DeclineReason = null;
 
             return (true, $"Accepted recommendation '{title}'", 200);
@@ -353,7 +352,7 @@ public class PlanController : ControllerBase
             if (rec == null)
                 return (false, $"Recommendation '{title}' not found", 404);
 
-            rec.State = "Declined";
+            rec.State = RecommendationStatus.Declined;
             rec.DeclineReason = request?.Reason;
 
             return (true, $"Declined recommendation '{title}'", 200);

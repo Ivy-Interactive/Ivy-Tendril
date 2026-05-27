@@ -136,11 +136,12 @@ public class PlanCliCommandTests : IDisposable
         Assert.Contains("00016-PaddedTest", folder);
     }
 
-    [Fact]
-    public void NormalizePlanId_FullPath_ExtractsId()
+    [Theory]
+    [InlineData(@"D:\Plans\00015-LogWarning")]
+    [InlineData("/home/user/Plans/00015-LogWarning")]
+    public void NormalizePlanId_FullPath_ExtractsId(string fullPath)
     {
-        var result = PlanCommandHelpers.NormalizePlanId(
-            @"D:\Plans\00015-LogWarning", _plansDir);
+        var result = PlanCommandHelpers.NormalizePlanId(fullPath, _plansDir);
         Assert.Equal("00015", result);
     }
 

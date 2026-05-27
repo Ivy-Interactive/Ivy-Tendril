@@ -1,6 +1,7 @@
+using System.Reactive.Disposables;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Helpers;
+using Ivy.Widgets.TendrilProcessView;
 
 namespace Ivy.Tendril.Apps;
 
@@ -9,10 +10,18 @@ public class WallpaperApp : ViewBase
 {
     public override object Build()
     {
-        var countsService = UseService<IPlanCountsService>();
+        var statusService = UseService<ITendrilProcessStatusService>();
         var versionService = UseService<IVersionCheckService>();
+        var navigator = UseNavigation();
         var versionInfo = UseState<VersionInfo?>(null);
         var dismissedVersion = UseState<string?>(null);
+        var processStatus = UseState(() => statusService.Current);
+
+        UseEffect(() =>
+        {
+            var subscription = statusService.Status.Subscribe(s => processStatus.Set(s));
+            return Disposable.Create(() => subscription.Dispose());
+        });
 
         UseEffect(() =>
         {
@@ -23,25 +32,29 @@ public class WallpaperApp : ViewBase
             });
         }, []);
 
-        var counts = countsService.Current;
+        var status = processStatus.Value;
 
-        var hasActivity = counts.TotalPlans > 0;
-
-        var heading = hasActivity ? "What are we making next?" : "Welcome to Ivy Tendril";
-        var subtitle = hasActivity ? BuildSummary(counts) : "Manage your plans, track jobs, and review pull requests.";
-        var buttonLabel = hasActivity ? "New Plan" : "Create your first plan";
+        var processView = new CreatePlanDialogLauncher(open =>
+            new TendrilProcessView()
+                .DraftCount(status.DraftCount)
+                .ReviewCount(status.ReviewCount)
+                .CreatingPlansCount(status.CreatingPlansCount)
+                .UpdatingPlansCount(status.UpdatingPlansCount)
+                .ExecutingPlansCount(status.ExecutingPlansCount)
+                .RetryingPlansCount(status.RetryingPlansCount)
+                .OnCreate(open)
+                .OnDrafts(() => navigator.Navigate<DraftsApp>())
+                .OnReview(() => navigator.Navigate<ReviewApp>())
+                .OnJobs(() => navigator.Navigate<JobsApp>())
+        );
 
         var elements = new List<object>
         {
             Layout.Center()
                 | (Layout.Vertical().Gap(2).AlignContent(Align.Center)
                    | new Image("/tendril/assets/Tendril.svg").Width(Size.Units(30)).Height(Size.Auto())
-                   | Text.H2(heading)
-                   | Text.Muted(subtitle)
-                   | new CreatePlanDialogLauncher(
-                       open => new Button(buttonLabel, open)
-                           .Variant(ButtonVariant.Primary)
-                           .Icon(Icons.Plus, Align.Right))
+                   | Text.H2("What are we making next?")
+                   | processView
                 )
         };
 
@@ -57,10 +70,9 @@ public class WallpaperApp : ViewBase
                         .Small()
                     | new CodeBlock(updateCommand, Languages.Bash)
                     | new Button("Dismiss", () => dismissedVersion.Set(versionInfo.Value.LatestVersion))
-                        .Variant(ButtonVariant.Ghost)
+                        .Variant(ButtonVariant.Secondary)
                         .Small()
-                ).Header("Update Available", null, Icons.CircleArrowUp),
-                Align.BottomRight
+                ).Header("Update Available", null, Icons.CircleArrowUp)
             ).Offset(new Thickness(0, 0, 8, 8));
 
             elements.Add(notification);
@@ -69,19 +81,4 @@ public class WallpaperApp : ViewBase
         return new Fragment(elements.ToArray());
     }
 
-    private static string BuildSummary(PlanCounts counts)
-    {
-        var parts = new List<string>();
-
-        if (counts.Drafts > 0)
-            parts.Add($"{counts.Drafts} {(counts.Drafts == 1 ? "draft" : "drafts")}");
-        if (counts.ActiveJobs > 0)
-            parts.Add($"{counts.ActiveJobs} {(counts.ActiveJobs == 1 ? "job" : "jobs")} running");
-        if (counts.Reviews > 0)
-            parts.Add($"{counts.Reviews} {(counts.Reviews == 1 ? "review" : "reviews")} waiting");
-
-        return parts.Count > 0
-            ? "You have " + string.Join(", ", parts) + "."
-            : "No current drafts, jobs or reviews.";
-    }
 }

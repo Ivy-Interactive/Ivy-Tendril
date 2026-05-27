@@ -53,7 +53,7 @@ Do NOT read or modify `.counter` directly. Plan IDs are allocated by the `tendri
 
 ### 3. Research
 
-- **Check for duplicate plans** first — **unless `Force: true` is set in the firmware header**, in which case skip duplicate detection entirely. Check the `DuplicateCandidates` firmware value. If present, it contains pre-computed matches (format: `folderName|title|state` per line). For each match, perform **state-aware duplicate detection** on those specific plans only. If `DuplicateCandidates` is absent, no potential duplicates were found — skip duplicate detection. When matches are found, decide as follows:
+- **Check for duplicate plans** first — **unless `Force: true` is set in the firmware header**, in which case skip duplicate detection entirely. However, if you discover related existing plans during research (e.g., from grep results or memory), still link them via `--related-plan` on `tendril plan create`. `Force` means "create the plan regardless" — not "ignore prior work." Check the `DuplicateCandidates` firmware value. If present, it contains pre-computed matches (format: `folderName|title|state` per line). For each match, perform **state-aware duplicate detection** on those specific plans only. If `DuplicateCandidates` is absent, no potential duplicates were found — skip duplicate detection. When matches are found, decide as follows:
 
   #### Step 1: Read existing plan state
   
@@ -117,11 +117,18 @@ Do NOT read or modify `.counter` directly. Plan IDs are allocated by the `tendri
   ```
 
 - Read relevant source files to understand the codebase areas involved (READ ONLY — do not write, edit, or create any source files)
-- **Search GitHub issues** before creating plans to avoid duplicates or workaround plans for features already being built. Example:
-  ```bash
-  gh search issues "<keyword>" --repo <owner>/<repo> --json title,url,number,state
-  ```
-  Derive the repo owner/name from the **Projects** section repos. If an issue already covers the task, reference it in the plan and avoid creating workaround plans.
+
+### 3.1. Search GitHub Issues
+
+**This step applies even when `Force: true`.**
+
+Search GitHub issues before creating plans to avoid duplicates or workaround plans for features already being built:
+
+```bash
+gh search issues "<keyword>" --repo <owner>/<repo> --json title,url,number,state
+```
+
+Derive the repo owner/name from the **Projects** section repos. If an open issue already covers the task, reference it in the plan's revision and avoid creating workaround plans.
 
 ### 3.5. Validate Code State
 

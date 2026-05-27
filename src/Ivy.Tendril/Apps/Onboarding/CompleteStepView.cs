@@ -1,5 +1,4 @@
-using System.Net.Http.Json;
-using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps.Onboarding;
@@ -13,15 +12,9 @@ public class CompleteStepView(
     {
         var setupService = UseService<IOnboardingSetupService>();
         var client = UseService<IClientProvider>();
-        var httpClientFactory = UseService<IHttpClientFactory>();
-        var telemetry = UseService<ITelemetryService>();
 
         var isFinishing = UseState(false);
         var error = UseState<string?>(null);
-        var newsletterEmail = UseState("");
-        var newsletterSubscribed = UseState(false);
-        var newsletterError = UseState<string?>(null);
-        var newsletterLoading = UseState(false);
 
         async Task OnFinish()
         {
@@ -42,37 +35,6 @@ public class CompleteStepView(
             }
         }
 
-        async ValueTask Subscribe(Event<Button> e)
-        {
-            if (!InputSanitizer.IsValidEmail(newsletterEmail.Value))
-            {
-                newsletterError.Set("Please enter a valid email address.");
-                return;
-            }
-
-            newsletterLoading.Set(true);
-            try
-            {
-                using var http = httpClientFactory.CreateClient();
-                var response = await http.PostAsJsonAsync("https://tendril-api.ivy.app/subscribers", new
-                {
-                    email = newsletterEmail.Value,
-                    anonymousId = telemetry.AnonymousId
-                });
-                response.EnsureSuccessStatusCode();
-                newsletterSubscribed.Set(true);
-                newsletterError.Set(null);
-            }
-            catch
-            {
-                newsletterError.Set("Subscription failed. Please try again.");
-            }
-            finally
-            {
-                newsletterLoading.Set(false);
-            }
-        }
-
         void OnBack()
         {
             projectSubStep.Set(0);
@@ -82,16 +44,7 @@ public class CompleteStepView(
         var newsletter = new Box().Padding(4) | (Layout.Vertical().Gap(2)
                           | Text.H3("Newsletter")
                           | Text.Muted("Be the first to know when we have a new release!")
-                          | (newsletterSubscribed.Value
-                              ? Text.Success("Subscribed!")
-                              : (Layout.Horizontal().Gap(2)
-                                 | newsletterEmail.ToTextInput("you@example.com")
-                                 | new Button("Subscribe")
-                                     .Primary()
-                                     .Disabled(!InputSanitizer.IsValidEmail(newsletterEmail.Value))
-                                     .Loading(newsletterLoading.Value)
-                                     .OnClick(Subscribe)))
-                          | (newsletterError.Value != null ? Text.Danger(newsletterError.Value) : null!));
+                          | new NewsletterView());
 
         return Layout.Vertical().Margin(0, 0, 0, 20)
                | Text.H3("Ready to Go!")

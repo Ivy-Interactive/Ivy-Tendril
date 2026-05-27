@@ -1,14 +1,8 @@
 namespace Ivy.Tendril.Services;
 
-public class EditorNotAvailableException : Exception
+public class EditorNotAvailableException(string command, string label)
+    : Exception($"Editor command '{command}' ({label}) is not available in PATH.")
 {
-    public string Command { get; }
-    public string Label { get; }
-
-    public EditorNotAvailableException(string command, string label)
-        : base($"Editor command '{command}' ({label}) is not available in PATH.")
-    {
-        Command = command;
-        Label = label;
-    }
+    public string Command { get; } = command;
+    public string Label { get; } = label;
 }

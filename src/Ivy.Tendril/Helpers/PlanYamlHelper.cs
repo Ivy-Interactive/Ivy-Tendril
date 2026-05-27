@@ -182,7 +182,7 @@ internal static class PlanYamlHelper
                     if (trimmed.StartsWith("result:", StringComparison.OrdinalIgnoreCase))
                     {
                         var value = trimmed["result:".Length..].Trim();
-                        if (value is "Pass" or "Fail" or "Skipped") return value;
+                        if (value is VerificationStatus.Pass or VerificationStatus.Fail or VerificationStatus.Skipped) return value;
                     }
                 }
             }
@@ -195,14 +195,14 @@ internal static class PlanYamlHelper
 
     internal static string? ExtractPlanIdFromFolder(string planFolder)
     {
-        var folderName = Path.GetFileName(planFolder);
+        var folderName = PathHelper.GetFileNameCrossPlatform(planFolder);
         var dashIdx = folderName.IndexOf('-');
         return dashIdx > 0 ? folderName[..dashIdx] : null;
     }
 
     internal static string? ExtractSafeTitleFromFolder(string planFolder)
     {
-        var folderName = Path.GetFileName(planFolder);
+        var folderName = PathHelper.GetFileNameCrossPlatform(planFolder);
         var dashIdx = folderName.IndexOf('-');
         return dashIdx > 0 ? folderName[(dashIdx + 1)..] : null;
     }

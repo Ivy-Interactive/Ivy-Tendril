@@ -1,8 +1,8 @@
 using System.Text.RegularExpressions;
+using Ivy.Tendril.Agents;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Services.Agents;
 
 namespace Ivy.Tendril.Apps.Jobs;
 
@@ -26,10 +26,11 @@ public class JobDebugSheet(
             JobId = job.Id,
             PlanId = GetPlanId(job),
             PromptTitle = JobsApp.GetFullPrompt(job, planService) ?? "",
-            Status = $"{job.Status}{(job.StatusMessage != null ? $" — {job.StatusMessage}" : "")}",
+            Status = $"{job.Status}{(job.StatusMessage != null ? $": {job.StatusMessage}" : "")}",
             job.Type,
             job.Project,
             job.Provider,
+            Model = job.Model ?? "",
             SessionId = job.SessionId ?? "",
             Started = job.StartedAt?.ToString("u") ?? "",
             Completed = job.CompletedAt?.ToString("u") ?? "",
@@ -45,9 +46,10 @@ public class JobDebugSheet(
             ExitCode = job.ExitCode?.ToString() ?? ""
         };
 
-        return data.ToDetails()
+        var detailsView = data.ToDetails()
             .Multiline(x => x.PromptTitle)
             .Multiline(x => x.PermissionDenials)
+            .Multiline(x => x.Status)
             .Label(x => x.PromptTitle, "Prompt/Title")
             .Label(x => x.PlanId, "Plan Id")
             .Label(x => x.SessionId, "Session Id")
@@ -67,6 +69,44 @@ public class JobDebugSheet(
             .Builder(x => x.PromptwareLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .Builder(x => x.PromptwareRawLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .RemoveEmpty();
+
+        return new HeaderLayout(
+            new Button("Copy Details").Icon(Icons.ClipboardCopy).Outline().OnClick(() =>
+            {
+                var lines = new List<(string Label, string Value)>
+                {
+                    ("Job Id", data.JobId),
+                    ("Plan Id", data.PlanId),
+                    ("Prompt/Title", data.PromptTitle),
+                    ("Status", data.Status),
+                    ("Type", data.Type),
+                    ("Project", data.Project),
+                    ("Provider", data.Provider),
+                    ("Model", data.Model),
+                    ("Session Id", data.SessionId),
+                    ("Started", data.Started),
+                    ("Completed", data.Completed),
+                    ("Duration", data.Duration),
+                    ("Cost", data.Cost),
+                    ("Tokens", data.Tokens),
+                    ("Exit Code", data.ExitCode),
+                    ("Permission Denials", data.PermissionDenials),
+                    ("Plan Folder", data.PlanFolder),
+                    ("Plan Log", data.PlanLog),
+                    ("Plan CLI Log", data.PlanCliLog),
+                    ("Promptware Log", data.PromptwareLog),
+                    ("Promptware Raw Log", data.PromptwareRawLog),
+                };
+
+                var formatted = string.Join("\n", lines
+                    .Where(l => !string.IsNullOrEmpty(l.Value))
+                    .Select(l => $"{l.Label}: {l.Value}"));
+
+                copyToClipboard(formatted);
+                client.Toast("Job details copied to clipboard", "Copied");
+            }),
+            detailsView
+        );
     }
 
     private object PathDropDown(string path, Action<string> copyToClipboard, IClientProvider client)
@@ -101,12 +141,15 @@ public class JobDebugSheet(
 
         try
         {
-            var provider = AgentProviderFactory.GetProvider(job.Provider);
-            var denials = provider.ExtractPermissionDenials(job.OutputLines.ToArray());
-            if (denials.Count == 0) return "";
-
-            return string.Join("\n", denials.Select(d =>
-                d.InputSummary != null ? $"{d.ToolName}({d.InputSummary})" : d.ToolName));
+            var serializer = new Agents.Runtime.JsonEventSerializer();
+            var denials = new List<string>();
+            foreach (var line in job.OutputLines)
+            {
+                var evt = serializer.Deserialize(line);
+                if (evt is Agents.Abstractions.PermissionDenialEvent d)
+                    denials.Add(d.InputSummary != null ? $"{d.ToolName}({d.InputSummary})" : d.ToolName);
+            }
+            return denials.Count == 0 ? "" : string.Join("\n", denials);
         }
         catch
         {

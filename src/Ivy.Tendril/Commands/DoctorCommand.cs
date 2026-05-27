@@ -1,9 +1,9 @@
+using Ivy.Tendril.Agents;
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Models;
-using System.Diagnostics;
-using Ivy.Helpers;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
-using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
 using Ivy.Tendril.Commands.DoctorChecks;
 
@@ -11,27 +11,6 @@ namespace Ivy.Tendril.Commands;
 
 public static class DoctorCommand
 {
-    private static readonly string[] RequiredSoftware = ["gh", "git"];
-    private static readonly string[] OptionalSoftware = ["pandoc"];
-
-    private static readonly Dictionary<string, string> VersionArgs = new()
-    {
-        ["gh"] = "--version",
-        ["claude"] = "--version",
-        ["codex"] = "--version",
-        ["gemini"] = "--version",
-        ["git"] = "--version",
-        ["pwsh"] = "-Version",
-        ["pandoc"] = "--version"
-    };
-
-    private static readonly Dictionary<string, string> HealthArgs = new()
-    {
-        ["gh"] = "auth status --active",
-        ["claude"] = "-p \"ping\" --max-turns 1",
-        ["codex"] = "login status"
-    };
-
     public static int Handle(string[] args)
     {
         if (args.Length == 0 || args[0] != "doctor") return -1;
@@ -54,12 +33,17 @@ public static class DoctorCommand
             // ConfigService will be null, which checks will handle
         }
 
+        var services = new ServiceCollection();
+        services.AddAgentInfrastructure();
+        using var sp = services.BuildServiceProvider();
+        var agentRunner = sp.GetRequiredService<IAgentRunner>();
+
         var checks = new IDoctorCheck[]
         {
             new EnvironmentCheck(),
-            new SoftwareCheck(configService),
+            new SoftwareCheck(configService, agentRunner),
             new DatabaseCheck(),
-            new AgentModelsCheck(configService)
+            new AgentModelsCheck(configService, agentRunner)
         };
 
         var hasErrors = false;
@@ -269,7 +253,7 @@ public static class DoctorCommand
             return allResults.Where(r => r.State.Equals(stateFilter, StringComparison.OrdinalIgnoreCase));
         if (worktreesOnly)
             return allResults.Where(r => r.Worktrees > 0);
-        return allResults.Where(r => !r.IsHealthy || r.State.Equals("Failed", StringComparison.OrdinalIgnoreCase));
+        return allResults.Where(r => !r.IsHealthy || r.State.Equals(nameof(PlanStatus.Failed), StringComparison.OrdinalIgnoreCase));
     }
 
     internal static List<PlanHealthResult> ScanPlans(string plansDir)
@@ -340,7 +324,7 @@ public static class DoctorCommand
 
                 if (plan.Repos == null || plan.Repos.Count == 0)
                 {
-                    var isCompleted = plan.State.Equals("Completed", StringComparison.OrdinalIgnoreCase);
+                    var isCompleted = plan.State.Equals(nameof(PlanStatus.Completed), StringComparison.OrdinalIgnoreCase);
                     var hasPrsOrCommits = (plan.Prs?.Count > 0) || (plan.Commits?.Count > 0);
                     if (isCompleted && hasPrsOrCommits)
                         return (true, null, plan.State);
@@ -539,7 +523,7 @@ public static class DoctorCommand
     {
         var lines = content.Split('\n').ToList();
 
-        EnsureYamlField(lines, "state", "Draft");
+        EnsureYamlField(lines, "state", nameof(PlanStatus.Draft));
         EnsureYamlField(lines, "project", "Auto");
         EnsureYamlField(lines, "title", EscapeYamlString(folderTitle));
         foreach (var field in new[] { "repos", "commits", "prs", "verifications", "relatedPlans", "dependsOn" })

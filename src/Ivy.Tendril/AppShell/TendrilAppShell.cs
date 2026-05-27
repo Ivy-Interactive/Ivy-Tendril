@@ -71,15 +71,16 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         return item;
     }
 
-    private static MenuItem[] BuildMenuItems(IAppRepository repo, PlanCounts planCounts)
+    private static MenuItem[] BuildMenuItems(IAppRepository repo, TendrilProcessStatus status)
     {
         var badges = new Dictionary<string, int>
         {
-            ["plans"] = planCounts.Drafts,
-            ["review"] = planCounts.Reviews,
-            ["jobs"] = planCounts.ActiveJobs,
-            ["icebox"] = planCounts.Icebox,
-            ["recommendations"] = planCounts.Recommendations
+            ["plans"] = status.DraftCount,
+            ["review"] = status.ReviewCount,
+            ["jobs"] = status.JobCount,
+            ["icebox"] = status.IceboxCount,
+            ["recommendations"] = status.RecommendationsCount,
+            ["trash"] = status.TrashCount
         };
         return repo.GetMenuItems().Select(m => AddBadge(m, badges)).ToArray();
     }
@@ -94,9 +95,9 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var appRepository = UseService<IAppRepository>();
         var client = UseService<IClientProvider>();
         var currentApp = UseState<AppHost?>();
-        var countsService = UseService<IPlanCountsService>();
-        var menuItems = UseState(() => BuildMenuItems(appRepository, countsService.Current));
-        var counts = UseState(() => countsService.Current);
+        var statusService = UseService<ITendrilProcessStatusService>();
+        var menuItems = UseState(() => BuildMenuItems(appRepository, statusService.Current));
+        var status = UseState(() => statusService.Current);
         var sidebarOpen = UseState(settings.SidebarOpen);
         var args = UseService<AppContext>();
         var serverArgs = UseService<ServerArgs>();
@@ -113,13 +114,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
         UseEffect(() =>
         {
-            void OnChanged()
-            {
-                counts.Set(countsService.Current);
-            }
-
-            countsService.CountsChanged += OnChanged;
-            return Disposable.Create(() => countsService.CountsChanged -= OnChanged);
+            var subscription = statusService.Status.Subscribe(s => status.Set(s));
+            return Disposable.Create(() => subscription.Dispose());
         });
 
         UseEffect(() =>
@@ -131,8 +127,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             });
         });
 
-        UseEffect(() => { menuItems.Set(BuildMenuItems(appRepository, counts.Value)); },
-            appRepository.Reloaded.ToTrigger(), counts);
+        UseEffect(() => { menuItems.Set(BuildMenuItems(appRepository, status.Value)); },
+            appRepository.Reloaded.ToTrigger(), status);
 
         var jobService = UseService<IJobService>();
 
@@ -456,7 +452,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 DropDownMenu.DefaultSelectHandler(),
                 settingsTrigger)
             .Top()
-            .StayOpen()
             .Items(settings.FooterMenuItemsTransformer(settingsMenuItems, navigator));
 
         object? footer = settingsMenu;

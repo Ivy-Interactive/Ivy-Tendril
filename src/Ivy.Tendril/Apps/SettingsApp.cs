@@ -1,5 +1,5 @@
 using Ivy.Desktop;
-using Ivy.Tendril.Apps.Setup;
+using Ivy.Tendril.Apps.Settings;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Microsoft.AspNetCore.Http;
@@ -9,7 +9,9 @@ namespace Ivy.Tendril.Apps;
 [App(title: "Configuration", icon: Icons.Settings, isVisible: false)]
 public class SettingsApp : ViewBase
 {
-    private const string TagGeneral = "general";
+    private const string TagCodingAgent = "coding-agent";
+    private const string TagPlans = "plans";
+    private const string TagAppearance = "appearance";
     private const string TagNotifications = "notifications";
     private const string TagSecurity = "security";
     private const string TagLevels = "levels";
@@ -17,6 +19,7 @@ public class SettingsApp : ViewBase
     private const string TagPromptwares = "promptwares";
     private const string TagProjects = "projects";
     private const string TagPlugins = "plugins";
+    private const string TagTunnel = "tunnel";
     private const string TagAdvanced = "advanced";
     private const string TagOpenConfig = "open-config";
 
@@ -26,7 +29,7 @@ public class SettingsApp : ViewBase
         var navigator = UseNavigation();
         var client = UseService<IClientProvider>();
         var httpContextAccessor = UseService<IHttpContextAccessor>();
-        var selected = UseState(TagGeneral);
+        var selected = UseState(TagCodingAgent);
         Context.TryUseService<DesktopWindow>(out var desktopWindow);
         var isDesktop = desktopWindow != null;
         var capturedHost = ConfigYamlUiHelper.CaptureHost(httpContextAccessor);
@@ -37,7 +40,9 @@ public class SettingsApp : ViewBase
                 .Icon(Icons.Settings2)
                 .Expanded()
                 .Children(
-                    MenuItem.Default("General", TagGeneral).Icon(Icons.Settings),
+                    MenuItem.Default("Coding Agent", TagCodingAgent).Icon(Icons.Bot),
+                    MenuItem.Default("Plans", TagPlans).Icon(Icons.FileText),
+                    MenuItem.Default("Appearance", TagAppearance).Icon(Icons.Palette),
                     MenuItem.Default("Projects", TagProjects).Icon(Icons.Folder),
                     MenuItem.Default("Verifications", TagVerifications).Icon(Icons.CircleCheck),
                     MenuItem.Default("Promptwares", TagPromptwares).Icon(Icons.Wand),
@@ -45,6 +50,7 @@ public class SettingsApp : ViewBase
                     MenuItem.Default("Notifications", TagNotifications).Icon(Icons.Bell),
                     MenuItem.Default("Security", TagSecurity).Icon(Icons.Lock),
                     MenuItem.Default("Plugins", TagPlugins).Icon(Icons.Plug),
+                    MenuItem.Default("Tunnel", TagTunnel).Icon(Icons.Globe),
                     MenuItem.Default("Advanced", TagAdvanced).Icon(Icons.Cog),
                     MenuItem.Default("Open config.yaml", TagOpenConfig).Icon(Icons.FileText)
                 )
@@ -68,7 +74,9 @@ public class SettingsApp : ViewBase
 
         object content = selected.Value switch
         {
-            TagGeneral => new GeneralSetupView(),
+            TagCodingAgent => new CodingAgentSetupView(),
+            TagPlans => new PlansSetupView(),
+            TagAppearance => new AppearanceSetupView(),
             TagNotifications => new NotificationsSetupView(),
             TagSecurity => new SecuritySetupView(),
             TagLevels => new LevelsSetupView(),
@@ -76,8 +84,9 @@ public class SettingsApp : ViewBase
             TagPromptwares => new PromptwaresSetupView(),
             TagProjects => new ProjectsSetupView(),
             TagPlugins => new PluginsSetupView(),
+            TagTunnel => new TunnelSetupView(),
             TagAdvanced => new AdvancedSetupView(),
-            _ => new GeneralSetupView()
+            _ => new CodingAgentSetupView()
         };
 
         return new SidebarLayout(content, sidebar);

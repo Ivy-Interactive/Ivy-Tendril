@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Helpers;
 
@@ -51,6 +52,31 @@ public static class RepoPathValidator
         if (trimmed.Length >= 2 && char.IsLetter(trimmed[0]) && trimmed[1] == ':') return true;
 
         return false;
+    }
+
+    public static string? ValidateLocalRepo(string path, string? tendrilHome = null)
+    {
+        var kind = Classify(path);
+        if (kind != RepoPathKind.LocalPath)
+            return null; 
+
+        var expanded = tendrilHome != null
+            ? VariableExpansion.ExpandVariables(path, tendrilHome)
+            : path;
+
+        if (!Directory.Exists(expanded))
+            return $"Path does not exist: {expanded}";
+
+        var gitPath = Path.Combine(expanded, ".git");
+        if (!Path.Exists(gitPath))
+            return $"Not a git repository: {expanded}";
+
+        return null;
+    }
+
+    public static bool HasInvalidLocalRepos(IEnumerable<RepoRef> repos, string? tendrilHome = null)
+    {
+        return repos.Any(r => ValidateLocalRepo(r.Path, tendrilHome) != null);
     }
 
     public static string? ExtractRepoName(string input)

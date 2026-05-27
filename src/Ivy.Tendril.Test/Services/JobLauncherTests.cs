@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test.Services;
 
@@ -51,17 +50,21 @@ projects:
         }
     }
 
-    [Fact]
-    public void ExtractPlanIdFromFolder_ReturnsCorrectId()
+    [Theory]
+    [InlineData("D:\\Plans\\01234-TestPlan")]
+    [InlineData("/home/user/Plans/01234-TestPlan")]
+    public void ExtractPlanIdFromFolder_ReturnsCorrectId(string path)
     {
-        var result = PlanYamlHelper.ExtractPlanIdFromFolder("D:\\Plans\\01234-TestPlan");
+        var result = PlanYamlHelper.ExtractPlanIdFromFolder(path);
         Assert.Equal("01234", result);
     }
 
-    [Fact]
-    public void ExtractPlanIdFromFolder_HandlesNoDash()
+    [Theory]
+    [InlineData("D:\\Plans\\SomePlan")]
+    [InlineData("/home/user/Plans/SomePlan")]
+    public void ExtractPlanIdFromFolder_HandlesNoDash(string path)
     {
-        var result = PlanYamlHelper.ExtractPlanIdFromFolder("D:\\Plans\\SomePlan");
+        var result = PlanYamlHelper.ExtractPlanIdFromFolder(path);
         Assert.Null(result);
     }
 
@@ -72,7 +75,6 @@ projects:
         Directory.CreateDirectory(programFolder);
         File.WriteAllText(Path.Combine(programFolder, "Program.md"), "# Test Program");
 
-        var launcher = new JobLauncher(null, NullLogger.Instance, _tempPromptsRoot);
         var method = typeof(JobLauncher).GetMethod("HasAgentDirectProgram",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
 
@@ -89,7 +91,6 @@ projects:
         File.WriteAllText(Path.Combine(programFolder, "Program.md"), "# Test Program");
         File.WriteAllText(Path.Combine(programFolder, "TestPromptware.ps1"), "# Script");
 
-        var launcher = new JobLauncher(null, NullLogger.Instance, _tempPromptsRoot);
         var method = typeof(JobLauncher).GetMethod("HasAgentDirectProgram",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
 
@@ -104,7 +105,6 @@ projects:
         var programFolder = Path.Combine(_tempPromptsRoot, "TestPromptware");
         Directory.CreateDirectory(programFolder);
 
-        var launcher = new JobLauncher(null, NullLogger.Instance, _tempPromptsRoot);
         var method = typeof(JobLauncher).GetMethod("HasAgentDirectProgram",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
 

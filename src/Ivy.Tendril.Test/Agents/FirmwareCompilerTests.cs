@@ -1,5 +1,4 @@
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Services.Agents;
 
 namespace Ivy.Tendril.Test.Agents;
 
@@ -236,5 +235,50 @@ public class FirmwareCompilerTests : IDisposable
         var projectsIdx = result.IndexOf("## Projects");
         var referenceIdx = result.IndexOf("## Reference Documents");
         Assert.True(projectsIdx < referenceIdx);
+    }
+
+    // --- Plan Template Section ---
+
+    [Fact]
+    public void Compile_RendersPlanTemplateSection()
+    {
+        var template = "# {title}\n\n## Problem\n\n## Solution\n";
+        var context = new FirmwareContext("/programs/Test", new Dictionary<string, string>(), PlanTemplate: template);
+        var result = FirmwareCompiler.Compile(context);
+
+        Assert.Contains("## Plan Template", result);
+        Assert.Contains("```markdown", result);
+        Assert.Contains("# {title}", result);
+        Assert.Contains("## Problem", result);
+    }
+
+    [Fact]
+    public void Compile_OmitsPlanTemplateSection_WhenNull()
+    {
+        var context = new FirmwareContext("/programs/Test", new Dictionary<string, string>());
+        var result = FirmwareCompiler.Compile(context);
+
+        Assert.DoesNotContain("## Plan Template", result);
+    }
+
+    [Fact]
+    public void Compile_OmitsPlanTemplateSection_WhenEmpty()
+    {
+        var context = new FirmwareContext("/programs/Test", new Dictionary<string, string>(), PlanTemplate: "");
+        var result = FirmwareCompiler.Compile(context);
+
+        Assert.DoesNotContain("## Plan Template", result);
+    }
+
+    [Fact]
+    public void Compile_PlanTemplateAppearsAfterReferenceDocuments()
+    {
+        var template = "# {title}\n\n## Problem\n";
+        var context = new FirmwareContext("/programs/Test", new Dictionary<string, string>(), PlanTemplate: template);
+        var result = FirmwareCompiler.Compile(context);
+
+        var referenceIdx = result.IndexOf("## Reference Documents");
+        var templateIdx = result.IndexOf("## Plan Template");
+        Assert.True(referenceIdx < templateIdx);
     }
 }

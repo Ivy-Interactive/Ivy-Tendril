@@ -61,7 +61,7 @@ public class FileSheet(
         }
         else
         {
-            sheetContent = new Markdown("File not found.");
+            sheetContent = Text.Block("File not found.");
         }
 
         var finalContent = fileExists

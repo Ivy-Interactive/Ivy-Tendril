@@ -1,6 +1,6 @@
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Commands;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Services.Agents;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test;
@@ -65,6 +65,8 @@ public class UpdateProjectPromptwareTests : IDisposable
         return promptwaresRoot;
     }
 
+    private static IAgentRunner CreateRunner() => TestAgentRunner.Create();
+
     // ==================== Firmware Compilation Tests ====================
 
     [Fact]
@@ -98,7 +100,7 @@ public class UpdateProjectPromptwareTests : IDisposable
 
         var promptwarePath = CreatePromptwareDir("UpdateProject");
 
-        var command = new PromptwareRunCommand(NullLogger<PromptwareRunCommand>.Instance);
+        var command = new PromptwareRunCommand(CreateRunner(), NullLogger<PromptwareRunCommand>.Instance);
         var output = CaptureConsoleOutput(() =>
         {
             command.Run(new PromptwareRunSettings
@@ -143,7 +145,7 @@ public class UpdateProjectPromptwareTests : IDisposable
 
         var promptwarePath = CreatePromptwareDir("UpdateProject");
 
-        var command = new PromptwareRunCommand(NullLogger<PromptwareRunCommand>.Instance);
+        var command = new PromptwareRunCommand(CreateRunner(), NullLogger<PromptwareRunCommand>.Instance);
         var output = CaptureConsoleOutput(() =>
         {
             command.Run(new PromptwareRunSettings

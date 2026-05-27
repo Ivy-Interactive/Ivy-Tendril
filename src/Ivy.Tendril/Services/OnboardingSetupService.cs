@@ -1,9 +1,10 @@
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services;
 
-public class OnboardingSetupService(IConfigService config, IServiceProvider services, ILogger<OnboardingSetupService> logger) : IOnboardingSetupService
+public class OnboardingSetupService(IConfigService config, IAgentRunner agentRunner, IServiceProvider services, ILogger<OnboardingSetupService> logger) : IOnboardingSetupService
 {
     private readonly ILogger<OnboardingSetupService> _logger = logger;
 
@@ -48,53 +49,7 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
             }
             else
             {
-                var basicConfig = "codingAgent: claude\n" +
-                                  "jobTimeout: 30\n" +
-                                  "staleOutputTimeout: 10\n" +
-                                  "codingAgents:\n" +
-                                  "- name: ClaudeCode\n" +
-                                  "  profiles:\n" +
-                                  "  - name: deep\n" +
-                                  "    model: claude-opus-4-6\n" +
-                                  "    effort: max\n" +
-                                  "  - name: balanced\n" +
-                                  "    model: claude-sonnet-4-6\n" +
-                                  "    effort: high\n" +
-                                  "  - name: quick\n" +
-                                  "    model: claude-haiku-4-5\n" +
-                                  "    effort: low\n" +
-                                  "- name: Codex\n" +
-                                  "  profiles:\n" +
-                                  "  - name: deep\n" +
-                                  "    model: gpt-5.4\n" +
-                                  "    effort: high\n" +
-                                  "  - name: balanced\n" +
-                                  "    model: gpt-5.4-mini\n" +
-                                  "    effort: medium\n" +
-                                  "  - name: quick\n" +
-                                  "    model: gpt-5.3-codex\n" +
-                                  "    effort: low\n" +
-                                  "- name: Gemini\n" +
-                                  "  profiles:\n" +
-                                  "  - name: deep\n" +
-                                  "    model: gemini-3-flash-preview\n" +
-                                  "  - name: balanced\n" +
-                                  "    model: gemini-3-flash-preview\n" +
-                                  "  - name: quick\n" +
-                                  "    model: gemini-3-flash-preview\n" +
-                                  "- name: Copilot\n" +
-                                  "  profiles:\n" +
-                                  "  - name: deep\n" +
-                                  "    model: gpt-5.2\n" +
-                                  "    effort: high\n" +
-                                  "  - name: balanced\n" +
-                                  "    model: gpt-5.2\n" +
-                                  "    effort: medium\n" +
-                                  "  - name: quick\n" +
-                                  "    model: gpt-5.2\n" +
-                                  "    effort: low\n" +
-                                  "projects: []\n" +
-                                  "verifications: []\n";
+                var basicConfig = BuildDefaultConfig();
                 await FileHelper.WriteAllTextAsync(configPath, basicConfig);
             }
         }
@@ -129,7 +84,7 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
 
                 var content = File.Exists(rcFile) ? await FileHelper.ReadAllTextAsync(rcFile) : "";
                 if (!content.Contains(exportLine))
-                    await File.AppendAllLinesAsync(rcFile, new[] { "", "# Tendril Home", exportLine });
+                    await File.AppendAllLinesAsync(rcFile, ["", "# Tendril Home", exportLine]);
             }
         }
         catch (Exception ex)
@@ -146,7 +101,7 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
         var pendingDefinitions = config.GetPendingVerificationDefinitions();
         if (pendingDefinitions != null)
             foreach (var def in pendingDefinitions)
-                if (!config.Settings.Verifications.Any(v => v.Name == def.Name))
+                if (config.Settings.Verifications.All(v => v.Name != def.Name))
                     config.Settings.Verifications.Add(def);
 
         var pendingProject = config.GetPendingProject();
@@ -198,5 +153,36 @@ public class OnboardingSetupService(IConfigService config, IServiceProvider serv
     {
         _logger.LogInformation("Starting background services (deferred)");
         await BackgroundServiceActivator.StartAsync(services, _logger);
+    }
+
+    private string BuildDefaultConfig()
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("codingAgent: claude");
+        sb.AppendLine("jobTimeout: 30");
+        sb.AppendLine("staleOutputTimeout: 10");
+        sb.AppendLine("codingAgents:");
+
+        foreach (var agentId in agentRunner.RegisteredAgents)
+        {
+            var descriptor = agentRunner.GetDescriptor(agentId);
+            if (descriptor.DefaultProfiles.Count == 0)
+                continue;
+
+            sb.AppendLine($"- name: {descriptor.DisplayName}");
+            sb.AppendLine("  profiles:");
+            foreach (var profile in descriptor.DefaultProfiles)
+            {
+                sb.AppendLine($"  - name: {profile.Name}");
+                if (profile.Model != null)
+                    sb.AppendLine($"    model: {profile.Model}");
+                if (profile.Effort != null)
+                    sb.AppendLine($"    effort: {profile.Effort}");
+            }
+        }
+
+        sb.AppendLine("projects: []");
+        sb.AppendLine("verifications: []");
+        return sb.ToString();
     }
 }

@@ -8,7 +8,7 @@ namespace Ivy.Tendril.Test.End2End.Tests;
 /// <summary>
 /// Full lifecycle test: CreatePlan → ExecutePlan → CreatePR.
 /// The coding agent is determined by E2E__Agent (default: claude).
-/// Run the suite 3 times with E2E__Agent=claude/codex/gemini to test all agents.
+/// Run the suite 3 times with E2E__Agent=claude/codex/antigravity to test all agents.
 /// </summary>
 [Collection("E2E")]
 public class AgentExecutionTests : IAsyncLifetime
@@ -32,7 +32,9 @@ public class AgentExecutionTests : IAsyncLifetime
             {
                 "claude" => "Claude",
                 "codex" => "Codex",
-                "gemini" => "Gemini",
+                "copilot" => "Copilot",
+                "antigravity" => "Antigravity",
+                "opencode" => "OpenCode",
                 _ => _fixture.Settings.Agent,
             };
             await onboarding.CompleteOnboarding(

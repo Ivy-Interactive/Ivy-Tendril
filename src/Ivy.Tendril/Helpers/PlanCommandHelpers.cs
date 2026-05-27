@@ -38,9 +38,9 @@ public static class PlanCommandHelpers
     {
         input = input.Trim().TrimEnd('/', '\\');
 
-        // Full path: extract folder name then ID
-        if (Path.IsPathRooted(input))
-            input = Path.GetFileName(input);
+        // Full path: extract folder name then ID (handles both Windows and Unix paths)
+        if (Path.IsPathRooted(input) || (input.Length >= 3 && input[1] == ':' && (input[2] == '\\' || input[2] == '/')))
+            input = PathHelper.GetFileNameCrossPlatform(input);
 
         // Folder name like "00015-Title": extract numeric prefix
         var dashIndex = input.IndexOf('-');

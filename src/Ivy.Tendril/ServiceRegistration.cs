@@ -1,7 +1,8 @@
 using System.ClientModel;
 using Ivy.Core.Exceptions;
+using Ivy.Tendril.Agents;
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Services.SessionParsers;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -27,11 +28,9 @@ internal static class ServiceRegistration
         if (configService.Settings.Auth != null)
             server.UseAuth<Auth.TendrilAuthProvider>();
 
-        server.Services.AddSingleton<ISessionParser, ClaudeSessionParser>();
-        server.Services.AddSingleton<ISessionParser, CodexSessionParser>();
-        server.Services.AddSingleton<ISessionParser, GeminiSessionParser>();
+        server.Services.AddAgentInfrastructure();
+
         server.Services.AddSingleton<ModelPricingService>();
-        server.Services.AddSingleton<IModelPricingService>(sp => sp.GetRequiredService<ModelPricingService>());
 
         if (configService.Settings.Llm is { } llmConfig && !string.IsNullOrEmpty(llmConfig.ApiKey))
             server.Services.AddSingleton<IChatClient>(sp =>
@@ -51,7 +50,6 @@ internal static class ServiceRegistration
 
         server.Services.AddSingleton<OnboardingSetupService>();
         server.Services.AddSingleton<IOnboardingSetupService>(sp => sp.GetRequiredService<OnboardingSetupService>());
-        server.Services.AddSingleton<IOnboardingAuthRunner, OnboardingAuthRunner>();
         server.Services.AddSingleton<GithubService>();
         server.Services.AddSingleton<IGithubService>(sp => sp.GetRequiredService<GithubService>());
         server.Services.AddSingleton<IGitService>(sp =>
@@ -115,7 +113,8 @@ internal static class ServiceRegistration
                 sp.GetRequiredService<ITelemetryService>(),
                 sp.GetRequiredService<IPlanWatcherService>(),
                 string.IsNullOrEmpty(cfg.TendrilHome) ? null : sp.GetRequiredService<IPlanDatabaseService>(),
-                sp.GetRequiredService<IWorktreeLifecycleLogger>());
+                sp.GetRequiredService<IWorktreeLifecycleLogger>(),
+                sp.GetRequiredService<IAgentRunner>());
         });
         server.Services.AddSingleton<IJobService>(sp => sp.GetRequiredService<JobService>());
         server.Services.AddSingleton<PlanWatcherService>(sp =>
@@ -125,14 +124,16 @@ internal static class ServiceRegistration
             return new PlanWatcherService(config, logger);
         });
         server.Services.AddSingleton<IPlanWatcherService>(sp => sp.GetRequiredService<PlanWatcherService>());
-        server.Services.AddSingleton<PlanCountsService>(sp =>
+        server.Services.AddSingleton<TendrilProcessStatusService>(sp =>
         {
             var planReader = sp.GetRequiredService<IPlanReaderService>();
             var jobService = sp.GetRequiredService<IJobService>();
             var planWatcher = sp.GetRequiredService<IPlanWatcherService>();
-            return new PlanCountsService(planReader, jobService, planWatcher);
+            var config = sp.GetRequiredService<IConfigService>();
+            var logger = sp.GetRequiredService<ILogger<TendrilProcessStatusService>>();
+            return new TendrilProcessStatusService(planReader, jobService, planWatcher, config, logger);
         });
-        server.Services.AddSingleton<IPlanCountsService>(sp => sp.GetRequiredService<PlanCountsService>());
+        server.Services.AddSingleton<ITendrilProcessStatusService>(sp => sp.GetRequiredService<TendrilProcessStatusService>());
         server.Services.AddSingleton<InboxWatcherService>(sp =>
         {
             var config = sp.GetRequiredService<IConfigService>();
@@ -157,5 +158,18 @@ internal static class ServiceRegistration
             return new PrStatusSyncService(database, githubService, planReader, logger);
         });
         server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<PrStatusSyncService>());
+
+        server.Services.AddSingleton<Services.Tunnel.CloudflaredService>(sp =>
+        {
+            var config = sp.GetRequiredService<IConfigService>();
+            var httpFactory = sp.GetRequiredService<IHttpClientFactory>();
+            var appLifetime = sp.GetRequiredService<Microsoft.Extensions.Hosting.IHostApplicationLifetime>();
+            var logger = sp.GetRequiredService<ILogger<Services.Tunnel.CloudflaredService>>();
+            return new Services.Tunnel.CloudflaredService(config, httpFactory, appLifetime, logger);
+        });
+        server.Services.AddSingleton<Services.Tunnel.ICloudflaredService>(sp =>
+            sp.GetRequiredService<Services.Tunnel.CloudflaredService>());
+        server.Services.AddSingleton<IStartable>(sp =>
+            sp.GetRequiredService<Services.Tunnel.CloudflaredService>());
     }
 }
