@@ -75,7 +75,7 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
                 if (result.Errors is { Count: > 0 } errors)
                     throw new Exception(errors[0].Message);
                 return result.Data!.IssueLabels.Nodes
-                    .Select(l => new LinearLabelInfo(l.Id, l.Name))
+                    .Select(l => new LinearLabelInfo(l.Id, l.Name, l.Team?.Id))
                     .ToList();
             },
             initialValue: []);
@@ -89,8 +89,7 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
                 if (result.Errors is { Count: > 0 } errors)
                     throw new Exception(errors[0].Message);
                 return result.Data!.WorkflowStates.Nodes
-                    .Select(s => new LinearStateInfo(s.Id, s.Name, s.Type))
-                    .DistinctBy(s => s.Name)
+                    .Select(s => new LinearStateInfo(s.Id, s.Name, s.Type, s.Team.Id))
                     .OrderBy(s => s.Type)
                     .ToList();
             },
@@ -143,11 +142,30 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
         var projectOptions = projectList.Select(p => p.Name).ToArray();
         var userList = usersQuery.Value ?? [];
         var userOptions = userList.Select(u => u.DisplayName).ToArray();
-        var labelList = labelsQuery.Value ?? [];
-        var labelOptions = labelList.Select(l => l.Name).ToArray();
-        var stateList = statesQuery.Value ?? [];
-        var stateOptions = stateList.Select(s => s.Name).ToArray();
         var priorityOptions = new[] { "Urgent", "High", "Medium", "Low", "No priority" };
+
+        var selectedTeamId = selectedTeam.Value is not null
+            ? teamList.FirstOrDefault(t => $"{t.Key} — {t.Name}" == selectedTeam.Value)?.Id
+            : null;
+
+        var allLabels = labelsQuery.Value ?? [];
+        var labelList = selectedTeamId is not null
+            ? allLabels.Where(l => l.TeamId is null || l.TeamId == selectedTeamId).ToList()
+            : allLabels;
+        var labelOptions = labelList.Select(l => l.Name).ToArray();
+
+        var allStates = statesQuery.Value ?? [];
+        var stateList = (selectedTeamId is not null
+            ? allStates.Where(s => s.TeamId == selectedTeamId)
+            : allStates)
+            .DistinctBy(s => s.Name)
+            .ToList();
+        var stateOptions = stateList.Select(s => s.Name).ToArray();
+
+        if (selectedLabel.Value is not null && !labelOptions.Contains(selectedLabel.Value))
+            selectedLabel.Set(null);
+        if (selectedStatus.Value is not null && !stateOptions.Contains(selectedStatus.Value))
+            selectedStatus.Set(null);
 
         async Task FetchIssues()
         {
@@ -432,9 +450,9 @@ internal record LinearProjectInfo(string Id, string Name);
 
 internal record LinearUserInfo(string Id, string DisplayName);
 
-internal record LinearLabelInfo(string Id, string Name);
+internal record LinearLabelInfo(string Id, string Name, string? TeamId);
 
-internal record LinearStateInfo(string Id, string Name, string Type);
+internal record LinearStateInfo(string Id, string Name, string Type, string TeamId);
 
 internal record LinearIssueInfo(
     string Id,

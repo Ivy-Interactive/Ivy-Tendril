@@ -70,6 +70,9 @@ query GetIssueLabels {
     nodes {
       id
       name
+      team {
+        id
+      }
     }
   }
 }

@@ -1823,10 +1823,11 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL
     [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
     public partial class GetIssueLabels_IssueLabels_Nodes_IssueLabel : global::System.IEquatable<GetIssueLabels_IssueLabels_Nodes_IssueLabel>, IGetIssueLabels_IssueLabels_Nodes_IssueLabel
     {
-        public GetIssueLabels_IssueLabels_Nodes_IssueLabel(global::System.String id, global::System.String name)
+        public GetIssueLabels_IssueLabels_Nodes_IssueLabel(global::System.String id, global::System.String name, global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetIssueLabels_IssueLabels_Nodes_Team? team)
         {
             Id = id;
             Name = name;
+            Team = team;
         }
 
         /// <summary>
@@ -1837,6 +1838,10 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL
         /// The label's name.
         /// </summary>
         public global::System.String Name { get; }
+        /// <summary>
+        /// The team that the label is scoped to. If null, the label is a workspace-level label available to all teams in the workspace.
+        /// </summary>
+        public global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetIssueLabels_IssueLabels_Nodes_Team? Team { get; }
 
         public virtual global::System.Boolean Equals(GetIssueLabels_IssueLabels_Nodes_IssueLabel? other)
         {
@@ -1855,7 +1860,7 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL
                 return false;
             }
 
-            return (Id.Equals(other.Id)) && Name.Equals(other.Name);
+            return (Id.Equals(other.Id)) && Name.Equals(other.Name) && ((Team is null && other.Team is null) || Team != null && Team.Equals(other.Team));
         }
 
         public override global::System.Boolean Equals(global::System.Object? obj)
@@ -1885,6 +1890,78 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL
                 int hash = 5;
                 hash ^= 397 * Id.GetHashCode();
                 hash ^= 397 * Name.GetHashCode();
+                if (Team != null)
+                {
+                    hash ^= 397 * Team.GetHashCode();
+                }
+
+                return hash;
+            }
+        }
+    }
+
+    /// <summary>
+    /// A team is the primary organizational unit in Linear. Issues belong to teams, and each team has its own workflow states, cycles, labels, and settings. Teams can be public (visible to all workspace members), private (visible only to team members), or protected (visible only within an enclosing private-team boundary). Teams can also have sub-teams that inherit settings from their parent.
+    /// </summary>
+    [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
+    public partial class GetIssueLabels_IssueLabels_Nodes_Team_Team : global::System.IEquatable<GetIssueLabels_IssueLabels_Nodes_Team_Team>, IGetIssueLabels_IssueLabels_Nodes_Team_Team
+    {
+        public GetIssueLabels_IssueLabels_Nodes_Team_Team(global::System.String id)
+        {
+            Id = id;
+        }
+
+        /// <summary>
+        /// The unique identifier of the entity.
+        /// </summary>
+        public global::System.String Id { get; }
+
+        public virtual global::System.Boolean Equals(GetIssueLabels_IssueLabels_Nodes_Team_Team? other)
+        {
+            if (ReferenceEquals(null, other))
+            {
+                return false;
+            }
+
+            if (ReferenceEquals(this, other))
+            {
+                return true;
+            }
+
+            if (other.GetType() != GetType())
+            {
+                return false;
+            }
+
+            return (Id.Equals(other.Id));
+        }
+
+        public override global::System.Boolean Equals(global::System.Object? obj)
+        {
+            if (ReferenceEquals(null, obj))
+            {
+                return false;
+            }
+
+            if (ReferenceEquals(this, obj))
+            {
+                return true;
+            }
+
+            if (obj.GetType() != GetType())
+            {
+                return false;
+            }
+
+            return Equals((GetIssueLabels_IssueLabels_Nodes_Team_Team)obj);
+        }
+
+        public override global::System.Int32 GetHashCode()
+        {
+            unchecked
+            {
+                int hash = 5;
+                hash ^= 397 * Id.GetHashCode();
                 return hash;
             }
         }
@@ -1924,6 +2001,10 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL
         /// The label's name.
         /// </summary>
         public global::System.String Name { get; }
+        /// <summary>
+        /// The team that the label is scoped to. If null, the label is a workspace-level label available to all teams in the workspace.
+        /// </summary>
+        public global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetIssueLabels_IssueLabels_Nodes_Team? Team { get; }
     }
 
     /// <summary>
@@ -1931,6 +2012,26 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL
     /// </summary>
     [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
     public partial interface IGetIssueLabels_IssueLabels_Nodes_IssueLabel : IGetIssueLabels_IssueLabels_Nodes
+    {
+    }
+
+    /// <summary>
+    /// A team is the primary organizational unit in Linear. Issues belong to teams, and each team has its own workflow states, cycles, labels, and settings. Teams can be public (visible to all workspace members), private (visible only to team members), or protected (visible only within an enclosing private-team boundary). Teams can also have sub-teams that inherit settings from their parent.
+    /// </summary>
+    [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
+    public partial interface IGetIssueLabels_IssueLabels_Nodes_Team
+    {
+        /// <summary>
+        /// The unique identifier of the entity.
+        /// </summary>
+        public global::System.String Id { get; }
+    }
+
+    /// <summary>
+    /// A team is the primary organizational unit in Linear. Issues belong to teams, and each team has its own workflow states, cycles, labels, and settings. Teams can be public (visible to all workspace members), private (visible only to team members), or protected (visible only within an enclosing private-team boundary). Teams can also have sub-teams that inherit settings from their parent.
+    /// </summary>
+    [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
+    public partial interface IGetIssueLabels_IssueLabels_Nodes_Team_Team : IGetIssueLabels_IssueLabels_Nodes_Team
     {
     }
 
@@ -56259,6 +56360,13 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL
     ///       __typename
     ///       id
     ///       name
+    ///       team {
+    ///         __typename
+    ///         id
+    ///         ... on Team {
+    ///           id
+    ///         }
+    ///       }
     ///       ... on IssueLabel {
     ///         id
     ///       }
@@ -56276,8 +56384,8 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL
 
         public static GetIssueLabelsQueryDocument Instance { get; } = new GetIssueLabelsQueryDocument();
         public global::StrawberryShake.OperationKind Kind => global::StrawberryShake.OperationKind.Query;
-        public global::System.ReadOnlySpan<global::System.Byte> Body => "query GetIssueLabels { issueLabels(first: 250) { __typename nodes { __typename id name ... on IssueLabel { id } } } }"u8;
-        public global::StrawberryShake.DocumentHash Hash { get; } = new global::StrawberryShake.DocumentHash("md5Hash", "6a2a9d3d3de05ad031ec5a85bae2a845");
+        public global::System.ReadOnlySpan<global::System.Byte> Body => "query GetIssueLabels { issueLabels(first: 250) { __typename nodes { __typename id name team { __typename id ... on Team { id } } ... on IssueLabel { id } } } }"u8;
+        public global::StrawberryShake.DocumentHash Hash { get; } = new global::StrawberryShake.DocumentHash("md5Hash", "ecaeb4e28b1f1d857861644f01d6856d");
 
         public override global::System.String ToString()
         {
@@ -56299,6 +56407,13 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL
     ///       __typename
     ///       id
     ///       name
+    ///       team {
+    ///         __typename
+    ///         id
+    ///         ... on Team {
+    ///           id
+    ///         }
+    ///       }
     ///       ... on IssueLabel {
     ///         id
     ///       }
@@ -56383,6 +56498,13 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL
     ///       __typename
     ///       id
     ///       name
+    ///       team {
+    ///         __typename
+    ///         id
+    ///         ... on Team {
+    ///           id
+    ///         }
+    ///       }
     ///       ... on IssueLabel {
     ///         id
     ///       }
@@ -57105,11 +57227,12 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
     [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
     public partial class IssueLabelEntity
     {
-        public IssueLabelEntity(global::System.String id = default !, global::System.String name = default !, global::System.String color = default !)
+        public IssueLabelEntity(global::System.String id = default !, global::System.String name = default !, global::System.String color = default !, global::StrawberryShake.EntityId? team = default !)
         {
             Id = id;
             Name = name;
             Color = color;
+            Team = team;
         }
 
         ///<summary>The unique identifier of the entity.</summary>
@@ -57118,6 +57241,8 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
         public global::System.String Name { get; }
         ///<summary>The label's color as a HEX string (e.g., '#EB5757'). Used for visual identification of the label in the UI.</summary>
         public global::System.String Color { get; }
+        ///<summary>The team that the label is scoped to. If null, the label is a workspace-level label available to all teams in the workspace.</summary>
+        public global::StrawberryShake.EntityId? Team { get; }
     }
 
     ///<summary>A project is a collection of issues working toward a shared goal. Projects have start and target dates, milestones, status tracking, and progress metrics. They can span multiple teams and be grouped under initiatives.</summary>
@@ -57510,10 +57635,12 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
     {
         private readonly global::StrawberryShake.IEntityStore _entityStore;
         private readonly global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueLabelEntity, GetIssueLabels_IssueLabels_Nodes_IssueLabel> _getIssueLabels_IssueLabels_Nodes_IssueLabelFromIssueLabelEntityMapper;
-        public GetIssueLabelsResultFactory(global::StrawberryShake.IEntityStore entityStore, global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueLabelEntity, GetIssueLabels_IssueLabels_Nodes_IssueLabel> getIssueLabels_IssueLabels_Nodes_IssueLabelFromIssueLabelEntityMapper)
+        private readonly global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.TeamEntity, GetIssueLabels_IssueLabels_Nodes_Team_Team> _getIssueLabels_IssueLabels_Nodes_Team_TeamFromTeamEntityMapper;
+        public GetIssueLabelsResultFactory(global::StrawberryShake.IEntityStore entityStore, global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueLabelEntity, GetIssueLabels_IssueLabels_Nodes_IssueLabel> getIssueLabels_IssueLabels_Nodes_IssueLabelFromIssueLabelEntityMapper, global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.TeamEntity, GetIssueLabels_IssueLabels_Nodes_Team_Team> getIssueLabels_IssueLabels_Nodes_Team_TeamFromTeamEntityMapper)
         {
             _entityStore = entityStore ?? throw new global::System.ArgumentNullException(nameof(entityStore));
             _getIssueLabels_IssueLabels_Nodes_IssueLabelFromIssueLabelEntityMapper = getIssueLabels_IssueLabels_Nodes_IssueLabelFromIssueLabelEntityMapper ?? throw new global::System.ArgumentNullException(nameof(getIssueLabels_IssueLabels_Nodes_IssueLabelFromIssueLabelEntityMapper));
+            _getIssueLabels_IssueLabels_Nodes_Team_TeamFromTeamEntityMapper = getIssueLabels_IssueLabels_Nodes_Team_TeamFromTeamEntityMapper ?? throw new global::System.ArgumentNullException(nameof(getIssueLabels_IssueLabels_Nodes_Team_TeamFromTeamEntityMapper));
         }
 
         global::System.Type global::StrawberryShake.IOperationResultDataFactory.ResultType => typeof(global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetIssueLabelsResult);
@@ -57569,6 +57696,21 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
             if (entityId.Name.Equals("IssueLabel", global::System.StringComparison.Ordinal))
             {
                 return _getIssueLabels_IssueLabels_Nodes_IssueLabelFromIssueLabelEntityMapper.Map(snapshot.GetEntity<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueLabelEntity>(entityId) ?? throw new global::StrawberryShake.GraphQLClientException());
+            }
+
+            throw new global::System.NotSupportedException();
+        }
+
+        private global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetIssueLabels_IssueLabels_Nodes_Team? MapIGetIssueLabels_IssueLabels_Nodes_Team(global::StrawberryShake.EntityId? entityId, global::StrawberryShake.IEntityStoreSnapshot snapshot)
+        {
+            if (entityId is null)
+            {
+                return null;
+            }
+
+            if (entityId.Value.Name.Equals("Team", global::System.StringComparison.Ordinal))
+            {
+                return _getIssueLabels_IssueLabels_Nodes_Team_TeamFromTeamEntityMapper.Map(snapshot.GetEntity<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.TeamEntity>(entityId.Value) ?? throw new global::StrawberryShake.GraphQLClientException());
             }
 
             throw new global::System.NotSupportedException();
@@ -60961,11 +61103,11 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
             {
                 if (session.CurrentSnapshot.TryGetEntity(entityId, out global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueLabelEntity? entity))
                 {
-                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueLabelEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "color"))));
+                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueLabelEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "color")), entity.Team));
                 }
                 else
                 {
-                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueLabelEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "color"))));
+                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueLabelEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "color")), default !));
                 }
 
                 return entityId;
@@ -61342,11 +61484,11 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
             {
                 if (session.CurrentSnapshot.TryGetEntity(entityId, out global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueLabelEntity? entity))
                 {
-                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueLabelEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name")), entity.Color));
+                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueLabelEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name")), entity.Color, Update_IGetIssueLabels_IssueLabels_Nodes_TeamEntity(session, global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "team"), entityIds)));
                 }
                 else
                 {
-                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueLabelEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name")), default !));
+                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueLabelEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name")), default !, Update_IGetIssueLabels_IssueLabels_Nodes_TeamEntity(session, global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "team"), entityIds)));
                 }
 
                 return entityId;
@@ -61368,6 +61510,37 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
             }
 
             return _iDParser.Parse(obj.Value.GetString()!);
+        }
+
+        private global::StrawberryShake.EntityId? Update_IGetIssueLabels_IssueLabels_Nodes_TeamEntity(global::StrawberryShake.IEntityStoreUpdateSession session, global::System.Text.Json.JsonElement? obj, global::System.Collections.Generic.ISet<global::StrawberryShake.EntityId> entityIds)
+        {
+            if (!obj.HasValue)
+            {
+                return null;
+            }
+
+            if (obj.Value.ValueKind == global::System.Text.Json.JsonValueKind.Null)
+            {
+                return null;
+            }
+
+            global::StrawberryShake.EntityId entityId = _idSerializer.Parse(obj.Value);
+            entityIds.Add(entityId);
+            if (entityId.Name.Equals("Team", global::System.StringComparison.Ordinal))
+            {
+                if (session.CurrentSnapshot.TryGetEntity(entityId, out global::Ivy.Tendril.Plugin.Linear.GraphQL.State.TeamEntity? entity))
+                {
+                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.TeamEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), entity.Name, entity.Key, entity.Issues));
+                }
+                else
+                {
+                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.TeamEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), default !, default !, default !));
+                }
+
+                return entityId;
+            }
+
+            throw new global::System.NotSupportedException();
         }
     }
 
@@ -61830,11 +62003,11 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
             {
                 if (session.CurrentSnapshot.TryGetEntity(entityId, out global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueLabelEntity? entity))
                 {
-                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueLabelEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "color"))));
+                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueLabelEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "color")), entity.Team));
                 }
                 else
                 {
-                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueLabelEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "color"))));
+                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueLabelEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "color")), default !));
                 }
 
                 return entityId;
@@ -62374,9 +62547,11 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
     public partial class GetIssueLabels_IssueLabels_Nodes_IssueLabelFromIssueLabelEntityMapper : global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueLabelEntity, GetIssueLabels_IssueLabels_Nodes_IssueLabel>
     {
         private readonly global::StrawberryShake.IEntityStore _entityStore;
-        public GetIssueLabels_IssueLabels_Nodes_IssueLabelFromIssueLabelEntityMapper(global::StrawberryShake.IEntityStore entityStore)
+        private readonly global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.TeamEntity, GetIssueLabels_IssueLabels_Nodes_Team_Team> _getIssueLabels_IssueLabels_Nodes_Team_TeamFromTeamEntityMapper;
+        public GetIssueLabels_IssueLabels_Nodes_IssueLabelFromIssueLabelEntityMapper(global::StrawberryShake.IEntityStore entityStore, global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.TeamEntity, GetIssueLabels_IssueLabels_Nodes_Team_Team> getIssueLabels_IssueLabels_Nodes_Team_TeamFromTeamEntityMapper)
         {
             _entityStore = entityStore ?? throw new global::System.ArgumentNullException(nameof(entityStore));
+            _getIssueLabels_IssueLabels_Nodes_Team_TeamFromTeamEntityMapper = getIssueLabels_IssueLabels_Nodes_Team_TeamFromTeamEntityMapper ?? throw new global::System.ArgumentNullException(nameof(getIssueLabels_IssueLabels_Nodes_Team_TeamFromTeamEntityMapper));
         }
 
         public GetIssueLabels_IssueLabels_Nodes_IssueLabel Map(global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueLabelEntity entity, global::StrawberryShake.IEntityStoreSnapshot? snapshot = null)
@@ -62386,7 +62561,42 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
                 snapshot = _entityStore.CurrentSnapshot;
             }
 
-            return new GetIssueLabels_IssueLabels_Nodes_IssueLabel(entity.Id, entity.Name);
+            return new GetIssueLabels_IssueLabels_Nodes_IssueLabel(entity.Id, entity.Name, MapIGetIssueLabels_IssueLabels_Nodes_Team(entity.Team, snapshot));
+        }
+
+        private global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetIssueLabels_IssueLabels_Nodes_Team? MapIGetIssueLabels_IssueLabels_Nodes_Team(global::StrawberryShake.EntityId? entityId, global::StrawberryShake.IEntityStoreSnapshot snapshot)
+        {
+            if (entityId is null)
+            {
+                return null;
+            }
+
+            if (entityId.Value.Name.Equals("Team", global::System.StringComparison.Ordinal))
+            {
+                return _getIssueLabels_IssueLabels_Nodes_Team_TeamFromTeamEntityMapper.Map(snapshot.GetEntity<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.TeamEntity>(entityId.Value) ?? throw new global::StrawberryShake.GraphQLClientException());
+            }
+
+            throw new global::System.NotSupportedException();
+        }
+    }
+
+    [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
+    public partial class GetIssueLabels_IssueLabels_Nodes_Team_TeamFromTeamEntityMapper : global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.TeamEntity, GetIssueLabels_IssueLabels_Nodes_Team_Team>
+    {
+        private readonly global::StrawberryShake.IEntityStore _entityStore;
+        public GetIssueLabels_IssueLabels_Nodes_Team_TeamFromTeamEntityMapper(global::StrawberryShake.IEntityStore entityStore)
+        {
+            _entityStore = entityStore ?? throw new global::System.ArgumentNullException(nameof(entityStore));
+        }
+
+        public GetIssueLabels_IssueLabels_Nodes_Team_Team Map(global::Ivy.Tendril.Plugin.Linear.GraphQL.State.TeamEntity entity, global::StrawberryShake.IEntityStoreSnapshot? snapshot = null)
+        {
+            if (snapshot is null)
+            {
+                snapshot = _entityStore.CurrentSnapshot;
+            }
+
+            return new GetIssueLabels_IssueLabels_Nodes_Team_Team(entity.Id);
         }
     }
 
@@ -62823,6 +63033,7 @@ namespace Microsoft.Extensions.DependencyInjection
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.ProjectEntity, global::Ivy.Tendril.Plugin.Linear.GraphQL.GetProjects_Projects_Nodes_Project>, global::Ivy.Tendril.Plugin.Linear.GraphQL.State.GetProjects_Projects_Nodes_ProjectFromProjectEntityMapper>(services);
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.UserEntity, global::Ivy.Tendril.Plugin.Linear.GraphQL.GetUsers_Users_Nodes_User>, global::Ivy.Tendril.Plugin.Linear.GraphQL.State.GetUsers_Users_Nodes_UserFromUserEntityMapper>(services);
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueLabelEntity, global::Ivy.Tendril.Plugin.Linear.GraphQL.GetIssueLabels_IssueLabels_Nodes_IssueLabel>, global::Ivy.Tendril.Plugin.Linear.GraphQL.State.GetIssueLabels_IssueLabels_Nodes_IssueLabelFromIssueLabelEntityMapper>(services);
+            global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.TeamEntity, global::Ivy.Tendril.Plugin.Linear.GraphQL.GetIssueLabels_IssueLabels_Nodes_Team_Team>, global::Ivy.Tendril.Plugin.Linear.GraphQL.State.GetIssueLabels_IssueLabels_Nodes_Team_TeamFromTeamEntityMapper>(services);
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.WorkflowStateEntity, global::Ivy.Tendril.Plugin.Linear.GraphQL.GetWorkflowStates_WorkflowStates_Nodes_WorkflowState>, global::Ivy.Tendril.Plugin.Linear.GraphQL.State.GetWorkflowStates_WorkflowStates_Nodes_WorkflowStateFromWorkflowStateEntityMapper>(services);
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.TeamEntity, global::Ivy.Tendril.Plugin.Linear.GraphQL.GetWorkflowStates_WorkflowStates_Nodes_Team_Team>, global::Ivy.Tendril.Plugin.Linear.GraphQL.State.GetWorkflowStates_WorkflowStates_Nodes_Team_TeamFromTeamEntityMapper>(services);
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueEntity, global::Ivy.Tendril.Plugin.Linear.GraphQL.GetIssues_Issues_Nodes_Issue>, global::Ivy.Tendril.Plugin.Linear.GraphQL.State.GetIssues_Issues_Nodes_IssueFromIssueEntityMapper>(services);
