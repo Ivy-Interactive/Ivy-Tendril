@@ -1,4 +1,5 @@
 using Ivy.Core.Hooks;
+using Ivy.Widgets.ContentInputView;
 
 namespace Ivy.Tendril.Apps.Drafts.Dialogs;
 
@@ -55,7 +56,7 @@ public class CreatePlanDialog(
                 Layout.Vertical()
                 | exclusiveProjects.ToSelectInput(options).Variant(SelectInputVariant.Toggle).WithField().Label("Select project(s)")
                 | selectedPriority.ToSelectInput(PriorityOptions).Variant(SelectInputVariant.Toggle).WithField().Label("Priority")
-                | createPlanText.ToTextareaInput("Enter task description...").Rows(6).AutoFocus().WithField()
+                | new ContentInputView().Bind(createPlanText).Placeholder("Enter task description...").WithField()
                     .Label("Describe the task for the new plan")
                     .Required()
             ),
