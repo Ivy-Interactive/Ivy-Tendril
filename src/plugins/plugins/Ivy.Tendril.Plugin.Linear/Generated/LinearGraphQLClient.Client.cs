@@ -1187,6 +1187,252 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL
     }
 
     [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
+    public partial class GetProjectsResult : global::System.IEquatable<GetProjectsResult>, IGetProjectsResult
+    {
+        public GetProjectsResult(global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjects_Projects projects)
+        {
+            Projects = projects;
+        }
+
+        /// <summary>
+        /// Returns all projects in the workspace, with optional filtering and sorting.
+        /// </summary>
+        public global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjects_Projects Projects { get; }
+
+        public virtual global::System.Boolean Equals(GetProjectsResult? other)
+        {
+            if (ReferenceEquals(null, other))
+            {
+                return false;
+            }
+
+            if (ReferenceEquals(this, other))
+            {
+                return true;
+            }
+
+            if (other.GetType() != GetType())
+            {
+                return false;
+            }
+
+            return (Projects.Equals(other.Projects));
+        }
+
+        public override global::System.Boolean Equals(global::System.Object? obj)
+        {
+            if (ReferenceEquals(null, obj))
+            {
+                return false;
+            }
+
+            if (ReferenceEquals(this, obj))
+            {
+                return true;
+            }
+
+            if (obj.GetType() != GetType())
+            {
+                return false;
+            }
+
+            return Equals((GetProjectsResult)obj);
+        }
+
+        public override global::System.Int32 GetHashCode()
+        {
+            unchecked
+            {
+                int hash = 5;
+                hash ^= 397 * Projects.GetHashCode();
+                return hash;
+            }
+        }
+    }
+
+    [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
+    public partial class GetProjects_Projects_ProjectConnection : global::System.IEquatable<GetProjects_Projects_ProjectConnection>, IGetProjects_Projects_ProjectConnection
+    {
+        public GetProjects_Projects_ProjectConnection(global::System.Collections.Generic.IReadOnlyList<global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjects_Projects_Nodes> nodes)
+        {
+            Nodes = nodes;
+        }
+
+        public global::System.Collections.Generic.IReadOnlyList<global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjects_Projects_Nodes> Nodes { get; }
+
+        public virtual global::System.Boolean Equals(GetProjects_Projects_ProjectConnection? other)
+        {
+            if (ReferenceEquals(null, other))
+            {
+                return false;
+            }
+
+            if (ReferenceEquals(this, other))
+            {
+                return true;
+            }
+
+            if (other.GetType() != GetType())
+            {
+                return false;
+            }
+
+            return (global::StrawberryShake.Internal.ComparisonHelper.SequenceEqual(Nodes, other.Nodes));
+        }
+
+        public override global::System.Boolean Equals(global::System.Object? obj)
+        {
+            if (ReferenceEquals(null, obj))
+            {
+                return false;
+            }
+
+            if (ReferenceEquals(this, obj))
+            {
+                return true;
+            }
+
+            if (obj.GetType() != GetType())
+            {
+                return false;
+            }
+
+            return Equals((GetProjects_Projects_ProjectConnection)obj);
+        }
+
+        public override global::System.Int32 GetHashCode()
+        {
+            unchecked
+            {
+                int hash = 5;
+                foreach (var Nodes_elm in Nodes)
+                {
+                    hash ^= 397 * Nodes_elm.GetHashCode();
+                }
+
+                return hash;
+            }
+        }
+    }
+
+    /// <summary>
+    /// A project is a collection of issues working toward a shared goal. Projects have start and target dates, milestones, status tracking, and progress metrics. They can span multiple teams and be grouped under initiatives.
+    /// </summary>
+    [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
+    public partial class GetProjects_Projects_Nodes_Project : global::System.IEquatable<GetProjects_Projects_Nodes_Project>, IGetProjects_Projects_Nodes_Project
+    {
+        public GetProjects_Projects_Nodes_Project(global::System.String id, global::System.String name)
+        {
+            Id = id;
+            Name = name;
+        }
+
+        /// <summary>
+        /// The unique identifier of the entity.
+        /// </summary>
+        public global::System.String Id { get; }
+        /// <summary>
+        /// The name of the project.
+        /// </summary>
+        public global::System.String Name { get; }
+
+        public virtual global::System.Boolean Equals(GetProjects_Projects_Nodes_Project? other)
+        {
+            if (ReferenceEquals(null, other))
+            {
+                return false;
+            }
+
+            if (ReferenceEquals(this, other))
+            {
+                return true;
+            }
+
+            if (other.GetType() != GetType())
+            {
+                return false;
+            }
+
+            return (Id.Equals(other.Id)) && Name.Equals(other.Name);
+        }
+
+        public override global::System.Boolean Equals(global::System.Object? obj)
+        {
+            if (ReferenceEquals(null, obj))
+            {
+                return false;
+            }
+
+            if (ReferenceEquals(this, obj))
+            {
+                return true;
+            }
+
+            if (obj.GetType() != GetType())
+            {
+                return false;
+            }
+
+            return Equals((GetProjects_Projects_Nodes_Project)obj);
+        }
+
+        public override global::System.Int32 GetHashCode()
+        {
+            unchecked
+            {
+                int hash = 5;
+                hash ^= 397 * Id.GetHashCode();
+                hash ^= 397 * Name.GetHashCode();
+                return hash;
+            }
+        }
+    }
+
+    [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
+    public partial interface IGetProjectsResult
+    {
+        /// <summary>
+        /// Returns all projects in the workspace, with optional filtering and sorting.
+        /// </summary>
+        public global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjects_Projects Projects { get; }
+    }
+
+    [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
+    public partial interface IGetProjects_Projects
+    {
+        public global::System.Collections.Generic.IReadOnlyList<global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjects_Projects_Nodes> Nodes { get; }
+    }
+
+    [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
+    public partial interface IGetProjects_Projects_ProjectConnection : IGetProjects_Projects
+    {
+    }
+
+    /// <summary>
+    /// A project is a collection of issues working toward a shared goal. Projects have start and target dates, milestones, status tracking, and progress metrics. They can span multiple teams and be grouped under initiatives.
+    /// </summary>
+    [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
+    public partial interface IGetProjects_Projects_Nodes
+    {
+        /// <summary>
+        /// The unique identifier of the entity.
+        /// </summary>
+        public global::System.String Id { get; }
+        /// <summary>
+        /// The name of the project.
+        /// </summary>
+        public global::System.String Name { get; }
+    }
+
+    /// <summary>
+    /// A project is a collection of issues working toward a shared goal. Projects have start and target dates, milestones, status tracking, and progress metrics. They can span multiple teams and be grouped under initiatives.
+    /// </summary>
+    [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
+    public partial interface IGetProjects_Projects_Nodes_Project : IGetProjects_Projects_Nodes
+    {
+    }
+
+    [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
     public partial class GetIssuesResult : global::System.IEquatable<GetIssuesResult>, IGetIssuesResult
     {
         public GetIssuesResult(global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetIssues_Issues issues)
@@ -54832,6 +55078,158 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL
     }
 
     /// <summary>
+    /// Represents the operation service of the GetProjects GraphQL operation
+    /// <code>
+    /// query GetProjects {
+    ///   projects(first: 100) {
+    ///     __typename
+    ///     nodes {
+    ///       __typename
+    ///       id
+    ///       name
+    ///       ... on Project {
+    ///         id
+    ///       }
+    ///     }
+    ///   }
+    /// }
+    /// </code>
+    /// </summary>
+    [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
+    public partial class GetProjectsQueryDocument : global::StrawberryShake.IDocument
+    {
+        private GetProjectsQueryDocument()
+        {
+        }
+
+        public static GetProjectsQueryDocument Instance { get; } = new GetProjectsQueryDocument();
+        public global::StrawberryShake.OperationKind Kind => global::StrawberryShake.OperationKind.Query;
+        public global::System.ReadOnlySpan<global::System.Byte> Body => "query GetProjects { projects(first: 100) { __typename nodes { __typename id name ... on Project { id } } } }"u8;
+        public global::StrawberryShake.DocumentHash Hash { get; } = new global::StrawberryShake.DocumentHash("md5Hash", "472bf9af8f961a435a5415e6517a9ba3");
+
+        public override global::System.String ToString()
+        {
+#if NETCOREAPP3_1_OR_GREATER
+        return global::System.Text.Encoding.UTF8.GetString(Body);
+#else
+            return global::System.Text.Encoding.UTF8.GetString(Body.ToArray());
+#endif
+        }
+    }
+
+    /// <summary>
+    /// Represents the operation service of the GetProjects GraphQL operation
+    /// <code>
+    /// query GetProjects {
+    ///   projects(first: 100) {
+    ///     __typename
+    ///     nodes {
+    ///       __typename
+    ///       id
+    ///       name
+    ///       ... on Project {
+    ///         id
+    ///       }
+    ///     }
+    ///   }
+    /// }
+    /// </code>
+    /// </summary>
+    [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
+    public partial class GetProjectsQuery : global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjectsQuery
+    {
+        private readonly global::StrawberryShake.IOperationExecutor<IGetProjectsResult> _operationExecutor;
+        private readonly global::System.Collections.Immutable.ImmutableArray<global::System.Action<global::StrawberryShake.OperationRequest>> _configure = global::System.Collections.Immutable.ImmutableArray<global::System.Action<global::StrawberryShake.OperationRequest>>.Empty;
+        public GetProjectsQuery(global::StrawberryShake.IOperationExecutor<IGetProjectsResult> operationExecutor)
+        {
+            _operationExecutor = operationExecutor ?? throw new global::System.ArgumentNullException(nameof(operationExecutor));
+        }
+
+        private GetProjectsQuery(global::StrawberryShake.IOperationExecutor<IGetProjectsResult> operationExecutor, global::System.Collections.Immutable.ImmutableArray<global::System.Action<global::StrawberryShake.OperationRequest>> configure)
+        {
+            _operationExecutor = operationExecutor;
+            _configure = configure;
+        }
+
+        global::System.Type global::StrawberryShake.IOperationRequestFactory.ResultType => typeof(IGetProjectsResult);
+
+        public global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjectsQuery With(global::System.Action<global::StrawberryShake.OperationRequest> configure)
+        {
+            return new global::Ivy.Tendril.Plugin.Linear.GraphQL.GetProjectsQuery(_operationExecutor, _configure.Add(configure));
+        }
+
+        public global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjectsQuery WithRequestUri(global::System.Uri requestUri)
+        {
+            return With(r => r.ContextData["StrawberryShake.Transport.Http.HttpConnection.RequestUri"] = requestUri);
+        }
+
+        public global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjectsQuery WithHttpClient(global::System.Net.Http.HttpClient httpClient)
+        {
+            return With(r => r.ContextData["StrawberryShake.Transport.Http.HttpConnection.HttpClient"] = httpClient);
+        }
+
+        public async global::System.Threading.Tasks.Task<global::StrawberryShake.IOperationResult<IGetProjectsResult>> ExecuteAsync(global::System.Threading.CancellationToken cancellationToken = default)
+        {
+            var request = CreateRequest();
+            foreach (var configure in _configure)
+            {
+                configure(request);
+            }
+
+            return await _operationExecutor.ExecuteAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+
+        public global::System.IObservable<global::StrawberryShake.IOperationResult<IGetProjectsResult>> Watch(global::StrawberryShake.ExecutionStrategy? strategy = null)
+        {
+            var request = CreateRequest();
+            return _operationExecutor.Watch(request, strategy);
+        }
+
+        private global::StrawberryShake.OperationRequest CreateRequest()
+        {
+            return CreateRequest(null);
+        }
+
+        private global::StrawberryShake.OperationRequest CreateRequest(global::System.Collections.Generic.IReadOnlyDictionary<global::System.String, global::System.Object?>? variables)
+        {
+            return new global::StrawberryShake.OperationRequest(id: GetProjectsQueryDocument.Instance.Hash.Value, name: "GetProjects", document: GetProjectsQueryDocument.Instance, strategy: global::StrawberryShake.RequestStrategy.Default);
+        }
+
+        global::StrawberryShake.OperationRequest global::StrawberryShake.IOperationRequestFactory.Create(global::System.Collections.Generic.IReadOnlyDictionary<global::System.String, global::System.Object?>? variables)
+        {
+            return CreateRequest();
+        }
+    }
+
+    /// <summary>
+    /// Represents the operation service of the GetProjects GraphQL operation
+    /// <code>
+    /// query GetProjects {
+    ///   projects(first: 100) {
+    ///     __typename
+    ///     nodes {
+    ///       __typename
+    ///       id
+    ///       name
+    ///       ... on Project {
+    ///         id
+    ///       }
+    ///     }
+    ///   }
+    /// }
+    /// </code>
+    /// </summary>
+    [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
+    public partial interface IGetProjectsQuery : global::StrawberryShake.IOperationRequestFactory
+    {
+        global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjectsQuery With(global::System.Action<global::StrawberryShake.OperationRequest> configure);
+        global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjectsQuery WithRequestUri(global::System.Uri requestUri);
+        global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjectsQuery WithHttpClient(global::System.Net.Http.HttpClient httpClient);
+        global::System.Threading.Tasks.Task<global::StrawberryShake.IOperationResult<IGetProjectsResult>> ExecuteAsync(global::System.Threading.CancellationToken cancellationToken = default);
+        global::System.IObservable<global::StrawberryShake.IOperationResult<IGetProjectsResult>> Watch(global::StrawberryShake.ExecutionStrategy? strategy = null);
+    }
+
+    /// <summary>
     /// Represents the operation service of the GetIssues GraphQL operation
     /// <code>
     /// query GetIssues($first: Int, $after: String, $filter: IssueFilter) {
@@ -55190,17 +55588,20 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL
     {
         private readonly global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetTeamsQuery _getTeams;
         private readonly global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetTeamIssuesQuery _getTeamIssues;
+        private readonly global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjectsQuery _getProjects;
         private readonly global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetIssuesQuery _getIssues;
-        public LinearGraphQLClient(global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetTeamsQuery getTeams, global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetTeamIssuesQuery getTeamIssues, global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetIssuesQuery getIssues)
+        public LinearGraphQLClient(global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetTeamsQuery getTeams, global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetTeamIssuesQuery getTeamIssues, global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjectsQuery getProjects, global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetIssuesQuery getIssues)
         {
             _getTeams = getTeams ?? throw new global::System.ArgumentNullException(nameof(getTeams));
             _getTeamIssues = getTeamIssues ?? throw new global::System.ArgumentNullException(nameof(getTeamIssues));
+            _getProjects = getProjects ?? throw new global::System.ArgumentNullException(nameof(getProjects));
             _getIssues = getIssues ?? throw new global::System.ArgumentNullException(nameof(getIssues));
         }
 
         public static global::System.String ClientName => "LinearGraphQLClient";
         public global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetTeamsQuery GetTeams => _getTeams;
         public global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetTeamIssuesQuery GetTeamIssues => _getTeamIssues;
+        public global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjectsQuery GetProjects => _getProjects;
         public global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetIssuesQuery GetIssues => _getIssues;
     }
 
@@ -55213,6 +55614,8 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL
         global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetTeamsQuery GetTeams { get; }
 
         global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetTeamIssuesQuery GetTeamIssues { get; }
+
+        global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjectsQuery GetProjects { get; }
 
         global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetIssuesQuery GetIssues { get; }
     }
@@ -55343,6 +55746,22 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
         public global::System.String Name { get; }
         ///<summary>The label's color as a HEX string (e.g., '#EB5757'). Used for visual identification of the label in the UI.</summary>
         public global::System.String Color { get; }
+    }
+
+    ///<summary>A project is a collection of issues working toward a shared goal. Projects have start and target dates, milestones, status tracking, and progress metrics. They can span multiple teams and be grouped under initiatives.</summary>
+    [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
+    public partial class ProjectEntity
+    {
+        public ProjectEntity(global::System.String id = default !, global::System.String name = default !)
+        {
+            Id = id;
+            Name = name;
+        }
+
+        ///<summary>The unique identifier of the entity.</summary>
+        public global::System.String Id { get; }
+        ///<summary>The name of the project.</summary>
+        public global::System.String Name { get; }
     }
 
     [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
@@ -55511,6 +55930,106 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
         public global::StrawberryShake.IOperationResultDataInfo WithVersion(global::System.UInt64 version)
         {
             return new GetTeamIssuesResultInfo(Team, _entityIds, version);
+        }
+    }
+
+    [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
+    public partial class GetProjectsResultFactory : global::StrawberryShake.IOperationResultDataFactory<global::Ivy.Tendril.Plugin.Linear.GraphQL.GetProjectsResult>
+    {
+        private readonly global::StrawberryShake.IEntityStore _entityStore;
+        private readonly global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.ProjectEntity, GetProjects_Projects_Nodes_Project> _getProjects_Projects_Nodes_ProjectFromProjectEntityMapper;
+        public GetProjectsResultFactory(global::StrawberryShake.IEntityStore entityStore, global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.ProjectEntity, GetProjects_Projects_Nodes_Project> getProjects_Projects_Nodes_ProjectFromProjectEntityMapper)
+        {
+            _entityStore = entityStore ?? throw new global::System.ArgumentNullException(nameof(entityStore));
+            _getProjects_Projects_Nodes_ProjectFromProjectEntityMapper = getProjects_Projects_Nodes_ProjectFromProjectEntityMapper ?? throw new global::System.ArgumentNullException(nameof(getProjects_Projects_Nodes_ProjectFromProjectEntityMapper));
+        }
+
+        global::System.Type global::StrawberryShake.IOperationResultDataFactory.ResultType => typeof(global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjectsResult);
+
+        public GetProjectsResult Create(global::StrawberryShake.IOperationResultDataInfo dataInfo, global::StrawberryShake.IEntityStoreSnapshot? snapshot = null)
+        {
+            if (snapshot is null)
+            {
+                snapshot = _entityStore.CurrentSnapshot;
+            }
+
+            if (dataInfo is GetProjectsResultInfo info)
+            {
+                return new GetProjectsResult(MapNonNullableIGetProjects_Projects(info.Projects, snapshot));
+            }
+
+            throw new global::System.ArgumentException("GetProjectsResultInfo expected.");
+        }
+
+        private global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjects_Projects MapNonNullableIGetProjects_Projects(global::Ivy.Tendril.Plugin.Linear.GraphQL.State.ProjectConnectionData data, global::StrawberryShake.IEntityStoreSnapshot snapshot)
+        {
+            IGetProjects_Projects returnValue = default !;
+            if (data.__typename.Equals("ProjectConnection", global::System.StringComparison.Ordinal))
+            {
+                returnValue = new GetProjects_Projects_ProjectConnection(MapNonNullableIGetProjects_Projects_NodesNonNullableArray(data.Nodes ?? throw new global::System.ArgumentNullException(), snapshot));
+            }
+            else
+            {
+                throw new global::System.NotSupportedException();
+            }
+
+            return returnValue;
+        }
+
+        private global::System.Collections.Generic.IReadOnlyList<global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjects_Projects_Nodes> MapNonNullableIGetProjects_Projects_NodesNonNullableArray(global::System.Collections.Generic.IReadOnlyList<global::StrawberryShake.EntityId>? list, global::StrawberryShake.IEntityStoreSnapshot snapshot)
+        {
+            if (list is null)
+            {
+                throw new global::System.ArgumentNullException();
+            }
+
+            var projects = new global::System.Collections.Generic.List<global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjects_Projects_Nodes>();
+            foreach (global::StrawberryShake.EntityId child in list)
+            {
+                projects.Add(MapNonNullableIGetProjects_Projects_Nodes(child, snapshot));
+            }
+
+            return projects;
+        }
+
+        private global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjects_Projects_Nodes MapNonNullableIGetProjects_Projects_Nodes(global::StrawberryShake.EntityId entityId, global::StrawberryShake.IEntityStoreSnapshot snapshot)
+        {
+            if (entityId.Name.Equals("Project", global::System.StringComparison.Ordinal))
+            {
+                return _getProjects_Projects_Nodes_ProjectFromProjectEntityMapper.Map(snapshot.GetEntity<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.ProjectEntity>(entityId) ?? throw new global::StrawberryShake.GraphQLClientException());
+            }
+
+            throw new global::System.NotSupportedException();
+        }
+
+        global::System.Object global::StrawberryShake.IOperationResultDataFactory.Create(global::StrawberryShake.IOperationResultDataInfo dataInfo, global::StrawberryShake.IEntityStoreSnapshot? snapshot)
+        {
+            return Create(dataInfo, snapshot);
+        }
+    }
+
+    [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
+    public partial class GetProjectsResultInfo : global::StrawberryShake.IOperationResultDataInfo
+    {
+        private readonly global::System.Collections.Generic.IReadOnlyCollection<global::StrawberryShake.EntityId> _entityIds;
+        private readonly global::System.UInt64 _version;
+        public GetProjectsResultInfo(global::Ivy.Tendril.Plugin.Linear.GraphQL.State.ProjectConnectionData projects, global::System.Collections.Generic.IReadOnlyCollection<global::StrawberryShake.EntityId> entityIds, global::System.UInt64 version)
+        {
+            Projects = projects;
+            _entityIds = entityIds ?? throw new global::System.ArgumentNullException(nameof(entityIds));
+            _version = version;
+        }
+
+        /// <summary>
+        /// Returns all projects in the workspace, with optional filtering and sorting.
+        /// </summary>
+        public global::Ivy.Tendril.Plugin.Linear.GraphQL.State.ProjectConnectionData Projects { get; }
+        public global::System.Collections.Generic.IReadOnlyCollection<global::StrawberryShake.EntityId> EntityIds => _entityIds;
+        public global::System.UInt64 Version => _version;
+
+        public global::StrawberryShake.IOperationResultDataInfo WithVersion(global::System.UInt64 version)
+        {
+            return new GetProjectsResultInfo(Projects, _entityIds, version);
         }
     }
 
@@ -58809,6 +59328,126 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
     }
 
     [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
+    public partial class GetProjectsBuilder : global::StrawberryShake.OperationResultBuilder<global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjectsResult>
+    {
+        private readonly global::StrawberryShake.IEntityStore _entityStore;
+        private readonly global::StrawberryShake.IEntityIdSerializer _idSerializer;
+        private readonly global::StrawberryShake.Serialization.ILeafValueParser<global::System.String, global::System.String> _iDParser;
+        private readonly global::StrawberryShake.Serialization.ILeafValueParser<global::System.String, global::System.String> _stringParser;
+        public GetProjectsBuilder(global::StrawberryShake.IEntityStore entityStore, global::StrawberryShake.IEntityIdSerializer idSerializer, global::StrawberryShake.IOperationResultDataFactory<global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjectsResult> resultDataFactory, global::StrawberryShake.Serialization.ISerializerResolver serializerResolver)
+        {
+            _entityStore = entityStore ?? throw new global::System.ArgumentNullException(nameof(entityStore));
+            _idSerializer = idSerializer ?? throw new global::System.ArgumentNullException(nameof(idSerializer));
+            ResultDataFactory = resultDataFactory ?? throw new global::System.ArgumentNullException(nameof(resultDataFactory));
+            _iDParser = serializerResolver.GetLeafValueParser<global::System.String, global::System.String>("ID") ?? throw new global::System.ArgumentException("No serializer for type `ID` found.");
+            _stringParser = serializerResolver.GetLeafValueParser<global::System.String, global::System.String>("String") ?? throw new global::System.ArgumentException("No serializer for type `String` found.");
+        }
+
+        protected override global::StrawberryShake.IOperationResultDataFactory<global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjectsResult> ResultDataFactory { get; }
+
+        protected override global::StrawberryShake.IOperationResultDataInfo BuildData(global::System.Text.Json.JsonElement obj)
+        {
+            var entityIds = new global::System.Collections.Generic.HashSet<global::StrawberryShake.EntityId>();
+            global::StrawberryShake.IEntityStoreSnapshot snapshot = default !;
+            global::Ivy.Tendril.Plugin.Linear.GraphQL.State.ProjectConnectionData projectsId = default !;
+            _entityStore.Update(session =>
+            {
+                projectsId = Deserialize_NonNullableIGetProjects_Projects(session, global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "projects"), entityIds);
+                snapshot = session.CurrentSnapshot;
+            });
+            return new GetProjectsResultInfo(projectsId, entityIds, snapshot.Version);
+        }
+
+        private global::Ivy.Tendril.Plugin.Linear.GraphQL.State.ProjectConnectionData Deserialize_NonNullableIGetProjects_Projects(global::StrawberryShake.IEntityStoreUpdateSession session, global::System.Text.Json.JsonElement? obj, global::System.Collections.Generic.ISet<global::StrawberryShake.EntityId> entityIds)
+        {
+            if (!obj.HasValue)
+            {
+                throw new global::System.ArgumentNullException();
+            }
+
+            if (obj.Value.ValueKind == global::System.Text.Json.JsonValueKind.Null)
+            {
+                throw new global::System.ArgumentNullException();
+            }
+
+            var typename = obj.Value.GetProperty("__typename").GetString();
+            if (typename?.Equals("ProjectConnection", global::System.StringComparison.Ordinal) ?? false)
+            {
+                return new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.ProjectConnectionData(typename, nodes: Update_NonNullableIGetProjects_Projects_NodesEntityNonNullableArray(session, global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "nodes"), entityIds));
+            }
+
+            throw new global::System.NotSupportedException();
+        }
+
+        private global::System.Collections.Generic.IReadOnlyList<global::StrawberryShake.EntityId> Update_NonNullableIGetProjects_Projects_NodesEntityNonNullableArray(global::StrawberryShake.IEntityStoreUpdateSession session, global::System.Text.Json.JsonElement? obj, global::System.Collections.Generic.ISet<global::StrawberryShake.EntityId> entityIds)
+        {
+            if (!obj.HasValue)
+            {
+                throw new global::System.ArgumentNullException();
+            }
+
+            if (obj.Value.ValueKind == global::System.Text.Json.JsonValueKind.Null)
+            {
+                throw new global::System.ArgumentNullException();
+            }
+
+            var projects = new global::System.Collections.Generic.List<global::StrawberryShake.EntityId>();
+            foreach (global::System.Text.Json.JsonElement child in obj.Value.EnumerateArray())
+            {
+                projects.Add(Update_NonNullableIGetProjects_Projects_NodesEntity(session, child, entityIds));
+            }
+
+            return projects;
+        }
+
+        private global::StrawberryShake.EntityId Update_NonNullableIGetProjects_Projects_NodesEntity(global::StrawberryShake.IEntityStoreUpdateSession session, global::System.Text.Json.JsonElement? obj, global::System.Collections.Generic.ISet<global::StrawberryShake.EntityId> entityIds)
+        {
+            if (!obj.HasValue)
+            {
+                throw new global::System.ArgumentNullException();
+            }
+
+            if (obj.Value.ValueKind == global::System.Text.Json.JsonValueKind.Null)
+            {
+                throw new global::System.ArgumentNullException();
+            }
+
+            global::StrawberryShake.EntityId entityId = _idSerializer.Parse(obj.Value);
+            entityIds.Add(entityId);
+            if (entityId.Name.Equals("Project", global::System.StringComparison.Ordinal))
+            {
+                if (session.CurrentSnapshot.TryGetEntity(entityId, out global::Ivy.Tendril.Plugin.Linear.GraphQL.State.ProjectEntity? entity))
+                {
+                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.ProjectEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name"))));
+                }
+                else
+                {
+                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.ProjectEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name"))));
+                }
+
+                return entityId;
+            }
+
+            throw new global::System.NotSupportedException();
+        }
+
+        private global::System.String Deserialize_NonNullableString(global::System.Text.Json.JsonElement? obj)
+        {
+            if (!obj.HasValue)
+            {
+                throw new global::System.ArgumentNullException();
+            }
+
+            if (obj.Value.ValueKind == global::System.Text.Json.JsonValueKind.Null)
+            {
+                throw new global::System.ArgumentNullException();
+            }
+
+            return _iDParser.Parse(obj.Value.GetString()!);
+        }
+    }
+
+    [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
     public partial class GetIssuesBuilder : global::StrawberryShake.OperationResultBuilder<global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetIssuesResult>
     {
         private readonly global::StrawberryShake.IEntityStore _entityStore;
@@ -59256,6 +59895,19 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
     }
 
     [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
+    public partial class ProjectConnectionData
+    {
+        public ProjectConnectionData(global::System.String __typename, global::System.Collections.Generic.IReadOnlyList<global::StrawberryShake.EntityId>? nodes = default !)
+        {
+            this.__typename = __typename ?? throw new global::System.ArgumentNullException(nameof(__typename));
+            Nodes = nodes;
+        }
+
+        public global::System.String __typename { get; }
+        public global::System.Collections.Generic.IReadOnlyList<global::StrawberryShake.EntityId>? Nodes { get; }
+    }
+
+    [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
     public partial class GetTeams_Teams_Nodes_TeamFromTeamEntityMapper : global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.TeamEntity, GetTeams_Teams_Nodes_Team>
     {
         private readonly global::StrawberryShake.IEntityStore _entityStore;
@@ -59578,6 +60230,26 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
     }
 
     [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
+    public partial class GetProjects_Projects_Nodes_ProjectFromProjectEntityMapper : global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.ProjectEntity, GetProjects_Projects_Nodes_Project>
+    {
+        private readonly global::StrawberryShake.IEntityStore _entityStore;
+        public GetProjects_Projects_Nodes_ProjectFromProjectEntityMapper(global::StrawberryShake.IEntityStore entityStore)
+        {
+            _entityStore = entityStore ?? throw new global::System.ArgumentNullException(nameof(entityStore));
+        }
+
+        public GetProjects_Projects_Nodes_Project Map(global::Ivy.Tendril.Plugin.Linear.GraphQL.State.ProjectEntity entity, global::StrawberryShake.IEntityStoreSnapshot? snapshot = null)
+        {
+            if (snapshot is null)
+            {
+                snapshot = _entityStore.CurrentSnapshot;
+            }
+
+            return new GetProjects_Projects_Nodes_Project(entity.Id, entity.Name);
+        }
+    }
+
+    [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
     public partial class GetIssues_Issues_Nodes_IssueFromIssueEntityMapper : global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueEntity, GetIssues_Issues_Nodes_Issue>
     {
         private readonly global::StrawberryShake.IEntityStore _entityStore;
@@ -59778,6 +60450,7 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
                 "WorkflowState" => ParseWorkflowStateEntityId(obj, __typename),
                 "User" => ParseUserEntityId(obj, __typename),
                 "IssueLabel" => ParseIssueLabelEntityId(obj, __typename),
+                "Project" => ParseProjectEntityId(obj, __typename),
                 _ => throw new global::System.NotSupportedException()};
         }
 
@@ -59790,6 +60463,7 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
                 "WorkflowState" => FormatWorkflowStateEntityId(entityId),
                 "User" => FormatUserEntityId(entityId),
                 "IssueLabel" => FormatIssueLabelEntityId(entityId),
+                "Project" => FormatProjectEntityId(entityId),
                 _ => throw new global::System.NotSupportedException()};
         }
 
@@ -59877,6 +60551,23 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
             jsonWriter.Flush();
             return global::System.Text.Encoding.UTF8.GetString(writer.GetInternalBuffer(), 0, writer.Length);
         }
+
+        private global::StrawberryShake.EntityId ParseProjectEntityId(global::System.Text.Json.JsonElement obj, global::System.String type)
+        {
+            return new global::StrawberryShake.EntityId(type, obj.GetProperty("id").GetString()!);
+        }
+
+        private global::System.String FormatProjectEntityId(global::StrawberryShake.EntityId entityId)
+        {
+            using var writer = new global::StrawberryShake.Internal.ArrayWriter();
+            using var jsonWriter = new global::System.Text.Json.Utf8JsonWriter(writer, _options);
+            jsonWriter.WriteStartObject();
+            jsonWriter.WriteString("__typename", entityId.Name);
+            jsonWriter.WriteString("id", (global::System.String)entityId.Value);
+            jsonWriter.WriteEndObject();
+            jsonWriter.Flush();
+            return global::System.Text.Encoding.UTF8.GetString(writer.GetInternalBuffer(), 0, writer.Length);
+        }
     }
 
     [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
@@ -59904,9 +60595,11 @@ namespace Microsoft.Extensions.DependencyInjection
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton(services, sp => new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.LinearGraphQLClientStoreAccessor(global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::StrawberryShake.IOperationStore>(global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<ClientServiceProvider>(sp)), global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::StrawberryShake.IEntityStore>(global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<ClientServiceProvider>(sp)), global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::StrawberryShake.IEntityIdSerializer>(global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<ClientServiceProvider>(sp)), global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::System.Collections.Generic.IEnumerable<global::StrawberryShake.IOperationRequestFactory>>(global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<ClientServiceProvider>(sp)), global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::System.Collections.Generic.IEnumerable<global::StrawberryShake.IOperationResultDataFactory>>(global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<ClientServiceProvider>(sp))));
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton(services, sp => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Ivy.Tendril.Plugin.Linear.GraphQL.GetTeamsQuery>(global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<ClientServiceProvider>(sp)));
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton(services, sp => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Ivy.Tendril.Plugin.Linear.GraphQL.GetTeamIssuesQuery>(global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<ClientServiceProvider>(sp)));
+            global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton(services, sp => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Ivy.Tendril.Plugin.Linear.GraphQL.GetProjectsQuery>(global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<ClientServiceProvider>(sp)));
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton(services, sp => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Ivy.Tendril.Plugin.Linear.GraphQL.GetIssuesQuery>(global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<ClientServiceProvider>(sp)));
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton(services, sp => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetTeamsQuery>(global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<ClientServiceProvider>(sp)));
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton(services, sp => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetTeamIssuesQuery>(global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<ClientServiceProvider>(sp)));
+            global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton(services, sp => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjectsQuery>(global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<ClientServiceProvider>(sp)));
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton(services, sp => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetIssuesQuery>(global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<ClientServiceProvider>(sp)));
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton(services, sp => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Ivy.Tendril.Plugin.Linear.GraphQL.LinearGraphQLClient>(global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<ClientServiceProvider>(sp)));
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton(services, sp => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Ivy.Tendril.Plugin.Linear.GraphQL.ILinearGraphQLClient>(global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<ClientServiceProvider>(sp)));
@@ -59928,6 +60621,7 @@ namespace Microsoft.Extensions.DependencyInjection
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.WorkflowStateEntity, global::Ivy.Tendril.Plugin.Linear.GraphQL.GetTeamIssues_Team_Issues_Nodes_State_WorkflowState>, global::Ivy.Tendril.Plugin.Linear.GraphQL.State.GetTeamIssues_Team_Issues_Nodes_State_WorkflowStateFromWorkflowStateEntityMapper>(services);
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.UserEntity, global::Ivy.Tendril.Plugin.Linear.GraphQL.GetTeamIssues_Team_Issues_Nodes_Assignee_User>, global::Ivy.Tendril.Plugin.Linear.GraphQL.State.GetTeamIssues_Team_Issues_Nodes_Assignee_UserFromUserEntityMapper>(services);
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueLabelEntity, global::Ivy.Tendril.Plugin.Linear.GraphQL.GetTeamIssues_Team_Issues_Nodes_Labels_Nodes_IssueLabel>, global::Ivy.Tendril.Plugin.Linear.GraphQL.State.GetTeamIssues_Team_Issues_Nodes_Labels_Nodes_IssueLabelFromIssueLabelEntityMapper>(services);
+            global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.ProjectEntity, global::Ivy.Tendril.Plugin.Linear.GraphQL.GetProjects_Projects_Nodes_Project>, global::Ivy.Tendril.Plugin.Linear.GraphQL.State.GetProjects_Projects_Nodes_ProjectFromProjectEntityMapper>(services);
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.IssueEntity, global::Ivy.Tendril.Plugin.Linear.GraphQL.GetIssues_Issues_Nodes_Issue>, global::Ivy.Tendril.Plugin.Linear.GraphQL.State.GetIssues_Issues_Nodes_IssueFromIssueEntityMapper>(services);
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.WorkflowStateEntity, global::Ivy.Tendril.Plugin.Linear.GraphQL.GetIssues_Issues_Nodes_State_WorkflowState>, global::Ivy.Tendril.Plugin.Linear.GraphQL.State.GetIssues_Issues_Nodes_State_WorkflowStateFromWorkflowStateEntityMapper>(services);
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::StrawberryShake.IEntityMapper<global::Ivy.Tendril.Plugin.Linear.GraphQL.State.UserEntity, global::Ivy.Tendril.Plugin.Linear.GraphQL.GetIssues_Issues_Nodes_Assignee_User>, global::Ivy.Tendril.Plugin.Linear.GraphQL.State.GetIssues_Issues_Nodes_Assignee_UserFromUserEntityMapper>(services);
@@ -60063,6 +60757,14 @@ namespace Microsoft.Extensions.DependencyInjection
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::StrawberryShake.IResultPatcher<global::System.Text.Json.JsonDocument>, global::StrawberryShake.Json.JsonResultPatcher>(services);
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::Ivy.Tendril.Plugin.Linear.GraphQL.GetTeamIssuesQuery>(services);
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetTeamIssuesQuery>(services, sp => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Ivy.Tendril.Plugin.Linear.GraphQL.GetTeamIssuesQuery>(sp));
+            global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::StrawberryShake.IOperationResultDataFactory<global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjectsResult>, global::Ivy.Tendril.Plugin.Linear.GraphQL.State.GetProjectsResultFactory>(services);
+            global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::StrawberryShake.IOperationResultDataFactory>(services, sp => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::StrawberryShake.IOperationResultDataFactory<global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjectsResult>>(sp));
+            global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::StrawberryShake.IOperationRequestFactory>(services, sp => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjectsQuery>(sp));
+            global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::StrawberryShake.IOperationResultBuilder<global::System.Text.Json.JsonDocument, global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjectsResult>, global::Ivy.Tendril.Plugin.Linear.GraphQL.State.GetProjectsBuilder>(services);
+            global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::StrawberryShake.IOperationExecutor<global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjectsResult>>(services, sp => new global::StrawberryShake.OperationExecutor<global::System.Text.Json.JsonDocument, global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjectsResult>(global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::StrawberryShake.Transport.Http.IHttpConnection>(sp), () => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::StrawberryShake.IOperationResultBuilder<global::System.Text.Json.JsonDocument, global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjectsResult>>(sp), () => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::StrawberryShake.IResultPatcher<global::System.Text.Json.JsonDocument>>(sp), global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::StrawberryShake.IOperationStore>(sp), strategy));
+            global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::StrawberryShake.IResultPatcher<global::System.Text.Json.JsonDocument>, global::StrawberryShake.Json.JsonResultPatcher>(services);
+            global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::Ivy.Tendril.Plugin.Linear.GraphQL.GetProjectsQuery>(services);
+            global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetProjectsQuery>(services, sp => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Ivy.Tendril.Plugin.Linear.GraphQL.GetProjectsQuery>(sp));
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::StrawberryShake.IOperationResultDataFactory<global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetIssuesResult>, global::Ivy.Tendril.Plugin.Linear.GraphQL.State.GetIssuesResultFactory>(services);
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::StrawberryShake.IOperationResultDataFactory>(services, sp => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::StrawberryShake.IOperationResultDataFactory<global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetIssuesResult>>(sp));
             global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<global::StrawberryShake.IOperationRequestFactory>(services, sp => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetIssuesQuery>(sp));

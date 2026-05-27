@@ -12,6 +12,7 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
         var logger = UseService<ILogger<ImportFromLinearDialog>>();
 
         var selectedTeam = UseState<string?>(null);
+        var selectedProject = UseState<string?>(null);
         var issues = UseState<IReadOnlyList<LinearIssueInfo>?>(null);
         var selectedIssueIds = UseState<HashSet<string>>([]);
         var isFetching = UseState(false);
@@ -32,11 +33,26 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
             },
             initialValue: []);
 
+        var projectsQuery = UseQuery<IReadOnlyList<LinearProjectInfo>, bool>(
+            dialogOpen.Value,
+            async (isOpen, _) =>
+            {
+                if (!isOpen) return [];
+                var result = await clientFactory.Client.GetProjects.ExecuteAsync();
+                if (result.Errors is { Count: > 0 } errors)
+                    throw new Exception(errors[0].Message);
+                return result.Data!.Projects.Nodes
+                    .Select(p => new LinearProjectInfo(p.Id, p.Name))
+                    .ToList();
+            },
+            initialValue: []);
+
         UseEffect(() =>
         {
             if (!dialogOpen.Value)
             {
                 selectedTeam.Set(null);
+                selectedProject.Set(null);
                 issues.Set(null);
                 selectedIssueIds.Set([]);
                 error.Set(null);
@@ -45,7 +61,7 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
 
         if (!dialogOpen.Value) return null;
 
-        if (teamsQuery.Loading)
+        if (teamsQuery.Loading || projectsQuery.Loading)
         {
             return new Dialog(
                 _ => dialogOpen.Set(false),
@@ -53,12 +69,12 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
                 new DialogBody(
                     Layout.Vertical().Gap(3).AlignContent(Align.Center)
                     | new Loading()
-                    | Text.Muted("Loading teams...")
+                    | Text.Muted("Loading teams and projects...")
                 )
             ).Width(Size.Rem(42));
         }
 
-        if (teamsQuery.Error is { } err)
+        if ((teamsQuery.Error ?? projectsQuery.Error) is { } err)
         {
             return new Dialog(
                 _ => dialogOpen.Set(false),
@@ -69,13 +85,24 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
 
         var teamList = teamsQuery.Value ?? [];
         var teamOptions = teamList.Select(t => $"{t.Key} — {t.Name}").ToArray();
+        var projectList = projectsQuery.Value ?? [];
+        var projectOptions = projectList.Select(p => p.Name).ToArray();
 
         async Task FetchIssues()
         {
-            var teamName = selectedTeam.Value;
-            if (teamName is null) return;
-            var team = teamList.FirstOrDefault(t => $"{t.Key} — {t.Name}" == teamName);
-            if (team is null) return;
+            var teamLabel = selectedTeam.Value;
+            var projectLabel = selectedProject.Value;
+            if (teamLabel is null && projectLabel is null) return;
+
+            var team = teamLabel is not null
+                ? teamList.FirstOrDefault(t => $"{t.Key} — {t.Name}" == teamLabel)
+                : null;
+            var project = projectLabel is not null
+                ? projectList.FirstOrDefault(p => p.Name == projectLabel)
+                : null;
+
+            if (teamLabel is not null && team is null) return;
+            if (projectLabel is not null && project is null) return;
 
             isFetching.Set(true);
             error.Set(null);
@@ -83,10 +110,16 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
             selectedIssueIds.Set([]);
             try
             {
-                var result = await clientFactory.Client.GetTeamIssues.ExecuteAsync(team.Id, 50, null);
+                var filter = new GraphQL.IssueFilter();
+                if (team is not null)
+                    filter.Team = new GraphQL.TeamFilter { Id = new GraphQL.IDComparator { Eq = team.Id } };
+                if (project is not null)
+                    filter.Project = new GraphQL.NullableProjectFilter { Id = new GraphQL.IDComparator { Eq = project.Id } };
+
+                var result = await clientFactory.Client.GetIssues.ExecuteAsync(50, null, filter);
                 if (result.Errors is { Count: > 0 } errors)
                     throw new Exception(errors[0].Message);
-                var fetched = result.Data!.Team.Issues.Nodes
+                var fetched = result.Data!.Issues.Nodes
                     .Select(i => new LinearIssueInfo(
                         Id: i.Id,
                         Identifier: i.Identifier,
@@ -187,7 +220,7 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
             {
                 issuesPanel = Layout.Vertical().AlignContent(Align.Center)
                     .Height(Size.Rem(10)).Width(Size.Full())
-                    | Text.Muted("No issues found for this team.");
+                    | Text.Muted("No issues found for the selected filters.");
             }
             else
             {
@@ -231,7 +264,7 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
         {
             issuesPanel = Layout.Vertical().AlignContent(Align.Center)
                 .Height(Size.Rem(10)).Width(Size.Full())
-                | Text.Muted("Choose a team and click Fetch Issues.");
+                | Text.Muted("Choose a team and/or project, then click Fetch Issues.");
         }
 
         return new Dialog(
@@ -240,9 +273,11 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
             new DialogBody(
                 Layout.Vertical().Gap(3)
                 | selectedTeam.ToSelectInput(teamOptions.ToOptions())
-                    .WithField().Label("Team").Required()
+                    .WithField().Label("Team")
+                | selectedProject.ToSelectInput(projectOptions.ToOptions())
+                    .WithField().Label("Project")
                 | new Button("Fetch Issues").Outline().Loading(isFetching.Value)
-                    .Disabled(selectedTeam.Value is null || isFetching.Value)
+                    .Disabled((selectedTeam.Value is null && selectedProject.Value is null) || isFetching.Value)
                     .OnClick(async () => await FetchIssues())
                 | (error.Value is { } e ? Text.Danger(e).Small() : null)
                 | issuesPanel
@@ -270,6 +305,8 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
 }
 
 internal record LinearTeamInfo(string Id, string Name, string Key);
+
+internal record LinearProjectInfo(string Id, string Name);
 
 internal record LinearIssueInfo(
     string Id,

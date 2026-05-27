@@ -46,6 +46,15 @@ query GetTeamIssues($teamId: String!, $first: Int, $after: String) {
   }
 }
 
+query GetProjects {
+  projects(first: 100) {
+    nodes {
+      id
+      name
+    }
+  }
+}
+
 query GetIssues($first: Int, $after: String, $filter: IssueFilter) {
   issues(first: $first, after: $after, filter: $filter) {
     nodes {
