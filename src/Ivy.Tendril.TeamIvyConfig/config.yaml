@@ -1,4 +1,4 @@
-codingAgent: claude
+codingAgent: copilot
 jobTimeout: 30
 staleOutputTimeout: 10
 gitTimeout: 10
@@ -128,18 +128,6 @@ projects:
     action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
   buildDependencies: []
 - name: lots-of-dev-tools
-  color: Green
-  meta: {}
-  repos:
-  - path: D:\Tendril\Repos\lots-of-dev-tools
-    prRule: default
-    syncStrategy: fetch
-  verifications: []
-  context: ''
-  reviewActions: []
-  hooks: []
-  buildDependencies: []
-- name: lots-of-dev-tools2
   color: Green
   meta: {}
   repos:
