@@ -85,8 +85,11 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
     if (voiceStatus !== "idle") return;
     if (events.includes("OnSubmit") && dispatchEvent) {
       dispatchEvent("OnSubmit", id, [{
+        value: text,
         Value: text,
+        selectedModel: selectedModel,
         SelectedModel: selectedModel,
+        attachedFiles: attachedFiles,
         AttachedFiles: attachedFiles,
       }]);
     }
@@ -115,7 +118,9 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
         const base64Data = result.split(",")[1];
         if (events.includes("OnUploadFile") && dispatchEvent) {
           dispatchEvent("OnUploadFile", id, [{
+            name: file.name,
             Name: file.name,
+            base64Data: base64Data,
             Base64Data: base64Data,
           }]);
         }

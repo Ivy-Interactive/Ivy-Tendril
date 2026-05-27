@@ -93,20 +93,31 @@ public class CreatePlanDialog(
                     {
                         OnUploadFile = async e =>
                         {
-                            var attachmentsDir = Path.Combine(configService.PlanFolder, ".upcoming-attachments", uploadSessionId);
-                            Directory.CreateDirectory(attachmentsDir);
+                            try
+                            {
+                                var name = e.Value?.Name;
+                                var base64 = e.Value?.Base64Data;
+                                Ivy.Helpers.CrashLog.Write($"[{DateTime.UtcNow:O}] OnUploadFile called. Name='{name ?? "null"}', Base64Length={base64?.Length ?? 0}");
 
-                            var fileName = Path.GetFileName(e.Value.Name);
-                            var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
-                            var ext = Path.GetExtension(fileName);
-                            var uniqueName = $"{nameWithoutExt}_{Guid.NewGuid().ToString()[..8]}{ext}";
-                            var filePath = Path.Combine(attachmentsDir, uniqueName);
+                                var attachmentsDir = Path.Combine(configService.PlanFolder, ".upcoming-attachments", uploadSessionId);
+                                Directory.CreateDirectory(attachmentsDir);
 
-                            var bytes = Convert.FromBase64String(e.Value.Base64Data);
-                            await File.WriteAllBytesAsync(filePath, bytes);
+                                var fileName = Path.GetFileName(e.Value.Name);
+                                var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+                                var ext = Path.GetExtension(fileName);
+                                var uniqueName = $"{nameWithoutExt}_{Guid.NewGuid().ToString()[..8]}{ext}";
+                                var filePath = Path.Combine(attachmentsDir, uniqueName);
 
-                            var fileRef = $" [file: {filePath}]";
-                            createPlanText.Set(createPlanText.Value + fileRef);
+                                var bytes = Convert.FromBase64String(e.Value.Base64Data);
+                                await File.WriteAllBytesAsync(filePath, bytes);
+
+                                var fileRef = $" [file: {filePath}]";
+                                createPlanText.Set(createPlanText.Value + fileRef);
+                            }
+                            catch (Exception ex)
+                            {
+                                Ivy.Helpers.CrashLog.Write($"[{DateTime.UtcNow:O}] Error in OnUploadFile: {ex}");
+                            }
                         }
                     }
                     .Bind(createPlanText)
