@@ -1,4 +1,4 @@
-codingAgent: copilot
+codingAgent: claude
 jobTimeout: 30
 staleOutputTimeout: 10
 gitTimeout: 10
@@ -134,20 +134,21 @@ projects:
   - path: D:\Tendril\Repos\lots-of-dev-tools
     prRule: default
     syncStrategy: fetch
-  verifications:
-  - name: NpmLint
-    required: true
-  - name: NpmBuild
-    required: true
-  - name: NpmTest
-    required: true
-  - name: CheckResult
-    required: true
+  verifications: []
   context: ''
-  reviewActions:
-  - name: App
-    condition: Test-Path "Worktrees\lots-of-dev-tools\package.json"
-    command: cd Worktrees\lots-of-dev-tools && npm run dev
+  reviewActions: []
+  hooks: []
+  buildDependencies: []
+- name: lots-of-dev-tools2
+  color: Green
+  meta: {}
+  repos:
+  - path: D:\Tendril\Repos\lots-of-dev-tools
+    prRule: default
+    syncStrategy: fetch
+  verifications: []
+  context: ''
+  reviewActions: []
   hooks: []
   buildDependencies: []
 verifications:
