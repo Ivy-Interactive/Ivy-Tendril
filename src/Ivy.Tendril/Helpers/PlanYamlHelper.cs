@@ -120,6 +120,49 @@ internal static class PlanYamlHelper
         }
     }
 
+    internal static string GetNextPlanId(string plansDir)
+    {
+        Directory.CreateDirectory(plansDir);
+        var counterFile = Path.Combine(plansDir, ".counter");
+        var counter = 1;
+        if (File.Exists(counterFile))
+        {
+            try
+            {
+                var text = File.ReadAllText(counterFile).Trim();
+                if (int.TryParse(text, out var parsed))
+                    counter = parsed;
+            }
+            catch
+            {
+                // Fallback
+            }
+        }
+        while (Directory.GetDirectories(plansDir, $"{counter.ToString("D5")}-*").Length > 0)
+            counter++;
+        return counter.ToString("D5");
+    }
+
+    internal static void CleanupTemporaryPlanFolders(string plansDir)
+    {
+        if (!Directory.Exists(plansDir)) return;
+        foreach (var dir in Directory.GetDirectories(plansDir))
+        {
+            var name = Path.GetFileName(dir);
+            if (name.Length == 5 && int.TryParse(name, out _))
+            {
+                try
+                {
+                    Directory.Delete(dir, true);
+                }
+                catch
+                {
+                    // Best effort
+                }
+            }
+        }
+    }
+
     internal static string? FindPlanFolderById(string plansDir, string? planId)
     {
         if (string.IsNullOrEmpty(planId)) return null;

@@ -1,6 +1,7 @@
 using Ivy.Core.Hooks;
 using Ivy.Widgets.ContentInputView;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
 using System;
 using System.IO;
 
@@ -34,7 +35,9 @@ public class CreatePlanDialog(
         var selectedPriority = UseState("Normal");
         var configService = UseService<IConfigService>();
 
-        var uploadSessionId = Guid.NewGuid().ToString()[..8];
+        var plansDir = configService.PlanFolder;
+        PlanYamlHelper.CleanupTemporaryPlanFolders(plansDir);
+        var uploadSessionId = PlanYamlHelper.GetNextPlanId(plansDir);
 
         var exclusiveProjects = new ConvertedState<string[], string[]>(
             selectedProjects,
@@ -62,16 +65,10 @@ public class CreatePlanDialog(
             {
                 try
                 {
-                    var attachmentsDir = Path.Combine(configService.PlanFolder, ".upcoming-attachments", uploadSessionId);
+                    var attachmentsDir = Path.Combine(configService.PlanFolder, uploadSessionId);
                     if (Directory.Exists(attachmentsDir))
                     {
                         Directory.Delete(attachmentsDir, true);
-                    }
-
-                    var parentDir = Path.Combine(configService.PlanFolder, ".upcoming-attachments");
-                    if (Directory.Exists(parentDir) && Directory.GetFileSystemEntries(parentDir).Length == 0)
-                    {
-                        Directory.Delete(parentDir, true);
                     }
                 }
                 catch
@@ -99,7 +96,7 @@ public class CreatePlanDialog(
                                 var base64 = e.Value?.Base64Data;
                                 Ivy.Helpers.CrashLog.Write($"[{DateTime.UtcNow:O}] OnUploadFile called. Name='{name ?? "null"}', Base64Length={base64?.Length ?? 0}");
 
-                                var attachmentsDir = Path.Combine(configService.PlanFolder, ".upcoming-attachments", uploadSessionId);
+                                var attachmentsDir = Path.Combine(configService.PlanFolder, uploadSessionId);
                                 Directory.CreateDirectory(attachmentsDir);
 
                                 var fileName = Path.GetFileName(e.Value.Name);
@@ -118,29 +115,28 @@ public class CreatePlanDialog(
                             {
                                 Ivy.Helpers.CrashLog.Write($"[{DateTime.UtcNow:O}] Error in OnUploadFile: {ex}");
                             }
+                        },
+                        OnSubmit = e =>
+                        {
+                            if (!string.IsNullOrWhiteSpace(createPlanText.Value) && !isCreating.Value)
+                            {
+                                isCreating.Set(true);
+                                planWasCreated = true;
+                                var projects = selectedProjects.Value.Any()
+                                    ? selectedProjects.Value
+                                    : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
+                                onCreatePlan(createPlanText.Value, projects, ParsePriority(selectedPriority.Value), uploadSessionId);
+                                onClose();
+                            }
+                            return ValueTask.CompletedTask;
                         }
                     }
                     .Bind(createPlanText)
+                    .SubmitLabel("Create")
                     .Placeholder("Enter task description...")
                     .WithField()
                     .Label("Describe the task for the new plan")
                     .Required()
-            ),
-            new DialogFooter(
-                new Button("Cancel").Outline().OnClick(HandleClose),
-                new Button("Create").Primary().Disabled(isCreating.Value || string.IsNullOrWhiteSpace(createPlanText.Value)).ShortcutKey("Ctrl+Enter").OnClick(() =>
-                {
-                    if (!string.IsNullOrWhiteSpace(createPlanText.Value) && !isCreating.Value)
-                    {
-                        isCreating.Set(true);
-                        planWasCreated = true;
-                        var projects = selectedProjects.Value.Any()
-                            ? selectedProjects.Value
-                            : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
-                        onCreatePlan(createPlanText.Value, projects, ParsePriority(selectedPriority.Value), uploadSessionId);
-                        onClose();
-                    }
-                })
             )
         ).Width(Size.Rem(30));
     }

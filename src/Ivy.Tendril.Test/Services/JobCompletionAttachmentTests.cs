@@ -49,13 +49,13 @@ public class JobCompletionAttachmentTests : IDisposable
     {
         // Arrange
         var handler = CreateHandler();
-        var sessionId = "session_success_123";
+        var sessionId = "00001";
         var planFolderName = "00001-TestPlan";
         var planFolder = Path.Combine(_plansDir, planFolderName);
         Directory.CreateDirectory(planFolder);
         Directory.CreateDirectory(Path.Combine(planFolder, "Revisions"));
 
-        var sessionDir = Path.Combine(_plansDir, ".upcoming-attachments", sessionId);
+        var sessionDir = Path.Combine(_plansDir, sessionId);
         Directory.CreateDirectory(sessionDir);
 
         var tempFile1 = Path.Combine(sessionDir, "screenshot.png");
@@ -97,8 +97,8 @@ and the text: [notes](file://{tempFile2})
         method.Invoke(handler, new object[] { _plansDir, job });
 
         // Assert
-        var targetFile1 = Path.Combine(planFolder, "attachments", "screenshot.png");
-        var targetFile2 = Path.Combine(planFolder, "attachments", "notes.txt");
+        var targetFile1 = Path.Combine(planFolder, "screenshot.png");
+        var targetFile2 = Path.Combine(planFolder, "notes.txt");
 
         // 1. Files moved to target
         Assert.True(File.Exists(targetFile1));
@@ -108,7 +108,6 @@ and the text: [notes](file://{tempFile2})
 
         // 2. Temp directories deleted
         Assert.False(Directory.Exists(sessionDir));
-        Assert.False(Directory.Exists(Path.Combine(_plansDir, ".upcoming-attachments")));
 
         // 3. References updated in plan.yaml
         var updatedYaml = File.ReadAllText(planYamlPath);
@@ -128,8 +127,8 @@ and the text: [notes](file://{tempFile2})
     {
         // Arrange
         var handler = CreateHandler();
-        var sessionId = "session_fail_456";
-        var sessionDir = Path.Combine(_plansDir, ".upcoming-attachments", sessionId);
+        var sessionId = "00002";
+        var sessionDir = Path.Combine(_plansDir, sessionId);
         Directory.CreateDirectory(sessionDir);
         File.WriteAllText(Path.Combine(sessionDir, "leftover.png"), "unsubmitted content");
 
@@ -152,7 +151,6 @@ and the text: [notes](file://{tempFile2})
 
         // Assert
         Assert.False(Directory.Exists(sessionDir));
-        Assert.False(Directory.Exists(Path.Combine(_plansDir, ".upcoming-attachments")));
     }
 
     [Fact]
@@ -165,7 +163,7 @@ and the text: [notes](file://{tempFile2})
         Directory.CreateDirectory(planFolder);
         Directory.CreateDirectory(Path.Combine(planFolder, "Revisions"));
 
-        var sessionDir = Path.Combine(_plansDir, ".upcoming-attachments", "fallback_789");
+        var sessionDir = Path.Combine(_plansDir, "00003");
         Directory.CreateDirectory(sessionDir);
 
         var tempFile = Path.Combine(sessionDir, "screenshot.png");
@@ -195,12 +193,11 @@ and the text: [notes](file://{tempFile2})
         method.Invoke(handler, new object[] { _plansDir, job });
 
         // Assert
-        var targetFile = Path.Combine(planFolder, "attachments", "screenshot.png");
+        var targetFile = Path.Combine(planFolder, "screenshot.png");
         Assert.True(File.Exists(targetFile));
         Assert.Equal("fallback png content", File.ReadAllText(targetFile));
 
         Assert.False(Directory.Exists(sessionDir));
-        Assert.False(Directory.Exists(Path.Combine(_plansDir, ".upcoming-attachments")));
 
         var updatedYaml = File.ReadAllText(planYamlPath);
         Assert.Contains($"[file: {targetFile}]", updatedYaml);
@@ -212,7 +209,7 @@ and the text: [notes](file://{tempFile2})
     {
         // Arrange
         var handler = CreateHandler();
-        var sessionDir = Path.Combine(_plansDir, ".upcoming-attachments", "fallback_012");
+        var sessionDir = Path.Combine(_plansDir, "00004");
         Directory.CreateDirectory(sessionDir);
         var tempFile = Path.Combine(sessionDir, "leftover.png");
         File.WriteAllText(tempFile, "unsubmitted content");
@@ -237,7 +234,6 @@ and the text: [notes](file://{tempFile2})
 
         // Assert
         Assert.False(Directory.Exists(sessionDir));
-        Assert.False(Directory.Exists(Path.Combine(_plansDir, ".upcoming-attachments")));
     }
 
     [Fact]
@@ -250,5 +246,12 @@ and the text: [notes](file://{tempFile2})
         }.Bind(textState);
 
         Assert.NotNull(view.OnUploadFile);
+    }
+
+    [Fact]
+    public void ContentInputView_SubmitLabel_IsSetCorrectly()
+    {
+        var view = new ContentInputView().SubmitLabel("Submit Label");
+        Assert.Equal("Submit Label", view.SubmitLabel);
     }
 }

@@ -222,12 +222,14 @@
   width: 16px;
   height: 16px;
 }
+
 /* Right Actions */
 .civ-right-actions {
   display: flex;
   align-items: center;
   gap: 10px;
 }
+
 /* Voice Container */
 .civ-voice-container {
   display: flex;
@@ -363,6 +365,41 @@
 .civ-submit-btn svg {
   width: 16px;
   height: 16px;
+}
+
+/* Labeled button style */
+.civ-submit-btn.civ-submit-btn-labeled {
+  width: auto;
+  height: 32px;
+  border-radius: var(--radius-buttons, 6px);
+  padding: 0 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: var(--civ-primary);
+  color: var(--primary-foreground, #ffffff);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.civ-submit-btn.civ-submit-btn-labeled:hover:not(:disabled) {
+  background: var(--civ-primary);
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.civ-submit-shortcut {
+  margin-left: 6px;
+  padding: 1px 4px;
+  font-size: 0.65rem;
+  font-weight: 500;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  opacity: 0.7;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  color: inherit;
 }
 
 /* Animations */

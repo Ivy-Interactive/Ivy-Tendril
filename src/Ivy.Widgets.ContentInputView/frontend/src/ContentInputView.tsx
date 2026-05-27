@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from "react";
 import { VoiceRecorder, type VoiceStatus } from "./voice-recorder";
 import "./content-input-view.css";
 
+const isMac = typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
+
 interface AttachedFile {
   name: string;
   type: string;
@@ -18,6 +20,7 @@ interface ContentInputViewProps {
   models?: string[];
   selectedModel?: string;
   attachedFiles?: AttachedFile[];
+  submitLabel?: string;
   onIvyEvent?: (eventName: string, id: string, argumentsArray: unknown[]) => void;
   eventHandler?: (eventName: string, id: string, argumentsArray: unknown[]) => void;
   events?: string[];
@@ -32,6 +35,7 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
   transcriptionUrl = "wss://tendril-api.ivy.app/transcribe/ws",
   selectedModel = "Build",
   attachedFiles = [],
+  submitLabel,
   onIvyEvent,
   eventHandler,
   events = [],
@@ -104,7 +108,7 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       handleSubmit();
     }
@@ -365,15 +369,25 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
 
             {/* Submit Button */}
             <button
-              className="civ-submit-btn"
+              className={`civ-submit-btn ${submitLabel ? "civ-submit-btn-labeled" : ""}`}
               onClick={handleSubmit}
               disabled={!text.trim() || voiceStatus !== "idle"}
               type="button"
+              title={submitLabel || "Send"}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <line x1="12" y1="19" x2="12" y2="5" />
-                <polyline points="5 12 12 5 19 12" />
-              </svg>
+              {submitLabel ? (
+                <>
+                  <span className="civ-submit-text">{submitLabel}</span>
+                  <kbd className="civ-submit-shortcut">
+                    {isMac ? "⌘↵" : "Ctrl+Enter"}
+                  </kbd>
+                </>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="12" y1="19" x2="12" y2="5" />
+                  <polyline points="5 12 12 5 19 12" />
+                </svg>
+              )}
             </button>
           </div>
         </div>

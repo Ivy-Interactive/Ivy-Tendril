@@ -791,16 +791,14 @@ internal class JobCompletionHandler
         var uploadSessionId = cp?.UploadSessionId;
         if (!string.IsNullOrEmpty(uploadSessionId))
         {
-            var sessionDir = Path.Combine(plansDir, ".upcoming-attachments", uploadSessionId);
+            var sessionDir = Path.Combine(plansDir, uploadSessionId);
             if (Directory.Exists(sessionDir))
             {
                 var files = Directory.GetFiles(sessionDir);
                 foreach (var tempFilePath in files)
                 {
                     var fileName = Path.GetFileName(tempFilePath);
-                    var targetAttachmentsDir = Path.Combine(planFolder, "attachments");
-                    Directory.CreateDirectory(targetAttachmentsDir);
-                    var targetFilePath = Path.Combine(targetAttachmentsDir, fileName);
+                    var targetFilePath = Path.Combine(planFolder, fileName);
 
                     try
                     {
@@ -830,7 +828,7 @@ internal class JobCompletionHandler
         else
         {
             // Fallback for when UploadSessionId is not available
-            var matches = Regex.Matches(description, @"[^\s\]\)]*?\.upcoming-attachments[^\s\]\)]*");
+            var matches = Regex.Matches(description, @"[^\s\]\)]*?[/\\](\d{5})[/\\][^\s\]\)]*");
             if (matches.Count > 0)
             {
                 var tempDirsToClean = new HashSet<string>();
@@ -843,13 +841,13 @@ internal class JobCompletionHandler
                     var tempDir = Path.GetDirectoryName(tempFilePath);
                     if (tempDir == null || !Directory.Exists(tempDir)) continue;
 
+                    var dirName = Path.GetFileName(tempDir);
+                    if (dirName.Length != 5 || !int.TryParse(dirName, out _)) continue;
+
                     tempDirsToClean.Add(tempDir);
 
-                    var targetAttachmentsDir = Path.Combine(planFolder, "attachments");
-                    Directory.CreateDirectory(targetAttachmentsDir);
-
                     var fileName = Path.GetFileName(tempFilePath);
-                    var targetFilePath = Path.Combine(targetAttachmentsDir, fileName);
+                    var targetFilePath = Path.Combine(planFolder, fileName);
 
                     try
                     {
@@ -882,20 +880,6 @@ internal class JobCompletionHandler
                 }
             }
         }
-
-        // Clean up parent directory if empty
-        try
-        {
-            var parentDir = Path.Combine(plansDir, ".upcoming-attachments");
-            if (Directory.Exists(parentDir) && Directory.GetFileSystemEntries(parentDir).Length == 0)
-            {
-                Directory.Delete(parentDir, true);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Failed to clean up parent temp attachments directory");
-        }
     }
 
     private void CleanupUpcomingAttachments(string plansDir, JobItem job)
@@ -906,7 +890,7 @@ internal class JobCompletionHandler
         var uploadSessionId = cp.UploadSessionId;
         if (!string.IsNullOrEmpty(uploadSessionId))
         {
-            var sessionDir = Path.Combine(plansDir, ".upcoming-attachments", uploadSessionId);
+            var sessionDir = Path.Combine(plansDir, uploadSessionId);
             try
             {
                 if (Directory.Exists(sessionDir))
@@ -925,7 +909,7 @@ internal class JobCompletionHandler
             var description = cp.Description;
             if (string.IsNullOrEmpty(description)) return;
 
-            var matches = Regex.Matches(description, @"[^\s\]\)]*?\.upcoming-attachments[^\s\]\)]*");
+            var matches = Regex.Matches(description, @"[^\s\]\)]*?[/\\](\d{5})[/\\][^\s\]\)]*");
             foreach (Match match in matches)
             {
                 var tempFilePath = match.Value.Trim();
@@ -933,6 +917,9 @@ internal class JobCompletionHandler
 
                 var tempDir = Path.GetDirectoryName(tempFilePath);
                 if (tempDir == null || !Directory.Exists(tempDir)) continue;
+
+                var dirName = Path.GetFileName(tempDir);
+                if (dirName.Length != 5 || !int.TryParse(dirName, out _)) continue;
 
                 try
                 {
@@ -946,20 +933,6 @@ internal class JobCompletionHandler
                     _logger.LogDebug(ex, "Failed to clean up temp attachments directory {TempDir} on job completion", tempDir);
                 }
             }
-        }
-
-        // Clean up parent directory if empty
-        try
-        {
-            var parentDir = Path.Combine(plansDir, ".upcoming-attachments");
-            if (Directory.Exists(parentDir) && Directory.GetFileSystemEntries(parentDir).Length == 0)
-            {
-                Directory.Delete(parentDir, true);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Failed to clean up parent temp attachments directory");
         }
     }
 
