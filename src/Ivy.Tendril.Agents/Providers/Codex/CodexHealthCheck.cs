@@ -53,13 +53,19 @@ public sealed class CodexHealthCheck : IAgentHealthCheck
 
     public async Task<ModelValidationResult> ValidateModelAsync(string model, CancellationToken ct = default)
     {
-        // Codex reads from stdin when '-' is specified, but HealthCheckRunner does not support stdin.
-        // We rely on Codex validating the model flag at startup before waiting for input.
+        // Codex exec reads from stdin ('-'), so it hangs waiting for input.
+        // Use a short timeout: if the model is invalid, Codex errors immediately.
+        // If it doesn't error within 5s, the model is accepted (process is killed).
+        var args = string.IsNullOrEmpty(model)
+            ? (IReadOnlyList<string>)["exec", "--full-auto", "--json", "--skip-git-repo-check", "-"]
+            : ["exec", "--full-auto", "--json", "--skip-git-repo-check", "--model", model, "-"];
+
         var (exitCode, _, stderr) = await HealthCheckRunner.RunAsync(
-            "codex",
-            ["exec", "--full-auto", "--json", "--skip-git-repo-check", "--model", model, "-"],
-            TimeSpan.FromSeconds(30),
-            ct);
+            "codex", args, TimeSpan.FromSeconds(5), ct);
+
+        // Timeout means the process started successfully (model was accepted)
+        if (exitCode == -1 && stderr == "Timed out")
+            return new ModelValidationResult { Status = ModelValidationStatus.Ok, Model = model };
 
         if (exitCode == 0)
             return new ModelValidationResult { Status = ModelValidationStatus.Ok, Model = model };
