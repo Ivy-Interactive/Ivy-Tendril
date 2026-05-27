@@ -74,7 +74,7 @@ public class ContentView(
 
         // Header with Accept action at right edge
         var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(40)).Gap(2)
-                     | Text.Block($"#{selectedRecommendation.PlanId} {selectedRecommendation.Title}").Bold()
+                     | Text.Block($"#{selectedRecommendation.PlanId} {selectedRecommendation.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis)
                      | new Badge(selectedRecommendation.Project).Variant(BadgeVariant.Outline)
                          .WithProjectColor(config, selectedRecommendation.Project)
                      | new Spacer().Width(Size.Grow())

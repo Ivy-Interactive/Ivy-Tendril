@@ -81,7 +81,7 @@ public class TrashApp : ViewBase
         else
         {
             var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(40)).Gap(2)
-                         | Text.Block(selected.FileName).Bold()
+                         | Text.Block(selected.FileName).Bold().NoWrap().Overflow(Overflow.Ellipsis)
                          | new Badge(selected.Project).Variant(BadgeVariant.Outline)
                          | (string.IsNullOrEmpty(selected.DuplicateOf)
                              ? new Fragment()
