@@ -1,4 +1,5 @@
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Apps.Settings.Dialogs;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps.Settings;
@@ -31,6 +32,10 @@ public class CodingAgentSetupView : ViewBase
         var balancedModel = UseState(GetProfileModel(config, selectedAgent.Value, "balanced"));
         var quickModel = UseState(GetProfileModel(config, selectedAgent.Value, "quick"));
         var lastAgent = UseState(selectedAgent.Value);
+        var isTesting = UseState(false);
+        var testResults = UseState<List<AgentTestResult>?>(null);
+        var showTestDialog = UseState(false);
+        var testCts = UseState<CancellationTokenSource?>(null);
 
         var modelsQuery = UseQuery<ModelInfo[], string>(
             selectedAgent.Value,
@@ -49,6 +54,7 @@ public class CodingAgentSetupView : ViewBase
             deepModel.Set(GetProfileModel(config, selectedAgent.Value, "deep"));
             balancedModel.Set(GetProfileModel(config, selectedAgent.Value, "balanced"));
             quickModel.Set(GetProfileModel(config, selectedAgent.Value, "quick"));
+            testResults.Set(null);
             lastAgent.Set(selectedAgent.Value);
         }
 
@@ -71,29 +77,145 @@ public class CodingAgentSetupView : ViewBase
                 | a.Logo.ToIcon().Width(Size.Px(32)).Height(Size.Px(32))
                 | Text.Block(a.Label)
                 | (a.Key == selectedAgent.Value ? Icons.Check.ToIcon() : null)
-            ).Width(Size.Px(200)).OnClick(() =>
+            ).Width(Size.Px(210)).OnClick(() =>
             {
                 selectedAgent.Set(a.Key);
             }));
 
+        async Task RunTestsAsync()
+        {
+            var cts = new CancellationTokenSource();
+            testCts.Set(cts);
+            isTesting.Set(true);
+            showTestDialog.Set(true);
+
+            var descriptor = runner.GetDescriptor(selectedAgent.Value);
+            var profileModels = new[] { deepModel.Value, balancedModel.Value, quickModel.Value };
+            var profileTiers = new[] { "deep", "balanced", "quick" };
+            var modelValues = profileModels
+                .Select((m, i) => string.IsNullOrEmpty(m) || m.Equals("default", StringComparison.OrdinalIgnoreCase)
+                    ? descriptor.DefaultProfiles
+                        .FirstOrDefault(p => p.Name.Equals(profileTiers[i], StringComparison.OrdinalIgnoreCase))?.Model
+                    : m)
+                .Where(m => !string.IsNullOrEmpty(m))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var results = new List<AgentTestResult>
+            {
+                new("Installation", TestStatus.Pending),
+                new("Authentication", TestStatus.Pending),
+            };
+            results.AddRange(modelValues.Select(m => new AgentTestResult($"Model: {m}", TestStatus.Pending)));
+            testResults.Set([..results]);
+
+            try
+            {
+                var ct = cts.Token;
+                var healthCheck = runner.GetHealthCheck(selectedAgent.Value);
+
+                results[0] = results[0] with { Status = TestStatus.Running };
+                testResults.Set([..results]);
+
+                var installStatus = await healthCheck.CheckInstallAsync(ct);
+                results[0] = installStatus.IsInstalled
+                    ? new AgentTestResult("Installation", TestStatus.Passed,
+                        installStatus.Version != null ? $"v{installStatus.Version}" : "Installed")
+                    : new AgentTestResult("Installation", TestStatus.Failed,
+                        installStatus.Error ?? "Not installed", installStatus.Error);
+                testResults.Set([..results]);
+
+                if (!installStatus.IsInstalled)
+                {
+                    isTesting.Set(false);
+                    testCts.Set(null);
+                    return;
+                }
+
+                ct.ThrowIfCancellationRequested();
+
+                results[1] = results[1] with { Status = TestStatus.Running };
+                testResults.Set([..results]);
+
+                var authResult = await healthCheck.CheckAuthAsync(ct);
+                var providerLabel = authResult.Provider != null ? $" ({authResult.Provider})" : "";
+                results[1] = authResult.Status switch
+                {
+                    AuthStatus.Authenticated => new AgentTestResult("Authentication", TestStatus.Passed,
+                        $"Authenticated{providerLabel}"),
+                    AuthStatus.NotAuthenticated => new AgentTestResult("Authentication", TestStatus.Failed,
+                        "Not authenticated", authResult.Error),
+                    _ => new AgentTestResult("Authentication", TestStatus.Warning,
+                        authResult.Error ?? "Check inconclusive", authResult.Error)
+                };
+                testResults.Set([..results]);
+
+                for (var i = 0; i < modelValues.Count; i++)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var idx = 2 + i;
+                    var model = modelValues[i];
+
+                    results[idx] = results[idx] with { Status = TestStatus.Running };
+                    testResults.Set([..results]);
+
+                    var modelResult = await healthCheck.ValidateModelAsync(model, ct);
+                    results[idx] = modelResult.Status switch
+                    {
+                        ModelValidationStatus.Ok => new AgentTestResult($"Model: {model}", TestStatus.Passed),
+                        ModelValidationStatus.InvalidModel => new AgentTestResult($"Model: {model}", TestStatus.Failed,
+                            modelResult.ErrorMessage ?? "Invalid model", modelResult.ErrorMessage),
+                        ModelValidationStatus.AuthError => new AgentTestResult($"Model: {model}", TestStatus.Failed,
+                            modelResult.ErrorMessage ?? "Auth error", modelResult.ErrorMessage),
+                        ModelValidationStatus.Timeout => new AgentTestResult($"Model: {model}", TestStatus.Warning,
+                            "Timed out", modelResult.ErrorMessage),
+                        _ => new AgentTestResult($"Model: {model}", TestStatus.Warning,
+                            modelResult.ErrorMessage ?? "Unknown", modelResult.ErrorMessage)
+                    };
+                    testResults.Set([..results]);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                for (var i = 0; i < results.Count; i++)
+                    if (results[i].Status is TestStatus.Running or TestStatus.Pending)
+                        results[i] = results[i] with { Status = TestStatus.Warning, Message = "Cancelled" };
+                testResults.Set([..results]);
+            }
+            catch (Exception ex)
+            {
+                results.Add(new AgentTestResult("Unexpected error", TestStatus.Failed, "Test run failed", ex.ToString()));
+                testResults.Set([..results]);
+            }
+
+            isTesting.Set(false);
+            testCts.Set(null);
+        }
+
         return Layout.Vertical().Padding(4).Width(Size.Auto().Max(Size.Units(120)))
                | Text.Block("Coding Agent").Bold()
-               | Text.Muted("Pick the coding agent Tendril orchestrates:")
                | grid
                | Text.Block("Model Per Profile").Bold()
-               | Text.Muted("Override the model used for each profile tier:")
+               | Text.Muted("Promptwares are configured to use different profiles depending on the complexity of the task. You can specify what model to use for each profile.").Small()
                | deepModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Deep")
                | balancedModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Balanced")
                | quickModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Quick")
-               | new Button("Save").Primary()
-                   .Disabled(!hasChanges)
-                   .OnClick(() =>
-                   {
-                       config.Settings.CodingAgent = selectedAgent.Value;
-                       SaveProfiles(config, selectedAgent.Value, deepModel.Value, balancedModel.Value, quickModel.Value);
-                       config.SaveSettings();
-                       client.Toast("Coding agent settings saved", "Saved");
-                   });
+               | new Spacer().Height(Size.Units(4))
+               | (Layout.Horizontal().Gap(2)
+                   | new Button("Test Agent").Outline()
+                       .Loading(isTesting.Value)
+                       .Disabled(isTesting.Value || modelsQuery.Loading)
+                       .OnClick(async () => await RunTestsAsync())
+                   | new Button("Save").Primary()
+                       .Disabled(!hasChanges)
+                       .OnClick(() =>
+                       {
+                           config.Settings.CodingAgent = selectedAgent.Value;
+                           SaveProfiles(config, selectedAgent.Value, deepModel.Value, balancedModel.Value, quickModel.Value);
+                           config.SaveSettings();
+                           client.Toast("Coding agent settings saved", "Saved");
+                       }))
+               | new AgentTestDialog(showTestDialog, testResults, isTesting, testCts);
     }
 
     private static string GetProfileModel(IConfigService config, string agentId, string profileName)
@@ -134,4 +256,5 @@ public class CodingAgentSetupView : ViewBase
 
         profile.Model = model;
     }
+
 }

@@ -53,12 +53,12 @@ public class ClaudeHealthCheckTests
     [Fact]
     public async Task ValidateModel_ValidModel_ReturnsOkOrKnownStatus()
     {
-        var result = await _healthCheck.ValidateModelAsync("claude-sonnet-4-6");
+        var result = await _healthCheck.ValidateModelAsync("sonnet");
 
         // Model validation may succeed or fail depending on plan/quota,
         // but should never return InvalidModel for a real model name
         Assert.NotEqual(ModelValidationStatus.InvalidModel, result.Status);
-        Assert.Equal("claude-sonnet-4-6", result.Model);
+        Assert.Equal("sonnet", result.Model);
     }
 
     [Fact]

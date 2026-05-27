@@ -4,7 +4,6 @@ public sealed record ModelInfo
 {
     public required string Id { get; init; }
     public required string DisplayName { get; init; }
-    public string? Alias { get; init; }
     public ModelCapabilities Capabilities { get; init; }
     public int? ContextWindow { get; init; }
     public int? MaxOutputTokens { get; init; }

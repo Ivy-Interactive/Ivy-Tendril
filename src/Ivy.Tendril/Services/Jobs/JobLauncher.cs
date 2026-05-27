@@ -144,7 +144,12 @@ internal class JobLauncher
         {
             _logger.LogError(ex, "Job {JobId}: Failed to start process '{FileName}'", id, psi.FileName);
             job.Status = JobStatus.Failed;
-            job.StatusMessage = $"Agent binary not found: {psi.FileName}";
+            job.StatusMessage = ex.NativeErrorCode switch
+            {
+                2 => $"Agent binary not found: {psi.FileName}",
+                206 => $"Command line too long when launching '{psi.FileName}'",
+                _ => $"Failed to start '{psi.FileName}': {ex.Message}"
+            };
             job.CompletedAt = DateTime.UtcNow;
             ctx.JobSlotSemaphore.Release();
             ctx.RaiseStructureChanged();

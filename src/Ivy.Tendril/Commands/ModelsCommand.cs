@@ -85,7 +85,7 @@ public sealed class ModelsCommand(IAgentRunner runner) : AsyncCommand<ModelsComm
         table.Border(TableBorder.Rounded);
 
         table.AddColumn("Model");
-        table.AddColumn("Alias");
+        table.AddColumn("Display Name");
         table.AddColumn(new TableColumn("Input $/M").RightAligned());
         table.AddColumn(new TableColumn("Output $/M").RightAligned());
         table.AddColumn(new TableColumn("Cache R $/M").RightAligned());
@@ -112,7 +112,7 @@ public sealed class ModelsCommand(IAgentRunner runner) : AsyncCommand<ModelsComm
 
             table.AddRow(
                 model.Id.EscapeMarkup(),
-                model.Alias?.EscapeMarkup() ?? "",
+                model.DisplayName.EscapeMarkup(),
                 FormatPrice(model.InputPerMillion),
                 FormatPrice(model.OutputPerMillion),
                 FormatPrice(model.CacheReadPerMillion),
