@@ -556,7 +556,7 @@ public class ContentView(
             {
                 if (v >= 0 && v < actualTabNames.Length && selectedPlanState.Value != null)
                     nav.Navigate<ReviewApp>(new ReviewAppArgs(selectedPlanState.Value.FolderName, actualTabNames[v]));
-            }).SelectedIndex(actualSelectedTabIndex).Variant(TabsVariant.Content);
+            }).SelectedIndex(actualSelectedTabIndex).Variant(TabsVariant.Content).Padding(6, 4, 4, 4);
 
             content |= (Layout.Vertical().Padding(2).Gap(0).Height(Size.Grow().Min(Size.Px(0))) | tabs);
         }

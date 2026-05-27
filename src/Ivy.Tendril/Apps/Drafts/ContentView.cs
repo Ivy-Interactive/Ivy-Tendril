@@ -187,7 +187,7 @@ public class ContentView(
             var tabs = Layout.Tabs(
                 new Tab("Plan", Cap(planTabContent)),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan!)))
-            ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content);
+            ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content).Padding(6, 4, 4, 4);
 
             content |= (Layout.Vertical().Padding(2).Height(Size.Full()) | tabs);
         }
