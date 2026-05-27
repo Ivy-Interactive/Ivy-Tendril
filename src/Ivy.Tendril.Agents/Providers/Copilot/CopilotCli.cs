@@ -25,9 +25,9 @@ public sealed class CopilotCli : IAgentCli
 
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles { get; } =
     [
-        new(ProfileTier.Deep, "gpt-5.2", "high"),
-        new(ProfileTier.Balanced, "gpt-5.2", "medium"),
-        new(ProfileTier.Quick, "gpt-5.2", "low"),
+        new(ProfileTier.Deep, null, "high"),
+        new(ProfileTier.Balanced, null, "medium"),
+        new(ProfileTier.Quick, null, "low"),
     ];
 
     private static readonly string ShellToolName =
