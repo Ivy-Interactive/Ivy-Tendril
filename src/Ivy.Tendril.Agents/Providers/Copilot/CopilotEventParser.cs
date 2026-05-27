@@ -173,8 +173,10 @@ public sealed class CopilotEventParser : IEventParser
             foreach (var req in toolRequests.EnumerateArray())
             {
                 var toolCallId = req.TryGetProperty("toolCallId", out var tcId) ? tcId.GetString() ?? "" : "";
-                var toolName = req.TryGetProperty("tool", out var tn) ? tn.GetString() ?? "" : "";
-                var parameters = req.TryGetProperty("parameters", out var param) ? param.GetRawText() : null;
+                var toolName = req.TryGetProperty("name", out var tn) ? tn.GetString() ?? "" :
+                               req.TryGetProperty("tool", out var tn2) ? tn2.GetString() ?? "" : "";
+                var parameters = req.TryGetProperty("arguments", out var args) ? args.GetRawText() :
+                                 req.TryGetProperty("parameters", out var param) ? param.GetRawText() : null;
 
                 // Skip meta-tools
                 if (string.Equals(toolName, "report_intent", StringComparison.OrdinalIgnoreCase))
