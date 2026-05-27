@@ -71,11 +71,12 @@ public sealed class ClaudeHealthCheck : IAgentHealthCheck
 
     public async Task<ModelValidationResult> ValidateModelAsync(string model, CancellationToken ct = default)
     {
+        var args = string.IsNullOrEmpty(model)
+            ? (IReadOnlyList<string>)["-p", "ping", "--max-turns", "1"]
+            : ["-p", "ping", "--model", model, "--max-turns", "1"];
+
         var (exitCode, stdout, stderr) = await HealthCheckRunner.RunAsync(
-            "claude",
-            ["-p", "ping", "--model", model, "--max-turns", "1"],
-            TimeSpan.FromSeconds(30),
-            ct);
+            "claude", args, TimeSpan.FromSeconds(30), ct);
 
         if (exitCode == 0)
             return new ModelValidationResult { Status = ModelValidationStatus.Ok, Model = model };
