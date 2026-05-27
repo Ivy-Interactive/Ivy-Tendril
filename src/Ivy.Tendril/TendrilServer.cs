@@ -99,7 +99,7 @@ public static class TendrilServer
                         Text.Block("Ivy Tendril"),
                         Text.Muted($"v{versionString}")
                     ).Gap(0)
-                ).Gap(2).Padding(2).AlignContent(Align.BottomLeft)
+                ).Gap(2).Padding(2).AlignContent(Align.BottomLeft).Height(Size.Auto())
             )
             .WallpaperApp<Apps.WallpaperApp>()
             .UseTabs(true);
