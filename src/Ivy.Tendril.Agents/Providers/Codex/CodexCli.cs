@@ -23,9 +23,9 @@ public sealed class CodexCli : IAgentCli
 
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles { get; } =
     [
-        new(ProfileTier.Deep, "gpt-5.4", "high"),
-        new(ProfileTier.Balanced, "gpt-5.4-mini", "medium"),
-        new(ProfileTier.Quick, "gpt-5.3-codex", "low"),
+        new(ProfileTier.Deep, null, "high"),
+        new(ProfileTier.Balanced, null, "medium"),
+        new(ProfileTier.Quick, null, "low"),
     ];
 
     private static readonly FrozenDictionary<string, string> ToolNameMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
