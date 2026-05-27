@@ -40,8 +40,10 @@ public class AgentApp : ViewBase
         var pty = runner.GetPty(agentId);
         var spec = pty?.BuildPtySpec(new AgentPtyConfig
         {
-            WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            WorkingDirectory = GetDefaultWorkDir(config),
             PermissionMode = PermissionMode.Default,
+            SystemPrompt = AgentPromptCompiler.Compile(config),
+            AppendSystemPrompt = true,
         });
         return spec?.ResolveCommand().CommandLine.ToArray() ?? [cli.Id];
     }
@@ -50,7 +52,7 @@ public class AgentApp : ViewBase
     {
         var agentId = config.Settings.CodingAgent;
         var pty = runner.GetPty(agentId);
-        var defaultDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var defaultDir = GetDefaultWorkDir(config);
         var spec = pty?.BuildPtySpec(new AgentPtyConfig
         {
             WorkingDirectory = defaultDir,
@@ -58,4 +60,9 @@ public class AgentApp : ViewBase
         });
         return spec?.WorkingDirectory ?? defaultDir;
     }
+
+    private static string GetDefaultWorkDir(IConfigService config) =>
+        !string.IsNullOrEmpty(config.TendrilHome)
+            ? config.TendrilHome
+            : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 }
