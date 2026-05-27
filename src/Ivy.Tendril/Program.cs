@@ -53,7 +53,7 @@ public class Program
 
         VelopackApp.Build().Run();
 
-        var (verbose, quiet, forceDesktop, forceWeb, filteredArgs) = ParseGlobalFlags(args);
+        var (verbose, quiet, forceDesktop, forceWeb, beta, filteredArgs) = ParseGlobalFlags(args);
 
         bool isTool = IsTendrilToolInvocation();
         bool useDesktop = (isTool || forceDesktop) && !forceWeb;
@@ -140,7 +140,8 @@ public class Program
         if (useDesktop && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("IVY_TLS")))
             Environment.SetEnvironmentVariable("IVY_TLS", "0");
 
-        var server = TendrilServer.Create(filteredArgs);
+        var tendrilArgs = new Services.TendrilArgs { Beta = beta, Verbose = verbose, Quiet = quiet };
+        var server = TendrilServer.Create(filteredArgs, tendrilArgs);
 
         if (useDesktop)
         {
@@ -192,13 +193,14 @@ public class Program
         }
     }
 
-    private static (bool verbose, bool quiet, bool forceDesktop, bool forceWeb, string[] filtered)
+    private static (bool verbose, bool quiet, bool forceDesktop, bool forceWeb, bool beta, string[] filtered)
         ParseGlobalFlags(string[] args)
     {
         bool verbose = args.Contains("--verbose") || args.Contains("-v");
         bool quiet = args.Contains("--quiet") || args.Contains("-q");
         bool forceDesktop = args.Contains("--desktop");
         bool forceWeb = args.Contains("--web");
+        bool beta = args.Contains("--beta");
 
         if (verbose)
             Environment.SetEnvironmentVariable("TENDRIL_VERBOSE", "1");
@@ -209,10 +211,11 @@ public class Program
             a != "--desktop" && a != "--web" &&
             a != "--verbose" && a != "-v" &&
             a != "--quiet" && a != "-q" &&
+            a != "--beta" &&
             a != DetachedLaunchMarker
         ).ToArray();
 
-        return (verbose, quiet, forceDesktop, forceWeb, filtered);
+        return (verbose, quiet, forceDesktop, forceWeb, beta, filtered);
     }
 
     private static bool ShouldHandleAsCliCommand(string firstArg)

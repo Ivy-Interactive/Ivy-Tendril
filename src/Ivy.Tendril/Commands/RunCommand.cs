@@ -65,7 +65,7 @@ public class RunCommand : AsyncCommand<RunCommand.Settings>
 
         AnsiConsole.MarkupLine("[green]Starting Ivy Tendril server on localhost:5010...[/]");
 
-        var server = TendrilServer.Create([]);
+        var server = TendrilServer.Create([], new Services.TendrilArgs());
         if (settings.Port.HasValue)
         {
             server.Args.Port = settings.Port.Value;
