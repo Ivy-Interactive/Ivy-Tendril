@@ -180,8 +180,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-top: 6px;
-  border-top: 1px solid var(--civ-border);
+  padding-top: 12px;
 }
 
 /* Plus button container */
@@ -401,7 +400,8 @@
   width: 2px;
   background: linear-gradient(to top, var(--civ-accent), #a78bfa);
   border-radius: 1px;
-  transition: height 0.08s ease-out; /* fast reactions */
+  transition: height 0.08s ease-out;
+  /* fast reactions */
 }
 
 /* Mic button */
@@ -484,51 +484,13 @@
   height: 16px;
 }
 
-/* Quick Actions row */
-.civ-quick-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.civ-quick-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--civ-bg);
-  border: 1px solid var(--civ-border);
-  border-radius: 20px;
-  padding: 6px 14px;
-  font-size: 0.8rem;
-  color: var(--civ-text);
-  cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-  transition: background-color 0.2s, border-color 0.2s, transform 0.2s;
-}
-
-.civ-quick-btn:hover {
-  background: var(--civ-pill-bg);
-  border-color: var(--civ-accent);
-  transform: translateY(-1px);
-}
-
-.civ-quick-btn svg {
-  width: 14px;
-  height: 14px;
-  color: var(--civ-placeholder);
-  transition: color 0.2s;
-}
-
-.civ-quick-btn:hover svg {
-  color: var(--civ-accent);
-}
-
 /* Animations */
 @keyframes slideDown {
   from {
     opacity: 0;
     transform: translateY(-8px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -540,6 +502,7 @@
     opacity: 0;
     transform: scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: scale(1);
@@ -551,6 +514,7 @@
     opacity: 0;
     transform: translateY(10px) scale(0.98);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -562,6 +526,7 @@
     opacity: 0.3;
     transform: scale(0.8);
   }
+
   to {
     opacity: 1;
     transform: scale(1.1);
