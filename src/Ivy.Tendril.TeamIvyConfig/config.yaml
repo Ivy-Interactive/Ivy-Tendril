@@ -1,4 +1,4 @@
-codingAgent: codex
+codingAgent: claude
 jobTimeout: 30
 staleOutputTimeout: 10
 gitTimeout: 10
@@ -278,15 +278,15 @@ codingAgents:
   arguments: ''
   profiles:
   - name: deep
-    model: claude-opus-4-7
+    model: opus
     effort: max
     arguments: ''
   - name: balanced
-    model: claude-sonnet-4-6
+    model: sonnet
     effort: high
     arguments: ''
   - name: quick
-    model: claude-haiku-4-5
+    model: haiku
     effort: low
     arguments: ''
 - name: codex

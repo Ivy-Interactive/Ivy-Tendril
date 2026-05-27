@@ -31,7 +31,7 @@ public sealed class ClaudeModelCatalog : CachedModelCatalogProvider
     [
         new()
         {
-            Id = "claude-opus-4-7", DisplayName = "Claude Opus 4.7", Alias = "opus",
+            Id = "opus", DisplayName = "Claude Opus",
             Capabilities = FullCaps,
             ContextWindow = 200_000, MaxOutputTokens = 32_000,
             Provider = "anthropic", IsDefault = true,
@@ -40,25 +40,7 @@ public sealed class ClaudeModelCatalog : CachedModelCatalogProvider
         },
         new()
         {
-            Id = "claude-opus-4-6", DisplayName = "Claude Opus 4.6",
-            Capabilities = FullCaps,
-            ContextWindow = 200_000, MaxOutputTokens = 32_000,
-            Provider = "anthropic",
-            InputPerMillion = 5.00m, OutputPerMillion = 25.00m,
-            CacheWritePerMillion = 6.25m, CacheReadPerMillion = 0.50m,
-        },
-        new()
-        {
-            Id = "claude-opus-4-5", DisplayName = "Claude Opus 4.5", Alias = null,
-            Capabilities = FullCaps,
-            ContextWindow = 200_000, MaxOutputTokens = 32_000,
-            Provider = "anthropic",
-            InputPerMillion = 5.00m, OutputPerMillion = 25.00m,
-            CacheWritePerMillion = 6.25m, CacheReadPerMillion = 0.50m,
-        },
-        new()
-        {
-            Id = "claude-sonnet-4-6", DisplayName = "Claude Sonnet 4.6", Alias = "sonnet",
+            Id = "sonnet", DisplayName = "Claude Sonnet",
             Capabilities = MidCaps,
             ContextWindow = 200_000, MaxOutputTokens = 16_000,
             Provider = "anthropic",
@@ -67,57 +49,12 @@ public sealed class ClaudeModelCatalog : CachedModelCatalogProvider
         },
         new()
         {
-            Id = "claude-sonnet-4-5", DisplayName = "Claude Sonnet 4.5", Alias = null,
-            Capabilities = MidCaps,
-            ContextWindow = 200_000, MaxOutputTokens = 16_000,
-            Provider = "anthropic",
-            InputPerMillion = 3.00m, OutputPerMillion = 15.00m,
-            CacheWritePerMillion = 3.75m, CacheReadPerMillion = 0.30m,
-        },
-        new()
-        {
-            Id = "claude-haiku-4-5", DisplayName = "Claude Haiku 4.5", Alias = "haiku",
+            Id = "haiku", DisplayName = "Claude Haiku",
             Capabilities = LiteCaps,
             ContextWindow = 200_000, MaxOutputTokens = 8_192,
             Provider = "anthropic",
             InputPerMillion = 1.00m, OutputPerMillion = 5.00m,
             CacheWritePerMillion = 1.25m, CacheReadPerMillion = 0.10m,
-        },
-        new()
-        {
-            Id = "claude-opus-4-1", DisplayName = "Claude Opus 4.1",
-            Capabilities = FullCaps,
-            ContextWindow = 200_000, MaxOutputTokens = 32_000,
-            Provider = "anthropic",
-            InputPerMillion = 15.00m, OutputPerMillion = 75.00m,
-            CacheWritePerMillion = 18.75m, CacheReadPerMillion = 1.50m,
-        },
-        new()
-        {
-            Id = "claude-opus-4", DisplayName = "Claude Opus 4",
-            Capabilities = FullCaps,
-            ContextWindow = 200_000, MaxOutputTokens = 32_000,
-            Provider = "anthropic",
-            InputPerMillion = 15.00m, OutputPerMillion = 75.00m,
-            CacheWritePerMillion = 18.75m, CacheReadPerMillion = 1.50m,
-        },
-        new()
-        {
-            Id = "claude-sonnet-4", DisplayName = "Claude Sonnet 4",
-            Capabilities = MidCaps,
-            ContextWindow = 200_000, MaxOutputTokens = 16_000,
-            Provider = "anthropic",
-            InputPerMillion = 3.00m, OutputPerMillion = 15.00m,
-            CacheWritePerMillion = 3.75m, CacheReadPerMillion = 0.30m,
-        },
-        new()
-        {
-            Id = "claude-haiku-4", DisplayName = "Claude Haiku 4",
-            Capabilities = LiteCaps,
-            ContextWindow = 200_000, MaxOutputTokens = 8_192,
-            Provider = "anthropic",
-            InputPerMillion = 0.80m, OutputPerMillion = 4.00m,
-            CacheWritePerMillion = 1.00m, CacheReadPerMillion = 0.08m,
         },
     ];
 }
