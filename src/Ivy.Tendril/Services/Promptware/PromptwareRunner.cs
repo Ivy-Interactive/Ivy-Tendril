@@ -55,6 +55,11 @@ public interface IPromptwareRunner
 
 public class PromptwareRunner : IPromptwareRunner
 {
+    private static readonly HashSet<string> PlanWritingTypes = new(StringComparer.Ordinal)
+    {
+        "CreatePlan", "SplitPlan", "UpdatePlan", "ExpandPlan"
+    };
+
     private readonly IConfigService _configService;
     private readonly IAgentRunner _agentRunner;
     private readonly ILogger<PromptwareRunner> _logger;
@@ -107,6 +112,7 @@ public class PromptwareRunner : IPromptwareRunner
             Effort = AgentProviderFactory.ParseEffort(resolution.Effort),
             PermissionMode = PermissionMode.FullAuto,
             AllowedTools = resolution.AllowedTools,
+            WritableDirectories = ResolveWritableDirectories(options.Promptware),
             ExtraArguments = resolution.ExtraArgs,
             PromptFilePath = promptFilePath,
         };
@@ -156,6 +162,19 @@ public class PromptwareRunner : IPromptwareRunner
         };
 
         return handle;
+    }
+
+    private IReadOnlyList<string> ResolveWritableDirectories(string promptwareType)
+    {
+        var dirs = new List<string>();
+
+        if (PlanWritingTypes.Contains(promptwareType))
+        {
+            dirs.Add(_configService.PlanFolder);
+            dirs.Add(Path.Combine(_configService.TendrilHome, "Trash"));
+        }
+
+        return dirs;
     }
 
     private static async Task PipeOutputAndLog(Process process, IWriteStream<string> stream, PromptwareRunHandle handle, CancellationToken ct)

@@ -18,8 +18,6 @@ public class EditProjectDialog(
     RefreshToken refreshToken) : ViewBase
 {
     private readonly IState<int?> _editIndex = editIndex;
-    private readonly List<ProjectConfig> _projects = projects;
-    private readonly List<string> _allVerifications = allVerifications;
     private readonly IConfigService _config = config;
     private readonly IClientProvider _client = client;
     private readonly RefreshToken _refreshToken = refreshToken;
@@ -53,18 +51,22 @@ public class EditProjectDialog(
             }
             else if (_editIndex.Value >= 0)
             {
-                var project = _projects[_editIndex.Value.Value];
-                editName.Set(project.Name);
-                editColor.Set(Enum.TryParse<Colors>(project.Color, out var c) ? c : null);
-                editContext.Set(project.Context);
-                editRepos.Set(
-                    new List<RepoRef>(project.Repos.Select(r => new RepoRef { Path = r.Path, PrRule = r.PrRule, BaseBranch = r.BaseBranch, SyncStrategy = r.SyncStrategy })));
-                editVerifications.Set(new List<ProjectVerificationRef>(
-                    project.Verifications.Select(v => new ProjectVerificationRef
-                    { Name = v.Name, Required = v.Required })));
-                editReviewActions.Set(new List<ReviewActionConfig>(
-                    project.ReviewActions.Select(r => new ReviewActionConfig
-                    { Name = r.Name, Condition = r.Condition, Command = r.Command })));
+                var projectsList = _config.Projects;
+                if (_editIndex.Value.Value < projectsList.Count)
+                {
+                    var project = projectsList[_editIndex.Value.Value];
+                    editName.Set(project.Name);
+                    editColor.Set(Enum.TryParse<Colors>(project.Color, out var c) ? c : null);
+                    editContext.Set(project.Context);
+                    editRepos.Set(
+                        new List<RepoRef>(project.Repos.Select(r => new RepoRef { Path = r.Path, PrRule = r.PrRule, BaseBranch = r.BaseBranch, SyncStrategy = r.SyncStrategy })));
+                    editVerifications.Set(new List<ProjectVerificationRef>(
+                        project.Verifications.Select(v => new ProjectVerificationRef
+                        { Name = v.Name, Required = v.Required })));
+                    editReviewActions.Set(new List<ReviewActionConfig>(
+                        project.ReviewActions.Select(r => new ReviewActionConfig
+                        { Name = r.Name, Condition = r.Condition, Command = r.Command })));
+                }
             }
         }, _editIndex);
 
@@ -96,7 +98,8 @@ public class EditProjectDialog(
         };
 
         var verificationsLayout = Layout.Vertical().Gap(1);
-        foreach (var vName in _allVerifications)
+        var allVerificationsList = _config.Settings.Verifications.Select(v => v.Name).ToList();
+        foreach (var vName in allVerificationsList)
         {
             var capturedName = vName;
 
@@ -193,7 +196,8 @@ public class EditProjectDialog(
                         }
                     }
 
-                    var project = isNew ? new ProjectConfig() : _projects[_editIndex.Value!.Value];
+                    var projectsList = _config.Projects;
+                    var project = isNew ? new ProjectConfig() : projectsList[_editIndex.Value!.Value];
                     var oldName = project.Name;
                     var oldColor = project.Color;
                     var oldContext = project.Context;
@@ -206,7 +210,7 @@ public class EditProjectDialog(
                     project.Repos = new List<RepoRef>(editRepos.Value);
                     project.Verifications = new List<ProjectVerificationRef>(editVerifications.Value);
                     project.ReviewActions = new List<ReviewActionConfig>(editReviewActions.Value);
-                    if (isNew) _projects.Add(project);
+                    if (isNew) projectsList.Add(project);
                     try
                     {
                         _config.SaveSettings();
@@ -217,7 +221,7 @@ public class EditProjectDialog(
                     catch (Exception ex)
                     {
                         if (isNew)
-                            _projects.Remove(project);
+                            projectsList.Remove(project);
                         else
                         {
                             project.Name = oldName;

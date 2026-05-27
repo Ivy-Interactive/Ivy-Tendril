@@ -65,7 +65,7 @@
 
 .tpv-box:hover {
   opacity: 0.85;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-foreground, #0f172a) 8%, transparent);
 }
 
 .tpv-box-create {
@@ -84,9 +84,9 @@
 }
 
 .tpv-box-stage {
-  background: color-mix(in srgb, var(--color-primary, #4db6a0) 10%, transparent);
-  color: var(--color-foreground, #0f172a);
-  border-color: color-mix(in srgb, var(--color-primary, #4db6a0) 30%, transparent);
+  background: var(--color-card, #ffffff);
+  color: var(--color-card-foreground, #0f172a);
+  border-color: var(--color-border, #e2e8f0);
 }
 
 .tpv-box-stage-icon {
@@ -152,10 +152,10 @@
 
 @keyframes tpv-pulse {
   0%, 100% {
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--color-foreground, #0f172a) 5%, transparent);
   }
   50% {
-    box-shadow: 0 0 0 4px rgba(128, 128, 128, 0.5);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-muted-foreground, #6b7280) 50%, transparent);
   }
 }
 
