@@ -13,6 +13,7 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
 
         var selectedTeam = UseState<string?>(null);
         var selectedProject = UseState<string?>(null);
+        var searchText = UseState("");
         var issues = UseState<IReadOnlyList<LinearIssueInfo>?>(null);
         var selectedIssueIds = UseState<HashSet<string>>([]);
         var isFetching = UseState(false);
@@ -53,6 +54,7 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
             {
                 selectedTeam.Set(null);
                 selectedProject.Set(null);
+                searchText.Set("");
                 issues.Set(null);
                 selectedIssueIds.Set([]);
                 error.Set(null);
@@ -92,7 +94,8 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
         {
             var teamLabel = selectedTeam.Value;
             var projectLabel = selectedProject.Value;
-            if (teamLabel is null && projectLabel is null) return;
+            var search = searchText.Value.Trim();
+            if (teamLabel is null && projectLabel is null && string.IsNullOrEmpty(search)) return;
 
             var team = teamLabel is not null
                 ? teamList.FirstOrDefault(t => $"{t.Key} — {t.Name}" == teamLabel)
@@ -115,6 +118,8 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
                     filter.Team = new GraphQL.TeamFilter { Id = new GraphQL.IDComparator { Eq = team.Id } };
                 if (project is not null)
                     filter.Project = new GraphQL.NullableProjectFilter { Id = new GraphQL.IDComparator { Eq = project.Id } };
+                if (!string.IsNullOrEmpty(search))
+                    filter.Title = new GraphQL.StringComparator { ContainsIgnoreCase = search };
 
                 var result = await clientFactory.Client.GetIssues.ExecuteAsync(50, null, filter);
                 if (result.Errors is { Count: > 0 } errors)
@@ -264,7 +269,7 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
         {
             issuesPanel = Layout.Vertical().AlignContent(Align.Center)
                 .Height(Size.Rem(10)).Width(Size.Full())
-                | Text.Muted("Choose a team and/or project, then click Fetch Issues.");
+                | Text.Muted("Choose filters and click Fetch Issues.");
         }
 
         return new Dialog(
@@ -276,8 +281,10 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
                     .WithField().Label("Team")
                 | selectedProject.ToSelectInput(projectOptions.ToOptions())
                     .WithField().Label("Project")
+                | searchText.ToTextInput().Placeholder("Search by title...")
+                    .WithField().Label("Search")
                 | new Button("Fetch Issues").Outline().Loading(isFetching.Value)
-                    .Disabled((selectedTeam.Value is null && selectedProject.Value is null) || isFetching.Value)
+                    .Disabled((selectedTeam.Value is null && selectedProject.Value is null && string.IsNullOrWhiteSpace(searchText.Value)) || isFetching.Value)
                     .OnClick(async () => await FetchIssues())
                 | (error.Value is { } e ? Text.Danger(e).Small() : null)
                 | issuesPanel
