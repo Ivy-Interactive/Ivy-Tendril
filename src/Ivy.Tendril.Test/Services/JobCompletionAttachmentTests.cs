@@ -1,6 +1,9 @@
 using System;
 using System.IO;
 using System.Text.RegularExpressions;
+using Ivy;
+using Ivy.Core.Hooks;
+using Ivy.Widgets.ContentInputView;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services.Jobs;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -235,5 +238,17 @@ and the text: [notes](file://{tempFile2})
         // Assert
         Assert.False(Directory.Exists(sessionDir));
         Assert.False(Directory.Exists(Path.Combine(_plansDir, ".upcoming-attachments")));
+    }
+
+    [Fact]
+    public void ContentInputView_OnUploadFile_IsNotNullAfterInstantiationAndBind()
+    {
+        var textState = new State<string>("");
+        var view = new ContentInputView
+        {
+            OnUploadFile = async e => { await Task.CompletedTask; }
+        }.Bind(textState);
+
+        Assert.NotNull(view.OnUploadFile);
     }
 }
