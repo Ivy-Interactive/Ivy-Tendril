@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Helpers;
 
@@ -48,7 +49,8 @@ public sealed class CodexHealthCheck : IAgentHealthCheck
             "codex", ["--version"], TimeSpan.FromSeconds(10), ct);
 
         if (exitCode != 0) return null;
-        return stdout.Trim();
+        var match = Regex.Match(stdout, @"\d+\.\d+\.\d+");
+        return match.Success ? match.Value : stdout.Trim();
     }
 
     public async Task<ModelValidationResult> ValidateModelAsync(string model, CancellationToken ct = default)
@@ -56,7 +58,8 @@ public sealed class CodexHealthCheck : IAgentHealthCheck
         // Codex exec reads from stdin ('-'), so it hangs waiting for input.
         // Use a short timeout: if the model is invalid, Codex errors immediately.
         // If it doesn't error within 5s, the model is accepted (process is killed).
-        var args = string.IsNullOrEmpty(model)
+        var useDefault = string.IsNullOrEmpty(model) || string.Equals(model, "default", StringComparison.OrdinalIgnoreCase);
+        var args = useDefault
             ? (IReadOnlyList<string>)["exec", "--full-auto", "--json", "--skip-git-repo-check", "-"]
             : ["exec", "--full-auto", "--json", "--skip-git-repo-check", "--model", model, "-"];
 

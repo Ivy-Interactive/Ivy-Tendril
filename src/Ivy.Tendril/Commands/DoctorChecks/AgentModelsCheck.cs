@@ -47,18 +47,25 @@ internal class AgentModelsCheck(ConfigService? configService = null, IAgentRunne
                 continue;
             }
 
-            statuses.Add(new CheckStatus($"  {label}", "", StatusKind.Ok));
+            statuses.Add(new CheckStatus(label, "", StatusKind.Ok));
+
+            var validatedModels = new Dictionary<string, ModelValidationResult>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var profile in agent.Profiles)
             {
                 if (string.IsNullOrEmpty(profile.Model))
                 {
-                    statuses.Add(new CheckStatus($"    {profile.Name}", "No model specified", StatusKind.Warn));
+                    statuses.Add(new CheckStatus($"  {profile.Name}", "No model specified", StatusKind.Warn));
                     continue;
                 }
 
-                var result = await healthCheck.ValidateModelAsync(profile.Model);
-                var profileLabel = $"    {profile.Name}: {profile.Model}";
+                if (!validatedModels.TryGetValue(profile.Model, out var result))
+                {
+                    result = await healthCheck.ValidateModelAsync(profile.Model);
+                    validatedModels[profile.Model] = result;
+                }
+
+                var profileLabel = $"  {profile.Name}: {profile.Model}";
 
                 switch (result.Status)
                 {
