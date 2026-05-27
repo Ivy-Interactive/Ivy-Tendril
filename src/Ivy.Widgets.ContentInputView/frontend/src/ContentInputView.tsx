@@ -161,6 +161,9 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = "copy";
+    }
     setIsDragging(true);
   };
 
@@ -173,6 +176,9 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = "copy";
+    }
   };
 
   const handleDrop = async (e: React.DragEvent) => {
