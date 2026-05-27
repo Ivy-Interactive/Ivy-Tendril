@@ -187,9 +187,9 @@ public class ContentView(
             var tabs = Layout.Tabs(
                 new Tab("Plan", Cap(planTabContent)),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan!)))
-            ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content).Padding(3, 0, 0, 0).RemoveParentPadding();
+            ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content).Padding(2, 0, 0, 0);
 
-            content |= (Layout.Vertical().Padding(4).Height(Size.Full()) | tabs);
+            content |= (Layout.Vertical().Padding(2).Height(Size.Full()) | tabs);
         }
 
         content |= new VerificationReportSheet(openVerification, selectedPlan);
