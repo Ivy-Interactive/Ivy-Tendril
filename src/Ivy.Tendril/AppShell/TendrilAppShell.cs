@@ -460,7 +460,16 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
         if (config.NeedsOnboarding) return new OnboardingApp();
 
+        // Warm up SelectInput so its frontend chunk is loaded before dialogs open.
+        var selectInputWarmup = new FuncView(context =>
+        {
+            var noop = context.UseState<string?>(() => null);
+            return Layout.Vertical().Height(Size.Px(0)).Width(Size.Px(0))
+                | noop.ToSelectInput(new[] { "_" }.ToOptions()).Disabled();
+        });
+
         return new Fragment(
+            selectInputWarmup,
             new SidebarLayout(
                 body ?? null!,
                 sidebarMenu,
