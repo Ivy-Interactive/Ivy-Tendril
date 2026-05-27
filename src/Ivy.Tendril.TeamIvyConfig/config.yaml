@@ -1,4 +1,4 @@
-codingAgent: codex
+codingAgent: opencode
 jobTimeout: 30
 staleOutputTimeout: 10
 gitTimeout: 10
@@ -126,6 +126,18 @@ projects:
     - CreatePr
     condition: ''
     action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
+  buildDependencies: []
+- name: lots-of-dev-tools
+  color: Green
+  meta: {}
+  repos:
+  - path: D:\Tendril\Repos\lots-of-dev-tools
+    prRule: default
+    syncStrategy: fetch
+  verifications: []
+  context: ''
+  reviewActions: []
+  hooks: []
   buildDependencies: []
 verifications:
 - name: FrameworkDotnetBuild
@@ -278,46 +290,31 @@ codingAgents:
   arguments: ''
   profiles:
   - name: deep
-    model: claude-opus-4-7
+    model: opus
     effort: max
     arguments: ''
   - name: balanced
-    model: claude-sonnet-4-6
+    model: sonnet
     effort: high
     arguments: ''
   - name: quick
-    model: claude-haiku-4-5
+    model: haiku
     effort: low
     arguments: ''
 - name: codex
   arguments: ''
   profiles:
   - name: deep
-    model: gpt-5.4
+    model: default
     effort: high
     arguments: ''
   - name: balanced
-    model: gpt-5.4-mini
+    model: default
     effort: medium
     arguments: ''
   - name: quick
-    model: gpt-5.3-codex
+    model: default
     effort: low
-    arguments: ''
-- name: gemini
-  arguments: ''
-  profiles:
-  - name: deep
-    model: gemini-3-flash-preview
-    effort: ''
-    arguments: ''
-  - name: balanced
-    model: gemini-2.5-flash
-    effort: ''
-    arguments: ''
-  - name: quick
-    model: gemini-2.5-flash-lite
-    effort: ''
     arguments: ''
 - name: opencode
   arguments: ''
@@ -338,15 +335,15 @@ codingAgents:
   arguments: ''
   profiles:
   - name: deep
-    model: ''
+    model: default
     effort: ''
     arguments: ''
   - name: balanced
-    model: ''
+    model: default
     effort: ''
     arguments: ''
   - name: quick
-    model: ''
+    model: default
     effort: ''
     arguments: ''
 - name: copilot

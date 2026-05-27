@@ -48,14 +48,29 @@ public sealed class OpenCodeHealthCheck : IAgentHealthCheck
         return stdout.Trim();
     }
 
-    public Task<ModelValidationResult> ValidateModelAsync(string model, CancellationToken ct = default)
+    public async Task<ModelValidationResult> ValidateModelAsync(string model, CancellationToken ct = default)
     {
-        return Task.FromResult(new ModelValidationResult
+        if (!string.IsNullOrEmpty(model) && !string.Equals(model, "default", StringComparison.OrdinalIgnoreCase))
+            return new ModelValidationResult
+            {
+                Status = ModelValidationStatus.Unknown,
+                Model = model,
+                ErrorMessage = "OpenCode does not support model validation for non-default models",
+            };
+
+        var (exitCode, _, stderr) = await HealthCheckRunner.RunAsync(
+            "opencode", ["run", "ping"],
+            TimeSpan.FromSeconds(30), ct);
+
+        if (exitCode == 0)
+            return new ModelValidationResult { Status = ModelValidationStatus.Ok, Model = model };
+
+        return new ModelValidationResult
         {
             Status = ModelValidationStatus.Unknown,
             Model = model,
-            ErrorMessage = "OpenCode does not provide a model validation command",
-        });
+            ErrorMessage = stderr,
+        };
     }
 
     public Task<bool> RunAuthFlowAsync(AuthFlowCallbacks callbacks, CancellationToken ct = default)

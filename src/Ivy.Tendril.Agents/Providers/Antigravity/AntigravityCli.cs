@@ -15,7 +15,7 @@ public sealed class AntigravityCli : IAgentCli
         AgentCapabilities.SessionResume;
 
     public TransportKind SupportedTransports => TransportKind.CliSpawn;
-    public PromptTransport PromptTransport => PromptTransport.Argument;
+    public PromptTransport PromptTransport => PromptTransport.File;
     public OutputFormat PreferredOutputFormat => OutputFormat.Text;
 
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles { get; } =
@@ -33,26 +33,25 @@ public sealed class AntigravityCli : IAgentCli
 
     public AgentProcessSpec BuildProcessSpec(AgentLaunchConfig config)
     {
-        var args = new List<string>
+        var agyArgs = new List<string>
         {
-            "--print", config.Prompt,
             "--dangerously-skip-permissions",
         };
 
         if (!string.IsNullOrEmpty(config.SessionId))
         {
-            args.Add("--conversation");
-            args.Add(config.SessionId);
+            agyArgs.Add("--conversation");
+            agyArgs.Add(config.SessionId);
         }
 
         foreach (var dir in config.WritableDirectories)
         {
-            args.Add("--add-dir");
-            args.Add(dir);
+            agyArgs.Add("--add-dir");
+            agyArgs.Add(dir);
         }
 
         foreach (var arg in config.ExtraArguments)
-            args.Add(arg);
+            agyArgs.Add(arg);
 
         var env = new Dictionary<string, string>(GetDefaultEnvironment());
         if (config.EnvironmentVariables is not null)
@@ -61,15 +60,39 @@ public sealed class AntigravityCli : IAgentCli
                 env[key] = value;
         }
 
+        if (!string.IsNullOrEmpty(config.PromptFilePath))
+        {
+            var escapedPath = config.PromptFilePath.Replace("'", "''");
+            var agyArgsStr = string.Join(" ", agyArgs.Select(EscapePwshArg));
+            var command = $"agy --print (Get-Content -Raw '{escapedPath}') {agyArgsStr}";
+
+            return new AgentProcessSpec
+            {
+                FileName = "pwsh",
+                Arguments = ["-NoProfile", "-Command", command],
+                WorkingDirectory = config.WorkingDirectory,
+                Environment = env,
+                StdinContent = null,
+                RedirectStdin = false,
+            };
+        }
+
         return new AgentProcessSpec
         {
             FileName = "agy",
-            Arguments = args,
+            Arguments = ["--print", config.Prompt, .. agyArgs],
             WorkingDirectory = config.WorkingDirectory,
             Environment = env,
             StdinContent = null,
             RedirectStdin = false,
         };
+    }
+
+    private static string EscapePwshArg(string arg)
+    {
+        if (arg.Contains(' ') || arg.Contains('\'') || arg.Contains('"'))
+            return "'" + arg.Replace("'", "''") + "'";
+        return arg;
     }
 
     public IReadOnlyDictionary<string, string> GetDefaultEnvironment() =>

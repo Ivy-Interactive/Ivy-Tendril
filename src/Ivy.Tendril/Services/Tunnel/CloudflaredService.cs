@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -8,6 +10,7 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
     private readonly IConfigService _config;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IHostApplicationLifetime _appLifetime;
+    private readonly IServer _server;
     private readonly ILogger<CloudflaredService> _logger;
     private CancellationTokenSource? _cts;
     private Task? _supervisorTask;
@@ -18,11 +21,13 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
         IConfigService config,
         IHttpClientFactory httpClientFactory,
         IHostApplicationLifetime appLifetime,
+        IServer server,
         ILogger<CloudflaredService> logger)
     {
         _config = config;
         _httpClientFactory = httpClientFactory;
         _appLifetime = appLifetime;
+        _server = server;
         _logger = logger;
     }
 
@@ -161,8 +166,11 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
             if (ct.IsCancellationRequested) return;
         }
 
-        var originUrl = Environment.GetEnvironmentVariable("TENDRIL_URL")
+        var addresses = _server.Features.Get<IServerAddressesFeature>()?.Addresses;
+        var originUrl = addresses?.FirstOrDefault()
             ?? $"http://localhost:{tunnelConfig.Port}";
+        originUrl = originUrl.Replace("://localhost:", "://127.0.0.1:");
+        _logger.LogInformation("Tunnel origin URL: {OriginUrl}", originUrl);
 
         var consecutiveFailures = 0;
 

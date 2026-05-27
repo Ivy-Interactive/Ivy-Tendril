@@ -14,7 +14,8 @@ public class ProjectAgentStepView(
     Action onBack,
     Action onNext,
     Action? onSkip = null,
-    bool skipAgent = false) : ViewBase
+    bool skipAgent = false,
+    bool showHeader = true) : ViewBase
 {
     public override object Build()
     {
@@ -164,7 +165,7 @@ public class ProjectAgentStepView(
         var awaitingOutput = !isCloning.Value && session.Running.Value && !session.HasOutput.Value;
 
         return Layout.Vertical()
-               | Text.H3("Setting up your project")
+               | (showHeader ? Text.H3("Setting up your project") : null!)
                | Text.Muted(isCloning.Value
                    ? (progressMessage.Value ?? "Setting up your project...")
                    : "Tendril is detecting your tech stack and configuring your agentic harness.")

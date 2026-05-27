@@ -14,7 +14,8 @@ public class ProjectInputStepView(
     string skipButtonText = "Skip",
     string nextButtonText = "Create Project",
     string title = "Setup your first project",
-    bool disableSkipWhenCannotContinue = false) : ViewBase
+    bool disableSkipWhenCannotContinue = false,
+    bool showHeader = true) : ViewBase
 {
     public override object Build()
     {
@@ -54,10 +55,9 @@ public class ProjectInputStepView(
                 .OnClick(onNext);
 
         return Layout.Vertical()
-               | Text.H3(title)
+               | (showHeader ? Text.H3(title) : null!)
                | Text.Muted("A project groups one or more repositories together so Tendril can plan and verify changes across them.")
                | new ProjectRepoPickerView(selectedRepos, projectName)
-               | new Spacer()
                | projectName.ToTextInput().WithField().Required().Label("Project Name")
                | (nameExists ? new Box()
                    .Background(Colors.Destructive)

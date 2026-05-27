@@ -75,7 +75,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     {
         var badges = new Dictionary<string, int>
         {
-            ["plans"] = status.DraftCount,
+            ["drafts"] = status.DraftCount,
             ["review"] = status.ReviewCount,
             ["jobs"] = status.JobCount,
             ["icebox"] = status.IceboxCount,

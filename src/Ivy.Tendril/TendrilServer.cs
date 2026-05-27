@@ -1,4 +1,6 @@
+using Ivy.Core.Apps;
 using Ivy.Helpers;
+using Ivy.Tendril.Apps;
 using Ivy.Tendril.AppShell;
 using Ivy.Tendril.Controllers;
 using Ivy.Tendril.Services;
@@ -12,7 +14,7 @@ namespace Ivy.Tendril;
 
 public static class TendrilServer
 {
-    public static Server Create(string[] args)
+    public static Server Create(string[] args, TendrilArgs tendrilArgs)
     {
         var server = new Server();
         server.DangerouslyAllowLocalFiles();
@@ -23,14 +25,11 @@ public static class TendrilServer
         server.SetMetaTitle("Ivy Tendril");
 
         var configService = new ConfigService(Microsoft.Extensions.Logging.Abstractions.NullLogger<ConfigService>.Instance);
+        server.Services.AddSingleton(tendrilArgs);
         server.AddTendrilServices(configService);
 
-        // Configure logging based on verbosity.
-        // We set levels via configuration (not SetMinimumLevel) because the Ivy framework
-        // calls SetMinimumLevel after UseWebApplicationBuilder mods, which would override ours.
-        // Configuration-based rules take precedence over SetMinimumLevel.
-        var logLevel = Environment.GetEnvironmentVariable("TENDRIL_VERBOSE") == "1" ? "Debug"
-            : Environment.GetEnvironmentVariable("TENDRIL_QUIET") == "1" ? "Warning"
+        var logLevel = tendrilArgs.Verbose ? "Debug"
+            : tendrilArgs.Quiet ? "Warning"
             : "Error";
         server.UseWebApplicationBuilder(builder =>
         {
@@ -44,11 +43,6 @@ public static class TendrilServer
         server.UseWebApplication(app =>
         {
             app.UseMiddleware<ApiKeyAuthMiddleware>();
-
-            // Publish the actual bound URL so child processes can reach this server
-            var serverUrl = app.Urls.FirstOrDefault();
-            if (serverUrl != null)
-                Environment.SetEnvironmentVariable("TENDRIL_URL", serverUrl);
 
             if (!configService.NeedsOnboarding)
             {
@@ -86,7 +80,10 @@ public static class TendrilServer
             app.UseAssets(server.Args, app.Services.GetRequiredService<ILogger<Server>>(), "Assets", "tendril/assets");
         });
 
-        server.AddAppsFromAssembly(typeof(TendrilServer).Assembly);
+        var assembly = typeof(TendrilServer).Assembly;
+        server.AppRepository.AddFactory(() => AppHelpers.GetApps(assembly)
+            .Where(a => tendrilArgs.Beta || a.Type != typeof(AgentApp))
+            .ToArray());
         server.AddConnectionsFromAssembly(typeof(TendrilServer).Assembly);
 
         // Load plugins from the plugins directory under Tendril root

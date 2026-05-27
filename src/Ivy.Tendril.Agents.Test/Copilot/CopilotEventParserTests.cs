@@ -122,7 +122,7 @@ public class CopilotEventParserTests
     [Fact]
     public void ParseLine_AssistantMessage_WithToolRequests_ReturnsToolCallEvents()
     {
-        var json = """{"type":"assistant.message","data":{"toolRequests":[{"toolCallId":"tc-1","tool":"view","parameters":{"path":"/tmp/test.txt"}},{"toolCallId":"tc-2","tool":"glob","parameters":{"pattern":"*.cs"}}]}}""";
+        var json = """{"type":"assistant.message","data":{"toolRequests":[{"toolCallId":"tc-1","name":"view","arguments":{"path":"/tmp/test.txt"},"type":"function"},{"toolCallId":"tc-2","name":"glob","arguments":{"pattern":"*.cs"},"type":"function"}]}}""";
         var events = _parser.ParseLine(json);
 
         Assert.Equal(2, events.Count);
@@ -137,9 +137,22 @@ public class CopilotEventParserTests
     }
 
     [Fact]
+    public void ParseLine_AssistantMessage_WithLegacyToolFormat_ReturnsToolCallEvents()
+    {
+        var json = """{"type":"assistant.message","data":{"toolRequests":[{"toolCallId":"tc-1","tool":"view","parameters":{"path":"/tmp/test.txt"}}]}}""";
+        var events = _parser.ParseLine(json);
+
+        Assert.Single(events);
+        var tc1 = Assert.IsType<ToolCallEvent>(events[0]);
+        Assert.Equal("tc-1", tc1.ToolUseId);
+        Assert.Equal("view", tc1.ToolName);
+        Assert.Contains("path", tc1.InputJson!);
+    }
+
+    [Fact]
     public void ParseLine_AssistantMessage_ReportIntentToolRequest_IsSkipped()
     {
-        var json = """{"type":"assistant.message","data":{"toolRequests":[{"toolCallId":"tc-meta","tool":"report_intent","parameters":{"intent":"reading files"}}]}}""";
+        var json = """{"type":"assistant.message","data":{"toolRequests":[{"toolCallId":"tc-meta","name":"report_intent","arguments":{"intent":"reading files"},"type":"function"}]}}""";
         var events = _parser.ParseLine(json);
 
         Assert.Empty(events);
@@ -148,7 +161,7 @@ public class CopilotEventParserTests
     [Fact]
     public void ParseLine_AssistantMessage_BothContentAndToolRequests_ReturnsBoth()
     {
-        var json = """{"type":"assistant.message","data":{"content":"Checking the file...","toolRequests":[{"toolCallId":"tc-1","tool":"view","parameters":{"path":"/f.txt"}}]}}""";
+        var json = """{"type":"assistant.message","data":{"content":"Checking the file...","toolRequests":[{"toolCallId":"tc-1","name":"view","arguments":{"path":"/f.txt"},"type":"function"}]}}""";
         var events = _parser.ParseLine(json);
 
         Assert.Equal(2, events.Count);

@@ -29,7 +29,7 @@ public sealed class CodexEventParser : IEventParser
                 return [new UnknownEvent { Kind = AgentEventKind.Unknown, Content = rawLine, RawLine = rawLine }];
 
             // Skip noise events that carry no actionable data
-            if (type is "turn.started" or "item.started")
+            if (type is "turn.started" or "item.started" or "item.updated")
                 return Empty;
 
             using var doc = JsonDocument.Parse(buffer.AsMemory(0, written));

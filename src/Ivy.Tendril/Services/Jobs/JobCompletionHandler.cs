@@ -616,8 +616,6 @@ internal class JobCompletionHandler
         try
         {
             PromptwareLogWriter.WriteLog(job);
-            if (!string.IsNullOrEmpty(job.LogFilePath) && job.OutputLines.Count > 0)
-                PromptwareLogWriter.WriteRawLog(job.LogFilePath, job.OutputLines);
         }
         catch { }
 

@@ -22,17 +22,17 @@ importers:
         specifier: 19.2.3
         version: 19.2.3(react@19.2.3)
       react-markdown:
-        specifier: ^9.0.0
+        specifier: 9.1.0
         version: 9.1.0(@types/react@19.2.8)(react@19.2.3)
       rehype-highlight:
-        specifier: ^7.0.0
+        specifier: 7.0.2
         version: 7.0.2
       remark-gfm:
-        specifier: ^4.0.1
+        specifier: 4.0.1
         version: 4.0.1
     devDependencies:
       '@types/node':
-        specifier: ^25.9.1
+        specifier: 25.9.1
         version: 25.9.1
       '@types/react':
         specifier: 19.2.8
