@@ -13,6 +13,10 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
 
         var selectedTeam = UseState<string?>(null);
         var selectedProject = UseState<string?>(null);
+        var selectedAssignee = UseState<string?>(null);
+        var selectedLabel = UseState<string?>(null);
+        var selectedPriority = UseState<string?>(null);
+        var selectedStatus = UseState<string?>(null);
         var searchText = UseState("");
         var issues = UseState<IReadOnlyList<LinearIssueInfo>?>(null);
         var selectedIssueIds = UseState<HashSet<string>>([]);
@@ -48,12 +52,60 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
             },
             initialValue: []);
 
+        var usersQuery = UseQuery<IReadOnlyList<LinearUserInfo>, bool>(
+            dialogOpen.Value,
+            async (isOpen, _) =>
+            {
+                if (!isOpen) return [];
+                var result = await clientFactory.Client.GetUsers.ExecuteAsync();
+                if (result.Errors is { Count: > 0 } errors)
+                    throw new Exception(errors[0].Message);
+                return result.Data!.Users.Nodes
+                    .Select(u => new LinearUserInfo(u.Id, u.DisplayName))
+                    .ToList();
+            },
+            initialValue: []);
+
+        var labelsQuery = UseQuery<IReadOnlyList<LinearLabelInfo>, bool>(
+            dialogOpen.Value,
+            async (isOpen, _) =>
+            {
+                if (!isOpen) return [];
+                var result = await clientFactory.Client.GetIssueLabels.ExecuteAsync();
+                if (result.Errors is { Count: > 0 } errors)
+                    throw new Exception(errors[0].Message);
+                return result.Data!.IssueLabels.Nodes
+                    .Select(l => new LinearLabelInfo(l.Id, l.Name))
+                    .ToList();
+            },
+            initialValue: []);
+
+        var statesQuery = UseQuery<IReadOnlyList<LinearStateInfo>, bool>(
+            dialogOpen.Value,
+            async (isOpen, _) =>
+            {
+                if (!isOpen) return [];
+                var result = await clientFactory.Client.GetWorkflowStates.ExecuteAsync();
+                if (result.Errors is { Count: > 0 } errors)
+                    throw new Exception(errors[0].Message);
+                return result.Data!.WorkflowStates.Nodes
+                    .Select(s => new LinearStateInfo(s.Id, s.Name, s.Type))
+                    .DistinctBy(s => s.Name)
+                    .OrderBy(s => s.Type)
+                    .ToList();
+            },
+            initialValue: []);
+
         UseEffect(() =>
         {
             if (!dialogOpen.Value)
             {
                 selectedTeam.Set(null);
                 selectedProject.Set(null);
+                selectedAssignee.Set(null);
+                selectedLabel.Set(null);
+                selectedPriority.Set(null);
+                selectedStatus.Set(null);
                 searchText.Set("");
                 issues.Set(null);
                 selectedIssueIds.Set([]);
@@ -63,7 +115,7 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
 
         if (!dialogOpen.Value) return null;
 
-        if (teamsQuery.Loading || projectsQuery.Loading)
+        if (teamsQuery.Loading || projectsQuery.Loading || usersQuery.Loading || labelsQuery.Loading || statesQuery.Loading)
         {
             return new Dialog(
                 _ => dialogOpen.Set(false),
@@ -71,31 +123,47 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
                 new DialogBody(
                     Layout.Vertical().Gap(3).AlignContent(Align.Center)
                     | new Loading()
-                    | Text.Muted("Loading teams and projects...")
+                    | Text.Muted("Loading filters...")
                 )
-            ).Width(Size.Rem(42));
+            ).Width(Size.Rem(48));
         }
 
-        if ((teamsQuery.Error ?? projectsQuery.Error) is { } err)
+        if ((teamsQuery.Error ?? projectsQuery.Error ?? usersQuery.Error ?? labelsQuery.Error ?? statesQuery.Error) is { } err)
         {
             return new Dialog(
                 _ => dialogOpen.Set(false),
                 new DialogHeader("Import Issues from Linear"),
                 new DialogBody(Text.Danger(err.Message))
-            ).Width(Size.Rem(42));
+            ).Width(Size.Rem(48));
         }
 
         var teamList = teamsQuery.Value ?? [];
         var teamOptions = teamList.Select(t => $"{t.Key} — {t.Name}").ToArray();
         var projectList = projectsQuery.Value ?? [];
         var projectOptions = projectList.Select(p => p.Name).ToArray();
+        var userList = usersQuery.Value ?? [];
+        var userOptions = userList.Select(u => u.DisplayName).ToArray();
+        var labelList = labelsQuery.Value ?? [];
+        var labelOptions = labelList.Select(l => l.Name).ToArray();
+        var stateList = statesQuery.Value ?? [];
+        var stateOptions = stateList.Select(s => s.Name).ToArray();
+        var priorityOptions = new[] { "Urgent", "High", "Medium", "Low", "No priority" };
 
         async Task FetchIssues()
         {
             var teamLabel = selectedTeam.Value;
             var projectLabel = selectedProject.Value;
+            var assigneeLabel = selectedAssignee.Value;
+            var labelLabel = selectedLabel.Value;
+            var priorityLabel = selectedPriority.Value;
+            var statusLabel = selectedStatus.Value;
             var search = searchText.Value.Trim();
-            if (teamLabel is null && projectLabel is null && string.IsNullOrEmpty(search)) return;
+
+            var hasAnyFilter = teamLabel is not null || projectLabel is not null ||
+                               assigneeLabel is not null || labelLabel is not null ||
+                               priorityLabel is not null || statusLabel is not null ||
+                               !string.IsNullOrEmpty(search);
+            if (!hasAnyFilter) return;
 
             var team = teamLabel is not null
                 ? teamList.FirstOrDefault(t => $"{t.Key} — {t.Name}" == teamLabel)
@@ -103,9 +171,21 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
             var project = projectLabel is not null
                 ? projectList.FirstOrDefault(p => p.Name == projectLabel)
                 : null;
+            var assignee = assigneeLabel is not null
+                ? userList.FirstOrDefault(u => u.DisplayName == assigneeLabel)
+                : null;
+            var label = labelLabel is not null
+                ? labelList.FirstOrDefault(l => l.Name == labelLabel)
+                : null;
+            var state = statusLabel is not null
+                ? stateList.FirstOrDefault(s => s.Name == statusLabel)
+                : null;
 
             if (teamLabel is not null && team is null) return;
             if (projectLabel is not null && project is null) return;
+            if (assigneeLabel is not null && assignee is null) return;
+            if (labelLabel is not null && label is null) return;
+            if (statusLabel is not null && state is null) return;
 
             isFetching.Set(true);
             error.Set(null);
@@ -118,6 +198,24 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
                     filter.Team = new GraphQL.TeamFilter { Id = new GraphQL.IDComparator { Eq = team.Id } };
                 if (project is not null)
                     filter.Project = new GraphQL.NullableProjectFilter { Id = new GraphQL.IDComparator { Eq = project.Id } };
+                if (assignee is not null)
+                    filter.Assignee = new GraphQL.NullableUserFilter { Id = new GraphQL.IDComparator { Eq = assignee.Id } };
+                if (label is not null)
+                    filter.Labels = new GraphQL.IssueLabelCollectionFilter { Id = new GraphQL.IDComparator { Eq = label.Id } };
+                if (priorityLabel is not null)
+                {
+                    var priorityValue = priorityLabel switch
+                    {
+                        "Urgent" => 1,
+                        "High" => 2,
+                        "Medium" => 3,
+                        "Low" => 4,
+                        _ => 0
+                    };
+                    filter.Priority = new GraphQL.NullableNumberComparator { Eq = priorityValue };
+                }
+                if (state is not null)
+                    filter.State = new GraphQL.WorkflowStateFilter { Name = new GraphQL.StringComparator { Eq = state.Name } };
                 if (!string.IsNullOrEmpty(search))
                     filter.Title = new GraphQL.StringComparator { ContainsIgnoreCase = search };
 
@@ -151,6 +249,12 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
                 isFetching.Set(false);
             }
         }
+
+        bool HasAnyFilter() =>
+            selectedTeam.Value is not null || selectedProject.Value is not null ||
+            selectedAssignee.Value is not null || selectedLabel.Value is not null ||
+            selectedPriority.Value is not null || selectedStatus.Value is not null ||
+            !string.IsNullOrWhiteSpace(searchText.Value);
 
         async Task ImportSelected()
         {
@@ -277,14 +381,25 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
             new DialogHeader("Import Issues from Linear"),
             new DialogBody(
                 Layout.Vertical().Gap(3)
-                | selectedTeam.ToSelectInput(teamOptions.ToOptions())
-                    .WithField().Label("Team")
-                | selectedProject.ToSelectInput(projectOptions.ToOptions())
-                    .WithField().Label("Project")
+                | (Layout.Horizontal().Gap(3)
+                    | selectedTeam.ToSelectInput(teamOptions.ToOptions())
+                        .WithField().Label("Team")
+                    | selectedProject.ToSelectInput(projectOptions.ToOptions())
+                        .WithField().Label("Project"))
+                | (Layout.Horizontal().Gap(3)
+                    | selectedAssignee.ToSelectInput(userOptions.ToOptions())
+                        .WithField().Label("Assignee")
+                    | selectedLabel.ToSelectInput(labelOptions.ToOptions())
+                        .WithField().Label("Label"))
+                | (Layout.Horizontal().Gap(3)
+                    | selectedPriority.ToSelectInput(priorityOptions.ToOptions())
+                        .WithField().Label("Priority")
+                    | selectedStatus.ToSelectInput(stateOptions.ToOptions())
+                        .WithField().Label("Status"))
                 | searchText.ToTextInput().Placeholder("Search by title...")
                     .WithField().Label("Search")
                 | new Button("Fetch Issues").Outline().Loading(isFetching.Value)
-                    .Disabled((selectedTeam.Value is null && selectedProject.Value is null && string.IsNullOrWhiteSpace(searchText.Value)) || isFetching.Value)
+                    .Disabled(!HasAnyFilter() || isFetching.Value)
                     .OnClick(async () => await FetchIssues())
                 | (error.Value is { } e ? Text.Danger(e).Small() : null)
                 | issuesPanel
@@ -299,7 +414,7 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
                     .Disabled(selectedIssueIds.Value.Count == 0 || issues.Value is null)
                     .OnClick(async () => await ImportSelected())
             )
-        ).Width(Size.Rem(42));
+        ).Width(Size.Rem(48));
     }
 
     private static string SanitizeFileName(string title)
@@ -314,6 +429,12 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
 internal record LinearTeamInfo(string Id, string Name, string Key);
 
 internal record LinearProjectInfo(string Id, string Name);
+
+internal record LinearUserInfo(string Id, string DisplayName);
+
+internal record LinearLabelInfo(string Id, string Name);
+
+internal record LinearStateInfo(string Id, string Name, string Type);
 
 internal record LinearIssueInfo(
     string Id,

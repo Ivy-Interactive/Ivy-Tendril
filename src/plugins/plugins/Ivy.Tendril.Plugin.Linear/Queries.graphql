@@ -55,6 +55,39 @@ query GetProjects {
   }
 }
 
+query GetUsers {
+  users(first: 100) {
+    nodes {
+      id
+      name
+      displayName
+    }
+  }
+}
+
+query GetIssueLabels {
+  issueLabels(first: 250) {
+    nodes {
+      id
+      name
+    }
+  }
+}
+
+query GetWorkflowStates {
+  workflowStates(first: 100) {
+    nodes {
+      id
+      name
+      type
+      team {
+        id
+        name
+      }
+    }
+  }
+}
+
 query GetIssues($first: Int, $after: String, $filter: IssueFilter) {
   issues(first: $first, after: $after, filter: $filter) {
     nodes {
