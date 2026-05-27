@@ -365,6 +365,7 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
             new DialogBody(
                 Layout.Vertical().Gap(3)
                 | selectedRepo.ToSelectInput(repositoryOptions.ToOptions())
+                    .Placeholder("Select repository...")
                     .WithField().Label("Repository").Required()
                 | searchQuery.ToTextInput().Placeholder("Search titles and descriptions").WithField().Label("Search")
                 | selectedAssignees.ToSelectInput(assigneeOptions.Value.ToOptions())
