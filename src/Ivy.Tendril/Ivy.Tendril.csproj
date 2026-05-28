@@ -95,8 +95,7 @@
   <!-- Tendril ProjectReferences -->
   <ItemGroup>
     <ProjectReference Include="../Ivy.Tendril.Agents/Ivy.Tendril.Agents.csproj" />
-    <ProjectReference Include="../Ivy.Widgets.AgentOutputView/Ivy.Widgets.AgentOutputView.csproj" />
-    <ProjectReference Include="../Ivy.Widgets.TendrilProcessView/Ivy.Widgets.TendrilProcessView.csproj" />
+    <ProjectReference Include="../Ivy.Tendril.Widgets/Ivy.Tendril.Widgets.csproj" />
   </ItemGroup>
 
   <ItemGroup>
