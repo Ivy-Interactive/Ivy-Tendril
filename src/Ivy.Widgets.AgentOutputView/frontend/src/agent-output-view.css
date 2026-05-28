@@ -336,11 +336,10 @@
   background: var(--aov-bg-deep);
   border-radius: 4px;
   padding: 8px 10px;
-  overflow-x: auto;
+  overflow: hidden;
   font-size: 12px;
   color: var(--aov-fg);
-  white-space: pre-wrap;
-  word-break: break-word;
+  white-space: pre;
 }
 
 .aov-tool-pre code {
