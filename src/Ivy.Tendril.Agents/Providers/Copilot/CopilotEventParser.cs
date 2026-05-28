@@ -182,12 +182,22 @@ public sealed class CopilotEventParser : IEventParser
                 if (string.Equals(toolName, "report_intent", StringComparison.OrdinalIgnoreCase))
                     continue;
 
+                string? description = null;
+                if (parameters is not null)
+                {
+                    using var paramDoc = JsonDocument.Parse(parameters);
+                    if (paramDoc.RootElement.TryGetProperty("description", out var descProp) &&
+                        descProp.ValueKind == JsonValueKind.String)
+                        description = descProp.GetString();
+                }
+
                 events.Add(new ToolCallEvent
                 {
                     Kind = AgentEventKind.ToolCall,
                     ToolUseId = toolCallId,
                     ToolName = toolName,
                     InputJson = parameters,
+                    Description = description,
                     RawLine = rawLine,
                 });
             }
