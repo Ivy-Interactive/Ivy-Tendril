@@ -61,6 +61,8 @@ query GetUsers {
       id
       name
       displayName
+      active
+      app
     }
   }
 }

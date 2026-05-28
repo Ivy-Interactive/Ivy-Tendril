@@ -58,6 +58,7 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
                 if (result.Errors is { Count: > 0 } errors)
                     throw new Exception(errors[0].Message);
                 return result.Data!.Users.Nodes
+                    .Where(u => u.Active && !u.App)
                     .Select(u => new LinearUserInfo(u.Id, u.DisplayName))
                     .ToList();
             },

@@ -1567,11 +1567,13 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL
     [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
     public partial class GetUsers_Users_Nodes_User : global::System.IEquatable<GetUsers_Users_Nodes_User>, IGetUsers_Users_Nodes_User
     {
-        public GetUsers_Users_Nodes_User(global::System.String id, global::System.String name, global::System.String displayName)
+        public GetUsers_Users_Nodes_User(global::System.String id, global::System.String name, global::System.String displayName, global::System.Boolean active, global::System.Boolean app)
         {
             Id = id;
             Name = name;
             DisplayName = displayName;
+            Active = active;
+            App = app;
         }
 
         /// <summary>
@@ -1586,6 +1588,14 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL
         /// The user's display (nick) name. Must be unique within the workspace.
         /// </summary>
         public global::System.String DisplayName { get; }
+        /// <summary>
+        /// Whether the user account is active or disabled (suspended).
+        /// </summary>
+        public global::System.Boolean Active { get; }
+        /// <summary>
+        /// Whether the user is an app.
+        /// </summary>
+        public global::System.Boolean App { get; }
 
         public virtual global::System.Boolean Equals(GetUsers_Users_Nodes_User? other)
         {
@@ -1604,7 +1614,7 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL
                 return false;
             }
 
-            return (Id.Equals(other.Id)) && Name.Equals(other.Name) && DisplayName.Equals(other.DisplayName);
+            return (Id.Equals(other.Id)) && Name.Equals(other.Name) && DisplayName.Equals(other.DisplayName) && global::System.Object.Equals(Active, other.Active) && global::System.Object.Equals(App, other.App);
         }
 
         public override global::System.Boolean Equals(global::System.Object? obj)
@@ -1635,6 +1645,8 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL
                 hash ^= 397 * Id.GetHashCode();
                 hash ^= 397 * Name.GetHashCode();
                 hash ^= 397 * DisplayName.GetHashCode();
+                hash ^= 397 * Active.GetHashCode();
+                hash ^= 397 * App.GetHashCode();
                 return hash;
             }
         }
@@ -1678,6 +1690,14 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL
         /// The user's display (nick) name. Must be unique within the workspace.
         /// </summary>
         public global::System.String DisplayName { get; }
+        /// <summary>
+        /// Whether the user account is active or disabled (suspended).
+        /// </summary>
+        public global::System.Boolean Active { get; }
+        /// <summary>
+        /// Whether the user is an app.
+        /// </summary>
+        public global::System.Boolean App { get; }
     }
 
     /// <summary>
@@ -56206,6 +56226,8 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL
     ///       id
     ///       name
     ///       displayName
+    ///       active
+    ///       app
     ///       ... on User {
     ///         id
     ///       }
@@ -56223,8 +56245,8 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL
 
         public static GetUsersQueryDocument Instance { get; } = new GetUsersQueryDocument();
         public global::StrawberryShake.OperationKind Kind => global::StrawberryShake.OperationKind.Query;
-        public global::System.ReadOnlySpan<global::System.Byte> Body => "query GetUsers { users(first: 100) { __typename nodes { __typename id name displayName ... on User { id } } } }"u8;
-        public global::StrawberryShake.DocumentHash Hash { get; } = new global::StrawberryShake.DocumentHash("md5Hash", "f484fb8cef3b59c82ff793207897bf0a");
+        public global::System.ReadOnlySpan<global::System.Byte> Body => "query GetUsers { users(first: 100) { __typename nodes { __typename id name displayName active app ... on User { id } } } }"u8;
+        public global::StrawberryShake.DocumentHash Hash { get; } = new global::StrawberryShake.DocumentHash("md5Hash", "0ea1b769b544a4b98b14800232e98571");
 
         public override global::System.String ToString()
         {
@@ -56247,6 +56269,8 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL
     ///       id
     ///       name
     ///       displayName
+    ///       active
+    ///       app
     ///       ... on User {
     ///         id
     ///       }
@@ -56332,6 +56356,8 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL
     ///       id
     ///       name
     ///       displayName
+    ///       active
+    ///       app
     ///       ... on User {
     ///         id
     ///       }
@@ -57208,11 +57234,13 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
     [global::System.CodeDom.Compiler.GeneratedCode("StrawberryShake", "16.0.7.0")]
     public partial class UserEntity
     {
-        public UserEntity(global::System.String id = default !, global::System.String name = default !, global::System.String displayName = default !)
+        public UserEntity(global::System.String id = default !, global::System.String name = default !, global::System.String displayName = default !, global::System.Boolean active = default !, global::System.Boolean app = default !)
         {
             Id = id;
             Name = name;
             DisplayName = displayName;
+            Active = active;
+            App = app;
         }
 
         ///<summary>The unique identifier of the entity.</summary>
@@ -57221,6 +57249,10 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
         public global::System.String Name { get; }
         ///<summary>The user's display (nick) name. Must be unique within the workspace.</summary>
         public global::System.String DisplayName { get; }
+        ///<summary>Whether the user account is active or disabled (suspended).</summary>
+        public global::System.Boolean Active { get; }
+        ///<summary>Whether the user is an app.</summary>
+        public global::System.Boolean App { get; }
     }
 
     ///<summary>Labels that can be associated with issues. Labels help categorize and filter issues across a workspace. They can be workspace-level (shared across all teams) or team-scoped. Labels have a color for visual identification and can be organized hierarchically into groups, where a parent label acts as a group containing child labels. Labels may also be inherited from parent teams to sub-teams.</summary>
@@ -61030,11 +61062,11 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
             {
                 if (session.CurrentSnapshot.TryGetEntity(entityId, out global::Ivy.Tendril.Plugin.Linear.GraphQL.State.UserEntity? entity))
                 {
-                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.UserEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name")), entity.DisplayName));
+                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.UserEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name")), entity.DisplayName, entity.Active, entity.App));
                 }
                 else
                 {
-                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.UserEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name")), default !));
+                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.UserEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name")), default !, default !, default !));
                 }
 
                 return entityId;
@@ -61280,6 +61312,7 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
         private readonly global::StrawberryShake.IEntityIdSerializer _idSerializer;
         private readonly global::StrawberryShake.Serialization.ILeafValueParser<global::System.String, global::System.String> _iDParser;
         private readonly global::StrawberryShake.Serialization.ILeafValueParser<global::System.String, global::System.String> _stringParser;
+        private readonly global::StrawberryShake.Serialization.ILeafValueParser<global::System.Boolean, global::System.Boolean> _booleanParser;
         public GetUsersBuilder(global::StrawberryShake.IEntityStore entityStore, global::StrawberryShake.IEntityIdSerializer idSerializer, global::StrawberryShake.IOperationResultDataFactory<global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetUsersResult> resultDataFactory, global::StrawberryShake.Serialization.ISerializerResolver serializerResolver)
         {
             _entityStore = entityStore ?? throw new global::System.ArgumentNullException(nameof(entityStore));
@@ -61287,6 +61320,7 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
             ResultDataFactory = resultDataFactory ?? throw new global::System.ArgumentNullException(nameof(resultDataFactory));
             _iDParser = serializerResolver.GetLeafValueParser<global::System.String, global::System.String>("ID") ?? throw new global::System.ArgumentException("No serializer for type `ID` found.");
             _stringParser = serializerResolver.GetLeafValueParser<global::System.String, global::System.String>("String") ?? throw new global::System.ArgumentException("No serializer for type `String` found.");
+            _booleanParser = serializerResolver.GetLeafValueParser<global::System.Boolean, global::System.Boolean>("Boolean") ?? throw new global::System.ArgumentException("No serializer for type `Boolean` found.");
         }
 
         protected override global::StrawberryShake.IOperationResultDataFactory<global::Ivy.Tendril.Plugin.Linear.GraphQL.IGetUsersResult> ResultDataFactory { get; }
@@ -61364,11 +61398,11 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
             {
                 if (session.CurrentSnapshot.TryGetEntity(entityId, out global::Ivy.Tendril.Plugin.Linear.GraphQL.State.UserEntity? entity))
                 {
-                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.UserEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "displayName"))));
+                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.UserEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "displayName")), Deserialize_NonNullableBoolean(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "active")), Deserialize_NonNullableBoolean(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "app"))));
                 }
                 else
                 {
-                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.UserEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "displayName"))));
+                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.UserEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "displayName")), Deserialize_NonNullableBoolean(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "active")), Deserialize_NonNullableBoolean(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "app"))));
                 }
 
                 return entityId;
@@ -61390,6 +61424,21 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
             }
 
             return _iDParser.Parse(obj.Value.GetString()!);
+        }
+
+        private global::System.Boolean Deserialize_NonNullableBoolean(global::System.Text.Json.JsonElement? obj)
+        {
+            if (!obj.HasValue)
+            {
+                throw new global::System.ArgumentNullException();
+            }
+
+            if (obj.Value.ValueKind == global::System.Text.Json.JsonValueKind.Null)
+            {
+                throw new global::System.ArgumentNullException();
+            }
+
+            return _booleanParser.Parse(obj.Value.GetBoolean()!);
         }
     }
 
@@ -61930,11 +61979,11 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
             {
                 if (session.CurrentSnapshot.TryGetEntity(entityId, out global::Ivy.Tendril.Plugin.Linear.GraphQL.State.UserEntity? entity))
                 {
-                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.UserEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name")), entity.DisplayName));
+                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.UserEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name")), entity.DisplayName, entity.Active, entity.App));
                 }
                 else
                 {
-                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.UserEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name")), default !));
+                    session.SetEntity(entityId, new global::Ivy.Tendril.Plugin.Linear.GraphQL.State.UserEntity(Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "id")), Deserialize_NonNullableString(global::StrawberryShake.Json.JsonElementExtensions.GetPropertyOrNull(obj, "name")), default !, default !, default !));
                 }
 
                 return entityId;
@@ -62539,7 +62588,7 @@ namespace Ivy.Tendril.Plugin.Linear.GraphQL.State
                 snapshot = _entityStore.CurrentSnapshot;
             }
 
-            return new GetUsers_Users_Nodes_User(entity.Id, entity.Name, entity.DisplayName);
+            return new GetUsers_Users_Nodes_User(entity.Id, entity.Name, entity.DisplayName, entity.Active, entity.App);
         }
     }
 
