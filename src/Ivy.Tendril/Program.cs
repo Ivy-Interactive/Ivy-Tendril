@@ -61,7 +61,8 @@ public class Program
         bool useDesktop = (isTool || forceDesktop) && !forceWeb;
         if (useDesktop && OperatingSystem.IsLinux())
         {
-            if (!forceDesktop && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DISPLAY")))
+            // On Linux, default to web mode (foreground server) unless desktop is explicitly forced
+            if (!forceDesktop)
             {
                 useDesktop = false;
             }
