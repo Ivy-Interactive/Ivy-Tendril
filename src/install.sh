@@ -160,7 +160,6 @@ fi
 
 printf "%b\\n" "\n${GREEN}=== Installation Complete! ===${NC}"
 printf "%b\\n" "You can now run Ivy-Tendril by typing: ${BLUE}tendril${NC}"
-printf "%b\\n" "To launch the GUI, use: ${BLUE}tendril --desktop${NC}"
 
 if ! command -v gh &> /dev/null && ! /usr/local/bin/gh --version &> /dev/null; then
     printf "%b\\n" "${RED}Note: You may need to restart your terminal for 'gh' to be available.${NC}"
