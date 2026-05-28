@@ -35,11 +35,7 @@ Use `/models` inside OpenCode to browse and switch models.
 
 ## Using with Tendril
 
-Set OpenCode as your coding agent in `config.yaml`:
-
-```yaml
-codingAgent: opencode
-```
+Select OpenCode as your coding agent during onboarding, or under **Settings > Configuration > Coding Agent**.
 
 ## Links
 

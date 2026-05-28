@@ -43,11 +43,7 @@ Add models to `opencode.json` for project-level defaults:
 
 ## Using with Tendril
 
-Set OpenCode as your coding agent in `config.yaml`:
-
-```yaml
-codingAgent: opencode
-```
+Select OpenCode as your coding agent during onboarding, or under **Settings > Configuration > Coding Agent**.
 
 ## Links
 

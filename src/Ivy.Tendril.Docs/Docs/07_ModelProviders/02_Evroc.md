@@ -30,11 +30,7 @@ European sovereign cloud provider with open-source coding models including Kimi,
 
 ## Using with Tendril
 
-Set OpenCode as your coding agent in `config.yaml`:
-
-```yaml
-codingAgent: opencode
-```
+Select OpenCode as your coding agent during onboarding, or under **Settings > Configuration > Coding Agent**.
 
 ## Links
 

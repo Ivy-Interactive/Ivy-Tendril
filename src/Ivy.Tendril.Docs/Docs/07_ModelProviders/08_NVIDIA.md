@@ -24,11 +24,7 @@ Access NVIDIA NIM models for coding tasks through the NVIDIA Build platform.
 
 ## Using with Tendril
 
-Set OpenCode as your coding agent in `config.yaml`:
-
-```yaml
-codingAgent: opencode
-```
+Select OpenCode as your coding agent during onboarding, or under **Settings > Configuration > Coding Agent**.
 
 ## Links
 
