@@ -10,6 +10,7 @@ using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Spectre.Console;
 using Spectre.Console.Cli;
 using Velopack;
 
@@ -86,17 +87,30 @@ public class Program
 
             if (ShouldHandleAsCliCommand(firstArg))
             {
-                var cliLog = Environment.GetEnvironmentVariable("TENDRIL_CLI_LOG");
-                if (!string.IsNullOrEmpty(cliLog))
+                try
                 {
-                    var commandLine = string.Join(" ", filteredArgs);
-                    var sw = Stopwatch.StartNew();
-                    var exitCode = app.Run(filteredArgs);
-                    sw.Stop();
-                    JobStatusFile.AppendCliInvocationDirect(cliLog, commandLine, exitCode, sw.Elapsed.TotalMilliseconds);
-                    return exitCode;
+                    var cliLog = Environment.GetEnvironmentVariable("TENDRIL_CLI_LOG");
+                    if (!string.IsNullOrEmpty(cliLog))
+                    {
+                        var commandLine = string.Join(" ", filteredArgs);
+                        var sw = Stopwatch.StartNew();
+                        var exitCode = app.Run(filteredArgs);
+                        sw.Stop();
+                        JobStatusFile.AppendCliInvocationDirect(cliLog, commandLine, exitCode, sw.Elapsed.TotalMilliseconds);
+                        return exitCode;
+                    }
+                    return app.Run(filteredArgs);
                 }
-                return app.Run(filteredArgs);
+                catch (CommandParseException ex)
+                {
+                    AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message.EscapeMarkup()}");
+                    return 1;
+                }
+                catch (CommandRuntimeException ex)
+                {
+                    AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message.EscapeMarkup()}");
+                    return 1;
+                }
             }
         }
 
