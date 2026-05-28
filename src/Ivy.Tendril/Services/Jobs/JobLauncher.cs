@@ -265,7 +265,7 @@ internal class JobLauncher
             SessionId = job.SessionId,
             PermissionMode = PermissionMode.FullAuto,
             AllowedTools = resolution.AllowedTools,
-            WritableDirectories = ResolveWritableDirectories(job.Type),
+            WritableDirectories = ResolveWritableDirectories(job.Type, programFolder),
             ExtraArguments = resolution.ExtraArgs,
             PromptFilePath = promptFilePath,
         };
@@ -458,19 +458,27 @@ internal class JobLauncher
         return workDir;
     }
 
-    private IReadOnlyList<string> ResolveWritableDirectories(string promptwareType)
+    private IReadOnlyList<string> ResolveWritableDirectories(string promptwareType, string promptwareFolder)
     {
         if (_configService == null) return [];
 
-        var dirs = new List<string>();
+        var homeDir = _configService.TendrilHome;
+        var homePrefix = homeDir.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var dirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { homeDir };
 
-        if (PlanWritingTypes.Contains(promptwareType))
-        {
-            dirs.Add(_configService.PlanFolder);
-            dirs.Add(Path.Combine(_configService.TendrilHome, "Trash"));
-        }
+        var planFolder = _configService.PlanFolder;
+        if (!planFolder.StartsWith(homePrefix, StringComparison.OrdinalIgnoreCase))
+            dirs.Add(planFolder);
 
-        return dirs;
+        var memoryDir = Path.Combine(promptwareFolder, "Memory");
+        if (!memoryDir.StartsWith(homePrefix, StringComparison.OrdinalIgnoreCase))
+            dirs.Add(memoryDir);
+
+        var toolsDir = Path.Combine(promptwareFolder, "Tools");
+        if (!toolsDir.StartsWith(homePrefix, StringComparison.OrdinalIgnoreCase))
+            dirs.Add(toolsDir);
+
+        return [.. dirs];
     }
 
     private void SetTendrilEnvironment(ProcessStartInfo psi, JobItem job)
