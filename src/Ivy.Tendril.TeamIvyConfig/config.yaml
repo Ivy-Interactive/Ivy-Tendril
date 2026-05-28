@@ -127,6 +127,29 @@ projects:
     condition: ''
     action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
   buildDependencies: []
+- name: lots-of-dev-tools
+  color: Green
+  meta: {}
+  repos:
+  - path: D:\Tendril\Repos\lots-of-dev-tools
+    prRule: default
+    syncStrategy: fetch
+  verifications:
+  - name: NpmLint
+    required: true
+  - name: NpmBuild
+    required: true
+  - name: NpmTest
+    required: true
+  - name: CheckResult
+    required: true
+  context: ''
+  reviewActions:
+  - name: App
+    condition: Test-Path worktrees\lots-of-dev-tools\package.json
+    command: cd worktrees\lots-of-dev-tools; npm run dev -- --host 127.0.0.1
+  hooks: []
+  buildDependencies: []
 verifications:
 - name: FrameworkDotnetBuild
   prompt: >
