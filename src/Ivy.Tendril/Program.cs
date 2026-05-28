@@ -59,6 +59,13 @@ public class Program
 
         bool isTool = IsTendrilToolInvocation();
         bool useDesktop = (isTool || forceDesktop) && !forceWeb;
+        if (useDesktop && OperatingSystem.IsLinux())
+        {
+            if (!forceDesktop && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DISPLAY")))
+            {
+                useDesktop = false;
+            }
+        }
         bool isDetachedChild = args.Contains(DetachedLaunchMarker);
 
         // Check if we are launching the web server/desktop UI (not executing a CLI subcommand)
