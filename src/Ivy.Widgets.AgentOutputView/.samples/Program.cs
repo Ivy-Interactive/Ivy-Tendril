@@ -6,6 +6,7 @@ server.UseAppShell();
 server.AddApp<PreBufferedDemo>();
 server.AddApp<LiveStreamDemo>();
 server.AddApp<ErrorDemo>();
+server.AddApp<TableOutputDemo>();
 await server.RunAsync();
 
 [App(title: "Pre-buffered", icon: Icons.FileText)]
@@ -83,6 +84,19 @@ class ErrorDemo : ViewBase
     }
 }
 
+[App(title: "Table Output", icon: Icons.Table)]
+class TableOutputDemo : ViewBase
+{
+    public override object Build()
+    {
+        return new AgentOutputView()
+            .JsonStream(SampleData.TableSession)
+            .AutoScroll(false)
+            .ShowStatusLabel(true)
+            .Height(Size.Full());
+    }
+}
+
 static class SampleData
 {
     public static readonly string[] Events =
@@ -126,5 +140,19 @@ static class SampleData
         """{"kind":"tool_result","timestamp":"2026-05-22T10:00:08Z","tool_use_id":"tu_11","output":"CONFLICT (content): Merge conflict in src/index.ts\nerror: could not apply abc1234... feat: add auth\nhint: Resolve all conflicts manually, mark them as resolved with git add","is_error":true}""",
         """{"kind":"error","timestamp":"2026-05-22T10:00:09Z","message":"Rebase failed with merge conflicts that require manual resolution. Cannot proceed automatically.","code":"MERGE_CONFLICT","is_retryable":false,"is_auth_error":false}""",
         """{"kind":"result","timestamp":"2026-05-22T10:00:09Z","response":"Failed to deploy: merge conflicts in src/index.ts need manual resolution.","is_success":false,"duration_ms":9000,"turn_count":3,"usage":{"input_tokens":4200,"output_tokens":890,"cache_read_tokens":2000,"cache_write_tokens":400,"reasoning_tokens":0,"cost_usd":0.0156}}"""
+    );
+
+    public static string TableSession => string.Join("\n",
+        """{"kind":"session_init","timestamp":"2026-05-22T10:00:00Z","session_id":"sess_03","model":"claude-opus-4-6-20250514","tools":["Read","Bash","Glob","Grep"]}""",
+        """{"kind":"text","timestamp":"2026-05-22T10:00:01Z","text":"Let me list the available verifications for this project.","delta":false}""",
+        """{"kind":"tool_call","timestamp":"2026-05-22T10:00:02Z","tool_use_id":"tu_20","tool_name":"Bash","input":{"command":"tendril verification list"}}""",
+        """{"kind":"tool_result","timestamp":"2026-05-22T10:00:03Z","tool_use_id":"tu_20","output":"┌──────────────────────────┬───────────────────────────────────────────────────┐\n│ Name                     │ Prompt                                            │\n├──────────────────────────┼───────────────────────────────────────────────────┤\n│ FrameworkDotnetBuild     │ Run `dotnet build --warnaserror` in the plan's    │\n│                          │ worktree dire...                                  │\n│ DotnetBuild              │ Run `dotnet build --warnaserror` in the plan's    │\n│                          │ worktree dire...                                  │\n│ DotnetTest               │ Run dotnet tests in the plan's worktree directory │\n│                          │ (not the o...                                     │\n│ DotnetFormat             │ Run `dotnet format` in the plan's worktree        │\n│                          │ directory (not th...                              │\n│ FrameworkFrontendLint    │ Run `cd src\\frontend && npm run lint && npm run   │\n│                          │ format:check...                                   │\n│ IvyFrameworkVerification │ Visually verify UI changes by delegating to the   │\n│                          │ IvyFramework...                                   │\n│ CheckResult              │ Verify the implementation matches what was        │\n│                          │ requested in the ...                              │\n│ NewWidgetChecklist       │ Verify all 6 required elements exist for any new  │\n│                          │ widget crea...                                    │\n└──────────────────────────┴───────────────────────────────────────────────────┘","is_error":false}""",
+        """{"kind":"text","timestamp":"2026-05-22T10:00:04Z","text":"Here are the verifications configured for this project. Let me also check the build status.","delta":false}""",
+        """{"kind":"tool_call","timestamp":"2026-05-22T10:00:05Z","tool_use_id":"tu_21","tool_name":"Bash","input":{"command":"dotnet build --warnaserror 2>&1 | tail -5"}}""",
+        """{"kind":"tool_result","timestamp":"2026-05-22T10:00:08Z","tool_use_id":"tu_21","output":"Build succeeded.\n    0 Warning(s)\n    0 Error(s)\n\nTime Elapsed 00:00:03.42","is_error":false}""",
+        """{"kind":"tool_call","timestamp":"2026-05-22T10:00:09Z","tool_use_id":"tu_22","tool_name":"Bash","input":{"command":"dotnet test --no-build 2>&1 | tail -3"}}""",
+        """{"kind":"tool_result","timestamp":"2026-05-22T10:00:12Z","tool_use_id":"tu_22","output":"Failed!  - Failed:     2, Passed:    47, Skipped:     0, Total:    49\n\nTest Run Failed.","is_error":true}""",
+        """{"kind":"text","timestamp":"2026-05-22T10:00:13Z","text":"Build passes but 2 tests are failing. The project has 8 verifications configured covering .NET build, tests, formatting, frontend lint, visual verification, and a new-widget checklist.","delta":false}""",
+        """{"kind":"result","timestamp":"2026-05-22T10:00:13Z","response":"Listed project verifications and ran checks. Build succeeds but 2 tests are failing.","is_success":true,"duration_ms":13000,"turn_count":4,"usage":{"input_tokens":8200,"output_tokens":1800,"cache_read_tokens":5000,"cache_write_tokens":800,"reasoning_tokens":0,"cost_usd":0.0520}}"""
     );
 }

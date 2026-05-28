@@ -182,7 +182,7 @@ export const AgentOutputView: React.FC<AgentOutputViewProps> = ({
               return (
                 <div key={idx} className="aov-result error">
                   <div className="aov-result-header">
-                    <span className="aov-result-title">✗ Error</span>
+                    <span className="aov-result-title">❌ Error</span>
                   </div>
                   <div className="aov-result-body">{event.message}</div>
                 </div>
