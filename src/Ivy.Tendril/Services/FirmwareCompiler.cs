@@ -8,7 +8,7 @@ public static class FirmwareCompiler
     private static readonly Lazy<string?> PlansReference = new(() =>
     {
         var asm = Assembly.GetExecutingAssembly();
-        using var stream = asm.GetManifestResourceStream("Ivy.Tendril.Assets.Plans.md");
+        using var stream = asm.GetManifestResourceStream("Ivy.Tendril.Prompts.Plans.md");
         if (stream == null) return null;
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd();
