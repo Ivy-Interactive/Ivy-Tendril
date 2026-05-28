@@ -1,4 +1,4 @@
-codingAgent: codex
+codingAgent: gemini
 jobTimeout: 30
 staleOutputTimeout: 10
 gitTimeout: 10
@@ -358,6 +358,21 @@ codingAgents:
     effort: ''
     arguments: ''
 - name: copilot
+  arguments: ''
+  profiles:
+  - name: deep
+    model: default
+    effort: ''
+    arguments: ''
+  - name: balanced
+    model: default
+    effort: ''
+    arguments: ''
+  - name: quick
+    model: default
+    effort: ''
+    arguments: ''
+- name: gemini
   arguments: ''
   profiles:
   - name: deep

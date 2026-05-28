@@ -1,53 +1,72 @@
 using Ivy.Tendril.Agents.Abstractions;
 
-namespace Ivy.Tendril.Agents.Providers.Antigravity;
+namespace Ivy.Tendril.Agents.Providers.Gemini;
 
-public sealed class AntigravityCli : IAgentCli
+public sealed class GeminiCli : IAgentCli
 {
-    public string Id => AgentId.Antigravity;
-    public string DisplayName => "Antigravity";
+    public string Id => AgentId.Gemini;
+    public string DisplayName => "Gemini CLI";
 
     public AgentCapabilities Capabilities =>
         AgentCapabilities.StdinPrompt |
+        AgentCapabilities.StreamJsonOutput |
+        AgentCapabilities.ModelSelection |
         AgentCapabilities.DirectoryRestriction |
         AgentCapabilities.HealthCheck |
-        AgentCapabilities.ExtraArgPassthrough |
-        AgentCapabilities.SessionResume;
+        AgentCapabilities.ExtraArgPassthrough;
 
     public TransportKind SupportedTransports => TransportKind.CliSpawn;
     public PromptTransport PromptTransport => PromptTransport.Stdin;
-    public OutputFormat PreferredOutputFormat => OutputFormat.Text;
+    public OutputFormat PreferredOutputFormat => OutputFormat.StreamJson;
 
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles { get; } =
     [
-        new(ProfileTier.Deep, "default", null),
-        new(ProfileTier.Balanced, "default", null),
-        new(ProfileTier.Quick, "default", null),
+        new(ProfileTier.Deep, null, null),
+        new(ProfileTier.Balanced, null, null),
+        new(ProfileTier.Quick, null, null),
     ];
 
     public string? TranslateToolName(string canonicalTool) => null;
 
     public string? ReverseTranslateToolName(string nativeTool) => null;
 
-    public IReadOnlyList<string> ExtractWritableDirectories(IReadOnlyList<string> allowedTools) => [];
+    public IReadOnlyList<string> ExtractWritableDirectories(IReadOnlyList<string> allowedTools)
+    {
+        var dirs = new List<string>();
+        foreach (var tool in allowedTools)
+        {
+            if (tool.StartsWith("dir:", StringComparison.OrdinalIgnoreCase))
+                dirs.Add(tool[4..]);
+        }
+        return dirs;
+    }
 
     public AgentProcessSpec BuildProcessSpec(AgentLaunchConfig config)
     {
         var args = new List<string>
         {
-            "--print",
-            "--dangerously-skip-permissions",
+            "--output-format", "stream-json",
+            "--skip-trust",
+            "--approval-mode",
+            config.PermissionMode switch
+            {
+                PermissionMode.FullAuto => "yolo",
+                PermissionMode.AcceptEdits => "auto_edit",
+                PermissionMode.Plan => "plan",
+                _ => "default"
+            },
+            "--prompt", " ",
         };
 
-        if (!string.IsNullOrEmpty(config.SessionId))
+        if (!string.IsNullOrEmpty(config.Model) && !config.Model.Equals("default", StringComparison.OrdinalIgnoreCase))
         {
-            args.Add("--conversation");
-            args.Add(config.SessionId);
+            args.Add("--model");
+            args.Add(config.Model);
         }
 
         foreach (var dir in config.WritableDirectories)
         {
-            args.Add("--add-dir");
+            args.Add("--include-directories");
             args.Add(dir);
         }
 
@@ -63,7 +82,7 @@ public sealed class AntigravityCli : IAgentCli
 
         return new AgentProcessSpec
         {
-            FileName = "agy",
+            FileName = "gemini",
             Arguments = args,
             WorkingDirectory = config.WorkingDirectory,
             Environment = env,
@@ -77,5 +96,6 @@ public sealed class AntigravityCli : IAgentCli
         {
             ["CI"] = "true",
             ["TERM"] = "dumb",
+            ["GEMINI_CLI_TRUST_WORKSPACE"] = "true",
         };
 }

@@ -3,6 +3,7 @@ using Ivy.Tendril.Agents.Providers.Antigravity;
 using Ivy.Tendril.Agents.Providers.Claude;
 using Ivy.Tendril.Agents.Providers.Codex;
 using Ivy.Tendril.Agents.Providers.Copilot;
+using Ivy.Tendril.Agents.Providers.Gemini;
 using Ivy.Tendril.Agents.Providers.OpenCode;
 using Ivy.Tendril.Agents.Runtime;
 
@@ -23,6 +24,7 @@ public sealed class AgentFixture : IAsyncLifetime
         Runner.Register(new ClaudeCli(), new ClaudeEventParser(), new ClaudeHealthCheck(), new ClaudeFailureAnalyzer(), new ClaudeSessionCostParser(), new ClaudePty());
         Runner.Register(new CodexCli(), new CodexEventParser(), new CodexHealthCheck(), new CodexFailureAnalyzer(), new CodexSessionCostParser(), new CodexPty());
         Runner.Register(new CopilotCli(), new CopilotEventParser(), new CopilotHealthCheck(), new CopilotFailureAnalyzer(), new CopilotSessionCostParser(), new CopilotPty());
+        Runner.Register(new GeminiCli(), new GeminiEventParser(), new GeminiHealthCheck(), new GeminiFailureAnalyzer(), new GeminiSessionCostParser(), new GeminiPty());
         Runner.Register(new OpenCodeCli(), new OpenCodeEventParser(), new OpenCodeHealthCheck(), new OpenCodeFailureAnalyzer(), new OpenCodeSessionCostParser(), new OpenCodePty());
 
         WorkingDirectory = Path.Combine(Path.GetTempPath(), "ivy-agents-e2e", Guid.NewGuid().ToString("N")[..8]);

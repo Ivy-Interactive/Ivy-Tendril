@@ -61,7 +61,32 @@ public class Program
         bool useDesktop = (isTool || forceDesktop) && !forceWeb;
         bool isDetachedChild = args.Contains(DetachedLaunchMarker);
 
-        if (isTool && useDesktop && !isDetachedChild && ShouldDetachDesktopLaunch(filteredArgs))
+        // Check if we are launching the web server/desktop UI (not executing a CLI subcommand)
+        bool isServerLaunch = filteredArgs.Length == 0 || !ShouldHandleAsCliCommand(filteredArgs[0]);
+        if (isServerLaunch && !isDetachedChild)
+        {
+            var checkArgs = new Services.TendrilArgs { Beta = beta, Verbose = verbose, Quiet = quiet };
+            var checkServer = TendrilServer.Create(filteredArgs, checkArgs);
+            if (!checkServer.Args.FindAvailablePort && IsPortInUse(checkServer.Args.Port))
+            {
+                AnsiConsole.MarkupLine($"[red]Error: Port {checkServer.Args.Port} is already in use.[/]");
+                AnsiConsole.MarkupLine("[yellow]Please make sure another instance of Tendril is not already running.[/]");
+                AnsiConsole.MarkupLine("");
+                if (OperatingSystem.IsWindows())
+                {
+                    AnsiConsole.MarkupLine($"To find the process using this port, run: [blue]netstat -ano | findstr :{checkServer.Args.Port}[/]");
+                }
+                else
+                {
+                    AnsiConsole.MarkupLine($"To find the process using this port, run: [blue]lsof -i :{checkServer.Args.Port}[/]");
+                }
+                AnsiConsole.MarkupLine("");
+                AnsiConsole.MarkupLine("To use a different port, set the [green]PORT[/] environment variable (e.g., [green]PORT=5011 tendril[/]).");
+                return 1;
+            }
+        }
+
+        if (isTool && useDesktop && !isDetachedChild && ShouldDetachDesktopLaunch(filteredArgs, verbose))
             return RelaunchDesktopDetached(filteredArgs);
 
         if (isDetachedChild && useDesktop)
@@ -80,7 +105,11 @@ public class Program
                 .AddConsole(options => options.FormatterName = "clean")
                 .AddConsoleFormatter<CleanConsoleFormatter, ConsoleFormatterOptions>());
             cliServices.AddSingleton<IPlanWatcherService, NullPlanWatcherService>();
-            cliServices.AddAgentInfrastructure();
+            cliServices.AddAgentInfrastructure(opts => opts.IncludeBetaProviders = beta);
+
+            var configService = new ConfigService(Microsoft.Extensions.Logging.Abstractions.NullLogger<ConfigService>.Instance);
+            cliServices.AddSingleton<IConfigService>(configService);
+            cliServices.AddSingleton<ConfigService>(configService);
 
             var app = ConfigureCliCommands(cliServices);
             var firstArg = filteredArgs[0];
@@ -161,6 +190,24 @@ public class Program
         var tendrilArgs = new Services.TendrilArgs { Beta = beta, Verbose = verbose, Quiet = quiet };
         var server = TendrilServer.Create(filteredArgs, tendrilArgs);
 
+        if (!server.Args.FindAvailablePort && IsPortInUse(server.Args.Port))
+        {
+            AnsiConsole.MarkupLine($"[red]Error: Port {server.Args.Port} is already in use.[/]");
+            AnsiConsole.MarkupLine("[yellow]Please make sure another instance of Tendril is not already running.[/]");
+            AnsiConsole.MarkupLine("");
+            if (OperatingSystem.IsWindows())
+            {
+                AnsiConsole.MarkupLine($"To find the process using this port, run: [blue]netstat -ano | findstr :{server.Args.Port}[/]");
+            }
+            else
+            {
+                AnsiConsole.MarkupLine($"To find the process using this port, run: [blue]lsof -i :{server.Args.Port}[/]");
+            }
+            AnsiConsole.MarkupLine("");
+            AnsiConsole.MarkupLine("To use a different port, set the [green]PORT[/] environment variable (e.g., [green]PORT=5011 tendril[/]).");
+            return 1;
+        }
+
         if (useDesktop)
         {
             var iconResource = OperatingSystem.IsWindows() ? "Ivy.Tendril.Assets.icon.ico"
@@ -224,6 +271,8 @@ public class Program
             Environment.SetEnvironmentVariable("TENDRIL_VERBOSE", "1");
         if (quiet)
             Environment.SetEnvironmentVariable("TENDRIL_QUIET", "1");
+        if (beta)
+            Environment.SetEnvironmentVariable("TENDRIL_BETA", "1");
 
         var filtered = args.Where(a =>
             a != "--desktop" && a != "--web" &&
@@ -244,15 +293,15 @@ public class Program
             "update-promptwares", "job", "plan", "promptware",
             "trash", "verification", "project", "models",
             "version", "--version", "report-bug", "reset", "update",
-            "--help", "-h"
+            "--help", "-h", "run"
         };
         return cliCommands.Contains(firstArg);
     }
 
-    private static bool ShouldDetachDesktopLaunch(string[] filteredArgs)
+    private static bool ShouldDetachDesktopLaunch(string[] filteredArgs, bool verbose)
     {
-        // Detach only for desktop startup and not for CLI commands.
-        return filteredArgs.Length == 0;
+        // Detach only for desktop startup, not for CLI commands, and NOT if verbose logging is requested.
+        return filteredArgs.Length == 0 && !verbose;
     }
 
     private static bool IsTendrilToolInvocation()
@@ -314,6 +363,10 @@ public class Program
             // Doctor command
             config.AddCommand<DoctorCliCommand>("doctor")
                 .WithDescription("System health check");
+
+            // Run command
+            config.AddCommand<RunCommand>("run")
+                .WithDescription("Run the Tendril web server in the foreground");
 
             // Database commands
             config.AddCommand<DbVersionCommand>("db-version")
@@ -563,5 +616,20 @@ public class Program
             window.SetBadgeCount(activeJobs);
         else
             window.ClearBadge();
+    }
+
+    private static bool IsPortInUse(int port)
+    {
+        try
+        {
+            var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, port);
+            listener.Start();
+            listener.Stop();
+            return false;
+        }
+        catch
+        {
+            return true;
+        }
     }
 }

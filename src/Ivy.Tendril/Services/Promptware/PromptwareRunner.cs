@@ -214,8 +214,8 @@ private readonly IConfigService _configService;
                 outputLines.Add(stderrLine);
                 if (parser != null)
                 {
-                    var evt = new TextEvent { Kind = AgentEventKind.Text, Text = stderrLine };
-                    stream.Write(serializer.Serialize(evt));
+                    foreach (var evt in parser.ParseLine(stderrLine))
+                        stream.Write(serializer.Serialize(evt));
                 }
                 else
                 {
