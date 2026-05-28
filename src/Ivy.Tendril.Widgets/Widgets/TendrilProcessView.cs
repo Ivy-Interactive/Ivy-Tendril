@@ -5,10 +5,10 @@ using Ivy.Core.ExternalWidgets;
 namespace Ivy.Widgets.TendrilProcessView;
 
 [ExternalWidget(
-    "frontend/dist/Ivy_Widget_TendrilProcessView.js",
-    StylePath = "frontend/dist/ivy-widget-tendrilprocessview.css",
+    "Widgets/frontend/dist/ivy-tendril-widgets.js",
+    StylePath = "Widgets/frontend/dist/ivy-tendril-widgets.css",
     ExportName = "TendrilProcessView",
-    GlobalName = "Ivy_Widget_TendrilProcessView"
+    GlobalName = "IvyTendrilWidgets"
 )]
 public record TendrilProcessView : WidgetBase<TendrilProcessView>
 {

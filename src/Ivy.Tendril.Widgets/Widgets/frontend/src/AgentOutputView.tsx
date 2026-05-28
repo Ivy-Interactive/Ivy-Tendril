@@ -3,7 +3,7 @@ import Markdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
 import "./agent-output-view.css";
-import type { EventHandler, PresentationEvent } from "./types";
+import type { EventHandler, PresentationEvent } from "./agent-output-types";
 import { getHeight, getWidth } from "./styles";
 import { useAutoScroll } from "./use-auto-scroll";
 import { parseEventWireStream } from "./parse-events";

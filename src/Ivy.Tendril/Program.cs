@@ -81,7 +81,7 @@ public class Program
                     AnsiConsole.MarkupLine($"To find the process using this port, run: [blue]lsof -i :{checkServer.Args.Port}[/]");
                 }
                 AnsiConsole.MarkupLine("");
-                AnsiConsole.MarkupLine("To use a different port, set the [green]PORT[/] environment variable (e.g., [green]PORT=5011 tendril[/]).");
+                AnsiConsole.MarkupLine("To use a different port, set the [green]PORT[/] environment variable (e.g., [green]PORT=5011 tendril[/]) or specify it directly (e.g., [green]tendril --port 5011[/]).");
                 return 1;
             }
         }
@@ -204,7 +204,7 @@ public class Program
                 AnsiConsole.MarkupLine($"To find the process using this port, run: [blue]lsof -i :{server.Args.Port}[/]");
             }
             AnsiConsole.MarkupLine("");
-            AnsiConsole.MarkupLine("To use a different port, set the [green]PORT[/] environment variable (e.g., [green]PORT=5011 tendril[/]).");
+            AnsiConsole.MarkupLine("To use a different port, set the [green]PORT[/] environment variable (e.g., [green]PORT=5011 tendril[/]) or specify it directly (e.g., [green]tendril --port 5011[/]).");
             return 1;
         }
 
