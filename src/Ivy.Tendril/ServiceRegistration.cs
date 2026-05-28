@@ -12,7 +12,7 @@ namespace Ivy.Tendril;
 
 internal static class ServiceRegistration
 {
-    public static void AddTendrilServices(this Server server, ConfigService configService)
+    public static void AddTendrilServices(this Server server, ConfigService configService, TendrilArgs? tendrilArgs = null)
     {
         server.Services.AddHttpClient();
         server.Services.AddSingleton<IExceptionHandler>(sp =>
@@ -28,7 +28,10 @@ internal static class ServiceRegistration
         if (configService.Settings.Auth != null)
             server.UseAuth<Auth.TendrilAuthProvider>();
 
-        server.Services.AddAgentInfrastructure();
+        server.Services.AddAgentInfrastructure(opts =>
+        {
+            opts.IncludeBetaProviders = tendrilArgs?.Beta ?? false;
+        });
 
         server.Services.AddSingleton<ModelPricingService>();
 

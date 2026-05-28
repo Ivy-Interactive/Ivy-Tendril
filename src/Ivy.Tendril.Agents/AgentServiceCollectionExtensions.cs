@@ -16,6 +16,7 @@ public sealed class AgentInfrastructureOptions
     public IInteractionHandler? DefaultInteractionHandler { get; set; }
     public IEnumerable<ModelPricing> AdditionalPricing { get; set; } = [];
     public ConcurrencyOptions? Concurrency { get; set; }
+    public bool IncludeBetaProviders { get; set; }
 }
 
 public static class AgentServiceCollectionExtensions
@@ -41,14 +42,17 @@ public static class AgentServiceCollectionExtensions
         {
             var logger = sp.GetService<ILogger<AgentRunner>>() ?? NullLogger<AgentRunner>.Instance;
             var runner = new AgentRunner(logger, options.Concurrency);
-            runner.Register(
-                new AntigravityCli(),
-                new AntigravityEventParser(),
-                new AntigravityHealthCheck(),
-                new AntigravityFailureAnalyzer(),
-                new AntigravitySessionCostParser(),
-                new AntigravityPty(),
-                new AntigravityModelCatalog());
+            if (options.IncludeBetaProviders)
+            {
+                runner.Register(
+                    new AntigravityCli(),
+                    new AntigravityEventParser(),
+                    new AntigravityHealthCheck(),
+                    new AntigravityFailureAnalyzer(),
+                    new AntigravitySessionCostParser(),
+                    new AntigravityPty(),
+                    new AntigravityModelCatalog());
+            }
             runner.Register(
                 new ClaudeCli(),
                 new ClaudeEventParser(),
