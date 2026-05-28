@@ -28,6 +28,7 @@ export interface ToolCallWire {
   timestamp: string;
   tool_use_id: string;
   tool_name: string;
+  description?: string;
   input?: Record<string, unknown>;
 }
 
@@ -130,6 +131,7 @@ export type EventWire =
 export interface ToolUsePresentation {
   toolUseId: string;
   name: string;
+  description?: string;
   input: Record<string, unknown>;
   result?: string;
   isError?: boolean;

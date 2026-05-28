@@ -54,6 +54,7 @@ export function parseEventWireStream(jsonStream: string): PresentationEvent[] {
         const tool: ToolUsePresentation = {
           toolUseId: evt.tool_use_id,
           name: evt.tool_name,
+          description: evt.description,
           input: evt.input ?? {},
         };
         toolMap.set(evt.tool_use_id, tool);

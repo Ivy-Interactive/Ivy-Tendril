@@ -2,6 +2,7 @@ import React, { useState } from "react";
 
 interface ToolCall {
   name: string;
+  description?: string;
   input: Record<string, unknown>;
   result?: string;
   isError?: boolean;
@@ -24,8 +25,11 @@ function displayInput(name: string, input: Record<string, unknown>): string {
   return JSON.stringify(input, null, 2);
 }
 
-function inputSummary(name: string, input: Record<string, unknown>): string {
-  if (name === "Bash" && typeof input.command === "string") return input.command;
+function inputSummary(tool: ToolCall): string {
+  if (tool.description) return tool.description;
+  const { input } = tool;
+  if (typeof input.description === "string") return input.description;
+  if (typeof input.command === "string") return input.command;
   if (typeof input.file_path === "string") return input.file_path;
   if (typeof input.path === "string") return input.path;
   if (typeof input.pattern === "string") return input.pattern;
@@ -63,7 +67,7 @@ export const ToolUseCard: React.FC<ToolUseCardProps> = ({ tool }) => {
 
   const handleToggle = () => setOpen((o) => !o);
 
-  const summary = inputSummary(tool.name, tool.input);
+  const summary = inputSummary(tool);
   let headerPreview = summary || "";
   if (tool.result != null && tool.result.length > 0) {
     const firstLine = tool.result.split("\n")[0].slice(0, 80);
