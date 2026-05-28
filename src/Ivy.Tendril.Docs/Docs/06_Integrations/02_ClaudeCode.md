@@ -22,14 +22,14 @@ Set Claude Code as your coding agent in `config.yaml`:
 codingAgent: claude
 ```
 
-Or select it in **Settings > General > Coding Agent**.
+Or select it in **Settings > Coding Agent**.
 
 For more details on `config.yaml` structure and settings, see [Setup & Settings](../03_Configuration/01_Setup.md).
 
 ## Requirements
 
-- The Claude CLI must be installed and available as `claude` on your PATH
-- Run `claude` once to complete authentication before using Tendril
+- The Claude CLI must be installed and available as `claude` on your PATH (`npm install -g @anthropic-ai/claude-code`)
+- Run `claude login` to authenticate before using Tendril
 
 ## Profiles
 
@@ -37,8 +37,8 @@ Tendril maps effort levels to Claude models:
 
 | Profile | Model | Use Case |
 |---------|-------|----------|
-| `deep` | Opus | Complex multi-file changes, architecture work |
-| `balanced` | Sonnet | Standard plan execution, most tasks |
-| `quick` | Haiku | Simple fixes, formatting, small edits |
+| `deep` | opus | Complex multi-file changes, architecture work |
+| `balanced` | sonnet | Standard plan execution, most tasks |
+| `quick` | haiku | Simple fixes, formatting, small edits |
 
 The profile is selected automatically based on the plan's complexity level, or can be configured per promptware in `config.yaml`.
