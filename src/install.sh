@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # Ivy-Tendril macOS & Linux Installer
 # This script installs .NET 10 SDK, GitHub CLI, and Ivy-Tendril.
@@ -13,20 +13,21 @@ NC='\033[0m' # No Color
 printf "%b\\n" "${BLUE}=== Ivy-Tendril Installer (macOS/Linux) ===${NC}"
 
 OS_TYPE="unknown"
-if [[ "$OSTYPE" == "darwin"* ]]; then
+UNAME_S=$(uname -s)
+if [ "$UNAME_S" = "Darwin" ]; then
     OS_TYPE="macos"
-elif [[ "$OSTYPE" == "linux-gnu"* ]] || [[ "$OSTYPE" == "linux"* ]]; then
+elif [ "$UNAME_S" = "Linux" ]; then
     OS_TYPE="linux"
 else
-    printf "%b\\n" "${RED}Error: Unsupported operating system: $OSTYPE${NC}"
+    printf "%b\\n" "${RED}Error: Unsupported operating system: $UNAME_S${NC}"
     exit 1
 fi
 
 ARCH=$(uname -m)
-if [[ "$ARCH" == "arm64" ]] || [[ "$ARCH" == "aarch64" ]]; then
+if [ "$ARCH" = "arm64" ] || [ "$ARCH" = "aarch64" ]; then
     printf "%b\\n" "Detected Architecture: ARM64"
     GH_ARCH="arm64"
-elif [[ "$ARCH" == "x86_64" ]] || [[ "$ARCH" == "amd64" ]]; then
+elif [ "$ARCH" = "x86_64" ] || [ "$ARCH" = "amd64" ]; then
     printf "%b\\n" "Detected Architecture: x64"
     GH_ARCH="amd64"
 else
@@ -35,7 +36,7 @@ else
 fi
 
 printf "%b\\n" "\n${BLUE}Step 1: Checking for .NET 10 SDK...${NC}"
-if command -v dotnet &> /dev/null && dotnet --version | grep -q "^10\."; then
+if command -v dotnet > /dev/null 2>&1 && dotnet --version | grep -q "^10\."; then
     printf "%b\\n" "${GREEN}✓ .NET 10 SDK is already installed.${NC}"
 else
     printf "%b\\n" "Installing .NET 10 SDK..."
@@ -48,8 +49,8 @@ else
 fi
 
 printf "%b\n" "\n${BLUE}Step 2: Trusting .NET dev certificates...${NC}"
-if [[ "$OS_TYPE" == "macos" ]]; then
-    if dotnet dev-certs https --check --trust &> /dev/null; then
+if [ "$OS_TYPE" = "macos" ]; then
+    if dotnet dev-certs https --check --trust > /dev/null 2>&1; then
         printf "%b\n" "${GREEN}✓ .NET dev certificate is already trusted.${NC}"
     else
         printf "%b\n" "Generating and trusting .NET dev certificate..."
@@ -57,7 +58,7 @@ if [[ "$OS_TYPE" == "macos" ]]; then
         printf "%b\n" "${GREEN}✓ .NET dev certificate trusted successfully.${NC}"
     fi
 else
-    if dotnet dev-certs https --check &> /dev/null; then
+    if dotnet dev-certs https --check > /dev/null 2>&1; then
         printf "%b\n" "${GREEN}✓ .NET dev certificate is already generated.${NC}"
     else
         printf "%b\n" "Generating .NET dev certificate..."
@@ -69,10 +70,10 @@ else
 fi
 
 printf "%b\\n" "\n${BLUE}Step 3: Checking for Git...${NC}"
-if command -v git &> /dev/null && git --version &> /dev/null; then
+if command -v git > /dev/null 2>&1 && git --version > /dev/null 2>&1; then
     printf "%b\\n" "${GREEN}✓ Git is already installed.${NC}"
 else
-    if [[ "$OS_TYPE" == "macos" ]]; then
+    if [ "$OS_TYPE" = "macos" ]; then
         printf "%b\\n" "Installing Git (via Xcode Command Line Tools)..."
         xcode-select --install
         printf "%b\\n" "${RED}Please complete the GUI installation prompt, then run this script again.${NC}"
@@ -84,7 +85,7 @@ else
 fi
 
 printf "%b\\n" "\n${BLUE}Step 4: Checking for GitHub CLI (gh)...${NC}"
-if command -v gh &> /dev/null; then
+if command -v gh > /dev/null 2>&1; then
     printf "%b\\n" "${GREEN}✓ GitHub CLI is already installed.${NC}"
 else
     printf "%b\\n" "Installing GitHub CLI (gh)..."
@@ -94,7 +95,7 @@ else
     
     GH_TEMP=$(mktemp -d)
     
-    if [[ "$OS_TYPE" == "macos" ]]; then
+    if [ "$OS_TYPE" = "macos" ]; then
         GH_FILE="gh_${GH_VERSION}_macOS_${GH_ARCH}.zip"
         printf "%b\\n" "Downloading gh ${GH_VERSION}..."
         curl -sSL -o "$GH_TEMP/$GH_FILE" "https://github.com/cli/cli/releases/download/${LATEST_GH}/${GH_FILE}"
@@ -118,7 +119,7 @@ else
 fi
 
 printf "%b\\n" "\n${BLUE}Step 5: Checking for PowerShell (pwsh)...${NC}"
-if command -v pwsh &> /dev/null || dotnet tool list -g | grep -qi "powershell"; then
+if command -v pwsh > /dev/null 2>&1 || dotnet tool list -g | grep -qi "powershell"; then
     printf "%b\\n" "${GREEN}✓ PowerShell is already installed.${NC}"
 else
     printf "%b\\n" "Installing PowerShell (pwsh)..."
@@ -144,20 +145,23 @@ printf "%b\\n" "\n${BLUE}Step 7: Configuring PATH...${NC}"
 DOTNET_TOOLS_PATH="$HOME/.dotnet/tools"
 SHELL_PROFILE=""
 
-if [[ "$SHELL" == *"zsh"* ]]; then
-    SHELL_PROFILE="$HOME/.zshrc"
-elif [[ "$SHELL" == *"bash"* ]]; then
-    if [[ -f "$HOME/.bash_profile" ]]; then
-        SHELL_PROFILE="$HOME/.bash_profile"
-    else
-        SHELL_PROFILE="$HOME/.bashrc"
-    fi
-fi
+case "$SHELL" in
+    *zsh*)
+        SHELL_PROFILE="$HOME/.zshrc"
+        ;;
+    *bash*)
+        if [ -f "$HOME/.bash_profile" ]; then
+            SHELL_PROFILE="$HOME/.bash_profile"
+        else
+            SHELL_PROFILE="$HOME/.bashrc"
+        fi
+        ;;
+esac
 
-if [[ -n "$SHELL_PROFILE" ]]; then
+if [ -n "$SHELL_PROFILE" ]; then
     if ! grep -q -E "(\.dotnet/tools|DOTNET_ROOT/tools)" "$SHELL_PROFILE"; then
         printf "%b\\n" "Adding .NET environment variables to $SHELL_PROFILE"
-        if [[ -f "$HOME/.dotnet/dotnet" ]]; then
+        if [ -f "$HOME/.dotnet/dotnet" ]; then
             printf "%b\n" "\n# .NET SDK & Tools\nexport DOTNET_ROOT=\"\$HOME/.dotnet\"\nexport PATH=\"\$DOTNET_ROOT:\$HOME/.dotnet/tools:\$PATH\"" >> "$SHELL_PROFILE"
         else
             printf "%b\n" "\n# .NET Tools\nexport PATH=\"\$HOME/.dotnet/tools:\$PATH\"" >> "$SHELL_PROFILE"
@@ -173,6 +177,6 @@ fi
 printf "%b\\n" "\n${GREEN}=== Installation Complete! ===${NC}"
 printf "%b\\n" "You can now run Ivy-Tendril by typing: ${BLUE}tendril${NC}"
 
-if ! command -v gh &> /dev/null && ! /usr/local/bin/gh --version &> /dev/null; then
+if ! command -v gh > /dev/null 2>&1 && ! /usr/local/bin/gh --version > /dev/null 2>&1; then
     printf "%b\\n" "${RED}Note: You may need to restart your terminal for 'gh' to be available.${NC}"
 fi
