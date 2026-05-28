@@ -16,6 +16,8 @@ The firmware header contains these key values:
 - **TendrilProject** — selected project name, or `Auto` if not specified
 - **Force** (optional) — if `true`, skip duplicate detection entirely (see Step 3)
 - **SourcePath** (optional) — absolute path to the source that generated this plan (e.g. test working directory)
+- **SourceUrl** (optional) — pre-extracted source URL from the inbox frontmatter (e.g. GitHub issue URL, Linear URL)
+- **SourceIdentifier** (optional) — pre-extracted short identifier from the inbox frontmatter (e.g. `#123`, `IVY-456`)
 - **TendrilJobId** — your job ID for status reporting (use this literal value in `tendril job status` commands)
 - **TendrilHome** — the Tendril home directory (use for Trash path: `<TendrilHome>/Trash/`)
 
@@ -28,7 +30,7 @@ Project information (repos, verifications, context) is in the **Projects** secti
 
 The `TaskDescription` header value contains the user's task description. If it references related plans with `[number]` syntax (e.g. `[01205]`), find and read those plan files from `TendrilPlansFolder` for context.
 
-**Extract Source URL**: Check if the task description contains a GitHub PR URL (`https://github.com/{owner}/{repo}/pull/{number}`) or issue URL (`https://github.com/{owner}/{repo}/issues/{number}`). If found, store it as `sourceUrl` in plan.yaml. Use `gh pr view <url> --json title,body` or `gh issue view <url> --json title,body` to fetch the title and body for additional context when writing the plan.
+**Extract Source URL**: If `SourceUrl` and/or `SourceIdentifier` are present in the firmware header, use them directly (pass via `--source-url` and `--source-identifier` on `tendril plan create`). Otherwise, check if the task description contains a GitHub PR URL (`https://github.com/{owner}/{repo}/pull/{number}`) or issue URL (`https://github.com/{owner}/{repo}/issues/{number}`). If found, store it as `sourceUrl` in plan.yaml and derive `sourceIdentifier` as `#<number>`. Use `gh pr view <url> --json title,body` or `gh issue view <url> --json title,body` to fetch the title and body for additional context when writing the plan.
 
 **Format screenshot paths**: If the task description contains file paths to images (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`), include them in the plan revision as markdown images using `file:///` URLs. Convert backslashes to forward slashes. Example: a path like `D:\Screenshots\2026-05-07_17-16.png` in the description becomes `![screenshot](file:///D:/Screenshots/2026-05-07_17-16.png)` in the revision.
 
@@ -187,7 +189,8 @@ Plan created: <ID>-<SafeTitle>
 Parse `PlanId` and `Directory` from the output — use these for all subsequent operations.
 
 Include optional flags as needed:
-- `--source-url "<url>"` — if a source URL was extracted in Step 1
+- `--source-url "<url>"` — if a source URL was extracted or provided via firmware header in Step 1
+- `--source-identifier "<id>"` — if a source identifier was extracted or provided via firmware header in Step 1 (e.g. `#123`, `IVY-456`)
 - `--related-plan "<folder-name>"` — for each plan referenced via `[number]` syntax in the task description
 - `--depends-on "<folder-name>"` — for blocking dependencies (see Section 4.4)
 - `--priority <number>` — if non-default priority

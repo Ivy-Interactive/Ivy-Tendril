@@ -11,7 +11,8 @@ Create GitHub pull requests and apply PR rules.
 The firmware header contains:
 - **TendrilPlanFolder** — path to the plan folder
 - **CurrentTime** — current UTC timestamp
-- **SourceUrl** — (optional) GitHub issue or PR URL from plan.yaml
+- **SourceUrl** — (optional) source URL from plan.yaml (GitHub issue/PR, Linear issue, or other tracker)
+- **SourceIdentifier** — (optional) short identifier from plan.yaml (e.g. `#123`, `IVY-456`)
 
 The plan structure and CLI commands are in the **Reference Documents** section of your firmware.
 Project configuration (repos, `prRule` settings) is available from the firmware header.
@@ -86,20 +87,25 @@ EOF
   3. If configured, use that value
   4. Otherwise, auto-detect via: `gh repo view <owner/repo> --json defaultBranchRef -q .defaultBranchRef.name`
 - **Title:** `[<planId>] <plan title>`
-- **Body:** 
+- **Body:**
   1. **If SourceUrl is present in firmware header** and it's a GitHub issue URL (format: `https://github.com/owner/repo/issues/NUMBER`), prepend `Fixes #NUMBER\n\n` to the body
-  2. If `<TendrilPlanFolder>/Artifacts/summary.md` exists, use its content as the PR body (after the issue link)
-  3. Otherwise, fall back to summary from Problem + Solution sections
-  4. Append commit list
-  5. If `$artifactMarkdown` from step 2.5 is non-empty, append it under an `## Artifacts` heading
+  2. **Otherwise, if SourceUrl is present** (non-GitHub URL, e.g. Linear), prepend `Fixes [<SourceIdentifier>](<SourceUrl>)\n\n` (or `Fixes <SourceUrl>\n\n` if no identifier)
+  3. If `<TendrilPlanFolder>/Artifacts/summary.md` exists, use its content as the PR body (after the issue link)
+  4. Otherwise, fall back to summary from Problem + Solution sections
+  5. Append commit list
+  6. If `$artifactMarkdown` from step 2.5 is non-empty, append it under an `## Artifacts` heading
 
   **Issue linking logic:**
   ```bash
-  # Extract issue number from SourceUrl (if present in firmware header)
+  # Build issue link from firmware header values
   issueLink=""
   if [[ -n "$SOURCE_URL" && "$SOURCE_URL" =~ github\.com/.*/issues/([0-9]+) ]]; then
     issueNumber="${BASH_REMATCH[1]}"
     issueLink="Fixes #${issueNumber}\n\n"
+  elif [[ -n "$SOURCE_URL" && -n "$SOURCE_IDENTIFIER" ]]; then
+    issueLink="Fixes [${SOURCE_IDENTIFIER}](${SOURCE_URL})\n\n"
+  elif [[ -n "$SOURCE_URL" ]]; then
+    issueLink="Fixes ${SOURCE_URL}\n\n"
   fi
 
   # Construct body with issue link prepended
