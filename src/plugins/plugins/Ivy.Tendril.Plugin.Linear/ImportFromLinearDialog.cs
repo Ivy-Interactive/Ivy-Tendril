@@ -351,18 +351,40 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
                 var rows = issueList.Select(issue =>
                 {
                     var isSelected = selectedIssueIds.Value.Contains(issue.Id);
+
+                    var bodyContent = Layout.Vertical().Gap(2);
+
+                    bodyContent |= string.IsNullOrWhiteSpace(issue.Description)
+                        ? Text.Muted("No description provided.")
+                        : Text.Block(TruncateBody(issue.Description));
+
+                    bodyContent |= Layout.Horizontal().Gap(2).AlignContent(Align.TopLeft).Wrap()
+                        | new Badge(issue.StateName).Variant(BadgeVariant.Outline).Small()
+                        | new Badge(issue.PriorityLabel).Variant(BadgeVariant.Outline).Small();
+
+                    if (issue.Labels.Count > 0)
+                    {
+                        bodyContent |= Layout.Horizontal().Gap(2).AlignContent(Align.TopLeft).Wrap()
+                            | Text.Muted("Labels:")
+                            | issue.Labels.Select(label => new Badge(label).Variant(BadgeVariant.Outline).Small())
+                                .Cast<object>().ToArray();
+                    }
+
+                    if (issue.AssigneeName is { } assignee)
+                    {
+                        bodyContent |= Layout.Horizontal().Gap(2)
+                            | Text.Muted("Assignee:")
+                            | Text.Block(assignee);
+                    }
+
                     return (object)(Layout.Horizontal().Gap(2).AlignContent(Align.Center).Width(Size.Full())
                         | new Button()
                             .Icon(isSelected ? Icons.Check : Icons.Square)
                             .Ghost().Small()
                             .Width(Size.Shrink())
                             .OnClick(() => ToggleIssue(issue.Id))
-                        | (Layout.Vertical().Width(Size.Grow().Min(Size.Px(0)))
-                            | Text.Block($"{issue.Identifier} — {issue.Title}")
-                            | (Layout.Horizontal().Gap(2)
-                                | Text.Muted(issue.StateName).Small()
-                                | Text.Muted(issue.PriorityLabel).Small()
-                                | (issue.AssigneeName is { } a ? Text.Muted(a).Small() : null)))
+                        | new Expandable($"{issue.Identifier} {issue.Title}", bodyContent)
+                            .Width(Size.Grow().Min(Size.Px(0)))
                         | new Button().Icon(Icons.ExternalLink).Ghost().Small()
                             .Width(Size.Shrink())
                             .Tooltip("Open in Linear")
@@ -430,6 +452,13 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
                     .OnClick(async () => await ImportSelected())
             )
         ).Width(Size.Rem(48));
+    }
+
+    private static string TruncateBody(string body)
+    {
+        const int maxLength = 300;
+        var trimmed = body.Trim();
+        return trimmed.Length > maxLength ? trimmed[..maxLength].TrimEnd() + "…" : trimmed;
     }
 
     private static string SanitizeFileName(string title)
