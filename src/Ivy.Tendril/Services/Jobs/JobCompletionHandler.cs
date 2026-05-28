@@ -407,11 +407,14 @@ internal class JobCompletionHandler
             var plansDir = _planReaderService?.PlansDirectory;
             if (plansDir == null || !Directory.Exists(plansDir)) return;
 
-            if (TryVerifyByReportedId(job, plansDir)) return;
-            if (TryVerifyByOutputRegex(job)) return;
-            if (IsDuplicatePlan(job)) return;
-            if (TryVerifyByFilesystem(job, plansDir)) return;
-            if (IsInTrash(job)) return;
+            if (TryVerifyByReportedId(job, plansDir) ||
+                TryVerifyByOutputRegex(job) ||
+                TryVerifyByFilesystem(job, plansDir))
+            {
+                return;
+            }
+
+            if (IsDuplicatePlan(job) || IsInTrash(job)) return;
 
             MarkCreatePlanFailed(job);
         }
