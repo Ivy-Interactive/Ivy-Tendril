@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  
+  <PropertyGroup>
+    <OutputType>library</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+  </PropertyGroup>
+  
+  <ItemGroup Condition="'$(IvySource)' == 'true'">
+    <ProjectReference Include="../../../Ivy-Framework/src/Ivy/Ivy.csproj" />
+  </ItemGroup>
+  
+  <ItemGroup Condition="'$(IvySource)' != 'true'">
+    <PackageReference Include="Ivy" Version="1.2.60" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <WidgetsFrontendSourceFiles Include="Widgets/frontend/src/**/*" />
+    <WidgetsFrontendSourceFiles Include="Widgets/frontend/package.json" />
+    <WidgetsFrontendSourceFiles Include="Widgets/frontend/pnpm-lock.yaml" Condition="Exists('Widgets/frontend/pnpm-lock.yaml')" />
+    <WidgetsFrontendSourceFiles Include="Widgets/frontend/tsconfig.json" />
+    <WidgetsFrontendSourceFiles Include="Widgets/frontend/vite.widget.ts" />
+  </ItemGroup>
+
+  <Target Name="WidgetsNpmInstall" BeforeTargets="WidgetsBuildFrontend" Inputs="Widgets/frontend/package.json;Widgets/frontend/pnpm-lock.yaml" Outputs="Widgets/frontend/node_modules/.modules.yaml">
+    <Exec Command="npx -y pnpm@10.33.0 install" WorkingDirectory="Widgets/frontend" />
+  </Target>
+
+  <Target Name="WidgetsBuildFrontend" BeforeTargets="BeforeCompile;BeforeBuild" Inputs="@(WidgetsFrontendSourceFiles)" Outputs="Widgets/frontend/dist/ivy-tendril-widgets.js;Widgets/frontend/dist/ivy-tendril-widgets.css;Widgets/frontend/dist/.build-stamp">
+    <Exec Command="npx -y pnpm@10.33.0 run build" WorkingDirectory="Widgets/frontend" EnvironmentVariables="NODE_OPTIONS=--max-old-space-size=4096" />
+    <Touch Files="Widgets/frontend/dist/.build-stamp" AlwaysCreate="true" />
+  </Target>
+
+  <Target Name="EmbedWidgetsFrontendResources" AfterTargets="WidgetsBuildFrontend" BeforeTargets="AssignTargetPaths">
+    <ItemGroup>
+      <EmbeddedResource Include="Widgets/frontend/dist/ivy-tendril-widgets.js" LogicalName="Ivy.Tendril.Widgets.Widgets.frontend.dist.ivy-tendril-widgets.js" />
+      <EmbeddedResource Include="Widgets/frontend/dist/ivy-tendril-widgets.css" LogicalName="Ivy.Tendril.Widgets.Widgets.frontend.dist.ivy-tendril-widgets.css" />
+    </ItemGroup>
+  </Target>
+
+</Project>
