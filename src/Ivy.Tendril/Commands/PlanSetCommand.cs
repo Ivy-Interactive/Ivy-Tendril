@@ -70,6 +70,9 @@ public class PlanSetCommand : Command<PlanSetSettings>
                 case "sourceurl":
                     plan.SourceUrl = settings.Value;
                     break;
+                case "sourceidentifier":
+                    plan.SourceIdentifier = settings.Value;
+                    break;
                 case "priority":
                     if (!int.TryParse(settings.Value, out var priority))
                         throw new ArgumentException($"Invalid priority value: {settings.Value}. Must be an integer.");

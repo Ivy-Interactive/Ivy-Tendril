@@ -19,7 +19,7 @@ public class InboxWatcherServiceTests : IDisposable
     {
         var content = "Add a new color picker widget with HSL support";
 
-        var (project, description, sourcePath) = InboxWatcherService.ParseContent(content);
+        var (project, description, sourcePath, _, _) = InboxWatcherService.ParseContent(content);
 
         Assert.Equal("Auto", project);
         Assert.Equal(content, description);
@@ -31,7 +31,7 @@ public class InboxWatcherServiceTests : IDisposable
     {
         var content = "---\nproject: Framework\n---\nAdd a new color picker widget";
 
-        var (project, description, sourcePath) = InboxWatcherService.ParseContent(content);
+        var (project, description, sourcePath, _, _) = InboxWatcherService.ParseContent(content);
 
         Assert.Equal("Framework", project);
         Assert.Equal("Add a new color picker widget", description);
@@ -43,7 +43,7 @@ public class InboxWatcherServiceTests : IDisposable
     {
         var content = "---\nlevel: Critical\n---\nFix the login bug";
 
-        var (project, description, sourcePath) = InboxWatcherService.ParseContent(content);
+        var (project, description, sourcePath, _, _) = InboxWatcherService.ParseContent(content);
 
         Assert.Equal("Auto", project);
         Assert.Equal("Fix the login bug", description);
@@ -55,7 +55,7 @@ public class InboxWatcherServiceTests : IDisposable
     {
         var content = "---\nproject: Agent\n---\n";
 
-        var (project, description, sourcePath) = InboxWatcherService.ParseContent(content);
+        var (project, description, sourcePath, _, _) = InboxWatcherService.ParseContent(content);
 
         Assert.Equal("Agent", project);
         Assert.Equal("", description);
@@ -67,7 +67,7 @@ public class InboxWatcherServiceTests : IDisposable
     {
         var content = "--- some header without closing";
 
-        var (project, description, sourcePath) = InboxWatcherService.ParseContent(content);
+        var (project, description, sourcePath, _, _) = InboxWatcherService.ParseContent(content);
 
         Assert.Equal("Auto", project);
         Assert.Equal(content, description);
@@ -79,7 +79,7 @@ public class InboxWatcherServiceTests : IDisposable
     {
         var content = "---\nproject: Agent\nsourcePath: D:\\Tests\\Session123\n---\nFix the widget rendering";
 
-        var (project, description, sourcePath) = InboxWatcherService.ParseContent(content);
+        var (project, description, sourcePath, _, _) = InboxWatcherService.ParseContent(content);
 
         Assert.Equal("Agent", project);
         Assert.Equal("Fix the widget rendering", description);
@@ -91,7 +91,7 @@ public class InboxWatcherServiceTests : IDisposable
     {
         var content = "---\nproject: Framework\n---\nAdd a button";
 
-        var (project, description, sourcePath) = InboxWatcherService.ParseContent(content);
+        var (project, description, sourcePath, _, _) = InboxWatcherService.ParseContent(content);
 
         Assert.Equal("Framework", project);
         Assert.Equal("Add a button", description);
@@ -101,7 +101,7 @@ public class InboxWatcherServiceTests : IDisposable
     [Fact]
     public void ParseContent_EmptyContent_ReturnsEmptyDescription()
     {
-        var (project, description, sourcePath) = InboxWatcherService.ParseContent("");
+        var (project, description, sourcePath, _, _) = InboxWatcherService.ParseContent("");
 
         Assert.Equal("Auto", project);
         Assert.Equal("", description);
@@ -111,7 +111,7 @@ public class InboxWatcherServiceTests : IDisposable
     [Fact]
     public void ParseContent_WhitespaceOnly_ReturnsWhitespaceDescription()
     {
-        var (project, description, sourcePath) = InboxWatcherService.ParseContent("   \n  ");
+        var (project, description, sourcePath, _, _) = InboxWatcherService.ParseContent("   \n  ");
 
         Assert.Equal("Auto", project);
         Assert.Equal("   \n  ", description);

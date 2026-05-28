@@ -32,7 +32,8 @@ public record PlanMetadata(
     DateTime Created,
     DateTime Updated,
     string? InitialPrompt,
-    string? SourceUrl);
+    string? SourceUrl,
+    string? SourceIdentifier);
 
 public record PlanFile(
     PlanMetadata Metadata,
@@ -57,6 +58,7 @@ public record PlanFile(
     public DateTime Updated => Metadata.Updated;
     public string? InitialPrompt => Metadata.InitialPrompt;
     public string? SourceUrl => Metadata.SourceUrl;
+    public string? SourceIdentifier => Metadata.SourceIdentifier;
     public string FolderName => Path.GetFileName(FolderPath);
 }
 
@@ -143,5 +145,6 @@ public class PlanYaml
     public string? ExecutionProfile { get; set; }
     public string? InitialPrompt { get; set; }
     public string? SourceUrl { get; set; }
+    public string? SourceIdentifier { get; set; }
     public List<RecommendationYaml>? Recommendations { get; set; }
 }

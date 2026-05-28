@@ -842,7 +842,8 @@ public class PlanReaderService(
                 planYaml.Created,
                 planYaml.Updated,
                 planYaml.InitialPrompt,
-                planYaml.SourceUrl
+                planYaml.SourceUrl,
+                planYaml.SourceIdentifier
             );
 
             var latestContent = ReadLatestRevisionFromFileSystem(folderName);

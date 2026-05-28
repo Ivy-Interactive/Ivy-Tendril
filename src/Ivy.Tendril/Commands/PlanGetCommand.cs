@@ -83,6 +83,7 @@ public class PlanGetCommand : Command<PlanGetSettings>
                     "executionprofile" => plan.ExecutionProfile ?? "",
                     "initialprompt" => plan.InitialPrompt ?? "",
                     "sourceurl" => plan.SourceUrl ?? "",
+                    "sourceidentifier" => plan.SourceIdentifier ?? "",
                     "priority" => plan.Priority.ToString(),
                     _ => throw new ArgumentException($"Unknown field: {settings.Field}")
                 };
