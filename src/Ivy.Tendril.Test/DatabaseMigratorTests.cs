@@ -187,7 +187,10 @@ public class DatabaseMigratorTests : IDisposable
         };
 
         var migrator = new DatabaseMigrator(_connection, migrations);
-        Assert.Throws<InvalidOperationException>(() => migrator.ApplyMigrations());
+        var ex = Assert.Throws<InvalidOperationException>(() => migrator.ApplyMigrations());
+        Assert.Contains("Database version (5) is newer than application version (3)", ex.Message);
+        Assert.Contains("db-reset", ex.Message);
+        Assert.Contains(_connection.DataSource, ex.Message);
     }
 
     [Fact]
@@ -357,6 +360,39 @@ public class DatabaseMigratorTests : IDisposable
         Assert.True(reader.Read());
         Assert.Equal("High", reader.GetString(0));
         Assert.Equal("Small", reader.GetString(1));
+    }
+
+    [Fact]
+    public void Migration_011_JobsTypedArgs_AddsColumn()
+    {
+        new Migration_001_InitialSchema().Apply(_connection);
+        new Migration_002_Fts5Search().Apply(_connection);
+        new Migration_003_JobsTable().Apply(_connection);
+        new Migration_004_SourceUrl().Apply(_connection);
+        new Migration_005_CostsLogTimestampIndex().Apply(_connection);
+        new Migration_006_CostsCompositeIndex().Apply(_connection);
+        new Migration_007_FtsSourceUrl().Apply(_connection);
+        new Migration_008_PrStatusTable().Apply(_connection);
+        new Migration_009_JobsArgs().Apply(_connection);
+        new Migration_010_RecommendationImpactRisk().Apply(_connection);
+
+        Assert.Equal(10, GetUserVersion());
+
+        new Migration_011_JobsTypedArgs().Apply(_connection);
+
+        Assert.Equal(11, GetUserVersion());
+
+        using var insertCmd = _connection.CreateCommand();
+        insertCmd.CommandText = """
+                                INSERT INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, TypedArgs)
+                                VALUES ('job-1', 'Test', 'Plan', 'Proj', 'Running', 'claude', '{"foo":"bar"}')
+                                """;
+        insertCmd.ExecuteNonQuery();
+
+        using var selectCmd = _connection.CreateCommand();
+        selectCmd.CommandText = "SELECT TypedArgs FROM Jobs WHERE Id = 'job-1';";
+        var result = selectCmd.ExecuteScalar()?.ToString();
+        Assert.Equal("{\"foo\":\"bar\"}", result);
     }
 
     private class FakeMigration : IMigration
