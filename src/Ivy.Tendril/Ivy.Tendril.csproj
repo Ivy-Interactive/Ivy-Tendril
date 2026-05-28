@@ -9,7 +9,7 @@
     <UserSecretsId>a8f3c2e1-4b7d-4e9f-a1c3-8d6e2f5b9a7c</UserSecretsId>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>tendril</ToolCommandName>
-    <DefaultItemExcludes>$(DefaultItemExcludes);Promptwares\**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);Promptwares/**</DefaultItemExcludes>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
@@ -103,14 +103,13 @@
     <None Update="example.config.yaml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
   <Target Name="PackPromptwaresZip" BeforeTargets="PrepareForBuild" Condition="'$(Configuration)' == 'Release'">
     <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildThisFileDirectory)pack-promptwares.ps1&quot; -IntermediateOutputPath &quot;$(IntermediateOutputPath).&quot;" />
+    <ItemGroup>
+      <EmbeddedResource Include="$(IntermediateOutputPath)promptwares.zip" LogicalName="Ivy.Tendril.promptwares.zip" />
+    </ItemGroup>
   </Target>
-
-  <ItemGroup Condition="'$(Configuration)' == 'Release'">
-    <EmbeddedResource Include="$(IntermediateOutputPath)promptwares.zip" LogicalName="Ivy.Tendril.promptwares.zip" />
-  </ItemGroup>
 </Project>
