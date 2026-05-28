@@ -35,7 +35,7 @@ public class PromptwareWriteMemoryCommand : Command<PromptwareWriteMemorySetting
             var filename = Path.GetFileName(settings.Filename);
             var filePath = Path.Combine(memoryDir, filename);
 
-            var content = Console.In.ReadToEnd();
+            var content = ConsoleHelper.ReadStdinWithTimeout();
             if (string.IsNullOrWhiteSpace(content))
                 throw new ArgumentException("No content provided (pipe to STDIN)");
 
