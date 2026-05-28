@@ -613,7 +613,7 @@ public class Program
     private static void UpdateBadge(DesktopWindow window, int activeJobs)
     {
         if (activeJobs > 0)
-            window.SetBadgeCount(activeJobs);
+            window.SetBadgeCount(activeJobs, background: "#5B21B6", foreground: "#FFFFFF");
         else
             window.ClearBadge();
     }
