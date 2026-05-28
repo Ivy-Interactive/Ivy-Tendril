@@ -1,5 +1,6 @@
 ---
 icon: OpenCode
+title: OpenCode
 searchHints:
   - opencode
   - open code

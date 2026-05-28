@@ -1,5 +1,6 @@
 ---
 icon: Server
+title: Berget.ai
 searchHints:
   - berget
   - eu

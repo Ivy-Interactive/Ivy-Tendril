@@ -1,5 +1,6 @@
 ---
 icon: Server
+title: Z.ai
 searchHints:
   - z.ai
   - zai

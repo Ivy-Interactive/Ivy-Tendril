@@ -1,5 +1,6 @@
 ---
 icon: Server
+title: OpenRouter
 searchHints:
   - openrouter
   - router
