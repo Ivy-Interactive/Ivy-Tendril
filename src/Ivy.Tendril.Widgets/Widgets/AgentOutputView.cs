@@ -1,8 +1,15 @@
+using Ivy;
+using Ivy.Core;
+using Ivy.Core.ExternalWidgets;
+
 namespace Ivy.Widgets.AgentOutputView;
 
-[ExternalWidget("frontend/dist/Ivy_Widgets_AgentOutputView.js",
-                StylePath = "frontend/dist/ivy-widgets-agentoutputview.css",
-                ExportName = "AgentOutputView")]
+[ExternalWidget(
+    "Widgets/frontend/dist/ivy-tendril-widgets.js",
+    StylePath = "Widgets/frontend/dist/ivy-tendril-widgets.css",
+    ExportName = "AgentOutputView",
+    GlobalName = "IvyTendrilWidgets"
+)]
 public record AgentOutputView : WidgetBase<AgentOutputView>
 {
     /// <summary>Pre-buffered newline-delimited EventWire JSON events.</summary>

@@ -13,8 +13,8 @@ export default defineConfig({
     lib: {
       entry: resolve(__dirname, "src/index.ts"),
       formats: ["iife"],
-      fileName: () => "Ivy_Widget_TendrilProcessView.js",
-      name: "Ivy_Widget_TendrilProcessView",
+      fileName: () => "ivy-tendril-widgets.js",
+      name: "IvyTendrilWidgets",
     },
     rolldownOptions: {
       external: ["react", "react-dom", "react/jsx-runtime"],

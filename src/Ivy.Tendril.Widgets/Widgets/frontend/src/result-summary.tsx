@@ -2,7 +2,7 @@ import React from "react";
 import Markdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
-import type { ResultWire } from "./types";
+import type { ResultWire } from "./agent-output-types";
 
 interface ResultSummaryProps {
   wire: ResultWire;
