@@ -55,12 +55,7 @@ public interface IPromptwareRunner
 
 public class PromptwareRunner : IPromptwareRunner
 {
-    private static readonly HashSet<string> PlanWritingTypes = new(StringComparer.Ordinal)
-    {
-        "CreatePlan", "SplitPlan", "UpdatePlan", "ExpandPlan"
-    };
-
-    private readonly IConfigService _configService;
+private readonly IConfigService _configService;
     private readonly IAgentRunner _agentRunner;
     private readonly ILogger<PromptwareRunner> _logger;
 
@@ -112,7 +107,7 @@ public class PromptwareRunner : IPromptwareRunner
             Effort = AgentProviderFactory.ParseEffort(resolution.Effort),
             PermissionMode = PermissionMode.FullAuto,
             AllowedTools = resolution.AllowedTools,
-            WritableDirectories = ResolveWritableDirectories(options.Promptware),
+            WritableDirectories = ResolveWritableDirectories(options.Promptware, programFolder),
             ExtraArguments = resolution.ExtraArgs,
             PromptFilePath = promptFilePath,
         };
@@ -165,17 +160,25 @@ public class PromptwareRunner : IPromptwareRunner
         return handle;
     }
 
-    private IReadOnlyList<string> ResolveWritableDirectories(string promptwareType)
+    private IReadOnlyList<string> ResolveWritableDirectories(string promptwareType, string promptwareFolder)
     {
-        var dirs = new List<string>();
+        var homeDir = _configService.TendrilHome;
+        var homePrefix = homeDir.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var dirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { homeDir };
 
-        if (PlanWritingTypes.Contains(promptwareType))
-        {
-            dirs.Add(_configService.PlanFolder);
-            dirs.Add(Path.Combine(_configService.TendrilHome, "Trash"));
-        }
+        var planFolder = _configService.PlanFolder;
+        if (!planFolder.StartsWith(homePrefix, StringComparison.OrdinalIgnoreCase))
+            dirs.Add(planFolder);
 
-        return dirs;
+        var memoryDir = Path.Combine(promptwareFolder, "Memory");
+        if (!memoryDir.StartsWith(homePrefix, StringComparison.OrdinalIgnoreCase))
+            dirs.Add(memoryDir);
+
+        var toolsDir = Path.Combine(promptwareFolder, "Tools");
+        if (!toolsDir.StartsWith(homePrefix, StringComparison.OrdinalIgnoreCase))
+            dirs.Add(toolsDir);
+
+        return [.. dirs];
     }
 
     private static async Task PipeOutputAndLog(Process process, IWriteStream<string> stream, PromptwareRunHandle handle, CancellationToken ct)
