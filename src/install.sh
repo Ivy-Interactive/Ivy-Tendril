@@ -57,7 +57,7 @@ else
 fi
 
 printf "%b\\n" "\n${BLUE}Step 3: Checking for Git...${NC}"
-if command -v git &> /dev/null; then
+if command -v git &> /dev/null && git --version &> /dev/null; then
     printf "%b\\n" "${GREEN}✓ Git is already installed.${NC}"
 else
     if [[ "$OS_TYPE" == "macos" ]]; then
