@@ -93,6 +93,7 @@ public sealed record ToolCallEvent : AgentEvent
     public required string ToolUseId { get; init; }
     public required string ToolName { get; init; }
     public string? InputJson { get; init; }
+    public string? Description { get; init; }
 }
 
 public sealed record ToolResultEvent : AgentEvent
