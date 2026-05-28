@@ -140,6 +140,14 @@ public class CodingAgentStepView(
                     progressValue.Set(null);
                     progressMessage.Set(null);
 
+                    if (missing.Key == agentKey)
+                    {
+                        isStepLoading.Set(false);
+                        error.Set("Please make sure your agent is present and you are authorized.");
+                        selectedAgent.Set(null);
+                        return;
+                    }
+
                     var tcs = new TaskCompletionSource<bool>();
                     showInstallDialog(new InstallDialogArgs(missing, tcs));
                     var resumed = await tcs.Task;
@@ -181,7 +189,7 @@ public class CodingAgentStepView(
                         progressValue.Set(null);
                         progressMessage.Set(null);
                         isStepLoading.Set(false);
-                        error.Set($"Could not authenticate {c.Name}. Please try again.");
+                        error.Set("Please make sure your agent is present and you are authorized.");
                         selectedAgent.Set(null);
                         return;
                     }
@@ -204,13 +212,14 @@ public class CodingAgentStepView(
                 isStepLoading.Set(false);
                 stepperIndex.Set(stepperIndex.Value + 1);
             }
-            catch
+            catch (Exception ex)
             {
                 await progressCts.CancelAsync();
                 progressValue.Set(null);
                 progressMessage.Set(null);
                 isStepLoading.Set(false);
-                throw;
+                error.Set($"Please make sure your agent is present and you are authorized. ({ex.Message})");
+                selectedAgent.Set(null);
             }
         }
     }
