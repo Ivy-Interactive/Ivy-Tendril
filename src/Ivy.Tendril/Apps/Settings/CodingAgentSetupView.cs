@@ -13,6 +13,7 @@ public class CodingAgentSetupView : ViewBase
         new("claude", "Claude", Icons.ClaudeCode),
         new("copilot", "Copilot", Icons.Copilot),
         new("codex", "Codex", Icons.OpenAI),
+        new("gemini", "Gemini", Icons.Gemini),
         new("antigravity", "Antigravity", Icons.Antigravity),
         new("opencode", "OpenCode", Icons.OpenCode)
     ];

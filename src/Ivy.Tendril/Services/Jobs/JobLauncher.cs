@@ -218,7 +218,7 @@ internal class JobLauncher
             {
                 if (e.Data != null)
                 {
-                    job.EnqueueSystemOutput($"[stderr] {e.Data}");
+                    job.EnqueueOutput($"[stderr] {e.Data}");
                     job.LastOutputAt = DateTime.UtcNow;
                 }
             }
