@@ -68,9 +68,7 @@ export const ToolUseCard: React.FC<ToolUseCardProps> = ({ tool }) => {
   if (tool.result != null && tool.result.length > 0) {
     const firstLine = tool.result.split("\n")[0].slice(0, 80);
     const hasWeirdChars = /[┌┐└┘├┤┬┴┼─│═║╔╗╚╝╠╣╦╩╬]/.test(firstLine);
-    if (tool.isError) {
-      headerPreview += ` → ${firstLine}`;
-    } else if (!hasWeirdChars) {
+    if (firstLine.trim() && (tool.isError || !hasWeirdChars)) {
       headerPreview += ` → ${firstLine}`;
     }
   }

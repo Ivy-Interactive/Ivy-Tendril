@@ -10,6 +10,7 @@ using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Console;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using Velopack;
@@ -74,7 +75,10 @@ public class Program
         {
             var cliServices = new ServiceCollection();
             var cliLogLevel = verbose ? LogLevel.Debug : quiet ? LogLevel.Warning : LogLevel.Information;
-            cliServices.AddLogging(builder => builder.AddConsole().SetMinimumLevel(cliLogLevel));
+            cliServices.AddLogging(builder => builder
+                .SetMinimumLevel(cliLogLevel)
+                .AddConsole(options => options.FormatterName = "clean")
+                .AddConsoleFormatter<CleanConsoleFormatter, ConsoleFormatterOptions>());
             cliServices.AddSingleton<IPlanWatcherService, NullPlanWatcherService>();
             cliServices.AddAgentInfrastructure();
 
