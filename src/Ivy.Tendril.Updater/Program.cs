@@ -73,7 +73,7 @@ internal static class Program
 
     private static string GetIconPath()
     {
-        var baseDir = Path.GetDirectoryName(typeof(Program).Assembly.Location) ?? ".";
+        var baseDir = System.AppContext.BaseDirectory;
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             return Path.Combine(baseDir, "icon.ico");
         if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
