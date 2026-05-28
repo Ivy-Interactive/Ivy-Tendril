@@ -1,7 +1,6 @@
-using System.Reactive.Disposables;
 using Ivy.Tendril.Apps.Views;
+using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Services;
-using Ivy.Widgets.TendrilProcessView;
 
 namespace Ivy.Tendril.Apps;
 
@@ -10,18 +9,11 @@ public class WallpaperApp : ViewBase
 {
     public override object Build()
     {
-        var statusService = UseService<ITendrilProcessStatusService>();
         var versionService = UseService<IVersionCheckService>();
-        var navigator = UseNavigation();
         var versionInfo = UseState<VersionInfo?>(null);
         var dismissedVersion = UseState<string?>(null);
-        var processStatus = UseState(() => statusService.Current);
 
-        UseEffect(() =>
-        {
-            var subscription = statusService.Status.Subscribe(s => processStatus.Set(s));
-            return Disposable.Create(() => subscription.Dispose());
-        });
+        var processView = Context.UseTendrilProcessView();
 
         UseEffect(() =>
         {
@@ -31,22 +23,6 @@ public class WallpaperApp : ViewBase
                 versionInfo.Set(info);
             });
         }, []);
-
-        var status = processStatus.Value;
-
-        var processView = new CreatePlanDialogLauncher(open =>
-            new TendrilProcessView()
-                .DraftCount(status.DraftCount)
-                .ReviewCount(status.ReviewCount)
-                .CreatingPlansCount(status.CreatingPlansCount)
-                .UpdatingPlansCount(status.UpdatingPlansCount)
-                .ExecutingPlansCount(status.ExecutingPlansCount)
-                .RetryingPlansCount(status.RetryingPlansCount)
-                .OnCreate(open)
-                .OnDrafts(() => navigator.Navigate<DraftsApp>())
-                .OnReview(() => navigator.Navigate<ReviewApp>())
-                .OnJobs(() => navigator.Navigate<JobsApp>())
-        );
 
         var elements = new List<object>
         {
