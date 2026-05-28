@@ -1,4 +1,4 @@
-codingAgent: codex
+codingAgent: antigravity
 jobTimeout: 30
 staleOutputTimeout: 10
 gitTimeout: 10
