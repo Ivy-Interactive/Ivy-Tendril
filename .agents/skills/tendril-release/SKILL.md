@@ -19,10 +19,11 @@ This skill automates the release preparation and deployment process for Ivy Tend
 2. **Updates Ivy NuGet packages** to their latest stable version available on NuGet.
 3. **Builds the project** to verify compilation and package compatibility.
 4. **Commits and merges** the changes back into `development`.
-5. **Creates a Pull Request** from `development` into `main`.
-6. **Merges the PR** into `main` (if mergeable).
-7. **Synchronizes the branches** by merging `main` back into `development`.
-8. **Triggers the GitHub release workflow** (`publish-tendril.yml`) on `main`.
+5. **Increments the patch version** in `Directory.Build.props` (e.g. `1.0.35` -> `1.0.36`).
+6. **Creates a Pull Request** from `development` into `main`.
+7. **Merges the PR** into `main` (if mergeable).
+8. **Synchronizes the branches** by merging `main` back into `development`.
+9. **Triggers the GitHub release workflow** (`publish-tendril.yml`) on `main`.
 
 ## Prerequisites
 
@@ -56,7 +57,7 @@ dotnet build src/Ivy.Tendril.Updater/Ivy.Tendril.Updater.csproj /p:IvySource=fal
 
 If the build fails, abort the process and notify the developer. Do not proceed to commit.
 
-### Phase 4 — Merge to Development
+### Phase 4 — Merge to Development and Increment Version
 If the build succeeds, commit the changes and merge the branch back into `development`:
 ```bash
 git add .
@@ -71,6 +72,12 @@ git push origin development
 # Clean up local and remote release branch
 git branch -d release/update-packages
 git push origin --delete release/update-packages
+
+# Increment the patch version in Directory.Build.props and commit
+pwsh src/.releases/IncrementVersion.ps1
+git add src/Directory.Build.props
+git commit -m "chore: bump patch version for release"
+git push origin development
 ```
 
 ### Phase 5 — Create and Merge PR into Main
