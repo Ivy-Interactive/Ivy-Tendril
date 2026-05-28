@@ -116,9 +116,11 @@ tendril project add-verification <project-name> CheckResult --required --after D
 
 Review actions make it easy to start the application from a worktree during code review.
 
-Inspect each repo to determine how to run the application:
+Inspect each repo to determine how to run the application. For website projects, prefer commands that open the browser automatically:
 - .NET project with a runnable entry point: `dotnet run --project Worktrees/<RepoName>/<path-to-project> --browse --find-available-port`
-- Node.js app: `cd Worktrees/<RepoName> && npm run dev`
+- Vite or webpack-dev-server: `cd Worktrees/<RepoName> && npm run dev -- --open`
+- Angular CLI: `cd Worktrees/<RepoName> && ng serve --open`
+- Other Node.js app (no open support): `cd Worktrees/<RepoName> && npm run dev`
 - Python app: `cd Worktrees/<RepoName> && python -m <module>` or `flask run`
 - Static docs: `start Worktrees/<RepoName>/docs/index.html`
 
