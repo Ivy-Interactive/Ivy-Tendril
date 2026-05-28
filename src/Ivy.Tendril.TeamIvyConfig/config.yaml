@@ -146,8 +146,8 @@ projects:
   context: ''
   reviewActions:
   - name: App
-    condition: Test-Path worktrees\lots-of-dev-tools\package.json
-    command: cd worktrees\lots-of-dev-tools; npm run dev -- --host 127.0.0.1
+    condition: Test-Path 'Worktrees/lots-of-dev-tools/package.json'
+    command: cd Worktrees/lots-of-dev-tools && npm run dev
   hooks: []
   buildDependencies: []
 verifications:

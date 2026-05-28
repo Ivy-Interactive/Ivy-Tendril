@@ -1,5 +1,5 @@
-using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps.Settings;
 
@@ -27,6 +27,7 @@ public class PromptwaresSetupView : ViewBase
                 Constants.JobTypes.BuiltIn.Contains(name)
                     ? Layout.Horizontal().Gap(2) | name | new Badge("Tendril").Variant(BadgeVariant.Secondary).Small()
                     : name))
+            .Builder(t => t.Profile, f => f.TitleCase())
             .Header(t => t.Index, "")
             .Builder(t => t.Index, f => f.Func<PromptwareRow, int>(idx =>
             {

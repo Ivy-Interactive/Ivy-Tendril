@@ -59,6 +59,13 @@ public class Program
 
         bool isTool = IsTendrilToolInvocation();
         bool useDesktop = (isTool || forceDesktop) && !forceWeb;
+        if (useDesktop && OperatingSystem.IsLinux())
+        {
+            if (!forceDesktop && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DISPLAY")))
+            {
+                useDesktop = false;
+            }
+        }
         bool isDetachedChild = args.Contains(DetachedLaunchMarker);
 
         // Check if we are launching the web server/desktop UI (not executing a CLI subcommand)
@@ -613,7 +620,7 @@ public class Program
     private static void UpdateBadge(DesktopWindow window, int activeJobs)
     {
         if (activeJobs > 0)
-            window.SetBadgeCount(activeJobs);
+            window.SetBadgeCount(activeJobs, background: "#5B21B6", foreground: "#FFFFFF");
         else
             window.ClearBadge();
     }

@@ -16,6 +16,7 @@ public class JobDebugSheet(
     {
         var copyToClipboard = UseClipboard();
         var client = UseService<IClientProvider>();
+        var showReportDialog = UseState(false);
 
         var job = jobService.GetJob(jobId);
         if (job is null)
@@ -70,8 +71,8 @@ public class JobDebugSheet(
             .Builder(x => x.PromptwareRawLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .RemoveEmpty();
 
-        return new HeaderLayout(
-            new Button("Copy Details").Icon(Icons.ClipboardCopy).Outline().OnClick(() =>
+        var header = Layout.Horizontal().Gap(2)
+            | new Button("Copy Details").Icon(Icons.ClipboardCopy).Outline().OnClick(() =>
             {
                 var lines = new List<(string Label, string Value)>
                 {
@@ -104,9 +105,12 @@ public class JobDebugSheet(
 
                 copyToClipboard(formatted);
                 client.Toast("Job details copied to clipboard", "Copied");
-            }),
-            detailsView
-        );
+            })
+            | new Button("Report Bug").Icon(Icons.Bug).Destructive().OnClick(() => showReportDialog.Set(true));
+
+        return Layout.Vertical()
+            | new HeaderLayout(header, detailsView)
+            | (showReportDialog.Value ? new ReportBugDialog(showReportDialog, jobId) : null);
     }
 
     private object PathDropDown(string path, Action<string> copyToClipboard, IClientProvider client)

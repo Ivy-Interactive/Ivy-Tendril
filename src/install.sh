@@ -47,13 +47,25 @@ else
     printf "%b\\n" "${GREEN}✓ .NET 10 SDK installed successfully.${NC}"
 fi
 
-printf "%b\\n" "\n${BLUE}Step 2: Trusting .NET dev certificates...${NC}"
-if dotnet dev-certs https --check --trust &> /dev/null; then
-    printf "%b\\n" "${GREEN}✓ .NET dev certificate is already trusted.${NC}"
+printf "%b\n" "\n${BLUE}Step 2: Trusting .NET dev certificates...${NC}"
+if [[ "$OS_TYPE" == "macos" ]]; then
+    if dotnet dev-certs https --check --trust &> /dev/null; then
+        printf "%b\n" "${GREEN}✓ .NET dev certificate is already trusted.${NC}"
+    else
+        printf "%b\n" "Generating and trusting .NET dev certificate..."
+        dotnet dev-certs https --trust
+        printf "%b\n" "${GREEN}✓ .NET dev certificate trusted successfully.${NC}"
+    fi
 else
-    printf "%b\\n" "Generating and trusting .NET dev certificate..."
-    dotnet dev-certs https --trust
-    printf "%b\\n" "${GREEN}✓ .NET dev certificate trusted successfully.${NC}"
+    if dotnet dev-certs https --check &> /dev/null; then
+        printf "%b\n" "${GREEN}✓ .NET dev certificate is already generated.${NC}"
+    else
+        printf "%b\n" "Generating .NET dev certificate..."
+        dotnet dev-certs https
+        printf "%b\n" "${GREEN}✓ .NET dev certificate generated successfully.${NC}"
+        printf "%b\n" "${BLUE}Note: On Linux, automatic certificate trusting is not supported by .NET CLI.${NC}"
+        printf "%b\n" "${BLUE}You may need to manually add it to your trust store if accessing via HTTPS.${NC}"
+    fi
 fi
 
 printf "%b\\n" "\n${BLUE}Step 3: Checking for Git...${NC}"
