@@ -61,7 +61,7 @@ public class Program
         bool useDesktop = (isTool || forceDesktop) && !forceWeb;
         bool isDetachedChild = args.Contains(DetachedLaunchMarker);
 
-        if (isTool && useDesktop && !isDetachedChild && ShouldDetachDesktopLaunch(filteredArgs))
+        if (isTool && useDesktop && !isDetachedChild && ShouldDetachDesktopLaunch(filteredArgs, verbose))
             return RelaunchDesktopDetached(filteredArgs);
 
         if (isDetachedChild && useDesktop)
@@ -81,6 +81,10 @@ public class Program
                 .AddConsoleFormatter<CleanConsoleFormatter, ConsoleFormatterOptions>());
             cliServices.AddSingleton<IPlanWatcherService, NullPlanWatcherService>();
             cliServices.AddAgentInfrastructure(opts => opts.IncludeBetaProviders = beta);
+
+            var configService = new ConfigService(Microsoft.Extensions.Logging.Abstractions.NullLogger<ConfigService>.Instance);
+            cliServices.AddSingleton<IConfigService>(configService);
+            cliServices.AddSingleton<ConfigService>(configService);
 
             var app = ConfigureCliCommands(cliServices);
             var firstArg = filteredArgs[0];
@@ -224,6 +228,8 @@ public class Program
             Environment.SetEnvironmentVariable("TENDRIL_VERBOSE", "1");
         if (quiet)
             Environment.SetEnvironmentVariable("TENDRIL_QUIET", "1");
+        if (beta)
+            Environment.SetEnvironmentVariable("TENDRIL_BETA", "1");
 
         var filtered = args.Where(a =>
             a != "--desktop" && a != "--web" &&
@@ -244,15 +250,15 @@ public class Program
             "update-promptwares", "job", "plan", "promptware",
             "trash", "verification", "project", "models",
             "version", "--version", "report-bug", "reset", "update",
-            "--help", "-h"
+            "--help", "-h", "run"
         };
         return cliCommands.Contains(firstArg);
     }
 
-    private static bool ShouldDetachDesktopLaunch(string[] filteredArgs)
+    private static bool ShouldDetachDesktopLaunch(string[] filteredArgs, bool verbose)
     {
-        // Detach only for desktop startup and not for CLI commands.
-        return filteredArgs.Length == 0;
+        // Detach only for desktop startup, not for CLI commands, and NOT if verbose logging is requested.
+        return filteredArgs.Length == 0 && !verbose;
     }
 
     private static bool IsTendrilToolInvocation()
@@ -314,6 +320,10 @@ public class Program
             // Doctor command
             config.AddCommand<DoctorCliCommand>("doctor")
                 .WithDescription("System health check");
+
+            // Run command
+            config.AddCommand<RunCommand>("run")
+                .WithDescription("Run the Tendril web server in the foreground");
 
             // Database commands
             config.AddCommand<DbVersionCommand>("db-version")
