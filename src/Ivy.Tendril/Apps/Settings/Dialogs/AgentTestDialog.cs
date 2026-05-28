@@ -117,7 +117,7 @@ public class AgentTestDialog(
                     var modelResult = await healthCheck.ValidateModelAsync(entry.Id ?? "", ct);
                     results[idx] = modelResult.Status switch
                     {
-                        ModelValidationStatus.Ok => new AgentTestResult($"Model: {entry.DisplayName}", TestStatus.Passed),
+                        ModelValidationStatus.Ok => new AgentTestResult($"Model: {entry.DisplayName}", TestStatus.Passed, "Ok"),
                         ModelValidationStatus.InvalidModel => new AgentTestResult($"Model: {entry.DisplayName}", TestStatus.Failed,
                             modelResult.ErrorMessage ?? "Invalid model", modelResult.ErrorMessage),
                         ModelValidationStatus.AuthError => new AgentTestResult($"Model: {entry.DisplayName}", TestStatus.Failed,
