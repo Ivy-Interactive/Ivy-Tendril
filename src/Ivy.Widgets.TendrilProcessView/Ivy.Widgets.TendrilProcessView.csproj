@@ -44,16 +44,16 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Remove=".samples\**\*.cs" />
-    <Compile Remove="frontend\node_modules\**" />
-    <Compile Remove="Tests\**\*.cs" />
-    <None Include=".samples\**\*" CopyToOutputDirectory="Never" />
+    <Compile Remove=".samples/**/*.cs" />
+    <Compile Remove="frontend/node_modules/**" />
+    <Compile Remove="Tests/**/*.cs" />
+    <None Include=".samples/**/*" CopyToOutputDirectory="Never" />
   </ItemGroup>
 
   <!-- Import framework targets from sibling Ivy-Framework repo if present (local dev) -->
   <Import Project="../../../Ivy-Framework/src/Ivy/Build/Ivy.ExternalWidget.targets" Condition="Exists('../../../Ivy-Framework/src/Ivy/Build/Ivy.ExternalWidget.targets')" />
 
   <!-- Fallback to the targets in the Ivy NuGet package if local sibling is not present (CI / standalone) -->
-  <Import Project="$(PkgIvy)\build\Ivy.ExternalWidget.targets" Condition="!Exists('../../../Ivy-Framework/src/Ivy/Build/Ivy.ExternalWidget.targets') And '$(PkgIvy)' != '' And Exists('$(PkgIvy)\build\Ivy.ExternalWidget.targets')" />
+  <Import Project="$(PkgIvy)/build/Ivy.ExternalWidget.targets" Condition="!Exists('../../../Ivy-Framework/src/Ivy/Build/Ivy.ExternalWidget.targets') And '$(PkgIvy)' != '' And Exists('$(PkgIvy)/build/Ivy.ExternalWidget.targets')" />
 
 </Project>
