@@ -80,7 +80,7 @@ public class Program
                 .AddConsole(options => options.FormatterName = "clean")
                 .AddConsoleFormatter<CleanConsoleFormatter, ConsoleFormatterOptions>());
             cliServices.AddSingleton<IPlanWatcherService, NullPlanWatcherService>();
-            cliServices.AddAgentInfrastructure();
+            cliServices.AddAgentInfrastructure(opts => opts.IncludeBetaProviders = beta);
 
             var app = ConfigureCliCommands(cliServices);
             var firstArg = filteredArgs[0];
