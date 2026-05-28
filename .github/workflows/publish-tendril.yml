@@ -163,6 +163,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         include:
           - rid: win-x64
@@ -270,7 +271,7 @@ jobs:
           password: ${{ secrets.SSL_COM_PASSWORD }}
           credential_id: ${{ secrets.SSL_COM_CREDENTIAL_ID }}
           totp_secret: ${{ secrets.SSL_COM_TOTP_SECRET }}
-          malware_block: false
+          malware_block: true
           dir_path: unsigned_releases
           output_path: signed_releases
 
