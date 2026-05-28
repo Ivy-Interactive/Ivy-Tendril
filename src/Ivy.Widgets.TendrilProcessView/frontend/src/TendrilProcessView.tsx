@@ -98,10 +98,10 @@ export const TendrilProcessView: React.FC<TendrilProcessViewProps> = ({
           onClick={() => fireEvent("OnJobs")}
         />
 
-        {/* Drafts with executing loop */}
+        {/* Drafts with updating loop */}
         <div className="tpv-stage-wrapper">
-          {executingPlansCount > 0 && (
-            <LoopArrow count={executingPlansCount} onClick={() => fireEvent("OnJobs")} />
+          {updatingPlansCount > 0 && (
+            <LoopArrow count={updatingPlansCount} onClick={() => fireEvent("OnJobs")} />
           )}
           <button className="tpv-box tpv-box-stage" onClick={() => fireEvent("OnDrafts")}>
             <Feather size={14} className="tpv-box-stage-icon" />
@@ -110,8 +110,8 @@ export const TendrilProcessView: React.FC<TendrilProcessViewProps> = ({
         </div>
 
         <Arrow
-          count={updatingPlansCount}
-          spinning={updatingPlansCount > 0}
+          count={executingPlansCount}
+          spinning={executingPlansCount > 0}
           onClick={() => fireEvent("OnJobs")}
         />
 
