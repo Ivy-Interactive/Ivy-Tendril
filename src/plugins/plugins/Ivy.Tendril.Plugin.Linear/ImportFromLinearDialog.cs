@@ -300,7 +300,9 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
 
                     var content = $"""
                                    ---
-                                   project: Auto{labels}
+                                   project: Auto
+                                   sourceUrl: {issue.Url}
+                                   sourceIdentifier: {issue.Identifier}{labels}
                                    ---
                                    [{issue.Identifier}]({issue.Url})
 
