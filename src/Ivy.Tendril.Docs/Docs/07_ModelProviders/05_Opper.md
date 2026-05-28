@@ -1,5 +1,6 @@
 ---
 icon: Server
+title: Opper.ai
 searchHints:
   - opper
   - gateway

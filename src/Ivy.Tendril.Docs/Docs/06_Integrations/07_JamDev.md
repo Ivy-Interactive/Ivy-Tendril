@@ -1,5 +1,6 @@
 ---
 icon: Bug
+title: Jam.dev
 searchHints:
   - jam
   - jam.dev

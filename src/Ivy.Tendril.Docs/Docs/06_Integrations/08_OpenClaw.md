@@ -1,5 +1,6 @@
 ---
 icon: FolderInput
+title: OpenClaw
 searchHints:
   - openclaw
   - inbox
