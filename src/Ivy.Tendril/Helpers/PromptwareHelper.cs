@@ -17,7 +17,8 @@ public static class PromptwareHelper
         if (File.Exists(Path.Combine(sourceFolder, "Program.md")))
             return sourceFolder;
 
-        tendrilHome ??= Environment.GetEnvironmentVariable("TENDRIL_HOME");
+        if (string.IsNullOrEmpty(tendrilHome))
+            tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         if (!string.IsNullOrEmpty(tendrilHome))
         {
             var deployedRoot = Path.Combine(tendrilHome, "Promptwares");
@@ -43,7 +44,8 @@ public static class PromptwareHelper
         }
 
         // 2. Production mode: use TENDRIL_HOME/Promptwares
-        tendrilHome ??= Environment.GetEnvironmentVariable("TENDRIL_HOME");
+        if (string.IsNullOrEmpty(tendrilHome))
+            tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         if (!string.IsNullOrEmpty(tendrilHome))
         {
             var deployedRoot = Path.Combine(tendrilHome, "Promptwares");
