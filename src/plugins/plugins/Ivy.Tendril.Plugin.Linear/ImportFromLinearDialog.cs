@@ -24,12 +24,11 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
         var isImporting = UseState(false);
         var error = UseState<string?>(null);
 
-        var teamsQuery = UseQuery<IReadOnlyList<LinearTeamInfo>, bool>(
-            dialogOpen.Value,
-            async (isOpen, _) =>
+        var teamsQuery = UseQuery<IReadOnlyList<LinearTeamInfo>, string?>(
+            dialogOpen.Value ? "linear:teams" : null,
+            async (_, ct) =>
             {
-                if (!isOpen) return [];
-                var result = await clientFactory.Client.GetTeams.ExecuteAsync();
+                var result = await clientFactory.Client.GetTeams.ExecuteAsync(ct);
                 if (result.Errors is { Count: > 0 } errors)
                     throw new Exception(errors[0].Message);
                 return result.Data!.Teams.Nodes
@@ -38,12 +37,11 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
             },
             initialValue: []);
 
-        var projectsQuery = UseQuery<IReadOnlyList<LinearProjectInfo>, bool>(
-            dialogOpen.Value,
-            async (isOpen, _) =>
+        var projectsQuery = UseQuery<IReadOnlyList<LinearProjectInfo>, string?>(
+            dialogOpen.Value ? "linear:projects" : null,
+            async (_, ct) =>
             {
-                if (!isOpen) return [];
-                var result = await clientFactory.Client.GetProjects.ExecuteAsync();
+                var result = await clientFactory.Client.GetProjects.ExecuteAsync(ct);
                 if (result.Errors is { Count: > 0 } errors)
                     throw new Exception(errors[0].Message);
                 return result.Data!.Projects.Nodes
@@ -52,12 +50,11 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
             },
             initialValue: []);
 
-        var usersQuery = UseQuery<IReadOnlyList<LinearUserInfo>, bool>(
-            dialogOpen.Value,
-            async (isOpen, _) =>
+        var usersQuery = UseQuery<IReadOnlyList<LinearUserInfo>, string?>(
+            dialogOpen.Value ? "linear:users" : null,
+            async (_, ct) =>
             {
-                if (!isOpen) return [];
-                var result = await clientFactory.Client.GetUsers.ExecuteAsync();
+                var result = await clientFactory.Client.GetUsers.ExecuteAsync(ct);
                 if (result.Errors is { Count: > 0 } errors)
                     throw new Exception(errors[0].Message);
                 return result.Data!.Users.Nodes
@@ -66,12 +63,11 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
             },
             initialValue: []);
 
-        var labelsQuery = UseQuery<IReadOnlyList<LinearLabelInfo>, bool>(
-            dialogOpen.Value,
-            async (isOpen, _) =>
+        var labelsQuery = UseQuery<IReadOnlyList<LinearLabelInfo>, string?>(
+            dialogOpen.Value ? "linear:labels" : null,
+            async (_, ct) =>
             {
-                if (!isOpen) return [];
-                var result = await clientFactory.Client.GetIssueLabels.ExecuteAsync();
+                var result = await clientFactory.Client.GetIssueLabels.ExecuteAsync(ct);
                 if (result.Errors is { Count: > 0 } errors)
                     throw new Exception(errors[0].Message);
                 return result.Data!.IssueLabels.Nodes
@@ -80,12 +76,11 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
             },
             initialValue: []);
 
-        var statesQuery = UseQuery<IReadOnlyList<LinearStateInfo>, bool>(
-            dialogOpen.Value,
-            async (isOpen, _) =>
+        var statesQuery = UseQuery<IReadOnlyList<LinearStateInfo>, string?>(
+            dialogOpen.Value ? "linear:states" : null,
+            async (_, ct) =>
             {
-                if (!isOpen) return [];
-                var result = await clientFactory.Client.GetWorkflowStates.ExecuteAsync();
+                var result = await clientFactory.Client.GetWorkflowStates.ExecuteAsync(ct);
                 if (result.Errors is { Count: > 0 } errors)
                     throw new Exception(errors[0].Message);
                 return result.Data!.WorkflowStates.Nodes
