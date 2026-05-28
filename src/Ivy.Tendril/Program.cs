@@ -61,6 +61,31 @@ public class Program
         bool useDesktop = (isTool || forceDesktop) && !forceWeb;
         bool isDetachedChild = args.Contains(DetachedLaunchMarker);
 
+        // Check if we are launching the web server/desktop UI (not executing a CLI subcommand)
+        bool isServerLaunch = filteredArgs.Length == 0 || !ShouldHandleAsCliCommand(filteredArgs[0]);
+        if (isServerLaunch && !isDetachedChild)
+        {
+            var checkArgs = new Services.TendrilArgs { Beta = beta, Verbose = verbose, Quiet = quiet };
+            var checkServer = TendrilServer.Create(filteredArgs, checkArgs);
+            if (!checkServer.Args.FindAvailablePort && IsPortInUse(checkServer.Args.Port))
+            {
+                AnsiConsole.MarkupLine($"[red]Error: Port {checkServer.Args.Port} is already in use.[/]");
+                AnsiConsole.MarkupLine("[yellow]Please make sure another instance of Tendril is not already running.[/]");
+                AnsiConsole.MarkupLine("");
+                if (OperatingSystem.IsWindows())
+                {
+                    AnsiConsole.MarkupLine($"To find the process using this port, run: [blue]netstat -ano | findstr :{checkServer.Args.Port}[/]");
+                }
+                else
+                {
+                    AnsiConsole.MarkupLine($"To find the process using this port, run: [blue]lsof -i :{checkServer.Args.Port}[/]");
+                }
+                AnsiConsole.MarkupLine("");
+                AnsiConsole.MarkupLine("To use a different port, set the [green]PORT[/] environment variable (e.g., [green]PORT=5011 tendril[/]).");
+                return 1;
+            }
+        }
+
         if (isTool && useDesktop && !isDetachedChild && ShouldDetachDesktopLaunch(filteredArgs, verbose))
             return RelaunchDesktopDetached(filteredArgs);
 
@@ -164,6 +189,24 @@ public class Program
 
         var tendrilArgs = new Services.TendrilArgs { Beta = beta, Verbose = verbose, Quiet = quiet };
         var server = TendrilServer.Create(filteredArgs, tendrilArgs);
+
+        if (!server.Args.FindAvailablePort && IsPortInUse(server.Args.Port))
+        {
+            AnsiConsole.MarkupLine($"[red]Error: Port {server.Args.Port} is already in use.[/]");
+            AnsiConsole.MarkupLine("[yellow]Please make sure another instance of Tendril is not already running.[/]");
+            AnsiConsole.MarkupLine("");
+            if (OperatingSystem.IsWindows())
+            {
+                AnsiConsole.MarkupLine($"To find the process using this port, run: [blue]netstat -ano | findstr :{server.Args.Port}[/]");
+            }
+            else
+            {
+                AnsiConsole.MarkupLine($"To find the process using this port, run: [blue]lsof -i :{server.Args.Port}[/]");
+            }
+            AnsiConsole.MarkupLine("");
+            AnsiConsole.MarkupLine("To use a different port, set the [green]PORT[/] environment variable (e.g., [green]PORT=5011 tendril[/]).");
+            return 1;
+        }
 
         if (useDesktop)
         {
@@ -573,5 +616,20 @@ public class Program
             window.SetBadgeCount(activeJobs);
         else
             window.ClearBadge();
+    }
+
+    private static bool IsPortInUse(int port)
+    {
+        try
+        {
+            var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, port);
+            listener.Start();
+            listener.Stop();
+            return false;
+        }
+        catch
+        {
+            return true;
+        }
     }
 }
