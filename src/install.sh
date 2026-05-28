@@ -165,5 +165,3 @@ printf "%b\\n" "To launch the GUI, use: ${BLUE}tendril --desktop${NC}"
 if ! command -v gh &> /dev/null && ! /usr/local/bin/gh --version &> /dev/null; then
     printf "%b\\n" "${RED}Note: You may need to restart your terminal for 'gh' to be available.${NC}"
 fi
-
-printf "%b\\n" "\n${BLUE}Try running:${NC} tendril --version"

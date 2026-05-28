@@ -27,7 +27,8 @@ if (Get-Command dotnet -ErrorAction SilentlyContinue) {
 
 if ($hasDotNet10) {
     Write-Host "✓ .NET 10 SDK is already installed." -ForegroundColor Green
-} else {
+}
+else {
     Write-Host "Installing .NET 10 SDK..."
     $installScriptPath = Join-Path $env:TEMP "dotnet-install.ps1"
     irm -Uri "https://dot.net/v1/dotnet-install.ps1" -OutFile $installScriptPath
@@ -52,7 +53,8 @@ Write-Host "`nStep 2: Trusting .NET dev certificates..." -ForegroundColor Blue
 $certCheck = dotnet dev-certs https --check --trust 2>&1
 if ($LASTEXITCODE -eq 0) {
     Write-Host "✓ .NET dev certificate is already trusted." -ForegroundColor Green
-} else {
+}
+else {
     Write-Host "Generating and trusting .NET dev certificate..."
     dotnet dev-certs https --trust
     Write-Host "✓ .NET dev certificate trusted successfully." -ForegroundColor Green
@@ -61,12 +63,14 @@ if ($LASTEXITCODE -eq 0) {
 Write-Host "`nStep 3: Checking for Git..." -ForegroundColor Blue
 if (Get-Command git -ErrorAction SilentlyContinue) {
     Write-Host "✓ Git is already installed." -ForegroundColor Green
-} else {
+}
+else {
     Write-Host "Installing Git..."
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         winget install --id Git.Git -e --source winget
         Write-Host "✓ Git installed." -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "Error: 'winget' not found. Please install Git manually." -ForegroundColor Red
         exit 1
     }
@@ -75,12 +79,14 @@ if (Get-Command git -ErrorAction SilentlyContinue) {
 Write-Host "`nStep 4: Checking for GitHub CLI (gh)..." -ForegroundColor Blue
 if (Get-Command gh -ErrorAction SilentlyContinue) {
     Write-Host "✓ GitHub CLI is already installed." -ForegroundColor Green
-} else {
+}
+else {
     Write-Host "Installing GitHub CLI (gh)..."
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         winget install --id GitHub.cli -e --source winget
         Write-Host "✓ GitHub CLI installed." -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "Error: 'winget' not found. Please install GitHub CLI manually." -ForegroundColor Red
         exit 1
     }
@@ -90,7 +96,8 @@ Write-Host "`nStep 5: Checking for PowerShell (pwsh)..." -ForegroundColor Blue
 $hasPwsh = $false
 if (Get-Command pwsh -ErrorAction SilentlyContinue) {
     $hasPwsh = $true
-} elseif (Get-Command dotnet -ErrorAction SilentlyContinue) {
+}
+elseif (Get-Command dotnet -ErrorAction SilentlyContinue) {
     $toolList = (dotnet tool list -g 2>$null) -join " "
     if ($toolList -match "powershell") {
         $hasPwsh = $true
@@ -99,7 +106,8 @@ if (Get-Command pwsh -ErrorAction SilentlyContinue) {
 
 if ($hasPwsh) {
     Write-Host "✓ PowerShell (pwsh) is already installed." -ForegroundColor Green
-} else {
+}
+else {
     Write-Host "Installing PowerShell (pwsh)..."
     dotnet tool install --global PowerShell
     Write-Host "✓ PowerShell installed successfully." -ForegroundColor Green
@@ -121,10 +129,12 @@ if ($hasTendril) {
     # ignore update errors
     try {
         dotnet tool update -g Ivy.Tendril --add-source "$IVY_SOURCE"
-    } catch {
+    }
+    catch {
         Write-Host "Ivy-Tendril updated."
     }
-} else {
+}
+else {
     Write-Host "Installing Ivy-Tendril..."
     dotnet tool install -g Ivy.Tendril --add-source "$IVY_SOURCE"
 }
@@ -139,7 +149,8 @@ if ($userPath -notmatch [regex]::Escape($dotnetToolsPath)) {
     Write-Host "Adding .NET tools to User PATH..."
     [Environment]::SetEnvironmentVariable("PATH", "$userPath;$dotnetToolsPath", "User")
     Write-Host "✓ PATH updated." -ForegroundColor Green
-} else {
+}
+else {
     Write-Host "✓ PATH already configured." -ForegroundColor Green
 }
 
@@ -150,5 +161,3 @@ Write-Host "To launch the GUI, use: tendril --desktop" -ForegroundColor Blue
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
     Write-Host "Note: You may need to restart your terminal for 'gh' or 'tendril' to be available." -ForegroundColor Red
 }
-
-Write-Host "`nTry running: tendril --version" -ForegroundColor Blue
