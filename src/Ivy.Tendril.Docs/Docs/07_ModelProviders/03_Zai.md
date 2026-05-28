@@ -29,11 +29,7 @@ Z.AI provides access to GLM models with a dedicated coding plan option.
 
 ## Using with Tendril
 
-Set OpenCode as your coding agent in `config.yaml`:
-
-```yaml
-codingAgent: opencode
-```
+Select OpenCode as your coding agent during onboarding, or under **Settings > Configuration > Coding Agent**.
 
 ## Links
 
