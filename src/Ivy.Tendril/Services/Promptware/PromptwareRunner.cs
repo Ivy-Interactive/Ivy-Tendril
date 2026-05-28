@@ -127,6 +127,7 @@ public class PromptwareRunner : IPromptwareRunner
         psi.Environment["TENDRIL_PLANS"] = _configService.PlanFolder;
 
         AgentProcessHelper.EnsureTendrilOnPath(psi);
+        AgentProcessHelper.ResolveCommandShim(psi);
 
         _logger.LogInformation("PromptwareRunner: launching {Promptware} via {Provider} (model={Model}, effort={Effort})",
             options.Promptware, resolution.AgentId, resolution.Model, resolution.Effort);

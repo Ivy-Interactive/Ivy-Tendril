@@ -15,7 +15,7 @@ export const ResultSummary: React.FC<ResultSummaryProps> = ({ wire }) => {
   return (
     <div className={`aov-result ${isError ? "error" : ""}`}>
       <div className="aov-result-header">
-        <span className="aov-result-title">{isError ? "✗ Error" : "✓ Completed"}</span>
+        <span className="aov-result-title">{isError ? "❌ Error" : "✅ Completed"}</span>
         {wire.turn_count != null && (
           <span className="aov-result-meta">
             {wire.turn_count} turn{wire.turn_count !== 1 ? "s" : ""}

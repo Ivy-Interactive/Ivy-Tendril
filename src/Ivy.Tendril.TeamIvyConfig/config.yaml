@@ -1,4 +1,4 @@
-codingAgent: opencode
+codingAgent: copilot
 jobTimeout: 30
 staleOutputTimeout: 10
 gitTimeout: 10
@@ -134,9 +134,20 @@ projects:
   - path: D:\Tendril\Repos\lots-of-dev-tools
     prRule: default
     syncStrategy: fetch
-  verifications: []
+  verifications:
+  - name: NpmLint
+    required: true
+  - name: NpmBuild
+    required: true
+  - name: NpmTest
+    required: true
+  - name: CheckResult
+    required: true
   context: ''
-  reviewActions: []
+  reviewActions:
+  - name: App
+    condition: Test-Path Worktrees/lots-of-dev-tools/package.json
+    command: cd Worktrees/lots-of-dev-tools && npm run dev
   hooks: []
   buildDependencies: []
 verifications:
