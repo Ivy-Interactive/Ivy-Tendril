@@ -321,6 +321,43 @@ internal static class FileHelper
         }
     }
 
+    /// <summary>
+    ///     Grants broad write access to a directory so that any local user can read/write.
+    ///     On Windows: adds BUILTIN\Users with Modify + inheritance.
+    ///     On Linux/macOS: sets directory mode to 777.
+    ///     Must be called by the process that created the directory (i.e. the owner).
+    /// </summary>
+    internal static void GrantBroadWriteAccess(string directoryPath)
+    {
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                var dirInfo = new DirectoryInfo(directoryPath);
+                var security = dirInfo.GetAccessControl();
+                var usersGroup = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
+                security.AddAccessRule(new FileSystemAccessRule(
+                    usersGroup,
+                    FileSystemRights.Modify | FileSystemRights.Synchronize,
+                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                    PropagationFlags.None,
+                    AccessControlType.Allow));
+                dirInfo.SetAccessControl(security);
+            }
+            else
+            {
+                const UnixFileMode allAccess = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                                               UnixFileMode.GroupRead | UnixFileMode.GroupWrite | UnixFileMode.GroupExecute |
+                                               UnixFileMode.OtherRead | UnixFileMode.OtherWrite | UnixFileMode.OtherExecute;
+                File.SetUnixFileMode(directoryPath, allAccess);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Warning: Failed to grant broad write access to {directoryPath}: {ex.Message}");
+        }
+    }
+
     private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".svg", ".webp", ".ico"
