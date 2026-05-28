@@ -46,7 +46,7 @@ if ($modifiedContent -eq $originalContent) {
 
 try {
     # 2. Find all csproj files
-    $csprojFiles = Get-ChildItem -Path (Join-Path $RepoRoot "src") -Filter *.csproj -Recurse
+    $csprojFiles = Get-ChildItem -Path (Join-Path $RepoRoot "src") -Filter *.csproj -Recurse | Where-Object { $_.Name -ne "Ivy.Tendril.Docs.csproj" }
     
     foreach ($file in $csprojFiles) {
         $csprojPath = $file.FullName
@@ -65,6 +65,10 @@ try {
             $packagesToUpdate = $packagesToUpdate | Select-Object -Unique
             
             foreach ($pkg in $packagesToUpdate) {
+                if ($pkg -eq "Ivy.Docs.Helpers") {
+                    Write-Host "Skipping local-only package '$pkg'..."
+                    continue
+                }
                 Write-Host "Updating package '$pkg' in '$($file.Name)'..."
                 # Run dotnet add
                 dotnet add $csprojPath package $pkg
