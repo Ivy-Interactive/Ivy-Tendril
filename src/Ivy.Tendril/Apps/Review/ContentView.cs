@@ -6,6 +6,7 @@ using Ivy.Tendril.Apps.Review.Dialogs;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Apps.Views.Tabs;
+using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.Logging;
@@ -33,6 +34,8 @@ public class ContentView(
         var syncingWorktrees = UseState(new HashSet<string>());
         var args = UseArgs<ReviewAppArgs>();
         var nav = UseNavigation();
+
+        var processView = Context.UseTendrilProcessView();
 
         var githubService = UseService<IGithubService>();
         var assigneesError = UseState<string?>(null);
@@ -207,7 +210,7 @@ public class ContentView(
         if (selectedPlanState.Value is null)
         {
             if (allPlans.Count == 0)
-                return new NoContentView("No plans to review", "Completed plans will appear here for review.", new NewPlanButton().Width(Size.Fit()));
+                return new NoContentView("No plans to review", "Completed plans will appear here for review.", processView);
 
             return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
                    | Text.Muted("Select a completed plan to review");
