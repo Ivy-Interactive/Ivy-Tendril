@@ -130,16 +130,6 @@ internal class SoftwareCheck : IDoctorCheck
     private string[] GetAgentIds()
     {
         if (_agentRunner == null) return [];
-
-        if (_configService?.Settings.CodingAgents is { Count: > 0 } agents)
-        {
-            return agents
-                .Select(a => AgentProviderFactory.NormalizeAgentName(a.Name))
-                .Where(id => _agentRunner.RegisteredAgents.Contains(id, StringComparer.OrdinalIgnoreCase))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-        }
-
-        return [_configService?.Settings.CodingAgent ?? "claude"];
+        return _agentRunner.RegisteredAgents.ToArray();
     }
 }

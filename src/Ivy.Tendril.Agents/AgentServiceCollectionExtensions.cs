@@ -3,6 +3,7 @@ using Ivy.Tendril.Agents.Providers.Antigravity;
 using Ivy.Tendril.Agents.Providers.Claude;
 using Ivy.Tendril.Agents.Providers.Codex;
 using Ivy.Tendril.Agents.Providers.Copilot;
+using Ivy.Tendril.Agents.Providers.Gemini;
 using Ivy.Tendril.Agents.Providers.OpenCode;
 using Ivy.Tendril.Agents.Runtime;
 using Microsoft.Extensions.DependencyInjection;
@@ -77,6 +78,14 @@ public static class AgentServiceCollectionExtensions
                 new CopilotSessionCostParser(),
                 new CopilotPty(),
                 new CopilotModelCatalog());
+            runner.Register(
+                new GeminiCli(),
+                new GeminiEventParser(),
+                new GeminiHealthCheck(),
+                new GeminiFailureAnalyzer(),
+                new GeminiSessionCostParser(),
+                new GeminiPty(),
+                new GeminiModelCatalog());
             runner.Register(
                 new OpenCodeCli(),
                 new OpenCodeEventParser(),
