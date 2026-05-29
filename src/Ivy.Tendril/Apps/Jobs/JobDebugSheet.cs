@@ -106,7 +106,7 @@ public class JobDebugSheet(
                 copyToClipboard(formatted);
                 client.Toast("Job details copied to clipboard", "Copied");
             })
-            | new Button("Report Bug").Icon(Icons.Bug).Destructive().OnClick(() => showReportDialog.Set(true));
+            | new Button("Report Bug").Icon(Icons.Bug).OnClick(() => showReportDialog.Set(true));
 
         return Layout.Vertical()
             | new HeaderLayout(header, detailsView)
