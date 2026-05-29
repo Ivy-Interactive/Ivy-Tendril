@@ -55,7 +55,7 @@ public class Program
 
         VelopackApp.Build().Run();
 
-        var (verbose, quiet, forceDesktop, forceWeb, beta, filteredArgs) = ParseGlobalFlags(args);
+        var (verbose, quiet, forceDesktop, forceWeb, beta, jobId, filteredArgs) = ParseGlobalFlags(args);
 
         bool isTool = IsTendrilToolInvocation();
         bool useDesktop = (isTool || forceDesktop) && !forceWeb;
@@ -131,6 +131,17 @@ public class Program
                 try
                 {
                     var cliLog = Environment.GetEnvironmentVariable("TENDRIL_CLI_LOG");
+                    if (string.IsNullOrEmpty(cliLog))
+                    {
+                        var resolvedJobId = jobId ?? TryExtractJobIdFromStatusCommand(filteredArgs);
+                        if (!string.IsNullOrEmpty(resolvedJobId))
+                        {
+                            var home = Environment.GetEnvironmentVariable("TENDRIL_HOME");
+                            if (!string.IsNullOrEmpty(home))
+                                cliLog = JobStatusFile.GetStatusFilePath(resolvedJobId) + ".jsonl";
+                        }
+                    }
+
                     if (!string.IsNullOrEmpty(cliLog))
                     {
                         var commandLine = string.Join(" ", filteredArgs);
@@ -266,7 +277,7 @@ public class Program
         }
     }
 
-    private static (bool verbose, bool quiet, bool forceDesktop, bool forceWeb, bool beta, string[] filtered)
+    private static (bool verbose, bool quiet, bool forceDesktop, bool forceWeb, bool beta, string? jobId, string[] filtered)
         ParseGlobalFlags(string[] args)
     {
         bool verbose = args.Contains("--verbose") || args.Contains("-v");
@@ -275,6 +286,11 @@ public class Program
         bool forceWeb = args.Contains("--web");
         bool beta = args.Contains("--beta");
 
+        string? jobId = null;
+        var jobIdIndex = Array.IndexOf(args, "--job-id");
+        if (jobIdIndex >= 0 && jobIdIndex + 1 < args.Length)
+            jobId = args[jobIdIndex + 1];
+
         if (verbose)
             Environment.SetEnvironmentVariable("TENDRIL_VERBOSE", "1");
         if (quiet)
@@ -282,15 +298,28 @@ public class Program
         if (beta)
             Environment.SetEnvironmentVariable("TENDRIL_BETA", "1");
 
-        var filtered = args.Where(a =>
-            a != "--desktop" && a != "--web" &&
-            a != "--verbose" && a != "-v" &&
-            a != "--quiet" && a != "-q" &&
-            a != "--beta" &&
-            a != DetachedLaunchMarker
-        ).ToArray();
+        var skipNext = false;
+        var filtered = args.Where((a, _) =>
+        {
+            if (skipNext) { skipNext = false; return false; }
+            if (a == "--job-id") { skipNext = true; return false; }
+            return a != "--desktop" && a != "--web" &&
+                   a != "--verbose" && a != "-v" &&
+                   a != "--quiet" && a != "-q" &&
+                   a != "--beta" &&
+                   a != DetachedLaunchMarker;
+        }).ToArray();
 
-        return (verbose, quiet, forceDesktop, forceWeb, beta, filtered);
+        return (verbose, quiet, forceDesktop, forceWeb, beta, jobId, filtered);
+    }
+
+    private static string? TryExtractJobIdFromStatusCommand(string[] args)
+    {
+        if (args.Length >= 3 &&
+            args[0].Equals("job", StringComparison.OrdinalIgnoreCase) &&
+            args[1].Equals("status", StringComparison.OrdinalIgnoreCase))
+            return args[2];
+        return null;
     }
 
     private static bool ShouldHandleAsCliCommand(string firstArg)
