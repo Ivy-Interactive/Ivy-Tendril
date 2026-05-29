@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Ivy.Core;
 using Ivy.Tendril.Apps.Drafts.Dialogs;
+using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Apps.Views.Tabs;
@@ -43,6 +44,16 @@ public class ContentView(
             if (!isOpen.Value) return null;
             return new CreateIssueDialog(isOpen, selectedRepoState, issueAssigneeState, issueLabelsState,
                 issueCommentState, selectedPlan!, jobService);
+        });
+
+        var (debugSheet, showDebugJob) = UseTrigger<string>((isOpen, jobId) =>
+        {
+            if (!isOpen.Value) return null;
+            return new Sheet(
+                () => isOpen.Set(false),
+                new JobDebugSheet(jobId, jobService, planService, config),
+                "Job Debug"
+            ).Width(Size.Half()).Resizable();
         });
 
         var isEditing = UseState(false);
@@ -189,7 +200,9 @@ public class ContentView(
         {
             var tabs = Layout.Tabs(
                 new Tab("Plan", Cap(planTabContent)),
-                new Tab("Details", Cap(new DetailsTabView(selectedPlan!)))
+                new Tab("Details", Cap(new DetailsTabView(selectedPlan!,
+                    jobService.GetJobs().Where(j => j.PlanFile == selectedPlan!.FolderName).ToList(),
+                    showDebugJob)))
             ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content).Padding(4, 0, 0, 0).RemoveParentPadding();
 
             content |= (Layout.Vertical().Padding(2).Height(Size.Full()) | tabs);
@@ -244,7 +257,8 @@ public class ContentView(
             mainLayout,
             updateDialog,
             deleteDialog,
-            createIssueDialog
+            createIssueDialog,
+            debugSheet
         };
 
         elements.Add(new FileSheet(openFile, config));
