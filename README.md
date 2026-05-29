@@ -67,7 +67,7 @@ dotnet tool update -g Ivy.Tendril
 
 ### Prerequisites
 
-- [Claude CLI](https://docs.anthropic.com/en/docs/claude-code) (`claude`), [Codex CLI](https://github.com/openai/codex) (`codex`), [Antigravity CLI](https://github.com/antigravity-official/antigravity-cli) (`agy`), [Copilot CLI](https://github.com/microsoft/copilot-cli) (`copilot`), or [OpenCode](https://github.com/nicepkg/opencode) (`opencode`)
+- [Claude CLI](https://docs.anthropic.com/en/docs/claude-code) (`claude`), [Codex CLI](https://github.com/openai/codex) (`codex`), [Gemini CLI](https://github.com/google-gemini/gemini-cli) (`gemini`), [Copilot CLI](https://github.com/microsoft/copilot-cli) (`copilot`), or [OpenCode](https://github.com/nicepkg/opencode) (`opencode`)
 - [.NET 10.0 SDK](https://dotnet.microsoft.com/download)
 - [GitHub CLI](https://cli.github.com/) (`gh`)
 - [PowerShell 7+](https://github.com/PowerShell/PowerShell)
