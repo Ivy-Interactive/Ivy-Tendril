@@ -44,15 +44,17 @@
     </PackageReference>
   </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Photino.NET" Version="4.0.16" />
+  <ItemGroup Condition="'$(IvySource)' == 'true'">
+    <ProjectReference Include="../../../Ivy-Framework/src/Ivy.Desktop/Ivy.Desktop.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(IvySource)' != 'true'">
+    <PackageReference Include="Ivy.Desktop" Version="1.2.60" />
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="../Ivy.Tendril/Assets/icon.ico" Link="icon.ico" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="../Ivy.Tendril/Assets/icon.icns" Link="icon.icns" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="../Ivy.Tendril/Assets/icon.png" Link="icon.png" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="../Ivy.Tendril/Assets/icon.ico" LogicalName="Ivy.Tendril.Updater.icon.ico" />
+    <EmbeddedResource Include="../Ivy.Tendril/Assets/icon.icns" LogicalName="Ivy.Tendril.Updater.icon.icns" />
+    <EmbeddedResource Include="../Ivy.Tendril/Assets/icon.png" LogicalName="Ivy.Tendril.Updater.icon.png" />
   </ItemGroup>
-
 
 </Project>
