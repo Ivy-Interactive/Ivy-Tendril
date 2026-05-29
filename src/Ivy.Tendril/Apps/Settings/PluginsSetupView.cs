@@ -40,8 +40,7 @@ public class PluginsSetupView : ViewBase
 
         return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(120)))
                | Text.Block("Plugins").Bold()
-               | Text.Block("Manage installed Tendril plugins. Plugins are loaded from the plugins directory.").Muted().Small()
-               | Text.Block(pluginsDir).Muted().Small()
+               | Text.Block("Manage and configure Tendril plugins.").Muted().Small()
                | new Separator()
                | (activePlugins.Count == 0 && unconfiguredPlugins.Count == 0
                    ? (object)Text.Block("No plugins loaded.").Muted()
