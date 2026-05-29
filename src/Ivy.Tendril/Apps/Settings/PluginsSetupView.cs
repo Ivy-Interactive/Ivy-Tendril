@@ -71,7 +71,7 @@ public class PluginsSetupView : ViewBase
                                }, variant: ButtonVariant.Outline, icon: Icons.Power))
                            | (customView
                                ?? (schema is not null
-                                   ? new PluginConfigurationView(id, schema, configFactory)
+                                   ? new PluginConfigurationView(id, schema, configFactory).Key(id)
                                    : null));
                        return (object)new Expandable(header, content);
                    }).Concat(unconfiguredPlugins.Select(p =>
@@ -88,7 +88,7 @@ public class PluginsSetupView : ViewBase
                                | new Icon(Icons.TriangleAlert, Colors.Warning));
                        var content = Layout.Vertical().Gap(3)
                            | Text.Block(string.Join(", ", p.ValidationErrors)).Muted().Small()
-                           | (customView ?? new PluginConfigurationView(p.Id, p.Schema, configFactory));
+                           | (customView ?? new PluginConfigurationView(p.Id, p.Schema, configFactory).Key(p.Id));
                        return (object)new Expandable(header, content);
                    })).ToArray())
                | (unloadedPlugins.Count == 0 ? null! :
