@@ -42,9 +42,8 @@ public class PluginsSetupView : ViewBase
                | Text.Block("Manage installed Tendril plugins. Plugins are loaded from the plugins directory.").Muted().Small()
                | Text.Block(pluginsDir).Muted().Small()
                | new Separator()
-               | Text.Block("Active Plugins").Bold()
-               | (activePlugins.Count == 0
-                   ? (object)Text.Block("No plugins currently active.").Muted()
+               | (activePlugins.Count == 0 && unconfiguredPlugins.Count == 0
+                   ? (object)Text.Block("No plugins loaded.").Muted()
                    : activePlugins.Select(id =>
                    {
                        var manifest = pluginManager.GetPluginManifest(id);
@@ -75,23 +74,23 @@ public class PluginsSetupView : ViewBase
                                    ? new PluginConfigurationView(id, schema, configFactory)
                                    : null));
                        return (object)new Expandable(header, content);
-                   }).ToArray())
-               | new Separator()
-               | Text.Block("Unconfigured Plugins").Bold()
-               | (unconfiguredPlugins.Count == 0
-                   ? (object)Text.Block("No unconfigured plugins.").Muted()
-                   : unconfiguredPlugins.Select(p =>
+                   }).Concat(unconfiguredPlugins.Select(p =>
                    {
                        var manifest = pluginManager.GetPluginManifest(p.Id);
                        var pluginConfig = configFactory.Create(p.Id);
                        var customView = pluginManager.BuildPluginConfigurationView(p.Id, pluginConfig);
-                       var header = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                           | PluginIconHelper.ToWidget(manifest?.Icon, p.Id)
-                           | Text.Block(p.Name)
-                           | Text.Block(string.Join(", ", p.ValidationErrors)).Muted().Small();
-                       var content = customView ?? new PluginConfigurationView(p.Id, p.Schema, configFactory);
+                       var header = Layout.Horizontal().Gap(2).AlignContent(Align.SpaceBetween)
+                           | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
+                               | PluginIconHelper.ToWidget(manifest?.Icon, p.Id)
+                               | Text.Block(p.Name))
+                           | (Layout.Horizontal().Gap(1).AlignContent(Align.Right)
+                               | Text.Block("Unconfigured").Muted().Small()
+                               | new Icon(Icons.TriangleAlert, Colors.Warning));
+                       var content = Layout.Vertical().Gap(3)
+                           | Text.Block(string.Join(", ", p.ValidationErrors)).Muted().Small()
+                           | (customView ?? new PluginConfigurationView(p.Id, p.Schema, configFactory));
                        return (object)new Expandable(header, content);
-                   }).ToArray())
+                   })).ToArray())
                | new Separator()
                | Text.Block("Unloaded Plugins").Bold()
                | (unloadedPlugins.Count == 0
