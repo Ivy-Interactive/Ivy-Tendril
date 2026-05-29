@@ -91,11 +91,11 @@ public class PluginsSetupView : ViewBase
                            | (customView ?? new PluginConfigurationView(p.Id, p.Schema, configFactory));
                        return (object)new Expandable(header, content);
                    })).ToArray())
-               | new Separator()
-               | Text.Block("Unloaded Plugins").Bold()
-               | (unloadedPlugins.Count == 0
-                   ? (object)Text.Block("No unloaded plugins found.").Muted()
-                   : unloadedPlugins.Select(p =>
+               | (unloadedPlugins.Count == 0 ? null! :
+                   (object)(Layout.Vertical().Gap(4)
+                   | new Separator()
+                   | Text.Block("Unloaded Plugins").Bold()
+                   | unloadedPlugins.Select(p =>
                    {
                        var header = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
                            | Text.Block(p.Id);
@@ -109,7 +109,7 @@ public class PluginsSetupView : ViewBase
                                return ValueTask.CompletedTask;
                            }, variant: ButtonVariant.Outline, icon: p.FailureReason is not null ? Icons.RefreshCw : Icons.Plus);
                        return (object)new Expandable(header, content);
-                   }).ToArray())
+                   }).ToArray()))
                | new Separator()
                | Layout.Horizontal().Gap(2)
                    | new Button("Open Plugins Folder", onClick: _ =>
