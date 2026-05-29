@@ -13,6 +13,7 @@ public class SlackPlugin : IIvyPlugin
         Name = "Slack",
         ConfigSectionName = "Slack",
         Version = new Version(1, 0, 0),
+        Icon = PluginIcon.Named("Slack"),
     };
 
     public PluginConfigurationSchema ConfigurationSchema { get; } = new()
