@@ -96,17 +96,21 @@ public class PluginsSetupView : ViewBase
                | Text.Block("Unloaded Plugins").Bold()
                | (unloadedPlugins.Count == 0
                    ? (object)Text.Block("No unloaded plugins found.").Muted()
-                   : unloadedPlugins.Select(p => (object)(Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                       | new Badge(p.Id, p.FailureReason is not null ? BadgeVariant.Destructive : BadgeVariant.Outline)
-                       | (p.FailureReason is not null ? (object)Text.Block(p.FailureReason).Muted().Small() : null!)
-                       | new Button(p.FailureReason is not null ? "Retry" : "Install", onClick: _ =>
-                       {
-                           var success = pluginManager.LoadPlugin(p.Directory);
-                           client.Toast(success ? $"Loaded '{p.Id}'" : $"Failed to load '{p.Id}'",
-                               success ? "Installed" : "Error");
-                           return ValueTask.CompletedTask;
-                       }, variant: ButtonVariant.Outline, icon: p.FailureReason is not null ? Icons.RefreshCw : Icons.Plus)
-                   )).ToArray())
+                   : unloadedPlugins.Select(p =>
+                   {
+                       var header = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
+                           | Text.Block(p.Id);
+                       var content = Layout.Vertical().Gap(2)
+                           | (p.FailureReason is not null ? (object)Text.Block(p.FailureReason).Muted().Small() : null!)
+                           | new Button(p.FailureReason is not null ? "Retry" : "Install", onClick: _ =>
+                           {
+                               var success = pluginManager.LoadPlugin(p.Directory);
+                               client.Toast(success ? $"Loaded '{p.Id}'" : $"Failed to load '{p.Id}'",
+                                   success ? "Installed" : "Error");
+                               return ValueTask.CompletedTask;
+                           }, variant: ButtonVariant.Outline, icon: p.FailureReason is not null ? Icons.RefreshCw : Icons.Plus);
+                       return (object)new Expandable(header, content);
+                   }).ToArray())
                | new Separator()
                | Layout.Horizontal().Gap(2)
                    | new Button("Open Plugins Folder", onClick: _ =>
