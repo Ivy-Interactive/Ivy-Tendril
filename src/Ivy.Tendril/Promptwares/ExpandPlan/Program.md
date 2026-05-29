@@ -22,6 +22,8 @@ Project configuration is available from the firmware header.
 
 ### 2. Research and Resolve
 
+Report status: `tendril job status TendrilJobId --message "Researching and resolving..."`
+
 For each investigation section:
 
 1. **Read relevant source files** to understand the current implementation
@@ -45,6 +47,8 @@ Example:
 ```
 
 ### 3. Create Expanded Revision
+
+Report status: `tendril job status TendrilJobId --message "Writing expanded revision..."`
 
 - Write the new revision via CLI (number auto-incremented):
   ```bash

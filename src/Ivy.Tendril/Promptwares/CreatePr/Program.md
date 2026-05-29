@@ -44,6 +44,8 @@ Before processing, read `plan.yaml` and check the `state` field. After reading, 
 
 ### 2. For Each Worktree
 
+Report status: `tendril job status TendrilJobId --message "Pushing branches..."`
+
 Check `<TendrilPlanFolder>/Worktrees/` for each repo worktree.
 
 > **Worktree already removed:** If the Worktrees/ directory is empty (worktree was already cleaned up), fall back to `plan.yaml` to get the repo path and branch name (format: `tendril/<planId>-<SafeTitle>`, where SafeTitle is extracted from the plan folder name: e.g. `03158-ChangeBranchNaming` → `ChangeBranchNaming`). The commit objects may still exist in the original repo's object store. Use `git cat-file -t <sha>` to verify, then create or force-update the local branch: `git branch -f <branch-name> <sha>` (use `-f` because the branch may already exist from a WIP auto-commit) and push from the original repo path.
@@ -70,6 +72,8 @@ Otherwise, if an artifact upload tool is available in `Tools/`, run it to upload
 Capture the returned markdown. If non-empty, it will be appended to the PR body under an `## Artifacts` heading in the next step. If no upload tool is available, skip this step.
 
 ### 3. Create PR
+
+Report status: `tendril job status TendrilJobId --message "Creating pull request..."`
 
 For each pushed branch:
 
@@ -119,6 +123,8 @@ gh pr comment <pr-number> --repo <owner/repo> --body "<comment>"
 If no custom options or `comment` is empty, skip this step.
 
 ### 4. Apply PR Rule
+
+Report status: `tendril job status TendrilJobId --message "Applying PR rule..."`
 
 **!MANDATORY** — look up the `prRule` for this repo in the `RepoConfigs` firmware header.
 
@@ -200,6 +206,8 @@ git pull origin <default-branch>
 **If `default`:** PR stays open for manual review.
 
 ### 5. Clean Up Worktrees
+
+Report status: `tendril job status TendrilJobId --message "Cleaning up worktrees..."`
 
 After successful `yolo` merges (or custom options with `merge: true`), clean up the worktrees to reclaim disk space:
 

@@ -43,7 +43,7 @@ public partial class JobsApp
                 Mode = AnimatedStatusMode.SpinnerTimer
             })
             .Header(t => t.StatusMessage, "Status")
-            .Width(t => t.Status, Size.Px(80))
+            .Width(t => t.Status, Size.Px(100))
             .Width(t => t.PlanId, Size.Px(80))
             .Width(t => t.Type, Size.Px(100))
             .Width(t => t.Plan, Size.Px(250))

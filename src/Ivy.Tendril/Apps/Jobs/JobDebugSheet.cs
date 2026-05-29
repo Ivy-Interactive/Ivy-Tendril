@@ -68,8 +68,8 @@ public class JobDebugSheet(
             .Builder(x => x.PlanLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .Builder(x => x.PlanCliLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .Builder(x => x.PromptwareLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
-            .Builder(x => x.PromptwareRawLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
-            .RemoveEmpty();
+            .Builder(x => x.PromptwareRawLog,
+                f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)));
 
         var header = Layout.Horizontal().Gap(2)
             | new Button("Copy Details").Icon(Icons.ClipboardCopy).Outline().OnClick(() =>
@@ -106,7 +106,7 @@ public class JobDebugSheet(
                 copyToClipboard(formatted);
                 client.Toast("Job details copied to clipboard", "Copied");
             })
-            | new Button("Report Bug").Icon(Icons.Bug).Destructive().OnClick(() => showReportDialog.Set(true));
+            | new Button("Report Bug").Icon(Icons.Bug).OnClick(() => showReportDialog.Set(true));
 
         return Layout.Vertical()
             | new HeaderLayout(header, detailsView)

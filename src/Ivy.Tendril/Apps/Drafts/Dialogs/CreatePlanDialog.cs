@@ -53,10 +53,10 @@ public class CreatePlanDialog(
             new DialogHeader("Create New Plan"),
             new DialogBody(
                 Layout.Vertical()
-                | exclusiveProjects.ToSelectInput(options).Variant(SelectInputVariant.Toggle).WithField().Label("Select project(s)")
+                | exclusiveProjects.ToSelectInput(options).Variant(SelectInputVariant.Toggle).WithField().Label("Select Project(s)")
                 | selectedPriority.ToSelectInput(PriorityOptions).Variant(SelectInputVariant.Toggle).WithField().Label("Priority")
                 | createPlanText.ToTextareaInput("Enter task description...").Rows(6).AutoFocus().WithField()
-                    .Label("Describe the task for the new plan")
+                    .Label("Describe what you want to accomplish")
                     .Required()
             ),
             new DialogFooter(
