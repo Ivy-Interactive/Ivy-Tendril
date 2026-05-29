@@ -44,6 +44,8 @@ Focus on making progress, not achieving perfect understanding. A working impleme
 
 ### 1.5. Verify Dependencies
 
+Report status: `tendril job status TendrilJobId --message "Checking dependencies..."`
+
 If `plan.yaml` has a `dependsOn` list, for each entry:
 
 1. Locate the dependency plan folder in the plans directory
@@ -97,6 +99,8 @@ fi
 This prevents recursive worktree scenarios that would corrupt git state and cause massive repo bloat.
 
 ### 1.7. Validate Code State
+
+Report status: `tendril job status TendrilJobId --message "Validating code state..."`
 
 After reading the plan revision, scan it for code validation markers to detect stale plans (where the described code has already been changed by another plan).
 
@@ -217,6 +221,8 @@ fi
 
 ### 2. Create Worktrees
 
+Report status: `tendril job status TendrilJobId --message "Creating worktrees..."`
+
 For each repo in `RepoConfigs` (this includes both the plan's repos AND any read-only build dependencies from the project config):
 
 1. Fetch latest from remote: `git fetch origin`
@@ -314,6 +320,8 @@ This ensures ExecutePlan fails immediately if worktree creation is incomplete, r
 
 **Note:** This section applies only when the project has build-time dependencies (e.g. frontend packages, generated code, pre-built artifacts) that need special handling in worktrees. Skip if not applicable.
 
+If this step applies, report status: `tendril job status TendrilJobId --message "Setting up build dependencies..."`
+
 Worktrees start with a clean checkout and may be missing build artifacts (e.g. `dist/`, `node_modules/`, generated files) that exist in the original repo. Determine whether the plan modifies these areas:
 
 #### Default Path (No Changes to Build-Dependent Code)
@@ -352,13 +360,19 @@ These paths point to the original repos, not the worktree copies. Since we only 
 
 ### 4. Implement
 
+Report status: `tendril job status TendrilJobId --message "Implementing: <plan title>"`
+
 Work exclusively in the worktree directories. Follow the plan's latest revision:
 
 1. **Problem** — Understand what needs to be done
 2. **Solution** — Execute the implementation steps in the worktree
 3. **Tests** — Write and run all tests specified in the plan
 
+**Status cadence:** During implementation, if any sub-task takes longer than 90 seconds, issue an intermediate status update describing the current activity (e.g., `"Implementing: writing tests..."`, `"Implementing: fixing lint errors..."`, `"Implementing: reading reference code..."`). The user should never see the same status message for more than ~90 seconds.
+
 ### 5. Commit
+
+Report status: `tendril job status TendrilJobId --message "Committing changes..."`
 
 Make logically grouped commits in the worktree(s). Each commit should be a coherent unit of work.
 
@@ -394,6 +408,8 @@ git status
 If there are uncommitted changes, either commit them or discard them with a clear reason. The worktree must be clean.
 
 ### 5.5. Generate Summary
+
+Report status: `tendril job status TendrilJobId --message "Generating summary..."`
 
 After all implementation commits are made, create `<TendrilPlanFolder>/Artifacts/summary.md` summarizing what was done.
 
@@ -490,6 +506,8 @@ The `result` field in the frontmatter MUST be one of: `Pass`, `Fail`, or `Skippe
 
 ### 7.5. Generate Recommendations
 
+Report status: `tendril job status TendrilJobId --message "Generating recommendations..."`
+
 After all verifications pass, reflect on what you observed during this plan's execution. Write down anything you noticed that isn't part of this plan's scope:
 
 - Follow-up work, edge cases not covered, or related features
@@ -523,6 +541,8 @@ Do NOT include items that are part of the current plan's scope. Do NOT include r
 **This file is mandatory.** Step 8 will verify it exists and fail the plan if it is missing.
 
 ### 8. Final Clean Check
+
+Report status: `tendril job status TendrilJobId --message "Running final checks..."`
 
 After all verifications pass:
 

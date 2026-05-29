@@ -24,6 +24,8 @@ The plans directory path can be derived from the plan folder's parent directory.
 
 ### 2. Create Split Plans
 
+Report status: `tendril job status TendrilJobId --message "Creating split plans..."`
+
 For each distinct issue, use `tendril plan create` to allocate an ID, create the folder, and write `plan.yaml`:
 
 ```bash
@@ -71,6 +73,8 @@ Each new plan may belong to a different project than the original. For each spli
 
 ### 3. Dependencies Between Split Plans
 
+Report status: `tendril job status TendrilJobId --message "Setting up dependencies..."`
+
 Add `--depends-on` between sibling plans **only** when one plan would fail to compile or run without the other's changes being merged first. This is rare — most split plans are independent.
 
 **Use `dependsOn` when:**
@@ -86,6 +90,8 @@ Add `--depends-on` between sibling plans **only** when one plan would fail to co
 Ask: "Will Plan B fail to compile/run if Plan A's changes aren't merged first?" — if no, skip `dependsOn`.
 
 ### 4. Original Plan
+
+Report status: `tendril job status TendrilJobId --message "Updating original plan..."`
 
 Do NOT modify the original plan — the launcher transitions it to `Skipped` automatically on success.
 
