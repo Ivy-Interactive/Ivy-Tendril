@@ -251,7 +251,7 @@ public class ClaudePtyTests
     }
 
     [Fact]
-    public void BuildPtySpec_WithSystemPrompt_IncludesFlag()
+    public void BuildPtySpec_WithSystemPrompt_WritesFileAndIncludesFlag()
     {
         var config = new AgentPtyConfig
         {
@@ -261,13 +261,16 @@ public class ClaudePtyTests
 
         var spec = _pty.BuildPtySpec(config);
 
-        var idx = IndexOf(spec.CommandLine,"--system-prompt");
+        var idx = IndexOf(spec.CommandLine, "--system-prompt-file");
         Assert.NotEqual(-1, idx);
-        Assert.Equal("Be helpful", spec.CommandLine[idx + 1]);
+        var filePath = spec.CommandLine[idx + 1];
+        Assert.True(File.Exists(filePath));
+        Assert.Equal("Be helpful", File.ReadAllText(filePath));
+        File.Delete(filePath);
     }
 
     [Fact]
-    public void BuildPtySpec_WithAppendSystemPrompt_UsesAppendFlag()
+    public void BuildPtySpec_WithAppendSystemPrompt_UsesAppendFileFlag()
     {
         var config = new AgentPtyConfig
         {
@@ -278,8 +281,13 @@ public class ClaudePtyTests
 
         var spec = _pty.BuildPtySpec(config);
 
-        Assert.Contains("--append-system-prompt", spec.CommandLine);
-        Assert.DoesNotContain("--system-prompt", spec.CommandLine);
+        Assert.Contains("--append-system-prompt-file", spec.CommandLine);
+        Assert.DoesNotContain("--system-prompt-file", spec.CommandLine);
+        var idx = IndexOf(spec.CommandLine, "--append-system-prompt-file");
+        var filePath = spec.CommandLine[idx + 1];
+        Assert.True(File.Exists(filePath));
+        Assert.Equal("Extra instructions", File.ReadAllText(filePath));
+        File.Delete(filePath);
     }
 
     [Fact]

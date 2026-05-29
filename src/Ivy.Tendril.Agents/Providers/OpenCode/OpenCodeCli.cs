@@ -95,13 +95,17 @@ public sealed class OpenCodeCli : IAgentCli
                 env[key] = value;
         }
 
+        var stdinContent = config.Prompt;
+        if (!string.IsNullOrEmpty(config.SystemPrompt))
+            stdinContent = config.SystemPrompt + "\n\n---\n\n" + stdinContent;
+
         return new AgentProcessSpec
         {
             FileName = "opencode",
             Arguments = args,
             WorkingDirectory = config.WorkingDirectory,
             Environment = env,
-            StdinContent = config.Prompt,
+            StdinContent = stdinContent,
             RedirectStdin = true,
         };
     }
