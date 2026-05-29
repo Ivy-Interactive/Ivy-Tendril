@@ -73,7 +73,7 @@ public class PluginsSetupView : ViewBase
                                ?? (schema is not null
                                    ? new PluginConfigurationView(id, schema, configFactory).Key(id)
                                    : null));
-                       return (object)new Expandable(header, content);
+                       return (object)new Expandable(header, content) { Key = id };
                    }).Concat(unconfiguredPlugins.Select(p =>
                    {
                        var manifest = pluginManager.GetPluginManifest(p.Id);
@@ -89,7 +89,7 @@ public class PluginsSetupView : ViewBase
                        var content = Layout.Vertical().Gap(3)
                            | Text.Block(string.Join(", ", p.ValidationErrors)).Muted().Small()
                            | (customView ?? new PluginConfigurationView(p.Id, p.Schema, configFactory).Key(p.Id));
-                       return (object)new Expandable(header, content);
+                       return (object)new Expandable(header, content) { Key = p.Id };
                    })).ToArray())
                | (unloadedPlugins.Count == 0 ? null! :
                    (object)(Layout.Vertical().Gap(4)
