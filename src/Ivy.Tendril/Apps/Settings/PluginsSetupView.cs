@@ -53,7 +53,7 @@ public class PluginsSetupView : ViewBase
                        var customView = pluginManager.BuildPluginConfigurationView(id, pluginConfig);
                        var header = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
                            | PluginIconHelper.ToWidget(manifest?.Icon, id)
-                           | new Badge(manifest?.Name ?? id, BadgeVariant.Secondary);
+                           | Text.Block(manifest?.Name ?? id);
                        var content = Layout.Vertical().Gap(3)
                            | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
                                | new Button("Reload", onClick: _ =>
@@ -87,7 +87,7 @@ public class PluginsSetupView : ViewBase
                        var customView = pluginManager.BuildPluginConfigurationView(p.Id, pluginConfig);
                        var header = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
                            | PluginIconHelper.ToWidget(manifest?.Icon, p.Id)
-                           | new Badge(p.Name, BadgeVariant.Warning)
+                           | Text.Block(p.Name)
                            | Text.Block(string.Join(", ", p.ValidationErrors)).Muted().Small();
                        var content = customView ?? new PluginConfigurationView(p.Id, p.Schema, configFactory);
                        return (object)new Expandable(header, content);
