@@ -1,4 +1,4 @@
-codingAgent: gemini
+codingAgent: opencode
 jobTimeout: 30
 staleOutputTimeout: 10
 gitTimeout: 10
@@ -146,8 +146,8 @@ projects:
   context: ''
   reviewActions:
   - name: App
-    condition: Test-Path 'Worktrees/lots-of-dev-tools/package.json'
-    command: cd Worktrees/lots-of-dev-tools && npm run dev
+    condition: Test-Path 'Worktrees\lots-of-dev-tools\package.json'
+    command: cd Worktrees\lots-of-dev-tools && npm run dev
   hooks: []
   buildDependencies: []
 verifications:

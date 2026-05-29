@@ -34,6 +34,8 @@ Read the ChangeRequest carefully before starting implementation. The original pl
 
 ### 2. Enter Existing Worktrees
 
+Report status: `tendril job status TendrilJobId --message "Entering worktrees..."`
+
 The worktrees were created by the prior ExecutePlan run and already contain branches with previous commits. A project may consist of multiple repos — each has its own worktree under `<TendrilPlanFolder>/Worktrees/`.
 
 For each repo in `plan.yaml` `repos` (or the project's repos from the **Projects** section if empty):
@@ -76,6 +78,8 @@ If sync fails due to conflicts, report the conflict and fail — do not force-re
 
 ### 3. Implement Changes
 
+Report status: `tendril job status TendrilJobId --message "Implementing changes..."`
+
 Work exclusively in the worktree directories. Address the **ChangeRequest** feedback:
 
 1. **ChangeRequest** — Address the reviewer's feedback. This is why this re-execution was triggered.
@@ -84,6 +88,8 @@ Work exclusively in the worktree directories. Address the **ChangeRequest** feed
 4. **Tests** — Write and run any tests specified
 
 ### 4. Commit
+
+Report status: `tendril job status TendrilJobId --message "Committing changes..."`
 
 Make logically grouped commits in the worktree(s). Each commit should be a coherent unit of work.
 
@@ -212,6 +218,8 @@ tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown descriptio
 **This file is mandatory.** Step 7 will verify it exists.
 
 ### 7. Final Clean Check
+
+Report status: `tendril job status TendrilJobId --message "Running final checks..."`
 
 After all verifications pass:
 
