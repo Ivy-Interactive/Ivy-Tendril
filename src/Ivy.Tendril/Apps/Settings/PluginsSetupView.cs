@@ -4,6 +4,25 @@ using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps.Settings;
 
+internal static class PluginIconHelper
+{
+    public static object? ToWidget(PluginIcon? icon, string? pluginId = null)
+    {
+        if (icon is null) return null;
+        return icon.Kind switch
+        {
+            PluginIconKind.Named => IconsHelper.FromString(icon.Value) is { } parsed
+                ? new Icon(parsed)
+                : null,
+            PluginIconKind.Svg => new Html(icon.Value).Width(Size.Units(5)).Height(Size.Units(5)),
+            PluginIconKind.Url => new Image(icon.Value).Width(Size.Units(5)).Height(Size.Units(5)),
+            PluginIconKind.File when pluginId is not null =>
+                new Image($"/ivy/plugins/{pluginId}/assets/{icon.Value}").Width(Size.Units(5)).Height(Size.Units(5)),
+            _ => null
+        };
+    }
+}
+
 public class PluginsSetupView : ViewBase
 {
     public override object Build()
@@ -29,12 +48,14 @@ public class PluginsSetupView : ViewBase
                    ? (object)Text.Block("No plugins currently active.").Muted()
                    : activePlugins.Select(id =>
                    {
+                       var manifest = pluginManager.GetPluginManifest(id);
                        var schema = pluginManager.GetPluginSchema(id);
                        var pluginConfig = configFactory.Create(id);
                        var customView = pluginManager.BuildPluginConfigurationView(id, pluginConfig);
                        return (object)new Card(content: Layout.Vertical().Gap(3)
                            | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                               | new Badge(id, BadgeVariant.Secondary)
+                               | PluginIconHelper.ToWidget(manifest?.Icon, id)
+                               | new Badge(manifest?.Name ?? id, BadgeVariant.Secondary)
                                | new Button("Reload", onClick: _ =>
                                {
                                    var success = pluginManager.ReloadPlugin(id);
@@ -60,10 +81,12 @@ public class PluginsSetupView : ViewBase
                    ? (object)Text.Block("No unconfigured plugins.").Muted()
                    : unconfiguredPlugins.Select(p =>
                    {
+                       var manifest = pluginManager.GetPluginManifest(p.Id);
                        var pluginConfig = configFactory.Create(p.Id);
                        var customView = pluginManager.BuildPluginConfigurationView(p.Id, pluginConfig);
                        return (object)new Card(content: Layout.Vertical().Gap(3)
                            | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
+                               | PluginIconHelper.ToWidget(manifest?.Icon, p.Id)
                                | new Badge(p.Name, BadgeVariant.Warning)
                                | Text.Block(string.Join(", ", p.ValidationErrors)).Muted().Small())
                            | (customView ?? new PluginConfigurationView(p.Id, p.Schema, configFactory)));
