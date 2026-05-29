@@ -52,10 +52,11 @@ public class PluginsSetupView : ViewBase
                        var schema = pluginManager.GetPluginSchema(id);
                        var pluginConfig = configFactory.Create(id);
                        var customView = pluginManager.BuildPluginConfigurationView(id, pluginConfig);
-                       return (object)new Card(content: Layout.Vertical().Gap(3)
+                       var header = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
+                           | PluginIconHelper.ToWidget(manifest?.Icon, id)
+                           | new Badge(manifest?.Name ?? id, BadgeVariant.Secondary);
+                       var content = Layout.Vertical().Gap(3)
                            | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                               | PluginIconHelper.ToWidget(manifest?.Icon, id)
-                               | new Badge(manifest?.Name ?? id, BadgeVariant.Secondary)
                                | new Button("Reload", onClick: _ =>
                                {
                                    var success = pluginManager.ReloadPlugin(id);
@@ -73,7 +74,8 @@ public class PluginsSetupView : ViewBase
                            | (customView
                                ?? (schema is not null
                                    ? new PluginConfigurationView(id, schema, configFactory)
-                                   : null)));
+                                   : null));
+                       return (object)new Expandable(header, content);
                    }).ToArray())
                | new Separator()
                | Text.Block("Unconfigured Plugins").Bold()
@@ -84,12 +86,12 @@ public class PluginsSetupView : ViewBase
                        var manifest = pluginManager.GetPluginManifest(p.Id);
                        var pluginConfig = configFactory.Create(p.Id);
                        var customView = pluginManager.BuildPluginConfigurationView(p.Id, pluginConfig);
-                       return (object)new Card(content: Layout.Vertical().Gap(3)
-                           | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                               | PluginIconHelper.ToWidget(manifest?.Icon, p.Id)
-                               | new Badge(p.Name, BadgeVariant.Warning)
-                               | Text.Block(string.Join(", ", p.ValidationErrors)).Muted().Small())
-                           | (customView ?? new PluginConfigurationView(p.Id, p.Schema, configFactory)));
+                       var header = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
+                           | PluginIconHelper.ToWidget(manifest?.Icon, p.Id)
+                           | new Badge(p.Name, BadgeVariant.Warning)
+                           | Text.Block(string.Join(", ", p.ValidationErrors)).Muted().Small();
+                       var content = customView ?? new PluginConfigurationView(p.Id, p.Schema, configFactory);
+                       return (object)new Expandable(header, content);
                    }).ToArray())
                | new Separator()
                | Text.Block("Unloaded Plugins").Bold()
