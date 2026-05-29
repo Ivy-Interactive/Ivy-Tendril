@@ -1,8 +1,4 @@
 using System.ComponentModel;
-using System.IO.Compression;
-using System.Net.Http.Headers;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Microsoft.Extensions.Logging;
@@ -36,9 +32,6 @@ public class ReportBugSettings : CommandSettings
 
 public class ReportBugCommand : Command<ReportBugSettings>
 {
-    private static readonly Regex JobIdFromLogRegex = new(@"^(\d{5})-", RegexOptions.Compiled);
-    private const string BugReportApiUrl = "https://tendril-api.ivy.app/report-bug";
-
     private readonly ILogger<ReportBugCommand> _logger;
 
     public ReportBugCommand(ILogger<ReportBugCommand> logger) => _logger = logger;
@@ -66,11 +59,13 @@ public class ReportBugCommand : Command<ReportBugSettings>
     private int Run(ReportBugSettings settings, CancellationToken cancellationToken)
     {
         var configService = new ConfigService();
+        var service = new BugReportService(configService);
+
         var description = settings.Description;
         if (string.IsNullOrEmpty(description))
             description = AnsiConsole.Ask<string>("Describe the bug:");
 
-        var files = CollectFiles(settings, configService);
+        var files = CollectFiles(settings, service);
         if (files.Count == 0)
         {
             AnsiConsole.MarkupLine("[yellow]No files found to include in the report.[/]");
@@ -96,111 +91,38 @@ public class ReportBugCommand : Command<ReportBugSettings>
             return 0;
         }
 
-        var zipPath = CreateZip(files);
-        try
-        {
-            var version = typeof(ReportBugCommand).Assembly.GetName().Version?.ToString(3) ?? "unknown";
-            var osVersion = Environment.OSVersion.VersionString;
-            var agent = configService.Settings.CodingAgent;
+        AnsiConsole.MarkupLine("[dim]Uploading bug report...[/]");
+        var result = service.SubmitReportAsync(description, files, cancellationToken).GetAwaiter().GetResult();
 
-            var result = UploadReport(zipPath, description, osVersion, version, agent, cancellationToken);
-            if (result == null) return 1;
-
-            AnsiConsole.WriteLine();
-            AnsiConsole.MarkupLine($"[green]Bug report submitted successfully![/]");
-            AnsiConsole.MarkupLine($"[link]{result.IssueUrl}[/]");
-            return 0;
-        }
-        finally
+        if (result == null)
         {
-            File.Delete(zipPath);
+            AnsiConsole.MarkupLine("[red]Upload failed.[/]");
+            return 1;
         }
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[green]Bug report submitted successfully![/]");
+        AnsiConsole.MarkupLine($"[link]{result.IssueUrl}[/]");
+        return 0;
     }
 
-    private List<BugReportFile> CollectFiles(ReportBugSettings settings, ConfigService configService)
+    private static List<BugReportService.BugReportFile> CollectFiles(ReportBugSettings settings, BugReportService service)
     {
-        var files = new List<BugReportFile>();
-        var jobIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var files = new List<BugReportService.BugReportFile>();
 
         if (!string.IsNullOrEmpty(settings.PlanId))
         {
             var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
-            CollectPlanFiles(planFolder, files);
-            ExtractJobIdsFromPlanLogs(planFolder, jobIds);
+            files.AddRange(service.CollectFilesForPlan(planFolder));
         }
 
         if (!string.IsNullOrEmpty(settings.JobId))
-        {
-            var normalized = NormalizeJobId(settings.JobId);
-            jobIds.Add(normalized);
-        }
-
-        if (jobIds.Count > 0)
-            CollectPromptwareLogFiles(jobIds, configService, files);
+            files.AddRange(service.CollectFilesForJob(settings.JobId));
 
         return files;
     }
 
-    private static void CollectPlanFiles(string planFolder, List<BugReportFile> files)
-    {
-        foreach (var file in Directory.EnumerateFiles(planFolder, "*", SearchOption.AllDirectories))
-        {
-            var relativePath = Path.GetRelativePath(planFolder, file);
-            if (relativePath.StartsWith("Worktrees", StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            files.Add(new BugReportFile(file, relativePath));
-        }
-    }
-
-    private static void ExtractJobIdsFromPlanLogs(string planFolder, HashSet<string> jobIds)
-    {
-        var logsDir = Path.Combine(planFolder, "Logs");
-        if (!Directory.Exists(logsDir)) return;
-
-        foreach (var logFile in Directory.GetFiles(logsDir, "*.md"))
-        {
-            var fileName = Path.GetFileNameWithoutExtension(logFile);
-            var match = JobIdFromLogRegex.Match(fileName);
-            if (match.Success)
-                jobIds.Add(match.Groups[1].Value);
-        }
-    }
-
-    private static void CollectPromptwareLogFiles(HashSet<string> jobIds, ConfigService configService, List<BugReportFile> files)
-    {
-        var promptsRoot = PromptwareHelper.ResolvePromptsRoot(configService.TendrilHome);
-        if (!Directory.Exists(promptsRoot)) return;
-
-        foreach (var pwDir in Directory.GetDirectories(promptsRoot))
-        {
-            var logsDir = Path.Combine(pwDir, "Logs");
-            if (!Directory.Exists(logsDir)) continue;
-
-            var pwName = Path.GetFileName(pwDir);
-
-            foreach (var jobId in jobIds)
-            {
-                var mdFile = Path.Combine(logsDir, $"{jobId}.md");
-                if (File.Exists(mdFile))
-                    files.Add(new BugReportFile(mdFile, Path.Combine("Jobs", pwName, $"{jobId}.md")));
-
-                var jsonlFile = Path.Combine(logsDir, $"{jobId}.raw.jsonl");
-                if (File.Exists(jsonlFile))
-                    files.Add(new BugReportFile(jsonlFile, Path.Combine("Jobs", pwName, $"{jobId}.raw.jsonl")));
-            }
-        }
-    }
-
-    private static string NormalizeJobId(string input)
-    {
-        input = input.Trim();
-        if (int.TryParse(input, out var num))
-            return num.ToString("D5");
-        return input;
-    }
-
-    private static void DisplayFileList(List<BugReportFile> files)
+    private static void DisplayFileList(List<BugReportService.BugReportFile> files)
     {
         var table = new Spectre.Console.Table();
         table.AddColumn("File");
@@ -231,52 +153,4 @@ public class ReportBugCommand : Command<ReportBugSettings>
             _ => $"{bytes / (1024.0 * 1024.0):F1} MB"
         };
     }
-
-    private static string CreateZip(List<BugReportFile> files)
-    {
-        var zipPath = Path.Combine(Path.GetTempPath(), $"tendril-bug-report-{Guid.NewGuid():N}.zip");
-        using var zip = ZipFile.Open(zipPath, ZipArchiveMode.Create);
-
-        foreach (var file in files)
-        {
-            zip.CreateEntryFromFile(file.AbsolutePath, file.ZipEntryPath.Replace('\\', '/'));
-        }
-
-        return zipPath;
-    }
-
-    private BugReportResult? UploadReport(string zipPath, string description, string osVersion, string tendrilVersion, string agent, CancellationToken cancellationToken)
-    {
-        using var httpClient = new HttpClient();
-        httpClient.Timeout = TimeSpan.FromMinutes(5);
-
-        using var form = new MultipartFormDataContent();
-        form.Add(new StringContent(description), "description");
-        form.Add(new StringContent(osVersion), "osVersion");
-        form.Add(new StringContent(tendrilVersion), "tendrilVersion");
-        form.Add(new StringContent(agent), "agent");
-
-        var fileStream = File.OpenRead(zipPath);
-        var fileContent = new StreamContent(fileStream);
-        fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/zip");
-        form.Add(fileContent, "file", "bug-report.zip");
-
-        AnsiConsole.MarkupLine("[dim]Uploading bug report...[/]");
-
-        var response = httpClient.PostAsync(BugReportApiUrl, form, cancellationToken).GetAwaiter().GetResult();
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var body = response.Content.ReadAsStringAsync(cancellationToken).GetAwaiter().GetResult();
-            AnsiConsole.MarkupLine($"[red]Upload failed ({(int)response.StatusCode}):[/] {body.EscapeMarkup()}");
-            return null;
-        }
-
-        var json = response.Content.ReadAsStringAsync(cancellationToken).GetAwaiter().GetResult();
-        return JsonSerializer.Deserialize<BugReportResult>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-    }
-
-    private record BugReportFile(string AbsolutePath, string ZipEntryPath);
-
-    private record BugReportResult(string ReportId, string IssueUrl);
 }

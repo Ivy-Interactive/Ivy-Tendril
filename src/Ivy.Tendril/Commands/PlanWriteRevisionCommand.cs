@@ -36,7 +36,7 @@ public class PlanWriteRevisionCommand : Command<PlanWriteRevisionSettings>
 
             var content = !string.IsNullOrEmpty(settings.FilePath)
                 ? File.ReadAllText(settings.FilePath)
-                : Console.In.ReadToEnd();
+                : ConsoleHelper.ReadStdinWithTimeout();
             if (string.IsNullOrWhiteSpace(content))
                 throw new ArgumentException("No content provided (use --file or pipe to STDIN)");
 

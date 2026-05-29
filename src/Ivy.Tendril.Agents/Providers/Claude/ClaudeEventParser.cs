@@ -194,12 +194,19 @@ public sealed class ClaudeEventParser : IEventParser
                         ? inputProp.GetRawText()
                         : null;
 
+                    string? toolDescription = null;
+                    if (inputProp.ValueKind == JsonValueKind.Object &&
+                        inputProp.TryGetProperty("description", out var tdProp) &&
+                        tdProp.ValueKind == JsonValueKind.String)
+                        toolDescription = tdProp.GetString();
+
                     events.Add(new ToolCallEvent
                     {
                         Kind = AgentEventKind.ToolCall,
                         ToolUseId = toolId,
                         ToolName = toolName,
                         InputJson = inputJson,
+                        Description = toolDescription,
                         RawLine = rawLine,
                     });
                     break;

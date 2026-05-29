@@ -92,6 +92,7 @@ public class PlanCreateCommand : Command<PlanCreateSettings>
             }
 
             Directory.CreateDirectory(planFolder);
+            FileHelper.GrantBroadWriteAccess(planFolder);
 
             var plan = new PlanYaml
             {

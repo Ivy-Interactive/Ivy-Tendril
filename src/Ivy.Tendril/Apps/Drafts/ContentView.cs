@@ -5,6 +5,7 @@ using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Apps.Views.Tabs;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
@@ -30,6 +31,8 @@ public class ContentView(
         var issueAssigneeState = UseState<string?>(null);
         var issueLabelsState = UseState<string[]>([]);
         var issueCommentState = UseState("");
+
+        var processView = Context.UseTendrilProcessView();
 
         var (updateDialog, showUpdateDialog) = UseTrigger((isOpen) => !isOpen.Value ? null : new UpdatePlanDialog(isOpen, selectedPlan!, selectedPlanState, jobService, planService, refreshPlans));
 
@@ -122,7 +125,7 @@ public class ContentView(
         if (selectedPlan is null)
         {
             if (allPlans.Count == 0)
-                return new NoContentView("No draft plans", "Plans you create will appear here.", new NewPlanButton().Width(Size.Fit()));
+                return new NoContentView("No draft plans", "Plans you create will appear here.", processView);
 
             return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
                    | Text.Muted("Select a plan from the sidebar");

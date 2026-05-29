@@ -8,7 +8,7 @@ public static class FirmwareCompiler
     private static readonly Lazy<string?> PlansReference = new(() =>
     {
         var asm = Assembly.GetExecutingAssembly();
-        using var stream = asm.GetManifestResourceStream("Ivy.Tendril.Assets.Plans.md");
+        using var stream = asm.GetManifestResourceStream("Ivy.Tendril.Prompts.Plans.md");
         if (stream == null) return null;
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd();
@@ -52,10 +52,18 @@ public static class FirmwareCompiler
 
         Every execution needs to end with a reflection step. This is your opportunity to improve over time. What did we learn during this session? Save reflections using the CLI:
 
+        **Bash:**
         ```bash
         tendril promptware write-memory {PROMPTWARE_NAME} <filename>.md <<'EOF'
         <reflection content>
         EOF
+        ```
+
+        **PowerShell:**
+        ```powershell
+        @'
+        <reflection content>
+        '@ | tendril promptware write-memory {PROMPTWARE_NAME} <filename>.md
         ```
 
         - Note that learnings might be falsified over time. Pruning memory is just as important as storing new memory.

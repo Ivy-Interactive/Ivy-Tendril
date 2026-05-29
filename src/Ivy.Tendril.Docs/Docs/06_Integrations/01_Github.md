@@ -26,7 +26,7 @@ Ensure `gh` is installed and available on your PATH. Tendril will prompt you dur
 
 Use the **Import Issues** dialog to fetch GitHub issues and convert them into Tendril plans:
 
-1. Open the **Plans** app
+1. Open the **Drafts** app
 2. Select **Import Issues** from the menu
 3. Choose the target repository and filter by labels or milestones
 4. Selected issues are converted into plans via the CreatePlan promptware

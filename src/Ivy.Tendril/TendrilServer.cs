@@ -26,7 +26,7 @@ public static class TendrilServer
 
         var configService = new ConfigService(Microsoft.Extensions.Logging.Abstractions.NullLogger<ConfigService>.Instance);
         server.Services.AddSingleton(tendrilArgs);
-        server.AddTendrilServices(configService);
+        server.AddTendrilServices(configService, tendrilArgs);
 
         var logLevel = tendrilArgs.Verbose ? "Debug"
             : tendrilArgs.Quiet ? "Warning"

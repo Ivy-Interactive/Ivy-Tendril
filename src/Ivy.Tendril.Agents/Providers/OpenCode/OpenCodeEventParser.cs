@@ -143,9 +143,13 @@ public sealed class OpenCodeEventParser : IEventParser
         var callId = part.TryGetProperty("callID", out var cidProp) ? cidProp.GetString() ?? "" : "";
 
         string? inputJson = null;
+        string? description = null;
         if (part.TryGetProperty("state", out var state) && state.TryGetProperty("input", out var input))
         {
             inputJson = input.GetRawText();
+            if (input.TryGetProperty("description", out var descProp) &&
+                descProp.ValueKind == JsonValueKind.String)
+                description = descProp.GetString();
         }
 
         var events = new List<AgentEvent>
@@ -156,6 +160,7 @@ public sealed class OpenCodeEventParser : IEventParser
                 ToolUseId = callId,
                 ToolName = toolName,
                 InputJson = inputJson,
+                Description = description,
                 RawLine = rawLine,
             }
         };

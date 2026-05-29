@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
@@ -31,7 +32,7 @@ public class TrashWriteCommand : Command<TrashWriteSettings>
             var filename = Path.GetFileName(settings.Filename);
             var filePath = Path.Combine(trashDir, filename);
 
-            var content = Console.In.ReadToEnd();
+            var content = ConsoleHelper.ReadStdinWithTimeout();
             if (string.IsNullOrWhiteSpace(content))
                 throw new ArgumentException("No content provided (pipe to STDIN)");
 

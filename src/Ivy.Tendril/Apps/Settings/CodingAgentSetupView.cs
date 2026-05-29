@@ -13,6 +13,7 @@ public class CodingAgentSetupView : ViewBase
         new("claude", "Claude", Icons.ClaudeCode),
         new("copilot", "Copilot", Icons.Copilot),
         new("codex", "Codex", Icons.OpenAI),
+        new("gemini", "Gemini", Icons.Gemini),
         new("antigravity", "Antigravity", Icons.Antigravity),
         new("opencode", "OpenCode", Icons.OpenCode)
     ];
@@ -66,8 +67,11 @@ public class CodingAgentSetupView : ViewBase
 
         var hasChanges = selectedAgent.Value != config.Settings.CodingAgent || hasProfileChanges;
 
+        var registeredAgents = runner.RegisteredAgents;
+        var visibleAgents = Agents.Where(a => registeredAgents.Contains(a.Key)).ToArray();
+
         var grid = Layout.Grid().Columns(3).Gap(2);
-        grid = Agents.Aggregate(grid, (current, a) =>
+        grid = visibleAgents.Aggregate(grid, (current, a) =>
             current | new Card(
                 Layout.Horizontal().Gap(2).Padding(0)
                 | a.Logo.ToIcon().Width(Size.Px(32)).Height(Size.Px(32))

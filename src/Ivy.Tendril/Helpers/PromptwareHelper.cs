@@ -17,7 +17,8 @@ public static class PromptwareHelper
         if (File.Exists(Path.Combine(sourceFolder, "Program.md")))
             return sourceFolder;
 
-        tendrilHome ??= Environment.GetEnvironmentVariable("TENDRIL_HOME");
+        if (string.IsNullOrEmpty(tendrilHome))
+            tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         if (!string.IsNullOrEmpty(tendrilHome))
         {
             var deployedRoot = Path.Combine(tendrilHome, "Promptwares");
@@ -31,14 +32,20 @@ public static class PromptwareHelper
 
     public static string ResolvePromptsRoot(string? tendrilHome = null)
     {
-        // 1. Debug/source mode: check if Promptwares exists relative to BaseDirectory
         var sourceRoot = Path.GetFullPath(
             Path.Combine(System.AppContext.BaseDirectory, "..", "..", "..", "Promptwares"));
-        if (Directory.Exists(sourceRoot))
-            return sourceRoot;
+
+        // 1. Debug/source mode: check if Promptwares exists relative to BaseDirectory
+        // Only if embedded resource is NOT available (indicating we are in development/source mode)
+        if (!Services.Promptware.PromptwareDeployer.IsEmbeddedAvailable())
+        {
+            if (Directory.Exists(sourceRoot))
+                return sourceRoot;
+        }
 
         // 2. Production mode: use TENDRIL_HOME/Promptwares
-        tendrilHome ??= Environment.GetEnvironmentVariable("TENDRIL_HOME");
+        if (string.IsNullOrEmpty(tendrilHome))
+            tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         if (!string.IsNullOrEmpty(tendrilHome))
         {
             var deployedRoot = Path.Combine(tendrilHome, "Promptwares");

@@ -166,6 +166,29 @@ public static class PlatformHelper
                 return true;
             }
 
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX) || RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                if (!Path.IsPathRooted(editorCommand))
+                {
+                    using var check = Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "which",
+                        Arguments = editorCommand,
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true
+                    });
+                    check?.WaitForExit(3000);
+                    if (check is null || check.ExitCode != 0)
+                        return false;
+                }
+                else if (!File.Exists(editorCommand))
+                {
+                    return false;
+                }
+            }
+
             // UseShellExecute = false prevents the OS from printing "The file X does not exist"
             // to the terminal before .NET gets a chance to catch the exception.
             var psi = new ProcessStartInfo

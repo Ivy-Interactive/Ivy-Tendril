@@ -7,7 +7,7 @@ public static class AgentPromptCompiler
     private static readonly Lazy<string?> Template = new(() =>
     {
         var asm = Assembly.GetExecutingAssembly();
-        using var stream = asm.GetManifestResourceStream("Ivy.Tendril.Assets.AgentPrompt.md");
+        using var stream = asm.GetManifestResourceStream("Ivy.Tendril.Prompts.AgentPrompt.md");
         if (stream == null) return null;
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd();

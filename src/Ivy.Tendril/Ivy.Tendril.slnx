@@ -4,10 +4,9 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="../Ivy.Widgets.TendrilProcessView/.samples/Program.csproj" />
-  <Project Path="../Ivy.Widgets.TendrilProcessView/Ivy.Widgets.TendrilProcessView.csproj" />
   <Project Path="Ivy.Tendril.csproj" />
   <Project Path="../Ivy.Tendril.Plugin.Abstractions/Ivy.Tendril.Plugin.Abstractions.csproj" />
+  <Project Path="../Ivy.Tendril.Widgets/Ivy.Tendril.Widgets.csproj" />
   <Project Path="../Ivy.Tendril.Updater/Ivy.Tendril.Updater.csproj" />
   <Project Path="../Ivy.Tendril.Test/Ivy.Tendril.Test.csproj" />
   <Project Path="../Ivy.Tendril.Agents.Test.End2End/Ivy.Tendril.Agents.Test.End2End.csproj" />
@@ -15,5 +14,7 @@
   <Project Path="../Ivy.Tendril.Agents.Test/Ivy.Tendril.Agents.Test.csproj" />
   <Project Path="../Ivy.Tendril.Docs/Ivy.Tendril.Docs.csproj" />
   <Project Path="../Ivy.Widgets.AgentOutputView/Ivy.Widgets.AgentOutputView.csproj" />
+  <Project Path="../Ivy.Widgets.TendrilProcessView/Ivy.Widgets.TendrilProcessView.csproj" />
+  <Project Path="../Ivy.Widgets.TendrilProcessView/.samples/Program.csproj" />
   <Project Path="../Ivy.Tendril.Test.End2End/Ivy.Tendril.Test.End2End.csproj" />
 </Solution>
