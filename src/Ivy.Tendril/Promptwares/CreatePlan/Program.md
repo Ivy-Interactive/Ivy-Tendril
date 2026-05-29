@@ -178,7 +178,8 @@ tendril plan create "<Title>" \
   --repo "<repo-path-1>" \
   --repo "<repo-path-2>" \
   --verification "Build=Pending" \
-  --verification "Test=Pending"
+  --verification "Test=Pending" \
+  --job-id TendrilJobId
 ```
 
 **IMPORTANT:** Always pass `--plans-dir` with the `TendrilPlansFolder` firmware value. This ensures the plan is created in the correct directory regardless of environment variable inheritance.
@@ -205,7 +206,7 @@ Populate `--verification` flags from the project's verifications in the **Projec
 Write the revision content via CLI:
 
 ```bash
-tendril plan write-revision <PlanId> <<'EOF'
+tendril plan write-revision <PlanId> --job-id TendrilJobId <<'EOF'
 <revision content here>
 EOF
 ```
@@ -225,11 +226,11 @@ tendril job status <TendrilJobId> --message "Creating plan..." --plan-id <PlanId
 For any fields that need to be set after initial creation, use individual CLI commands:
 
 ```bash
-tendril plan set <PlanId> initialPrompt "<text>"
-tendril plan add-repo <PlanId> "<repo-path>"
-tendril plan set-verification <PlanId> Build Pending
-tendril plan add-related-plan <PlanId> "<folder-name>"
-tendril plan add-depends-on <PlanId> "<folder-name>"
+tendril plan set <PlanId> initialPrompt "<text>" --job-id TendrilJobId
+tendril plan add-repo <PlanId> "<repo-path>" --job-id TendrilJobId
+tendril plan set-verification <PlanId> Build Pending --job-id TendrilJobId
+tendril plan add-related-plan <PlanId> "<folder-name>" --job-id TendrilJobId
+tendril plan add-depends-on <PlanId> "<folder-name>" --job-id TendrilJobId
 ```
 
 **Validate repo paths**: After determining the project and repos from the **Projects** section, verify each repo path exists locally:

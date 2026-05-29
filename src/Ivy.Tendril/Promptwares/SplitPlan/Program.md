@@ -38,7 +38,8 @@ tendril plan create "<Title>" \
   --repo "<repo-path>" \
   --verification "Build=Pending" \
   --verification "Test=Pending" \
-  --related-plan "<original-plan-folder-name>"
+  --related-plan "<original-plan-folder-name>" \
+  --job-id TendrilJobId
 ```
 
 **IMPORTANT:** Always pass `--plans-dir` with the plans directory (derive from the plan folder's parent). This ensures child plans are created in the correct directory regardless of environment variable inheritance.
@@ -57,7 +58,7 @@ Do NOT read or modify `.counter` directly — `tendril plan create` handles ID a
 After creating each plan, write the revision via CLI:
 
 ```bash
-tendril plan write-revision <PlanId> <<'EOF'
+tendril plan write-revision <PlanId> --job-id TendrilJobId <<'EOF'
 <revision content here>
 EOF
 ```
