@@ -35,15 +35,9 @@ public static class PromptwareHelper
         var sourceRoot = Path.GetFullPath(
             Path.Combine(System.AppContext.BaseDirectory, "..", "..", "..", "Promptwares"));
 
-        // 1. Debug/source mode: check if Promptwares exists relative to BaseDirectory
-        // Only if embedded resource is NOT available (indicating we are in development/source mode)
-        if (!Services.Promptware.PromptwareDeployer.IsEmbeddedAvailable())
-        {
-            if (Directory.Exists(sourceRoot))
-                return sourceRoot;
-        }
+        if (Directory.Exists(sourceRoot))
+            return sourceRoot;
 
-        // 2. Production mode: use TENDRIL_HOME/Promptwares
         if (string.IsNullOrEmpty(tendrilHome))
             tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         if (!string.IsNullOrEmpty(tendrilHome))
@@ -53,7 +47,6 @@ public static class PromptwareHelper
                 return deployedRoot;
         }
 
-        // 3. Fallback (will fail at runtime, but gives a clear error location)
         if (!string.IsNullOrEmpty(tendrilHome))
             return Path.Combine(tendrilHome, "Promptwares");
 
