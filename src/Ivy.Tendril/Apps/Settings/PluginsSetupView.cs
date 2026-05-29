@@ -7,6 +7,8 @@ namespace Ivy.Tendril.Apps.Settings;
 
 internal static class PluginIconHelper
 {
+    private static readonly Size IconSize = Size.Units(4);
+
     public static object? ToWidget(PluginIcon? icon, string? pluginId = null)
     {
         if (icon is null) return null;
@@ -15,12 +17,14 @@ internal static class PluginIconHelper
             PluginIconKind.Named => IconsHelper.FromString(icon.Value) is { } parsed
                 ? new Icon(parsed)
                 : null,
-            PluginIconKind.Url => new Image(icon.Value).Width(Size.Units(5)).Height(Size.Units(5)),
+            PluginIconKind.Url => new Image(icon.Value).Width(IconSize).Height(IconSize),
             PluginIconKind.File when pluginId is not null =>
-                new Image($"/ivy/plugins/{pluginId}/assets/{icon.Value}").Width(Size.Units(5)).Height(Size.Units(5)),
+                new Image($"/ivy/plugins/{pluginId}/assets/{icon.Value}").Width(IconSize).Height(IconSize),
             _ => null
         };
     }
+
+    public static Icon UnloadedIcon() => new Icon(Icons.Unplug).Width(IconSize).Height(IconSize);
 }
 
 public class PluginsSetupView : ViewBase
@@ -98,6 +102,7 @@ public class PluginsSetupView : ViewBase
                    | unloadedPlugins.Select(p =>
                    {
                        var header = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
+                           | PluginIconHelper.UnloadedIcon()
                            | Text.Block(p.Id);
                        var content = Layout.Vertical().Gap(2)
                            | (p.FailureReason is not null ? (object)Text.Block(p.FailureReason).Muted().Small() : null!)
@@ -108,7 +113,7 @@ public class PluginsSetupView : ViewBase
                                    success ? "Installed" : "Error");
                                return ValueTask.CompletedTask;
                            }, variant: ButtonVariant.Outline, icon: p.FailureReason is not null ? Icons.RefreshCw : Icons.Plus);
-                       return (object)new Expandable(header, content);
+                       return (object)new Expandable(header, content).Open();
                    }).ToArray()))
                | new Separator()
                | Layout.Horizontal().Gap(2)
