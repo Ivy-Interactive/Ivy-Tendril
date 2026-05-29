@@ -101,7 +101,7 @@ public class PluginsSetupView : ViewBase
                            | Text.Block(p.Id);
                        var content = Layout.Vertical().Gap(2)
                            | (p.FailureReason is not null ? (object)Text.Block(p.FailureReason).Muted().Small() : null!)
-                           | new Button(p.FailureReason is not null ? "Retry" : "Install", onClick: _ =>
+                           | new Button(p.FailureReason is not null ? "Retry" : "Load", onClick: _ =>
                            {
                                var success = pluginManager.LoadPlugin(p.Directory);
                                client.Toast(success ? $"Loaded '{p.Id}'" : $"Failed to load '{p.Id}'",
