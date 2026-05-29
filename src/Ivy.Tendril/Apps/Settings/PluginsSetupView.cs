@@ -1,5 +1,6 @@
 using Ivy.Apps;
 using Ivy.Plugins;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps.Settings;
@@ -114,7 +115,7 @@ public class PluginsSetupView : ViewBase
                | Layout.Horizontal().Gap(2)
                    | new Button("Open Plugins Folder", onClick: _ =>
                    {
-                       config.OpenInEditor(pluginsDir);
+                       PlatformHelper.OpenInFileManager(pluginsDir);
                        return ValueTask.CompletedTask;
                    }, variant: ButtonVariant.Outline, icon: Icons.FolderOpen);
     }
