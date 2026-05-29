@@ -13,8 +13,5 @@
   <Project Path="../Ivy.Tendril.Agents/Ivy.Tendril.Agents.csproj" />
   <Project Path="../Ivy.Tendril.Agents.Test/Ivy.Tendril.Agents.Test.csproj" />
   <Project Path="../Ivy.Tendril.Docs/Ivy.Tendril.Docs.csproj" />
-  <Project Path="../Ivy.Widgets.AgentOutputView/Ivy.Widgets.AgentOutputView.csproj" />
-  <Project Path="../Ivy.Widgets.TendrilProcessView/Ivy.Widgets.TendrilProcessView.csproj" />
-  <Project Path="../Ivy.Widgets.TendrilProcessView/.samples/Program.csproj" />
   <Project Path="../Ivy.Tendril.Test.End2End/Ivy.Tendril.Test.End2End.csproj" />
 </Solution>
