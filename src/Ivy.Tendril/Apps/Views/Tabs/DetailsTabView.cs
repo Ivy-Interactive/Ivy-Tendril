@@ -3,7 +3,7 @@ using Ivy.Tendril.Models;
 
 namespace Ivy.Tendril.Apps.Views.Tabs;
 
-public class DetailsTabView(PlanFile plan) : ViewBase
+public class DetailsTabView(PlanFile plan, List<JobItem> jobs, Action<string> showDebug) : ViewBase
 {
     public override object Build()
     {
@@ -22,10 +22,18 @@ public class DetailsTabView(PlanFile plan) : ViewBase
             State = plan.Status.ToString()
         };
 
-        return detailsData.ToDetails()
+        var details = detailsData.ToDetails()
             .Multiline(x => x.InitialPrompt)
             .Builder(x => x.Issue, f => f.Link())
             .RemoveEmpty();
+
+        return Layout.Vertical().Gap(4)
+               | details
+               | (jobs.Count > 0
+                   ? (Layout.Vertical().Gap(2)
+                      | Text.H4("Jobs")
+                      | new PlanJobsDataTableView(jobs, showDebug))
+                   : null);
     }
 
     private static string FormatPlanLinks(List<string> planFolders)

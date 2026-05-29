@@ -262,7 +262,7 @@ public class ClaudeCliTests
     }
 
     [Fact]
-    public void BuildProcessSpec_WithSystemPrompt_IncludesFlag()
+    public void BuildProcessSpec_WithSystemPrompt_WritesFileAndIncludesFlag()
     {
         var config = new AgentLaunchConfig
         {
@@ -273,9 +273,12 @@ public class ClaudeCliTests
 
         var spec = _cli.BuildProcessSpec(config);
 
-        var idx = spec.Arguments.ToList().IndexOf("--system-prompt");
+        var idx = spec.Arguments.ToList().IndexOf("--system-prompt-file");
         Assert.True(idx >= 0);
-        Assert.Equal("You are a helpful assistant", spec.Arguments[idx + 1]);
+        var filePath = spec.Arguments[idx + 1];
+        Assert.True(File.Exists(filePath));
+        Assert.Equal("You are a helpful assistant", File.ReadAllText(filePath));
+        File.Delete(filePath);
     }
 
     [Fact]

@@ -93,6 +93,13 @@ public static class FirmwareCompiler
             .Replace("{TOOLS}", toolsListing)
             .Replace("{MEMORY}", memoryListing);
 
+        if (headerValues.TryGetValue("TendrilJobId", out var tendrilJobId) && !string.IsNullOrEmpty(tendrilJobId))
+        {
+            firmware += $"\n\n**CLI Logging:** Append `--job-id {tendrilJobId}` to every `tendril` CLI command you run " +
+                        $"(e.g., `tendril plan add-commit ... --job-id {tendrilJobId}`). This enables execution logging. " +
+                        "Exception: `tendril job status` already receives the job ID as its first argument — skip `--job-id` there.\n";
+        }
+
         // Include Program.md inline
         var programFile = Path.Combine(context.ProgramFolder, "Program.md");
         if (File.Exists(programFile))

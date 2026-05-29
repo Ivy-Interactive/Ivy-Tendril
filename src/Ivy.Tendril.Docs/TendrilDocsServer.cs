@@ -35,19 +35,14 @@ public static class TendrilDocsServer
             .Header(
                 Layout.Vertical(
                     Layout.Horizontal(
-                        new Image("/tendril-docs/assets/Tendril.svg").Width(Size.Units(15)).Height(Size.Auto()),
+                        new Image("/tendril-docs/assets/Tendril.svg").Width(Size.Units(15)),
                         Layout.Vertical(
                             Text.Block("Ivy Tendril"),
                             Text.Muted($"v{version}")
                         ).Gap(0)
-                    ).Gap(2).AlignContent(Align.BottomLeft),
-                    new Button("Tendril on GitHub")
-                        .Icon(Icons.Github)
-                        .Variant(ButtonVariant.Outline)
-                        .Width(Size.Full())
-                        .Url("https://github.com/Ivy-Interactive/Ivy-Tendril")
-                        .Target(LinkTarget.Blank)
-                ).Gap(2).Padding(2)
+                    ).AlignContent(Align.BottomLeft),
+                    new Embed("https://github.com/Ivy-Interactive/Ivy-Tendril")
+                ).Padding(0, 2, 0, 0)
             )
             .DefaultApp<IntroductionApp>()
             .UsePages()

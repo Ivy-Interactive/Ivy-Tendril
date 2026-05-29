@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Ivy.Tendril.Agents;
 using Ivy.Tendril.Helpers;
@@ -42,6 +43,7 @@ public class JobDebugSheet(
             PlanFolder = GetPlanFolderPath(job) ?? "",
             PlanLog = GetPlanLogPath(job) ?? "",
             PlanCliLog = GetPlanCliLogPath(job) ?? "",
+            PromptwareLearnings = GetPromptwareLearnings(job),
             PromptwareLog = GetPromptwareLogPath(job) ?? "",
             PromptwareRawLog = GetPromptwareRawLogPath(job) ?? "",
             ExitCode = job.ExitCode?.ToString() ?? ""
@@ -50,6 +52,7 @@ public class JobDebugSheet(
         var detailsView = data.ToDetails()
             .Multiline(x => x.PromptTitle)
             .Multiline(x => x.PermissionDenials)
+            .Multiline(x => x.PromptwareLearnings)
             .Multiline(x => x.Status)
             .Label(x => x.PromptTitle, "Prompt/Title")
             .Label(x => x.PlanId, "Plan Id")
@@ -57,6 +60,7 @@ public class JobDebugSheet(
             .Label(x => x.PlanFolder, "Plan Folder")
             .Label(x => x.PlanLog, "Plan Log")
             .Label(x => x.PlanCliLog, "Plan CLI Log")
+            .Label(x => x.PromptwareLearnings, "Promptware Learnings")
             .Label(x => x.PromptwareLog, "Promptware Log")
             .Label(x => x.PromptwareRawLog, "Promptware Raw Log")
             .Label(x => x.PermissionDenials, "Permission Denials")
@@ -64,12 +68,14 @@ public class JobDebugSheet(
             .Label(x => x.JobId, "Job Id")
             .Builder(x => x.PermissionDenials, f => f.Func((string denials) =>
                 new CodeBlock(denials)))
+            .Builder(x => x.PromptwareLearnings, f => f.Func((string assets) =>
+                new CodeBlock(assets)))
             .Builder(x => x.PlanFolder, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .Builder(x => x.PlanLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .Builder(x => x.PlanCliLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .Builder(x => x.PromptwareLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
-            .Builder(x => x.PromptwareRawLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
-            .RemoveEmpty();
+            .Builder(x => x.PromptwareRawLog,
+                f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)));
 
         var header = Layout.Horizontal().Gap(2)
             | new Button("Copy Details").Icon(Icons.ClipboardCopy).Outline().OnClick(() =>
@@ -95,6 +101,7 @@ public class JobDebugSheet(
                     ("Plan Folder", data.PlanFolder),
                     ("Plan Log", data.PlanLog),
                     ("Plan CLI Log", data.PlanCliLog),
+                    ("Promptware Learnings", data.PromptwareLearnings),
                     ("Promptware Log", data.PromptwareLog),
                     ("Promptware Raw Log", data.PromptwareRawLog),
                 };
@@ -106,7 +113,7 @@ public class JobDebugSheet(
                 copyToClipboard(formatted);
                 client.Toast("Job details copied to clipboard", "Copied");
             })
-            | new Button("Report Bug").Icon(Icons.Bug).Destructive().OnClick(() => showReportDialog.Set(true));
+            | new Button("Report Bug").Icon(Icons.Bug).OnClick(() => showReportDialog.Set(true));
 
         return Layout.Vertical()
             | new HeaderLayout(header, detailsView)
@@ -198,6 +205,60 @@ public class JobDebugSheet(
             ? files.OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault()
             : files.FirstOrDefault();
     }
+
+    private string GetPromptwareLearnings(JobItem job)
+    {
+        var cliLogPath = GetPlanCliLogPath(job);
+        if (string.IsNullOrEmpty(cliLogPath) || !File.Exists(cliLogPath))
+            return "";
+
+        try
+        {
+            var paths = new List<string>();
+            var promptsRoot = PromptwareHelper.ResolvePromptsRoot(config.TendrilHome);
+
+            foreach (var line in File.ReadLines(cliLogPath))
+            {
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                var entry = JsonSerializer.Deserialize<JobStatusFile.CliLogEntry>(line, CliLogJsonOptions);
+                if (entry is not { ExitCode: 0 }) continue;
+
+                var path = TryResolveWrittenAssetPath(entry.Command, promptsRoot);
+                if (path != null)
+                    paths.Add(path);
+            }
+
+            return paths.Count == 0 ? "" : string.Join("\n", paths);
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    private static string? TryResolveWrittenAssetPath(string command, string promptsRoot)
+    {
+        var parts = command.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 4) return null;
+        if (!parts[0].Equals("promptware", StringComparison.OrdinalIgnoreCase)) return null;
+
+        string subDir;
+        if (parts[1].Equals("write-memory", StringComparison.OrdinalIgnoreCase))
+            subDir = "Memory";
+        else if (parts[1].Equals("write-tool", StringComparison.OrdinalIgnoreCase))
+            subDir = "Tools";
+        else
+            return null;
+
+        var promptwareName = parts[2];
+        var filename = Path.GetFileName(parts[3]);
+        return Path.Combine(promptsRoot, promptwareName, subDir, filename);
+    }
+
+    private static readonly JsonSerializerOptions CliLogJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
 
     private string? GetPromptwareLogPath(JobItem job)
     {
