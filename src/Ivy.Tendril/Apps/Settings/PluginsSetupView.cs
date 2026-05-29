@@ -14,7 +14,6 @@ internal static class PluginIconHelper
             PluginIconKind.Named => IconsHelper.FromString(icon.Value) is { } parsed
                 ? new Icon(parsed)
                 : null,
-            PluginIconKind.Svg => new Html(icon.Value).Width(Size.Units(5)).Height(Size.Units(5)),
             PluginIconKind.Url => new Image(icon.Value).Width(Size.Units(5)).Height(Size.Units(5)),
             PluginIconKind.File when pluginId is not null =>
                 new Image($"/ivy/plugins/{pluginId}/assets/{icon.Value}").Width(Size.Units(5)).Height(Size.Units(5)),
