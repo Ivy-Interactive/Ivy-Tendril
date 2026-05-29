@@ -4,11 +4,7 @@ using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps;
 
-#if DEBUG
-[App(title: "Onboarding", icon: Icons.Rocket, group: ["Debug"], isVisible: true, order: Constants.Onboarding)]
-#else
 [App(icon: Icons.Rocket, isVisible: false, order: Constants.Onboarding)]
-#endif
 public class OnboardingApp : ViewBase
 {
     private static StepperItem[] GetSteps(int selectedIndex)

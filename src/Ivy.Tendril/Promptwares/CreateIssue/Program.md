@@ -31,6 +31,8 @@ If this fails, report that the repo is not a GitHub repository and stop.
 
 ### 3. Create Issue
 
+Report status: `tendril job status TendrilJobId --message "Creating GitHub issue..."`
+
 Use the plan's title and Problem section to create a well-formatted issue:
 
 ```bash
