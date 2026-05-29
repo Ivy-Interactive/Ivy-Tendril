@@ -81,8 +81,10 @@ public sealed class ClaudePty : IAgentPty
 
         if (!string.IsNullOrEmpty(config.SystemPrompt))
         {
-            args.Add(config.AppendSystemPrompt ? "--append-system-prompt" : "--system-prompt");
-            args.Add(config.SystemPrompt);
+            var tempFile = Path.Combine(Path.GetTempPath(), $"tendril-sysprompt-{Guid.NewGuid():N}.md");
+            File.WriteAllText(tempFile, config.SystemPrompt);
+            args.Add(config.AppendSystemPrompt ? "--append-system-prompt-file" : "--system-prompt-file");
+            args.Add(tempFile);
         }
 
         foreach (var mcp in config.McpServers)
