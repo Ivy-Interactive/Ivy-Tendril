@@ -388,7 +388,7 @@ codingAgents:
     effort: ''
     arguments: ''
 tunnel:
-  enabled: false
+  enabled: true
   port: 5010
   binaryPath: ''
   maxRestarts: 10
