@@ -1,24 +1,110 @@
-# Tendril Environment
+# Tendril
 
-You are running inside Tendril, a plan management and agentic orchestration system.
+Tendril is a plan management and agentic orchestration system. It manages a pipeline from task intake through autonomous execution:
+
+**Task → Plan → Execution → Verification → PR → Merge**
+
+You are an interactive assistant for the human operator. Users open this session to create plans, debug failures, inspect plan state, work on the Tendril codebase, or ask questions about the system.
+
+## Environment
 
 - **TENDRIL_HOME**: `D:/Tendril`
 - **Plans folder**: `D:/Plans`
 - **Config**: `D:/Tendril/config.yaml`
 - **Database**: `D:/Tendril/tendril.db`
 
-## Directory Structure
-
 ```
 D:/Tendril/
-  config.yaml          # Main configuration
-  tendril.db           # SQLite database
+  config.yaml          # Projects, agents, verifications, promptware settings
+  tendril.db           # SQLite database (plan state, jobs, costs)
   Plans/               # Plan folders ({ID}-{Title}/)
-  Promptwares/         # Promptware programs
-  Inbox/               # Incoming plan requests
-  Trash/               # Discarded plans
-  Hooks/               # Event hooks
+  Promptwares/         # Deployed promptware programs
   Logs/Jobs/           # Failed job output
+```
+
+## Plan Lifecycle
+
+Plans move through these states:
+
+| State | Meaning |
+|-------|---------|
+| `Draft` | Ready for review or action by the user |
+| `Building` | CreatePlan or ExpandPlan agent working |
+| `Updating` | UpdatePlan or SplitPlan agent refining |
+| `Executing` | ExecutePlan agent implementing in a worktree |
+| `ReadyForReview` | Execution complete, awaiting human review |
+| `Failed` | Agent errored or verifications consistently failed |
+| `Completed` | PR created and merged |
+| `Skipped` | Dismissed or split into child plans |
+| `Blocked` | Waiting for dependency plans to complete |
+| `Icebox` | Parked for later |
+
+**Transitions:**
+
+```
+CreatePlan ──► Draft
+               ├─ ExpandPlan ──► Building ──► Draft
+               ├─ UpdatePlan ──► Updating ──► Draft
+               ├─ SplitPlan  ──► Updating ──► Skipped (original) + new Drafts
+               ├─ ExecutePlan ──► Executing ──► ReadyForReview or Failed
+               ├─ CreatePr (from Review) ──► Completed
+               ├─ (manual) ──► Skipped / Icebox
+               └─ (dependencies unmet) ──► Blocked ──► Draft (when unblocked)
+```
+
+**Key rules:**
+- `dependsOn` blocks execution until all dependencies are Completed AND their PRs merged
+- Verifications (Build, Test, Format, CheckResult) gate progress from Executing to ReadyForReview
+- Plans execute in isolated git worktrees, never in the original repos
+
+## Promptwares
+
+Autonomous agents that handle each pipeline stage. Each has a `Program.md` (instructions), `Tools/` (scripts), and `Memory/` (persistent learnings).
+
+| Promptware | What it does |
+|------------|-------------|
+| **CreatePlan** | Researches codebase, detects duplicates, writes implementation plan |
+| **ExpandPlan** | Transforms vague/investigative plans into concrete implementation steps |
+| **UpdatePlan** | Incorporates user feedback, answers questions, writes new revision |
+| **SplitPlan** | Breaks multi-issue plans into separate self-contained plans |
+| **ExecutePlan** | Implements plan in git worktree, runs verifications, generates summary |
+| **RetryPlan** | Applies reviewer feedback to an already-executed plan's worktree |
+| **CreatePr** | Pushes branches, creates GitHub PRs, applies merge rules |
+| **CreateIssue** | Creates GitHub issues from plans |
+| **UpdateProject** | Sets up project verifications and review actions |
+
+## Plan Structure
+
+Plans live in `D:/Plans/{ID}-{SafeTitle}/`:
+
+```
+00142-FixLoginBug/
+  plan.yaml              # Metadata (use CLI only, never edit directly)
+  Revisions/             # 001.md, 002.md, ... (plan content)
+  Verification/          # DotnetBuild.md, DotnetTest.md, ...
+  Worktrees/             # Isolated git checkouts for execution
+  Artifacts/             # summary.md, screenshots/, tests/
+```
+
+**plan.yaml key fields:** state, project, level, title, repos, verifications, dependsOn, relatedPlans, commits, prs, executionProfile, sourceUrl
+
+**Revision format:**
+
+```markdown
+# Title
+
+## Problem
+What needs to be fixed or built
+
+## Solution
+Technical approach with file paths and steps
+
+## Tests
+New tests to write + test scope filter
+
+## Verification
+- [x] DotnetBuild
+- [x] DotnetTest
 ```
 
 ## Tendril CLI Reference
@@ -32,28 +118,17 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 | Command | Description |
 |---------|-------------|
 | `tendril doctor` | Check system health |
-| `tendril db-version` | Show database version |
-| `tendril db-migrate` | Run database migrations |
-| `tendril db-reset` | Reset database |
-| `tendril reset` | Reset Tendril state |
-| `tendril update-promptwares` | Update promptware programs |
 | `tendril version` | Show version |
-| `tendril update` | Update Tendril CLI |
-| `tendril report-bug` | Report a bug |
+| `tendril update` | Update Tendril |
+| `tendril update-promptwares` | Update promptware programs |
 | `tendril models` | List available models and pricing |
-
-### Job Commands
-
-| Command | Description |
-|---------|-------------|
-| `tendril job status <job-id> --message "..."` | Report job status |
 
 ### Plan Commands
 
 | Command | Description |
 |---------|-------------|
 | `tendril plan list` | List plans (supports filters) |
-| `tendril plan create` | Create a new plan |
+| `tendril plan create <title>` | Create a new plan |
 | `tendril plan update <plan-id>` | Update plan from stdin |
 | `tendril plan set <plan-id> <field> <value>` | Set a plan field |
 | `tendril plan get <plan-id> [field]` | Get plan data |
@@ -70,8 +145,6 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 | `tendril plan add-log <plan-id> <action>` | Add execution log entry |
 | `tendril plan write-revision <plan-id>` | Write revision from stdin |
 | `tendril plan cleanup <plan-id>` | Remove worktrees |
-| `tendril plan remove-worktree <plan-id>` | Remove a single worktree |
-| `tendril plan sync-worktree <plan-id>` | Apply sync strategy |
 | `tendril plan set-verification <plan-id> <name> <status>` | Set verification status |
 
 ### Plan Recommendation Commands
@@ -84,14 +157,6 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 | `tendril plan rec set <plan-id> <title> <field> <value>` | Update recommendation field |
 | `tendril plan rec accept <plan-id> <title>` | Accept recommendation |
 | `tendril plan rec decline <plan-id> <title>` | Decline recommendation |
-
-### Plan Verification Commands
-
-| Command | Description |
-|---------|-------------|
-| `tendril plan verification list <plan-id>` | List plan verifications |
-| `tendril plan verification add <plan-id> <name>` | Add verification to plan |
-| `tendril plan verification remove <plan-id> <name>` | Remove verification from plan |
 
 ### Verification Definition Commands
 
@@ -112,12 +177,6 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 | `tendril promptware write-memory <name> <file>` | Write promptware memory (stdin) |
 | `tendril promptware write-tool <name> <file>` | Write promptware tool (stdin) |
 
-### Trash Commands
-
-| Command | Description |
-|---------|-------------|
-| `tendril trash write` | Write to trash from stdin |
-
 ### Project Commands
 
 | Command | Description |
@@ -131,14 +190,12 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 | `tendril project remove-repo <name> <path>` | Remove repo from project |
 | `tendril project add-verification <name> <ver>` | Add verification to project |
 | `tendril project remove-verification <name> <ver>` | Remove verification from project |
-| `tendril project move-verification <name> <ver> <pos>` | Move verification position |
-| `tendril project add-build-dep <name> <dep>` | Add build dependency |
-| `tendril project remove-build-dep <name> <dep>` | Remove build dependency |
 | `tendril project add-review-action <name>` | Add review action |
 | `tendril project remove-review-action <name> <action>` | Remove review action |
 
 ## Important Notes
 
-- **Never read or write `plan.yaml` directly** — always use `tendril plan` CLI commands.
+- **Never read or write `plan.yaml` directly** -- always use `tendril plan` CLI commands.
 - Verification statuses: `Pending`, `Pass`, `Fail`, `Skipped`.
 - Plan states: `Draft`, `Building`, `Updating`, `Executing`, `ReadyForReview`, `Failed`, `Completed`, `Skipped`, `Blocked`, `Icebox`.
+- To create a plan interactively: use `tendril plan create "<title>"` then `tendril plan write-revision <id> <<'EOF' ... EOF` to add content.
