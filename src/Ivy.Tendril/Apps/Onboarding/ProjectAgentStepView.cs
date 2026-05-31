@@ -189,7 +189,7 @@ public class ProjectAgentStepView(
                       )
                         .Width(Size.Full())
                         .Height(Size.Units(100).Max(Size.Fraction(0.6f)))
-                        .Padding(4)
+                        .Padding(4, 4, 0, 4)
                    : null!)
                | buttonArea
                | new Spacer().Height(Size.Units(4));
