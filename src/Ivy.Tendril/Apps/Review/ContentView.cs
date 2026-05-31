@@ -602,7 +602,7 @@ public class ContentView(
         object Cap(object inner)
         {
             return Layout.Vertical().Scroll(Scroll.Auto).Width(Size.Full()).Height(Size.Full())
-                | (Layout.Vertical().Width(Size.Full().Max(Size.Units(200))) | inner);
+                | (Layout.Vertical().Padding(0, 0, 0, 4).Width(Size.Full().Max(Size.Units(200))) | inner);
         }
     }
 
