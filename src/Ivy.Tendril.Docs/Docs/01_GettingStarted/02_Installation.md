@@ -43,6 +43,10 @@ public class InstallationTabs : ViewBase
 tendril
 ```
 
+<Callout type="warning">
+Before starting the onboarding wizard, please make sure your preferred coding agent is installed and fully authorized on your machine.
+</Callout>
+
 The first time you run Tendril, you'll be guided through an onboarding wizard. During setup, Tendril will create a configuration file at `$TENDRIL_HOME/config.yaml` (default: `~/.tendril/config.yaml`).
 
 ## Update
