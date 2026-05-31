@@ -103,7 +103,7 @@
   position: relative;
   display: flex;
   align-items: center;
-  margin: 0 -1px;
+  margin: 0 8px;
 }
 
 .tpv-arrow-segment .tpv-arrow-label {
@@ -115,7 +115,7 @@
 }
 
 .tpv-arrow-svg {
-  width: 80px;
+  width: 60px;
   height: 12px;
   color: var(--muted-foreground, #6b7280);
 }

@@ -18,13 +18,13 @@ const Arrow: React.FC<ArrowProps> = ({ count, spinning, onClick }) => (
         {spinning && <LoaderCircle className="tpv-spinner" size={13} />}
       </button>
     )}
-    <svg className="tpv-arrow-svg" viewBox="0 0 80 12" preserveAspectRatio="none">
+    <svg className="tpv-arrow-svg" viewBox="0 0 60 12" preserveAspectRatio="none">
       <defs>
-        <marker id="arrowhead" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-          <polygon points="0,0 6,3 0,6" fill="currentColor" />
+        <marker id="arrowhead" markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto">
+          <polygon points="0,0 4,2 0,4" fill="currentColor" />
         </marker>
       </defs>
-      <line x1="0" y1="6" x2="78" y2="6" stroke="currentColor" strokeWidth="1.5" markerEnd="url(#arrowhead)" />
+      <line x1="0" y1="6" x2="58" y2="6" stroke="currentColor" strokeWidth="1.5" markerEnd="url(#arrowhead)" />
     </svg>
   </div>
 );
@@ -42,8 +42,8 @@ const LoopArrow: React.FC<LoopArrowProps> = ({ count, onClick }) => (
     </button>
     <svg className="tpv-curve-svg" viewBox="0 0 100 30" fill="none">
       <defs>
-        <marker id="arrowhead-curve" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
-          <polygon points="0,0 6,3 0,6" fill="currentColor" />
+        <marker id="arrowhead-curve" markerWidth="4" markerHeight="4" refX="2" refY="2" orient="auto">
+          <polygon points="0,0 4,2 0,4" fill="currentColor" />
         </marker>
       </defs>
       <path
