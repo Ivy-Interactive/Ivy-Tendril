@@ -75,6 +75,10 @@ public class Program
         {
             var checkArgs = new Services.TendrilArgs { Beta = beta, Verbose = verbose, Quiet = quiet };
             var checkServer = TendrilServer.Create(filteredArgs, checkArgs);
+            if (useDesktop)
+            {
+                checkServer.Args.FindAvailablePort = true;
+            }
             if (!checkServer.Args.FindAvailablePort && IsPortInUse(checkServer.Args.Port))
             {
                 AnsiConsole.MarkupLine($"[red]Error: Port {checkServer.Args.Port} is already in use.[/]");
@@ -208,6 +212,11 @@ public class Program
 
         var tendrilArgs = new Services.TendrilArgs { Beta = beta, Verbose = verbose, Quiet = quiet };
         var server = TendrilServer.Create(filteredArgs, tendrilArgs);
+
+        if (useDesktop)
+        {
+            server.Args.FindAvailablePort = true;
+        }
 
         if (!server.Args.FindAvailablePort && IsPortInUse(server.Args.Port))
         {
@@ -345,12 +354,16 @@ public class Program
     {
         // ProcessPath can be "dotnet" for global tools, so inspect argv[0] too.
         var processPathName = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? string.Empty);
-        if (processPathName.Equals("tendril", StringComparison.OrdinalIgnoreCase))
+        if (processPathName.Equals("tendril", StringComparison.OrdinalIgnoreCase) ||
+            processPathName.Equals("Ivy.Tendril", StringComparison.OrdinalIgnoreCase) ||
+            processPathName.Equals("IvyTendril", StringComparison.OrdinalIgnoreCase))
             return true;
 
         var argv0 = Environment.GetCommandLineArgs().FirstOrDefault() ?? string.Empty;
         var argv0Name = Path.GetFileNameWithoutExtension(argv0);
-        return argv0Name.Equals("tendril", StringComparison.OrdinalIgnoreCase);
+        return argv0Name.Equals("tendril", StringComparison.OrdinalIgnoreCase) ||
+               argv0Name.Equals("Ivy.Tendril", StringComparison.OrdinalIgnoreCase) ||
+               argv0Name.Equals("IvyTendril", StringComparison.OrdinalIgnoreCase);
     }
 
     private static int RelaunchDesktopDetached(string[] filteredArgs)
