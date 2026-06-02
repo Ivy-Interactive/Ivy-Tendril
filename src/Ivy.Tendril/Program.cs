@@ -348,11 +348,7 @@ public class Program
 
     private static bool IsPackagedApp()
     {
-        var fileName = Path.GetFileName(Environment.ProcessPath ?? string.Empty);
-        return fileName.Equals("Ivy.Tendril", StringComparison.OrdinalIgnoreCase) ||
-               fileName.Equals("Ivy.Tendril.exe", StringComparison.OrdinalIgnoreCase) ||
-               fileName.Equals("IvyTendril", StringComparison.OrdinalIgnoreCase) ||
-               fileName.Equals("IvyTendril.exe", StringComparison.OrdinalIgnoreCase);
+        return Velopack.Locators.VelopackLocator.Current?.CurrentlyInstalledVersion != null;
     }
 
     private static bool ShouldDetachDesktopLaunch(string[] filteredArgs, bool verbose)
@@ -366,6 +362,14 @@ public class Program
 
     private static bool IsTendrilToolInvocation()
     {
+        // If the executing assembly is in the .store / .dotnet folder, it's a global tool invocation
+        var path = System.AppContext.BaseDirectory;
+        if (path.Contains(".store", StringComparison.OrdinalIgnoreCase) || 
+            path.Contains(".dotnet", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
         // ProcessPath can be "dotnet" for global tools, so inspect argv[0] too.
         var processPathName = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? string.Empty);
         if (processPathName.Equals("tendril", StringComparison.OrdinalIgnoreCase))
