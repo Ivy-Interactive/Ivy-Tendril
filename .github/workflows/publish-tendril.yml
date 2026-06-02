@@ -181,7 +181,7 @@ jobs:
           - rid: linux-arm64
             os: ubuntu-24.04-arm
           - rid: osx-x64
-            os: macos-13
+            os: macos-latest
           - rid: osx-arm64
             os: macos-latest
     defaults:
