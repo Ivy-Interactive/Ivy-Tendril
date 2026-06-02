@@ -63,7 +63,7 @@ internal static class ServiceRegistration
         {
             var config = sp.GetRequiredService<IConfigService>();
             var home = string.IsNullOrEmpty(config.TendrilHome)
-                ? System.IO.Path.Combine(System.IO.Path.GetTempPath(), "IvyTendril")
+                ? System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), ".tendril")
                 : config.TendrilHome;
             return new WorktreeLifecycleLogger(home);
         });
