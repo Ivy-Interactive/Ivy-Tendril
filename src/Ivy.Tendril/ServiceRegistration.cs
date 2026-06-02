@@ -62,8 +62,10 @@ internal static class ServiceRegistration
         server.Services.AddSingleton<IWorktreeLifecycleLogger>(sp =>
         {
             var config = sp.GetRequiredService<IConfigService>();
-            return new WorktreeLifecycleLogger(
-                string.IsNullOrEmpty(config.TendrilHome) ? "." : config.TendrilHome);
+            var home = string.IsNullOrEmpty(config.TendrilHome)
+                ? System.IO.Path.Combine(System.IO.Path.GetTempPath(), "IvyTendril")
+                : config.TendrilHome;
+            return new WorktreeLifecycleLogger(home);
         });
         server.Services.AddSingleton<PlanReaderService>(sp =>
         {
