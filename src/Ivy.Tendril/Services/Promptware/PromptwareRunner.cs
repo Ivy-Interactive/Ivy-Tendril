@@ -55,7 +55,7 @@ public interface IPromptwareRunner
 
 public class PromptwareRunner : IPromptwareRunner
 {
-private readonly IConfigService _configService;
+    private readonly IConfigService _configService;
     private readonly IAgentRunner _agentRunner;
     private readonly ILogger<PromptwareRunner> _logger;
 
