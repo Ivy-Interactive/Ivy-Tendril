@@ -60,7 +60,7 @@ public static class ProcessCheckHelper
     }
 
     public static async Task<bool> CheckPowerShell()
-        => await CheckCommand("pwsh", "-Version") || await CheckCommand("powershell", "-Version");
+        => await CheckCommand(PathHelper.GetPwshPath(), "-Version") || await CheckCommand("powershell", "-Version");
 
     public static Task<HealthCheckStatus> CheckFileAuth(string filePath, long minSize = 1)
     {
@@ -93,7 +93,7 @@ public static class ProcessCheckHelper
 
             var psi = new ProcessStartInfo
             {
-                FileName = "pwsh",
+                FileName = PathHelper.GetPwshPath(),
                 Arguments = $"-NoProfile -Command \"{cmd}\"",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,

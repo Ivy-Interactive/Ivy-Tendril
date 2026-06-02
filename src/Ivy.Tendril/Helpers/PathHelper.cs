@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text.RegularExpressions;
 
 namespace Ivy.Tendril.Helpers;
@@ -32,6 +33,16 @@ public static class PathHelper
         }
 
         return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
+    }
+
+    public static string GetPwshPath()
+    {
+        var bundled = Path.Combine(System.AppContext.BaseDirectory, "PowerShell", OperatingSystem.IsWindows() ? "pwsh.exe" : "pwsh");
+        if (File.Exists(bundled))
+        {
+            return bundled;
+        }
+        return "pwsh";
     }
 
     public static string ResolvePath(string raw)
