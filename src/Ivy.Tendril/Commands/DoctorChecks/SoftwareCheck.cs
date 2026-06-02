@@ -100,10 +100,12 @@ internal class SoftwareCheck : IDoctorCheck
 
     private static async Task<bool> CheckPowerShell(List<CheckStatus> statuses)
     {
-        var pwshInstalled = await ProcessCheckHelper.CheckCommand("pwsh", "-Version");
+        var pwshPath = PathHelper.GetPwshPath();
+        var pwshInstalled = await ProcessCheckHelper.CheckCommand(pwshPath, "-Version");
         if (pwshInstalled)
         {
-            statuses.Add(new CheckStatus("powershell", "OK (pwsh)", StatusKind.Ok));
+            var isBundled = pwshPath != "pwsh";
+            statuses.Add(new CheckStatus("powershell", isBundled ? "OK (bundled pwsh)" : "OK (pwsh)", StatusKind.Ok));
             return false;
         }
 

@@ -246,6 +246,64 @@ jobs:
             -p:Version=${{ needs.version.outputs.version }} \
             --self-contained true
 
+      - name: Bundle PowerShell 7
+        shell: bash
+        run: |
+          PWSH_VERSION="7.4.2"
+          RID="${{ matrix.rid }}"
+          PUBLISH_DIR="./publish/desktop/$RID"
+          TARGET_DIR="$PUBLISH_DIR/PowerShell"
+          mkdir -p "$TARGET_DIR"
+          
+          echo "Bundling PowerShell $PWSH_VERSION for $RID into $TARGET_DIR..."
+          
+          if [[ "$RID" == win-x64 ]]; then
+            URL="https://github.com/PowerShell/PowerShell/releases/download/v$PWSH_VERSION/PowerShell-$PWSH_VERSION-win-x64.zip"
+            curl -L -o pwsh.zip "$URL"
+            unzip -q pwsh.zip -d "$TARGET_DIR"
+            rm pwsh.zip
+          elif [[ "$RID" == win-arm64 ]]; then
+            URL="https://github.com/PowerShell/PowerShell/releases/download/v$PWSH_VERSION/PowerShell-$PWSH_VERSION-win-arm64.zip"
+            curl -L -o pwsh.zip "$URL"
+            unzip -q pwsh.zip -d "$TARGET_DIR"
+            rm pwsh.zip
+          elif [[ "$RID" == osx-x64 ]]; then
+            URL="https://github.com/PowerShell/PowerShell/releases/download/v$PWSH_VERSION/powershell-$PWSH_VERSION-osx-x64.tar.gz"
+            curl -L -o pwsh.tar.gz "$URL"
+            tar -xzf pwsh.tar.gz -C "$TARGET_DIR"
+            rm pwsh.tar.gz
+          elif [[ "$RID" == osx-arm64 ]]; then
+            URL="https://github.com/PowerShell/PowerShell/releases/download/v$PWSH_VERSION/powershell-$PWSH_VERSION-osx-arm64.tar.gz"
+            curl -L -o pwsh.tar.gz "$URL"
+            tar -xzf pwsh.tar.gz -C "$TARGET_DIR"
+            rm pwsh.tar.gz
+          elif [[ "$RID" == linux-x64 ]]; then
+            URL="https://github.com/PowerShell/PowerShell/releases/download/v$PWSH_VERSION/powershell-$PWSH_VERSION-linux-x64.tar.gz"
+            curl -L -o pwsh.tar.gz "$URL"
+            tar -xzf pwsh.tar.gz -C "$TARGET_DIR"
+            rm pwsh.tar.gz
+          elif [[ "$RID" == linux-arm64 ]]; then
+            URL="https://github.com/PowerShell/PowerShell/releases/download/v$PWSH_VERSION/powershell-$PWSH_VERSION-linux-arm64.tar.gz"
+            curl -L -o pwsh.tar.gz "$URL"
+            tar -xzf pwsh.tar.gz -C "$TARGET_DIR"
+            rm pwsh.tar.gz
+          fi
+          
+          # Verify pwsh executable exists and is executable
+          if [[ "$RID" == win-* ]]; then
+            if [[ ! -f "$TARGET_DIR/pwsh.exe" ]]; then
+              echo "Error: pwsh.exe not found after extraction!"
+              exit 1
+            fi
+          else
+            if [[ ! -f "$TARGET_DIR/pwsh" ]]; then
+              echo "Error: pwsh not found after extraction!"
+              exit 1
+            fi
+            chmod +x "$TARGET_DIR/pwsh"
+          fi
+          echo "PowerShell bundled successfully!"
+
       - name: Pack Installer (Velopack)
         run: |
           export PATH="$PATH:$HOME/.dotnet/tools"
