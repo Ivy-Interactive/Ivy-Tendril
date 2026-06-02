@@ -155,7 +155,8 @@ projects:
   meta: {}
   repos:
   - path: D:\Repos\_Ivy\Ivy-Tendril-Services
-    prRule: yolo
+    prRule: default
+    baseBranch: development
     syncStrategy: fetch
   verifications:
   - name: DotnetFormat
@@ -172,8 +173,8 @@ projects:
     condition: Test-Path "Worktrees\Ivy-Tendril-Services\Ivy.Tendril.Services"
     command: dotnet run --project Worktrees\Ivy-Tendril-Services\Ivy.Tendril.Services --launch-profile https
   - name: Admin
-    condition: Test-Path "Worktrees/Ivy-Tendril-Services/Ivy.Tendril.Services.Admin"
-    command: dotnet run --project Worktrees/Ivy-Tendril-Services/Ivy.Tendril.Services.Admin --browse --find-available-port
+    condition: Test-Path "Worktrees\Ivy-Tendril-Services\Ivy.Tendril.Services.Admin"
+    command: dotnet run --project Worktrees\Ivy-Tendril-Services\Ivy.Tendril.Services.Admin --browse --find-available-port
   hooks: []
   buildDependencies: []
 verifications:
