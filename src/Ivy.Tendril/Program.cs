@@ -58,7 +58,8 @@ public class Program
         var (verbose, quiet, forceDesktop, forceWeb, beta, jobId, filteredArgs) = ParseGlobalFlags(args);
 
         bool isTool = IsTendrilToolInvocation();
-        bool useDesktop = (forceDesktop || (isTool && !verbose && !quiet)) && !forceWeb;
+        bool isPackagedApp = IsPackagedApp();
+        bool useDesktop = (forceDesktop || isPackagedApp || (isTool && !verbose && !quiet)) && !forceWeb;
         if (useDesktop && OperatingSystem.IsLinux())
         {
             // On Linux, default to web mode (foreground server) unless desktop is explicitly forced
@@ -67,6 +68,10 @@ public class Program
                 useDesktop = false;
             }
         }
+
+        if (useDesktop && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("IVY_TLS")))
+            Environment.SetEnvironmentVariable("IVY_TLS", "0");
+
         bool isDetachedChild = args.Contains(DetachedLaunchMarker);
 
         // Check if we are launching the web server/desktop UI (not executing a CLI subcommand)
@@ -98,7 +103,7 @@ public class Program
             }
         }
 
-        if (isTool && useDesktop && !isDetachedChild && ShouldDetachDesktopLaunch(filteredArgs, verbose))
+        if ((isTool || isPackagedApp) && useDesktop && !isDetachedChild && ShouldDetachDesktopLaunch(filteredArgs, verbose))
             return RelaunchDesktopDetached(filteredArgs);
 
         if (isDetachedChild && useDesktop)
@@ -206,9 +211,6 @@ public class Program
 
         ConfigureExceptionHandlers();
         StartMemoryWatchdog();
-
-        if (useDesktop && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("IVY_TLS")))
-            Environment.SetEnvironmentVariable("IVY_TLS", "0");
 
         var tendrilArgs = new Services.TendrilArgs { Beta = beta, Verbose = verbose, Quiet = quiet };
         var server = TendrilServer.Create(filteredArgs, tendrilArgs);
@@ -344,8 +346,20 @@ public class Program
         return cliCommands.Contains(firstArg);
     }
 
+    private static bool IsPackagedApp()
+    {
+        var fileName = Path.GetFileName(Environment.ProcessPath ?? string.Empty);
+        return fileName.Equals("Ivy.Tendril", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("Ivy.Tendril.exe", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("IvyTendril", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("IvyTendril.exe", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static bool ShouldDetachDesktopLaunch(string[] filteredArgs, bool verbose)
     {
+        if (IsPackagedApp())
+            return false;
+
         // Detach only for desktop startup, not for CLI commands, and NOT if verbose logging is requested.
         return filteredArgs.Length == 0 && !verbose;
     }
