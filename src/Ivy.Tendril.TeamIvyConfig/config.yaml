@@ -155,7 +155,7 @@ projects:
   meta: {}
   repos:
   - path: D:\Repos\_Ivy\Ivy-Tendril-Services
-    prRule: default
+    prRule: yolo
     syncStrategy: fetch
   verifications:
   - name: DotnetFormat
