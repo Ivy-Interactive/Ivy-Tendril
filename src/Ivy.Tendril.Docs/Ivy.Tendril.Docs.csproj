@@ -17,9 +17,9 @@
     </ItemGroup>
     <ItemGroup Condition="'$(IvySource)' != 'true'">
         <PackageReference Include="Ivy" Version="$(IvyPackageVersion)" Condition="'$(IvyPackageVersion)' != ''" />
-        <PackageReference Include="Ivy" Version="1.2.58" Condition="'$(IvyPackageVersion)' == ''" />
+        <PackageReference Include="Ivy" Version="1.2.65" Condition="'$(IvyPackageVersion)' == ''" />
         <PackageReference Include="Ivy.Docs.Helpers" Version="$(IvyPackageVersion)" Condition="'$(IvyPackageVersion)' != ''" />
-        <PackageReference Include="Ivy.Docs.Helpers" Version="1.2.58" Condition="'$(IvyPackageVersion)' == ''" />
+        <PackageReference Include="Ivy.Docs.Helpers" Version="1.2.65" Condition="'$(IvyPackageVersion)' == ''" />
     </ItemGroup>
 
     <ItemGroup>
@@ -65,7 +65,7 @@
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Ivy.Analyser" Version="1.2.58" Condition="'$(IvyPackageVersion)' == ''">
+        <PackageReference Include="Ivy.Analyser" Version="1.2.65" Condition="'$(IvyPackageVersion)' == ''">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>

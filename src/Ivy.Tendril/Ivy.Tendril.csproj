@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <ApplicationIcon>Assets/icon.ico</ApplicationIcon>
     <NoWarn>CS8618;CS8603;CS8602;CS8604;CS9113</NoWarn>
     <RootNamespace>Ivy.Tendril</RootNamespace>
     <UserSecretsId>a8f3c2e1-4b7d-4e9f-a1c3-8d6e2f5b9a7c</UserSecretsId>
@@ -66,15 +67,14 @@
     <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.Xterm/Ivy.Widgets.Xterm.csproj" />
   </ItemGroup>
 
-  <!-- Ivy Framework (NuGet) -->
   <ItemGroup Condition="'$(IvySource)' != 'true'">
-    <PackageReference Include="Ivy" Version="1.2.61" />
-    <PackageReference Include="Ivy.Desktop" Version="1.2.61" />
-    <PackageReference Include="Ivy.Hooks.Pty" Version="1.2.61" />
-    <PackageReference Include="Ivy.Widgets.AnimatedStatusLabel" Version="1.2.61" />
-    <PackageReference Include="Ivy.Widgets.DiffView" Version="1.2.61" />
-    <PackageReference Include="Ivy.Widgets.QRCode" Version="1.2.61" />
-    <PackageReference Include="Ivy.Widgets.Xterm" Version="1.2.61" />
+    <PackageReference Include="Ivy" Version="1.2.65" />
+    <PackageReference Include="Ivy.Desktop" Version="1.2.65" />
+    <PackageReference Include="Ivy.Hooks.Pty" Version="1.2.65" />
+    <PackageReference Include="Ivy.Widgets.AnimatedStatusLabel" Version="1.2.65" />
+    <PackageReference Include="Ivy.Widgets.DiffView" Version="1.2.65" />
+    <PackageReference Include="Ivy.Widgets.QRCode" Version="1.2.65" />
+    <PackageReference Include="Ivy.Widgets.Xterm" Version="1.2.65" />
   </ItemGroup>
 
   <!-- Ivy Analyser -->
@@ -87,7 +87,7 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup Condition="'$(IvySource)' != 'true'">
-    <PackageReference Include="Ivy.Analyser" Version="1.2.61">
+    <PackageReference Include="Ivy.Analyser" Version="1.2.65">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>

@@ -8,13 +8,13 @@ You are an interactive assistant for the human operator. Users open this session
 
 ## Environment
 
-- **TENDRIL_HOME**: `{TENDRIL_HOME}`
-- **Plans folder**: `{PLAN_FOLDER}`
-- **Config**: `{TENDRIL_HOME}/config.yaml`
-- **Database**: `{TENDRIL_HOME}/tendril.db`
+- **TENDRIL_HOME**: `D:/Tendril`
+- **Plans folder**: `D:/Plans`
+- **Config**: `D:/Tendril/config.yaml`
+- **Database**: `D:/Tendril/tendril.db`
 
 ```
-{TENDRIL_HOME}/
+D:/Tendril/
   config.yaml          # Projects, agents, verifications, promptware settings
   tendril.db           # SQLite database (plan state, jobs, costs)
   Plans/               # Plan folders ({ID}-{Title}/)
@@ -75,7 +75,7 @@ Autonomous agents that handle each pipeline stage. Each has a `Program.md` (inst
 
 ## Plan Structure
 
-Plans live in `{PLAN_FOLDER}/{ID}-{SafeTitle}/`:
+Plans live in `D:/Plans/{ID}-{SafeTitle}/`:
 
 ```
 00142-FixLoginBug/

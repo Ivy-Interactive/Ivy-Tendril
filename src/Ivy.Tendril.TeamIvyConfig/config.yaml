@@ -1,4 +1,4 @@
-codingAgent: opencode
+codingAgent: claude
 jobTimeout: 30
 staleOutputTimeout: 10
 gitTimeout: 10
@@ -148,6 +148,33 @@ projects:
   - name: App
     condition: Test-Path 'Worktrees\lots-of-dev-tools\package.json'
     command: cd Worktrees\lots-of-dev-tools && npm run dev
+  hooks: []
+  buildDependencies: []
+- name: Tendril-Services
+  color: Green
+  meta: {}
+  repos:
+  - path: D:\Repos\_Ivy\Ivy-Tendril-Services
+    prRule: default
+    baseBranch: development
+    syncStrategy: fetch
+  verifications:
+  - name: DotnetFormat
+    required: true
+  - name: DotnetBuild
+    required: true
+  - name: DotnetTest
+    required: true
+  - name: CheckResult
+    required: true
+  context: ''
+  reviewActions:
+  - name: API
+    condition: Test-Path "Worktrees\Ivy-Tendril-Services\Ivy.Tendril.Services"
+    command: dotnet run --project Worktrees\Ivy-Tendril-Services\Ivy.Tendril.Services --launch-profile https
+  - name: Admin
+    condition: Test-Path "Worktrees\Ivy-Tendril-Services\Ivy.Tendril.Services.Admin"
+    command: dotnet run --project Worktrees\Ivy-Tendril-Services\Ivy.Tendril.Services.Admin --browse --find-available-port
   hooks: []
   buildDependencies: []
 verifications:
@@ -388,7 +415,7 @@ codingAgents:
     effort: ''
     arguments: ''
 tunnel:
-  enabled: false
+  enabled: true
   port: 5010
   binaryPath: ''
   maxRestarts: 10

@@ -58,7 +58,7 @@ public class Program
         var (verbose, quiet, forceDesktop, forceWeb, beta, jobId, filteredArgs) = ParseGlobalFlags(args);
 
         bool isTool = IsTendrilToolInvocation();
-        bool useDesktop = (isTool || forceDesktop) && !forceWeb;
+        bool useDesktop = (forceDesktop || (isTool && !verbose && !quiet)) && !forceWeb;
         if (useDesktop && OperatingSystem.IsLinux())
         {
             // On Linux, default to web mode (foreground server) unless desktop is explicitly forced
@@ -75,6 +75,10 @@ public class Program
         {
             var checkArgs = new Services.TendrilArgs { Beta = beta, Verbose = verbose, Quiet = quiet };
             var checkServer = TendrilServer.Create(filteredArgs, checkArgs);
+            if (useDesktop)
+            {
+                checkServer.Args.FindAvailablePort = true;
+            }
             if (!checkServer.Args.FindAvailablePort && IsPortInUse(checkServer.Args.Port))
             {
                 AnsiConsole.MarkupLine($"[red]Error: Port {checkServer.Args.Port} is already in use.[/]");
@@ -208,6 +212,11 @@ public class Program
 
         var tendrilArgs = new Services.TendrilArgs { Beta = beta, Verbose = verbose, Quiet = quiet };
         var server = TendrilServer.Create(filteredArgs, tendrilArgs);
+
+        if (useDesktop)
+        {
+            server.Args.FindAvailablePort = true;
+        }
 
         if (!server.Args.FindAvailablePort && IsPortInUse(server.Args.Port))
         {

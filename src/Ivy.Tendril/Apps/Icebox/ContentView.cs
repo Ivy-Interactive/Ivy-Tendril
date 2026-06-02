@@ -19,7 +19,6 @@ public class ContentView(
 {
     public override object Build()
     {
-        var downloadUrl = PlanDownloadHelper.UsePlanDownload(Context, planService, selectedPlan);
         var client = UseService<IClientProvider>();
         var copyToClipboard = UseClipboard();
         var openFile = UseState<string?>(null);
@@ -84,11 +83,6 @@ public class ContentView(
                             refreshPlans();
                         })
                         | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
-                            new MenuItem("Download", Icon: Icons.Download, Tag: "Download").OnSelect(() =>
-                            {
-                                var url = downloadUrl.Value;
-                                if (!string.IsNullOrEmpty(url)) client.OpenUrl(url);
-                            }),
                             new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
                                 .OnSelect(() =>
                                 {

@@ -178,7 +178,7 @@ public sealed class JsonEventSerializer : IEventSerializer
             _ => new TextWire
             {
                 Timestamp = ts,
-                Text = evt.ToString() ?? "",
+                Text = "",
             },
         };
     }

@@ -573,7 +573,7 @@ public class ContentView(
             {
                 if (v >= 0 && v < actualTabNames.Length && selectedPlanState.Value != null)
                     nav.Navigate<ReviewApp>(new ReviewAppArgs(selectedPlanState.Value.FolderName, actualTabNames[v]));
-            }).SelectedIndex(actualSelectedTabIndex).Variant(TabsVariant.Content).Padding(4, 0, 0, 0).RemoveParentPadding();
+            }).SelectedIndex(actualSelectedTabIndex).Variant(TabsVariant.Content).RemoveParentPadding();
 
             content |= (Layout.Vertical().Padding(2).Gap(0).Height(Size.Grow().Min(Size.Px(0))) | tabs);
         }
@@ -602,7 +602,7 @@ public class ContentView(
         object Cap(object inner)
         {
             return Layout.Vertical().Scroll(Scroll.Auto).Width(Size.Full()).Height(Size.Full())
-                | (Layout.Vertical().Width(Size.Full().Max(Size.Units(200))) | inner);
+                | (Layout.Vertical().Padding(0, 0, 0, 4).Width(Size.Full().Max(Size.Units(200))) | inner);
         }
     }
 

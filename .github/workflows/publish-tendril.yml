@@ -11,6 +11,12 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      test-mode:
+        description: 'Test mode (do not publish to NuGet, do not create release)'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   version:
@@ -147,6 +153,7 @@ jobs:
           cp -f ./nupkg_signed/*.nupkg ./nupkg/
 
       - name: Push to NuGet
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode)
         run: dotnet nuget push ./nupkg/*.nupkg --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Publish summary
@@ -161,6 +168,7 @@ jobs:
   publish-desktop:
     needs: version
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -171,6 +179,8 @@ jobs:
             os: windows-latest
           - rid: linux-x64
             os: ubuntu-latest
+          - rid: linux-arm64
+            os: ubuntu-24.04-arm
           - rid: osx-x64
             os: macos-latest
           - rid: osx-arm64
@@ -211,15 +221,15 @@ jobs:
       - name: Install vpk tool and dependencies
         run: |
           dotnet tool install -g vpk
-          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+          if [[ "${{ matrix.rid }}" == linux-* ]]; then
             sudo apt-get update && sudo apt-get install -y libfuse2
           fi
 
       - name: Set Icon Path
         run: |
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          if [[ "${{ matrix.rid }}" == win-* ]]; then
             echo "ICON_PATH=src/Ivy.Tendril/Assets/icon.ico" >> $GITHUB_ENV
-          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+          elif [[ "${{ matrix.rid }}" == osx-* ]]; then
             echo "ICON_PATH=src/Ivy.Tendril/Assets/icon.icns" >> $GITHUB_ENV
           else
             echo "ICON_PATH=src/Ivy.Tendril/Assets/icon.png" >> $GITHUB_ENV
@@ -240,7 +250,7 @@ jobs:
         run: |
           export PATH="$PATH:$HOME/.dotnet/tools"
           EXE_NAME="Ivy.Tendril"
-          if [[ "${{ matrix.os }}" == windows-* ]]; then
+          if [[ "${{ matrix.rid }}" == win-* ]]; then
             EXE_NAME="Ivy.Tendril.exe"
           fi
 
@@ -251,9 +261,26 @@ jobs:
             --mainExe $EXE_NAME \
             --outputDir ./releases \
             --icon "$ICON_PATH" \
-            $( [[ "${{ matrix.os }}" != "ubuntu-latest" ]] && echo "--noPortable" ) \
+            $( [[ "${{ matrix.rid }}" != linux-* ]] && echo "--noPortable" ) \
             --delta None \
-            $( [[ "${{ matrix.rid }}" == osx-* ]] && echo "--bundleId com.ivy.tendril" )
+            $( [[ "${{ matrix.rid }}" == osx-* ]] && echo "--bundleId com.ivy.tendril" ) \
+            --channel ${{ matrix.rid }}
+
+      - name: Rename Installer Setup Packages
+        run: |
+          cd releases
+          if [[ "${{ matrix.rid }}" == win-* ]]; then
+            mv IvyTendril-${{ matrix.rid }}-Setup.exe IvyTendril-${{ needs.version.outputs.version }}-${{ matrix.rid }}.exe
+          elif [[ "${{ matrix.rid }}" == osx-* ]]; then
+            mv IvyTendril-${{ matrix.rid }}-Setup.pkg IvyTendril-${{ needs.version.outputs.version }}-${{ matrix.rid }}.pkg
+          elif [[ "${{ matrix.rid }}" == linux-* ]]; then
+            if [ -f IvyTendril-${{ matrix.rid }}.AppImage ]; then
+              mv IvyTendril-${{ matrix.rid }}.AppImage IvyTendril-${{ needs.version.outputs.version }}-${{ matrix.rid }}.AppImage
+            elif [ -f IvyTendril.AppImage ]; then
+              mv IvyTendril.AppImage IvyTendril-${{ needs.version.outputs.version }}-${{ matrix.rid }}.AppImage
+            fi
+          fi
+          cd ..
 
       - name: Prepare Windows installer for signing
         if: startsWith(matrix.rid, 'win-')
@@ -282,18 +309,19 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tendril-installer-${{ matrix.rid }}
+          name: tendril-installer-${{ needs.version.outputs.version }}-${{ matrix.rid }}
           path: |
             releases/*.exe
             releases/*.pkg
             releases/*.AppImage
             releases/*.nupkg
             releases/RELEASES
+            releases/releases.*.json
 
   upload-release-assets:
     needs: [version, publish-nuget, publish-desktop]
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode)
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4

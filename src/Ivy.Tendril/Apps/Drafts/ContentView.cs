@@ -24,7 +24,6 @@ public class ContentView(
 {
     public override object Build()
     {
-        var downloadUrl = PlanDownloadHelper.UsePlanDownload(Context, planService, selectedPlan);
         var client = UseService<IClientProvider>();
         var copyToClipboard = UseClipboard();
         var openFile = UseState<string?>(null);
@@ -146,7 +145,6 @@ public class ContentView(
 
         var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(40)).Gap(2)
                      | Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis);
-        header |= Text.Muted($"rev:{selectedPlan.RevisionCount}");
 
         if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
             header |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
@@ -203,7 +201,7 @@ public class ContentView(
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan!,
                     jobService.GetJobs().Where(j => j.PlanFile == selectedPlan!.FolderName).ToList(),
                     showDebugJob)))
-            ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content).Padding(4, 0, 0, 0).RemoveParentPadding();
+            ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content).RemoveParentPadding();
 
             content |= (Layout.Vertical().Padding(2).Height(Size.Full()) | tabs);
         }
@@ -241,8 +239,7 @@ public class ContentView(
             hasActiveExpandJob,
             hasActiveSplitJob,
             GoToNext,
-            GoToPrevious,
-            downloadUrl.Value);
+            GoToPrevious);
 
         var mainLayout = new HeaderLayout(
             header,
@@ -266,7 +263,7 @@ public class ContentView(
         return new Fragment(elements.ToArray());
 
         object Cap(object inner) => Layout.Vertical().Scroll().Width(Size.Full()).Height(Size.Full())
-            | (Layout.Vertical().Width(Size.Full().Max(Size.Units(200))) | inner);
+            | (Layout.Vertical().Padding(0, 0, 0, 4).Width(Size.Full().Max(Size.Units(200))) | inner);
     }
 
     internal static object BuildFailureCallout(PlanFile plan)
