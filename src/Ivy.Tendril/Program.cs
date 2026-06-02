@@ -58,7 +58,7 @@ public class Program
         var (verbose, quiet, forceDesktop, forceWeb, beta, jobId, filteredArgs) = ParseGlobalFlags(args);
 
         bool isTool = IsTendrilToolInvocation();
-        bool useDesktop = (isTool || forceDesktop) && !forceWeb;
+        bool useDesktop = (forceDesktop || (isTool && !verbose && !quiet)) && !forceWeb;
         if (useDesktop && OperatingSystem.IsLinux())
         {
             // On Linux, default to web mode (foreground server) unless desktop is explicitly forced
@@ -354,16 +354,12 @@ public class Program
     {
         // ProcessPath can be "dotnet" for global tools, so inspect argv[0] too.
         var processPathName = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? string.Empty);
-        if (processPathName.Equals("tendril", StringComparison.OrdinalIgnoreCase) ||
-            processPathName.Equals("Ivy.Tendril", StringComparison.OrdinalIgnoreCase) ||
-            processPathName.Equals("IvyTendril", StringComparison.OrdinalIgnoreCase))
+        if (processPathName.Equals("tendril", StringComparison.OrdinalIgnoreCase))
             return true;
 
         var argv0 = Environment.GetCommandLineArgs().FirstOrDefault() ?? string.Empty;
         var argv0Name = Path.GetFileNameWithoutExtension(argv0);
-        return argv0Name.Equals("tendril", StringComparison.OrdinalIgnoreCase) ||
-               argv0Name.Equals("Ivy.Tendril", StringComparison.OrdinalIgnoreCase) ||
-               argv0Name.Equals("IvyTendril", StringComparison.OrdinalIgnoreCase);
+        return argv0Name.Equals("tendril", StringComparison.OrdinalIgnoreCase);
     }
 
     private static int RelaunchDesktopDetached(string[] filteredArgs)

@@ -201,7 +201,7 @@ public class ContentView(
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan!,
                     jobService.GetJobs().Where(j => j.PlanFile == selectedPlan!.FolderName).ToList(),
                     showDebugJob)))
-            ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content).Padding(4, 0, 0, 0).RemoveParentPadding();
+            ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content).RemoveParentPadding();
 
             content |= (Layout.Vertical().Padding(2).Height(Size.Full()) | tabs);
         }
