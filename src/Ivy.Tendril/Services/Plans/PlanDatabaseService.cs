@@ -673,41 +673,56 @@ public class PlanDatabaseService : IPlanDatabaseService
         using (new ReadLockHandle(_lock))
         {
             return ReadList("SELECT * FROM Jobs ORDER BY CompletedAt DESC LIMIT @limit",
-                reader => new JobItem
-                {
-                    Id = reader.GetString(reader.GetOrdinal("Id")),
-                    Type = reader.GetString(reader.GetOrdinal("Type")),
-                    PlanFile = reader.GetString(reader.GetOrdinal("PlanFile")),
-                    Project = reader.GetString(reader.GetOrdinal("Project")),
-                    Status = Enum.Parse<JobStatus>(reader.GetString(reader.GetOrdinal("Status"))),
-                    Provider = reader.GetString(reader.GetOrdinal("Provider")),
-                    SessionId = reader.IsDBNull(reader.GetOrdinal("SessionId"))
-                        ? null
-                        : reader.GetString(reader.GetOrdinal("SessionId")),
-                    StartedAt = reader.IsDBNull(reader.GetOrdinal("StartedAt"))
-                        ? null
-                        : DateTime.Parse(reader.GetString(reader.GetOrdinal("StartedAt")), CultureInfo.InvariantCulture,
-                            DateTimeStyles.RoundtripKind),
-                    CompletedAt = reader.IsDBNull(reader.GetOrdinal("CompletedAt"))
-                        ? null
-                        : DateTime.Parse(reader.GetString(reader.GetOrdinal("CompletedAt")),
-                            CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
-                    DurationSeconds = reader.IsDBNull(reader.GetOrdinal("DurationSeconds"))
-                        ? null
-                        : reader.GetInt32(reader.GetOrdinal("DurationSeconds")),
-                    Cost = reader.IsDBNull(reader.GetOrdinal("Cost"))
-                        ? null
-                        : (decimal)reader.GetDouble(reader.GetOrdinal("Cost")),
-                    Tokens = reader.IsDBNull(reader.GetOrdinal("Tokens"))
-                        ? null
-                        : reader.GetInt32(reader.GetOrdinal("Tokens")),
-                    StatusMessage = reader.IsDBNull(reader.GetOrdinal("StatusMessage"))
-                        ? null
-                        : reader.GetString(reader.GetOrdinal("StatusMessage")),
-                    TypedArgs = ReadTypedArgs(reader)
-                },
+                MapJobRow,
                 new SqliteParameter("@limit", limit));
         }
+    }
+
+    public List<JobItem> GetJobsForPlan(string planFile)
+    {
+        using (new ReadLockHandle(_lock))
+        {
+            return ReadList("SELECT * FROM Jobs WHERE PlanFile = @planFile ORDER BY CompletedAt DESC",
+                MapJobRow,
+                new SqliteParameter("@planFile", planFile));
+        }
+    }
+
+    private JobItem MapJobRow(SqliteDataReader reader)
+    {
+        return new JobItem
+        {
+            Id = reader.GetString(reader.GetOrdinal("Id")),
+            Type = reader.GetString(reader.GetOrdinal("Type")),
+            PlanFile = reader.GetString(reader.GetOrdinal("PlanFile")),
+            Project = reader.GetString(reader.GetOrdinal("Project")),
+            Status = Enum.Parse<JobStatus>(reader.GetString(reader.GetOrdinal("Status"))),
+            Provider = reader.GetString(reader.GetOrdinal("Provider")),
+            SessionId = reader.IsDBNull(reader.GetOrdinal("SessionId"))
+                ? null
+                : reader.GetString(reader.GetOrdinal("SessionId")),
+            StartedAt = reader.IsDBNull(reader.GetOrdinal("StartedAt"))
+                ? null
+                : DateTime.Parse(reader.GetString(reader.GetOrdinal("StartedAt")), CultureInfo.InvariantCulture,
+                    DateTimeStyles.RoundtripKind),
+            CompletedAt = reader.IsDBNull(reader.GetOrdinal("CompletedAt"))
+                ? null
+                : DateTime.Parse(reader.GetString(reader.GetOrdinal("CompletedAt")),
+                    CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
+            DurationSeconds = reader.IsDBNull(reader.GetOrdinal("DurationSeconds"))
+                ? null
+                : reader.GetInt32(reader.GetOrdinal("DurationSeconds")),
+            Cost = reader.IsDBNull(reader.GetOrdinal("Cost"))
+                ? null
+                : (decimal)reader.GetDouble(reader.GetOrdinal("Cost")),
+            Tokens = reader.IsDBNull(reader.GetOrdinal("Tokens"))
+                ? null
+                : reader.GetInt32(reader.GetOrdinal("Tokens")),
+            StatusMessage = reader.IsDBNull(reader.GetOrdinal("StatusMessage"))
+                ? null
+                : reader.GetString(reader.GetOrdinal("StatusMessage")),
+            TypedArgs = ReadTypedArgs(reader)
+        };
     }
 
     public void PurgeOldJobs(int keepCount = 500)

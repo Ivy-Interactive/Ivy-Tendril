@@ -199,7 +199,7 @@ public class ContentView(
             var tabs = Layout.Tabs(
                 new Tab("Plan", Cap(planTabContent)),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan!,
-                    jobService.GetJobs().Where(j => j.PlanFile == selectedPlan!.FolderName).ToList(),
+                    jobService.GetJobsForPlan(selectedPlan!.FolderName),
                     showDebugJob)))
             ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content).RemoveParentPadding();
 

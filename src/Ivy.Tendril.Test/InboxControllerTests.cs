@@ -114,6 +114,11 @@ public class InboxControllerTests
             return new List<JobItem>();
         }
 
+        public List<JobItem> GetJobsForPlan(string planFile)
+        {
+            return new List<JobItem>();
+        }
+
         public JobItem? GetJob(string id)
         {
             return null;
