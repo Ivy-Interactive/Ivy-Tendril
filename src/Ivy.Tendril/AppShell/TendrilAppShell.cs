@@ -103,8 +103,13 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var serverArgs = UseService<ServerArgs>();
         var navigate = Context.UseSignal<NavigateSignal, NavigateArgs, Unit>();
         var navigator = UseNavigation();
-        var importIssuesDialogOpen = UseState(false);
         var newsArticles = UseState(Array.Empty<SidebarNewsArticle>());
+
+        var (importIssuesDialog, showImportIssuesDialog) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value) return null;
+            return new ImportIssuesDialog(isOpen, config);
+        });
 
         UseEffect(async () =>
         {
@@ -423,7 +428,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             MenuItem.Default("Import Issues from GitHub")
                 .Tag("$import-issues")
                 .Icon(Icons.Download)
-                .OnSelect(() => importIssuesDialogOpen.Set(true)),
+                .OnSelect(showImportIssuesDialog),
             MenuItem.Default("Theme")
                 .Tag("$theme")
                 .Icon(Icons.SunMoon)
@@ -466,7 +471,16 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
         if (config.NeedsOnboarding) return new OnboardingApp();
 
+        // Warm up SelectInput so its frontend chunk is loaded before dialogs open.
+        var selectInputWarmup = new FuncView(context =>
+        {
+            var noop = context.UseState<string?>(() => null);
+            return Layout.Vertical().Height(Size.Px(0)).Width(Size.Px(0))
+                | noop.ToSelectInput(new[] { "_" }.ToOptions()).Disabled();
+        });
+
         return new Fragment(
+            selectInputWarmup,
             new SidebarLayout(
                 body ?? null!,
                 sidebarMenu,
@@ -481,7 +495,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 ),
                 settings.Width
             ).Open(sidebarOpen.Value).MainAppSidebar(),
-            new ImportIssuesDialog(importIssuesDialogOpen, config)
+            importIssuesDialog
         );
     }
 
