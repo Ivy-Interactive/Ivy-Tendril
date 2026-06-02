@@ -12,6 +12,7 @@ public class DetailsTabView(PlanFile plan, List<JobItem> jobs, Action<string> sh
         var detailsData = new
         {
             plan.InitialPrompt,
+            Revision = plan.RevisionCount.ToString(),
             Profile = planYaml?.ExecutionProfile ?? "",
             RelatedPlans = FormatPlanLinks(plan.RelatedPlans),
             DependsOn = FormatPlanLinks(plan.DependsOn),
