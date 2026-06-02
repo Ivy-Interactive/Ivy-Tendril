@@ -11,6 +11,12 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      test-mode:
+        description: 'Test mode (do not publish to NuGet, do not build installers, do not create release)'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   version:
@@ -147,6 +153,7 @@ jobs:
           cp -f ./nupkg_signed/*.nupkg ./nupkg/
 
       - name: Push to NuGet
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode)
         run: dotnet nuget push ./nupkg/*.nupkg --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Publish summary
@@ -161,6 +168,7 @@ jobs:
   publish-desktop:
     needs: version
     runs-on: ${{ matrix.os }}
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode)
     strategy:
       fail-fast: false
       matrix:
@@ -311,7 +319,7 @@ jobs:
   upload-release-assets:
     needs: [version, publish-nuget, publish-desktop]
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode)
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
