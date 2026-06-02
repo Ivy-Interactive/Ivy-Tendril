@@ -168,6 +168,7 @@ jobs:
   publish-desktop:
     needs: version
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 3
     strategy:
       fail-fast: false
       matrix:
