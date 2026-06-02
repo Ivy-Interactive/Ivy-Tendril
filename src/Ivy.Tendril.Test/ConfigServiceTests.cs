@@ -789,7 +789,7 @@ maxConcurrentJobs: 10
     public void Constructor_WithNull_FallsBackToEnvVar()
     {
         var service = new ConfigService(new TendrilSettings());
-        var expected = Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? "";
+        var expected = PathHelper.GetDefaultTendrilHome();
         Assert.Equal(expected, service.TendrilHome);
     }
 
@@ -1602,11 +1602,15 @@ maxConcurrentJobs: 10
         // Regression test: when TENDRIL_HOME is not set (NeedsOnboarding path), env-supplied
         // credentials must still be synced into Settings.Auth so that UseAuth middleware is
         // registered at startup without requiring a redeploy after onboarding.
+        var emptyDir = Path.Combine(Path.GetTempPath(), $"tendril-test-no-config-{Guid.NewGuid()}");
+        Directory.CreateDirectory(emptyDir);
+        
         var prevHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         var prevPassword = Environment.GetEnvironmentVariable("TENDRIL_AUTH_PASSWORD");
         var prevHashSecret = Environment.GetEnvironmentVariable("TENDRIL_AUTH_HASH_SECRET");
         try
         {
+            PathHelper.DefaultTendrilHomeOverride = emptyDir;
             Environment.SetEnvironmentVariable("TENDRIL_HOME", null);
             Environment.SetEnvironmentVariable("TENDRIL_AUTH_PASSWORD", "mysecretpassword");
             // Hash secret must be valid base64
@@ -1621,9 +1625,11 @@ maxConcurrentJobs: 10
         }
         finally
         {
+            PathHelper.DefaultTendrilHomeOverride = null;
             Environment.SetEnvironmentVariable("TENDRIL_HOME", prevHome);
             Environment.SetEnvironmentVariable("TENDRIL_AUTH_PASSWORD", prevPassword);
             Environment.SetEnvironmentVariable("TENDRIL_AUTH_HASH_SECRET", prevHashSecret);
+            try { Directory.Delete(emptyDir, true); } catch { }
         }
     }
 
