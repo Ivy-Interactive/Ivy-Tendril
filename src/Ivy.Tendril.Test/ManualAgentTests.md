@@ -8,7 +8,7 @@ This guide describes how to manually test agent CLI integration with Tendril.
 
 - **Claude** (`claude`) — Anthropic Claude Code
 - **Codex** (`codex`) — OpenAI Codex CLI
-- **Antigravity** (`agy`) — Antigravity CLI
+- **Gemini CLI** (`gemini`) — Gemini CLI
 - **Copilot** (`copilot` or `gh copilot`) — GitHub Copilot CLI
 - **OpenCode** (`opencode`) — OpenCode CLI
 
