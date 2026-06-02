@@ -253,7 +253,24 @@ jobs:
             --icon "$ICON_PATH" \
             $( [[ "${{ matrix.os }}" != "ubuntu-latest" ]] && echo "--noPortable" ) \
             --delta None \
-            $( [[ "${{ matrix.rid }}" == osx-* ]] && echo "--bundleId com.ivy.tendril" )
+            $( [[ "${{ matrix.rid }}" == osx-* ]] && echo "--bundleId com.ivy.tendril" ) \
+            --channel ${{ matrix.rid }}
+
+      - name: Rename Installer Setup Packages
+        run: |
+          cd releases
+          if [[ "${{ matrix.os }}" == windows-* ]]; then
+            mv IvyTendril-${{ matrix.rid }}-Setup.exe IvyTendril-${{ needs.version.outputs.version }}-${{ matrix.rid }}.exe
+          elif [[ "${{ matrix.os }}" == macos-* ]]; then
+            mv IvyTendril-${{ matrix.rid }}-Setup.pkg IvyTendril-${{ needs.version.outputs.version }}-${{ matrix.rid }}.pkg
+          elif [[ "${{ matrix.os }}" == ubuntu-* ]]; then
+            if [ -f IvyTendril-${{ matrix.rid }}.AppImage ]; then
+              mv IvyTendril-${{ matrix.rid }}.AppImage IvyTendril-${{ needs.version.outputs.version }}-${{ matrix.rid }}.AppImage
+            elif [ -f IvyTendril.AppImage ]; then
+              mv IvyTendril.AppImage IvyTendril-${{ needs.version.outputs.version }}-${{ matrix.rid }}.AppImage
+            fi
+          fi
+          cd ..
 
       - name: Prepare Windows installer for signing
         if: startsWith(matrix.rid, 'win-')
@@ -289,6 +306,7 @@ jobs:
             releases/*.AppImage
             releases/*.nupkg
             releases/RELEASES
+            releases/releases.*.json
 
   upload-release-assets:
     needs: [version, publish-nuget, publish-desktop]
