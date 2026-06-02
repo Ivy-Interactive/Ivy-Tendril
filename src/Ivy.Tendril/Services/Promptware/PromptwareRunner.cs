@@ -55,7 +55,7 @@ public interface IPromptwareRunner
 
 public class PromptwareRunner : IPromptwareRunner
 {
-private readonly IConfigService _configService;
+    private readonly IConfigService _configService;
     private readonly IAgentRunner _agentRunner;
     private readonly ILogger<PromptwareRunner> _logger;
 
@@ -196,6 +196,8 @@ private readonly IConfigService _configService;
                 {
                     foreach (var evt in parser.ParseLine(e.Data))
                     {
+                        if (evt is SystemEvent or UnknownEvent or StderrEvent)
+                            continue;
                         var serialized = serializer.Serialize(evt);
                         stream.Write(serialized);
                     }
