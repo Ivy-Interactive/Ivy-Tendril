@@ -85,7 +85,7 @@ projects:
         required: true
 ```
 
-Set `codingAgent` to the agent you want to use (`claude`, `codex`, `antigravity`, `copilot`, `opencode`) and adjust `verifications` to match your stack.
+Set `codingAgent` to the agent you want to use (`claude`, `codex`, `copilot`, `gemini`, `opencode`) and adjust `verifications` to match your stack.
 
 <Callout type="Tip">
 Add a `CLAUDE.md` or `AGENTS.md` file to your repo root with project conventions — Tendril passes these to the agent as context.

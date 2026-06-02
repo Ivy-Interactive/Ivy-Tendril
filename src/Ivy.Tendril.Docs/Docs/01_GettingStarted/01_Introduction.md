@@ -12,7 +12,7 @@ icon: Rocket
 # Welcome to Ivy Tendril
 
 <Ingress>
-Tendril is an open source, local-first desktop application that serves as the operating system for AI-powered software development — orchestrating coding agents like Claude Code, Codex, Antigravity, Copilot, and OpenCode through a structured lifecycle from idea to merged pull request.
+Tendril is an open source, local-first desktop application that serves as the operating system for AI-powered software development — orchestrating coding agents like Claude Code, Codex, Copilot, Gemini, and OpenCode through a structured lifecycle from idea to merged pull request.
 </Ingress>
 
 <Embed Url="https://youtu.be/Lpv0JiGOU5w"/>
@@ -30,7 +30,7 @@ In Tendril, work is organized into **Plans**—structured units of work. Instead
 - **Git Worktrees** — Each agent works in an isolated worktree — your main branch stays clean until you approve.
 - **Terminal & File Viewer** — Embedded terminal and fast local file access without leaving the app.
 - **Verification Gates** — Wire up your build, test, lint, and format checks — code doesn't advance until it passes.
-- **Stack & Agent Agnostic** — Works with any language, framework, or CLI-based agent — Claude Code, Codex, Antigravity, and more. No lock-in.
+- **Stack & Agent Agnostic** — Works with any language, framework, or CLI-based agent — Claude Code, Codex, Gemini, and more. No lock-in.
 - **Cross-Platform & Local-First** — Runs on Windows, macOS, and Linux. Your code never leaves your machine.
 
 ## Why Tendril?
