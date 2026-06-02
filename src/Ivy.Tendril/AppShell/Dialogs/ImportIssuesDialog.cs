@@ -29,9 +29,52 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
         var isImporting = UseState(false);
         var assigneesError = UseState<string?>(null);
         var labelsError = UseState<string?>(null);
-        var assigneeOptions = UseState<string[]>([]);
-        var labelOptions = UseState<string[]>([]);
-        var filtersLoading = UseState(false);
+
+        var assigneesQuery = UseQuery<string[], string>(
+            $"assignees:{selectedRepo.Value ?? ""}",
+            async (key, _) =>
+            {
+                var repoName = key.StartsWith("assignees:") ? key["assignees:".Length..] : key;
+                if (string.IsNullOrEmpty(repoName))
+                {
+                    assigneesError.Set(null);
+                    return Array.Empty<string>();
+                }
+                var repo = githubService.GetRepos().FirstOrDefault(r => r.DisplayName == repoName);
+                if (repo is null)
+                {
+                    assigneesError.Set(null);
+                    return Array.Empty<string>();
+                }
+                var (assignees, error) = await githubService.GetAssigneesAsync(repo.Owner, repo.Name);
+                assigneesError.Set(error);
+                return assignees.ToArray();
+            },
+            initialValue: Array.Empty<string>()
+        );
+
+        var labelsQuery = UseQuery<string[], string>(
+            $"labels:{selectedRepo.Value ?? ""}",
+            async (key, _) =>
+            {
+                var repoName = key.StartsWith("labels:") ? key["labels:".Length..] : key;
+                if (string.IsNullOrEmpty(repoName))
+                {
+                    labelsError.Set(null);
+                    return Array.Empty<string>();
+                }
+                var repo = githubService.GetRepos().FirstOrDefault(r => r.DisplayName == repoName);
+                if (repo is null)
+                {
+                    labelsError.Set(null);
+                    return Array.Empty<string>();
+                }
+                var (labels, error) = await githubService.GetLabelsAsync(repo.Owner, repo.Name);
+                labelsError.Set(error);
+                return labels.ToArray();
+            },
+            initialValue: Array.Empty<string>()
+        );
 
         UseEffect(() =>
         {
@@ -42,58 +85,6 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
             selectedLabels.Set(Array.Empty<string>());
             assigneesError.Set(null);
             labelsError.Set(null);
-            assigneeOptions.Set([]);
-            labelOptions.Set([]);
-        }, selectedRepo);
-
-        UseEffect(async () =>
-        {
-            if (string.IsNullOrEmpty(selectedRepo.Value))
-            {
-                filtersLoading.Set(false);
-                return;
-            }
-
-            var repoName = selectedRepo.Value;
-            var repo = githubService.GetRepos().FirstOrDefault(r => r.DisplayName == repoName);
-            if (repo is null)
-            {
-                filtersLoading.Set(false);
-                return;
-            }
-
-            filtersLoading.Set(true);
-            assigneesError.Set(null);
-            labelsError.Set(null);
-
-            try
-            {
-                var assigneesTask = githubService.GetAssigneesAsync(repo.Owner, repo.Name);
-                var labelsTask = githubService.GetLabelsAsync(repo.Owner, repo.Name);
-                await Task.WhenAll(assigneesTask, labelsTask);
-
-                if (selectedRepo.Value != repoName)
-                    return;
-
-                var (assignees, assigneesErr) = await assigneesTask;
-                var (labels, labelsErr) = await labelsTask;
-
-                assigneesError.Set(assigneesErr);
-                labelsError.Set(labelsErr);
-                assigneeOptions.Set(assignees.ToArray());
-                labelOptions.Set(labels.ToArray());
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Failed to load assignees/labels for {Repo}", repoName);
-                if (selectedRepo.Value == repoName)
-                    assigneesError.Set($"Failed to load filter options: {ex.Message}");
-            }
-            finally
-            {
-                if (selectedRepo.Value == repoName)
-                    filtersLoading.Set(false);
-            }
         }, selectedRepo);
 
         if (!_dialogOpen.Value) return null;
@@ -125,7 +116,7 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
 
         var repositoryOptions = repos.Select(r => r.DisplayName).ToArray();
         var hasRepo = !string.IsNullOrEmpty(selectedRepo.Value);
-        var filtersBusy = hasRepo && filtersLoading.Value;
+        var filtersLoading = hasRepo && (assigneesQuery.Loading || labelsQuery.Loading);
 
         void ResetDialogState()
         {
@@ -368,13 +359,13 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
                     .Placeholder("Select repository...")
                     .WithField().Label("Repository").Required()
                 | searchQuery.ToTextInput().Placeholder("Search titles and descriptions").WithField().Label("Search")
-                | selectedAssignees.ToSelectInput(assigneeOptions.Value.ToOptions())
-                    .Disabled(!hasRepo || filtersBusy)
-                    .Placeholder(filtersBusy ? "Loading assignees..." : "Select assignees...")
+                | selectedAssignees.ToSelectInput((assigneesQuery.Value ?? Array.Empty<string>()).ToOptions())
+                    .Disabled(!hasRepo || filtersLoading)
+                    .Placeholder(filtersLoading ? "Loading assignees..." : "Select assignees...")
                     .WithField().Label("Assignees")
-                | selectedLabels.ToSelectInput(labelOptions.Value.ToOptions())
-                    .Disabled(!hasRepo || filtersBusy)
-                    .Placeholder(filtersBusy ? "Loading labels..." : "Select labels...")
+                | selectedLabels.ToSelectInput((labelsQuery.Value ?? Array.Empty<string>()).ToOptions())
+                    .Disabled(!hasRepo || filtersLoading)
+                    .Placeholder(filtersLoading ? "Loading labels..." : "Select labels...")
                     .WithField().Label("Labels")
                 | (assigneesError.Value is { } assigneeErr
                     ? Text.Danger(assigneeErr).Small()

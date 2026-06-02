@@ -103,8 +103,13 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var serverArgs = UseService<ServerArgs>();
         var navigate = Context.UseSignal<NavigateSignal, NavigateArgs, Unit>();
         var navigator = UseNavigation();
-        var importIssuesDialogOpen = UseState(false);
         var newsArticles = UseState(Array.Empty<SidebarNewsArticle>());
+
+        var (importIssuesDialog, showImportIssuesDialog) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value) return null;
+            return new ImportIssuesDialog(isOpen, config);
+        });
 
         UseEffect(async () =>
         {
@@ -423,7 +428,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             MenuItem.Default("Import Issues from GitHub")
                 .Tag("$import-issues")
                 .Icon(Icons.Download)
-                .OnSelect(() => importIssuesDialogOpen.Set(true)),
+                .OnSelect(showImportIssuesDialog),
             MenuItem.Default("Theme")
                 .Tag("$theme")
                 .Icon(Icons.SunMoon)
@@ -490,7 +495,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 ),
                 settings.Width
             ).Open(sidebarOpen.Value).MainAppSidebar(),
-            new ImportIssuesDialog(importIssuesDialogOpen, config)
+            importIssuesDialog
         );
     }
 
