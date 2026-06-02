@@ -8,7 +8,6 @@ namespace Ivy.Tendril.Commands.DoctorChecks;
 internal class SoftwareCheck : IDoctorCheck
 {
     private static readonly string[] RequiredSoftware = ["gh", "git"];
-    private static readonly string[] OptionalSoftware = ["pandoc"];
 
     private readonly ConfigService? _configService;
     private readonly IAgentRunner? _agentRunner;
@@ -27,7 +26,6 @@ internal class SoftwareCheck : IDoctorCheck
 
         var reqErrors = await CheckRequiredSoftware(statuses);
         var agentErrors = await CheckAgentClis(statuses);
-        await CheckOptionalSoftware(statuses);
         var pwshErrors = await CheckPowerShell(statuses);
 
         return new CheckResult(reqErrors || agentErrors || pwshErrors, statuses);
@@ -98,17 +96,6 @@ internal class SoftwareCheck : IDoctorCheck
             if (authResult.Status != AuthStatus.Authenticated && isActive) hasErrors = true;
         }
         return hasErrors;
-    }
-
-    private static async Task CheckOptionalSoftware(List<CheckStatus> statuses)
-    {
-        foreach (var sw in OptionalSoftware)
-        {
-            var installed = await ProcessCheckHelper.CheckCommand(sw, "--version");
-            statuses.Add(installed
-                ? new CheckStatus(sw, "OK", StatusKind.Ok)
-                : new CheckStatus(sw, "Not found", StatusKind.Warn));
-        }
     }
 
     private static async Task<bool> CheckPowerShell(List<CheckStatus> statuses)

@@ -87,7 +87,7 @@ Every command supports `--help` for detailed usage. For example: `tendril plan c
 >tendril doctor
 ```
 
-Validates your Tendril installation — checks `TENDRIL_HOME`, `config.yaml`, required tools (`gh`, `git`), optional tools (`pandoc`, `pwsh`), database schema, and agent model availability. Always a good first step when something isn't working.
+Validates your Tendril installation — checks `TENDRIL_HOME`, `config.yaml`, required tools (`gh`, `git`), `pwsh`, database schema, and agent model availability. Always a good first step when something isn't working.
 
 #### run
 
