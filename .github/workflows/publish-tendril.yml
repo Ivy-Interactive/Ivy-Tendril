@@ -168,23 +168,29 @@ jobs:
   publish-desktop:
     needs: version
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 3
+    timeout-minutes: ${{ matrix.timeout }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - rid: win-x64
             os: windows-latest
+            timeout: 5
           - rid: win-arm64
             os: windows-latest
+            timeout: 5
           - rid: linux-x64
             os: ubuntu-latest
+            timeout: 3
           - rid: linux-arm64
             os: ubuntu-24.04-arm
+            timeout: 3
           - rid: osx-x64
             os: macos-latest
+            timeout: 3
           - rid: osx-arm64
             os: macos-latest
+            timeout: 3
     defaults:
       run:
         shell: bash
