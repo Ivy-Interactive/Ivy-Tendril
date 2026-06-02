@@ -22,7 +22,8 @@ public class CreatePrTests
             "Add a comment '// PR test' to the top of Program.cs",
             "E2ETest",
             steps: ["Add '// PR test' as a comment at the top of Program.cs"],
-            verifications: ["DotnetBuild"]);
+            verifications: ["DotnetBuild"],
+            repoPath: _fixture.TestRepo.LocalClonePath);
 
         // Execute the plan first to produce commits
         var execResult = await _fixture.Runner.RunAsync(

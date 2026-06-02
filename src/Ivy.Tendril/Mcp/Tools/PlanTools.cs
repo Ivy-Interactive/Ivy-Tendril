@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Text;
 using System.Text.RegularExpressions;
-using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Commands;
 using Ivy.Tendril.Services;
@@ -322,7 +321,7 @@ public sealed class PlanTools : AuthenticatedToolBase
             {
                 Title = title,
                 Description = description,
-                State = "Pending",
+                State = RecommendationStatus.Pending,
                 Impact = impact,
                 Risk = risk
             });
@@ -350,7 +349,7 @@ public sealed class PlanTools : AuthenticatedToolBase
             if (rec == null)
                 throw new InvalidOperationException($"Recommendation '{title}' not found");
 
-            rec.State = string.IsNullOrEmpty(notes) ? "Accepted" : "AcceptedWithNotes";
+            rec.State = string.IsNullOrEmpty(notes) ? RecommendationStatus.Accepted : RecommendationStatus.AcceptedWithNotes;
             rec.DeclineReason = null;
         }, $"Accepted recommendation '{title}'");
     }
@@ -368,7 +367,7 @@ public sealed class PlanTools : AuthenticatedToolBase
             if (rec == null)
                 throw new InvalidOperationException($"Recommendation '{title}' not found");
 
-            rec.State = "Declined";
+            rec.State = RecommendationStatus.Declined;
             rec.DeclineReason = reason;
         }, $"Declined recommendation '{title}'");
     }

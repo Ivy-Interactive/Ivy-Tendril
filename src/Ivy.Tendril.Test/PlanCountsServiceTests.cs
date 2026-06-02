@@ -1,26 +1,29 @@
 using System.Collections.Concurrent;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Plans;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test;
 
-public class PlanCountsServiceTests : IDisposable
+public class TendrilProcessStatusServiceTests : IDisposable
 {
     private readonly TempDirectoryFixture _tempDir = new();
     private readonly FakeJobService _jobService;
     private readonly PlanReaderService _planReader;
     private readonly FakePlanWatcherService _planWatcher;
     private readonly string _plansDir;
+    private readonly ConfigService _configService;
 
-    public PlanCountsServiceTests()
+    public TendrilProcessStatusServiceTests()
     {
         _plansDir = Path.Combine(_tempDir.Path, "Plans");
         Directory.CreateDirectory(_plansDir);
+        Directory.CreateDirectory(Path.Combine(_tempDir.Path, "Trash"));
 
         var settings = new TendrilSettings();
-        var configService = new ConfigService(settings, _tempDir.Path);
-        _planReader = new PlanReaderService(configService, NullLogger<PlanReaderService>.Instance);
+        _configService = new ConfigService(settings, _tempDir.Path);
+        _planReader = new PlanReaderService(_configService, NullLogger<PlanReaderService>.Instance);
         _jobService = new FakeJobService();
         _planWatcher = new FakePlanWatcherService();
     }
@@ -50,81 +53,72 @@ public class PlanCountsServiceTests : IDisposable
         File.WriteAllText(planYamlPath, existing.TrimEnd() + $"\nrecommendations:\n{indented}\n");
     }
 
-    private void AddJob(string id, JobStatus status)
+    private void AddJob(string id, JobStatus status, string type = "")
     {
-        _jobService.AddJob(id, status);
+        _jobService.AddJob(id, status, type);
     }
 
-    private PlanCountsService CreateService()
+    private TendrilProcessStatusService CreateService()
     {
-        return new PlanCountsService(_planReader, _jobService, _planWatcher);
+        return new TendrilProcessStatusService(
+            _planReader, _jobService, _planWatcher, _configService,
+            NullLogger<TendrilProcessStatusService>.Instance);
     }
 
     [Fact]
-    public void ComputeCounts_WithNoPlans_ReturnsAllZeros()
+    public void Current_WithNoPlans_ReturnsAllZeros()
     {
         using var service = CreateService();
 
-        Assert.Equal(0, service.Current.Drafts);
-        Assert.Equal(0, service.Current.ActiveJobs);
-        Assert.Equal(0, service.Current.Reviews);
-        Assert.Equal(0, service.Current.Icebox);
-        Assert.Equal(0, service.Current.Recommendations);
+        Assert.Equal(0, service.Current.DraftCount);
+        Assert.Equal(0, service.Current.JobCount);
+        Assert.Equal(0, service.Current.ReviewCount);
+        Assert.Equal(0, service.Current.IceboxCount);
+        Assert.Equal(0, service.Current.RecommendationsCount);
+        Assert.Equal(0, service.Current.TrashCount);
     }
 
     [Fact]
-    public void ComputeCounts_WithFailedPlans_CountsOnlyInReviews()
+    public void Current_WithFailedPlans_CountsOnlyInReview()
     {
-        // This is the CRITICAL regression test:
-        // Failed plans must be counted ONLY in Reviews, NOT in Drafts.
         CreatePlan("00001-FailedPlanA", "Failed");
         CreatePlan("00002-FailedPlanB", "Failed");
 
         using var service = CreateService();
 
-        Assert.Equal(0, service.Current.Drafts);
-        Assert.Equal(2, service.Current.Reviews);
+        Assert.Equal(0, service.Current.DraftCount);
+        Assert.Equal(2, service.Current.ReviewCount);
     }
 
     [Fact]
-    public void ComputeCounts_WithVariousStates_AggregatesCorrectly()
+    public void Current_WithVariousStates_AggregatesCorrectly()
     {
-        // Drafts
         CreatePlan("00001-DraftPlan", "Draft");
         CreatePlan("00002-AnotherDraft", "Draft");
-
-        // Reviews (ReadyForReview + Failed)
         CreatePlan("00003-ReviewPlan", "ReadyForReview");
         CreatePlan("00004-FailedPlan", "Failed");
-
-        // Icebox
         CreatePlan("00005-IceboxPlan", "Icebox");
-
-        // Completed (should not appear in any badge)
         CreatePlan("00006-CompletedPlan", "Completed");
-
-        // Recommendations (pending on a completed plan)
         CreatePlan("00007-WithRecs", "Completed");
         CreateRecommendations("00007-WithRecs",
             "- title: Fix something\n  description: |\n    Details here.\n  state: Pending\n");
 
-        // Jobs
         AddJob("job-1", JobStatus.Running);
         AddJob("job-2", JobStatus.Queued);
-        AddJob("job-3", JobStatus.Completed); // should not count as active
-        AddJob("job-4", JobStatus.Blocked); // should count as active
+        AddJob("job-3", JobStatus.Completed);
+        AddJob("job-4", JobStatus.Blocked);
 
         using var service = CreateService();
 
-        Assert.Equal(2, service.Current.Drafts);
-        Assert.Equal(3, service.Current.ActiveJobs);
-        Assert.Equal(2, service.Current.Reviews); // 1 ReadyForReview + 1 Failed
-        Assert.Equal(1, service.Current.Icebox);
-        Assert.Equal(1, service.Current.Recommendations);
+        Assert.Equal(2, service.Current.DraftCount);
+        Assert.Equal(3, service.Current.JobCount);
+        Assert.Equal(2, service.Current.ReviewCount);
+        Assert.Equal(1, service.Current.IceboxCount);
+        Assert.Equal(1, service.Current.RecommendationsCount);
     }
 
     [Fact]
-    public void ComputeCounts_BlockedPlansCountAsDrafts()
+    public void Current_BlockedPlansCountAsDrafts()
     {
         CreatePlan("00010-DraftPlan", "Draft");
         CreatePlan("00011-BlockedPlan1", "Blocked");
@@ -132,40 +126,64 @@ public class PlanCountsServiceTests : IDisposable
 
         using var service = CreateService();
 
-        // Blocked plans should be counted together with drafts
-        Assert.Equal(3, service.Current.Drafts);
+        Assert.Equal(3, service.Current.DraftCount);
     }
 
     [Fact]
-    public void ComputeCounts_WithRunningQueuedAndBlockedJobs_CountsActiveJobs()
+    public void Current_CategorizesJobsByType()
     {
-        AddJob("job-running-1", JobStatus.Running);
-        AddJob("job-running-2", JobStatus.Running);
-        AddJob("job-queued-1", JobStatus.Queued);
-        AddJob("job-blocked-1", JobStatus.Blocked);
-        AddJob("job-completed-1", JobStatus.Completed);
-        AddJob("job-failed-1", JobStatus.Failed);
-        AddJob("job-pending-1", JobStatus.Pending);
+        AddJob("job-1", JobStatus.Running, Constants.JobTypes.CreatePlan);
+        AddJob("job-2", JobStatus.Running, Constants.JobTypes.ExecutePlan);
+        AddJob("job-3", JobStatus.Running, Constants.JobTypes.RetryPlan);
+        AddJob("job-4", JobStatus.Running, Constants.JobTypes.UpdatePlan);
+        AddJob("job-5", JobStatus.Queued, Constants.JobTypes.ExpandPlan);
+        AddJob("job-6", JobStatus.Running, Constants.JobTypes.SplitPlan);
 
         using var service = CreateService();
 
-        // Running + Queued + Blocked count as active
-        Assert.Equal(4, service.Current.ActiveJobs);
+        Assert.Equal(1, service.Current.CreatingPlansCount);
+        Assert.Equal(1, service.Current.ExecutingPlansCount);
+        Assert.Equal(1, service.Current.RetryingPlansCount);
+        Assert.Equal(3, service.Current.UpdatingPlansCount);
+        Assert.Equal(6, service.Current.JobCount);
     }
 
     [Fact]
-    public void ComputeCounts_RefreshUpdatesCountsWhenPlansChange()
+    public void Current_CountsTrashFiles()
+    {
+        var trashDir = Path.Combine(_tempDir.Path, "Trash");
+        File.WriteAllText(Path.Combine(trashDir, "trash1.md"), "---\ndate: 2026-01-01\n---\n# Trash");
+        File.WriteAllText(Path.Combine(trashDir, "trash2.md"), "---\ndate: 2026-01-02\n---\n# Trash");
+
+        using var service = CreateService();
+
+        Assert.Equal(2, service.Current.TrashCount);
+    }
+
+    [Fact]
+    public void RefreshNow_UpdatesCountsWhenPlansChange()
     {
         using var service = CreateService();
 
-        // Initially no plans
-        Assert.Equal(0, service.Current.Drafts);
+        Assert.Equal(0, service.Current.DraftCount);
 
-        // Add a draft plan and trigger refresh
         CreatePlan("00001-NewDraft", "Draft");
-        _planWatcher.RaisePlansChanged();
+        service.RefreshNow();
 
-        Assert.Equal(1, service.Current.Drafts);
+        Assert.Equal(1, service.Current.DraftCount);
+    }
+
+    [Fact]
+    public void Status_EmitsCurrentValueToNewSubscriber()
+    {
+        CreatePlan("00001-DraftPlan", "Draft");
+
+        using var service = CreateService();
+        TendrilProcessStatus? received = null;
+        using var sub = service.Status.Subscribe(s => received = s);
+
+        Assert.NotNull(received);
+        Assert.Equal(1, received!.DraftCount);
     }
 
     private class FakeJobService : IJobService
@@ -179,6 +197,11 @@ public class PlanCountsServiceTests : IDisposable
         public List<JobItem> GetJobs()
         {
             return _jobs;
+        }
+
+        public List<JobItem> GetJobsForPlan(string planFile)
+        {
+            return _jobs.Where(j => j.PlanFile == planFile).ToList();
         }
 
         public JobItem? GetJob(string id)
@@ -230,9 +253,9 @@ public class PlanCountsServiceTests : IDisposable
         {
         }
 
-        public void AddJob(string id, JobStatus status)
+        public void AddJob(string id, JobStatus status, string type = "")
         {
-            _jobs.Add(new JobItem { Id = id, Status = status });
+            _jobs.Add(new JobItem { Id = id, Status = status, Type = type });
         }
 
 #pragma warning disable CS0067

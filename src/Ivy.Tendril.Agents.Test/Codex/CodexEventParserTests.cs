@@ -61,6 +61,14 @@ public class CodexEventParserTests
     }
 
     [Fact]
+    public void ParseLine_ItemUpdated_ReturnsEmpty()
+    {
+        var json = """{"type":"item.updated","item":{"id":"item_1","type":"todo_list","items":[{"text":"Step one","completed":true},{"text":"Step two","completed":false}]}}""";
+        var events = _parser.ParseLine(json);
+        Assert.Empty(events);
+    }
+
+    [Fact]
     public void ParseLine_ThreadStarted_ReturnsSessionInitEvent()
     {
         var json = """{"type":"thread.started","thread_id":"thread_abc123"}""";

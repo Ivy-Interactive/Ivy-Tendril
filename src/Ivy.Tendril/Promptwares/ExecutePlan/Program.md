@@ -44,6 +44,8 @@ Focus on making progress, not achieving perfect understanding. A working impleme
 
 ### 1.5. Verify Dependencies
 
+Report status: `tendril job status TendrilJobId --message "Checking dependencies..."`
+
 If `plan.yaml` has a `dependsOn` list, for each entry:
 
 1. Locate the dependency plan folder in the plans directory
@@ -98,6 +100,8 @@ This prevents recursive worktree scenarios that would corrupt git state and caus
 
 ### 1.7. Validate Code State
 
+Report status: `tendril job status TendrilJobId --message "Validating code state..."`
+
 After reading the plan revision, scan it for code validation markers to detect stale plans (where the described code has already been changed by another plan).
 
 1. **Extract validation blocks** — Parse the plan revision for sections containing:
@@ -148,7 +152,7 @@ After reading the plan revision, scan it for code validation markers to detect s
    - A `<details><summary>Still relevant?</summary>` block whose body starts with `No.`
    - Phrases like *"Already applied"*, *"This plan is redundant"*, *"This plan is superseded"*, or *"previously attempted … was merged to main via PR #NNNN"* in the `## Problem` or `## Solution` sections.
 
-   If any marker is found, verify the claim: run `gh pr view <cited PR> --json state,mergeCommit` (must be `MERGED`), confirm the cited commit is in `git log origin/<default-branch>`, and byte-compare the plan's proposed code against the current file contents. If all three checks pass, write `Verification/PreExecution.md` with `Result: Fail`, write `Artifacts/summary.md` documenting the no-op, set every verification to `Skipped` via `tendril plan set-verification <plan-id> <name> Skipped`, and fail the plan **without creating a worktree** — running verifications on unchanged code wastes the time budget and produces a 0-commit PR that CreatePr cannot process.
+   If any marker is found, verify the claim: run `gh pr view <cited PR> --json state,mergeCommit` (must be `MERGED`), confirm the cited commit is in `git log origin/<default-branch>`, and byte-compare the plan's proposed code against the current file contents. If all three checks pass, write `Verification/PreExecution.md` with `Result: Fail`, write `Artifacts/summary.md` documenting the no-op, set every verification to `Skipped` via `tendril plan set-verification <plan-id> <name> Skipped --job-id TendrilJobId`, and fail the plan **without creating a worktree** — running verifications on unchanged code wastes the time budget and produces a 0-commit PR that CreatePr cannot process.
 
 ### 1.8. Auto-Commit Uncommitted Changes
 
@@ -217,6 +221,8 @@ fi
 
 ### 2. Create Worktrees
 
+Report status: `tendril job status TendrilJobId --message "Creating worktrees..."`
+
 For each repo in `RepoConfigs` (this includes both the plan's repos AND any read-only build dependencies from the project config):
 
 1. Fetch latest from remote: `git fetch origin`
@@ -227,7 +233,7 @@ For each repo in `RepoConfigs` (this includes both the plan's repos AND any read
 3. If the worktree or branch already exists from a prior execution, remove it first:
 
 ```bash
-tendril plan remove-worktree <TendrilPlanId> <repo-folder-name>
+tendril plan remove-worktree <TendrilPlanId> <repo-folder-name> --job-id TendrilJobId
 ```
 
 This handles stale directories, locked files, and branch cleanup automatically with fallback strategies.
@@ -293,7 +299,7 @@ This ensures ExecutePlan fails immediately if worktree creation is incomplete, r
    BASE_BRANCH="<resolved-base-branch>"
    WORKTREE_PATH="<TendrilPlanFolder>/Worktrees/<repo-folder-name>"
 
-   tendril plan sync-worktree "$WORKTREE_PATH" --strategy "$SYNC_STRATEGY" --base-branch "$BASE_BRANCH"
+   tendril plan sync-worktree "$WORKTREE_PATH" --strategy "$SYNC_STRATEGY" --base-branch "$BASE_BRANCH" --job-id TendrilJobId
    ```
 
    This applies the configured sync strategy (fetch/rebase/merge) to keep the worktree branch synchronized with the base branch.
@@ -313,6 +319,8 @@ This ensures ExecutePlan fails immediately if worktree creation is incomplete, r
 ### 2.5. Setup Build Dependencies in Worktrees
 
 **Note:** This section applies only when the project has build-time dependencies (e.g. frontend packages, generated code, pre-built artifacts) that need special handling in worktrees. Skip if not applicable.
+
+If this step applies, report status: `tendril job status TendrilJobId --message "Setting up build dependencies..."`
 
 Worktrees start with a clean checkout and may be missing build artifacts (e.g. `dist/`, `node_modules/`, generated files) that exist in the original repo. Determine whether the plan modifies these areas:
 
@@ -352,13 +360,19 @@ These paths point to the original repos, not the worktree copies. Since we only 
 
 ### 4. Implement
 
+Report status: `tendril job status TendrilJobId --message "Implementing: <plan title>"`
+
 Work exclusively in the worktree directories. Follow the plan's latest revision:
 
 1. **Problem** — Understand what needs to be done
 2. **Solution** — Execute the implementation steps in the worktree
 3. **Tests** — Write and run all tests specified in the plan
 
+**Status cadence:** During implementation, if any sub-task takes longer than 90 seconds, issue an intermediate status update describing the current activity (e.g., `"Implementing: writing tests..."`, `"Implementing: fixing lint errors..."`, `"Implementing: reading reference code..."`). The user should never see the same status message for more than ~90 seconds.
+
 ### 5. Commit
+
+Report status: `tendril job status TendrilJobId --message "Committing changes..."`
 
 Make logically grouped commits in the worktree(s). Each commit should be a coherent unit of work.
 
@@ -395,6 +409,8 @@ If there are uncommitted changes, either commit them or discard them with a clea
 
 ### 5.5. Generate Summary
 
+Report status: `tendril job status TendrilJobId --message "Generating summary..."`
+
 After all implementation commits are made, create `<TendrilPlanFolder>/Artifacts/summary.md` summarizing what was done.
 
 The summary should follow this structure:
@@ -426,15 +442,15 @@ Use the CLI to record commits, verifications, and related plans — **never edit
 Add each commit hash:
 
 ```bash
-tendril plan add-commit <plan-id> abc1234
-tendril plan add-commit <plan-id> def5678
+tendril plan add-commit <plan-id> abc1234 --job-id TendrilJobId
+tendril plan add-commit <plan-id> def5678 --job-id TendrilJobId
 ```
 
 Set verification statuses from the plan revision. Set checked items (`- [x]`) to `Pending` and unchecked items (`- [ ]`) to `Skipped`:
 
 ```bash
-tendril plan set-verification <plan-id> Build Pending
-tendril plan set-verification <plan-id> Test Skipped
+tendril plan set-verification <plan-id> Build Pending --job-id TendrilJobId
+tendril plan set-verification <plan-id> Test Skipped --job-id TendrilJobId
 ```
 
 If the plan references other plans (e.g. split-from, follow-up), add them via CLI.
@@ -458,8 +474,8 @@ For each checked verification:
 3. **Check if delegated:** The **Projects** section indicates which verifications are delegated — follow the prompt's instructions to invoke it as an external process. If the external process cannot be invoked (CLI broken, file lock, etc.), set the verification to `Fail` immediately. Do NOT attempt to do the verification inline or write the report yourself.
 4. Execute the prompt in the worktree directory
 5. If it fails: diagnose, fix the issue, **commit the fix** (e.g. `Fix lint errors from Build`), and re-run. Repeat until it passes (fail the plan after 3+ failed attempts).
-6. Document all fix commits via CLI: `tendril plan add-commit <plan-id> <sha>`
-7. Update the verification status via CLI: `tendril plan set-verification <plan-id> <Name> Pass` (or `Fail`)
+6. Document all fix commits via CLI: `tendril plan add-commit <plan-id> <sha> --job-id TendrilJobId`
+7. Update the verification status via CLI: `tendril plan set-verification <plan-id> <Name> Pass --job-id TendrilJobId` (or `Fail`)
 
 **CRITICAL:** You MUST call `tendril plan set-verification` after EACH verification. The verification report file alone is NOT sufficient — plan.yaml must also be updated via the CLI. Failing to call this command will result in the plan being marked as Failed.
 
@@ -490,6 +506,8 @@ The `result` field in the frontmatter MUST be one of: `Pass`, `Fail`, or `Skippe
 
 ### 7.5. Generate Recommendations
 
+Report status: `tendril job status TendrilJobId --message "Generating recommendations..."`
+
 After all verifications pass, reflect on what you observed during this plan's execution. Write down anything you noticed that isn't part of this plan's scope:
 
 - Follow-up work, edge cases not covered, or related features
@@ -500,7 +518,7 @@ After all verifications pass, reflect on what you observed during this plan's ex
 For each item, register it via the CLI:
 
 ```bash
-tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact Medium --risk Small
+tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact Medium --risk Small --job-id TendrilJobId
 ```
 
 `--impact` and `--risk` are optional (Small, Medium, or High). Impact indicates the value of implementing it; Risk indicates the potential for complications or bugs.
@@ -523,6 +541,8 @@ Do NOT include items that are part of the current plan's scope. Do NOT include r
 **This file is mandatory.** Step 8 will verify it exists and fail the plan if it is missing.
 
 ### 8. Final Clean Check
+
+Report status: `tendril job status TendrilJobId --message "Running final checks..."`
 
 After all verifications pass:
 

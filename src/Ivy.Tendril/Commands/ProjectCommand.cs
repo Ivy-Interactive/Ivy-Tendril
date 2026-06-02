@@ -214,20 +214,8 @@ public class ProjectListCommand : Command<ProjectListSettings>
                 return 0;
             }
 
-            var table = new Spectre.Console.Table();
-            table.AddColumn("Name");
-            table.AddColumn("Color");
-            table.AddColumn("Repos");
-            table.AddColumn("Verifications");
-
             foreach (var p in projects)
-                table.AddRow(
-                    p.Name.EscapeMarkup(),
-                    (p.Color ?? "-").EscapeMarkup(),
-                    p.Repos.Count.ToString(),
-                    p.Verifications.Count.ToString());
-
-            AnsiConsole.Write(table);
+                AnsiConsole.MarkupLine(p.Name.EscapeMarkup());
             return 0;
         }
         catch (Exception ex)

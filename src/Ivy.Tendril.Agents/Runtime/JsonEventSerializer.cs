@@ -98,6 +98,7 @@ public sealed class JsonEventSerializer : IEventSerializer
                 Timestamp = ts,
                 ToolUseId = e.ToolUseId,
                 ToolName = e.ToolName,
+                Description = e.Description,
                 Input = e.InputJson is not null ? JsonDocument.Parse(e.InputJson).RootElement : null,
             },
             ToolResultEvent e => new ToolResultWire
@@ -177,7 +178,7 @@ public sealed class JsonEventSerializer : IEventSerializer
             _ => new TextWire
             {
                 Timestamp = ts,
-                Text = evt.ToString() ?? "",
+                Text = "",
             },
         };
     }
@@ -235,6 +236,7 @@ public sealed class JsonEventSerializer : IEventSerializer
         Timestamp = DateTimeOffset.Parse(timestamp),
         ToolUseId = root.TryGetProperty("tool_use_id", out var id) ? id.GetString()! : "",
         ToolName = root.TryGetProperty("tool_name", out var name) ? name.GetString()! : "",
+        Description = root.TryGetProperty("description", out var desc) ? desc.GetString() : null,
         InputJson = root.TryGetProperty("input", out var input) ? input.GetRawText() : null,
     };
 

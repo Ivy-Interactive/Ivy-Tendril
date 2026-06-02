@@ -28,7 +28,8 @@ public class SplitPlanTests
                 "Extract HTTP handling into a separate module",
                 "Update all imports and references",
                 "Add integration tests for each module"
-            ]);
+            ],
+            repoPath: _fixture.TestRepo.LocalClonePath);
 
         var planCountBefore = Directory.GetDirectories(_fixture.PlansDir)
             .Count(d => !Path.GetFileName(d).StartsWith("."));

@@ -18,15 +18,13 @@ public static class UseStartJobExtensions
         var jobService = context.UseService<IJobService>();
         var isStarting = context.UseState(false);
 
-        Action<JobArgsBase> startJob = args =>
-        {
-            if (!isStarting.Value)
-            {
-                isStarting.Set(true);
-                jobService.StartJob(args);
-            }
-        };
+        return (StartJob, isStarting.Value);
 
-        return (startJob, isStarting.Value);
+        void StartJob(JobArgsBase args)
+        {
+            if (isStarting.Value) return;
+            isStarting.Set(true);
+            jobService.StartJob(args);
+        }
     }
 }

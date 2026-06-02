@@ -3,6 +3,7 @@ using Ivy.Tendril.Agents.Providers.Antigravity;
 using Ivy.Tendril.Agents.Providers.Claude;
 using Ivy.Tendril.Agents.Providers.Codex;
 using Ivy.Tendril.Agents.Providers.Copilot;
+using Ivy.Tendril.Agents.Providers.Gemini;
 using Ivy.Tendril.Agents.Providers.OpenCode;
 using Ivy.Tendril.Agents.Runtime;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,6 +17,7 @@ public sealed class AgentInfrastructureOptions
     public IInteractionHandler? DefaultInteractionHandler { get; set; }
     public IEnumerable<ModelPricing> AdditionalPricing { get; set; } = [];
     public ConcurrencyOptions? Concurrency { get; set; }
+    public bool IncludeBetaProviders { get; set; }
 }
 
 public static class AgentServiceCollectionExtensions
@@ -41,14 +43,17 @@ public static class AgentServiceCollectionExtensions
         {
             var logger = sp.GetService<ILogger<AgentRunner>>() ?? NullLogger<AgentRunner>.Instance;
             var runner = new AgentRunner(logger, options.Concurrency);
-            runner.Register(
-                new AntigravityCli(),
-                new AntigravityEventParser(),
-                new AntigravityHealthCheck(),
-                new AntigravityFailureAnalyzer(),
-                new AntigravitySessionCostParser(),
-                new AntigravityPty(),
-                new AntigravityModelCatalog());
+            if (options.IncludeBetaProviders)
+            {
+                runner.Register(
+                    new AntigravityCli(),
+                    new AntigravityEventParser(),
+                    new AntigravityHealthCheck(),
+                    new AntigravityFailureAnalyzer(),
+                    new AntigravitySessionCostParser(),
+                    new AntigravityPty(),
+                    new AntigravityModelCatalog());
+            }
             runner.Register(
                 new ClaudeCli(),
                 new ClaudeEventParser(),
@@ -73,6 +78,14 @@ public static class AgentServiceCollectionExtensions
                 new CopilotSessionCostParser(),
                 new CopilotPty(),
                 new CopilotModelCatalog());
+            runner.Register(
+                new GeminiCli(),
+                new GeminiEventParser(),
+                new GeminiHealthCheck(),
+                new GeminiFailureAnalyzer(),
+                new GeminiSessionCostParser(),
+                new GeminiPty(),
+                new GeminiModelCatalog());
             runner.Register(
                 new OpenCodeCli(),
                 new OpenCodeEventParser(),

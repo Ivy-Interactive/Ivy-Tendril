@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
@@ -33,7 +32,7 @@ public class PlanUpdateCommand : Command<PlanUpdateSettings>
             var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
 
             // Read YAML from STDIN
-            var yaml = Console.In.ReadToEnd();
+            var yaml = ConsoleHelper.ReadStdinWithTimeout();
             if (string.IsNullOrWhiteSpace(yaml))
                 throw new ArgumentException("No YAML content provided on STDIN");
 

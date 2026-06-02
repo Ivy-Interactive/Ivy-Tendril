@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Helpers;
 
@@ -50,17 +51,25 @@ public sealed class CopilotHealthCheck : IAgentHealthCheck
             fileName, [..prefixArgs, "--version"], TimeSpan.FromSeconds(10), ct);
 
         if (exitCode != 0) return null;
-        return stdout.Trim();
+        var match = Regex.Match(stdout, @"\d+\.\d+\.\d+");
+        return match.Success ? match.Value : stdout.Trim();
     }
 
     public async Task<ModelValidationResult> ValidateModelAsync(string model, CancellationToken ct = default)
     {
         var (fileName, prefixArgs) = CopilotBinaryResolver.Resolve();
+
+        var useDefault = string.IsNullOrEmpty(model) || string.Equals(model, "default", StringComparison.OrdinalIgnoreCase);
+        var args = new List<string>(prefixArgs) { "-p", "ping" };
+        if (!useDefault)
+        {
+            args.Add("--model");
+            args.Add(model);
+        }
+        args.AddRange(["--allow-all-paths", "--allow-all-urls", "--allow-all-tools", "-s"]);
+
         var (exitCode, _, stderr) = await HealthCheckRunner.RunAsync(
-            fileName,
-            [..prefixArgs, "-p", "ping", "--model", model, "--allow-all-paths", "--allow-all-urls", "--allow-all-tools", "-s"],
-            TimeSpan.FromSeconds(30),
-            ct);
+            fileName, args, TimeSpan.FromSeconds(30), ct);
 
         if (exitCode == 0)
             return new ModelValidationResult { Status = ModelValidationStatus.Ok, Model = model };

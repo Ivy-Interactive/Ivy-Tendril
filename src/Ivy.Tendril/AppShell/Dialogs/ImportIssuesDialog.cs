@@ -498,7 +498,7 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
                     .Ghost().Small()
                     .Width(Size.Shrink())
                     .OnClick(() => onToggle(issue.Number))
-                | new Expandable($"#{issue.Number} — {issue.Title}", bodyContent)
+                | new Expandable($"#{issue.Number} {issue.Title}", bodyContent)
                     .Width(Size.Grow().Min(Size.Px(0)))
                 | (issueUrl != null
                     ? new Button().Icon(Icons.ExternalLink).Ghost().Small()

@@ -1,5 +1,5 @@
 using Ivy.Tendril.Apps.Onboarding.Models;
-using Ivy.Tendril.Apps.Setup.Dialogs;
+using Ivy.Tendril.Apps.Settings.Dialogs;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps.Onboarding;
@@ -10,7 +10,8 @@ public class ProjectCrudStepView(
     OnboardingVerificationSession session,
     Action onBack,
     Action onNext,
-    string nextButtonText = "Next") : ViewBase
+    string nextButtonText = "Next",
+    bool showHeader = true) : ViewBase
 {
     public override object Build()
     {
@@ -91,7 +92,7 @@ public class ProjectCrudStepView(
                 .OnClick(onNext);
 
         return Layout.Vertical()
-               | Text.H3("Review Harness")
+               | (showHeader ? Text.H3("Review Harness") : null!)
                | Text.Muted("Review and edit the configuration generated for your project.")
                | (Layout.Vertical()
                   | Text.H4("Verifications")

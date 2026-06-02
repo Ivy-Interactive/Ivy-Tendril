@@ -1,4 +1,6 @@
+using Ivy.Core.Apps;
 using Ivy.Helpers;
+using Ivy.Tendril.Apps;
 using Ivy.Tendril.AppShell;
 using Ivy.Tendril.Controllers;
 using Ivy.Tendril.Services;
@@ -12,7 +14,7 @@ namespace Ivy.Tendril;
 
 public static class TendrilServer
 {
-    public static Server Create(string[] args)
+    public static Server Create(string[] args, TendrilArgs tendrilArgs)
     {
         var server = new Server();
         server.DangerouslyAllowLocalFiles();
@@ -23,14 +25,11 @@ public static class TendrilServer
         server.SetMetaTitle("Ivy Tendril");
 
         var configService = new ConfigService(Microsoft.Extensions.Logging.Abstractions.NullLogger<ConfigService>.Instance);
-        server.AddTendrilServices(configService);
+        server.Services.AddSingleton(tendrilArgs);
+        server.AddTendrilServices(configService, tendrilArgs);
 
-        // Configure logging based on verbosity.
-        // We set levels via configuration (not SetMinimumLevel) because the Ivy framework
-        // calls SetMinimumLevel after UseWebApplicationBuilder mods, which would override ours.
-        // Configuration-based rules take precedence over SetMinimumLevel.
-        var logLevel = Environment.GetEnvironmentVariable("TENDRIL_VERBOSE") == "1" ? "Debug"
-            : Environment.GetEnvironmentVariable("TENDRIL_QUIET") == "1" ? "Warning"
+        var logLevel = tendrilArgs.Verbose ? "Debug"
+            : tendrilArgs.Quiet ? "Warning"
             : "Error";
         server.UseWebApplicationBuilder(builder =>
         {
@@ -44,11 +43,6 @@ public static class TendrilServer
         server.UseWebApplication(app =>
         {
             app.UseMiddleware<ApiKeyAuthMiddleware>();
-
-            // Publish the actual bound URL so child processes can reach this server
-            var serverUrl = app.Urls.FirstOrDefault();
-            if (serverUrl != null)
-                Environment.SetEnvironmentVariable("TENDRIL_URL", serverUrl);
 
             if (!configService.NeedsOnboarding)
             {
@@ -86,8 +80,16 @@ public static class TendrilServer
             app.UseAssets(server.Args, app.Services.GetRequiredService<ILogger<Server>>(), "Assets", "tendril/assets");
         });
 
-        server.AddAppsFromAssembly(typeof(TendrilServer).Assembly);
+        var assembly = typeof(TendrilServer).Assembly;
+        server.AppRepository.AddFactory(() => AppHelpers.GetApps(assembly)
+            .Where(a => tendrilArgs.Beta || a.Type != typeof(AgentApp))
+            .ToArray());
         server.AddConnectionsFromAssembly(typeof(TendrilServer).Assembly);
+
+        // Eagerly register Ivy.Tendril.Widgets assembly to ensure Tendril widgets are discovered
+        // when running in single-file published mode (where DLLs are not on disk)
+        Ivy.Core.ExternalWidgets.ExternalWidgetRegistry.Instance.RegisterAssembly(
+            typeof(Ivy.Widgets.TendrilProcessView.TendrilProcessView).Assembly);
 
         var version = typeof(TendrilAppShell).Assembly.GetName().Version!;
         var versionString = version.ToString(3);
@@ -99,7 +101,7 @@ public static class TendrilServer
                         Text.Block("Ivy Tendril"),
                         Text.Muted($"v{versionString}")
                     ).Gap(0)
-                ).Gap(2).Padding(2).AlignContent(Align.BottomLeft)
+                ).Gap(2).Padding(2).AlignContent(Align.BottomLeft).Height(Size.Auto())
             )
             .WallpaperApp<Apps.WallpaperApp>()
             .UseTabs(true);

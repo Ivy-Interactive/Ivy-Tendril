@@ -203,8 +203,8 @@ public class ConfigService : IConfigService, IDisposable
     {
         _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<ConfigService>.Instance;
         Settings = settings;
-        TendrilHome = tendrilHome ?? Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? "";
         _explicitHome = tendrilHome != null;
+        TendrilHome = tendrilHome ?? PathHelper.GetDefaultTendrilHome();
         ConfigPath = !string.IsNullOrEmpty(TendrilHome)
             ? Path.Combine(TendrilHome, "config.yaml")
             : Path.Combine(System.AppContext.BaseDirectory, "config.yaml");
@@ -214,20 +214,7 @@ public class ConfigService : IConfigService, IDisposable
     {
         _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<ConfigService>.Instance;
 
-        var tendrilHomeResult = InitializeTendrilHome();
-        if (!tendrilHomeResult.Success)
-        {
-            NeedsOnboarding = true;
-            Settings = new TendrilSettings();
-            ConfigPath = Path.Combine(System.AppContext.BaseDirectory, "config.yaml");
-            TendrilHome = "";
-            // Populate Auth from env vars in-memory so UseAuth middleware is registered even
-            // before onboarding completes (no config.yaml yet → nothing to persist here).
-            AuthEnvironmentBootstrapper.TrySyncFromEnvironment(Settings, _logger);
-            return;
-        }
-
-        TendrilHome = tendrilHomeResult.Path;
+        TendrilHome = PathHelper.GetDefaultTendrilHome();
         ConfigPath = Path.Combine(TendrilHome, "config.yaml");
 
         var loadResult = TryLoadConfig();
@@ -243,23 +230,6 @@ public class ConfigService : IConfigService, IDisposable
 
         Settings = loadResult.Config;
         FinalizeConfiguration();
-    }
-
-    private (bool Success, string Path) InitializeTendrilHome()
-    {
-        var tendrilHomeEnv = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
-
-        // Remove quotes if present
-        if (!string.IsNullOrEmpty(tendrilHomeEnv) &&
-            tendrilHomeEnv.StartsWith("\"") &&
-            tendrilHomeEnv.EndsWith("\""))
-        {
-            tendrilHomeEnv = tendrilHomeEnv[1..^1];
-        }
-
-        return string.IsNullOrEmpty(tendrilHomeEnv)
-            ? (false, "")
-            : (true, tendrilHomeEnv);
     }
 
     private (bool Success, TendrilSettings Config) TryLoadConfig()

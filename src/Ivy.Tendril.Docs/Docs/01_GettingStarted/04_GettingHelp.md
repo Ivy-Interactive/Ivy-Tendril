@@ -33,7 +33,7 @@ If something isn't working, start with the built-in diagnostics:
 tendril doctor
 ```
 
-This validates your installation, checks required software, and verifies database and agent connectivity. See the [CLI reference](../07_Advanced/01_CLI/_Index.md) for details.
+This validates your installation, checks required software, and verifies database and agent connectivity. See the [CLI reference](../09_Advanced/01_CLI/_Index.md) for details.
 
 ## Troubleshooting
 

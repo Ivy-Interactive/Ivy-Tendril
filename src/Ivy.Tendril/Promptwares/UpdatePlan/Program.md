@@ -28,6 +28,8 @@ Read the `UpdateInstructions` value from the firmware header. Instructions are e
 
 ### 3. Research and Answer Questions
 
+Report status: `tendril job status TendrilJobId --message "Researching questions..."`
+
 For each question in the instructions:
 1. Read relevant source files to find the answer
 2. Use the firmware header for project context if needed
@@ -46,9 +48,11 @@ If all questions are resolved and no new questions arose, omit the `## Questions
 
 ### 4. Apply Changes
 
+Report status: `tendril job status TendrilJobId --message "Applying changes..."`
+
 - Write the new revision via CLI (number auto-incremented):
   ```bash
-  tendril plan write-revision <plan-id> <<'EOF'
+  tendril plan write-revision <plan-id> --job-id TendrilJobId <<'EOF'
   <updated revision content here>
   EOF
   ```

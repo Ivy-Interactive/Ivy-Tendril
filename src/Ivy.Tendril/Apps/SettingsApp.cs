@@ -1,5 +1,5 @@
 using Ivy.Desktop;
-using Ivy.Tendril.Apps.Setup;
+using Ivy.Tendril.Apps.Settings;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Microsoft.AspNetCore.Http;
@@ -18,12 +18,14 @@ public class SettingsApp : ViewBase
     private const string TagVerifications = "verifications";
     private const string TagPromptwares = "promptwares";
     private const string TagProjects = "projects";
+    private const string TagTunnel = "tunnel";
     private const string TagAdvanced = "advanced";
     private const string TagOpenConfig = "open-config";
 
     public override object Build()
     {
         var config = UseService<IConfigService>();
+        var tendrilArgs = UseService<TendrilArgs>();
         var navigator = UseNavigation();
         var client = UseService<IClientProvider>();
         var httpContextAccessor = UseService<IHttpContextAccessor>();
@@ -32,24 +34,31 @@ public class SettingsApp : ViewBase
         var isDesktop = desktopWindow != null;
         var capturedHost = ConfigYamlUiHelper.CaptureHost(httpContextAccessor);
 
+        var children = new List<MenuItem>
+        {
+            MenuItem.Default("Coding Agent", TagCodingAgent).Icon(Icons.Bot),
+            MenuItem.Default("Plans", TagPlans).Icon(Icons.Feather),
+            MenuItem.Default("Appearance", TagAppearance).Icon(Icons.Sun),
+            MenuItem.Default("Projects", TagProjects).Icon(Icons.Folder),
+            MenuItem.Default("Verifications", TagVerifications).Icon(Icons.CircleCheck),
+            MenuItem.Default("Promptwares", TagPromptwares).Icon(Icons.Wand),
+            MenuItem.Default("Levels", TagLevels).Icon(Icons.ListOrdered),
+            MenuItem.Default("Notifications", TagNotifications).Icon(Icons.Bell),
+            MenuItem.Default("Security", TagSecurity).Icon(Icons.Lock),
+        };
+
+        if (tendrilArgs.Beta)
+            children.Add(MenuItem.Default("Tunnel", TagTunnel).Icon(Icons.Globe));
+
+        children.Add(MenuItem.Default("Advanced", TagAdvanced).Icon(Icons.Cog));
+        children.Add(MenuItem.Default("Open config.yaml", TagOpenConfig).Icon(Icons.FileText));
+
         var menuItems = new[]
         {
             MenuItem.Default("Configuration")
                 .Icon(Icons.Settings2)
                 .Expanded()
-                .Children(
-                    MenuItem.Default("Coding Agent", TagCodingAgent).Icon(Icons.Bot),
-                    MenuItem.Default("Plans", TagPlans).Icon(Icons.FileText),
-                    MenuItem.Default("Appearance", TagAppearance).Icon(Icons.Palette),
-                    MenuItem.Default("Projects", TagProjects).Icon(Icons.Folder),
-                    MenuItem.Default("Verifications", TagVerifications).Icon(Icons.CircleCheck),
-                    MenuItem.Default("Promptwares", TagPromptwares).Icon(Icons.Wand),
-                    MenuItem.Default("Levels", TagLevels).Icon(Icons.ListOrdered),
-                    MenuItem.Default("Notifications", TagNotifications).Icon(Icons.Bell),
-                    MenuItem.Default("Security", TagSecurity).Icon(Icons.Lock),
-                    MenuItem.Default("Advanced", TagAdvanced).Icon(Icons.Cog),
-                    MenuItem.Default("Open config.yaml", TagOpenConfig).Icon(Icons.FileText)
-                )
+                .Children(children.ToArray())
         };
 
         void OnSelect(Event<SidebarMenu, object> @event)
@@ -79,6 +88,7 @@ public class SettingsApp : ViewBase
             TagVerifications => new VerificationsSetupView(),
             TagPromptwares => new PromptwaresSetupView(),
             TagProjects => new ProjectsSetupView(),
+            TagTunnel => new TunnelSetupView(),
             TagAdvanced => new AdvancedSetupView(),
             _ => new CodingAgentSetupView()
         };

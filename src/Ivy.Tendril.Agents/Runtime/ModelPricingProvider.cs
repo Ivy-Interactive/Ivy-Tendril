@@ -45,8 +45,6 @@ public sealed class ModelPricingProvider : IModelPricingProvider
                 else
                     _pricing.TryAdd(model.Id, pricing);
 
-                if (model.Alias is not null)
-                    _pricing.TryAdd(model.Alias, pricing);
             }
         }
 

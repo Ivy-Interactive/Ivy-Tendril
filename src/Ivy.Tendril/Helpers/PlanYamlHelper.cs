@@ -157,7 +157,7 @@ internal static class PlanYamlHelper
         var csvPath = Path.Combine(planFolder, "costs.csv");
         if (!File.Exists(csvPath)) FileHelper.WriteAllText(csvPath, "Promptware,Tokens,Cost\n");
 
-        var line = $"{jobType},{tokens},{cost:F4}\n";
+        var line = $"{jobType},{tokens},{cost.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)}\n";
         FileHelper.AppendAllText(csvPath, line);
     }
 
@@ -182,7 +182,7 @@ internal static class PlanYamlHelper
                     if (trimmed.StartsWith("result:", StringComparison.OrdinalIgnoreCase))
                     {
                         var value = trimmed["result:".Length..].Trim();
-                        if (value is "Pass" or "Fail" or "Skipped") return value;
+                        if (value is VerificationStatus.Pass or VerificationStatus.Fail or VerificationStatus.Skipped) return value;
                     }
                 }
             }

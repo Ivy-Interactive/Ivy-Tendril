@@ -12,7 +12,7 @@ icon: Rocket
 # Welcome to Ivy Tendril
 
 <Ingress>
-Tendril is an open source, local-first desktop application that serves as the operating system for AI-powered software development — orchestrating coding agents like Claude Code, Codex, Gemini, and Copilot through a structured lifecycle from idea to merged pull request.
+Tendril is an open source, local-first desktop application that serves as the operating system for AI-powered software development — orchestrating coding agents like Claude Code, Codex, Copilot, Gemini, and OpenCode through a structured lifecycle from idea to merged pull request.
 </Ingress>
 
 <Embed Url="https://youtu.be/Lpv0JiGOU5w"/>
@@ -37,7 +37,7 @@ In Tendril, work is organized into **Plans**—structured units of work. Instead
 
 At [Ivy Interactive](https://ivy.app), we experimented with many different systems of architecture in order to improve our workflow and take advantage of the advancements in AI/agentic coding capabilities. Working with the incredible capabilities of Claude and others was great, but it quickly became messy managing a dozen terminal windows.
 
-Therefore, we created this system to streamline the experience of working with different agents. Through the [Promptware](../Concepts/Promptwares) architecture, we have created a feedback loop that ensures agents are not only organized and structured, but also self-improving according to the needs and context of the projects they work with. By centering the entire process on a **Plan**, you maintain the "Source of Truth" while specialized agents handle the heavy lifting.
+Therefore, we created this system to streamline the experience of working with different agents. Through the [Promptware](../02_Concepts/02_Promptwares.md) architecture, we have created a feedback loop that ensures agents are not only organized and structured, but also self-improving according to the needs and context of the projects they work with. By centering the entire process on a **Plan**, you maintain the "Source of Truth" while specialized agents handle the heavy lifting.
 
 <Callout type="tip">
 We LOVE hearing from you! You are always welcome to report issues, bugs, and suggestions on our **[GitHub repository](https://github.com/Ivy-Interactive/Ivy-Tendril)**.  If you need direct help or would like to connect with the community, please join us on **[Discord](https://discord.gg/FHgxkDga3y)** — we'd love to see you there!

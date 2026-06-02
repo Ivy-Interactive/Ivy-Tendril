@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
@@ -30,6 +29,10 @@ public class PlanListSettings : CommandSettings
     [CommandOption("--has-worktree")]
     [Description("Only plans with worktrees")]
     public bool HasWorktree { get; init; }
+
+    [CommandOption("--search")]
+    [Description("Filter by title or ID text")]
+    public string? Search { get; init; }
 
     [CommandOption("--format")]
     [Description("Output format: table (default), ids, folders, json")]
@@ -174,6 +177,14 @@ public class PlanListCommand : Command<PlanListSettings>
             {
                 var wtDir = Path.Combine(dir, "Worktrees");
                 if (!Directory.Exists(wtDir) || Directory.GetDirectories(wtDir).Length == 0)
+                    continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(settings.Search))
+            {
+                var search = settings.Search.Trim().TrimStart('#').ToLowerInvariant();
+                if (!title.ToLowerInvariant().Contains(search) &&
+                    !folderName[..dashIndex].Contains(search))
                     continue;
             }
 

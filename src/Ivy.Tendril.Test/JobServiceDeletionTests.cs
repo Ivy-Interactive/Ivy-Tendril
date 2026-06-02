@@ -48,7 +48,7 @@ public class JobServiceDeletionTests
     }
 
     [Fact]
-    public void ClearCompletedJobs_DeletesFromMemoryAndDatabase()
+    public void ClearCompletedJobs_RemovesFromMemoryButNotDatabase()
     {
         var db = new FakeDatabaseService();
         var service = CreateService(db);
@@ -61,13 +61,11 @@ public class JobServiceDeletionTests
         Assert.Null(service.GetJob("completed-1"));
         Assert.Null(service.GetJob("completed-2"));
         Assert.NotNull(service.GetJob("running-1"));
-        Assert.Contains("completed-1", db.DeletedJobIds);
-        Assert.Contains("completed-2", db.DeletedJobIds);
-        Assert.DoesNotContain("running-1", db.DeletedJobIds);
+        Assert.Empty(db.DeletedJobIds);
     }
 
     [Fact]
-    public void ClearFailedJobs_DeletesFromMemoryAndDatabase()
+    public void ClearFailedJobs_RemovesFromMemoryButNotDatabase()
     {
         var db = new FakeDatabaseService();
         var service = CreateService(db);
@@ -82,10 +80,7 @@ public class JobServiceDeletionTests
         Assert.Null(service.GetJob("timeout-1"));
         Assert.NotNull(service.GetJob("blocked-1"));
         Assert.NotNull(service.GetJob("completed-1"));
-        Assert.Contains("failed-1", db.DeletedJobIds);
-        Assert.Contains("timeout-1", db.DeletedJobIds);
-        Assert.DoesNotContain("blocked-1", db.DeletedJobIds);
-        Assert.DoesNotContain("completed-1", db.DeletedJobIds);
+        Assert.Empty(db.DeletedJobIds);
     }
 
     [Fact]
@@ -218,6 +213,11 @@ public class JobServiceDeletionTests
         }
 
         public List<JobItem> GetRecentJobs(int limit = 100)
+        {
+            return new List<JobItem>();
+        }
+
+        public List<JobItem> GetJobsForPlan(string planFile)
         {
             return new List<JobItem>();
         }

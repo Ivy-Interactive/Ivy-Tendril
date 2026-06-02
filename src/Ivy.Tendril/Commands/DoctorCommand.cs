@@ -92,7 +92,7 @@ public static class DoctorCommand
             DoctorChecks.StatusKind.Error => ("✗", "red"),
             _ => (" ", "grey")
         };
-        AnsiConsole.MarkupLine($"[{color}]  {symbol} {label.PadRight(40)}{value}[/]");
+        AnsiConsole.MarkupLine($"[{color}]{symbol} {label.PadRight(40)}{value}[/]");
     }
 
     // --- doctor plans subcommand ---
@@ -253,7 +253,7 @@ public static class DoctorCommand
             return allResults.Where(r => r.State.Equals(stateFilter, StringComparison.OrdinalIgnoreCase));
         if (worktreesOnly)
             return allResults.Where(r => r.Worktrees > 0);
-        return allResults.Where(r => !r.IsHealthy || r.State.Equals("Failed", StringComparison.OrdinalIgnoreCase));
+        return allResults.Where(r => !r.IsHealthy || r.State.Equals(nameof(PlanStatus.Failed), StringComparison.OrdinalIgnoreCase));
     }
 
     internal static List<PlanHealthResult> ScanPlans(string plansDir)
@@ -324,7 +324,7 @@ public static class DoctorCommand
 
                 if (plan.Repos == null || plan.Repos.Count == 0)
                 {
-                    var isCompleted = plan.State.Equals("Completed", StringComparison.OrdinalIgnoreCase);
+                    var isCompleted = plan.State.Equals(nameof(PlanStatus.Completed), StringComparison.OrdinalIgnoreCase);
                     var hasPrsOrCommits = (plan.Prs?.Count > 0) || (plan.Commits?.Count > 0);
                     if (isCompleted && hasPrsOrCommits)
                         return (true, null, plan.State);
@@ -523,7 +523,7 @@ public static class DoctorCommand
     {
         var lines = content.Split('\n').ToList();
 
-        EnsureYamlField(lines, "state", "Draft");
+        EnsureYamlField(lines, "state", nameof(PlanStatus.Draft));
         EnsureYamlField(lines, "project", "Auto");
         EnsureYamlField(lines, "title", EscapeYamlString(folderTitle));
         foreach (var field in new[] { "repos", "commits", "prs", "verifications", "relatedPlans", "dependsOn" })

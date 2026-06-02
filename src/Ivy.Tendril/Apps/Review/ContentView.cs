@@ -1,12 +1,13 @@
 using System.Diagnostics;
 using System.Reactive.Disposables;
 using Ivy.Core;
-using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Review.Dialogs;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Apps.Views.Tabs;
+using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.Logging;
@@ -34,6 +35,8 @@ public class ContentView(
         var syncingWorktrees = UseState(new HashSet<string>());
         var args = UseArgs<ReviewAppArgs>();
         var nav = UseNavigation();
+
+        var processView = Context.UseTendrilProcessView();
 
         var githubService = UseService<IGithubService>();
         var assigneesError = UseState<string?>(null);
@@ -91,6 +94,16 @@ public class ContentView(
             if (!isOpen.Value) return null;
             return new ResetToDraftDialog(isOpen, selectedPlanState.Value!, planService, refreshPlans,
                 resetToDraftLogger);
+        });
+
+        var (debugSheet, showDebugJob) = UseTrigger<string>((isOpen, jobId) =>
+        {
+            if (!isOpen.Value) return null;
+            return new Sheet(
+                () => isOpen.Set(false),
+                new JobDebugSheet(jobId, jobService, planService, config),
+                "Job Debug"
+            ).Width(Size.Half()).Resizable();
         });
 
         var artifactContentQuery = UseQuery<string, string>(
@@ -208,7 +221,7 @@ public class ContentView(
         if (selectedPlanState.Value is null)
         {
             if (allPlans.Count == 0)
-                return new NoContentView("No plans to review", "Completed plans will appear here for review.");
+                return new NoContentView("No plans to review", "Completed plans will appear here for review.", processView);
 
             return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
                    | Text.Muted("Select a completed plan to review");
@@ -225,7 +238,7 @@ public class ContentView(
             selectedPlanState.Value, planData, planContentQuery, selectedTabIndex, tabNames, openVerification,
             openCommit, openFile, openArtifact, artifactContentQuery, assigneesQuery,
             assigneesError, syncingWorktrees,
-            client, copyToClipboard, logger, nav, args);
+            client, copyToClipboard, logger, nav, args, showDebugJob);
 
         var mainLayout = new HeaderLayout(
             header,
@@ -235,7 +248,7 @@ public class ContentView(
             ).Scroll(Scroll.None).Size(Size.Full())
         ).Scroll(Scroll.None).Size(Size.Full()).Key(selectedPlanState.Value.Id);
 
-        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, customPrDialog, resetToDraftDialog);
+        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, customPrDialog, resetToDraftDialog, debugSheet);
     }
 
     private object BuildHeader(
@@ -376,7 +389,8 @@ public class ContentView(
         Action<string> copyToClipboard,
         ILogger<ContentView> logger,
         INavigator nav,
-        ReviewAppArgs? args)
+        ReviewAppArgs? args,
+        Action<string> showDebugJob)
     {
         var content = Layout.Vertical().Height(Size.Full()).Gap(0);
 
@@ -469,7 +483,7 @@ public class ContentView(
                 content |= actionsBar;
             }
 
-            var pendingRecs = planData.Recommendations.Where(r => r.State == "Pending").ToList();
+            var pendingRecs = planData.Recommendations.Where(r => r.State == RecommendationStatus.Pending).ToList();
             var recommendationsLayout = Layout.Vertical().Padding(2);
             if (pendingRecs.Count == 0)
                 recommendationsLayout |= Text.Muted("No recommendations.");
@@ -505,14 +519,14 @@ public class ContentView(
                                     {
                                         planService.ResetVerificationsForRetry(selectedPlan.FolderName);
                                         planService.TransitionState(selectedPlan.FolderName, PlanStatus.Executing);
-                                        planService.UpdateRecommendationState(selectedPlan.FolderName, recTitle, "Accepted");
+                                        planService.UpdateRecommendationState(selectedPlan.FolderName, recTitle, RecommendationStatus.Accepted);
                                         jobService.StartJob(new RetryPlanArgs(selectedPlan.FolderPath, rec.Description));
                                         refreshPlans();
                                         planContentQuery.Mutator.Revalidate();
                                     })
                                     | new Button("Decline").Icon(Icons.X).Outline().OnClick(() =>
                                     {
-                                        planService.UpdateRecommendationState(selectedPlan.FolderName, recTitle, "Declined");
+                                        planService.UpdateRecommendationState(selectedPlan.FolderName, recTitle, RecommendationStatus.Declined);
                                         refreshPlans();
                                         planContentQuery.Mutator.Revalidate();
                                     });
@@ -529,7 +543,9 @@ public class ContentView(
             {
                 new Tab("Summary", Cap(new SummaryTabView(planData.SummaryMarkdown, planContentQuery.Loading))),
                 new Tab("Plan", Cap(planTabContent)),
-                new Tab("Details", Cap(new DetailsTabView(selectedPlan))),
+                new Tab("Details", Cap(new DetailsTabView(selectedPlan,
+                    jobService.GetJobsForPlan(selectedPlan.FolderName),
+                    showDebugJob))),
                 new Tab("Verifications", Cap(new VerificationsTabView(
                     selectedPlan.Verifications, planData.VerificationReports,
                     v => openVerification.Set(v)))).Badge(selectedPlan.Verifications.Count.ToString()),
@@ -557,7 +573,7 @@ public class ContentView(
             {
                 if (v >= 0 && v < actualTabNames.Length && selectedPlanState.Value != null)
                     nav.Navigate<ReviewApp>(new ReviewAppArgs(selectedPlanState.Value.FolderName, actualTabNames[v]));
-            }).SelectedIndex(actualSelectedTabIndex).Variant(TabsVariant.Content);
+            }).SelectedIndex(actualSelectedTabIndex).Variant(TabsVariant.Content).RemoveParentPadding();
 
             content |= (Layout.Vertical().Padding(2).Gap(0).Height(Size.Grow().Min(Size.Px(0))) | tabs);
         }
@@ -586,7 +602,7 @@ public class ContentView(
         object Cap(object inner)
         {
             return Layout.Vertical().Scroll(Scroll.Auto).Width(Size.Full()).Height(Size.Full())
-                | (Layout.Vertical().Width(Size.Full().Max(Size.Units(200))) | inner);
+                | (Layout.Vertical().Padding(0, 0, 0, 4).Width(Size.Full().Max(Size.Units(200))) | inner);
         }
     }
 

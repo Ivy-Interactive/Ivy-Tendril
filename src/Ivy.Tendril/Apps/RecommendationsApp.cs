@@ -25,7 +25,7 @@ public class RecommendationsApp : ViewBase
         var recommendations = planService.GetRecommendations();
 
         var allPending = recommendations
-            .Where(r => r.State == "Pending" && r.SourcePlanStatus == PlanStatus.Completed)
+            .Where(r => r.State == RecommendationStatus.Pending && r.SourcePlanStatus == PlanStatus.Completed)
             .ToList();
 
         var filtered = allPending

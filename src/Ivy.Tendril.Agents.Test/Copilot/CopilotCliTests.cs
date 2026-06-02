@@ -20,9 +20,9 @@ public class CopilotCliTests
     }
 
     [Fact]
-    public void Capabilities_IncludesArgumentPrompt()
+    public void Capabilities_DoesNotIncludeArgumentPrompt()
     {
-        Assert.True(_cli.Capabilities.HasFlag(AgentCapabilities.ArgumentPrompt));
+        Assert.False(_cli.Capabilities.HasFlag(AgentCapabilities.ArgumentPrompt));
     }
 
     [Fact]
@@ -68,9 +68,9 @@ public class CopilotCliTests
     }
 
     [Fact]
-    public void PromptTransport_IsArgument()
+    public void PromptTransport_IsStdin()
     {
-        Assert.Equal(PromptTransport.Argument, _cli.PromptTransport);
+        Assert.Equal(PromptTransport.Stdin, _cli.PromptTransport);
     }
 
     [Fact]
@@ -202,15 +202,15 @@ public class CopilotCliTests
 
         Assert.True(spec.FileName == "copilot" || spec.FileName == "gh",
             $"Expected 'copilot' or 'gh', got '{spec.FileName}'");
-        Assert.Contains("-p", spec.Arguments);
-        Assert.Contains("Hello world", spec.Arguments);
+        Assert.DoesNotContain("-p", spec.Arguments);
+        Assert.DoesNotContain("Hello world", spec.Arguments);
         Assert.Contains("--allow-all-paths", spec.Arguments);
         Assert.Contains("--allow-all-urls", spec.Arguments);
         Assert.Contains("--output-format", spec.Arguments);
         Assert.Contains("json", spec.Arguments);
         Assert.Contains("-s", spec.Arguments);
-        Assert.Null(spec.StdinContent);
-        Assert.False(spec.RedirectStdin);
+        Assert.Equal("Hello world", spec.StdinContent);
+        Assert.True(spec.RedirectStdin);
         Assert.Equal("/tmp", spec.WorkingDirectory);
     }
 

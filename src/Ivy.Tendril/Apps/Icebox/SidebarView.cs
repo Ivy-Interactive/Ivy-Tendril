@@ -1,4 +1,3 @@
-using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
@@ -33,7 +32,6 @@ public class SidebarView(
                 new Button()
                     .Icon(filtersOpen.Value ? Icons.ChevronUp : Icons.ChevronDown)
                     .Ghost()
-                    .Small()
                     .OnClick(() => filtersOpen.Set(!filtersOpen.Value))
             );
 

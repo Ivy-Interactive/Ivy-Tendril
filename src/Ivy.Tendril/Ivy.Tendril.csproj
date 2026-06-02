@@ -4,12 +4,13 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <ApplicationIcon>Assets/icon.ico</ApplicationIcon>
     <NoWarn>CS8618;CS8603;CS8602;CS8604;CS9113</NoWarn>
     <RootNamespace>Ivy.Tendril</RootNamespace>
     <UserSecretsId>a8f3c2e1-4b7d-4e9f-a1c3-8d6e2f5b9a7c</UserSecretsId>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>tendril</ToolCommandName>
-    <DefaultItemExcludes>$(DefaultItemExcludes);Promptwares\**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);Promptwares/**</DefaultItemExcludes>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
@@ -31,6 +32,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Assets/**/*" />
+    <EmbeddedResource Include="Prompts/**/*" />
     <EmbeddedResource Include="../Tendril.svg" Link="Assets/Tendril.svg" />
   </ItemGroup>
 
@@ -61,17 +63,18 @@
     <ProjectReference Include="../../../Ivy-Framework/src/Ivy.Hooks.Pty/Ivy.Hooks.Pty.csproj" />
     <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.AnimatedStatusLabel/Ivy.Widgets.AnimatedStatusLabel.csproj" />
     <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.DiffView/Ivy.Widgets.DiffView.csproj" />
+    <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.QRCode/Ivy.Widgets.QRCode.csproj" />
     <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.Xterm/Ivy.Widgets.Xterm.csproj" />
   </ItemGroup>
 
-  <!-- Ivy Framework (NuGet) -->
   <ItemGroup Condition="'$(IvySource)' != 'true'">
-    <PackageReference Include="Ivy" Version="1.2.58" />
-    <PackageReference Include="Ivy.Desktop" Version="1.2.58" />
-    <PackageReference Include="Ivy.Hooks.Pty" Version="1.2.58" />
-    <PackageReference Include="Ivy.Widgets.AnimatedStatusLabel" Version="1.2.58" />
-    <PackageReference Include="Ivy.Widgets.DiffView" Version="1.2.58" />
-    <PackageReference Include="Ivy.Widgets.Xterm" Version="1.2.58" />
+    <PackageReference Include="Ivy" Version="1.2.65" />
+    <PackageReference Include="Ivy.Desktop" Version="1.2.65" />
+    <PackageReference Include="Ivy.Hooks.Pty" Version="1.2.65" />
+    <PackageReference Include="Ivy.Widgets.AnimatedStatusLabel" Version="1.2.65" />
+    <PackageReference Include="Ivy.Widgets.DiffView" Version="1.2.65" />
+    <PackageReference Include="Ivy.Widgets.QRCode" Version="1.2.65" />
+    <PackageReference Include="Ivy.Widgets.Xterm" Version="1.2.65" />
   </ItemGroup>
 
   <!-- Ivy Analyser -->
@@ -84,7 +87,7 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup Condition="'$(IvySource)' != 'true'">
-    <PackageReference Include="Ivy.Analyser" Version="1.2.58">
+    <PackageReference Include="Ivy.Analyser" Version="1.2.65">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
@@ -93,22 +96,20 @@
   <!-- Tendril ProjectReferences -->
   <ItemGroup>
     <ProjectReference Include="../Ivy.Tendril.Agents/Ivy.Tendril.Agents.csproj" />
-    <ProjectReference Include="../Ivy.Widgets.AgentOutputView/Ivy.Widgets.AgentOutputView.csproj" />
-    <ProjectReference Include="../Ivy.Widgets.TendrilProcessView/Ivy.Widgets.TendrilProcessView.csproj" />
+    <ProjectReference Include="../Ivy.Tendril.Widgets/Ivy.Tendril.Widgets.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <None Update="example.config.yaml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
   <Target Name="PackPromptwaresZip" BeforeTargets="PrepareForBuild" Condition="'$(Configuration)' == 'Release'">
     <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildThisFileDirectory)pack-promptwares.ps1&quot; -IntermediateOutputPath &quot;$(IntermediateOutputPath).&quot;" />
+    <ItemGroup>
+      <EmbeddedResource Include="$(IntermediateOutputPath)promptwares.zip" LogicalName="Ivy.Tendril.promptwares.zip" />
+    </ItemGroup>
   </Target>
-
-  <ItemGroup Condition="'$(Configuration)' == 'Release'">
-    <EmbeddedResource Include="$(IntermediateOutputPath)promptwares.zip" LogicalName="Ivy.Tendril.promptwares.zip" />
-  </ItemGroup>
 </Project>

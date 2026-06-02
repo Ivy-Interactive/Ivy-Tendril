@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Isopoh.Cryptography.Argon2;
-using Ivy.Tendril.Apps.Setup;
+using Ivy.Tendril.Apps.Settings;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test.Apps.Setup;

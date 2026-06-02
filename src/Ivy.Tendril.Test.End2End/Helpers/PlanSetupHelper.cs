@@ -10,7 +10,8 @@ public static class PlanSetupHelper
         string description,
         string project = "E2ETest",
         string[]? steps = null,
-        string[]? verifications = null)
+        string[]? verifications = null,
+        string? repoPath = null)
     {
         var planId = GetNextPlanId(plansDir);
         var safeName = ToCamelCase(title);
@@ -26,6 +27,10 @@ public static class PlanSetupHelper
         var stepsYaml = string.Join("\n", steps.Select(s => $"  - {s}"));
         var verificationsYaml = string.Join("\n", verifications.Select(v => $"  - name: {v}"));
 
+        var reposYaml = "";
+        if (!string.IsNullOrEmpty(repoPath))
+            reposYaml = $"\nrepos:\n  - {repoPath.Replace('\\', '/')}";
+
         var planYaml = $"""
             title: "{title}"
             description: "{description}"
@@ -37,7 +42,7 @@ public static class PlanSetupHelper
             steps:
             {stepsYaml}
             verifications:
-            {verificationsYaml}
+            {verificationsYaml}{reposYaml}
             """;
 
         File.WriteAllText(Path.Combine(planFolder, "plan.yaml"), planYaml);

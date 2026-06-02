@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
@@ -191,7 +190,7 @@ public class PlanRecAddCommand : Command<PlanRecAddSettings>
             {
                 Title = settings.Title,
                 Description = description,
-                State = "Pending",
+                State = RecommendationStatus.Pending,
                 Impact = settings.Impact,
                 Risk = settings.Risk
             });
@@ -279,7 +278,7 @@ public class PlanRecAcceptCommand : Command<PlanRecAcceptSettings>
                 return 1;
             }
 
-            rec.State = string.IsNullOrEmpty(settings.Notes) ? "Accepted" : "AcceptedWithNotes";
+            rec.State = string.IsNullOrEmpty(settings.Notes) ? RecommendationStatus.Accepted : RecommendationStatus.AcceptedWithNotes;
             rec.DeclineReason = null;
 
             plan.Updated = DateTime.UtcNow;
@@ -323,7 +322,7 @@ public class PlanRecDeclineCommand : Command<PlanRecDeclineSettings>
                 return 1;
             }
 
-            rec.State = "Declined";
+            rec.State = RecommendationStatus.Declined;
             rec.DeclineReason = settings.Reason;
 
             plan.Updated = DateTime.UtcNow;

@@ -1,4 +1,4 @@
-codingAgent: opencode
+codingAgent: claude
 jobTimeout: 30
 staleOutputTimeout: 10
 gitTimeout: 10
@@ -73,7 +73,7 @@ projects:
   - name: CheckResult
     required: true
   context: >
-    Plan management TUI. Key folders: - src\Ivy.Tendril\Services\ — ConfigService, PlanReaderService, JobService - src\Ivy.Tendril\Apps\ — PlansApp, JobsApp UI - src\Ivy.Tendril\Promptwares\ — CreatePlan, UpdatePlan, SplitPlan, ExpandPlan This project uses the Ivy Framework - there's CLI helper methods you can use:  ivy docs AGENTS.md  ivy question "How do I make a button in Ivy?"
+    Plan management TUI. Key folders: - src\Ivy.Tendril\Services\ — ConfigService, PlanReaderService, JobService - src\Ivy.Tendril\Apps\ — DraftsApp, JobsApp UI - src\Ivy.Tendril\Promptwares\ — CreatePlan, UpdatePlan, SplitPlan, ExpandPlan This project uses the Ivy Framework - there's CLI helper methods you can use:  ivy docs AGENTS.md  ivy question "How do I make a button in Ivy?"
   reviewActions:
   - name: Tendril
     condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril"
@@ -126,6 +126,56 @@ projects:
     - CreatePr
     condition: ''
     action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
+  buildDependencies: []
+- name: lots-of-dev-tools
+  color: Green
+  meta: {}
+  repos:
+  - path: D:\Tendril\Repos\lots-of-dev-tools
+    prRule: default
+    syncStrategy: fetch
+  verifications:
+  - name: NpmLint
+    required: true
+  - name: NpmBuild
+    required: true
+  - name: NpmTest
+    required: true
+  - name: CheckResult
+    required: true
+  context: ''
+  reviewActions:
+  - name: App
+    condition: Test-Path 'Worktrees\lots-of-dev-tools\package.json'
+    command: cd Worktrees\lots-of-dev-tools && npm run dev
+  hooks: []
+  buildDependencies: []
+- name: Tendril-Services
+  color: Green
+  meta: {}
+  repos:
+  - path: D:\Repos\_Ivy\Ivy-Tendril-Services
+    prRule: default
+    baseBranch: development
+    syncStrategy: fetch
+  verifications:
+  - name: DotnetFormat
+    required: true
+  - name: DotnetBuild
+    required: true
+  - name: DotnetTest
+    required: true
+  - name: CheckResult
+    required: true
+  context: ''
+  reviewActions:
+  - name: API
+    condition: Test-Path "Worktrees\Ivy-Tendril-Services\Ivy.Tendril.Services"
+    command: dotnet run --project Worktrees\Ivy-Tendril-Services\Ivy.Tendril.Services --launch-profile https
+  - name: Admin
+    condition: Test-Path "Worktrees\Ivy-Tendril-Services\Ivy.Tendril.Services.Admin"
+    command: dotnet run --project Worktrees\Ivy-Tendril-Services\Ivy.Tendril.Services.Admin --browse --find-available-port
+  hooks: []
   buildDependencies: []
 verifications:
 - name: FrameworkDotnetBuild
@@ -293,31 +343,16 @@ codingAgents:
   arguments: ''
   profiles:
   - name: deep
-    model: gpt-5.4
+    model: default
     effort: high
     arguments: ''
   - name: balanced
-    model: gpt-5.4-mini
+    model: default
     effort: medium
     arguments: ''
   - name: quick
-    model: gpt-5.3-codex
+    model: default
     effort: low
-    arguments: ''
-- name: gemini
-  arguments: ''
-  profiles:
-  - name: deep
-    model: gemini-3-flash-preview
-    effort: ''
-    arguments: ''
-  - name: balanced
-    model: gemini-2.5-flash
-    effort: ''
-    arguments: ''
-  - name: quick
-    model: gemini-2.5-flash-lite
-    effort: ''
     arguments: ''
 - name: opencode
   arguments: ''
@@ -334,6 +369,56 @@ codingAgents:
     model: default
     effort: low
     arguments: ''
+- name: antigravity
+  arguments: ''
+  profiles:
+  - name: deep
+    model: default
+    effort: ''
+    arguments: ''
+  - name: balanced
+    model: default
+    effort: ''
+    arguments: ''
+  - name: quick
+    model: default
+    effort: ''
+    arguments: ''
+- name: copilot
+  arguments: ''
+  profiles:
+  - name: deep
+    model: default
+    effort: ''
+    arguments: ''
+  - name: balanced
+    model: default
+    effort: ''
+    arguments: ''
+  - name: quick
+    model: default
+    effort: ''
+    arguments: ''
+- name: gemini
+  arguments: ''
+  profiles:
+  - name: deep
+    model: default
+    effort: ''
+    arguments: ''
+  - name: balanced
+    model: default
+    effort: ''
+    arguments: ''
+  - name: quick
+    model: default
+    effort: ''
+    arguments: ''
+tunnel:
+  enabled: true
+  port: 5010
+  binaryPath: ''
+  maxRestarts: 10
 telemetry: true
 desktopNotifications: true
 levels:

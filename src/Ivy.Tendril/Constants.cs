@@ -41,10 +41,10 @@ public static class Constants
 
     public static readonly Dictionary<string, BadgeVariant> VerificationStatusBadgeVariants = new()
     {
-        ["Pass"] = BadgeVariant.Success,
-        ["Fail"] = BadgeVariant.Destructive,
-        ["Pending"] = BadgeVariant.Outline,
-        ["Skipped"] = BadgeVariant.Outline
+        [VerificationStatus.Pass] = BadgeVariant.Success,
+        [VerificationStatus.Fail] = BadgeVariant.Destructive,
+        [VerificationStatus.Pending] = BadgeVariant.Outline,
+        [VerificationStatus.Skipped] = BadgeVariant.Outline
     };
 
     public static readonly Dictionary<JobStatus, Colors> JobStatusColors = new()

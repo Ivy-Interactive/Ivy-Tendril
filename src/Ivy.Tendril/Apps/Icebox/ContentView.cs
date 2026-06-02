@@ -1,6 +1,5 @@
 using Ivy.Core;
 using Ivy.Tendril.Apps.Icebox.Dialogs;
-using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Models;
@@ -20,7 +19,6 @@ public class ContentView(
 {
     public override object Build()
     {
-        var downloadUrl = PlanDownloadHelper.UsePlanDownload(Context, planService, selectedPlan);
         var client = UseService<IClientProvider>();
         var copyToClipboard = UseClipboard();
         var openFile = UseState<string?>(null);
@@ -43,7 +41,7 @@ public class ContentView(
         var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan.FolderName);
 
         var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(40)).Gap(2)
-                     | Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold()
+                     | Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis)
                      | new Spacer().Width(Size.Grow())
                      | Text.Rich()
                          .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
@@ -85,11 +83,6 @@ public class ContentView(
                             refreshPlans();
                         })
                         | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
-                            new MenuItem("Download", Icon: Icons.Download, Tag: "Download").OnSelect(() =>
-                            {
-                                var url = downloadUrl.Value;
-                                if (!string.IsNullOrEmpty(url)) client.OpenUrl(url);
-                            }),
                             new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
                                 .OnSelect(() =>
                                 {

@@ -1,4 +1,7 @@
 using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
 using Ivy.Tendril.Agents.Helpers;
 using Ivy.Tendril.Services.Tunnel;
 
@@ -90,7 +93,7 @@ public class CloudflaredEnd2EndTests
 
         var binaryPath = BinaryResolver.FindOnPath("cloudflared")!;
 
-        using var session = new TunnelSession(binaryPath, 19999, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+        using var session = new TunnelSession(binaryPath, "http://localhost:19999", Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         var url = await session.StartAsync(cts.Token);
@@ -134,6 +137,175 @@ public class CloudflaredEnd2EndTests
         {
             try { Directory.Delete(tempDir, true); }
             catch { /* cleanup best-effort */ }
+        }
+    }
+
+    [SkippableFact]
+    public async Task QuickTunnel_ProxiesTrafficToOrigin()
+    {
+        Skip.IfNot(BinaryResolver.IsInstalled("cloudflared"),
+            "cloudflared is not installed on this machine");
+
+        var port = GetAvailablePort();
+        const string expectedBody = "TENDRIL_TUNNEL_OK";
+        var listener = StartTcpOrigin(port, expectedBody);
+
+        try
+        {
+            var binaryPath = BinaryResolver.FindOnPath("cloudflared")!;
+            using var session = new TunnelSession(binaryPath, $"http://localhost:{port}",
+                Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+
+            using var startCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            var tunnelUrl = await session.StartAsync(startCts.Token);
+
+            Assert.Contains("trycloudflare.com", tunnelUrl);
+            await AssertTunnelProxiesContent(tunnelUrl, expectedBody);
+        }
+        finally
+        {
+            listener.Stop();
+        }
+    }
+
+    [SkippableFact]
+    public async Task QuickTunnel_Returns502WhenOriginNotListening()
+    {
+        Skip.IfNot(BinaryResolver.IsInstalled("cloudflared"),
+            "cloudflared is not installed on this machine");
+
+        var port = GetAvailablePort();
+        var binaryPath = BinaryResolver.FindOnPath("cloudflared")!;
+
+        using var session = new TunnelSession(binaryPath, $"http://localhost:{port}",
+            Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var tunnelUrl = await session.StartAsync(cts.Token);
+
+        using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        await Task.Delay(3000);
+
+        HttpResponseMessage? response = null;
+        try
+        {
+            response = await httpClient.GetAsync(tunnelUrl);
+        }
+        catch (HttpRequestException) { }
+
+        if (response != null)
+            Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+
+        session.Stop();
+    }
+
+    [SkippableFact]
+    public async Task QuickTunnel_EventuallyProxiesWhenOriginStartsLate()
+    {
+        Skip.IfNot(BinaryResolver.IsInstalled("cloudflared"),
+            "cloudflared is not installed on this machine");
+
+        var port = GetAvailablePort();
+        var binaryPath = BinaryResolver.FindOnPath("cloudflared")!;
+
+        using var session = new TunnelSession(binaryPath, $"http://localhost:{port}",
+            Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+
+        using var startCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var tunnelUrl = await session.StartAsync(startCts.Token);
+
+        await Task.Delay(3000);
+
+        const string expectedBody = "LATE_START_OK";
+        var listener = StartTcpOrigin(port, expectedBody);
+
+        try
+        {
+            await AssertTunnelProxiesContent(tunnelUrl, expectedBody);
+        }
+        finally
+        {
+            listener.Stop();
+            session.Stop();
+        }
+    }
+
+    private static async Task AssertTunnelProxiesContent(string tunnelUrl, string expectedBody)
+    {
+        using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(60);
+        HttpResponseMessage? response = null;
+        string? body = null;
+        string? lastError = null;
+
+        while (DateTime.UtcNow < deadline)
+        {
+            try
+            {
+                response = await httpClient.GetAsync(tunnelUrl);
+                body = await response.Content.ReadAsStringAsync();
+                if (response.IsSuccessStatusCode && body.Contains(expectedBody))
+                    break;
+                lastError = $"HTTP {(int)response.StatusCode}: {body?[..Math.Min(body?.Length ?? 0, 100)]}";
+                response = null;
+            }
+            catch (Exception ex)
+            {
+                lastError = ex.Message;
+            }
+
+            await Task.Delay(2000);
+        }
+
+        Assert.NotNull(response ?? throw new Exception(
+            $"Tunnel never proxied successfully within 60s. Last error: {lastError}"));
+        Assert.True(response!.IsSuccessStatusCode,
+            $"Expected 2xx but got {(int)response.StatusCode}. Body: {body?[..Math.Min(body?.Length ?? 0, 200)]}");
+        Assert.Contains(expectedBody, body!);
+    }
+
+    private static int GetAvailablePort()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
+    }
+
+    private static TcpListener StartTcpOrigin(int port, string responseBody)
+    {
+        var listener = new TcpListener(IPAddress.Loopback, port);
+        listener.Start();
+        _ = AcceptLoop(listener, responseBody);
+        return listener;
+    }
+
+    private static async Task AcceptLoop(TcpListener listener, string responseBody)
+    {
+        var bodyBytes = Encoding.UTF8.GetBytes(responseBody);
+        var httpResponse = $"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {bodyBytes.Length}\r\nConnection: close\r\n\r\n";
+        var responseBytes = Encoding.UTF8.GetBytes(httpResponse).Concat(bodyBytes).ToArray();
+
+        while (true)
+        {
+            TcpClient client;
+            try { client = await listener.AcceptTcpClientAsync(); }
+            catch (ObjectDisposedException) { break; }
+            catch (SocketException) { break; }
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await using var stream = client.GetStream();
+                    var buffer = new byte[4096];
+                    _ = await stream.ReadAsync(buffer);
+                    await stream.WriteAsync(responseBytes);
+                    await stream.FlushAsync();
+                }
+                finally { client.Dispose(); }
+            });
         }
     }
 

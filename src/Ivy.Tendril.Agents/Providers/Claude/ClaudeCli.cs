@@ -113,8 +113,10 @@ public sealed class ClaudeCli : IAgentCli
 
         if (!string.IsNullOrEmpty(config.SystemPrompt))
         {
-            args.Add("--system-prompt");
-            args.Add(config.SystemPrompt);
+            var tempFile = Path.Combine(Path.GetTempPath(), $"tendril-sysprompt-{Guid.NewGuid():N}.md");
+            File.WriteAllText(tempFile, config.SystemPrompt);
+            args.Add("--system-prompt-file");
+            args.Add(tempFile);
         }
 
         foreach (var mcp in config.McpServers)

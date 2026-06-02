@@ -53,7 +53,7 @@ public class DatabaseMigrator
         if (currentVersion > latestVersion)
             throw new InvalidOperationException(
                 $"Database version ({currentVersion}) is newer than application version ({latestVersion}). " +
-                "Please update the application.");
+                $"Please update the application, or reset the database by running 'tendril db-reset --force' or deleting the database file at: {_connection.DataSource}");
 
         _logger.LogInformation("Migrating database from version {CurrentVersion} to {LatestVersion}...", currentVersion, latestVersion);
 

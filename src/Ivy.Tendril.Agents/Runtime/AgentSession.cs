@@ -309,6 +309,12 @@ public sealed class AgentSession : IAgentSession
     {
         ProcessRunner.KillProcessTree(_process);
         await _cts.CancelAsync();
+
+        try
+        {
+            await _completion.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        catch { }
     }
 
     public Task RespondToPermissionAsync(string requestId, PermissionDecision decision, CancellationToken ct = default)

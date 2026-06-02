@@ -32,7 +32,7 @@ public class PromptwareRunSettings : CommandSettings
     public string[]? Values { get; init; }
 
     [CommandOption("--plan")]
-    [Description("Plan ID or folder path — populates TendrilPlanFolder, TendrilPlansFolder, TendrilPlanId")]
+    [Description("Plan ID or folder path")]
     public string? Plan { get; init; }
 
     [CommandOption("--promptware-path")]
@@ -48,7 +48,7 @@ public class PromptwareRunSettings : CommandSettings
     public string? Agent { get; init; }
 
     [CommandOption("--cli-log")]
-    [Description("Path to write CLI invocation log (JSONL) — tracks tendril calls made by the agent")]
+    [Description("Path to write CLI invocation log (JSONL)")]
     public string? CliLog { get; init; }
 
     [CommandOption("--dry-run")]

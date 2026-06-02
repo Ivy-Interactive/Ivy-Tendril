@@ -8,7 +8,7 @@ public static class FirmwareCompiler
     private static readonly Lazy<string?> PlansReference = new(() =>
     {
         var asm = Assembly.GetExecutingAssembly();
-        using var stream = asm.GetManifestResourceStream("Ivy.Tendril.Assets.Plans.md");
+        using var stream = asm.GetManifestResourceStream("Ivy.Tendril.Prompts.Plans.md");
         if (stream == null) return null;
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd();
@@ -52,10 +52,18 @@ public static class FirmwareCompiler
 
         Every execution needs to end with a reflection step. This is your opportunity to improve over time. What did we learn during this session? Save reflections using the CLI:
 
+        **Bash:**
         ```bash
         tendril promptware write-memory {PROMPTWARE_NAME} <filename>.md <<'EOF'
         <reflection content>
         EOF
+        ```
+
+        **PowerShell:**
+        ```powershell
+        @'
+        <reflection content>
+        '@ | tendril promptware write-memory {PROMPTWARE_NAME} <filename>.md
         ```
 
         - Note that learnings might be falsified over time. Pruning memory is just as important as storing new memory.
@@ -84,6 +92,13 @@ public static class FirmwareCompiler
             .Replace("{PROMPTWARE_NAME}", promptwareName)
             .Replace("{TOOLS}", toolsListing)
             .Replace("{MEMORY}", memoryListing);
+
+        if (headerValues.TryGetValue("TendrilJobId", out var tendrilJobId) && !string.IsNullOrEmpty(tendrilJobId))
+        {
+            firmware += $"\n\n**CLI Logging:** Append `--job-id {tendrilJobId}` to every `tendril` CLI command you run " +
+                        $"(e.g., `tendril plan add-commit ... --job-id {tendrilJobId}`). This enables execution logging. " +
+                        "Exception: `tendril job status` already receives the job ID as its first argument — skip `--job-id` there.\n";
+        }
 
         // Include Program.md inline
         var programFile = Path.Combine(context.ProgramFolder, "Program.md");

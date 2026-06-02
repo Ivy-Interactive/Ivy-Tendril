@@ -8,14 +8,14 @@ public sealed class AntigravityCli : IAgentCli
     public string DisplayName => "Antigravity";
 
     public AgentCapabilities Capabilities =>
-        AgentCapabilities.ArgumentPrompt |
+        AgentCapabilities.StdinPrompt |
         AgentCapabilities.DirectoryRestriction |
         AgentCapabilities.HealthCheck |
         AgentCapabilities.ExtraArgPassthrough |
         AgentCapabilities.SessionResume;
 
     public TransportKind SupportedTransports => TransportKind.CliSpawn;
-    public PromptTransport PromptTransport => PromptTransport.Argument;
+    public PromptTransport PromptTransport => PromptTransport.Stdin;
     public OutputFormat PreferredOutputFormat => OutputFormat.Text;
 
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles { get; } =
@@ -35,7 +35,7 @@ public sealed class AntigravityCli : IAgentCli
     {
         var args = new List<string>
         {
-            "--print", config.Prompt,
+            "--print",
             "--dangerously-skip-permissions",
         };
 
@@ -67,8 +67,8 @@ public sealed class AntigravityCli : IAgentCli
             Arguments = args,
             WorkingDirectory = config.WorkingDirectory,
             Environment = env,
-            StdinContent = null,
-            RedirectStdin = false,
+            StdinContent = config.Prompt,
+            RedirectStdin = true,
         };
     }
 

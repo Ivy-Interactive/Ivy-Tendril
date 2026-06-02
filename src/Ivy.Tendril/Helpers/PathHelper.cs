@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text.RegularExpressions;
 
 namespace Ivy.Tendril.Helpers;
@@ -14,6 +15,34 @@ public static class PathHelper
         var trimmed = path.TrimEnd('/', '\\');
         var lastSep = trimmed.LastIndexOfAny(['/', '\\']);
         return lastSep >= 0 ? trimmed[(lastSep + 1)..] : trimmed;
+    }
+
+    public static string? DefaultTendrilHomeOverride { get; set; }
+
+    public static string GetDefaultTendrilHome()
+    {
+        if (!string.IsNullOrEmpty(DefaultTendrilHomeOverride))
+            return DefaultTendrilHomeOverride;
+
+        var envHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
+        if (!string.IsNullOrEmpty(envHome))
+        {
+            if (envHome.StartsWith("\"") && envHome.EndsWith("\""))
+                envHome = envHome[1..^1];
+            return envHome;
+        }
+
+        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
+    }
+
+    public static string GetPwshPath()
+    {
+        var bundled = Path.Combine(System.AppContext.BaseDirectory, "PowerShell", OperatingSystem.IsWindows() ? "pwsh.exe" : "pwsh");
+        if (File.Exists(bundled))
+        {
+            return bundled;
+        }
+        return "pwsh";
     }
 
     public static string ResolvePath(string raw)

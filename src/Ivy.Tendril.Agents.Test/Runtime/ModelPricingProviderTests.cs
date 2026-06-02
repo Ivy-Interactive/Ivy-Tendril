@@ -10,18 +10,18 @@ public class ModelPricingProviderTests
     [Fact]
     public void GetPricing_KnownModel_ReturnsPricing()
     {
-        var pricing = _provider.GetPricing("claude-opus-4");
+        var pricing = _provider.GetPricing("opus");
 
         Assert.NotNull(pricing);
-        Assert.Equal("claude-opus-4", pricing.Model);
-        Assert.Equal(15m, pricing.InputPerMillion);
-        Assert.Equal(75m, pricing.OutputPerMillion);
+        Assert.Equal("opus", pricing.Model);
+        Assert.Equal(10m, pricing.InputPerMillion);
+        Assert.Equal(50m, pricing.OutputPerMillion);
     }
 
     [Fact]
     public void GetPricing_Sonnet_ReturnsPricing()
     {
-        var pricing = _provider.GetPricing("claude-sonnet-4-5");
+        var pricing = _provider.GetPricing("sonnet");
 
         Assert.NotNull(pricing);
         Assert.Equal(3m, pricing.InputPerMillion);
@@ -29,7 +29,7 @@ public class ModelPricingProviderTests
     }
 
     [Fact]
-    public void GetPricing_Sonnet4_ReturnsPricing()
+    public void GetPricing_Sonnet4_SubstringMatch_ReturnsPricing()
     {
         var pricing = _provider.GetPricing("claude-sonnet-4");
 
@@ -41,11 +41,11 @@ public class ModelPricingProviderTests
     [Fact]
     public void GetPricing_Haiku_ReturnsPricing()
     {
-        var pricing = _provider.GetPricing("claude-haiku-4");
+        var pricing = _provider.GetPricing("haiku");
 
         Assert.NotNull(pricing);
-        Assert.Equal(0.80m, pricing.InputPerMillion);
-        Assert.Equal(4m, pricing.OutputPerMillion);
+        Assert.Equal(1m, pricing.InputPerMillion);
+        Assert.Equal(5m, pricing.OutputPerMillion);
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public class ModelPricingProviderTests
     [Fact]
     public void GetPricing_CaseInsensitive()
     {
-        var pricing = _provider.GetPricing("Claude-Opus-4");
+        var pricing = _provider.GetPricing("Opus");
 
         Assert.NotNull(pricing);
     }
@@ -77,24 +77,24 @@ public class ModelPricingProviderTests
     public void CalculateCost_KnownModel_ReturnsCorrectCost()
     {
         var cost = _provider.CalculateCost(
-            "claude-opus-4",
+            "opus",
             inputTokens: 1_000_000,
             outputTokens: 1_000_000);
 
-        Assert.Equal(15m + 75m, cost);
+        Assert.Equal(10m + 50m, cost);
     }
 
     [Fact]
     public void CalculateCost_WithCache_IncludesCacheCost()
     {
         var cost = _provider.CalculateCost(
-            "claude-opus-4",
+            "opus",
             inputTokens: 0,
             outputTokens: 0,
             cacheReadTokens: 1_000_000,
             cacheWriteTokens: 1_000_000);
 
-        Assert.Equal(1.50m + 18.75m, cost);
+        Assert.Equal(1.00m + 12.50m, cost);
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public class ModelPricingProviderTests
     public void CalculateCost_SmallUsage_ReturnsProportionalCost()
     {
         var cost = _provider.CalculateCost(
-            "claude-sonnet-4-5",
+            "sonnet",
             inputTokens: 1000,
             outputTokens: 500);
 
@@ -139,13 +139,13 @@ public class ModelPricingProviderTests
     {
         var override_ = new ModelPricing
         {
-            Model = "claude-opus-4",
+            Model = "opus",
             InputPerMillion = 99m,
             OutputPerMillion = 99m,
         };
 
         var provider = new ModelPricingProvider([override_]);
-        var pricing = provider.GetPricing("claude-opus-4");
+        var pricing = provider.GetPricing("opus");
 
         Assert.NotNull(pricing);
         Assert.Equal(99m, pricing.InputPerMillion);
@@ -154,18 +154,26 @@ public class ModelPricingProviderTests
     [Fact]
     public void Constructor_Default_IncludesAllKnownModels()
     {
-        Assert.NotNull(_provider.GetPricing("claude-opus-4"));
-        Assert.NotNull(_provider.GetPricing("claude-sonnet-4-5"));
-        Assert.NotNull(_provider.GetPricing("claude-sonnet-4"));
-        Assert.NotNull(_provider.GetPricing("claude-haiku-4"));
+        Assert.NotNull(_provider.GetPricing("opus"));
+        Assert.NotNull(_provider.GetPricing("sonnet"));
+        Assert.NotNull(_provider.GetPricing("haiku"));
     }
 
     [Fact]
     public void GetPricing_IncludesCacheRates()
     {
-        var pricing = _provider.GetPricing("claude-opus-4")!;
+        var pricing = _provider.GetPricing("opus")!;
 
-        Assert.Equal(18.75m, pricing.CacheWritePerMillion);
-        Assert.Equal(1.50m, pricing.CacheReadPerMillion);
+        Assert.Equal(12.50m, pricing.CacheWritePerMillion);
+        Assert.Equal(1.00m, pricing.CacheReadPerMillion);
+    }
+
+    [Fact]
+    public void GetPricing_SubstringMatch_FullModelIdFromOutput()
+    {
+        var pricing = _provider.GetPricing("claude-opus-4-7-20250219");
+
+        Assert.NotNull(pricing);
+        Assert.Contains("opus", pricing.Model);
     }
 }

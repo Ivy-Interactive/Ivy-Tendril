@@ -11,3 +11,7 @@ When resolving merge conflicts between a feature branch and `development`:
 1. **Never delete files or directories that exist on `development` but weren't touched by the feature branch.** If a file exists on `development` and your branch didn't modify it, keep the `development` version.
 2. **Never use blanket resolution strategies** like `git checkout --theirs .` or `git checkout --ours .`. Resolve each conflict individually.
 3. After resolving conflicts, run `dotnet build src/Ivy.Tendril/Ivy.Tendril.slnx` to verify the merge didn't break anything.
+
+## Writing Style
+
+Never use the em dash character "—" (U+2014) in any output, comments, commit messages, or documentation. Use alternatives like commas, parentheses, colons, or separate sentences instead.
