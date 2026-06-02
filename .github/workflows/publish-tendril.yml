@@ -168,7 +168,6 @@ jobs:
   publish-desktop:
     needs: version
     runs-on: ${{ matrix.os }}
-    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode)
     strategy:
       fail-fast: false
       matrix:
