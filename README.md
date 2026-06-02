@@ -7,8 +7,6 @@
 
 # Ivy Tendril - AI Coding Agent Orchestrator
 
-![Tendril UI](src/mockup.gif)
-
 Tendril is a web application built on [Ivy Framework](https://github.com/Ivy-Interactive/Ivy-Framework) that manages AI coding plans end-to-end. It orchestrates coding agents (Claude, Codex, Copilot, Gemini, OpenCode) through a structured lifecycle — from plan creation and expansion to execution, verification, and PR generation. Tendril tracks jobs, costs, tokens, and verification results, giving you full visibility into your AI-assisted development workflow.
 
 For complete documentation, configuration options, and guides, visit the Tendril documentation at [tendril.ivy.app](https://tendril.ivy.app).
