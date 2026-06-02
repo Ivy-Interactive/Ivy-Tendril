@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Helpers;
 
 namespace Ivy.Tendril.Agents.Providers.Copilot;
 
@@ -51,8 +52,15 @@ public sealed class CopilotSessionCostParser : ISessionCostParser
                 {
                     if (root.TryGetProperty("usage", out var usage))
                     {
-                        premiumRequests = usage.TryGetProperty("premiumRequests", out var pr) ? pr.GetInt32() : premiumRequests;
-                        sessionDurationMs = usage.TryGetProperty("sessionDurationMs", out var dur) ? dur.GetInt64() : sessionDurationMs;
+                        if (usage.TryGetProperty("premiumRequests", out var pr))
+                        {
+                            premiumRequests = pr.TryGetInt32Defensive() ?? premiumRequests;
+                        }
+
+                        if (usage.TryGetProperty("sessionDurationMs", out var dur))
+                        {
+                            sessionDurationMs = dur.TryGetInt64Defensive() ?? sessionDurationMs;
+                        }
                     }
 
                     completedAt = root.TryGetProperty("timestamp", out var endTs)

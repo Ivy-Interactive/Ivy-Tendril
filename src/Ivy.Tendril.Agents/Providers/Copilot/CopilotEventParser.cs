@@ -242,10 +242,16 @@ public sealed class CopilotEventParser : IEventParser
 
         if (root.TryGetProperty("usage", out var usage))
         {
-            premiumRequests = usage.TryGetProperty("premiumRequests", out var pr) ? pr.GetInt32() : null;
+            if (usage.TryGetProperty("premiumRequests", out var pr))
+            {
+                premiumRequests = pr.TryGetInt32Defensive();
+            }
 
             if (usage.TryGetProperty("sessionDurationMs", out var dur))
-                duration = TimeSpan.FromMilliseconds(dur.GetInt64());
+            {
+                if (dur.TryGetInt64Defensive() is { } durMs)
+                    duration = TimeSpan.FromMilliseconds(durMs);
+            }
         }
 
         var agentUsage = new AgentUsage
