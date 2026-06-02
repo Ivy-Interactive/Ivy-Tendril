@@ -199,6 +199,11 @@ public class TendrilProcessStatusServiceTests : IDisposable
             return _jobs;
         }
 
+        public List<JobItem> GetJobsForPlan(string planFile)
+        {
+            return _jobs.Where(j => j.PlanFile == planFile).ToList();
+        }
+
         public JobItem? GetJob(string id)
         {
             return _jobs.FirstOrDefault(j => j.Id == id);

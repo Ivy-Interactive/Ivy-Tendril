@@ -278,7 +278,6 @@ public class JobService : IJobService
         {
             if (_jobs.TryRemove(id, out var removed))
                 removed.DisposeResources(_logger);
-            try { _database?.DeleteJob(id); } catch { /* Best-effort */ }
         }
         if (ids.Count > 0)
             RaiseJobsStructureChanged();
@@ -292,6 +291,22 @@ public class JobService : IJobService
     public JobItem? GetJob(string id)
     {
         return _jobs.GetValueOrDefault(id);
+    }
+
+    public List<JobItem> GetJobsForPlan(string planFile)
+    {
+        var activeJobs = _jobs.Values
+            .Where(j => j.PlanFile == planFile)
+            .ToDictionary(j => j.Id);
+
+        var dbJobs = _database?.GetJobsForPlan(planFile) ?? [];
+
+        foreach (var dbJob in dbJobs)
+            activeJobs.TryAdd(dbJob.Id, dbJob);
+
+        return activeJobs.Values
+            .OrderByDescending(j => j.StartedAt ?? DateTime.MinValue)
+            .ToList();
     }
 
     /// <summary>

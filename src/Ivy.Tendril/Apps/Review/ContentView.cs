@@ -544,7 +544,7 @@ public class ContentView(
                 new Tab("Summary", Cap(new SummaryTabView(planData.SummaryMarkdown, planContentQuery.Loading))),
                 new Tab("Plan", Cap(planTabContent)),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan,
-                    jobService.GetJobs().Where(j => j.PlanFile == selectedPlan.FolderName).ToList(),
+                    jobService.GetJobsForPlan(selectedPlan.FolderName),
                     showDebugJob))),
                 new Tab("Verifications", Cap(new VerificationsTabView(
                     selectedPlan.Verifications, planData.VerificationReports,
