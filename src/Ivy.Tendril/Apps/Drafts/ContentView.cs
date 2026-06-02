@@ -24,7 +24,6 @@ public class ContentView(
 {
     public override object Build()
     {
-        var downloadUrl = PlanDownloadHelper.UsePlanDownload(Context, planService, selectedPlan);
         var client = UseService<IClientProvider>();
         var copyToClipboard = UseClipboard();
         var openFile = UseState<string?>(null);
@@ -241,8 +240,7 @@ public class ContentView(
             hasActiveExpandJob,
             hasActiveSplitJob,
             GoToNext,
-            GoToPrevious,
-            downloadUrl.Value);
+            GoToPrevious);
 
         var mainLayout = new HeaderLayout(
             header,

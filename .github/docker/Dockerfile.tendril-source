@@ -1,5 +1,5 @@
 # Ivy Tendril image for Sliplane (or similar). Includes Node CLIs: claude-code, codex, gemini, copilot;
-# git, gh, pwsh, pandoc. Required: ANTHROPIC_API_KEY, GITHUB_TOKEN. Optional: OPENAI_API_KEY,
+# git, gh, pwsh. Required: ANTHROPIC_API_KEY, GITHUB_TOKEN. Optional: OPENAI_API_KEY,
 # Gemini auth, PORT (8000), TENDRIL_HOME (/data/tendril). Mount /data/tendril to persist data.
 
 # ── Stage 1: build Tendril from source + install PowerShell as dotnet tool ────
@@ -64,9 +64,9 @@ RUN --mount=type=cache,id=npm-tendril,target=/root/.npm \
       @google/gemini-cli \
       @github/copilot
 
-# Install git + GitHub CLI + Pandoc (PDF export)
+# Install git + GitHub CLI
 RUN apt-get update \
- && apt-get install -y --no-install-recommends git curl ca-certificates gnupg pandoc \
+ && apt-get install -y --no-install-recommends git curl ca-certificates gnupg \
  && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
         -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
  && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
