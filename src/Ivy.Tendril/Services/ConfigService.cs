@@ -20,7 +20,6 @@ public record RepoRef
     public string Path { get; set; } = "";
     public string PrRule { get; set; } = "default";
     public string? BaseBranch { get; set; }
-    public string SyncStrategy { get; set; } = "fetch";
 }
 
 public record ProjectConfig
