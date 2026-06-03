@@ -15,6 +15,7 @@ public partial class JobsApp : ViewBase
         var planService = UseService<IPlanReaderService>();
         var client = UseService<IClientProvider>();
         var config = UseService<IConfigService>();
+        var nav = UseNavigation();
         var refreshToken = UseRefreshToken();
         var openFile = UseState<string?>(null);
 
@@ -75,7 +76,7 @@ public partial class JobsApp : ViewBase
         var rows = BuildJobRows(jobs, planService);
         var jobsProgress = BuildStatusProgress(jobs, config);
         
-        var dataTable = BuildDataTable(rows, refreshToken, updateStream, config, planService,
+        var dataTable = BuildDataTable(nav, rows, refreshToken, updateStream, config, planService,
             jobService, client, showPlan, showOutput, showPrompt, showDebug, jobs, projectColors, jobsProgress);
 
         var layout = Layout.Vertical().Height(Size.Full());

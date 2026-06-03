@@ -16,6 +16,8 @@ public class DraftsApp : ViewBase
         var configService = UseService<IConfigService>();
         var gitService = UseService<IGitService>();
         var planWatcher = UseService<IPlanWatcherService>();
+        var args = UseArgs<DraftsAppArgs>();
+        var nav = UseNavigation();
         var selectedPlanState = UseState<PlanFile?>(null);
         var projectFilter = UseState<string?>(null);
         var levelFilter = UseState<string?>(null);
@@ -32,6 +34,28 @@ public class DraftsApp : ViewBase
 
             planWatcher.PlansChanged += OnChanged;
             return Disposable.Create(() => planWatcher.PlansChanged -= OnChanged);
+        });
+
+        UseEffect(() =>
+        {
+            if (!string.IsNullOrEmpty(args?.PlanId))
+            {
+                var p = planService.GetPlans().FirstOrDefault(x => x.FolderName == args.PlanId);
+                if (p != null && p.FolderName != selectedPlanState.Value?.FolderName)
+                {
+                    selectedPlanState.Set(p);
+                }
+            }
+            return Disposable.Empty;
+        });
+
+        UseEffect(() =>
+        {
+            if (selectedPlanState.Value != null && selectedPlanState.Value.FolderName != args?.PlanId)
+            {
+                nav.Navigate<DraftsApp>(new DraftsAppArgs(selectedPlanState.Value.FolderName));
+            }
+            return Disposable.Empty;
         });
 
         var previousPlans = UseRef(new List<PlanFile>());
