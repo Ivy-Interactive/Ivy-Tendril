@@ -164,6 +164,17 @@ internal static class ServiceRegistration
         });
         server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<PrStatusSyncService>());
 
+        server.Services.AddSingleton<MasterElectionService>(sp =>
+        {
+            var config = sp.GetRequiredService<IConfigService>();
+            var appLifetime = sp.GetRequiredService<Microsoft.Extensions.Hosting.IHostApplicationLifetime>();
+            var svr = sp.GetRequiredService<Microsoft.AspNetCore.Hosting.Server.IServer>();
+            var logger = sp.GetRequiredService<ILogger<MasterElectionService>>();
+            return new MasterElectionService(config, appLifetime, svr, logger);
+        });
+        server.Services.AddSingleton<IMasterElectionService>(sp => sp.GetRequiredService<MasterElectionService>());
+        server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<MasterElectionService>());
+
         server.Services.AddSingleton<Services.Tunnel.CloudflaredService>(sp =>
         {
             var config = sp.GetRequiredService<IConfigService>();

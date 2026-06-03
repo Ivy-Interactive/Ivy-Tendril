@@ -551,7 +551,6 @@ internal class JobLauncher
             psi.Environment["TENDRIL_HOME"] = tendrilHome;
         psi.Environment["TENDRIL_PLANS"] = _configService.PlanFolder;
 
-        job.StatusFilePath = JobStatusFile.GetStatusFilePath(job.Id);
         EnsureTendrilOnPath(psi);
     }
 

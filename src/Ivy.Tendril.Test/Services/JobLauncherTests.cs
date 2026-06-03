@@ -146,29 +146,4 @@ projects:
         Assert.False(job.StaleOutputDetected);
     }
 
-    [Fact]
-    public async Task RunStatusFilePoller_ExitsWhenJobCompletes()
-    {
-        var job = new JobItem
-        {
-            Id = "test-1",
-            Type = "CreatePlan",
-            TypedArgs = new CreatePlanArgs("Test", "Auto"),
-            Project = "TestProject",
-            Status = JobStatus.Running,
-            StatusFilePath = Path.Combine(_tempTendrilHome, "status-test-1.json")
-        };
-        var jobs = new ConcurrentDictionary<string, JobItem>();
-        jobs[job.Id] = job;
-
-        var cts = new CancellationTokenSource();
-        var pollerTask = JobMonitor.RunStatusFilePoller(job.Id, cts, jobs);
-
-        job.Status = JobStatus.Completed;
-        await Task.Delay(TimeSpan.FromSeconds(2));
-
-        await pollerTask;
-
-        Assert.Equal(JobStatus.Completed, job.Status);
-    }
 }

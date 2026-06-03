@@ -147,7 +147,7 @@ public class Program
                         {
                             var home = Environment.GetEnvironmentVariable("TENDRIL_HOME");
                             if (!string.IsNullOrEmpty(home))
-                                cliLog = JobStatusFile.GetStatusFilePath(resolvedJobId) + ".jsonl";
+                                cliLog = JobStatusFile.GetCliLogPath(resolvedJobId);
                         }
                     }
 
@@ -465,6 +465,8 @@ public class Program
             {
                 job.AddCommand<JobStatusCommand>("status")
                     .WithDescription("Report job status (message, planId, planTitle)");
+                job.AddCommand<JobStartCommand>("start")
+                    .WithDescription("Start a job via the running Tendril server");
             });
 
             // Plan management commands
@@ -618,6 +620,25 @@ public class Program
         AppDomain.CurrentDomain.ProcessExit += (_, _) =>
         {
             CrashLog.Write($"[{DateTime.UtcNow:O}] ProcessExit event fired (PID {Environment.ProcessId}) | {GetMemoryStats()}");
+
+            // Clean up .master file if we own it
+            try
+            {
+                var home = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
+                if (!string.IsNullOrEmpty(home))
+                {
+                    var masterFile = Path.Combine(home, ".master");
+                    if (File.Exists(masterFile))
+                    {
+                        var masterJson = File.ReadAllText(masterFile);
+                        var masterData = System.Text.Json.JsonSerializer.Deserialize<Services.MasterElectionService.MasterFileData>(
+                            masterJson, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase });
+                        if (masterData?.Pid == Environment.ProcessId)
+                            File.Delete(masterFile);
+                    }
+                }
+            }
+            catch { }
 
             // Clean up tracked temp files
             try
