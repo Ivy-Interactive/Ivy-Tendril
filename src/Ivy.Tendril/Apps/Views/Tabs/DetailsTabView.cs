@@ -1,18 +1,37 @@
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Services.Plans;
 
 namespace Ivy.Tendril.Apps.Views.Tabs;
 
-public class DetailsTabView(PlanFile plan, List<JobItem> jobs, Action<string> showDebug) : ViewBase
+public class DetailsTabView(
+    PlanFile plan,
+    List<JobItem> jobs,
+    Action<string> showDebug,
+    IPlanReaderService planService,
+    IState<PlanFile?> selectedPlanState,
+    Action refreshPlans) : ViewBase
 {
     public override object Build()
     {
         var planYaml = PlanYamlHelper.ParsePlanYaml(plan.PlanYamlRaw);
 
+        var revisionWidget = Layout.Horizontal().Gap(2).AlignItems(Align.Center)
+                             | Text.Block(plan.RevisionCount.ToString())
+                             | new Button().Icon(Icons.Undo).Ghost().Small()
+                                 .Tooltip("Revert to previous revision")
+                                 .Disabled(plan.RevisionCount <= 1)
+                                 .OnClick(() =>
+                                 {
+                                     planService.RevertRevision(plan.FolderName);
+                                     var updated = planService.GetPlanByFolder(plan.FolderPath);
+                                     if (updated != null) selectedPlanState.Set(updated);
+                                     refreshPlans();
+                                 });
+
         var detailsData = new
         {
             plan.InitialPrompt,
-            Revision = plan.RevisionCount.ToString(),
             Profile = planYaml?.ExecutionProfile ?? "",
             RelatedPlans = FormatPlanLinks(plan.RelatedPlans),
             DependsOn = FormatPlanLinks(plan.DependsOn),
@@ -30,11 +49,19 @@ public class DetailsTabView(PlanFile plan, List<JobItem> jobs, Action<string> sh
 
         return Layout.Vertical().Gap(4)
                | details
+               | LabeledRow("Revision", revisionWidget)
                | (jobs.Count > 0
                    ? (Layout.Vertical().Gap(2)
                       | Text.H4("Jobs")
                       | new PlanJobsDataTableView(jobs, showDebug))
                    : null);
+    }
+
+    private static object LabeledRow(string label, object value)
+    {
+        return Layout.Horizontal().Gap(2)
+               | Text.Block(label + ":").Width(15).TextAlign(TextAlign.End)
+               | value;
     }
 
     private static string FormatPlanLinks(List<string> planFolders)
