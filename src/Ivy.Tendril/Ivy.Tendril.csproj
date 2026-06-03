@@ -68,13 +68,13 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(IvySource)' != 'true'">
-    <PackageReference Include="Ivy" Version="1.2.65" />
-    <PackageReference Include="Ivy.Desktop" Version="1.2.65" />
-    <PackageReference Include="Ivy.Hooks.Pty" Version="1.2.65" />
-    <PackageReference Include="Ivy.Widgets.AnimatedStatusLabel" Version="1.2.65" />
-    <PackageReference Include="Ivy.Widgets.DiffView" Version="1.2.65" />
-    <PackageReference Include="Ivy.Widgets.QRCode" Version="1.2.65" />
-    <PackageReference Include="Ivy.Widgets.Xterm" Version="1.2.65" />
+    <PackageReference Include="Ivy" Version="1.2.66" />
+    <PackageReference Include="Ivy.Desktop" Version="1.2.66" />
+    <PackageReference Include="Ivy.Hooks.Pty" Version="1.2.66" />
+    <PackageReference Include="Ivy.Widgets.AnimatedStatusLabel" Version="1.2.66" />
+    <PackageReference Include="Ivy.Widgets.DiffView" Version="1.2.66" />
+    <PackageReference Include="Ivy.Widgets.QRCode" Version="1.2.66" />
+    <PackageReference Include="Ivy.Widgets.Xterm" Version="1.2.66" />
   </ItemGroup>
 
   <!-- Ivy Analyser -->
@@ -87,7 +87,7 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup Condition="'$(IvySource)' != 'true'">
-    <PackageReference Include="Ivy.Analyser" Version="1.2.65">
+    <PackageReference Include="Ivy.Analyser" Version="1.2.66">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
