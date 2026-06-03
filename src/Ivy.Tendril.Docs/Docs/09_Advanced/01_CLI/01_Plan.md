@@ -162,13 +162,6 @@ Removes all git worktrees associated with a plan. By default only runs on plans 
 
 Removes a single worktree from `Worktrees/<repo-name>`. Attempts `git worktree remove --force` first; falls back to a force-delete. Also deletes the associated branch (`tendril/<plan-folder>` by default).
 
-#### plan sync-worktree
-
-```terminal
->tendril plan sync-worktree <worktree-path> [--strategy <strategy>] [--base-branch <branch>]
-```
-
-Applies a sync strategy to a worktree (absolute path). Strategies: `fetch` (default, no-op), `rebase`, `merge`. `--base-branch` is required for `rebase` and `merge`.
 
 ## Logs & Revisions
 

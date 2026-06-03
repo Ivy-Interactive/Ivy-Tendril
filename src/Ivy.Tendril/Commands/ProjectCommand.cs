@@ -71,10 +71,6 @@ public class ProjectAddRepoSettings : CommandSettings
     [CommandOption("--base-branch")]
     [Description("Base branch name")]
     public string? BaseBranch { get; set; }
-
-    [CommandOption("--sync-strategy")]
-    [Description("Sync strategy (fetch, pull)")]
-    public string? SyncStrategy { get; set; }
 }
 
 public class ProjectRemoveRepoSettings : CommandSettings
@@ -259,13 +255,11 @@ public class ProjectGetCommand : Command<ProjectGetSettings>
                 repoTable.AddColumn("Path");
                 repoTable.AddColumn("PR Rule");
                 repoTable.AddColumn("Base Branch");
-                repoTable.AddColumn("Sync");
                 foreach (var r in project.Repos)
                     repoTable.AddRow(
                         r.Path.EscapeMarkup(),
                         r.PrRule.EscapeMarkup(),
-                        (r.BaseBranch ?? "-").EscapeMarkup(),
-                        r.SyncStrategy.EscapeMarkup());
+                        (r.BaseBranch ?? "-").EscapeMarkup());
                 AnsiConsole.Write(repoTable);
             }
 
@@ -470,8 +464,7 @@ public class ProjectAddRepoCommand : Command<ProjectAddRepoSettings>
             {
                 Path = settings.RepoPath,
                 PrRule = settings.PrRule ?? "default",
-                BaseBranch = settings.BaseBranch,
-                SyncStrategy = settings.SyncStrategy ?? "fetch"
+                BaseBranch = settings.BaseBranch
             });
 
             config.SaveSettings();
