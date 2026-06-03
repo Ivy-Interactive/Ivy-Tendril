@@ -80,7 +80,7 @@ public class ContentView(
                             planService.TransitionState(selectedPlan.FolderName, PlanStatus.Draft);
                             refreshPlans();
                         })
-                        | new Button("Execute").Icon(Icons.Rocket).Outline().ShortcutKey("e")
+                        | new Button("Execute").Icon(Icons.Rocket).Outline().ShortcutKey("x")
                             .Loading(isCheckingPreflight)
                             .Disabled(isCheckingPreflight)
                             .OnClick(() => runPreflight(selectedPlan.Project, result =>

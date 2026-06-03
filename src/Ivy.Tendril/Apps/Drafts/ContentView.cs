@@ -168,7 +168,7 @@ public class ContentView(
         header |= Text.Rich()
             .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
             .Muted("plans", word: true);
-        header |= new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("e")
+        header |= new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("x")
             .Loading(isCheckingPreflight)
             .Disabled(isCheckingPreflight)
             .OnClick(() => runPreflight(selectedPlan.Project, result =>
