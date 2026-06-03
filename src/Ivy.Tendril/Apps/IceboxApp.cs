@@ -39,6 +39,8 @@ public class IceboxApp : ViewBase
         var filteredPlans = PlanFilters.ApplyFilters(plans, projectFilter.Value, levelFilter.Value, textFilter.Value)
             .ToList();
 
+        if (selectedPlanState.Value == null && filteredPlans.Count > 0) selectedPlanState.Set(filteredPlans[0]);
+
         if (selectedPlanState.Value is { } selected && filteredPlans.All(p => p.FolderName != selected.FolderName))
         {
             var oldIndex = previousPlans.Value.FindIndex(p => p.FolderName == selected.FolderName);
