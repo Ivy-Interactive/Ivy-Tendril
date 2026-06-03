@@ -340,6 +340,13 @@ internal class JobLauncher
             return (values, null, null);
         }
 
+        if (job.TypedArgs is SyncRepoArgs syncArgs)
+        {
+            values["RepoPath"] = syncArgs.RepoPath;
+            values["BaseBranch"] = syncArgs.BaseBranch;
+            return (values, null, null);
+        }
+
         return BuildNonCreatePlanFirmware(job, values);
     }
 
