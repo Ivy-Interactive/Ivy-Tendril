@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Commands;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Plans;
 using Ivy.Tendril.Helpers;
 using ModelContextProtocol.Server;
 
@@ -418,6 +419,295 @@ public sealed class PlanTools : AuthenticatedToolBase
         {
             return $"Error: {ex.Message}";
         }
+    }
+
+    [McpServerTool(Name = "tendril_plan_rec_set"), Description("Update a field on a recommendation")]
+    public string RecSet(
+        [Description("Plan ID")] string planId,
+        [Description("Recommendation title")] string title,
+        [Description("Field to update: title, description, state, impact, risk, declineReason")] string field,
+        [Description("New value")] string value)
+    {
+        if (!_authService.ValidateEnvironmentToken())
+            return "Error: Authentication failed. Access denied.";
+
+        try
+        {
+            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
+            var plan = PlanCommandHelpers.ReadPlan(planFolder);
+
+            var rec = (plan.Recommendations ?? [])
+                .FirstOrDefault(r => r.Title.Equals(title, StringComparison.OrdinalIgnoreCase));
+            if (rec == null)
+                return $"Error: Recommendation '{title}' not found";
+
+            switch (field.ToLower())
+            {
+                case "title": rec.Title = value; break;
+                case "description": rec.Description = value; break;
+                case "state": rec.State = value; break;
+                case "impact": rec.Impact = value; break;
+                case "risk": rec.Risk = value; break;
+                case "declinereason": rec.DeclineReason = value; break;
+                default:
+                    return $"Error: Unknown field '{field}'. Valid: title, description, state, impact, risk, declineReason";
+            }
+
+            plan.Updated = DateTime.UtcNow;
+            PlanCommandHelpers.WritePlan(planFolder, plan);
+            return $"Updated recommendation '{title}' field '{field}' to '{value}'";
+        }
+        catch (Exception ex)
+        {
+            return $"Error: {ex.Message}";
+        }
+    }
+
+    [McpServerTool(Name = "tendril_plan_create"), Description("Create a plan directly (allocates ID, creates folder)")]
+    public string PlanCreate(
+        [Description("Plan title")] string title,
+        [Description("Project name (optional)")] string? project = null,
+        [Description("Priority level: Critical, Important, NiceToHave (optional)")] string? level = null,
+        [Description("Initial prompt/description (optional)")] string? initialPrompt = null,
+        [Description("Execution profile: deep or balanced (optional)")] string? executionProfile = null,
+        [Description("Source URL (optional)")] string? sourceUrl = null,
+        [Description("Comma-separated repository paths (optional)")] string? repos = null,
+        [Description("Comma-separated verification names (optional)")] string? verifications = null,
+        [Description("Comma-separated related plan folder names (optional)")] string? relatedPlans = null,
+        [Description("Comma-separated dependency plan folder names (optional)")] string? dependsOn = null)
+    {
+        if (!_authService.ValidateEnvironmentToken())
+            return "Error: Authentication failed. Access denied.";
+
+        try
+        {
+            var plansDir = PlanCommandHelpers.GetPlansDirectory();
+            var planId = PlanYamlHelper.AllocatePlanId(plansDir);
+            var safeTitle = PlanYamlHelper.ToSafeTitle(title);
+            var folderName = $"{planId}-{safeTitle}";
+            var planFolder = Path.Combine(plansDir, folderName);
+
+            Directory.CreateDirectory(planFolder);
+            FileHelper.GrantBroadWriteAccess(planFolder);
+
+            var plan = new PlanYaml
+            {
+                State = nameof(PlanStatus.Draft),
+                Project = project ?? "Auto",
+                Level = level ?? "NiceToHave",
+                Title = title,
+                Created = DateTime.UtcNow,
+                Updated = DateTime.UtcNow,
+                InitialPrompt = initialPrompt,
+                SourceUrl = sourceUrl,
+                ExecutionProfile = executionProfile,
+                Priority = 0
+            };
+
+            if (!string.IsNullOrEmpty(repos))
+                foreach (var repo in repos.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    plan.Repos.Add(repo);
+
+            if (!string.IsNullOrEmpty(verifications))
+                foreach (var v in verifications.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    plan.Verifications.Add(new PlanVerificationEntry { Name = v, Status = VerificationStatus.Pending });
+
+            if (!string.IsNullOrEmpty(relatedPlans))
+                foreach (var rp in relatedPlans.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    plan.RelatedPlans.Add(rp);
+
+            if (!string.IsNullOrEmpty(dependsOn))
+                foreach (var dep in dependsOn.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    plan.DependsOn.Add(dep);
+
+            PlanCommandHelpers.WritePlan(planFolder, plan);
+            return $"Plan created: {folderName}\nPlanId: {planId}\nDirectory: {planFolder}";
+        }
+        catch (Exception ex)
+        {
+            return $"Error: {ex.Message}";
+        }
+    }
+
+    [McpServerTool(Name = "tendril_plan_write_revision"), Description("Write revision content to a plan")]
+    public string WriteRevision(
+        [Description("Plan ID")] string planId,
+        [Description("Revision content (markdown)")] string content)
+    {
+        if (!_authService.ValidateEnvironmentToken())
+            return "Error: Authentication failed. Access denied.";
+
+        try
+        {
+            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
+            var revisionsDir = Path.Combine(planFolder, "Revisions");
+            Directory.CreateDirectory(revisionsDir);
+
+            var number = ResolveNextRevisionNumber(revisionsDir);
+            var filename = $"{number:D3}.md";
+            var filePath = Path.Combine(revisionsDir, filename);
+
+            File.WriteAllText(filePath, content);
+            return $"Revision written: {filename}";
+        }
+        catch (Exception ex)
+        {
+            return $"Error: {ex.Message}";
+        }
+    }
+
+    [McpServerTool(Name = "tendril_plan_add_related"), Description("Add a related plan link")]
+    public string AddRelated(
+        [Description("Plan ID")] string planId,
+        [Description("Related plan folder name (e.g., 01478-WorktreeIsolation)")] string relatedPlan)
+    {
+        return ModifyPlan(planId, plan =>
+        {
+            if (plan.RelatedPlans.Contains(relatedPlan, StringComparer.OrdinalIgnoreCase))
+                return;
+            plan.RelatedPlans.Add(relatedPlan);
+        }, $"Added related plan: {relatedPlan}");
+    }
+
+    [McpServerTool(Name = "tendril_plan_remove_related"), Description("Remove a related plan link")]
+    public string RemoveRelated(
+        [Description("Plan ID")] string planId,
+        [Description("Related plan folder name")] string relatedPlan)
+    {
+        return ModifyPlan(planId, plan =>
+        {
+            var removed = plan.RelatedPlans.RemoveAll(r => r.Equals(relatedPlan, StringComparison.OrdinalIgnoreCase));
+            if (removed == 0)
+                throw new InvalidOperationException($"Related plan not found: {relatedPlan}");
+        }, $"Removed related plan: {relatedPlan}");
+    }
+
+    [McpServerTool(Name = "tendril_plan_add_depends_on"), Description("Add a dependency to a plan")]
+    public string AddDependsOn(
+        [Description("Plan ID")] string planId,
+        [Description("Dependency plan folder name (e.g., 01478-WorktreeIsolation)")] string dependency)
+    {
+        return ModifyPlan(planId, plan =>
+        {
+            if (plan.DependsOn.Contains(dependency, StringComparer.OrdinalIgnoreCase))
+                return;
+            plan.DependsOn.Add(dependency);
+        }, $"Added dependency: {dependency}");
+    }
+
+    [McpServerTool(Name = "tendril_plan_remove_depends_on"), Description("Remove a dependency from a plan")]
+    public string RemoveDependsOn(
+        [Description("Plan ID")] string planId,
+        [Description("Dependency plan folder name")] string dependency)
+    {
+        return ModifyPlan(planId, plan =>
+        {
+            var removed = plan.DependsOn.RemoveAll(d => d.Equals(dependency, StringComparison.OrdinalIgnoreCase));
+            if (removed == 0)
+                throw new InvalidOperationException($"Dependency not found: {dependency}");
+        }, $"Removed dependency: {dependency}");
+    }
+
+    [McpServerTool(Name = "tendril_plan_validate"), Description("Validate plan health (checks required fields, valid states, repo paths, etc.)")]
+    public string Validate(
+        [Description("Plan ID")] string planId)
+    {
+        if (!_authService.ValidateEnvironmentToken())
+            return "Error: Authentication failed. Access denied.";
+
+        try
+        {
+            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
+            var plan = PlanCommandHelpers.ReadPlan(planFolder);
+            PlanValidationService.Validate(plan);
+            return "Plan is valid.";
+        }
+        catch (ArgumentException ex)
+        {
+            return $"Validation failed: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            return $"Error: {ex.Message}";
+        }
+    }
+
+    [McpServerTool(Name = "tendril_plan_verification_list"), Description("List verifications on a plan")]
+    public string VerificationList(
+        [Description("Plan ID")] string planId,
+        [Description("Filter by status: Pending, Pass, Fail, Skipped (optional)")] string? status = null)
+    {
+        if (!_authService.ValidateEnvironmentToken())
+            return "Error: Authentication failed. Access denied.";
+
+        try
+        {
+            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
+            var plan = PlanCommandHelpers.ReadPlan(planFolder);
+            var verifications = plan.Verifications;
+
+            if (!string.IsNullOrEmpty(status))
+                verifications = verifications.Where(v => v.Status.Equals(status, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            if (verifications.Count == 0)
+                return "No verifications found.";
+
+            var sb = new StringBuilder();
+            sb.AppendLine($"Found {verifications.Count} {(verifications.Count == 1 ? "verification" : "verifications")}:");
+            foreach (var v in verifications)
+                sb.AppendLine($"- {v.Name} = {v.Status}");
+
+            return sb.ToString();
+        }
+        catch (Exception ex)
+        {
+            return $"Error: {ex.Message}";
+        }
+    }
+
+    [McpServerTool(Name = "tendril_plan_verification_add"), Description("Add a verification to a plan")]
+    public string VerificationAdd(
+        [Description("Plan ID")] string planId,
+        [Description("Verification name (e.g., DotnetBuild)")] string name,
+        [Description("Initial status: Pending, Pass, Fail, Skipped (default: Pending)")] string? status = null)
+    {
+        return ModifyPlan(planId, plan =>
+        {
+            if (plan.Verifications.Any(v => v.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
+                throw new InvalidOperationException($"Verification '{name}' already exists");
+
+            plan.Verifications.Add(new PlanVerificationEntry
+            {
+                Name = name,
+                Status = status ?? VerificationStatus.Pending
+            });
+        }, $"Added verification '{name}'");
+    }
+
+    [McpServerTool(Name = "tendril_plan_verification_remove"), Description("Remove a verification from a plan")]
+    public string VerificationRemove(
+        [Description("Plan ID")] string planId,
+        [Description("Verification name")] string name)
+    {
+        return ModifyPlan(planId, plan =>
+        {
+            var match = plan.Verifications.FirstOrDefault(v => v.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+            if (match == null)
+                throw new InvalidOperationException($"Verification '{name}' not found");
+            plan.Verifications.Remove(match);
+        }, $"Removed verification '{name}'");
+    }
+
+    private static int ResolveNextRevisionNumber(string revisionsDir)
+    {
+        var max = 0;
+        foreach (var file in Directory.GetFiles(revisionsDir, "*.md"))
+        {
+            var name = Path.GetFileNameWithoutExtension(file);
+            if (int.TryParse(name, out var num) && num > max)
+                max = num;
+        }
+        return max + 1;
     }
 
     private string ModifyPlan(string planId, Action<PlanYaml> modifier, string successMessage)
