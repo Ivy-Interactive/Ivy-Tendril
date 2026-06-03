@@ -8,7 +8,7 @@ public sealed class AgentInstructionsCommand(IConfigService config) : Command<Ag
 {
     public class Settings : CommandSettings { }
 
-    public override int Execute(CommandContext context, Settings settings)
+    protected override int Execute(CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
         var prompt = AgentPromptCompiler.Compile(config);
         if (prompt == null)
