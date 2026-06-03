@@ -35,6 +35,7 @@ Before processing, read `plan.yaml` and check the `state` field. After reading, 
 - Read the latest revision for the plan title and description
 - Find the `prRule` for each repo from the firmware header
 - **Check for custom options:** Read the following firmware header values (if present). These override the default behavior in subsequent steps. If not present, all flags default to the behavior defined by the repo's `prRule`.
+  - `PrSolveMergeConflicts` — `true`/`false` (default: `true`)
   - `PrMerge` — `true`/`false` (default: `true`)
   - `PrDeleteBranch` — `true`/`false` (default: `true`)
   - `PrIncludeArtifacts` — `true`/`false` (default: `true`)
@@ -122,20 +123,13 @@ gh pr comment <pr-number> --repo <owner/repo> --body "<comment>"
 
 If no custom options or `comment` is empty, skip this step.
 
-### 4. Apply PR Rule
+### 3.7. Resolve Merge Conflicts (if enabled)
 
-Report status: `tendril job status TendrilJobId --message "Applying PR rule..."`
+If `PrSolveMergeConflicts` is `true` (default), check each PR for merge conflicts and resolve them proactively:
 
-**!MANDATORY** — look up the `prRule` for this repo in the `RepoConfigs` firmware header.
+Report status: `tendril job status TendrilJobId --message "Checking for merge conflicts..."`
 
-**Custom options override:** If custom options exist, the flags override the yolo behavior:
-- If `merge` is `false`: skip the entire merge step (treat as `default` rule regardless of prRule)
-- If `merge` is `true` but `deleteBranch` is `false`: merge without `--delete-branch` flag
-- If `merge` and `deleteBranch` are both `true`: behave exactly like `yolo`
-
-**Merge conflict handling (applies to ALL merge paths below):**
-
-Before calling `gh pr merge`, check for merge conflicts:
+For each PR created in step 3:
 
 ```bash
 # Poll mergeability (GitHub computes it asynchronously)
@@ -148,13 +142,13 @@ done
 
 | Mergeable status | Action |
 |---|---|
-| `MERGEABLE` | Proceed with merge |
-| `CONFLICTING` | **Resolve conflicts** (see below), then retry |
-| `UNKNOWN` (after 30s timeout) | Fail conservatively |
+| `MERGEABLE` | No action needed, proceed to step 4 |
+| `CONFLICTING` | **Resolve conflicts** (see below), then continue |
+| `UNKNOWN` (after 30s timeout) | Proceed to step 4 (assume clean) |
 
 #### Conflict Resolution
 
-When the PR status is `CONFLICTING`, resolve the conflict locally before retrying:
+When the PR status is `CONFLICTING`, resolve the conflict locally:
 
 1. **Locate the worktree** for this repo. If the worktree still exists in `<TendrilPlanFolder>/Worktrees/<repo-folder-name>`, use it. If the worktree was already removed, use the original repo path — create or force-update the local branch first: `git branch -f <branch-name> <sha>` and `git checkout <branch-name>`.
 
@@ -189,9 +183,26 @@ When the PR status is `CONFLICTING`, resolve the conflict locally before retryin
    git push origin <branch>
    ```
 
-8. **Re-check mergeability** (poll up to 30s again). If now `MERGEABLE`, proceed with the merge. If still `CONFLICTING` after resolution, **fail with a detailed error** explaining which files could not be resolved.
+8. **Re-check mergeability** (poll up to 30s again). If now `MERGEABLE`, proceed to step 4. If still `CONFLICTING` after resolution, **fail with a detailed error** explaining which files could not be resolved.
 
 **Important:** Only attempt conflict resolution **once**. If the second mergeability check still shows CONFLICTING, fail the execution — infinite retry loops waste tokens and time.
+
+This step runs regardless of whether a merge will be performed in step 4. Even if `PrMerge` is `false`, resolving conflicts ensures the PR is ready for manual review or future merging.
+
+If `PrSolveMergeConflicts` is `false`, skip this step entirely — the PR may be left in a conflicting state.
+
+### 4. Apply PR Rule
+
+Report status: `tendril job status TendrilJobId --message "Applying PR rule..."`
+
+**!MANDATORY** — look up the `prRule` for this repo in the `RepoConfigs` firmware header.
+
+**Custom options override:** If custom options exist, the flags override the yolo behavior:
+- If `merge` is `false`: skip the entire merge step (treat as `default` rule regardless of prRule)
+- If `merge` is `true` but `deleteBranch` is `false`: merge without `--delete-branch` flag
+- If `merge` and `deleteBranch` are both `true`: behave exactly like `yolo`
+
+**Note:** Merge conflict resolution is handled in step 3.7 if `PrSolveMergeConflicts` was `true`. By this step, the PR should already be conflict-free (if step 3.7 ran successfully).
 
 **If `yolo` (and no custom options overriding):**
 ```bash

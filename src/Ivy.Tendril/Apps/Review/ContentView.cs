@@ -282,7 +282,7 @@ public class ContentView(
         {
             if (allYolo)
             {
-                jobService.StartJob(new CreatePrArgs(selectedPlan.FolderPath));
+                jobService.StartJob(new CreatePrArgs(selectedPlan.FolderPath, SolveMergeConflicts: true));
                 planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
                 refreshPlans();
             }
