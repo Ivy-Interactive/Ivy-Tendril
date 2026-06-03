@@ -128,7 +128,7 @@ public class ContentView(
         scrollableContent |= new Markdown(selectedRecommendation.Description);
 
         // Action bar (secondary actions)
-        var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(1)
+        var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(2)
                         | new Button("Accept with Notes").Icon(Icons.CircleCheck).Outline().ShortcutKey("w")
                             .OnClick(() => showNotesDialog())
                         | new Button("View Plan").Icon(Icons.ExternalLink).Outline().ShortcutKey("d").OnClick(() =>
@@ -138,9 +138,9 @@ public class ContentView(
                                 showPlan(fullPath);
                         })
                         | new Button("Previous").Icon(Icons.ChevronLeft).Outline().ShortcutKey("p")
-                            .OnClick(() => GoToPrevious())
+                            .OnClick(GoToPrevious)
                         | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().ShortcutKey("n")
-                            .OnClick(() => GoToNext())
+                            .OnClick(GoToNext)
                         | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
                             new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
                                 .OnSelect(() =>
