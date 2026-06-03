@@ -367,7 +367,7 @@ public class Program
     {
         // If the executing assembly is in the .store / .dotnet folder, it's a global tool invocation
         var path = System.AppContext.BaseDirectory;
-        if (path.Contains(".store", StringComparison.OrdinalIgnoreCase) || 
+        if (path.Contains(".store", StringComparison.OrdinalIgnoreCase) ||
             path.Contains(".dotnet", StringComparison.OrdinalIgnoreCase))
         {
             return true;
@@ -563,6 +563,9 @@ public class Program
 
             config.AddCommand<ModelsCommand>("models")
                 .WithDescription("List available models and pricing for agent CLIs");
+
+            config.AddCommand<AgentInstructionsCommand>("agent-instructions")
+                .WithDescription("Print the agent system prompt");
 
             config.AddBranch("trash", trash =>
             {
