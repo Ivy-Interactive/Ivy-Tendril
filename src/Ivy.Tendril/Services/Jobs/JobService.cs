@@ -222,6 +222,8 @@ public class JobService : IJobService
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
             _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);
 
+        _completionHandler.HandleWaitForJobsDependents(job, _jobs, RaiseNotification, StartJobSkipDepCheck, PersistJob);
+
         RaiseJobsStructureChanged();
 
         // Try to start queued jobs now that a slot is free
