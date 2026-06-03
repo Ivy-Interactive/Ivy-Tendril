@@ -9,6 +9,7 @@ using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Apps.Views.Tabs;
 using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Git;
 using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.Logging;
 
@@ -273,28 +274,43 @@ public class ContentView(
                          .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
                          .Muted("plans", word: true);
 
-        var repoPaths = selectedPlan.GetEffectiveRepoPaths(config);
-        var project = config.GetProject(selectedPlan.Project);
-        var allYolo = repoPaths.All(rp =>
-            project?.GetRepoRef(rp)?.PrRule == "yolo");
-
-        var createPrBtn = new Button("Create PR").Icon(Icons.GitPullRequest).Primary().OnClick(() =>
+        if (selectedPlan.Commits.Count > 0)
         {
-            if (allYolo)
-            {
-                jobService.StartJob(new CreatePrArgs(selectedPlan.FolderPath, SolveMergeConflicts: true));
-                planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
-                refreshPlans();
-            }
-            else
-            {
-                showCustomPrDialog();
-            }
-        }).ShortcutKey("m");
+            var repoPaths = selectedPlan.GetEffectiveRepoPaths(config);
+            var project = config.GetProject(selectedPlan.Project);
+            var allYolo = repoPaths.All(rp =>
+                project?.GetRepoRef(rp)?.PrRule == "yolo");
 
-        header |= allYolo
-            ? createPrBtn.WithConfetti(AnimationTrigger.Click)
-            : createPrBtn;
+            var createPrBtn = new Button("Create PR").Icon(Icons.GitPullRequest).Primary().OnClick(() =>
+            {
+                if (allYolo)
+                {
+                    jobService.StartJob(new CreatePrArgs(selectedPlan.FolderPath, SolveMergeConflicts: true));
+                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
+                    refreshPlans();
+                }
+                else
+                {
+                    showCustomPrDialog();
+                }
+            }).ShortcutKey("m");
+
+            header |= allYolo
+                ? createPrBtn.WithConfetti(AnimationTrigger.Click)
+                : createPrBtn;
+        }
+        else
+        {
+            header |= new Button("Complete Plan").Icon(Icons.CircleCheck).Primary().OnClick(() =>
+            {
+                // Optimistic UI - update state and refresh immediately
+                planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+                refreshPlans();
+
+                // Fire and forget - clean up worktrees in the background
+                Task.Run(() => WorktreeCleanupService.RemoveWorktrees(selectedPlan.FolderPath));
+            }).ShortcutKey("m");
+        }
 
         return header;
     }
