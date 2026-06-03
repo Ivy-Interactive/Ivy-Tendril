@@ -51,3 +51,8 @@ TestResults/
 ## Frontend build artifacts
 node_modules/
 dist/
+
+## Local build outputs
+publish/
+releases/
+build_local.sh

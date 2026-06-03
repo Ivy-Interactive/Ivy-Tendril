@@ -94,7 +94,9 @@ public static class PathHelper
 
     public static void AugmentPath(bool forceShellPath = false)
     {
+        Ivy.Helpers.CrashLog.Write($"[PathHelper] AugmentPath starting. forceShellPath={forceShellPath}");
         var pathVar = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+        Ivy.Helpers.CrashLog.Write($"[PathHelper] AugmentPath current PATH: '{pathVar}'");
         var separator = OperatingSystem.IsWindows() ? ';' : ':';
         var dirs = new HashSet<string>(pathVar.Split(separator, StringSplitOptions.RemoveEmptyEntries),
             OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
@@ -130,7 +132,7 @@ public static class PathHelper
         // 2. Add existing PATH directories
         pathList.AddRange(dirs);
 
-        // 3. For macOS/Linux, append common system search paths and login shell paths
+        // 3. For macOS/Linux, append common system search paths and login shell environment variables
         if (!OperatingSystem.IsWindows())
         {
             var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -147,15 +149,33 @@ public static class PathHelper
 
             if (forceShellPath)
             {
-                var shellPath = GetLoginShellPath();
-                if (!string.IsNullOrEmpty(shellPath))
+                var shellEnv = GetLoginShellEnv();
+                if (shellEnv != null)
                 {
-                    var shellDirs = shellPath.Split(':', StringSplitOptions.RemoveEmptyEntries);
-                    foreach (var dir in shellDirs)
+                    foreach (var kvp in shellEnv)
                     {
-                        if (!commonDirs.Contains(dir))
+                        var key = kvp.Key;
+                        var val = kvp.Value;
+                        if (string.Equals(key, "PATH", StringComparison.OrdinalIgnoreCase))
                         {
-                            commonDirs.Add(dir);
+                            var shellDirs = val.Split(':', StringSplitOptions.RemoveEmptyEntries);
+                            foreach (var dir in shellDirs)
+                            {
+                                if (!commonDirs.Contains(dir))
+                                {
+                                    commonDirs.Add(dir);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            var existingVal = Environment.GetEnvironmentVariable(key);
+                            if (string.IsNullOrEmpty(existingVal))
+                            {
+                                Environment.SetEnvironmentVariable(key, val);
+                                var logValue = IsSecretKey(key) ? "[SECRET REDACTED]" : val;
+                                Ivy.Helpers.CrashLog.Write($"[PathHelper] Imported environment variable from shell: {key}={logValue}");
+                            }
                         }
                     }
                 }
@@ -171,29 +191,42 @@ public static class PathHelper
         }
 
         var newPath = string.Join(separator, pathList);
+        Ivy.Helpers.CrashLog.Write($"[PathHelper] AugmentPath new PATH: '{newPath}'");
         if (newPath != pathVar)
         {
             Environment.SetEnvironmentVariable("PATH", newPath);
+            Ivy.Helpers.CrashLog.Write("[PathHelper] AugmentPath updated PATH environment variable successfully.");
         }
     }
 
-    private static string? GetLoginShellPath()
+    private static bool IsSecretKey(string key)
     {
-        // Try interactive login shell first (loads both profile and rc files)
-        var path = RunShellForPath("-ilc");
-        if (string.IsNullOrEmpty(path))
-        {
-            // Fallback to login shell (loads profile files)
-            path = RunShellForPath("-lc");
-        }
-        return path;
+        var normalized = key.ToUpperInvariant();
+        return normalized.Contains("KEY") || 
+               normalized.Contains("SECRET") || 
+               normalized.Contains("TOKEN") || 
+               normalized.Contains("PASSWORD") || 
+               normalized.Contains("AUTH") || 
+               normalized.Contains("CREDENTIAL");
     }
 
-    private static string? RunShellForPath(string argsFlag)
+    private static Dictionary<string, string>? GetLoginShellEnv()
+    {
+        Ivy.Helpers.CrashLog.Write("[PathHelper] GetLoginShellEnv starting");
+        var env = RunShellForEnv("-ilc");
+        if (env == null || env.Count == 0)
+        {
+            env = RunShellForEnv("-lc");
+        }
+        return env;
+    }
+
+    private static Dictionary<string, string>? RunShellForEnv(string argsFlag)
     {
         try
         {
             var shell = Environment.GetEnvironmentVariable("SHELL");
+            Ivy.Helpers.CrashLog.Write($"[PathHelper] RunShellForEnv: SHELL env var is '{shell ?? "null"}'");
             if (string.IsNullOrEmpty(shell))
             {
                 shell = OperatingSystem.IsMacOS() ? "/bin/zsh" : "/bin/bash";
@@ -207,44 +240,70 @@ public static class PathHelper
                     shell = "/bin/bash";
                 }
             }
+            Ivy.Helpers.CrashLog.Write($"[PathHelper] RunShellForEnv: using shell '{shell}'");
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = shell,
+                RedirectStandardOutput = true,
+                RedirectStandardError = false, // Do not redirect to prevent buffer overflow hangs
+                RedirectStandardInput = true,  // Redirect to EOF so child processes don't wait for input
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            psi.ArgumentList.Add(argsFlag);
+            psi.ArgumentList.Add("echo ---ENV_START---; env; echo ---ENV_END---");
 
             using var process = new Process
             {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = shell,
-                    Arguments = $"{argsFlag} \"echo ---PATH_START---; echo \\$PATH; echo ---PATH_END---\"",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = false, // Do not redirect to prevent buffer overflow hangs
-                    RedirectStandardInput = true,  // Redirect to EOF so child processes don't wait for input
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
+                StartInfo = psi
             };
 
+            Ivy.Helpers.CrashLog.Write($"[PathHelper] RunShellForEnv: starting process with args: {string.Join(" ", process.StartInfo.ArgumentList)}");
             process.Start();
             
-            // Wait up to 2 seconds for the shell to print its PATH
             if (process.WaitForExit(TimeSpan.FromSeconds(2)))
             {
                 var output = process.StandardOutput.ReadToEnd();
-                var match = Regex.Match(output, @"---PATH_START---\r?\n(.*?)\r?\n---PATH_END---", RegexOptions.Singleline);
+                var match = Regex.Match(output, @"---ENV_START---\r?\n(.*?)\r?\n---ENV_END---", RegexOptions.Singleline);
                 if (match.Success)
                 {
-                    return match.Groups[1].Value.Trim();
+                    var res = new Dictionary<string, string>();
+                    var lines = match.Groups[1].Value.Split('\n');
+                    foreach (var line in lines)
+                    {
+                        var idx = line.IndexOf('=');
+                        if (idx > 0)
+                        {
+                            var key = line[..idx].Trim();
+                            var val = line[(idx + 1)..].Trim('\r', '\n');
+                            if (!string.IsNullOrEmpty(key))
+                            {
+                                res[key] = val;
+                            }
+                        }
+                    }
+                    Ivy.Helpers.CrashLog.Write($"[PathHelper] RunShellForEnv: parsed {res.Count} variables successfully");
+                    return res;
+                }
+                else
+                {
+                    Ivy.Helpers.CrashLog.Write("[PathHelper] RunShellForEnv: regex did not match markers");
                 }
             }
             else
             {
+                Ivy.Helpers.CrashLog.Write("[PathHelper] RunShellForEnv: process timed out waiting for exit");
                 try { process.Kill(); } catch { }
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Fallback
+            Ivy.Helpers.CrashLog.Write($"[PathHelper] RunShellForEnv: exception occurred: {ex}");
         }
         return null;
     }
+
 
 
     public static string ResolvePath(string raw)
