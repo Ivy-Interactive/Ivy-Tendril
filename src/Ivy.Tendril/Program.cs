@@ -42,6 +42,7 @@ public class Program
     public static async Task<int> Main(string[] args)
     {
         PathHelper.AugmentPath(forceShellPath: false);
+        PathHelper.EnsureCliSymlink();
 
         if (OperatingSystem.IsWindows())
         {

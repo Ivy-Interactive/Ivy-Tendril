@@ -199,6 +199,76 @@ public static class PathHelper
         }
     }
 
+    public static void EnsureCliSymlink()
+    {
+        if (OperatingSystem.IsWindows()) return;
+
+        try
+        {
+            var exePath = Environment.ProcessPath;
+            if (string.IsNullOrEmpty(exePath) || !File.Exists(exePath)) return;
+
+            // Only run if we are inside a packaged macOS App bundle (.app)
+            if (OperatingSystem.IsMacOS() && !exePath.Contains(".app/Contents/MacOS/"))
+            {
+                return;
+            }
+
+            // Target locations in order of preference
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var candidates = new List<string>
+            {
+                "/usr/local/bin",
+                Path.Combine(home, ".local", "bin")
+            };
+
+            foreach (var binDir in candidates)
+            {
+                try
+                {
+                    if (!Directory.Exists(binDir))
+                    {
+                        Directory.CreateDirectory(binDir);
+                    }
+
+                    var symlinkPath = Path.Combine(binDir, "tendril");
+
+                    if (File.Exists(symlinkPath))
+                    {
+                        try
+                        {
+                            var target = File.ResolveLinkTarget(symlinkPath, true);
+                            if (target != null && string.Equals(target.FullName, exePath, StringComparison.Ordinal))
+                            {
+                                // Symlink is already pointing to the correct path
+                                return;
+                            }
+                        }
+                        catch
+                        {
+                            // Ignore resolve error, recreate it
+                        }
+
+                        File.Delete(symlinkPath);
+                    }
+
+                    File.CreateSymbolicLink(symlinkPath, exePath);
+                    Ivy.Helpers.CrashLog.Write($"[PathHelper] Created CLI symlink at {symlinkPath} -> {exePath}");
+                    break; // Successfully created symlink, no need to try other locations
+                }
+                catch (Exception ex)
+                {
+                    // Fall back to next directory
+                    Ivy.Helpers.CrashLog.Write($"[PathHelper] Failed to create symlink in {binDir}: {ex.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Ivy.Helpers.CrashLog.Write($"[PathHelper] EnsureCliSymlink failed: {ex}");
+        }
+    }
+
     private static bool IsSecretKey(string key)
     {
         var normalized = key.ToUpperInvariant();
