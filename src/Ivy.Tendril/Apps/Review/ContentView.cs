@@ -134,25 +134,15 @@ public class ContentView(
                             new Dictionary<string, List<string>>(), new List<PlanContentHelpers.CommitRow>(),
                             new Dictionary<string, bool>(), new List<(string Name, bool ConditionMet)>(), null);
 
-                    // Recommendations from plan.yaml
+                    // Recommendations from database (or plan.yaml fallback)
                     List<RecommendationYaml> recs;
                     try
                     {
-                        var planYamlPath = Path.Combine(folderPath, "plan.yaml");
-                        if (File.Exists(planYamlPath))
-                        {
-                            var yaml = FileHelper.ReadAllText(planYamlPath);
-                            var planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml);
-                            recs = planYaml?.Recommendations ?? new List<RecommendationYaml>();
-                        }
-                        else
-                        {
-                            recs = new List<RecommendationYaml>();
-                        }
+                        recs = planService.GetRecommendationsForPlan(selectedPlanState.Value.FolderName);
                     }
                     catch (Exception ex)
                     {
-                        logger.LogWarning(ex, "Failed to parse recommendations from plan.yaml for {FolderPath}", folderPath);
+                        logger.LogWarning(ex, "Failed to get recommendations for {FolderPath}", folderPath);
                         recs = new List<RecommendationYaml>();
                     }
 
@@ -533,9 +523,7 @@ public class ContentView(
                     var buttonRow = Layout.Horizontal().Gap(1)
                                     | new Button("Accept").Icon(Icons.Check).Primary().OnClick(() =>
                                     {
-                                        planService.ResetVerificationsForRetry(selectedPlan.FolderName);
-                                        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Executing);
-                                        planService.UpdateRecommendationState(selectedPlan.FolderName, recTitle, RecommendationStatus.Accepted);
+                                        planService.AcceptRecommendationAndRetry(selectedPlan.FolderName, recTitle);
                                         jobService.StartJob(new RetryPlanArgs(selectedPlan.FolderPath, rec.Description));
                                         refreshPlans();
                                         planContentQuery.Mutator.Revalidate();
