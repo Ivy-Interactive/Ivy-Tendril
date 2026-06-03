@@ -179,6 +179,18 @@ public static class PathHelper
 
     private static string? GetLoginShellPath()
     {
+        // Try interactive login shell first (loads both profile and rc files)
+        var path = RunShellForPath("-ilc");
+        if (string.IsNullOrEmpty(path))
+        {
+            // Fallback to login shell (loads profile files)
+            path = RunShellForPath("-lc");
+        }
+        return path;
+    }
+
+    private static string? RunShellForPath(string argsFlag)
+    {
         try
         {
             var shell = Environment.GetEnvironmentVariable("SHELL");
@@ -201,9 +213,10 @@ public static class PathHelper
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = shell,
-                    Arguments = "-ilc \"echo ---PATH_START---; echo \\$PATH; echo ---PATH_END---\"",
+                    Arguments = $"{argsFlag} \"echo ---PATH_START---; echo \\$PATH; echo ---PATH_END---\"",
                     RedirectStandardOutput = true,
-                    RedirectStandardError = true,
+                    RedirectStandardError = false, // Do not redirect to prevent buffer overflow hangs
+                    RedirectStandardInput = true,  // Redirect to EOF so child processes don't wait for input
                     UseShellExecute = false,
                     CreateNoWindow = true
                 }
@@ -211,8 +224,8 @@ public static class PathHelper
 
             process.Start();
             
-            // Wait up to 3 seconds for the shell to print its PATH
-            if (process.WaitForExit(TimeSpan.FromSeconds(3)))
+            // Wait up to 2 seconds for the shell to print its PATH
+            if (process.WaitForExit(TimeSpan.FromSeconds(2)))
             {
                 var output = process.StandardOutput.ReadToEnd();
                 var match = Regex.Match(output, @"---PATH_START---\r?\n(.*?)\r?\n---PATH_END---", RegexOptions.Singleline);
