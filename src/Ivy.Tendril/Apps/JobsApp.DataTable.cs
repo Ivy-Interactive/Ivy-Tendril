@@ -101,25 +101,36 @@ public partial class JobsApp
                         var fullPath = Path.Combine(planService.PlansDirectory, job.PlanFile);
                         if (Directory.Exists(fullPath))
                         {
-                            var plan = planService.GetPlanByFolder(fullPath);
-                            if (plan != null)
+                            // If job is active (Running/Queued/Pending/Blocked), always show in sheet
+                            // to keep user in Jobs context
+                            var isActiveJob = job.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked;
+
+                            if (isActiveJob)
                             {
-                                if (plan.Status is PlanStatus.Draft or PlanStatus.Blocked)
+                                showPlan(fullPath);
+                            }
+                            else
+                            {
+                                var plan = planService.GetPlanByFolder(fullPath);
+                                if (plan != null)
                                 {
-                                    nav.Navigate<DraftsApp>(new DraftsAppArgs(plan.FolderName));
-                                }
-                                else if (plan.Status is PlanStatus.ReadyForReview or PlanStatus.Failed)
-                                {
-                                    nav.Navigate<ReviewApp>(new ReviewAppArgs(plan.FolderName));
+                                    if (plan.Status is PlanStatus.Draft or PlanStatus.Blocked)
+                                    {
+                                        nav.Navigate<DraftsApp>(new DraftsAppArgs(plan.FolderName));
+                                    }
+                                    else if (plan.Status is PlanStatus.ReadyForReview or PlanStatus.Failed)
+                                    {
+                                        nav.Navigate<ReviewApp>(new ReviewAppArgs(plan.FolderName));
+                                    }
+                                    else
+                                    {
+                                        showPlan(fullPath);
+                                    }
                                 }
                                 else
                                 {
                                     showPlan(fullPath);
                                 }
-                            }
-                            else
-                            {
-                                showPlan(fullPath);
                             }
                         }
                     }

@@ -95,11 +95,13 @@ public class AddProjectDialog(
                 editRepos,
                 editName,
                 isStepLoading,
-                onNext: () => {
+                onNext: () =>
+                {
                     skipAgent.Set(false);
                     step.Set(1);
                 },
-                onSkip: () => {
+                onSkip: () =>
+                {
                     skipAgent.Set(true);
                     step.Set(1);
                 },
@@ -113,12 +115,14 @@ public class AddProjectDialog(
                 editName,
                 isStepLoading,
                 session,
-                onBack: () => {
+                onBack: () =>
+                {
                     session.Reset();
                     isStepLoading.Set(false);
                     step.Set(0);
                 },
-                onNext: () => {
+                onNext: () =>
+                {
                     step.Set(2);
                 },
                 onSkip: null,
@@ -128,11 +132,13 @@ public class AddProjectDialog(
                 editName,
                 isStepLoading,
                 session,
-                onBack: () => {
+                onBack: () =>
+                {
                     step.Set(0);
                     session.Reset();
                 },
-                onNext: () => {
+                onNext: () =>
+                {
                     hasCreated.Set(false); // Clear so we don't delete on close
                     isOpen.Set(false);
                     refreshToken.Refresh();

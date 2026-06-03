@@ -229,7 +229,7 @@ public class CodingAgentStepView(
     private static object BuildPicker(Action<string> onSelect, string? errorMessage)
     {
         var grid = Layout.Grid().Columns(3).Gap(2);
-        
+
         grid = Agents.Aggregate(grid, (current, a) => current | new Card(Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(0) | a.Logo.ToIcon().Width(Size.Px(32)).Height(Size.Px(32)) | Text.Block(a.Label)).OnClick(() => onSelect(a.Key)));
 
         return Layout.Vertical().Margin(0, 0, 0, 20)

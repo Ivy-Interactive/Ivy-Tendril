@@ -150,7 +150,7 @@ public class ProjectRepoPickerView(
         return Layout.Vertical().Width(Size.Full()).Gap(2)
                | Text.Label("Add one or more Git repositories")
                | (addingError.Value != null ? Text.Danger(addingError.Value) : null!)
-               | (Layout.Horizontal() | pickerControls  | addButton)
+               | (Layout.Horizontal() | pickerControls | addButton)
                //| (current.Count > 0 ? new Separator() : null!)
                | (current.Count > 0 ? listLayout : null!);
     }

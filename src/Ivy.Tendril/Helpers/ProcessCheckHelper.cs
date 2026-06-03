@@ -70,21 +70,21 @@ public static class ProcessCheckHelper
                 if (proc is null) return (false, "Failed to start process.");
                 var outTask = proc.StandardOutput.ReadToEndAsync();
                 var errTask = proc.StandardError.ReadToEndAsync();
-                
+
                 var exited = proc.WaitForExitOrKill(timeoutMs);
                 if (!exited)
                 {
                     return (false, $"Process timed out after {timeoutMs}ms.");
                 }
-                
+
                 var stdout = await outTask;
                 var stderr = await errTask;
-                
+
                 if (proc.ExitCode == 0)
                 {
                     return (true, (string?)null);
                 }
-                
+
                 var errorMsg = string.IsNullOrWhiteSpace(stderr) ? stdout : stderr;
                 var details = string.IsNullOrWhiteSpace(errorMsg) ? $"Exit code {proc.ExitCode}" : $"Exit code {proc.ExitCode}: {errorMsg.Trim()}";
                 return (false, details);
