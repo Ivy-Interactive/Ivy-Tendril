@@ -178,13 +178,49 @@ Content-Type: application/json
 
 Starts a `CreatePlan` job and returns the job ID.
 
-## Job Status
+## Jobs
 
-Job status is reported via the CLI (not the REST API). Promptware agents use the `tendril job status` command to update progress:
+### Start Job
 
-```bash
-tendril job status <job-id> --message "Running verifications..."
-tendril job status <job-id> --message "Planning..." --plan-id 01234 --plan-title "My Plan"
+```
+POST /api/jobs
+Content-Type: application/json
+
+{ "$type": "ExecutePlan", "folderPath": "D:\\TendrilHome\\Plans\\00042-fix-login" }
 ```
 
-The `<job-id>` is provided as the `TendrilJobId` firmware header in the agent's prompt.
+Starts a job and returns the job ID. The request body is a polymorphic `JobArgsBase` — the `$type` discriminator selects the job type.
+
+Available types: `CreatePlan`, `ExecutePlan`, `RetryPlan`, `ExpandPlan`, `UpdatePlan`, `SplitPlan`, `CreatePr`, `CreateIssue`.
+
+Response:
+```json
+{ "jobId": "00143", "status": "Started" }
+```
+
+### Get Job
+
+```
+GET /api/jobs/{jobId}
+```
+
+Returns the current status of a job.
+
+### Update Job Status
+
+```
+PUT /api/jobs/{jobId}/status
+Content-Type: application/json
+
+{ "message": "Running verifications...", "planId": "01234", "planTitle": "My Plan" }
+```
+
+Updates progress for a running job. Used by promptware agents via the `tendril job status` CLI command.
+
+### Health Check
+
+```
+GET /api/jobs/health
+```
+
+Returns `{ "status": "ok", "pid": 12345 }`. Used for master election validation.

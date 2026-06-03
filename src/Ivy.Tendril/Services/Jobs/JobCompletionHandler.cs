@@ -617,13 +617,19 @@ internal class JobCompletionHandler
         {
             PromptwareLogWriter.WriteLog(job);
         }
-        catch { }
+        catch
+        {
+            // ignored
+        }
 
         try
         {
-            MoveStatusFileIfNeeded(job);
+            MoveCliLogIfNeeded(job);
         }
-        catch { }
+        catch
+        {
+            // ignored
+        }
 
         if (_planReaderService == null || string.IsNullOrEmpty(job.PlanFile))
             return;
@@ -639,16 +645,18 @@ internal class JobCompletionHandler
         }
         catch
         {
+            // ignored
         }
     }
 
-    private void MoveStatusFileIfNeeded(JobItem job)
+    private void MoveCliLogIfNeeded(JobItem job)
     {
-        if (string.IsNullOrEmpty(job.StatusFilePath)) return;
+        var logPath = JobStatusFile.GetCliLogPath(job.Id);
+        if (!File.Exists(logPath)) return;
 
         var planFolder = ResolvePlanFolder(job);
         if (!string.IsNullOrEmpty(planFolder) && Directory.Exists(planFolder))
-            JobStatusFile.MoveLogToPlanFolder(job.StatusFilePath, planFolder, job.Type, job.Id);
+            JobStatusFile.MoveLogToPlanFolder(logPath, planFolder, job.Type, job.Id);
     }
 
     private string BuildJobLogContent(JobItem job)

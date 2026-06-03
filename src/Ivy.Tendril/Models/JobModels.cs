@@ -82,12 +82,9 @@ public record JobItem
     // Pre-allocated plan ID for CreatePlan jobs (used for filesystem verification)
     public string? AllocatedPlanId { get; set; }
 
-    // Reported by the agent via the status file during execution
+    // Reported by the agent via HTTP during execution
     public string? ReportedPlanId { get; set; }
     public string? ReportedPlanTitle { get; set; }
-
-    // Path to the status file used for cross-process status updates
-    public string? StatusFilePath { get; set; }
 
     // Automatic logging metadata (transient, not persisted)
     [JsonIgnore] public string? CompiledPrompt { get; set; }
@@ -208,19 +205,6 @@ public record JobItem
         catch (Exception ex)
         {
             logger?.LogWarning(ex, "Job {JobId}: Failed to dispose TimeoutCts", Id);
-        }
-
-        try
-        {
-            if (StatusFilePath != null && File.Exists(StatusFilePath))
-            {
-                File.Delete(StatusFilePath);
-                logger?.LogDebug("Job {JobId}: Status file deleted successfully", Id);
-            }
-        }
-        catch (Exception ex)
-        {
-            logger?.LogWarning(ex, "Job {JobId}: Failed to delete status file at {StatusFilePath}", Id, StatusFilePath);
         }
 
         Process = null;
