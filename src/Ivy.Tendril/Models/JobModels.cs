@@ -55,6 +55,7 @@ public record JobItem
     public string Provider { get; init; } = "claude";
     public string? Model { get; set; }
     public int Priority { get; init; }
+    public List<string>? WaitForJobIds { get; init; }
     public decimal? Cost { get; set; }
     public int? Tokens { get; set; }
 

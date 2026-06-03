@@ -17,6 +17,7 @@ public abstract record JobArgsBase
     public abstract string Type { get; }
     [JsonIgnore]
     public virtual string? PlanFolder => null;
+    public List<string>? WaitForJobs { get; init; }
 }
 
 public record CreatePlanArgs(
