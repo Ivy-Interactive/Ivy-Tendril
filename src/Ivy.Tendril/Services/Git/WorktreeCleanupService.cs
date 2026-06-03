@@ -226,7 +226,7 @@ public class WorktreeCleanupService : IStartable, IDisposable
         try
         {
             logger?.LogInformation("Shutting down .NET build servers to release file locks");
-            var psi = new ProcessStartInfo("dotnet", "build-server shutdown")
+            var psi = new ProcessStartInfo(PathHelper.GetDotnetPath(), "build-server shutdown")
             {
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,

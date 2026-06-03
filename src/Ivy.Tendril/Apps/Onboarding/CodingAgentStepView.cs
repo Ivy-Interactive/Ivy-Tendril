@@ -260,10 +260,20 @@ public class CodingAgentStepView(
                 return success;
             });
 
+        SoftwareCheck? dotnetCheck = null;
+        dotnetCheck = new SoftwareCheck(".NET 10 SDK", "dotnet", "https://dotnet.microsoft.com/download/dotnet/10.0", true,
+            async () =>
+            {
+                var (success, error) = await ProcessCheckHelper.TryCheckCommand(PathHelper.GetDotnetPath(), "--version");
+                if (dotnetCheck != null) dotnetCheck.LastError = error;
+                return success;
+            });
+
         return
         [
             gitCheck,
             pwshCheck,
+            dotnetCheck,
             BuildAgentCheck(runner, agentKey)
         ];
     }

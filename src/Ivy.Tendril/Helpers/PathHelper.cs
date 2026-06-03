@@ -60,41 +60,102 @@ public static class PathHelper
         return "pwsh";
     }
 
+    public static string? GetBundledDotnetPath()
+    {
+        var dir = Path.Combine(System.AppContext.BaseDirectory, "dotnet");
+        var exe = Path.Combine(dir, OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet");
+        if (File.Exists(exe))
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                try
+                {
+                    var mode = File.GetUnixFileMode(exe);
+                    if (!mode.HasFlag(UnixFileMode.UserExecute))
+                    {
+                        File.SetUnixFileMode(exe, mode | UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute);
+                    }
+                }
+                catch
+                {
+                    // Best-effort permission repair
+                }
+            }
+            return exe;
+        }
+        return null;
+    }
+
+    public static string GetDotnetPath()
+    {
+        return GetBundledDotnetPath() ?? "dotnet";
+    }
+
     public static void AugmentPath()
     {
-        if (OperatingSystem.IsWindows()) return;
-
         var pathVar = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
-        var separator = ':';
-        var dirs = new HashSet<string>(pathVar.Split(separator, StringSplitOptions.RemoveEmptyEntries));
+        var separator = OperatingSystem.IsWindows() ? ';' : ':';
+        var dirs = new HashSet<string>(pathVar.Split(separator, StringSplitOptions.RemoveEmptyEntries),
+            OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
 
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var commonDirs = new[]
+        var pathList = new List<string>();
+
+        // 1. Prepend bundled tools directories to prioritize them
+        var baseDir = System.AppContext.BaseDirectory;
+        var bundledDotnetDir = Path.Combine(baseDir, "dotnet");
+        if (Directory.Exists(bundledDotnetDir))
         {
-            "/opt/homebrew/bin",
-            "/opt/homebrew/sbin",
-            "/usr/local/bin",
-            "/usr/local/sbin",
-            Path.Combine(home, ".dotnet", "tools"),
-            Path.Combine(home, ".npm-global", "bin"),
-            Path.Combine(home, ".local", "bin")
-        };
-
-        var added = false;
-        var pathList = new List<string>(dirs);
-
-        foreach (var dir in commonDirs)
-        {
-            if (Directory.Exists(dir) && !dirs.Contains(dir))
+            // Verify and auto-repair permissions on Unix
+            _ = GetBundledDotnetPath();
+            
+            if (!dirs.Contains(bundledDotnetDir))
             {
-                pathList.Add(dir);
-                added = true;
+                pathList.Add(bundledDotnetDir);
             }
         }
 
-        if (added)
+        var bundledPwshDir = Path.Combine(baseDir, "PowerShell");
+        if (Directory.Exists(bundledPwshDir))
         {
-            var newPath = string.Join(separator, pathList);
+            // Verify and auto-repair permissions on Unix
+            _ = GetPwshPath();
+            
+            if (!dirs.Contains(bundledPwshDir))
+            {
+                pathList.Add(bundledPwshDir);
+            }
+        }
+
+        // 2. Add existing PATH directories
+        pathList.AddRange(dirs);
+
+        // 3. For macOS/Linux, append common system search paths
+        if (!OperatingSystem.IsWindows())
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var commonDirs = new[]
+            {
+                "/opt/homebrew/bin",
+                "/opt/homebrew/sbin",
+                "/usr/local/bin",
+                "/usr/local/sbin",
+                Path.Combine(home, ".dotnet", "tools"),
+                Path.Combine(home, ".npm-global", "bin"),
+                Path.Combine(home, ".local", "bin")
+            };
+
+            foreach (var dir in commonDirs)
+            {
+                if (Directory.Exists(dir) && !dirs.Contains(dir) && !pathList.Contains(dir))
+                {
+                    pathList.Add(dir);
+                }
+            }
+        }
+
+        var newPath = string.Join(separator, pathList);
+        if (newPath != pathVar)
+        {
             Environment.SetEnvironmentVariable("PATH", newPath);
         }
     }
