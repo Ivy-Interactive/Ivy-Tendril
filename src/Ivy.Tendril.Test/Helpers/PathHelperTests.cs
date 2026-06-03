@@ -105,4 +105,23 @@ public class PathHelperTests
             Environment.SetEnvironmentVariable(varName, null);
         }
     }
+
+    [Fact]
+    public void AugmentPath_DoesNotThrow()
+    {
+        var originalPath = Environment.GetEnvironmentVariable("PATH");
+
+        try
+        {
+            PathHelper.AugmentPath(forceShellPath: false);
+            PathHelper.AugmentPath(forceShellPath: true);
+
+            var path = Environment.GetEnvironmentVariable("PATH");
+            Assert.NotNull(path);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("PATH", originalPath);
+        }
+    }
 }

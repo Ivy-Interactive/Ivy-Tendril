@@ -23,6 +23,7 @@ public static class DoctorCommand
 
     public static async Task<int> RunAsync()
     {
+        PathHelper.AugmentPath(forceShellPath: true);
         ConfigService? configService = null;
         try
         {

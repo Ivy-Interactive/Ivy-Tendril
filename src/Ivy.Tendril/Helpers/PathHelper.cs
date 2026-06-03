@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.Text.RegularExpressions;
 
@@ -91,12 +92,12 @@ public static class PathHelper
         return GetBundledDotnetPath() ?? "dotnet";
     }
 
-    public static void AugmentPath()
+    public static void AugmentPath(bool forceShellPath = false)
     {
         var pathVar = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
         var separator = OperatingSystem.IsWindows() ? ';' : ':';
         var dirs = new HashSet<string>(pathVar.Split(separator, StringSplitOptions.RemoveEmptyEntries),
-            OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+            OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
 
         var pathList = new List<string>();
 
@@ -129,11 +130,11 @@ public static class PathHelper
         // 2. Add existing PATH directories
         pathList.AddRange(dirs);
 
-        // 3. For macOS/Linux, append common system search paths
+        // 3. For macOS/Linux, append common system search paths and login shell paths
         if (!OperatingSystem.IsWindows())
         {
             var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            var commonDirs = new[]
+            var commonDirs = new List<string>
             {
                 "/opt/homebrew/bin",
                 "/opt/homebrew/sbin",
@@ -143,6 +144,22 @@ public static class PathHelper
                 Path.Combine(home, ".npm-global", "bin"),
                 Path.Combine(home, ".local", "bin")
             };
+
+            if (forceShellPath)
+            {
+                var shellPath = GetLoginShellPath();
+                if (!string.IsNullOrEmpty(shellPath))
+                {
+                    var shellDirs = shellPath.Split(':', StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var dir in shellDirs)
+                    {
+                        if (!commonDirs.Contains(dir))
+                        {
+                            commonDirs.Add(dir);
+                        }
+                    }
+                }
+            }
 
             foreach (var dir in commonDirs)
             {
@@ -159,6 +176,63 @@ public static class PathHelper
             Environment.SetEnvironmentVariable("PATH", newPath);
         }
     }
+
+    private static string? GetLoginShellPath()
+    {
+        try
+        {
+            var shell = Environment.GetEnvironmentVariable("SHELL");
+            if (string.IsNullOrEmpty(shell))
+            {
+                shell = OperatingSystem.IsMacOS() ? "/bin/zsh" : "/bin/bash";
+            }
+
+            if (!File.Exists(shell))
+            {
+                shell = "/bin/zsh";
+                if (!File.Exists(shell))
+                {
+                    shell = "/bin/bash";
+                }
+            }
+
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = shell,
+                    Arguments = "-ilc \"echo ---PATH_START---; echo \\$PATH; echo ---PATH_END---\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            process.Start();
+            
+            // Wait up to 3 seconds for the shell to print its PATH
+            if (process.WaitForExit(TimeSpan.FromSeconds(3)))
+            {
+                var output = process.StandardOutput.ReadToEnd();
+                var match = Regex.Match(output, @"---PATH_START---\r?\n(.*?)\r?\n---PATH_END---", RegexOptions.Singleline);
+                if (match.Success)
+                {
+                    return match.Groups[1].Value.Trim();
+                }
+            }
+            else
+            {
+                try { process.Kill(); } catch { }
+            }
+        }
+        catch
+        {
+            // Fallback
+        }
+        return null;
+    }
+
 
     public static string ResolvePath(string raw)
     {
