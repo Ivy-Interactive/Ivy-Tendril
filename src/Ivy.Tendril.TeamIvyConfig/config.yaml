@@ -35,13 +35,13 @@ projects:
   reviewActions:
   - name: Sample
     condition: Test-Path "artifacts\sample\*.csproj"
-    command: ''
+    command: "dotnet run --project '.\\artifacts\\sample'"
   - name: Docs
     condition: Test-Path "worktrees\Ivy-Framework\src\Ivy.Docs"
-    command: ''
+    command: "& '.\\worktrees\\Ivy-Framework\\src\\IvyDocs.ps1'"
   - name: Samples
     condition: Test-Path "worktrees\Ivy-Framework\src\Ivy.Samples"
-    command: ''
+    command: "& '.\\worktrees\\Ivy-Framework\\src\\IvySamples.ps1'"
   hooks:
   - name: SlackNotify
     when: after
