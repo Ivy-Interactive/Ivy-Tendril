@@ -92,6 +92,7 @@ public sealed class ModelsCommand(IAgentRunner runner) : AsyncCommand<ModelsComm
         table.AddColumn(new TableColumn("Cache W $/M").RightAligned());
         table.AddColumn("Source");
         table.AddColumn("Default");
+        table.AddColumn("Vision");
 
         var sourceIndex = new Dictionary<string, int>();
 
@@ -110,6 +111,8 @@ public sealed class ModelsCommand(IAgentRunner runner) : AsyncCommand<ModelsComm
                 sourceRef = $"[dim]{idx}[/]";
             }
 
+            var hasVision = model.Capabilities.HasFlag(ModelCapabilities.ImageInput) ? "[green]✓[/]" : "[dim]-[/]";
+
             table.AddRow(
                 model.Id.EscapeMarkup(),
                 model.DisplayName.EscapeMarkup(),
@@ -118,7 +121,8 @@ public sealed class ModelsCommand(IAgentRunner runner) : AsyncCommand<ModelsComm
                 FormatPrice(model.CacheReadPerMillion),
                 FormatPrice(model.CacheWritePerMillion),
                 sourceRef,
-                isDefault);
+                isDefault,
+                hasVision);
         }
 
         AnsiConsole.Write(table);
