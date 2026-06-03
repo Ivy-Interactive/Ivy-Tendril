@@ -17,7 +17,7 @@ public class DirtyRepoDialog(
 
         var body = Layout.Vertical().Gap(3);
 
-        foreach (var (repoPath, _, dirtyState) in preflightResult.DirtyRepos)
+        foreach (var (repoPath, baseBranch, dirtyState) in preflightResult.DirtyRepos)
         {
             var repoSection = Layout.Vertical().Gap(1);
             repoSection |= Text.Block(Path.GetFileName(repoPath)).Bold();
@@ -28,10 +28,9 @@ public class DirtyRepoDialog(
                 repoSection |= Text.Block($"• {FormatReason(reason)}");
             }
 
+            repoSection |= Text.Markdown(contextMessage.Replace("origin/<baseBranch>", $"`origin/{baseBranch}`")).Muted();
             body |= repoSection;
         }
-
-        body |= Text.Muted(contextMessage);
 
         return new Dialog(
             _ => dialogOpen.Set(false),

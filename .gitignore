@@ -44,6 +44,9 @@ msbuild.binlog
 ## Config backups
 *.yaml.backup
 
+## TeamIvyConfig master files
+.master
+
 ## Test results
 TestResults/
 **/TestResults/
