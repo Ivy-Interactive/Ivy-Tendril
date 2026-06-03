@@ -100,20 +100,19 @@ internal class SoftwareCheck : IDoctorCheck
 
     private static async Task<bool> CheckPowerShell(List<CheckStatus> statuses)
     {
-        var pwshPath = PathHelper.GetPwshPath();
-        var pwshInstalled = await ProcessCheckHelper.CheckCommand(pwshPath, "-Version");
-        if (pwshInstalled)
+        var bundledPath = PathHelper.GetPwshPath();
+        var (success, error) = await ProcessCheckHelper.CheckPowerShellWithDetails();
+        if (success)
         {
-            var isBundled = pwshPath != "pwsh";
+            // Determine if the working PowerShell is the bundled one
+            var isBundled = bundledPath != "pwsh" && await ProcessCheckHelper.CheckCommand(bundledPath, "-Version");
             statuses.Add(new CheckStatus("powershell", isBundled ? "OK (bundled pwsh)" : "OK (pwsh)", StatusKind.Ok));
             return false;
         }
 
-        var legacyInstalled = await ProcessCheckHelper.CheckCommand("powershell", "-Version");
-        statuses.Add(legacyInstalled
-            ? new CheckStatus("powershell", "OK (powershell)", StatusKind.Ok)
-            : new CheckStatus("powershell", "Not found", StatusKind.Error));
-        return !legacyInstalled;
+        var errorMessage = $"Not found or failed to execute. Details: {error}";
+        statuses.Add(new CheckStatus("powershell", errorMessage, StatusKind.Error));
+        return true;
     }
 
     private string[] GetAgentIds()

@@ -40,9 +40,63 @@ public static class PathHelper
         var bundled = Path.Combine(System.AppContext.BaseDirectory, "PowerShell", OperatingSystem.IsWindows() ? "pwsh.exe" : "pwsh");
         if (File.Exists(bundled))
         {
+            if (!OperatingSystem.IsWindows())
+            {
+                try
+                {
+                    var mode = File.GetUnixFileMode(bundled);
+                    if (!mode.HasFlag(UnixFileMode.UserExecute))
+                    {
+                        File.SetUnixFileMode(bundled, mode | UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute);
+                    }
+                }
+                catch
+                {
+                    // Best-effort permission repair
+                }
+            }
             return bundled;
         }
         return "pwsh";
+    }
+
+    public static void AugmentPath()
+    {
+        if (OperatingSystem.IsWindows()) return;
+
+        var pathVar = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+        var separator = ':';
+        var dirs = new HashSet<string>(pathVar.Split(separator, StringSplitOptions.RemoveEmptyEntries));
+
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var commonDirs = new[]
+        {
+            "/opt/homebrew/bin",
+            "/opt/homebrew/sbin",
+            "/usr/local/bin",
+            "/usr/local/sbin",
+            Path.Combine(home, ".dotnet", "tools"),
+            Path.Combine(home, ".npm-global", "bin"),
+            Path.Combine(home, ".local", "bin")
+        };
+
+        var added = false;
+        var pathList = new List<string>(dirs);
+
+        foreach (var dir in commonDirs)
+        {
+            if (Directory.Exists(dir) && !dirs.Contains(dir))
+            {
+                pathList.Add(dir);
+                added = true;
+            }
+        }
+
+        if (added)
+        {
+            var newPath = string.Join(separator, pathList);
+            Environment.SetEnvironmentVariable("PATH", newPath);
+        }
     }
 
     public static string ResolvePath(string raw)

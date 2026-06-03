@@ -41,6 +41,8 @@ public class Program
     [STAThread]
     public static async Task<int> Main(string[] args)
     {
+        PathHelper.AugmentPath();
+
         if (OperatingSystem.IsWindows())
         {
             try

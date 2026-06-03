@@ -59,8 +59,72 @@ public static class ProcessCheckHelper
         }
     }
 
+    public static async Task<(bool Success, string? Error)> TryCheckCommand(string fileName, string arguments, int timeoutMs = 10_000)
+    {
+        try
+        {
+            return await Task.Run(async () =>
+            {
+                var psi = MakeStartInfo(fileName, arguments);
+                var proc = Process.Start(psi);
+                if (proc is null) return (false, "Failed to start process.");
+                var outTask = proc.StandardOutput.ReadToEndAsync();
+                var errTask = proc.StandardError.ReadToEndAsync();
+                
+                var exited = proc.WaitForExitOrKill(timeoutMs);
+                if (!exited)
+                {
+                    return (false, $"Process timed out after {timeoutMs}ms.");
+                }
+                
+                var stdout = await outTask;
+                var stderr = await errTask;
+                
+                if (proc.ExitCode == 0)
+                {
+                    return (true, (string?)null);
+                }
+                
+                var errorMsg = string.IsNullOrWhiteSpace(stderr) ? stdout : stderr;
+                var details = string.IsNullOrWhiteSpace(errorMsg) ? $"Exit code {proc.ExitCode}" : $"Exit code {proc.ExitCode}: {errorMsg.Trim()}";
+                return (false, details);
+            });
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
+        }
+    }
+
     public static async Task<bool> CheckPowerShell()
-        => await CheckCommand(PathHelper.GetPwshPath(), "-Version") || await CheckCommand("powershell", "-Version");
+    {
+        var (success, _) = await CheckPowerShellWithDetails();
+        return success;
+    }
+
+    public static async Task<(bool Success, string? Error)> CheckPowerShellWithDetails()
+    {
+        var errors = new List<string>();
+
+        var bundledPath = PathHelper.GetPwshPath();
+        var hasBundled = bundledPath != "pwsh";
+        if (hasBundled)
+        {
+            var (success, err) = await TryCheckCommand(bundledPath, "-Version");
+            if (success) return (true, null);
+            errors.Add($"bundled: {err ?? "unknown error"}");
+        }
+
+        var (pwshSuccess, pwshErr) = await TryCheckCommand("pwsh", "-Version");
+        if (pwshSuccess) return (true, null);
+        errors.Add($"system pwsh: {pwshErr ?? "unknown error"}");
+
+        var (legacySuccess, legacyErr) = await TryCheckCommand("powershell", "-Version");
+        if (legacySuccess) return (true, null);
+        errors.Add($"system powershell: {legacyErr ?? "unknown error"}");
+
+        return (false, string.Join("; ", errors));
+    }
 
     public static Task<HealthCheckStatus> CheckFileAuth(string filePath, long minSize = 1)
     {
