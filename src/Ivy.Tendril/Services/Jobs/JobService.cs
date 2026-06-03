@@ -292,7 +292,7 @@ public class JobService : IJobService
 
     public JobItem? GetJob(string id)
     {
-        return _jobs.GetValueOrDefault(id);
+        return _jobs.GetValueOrDefault(id) ?? _database?.GetJobById(id);
     }
 
     public List<JobItem> GetJobsForPlan(string planFile)

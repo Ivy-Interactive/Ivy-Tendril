@@ -217,6 +217,11 @@ public class JobServiceDeletionTests
             return new List<JobItem>();
         }
 
+        public JobItem? GetJobById(string id)
+        {
+            return null;
+        }
+
         public List<JobItem> GetJobsForPlan(string planFile)
         {
             return new List<JobItem>();
