@@ -9,7 +9,7 @@ namespace Ivy.Tendril.Commands;
 
 public class JobStartSettings : CommandSettings
 {
-    [Description("Job type (ExecutePlan, UpdatePlan, SplitPlan, ExpandPlan, CreateIssue, CreatePr, RetryPlan, CreatePlan)")]
+    [Description("Job type (ExecutePlan, UpdatePlan, SplitPlan, ExpandPlan, CreateIssue, CreatePr, RetryPlan, CreatePlan, SyncRepo)")]
     [CommandArgument(0, "<job-type>")]
     public string JobType { get; set; } = "";
 
@@ -64,6 +64,14 @@ public class JobStartSettings : CommandSettings
     [Description("Source path for CreatePlan")]
     [CommandOption("--source-path")]
     public string? SourcePath { get; set; }
+
+    [Description("Repository path for SyncRepo (required)")]
+    [CommandOption("--repo-path")]
+    public string? RepoPath { get; set; }
+
+    [Description("Base branch for SyncRepo (default: main)")]
+    [CommandOption("--base-branch")]
+    public string? BaseBranch { get; set; }
 
     [Description("Skip merge for CreatePr")]
     [CommandOption("--no-merge")]
@@ -123,6 +131,16 @@ public class JobStartCommand : Command<JobStartSettings>
                 settings.Priority ?? 0,
                 settings.Force,
                 settings.SourcePath);
+        }
+
+        if (string.Equals(jobType, Constants.JobTypes.SyncRepo, StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrEmpty(settings.RepoPath))
+                throw new ArgumentException("--repo-path is required for SyncRepo");
+
+            return new SyncRepoArgs(
+                settings.RepoPath,
+                settings.BaseBranch ?? "main");
         }
 
         if (string.IsNullOrEmpty(settings.PlanId))

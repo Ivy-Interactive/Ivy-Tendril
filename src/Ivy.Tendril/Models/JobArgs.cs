@@ -11,6 +11,7 @@ namespace Ivy.Tendril.Models;
 [JsonDerivedType(typeof(CreatePrArgs), "CreatePr")]
 [JsonDerivedType(typeof(CreateIssueArgs), "CreateIssue")]
 [JsonDerivedType(typeof(UpdateProjectArgs), "UpdateProject")]
+[JsonDerivedType(typeof(SyncRepoArgs), "SyncRepo")]
 public abstract record JobArgsBase
 {
     [JsonIgnore]
@@ -97,4 +98,11 @@ public record UpdateProjectArgs(
 {
     public override string Type => Constants.JobTypes.UpdateProject;
     public override string PlanFolder => FolderPath;
+}
+
+public record SyncRepoArgs(
+    string RepoPath,
+    string BaseBranch = "main") : JobArgsBase
+{
+    public override string Type => Constants.JobTypes.SyncRepo;
 }
