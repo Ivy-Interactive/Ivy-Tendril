@@ -1,6 +1,7 @@
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Commands;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Plans;
 using Ivy.Tendril.Helpers;
 using Microsoft.AspNetCore.Mvc;
 
@@ -371,6 +372,246 @@ public class PlanController : ControllerBase
             return (true, $"Removed recommendation '{title}'", 200);
         });
 
+    [HttpPut("{planId}/recommendations/{title}")]
+    public IActionResult SetRecField(string planId, string title, [FromBody] SetRecFieldRequest request)
+    {
+        var validFields = new[] { "title", "description", "state", "impact", "risk", "declinereason" };
+        if (!validFields.Contains(request.Field.ToLower()))
+            return BadRequest(new { error = $"Unknown field: {request.Field}. Valid: {string.Join(", ", validFields)}" });
+
+        return ModifyPlanEndpoint(planId, plan =>
+        {
+            var rec = (plan.Recommendations ?? [])
+                .FirstOrDefault(r => r.Title.Equals(title, StringComparison.OrdinalIgnoreCase));
+            if (rec == null)
+                return (false, $"Recommendation '{title}' not found", 404);
+
+            switch (request.Field.ToLower())
+            {
+                case "title": rec.Title = request.Value; break;
+                case "description": rec.Description = request.Value; break;
+                case "state": rec.State = request.Value; break;
+                case "impact": rec.Impact = request.Value; break;
+                case "risk": rec.Risk = request.Value; break;
+                case "declinereason": rec.DeclineReason = request.Value; break;
+            }
+
+            return (true, $"Updated recommendation field '{request.Field}'", 200);
+        });
+    }
+
+    [HttpPost]
+    public IActionResult CreatePlanDirect([FromBody] CreatePlanDirectRequest request)
+    {
+        try
+        {
+            var plansDir = PlanCommandHelpers.GetPlansDirectory();
+            var planId = PlanYamlHelper.AllocatePlanId(plansDir);
+            var safeTitle = PlanYamlHelper.ToSafeTitle(request.Title);
+            var folderName = $"{planId}-{safeTitle}";
+            var planFolder = Path.Combine(plansDir, folderName);
+
+            Directory.CreateDirectory(planFolder);
+            FileHelper.GrantBroadWriteAccess(planFolder);
+
+            var plan = new PlanYaml
+            {
+                State = nameof(PlanStatus.Draft),
+                Project = request.Project ?? "Auto",
+                Level = request.Level ?? "NiceToHave",
+                Title = request.Title,
+                Created = DateTime.UtcNow,
+                Updated = DateTime.UtcNow,
+                InitialPrompt = request.InitialPrompt,
+                SourceUrl = request.SourceUrl,
+                ExecutionProfile = request.ExecutionProfile,
+                Priority = 0
+            };
+
+            if (request.Repos != null)
+                foreach (var repo in request.Repos)
+                    plan.Repos.Add(repo);
+
+            if (request.Verifications != null)
+                foreach (var v in request.Verifications)
+                    plan.Verifications.Add(new PlanVerificationEntry { Name = v, Status = VerificationStatus.Pending });
+
+            if (request.RelatedPlans != null)
+                foreach (var rp in request.RelatedPlans)
+                    plan.RelatedPlans.Add(rp);
+
+            if (request.DependsOn != null)
+                foreach (var dep in request.DependsOn)
+                    plan.DependsOn.Add(dep);
+
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
+
+            return Ok(new { id = planId, folder = planFolder, title = plan.Title });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpPost("{planId}/revisions")]
+    public IActionResult WriteRevision(string planId, [FromBody] WriteRevisionRequest request)
+    {
+        try
+        {
+            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
+            var revisionsDir = Path.Combine(planFolder, "Revisions");
+            Directory.CreateDirectory(revisionsDir);
+
+            var number = ResolveNextRevisionNumber(revisionsDir);
+            var filename = $"{number:D3}.md";
+            var filePath = Path.Combine(revisionsDir, filename);
+
+            System.IO.File.WriteAllText(filePath, request.Content);
+            return Ok(new { file = filename, path = filePath });
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return NotFound(new { error = $"Plan '{planId}' not found" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpPost("{planId}/related-plans")]
+    public IActionResult AddRelatedPlan(string planId, [FromBody] AddRelatedPlanRequest request) =>
+        ModifyPlanEndpoint(planId, plan =>
+        {
+            if (plan.RelatedPlans.Contains(request.RelatedPlan, StringComparer.OrdinalIgnoreCase))
+                return (true, $"Related plan already present: {request.RelatedPlan}", 200);
+
+            plan.RelatedPlans.Add(request.RelatedPlan);
+            return (true, $"Added related plan: {request.RelatedPlan}", 200);
+        });
+
+    [HttpDelete("{planId}/related-plans")]
+    public IActionResult RemoveRelatedPlan(string planId, [FromBody] RemoveRelatedPlanRequest request) =>
+        ModifyPlanEndpoint(planId, plan =>
+        {
+            var removed = plan.RelatedPlans.RemoveAll(r => r.Equals(request.RelatedPlan, StringComparison.OrdinalIgnoreCase));
+            if (removed == 0)
+                return (false, $"Related plan not found: {request.RelatedPlan}", 404);
+
+            return (true, $"Removed related plan: {request.RelatedPlan}", 200);
+        });
+
+    [HttpPost("{planId}/depends-on")]
+    public IActionResult AddDependsOn(string planId, [FromBody] AddDependsOnRequest request) =>
+        ModifyPlanEndpoint(planId, plan =>
+        {
+            if (plan.DependsOn.Contains(request.DependsOn, StringComparer.OrdinalIgnoreCase))
+                return (true, $"Dependency already present: {request.DependsOn}", 200);
+
+            plan.DependsOn.Add(request.DependsOn);
+            return (true, $"Added dependency: {request.DependsOn}", 200);
+        });
+
+    [HttpDelete("{planId}/depends-on")]
+    public IActionResult RemoveDependsOn(string planId, [FromBody] RemoveDependsOnRequest request) =>
+        ModifyPlanEndpoint(planId, plan =>
+        {
+            var removed = plan.DependsOn.RemoveAll(d => d.Equals(request.DependsOn, StringComparison.OrdinalIgnoreCase));
+            if (removed == 0)
+                return (false, $"Dependency not found: {request.DependsOn}", 404);
+
+            return (true, $"Removed dependency: {request.DependsOn}", 200);
+        });
+
+    [HttpPost("{planId}/validate")]
+    public IActionResult ValidatePlan(string planId)
+    {
+        try
+        {
+            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
+            var plan = PlanCommandHelpers.ReadPlan(planFolder);
+            PlanValidationService.Validate(plan);
+            return Ok(new { valid = true, message = "Plan is valid" });
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return NotFound(new { error = $"Plan '{planId}' not found" });
+        }
+        catch (ArgumentException ex)
+        {
+            return Ok(new { valid = false, message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpGet("{planId}/verifications")]
+    public IActionResult ListVerifications(string planId, [FromQuery] string? status = null)
+    {
+        try
+        {
+            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
+            var plan = PlanCommandHelpers.ReadPlan(planFolder);
+            var verifications = plan.Verifications;
+
+            if (!string.IsNullOrEmpty(status))
+                verifications = verifications.Where(v => v.Status.Equals(status, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            return Ok(verifications.Select(v => new { name = v.Name, status = v.Status }));
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return NotFound(new { error = $"Plan '{planId}' not found" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpPost("{planId}/verifications/add")]
+    public IActionResult AddVerification(string planId, [FromBody] AddVerificationRequest request) =>
+        ModifyPlanEndpoint(planId, plan =>
+        {
+            if (plan.Verifications.Any(v => v.Name.Equals(request.Name, StringComparison.OrdinalIgnoreCase)))
+                return (false, $"Verification '{request.Name}' already exists", 409);
+
+            plan.Verifications.Add(new PlanVerificationEntry
+            {
+                Name = request.Name,
+                Status = request.Status ?? VerificationStatus.Pending
+            });
+
+            return (true, $"Added verification '{request.Name}'", 200);
+        });
+
+    [HttpDelete("{planId}/verifications/{name}")]
+    public IActionResult RemoveVerification(string planId, string name) =>
+        ModifyPlanEndpoint(planId, plan =>
+        {
+            var match = plan.Verifications.FirstOrDefault(v => v.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+            if (match == null)
+                return (false, $"Verification '{name}' not found", 404);
+
+            plan.Verifications.Remove(match);
+            return (true, $"Removed verification '{name}'", 200);
+        });
+
+    private static int ResolveNextRevisionNumber(string revisionsDir)
+    {
+        var max = 0;
+        foreach (var file in Directory.GetFiles(revisionsDir, "*.md"))
+        {
+            var name = Path.GetFileNameWithoutExtension(file);
+            if (int.TryParse(name, out var num) && num > max)
+                max = num;
+        }
+        return max + 1;
+    }
+
     private static bool ExtractPlanId(string folderName, out string id)
     {
         id = "";
@@ -430,3 +671,21 @@ public record AddLogRequest(string Action, string? Summary = null);
 public record AddRecRequest(string Title, string? Description = null, string? Impact = null, string? Risk = null);
 public record AcceptRecRequest(string? Notes = null);
 public record DeclineRecRequest(string? Reason = null);
+public record CreatePlanDirectRequest(
+    string Title,
+    string? Project = null,
+    string? Level = null,
+    string? InitialPrompt = null,
+    string? ExecutionProfile = null,
+    string? SourceUrl = null,
+    List<string>? Repos = null,
+    List<string>? Verifications = null,
+    List<string>? RelatedPlans = null,
+    List<string>? DependsOn = null);
+public record WriteRevisionRequest(string Content);
+public record AddRelatedPlanRequest(string RelatedPlan);
+public record RemoveRelatedPlanRequest(string RelatedPlan);
+public record AddDependsOnRequest(string DependsOn);
+public record RemoveDependsOnRequest(string DependsOn);
+public record AddVerificationRequest(string Name, string? Status = null);
+public record SetRecFieldRequest(string Field, string Value);
