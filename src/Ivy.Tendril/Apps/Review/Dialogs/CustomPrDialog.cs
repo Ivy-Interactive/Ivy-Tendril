@@ -24,6 +24,7 @@ public class CustomPrDialog(
     public override object? Build()
     {
         var isCreating = UseState(false);
+        var customPrSolveMergeConflicts = UseState(true);
         var customPrMerge = UseState(false);
         var customPrDeleteBranch = UseState(false);
         var customPrIncludeArtifacts = UseState(false);
@@ -42,6 +43,7 @@ public class CustomPrDialog(
             _ =>
             {
                 isCreating.Set(false);
+                customPrSolveMergeConflicts.Set(true);
                 customPrMerge.Set(true);
                 customPrDeleteBranch.Set(true);
                 customPrIncludeArtifacts.Set(true);
@@ -53,7 +55,8 @@ public class CustomPrDialog(
             new DialogHeader($"Custom PR for #{_selectedPlan.Id}"),
             new DialogBody(
                 Layout.Vertical().Gap(2)
-                | customPrMerge.ToBoolInput("Merge").AutoFocus()
+                | customPrSolveMergeConflicts.ToBoolInput("Solve Merge Conflicts").AutoFocus()
+                | customPrMerge.ToBoolInput("Merge")
                 | customPrDeleteBranch.ToBoolInput("Delete Branch")
                     .Disabled(!customPrMerge.Value)
                 | customPrIncludeArtifacts.ToBoolInput("Include Artifacts")
@@ -69,6 +72,7 @@ public class CustomPrDialog(
                 new Button("Cancel").Outline().OnClick(() =>
                 {
                     isCreating.Set(false);
+                    customPrSolveMergeConflicts.Set(true);
                     customPrMerge.Set(true);
                     customPrDeleteBranch.Set(true);
                     customPrIncludeArtifacts.Set(true);
@@ -84,6 +88,7 @@ public class CustomPrDialog(
                         isCreating.Set(true);
                         _jobService.StartJob(new CreatePrArgs(
                             _selectedPlan.FolderPath,
+                            SolveMergeConflicts: customPrSolveMergeConflicts.Value,
                             Merge: customPrMerge.Value,
                             DeleteBranch: customPrDeleteBranch.Value && customPrMerge.Value,
                             IncludeArtifacts: customPrIncludeArtifacts.Value,
@@ -93,6 +98,7 @@ public class CustomPrDialog(
                         _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Building);
                         _refreshPlans();
                         isCreating.Set(false);
+                        customPrSolveMergeConflicts.Set(true);
                         customPrMerge.Set(true);
                         customPrDeleteBranch.Set(true);
                         customPrIncludeArtifacts.Set(true);
