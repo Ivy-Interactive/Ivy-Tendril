@@ -110,6 +110,8 @@ The prior ExecutePlan run created `<TendrilPlanFolder>/Artifacts/summary.md`. **
 ### Files Modified
 
 <Bulleted list of files changed in this retry.>
+
+**Note:** Update the manual testing section if this fix affects user-facing behavior.
 ~~~
 
 Add one such section per logical fix. If the retry addresses multiple items from the ChangeRequest, add a section for each.
