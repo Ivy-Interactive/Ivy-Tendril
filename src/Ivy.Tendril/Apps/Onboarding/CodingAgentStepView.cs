@@ -29,6 +29,7 @@ internal class InstallMissingDialog(
             new DialogBody(
                 Text.Markdown(
                     $"Tendril needs **{check.Name}** but it isn't installed.\n\n" +
+                    (string.IsNullOrEmpty(check.LastError) ? "" : $"**Error details:**\n`{check.LastError}`\n\n") +
                     $"Click **Install** to open the install page, then click **OK** once you've installed it.")),
             new DialogFooter(
                 new Button("Cancel")
@@ -239,21 +240,56 @@ public class CodingAgentStepView(
                | grid;
     }
 
-    private static List<SoftwareCheck> BuildChecks(IAgentRunner runner, string agentKey) =>
-    [
-        new("Git", "git", "https://git-scm.com/downloads", true,
-            () => ProcessCheckHelper.CheckCommand("git", "--version")),
-        new("PowerShell", "powershell", "https://github.com/PowerShell/PowerShell", true,
-            ProcessCheckHelper.CheckPowerShell),
-        BuildAgentCheck(runner, agentKey)
-    ];
+    private static List<SoftwareCheck> BuildChecks(IAgentRunner runner, string agentKey)
+    {
+        SoftwareCheck? gitCheck = null;
+        gitCheck = new SoftwareCheck("Git", "git", "https://git-scm.com/downloads", true,
+            async () =>
+            {
+                var (success, error) = await ProcessCheckHelper.TryCheckCommand("git", "--version");
+                if (gitCheck != null) gitCheck.LastError = error;
+                return success;
+            });
+
+        SoftwareCheck? pwshCheck = null;
+        pwshCheck = new SoftwareCheck("PowerShell", "powershell", "https://github.com/PowerShell/PowerShell", true,
+            async () =>
+            {
+                var (success, error) = await ProcessCheckHelper.CheckPowerShellWithDetails();
+                if (pwshCheck != null) pwshCheck.LastError = error;
+                return success;
+            });
+
+        SoftwareCheck? dotnetCheck = null;
+        dotnetCheck = new SoftwareCheck(".NET 10 SDK", "dotnet", "https://dotnet.microsoft.com/download/dotnet/10.0", true,
+            async () =>
+            {
+                var (success, error) = await ProcessCheckHelper.TryCheckCommand(PathHelper.GetDotnetPath(), "--version");
+                if (dotnetCheck != null) dotnetCheck.LastError = error;
+                return success;
+            });
+
+        return
+        [
+            gitCheck,
+            pwshCheck,
+            dotnetCheck,
+            BuildAgentCheck(runner, agentKey)
+        ];
+    }
 
     private static SoftwareCheck BuildAgentCheck(IAgentRunner runner, string agentKey)
     {
         var healthCheck = runner.GetHealthCheck(agentKey);
         var info = healthCheck.GetOnboardingInfo();
-        return new SoftwareCheck(info.DisplayName, agentKey, info.InstallUrl ?? "", true,
-            async () => (await healthCheck.CheckInstallAsync()).IsInstalled,
+        SoftwareCheck? agentCheck = null;
+        agentCheck = new SoftwareCheck(info.DisplayName, agentKey, info.InstallUrl ?? "", true,
+            async () =>
+            {
+                var status = await healthCheck.CheckInstallAsync();
+                if (agentCheck != null) agentCheck.LastError = status.Error;
+                return status.IsInstalled;
+            },
             async () =>
             {
                 var result = await healthCheck.CheckAuthAsync();
@@ -262,6 +298,7 @@ public class CodingAgentStepView(
                     : HealthCheckStatus.NotAuthenticated;
             },
             info.SignInHint);
+        return agentCheck;
     }
 
 }
