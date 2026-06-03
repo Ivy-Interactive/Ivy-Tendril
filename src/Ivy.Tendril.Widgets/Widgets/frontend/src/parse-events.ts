@@ -22,10 +22,10 @@ export function parseEventWireStream(jsonStream: string): PresentationEvent[] {
   let pendingText: string | null = null;
 
   const flushText = () => {
-    if (pendingText !== null) {
+    if (pendingText !== null && pendingText.trim().length > 0) {
       out.push({ kind: "assistant-text", text: pendingText });
-      pendingText = null;
     }
+    pendingText = null;
   };
 
   for (const evt of events) {

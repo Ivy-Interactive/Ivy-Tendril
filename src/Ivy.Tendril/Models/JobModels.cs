@@ -111,6 +111,8 @@ public record JobItem
         AppendToRawLog(line);
         foreach (var evt in EventParser.ParseLine(line))
         {
+            if (evt is SystemEvent or UnknownEvent) continue;
+
             if (evt is SessionInitEvent { Model: not null } initEvt)
                 Model = initEvt.Model;
 
