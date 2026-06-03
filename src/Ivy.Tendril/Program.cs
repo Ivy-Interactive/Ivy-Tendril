@@ -367,7 +367,7 @@ public class Program
     {
         // If the executing assembly is in the .store / .dotnet folder, it's a global tool invocation
         var path = System.AppContext.BaseDirectory;
-        if (path.Contains(".store", StringComparison.OrdinalIgnoreCase) || 
+        if (path.Contains(".store", StringComparison.OrdinalIgnoreCase) ||
             path.Contains(".dotnet", StringComparison.OrdinalIgnoreCase))
         {
             return true;
