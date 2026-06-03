@@ -73,7 +73,7 @@ public class ActionBarView(
                        jobService.StartJob(new SplitPlanArgs(selectedPlan.FolderPath));
                        refreshPlans();
                    })
-               | new Button("Expand").Icon(Icons.UnfoldVertical).Outline().ShortcutKey("x")
+               | new Button("Expand").Icon(Icons.UnfoldVertical).Outline().ShortcutKey("e")
                    .Disabled(hasActiveExpandJob)
                    .OnClick(() =>
                    {
