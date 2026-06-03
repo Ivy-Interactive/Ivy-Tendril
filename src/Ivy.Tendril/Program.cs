@@ -564,6 +564,9 @@ public class Program
             config.AddCommand<ModelsCommand>("models")
                 .WithDescription("List available models and pricing for agent CLIs");
 
+            config.AddCommand<AgentInstructionsCommand>("agent-instructions")
+                .WithDescription("Print the agent system prompt");
+
             config.AddBranch("trash", trash =>
             {
                 trash.AddCommand<TrashWriteCommand>("write")
