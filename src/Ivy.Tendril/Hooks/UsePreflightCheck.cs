@@ -25,7 +25,7 @@ public static class UsePreflightCheckExtensions
         void RunCheck(string projectValue, Action<PreflightResult> onComplete)
         {
             isChecking.Set(true);
-            result.Set(null);
+            result.Set(null!);
 
             Task.Run(() =>
             {
