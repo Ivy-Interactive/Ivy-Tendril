@@ -16,6 +16,7 @@ public static class TendrilServer
 {
     public static Server Create(string[] args, TendrilArgs tendrilArgs)
     {
+        PathHelper.AugmentPath(forceShellPath: true);
         var server = new Server();
         server.DangerouslyAllowLocalFiles();
         server.UseCulture("en-US");
