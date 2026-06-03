@@ -16,7 +16,7 @@ public class DetailsTabView(
     {
         var planYaml = PlanYamlHelper.ParsePlanYaml(plan.PlanYamlRaw);
 
-        var revisionWidget = Layout.Horizontal().Gap(2).AlignItems(Align.Center)
+        var revisionWidget = Layout.Horizontal().Gap(2).AlignContent(Align.Center)
                              | Text.Block(plan.RevisionCount.ToString())
                              | new Button().Icon(Icons.Undo).Ghost().Small()
                                  .Tooltip("Revert to previous revision")
@@ -32,6 +32,7 @@ public class DetailsTabView(
         var detailsData = new
         {
             plan.InitialPrompt,
+            Revision = revisionWidget,
             Profile = planYaml?.ExecutionProfile ?? "",
             RelatedPlans = FormatPlanLinks(plan.RelatedPlans),
             DependsOn = FormatPlanLinks(plan.DependsOn),
@@ -49,19 +50,11 @@ public class DetailsTabView(
 
         return Layout.Vertical().Gap(4)
                | details
-               | LabeledRow("Revision", revisionWidget)
                | (jobs.Count > 0
                    ? (Layout.Vertical().Gap(2)
                       | Text.H4("Jobs")
                       | new PlanJobsDataTableView(jobs, showDebug))
                    : null);
-    }
-
-    private static object LabeledRow(string label, object value)
-    {
-        return Layout.Horizontal().Gap(2)
-               | Text.Block(label + ":").Width(15).TextAlign(TextAlign.End)
-               | value;
     }
 
     private static string FormatPlanLinks(List<string> planFolders)
