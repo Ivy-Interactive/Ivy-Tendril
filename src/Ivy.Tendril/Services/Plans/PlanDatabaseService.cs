@@ -678,6 +678,17 @@ public class PlanDatabaseService : IPlanDatabaseService
         }
     }
 
+    public JobItem? GetJobById(string id)
+    {
+        using (new ReadLockHandle(_lock))
+        {
+            return ReadList("SELECT * FROM Jobs WHERE Id = @id LIMIT 1",
+                MapJobRow,
+                new SqliteParameter("@id", id))
+                .FirstOrDefault();
+        }
+    }
+
     public List<JobItem> GetJobsForPlan(string planFile)
     {
         using (new ReadLockHandle(_lock))
