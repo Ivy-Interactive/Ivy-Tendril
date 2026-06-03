@@ -29,6 +29,7 @@ public static class UseTendrilProcessViewExtensions
                 .UpdatingPlansCount(status.UpdatingPlansCount)
                 .ExecutingPlansCount(status.ExecutingPlansCount)
                 .RetryingPlansCount(status.RetryingPlansCount)
+                .CreatingPrCount(status.CreatingPrCount)
                 .OnCreate(open)
                 .OnDrafts(() => navigator.Navigate<DraftsApp>())
                 .OnReview(() => navigator.Navigate<ReviewApp>())

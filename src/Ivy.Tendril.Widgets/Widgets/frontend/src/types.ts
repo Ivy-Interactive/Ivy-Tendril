@@ -16,4 +16,5 @@ export interface TendrilProcessViewProps {
   updatingPlansCount?: number;
   executingPlansCount?: number;
   retryingPlansCount?: number;
+  creatingPrCount?: number;
 }

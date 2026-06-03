@@ -108,7 +108,8 @@ class TendrilProcessViewDemo : ViewBase
         int CreatingPlansCount = 1,
         int UpdatingPlansCount = 5,
         int ExecutingPlansCount = 5,
-        int RetryingPlansCount = 3
+        int RetryingPlansCount = 3,
+        int CreatingPrCount = 1
     );
 
     public override object Build()
@@ -123,6 +124,7 @@ class TendrilProcessViewDemo : ViewBase
             .UpdatingPlansCount(model.Value.UpdatingPlansCount)
             .ExecutingPlansCount(model.Value.ExecutingPlansCount)
             .RetryingPlansCount(model.Value.RetryingPlansCount)
+            .CreatingPrCount(model.Value.CreatingPrCount)
             .OnCreate(() => client.Toast("Create Plan clicked", "OnCreate").Info())
             .OnDrafts(() => client.Toast("Drafts clicked", "OnDrafts").Info())
             .OnReview(() => client.Toast("Review clicked", "OnReview").Info())
