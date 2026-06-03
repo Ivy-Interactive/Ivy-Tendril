@@ -23,6 +23,7 @@ public static class AgentProviderFactory
         {
             ["ExecutePlan"] = ["Write", "Edit"],
             ["RetryPlan"] = ["Write", "Edit"],
+            ["IvyFrameworkVerification"] = ["Write", "Edit"],
         };
 
     public static AgentResolution Resolve(
