@@ -21,7 +21,6 @@ internal record JobLaunchContext(
 internal record RepoConfigEntry(
     string Path,
     string BaseBranch,
-    string SyncStrategy,
     string PrRule,
     bool ReadOnly);
 
@@ -594,7 +593,6 @@ internal class JobLauncher
             var entry = new RepoConfigEntry(
                 expanded,
                 repoRef?.BaseBranch ?? "main",
-                repoRef?.SyncStrategy ?? "fetch",
                 repoRef?.PrRule ?? "default",
                 ReadOnly: false);
             AddRepoToConfigLines(lines, entry);
@@ -616,7 +614,6 @@ internal class JobLauncher
             var entry = new RepoConfigEntry(
                 expanded,
                 FindBaseBranchAcrossProjects(repoName),
-                "fetch",
                 "default",
                 ReadOnly: true);
             AddRepoToConfigLines(lines, entry);
@@ -627,7 +624,6 @@ internal class JobLauncher
     {
         lines.Add($"- path: {entry.Path}");
         lines.Add($"  baseBranch: {entry.BaseBranch}");
-        lines.Add($"  syncStrategy: {entry.SyncStrategy}");
         lines.Add($"  prRule: {entry.PrRule}");
         if (entry.ReadOnly)
             lines.Add("  readOnly: true");

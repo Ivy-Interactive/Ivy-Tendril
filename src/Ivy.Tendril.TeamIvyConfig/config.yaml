@@ -12,7 +12,7 @@ projects:
   - path: D:\Repos\_Ivy\Ivy-Framework
     prRule: yolo
     baseBranch: development
-    syncStrategy: fetch
+
   verifications:
   - name: FrameworkDotnetBuild
     required: true
@@ -58,11 +58,11 @@ projects:
   - path: D:\Repos\_Ivy\Ivy-Tendril
     prRule: yolo
     baseBranch: development
-    syncStrategy: fetch
+
   - path: D:\Repos\_Ivy\Ivy-Framework
     prRule: yolo
     baseBranch: development
-    syncStrategy: fetch
+
   verifications:
   - name: DotnetBuild
     required: true
@@ -97,7 +97,7 @@ projects:
   - path: D:\Repos\_Ivy\Rustino
     prRule: yolo
     baseBranch: development
-    syncStrategy: fetch
+
   verifications:
   - name: DotnetBuild
     required: true
@@ -133,7 +133,7 @@ projects:
   repos:
   - path: D:\Tendril\Repos\lots-of-dev-tools
     prRule: default
-    syncStrategy: fetch
+
   verifications:
   - name: NpmLint
     required: true
@@ -157,7 +157,7 @@ projects:
   - path: D:\Repos\_Ivy\Ivy-Tendril-Services
     prRule: default
     baseBranch: development
-    syncStrategy: fetch
+
   verifications:
   - name: DotnetFormat
     required: true
