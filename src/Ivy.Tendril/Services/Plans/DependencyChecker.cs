@@ -165,22 +165,13 @@ internal class DependencyChecker
 
     private static bool HasActiveJobForPlan(string planFolder, ConcurrentDictionary<string, JobItem> jobs)
     {
-        var planRepos = PlanYamlHelper.ReadPlanYaml(planFolder)?.Repos;
-
         return jobs.Values.Any(j =>
         {
             if (j.TypedArgs is not (ExecutePlanArgs or RetryPlanArgs)) return false;
             if (j.Status is not (JobStatus.Running or JobStatus.Queued or JobStatus.Pending)) return false;
 
             var otherFolder = j.TypedArgs?.PlanFolder;
-            if (otherFolder == null) return false;
-
-            if (otherFolder.Equals(planFolder, StringComparison.OrdinalIgnoreCase))
-                return true;
-
-            if (planRepos is not { Count: > 0 }) return false;
-            var otherRepos = PlanYamlHelper.ReadPlanYaml(otherFolder)?.Repos;
-            return otherRepos != null && planRepos.Any(r => otherRepos.Contains(r, StringComparer.OrdinalIgnoreCase));
+            return otherFolder != null && otherFolder.Equals(planFolder, StringComparison.OrdinalIgnoreCase);
         });
     }
 }

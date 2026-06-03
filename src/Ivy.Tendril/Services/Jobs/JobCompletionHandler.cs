@@ -70,6 +70,8 @@ internal class JobCompletionHandler
         if (job.Status is JobStatus.Failed or JobStatus.Timeout)
             ScheduleWorktreeCleanup(job);
 
+        HandleWaitForJobsDependents(job, jobs, raiseNotification, startJobSkipDepCheck, persistJob);
+
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
             _dependencyChecker.RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck);
 
@@ -513,6 +515,64 @@ internal class JobCompletionHandler
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to reset plan state to Blocked for job {JobId}", job.Id);
+        }
+    }
+
+    internal void HandleWaitForJobsDependents(
+        JobItem completedJob,
+        ConcurrentDictionary<string, JobItem> jobs,
+        Action<JobNotification> raiseNotification,
+        Func<JobArgsBase, string> startJobSkipDepCheck,
+        Action<JobItem>? persistJob = null)
+    {
+        var queue = new Queue<JobItem>();
+        queue.Enqueue(completedJob);
+
+        while (queue.Count > 0)
+        {
+            var current = queue.Dequeue();
+
+            var waitingJobs = jobs.Values
+                .Where(j => j.Status == JobStatus.Blocked &&
+                            j.WaitForJobIds is { Count: > 0 } &&
+                            j.WaitForJobIds.Contains(current.Id))
+                .ToList();
+
+            foreach (var waitingJob in waitingJobs)
+            {
+                if (current.Status is JobStatus.Failed or JobStatus.Timeout or JobStatus.Stopped)
+                {
+                    waitingJob.Status = JobStatus.Failed;
+                    waitingJob.StatusMessage = $"Blocked job {current.Id} failed";
+                    waitingJob.CompletedAt = DateTime.UtcNow;
+                    persistJob?.Invoke(waitingJob);
+
+                    raiseNotification(new JobNotification(
+                        "Job Failed",
+                        $"{waitingJob.PlanFile}: blocked job {current.Id} failed",
+                        false));
+
+                    queue.Enqueue(waitingJob);
+                    continue;
+                }
+
+                var stillPending = waitingJob.WaitForJobIds!
+                    .Any(id => jobs.TryGetValue(id, out var dep) &&
+                               dep.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked);
+
+                if (stillPending)
+                    continue;
+
+                waitingJob.Status = JobStatus.Pending;
+                waitingJob.StatusMessage = null;
+                startJobSkipDepCheck(waitingJob.TypedArgs!);
+                jobs.TryRemove(waitingJob.Id, out _);
+
+                raiseNotification(new JobNotification(
+                    "Job Unblocked",
+                    $"{waitingJob.PlanFile}: all blocking jobs completed, starting",
+                    true));
+            }
         }
     }
 
