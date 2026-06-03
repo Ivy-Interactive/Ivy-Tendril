@@ -9,7 +9,7 @@ namespace Ivy.Tendril.Apps;
 public partial class JobsApp
 {
     private static object BuildDataTable(
-        INavigation nav,
+        INavigator nav,
         List<JobItemRow> rows,
         RefreshToken refreshToken,
         IWriteStream<DataTableCellUpdate> updateStream,
