@@ -10,12 +10,12 @@ public class PlanContentHelpersTests
         var diff = @"diff --git a/test.cs b/test.cs
 --- a/test.cs
 +++ b/test.cs
-@@ -1,3 +1,3 @@
--public class Test {
--    public void Method() {
--    }
-+public class Test
-+{
+@@ -1,5 +1,5 @@
+ public class Test
+ {
+-  public void Method()
+-  {
+-  }
 +    public void Method()
 +    {
 +    }
@@ -33,15 +33,13 @@ public class PlanContentHelpersTests
         var diff = @"diff --git a/test.cs b/test.cs
 --- a/test.cs
 +++ b/test.cs
-@@ -1,3 +1,3 @@
--public class Test {
--    public void Method() {
--    }
-+public class Test
-+{
+@@ -1,5 +1,5 @@
+ public class Test
+ {
+-    public void Method()
 +    public void NewMethod()
-+    {
-+    }
+     {
+     }
 ";
         var fileDiff = new PlanContentHelpers.FileDiff("test.cs", "M", diff);
 
