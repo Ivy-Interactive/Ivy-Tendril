@@ -35,7 +35,7 @@ public class DetailsTabView(
             .Builder(x => x.Revision, f => f.Func((int count) =>
                 Layout.Horizontal().Gap(2).AlignContent(Align.Center)
                 | Text.Block(count.ToString())
-                | new Button().Icon(Icons.Undo).Ghost().Small()
+                | new Button().Icon(Icons.Undo).Outline().Small()
                     .Tooltip("Revert to previous revision")
                     .Disabled(count <= 1)
                     .OnClick(() =>
