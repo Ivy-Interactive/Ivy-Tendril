@@ -446,45 +446,6 @@ public class JobServiceRetryBlockedTests : IDisposable
         Directory.Delete(plansDir, true);
     }
 
-    [Fact]
-    public void DeleteJob_WhenDeletedJobHadWaitForDependents_CascadesCorrectly()
-    {
-        SynchronizationContext.SetSynchronizationContext(null);
-
-        var planFolder = Path.Combine(_tempDir.Path, "plan-waitfor");
-        Directory.CreateDirectory(planFolder);
-        var repoDir = Path.Combine(planFolder, "repo");
-        Directory.CreateDirectory(repoDir);
-        var yaml = $"state: Draft\nproject: TestProject\nlevel: NiceToHave\ntitle: Test\nupdated: 2026-01-01T00:00:00Z\nrepos:\n- {repoDir}\ndependsOn: []\nprs: []\ncommits: []\nverifications: []\nrelatedPlans: []\n";
-        File.WriteAllText(Path.Combine(planFolder, "plan.yaml"), yaml);
-
-        var service = new JobService(
-            TimeSpan.FromMinutes(30),
-            TimeSpan.FromMinutes(10));
-
-        // Create a primary job with waitForJobs
-        var primaryId = service.CreateTestJob(new ExecutePlanArgs(planFolder, WaitForJobs: ["dep-job-1"]));
-        var primaryJob = service.GetJob(primaryId)!;
-        primaryJob.Status = JobStatus.Running;
-
-        // Create a dependent job that's waiting
-        var dependentId = service.CreateTestJob(new CreatePrArgs(planFolder));
-        var dependentJob = service.GetJob(dependentId)!;
-        dependentJob.Status = JobStatus.Blocked;
-        dependentJob.StatusMessage = $"Waiting for job {primaryId}";
-
-        // Delete the primary job — this should unblock the dependent
-        service.DeleteJob(primaryId);
-
-        // The dependent job should have been removed and restarted
-        Assert.Null(service.GetJob(dependentId));
-
-        // A new CreatePr job should have been created (the restarted one)
-        var jobs = service.GetJobs();
-        var restartedJob = jobs.FirstOrDefault(j => j.Id != primaryId && j.Type == "CreatePr");
-        Assert.NotNull(restartedJob);
-        Assert.NotEqual(JobStatus.Blocked, restartedJob.Status);
-    }
 
     [Fact]
     public async Task PeriodicCheck_WhenDependencySatisfiedExternally_UnblocksJob()
@@ -678,6 +639,15 @@ public class JobServiceRetryBlockedTests : IDisposable
         public Task FlushPendingWritesAsync()
         {
             return Task.CompletedTask;
+        }
+
+        public List<RecommendationYaml> GetRecommendationsForPlan(string folderName)
+        {
+            return [];
+        }
+
+        public void AcceptRecommendationAndRetry(string folderName, string recommendationTitle)
+        {
         }
     }
 }

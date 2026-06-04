@@ -307,5 +307,14 @@ public class JobServiceCompletionGuardTests : IDisposable
         {
             return Task.CompletedTask;
         }
+
+        public List<RecommendationYaml> GetRecommendationsForPlan(string folderName)
+        {
+            return [];
+        }
+
+        public void AcceptRecommendationAndRetry(string folderName, string recommendationTitle)
+        {
+        }
     }
 }

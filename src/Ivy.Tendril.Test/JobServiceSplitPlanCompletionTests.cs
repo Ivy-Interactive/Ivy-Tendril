@@ -94,5 +94,7 @@ public class JobServiceSplitPlanCompletionTests
         public void SyncPlanArtifacts(string planFolder) { }
         public void InvalidateCaches() { }
         public Task FlushPendingWritesAsync() => Task.CompletedTask;
+        public List<RecommendationYaml> GetRecommendationsForPlan(string folderName) => [];
+        public void AcceptRecommendationAndRetry(string folderName, string recommendationTitle) { }
     }
 }
