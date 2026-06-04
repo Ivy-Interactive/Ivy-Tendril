@@ -245,6 +245,37 @@ public class PlanDatabaseService : IPlanDatabaseService
     public DashboardModels GetDashboardData(string? projectFilter) =>
         _dashboardRepository.GetDashboardData(projectFilter);
 
+    public List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days = 30)
+    {
+        using (new ReadLockHandle(_lock))
+        {
+            var cutoff = DateTime.UtcNow.Date.AddDays(-days + 1).ToString("yyyy-MM-dd");
+            var results = new List<(DateOnly Date, int Count)>();
+
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT DATE(p.Updated) AS d, COUNT(*) AS cnt
+                FROM PullRequests pr
+                JOIN Plans p ON p.Id = pr.PlanId
+                WHERE p.Updated >= @cutoff AND p.State = 'Completed'
+                GROUP BY DATE(p.Updated)
+                ORDER BY DATE(p.Updated)
+                """;
+            cmd.Parameters.AddWithValue("@cutoff", cutoff);
+
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                var dateStr = reader.GetString(0);
+                var count = reader.GetInt32(1);
+                var date = DateOnly.ParseExact(dateStr, "yyyy-MM-dd", CultureInfo.InvariantCulture);
+                results.Add((date, count));
+            }
+
+            return results;
+        }
+    }
+
     public decimal GetPlanTotalCost(int planId)
     {
         using (new ReadLockHandle(_lock))
