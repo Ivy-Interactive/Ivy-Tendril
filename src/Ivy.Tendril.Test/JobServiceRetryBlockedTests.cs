@@ -396,6 +396,147 @@ public class JobServiceRetryBlockedTests : IDisposable
         Assert.DoesNotContain(notifications, n => n.Title == "Job Unblocked");
     }
 
+    [Fact]
+    public void DeleteJob_WhenDeletedJobWasDependency_RetryBlockedJobs()
+    {
+        SynchronizationContext.SetSynchronizationContext(null);
+
+        // Create plans directory with a completed dependency
+        var plansDir = CreatePlansDirectory(("01100-DepPlan", "Completed"));
+
+        // Create the dependent plan
+        var dependentPlan = CreatePlanFolder("Draft", ["01100-DepPlan"]);
+
+        var planReader = new FakePlanReaderService(plansDir);
+        var service = new JobService(
+            TimeSpan.FromMinutes(30),
+            TimeSpan.FromMinutes(10),
+            planReaderService: planReader);
+
+        // Create a blocked job for the dependent plan
+        var blockedId = service.CreateTestJob(new ExecutePlanArgs(dependentPlan));
+        var blockedJob = service.GetJob(blockedId)!;
+        blockedJob.Status = JobStatus.Blocked;
+
+        // Create a completed ExecutePlan job (simulating a completed dependency)
+        var completedId = service.CreateTestJob(new ExecutePlanArgs(Path.Combine(plansDir, "01100-DepPlan")));
+        var completedJob = service.GetJob(completedId)!;
+        completedJob.Status = JobStatus.Completed;
+
+        var notifications = new List<JobNotification>();
+        service.NotificationReady += n => notifications.Add(n);
+
+        // Delete the completed dependency job — this should trigger RetryBlockedJobs
+        service.DeleteJob(completedId);
+
+        // The blocked job should have been removed and restarted
+        Assert.Null(service.GetJob(blockedId));
+
+        // A new job should have been created (the restarted one)
+        var jobs = service.GetJobs();
+        var restartedJob = jobs.FirstOrDefault(j => j.Id != completedId && j.Type == "ExecutePlan");
+        Assert.NotNull(restartedJob);
+        Assert.NotEqual(JobStatus.Blocked, restartedJob.Status);
+
+        // Should have received an "unblocked" notification
+        Assert.Contains(notifications, n => n.Title == "Job Unblocked");
+
+        // Cleanup
+        Directory.Delete(dependentPlan, true);
+        Directory.Delete(plansDir, true);
+    }
+
+    [Fact]
+    public void DeleteJob_WhenDeletedJobHadWaitForDependents_CascadesCorrectly()
+    {
+        SynchronizationContext.SetSynchronizationContext(null);
+
+        var planFolder = Path.Combine(_tempDir.Path, "plan-waitfor");
+        Directory.CreateDirectory(planFolder);
+        var repoDir = Path.Combine(planFolder, "repo");
+        Directory.CreateDirectory(repoDir);
+        var yaml = $"state: Draft\nproject: TestProject\nlevel: NiceToHave\ntitle: Test\nupdated: 2026-01-01T00:00:00Z\nrepos:\n- {repoDir}\ndependsOn: []\nprs: []\ncommits: []\nverifications: []\nrelatedPlans: []\n";
+        File.WriteAllText(Path.Combine(planFolder, "plan.yaml"), yaml);
+
+        var service = new JobService(
+            TimeSpan.FromMinutes(30),
+            TimeSpan.FromMinutes(10));
+
+        // Create a primary job with waitForJobs
+        var primaryId = service.CreateTestJob(new ExecutePlanArgs(planFolder, WaitForJobs: ["dep-job-1"]));
+        var primaryJob = service.GetJob(primaryId)!;
+        primaryJob.Status = JobStatus.Running;
+
+        // Create a dependent job that's waiting
+        var dependentId = service.CreateTestJob(new CreatePrArgs(planFolder));
+        var dependentJob = service.GetJob(dependentId)!;
+        dependentJob.Status = JobStatus.Blocked;
+        dependentJob.StatusMessage = $"Waiting for job {primaryId}";
+
+        // Delete the primary job — this should unblock the dependent
+        service.DeleteJob(primaryId);
+
+        // The dependent job should have been removed and restarted
+        Assert.Null(service.GetJob(dependentId));
+
+        // A new CreatePr job should have been created (the restarted one)
+        var jobs = service.GetJobs();
+        var restartedJob = jobs.FirstOrDefault(j => j.Id != primaryId && j.Type == "CreatePr");
+        Assert.NotNull(restartedJob);
+        Assert.NotEqual(JobStatus.Blocked, restartedJob.Status);
+    }
+
+    [Fact]
+    public async Task PeriodicCheck_WhenDependencySatisfiedExternally_UnblocksJob()
+    {
+        SynchronizationContext.SetSynchronizationContext(null);
+
+        // Create plans directory with an incomplete dependency
+        var plansDir = CreatePlansDirectory(("01100-DepPlan", "Executing"));
+
+        // Create the dependent plan
+        var dependentPlan = CreatePlanFolder("Draft", ["01100-DepPlan"]);
+
+        var planReader = new FakePlanReaderService(plansDir);
+        var service = new JobService(
+            TimeSpan.FromMinutes(30),
+            TimeSpan.FromMinutes(10),
+            planReaderService: planReader);
+
+        // Create a blocked job
+        var blockedId = service.CreateTestJob(new ExecutePlanArgs(dependentPlan));
+        var blockedJob = service.GetJob(blockedId)!;
+        blockedJob.Status = JobStatus.Blocked;
+
+        var notifications = new List<JobNotification>();
+        service.NotificationReady += n => notifications.Add(n);
+
+        // Simulate the dependency plan being completed externally (e.g., manual PR merge)
+        var depPlanPath = Path.Combine(plansDir, "01100-DepPlan", "plan.yaml");
+        var depYaml = File.ReadAllText(depPlanPath);
+        depYaml = depYaml.Replace("state: Executing", "state: Completed");
+        File.WriteAllText(depPlanPath, depYaml);
+
+        // Wait for the periodic check to run (60 second interval, but we'll wait up to 70 seconds)
+        await Task.Delay(TimeSpan.FromSeconds(70));
+
+        // The blocked job should have been removed and restarted
+        Assert.Null(service.GetJob(blockedId));
+
+        // A new job should have been created (the restarted one)
+        var jobs = service.GetJobs();
+        var restartedJob = jobs.FirstOrDefault(j => j.Id != blockedId && j.Type == "ExecutePlan");
+        Assert.NotNull(restartedJob);
+        Assert.NotEqual(JobStatus.Blocked, restartedJob.Status);
+
+        // Should have received an "unblocked" notification
+        Assert.Contains(notifications, n => n.Title == "Job Unblocked");
+
+        // Cleanup
+        Directory.Delete(dependentPlan, true);
+        Directory.Delete(plansDir, true);
+    }
+
     /// <summary>
     ///     Minimal fake that provides PlansDirectory for dependency checking.
     /// </summary>
