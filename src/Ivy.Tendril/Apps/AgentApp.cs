@@ -7,26 +7,26 @@ using Xterm = Ivy.Widgets.Xterm;
 
 namespace Ivy.Tendril.Apps;
 
-[App(title: "Agent", icon: Icons.Terminal, group: ["Apps"], order: Constants.Agent, isVisible: true, allowDuplicateTabs:true)]
+[App(title: "Agent", icon: Icons.Terminal, group: ["Apps"], order: Constants.Agent, isVisible: true, allowDuplicateTabs: true)]
 public class AgentApp : ViewBase
 {
     public override object Build()
     {
         var configService = UseService<IConfigService>();
         var agentRunner = UseService<IAgentRunner>();
-        
+
         var ptyHandle = Context.UsePty(
             GetCommandLine(configService, agentRunner),
             GetWorkDir(configService, agentRunner)
         );
-        
+
         var terminal = new Xterm.Terminal()
             .Stream(ptyHandle.Stream)
             .OnInput(ptyHandle.HandleInput)
             .OnResize(ptyHandle.HandleResize)
             .Closed(ptyHandle.Closed)
             .AllowClipboard();
-        
+
         return terminal
             .WithLayout()
             .Full()

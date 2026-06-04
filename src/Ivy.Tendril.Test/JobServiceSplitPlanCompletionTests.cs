@@ -68,6 +68,7 @@ public class JobServiceSplitPlanCompletionTests
 
         public void ResetToDraft(string folderName) { }
         public void ResetVerificationsForRetry(string folderName) { }
+        public void RevertRevision(string folderName) { }
 
         public void RecoverStuckPlans() { }
         public void RepairPlans() { }

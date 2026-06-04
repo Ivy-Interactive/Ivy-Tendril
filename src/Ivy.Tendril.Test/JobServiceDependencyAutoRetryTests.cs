@@ -345,6 +345,10 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         {
         }
 
+        public void RevertRevision(string folderName)
+        {
+        }
+
         public void SaveRevision(string folderName, string content)
         {
         }

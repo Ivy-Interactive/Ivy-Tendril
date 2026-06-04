@@ -119,7 +119,7 @@ internal class SoftwareCheck : IDoctorCheck
     private static async Task<bool> CheckDotNet(List<CheckStatus> statuses)
     {
         var bundledPath = PathHelper.GetBundledDotnetPath();
-        
+
         // Try bundled first if it exists
         if (bundledPath != null)
         {
@@ -130,7 +130,7 @@ internal class SoftwareCheck : IDoctorCheck
                 return false;
             }
         }
-        
+
         // Try system dotnet next
         var (sysSuccess, sysErr) = await ProcessCheckHelper.TryCheckCommand("dotnet", "--version");
         if (sysSuccess)
@@ -138,7 +138,7 @@ internal class SoftwareCheck : IDoctorCheck
             statuses.Add(new CheckStatus("dotnet", "OK (dotnet)", StatusKind.Ok));
             return false;
         }
-        
+
         var details = bundledPath != null ? $"bundled: {bundledPath} failed, system: {sysErr}" : sysErr;
         statuses.Add(new CheckStatus("dotnet", $"Not found or failed to execute. Details: {details}", StatusKind.Error));
         return true;

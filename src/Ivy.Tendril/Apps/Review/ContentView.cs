@@ -549,7 +549,7 @@ public class ContentView(
                 new Tab("Plan", Cap(planTabContent)),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan,
                     jobService.GetJobsForPlan(selectedPlan.FolderName),
-                    showDebugJob))),
+                    showDebugJob, planService, selectedPlanState, refreshPlans))),
                 new Tab("Verifications", Cap(new VerificationsTabView(
                     selectedPlan.Verifications, planData.VerificationReports,
                     v => openVerification.Set(v)))).Badge(selectedPlan.Verifications.Count.ToString()),
