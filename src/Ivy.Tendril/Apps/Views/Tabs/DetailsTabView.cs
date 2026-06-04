@@ -16,23 +16,10 @@ public class DetailsTabView(
     {
         var planYaml = PlanYamlHelper.ParsePlanYaml(plan.PlanYamlRaw);
 
-        var revisionWidget = Layout.Horizontal().Gap(2).AlignContent(Align.Center)
-                             | Text.Block(plan.RevisionCount.ToString())
-                             | new Button().Icon(Icons.Undo).Ghost().Small()
-                                 .Tooltip("Revert to previous revision")
-                                 .Disabled(plan.RevisionCount <= 1)
-                                 .OnClick(() =>
-                                 {
-                                     planService.RevertRevision(plan.FolderName);
-                                     var updated = planService.GetPlanByFolder(plan.FolderPath);
-                                     if (updated != null) selectedPlanState.Set(updated);
-                                     refreshPlans();
-                                 });
-
         var detailsData = new
         {
             plan.InitialPrompt,
-            Revision = revisionWidget,
+            Revision = plan.RevisionCount,
             Profile = planYaml?.ExecutionProfile ?? "",
             RelatedPlans = FormatPlanLinks(plan.RelatedPlans),
             DependsOn = FormatPlanLinks(plan.DependsOn),
@@ -45,6 +32,19 @@ public class DetailsTabView(
 
         var details = detailsData.ToDetails()
             .Multiline(x => x.InitialPrompt)
+            .Builder(x => x.Revision, f => f.Func((int count) =>
+                Layout.Horizontal().Gap(2).AlignItems(Align.Center)
+                | Text.Block(count.ToString())
+                | new Button().Icon(Icons.Undo).Ghost().Small()
+                    .Tooltip("Revert to previous revision")
+                    .Disabled(count <= 1)
+                    .OnClick(() =>
+                    {
+                        planService.RevertRevision(plan.FolderName);
+                        var updated = planService.GetPlanByFolder(plan.FolderPath);
+                        if (updated != null) selectedPlanState.Set(updated);
+                        refreshPlans();
+                    })))
             .Builder(x => x.Issue, f => f.Link())
             .RemoveEmpty();
 
