@@ -33,7 +33,7 @@ public class DetailsTabView(
         var details = detailsData.ToDetails()
             .Multiline(x => x.InitialPrompt)
             .Builder(x => x.Revision, f => f.Func((int count) =>
-                Layout.Horizontal().Gap(2).AlignItems(Align.Center)
+                Layout.Horizontal().Gap(2).AlignContent(Align.Center)
                 | Text.Block(count.ToString())
                 | new Button().Icon(Icons.Undo).Ghost().Small()
                     .Tooltip("Revert to previous revision")
