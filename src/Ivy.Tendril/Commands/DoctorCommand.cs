@@ -84,7 +84,7 @@ public static class DoctorCommand
         AnsiConsole.MarkupLine($"[cyan]── {title} ──[/]");
     }
 
-    private static void PrintStatus(string label, string value, DoctorChecks.StatusKind kind)
+    internal static void PrintStatus(string label, string value, DoctorChecks.StatusKind kind)
     {
         var (symbol, color) = kind switch
         {

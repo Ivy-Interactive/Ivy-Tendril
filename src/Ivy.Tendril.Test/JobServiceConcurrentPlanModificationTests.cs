@@ -264,6 +264,32 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
     }
 
     [Fact]
+    public void StartJob_ExecutePlan_WhenAnotherExecutePlanBlocked_FailsWithConflictMessage()
+    {
+        var service = new JobService(
+            TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
+            null, 10);
+
+        // Create a running dependency job so ExecutePlan gets blocked via WaitForJobs
+        var depId = service.CreateTestJob(new CreatePlanArgs("Dep job", "Auto"));
+
+        // Start ExecutePlan with WaitForJobs — it enters Blocked state
+        var firstJobId = service.StartJob(new ExecutePlanArgs(_planFolder) { WaitForJobs = [depId] });
+        var firstJob = service.GetJob(firstJobId);
+        Assert.NotNull(firstJob);
+        Assert.Equal(JobStatus.Blocked, firstJob.Status);
+
+        // Try to start another ExecutePlan for the same plan — should be rejected
+        var secondJobId = service.StartJob(new ExecutePlanArgs(_planFolder));
+        var secondJob = service.GetJob(secondJobId);
+
+        Assert.NotNull(secondJob);
+        Assert.Equal(JobStatus.Failed, secondJob.Status);
+        Assert.Contains("already in progress", secondJob.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(firstJobId, secondJob.StatusMessage);
+    }
+
+    [Fact]
     public void StartJob_RaisesNotificationWhenConcurrentJobBlocked()
     {
         var previousContext = SynchronizationContext.Current;

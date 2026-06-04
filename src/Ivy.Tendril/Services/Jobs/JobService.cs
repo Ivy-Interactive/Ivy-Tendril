@@ -532,7 +532,7 @@ public class JobService : IJobService
         var planFolder = job.TypedArgs?.PlanFolder ?? "";
         var conflictingJob = _jobs.Values.FirstOrDefault(j =>
             j.Type == job.Type &&
-            j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
+            j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked &&
             !string.IsNullOrEmpty(j.TypedArgs?.PlanFolder) &&
             j.TypedArgs!.PlanFolder!.Equals(planFolder, StringComparison.OrdinalIgnoreCase));
 
