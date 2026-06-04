@@ -59,7 +59,7 @@ public class EditProjectDialog(
                     editColor.Set(Enum.TryParse<Colors>(project.Color, out var c) ? c : null);
                     editContext.Set(project.Context);
                     editRepos.Set(
-                        new List<RepoRef>(project.Repos.Select(r => new RepoRef { Path = r.Path, PrRule = r.PrRule, BaseBranch = r.BaseBranch, SyncStrategy = r.SyncStrategy })));
+                        new List<RepoRef>(project.Repos.Select(r => new RepoRef { Path = r.Path, PrRule = r.PrRule, BaseBranch = r.BaseBranch })));
                     editVerifications.Set(new List<ProjectVerificationRef>(
                         project.Verifications.Select(v => new ProjectVerificationRef
                         { Name = v.Name, Required = v.Required })));

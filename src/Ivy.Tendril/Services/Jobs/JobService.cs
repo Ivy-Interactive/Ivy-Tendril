@@ -222,6 +222,8 @@ public class JobService : IJobService
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
             _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);
 
+        _completionHandler.HandleWaitForJobsDependents(job, _jobs, RaiseNotification, StartJobSkipDepCheck, PersistJob);
+
         RaiseJobsStructureChanged();
 
         // Try to start queued jobs now that a slot is free
@@ -278,7 +280,6 @@ public class JobService : IJobService
         {
             if (_jobs.TryRemove(id, out var removed))
                 removed.DisposeResources(_logger);
-            try { _database?.DeleteJob(id); } catch { /* Best-effort */ }
         }
         if (ids.Count > 0)
             RaiseJobsStructureChanged();
@@ -291,7 +292,23 @@ public class JobService : IJobService
 
     public JobItem? GetJob(string id)
     {
-        return _jobs.GetValueOrDefault(id);
+        return _jobs.GetValueOrDefault(id) ?? _database?.GetJobById(id);
+    }
+
+    public List<JobItem> GetJobsForPlan(string planFile)
+    {
+        var activeJobs = _jobs.Values
+            .Where(j => j.PlanFile == planFile)
+            .ToDictionary(j => j.Id);
+
+        var dbJobs = _database?.GetJobsForPlan(planFile) ?? [];
+
+        foreach (var dbJob in dbJobs)
+            activeJobs.TryAdd(dbJob.Id, dbJob);
+
+        return activeJobs.Values
+            .OrderByDescending(j => j.StartedAt ?? DateTime.MinValue)
+            .ToList();
     }
 
     /// <summary>
@@ -400,6 +417,9 @@ public class JobService : IJobService
         if (TryBlockForDependencies(job, skipDependencyCheck))
             return id;
 
+        if (TryBlockForWaitForJobs(job))
+            return id;
+
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or ExpandPlanArgs or UpdatePlanArgs or SplitPlanArgs)
             _planReaderService?.FlushPendingWritesAsync().GetAwaiter().GetResult();
 
@@ -429,7 +449,8 @@ public class JobService : IJobService
             Status = JobStatus.Pending,
             TypedArgs = args,
             Provider = _configService?.Settings.CodingAgent ?? "claude",
-            Priority = priority
+            Priority = priority,
+            WaitForJobIds = args.WaitForJobs
         };
 
         if (args is CreatePlanArgs)
@@ -524,6 +545,44 @@ public class JobService : IJobService
         ResetPlanStateToBlocked(job);
 
         RaiseNotification(new JobNotification("Job Blocked", $"{job.PlanFile}: {blockReason}", false));
+        RaiseJobsStructureChanged();
+        return true;
+    }
+
+    private bool TryBlockForWaitForJobs(JobItem job)
+    {
+        if (job.WaitForJobIds is not { Count: > 0 })
+            return false;
+
+        var pendingIds = job.WaitForJobIds
+            .Where(id => _jobs.TryGetValue(id, out var dep) &&
+                         dep.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked)
+            .ToList();
+
+        if (pendingIds.Count == 0)
+        {
+            // Check if any already failed — cascade immediately
+            var failedId = job.WaitForJobIds
+                .FirstOrDefault(id => _jobs.TryGetValue(id, out var dep) &&
+                                      dep.Status is JobStatus.Failed or JobStatus.Timeout or JobStatus.Stopped);
+
+            if (failedId != null)
+            {
+                job.Status = JobStatus.Failed;
+                job.StatusMessage = $"Blocked job {failedId} failed";
+                job.CompletedAt = DateTime.UtcNow;
+                PersistJob(job);
+                RaiseNotification(new JobNotification("Job Failed", $"{job.PlanFile}: blocked job {failedId} failed", false));
+                RaiseJobsStructureChanged();
+                return true;
+            }
+
+            return false;
+        }
+
+        job.Status = JobStatus.Blocked;
+        job.StatusMessage = $"Waiting for job(s): {string.Join(", ", pendingIds)}";
+        RaiseNotification(new JobNotification("Job Blocked", $"{job.PlanFile}: waiting for {string.Join(", ", pendingIds)}", false));
         RaiseJobsStructureChanged();
         return true;
     }

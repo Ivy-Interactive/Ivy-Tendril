@@ -9,6 +9,30 @@ public enum GitError
     UnknownError
 }
 
+public enum DirtyReason
+{
+    NotOnExpectedBranch,
+    AheadOfOrigin,
+    DetachedHead,
+    UncommittedChanges,
+    UntrackedFiles,
+    InProgressOperation,
+    NoRemoteConfigured
+}
+
+public record DirtyReasonDetail
+{
+    public DirtyReason Reason { get; init; }
+    public string Message { get; init; } = "";
+    public List<string> Files { get; init; } = new();
+}
+
+public record DirtyRepoResult
+{
+    public bool IsDirty => Reasons.Count > 0;
+    public List<DirtyReasonDetail> Reasons { get; init; } = new();
+}
+
 public class GitResult<T>
 {
     public bool IsSuccess { get; }

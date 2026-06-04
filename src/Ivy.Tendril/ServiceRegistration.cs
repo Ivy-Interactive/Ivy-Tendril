@@ -20,6 +20,7 @@ internal static class ServiceRegistration
 
         server.Services.AddSingleton<IConfigService>(configService);
         server.Services.AddSingleton<ConfigService>(configService);
+        server.Services.AddSingleton<ICreatePlanPreferences, CreatePlanPreferences>();
 
         Program.SetConfigServiceForCleanup(configService);
 
@@ -62,8 +63,10 @@ internal static class ServiceRegistration
         server.Services.AddSingleton<IWorktreeLifecycleLogger>(sp =>
         {
             var config = sp.GetRequiredService<IConfigService>();
-            return new WorktreeLifecycleLogger(
-                string.IsNullOrEmpty(config.TendrilHome) ? "." : config.TendrilHome);
+            var home = string.IsNullOrEmpty(config.TendrilHome)
+                ? System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), ".tendril")
+                : config.TendrilHome;
+            return new WorktreeLifecycleLogger(home);
         });
         server.Services.AddSingleton<PlanReaderService>(sp =>
         {
@@ -161,6 +164,17 @@ internal static class ServiceRegistration
             return new PrStatusSyncService(database, githubService, planReader, logger);
         });
         server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<PrStatusSyncService>());
+
+        server.Services.AddSingleton<MasterElectionService>(sp =>
+        {
+            var config = sp.GetRequiredService<IConfigService>();
+            var appLifetime = sp.GetRequiredService<Microsoft.Extensions.Hosting.IHostApplicationLifetime>();
+            var svr = sp.GetRequiredService<Microsoft.AspNetCore.Hosting.Server.IServer>();
+            var logger = sp.GetRequiredService<ILogger<MasterElectionService>>();
+            return new MasterElectionService(config, appLifetime, svr, logger);
+        });
+        server.Services.AddSingleton<IMasterElectionService>(sp => sp.GetRequiredService<MasterElectionService>());
+        server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<MasterElectionService>());
 
         server.Services.AddSingleton<Services.Tunnel.CloudflaredService>(sp =>
         {

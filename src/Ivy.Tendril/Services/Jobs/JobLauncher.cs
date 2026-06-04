@@ -21,7 +21,6 @@ internal record JobLaunchContext(
 internal record RepoConfigEntry(
     string Path,
     string BaseBranch,
-    string SyncStrategy,
     string PrRule,
     bool ReadOnly);
 
@@ -340,6 +339,13 @@ internal class JobLauncher
             return (values, null, null);
         }
 
+        if (job.TypedArgs is SyncRepoArgs syncArgs)
+        {
+            values["RepoPath"] = syncArgs.RepoPath;
+            values["BaseBranch"] = syncArgs.BaseBranch;
+            return (values, null, null);
+        }
+
         return BuildNonCreatePlanFirmware(job, values);
     }
 
@@ -423,6 +429,7 @@ internal class JobLauncher
         if (job.TypedArgs is not CreatePrArgs pr)
             return;
 
+        values["PrSolveMergeConflicts"] = pr.SolveMergeConflicts.ToString().ToLowerInvariant();
         values["PrMerge"] = pr.Merge.ToString().ToLowerInvariant();
         values["PrDeleteBranch"] = pr.DeleteBranch.ToString().ToLowerInvariant();
         values["PrIncludeArtifacts"] = pr.IncludeArtifacts.ToString().ToLowerInvariant();
@@ -557,7 +564,6 @@ internal class JobLauncher
             psi.Environment["TENDRIL_HOME"] = tendrilHome;
         psi.Environment["TENDRIL_PLANS"] = _configService.PlanFolder;
 
-        job.StatusFilePath = JobStatusFile.GetStatusFilePath(job.Id);
         EnsureTendrilOnPath(psi);
     }
 
@@ -594,7 +600,6 @@ internal class JobLauncher
             var entry = new RepoConfigEntry(
                 expanded,
                 repoRef?.BaseBranch ?? "main",
-                repoRef?.SyncStrategy ?? "fetch",
                 repoRef?.PrRule ?? "default",
                 ReadOnly: false);
             AddRepoToConfigLines(lines, entry);
@@ -616,7 +621,6 @@ internal class JobLauncher
             var entry = new RepoConfigEntry(
                 expanded,
                 FindBaseBranchAcrossProjects(repoName),
-                "fetch",
                 "default",
                 ReadOnly: true);
             AddRepoToConfigLines(lines, entry);
@@ -627,7 +631,6 @@ internal class JobLauncher
     {
         lines.Add($"- path: {entry.Path}");
         lines.Add($"  baseBranch: {entry.BaseBranch}");
-        lines.Add($"  syncStrategy: {entry.SyncStrategy}");
         lines.Add($"  prRule: {entry.PrRule}");
         if (entry.ReadOnly)
             lines.Add("  readOnly: true");

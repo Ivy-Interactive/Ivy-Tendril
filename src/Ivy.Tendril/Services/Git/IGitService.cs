@@ -12,6 +12,7 @@ public interface IGitService
     GitResult<Dictionary<string, (string Title, int FileCount)>> GetCommitSummaries(string repoPath, IEnumerable<string> commitHashes);
     GitResult<bool> HasUncommittedChanges(string repoPath);
     GitResult<List<string>> GetReachableCommits(string repoPath, IEnumerable<string> candidateHashes);
+    GitResult<DirtyRepoResult> GetRepoDirtyState(string repoPath, string expectedBaseBranch);
 }
 
 public record WorktreeInfo(string Path, string Branch, string CommitHash);

@@ -34,6 +34,9 @@ public interface IPlanReaderService
     void UpdateRecommendationState(string planFolderName, string recommendationTitle, string newState,
         string? declineReason = null);
 
+    List<RecommendationYaml> GetRecommendationsForPlan(string folderName);
+    void AcceptRecommendationAndRetry(string folderName, string recommendationTitle);
+
     void SyncPlanArtifacts(string planFolder);
     void InvalidateCaches();
     Task FlushPendingWritesAsync();

@@ -154,71 +154,6 @@ After reading the plan revision, scan it for code validation markers to detect s
 
    If any marker is found, verify the claim: run `gh pr view <cited PR> --json state,mergeCommit` (must be `MERGED`), confirm the cited commit is in `git log origin/<default-branch>`, and byte-compare the plan's proposed code against the current file contents. If all three checks pass, write `Verification/PreExecution.md` with `Result: Fail`, write `Artifacts/summary.md` documenting the no-op, set every verification to `Skipped` via `tendril plan set-verification <plan-id> <name> Skipped --job-id TendrilJobId`, and fail the plan **without creating a worktree** — running verifications on unchanged code wastes the time budget and produces a 0-commit PR that CreatePr cannot process.
 
-### 1.8. Auto-Commit Uncommitted Changes
-
-Before creating worktrees, check each repo for uncommitted changes and automatically commit them. This prevents silent data loss when worktrees are created from `origin/<default-branch>` and later merged back.
-
-For each repo listed in `plan.yaml` `repos` (or the project's repos from the **Projects** section if empty):
-
-```bash
-cd <repo-path>
-
-if [[ -n $(git status --porcelain) ]]; then
-  echo "Found uncommitted changes in $(pwd), checking for conflicts with recent commits..."
-  
-  STALE_FILES=()
-  
-  # Get list of dirty tracked files (modified/deleted/staged, not untracked)
-  for file in $(git diff --name-only HEAD; git diff --cached --name-only) | sort -u; do
-    # Check if this file was touched in last 5 commits
-    RECENT_COMMIT=$(git log --oneline -1 -5 -- "$file" 2>/dev/null)
-    if [[ -n "$RECENT_COMMIT" ]]; then
-      COMMIT_HASH=$(echo "$RECENT_COMMIT" | awk '{print $1}')
-      
-      # Get the file content from before that commit
-      PARENT_CONTENT=$(git show "${COMMIT_HASH}^:$file" 2>/dev/null)
-      WORKING_CONTENT=$(cat "$file" 2>/dev/null)
-      
-      if [[ "$PARENT_CONTENT" == "$WORKING_CONTENT" ]]; then
-        echo "WARNING: Stale file '$file' matches pre-commit state of $RECENT_COMMIT"
-        echo "  Discarding stale version — keeping committed (HEAD) version."
-        STALE_FILES+=("$file")
-      fi
-    fi
-  done
-  
-  # Auto-resolve: discard stale files by restoring HEAD versions
-  if [[ ${#STALE_FILES[@]} -gt 0 ]]; then
-    echo "Auto-resolving ${#STALE_FILES[@]} stale file(s)..."
-    for stale in "${STALE_FILES[@]}"; do
-      git checkout HEAD -- "$stale"
-      echo "  Restored: $stale"
-    done
-  fi
-  
-  # After resolving stale files, check if there are still changes to commit
-  if [[ -n $(git status --porcelain) ]]; then
-    git add -A
-    git reset -- '*.bak_*' 2>/dev/null || true
-    git commit -m "WIP: Auto-commit before plan execution [$(date -u +%Y-%m-%dT%H:%M:%SZ)]"
-    git push origin $(git branch --show-current)
-    echo "Changes committed and pushed successfully"
-  else
-    echo "All dirty files were stale — nothing to commit after cleanup."
-  fi
-fi
-```
-
-**Rationale:**
-- Worktrees branch from `origin/<default-branch>` (Step 2), so unpushed local changes won't be in the worktree base
-- When the PR merges and CreatePr pulls main back, `git pull` would overwrite any uncommitted local changes
-- Auto-committing and pushing ensures all local work is preserved and visible to worktrees
-- The `WIP:` prefix makes auto-commits easily identifiable for later cleanup (squash/amend)
-- **Revert detection with auto-resolve:** Before committing, each dirty tracked file — whether unstaged (`git diff --name-only HEAD`) or staged (`git diff --cached --name-only`) — is checked against the last 5 commits. If the working tree version matches the file's state *before* a recent commit (i.e., it's stale), the file is automatically restored to its HEAD version via `git checkout HEAD -- <file>`. This prevents silent reverts while keeping the process fully autonomous. Any remaining non-stale dirty files are committed normally.
-- **Backup file exclusion:** After staging all changes with `git add -A`, the command `git reset -- '*.bak_*'` explicitly unstages any files matching the backup pattern. This prevents temporary backup files (created by prior plan executions as local recovery points) from being committed to version control. Backup files serve only as local recovery points and should not pollute the repository history.
-
-**Note:** This step runs in the original repo directories, before worktree creation.
-
 ### 2. Create Worktrees
 
 Report status: `tendril job status TendrilJobId --message "Creating worktrees..."`
@@ -267,11 +202,9 @@ git worktree add "<TendrilPlanFolder>/Worktrees/<RepoName>" -b "tendril/<Tendril
 RepoConfigs: |
   - path: /home/user/repos/my-project
     baseBranch: main
-    syncStrategy: fetch
     prRule: yolo
   - path: /home/user/repos/shared-lib
     baseBranch: main
-    syncStrategy: fetch
     prRule: default
     readOnly: true
 ```
@@ -291,30 +224,6 @@ cat "<TendrilPlanFolder>/Worktrees/<repo-folder-name>/.git"
 ```
 
 This ensures ExecutePlan fails immediately if worktree creation is incomplete, rather than leaving orphaned directories that trigger warnings during cleanup.
-
-5. **Apply sync strategy** — REQUIRED after worktree creation and `.git` file verification:
-
-   ```bash
-   SYNC_STRATEGY="<from RepoConfigs or 'fetch' if not specified>"
-   BASE_BRANCH="<resolved-base-branch>"
-   WORKTREE_PATH="<TendrilPlanFolder>/Worktrees/<repo-folder-name>"
-
-   tendril plan sync-worktree "$WORKTREE_PATH" --strategy "$SYNC_STRATEGY" --base-branch "$BASE_BRANCH" --job-id TendrilJobId
-   ```
-
-   This applies the configured sync strategy (fetch/rebase/merge) to keep the worktree branch synchronized with the base branch.
-
-   **When to call:** After each worktree is created (Step 2.4) and before moving to the next repo.
-
-   **Note:** For `syncStrategy: "rebase"` or `syncStrategy: "merge"`, this operation should also be performed before making commits during plan execution to keep the branch up-to-date with upstream changes.
-
-   **Error handling:**
-   - If the command fails (non-zero exit code), the entire ExecutePlan run should fail
-   - Common failure scenarios:
-     - `git fetch` fails → network issue or invalid remote
-     - `git rebase` fails → conflicting changes between worktree base and origin
-     - `git merge` fails → conflicting changes or uncommitted files
-   - On failure, log the error and exit. Do NOT attempt to continue with an out-of-sync worktree.
 
 ### 2.5. Setup Build Dependencies in Worktrees
 
@@ -429,6 +338,15 @@ The summary should follow this structure:
 ## Files Modified
 
 <Bulleted list of key files changed, grouped by category. Don't list every file — focus on the important ones.>
+
+## Manual Testing
+
+<Step-by-step instructions for a human reviewer to verify this change works correctly. Include:
+- What to launch/open (e.g., "Run the app", "Open the Plans view")
+- What action to perform (e.g., "Click the Execute button on a plan with dependencies")
+- What to observe (e.g., "The plan should show 'Blocked' status instead of executing")
+
+If the change has no observable user-facing behavior (e.g., internal refactor, dependency update, code cleanup), write "N/A — internal change with no user-facing behavior.">
 ~~~
 
 Focus on **what changed** (past tense), not what the plan said to do. Emphasize API surface changes — new classes, renamed methods, added properties, changed signatures — since these affect consumers.

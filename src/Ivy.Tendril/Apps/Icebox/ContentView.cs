@@ -1,7 +1,9 @@
 using Ivy.Core;
 using Ivy.Tendril.Apps.Icebox.Dialogs;
 using Ivy.Tendril.Apps.Views;
+using Ivy.Tendril.Apps.Views.Dialogs;
 using Ivy.Tendril.Apps.Views.Sheets;
+using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
@@ -19,10 +21,11 @@ public class ContentView(
 {
     public override object Build()
     {
-        var downloadUrl = PlanDownloadHelper.UsePlanDownload(Context, planService, selectedPlan);
         var client = UseService<IClientProvider>();
         var copyToClipboard = UseClipboard();
         var openFile = UseState<string?>(null);
+        var showDirtyDialog = UseState(false);
+        var (runPreflight, isCheckingPreflight, preflightResult) = Context.UsePreflightCheck();
 
         var (deleteDialog, showDeleteDialog) = UseTrigger((isOpen) =>
         {
@@ -77,18 +80,17 @@ public class ContentView(
                             planService.TransitionState(selectedPlan.FolderName, PlanStatus.Draft);
                             refreshPlans();
                         })
-                        | new Button("Execute").Icon(Icons.Rocket).Outline().ShortcutKey("e").OnClick(() =>
-                        {
-                            planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
-                            jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath));
-                            refreshPlans();
-                        })
-                        | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
-                            new MenuItem("Download", Icon: Icons.Download, Tag: "Download").OnSelect(() =>
+                        | new Button("Execute").Icon(Icons.Rocket).Outline().ShortcutKey("x")
+                            .Loading(isCheckingPreflight)
+                            .Disabled(isCheckingPreflight)
+                            .OnClick(() => runPreflight(selectedPlan.Project, result =>
                             {
-                                var url = downloadUrl.Value;
-                                if (!string.IsNullOrEmpty(url)) client.OpenUrl(url);
-                            }),
+                                if (result.DirtyRepos.Count > 0)
+                                    showDirtyDialog.Set(true);
+                                else
+                                    LaunchExecute();
+                            }))
+                        | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
                             new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
                                 .OnSelect(() =>
                                 {
@@ -123,15 +125,52 @@ public class ContentView(
             ).Size(Size.Full())
         ).Scroll(Scroll.None).Size(Size.Full()).Key(selectedPlan.Id);
 
+        var dirtyRepoDialog = showDirtyDialog.Value && preflightResult is { DirtyRepos.Count: > 0 }
+            ? new DirtyRepoDialog(
+                showDirtyDialog,
+                preflightResult,
+                proceedLabel: "Execute Anyway",
+                contextMessage: "These changes will NOT be included in this plan. The plan will execute against origin/<baseBranch>. If these changes are meant for this plan, commit and push them first.",
+                onSyncRepos: () => LaunchWithSync(preflightResult),
+                onProceed: LaunchExecute)
+            : null;
+
         var elements = new List<object>
         {
             mainLayout,
             deleteDialog
         };
 
+        if (dirtyRepoDialog is not null)
+            elements.Add(dirtyRepoDialog);
+
         elements.Add(new FileSheet(openFile, config));
 
         return new Fragment(elements.ToArray());
+    }
+
+    private void LaunchExecute()
+    {
+        if (selectedPlan is null) return;
+        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
+        jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath));
+        refreshPlans();
+    }
+
+    private void LaunchWithSync(PreflightResult preflight)
+    {
+        if (selectedPlan is null) return;
+
+        var syncJobIds = new List<string>();
+        foreach (var (repoPath, baseBranch, _) in preflight.DirtyRepos)
+        {
+            var jobId = jobService.StartJob(new SyncRepoArgs(repoPath, baseBranch));
+            syncJobIds.Add(jobId);
+        }
+
+        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
+        jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath) { WaitForJobs = syncJobIds });
+        refreshPlans();
     }
 
     private void GoToNext()

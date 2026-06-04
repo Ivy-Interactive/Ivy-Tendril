@@ -25,7 +25,7 @@ Configure Tendril in the in-app **Settings** UI or by editing `TENDRIL_HOME/conf
 
 From Tendril, open setup without hand-editing YAML. Sections include:
 
-- **General** — Default coding agent (`claude`, `codex`, `antigravity`, `copilot`, `opencode`), max concurrent jobs, timeouts.
+- **General** — Default coding agent (`claude`, `codex`, `copilot`, `gemini`, `opencode`), max concurrent jobs, timeouts.
 - **Levels** — Complexity tiers (e.g. L1–L3) and how agents weight large vs. small work.
 - **Verifications** — Build / test / lint commands agents must satisfy.
 - **Promptwares** — Paths to custom promptware folders and tools.
@@ -64,10 +64,10 @@ projects:
 
 | Field | Purpose |
 |-------|---------|
-| `codingAgent` | Agent runtime. See Claude Code, Codex, Antigravity, or Copilot for details. |
+| `codingAgent` | Agent runtime. See [Coding Agents](../06_CodingAgents/_Index.md) for details. |
 | `maxConcurrentJobs` | Cap on parallel agent runs (worktrees). |
 | `projects` | Registered repositories and their settings. |
-| `api.apiKey` | Protect the REST API with a shared secret (see [REST API](../08_Advanced/02_REST.md)). |
+| `api.apiKey` | Protect the REST API with a shared secret (see [REST API](../09_Advanced/02_REST.md)). |
 
 ## Password on a server (env secrets)
 
@@ -81,7 +81,7 @@ Set **`TENDRIL_HOME`** to your data directory. For a password on the web UI, set
 
 You can use `TENDRIL_AUTH_PASSWORD`, `TENDRIL_AUTH_USERNAME`, and `TENDRIL_AUTH_HASH_SECRET` instead of the `BasicAuth__*` names if you prefer.
 
-REST uses **`api.apiKey`** in config, not these vars — see [REST API](../08_Advanced/02_REST.md). **Settings** in the app still edits `config.yaml` after startup.
+REST uses **`api.apiKey`** in config, not these vars — see [REST API](../09_Advanced/02_REST.md). **Settings** in the app still edits `config.yaml` after startup.
 
 ## Verifications
 

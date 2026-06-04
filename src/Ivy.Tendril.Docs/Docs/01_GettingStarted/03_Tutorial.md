@@ -85,7 +85,7 @@ projects:
         required: true
 ```
 
-Set `codingAgent` to the agent you want to use (`claude`, `codex`, `antigravity`, `copilot`, `opencode`) and adjust `verifications` to match your stack.
+Set `codingAgent` to the agent you want to use (`claude`, `codex`, `copilot`, `gemini`, `opencode`) and adjust `verifications` to match your stack.
 
 <Callout type="Tip">
 Add a `CLAUDE.md` or `AGENTS.md` file to your repo root with project conventions — Tendril passes these to the agent as context.
@@ -151,4 +151,4 @@ The agent worked in an isolated worktree, ran your verification suite, and the r
 - Learn more about [Plans](../02_Concepts/01_Plans.md) and plan states
 - Explore [Promptwares](../02_Concepts/02_Promptwares.md) to customize agent behavior
 - Configure [Projects](../03_Configuration/02_Projects.md) with per-repo verification rules
-- See the full [CLI reference](../08_Advanced/01_CLI/_Index.md) for power-user workflows
+- See the full [CLI reference](../09_Advanced/01_CLI/_Index.md) for power-user workflows

@@ -438,5 +438,10 @@ public class PlanContentHelpersTests
         {
             return GitResult<List<string>>.Success(candidateHashes.ToList());
         }
+
+        public GitResult<DirtyRepoResult> GetRepoDirtyState(string repoPath, string expectedBaseBranch)
+        {
+            return GitResult<DirtyRepoResult>.Success(new DirtyRepoResult());
+        }
     }
 }

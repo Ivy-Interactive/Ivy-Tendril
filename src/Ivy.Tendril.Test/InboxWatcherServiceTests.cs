@@ -231,6 +231,7 @@ public class InboxWatcherServiceTests : IDisposable
         public void ClearFailedJobs() { }
         public void ClearAllJobs() { }
         public List<JobItem> GetJobs() => new();
+        public List<JobItem> GetJobsForPlan(string planFile) => new();
         public JobItem? GetJob(string id) => null;
         public void Dispose() { }
 
@@ -377,6 +378,7 @@ public class InboxWatcherServiceTests : IDisposable
         public void ClearFailedJobs() { }
         public void ClearAllJobs() { }
         public List<JobItem> GetJobs() => new();
+        public List<JobItem> GetJobsForPlan(string planFile) => new();
         public JobItem? GetJob(string id) => null;
         public void Dispose() { }
 
@@ -409,6 +411,7 @@ public class InboxWatcherServiceTests : IDisposable
         public void ClearFailedJobs() { }
         public void ClearAllJobs() { }
         public List<JobItem> GetJobs() => new();
+        public List<JobItem> GetJobsForPlan(string planFile) => new();
         public JobItem? GetJob(string id) => null;
         public void Dispose() { }
 

@@ -25,7 +25,6 @@ Common issues and how to fix them. If you're still stuck, run <code>tendril doct
 | `gh` not authenticated | Run `gh auth login` |
 | `pwsh` not found | Install [PowerShell 7](https://github.com/PowerShell/PowerShell) — required on all platforms |
 | `git` not found | Install Git and ensure it's on your `PATH` |
-| `pandoc` not found | Optional — install it if you need document conversion features |
 | `tendril` command not recognized | Ensure `~/.dotnet/tools` (or equivalent) is on your `PATH`, then retry |
 
 ## Plans

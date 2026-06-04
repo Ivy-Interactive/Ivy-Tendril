@@ -18,6 +18,7 @@ public record TendrilProcessView : WidgetBase<TendrilProcessView>
     [Prop] public int UpdatingPlansCount { get; init; }
     [Prop] public int ExecutingPlansCount { get; init; }
     [Prop] public int RetryingPlansCount { get; init; }
+    [Prop] public int CreatingPrCount { get; init; }
 
     [Event] public EventHandler<Event<TendrilProcessView>>? OnCreate { get; init; }
     [Event] public EventHandler<Event<TendrilProcessView>>? OnDrafts { get; init; }
@@ -44,6 +45,9 @@ public static class TendrilProcessViewExtensions
 
     public static TendrilProcessView RetryingPlansCount(this TendrilProcessView w, int count) =>
         w with { RetryingPlansCount = count };
+
+    public static TendrilProcessView CreatingPrCount(this TendrilProcessView w, int count) =>
+        w with { CreatingPrCount = count };
 
     public static TendrilProcessView OnCreate(this TendrilProcessView w, Action handler) =>
         w with { OnCreate = new(_ => { handler(); return ValueTask.CompletedTask; }) };

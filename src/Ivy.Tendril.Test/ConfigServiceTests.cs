@@ -789,7 +789,7 @@ maxConcurrentJobs: 10
     public void Constructor_WithNull_FallsBackToEnvVar()
     {
         var service = new ConfigService(new TendrilSettings());
-        var expected = Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? "";
+        var expected = PathHelper.GetDefaultTendrilHome();
         Assert.Equal(expected, service.TendrilHome);
     }
 
@@ -1048,14 +1048,7 @@ jobTimeout: 30
     }
 
     [Fact]
-    public void RepoRef_SyncStrategy_DefaultsToFetch()
-    {
-        var repo = new RepoRef();
-        Assert.Equal("fetch", repo.SyncStrategy);
-    }
-
-    [Fact]
-    public void Should_Deserialize_RepoRef_With_BaseBranch_And_SyncStrategy()
+    public void Should_Deserialize_RepoRef_With_BaseBranch()
     {
         var yaml = @"
 projects:
@@ -1064,7 +1057,6 @@ projects:
       - path: D:\Repos\Test
         prRule: yolo
         baseBranch: develop
-        syncStrategy: rebase
 ";
 
         var tempDir = CreateTempConfigFile(yaml);
@@ -1078,7 +1070,6 @@ projects:
             Assert.Equal(@"D:\Repos\Test", repo.Path);
             Assert.Equal("yolo", repo.PrRule);
             Assert.Equal("develop", repo.BaseBranch);
-            Assert.Equal("rebase", repo.SyncStrategy);
         }
         finally
         {
@@ -1087,7 +1078,7 @@ projects:
     }
 
     [Fact]
-    public void Should_Deserialize_RepoRef_Without_New_Fields_BackwardCompatible()
+    public void Should_Deserialize_RepoRef_Without_BaseBranch_BackwardCompatible()
     {
         var yaml = @"
 projects:
@@ -1108,7 +1099,6 @@ projects:
             Assert.Equal(@"D:\Repos\Test", repo.Path);
             Assert.Equal("default", repo.PrRule);
             Assert.Null(repo.BaseBranch);
-            Assert.Equal("fetch", repo.SyncStrategy);
         }
         finally
         {
@@ -1117,35 +1107,7 @@ projects:
     }
 
     [Fact]
-    public void Should_Deserialize_RepoRef_With_Only_BaseBranch()
-    {
-        var yaml = @"
-projects:
-  - name: TestProject
-    repos:
-      - path: D:\Repos\Test
-        baseBranch: release/2.0
-";
-
-        var tempDir = CreateTempConfigFile(yaml);
-        var service = new ConfigService(new TendrilSettings());
-
-        try
-        {
-            service.SetTendrilHome(tempDir);
-
-            var repo = service.Settings.Projects[0].Repos[0];
-            Assert.Equal("release/2.0", repo.BaseBranch);
-            Assert.Equal("fetch", repo.SyncStrategy);
-        }
-        finally
-        {
-            Directory.Delete(tempDir, true);
-        }
-    }
-
-    [Fact]
-    public void Should_Roundtrip_RepoRef_With_New_Fields()
+    public void Should_Roundtrip_RepoRef_With_BaseBranch()
     {
         var yaml = @"
 projects:
@@ -1154,7 +1116,6 @@ projects:
       - path: D:\Repos\Test
         prRule: yolo
         baseBranch: develop
-        syncStrategy: merge
 ";
 
         var tempDir = CreateTempConfigFile(yaml);
@@ -1170,7 +1131,6 @@ projects:
 
             var repo = reloaded.Settings.Projects[0].Repos[0];
             Assert.Equal("develop", repo.BaseBranch);
-            Assert.Equal("merge", repo.SyncStrategy);
         }
         finally
         {
@@ -1602,11 +1562,15 @@ maxConcurrentJobs: 10
         // Regression test: when TENDRIL_HOME is not set (NeedsOnboarding path), env-supplied
         // credentials must still be synced into Settings.Auth so that UseAuth middleware is
         // registered at startup without requiring a redeploy after onboarding.
+        var emptyDir = Path.Combine(Path.GetTempPath(), $"tendril-test-no-config-{Guid.NewGuid()}");
+        Directory.CreateDirectory(emptyDir);
+        
         var prevHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         var prevPassword = Environment.GetEnvironmentVariable("TENDRIL_AUTH_PASSWORD");
         var prevHashSecret = Environment.GetEnvironmentVariable("TENDRIL_AUTH_HASH_SECRET");
         try
         {
+            PathHelper.DefaultTendrilHomeOverride = emptyDir;
             Environment.SetEnvironmentVariable("TENDRIL_HOME", null);
             Environment.SetEnvironmentVariable("TENDRIL_AUTH_PASSWORD", "mysecretpassword");
             // Hash secret must be valid base64
@@ -1621,9 +1585,11 @@ maxConcurrentJobs: 10
         }
         finally
         {
+            PathHelper.DefaultTendrilHomeOverride = null;
             Environment.SetEnvironmentVariable("TENDRIL_HOME", prevHome);
             Environment.SetEnvironmentVariable("TENDRIL_AUTH_PASSWORD", prevPassword);
             Environment.SetEnvironmentVariable("TENDRIL_AUTH_HASH_SECRET", prevHashSecret);
+            try { Directory.Delete(emptyDir, true); } catch { }
         }
     }
 

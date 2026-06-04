@@ -70,6 +70,8 @@ internal class JobCompletionHandler
         if (job.Status is JobStatus.Failed or JobStatus.Timeout)
             ScheduleWorktreeCleanup(job);
 
+        HandleWaitForJobsDependents(job, jobs, raiseNotification, startJobSkipDepCheck, persistJob);
+
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
             _dependencyChecker.RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck);
 
@@ -295,7 +297,7 @@ internal class JobCompletionHandler
 
         var condPsi = new ProcessStartInfo
         {
-            FileName = "pwsh",
+            FileName = PathHelper.GetPwshPath(),
             Arguments = $"-NoProfile -NonInteractive -EncodedCommand {EncodeForPowerShell(hook.Condition)}",
             WorkingDirectory = string.IsNullOrEmpty(planFolder) ? "." : planFolder,
             RedirectStandardOutput = true,
@@ -321,7 +323,7 @@ internal class JobCompletionHandler
     {
         var actionPsi = new ProcessStartInfo
         {
-            FileName = "pwsh",
+            FileName = PathHelper.GetPwshPath(),
             Arguments = $"-NoProfile -NonInteractive -EncodedCommand {EncodeForPowerShell(hook.Action)}",
             WorkingDirectory = string.IsNullOrEmpty(planFolder) ? "." : planFolder,
             RedirectStandardOutput = true,
@@ -516,6 +518,64 @@ internal class JobCompletionHandler
         }
     }
 
+    internal void HandleWaitForJobsDependents(
+        JobItem completedJob,
+        ConcurrentDictionary<string, JobItem> jobs,
+        Action<JobNotification> raiseNotification,
+        Func<JobArgsBase, string> startJobSkipDepCheck,
+        Action<JobItem>? persistJob = null)
+    {
+        var queue = new Queue<JobItem>();
+        queue.Enqueue(completedJob);
+
+        while (queue.Count > 0)
+        {
+            var current = queue.Dequeue();
+
+            var waitingJobs = jobs.Values
+                .Where(j => j.Status == JobStatus.Blocked &&
+                            j.WaitForJobIds is { Count: > 0 } &&
+                            j.WaitForJobIds.Contains(current.Id))
+                .ToList();
+
+            foreach (var waitingJob in waitingJobs)
+            {
+                if (current.Status is JobStatus.Failed or JobStatus.Timeout or JobStatus.Stopped)
+                {
+                    waitingJob.Status = JobStatus.Failed;
+                    waitingJob.StatusMessage = $"Blocked job {current.Id} failed";
+                    waitingJob.CompletedAt = DateTime.UtcNow;
+                    persistJob?.Invoke(waitingJob);
+
+                    raiseNotification(new JobNotification(
+                        "Job Failed",
+                        $"{waitingJob.PlanFile}: blocked job {current.Id} failed",
+                        false));
+
+                    queue.Enqueue(waitingJob);
+                    continue;
+                }
+
+                var stillPending = waitingJob.WaitForJobIds!
+                    .Any(id => jobs.TryGetValue(id, out var dep) &&
+                               dep.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked);
+
+                if (stillPending)
+                    continue;
+
+                waitingJob.Status = JobStatus.Pending;
+                waitingJob.StatusMessage = null;
+                startJobSkipDepCheck(waitingJob.TypedArgs!);
+                jobs.TryRemove(waitingJob.Id, out _);
+
+                raiseNotification(new JobNotification(
+                    "Job Unblocked",
+                    $"{waitingJob.PlanFile}: all blocking jobs completed, starting",
+                    true));
+            }
+        }
+    }
+
     internal static void CleanupInboxFile(JobItem job)
     {
         if (string.IsNullOrEmpty(job.InboxFile)) return;
@@ -617,13 +677,19 @@ internal class JobCompletionHandler
         {
             PromptwareLogWriter.WriteLog(job);
         }
-        catch { }
+        catch
+        {
+            // ignored
+        }
 
         try
         {
-            MoveStatusFileIfNeeded(job);
+            MoveCliLogIfNeeded(job);
         }
-        catch { }
+        catch
+        {
+            // ignored
+        }
 
         if (_planReaderService == null || string.IsNullOrEmpty(job.PlanFile))
             return;
@@ -639,16 +705,18 @@ internal class JobCompletionHandler
         }
         catch
         {
+            // ignored
         }
     }
 
-    private void MoveStatusFileIfNeeded(JobItem job)
+    private void MoveCliLogIfNeeded(JobItem job)
     {
-        if (string.IsNullOrEmpty(job.StatusFilePath)) return;
+        var logPath = JobStatusFile.GetCliLogPath(job.Id);
+        if (!File.Exists(logPath)) return;
 
         var planFolder = ResolvePlanFolder(job);
         if (!string.IsNullOrEmpty(planFolder) && Directory.Exists(planFolder))
-            JobStatusFile.MoveLogToPlanFolder(job.StatusFilePath, planFolder, job.Type, job.Id);
+            JobStatusFile.MoveLogToPlanFolder(logPath, planFolder, job.Type, job.Id);
     }
 
     private string BuildJobLogContent(JobItem job)

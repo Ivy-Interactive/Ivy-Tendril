@@ -78,6 +78,7 @@ Every command supports `--help` for detailed usage. For example: `tendril plan c
 | `TENDRIL_PLANS` | Override plans directory (defaults to `TENDRIL_HOME/Plans`) |
 | `TENDRIL_VERBOSE` | Enable verbose debug output (set to `1`) |
 | `TENDRIL_QUIET` | Suppress non-essential output (set to `1`) |
+| `TENDRIL_NOT_MASTER` | Run server without claiming master (set to `1`). Used for development/debugging — the instance won't accept CLI IPC or process inbox files. |
 
 ## Common Commands
 
@@ -87,7 +88,7 @@ Every command supports `--help` for detailed usage. For example: `tendril plan c
 >tendril doctor
 ```
 
-Validates your Tendril installation — checks `TENDRIL_HOME`, `config.yaml`, required tools (`gh`, `git`), optional tools (`pandoc`, `pwsh`), database schema, and agent model availability. Always a good first step when something isn't working.
+Validates your Tendril installation — checks `TENDRIL_HOME`, `config.yaml`, required tools (`gh`, `git`), `pwsh`, database schema, and agent model availability. Always a good first step when something isn't working.
 
 #### run
 

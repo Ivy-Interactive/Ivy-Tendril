@@ -22,8 +22,7 @@ public class ActionBarView(
     bool hasActiveExpandJob,
     bool hasActiveSplitJob,
     Action goToNext,
-    Action goToPrevious,
-    string downloadUrl) : ViewBase
+    Action goToPrevious) : ViewBase
 {
     public override object Build()
     {
@@ -74,7 +73,7 @@ public class ActionBarView(
                        jobService.StartJob(new SplitPlanArgs(selectedPlan.FolderPath));
                        refreshPlans();
                    })
-               | new Button("Expand").Icon(Icons.UnfoldVertical).Outline().ShortcutKey("x")
+               | new Button("Expand").Icon(Icons.UnfoldVertical).Outline().ShortcutKey("e")
                    .Disabled(hasActiveExpandJob)
                    .OnClick(() =>
                    {
@@ -100,10 +99,6 @@ public class ActionBarView(
                    .ShortcutKey("n")
                | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
                    new MenuItem("Create Issue", Icon: Icons.Github, Tag: "CreateIssue").OnSelect(showCreateIssueDialog),
-                   new MenuItem("Download", Icon: Icons.Download, Tag: "Download").OnSelect(() =>
-                   {
-                       if (!string.IsNullOrEmpty(downloadUrl)) client.OpenUrl(downloadUrl);
-                   }),
                    new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
                        .OnSelect(() => { PlatformHelper.OpenInFileManager(selectedPlan.FolderPath); }),
                    new MenuItem("Open in Terminal", Icon: Icons.Terminal, Tag: "OpenInTerminal").OnSelect(() =>

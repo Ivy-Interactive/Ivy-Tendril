@@ -3,6 +3,7 @@ using Ivy.Core;
 using Ivy.Tendril.Apps.Drafts.Dialogs;
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Views;
+using Ivy.Tendril.Apps.Views.Dialogs;
 using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Apps.Views.Tabs;
 using Ivy.Tendril.Helpers;
@@ -24,7 +25,6 @@ public class ContentView(
 {
     public override object Build()
     {
-        var downloadUrl = PlanDownloadHelper.UsePlanDownload(Context, planService, selectedPlan);
         var client = UseService<IClientProvider>();
         var copyToClipboard = UseClipboard();
         var openFile = UseState<string?>(null);
@@ -32,6 +32,8 @@ public class ContentView(
         var issueAssigneeState = UseState<string?>(null);
         var issueLabelsState = UseState<string[]>([]);
         var issueCommentState = UseState("");
+        var showDirtyDialog = UseState(false);
+        var (runPreflight, isCheckingPreflight, preflightResult) = Context.UsePreflightCheck();
 
         var processView = Context.UseTendrilProcessView();
 
@@ -146,7 +148,6 @@ public class ContentView(
 
         var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(40)).Gap(2)
                      | Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis);
-        header |= Text.Muted($"rev:{selectedPlan.RevisionCount}");
 
         if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
             header |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
@@ -167,19 +168,16 @@ public class ContentView(
         header |= Text.Rich()
             .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
             .Muted("plans", word: true);
-        header |= new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("e").OnClick(() =>
-        {
-            // Optimistically update UI state before disk I/O
-            var optimisticPlan = selectedPlan with
+        header |= new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("x")
+            .Loading(isCheckingPreflight)
+            .Disabled(isCheckingPreflight)
+            .OnClick(() => runPreflight(selectedPlan.Project, result =>
             {
-                Metadata = selectedPlan.Metadata with { State = PlanStatus.Building }
-            };
-            selectedPlanState.Set(optimisticPlan);
-
-            planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
-            jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath));
-            refreshPlans();
-        });
+                if (result.DirtyRepos.Count > 0)
+                    showDirtyDialog.Set(true);
+                else
+                    LaunchExecute();
+            }));
 
         var content = Layout.Vertical().Height(Size.Full());
 
@@ -201,9 +199,9 @@ public class ContentView(
             var tabs = Layout.Tabs(
                 new Tab("Plan", Cap(planTabContent)),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan!,
-                    jobService.GetJobs().Where(j => j.PlanFile == selectedPlan!.FolderName).ToList(),
+                    jobService.GetJobsForPlan(selectedPlan!.FolderName),
                     showDebugJob)))
-            ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content).Padding(4, 0, 0, 0).RemoveParentPadding();
+            ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content).RemoveParentPadding();
 
             content |= (Layout.Vertical().Padding(2).Height(Size.Full()) | tabs);
         }
@@ -241,8 +239,7 @@ public class ContentView(
             hasActiveExpandJob,
             hasActiveSplitJob,
             GoToNext,
-            GoToPrevious,
-            downloadUrl.Value);
+            GoToPrevious);
 
         var mainLayout = new HeaderLayout(
             header,
@@ -251,6 +248,16 @@ public class ContentView(
                 content
             ).Scroll(Scroll.None).Size(Size.Full())
         ).Scroll(Scroll.None).Size(Size.Full()).Key(selectedPlan.Id);
+
+        var dirtyRepoDialog = showDirtyDialog.Value && preflightResult is { DirtyRepos.Count: > 0 }
+            ? new DirtyRepoDialog(
+                showDirtyDialog,
+                preflightResult,
+                proceedLabel: "Execute Anyway",
+                contextMessage: "These changes will NOT be included in this plan. The plan will execute against origin/<baseBranch>. If these changes are meant for this plan, commit and push them first.",
+                onSyncRepos: () => LaunchWithSync(preflightResult),
+                onProceed: LaunchExecute)
+            : null;
 
         var elements = new List<object>
         {
@@ -261,12 +268,15 @@ public class ContentView(
             debugSheet
         };
 
+        if (dirtyRepoDialog is not null)
+            elements.Add(dirtyRepoDialog);
+
         elements.Add(new FileSheet(openFile, config));
 
         return new Fragment(elements.ToArray());
 
         object Cap(object inner) => Layout.Vertical().Scroll().Width(Size.Full()).Height(Size.Full())
-            | (Layout.Vertical().Width(Size.Full().Max(Size.Units(200))) | inner);
+            | (Layout.Vertical().Padding(0, 0, 0, 4).Width(Size.Full().Max(Size.Units(200))) | inner);
     }
 
     internal static object BuildFailureCallout(PlanFile plan)
@@ -336,6 +346,43 @@ public class ContentView(
                 "State Mismatch");
         return Callout.Destructive($"Last execution status: {status}", "Execution Failed");
 
+    }
+
+    private void LaunchExecute()
+    {
+        if (selectedPlan is null) return;
+
+        var optimisticPlan = selectedPlan with
+        {
+            Metadata = selectedPlan.Metadata with { State = PlanStatus.Building }
+        };
+        selectedPlanState.Set(optimisticPlan);
+
+        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
+        jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath));
+        refreshPlans();
+    }
+
+    private void LaunchWithSync(PreflightResult preflight)
+    {
+        if (selectedPlan is null) return;
+
+        var syncJobIds = new List<string>();
+        foreach (var (repoPath, baseBranch, _) in preflight.DirtyRepos)
+        {
+            var jobId = jobService.StartJob(new SyncRepoArgs(repoPath, baseBranch));
+            syncJobIds.Add(jobId);
+        }
+
+        var optimisticPlan = selectedPlan with
+        {
+            Metadata = selectedPlan.Metadata with { State = PlanStatus.Building }
+        };
+        selectedPlanState.Set(optimisticPlan);
+
+        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
+        jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath) { WaitForJobs = syncJobIds });
+        refreshPlans();
     }
 
     private void GoToNext()

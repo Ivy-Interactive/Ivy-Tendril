@@ -81,6 +81,16 @@ public class JobServiceStartupTests
             return Jobs;
         }
 
+        public JobItem? GetJobById(string id)
+        {
+            return Jobs.FirstOrDefault(j => j.Id == id);
+        }
+
+        public List<JobItem> GetJobsForPlan(string planFile)
+        {
+            return Jobs.Where(j => j.PlanFile == planFile).ToList();
+        }
+
         public void DeleteJob(string id)
         {
         }

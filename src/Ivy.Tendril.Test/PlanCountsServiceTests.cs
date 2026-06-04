@@ -138,6 +138,7 @@ public class TendrilProcessStatusServiceTests : IDisposable
         AddJob("job-4", JobStatus.Running, Constants.JobTypes.UpdatePlan);
         AddJob("job-5", JobStatus.Queued, Constants.JobTypes.ExpandPlan);
         AddJob("job-6", JobStatus.Running, Constants.JobTypes.SplitPlan);
+        AddJob("job-7", JobStatus.Running, Constants.JobTypes.CreatePr);
 
         using var service = CreateService();
 
@@ -145,7 +146,8 @@ public class TendrilProcessStatusServiceTests : IDisposable
         Assert.Equal(1, service.Current.ExecutingPlansCount);
         Assert.Equal(1, service.Current.RetryingPlansCount);
         Assert.Equal(3, service.Current.UpdatingPlansCount);
-        Assert.Equal(6, service.Current.JobCount);
+        Assert.Equal(1, service.Current.CreatingPrCount);
+        Assert.Equal(7, service.Current.JobCount);
     }
 
     [Fact]
@@ -197,6 +199,11 @@ public class TendrilProcessStatusServiceTests : IDisposable
         public List<JobItem> GetJobs()
         {
             return _jobs;
+        }
+
+        public List<JobItem> GetJobsForPlan(string planFile)
+        {
+            return _jobs.Where(j => j.PlanFile == planFile).ToList();
         }
 
         public JobItem? GetJob(string id)

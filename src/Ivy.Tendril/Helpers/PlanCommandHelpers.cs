@@ -115,6 +115,7 @@ public static class PlanCommandHelpers
     /// <summary>
     ///     Writes a plan.yaml file atomically.
     ///     Validates the plan, writes to temp file, reads back for verification, then atomically moves to target.
+    ///     Uses a lock file to coordinate with in-process background writes from PlanReaderService.
     /// </summary>
     public static void WritePlan(string planFolder, PlanYaml plan, IPlanWatcherService? watcher = null)
     {
@@ -124,6 +125,7 @@ public static class PlanCommandHelpers
         var yamlPath = Path.Combine(planFolder, "plan.yaml");
         var tempPath = Path.Combine(planFolder, $"plan.yaml.tmp.{Guid.NewGuid():N}");
 
+        using var lockFile = PlanFileLock.Acquire(planFolder);
         try
         {
             // Serialize to temp file
@@ -152,4 +154,5 @@ public static class PlanCommandHelpers
             throw;
         }
     }
+
 }

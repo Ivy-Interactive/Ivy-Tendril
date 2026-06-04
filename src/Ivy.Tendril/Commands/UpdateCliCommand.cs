@@ -6,6 +6,9 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using Spectre.Console;
 using Spectre.Console.Cli;
+using Velopack;
+using Velopack.Sources;
+using Velopack.Locators;
 
 namespace Ivy.Tendril.Commands;
 
@@ -18,6 +21,64 @@ public class UpdateCliCommand : AsyncCommand<UpdateCliCommand.Settings>
 
     protected override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
+        var includeBeta = Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1";
+        var source = new GithubSource("https://github.com/Ivy-Interactive/Ivy-Tendril", null, includeBeta);
+        var mgr = new UpdateManager(source);
+
+        if (mgr.IsInstalled)
+        {
+            var currentChannel = VelopackLocator.Current?.Channel ?? "win";
+            var targetChannel = currentChannel;
+
+            if (includeBeta && !currentChannel.EndsWith("-beta"))
+            {
+                targetChannel = $"{currentChannel}-beta";
+            }
+            else if (!includeBeta && currentChannel.EndsWith("-beta"))
+            {
+                targetChannel = currentChannel.Substring(0, currentChannel.Length - "-beta".Length);
+            }
+
+            if (targetChannel != currentChannel)
+            {
+                var options = new UpdateOptions
+                {
+                    ExplicitChannel = targetChannel,
+                    AllowVersionDowngrade = true
+                };
+                mgr = new UpdateManager(source, options);
+            }
+
+            AnsiConsole.MarkupLine("[grey]Checking for updates via Velopack...[/]");
+            UpdateInfo? updateInfo = null;
+
+            await AnsiConsole.Status()
+                .StartAsync("Connecting to release server...", async ctx =>
+                {
+                    updateInfo = await mgr.CheckForUpdatesAsync();
+                });
+
+            if (updateInfo == null)
+            {
+                AnsiConsole.MarkupLine("[green]You are already on the latest version of Ivy.Tendril.[/]");
+                return 0;
+            }
+
+            AnsiConsole.MarkupLine($"[green]New version {updateInfo.TargetFullRelease.Version} is available![/]");
+
+            await AnsiConsole.Progress()
+                .StartAsync(async ctx =>
+                {
+                    var task = ctx.AddTask("[green]Downloading update...[/]", autoStart: true, maxValue: 100);
+
+                    await mgr.DownloadUpdatesAsync(updateInfo, progress => task.Value = progress);
+                });
+
+            AnsiConsole.MarkupLine("[green]Update downloaded successfully. Restarting application to apply...[/]");
+            mgr.ApplyUpdatesAndRestart(updateInfo);
+            return 0;
+        }
+
         var currentVersion = GetCurrentVersion();
         var latestVersion = await GetLatestVersionAsync();
         var isUpToDate = currentVersion != null && latestVersion != null && currentVersion == latestVersion;

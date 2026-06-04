@@ -18,7 +18,7 @@ Version history, new features, improvements, and bug fixes for each Tendril rele
 
 ### Features
 
-- **Antigravity agent provider** — Replaced Gemini with Antigravity (`agy`) as a supported coding agent, with full health check, PTY, and session cost tracking.
+- **Gemini agent provider** — Added Gemini CLI (`gemini`) as a supported coding agent, with full health check, authentication, and session cost tracking.
 - **Tunnel support** — Remote access via Cloudflare tunnels with QR code in Settings, automatic server-ready detection, and routable-before-connected checks.
 - **Agent test dialog** — New Test Agent button in Settings that auto-runs install, auth, and model checks for all configured agents.
 - **Model-per-profile selection** — Choose specific models per effort profile (deep/balanced/quick) in Coding Agent settings.
@@ -59,7 +59,7 @@ Version history, new features, improvements, and bug fixes for each Tendril rele
 - Fixed backslashes in .csproj files and onboarding Promptwares path lookup.
 - Fixed Copilot process hangs with 5s STDIN timeout.
 - Fixed missing ResolveCommandShim call in PromptwareRunner.
-- Fixed command-line length limit when launching Antigravity.
+- Fixed command-line length limit when launching Gemini
 - Fixed Codex `item.updated` events emitting UnknownEvent.
 - Fixed default models for Copilot and Codex profiles in new installations.
 - Fixed sidebar badge key from "plans" to "drafts" after rename.

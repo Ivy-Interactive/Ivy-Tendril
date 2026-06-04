@@ -175,6 +175,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             Effort = AgentProviderFactory.ParseEffort(resolution.Effort),
             PermissionMode = PermissionMode.FullAuto,
             AllowedTools = resolution.AllowedTools,
+            WritableDirectories = ResolveWritableDirectories(programFolder, configService),
             ExtraArguments = resolution.ExtraArgs,
             PromptFilePath = promptFilePath,
         };
@@ -307,6 +308,27 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         }
 
         return values;
+    }
+
+    private static IReadOnlyList<string> ResolveWritableDirectories(string programFolder, ConfigService configService)
+    {
+        var homeDir = configService.TendrilHome;
+        var homePrefix = homeDir.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var dirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { homeDir };
+
+        var planFolder = configService.PlanFolder;
+        if (!planFolder.StartsWith(homePrefix, StringComparison.OrdinalIgnoreCase))
+            dirs.Add(planFolder);
+
+        var memoryDir = Path.Combine(programFolder, "Memory");
+        if (!memoryDir.StartsWith(homePrefix, StringComparison.OrdinalIgnoreCase))
+            dirs.Add(memoryDir);
+
+        var toolsDir = Path.Combine(programFolder, "Tools");
+        if (!toolsDir.StartsWith(homePrefix, StringComparison.OrdinalIgnoreCase))
+            dirs.Add(toolsDir);
+
+        return [.. dirs];
     }
 
     private static ConfigService CreateConfigFromPath(string configPath)

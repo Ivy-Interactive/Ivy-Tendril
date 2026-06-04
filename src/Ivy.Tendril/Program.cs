@@ -41,6 +41,9 @@ public class Program
     [STAThread]
     public static async Task<int> Main(string[] args)
     {
+        PathHelper.AugmentPath(forceShellPath: false);
+        PathHelper.EnsureCliSymlink();
+
         if (OperatingSystem.IsWindows())
         {
             try
@@ -58,7 +61,8 @@ public class Program
         var (verbose, quiet, forceDesktop, forceWeb, beta, jobId, filteredArgs) = ParseGlobalFlags(args);
 
         bool isTool = IsTendrilToolInvocation();
-        bool useDesktop = (isTool || forceDesktop) && !forceWeb;
+        bool isPackagedApp = IsPackagedApp();
+        bool useDesktop = (forceDesktop || isPackagedApp || (isTool && !verbose && !quiet)) && !forceWeb;
         if (useDesktop && OperatingSystem.IsLinux())
         {
             // On Linux, default to web mode (foreground server) unless desktop is explicitly forced
@@ -67,6 +71,10 @@ public class Program
                 useDesktop = false;
             }
         }
+
+        if (useDesktop && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("IVY_TLS")))
+            Environment.SetEnvironmentVariable("IVY_TLS", "0");
+
         bool isDetachedChild = args.Contains(DetachedLaunchMarker);
 
         // Check if we are launching the web server/desktop UI (not executing a CLI subcommand)
@@ -75,6 +83,10 @@ public class Program
         {
             var checkArgs = new Services.TendrilArgs { Beta = beta, Verbose = verbose, Quiet = quiet };
             var checkServer = TendrilServer.Create(filteredArgs, checkArgs);
+            if (useDesktop)
+            {
+                checkServer.Args.FindAvailablePort = true;
+            }
             if (!checkServer.Args.FindAvailablePort && IsPortInUse(checkServer.Args.Port))
             {
                 AnsiConsole.MarkupLine($"[red]Error: Port {checkServer.Args.Port} is already in use.[/]");
@@ -94,7 +106,7 @@ public class Program
             }
         }
 
-        if (isTool && useDesktop && !isDetachedChild && ShouldDetachDesktopLaunch(filteredArgs, verbose))
+        if ((isTool || isPackagedApp) && useDesktop && !isDetachedChild && ShouldDetachDesktopLaunch(filteredArgs, verbose))
             return RelaunchDesktopDetached(filteredArgs);
 
         if (isDetachedChild && useDesktop)
@@ -138,7 +150,7 @@ public class Program
                         {
                             var home = Environment.GetEnvironmentVariable("TENDRIL_HOME");
                             if (!string.IsNullOrEmpty(home))
-                                cliLog = JobStatusFile.GetStatusFilePath(resolvedJobId) + ".jsonl";
+                                cliLog = JobStatusFile.GetCliLogPath(resolvedJobId);
                         }
                     }
 
@@ -203,11 +215,13 @@ public class Program
         ConfigureExceptionHandlers();
         StartMemoryWatchdog();
 
-        if (useDesktop && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("IVY_TLS")))
-            Environment.SetEnvironmentVariable("IVY_TLS", "0");
-
         var tendrilArgs = new Services.TendrilArgs { Beta = beta, Verbose = verbose, Quiet = quiet };
         var server = TendrilServer.Create(filteredArgs, tendrilArgs);
+
+        if (useDesktop)
+        {
+            server.Args.FindAvailablePort = true;
+        }
 
         if (!server.Args.FindAvailablePort && IsPortInUse(server.Args.Port))
         {
@@ -335,14 +349,30 @@ public class Program
         return cliCommands.Contains(firstArg);
     }
 
+    private static bool IsPackagedApp()
+    {
+        return Velopack.Locators.VelopackLocator.Current?.CurrentlyInstalledVersion != null;
+    }
+
     private static bool ShouldDetachDesktopLaunch(string[] filteredArgs, bool verbose)
     {
+        if (IsPackagedApp())
+            return false;
+
         // Detach only for desktop startup, not for CLI commands, and NOT if verbose logging is requested.
         return filteredArgs.Length == 0 && !verbose;
     }
 
     private static bool IsTendrilToolInvocation()
     {
+        // If the executing assembly is in the .store / .dotnet folder, it's a global tool invocation
+        var path = System.AppContext.BaseDirectory;
+        if (path.Contains(".store", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains(".dotnet", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
         // ProcessPath can be "dotnet" for global tools, so inspect argv[0] too.
         var processPathName = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? string.Empty);
         if (processPathName.Equals("tendril", StringComparison.OrdinalIgnoreCase))
@@ -442,6 +472,8 @@ public class Program
             {
                 job.AddCommand<JobStatusCommand>("status")
                     .WithDescription("Report job status (message, planId, planTitle)");
+                job.AddCommand<JobStartCommand>("start")
+                    .WithDescription("Start a job via the running Tendril server");
             });
 
             // Plan management commands
@@ -485,8 +517,6 @@ public class Program
                     .WithDescription("Remove worktrees from a plan");
                 plan.AddCommand<PlanRemoveWorktreeCommand>("remove-worktree")
                     .WithDescription("Remove a single worktree from a plan");
-                plan.AddCommand<PlanSyncWorktreeCommand>("sync-worktree")
-                    .WithDescription("Apply sync strategy to a worktree");
                 plan.AddCommand<PlanDoctorCommand>("doctor")
                     .WithDescription("Check plan health");
 
@@ -533,6 +563,9 @@ public class Program
 
             config.AddCommand<ModelsCommand>("models")
                 .WithDescription("List available models and pricing for agent CLIs");
+
+            config.AddCommand<AgentInstructionsCommand>("agent-instructions")
+                .WithDescription("Print the agent system prompt");
 
             config.AddBranch("trash", trash =>
             {
@@ -595,6 +628,25 @@ public class Program
         AppDomain.CurrentDomain.ProcessExit += (_, _) =>
         {
             CrashLog.Write($"[{DateTime.UtcNow:O}] ProcessExit event fired (PID {Environment.ProcessId}) | {GetMemoryStats()}");
+
+            // Clean up .master file if we own it
+            try
+            {
+                var home = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
+                if (!string.IsNullOrEmpty(home))
+                {
+                    var masterFile = Path.Combine(home, ".master");
+                    if (File.Exists(masterFile))
+                    {
+                        var masterJson = File.ReadAllText(masterFile);
+                        var masterData = System.Text.Json.JsonSerializer.Deserialize<Services.MasterElectionService.MasterFileData>(
+                            masterJson, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase });
+                        if (masterData?.Pid == Environment.ProcessId)
+                            File.Delete(masterFile);
+                    }
+                }
+            }
+            catch { }
 
             // Clean up tracked temp files
             try

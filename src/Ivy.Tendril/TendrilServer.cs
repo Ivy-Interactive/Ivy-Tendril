@@ -16,6 +16,7 @@ public static class TendrilServer
 {
     public static Server Create(string[] args, TendrilArgs tendrilArgs)
     {
+        PathHelper.AugmentPath(forceShellPath: true);
         var server = new Server();
         server.DangerouslyAllowLocalFiles();
         server.UseCulture("en-US");
@@ -103,6 +104,11 @@ public static class TendrilServer
                 sharedAssemblyNames: ["Ivy.Tendril.Plugin.Abstractions", "Ivy.Tendril.Plugin.Extended.Abstractions"],
                 buildSourcePlugins: true);
         }
+
+        // Eagerly register Ivy.Tendril.Widgets assembly to ensure Tendril widgets are discovered
+        // when running in single-file published mode (where DLLs are not on disk)
+        Ivy.Core.ExternalWidgets.ExternalWidgetRegistry.Instance.RegisterAssembly(
+            typeof(Ivy.Widgets.TendrilProcessView.TendrilProcessView).Assembly);
 
         var version = typeof(TendrilAppShell).Assembly.GetName().Version!;
         var versionString = version.ToString(3);

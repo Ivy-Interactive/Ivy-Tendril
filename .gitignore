@@ -44,6 +44,9 @@ msbuild.binlog
 ## Config backups
 *.yaml.backup
 
+## TeamIvyConfig master files
+.master
+
 ## Test results
 TestResults/
 **/TestResults/
@@ -52,3 +55,8 @@ plugin-config.yaml
 ## Frontend build artifacts
 node_modules/
 dist/
+
+## Local build outputs
+publish/
+releases/
+build_local.sh

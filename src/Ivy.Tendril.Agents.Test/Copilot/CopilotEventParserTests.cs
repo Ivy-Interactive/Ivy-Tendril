@@ -201,6 +201,36 @@ public class CopilotEventParserTests
     }
 
     [Fact]
+    public void ParseLine_Result_WithFloatingPointUsage_ParsesCorrectly()
+    {
+        var json = """{"type":"result","exitCode":0,"usage":{"premiumRequests":5.0,"sessionDurationMs":12345.6}}""";
+        var events = _parser.ParseLine(json);
+
+        Assert.Single(events);
+        var result = Assert.IsType<ResultEvent>(events[0]);
+        Assert.Equal(AgentEventKind.Result, result.Kind);
+        Assert.NotNull(result.Duration);
+        Assert.Equal(12346, result.Duration!.Value.TotalMilliseconds);
+        Assert.NotNull(result.Usage);
+        Assert.Equal(5, result.Usage.PremiumRequests);
+    }
+
+    [Fact]
+    public void ParseLine_Result_WithStringUsage_ParsesCorrectly()
+    {
+        var json = """{"type":"result","exitCode":0,"usage":{"premiumRequests":"7","sessionDurationMs":"9999"}}""";
+        var events = _parser.ParseLine(json);
+
+        Assert.Single(events);
+        var result = Assert.IsType<ResultEvent>(events[0]);
+        Assert.Equal(AgentEventKind.Result, result.Kind);
+        Assert.NotNull(result.Duration);
+        Assert.Equal(9999, result.Duration!.Value.TotalMilliseconds);
+        Assert.NotNull(result.Usage);
+        Assert.Equal(7, result.Usage.PremiumRequests);
+    }
+
+    [Fact]
     public void ParseLine_Result_NonZeroExitCode_IsNotSuccess()
     {
         var json = """{"type":"result","exitCode":1}""";

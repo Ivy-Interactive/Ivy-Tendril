@@ -23,7 +23,7 @@ This skill automates the release preparation and deployment process for Ivy Tend
 6. **Creates a Pull Request** from `development` into `main`.
 7. **Merges the PR** into `main` (if mergeable).
 8. **Synchronizes the branches** by merging `main` back into `development`.
-9. **Triggers the GitHub release workflow** (`publish-tendril.yml`) on `main`.
+9. **Triggers the GitHub release workflow** (`publish-tendril.yml`) on `main` (or on a test branch like `development` with `test-mode` enabled).
 
 ## Prerequisites
 
@@ -110,6 +110,12 @@ git push origin development
 Trigger the release Action workflow (`publish-tendril.yml`) on `main`:
 ```bash
 gh workflow run publish-tendril.yml --ref main
+```
+
+#### Test Mode Deployment
+To run a test deployment (which compiles, runs all tests, and packages/bundles the installers as run artifacts, but bypasses publishing to NuGet and creating a GitHub release), trigger the workflow with `test-mode` set to `true` (this can be run on `development` or `main`):
+```bash
+gh workflow run publish-tendril.yml --ref development -f test-mode=true
 ```
 
 Confirm that the workflow has been dispatched by showing the URL/logs:
