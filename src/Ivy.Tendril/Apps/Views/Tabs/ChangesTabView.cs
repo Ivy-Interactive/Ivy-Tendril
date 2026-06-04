@@ -13,6 +13,7 @@ public class ChangesTabView(
     public override object Build()
     {
         var client = UseService<IClientProvider>();
+        var hideFormatting = UseState(true);
 
         if (loading && changesData is null)
             return Text.Muted("Loading...");
@@ -25,10 +26,14 @@ public class ChangesTabView(
             return Text.Muted(errorMsg);
         }
 
-        var fileDiffs = PlanContentHelpers.SplitDiffByFile(changesData);
+        var allFileDiffs = PlanContentHelpers.SplitDiffByFile(changesData);
 
-        if (fileDiffs.Count == 0 && changesData.Files.Count == 0)
+        if (allFileDiffs.Count == 0 && changesData.Files.Count == 0)
             return Text.Muted("No file changes.");
+
+        var fileDiffs = allFileDiffs;
+        if (hideFormatting.Value)
+            fileDiffs = allFileDiffs.Where(fd => !PlanContentHelpers.IsFormattingOnly(fd)).ToList();
 
         var root = BuildFileTree(fileDiffs);
         var treeItems = ChildItems(root);
@@ -63,9 +68,20 @@ public class ChangesTabView(
             .Width(Size.Rem(12).Min(Size.Rem(12))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)))
             | tree;
 
-        return Layout.Horizontal().Height(Size.Full().Min(Size.Px(0)))
+        var toolbar = Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(1)
+            | hideFormatting.ToSwitchInput(label: "Hide formatting changes");
+
+        var hiddenCount = allFileDiffs.Count - fileDiffs.Count;
+        if (hideFormatting.Value && hiddenCount > 0)
+            toolbar |= Text.Muted($"({hiddenCount} formatting-only files hidden)");
+
+        var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0)))
             | treePanel
             | diffsLayout;
+
+        return Layout.Vertical().Height(Size.Full().Min(Size.Px(0)))
+            | toolbar
+            | mainLayout;
     }
 
     private static TreeNode BuildFileTree(IReadOnlyList<PlanContentHelpers.FileDiff> fileDiffs)

@@ -47,6 +47,43 @@ public static class PlanContentHelpers
         return result;
     }
 
+    public static bool IsFormattingOnly(FileDiff fileDiff)
+    {
+        if (string.IsNullOrWhiteSpace(fileDiff.Diff))
+            return true;
+
+        var lines = fileDiff.Diff.Split('\n');
+        var removedLines = new List<string>();
+        var addedLines = new List<string>();
+
+        foreach (var line in lines)
+        {
+            if (line.StartsWith("---") || line.StartsWith("+++") || line.StartsWith("@@") || line.StartsWith("diff "))
+                continue;
+
+            if (line.StartsWith("-") && !line.StartsWith("---"))
+                removedLines.Add(NormalizeLine(line[1..]));
+            else if (line.StartsWith("+") && !line.StartsWith("+++"))
+                addedLines.Add(NormalizeLine(line[1..]));
+        }
+
+        if (removedLines.Count == 0 && addedLines.Count == 0)
+            return true;
+
+        if (removedLines.Count == 0 || addedLines.Count == 0)
+            return false;
+
+        removedLines.Sort();
+        addedLines.Sort();
+
+        return removedLines.SequenceEqual(addedLines);
+
+        static string NormalizeLine(string line)
+        {
+            return Regex.Replace(line.Trim(), @"\s+", " ");
+        }
+    }
+
     public record CommitDetailData(
         string Title,
         string? Diff,
