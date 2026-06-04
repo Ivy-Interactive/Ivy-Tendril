@@ -93,7 +93,7 @@ public static class DoctorCommand
             DoctorChecks.StatusKind.Error => ("✗", "red"),
             _ => (" ", "grey")
         };
-        AnsiConsole.MarkupLine($"[{color}]{symbol} {label.PadRight(40)}{value}[/]");
+        AnsiConsole.MarkupLine($"[{color}]{symbol} {label.EscapeMarkup().PadRight(40)}{value.EscapeMarkup()}[/]");
     }
 
     // --- doctor plans subcommand ---
@@ -435,7 +435,7 @@ public static class DoctorCommand
 
             var healthColor = r.IsHealthy ? "green" : "red";
             var healthText = r.IsHealthy ? "OK" : r.Health;
-            AnsiConsole.MarkupLine($"{r.Id.PadRight(idWidth)}  {truncatedTitle.PadRight(planWidth)}  {r.State.PadRight(stateWidth)}  {r.Worktrees.ToString().PadRight(wtWidth)}  [{healthColor}]{healthText}[/]");
+            AnsiConsole.MarkupLine($"{r.Id.PadRight(idWidth)}  {truncatedTitle.EscapeMarkup().PadRight(planWidth)}  {r.State.PadRight(stateWidth)}  {r.Worktrees.ToString().PadRight(wtWidth)}  [{healthColor}]{healthText.EscapeMarkup()}[/]");
         }
     }
 
