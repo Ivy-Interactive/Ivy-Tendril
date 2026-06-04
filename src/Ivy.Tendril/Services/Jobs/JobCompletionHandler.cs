@@ -563,10 +563,8 @@ internal class JobCompletionHandler
                 if (stillPending)
                     continue;
 
-                waitingJob.Status = JobStatus.Pending;
-                waitingJob.StatusMessage = null;
-                startJobSkipDepCheck(waitingJob.TypedArgs!);
                 jobs.TryRemove(waitingJob.Id, out _);
+                startJobSkipDepCheck(waitingJob.TypedArgs!);
 
                 raiseNotification(new JobNotification(
                     "Job Unblocked",
