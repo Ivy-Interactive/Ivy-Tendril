@@ -42,4 +42,24 @@ public class DoctorChecksTests : IDisposable
             Environment.SetEnvironmentVariable("TENDRIL_HOME", null);
         }
     }
+
+    [Fact]
+    public void PrintStatus_WithBracketCharacters_DoesNotThrow()
+    {
+        // Arrange
+        var status = new Status(StatusKind.Ok, "Test Label", "[flags] and [error] markup");
+        var testConsole = new Spectre.Console.Testing.TestConsole();
+        AnsiConsole.Console = testConsole;
+
+        // Act & Assert - should not throw on markup characters
+        var exception = Record.Exception(() =>
+            Commands.DoctorCommand.PrintStatus(status));
+
+        Assert.Null(exception);
+
+        // Verify the output contains escaped brackets
+        var output = testConsole.Output;
+        Assert.Contains("[[flags]]", output);
+        Assert.Contains("[[error]]", output);
+    }
 }
