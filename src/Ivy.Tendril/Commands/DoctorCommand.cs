@@ -136,7 +136,7 @@ public static class DoctorCommand
             : Path.Combine(tendrilHome, "Plans");
         if (!Directory.Exists(plansDir))
         {
-            AnsiConsole.MarkupLine($"[red]Plans directory not found: {plansDir}[/]");
+            AnsiConsole.MarkupLine($"[red]Plans directory not found: {plansDir.EscapeMarkup()}[/]");
             return 1;
         }
 
@@ -181,12 +181,12 @@ public static class DoctorCommand
             var repairResult = RepairPlan(result.FolderPath, result);
             if (repairResult.Success)
             {
-                AnsiConsole.MarkupLine($"[green]  ✓ {result.Id}: {repairResult.Message}[/]");
+                AnsiConsole.MarkupLine($"[green]  ✓ {result.Id}: {repairResult.Message.EscapeMarkup()}[/]");
                 repairedCount++;
             }
             else if (repairResult.Message != null)
             {
-                AnsiConsole.MarkupLine($"[red]  ✗ {result.Id}: {repairResult.Message}[/]");
+                AnsiConsole.MarkupLine($"[red]  ✗ {result.Id}: {repairResult.Message.EscapeMarkup()}[/]");
                 failedCount++;
             }
         }
@@ -207,7 +207,7 @@ public static class DoctorCommand
 
             foreach (var (_, result, reason) in pruneCandidates)
             {
-                AnsiConsole.MarkupLine($"[grey]  {result.Id}-{result.Title}  ({reason})[/]");
+                AnsiConsole.MarkupLine($"[grey]  {result.Id}-{result.Title.EscapeMarkup()}  ({reason.EscapeMarkup()})[/]");
             }
 
             AnsiConsole.WriteLine();
@@ -219,12 +219,12 @@ public static class DoctorCommand
                     try
                     {
                         Directory.Delete(dir, true);
-                        AnsiConsole.MarkupLine($"[green]  ✓ Removed {result.Id}-{result.Title}[/]");
+                        AnsiConsole.MarkupLine($"[green]  ✓ Removed {result.Id}-{result.Title.EscapeMarkup()}[/]");
                         removed++;
                     }
                     catch (Exception ex)
                     {
-                        AnsiConsole.MarkupLine($"[red]  ✗ Failed to remove {result.Id}-{result.Title}: {ex.Message}[/]");
+                        AnsiConsole.MarkupLine($"[red]  ✗ Failed to remove {result.Id}-{result.Title.EscapeMarkup()}: {ex.Message.EscapeMarkup()}[/]");
                     }
                 }
 
