@@ -124,6 +124,11 @@ public class InboxControllerTests
             return null;
         }
 
+        public bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null)
+        {
+            return false;
+        }
+
         public bool IsInboxFileTracked(string filePath)
         {
             return false;

@@ -20,5 +20,6 @@ public interface IJobService : IDisposable
     List<JobItem> GetJobs();
     List<JobItem> GetJobsForPlan(string planFile);
     JobItem? GetJob(string id);
+    bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null);
     bool IsInboxFileTracked(string filePath);
 }

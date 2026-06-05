@@ -38,6 +38,7 @@ public class PlanAddRelatedPlanCommand : Command<PlanAddRelatedPlanSettings>
             if (plan.RelatedPlans.Contains(settings.RelatedPlan, StringComparer.OrdinalIgnoreCase))
             {
                 _logger.LogInformation("Related plan already present: {RelatedPlan}", settings.RelatedPlan);
+                Console.WriteLine($"Related plan already present: {settings.RelatedPlan}");
                 return 0;
             }
 
@@ -47,11 +48,13 @@ public class PlanAddRelatedPlanCommand : Command<PlanAddRelatedPlanSettings>
             PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
             _logger.LogInformation("Added related plan: {RelatedPlan}", settings.RelatedPlan);
+            Console.WriteLine($"Added related plan: {settings.RelatedPlan}");
             return 0;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to add related plan to plan {PlanId}", settings.PlanId);
+            Console.Error.WriteLine($"Failed to add related plan: {ex.Message}");
             return 1;
         }
     }

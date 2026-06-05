@@ -63,12 +63,14 @@ public class PlanSetVerificationCommand : Command<PlanSetVerificationSettings>
 
             PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
-            _logger.LogInformation("Set verification '{Name}' to '{Status}'", settings.Name, settings.Status);
+            _logger.LogInformation("Set verification {Name} = {Status}", settings.Name, settings.Status);
+            Console.WriteLine($"Set verification {settings.Name} = {settings.Status}");
             return 0;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to set verification on plan {PlanId}", settings.PlanId);
+            Console.Error.WriteLine($"Failed to set verification: {ex.Message}");
             return 1;
         }
     }

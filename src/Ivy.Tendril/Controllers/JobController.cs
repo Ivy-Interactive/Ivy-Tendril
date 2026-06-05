@@ -8,6 +8,9 @@ namespace Ivy.Tendril.Controllers;
 [Route("api/jobs")]
 public class JobController(IJobService jobService, IPlanReaderService planReaderService) : ControllerBase
 {
+    private static string NormalizeJobId(string jobId) =>
+        int.TryParse(jobId, out var num) ? num.ToString("D5") : jobId;
+
     [HttpPost]
     public IActionResult StartJob([FromBody] JobArgsBase args)
     {
@@ -26,7 +29,7 @@ public class JobController(IJobService jobService, IPlanReaderService planReader
     [HttpGet("{jobId}")]
     public IActionResult GetJob(string jobId)
     {
-        var job = jobService.GetJob(jobId);
+        var job = jobService.GetJob(NormalizeJobId(jobId));
         if (job == null)
             return NotFound(new { error = "Job not found" });
 
@@ -36,15 +39,8 @@ public class JobController(IJobService jobService, IPlanReaderService planReader
     [HttpPut("{jobId}/status")]
     public IActionResult UpdateJobStatus(string jobId, [FromBody] UpdateJobStatusRequest request)
     {
-        var job = jobService.GetJob(jobId);
-        if (job == null)
+        if (!jobService.UpdateJobStatus(NormalizeJobId(jobId), request.Message, request.PlanId, request.PlanTitle))
             return NotFound(new { error = "Job not found" });
-
-        job.StatusMessage = request.Message;
-        if (!string.IsNullOrEmpty(request.PlanId))
-            job.ReportedPlanId = request.PlanId;
-        if (!string.IsNullOrEmpty(request.PlanTitle))
-            job.ReportedPlanTitle = request.PlanTitle;
 
         return Ok(new { status = "Updated" });
     }

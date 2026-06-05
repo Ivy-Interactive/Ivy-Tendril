@@ -39,6 +39,7 @@ public class PlanRemoveDependsOnCommand : Command<PlanRemoveDependsOnSettings>
             if (removed == 0)
             {
                 _logger.LogError("Dependency not found: {DependsOn}", settings.DependsOn);
+                Console.Error.WriteLine($"Dependency not found: {settings.DependsOn}");
                 return 1;
             }
 
@@ -47,11 +48,13 @@ public class PlanRemoveDependsOnCommand : Command<PlanRemoveDependsOnSettings>
             PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
             _logger.LogInformation("Removed dependency: {DependsOn}", settings.DependsOn);
+            Console.WriteLine($"Removed dependency: {settings.DependsOn}");
             return 0;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to remove dependency from plan {PlanId}", settings.PlanId);
+            Console.Error.WriteLine($"Failed to remove dependency: {ex.Message}");
             return 1;
         }
     }

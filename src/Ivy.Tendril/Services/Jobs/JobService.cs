@@ -318,6 +318,21 @@ public class JobService : IJobService
         return _jobs.GetValueOrDefault(id) ?? _database?.GetJobById(id);
     }
 
+    public bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null)
+    {
+        if (!_jobs.TryGetValue(id, out var job))
+            return false;
+
+        job.StatusMessage = message;
+        if (!string.IsNullOrEmpty(planId))
+            job.ReportedPlanId = planId;
+        if (!string.IsNullOrEmpty(planTitle))
+            job.ReportedPlanTitle = planTitle;
+
+        RaiseJobsPropertyChanged();
+        return true;
+    }
+
     public List<JobItem> GetJobsForPlan(string planFile)
     {
         var activeJobs = _jobs.Values
