@@ -27,8 +27,8 @@ public class WallpaperApp : ViewBase
             });
         }, []);
 
-        // Query last 30 days of completed PRs
-        var prData = planDbService.GetCompletedPrsByDay(30);
+        // Query last 90 days of completed PRs
+        var prData = planDbService.GetCompletedPrsByDay(90);
         var activities = prData.Select(x => new Activity { Date = x.Date, Count = x.Count }).ToArray();
 
         var elements = new List<object>
@@ -42,7 +42,7 @@ public class WallpaperApp : ViewBase
                        .Data(activities)
                        .ShowMonthLabels(false)
                        .ShowDayLabels(false)
-                       .StartDate(DateOnly.FromDateTime(DateTime.Today.AddDays(-29)))
+                       .StartDate(DateOnly.FromDateTime(DateTime.Today.AddDays(-89)))
                        .EndDate(DateOnly.FromDateTime(DateTime.Today))
                        .ValueLabel("PRs")
                 )
