@@ -20,7 +20,7 @@ public class DetailsTabView(
         var detailsData = new
         {
             PlanId = plan.Id.ToString("D5"),
-            Folder = plan.FolderName,
+            Folder = plan.FolderPath,
             plan.InitialPrompt,
             Revision = plan.RevisionCount,
             Profile = planYaml?.ExecutionProfile ?? "",
@@ -44,7 +44,7 @@ public class DetailsTabView(
                 Layout.Horizontal().Gap(2).AlignContent(Align.Center)
                 | Text.Block(folder)
                 | new Button().Icon(Icons.ClipboardCopy).Ghost().Small()
-                    .Tooltip("Copy folder name")
+                    .Tooltip("Copy folder path")
                     .OnClick(() => copyToClipboard(folder))))
             .Multiline(x => x.InitialPrompt)
             .Builder(x => x.Revision, f => f.Func((int count) =>
