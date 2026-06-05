@@ -110,6 +110,10 @@ public partial class JobsApp
         if (j.TypedArgs is CreatePlanArgs)
             return TruncatePrompt(GetFullPrompt(j) ?? j.PlanFile);
 
+        // Try SyncRepo path
+        if (j.TypedArgs is SyncRepoArgs syncArgs)
+            return TruncatePrompt(syncArgs.RepoPath);
+
         // Fallback to full prompt (resolves InitialPrompt/Title from plan.yaml) or plan file
         return TruncatePrompt(GetFullPrompt(j, planService) ?? j.PlanFile);
     }
