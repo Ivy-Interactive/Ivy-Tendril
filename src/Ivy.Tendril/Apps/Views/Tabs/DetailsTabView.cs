@@ -14,10 +14,13 @@ public class DetailsTabView(
 {
     public override object Build()
     {
+        var copyToClipboard = UseClipboard();
         var planYaml = PlanYamlHelper.ParsePlanYaml(plan.PlanYamlRaw);
 
         var detailsData = new
         {
+            PlanId = plan.Id.ToString("D5"),
+            Folder = plan.FolderName,
             plan.InitialPrompt,
             Revision = plan.RevisionCount,
             Profile = planYaml?.ExecutionProfile ?? "",
@@ -31,6 +34,18 @@ public class DetailsTabView(
         };
 
         var details = detailsData.ToDetails()
+            .Builder(x => x.PlanId, f => f.Func((string id) =>
+                Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+                | Text.Block(id)
+                | new Button().Icon(Icons.ClipboardCopy).Ghost().Small()
+                    .Tooltip("Copy plan ID")
+                    .OnClick(() => copyToClipboard(id))))
+            .Builder(x => x.Folder, f => f.Func((string folder) =>
+                Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+                | Text.Block(folder)
+                | new Button().Icon(Icons.ClipboardCopy).Ghost().Small()
+                    .Tooltip("Copy folder name")
+                    .OnClick(() => copyToClipboard(folder))))
             .Multiline(x => x.InitialPrompt)
             .Builder(x => x.Revision, f => f.Func((int count) =>
                 Layout.Horizontal().Gap(2).AlignContent(Align.Center)
