@@ -54,13 +54,16 @@ public class JobStatusCommand : Command<JobStatusSettings>
             var response = client.PutAsync($"{discovery.BaseUrl}/api/jobs/{settings.JobId}/status", content)
                 .GetAwaiter().GetResult();
             response.EnsureSuccessStatusCode();
-        }
-        catch (HttpRequestException ex)
-        {
-            _logger.LogDebug(ex, "Failed to report job status for {JobId}", settings.JobId);
+
+            _logger.LogInformation("Status updated for job {JobId}: {Message}", settings.JobId, settings.Message);
+            Console.WriteLine($"Status updated: {settings.Message}");
             return 0;
         }
-
-        return 0;
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to report job status for {JobId}", settings.JobId);
+            Console.Error.WriteLine($"Failed to report status: {ex.Message}");
+            return 1;
+        }
     }
 }
