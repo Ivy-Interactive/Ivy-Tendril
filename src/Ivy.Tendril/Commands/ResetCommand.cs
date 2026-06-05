@@ -97,7 +97,7 @@ public class ResetCommand : Command<ResetSettings>
         AnsiConsole.WriteLine();
         foreach (var target in targets.Where(t => t.Exists))
         {
-            AnsiConsole.MarkupLine($"[yellow]{target.Type}:[/] {target.Description}");
+            AnsiConsole.MarkupLine($"[yellow]{target.Type}:[/] {target.Description.EscapeMarkup()}");
         }
         AnsiConsole.WriteLine();
 
@@ -120,12 +120,12 @@ public class ResetCommand : Command<ResetSettings>
             try
             {
                 Directory.Delete(tendrilHome, recursive: true);
-                AnsiConsole.MarkupLine($"[green]✓[/] Deleted directory: {tendrilHome}");
+                AnsiConsole.MarkupLine($"[green]✓[/] Deleted directory: {tendrilHome.EscapeMarkup()}");
             }
             catch (Exception ex)
             {
                 errors.Add($"Failed to delete {tendrilHome}: {ex.Message}");
-                AnsiConsole.MarkupLine($"[red]✗[/] Failed to delete directory: {tendrilHome}");
+                AnsiConsole.MarkupLine($"[red]✗[/] Failed to delete directory: {tendrilHome.EscapeMarkup()}");
                 _logger.LogError(ex, "Failed to delete TENDRIL_HOME directory");
             }
         }
@@ -136,12 +136,12 @@ public class ResetCommand : Command<ResetSettings>
             try
             {
                 Directory.Delete(tendrilPlans, recursive: true);
-                AnsiConsole.MarkupLine($"[green]✓[/] Deleted directory: {tendrilPlans}");
+                AnsiConsole.MarkupLine($"[green]✓[/] Deleted directory: {tendrilPlans.EscapeMarkup()}");
             }
             catch (Exception ex)
             {
                 errors.Add($"Failed to delete {tendrilPlans}: {ex.Message}");
-                AnsiConsole.MarkupLine($"[red]✗[/] Failed to delete directory: {tendrilPlans}");
+                AnsiConsole.MarkupLine($"[red]✗[/] Failed to delete directory: {tendrilPlans.EscapeMarkup()}");
                 _logger.LogError(ex, "Failed to delete TENDRIL_PLANS directory");
             }
         }
@@ -195,7 +195,7 @@ public class ResetCommand : Command<ResetSettings>
             AnsiConsole.MarkupLine("[yellow]Reset completed with errors.[/]");
             foreach (var error in errors)
             {
-                AnsiConsole.MarkupLine($"[red]- {error}[/]");
+                AnsiConsole.MarkupLine($"[red]- {error.EscapeMarkup()}[/]");
             }
         }
 
