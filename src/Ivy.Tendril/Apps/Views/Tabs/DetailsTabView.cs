@@ -60,7 +60,7 @@ public class DetailsTabView(
                         if (updated != null) selectedPlanState.Set(updated);
                         refreshPlans();
                     })))
-            .Builder(x => x.Issue, f => f.Link(target:LinkTarget.Blank))
+            .Builder(x => x.Issue, f => f.Link())
             .RemoveEmpty();
 
         return Layout.Vertical().Gap(4)

@@ -16,32 +16,32 @@ public class AgentApp : ViewBase
     {
         var configService = UseService<IConfigService>();
         var agentRunner = UseService<IAgentRunner>();
-        var args = UseArgs<AgentAppArgs>();
-
-        var promptSent = UseRef(false);
-        var ptyRef = UseRef<PtyHandle?>(null);
-
-        var options = new PtyOptions
-        {
-            OnOutput = output =>
-            {
-                if (promptSent.Value || string.IsNullOrEmpty(args?.Prompt)) return;
-                var patterns = GetActivityPatterns(configService, agentRunner);
-                if (patterns?.IdlePattern != null &&
-                    Regex.IsMatch(output, patterns.IdlePattern))
-                {
-                    promptSent.Value = true;
-                    ptyRef.Value?.HandleInput(args.Prompt + "\n");
-                }
-            }
-        };
 
         var ptyHandle = Context.UsePty(
             GetCommandLine(configService, agentRunner),
-            GetWorkDir(configService, agentRunner),
-            options
+            GetWorkDir(configService, agentRunner)
         );
-        ptyRef.Value = ptyHandle;
+
+        var args = UseArgs<AgentAppArgs>();
+        var promptSent = UseRef(false);
+
+        // Auto-send prompt if provided
+        Context.UseEffect(async () =>
+        {
+            if (string.IsNullOrEmpty(args?.Prompt) || promptSent.Value)
+                return (IDisposable?)null;
+
+            // Wait for agent to be ready (simple delay approach)
+            await Task.Delay(2000); // 2 second delay
+
+            if (!promptSent.Value)
+            {
+                promptSent.Value = true;
+                ptyHandle.HandleInput(args.Prompt + "\n");
+            }
+
+            return (IDisposable?)null;
+        }, EffectTrigger.OnMount());
 
         var terminal = new Xterm.Terminal()
             .Stream(ptyHandle.Stream)
