@@ -81,11 +81,18 @@ public class ChangesTabView(
         var toolbar = Layout.Horizontal().Gap(2).Padding(1)
             | hideFormatting.ToSwitchInput(label: "Hide formatting changes");
 
-        // Show stats: total files and hidden count
-        var statsText = $"{allFileDiffs.Count} files";
-        if (hideFormatting.Value && hiddenCount > 0)
-            statsText += $" ({hiddenCount} formatting-only hidden)";
-        toolbar |= Text.Muted(statsText).Small();
+        // Show stats: always display total, and show filtered count when applicable
+        if (hideFormatting.Value)
+        {
+            if (hiddenCount > 0)
+                toolbar |= Text.Muted($"{fileDiffs.Count} of {allFileDiffs.Count} files (hiding {hiddenCount} formatting-only)").Small();
+            else
+                toolbar |= Text.Muted($"{allFileDiffs.Count} files (no formatting-only changes to hide)").Small();
+        }
+        else
+        {
+            toolbar |= Text.Muted($"Showing all {allFileDiffs.Count} files").Small();
+        }
 
         var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0)))
             | treePanel
