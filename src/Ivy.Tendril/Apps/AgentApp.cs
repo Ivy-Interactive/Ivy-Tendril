@@ -1,6 +1,8 @@
+using System.Text.RegularExpressions;
 using Ivy.Hooks.Pty;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Helpers;
+using Ivy.Tendril.Apps.Agent;
 using Ivy.Tendril.Services;
 using Ivy.Widgets.Xterm;
 using Xterm = Ivy.Widgets.Xterm;
@@ -19,6 +21,27 @@ public class AgentApp : ViewBase
             GetCommandLine(configService, agentRunner),
             GetWorkDir(configService, agentRunner)
         );
+
+        var args = UseArgs<AgentAppArgs>();
+        var promptSent = UseRef(false);
+
+        // Auto-send prompt if provided
+        Context.UseEffect(async () =>
+        {
+            if (string.IsNullOrEmpty(args?.Prompt) || promptSent.Value)
+                return (IDisposable?)null;
+
+            // Wait for agent to be ready (simple delay approach)
+            await Task.Delay(2000); // 2 second delay
+
+            if (!promptSent.Value)
+            {
+                promptSent.Value = true;
+                ptyHandle.HandleInput(args.Prompt + "\n");
+            }
+
+            return (IDisposable?)null;
+        }, EffectTrigger.OnMount());
 
         var terminal = new Xterm.Terminal()
             .Stream(ptyHandle.Stream)
@@ -84,4 +107,11 @@ public class AgentApp : ViewBase
         !string.IsNullOrEmpty(config.TendrilHome)
             ? config.TendrilHome
             : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+    private static AgentActivityPatterns? GetActivityPatterns(IConfigService config, IAgentRunner runner)
+    {
+        var agentId = config.Settings.CodingAgent;
+        var pty = runner.GetPty(agentId);
+        return pty?.GetActivityPatterns();
+    }
 }
