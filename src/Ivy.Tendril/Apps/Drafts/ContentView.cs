@@ -276,7 +276,7 @@ public class ContentView(
         return new Fragment(elements.ToArray());
 
         object Cap(object inner) => Layout.Vertical().Scroll().Width(Size.Full()).Height(Size.Full())
-            | (Layout.Vertical().Padding(0, 0, 0, 4).Width(Size.Full().Max(Size.Units(200))) | inner);
+            | (Layout.Vertical().Padding(6, 0, 0, 4).Width(Size.Full().Max(Size.Units(200))) | inner);
     }
 
     internal static object BuildFailureCallout(PlanFile plan)
