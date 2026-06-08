@@ -41,7 +41,7 @@ public static class PromptwareCommands
             return 0;
         }
 
-        AnsiConsole.MarkupLine($"[bold]Updating promptwares in[/] [blue]{target}[/]...");
+        AnsiConsole.MarkupLine($"[bold]Updating promptwares in[/] [blue]{target.EscapeMarkup()}[/]...");
         PromptwareDeployer.Deploy(target);
         AnsiConsole.MarkupLine("[green]✓[/] Done.");
         return 0;

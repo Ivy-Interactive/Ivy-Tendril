@@ -39,20 +39,31 @@ public class JobStatusCommand : Command<JobStatusSettings>
 
     protected override int Execute(CommandContext context, JobStatusSettings settings, CancellationToken cancellationToken)
     {
-        var discovery = MasterClient.Discover();
-        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+        try
+        {
+            var discovery = MasterClient.Discover();
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
 
-        if (!string.IsNullOrEmpty(discovery.ApiKey))
-            client.DefaultRequestHeaders.Add("X-Api-Key", discovery.ApiKey);
+            if (!string.IsNullOrEmpty(discovery.ApiKey))
+                client.DefaultRequestHeaders.Add("X-Api-Key", discovery.ApiKey);
 
-        var payload = new { message = settings.Message, planId = settings.PlanId, planTitle = settings.PlanTitle };
-        var json = JsonSerializer.Serialize(payload, JsonOptions);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var payload = new { message = settings.Message, planId = settings.PlanId, planTitle = settings.PlanTitle };
+            var json = JsonSerializer.Serialize(payload, JsonOptions);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        var response = client.PutAsync($"{discovery.BaseUrl}/api/jobs/{settings.JobId}/status", content)
-            .GetAwaiter().GetResult();
-        response.EnsureSuccessStatusCode();
+            var response = client.PutAsync($"{discovery.BaseUrl}/api/jobs/{settings.JobId}/status", content)
+                .GetAwaiter().GetResult();
+            response.EnsureSuccessStatusCode();
 
-        return 0;
+            _logger.LogInformation("Status updated for job {JobId}: {Message}", settings.JobId, settings.Message);
+            Console.WriteLine($"Status updated: {settings.Message}");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to report job status for {JobId}", settings.JobId);
+            Console.Error.WriteLine($"Failed to report status: {ex.Message}");
+            return 1;
+        }
     }
 }

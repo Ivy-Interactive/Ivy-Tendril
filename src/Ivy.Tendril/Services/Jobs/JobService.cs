@@ -30,6 +30,7 @@ public class JobService : IJobService
     private readonly ILogger<JobService> _logger;
     private readonly JobLauncher _jobLauncher;
     private readonly JobCompletionHandler _completionHandler;
+    private Timer? _blockedJobCheckTimer;
     public JobService(
         IConfigService configService,
         ILogger<JobService>? logger = null,
@@ -65,6 +66,7 @@ public class JobService : IJobService
         configService.SettingsReloaded += OnSettingsReloaded;
         JobIdAllocator.SeedIfNeeded(configService.TendrilHome, promptsRoot);
         LoadHistoricalJobs();
+        _blockedJobCheckTimer = new Timer(OnBlockedJobCheckTimer, null, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60));
     }
 
     public JobService(
@@ -96,6 +98,7 @@ public class JobService : IJobService
             null, _logger, null, planReaderService, telemetryService,
             null, null, promptsRoot);
         LoadHistoricalJobs();
+        _blockedJobCheckTimer = new Timer(OnBlockedJobCheckTimer, null, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60));
     }
 
     public event Action? JobsChanged;
@@ -237,8 +240,28 @@ public class JobService : IJobService
         {
             removed.DisposeResources(_logger);
             try { _database?.DeleteJob(id); } catch { /* Best-effort */ }
+
+            if (removed.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
+                _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);
+
+            _completionHandler.HandleWaitForJobsDependents(removed, _jobs, RaiseNotification, StartJobSkipDepCheck, PersistJob);
         }
         RaiseJobsStructureChanged();
+    }
+
+    private void OnBlockedJobCheckTimer(object? state)
+    {
+        try
+        {
+            var hasBlocked = _jobs.Values.Any(j => j.Status == JobStatus.Blocked);
+            if (!hasBlocked) return;
+
+            _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);
+        }
+        catch
+        {
+            // Best-effort — don't crash on timer callback
+        }
     }
 
     /// <summary>
@@ -293,6 +316,21 @@ public class JobService : IJobService
     public JobItem? GetJob(string id)
     {
         return _jobs.GetValueOrDefault(id) ?? _database?.GetJobById(id);
+    }
+
+    public bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null)
+    {
+        if (!_jobs.TryGetValue(id, out var job))
+            return false;
+
+        job.StatusMessage = message;
+        if (!string.IsNullOrEmpty(planId))
+            job.ReportedPlanId = planId;
+        if (!string.IsNullOrEmpty(planTitle))
+            job.ReportedPlanTitle = planTitle;
+
+        RaiseJobsPropertyChanged();
+        return true;
     }
 
     public List<JobItem> GetJobsForPlan(string planFile)
@@ -509,7 +547,7 @@ public class JobService : IJobService
         var planFolder = job.TypedArgs?.PlanFolder ?? "";
         var conflictingJob = _jobs.Values.FirstOrDefault(j =>
             j.Type == job.Type &&
-            j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
+            j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked &&
             !string.IsNullOrEmpty(j.TypedArgs?.PlanFolder) &&
             j.TypedArgs!.PlanFolder!.Equals(planFolder, StringComparison.OrdinalIgnoreCase));
 
@@ -621,6 +659,7 @@ public class JobService : IJobService
         if (_configService != null)
             _configService.SettingsReloaded -= OnSettingsReloaded;
         _jobSlotSemaphore.Dispose();
+        _blockedJobCheckTimer?.Dispose();
     }
 
     private void OnSettingsReloaded(object? sender, EventArgs e)

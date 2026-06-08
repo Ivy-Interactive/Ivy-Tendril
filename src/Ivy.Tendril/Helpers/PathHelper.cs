@@ -110,7 +110,7 @@ public static class PathHelper
         {
             // Verify and auto-repair permissions on Unix
             _ = GetBundledDotnetPath();
-            
+
             if (!dirs.Contains(bundledDotnetDir))
             {
                 pathList.Add(bundledDotnetDir);
@@ -122,7 +122,7 @@ public static class PathHelper
         {
             // Verify and auto-repair permissions on Unix
             _ = GetPwshPath();
-            
+
             if (!dirs.Contains(bundledPwshDir))
             {
                 pathList.Add(bundledPwshDir);
@@ -272,11 +272,11 @@ public static class PathHelper
     private static bool IsSecretKey(string key)
     {
         var normalized = key.ToUpperInvariant();
-        return normalized.Contains("KEY") || 
-               normalized.Contains("SECRET") || 
-               normalized.Contains("TOKEN") || 
-               normalized.Contains("PASSWORD") || 
-               normalized.Contains("AUTH") || 
+        return normalized.Contains("KEY") ||
+               normalized.Contains("SECRET") ||
+               normalized.Contains("TOKEN") ||
+               normalized.Contains("PASSWORD") ||
+               normalized.Contains("AUTH") ||
                normalized.Contains("CREDENTIAL");
     }
 
@@ -331,7 +331,7 @@ public static class PathHelper
 
             Ivy.Helpers.CrashLog.Write($"[PathHelper] RunShellForEnv: starting process with args: {string.Join(" ", process.StartInfo.ArgumentList)}");
             process.Start();
-            
+
             if (process.WaitForExit(TimeSpan.FromSeconds(2)))
             {
                 var output = process.StandardOutput.ReadToEnd();

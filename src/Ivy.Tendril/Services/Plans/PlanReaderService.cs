@@ -350,6 +350,45 @@ public class PlanReaderService(
         }, Path.Combine(PlansDirectory, folderName));
     }
 
+    public void RevertRevision(string folderName)
+    {
+        var revisionsDir = Path.Combine(PlansDirectory, folderName, "Revisions");
+        if (!Directory.Exists(revisionsDir)) return;
+
+        var files = Directory.GetFiles(revisionsDir, "*.md").OrderBy(f => f).ToArray();
+        if (files.Length <= 1) return; // Can't revert below revision 1
+
+        var latestFile = files.Last();
+        var previousFile = files[^2];
+        var previousContent = FileHelper.ReadAllText(previousFile);
+        var newCount = files.Length - 1;
+
+        // Update database first for instant UI feedback
+        var planId = ExtractPlanId(folderName);
+        if (planId.HasValue && _database != null)
+            _database.UpdatePlanContent(planId.Value, previousContent, newCount);
+
+        _planCountsCache.Invalidate();
+        CountsInvalidated?.Invoke();
+        planWatcherService?.NotifyChanged(folderName);
+
+        // Delete the latest revision file in background
+        WriteFileInBackground(() =>
+        {
+            if (File.Exists(latestFile))
+                File.Delete(latestFile);
+
+            var planYamlPath = Path.Combine(PlansDirectory, folderName, "plan.yaml");
+            if (File.Exists(planYamlPath))
+            {
+                var yaml = FileHelper.ReadAllText(planYamlPath);
+                var planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml) ?? new PlanYaml();
+                planYaml.Updated = DateTime.UtcNow;
+                FileHelper.WriteAllText(planYamlPath, YamlHelper.SerializerCompact.Serialize(planYaml));
+            }
+        });
+    }
+
     /// <summary>
     ///     Reads the content of the most recent revision file for a plan.
     /// </summary>

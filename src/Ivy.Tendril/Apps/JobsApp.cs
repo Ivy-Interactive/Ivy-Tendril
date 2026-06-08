@@ -52,7 +52,7 @@ public partial class JobsApp : ViewBase
                 "Full Prompt"
             ).Width(Size.Half()).Resizable();
         });
-        
+
         var (debugSheet, showDebug) = UseTrigger<string>((isOpen, jobId) =>
         {
             if (!isOpen.Value) return null;
@@ -74,7 +74,7 @@ public partial class JobsApp : ViewBase
         var projectColors = BuildProjectColorMapping(config);
         var rows = BuildJobRows(jobs, planService);
         var jobsProgress = BuildStatusProgress(jobs, config);
-        
+
         var dataTable = BuildDataTable(rows, refreshToken, updateStream, config, planService,
             jobService, client, showPlan, showOutput, showPrompt, showDebug, jobs, projectColors, jobsProgress);
 

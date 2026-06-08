@@ -216,6 +216,10 @@ public class JobServiceCompletionGuardTests : IDisposable
         {
         }
 
+        public void RevertRevision(string folderName)
+        {
+        }
+
         public void SaveRevision(string folderName, string content)
         {
         }
@@ -302,6 +306,15 @@ public class JobServiceCompletionGuardTests : IDisposable
         public Task FlushPendingWritesAsync()
         {
             return Task.CompletedTask;
+        }
+
+        public List<RecommendationYaml> GetRecommendationsForPlan(string folderName)
+        {
+            return [];
+        }
+
+        public void AcceptRecommendationAndRetry(string folderName, string recommendationTitle)
+        {
         }
     }
 }

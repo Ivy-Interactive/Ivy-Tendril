@@ -68,6 +68,7 @@ public class JobServiceSplitPlanCompletionTests
 
         public void ResetToDraft(string folderName) { }
         public void ResetVerificationsForRetry(string folderName) { }
+        public void RevertRevision(string folderName) { }
 
         public void RecoverStuckPlans() { }
         public void RepairPlans() { }
@@ -93,5 +94,7 @@ public class JobServiceSplitPlanCompletionTests
         public void SyncPlanArtifacts(string planFolder) { }
         public void InvalidateCaches() { }
         public Task FlushPendingWritesAsync() => Task.CompletedTask;
+        public List<RecommendationYaml> GetRecommendationsForPlan(string folderName) => [];
+        public void AcceptRecommendationAndRetry(string folderName, string recommendationTitle) { }
     }
 }

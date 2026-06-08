@@ -234,7 +234,7 @@ public class EditProjectDialog(
                         _refreshToken.Refresh();
                         _client.Toast($"Failed to save project: {ex.Message}", "Error");
                     }
-                    })
+                })
                     .WithTooltip(hasInvalidRepos ? "Fix or remove invalid repositories before saving" : null)
             )
         ).Width(Size.Rem(40));

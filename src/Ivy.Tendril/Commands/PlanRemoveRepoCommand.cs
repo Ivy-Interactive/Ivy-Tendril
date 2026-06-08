@@ -41,6 +41,7 @@ public class PlanRemoveRepoCommand : Command<PlanRemoveRepoSettings>
             if (removed == 0)
             {
                 _logger.LogError("Repository not found in plan: {RepoPath}", settings.RepoPath);
+                Console.Error.WriteLine($"Repository not found in plan: {settings.RepoPath}");
                 return 1;
             }
 
@@ -49,11 +50,13 @@ public class PlanRemoveRepoCommand : Command<PlanRemoveRepoSettings>
             PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
             _logger.LogInformation("Removed repository: {RepoPath}", settings.RepoPath);
+            Console.WriteLine($"Removed repository: {settings.RepoPath}");
             return 0;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to remove repository from plan {PlanId}", settings.PlanId);
+            Console.Error.WriteLine($"Failed to remove repository: {ex.Message}");
             return 1;
         }
     }
