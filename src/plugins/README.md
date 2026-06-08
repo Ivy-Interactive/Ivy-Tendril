@@ -106,7 +106,7 @@ The simplest way to test a plugin during development. Create or edit `plugin-ref
 ```
 
 **How it works:**
-- Tendril watches this file for changes (debounced at 500ms)
+- Tendril watches this file for changes
 - Adding a path triggers plugin load; removing a path triggers unload
 - If the referenced directory contains a `.csproj` file, Tendril automatically runs `dotnet build` before loading
 - File watchers on referenced directories detect source changes (`.cs`, `.csproj`, `.razor`, `.props`, `.targets`) and trigger rebuild + reload
@@ -117,6 +117,8 @@ The simplest way to test a plugin during development. Create or edit `plugin-ref
 - ../../Ivy-Tendril/src/plugins/plugins/Ivy.Tendril.Plugin.Slack
 - ../../Ivy-Tendril/src/plugins/plugins/Ivy.Tendril.Plugin.Linear
 ```
+
+**Note:** You can also place source plugins directly in your Tendril plugins directory, and they will be watched and reloaded in the same manner as referenced plugins.
 
 ### Option B: Local NuGet Package
 
