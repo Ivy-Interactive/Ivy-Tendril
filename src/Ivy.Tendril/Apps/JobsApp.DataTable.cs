@@ -1,4 +1,6 @@
+using Ivy.Tendril.Apps.Drafts;
 using Ivy.Tendril.Apps.Jobs;
+using Ivy.Tendril.Apps.Review;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
@@ -7,6 +9,7 @@ namespace Ivy.Tendril.Apps;
 public partial class JobsApp
 {
     private static object BuildDataTable(
+        INavigator nav,
         List<JobItemRow> rows,
         RefreshToken refreshToken,
         IWriteStream<DataTableCellUpdate> updateStream,
@@ -97,7 +100,39 @@ public partial class JobsApp
                     {
                         var fullPath = Path.Combine(planService.PlansDirectory, job.PlanFile);
                         if (Directory.Exists(fullPath))
-                            showPlan(fullPath);
+                        {
+                            // If job is active (Running/Queued/Pending/Blocked), always show in sheet
+                            // to keep user in Jobs context
+                            var isActiveJob = job.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked;
+
+                            if (isActiveJob)
+                            {
+                                showPlan(fullPath);
+                            }
+                            else
+                            {
+                                var plan = planService.GetPlanByFolder(fullPath);
+                                if (plan != null)
+                                {
+                                    if (plan.Status is PlanStatus.Draft or PlanStatus.Blocked)
+                                    {
+                                        nav.Navigate<DraftsApp>(new DraftsAppArgs(plan.FolderName));
+                                    }
+                                    else if (plan.Status is PlanStatus.ReadyForReview or PlanStatus.Failed)
+                                    {
+                                        nav.Navigate<ReviewApp>(new ReviewAppArgs(plan.FolderName));
+                                    }
+                                    else
+                                    {
+                                        showPlan(fullPath);
+                                    }
+                                }
+                                else
+                                {
+                                    showPlan(fullPath);
+                                }
+                            }
+                        }
                     }
                 }
                 return ValueTask.CompletedTask;
