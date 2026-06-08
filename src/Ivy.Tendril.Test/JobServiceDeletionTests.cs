@@ -135,6 +135,11 @@ public class JobServiceDeletionTests
             return new DashboardModels(0, 0, 0, 0, 0, 0, 0, new List<DashboardDayStats>(), new List<ProjectCount>());
         }
 
+        public List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days = 30)
+        {
+            return new List<(DateOnly Date, int Count)>();
+        }
+
         public decimal GetPlanTotalCost(int planId)
         {
             return 0;
