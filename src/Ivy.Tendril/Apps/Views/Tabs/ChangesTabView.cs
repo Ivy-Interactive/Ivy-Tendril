@@ -68,12 +68,8 @@ public class ChangesTabView(
             .Width(Size.Rem(12).Min(Size.Rem(12))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)))
             | tree;
 
-        var toolbar = Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(1)
+        var toolbar = Layout.Horizontal().Gap(2).Padding(1)
             | hideFormatting.ToSwitchInput(label: "Hide formatting changes");
-
-        var hiddenCount = allFileDiffs.Count - fileDiffs.Count;
-        if (hideFormatting.Value && hiddenCount > 0)
-            toolbar |= Text.Muted($"({hiddenCount} formatting-only files hidden)");
 
         var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0)))
             | treePanel

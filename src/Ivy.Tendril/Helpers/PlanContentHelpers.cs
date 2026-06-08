@@ -80,7 +80,14 @@ public static class PlanContentHelpers
 
         static string NormalizeLine(string line)
         {
-            return Regex.Replace(line.Trim(), @"\s+", " ");
+            // Collapse all whitespace
+            var normalized = Regex.Replace(line.Trim(), @"\s+", " ");
+
+            // Normalize spread operator syntax: [...x] and ...x are equivalent
+            // This catches linting fixes like: func(...args) -> func([...args])
+            normalized = Regex.Replace(normalized, @"\[\s*\.\.\.\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\]", "...$1");
+
+            return normalized;
         }
     }
 
