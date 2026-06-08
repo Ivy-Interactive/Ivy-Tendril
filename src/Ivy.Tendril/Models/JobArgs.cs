@@ -71,6 +71,7 @@ public record SplitPlanArgs(
 
 public record CreatePrArgs(
     string FolderPath,
+    bool SolveMergeConflicts = true,
     bool Merge = true,
     bool DeleteBranch = true,
     bool IncludeArtifacts = true,

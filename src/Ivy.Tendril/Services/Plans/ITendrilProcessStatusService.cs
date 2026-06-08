@@ -11,6 +11,7 @@ public record TendrilProcessStatus
     public int UpdatingPlansCount { get; init; }
     public int ExecutingPlansCount { get; init; }
     public int RetryingPlansCount { get; init; }
+    public int CreatingPrCount { get; init; }
     public int RecommendationsCount { get; init; }
 
     public static TendrilProcessStatus Empty => new();

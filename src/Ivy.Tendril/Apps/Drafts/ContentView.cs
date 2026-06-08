@@ -168,7 +168,7 @@ public class ContentView(
         header |= Text.Rich()
             .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
             .Muted("plans", word: true);
-        header |= new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("e")
+        header |= new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("x")
             .Loading(isCheckingPreflight)
             .Disabled(isCheckingPreflight)
             .OnClick(() => runPreflight(selectedPlan.Project, result =>
@@ -200,7 +200,7 @@ public class ContentView(
                 new Tab("Plan", Cap(planTabContent)),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan!,
                     jobService.GetJobsForPlan(selectedPlan!.FolderName),
-                    showDebugJob)))
+                    showDebugJob, planService, selectedPlanState, refreshPlans)))
             ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content).RemoveParentPadding();
 
             content |= (Layout.Vertical().Padding(2).Height(Size.Full()) | tabs);

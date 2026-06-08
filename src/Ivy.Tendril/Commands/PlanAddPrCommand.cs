@@ -36,25 +36,26 @@ public class PlanAddPrCommand : Command<PlanAddPrSettings>
             var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
             var plan = PlanCommandHelpers.ReadPlan(planFolder);
 
-            // Check if already present
             if (plan.Prs.Contains(settings.PrUrl))
             {
                 _logger.LogInformation("PR already in plan: {PrUrl}", settings.PrUrl);
+                Console.WriteLine($"PR already in plan: {settings.PrUrl}");
                 return 0;
             }
 
-            // Add PR
             plan.Prs.Add(settings.PrUrl);
             plan.Updated = DateTime.UtcNow;
 
             PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
             _logger.LogInformation("Added PR: {PrUrl}", settings.PrUrl);
+            Console.WriteLine($"Added PR: {settings.PrUrl}");
             return 0;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to add PR to plan {PlanId}", settings.PlanId);
+            Console.Error.WriteLine($"Failed to add PR: {ex.Message}");
             return 1;
         }
     }

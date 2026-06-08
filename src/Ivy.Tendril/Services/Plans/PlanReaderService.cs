@@ -250,7 +250,7 @@ public class PlanReaderService(
             planYaml.State = newState.ToString();
             planYaml.Updated = DateTime.UtcNow;
             FileHelper.WriteAllText(planYamlPath, YamlHelper.SerializerCompact.Serialize(planYaml));
-        });
+        }, Path.Combine(PlansDirectory, folderName));
     }
 
     /// <summary>
@@ -283,7 +283,7 @@ public class PlanReaderService(
             foreach (var v in planYaml.Verifications)
                 v.Status = VerificationStatus.Pending;
             FileHelper.WriteAllText(planYamlPath, YamlHelper.SerializerCompact.Serialize(planYaml));
-        });
+        }, Path.Combine(PlansDirectory, folderName));
     }
 
     public void ResetVerificationsForRetry(string folderName)
@@ -304,7 +304,7 @@ public class PlanReaderService(
                     v.Status = VerificationStatus.Pending;
             }
             FileHelper.WriteAllText(planYamlPath, YamlHelper.SerializerCompact.Serialize(planYaml));
-        });
+        }, Path.Combine(PlansDirectory, folderName));
     }
 
     /// <summary>
@@ -338,6 +338,45 @@ public class PlanReaderService(
             var nextNumber = GetNextRevisionNumber(revisionsDir);
             var revisionPath = Path.Combine(revisionsDir, $"{nextNumber:D3}.md");
             FileHelper.WriteAllText(revisionPath, content);
+
+            var planYamlPath = Path.Combine(PlansDirectory, folderName, "plan.yaml");
+            if (File.Exists(planYamlPath))
+            {
+                var yaml = FileHelper.ReadAllText(planYamlPath);
+                var planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml) ?? new PlanYaml();
+                planYaml.Updated = DateTime.UtcNow;
+                FileHelper.WriteAllText(planYamlPath, YamlHelper.SerializerCompact.Serialize(planYaml));
+            }
+        }, Path.Combine(PlansDirectory, folderName));
+    }
+
+    public void RevertRevision(string folderName)
+    {
+        var revisionsDir = Path.Combine(PlansDirectory, folderName, "Revisions");
+        if (!Directory.Exists(revisionsDir)) return;
+
+        var files = Directory.GetFiles(revisionsDir, "*.md").OrderBy(f => f).ToArray();
+        if (files.Length <= 1) return; // Can't revert below revision 1
+
+        var latestFile = files.Last();
+        var previousFile = files[^2];
+        var previousContent = FileHelper.ReadAllText(previousFile);
+        var newCount = files.Length - 1;
+
+        // Update database first for instant UI feedback
+        var planId = ExtractPlanId(folderName);
+        if (planId.HasValue && _database != null)
+            _database.UpdatePlanContent(planId.Value, previousContent, newCount);
+
+        _planCountsCache.Invalidate();
+        CountsInvalidated?.Invoke();
+        planWatcherService?.NotifyChanged(folderName);
+
+        // Delete the latest revision file in background
+        WriteFileInBackground(() =>
+        {
+            if (File.Exists(latestFile))
+                File.Delete(latestFile);
 
             var planYamlPath = Path.Combine(PlansDirectory, folderName, "plan.yaml");
             if (File.Exists(planYamlPath))
@@ -502,7 +541,7 @@ public class PlanReaderService(
                     FileHelper.WriteAllText(planYamlPath, YamlHelper.SerializerCompact.Serialize(planYaml));
                 }
             }
-        });
+        }, Path.Combine(PlansDirectory, folderName));
     }
 
     /// <summary>
@@ -680,7 +719,94 @@ public class PlanReaderService(
                 item.DeclineReason = null;
 
             FileHelper.WriteAllText(planYamlPath, YamlHelper.Serializer.Serialize(plan));
-        });
+        }, Path.Combine(PlansDirectory, planFolderName));
+    }
+
+    public List<RecommendationYaml> GetRecommendationsForPlan(string folderName)
+    {
+        if (_useDatabaseForReads && _database != null)
+        {
+            var planId = ExtractPlanId(folderName);
+            if (planId.HasValue)
+            {
+                var allRecs = _database.GetRecommendations();
+                return allRecs
+                    .Where(r => r.PlanFolderName == folderName)
+                    .Select(r => new RecommendationYaml
+                    {
+                        Title = r.Title,
+                        Description = r.Description,
+                        State = r.State,
+                        DeclineReason = r.DeclineReason,
+                        Impact = r.Impact,
+                        Risk = r.Risk
+                    })
+                    .ToList();
+            }
+        }
+
+        var planYamlPath = Path.Combine(PlansDirectory, folderName, "plan.yaml");
+        if (!File.Exists(planYamlPath)) return new List<RecommendationYaml>();
+
+        var yaml = FileHelper.ReadAllText(planYamlPath);
+        var plan = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml);
+        return plan?.Recommendations ?? new List<RecommendationYaml>();
+    }
+
+    public void AcceptRecommendationAndRetry(string folderName, string recommendationTitle)
+    {
+        var planId = ExtractPlanId(folderName);
+
+        // Track state transition in telemetry.
+        if (planId.HasValue)
+        {
+            var currentPlan = GetPlanByFolder(Path.Combine(PlansDirectory, folderName));
+            var oldState = currentPlan?.Status.ToString() ?? "Unknown";
+            telemetryService?.TrackPlanStateTransition(oldState, PlanStatus.Executing.ToString());
+        }
+
+        // Update database atomically for all three mutations.
+        if (planId.HasValue && _database != null)
+        {
+            _database.UpdatePlanState(planId.Value, PlanStatus.Executing);
+            _database.UpdateRecommendationState(planId.Value, recommendationTitle, RecommendationStatus.Accepted, null);
+        }
+
+        _planCountsCache.Invalidate();
+        _recommendationsCache.Invalidate();
+        CountsInvalidated?.Invoke();
+        planWatcherService?.NotifyChanged(folderName);
+
+        // Single background write that performs all three mutations atomically on disk.
+        WriteFileInBackground(() =>
+        {
+            var planYamlPath = Path.Combine(PlansDirectory, folderName, "plan.yaml");
+            if (!File.Exists(planYamlPath)) return;
+
+            var yaml = FileHelper.ReadAllText(planYamlPath);
+            var planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml) ?? new PlanYaml();
+
+            // Reset verifications
+            foreach (var v in planYaml.Verifications)
+            {
+                if (!v.Status.Equals(VerificationStatus.Skipped, StringComparison.OrdinalIgnoreCase))
+                    v.Status = VerificationStatus.Pending;
+            }
+
+            // Transition state
+            planYaml.State = PlanStatus.Executing.ToString();
+            planYaml.Updated = DateTime.UtcNow;
+
+            // Accept recommendation
+            var rec = planYaml.Recommendations?.FirstOrDefault(r => r.Title == recommendationTitle);
+            if (rec != null)
+            {
+                rec.State = RecommendationStatus.Accepted;
+                rec.DeclineReason = null;
+            }
+
+            FileHelper.WriteAllText(planYamlPath, YamlHelper.SerializerCompact.Serialize(planYaml));
+        }, Path.Combine(PlansDirectory, folderName));
     }
 
     public void SyncPlanArtifacts(string planFolder)
@@ -1028,41 +1154,67 @@ public class PlanReaderService(
     /// <summary>
     ///     Runs a file write operation in the background (fire-and-forget).
     ///     The database is the primary data source; file writes are for durability only.
+    ///     All writes are serialized through _writeQueue to prevent lost-update races
+    ///     when multiple mutations fire concurrently (e.g., Accept recommendation click).
     /// </summary>
+    private readonly SemaphoreSlim _writeQueue = new(1, 1);
     private Task _lastWriteTask = Task.CompletedTask;
 
-    private void WriteFileInBackground(Action action)
+    private void ExecuteWithLock(Action action, string? planFolder)
     {
-        _lastWriteTask = Task.Run(() =>
+        if (planFolder != null)
         {
+            using var _ = PlanFileLock.Acquire(planFolder);
+            action();
+        }
+        else
+        {
+            action();
+        }
+    }
+
+    private void WriteFileInBackground(Action action, string? planFolder = null)
+    {
+        _lastWriteTask = Task.Run(async () =>
+        {
+            await _writeQueue.WaitAsync();
             try
             {
-                action();
+                ExecuteWithLock(action, planFolder);
             }
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Background file write failed");
             }
+            finally
+            {
+                _writeQueue.Release();
+            }
         });
     }
 
-    private void WriteFile(Action action)
+    private void WriteFile(Action action, string? planFolder = null)
     {
         if (_database == null)
         {
+            _writeQueue.Wait();
             try
             {
-                action();
+                ExecuteWithLock(action, planFolder);
             }
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "File write failed");
             }
+            finally
+            {
+                _writeQueue.Release();
+            }
 
             return;
         }
 
-        WriteFileInBackground(action);
+        WriteFileInBackground(action, planFolder);
     }
 
     /// <summary>

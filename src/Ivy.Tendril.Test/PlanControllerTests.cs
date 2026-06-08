@@ -581,6 +581,340 @@ public class PlanControllerTests : IDisposable
         Assert.Contains("Rec1", json2);
         Assert.DoesNotContain("Rec2", json2);
     }
+
+    // --- CreatePlanDirect ---
+
+    [Fact]
+    public void CreatePlanDirect_ReturnsIdAndFolder()
+    {
+        var plansDir = Path.Combine(_tempDir.Path, "Plans");
+        Directory.CreateDirectory(plansDir);
+        var controller = CreateController();
+
+        var result = controller.CreatePlanDirect(new CreatePlanDirectRequest("Test Direct Plan", Repos: [_repoDir]));
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var json = JsonSerializer.Serialize(ok.Value);
+        Assert.Contains("\"id\":", json);
+        Assert.Contains("\"folder\":", json);
+        Assert.Contains("Test Direct Plan", json);
+    }
+
+    [Fact]
+    public void CreatePlanDirect_WithAllOptions_SetsAllFields()
+    {
+        var plansDir = Path.Combine(_tempDir.Path, "Plans");
+        Directory.CreateDirectory(plansDir);
+        var controller = CreateController();
+
+        var request = new CreatePlanDirectRequest(
+            "Full Plan",
+            Project: "MyProject",
+            Level: "Critical",
+            InitialPrompt: "Do the thing",
+            ExecutionProfile: "deep",
+            SourceUrl: "https://github.com/org/repo/issues/1",
+            Repos: [_repoDir],
+            Verifications: ["DotnetBuild", "DotnetTest"],
+            RelatedPlans: ["00010-OtherPlan"],
+            DependsOn: ["00005-BasePlan"]);
+
+        var result = controller.CreatePlanDirect(request);
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var json = JsonSerializer.Serialize(ok.Value);
+        Assert.Contains("\"id\":", json);
+
+        var idStr = JsonDocument.Parse(json).RootElement.GetProperty("id").GetString()!;
+        var getPlanResult = controller.GetPlan(idStr);
+        var getOk = Assert.IsType<OkObjectResult>(getPlanResult);
+        var planJson = JsonSerializer.Serialize(getOk.Value);
+        Assert.Contains("MyProject", planJson);
+        Assert.Contains("Critical", planJson);
+        Assert.Contains("Do the thing", planJson);
+        Assert.Contains("deep", planJson);
+    }
+
+    // --- WriteRevision ---
+
+    [Fact]
+    public void WriteRevision_CreatesRevisionFile()
+    {
+        var planFolder = CreateTestPlan();
+        var controller = CreateController();
+
+        var result = controller.WriteRevision("00001", new WriteRevisionRequest("# Test Revision\n\nContent here."));
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var json = JsonSerializer.Serialize(ok.Value);
+        Assert.Contains("001.md", json);
+
+        var revFile = Path.Combine(planFolder, "Revisions", "001.md");
+        Assert.True(System.IO.File.Exists(revFile));
+        Assert.Contains("Test Revision", System.IO.File.ReadAllText(revFile));
+    }
+
+    [Fact]
+    public void WriteRevision_IncrementsNumber()
+    {
+        var planFolder = CreateTestPlan();
+        var revisionsDir = Path.Combine(planFolder, "Revisions");
+        Directory.CreateDirectory(revisionsDir);
+        System.IO.File.WriteAllText(Path.Combine(revisionsDir, "001.md"), "First");
+
+        var controller = CreateController();
+        var result = controller.WriteRevision("00001", new WriteRevisionRequest("Second revision"));
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var json = JsonSerializer.Serialize(ok.Value);
+        Assert.Contains("002.md", json);
+    }
+
+    // --- AddRelatedPlan ---
+
+    [Fact]
+    public void AddRelatedPlan_AddsLink()
+    {
+        CreateTestPlan();
+        var controller = CreateController();
+
+        var result = controller.AddRelatedPlan("00001", new AddRelatedPlanRequest("00010-OtherPlan"));
+
+        Assert.IsType<OkObjectResult>(result);
+        var getResult = controller.GetPlan("00001");
+        var json = JsonSerializer.Serialize(((OkObjectResult)getResult).Value);
+        Assert.Contains("00010-OtherPlan", json);
+    }
+
+    [Fact]
+    public void AddRelatedPlan_Duplicate_ReturnsOk()
+    {
+        CreateTestPlan();
+        var controller = CreateController();
+        controller.AddRelatedPlan("00001", new AddRelatedPlanRequest("00010-OtherPlan"));
+
+        var result = controller.AddRelatedPlan("00001", new AddRelatedPlanRequest("00010-OtherPlan"));
+
+        Assert.IsType<OkObjectResult>(result);
+    }
+
+    // --- RemoveRelatedPlan ---
+
+    [Fact]
+    public void RemoveRelatedPlan_RemovesLink()
+    {
+        CreateTestPlan();
+        var controller = CreateController();
+        controller.AddRelatedPlan("00001", new AddRelatedPlanRequest("00010-OtherPlan"));
+
+        var result = controller.RemoveRelatedPlan("00001", new RemoveRelatedPlanRequest("00010-OtherPlan"));
+
+        Assert.IsType<OkObjectResult>(result);
+        var getResult = controller.GetPlan("00001");
+        var json = JsonSerializer.Serialize(((OkObjectResult)getResult).Value);
+        Assert.DoesNotContain("00010-OtherPlan", json);
+    }
+
+    [Fact]
+    public void RemoveRelatedPlan_NotFound_Returns404()
+    {
+        CreateTestPlan();
+        var controller = CreateController();
+
+        var result = controller.RemoveRelatedPlan("00001", new RemoveRelatedPlanRequest("NonExistent"));
+
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
+
+    // --- AddDependsOn ---
+
+    [Fact]
+    public void AddDependsOn_AddsDependency()
+    {
+        CreateTestPlan();
+        var controller = CreateController();
+
+        var result = controller.AddDependsOn("00001", new AddDependsOnRequest("00005-BasePlan"));
+
+        Assert.IsType<OkObjectResult>(result);
+        var getResult = controller.GetPlan("00001");
+        var json = JsonSerializer.Serialize(((OkObjectResult)getResult).Value);
+        Assert.Contains("00005-BasePlan", json);
+    }
+
+    [Fact]
+    public void AddDependsOn_Duplicate_ReturnsOk()
+    {
+        CreateTestPlan();
+        var controller = CreateController();
+        controller.AddDependsOn("00001", new AddDependsOnRequest("00005-BasePlan"));
+
+        var result = controller.AddDependsOn("00001", new AddDependsOnRequest("00005-BasePlan"));
+
+        Assert.IsType<OkObjectResult>(result);
+    }
+
+    // --- RemoveDependsOn ---
+
+    [Fact]
+    public void RemoveDependsOn_RemovesDependency()
+    {
+        CreateTestPlan();
+        var controller = CreateController();
+        controller.AddDependsOn("00001", new AddDependsOnRequest("00005-BasePlan"));
+
+        var result = controller.RemoveDependsOn("00001", new RemoveDependsOnRequest("00005-BasePlan"));
+
+        Assert.IsType<OkObjectResult>(result);
+        var getResult = controller.GetPlan("00001");
+        var json = JsonSerializer.Serialize(((OkObjectResult)getResult).Value);
+        Assert.DoesNotContain("00005-BasePlan", json);
+    }
+
+    [Fact]
+    public void RemoveDependsOn_NotFound_Returns404()
+    {
+        CreateTestPlan();
+        var controller = CreateController();
+
+        var result = controller.RemoveDependsOn("00001", new RemoveDependsOnRequest("NonExistent"));
+
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
+
+    // --- ValidatePlan ---
+
+    [Fact]
+    public void ValidatePlan_ReturnsValidationResult()
+    {
+        CreateTestPlan();
+        var controller = CreateController();
+
+        var result = controller.ValidatePlan("00001");
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var json = JsonSerializer.Serialize(ok.Value);
+        Assert.Contains("\"valid\":", json);
+    }
+
+    // --- ListVerifications ---
+
+    [Fact]
+    public void ListVerifications_ReturnsAll()
+    {
+        CreateTestPlan();
+        var controller = CreateController();
+        controller.AddVerification("00001", new AddVerificationRequest("Build"));
+        controller.AddVerification("00001", new AddVerificationRequest("Test", "Pass"));
+
+        var result = controller.ListVerifications("00001");
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var json = JsonSerializer.Serialize(ok.Value);
+        Assert.Contains("Build", json);
+        Assert.Contains("Test", json);
+    }
+
+    [Fact]
+    public void ListVerifications_FilterByStatus()
+    {
+        CreateTestPlan();
+        var controller = CreateController();
+        controller.AddVerification("00001", new AddVerificationRequest("Build", "Pending"));
+        controller.AddVerification("00001", new AddVerificationRequest("Test", "Pass"));
+
+        var result = controller.ListVerifications("00001", "Pass");
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var json = JsonSerializer.Serialize(ok.Value);
+        Assert.Contains("Test", json);
+        Assert.DoesNotContain("Build", json);
+    }
+
+    // --- AddVerification ---
+
+    [Fact]
+    public void AddVerification_AddsNew()
+    {
+        CreateTestPlan();
+        var controller = CreateController();
+
+        var result = controller.AddVerification("00001", new AddVerificationRequest("NewCheck"));
+
+        Assert.IsType<OkObjectResult>(result);
+        var listResult = controller.ListVerifications("00001");
+        var json = JsonSerializer.Serialize(((OkObjectResult)listResult).Value);
+        Assert.Contains("NewCheck", json);
+        Assert.Contains("Pending", json);
+    }
+
+    [Fact]
+    public void AddVerification_Duplicate_ReturnsConflict()
+    {
+        CreateTestPlan();
+        var controller = CreateController();
+        controller.AddVerification("00001", new AddVerificationRequest("Build"));
+
+        var result = controller.AddVerification("00001", new AddVerificationRequest("Build"));
+
+        Assert.IsType<ConflictObjectResult>(result);
+    }
+
+    // --- RemoveVerification ---
+
+    [Fact]
+    public void RemoveVerification_Removes()
+    {
+        CreateTestPlan();
+        var controller = CreateController();
+        controller.AddVerification("00001", new AddVerificationRequest("Build"));
+
+        var result = controller.RemoveVerification("00001", "Build");
+
+        Assert.IsType<OkObjectResult>(result);
+        var listResult = controller.ListVerifications("00001");
+        var json = JsonSerializer.Serialize(((OkObjectResult)listResult).Value);
+        Assert.DoesNotContain("Build", json);
+    }
+
+    [Fact]
+    public void RemoveVerification_NotFound_Returns404()
+    {
+        CreateTestPlan();
+        var controller = CreateController();
+
+        var result = controller.RemoveVerification("00001", "NonExistent");
+
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
+
+    // --- SetRecField ---
+
+    [Fact]
+    public void SetRecField_UpdatesDescription()
+    {
+        CreateTestPlan();
+        var controller = CreateController();
+        controller.AddRecommendation("00001", new AddRecRequest("MyRec", "Original desc"));
+
+        var result = controller.SetRecField("00001", "MyRec", new SetRecFieldRequest("description", "Updated desc"));
+
+        Assert.IsType<OkObjectResult>(result);
+        var listResult = controller.ListRecommendations("00001");
+        var json = JsonSerializer.Serialize(((OkObjectResult)listResult).Value);
+        Assert.Contains("Updated desc", json);
+    }
+
+    [Fact]
+    public void SetRecField_UnknownField_ReturnsBadRequest()
+    {
+        CreateTestPlan();
+        var controller = CreateController();
+        controller.AddRecommendation("00001", new AddRecRequest("MyRec"));
+
+        var result = controller.SetRecField("00001", "MyRec", new SetRecFieldRequest("nonexistent", "value"));
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
 }
 
 file class NullPlanWatcherService : IPlanWatcherService

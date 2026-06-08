@@ -408,6 +408,7 @@ Write to `<VerificationDir>/IvyFrameworkVerification.md`:
 
 ### Rules
 
+- **Fail-fast on missing permissions:** Before doing any work, verify you can use Write/Edit tools by checking your allowed tools. If Write is unavailable, immediately run `exit 1` via Bash with a message: "ERROR: Write tool not available. IvyFrameworkVerification requires Write permission to create sample projects and reports." Do NOT output a polite request for permission — you are in non-interactive mode.
 - Do NOT modify any source code in the Ivy Framework repos — this is a verification step only
 - If verification fails, describe the failure clearly in the report
 - Always produce a report, even for non-visual changes (just note it was skipped)

@@ -110,6 +110,8 @@ The prior ExecutePlan run created `<TendrilPlanFolder>/Artifacts/summary.md`. **
 ### Files Modified
 
 <Bulleted list of files changed in this retry.>
+
+**Note:** Update the manual testing section if this fix affects user-facing behavior.
 ~~~
 
 Add one such section per logical fix. If the retry addresses multiple items from the ChangeRequest, add a section for each.
@@ -177,35 +179,6 @@ attempts: <number>
 <any remaining issues, or "None">
 ```
 
-### 6.5. Generate Recommendations
-
-After all verifications pass, write down anything you noticed that isn't part of this plan's scope:
-
-- Follow-up work, edge cases not covered, or related features
-- Confusing code, inconsistent patterns, or technical debt
-- Unrelated bugs, broken tests, or incorrect behavior
-- Performance improvements or refactoring opportunities
-
-For each item, register it via the CLI:
-
-```bash
-tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact Medium --risk Small --job-id TendrilJobId
-```
-
-**After registering recommendations**, create `<TendrilPlanFolder>/Artifacts/recommendations.md`:
-
-~~~markdown
-# Recommendations
-
-## Items
-
-- **<Title>** — <one-line summary>
-
-*Or: "None — <one sentence explaining why>"*
-~~~
-
-**This file is mandatory.** Step 7 will verify it exists.
-
 ### 7. Final Clean Check
 
 Report status: `tendril job status TendrilJobId --message "Running final checks..."`
@@ -215,8 +188,6 @@ After all verifications pass:
 1. Kill any remaining processes spawned during plan execution (e.g. dev servers) whose working directory is under the plan's worktree or artifacts directory. **See Prohibited Actions below — never kill dotnet.exe or Ivy.Tendril.exe.**
 
 2. Run `git status` in every worktree. If there are uncommitted files, commit or discard them. The worktrees must be completely clean.
-
-3. Verify `<TendrilPlanFolder>/Artifacts/recommendations.md` exists. If missing, go back to Step 6.5.
 
 ### 8. Plan State
 

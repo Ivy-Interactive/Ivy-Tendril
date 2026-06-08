@@ -16,6 +16,7 @@ public interface IPlanReaderService
     void ResetToDraft(string folderName);
     void ResetVerificationsForRetry(string folderName);
     void SaveRevision(string folderName, string content);
+    void RevertRevision(string folderName);
     string ReadLatestRevision(string folderName);
     List<(int Number, string Content, DateTime Modified)> GetRevisions(string folderName);
     void AddLog(string folderName, string action, string content, string? jobId = null);
@@ -33,6 +34,9 @@ public interface IPlanReaderService
 
     void UpdateRecommendationState(string planFolderName, string recommendationTitle, string newState,
         string? declineReason = null);
+
+    List<RecommendationYaml> GetRecommendationsForPlan(string folderName);
+    void AcceptRecommendationAndRetry(string folderName, string recommendationTitle);
 
     void SyncPlanArtifacts(string planFolder);
     void InvalidateCaches();

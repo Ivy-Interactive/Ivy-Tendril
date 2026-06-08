@@ -13,7 +13,7 @@ public class CreatePlanDialogLauncher(Func<Action, object> renderTrigger) : View
         var jobService = UseService<IJobService>();
         var configService = UseService<IConfigService>();
         var navigator = UseNavigation();
-        var lastSelectedProjects = UseState<string[]>(["Auto"]);
+        var preferences = UseService<ICreatePlanPreferences>();
         var showDirtyDialog = UseState(false);
         var pendingJobArgs = UseState<CreatePlanArgs?>(null);
         var (runPreflight, _, preflightResult) = Context.UsePreflightCheck();
@@ -31,7 +31,7 @@ public class CreatePlanDialogLauncher(Func<Action, object> renderTrigger) : View
                 projectNames,
                 (description, projects, priority) =>
                 {
-                    lastSelectedProjects.Set(projects);
+                    preferences.LastSelectedProjects = projects;
                     var project = string.Join(",", projects);
                     var args = new CreatePlanArgs(description, project, priority, Force: true);
                     pendingJobArgs.Set(args);
@@ -45,7 +45,7 @@ public class CreatePlanDialogLauncher(Func<Action, object> renderTrigger) : View
                     });
                 },
                 () => isOpen.Set(false),
-                lastSelectedProjects.Value
+                preferences.LastSelectedProjects
             );
         });
 

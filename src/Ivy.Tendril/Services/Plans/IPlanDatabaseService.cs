@@ -13,6 +13,7 @@ public interface IPlanDatabaseService : IDisposable
     // Aggregates
     PlanReaderService.PlanCountSnapshot ComputePlanCounts();
     DashboardModels GetDashboardData(string? projectFilter);
+    List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days = 30);
 
     // Costs and tokens
     decimal GetPlanTotalCost(int planId);
@@ -46,6 +47,7 @@ public interface IPlanDatabaseService : IDisposable
     // Jobs
     void UpsertJob(JobItem job);
     List<JobItem> GetRecentJobs(int limit = 100);
+    JobItem? GetJobById(string id);
     List<JobItem> GetJobsForPlan(string planFile);
     void PurgeOldJobs(int keepCount = 500);
     void DeleteJob(string id);

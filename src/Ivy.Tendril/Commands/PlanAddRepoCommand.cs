@@ -36,25 +36,26 @@ public class PlanAddRepoCommand : Command<PlanAddRepoSettings>
             var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
             var plan = PlanCommandHelpers.ReadPlan(planFolder);
 
-            // Check if already present
             if (plan.Repos.Contains(settings.RepoPath, StringComparer.OrdinalIgnoreCase))
             {
                 _logger.LogInformation("Repository already in plan: {RepoPath}", settings.RepoPath);
+                Console.WriteLine($"Repository already in plan: {settings.RepoPath}");
                 return 0;
             }
 
-            // Add repo
             plan.Repos.Add(settings.RepoPath);
             plan.Updated = DateTime.UtcNow;
 
             PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
             _logger.LogInformation("Added repository: {RepoPath}", settings.RepoPath);
+            Console.WriteLine($"Added repository: {settings.RepoPath}");
             return 0;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to add repository to plan {PlanId}", settings.PlanId);
+            Console.Error.WriteLine($"Failed to add repo: {ex.Message}");
             return 1;
         }
     }

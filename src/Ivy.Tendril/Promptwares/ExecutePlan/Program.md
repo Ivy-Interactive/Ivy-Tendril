@@ -338,6 +338,15 @@ The summary should follow this structure:
 ## Files Modified
 
 <Bulleted list of key files changed, grouped by category. Don't list every file — focus on the important ones.>
+
+## Manual Testing
+
+<Step-by-step instructions for a human reviewer to verify this change works correctly. Include:
+- What to launch/open (e.g., "Run the app", "Open the Plans view")
+- What action to perform (e.g., "Click the Execute button on a plan with dependencies")
+- What to observe (e.g., "The plan should show 'Blocked' status instead of executing")
+
+If the change has no observable user-facing behavior (e.g., internal refactor, dependency update, code cleanup), write "N/A — internal change with no user-facing behavior.">
 ~~~
 
 Focus on **what changed** (past tense), not what the plan said to do. Emphasize API surface changes — new classes, renamed methods, added properties, changed signatures — since these affect consumers.

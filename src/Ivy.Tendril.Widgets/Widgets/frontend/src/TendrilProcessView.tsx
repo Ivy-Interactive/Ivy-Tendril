@@ -69,6 +69,7 @@ export const TendrilProcessView: React.FC<TendrilProcessViewProps> = ({
   updatingPlansCount = 0,
   executingPlansCount = 0,
   retryingPlansCount = 0,
+  creatingPrCount = 0,
 }) => {
   const style: React.CSSProperties = {
     ...getWidth(width),
@@ -76,7 +77,8 @@ export const TendrilProcessView: React.FC<TendrilProcessViewProps> = ({
   };
 
   const allZero = draftCount === 0 && reviewCount === 0 && creatingPlansCount === 0
-    && updatingPlansCount === 0 && executingPlansCount === 0 && retryingPlansCount === 0;
+    && updatingPlansCount === 0 && executingPlansCount === 0 && retryingPlansCount === 0
+    && creatingPrCount === 0;
 
   const fireEvent = (eventName: string) => {
     if (events.includes(eventName)) {
@@ -124,6 +126,12 @@ export const TendrilProcessView: React.FC<TendrilProcessViewProps> = ({
             <ThumbsUp size={14} className="tpv-box-stage-icon" />
             <span className="tpv-box-label">Review{reviewCount > 0 && <span className="tpv-box-count">{reviewCount}</span>}</span>
           </button>
+          {creatingPrCount > 0 && (
+            <button className="tpv-sub-label" onClick={() => fireEvent("OnJobs")}>
+              <span>PR {creatingPrCount}</span>
+              <LoaderCircle className="tpv-spinner" size={13} />
+            </button>
+          )}
         </div>
       </div>
     </div>

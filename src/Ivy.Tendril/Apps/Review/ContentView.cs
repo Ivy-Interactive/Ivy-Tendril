@@ -9,6 +9,7 @@ using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Apps.Views.Tabs;
 using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Git;
 using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.Logging;
 
@@ -133,25 +134,15 @@ public class ContentView(
                             new Dictionary<string, List<string>>(), new List<PlanContentHelpers.CommitRow>(),
                             new Dictionary<string, bool>(), new List<(string Name, bool ConditionMet)>(), null);
 
-                    // Recommendations from plan.yaml
+                    // Recommendations from database (or plan.yaml fallback)
                     List<RecommendationYaml> recs;
                     try
                     {
-                        var planYamlPath = Path.Combine(folderPath, "plan.yaml");
-                        if (File.Exists(planYamlPath))
-                        {
-                            var yaml = FileHelper.ReadAllText(planYamlPath);
-                            var planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml);
-                            recs = planYaml?.Recommendations ?? new List<RecommendationYaml>();
-                        }
-                        else
-                        {
-                            recs = new List<RecommendationYaml>();
-                        }
+                        recs = planService.GetRecommendationsForPlan(selectedPlanState.Value.FolderName);
                     }
                     catch (Exception ex)
                     {
-                        logger.LogWarning(ex, "Failed to parse recommendations from plan.yaml for {FolderPath}", folderPath);
+                        logger.LogWarning(ex, "Failed to get recommendations for {FolderPath}", folderPath);
                         recs = new List<RecommendationYaml>();
                     }
 
@@ -273,28 +264,43 @@ public class ContentView(
                          .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
                          .Muted("plans", word: true);
 
-        var repoPaths = selectedPlan.GetEffectiveRepoPaths(config);
-        var project = config.GetProject(selectedPlan.Project);
-        var allYolo = repoPaths.All(rp =>
-            project?.GetRepoRef(rp)?.PrRule == "yolo");
-
-        var createPrBtn = new Button("Create PR").Icon(Icons.GitPullRequest).Primary().OnClick(() =>
+        if (selectedPlan.Commits.Count > 0)
         {
-            if (allYolo)
-            {
-                jobService.StartJob(new CreatePrArgs(selectedPlan.FolderPath));
-                planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
-                refreshPlans();
-            }
-            else
-            {
-                showCustomPrDialog();
-            }
-        }).ShortcutKey("m");
+            var repoPaths = selectedPlan.GetEffectiveRepoPaths(config);
+            var project = config.GetProject(selectedPlan.Project);
+            var allYolo = repoPaths.All(rp =>
+                project?.GetRepoRef(rp)?.PrRule == "yolo");
 
-        header |= allYolo
-            ? createPrBtn.WithConfetti(AnimationTrigger.Click)
-            : createPrBtn;
+            var createPrBtn = new Button("Create PR").Icon(Icons.GitPullRequest).Primary().OnClick(() =>
+            {
+                if (allYolo)
+                {
+                    jobService.StartJob(new CreatePrArgs(selectedPlan.FolderPath, SolveMergeConflicts: true));
+                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
+                    refreshPlans();
+                }
+                else
+                {
+                    showCustomPrDialog();
+                }
+            }).ShortcutKey("m");
+
+            header |= allYolo
+                ? createPrBtn.WithConfetti(AnimationTrigger.Click)
+                : createPrBtn;
+        }
+        else
+        {
+            header |= new Button("Complete Plan").Icon(Icons.CircleCheck).Primary().OnClick(() =>
+            {
+                // Optimistic UI - update state and refresh immediately
+                planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+                refreshPlans();
+
+                // Fire and forget - clean up worktrees in the background
+                Task.Run(() => WorktreeCleanupService.RemoveWorktrees(selectedPlan.FolderPath));
+            }).ShortcutKey("m");
+        }
 
         return header;
     }
@@ -517,9 +523,7 @@ public class ContentView(
                     var buttonRow = Layout.Horizontal().Gap(1)
                                     | new Button("Accept").Icon(Icons.Check).Primary().OnClick(() =>
                                     {
-                                        planService.ResetVerificationsForRetry(selectedPlan.FolderName);
-                                        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Executing);
-                                        planService.UpdateRecommendationState(selectedPlan.FolderName, recTitle, RecommendationStatus.Accepted);
+                                        planService.AcceptRecommendationAndRetry(selectedPlan.FolderName, recTitle);
                                         jobService.StartJob(new RetryPlanArgs(selectedPlan.FolderPath, rec.Description));
                                         refreshPlans();
                                         planContentQuery.Mutator.Revalidate();
@@ -545,7 +549,7 @@ public class ContentView(
                 new Tab("Plan", Cap(planTabContent)),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan,
                     jobService.GetJobsForPlan(selectedPlan.FolderName),
-                    showDebugJob))),
+                    showDebugJob, planService, selectedPlanState, refreshPlans))),
                 new Tab("Verifications", Cap(new VerificationsTabView(
                     selectedPlan.Verifications, planData.VerificationReports,
                     v => openVerification.Set(v)))).Badge(selectedPlan.Verifications.Count.ToString()),

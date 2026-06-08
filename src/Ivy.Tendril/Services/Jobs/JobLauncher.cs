@@ -423,6 +423,7 @@ internal class JobLauncher
         if (job.TypedArgs is not CreatePrArgs pr)
             return;
 
+        values["PrSolveMergeConflicts"] = pr.SolveMergeConflicts.ToString().ToLowerInvariant();
         values["PrMerge"] = pr.Merge.ToString().ToLowerInvariant();
         values["PrDeleteBranch"] = pr.DeleteBranch.ToString().ToLowerInvariant();
         values["PrIncludeArtifacts"] = pr.IncludeArtifacts.ToString().ToLowerInvariant();

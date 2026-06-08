@@ -1,6 +1,8 @@
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Plans;
+using Ivy.Widgets.ActivityHeatmap;
 
 namespace Ivy.Tendril.Apps;
 
@@ -10,6 +12,7 @@ public class WallpaperApp : ViewBase
     public override object Build()
     {
         var versionService = UseService<IVersionCheckService>();
+        var planDbService = UseService<IPlanDatabaseService>();
         var versionInfo = UseState<VersionInfo?>(null);
         var dismissedVersion = UseState<string?>(null);
 
@@ -24,6 +27,10 @@ public class WallpaperApp : ViewBase
             });
         }, []);
 
+        // Query last 90 days of completed PRs
+        var prData = planDbService.GetCompletedPrsByDay(90);
+        var activities = prData.Select(x => new Activity { Date = x.Date, Count = x.Count }).ToArray();
+
         var elements = new List<object>
         {
             Layout.Center()
@@ -31,6 +38,13 @@ public class WallpaperApp : ViewBase
                    | new Image("/tendril/assets/Tendril.svg").Width(Size.Units(30)).Height(Size.Auto())
                    | Text.H2("What are we making next?")
                    | processView
+                   | new ActivityHeatmap()
+                       .Data(activities)
+                       .ShowMonthLabels(false)
+                       .ShowDayLabels(false)
+                       .StartDate(DateOnly.FromDateTime(DateTime.Today.AddDays(-89)))
+                       .EndDate(DateOnly.FromDateTime(DateTime.Today))
+                       .ValueLabel("PRs")
                 )
         };
 
