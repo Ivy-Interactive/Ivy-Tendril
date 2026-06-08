@@ -60,8 +60,6 @@ public class DetailsTabView(
                         if (updated != null) selectedPlanState.Set(updated);
                         refreshPlans();
                     })))
-            .Builder(x => x.Issue, f => f.Func((string issue) =>
-                string.IsNullOrEmpty(issue) ? null : new Button(issue, variant: ButtonVariant.Inline).Url(issue).OpenInNewTab()))
             .RemoveEmpty();
 
         return Layout.Vertical().Gap(4)
