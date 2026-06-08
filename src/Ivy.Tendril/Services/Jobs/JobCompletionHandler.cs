@@ -221,8 +221,17 @@ internal class JobCompletionHandler
         Action<JobItem> persistJob,
         Action raisePropertyChanged)
     {
-        var isSuccess = job.Status == JobStatus.Completed;
-        if (!isSuccess || _modelPricingService == null || string.IsNullOrEmpty(job.SessionId))
+        if (string.IsNullOrEmpty(job.SessionId))
+            return;
+
+        var inlineCost = ExtractCostFromOutputLines(job.OutputLines.ToArray());
+        if (inlineCost != null)
+        {
+            ApplyCost(job, persistJob, raisePropertyChanged, inlineCost.Value.tokens, inlineCost.Value.cost);
+            return;
+        }
+
+        if (_modelPricingService == null)
             return;
 
         var sessionId = job.SessionId;
@@ -238,7 +247,7 @@ internal class JobCompletionHandler
             try
             {
                 var costCalc = _modelPricingService.CalculateSessionCost(sessionId, provider);
-                if (costCalc.TotalCost > 0)
+                if (costCalc.TotalCost > 0 || costCalc.TotalTokens > 0)
                 {
                     if (jobs.TryGetValue(jobId, out var j))
                     {
@@ -257,6 +266,40 @@ internal class JobCompletionHandler
                 _logger.LogWarning(ex, "Failed to calculate session cost for job {JobId}", jobId);
             }
         });
+    }
+
+    private void ApplyCost(
+        JobItem job,
+        Action<JobItem> persistJob,
+        Action raisePropertyChanged,
+        int tokens,
+        decimal cost)
+    {
+        job.Cost = cost;
+        job.Tokens = tokens;
+        persistJob(job);
+        raisePropertyChanged();
+
+        var jobPlanFolder = job.TypedArgs?.PlanFolder;
+        if (jobPlanFolder != null)
+            PlanYamlHelper.LogCostToCsv(jobPlanFolder, job.Type, tokens, (double)cost);
+    }
+
+    private static (int tokens, decimal cost)? ExtractCostFromOutputLines(IReadOnlyList<string> outputLines)
+    {
+        var serializer = new JsonEventSerializer();
+        for (var i = outputLines.Count - 1; i >= 0; i--)
+        {
+            var evt = serializer.Deserialize(outputLines[i]);
+            if (evt is ResultEvent { Usage: { } usage })
+            {
+                var tokens = usage.InputTokens + usage.OutputTokens;
+                var cost = usage.CostUsd ?? 0;
+                if (tokens > 0 || cost > 0)
+                    return (tokens, cost);
+            }
+        }
+        return null;
     }
 
     internal void RunHooks(string when, string jobType, string planFolder, string project, JobItem job)
