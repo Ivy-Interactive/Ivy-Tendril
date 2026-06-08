@@ -75,7 +75,9 @@ public class JobDebugSheet(
             .Builder(x => x.PlanCliLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .Builder(x => x.PromptwareLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .Builder(x => x.PromptwareRawLog,
-                f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)));
+                f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
+            .Builder(x => x.JobId, f => f.CopyToClipboard())
+            .Builder(x => x.PlanId, f => f.CopyToClipboard());
 
         var header = Layout.Horizontal().Gap(2)
             | new Button("Copy Details").Icon(Icons.ClipboardCopy).Outline().OnClick(() =>
