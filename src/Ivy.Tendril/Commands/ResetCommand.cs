@@ -126,7 +126,7 @@ public class ResetCommand : Command<ResetSettings>
             {
                 errors.Add($"Failed to delete {tendrilHome}: {ex.Message}");
                 AnsiConsole.MarkupLine($"[red]✗[/] Failed to delete directory: {tendrilHome.EscapeMarkup()}");
-                _logger.LogError(ex, "Failed to delete TENDRIL_HOME directory");
+                _logger.LogError("Failed to delete TENDRIL_HOME directory: {Message}", ex.Message);
             }
         }
 
@@ -142,7 +142,7 @@ public class ResetCommand : Command<ResetSettings>
             {
                 errors.Add($"Failed to delete {tendrilPlans}: {ex.Message}");
                 AnsiConsole.MarkupLine($"[red]✗[/] Failed to delete directory: {tendrilPlans.EscapeMarkup()}");
-                _logger.LogError(ex, "Failed to delete TENDRIL_PLANS directory");
+                _logger.LogError("Failed to delete TENDRIL_PLANS directory: {Message}", ex.Message);
             }
         }
 
@@ -158,7 +158,7 @@ public class ResetCommand : Command<ResetSettings>
             {
                 errors.Add($"Failed to remove TENDRIL_HOME env var: {ex.Message}");
                 AnsiConsole.MarkupLine("[red]✗[/] Failed to remove env var: TENDRIL_HOME");
-                _logger.LogError(ex, "Failed to remove TENDRIL_HOME environment variable");
+                _logger.LogError("Failed to remove TENDRIL_HOME environment variable: {Message}", ex.Message);
             }
 
             try
@@ -174,7 +174,7 @@ public class ResetCommand : Command<ResetSettings>
             {
                 errors.Add($"Failed to remove TENDRIL_PLANS env var: {ex.Message}");
                 AnsiConsole.MarkupLine("[red]✗[/] Failed to remove env var: TENDRIL_PLANS");
-                _logger.LogError(ex, "Failed to remove TENDRIL_PLANS environment variable");
+                _logger.LogError("Failed to remove TENDRIL_PLANS environment variable: {Message}", ex.Message);
             }
         }
         else

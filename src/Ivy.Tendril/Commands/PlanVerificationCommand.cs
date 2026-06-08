@@ -80,7 +80,7 @@ public class PlanVerificationListCommand : Command<PlanVerificationListSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to list verifications for plan {PlanId}", settings.PlanId);
+            _logger.LogError("Failed to list verifications for plan {PlanId}: {Message}", settings.PlanId, ex.Message);
             return 1;
         }
     }
@@ -124,7 +124,7 @@ public class PlanVerificationAddCommand : Command<PlanVerificationAddSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to add verification to plan {PlanId}", settings.PlanId);
+            _logger.LogError("Failed to add verification to plan {PlanId}: {Message}", settings.PlanId, ex.Message);
             return 1;
         }
     }
@@ -166,7 +166,7 @@ public class PlanVerificationRemoveCommand : Command<PlanVerificationRemoveSetti
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to remove verification from plan {PlanId}", settings.PlanId);
+            _logger.LogError("Failed to remove verification from plan {PlanId}: {Message}", settings.PlanId, ex.Message);
             return 1;
         }
     }

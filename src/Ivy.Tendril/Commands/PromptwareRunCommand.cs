@@ -75,7 +75,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to run promptware {Promptware}", settings.Promptware);
+            _logger.LogError("Failed to run promptware {Promptware}: {Message}", settings.Promptware, ex.Message);
             return 1;
         }
     }

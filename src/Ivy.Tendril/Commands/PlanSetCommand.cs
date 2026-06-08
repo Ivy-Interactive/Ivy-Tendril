@@ -86,13 +86,11 @@ public class PlanSetCommand : Command<PlanSetSettings>
             PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
             _logger.LogInformation("Set {Field} = {Value}", settings.Field, settings.Value);
-            Console.WriteLine($"Set {settings.Field} = {settings.Value}");
             return 0;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to set field on plan {PlanId}", settings.PlanId);
-            Console.Error.WriteLine($"Failed to set {settings.Field}: {ex.Message}");
+            _logger.LogError("Failed to set {Field} on plan {PlanId}: {Message}", settings.Field, settings.PlanId, ex.Message);
             return 1;
         }
     }

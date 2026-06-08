@@ -138,7 +138,7 @@ public class PlanCreateCommand : Command<PlanCreateSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to create plan");
+            _logger.LogError("Failed to create plan: {Message}", ex.Message);
             return 1;
         }
     }

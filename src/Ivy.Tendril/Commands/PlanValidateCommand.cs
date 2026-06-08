@@ -35,7 +35,7 @@ public class PlanValidateCommand : Command<PlanValidateSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Validation failed for plan {PlanId}", settings.PlanId);
+            _logger.LogError("Validation failed for plan {PlanId}: {Message}", settings.PlanId, ex.Message);
             return 1;
         }
     }

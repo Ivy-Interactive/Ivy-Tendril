@@ -122,7 +122,7 @@ public class PlanListCommand : Command<PlanListSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to list plans");
+            _logger.LogError("Failed to list plans: {Message}", ex.Message);
             return 1;
         }
     }

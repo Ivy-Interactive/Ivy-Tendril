@@ -35,7 +35,7 @@ public class PromptwareReadMemoryCommand : Command<PromptwareReadMemorySettings>
 
             if (!File.Exists(filePath))
             {
-                Console.Error.WriteLine($"Memory file not found: {filename}");
+                _logger.LogError("Memory file not found: {Filename}", filename);
                 return 1;
             }
 
@@ -44,8 +44,7 @@ public class PromptwareReadMemoryCommand : Command<PromptwareReadMemorySettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to read memory file {Filename} for {Name}", settings.Filename, settings.Name);
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            _logger.LogError("Failed to read memory file {Filename} for {Name}: {Message}", settings.Filename, settings.Name, ex.Message);
             return 1;
         }
     }

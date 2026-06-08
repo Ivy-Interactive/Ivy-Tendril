@@ -37,13 +37,12 @@ public class TrashWriteCommand : Command<TrashWriteSettings>
                 throw new ArgumentException("No content provided (pipe to STDIN)");
 
             File.WriteAllText(filePath, content);
-            Console.WriteLine(filePath);
+            Console.Write(filePath);
             return 0;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to write trash file {Filename}", settings.Filename);
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            _logger.LogError("Failed to write trash file {Filename}: {Message}", settings.Filename, ex.Message);
             return 1;
         }
     }

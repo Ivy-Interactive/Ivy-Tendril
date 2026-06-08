@@ -39,7 +39,6 @@ public class PlanRemoveRelatedPlanCommand : Command<PlanRemoveRelatedPlanSetting
             if (removed == 0)
             {
                 _logger.LogError("Related plan not found: {RelatedPlan}", settings.RelatedPlan);
-                Console.Error.WriteLine($"Related plan not found: {settings.RelatedPlan}");
                 return 1;
             }
 
@@ -48,13 +47,11 @@ public class PlanRemoveRelatedPlanCommand : Command<PlanRemoveRelatedPlanSetting
             PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
             _logger.LogInformation("Removed related plan: {RelatedPlan}", settings.RelatedPlan);
-            Console.WriteLine($"Removed related plan: {settings.RelatedPlan}");
             return 0;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to remove related plan from plan {PlanId}", settings.PlanId);
-            Console.Error.WriteLine($"Failed to remove related plan: {ex.Message}");
+            _logger.LogError("Failed to remove related plan from plan {PlanId}: {Message}", settings.PlanId, ex.Message);
             return 1;
         }
     }

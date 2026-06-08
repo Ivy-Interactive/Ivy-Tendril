@@ -82,7 +82,7 @@ public class PlanRemoveWorktreeCommand : Command<PlanRemoveWorktreeSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to remove worktree for plan {PlanId}", settings.PlanId);
+            _logger.LogError("Failed to remove worktree for plan {PlanId}: {Message}", settings.PlanId, ex.Message);
             return 1;
         }
     }

@@ -49,7 +49,7 @@ public class PlanUpdateCommand : Command<PlanUpdateSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to update plan {PlanId}", settings.PlanId);
+            _logger.LogError("Failed to update plan {PlanId}: {Message}", settings.PlanId, ex.Message);
             return 1;
         }
     }

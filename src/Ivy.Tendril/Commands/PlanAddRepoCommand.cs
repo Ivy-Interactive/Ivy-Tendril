@@ -39,7 +39,6 @@ public class PlanAddRepoCommand : Command<PlanAddRepoSettings>
             if (plan.Repos.Contains(settings.RepoPath, StringComparer.OrdinalIgnoreCase))
             {
                 _logger.LogInformation("Repository already in plan: {RepoPath}", settings.RepoPath);
-                Console.WriteLine($"Repository already in plan: {settings.RepoPath}");
                 return 0;
             }
 
@@ -49,13 +48,11 @@ public class PlanAddRepoCommand : Command<PlanAddRepoSettings>
             PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
             _logger.LogInformation("Added repository: {RepoPath}", settings.RepoPath);
-            Console.WriteLine($"Added repository: {settings.RepoPath}");
             return 0;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to add repository to plan {PlanId}", settings.PlanId);
-            Console.Error.WriteLine($"Failed to add repo: {ex.Message}");
+            _logger.LogError("Failed to add repository to plan {PlanId}: {Message}", settings.PlanId, ex.Message);
             return 1;
         }
     }
