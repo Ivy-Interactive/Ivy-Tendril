@@ -46,7 +46,9 @@ public class JobDebugSheet(
             PromptwareLearnings = GetPromptwareLearnings(job),
             PromptwareLog = GetPromptwareLogPath(job) ?? "",
             PromptwareRawLog = GetPromptwareRawLogPath(job) ?? "",
-            ExitCode = job.ExitCode?.ToString() ?? ""
+            ExitCode = job.ExitCode?.ToString() ?? "",
+            WorkingDirectory = job.WorkingDirectory ?? "",
+            CliCommand = job.CliCommand ?? ""
         };
 
         var detailsView = data.ToDetails()
@@ -65,6 +67,8 @@ public class JobDebugSheet(
             .Label(x => x.PromptwareRawLog, "Promptware Raw Log")
             .Label(x => x.PermissionDenials, "Permission Denials")
             .Label(x => x.ExitCode, "Exit Code")
+            .Label(x => x.WorkingDirectory, "Working Directory")
+            .Label(x => x.CliCommand, "Arguments")
             .Label(x => x.JobId, "Job Id")
             .Builder(x => x.PermissionDenials, f => f.Func((string denials) =>
                 new CodeBlock(denials)))
@@ -75,7 +79,9 @@ public class JobDebugSheet(
             .Builder(x => x.PlanCliLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .Builder(x => x.PromptwareLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .Builder(x => x.PromptwareRawLog,
-                f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)));
+                f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
+            .Builder(x => x.WorkingDirectory, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
+            .Builder(x => x.CliCommand, f => f.Func((string cmd) => new CodeBlock(cmd)));
 
         var header = Layout.Horizontal().Gap(2)
             | new Button("Copy Details").Icon(Icons.ClipboardCopy).Outline().OnClick(() =>
@@ -97,6 +103,8 @@ public class JobDebugSheet(
                     ("Cost", data.Cost),
                     ("Tokens", data.Tokens),
                     ("Exit Code", data.ExitCode),
+                    ("Working Directory", data.WorkingDirectory),
+                    ("Arguments", data.CliCommand),
                     ("Permission Denials", data.PermissionDenials),
                     ("Plan Folder", data.PlanFolder),
                     ("Plan Log", data.PlanLog),
