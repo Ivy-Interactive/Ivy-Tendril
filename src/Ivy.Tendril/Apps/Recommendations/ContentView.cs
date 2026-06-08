@@ -64,7 +64,7 @@ public class ContentView(
         if (selectedRecommendation is null)
         {
             if (allRecommendations.Count == 0)
-                return new NoContentView("No recommendations", "Recommendations from completed plans will appear here.");
+                return new NoContentView("No recommendations", "Recommendations from completed plans will appear here");
 
             return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
                    | Text.Muted("Select a recommendation from the sidebar");

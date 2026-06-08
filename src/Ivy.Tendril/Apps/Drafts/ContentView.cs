@@ -138,7 +138,7 @@ public class ContentView(
         if (selectedPlan is null)
         {
             if (allPlans.Count == 0)
-                return new NoContentView("No draft plans", "Plans you create will appear here.", processView);
+                return new NoContentView("No draft plans", "Plans you create will appear here", processView);
 
             return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
                    | Text.Muted("Select a plan from the sidebar");
