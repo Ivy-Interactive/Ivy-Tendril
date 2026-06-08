@@ -309,15 +309,16 @@ public class PlanContentHelpersTests
     }
 
     [Fact]
-    public void IsFormattingOnly_CommentFormattingChange_ReturnsTrue()
+    public void IsFormattingOnly_CommentSpacingOnly_ReturnsTrue()
     {
         var diff = @"diff --git a/test.cs b/test.cs
 --- a/test.cs
 +++ b/test.cs
 @@ -1,3 +1,3 @@
- // This is a comment
--//with bad formatting
-+// with proper formatting
+ public class Test
+ {
+-  // This is a comment
++    // This is a comment
 ";
         var fileDiff = new PlanContentHelpers.FileDiff("test.cs", "M", diff);
 
@@ -365,8 +366,9 @@ public class PlanContentHelpersTests
     }
 
     [Fact]
-    public void IsFormattingOnly_LongLineWrapping_ReturnsTrue()
+    public void IsFormattingOnly_LongLineWrapping_ReturnsFalse()
     {
+        // Line wrapping is a structural change (1 line becomes 2 lines), not just formatting
         var diff = @"diff --git a/test.cs b/test.cs
 --- a/test.cs
 +++ b/test.cs
@@ -379,7 +381,7 @@ public class PlanContentHelpersTests
 
         var result = PlanContentHelpers.IsFormattingOnly(fileDiff);
 
-        Assert.True(result);
+        Assert.False(result);
     }
 
     [Fact]
