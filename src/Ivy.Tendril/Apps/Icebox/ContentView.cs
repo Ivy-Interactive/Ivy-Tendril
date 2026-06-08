@@ -164,7 +164,7 @@ public class ContentView(
         var syncJobIds = new List<string>();
         foreach (var (repoPath, baseBranch, _) in preflight.DirtyRepos)
         {
-            var jobId = jobService.StartJob(new SyncRepoArgs(repoPath, baseBranch));
+            var jobId = jobService.StartJob(new SyncRepoArgs(repoPath, baseBranch, selectedPlan.FolderPath));
             syncJobIds.Add(jobId);
         }
 
