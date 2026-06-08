@@ -196,14 +196,12 @@ public record PluginManifest
     public required string ConfigSectionName { get; init; } // Key in plugin-config.yaml
     public required Version Version { get; init; }        // Semantic version
     public Version? MinimumHostVersion { get; init; }     // Minimum Tendril version required
-    public string[] Dependencies { get; init; } = [];     // IDs of plugins this one depends on
     public PluginIcon? Icon { get; init; }                // Display icon
 }
 ```
 
 **Notes:**
 - `Id` must be globally unique. Convention: `Ivy.Tendril.Plugin.<Name>` for first-party, `<Org>.Tendril.Plugin.<Name>` for third-party.
-- `Dependencies` are resolved via topological sort — dependent plugins are loaded first.
 - If `MinimumHostVersion` is set and the host is older, the plugin is skipped with an error log.
 
 ### Plugin Icons
@@ -670,9 +668,6 @@ A: Use the plugin references file to point at your source project. Tendril will 
 
 **Q: What happens if my plugin's configuration is invalid?**
 A: The plugin loads as "Unconfigured" — it appears in the Plugins settings page but `Configure()` is not called. Once the user provides valid configuration and saves, `ReconfigurePlugin` is called and the plugin activates.
-
-**Q: Can plugins depend on other plugins?**
-A: Yes. Set `Dependencies = ["Other.Plugin.Id"]` in your manifest. The loader topologically sorts plugins so dependencies are configured first. Circular dependencies are detected and logged as errors.
 
 **Q: How does hot-reload work?**
 A: For referenced plugins, file watchers detect DLL changes in `bin/` directories and source file changes. Source changes trigger `dotnet build`, then the plugin is unloaded (contributions removed, `AssemblyLoadContext` unloaded) and reloaded fresh. This happens without restarting Tendril.
