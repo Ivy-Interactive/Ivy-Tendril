@@ -6,7 +6,7 @@ namespace Ivy.Tendril.Plugins;
 /// Extended plugin context for Tendril plugins that need to contribute
 /// settings menu items to the footer menu.
 /// </summary>
-public interface ITendrilExtendedPluginContext : IIvyExtendedPluginContext
+public interface ITendrilExtendedPluginContext : IIvyExtendedPluginContext, ITendrilPluginContext
 {
     /// <summary>
     /// Adds a menu item to the footer settings menu at the specified position.

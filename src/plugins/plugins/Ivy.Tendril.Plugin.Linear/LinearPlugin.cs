@@ -34,18 +34,16 @@ public class LinearPlugin : IIvyPlugin
     {
         var apiKey = context.Config.GetValue("ApiKey")!;
 
-        if (context is not ITendrilPluginContext tendrilContext)
+        if (context is not ITendrilExtendedPluginContext tendrilContext)
             return;
 
-        var extendedContext = context.AsTendrilExtendedContext();
         var clientFactory = new LinearClientFactory(apiKey);
-        var tendrilHome = tendrilContext.TendrilHome;
 
-        var openImportDialog = extendedContext.RegisterDialog(
+        var openImportDialog = tendrilContext.RegisterDialog(
             "$linear-import-dialog",
-            dialogOpen => new ImportFromLinearDialog(dialogOpen, clientFactory, tendrilHome));
+            dialogOpen => new ImportFromLinearDialog(dialogOpen, clientFactory, tendrilContext.TendrilHome));
 
-        extendedContext.AddSettingsMenuItem(
+        tendrilContext.AddSettingsMenuItem(
             MenuItem.Default("Import Issues from Linear")
                 .Tag("$linear-import-issues")
                 .Icon(Icons.Download)

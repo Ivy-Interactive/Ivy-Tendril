@@ -9,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Ivy.Tendril;
 
 internal class TendrilPluginContext(Server server, WebApplicationBuilder builder, string tendrilHome)
-    : PluginContextBase(server, builder), ITendrilPluginContext, ITendrilExtendedPluginContext, ITendrilPluginContributions
+    : PluginContextBase(server, builder), ITendrilExtendedPluginContext, ITendrilPluginContributions
 {
     public string TendrilHome { get; } = tendrilHome;
     private readonly List<(MenuItem Item, FooterMenuPosition Position, string PluginId)> _settingsMenuItems = [];

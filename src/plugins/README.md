@@ -15,7 +15,7 @@ Ivy Tendril supports plugins that can extend its functionality. Plugins are .NET
 **Architecture layers:**
 - `Ivy.Plugin.Abstractions` — base interfaces shared across all Ivy hosts (`IIvyPlugin`, `IIvyPluginContext`)
 - `Ivy.Tendril.Plugin.Abstractions` — Tendril-specific interfaces (`ITendrilPluginContext`, `IMessagingChannel`)
-- `Ivy.Tendril.Plugin.Extended.Abstractions` — UI contribution interfaces (`ITendrilExtendedPluginContext`)
+- `Ivy.Tendril.Plugin.Extended.Abstractions` — UI contribution interfaces (`ITendrilExtendedPluginContext`, which extends both `IIvyExtendedPluginContext` and `ITendrilPluginContext`)
 
 ## Quick Start: Hello World Plugin
 
@@ -72,10 +72,10 @@ public class MyPlugin : IIvyPlugin
     {
         var apiKey = context.Config.GetValue("ApiKey")!;
 
-        if (context is not ITendrilPluginContext tendrilContext)
+        if (context is not ITendrilExtendedPluginContext tendrilContext)
             return;
 
-        // Register services, messaging channels, etc.
+        // Register services, messaging channels, dialogs, etc.
     }
 }
 ```
@@ -339,16 +339,15 @@ To contribute UI elements, your plugin needs the Extended Abstractions package:
 dotnet add package Ivy.Tendril.Plugin.Extended.Abstractions
 ```
 
-Then access the extended context in `Configure()`:
+Then cast to `ITendrilExtendedPluginContext` in `Configure()`:
 
 ```csharp
 public void Configure(IIvyPluginContext context)
 {
-    if (context is not ITendrilPluginContext tendrilContext)
+    if (context is not ITendrilExtendedPluginContext tendrilContext)
         return;
 
-    var extendedContext = context.AsTendrilExtendedContext();
-    // Now you can add menu items, register dialogs, etc.
+    // Now you can add menu items, register dialogs, access TendrilHome, etc.
 }
 ```
 
@@ -581,18 +580,16 @@ public class LinearPlugin : IIvyPlugin
     {
         var apiKey = context.Config.GetValue("ApiKey")!;
 
-        if (context is not ITendrilPluginContext tendrilContext)
+        if (context is not ITendrilExtendedPluginContext tendrilContext)
             return;
 
-        var extendedContext = context.AsTendrilExtendedContext();
         var clientFactory = new LinearClientFactory(apiKey);
-        var tendrilHome = tendrilContext.TendrilHome;
 
-        var openImportDialog = extendedContext.RegisterDialog(
+        var openImportDialog = tendrilContext.RegisterDialog(
             "$linear-import-dialog",
-            dialogOpen => new ImportFromLinearDialog(dialogOpen, clientFactory, tendrilHome));
+            dialogOpen => new ImportFromLinearDialog(dialogOpen, clientFactory, tendrilContext.TendrilHome));
 
-        extendedContext.AddSettingsMenuItem(
+        tendrilContext.AddSettingsMenuItem(
             MenuItem.Default("Import Issues from Linear")
                 .Tag("$linear-import-issues")
                 .Icon(Icons.Download)
