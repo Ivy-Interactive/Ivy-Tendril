@@ -1,4 +1,5 @@
 using Ivy.Core.Hooks;
+using Ivy.Tendril.Apps.Agent;
 
 namespace Ivy.Tendril.Apps.Drafts.Dialogs;
 
@@ -24,6 +25,7 @@ public class CreatePlanDialog(
 
     public override object Build()
     {
+        var nav = UseNavigation();
         var isCreating = UseState(false);
         var createPlanText = UseState("");
         var selectedProjects = UseState(_defaultProjects);
@@ -61,6 +63,19 @@ public class CreatePlanDialog(
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(onClose),
+                new Button("Chat with Agent").Outline().Icon(Icons.MessageCircle).Disabled(string.IsNullOrWhiteSpace(createPlanText.Value)).OnClick(() =>
+                {
+                    if (!string.IsNullOrWhiteSpace(createPlanText.Value))
+                    {
+                        var projects = selectedProjects.Value.Any()
+                            ? selectedProjects.Value
+                            : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
+                        var projectNamesStr = string.Join(", ", projects);
+                        var prompt = $"User wants to chat about creating a Tendril plan for project {projectNamesStr} with the description \"{createPlanText.Value}\"";
+                        nav.Navigate<AgentApp>(new AgentAppArgs(prompt));
+                        onClose();
+                    }
+                }),
                 new Button("Create").Primary().Disabled(isCreating.Value || string.IsNullOrWhiteSpace(createPlanText.Value)).ShortcutKey("Ctrl+Enter").OnClick(() =>
                 {
                     if (!string.IsNullOrWhiteSpace(createPlanText.Value) && !isCreating.Value)
