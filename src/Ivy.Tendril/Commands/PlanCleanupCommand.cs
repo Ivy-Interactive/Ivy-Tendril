@@ -65,7 +65,7 @@ public class PlanCleanupCommand : Command<PlanCleanupSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to clean up plan {PlanId}", settings.PlanId);
+            _logger.LogError("Failed to clean up plan {PlanId}: {Message}", settings.PlanId, ex.Message);
             return 1;
         }
     }

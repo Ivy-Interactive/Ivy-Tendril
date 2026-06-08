@@ -82,7 +82,7 @@ public class VerificationListCommand : Command<VerificationListSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to list verification definitions");
+            _logger.LogError("Failed to list verification definitions: {Message}", ex.Message);
             return 1;
         }
     }
@@ -113,7 +113,7 @@ public class VerificationGetCommand : Command<VerificationGetSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to get verification definition");
+            _logger.LogError("Failed to get verification definition: {Message}", ex.Message);
             return 1;
         }
     }
@@ -160,7 +160,7 @@ public class VerificationAddCommand : Command<VerificationAddSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to add verification definition");
+            _logger.LogError("Failed to add verification definition: {Message}", ex.Message);
             return 1;
         }
     }
@@ -193,7 +193,7 @@ public class VerificationRemoveCommand : Command<VerificationRemoveSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to remove verification definition");
+            _logger.LogError("Failed to remove verification definition: {Message}", ex.Message);
             return 1;
         }
     }
@@ -238,7 +238,7 @@ public class VerificationSetCommand : Command<VerificationSetSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to update verification definition");
+            _logger.LogError("Failed to update verification definition: {Message}", ex.Message);
             return 1;
         }
     }

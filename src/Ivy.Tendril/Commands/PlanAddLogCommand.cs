@@ -34,12 +34,12 @@ public class PlanAddLogCommand : Command<PlanAddLogSettings>
         {
             var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
             var logPath = WriteLog(planFolder, settings.Action, settings.Summary);
-            Console.WriteLine(logPath);
+            Console.Write(logPath);
             return 0;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to add log to plan {PlanId}", settings.PlanId);
+            _logger.LogError("Failed to add log to plan {PlanId}: {Message}", settings.PlanId, ex.Message);
             return 1;
         }
     }

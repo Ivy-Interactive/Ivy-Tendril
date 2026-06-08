@@ -216,7 +216,7 @@ public class ProjectListCommand : Command<ProjectListSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to list projects");
+            _logger.LogError("Failed to list projects: {Message}", ex.Message);
             return 1;
         }
     }
@@ -300,7 +300,7 @@ public class ProjectGetCommand : Command<ProjectGetSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to get project");
+            _logger.LogError("Failed to get project: {Message}", ex.Message);
             return 1;
         }
     }
@@ -337,7 +337,7 @@ public class ProjectAddCommand : Command<ProjectAddSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to add project");
+            _logger.LogError("Failed to add project: {Message}", ex.Message);
             return 1;
         }
     }
@@ -370,7 +370,7 @@ public class ProjectRemoveCommand : Command<ProjectRemoveSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to remove project");
+            _logger.LogError("Failed to remove project: {Message}", ex.Message);
             return 1;
         }
     }
@@ -418,7 +418,7 @@ public class ProjectSetCommand : Command<ProjectSetSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to update project");
+            _logger.LogError("Failed to update project: {Message}", ex.Message);
             return 1;
         }
     }
@@ -473,7 +473,7 @@ public class ProjectAddRepoCommand : Command<ProjectAddRepoSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to add repository to project");
+            _logger.LogError("Failed to add repository to project: {Message}", ex.Message);
             return 1;
         }
     }
@@ -513,7 +513,7 @@ public class ProjectRemoveRepoCommand : Command<ProjectRemoveRepoSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to remove repository from project");
+            _logger.LogError("Failed to remove repository from project: {Message}", ex.Message);
             return 1;
         }
     }
@@ -573,7 +573,7 @@ public class ProjectAddVerificationCommand : Command<ProjectAddVerificationSetti
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to add verification to project");
+            _logger.LogError("Failed to add verification to project: {Message}", ex.Message);
             return 1;
         }
     }
@@ -615,7 +615,7 @@ public class ProjectRemoveVerificationCommand : Command<ProjectRemoveVerificatio
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to remove verification from project");
+            _logger.LogError("Failed to remove verification from project: {Message}", ex.Message);
             return 1;
         }
     }
@@ -696,7 +696,7 @@ public class ProjectMoveVerificationCommand : Command<ProjectMoveVerificationSet
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to move verification in project");
+            _logger.LogError("Failed to move verification in project: {Message}", ex.Message);
             return 1;
         }
     }
@@ -735,7 +735,7 @@ public class ProjectAddBuildDepCommand : Command<ProjectAddBuildDepSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to add build dependency to project");
+            _logger.LogError("Failed to add build dependency to project: {Message}", ex.Message);
             return 1;
         }
     }
@@ -774,7 +774,7 @@ public class ProjectRemoveBuildDepCommand : Command<ProjectRemoveBuildDepSetting
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to remove build dependency from project");
+            _logger.LogError("Failed to remove build dependency from project: {Message}", ex.Message);
             return 1;
         }
     }
@@ -819,7 +819,7 @@ public class ProjectAddReviewActionCommand : Command<ProjectAddReviewActionSetti
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to add review action to project");
+            _logger.LogError("Failed to add review action to project: {Message}", ex.Message);
             return 1;
         }
     }
@@ -861,7 +861,7 @@ public class ProjectRemoveReviewActionCommand : Command<ProjectRemoveReviewActio
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to remove review action from project");
+            _logger.LogError("Failed to remove review action from project: {Message}", ex.Message);
             return 1;
         }
     }

@@ -143,7 +143,7 @@ public class PlanRecListCommand : Command<PlanRecListSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to list recommendations for plan {PlanId}", settings.PlanId);
+            _logger.LogError("Failed to list recommendations for plan {PlanId}: {Message}", settings.PlanId, ex.Message);
             return 1;
         }
     }
@@ -203,7 +203,7 @@ public class PlanRecAddCommand : Command<PlanRecAddSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to add recommendation to plan {PlanId}", settings.PlanId);
+            _logger.LogError("Failed to add recommendation to plan {PlanId}: {Message}", settings.PlanId, ex.Message);
             return 1;
         }
     }
@@ -245,7 +245,7 @@ public class PlanRecRemoveCommand : Command<PlanRecRemoveSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to remove recommendation from plan {PlanId}", settings.PlanId);
+            _logger.LogError("Failed to remove recommendation from plan {PlanId}: {Message}", settings.PlanId, ex.Message);
             return 1;
         }
     }
@@ -289,7 +289,7 @@ public class PlanRecAcceptCommand : Command<PlanRecAcceptSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to accept recommendation for plan {PlanId}", settings.PlanId);
+            _logger.LogError("Failed to accept recommendation for plan {PlanId}: {Message}", settings.PlanId, ex.Message);
             return 1;
         }
     }
@@ -333,7 +333,7 @@ public class PlanRecDeclineCommand : Command<PlanRecDeclineSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to decline recommendation for plan {PlanId}", settings.PlanId);
+            _logger.LogError("Failed to decline recommendation for plan {PlanId}: {Message}", settings.PlanId, ex.Message);
             return 1;
         }
     }
@@ -398,7 +398,7 @@ public class PlanRecSetCommand : Command<PlanRecSetSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to set recommendation field for plan {PlanId}", settings.PlanId);
+            _logger.LogError("Failed to set recommendation field for plan {PlanId}: {Message}", settings.PlanId, ex.Message);
             return 1;
         }
     }

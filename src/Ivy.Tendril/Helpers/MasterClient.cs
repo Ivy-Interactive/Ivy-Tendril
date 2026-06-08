@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using Ivy.Tendril.Models;
@@ -17,6 +18,28 @@ public static class MasterClient
 
     public record DiscoveryResult(string BaseUrl, string? ApiKey);
     public record JobStartResponse(string JobId, string Status);
+
+    public static HttpClient CreateHttpClient(DiscoveryResult discovery)
+    {
+        HttpClient client;
+        if (discovery.BaseUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            var handler = new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+            };
+            client = new HttpClient(handler) { Timeout = DefaultTimeout };
+        }
+        else
+        {
+            client = new HttpClient { Timeout = DefaultTimeout };
+        }
+
+        if (!string.IsNullOrEmpty(discovery.ApiKey))
+            client.DefaultRequestHeaders.Add("X-Api-Key", discovery.ApiKey);
+
+        return client;
+    }
 
     public static DiscoveryResult Discover(string? tendrilHome = null)
     {
@@ -52,16 +75,14 @@ public static class MasterClient
             throw new InvalidOperationException("Tendril server appears hung (heartbeat stale). Cleaned up .master file.");
         }
 
+        var scheme = string.IsNullOrEmpty(data.Scheme) ? "http" : data.Scheme;
         var apiKey = ReadApiKeyFromConfig(tendrilHome);
-        return new DiscoveryResult($"http://localhost:{data.Port}", apiKey);
+        return new DiscoveryResult($"{scheme}://localhost:{data.Port}", apiKey);
     }
 
     public static JobStartResponse SubmitJob(DiscoveryResult discovery, JobArgsBase args)
     {
-        using var client = new HttpClient { Timeout = DefaultTimeout };
-
-        if (!string.IsNullOrEmpty(discovery.ApiKey))
-            client.DefaultRequestHeaders.Add("X-Api-Key", discovery.ApiKey);
+        using var client = CreateHttpClient(discovery);
 
         var json = JsonSerializer.Serialize<JobArgsBase>(args, JsonOptions);
         var content = new StringContent(json, Encoding.UTF8, "application/json");

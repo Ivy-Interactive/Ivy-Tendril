@@ -50,8 +50,7 @@ public class ReportBugCommand : Command<ReportBugSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to report bug");
-            AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message.EscapeMarkup()}");
+            _logger.LogError("Failed to report bug: {Message}", ex.Message);
             return 1;
         }
     }

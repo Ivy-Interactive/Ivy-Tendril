@@ -39,7 +39,6 @@ public class PlanAddPrCommand : Command<PlanAddPrSettings>
             if (plan.Prs.Contains(settings.PrUrl))
             {
                 _logger.LogInformation("PR already in plan: {PrUrl}", settings.PrUrl);
-                Console.WriteLine($"PR already in plan: {settings.PrUrl}");
                 return 0;
             }
 
@@ -49,13 +48,11 @@ public class PlanAddPrCommand : Command<PlanAddPrSettings>
             PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
             _logger.LogInformation("Added PR: {PrUrl}", settings.PrUrl);
-            Console.WriteLine($"Added PR: {settings.PrUrl}");
             return 0;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to add PR to plan {PlanId}", settings.PlanId);
-            Console.Error.WriteLine($"Failed to add PR: {ex.Message}");
+            _logger.LogError("Failed to add PR to plan {PlanId}: {Message}", settings.PlanId, ex.Message);
             return 1;
         }
     }

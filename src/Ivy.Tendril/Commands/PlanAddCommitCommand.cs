@@ -41,14 +41,12 @@ public class PlanAddCommitCommand : Command<PlanAddCommitSettings>
             if (!Regex.IsMatch(settings.Sha, @"^[0-9a-fA-F]{7,40}$"))
             {
                 _logger.LogError("Invalid commit hash format: {Sha}", settings.Sha);
-                Console.Error.WriteLine($"Invalid commit hash format: {settings.Sha}");
                 return 1;
             }
 
             if (plan.Commits.Contains(settings.Sha))
             {
                 _logger.LogInformation("Commit already in plan: {Sha}", settings.Sha);
-                Console.WriteLine($"Commit already in plan: {settings.Sha}");
                 return 0;
             }
 
@@ -58,13 +56,11 @@ public class PlanAddCommitCommand : Command<PlanAddCommitSettings>
             PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
             _logger.LogInformation("Added commit: {Sha}", settings.Sha);
-            Console.WriteLine($"Added commit: {settings.Sha}");
             return 0;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to add commit to plan {PlanId}", settings.PlanId);
-            Console.Error.WriteLine($"Failed to add commit: {ex.Message}");
+            _logger.LogError("Failed to add commit to plan {PlanId}: {Message}", settings.PlanId, ex.Message);
             return 1;
         }
     }

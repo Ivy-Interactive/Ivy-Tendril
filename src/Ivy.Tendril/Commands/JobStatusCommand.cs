@@ -42,27 +42,22 @@ public class JobStatusCommand : Command<JobStatusSettings>
         try
         {
             var discovery = MasterClient.Discover();
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-
-            if (!string.IsNullOrEmpty(discovery.ApiKey))
-                client.DefaultRequestHeaders.Add("X-Api-Key", discovery.ApiKey);
+            using var client = MasterClient.CreateHttpClient(discovery);
 
             var payload = new { message = settings.Message, planId = settings.PlanId, planTitle = settings.PlanTitle };
             var json = JsonSerializer.Serialize(payload, JsonOptions);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var response = client.PutAsync($"{discovery.BaseUrl}/api/jobs/{settings.JobId}/status", content)
+            var response = client.PutAsync($"{discovery.BaseUrl}/api/jobs/{settings.JobId}/status", content, cancellationToken)
                 .GetAwaiter().GetResult();
             response.EnsureSuccessStatusCode();
 
             _logger.LogInformation("Status updated for job {JobId}: {Message}", settings.JobId, settings.Message);
-            Console.WriteLine($"Status updated: {settings.Message}");
             return 0;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to report job status for {JobId}", settings.JobId);
-            Console.Error.WriteLine($"Failed to report status: {ex.Message}");
+            _logger.LogError("Failed to report status for job {JobId}: {Message}", settings.JobId, ex.Message);
             return 1;
         }
     }

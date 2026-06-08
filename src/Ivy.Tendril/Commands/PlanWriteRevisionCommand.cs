@@ -41,13 +41,12 @@ public class PlanWriteRevisionCommand : Command<PlanWriteRevisionSettings>
                 throw new ArgumentException("No content provided (use --file or pipe to STDIN)");
 
             File.WriteAllText(filePath, content);
-            Console.WriteLine(filePath);
+            Console.Write(filePath);
             return 0;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to write revision for plan {PlanId}", settings.PlanId);
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            _logger.LogError("Failed to write revision for plan {PlanId}: {Message}", settings.PlanId, ex.Message);
             return 1;
         }
     }

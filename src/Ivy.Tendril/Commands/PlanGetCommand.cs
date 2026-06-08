@@ -94,8 +94,7 @@ public class PlanGetCommand : Command<PlanGetSettings>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to get plan {PlanId}", settings.PlanId);
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            _logger.LogError("Failed to get plan {PlanId}: {Message}", settings.PlanId, ex.Message);
             return 1;
         }
     }
