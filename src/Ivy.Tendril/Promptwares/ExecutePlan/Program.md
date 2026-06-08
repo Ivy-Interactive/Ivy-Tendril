@@ -271,6 +271,8 @@ These paths point to the original repos, not the worktree copies. Since we only 
 
 Report status: `tendril job status TendrilJobId --message "Implementing: <plan title>"`
 
+Before implementing, read `AGENTS.md` and/or `CLAUDE.md` from the root of each worktree (if they exist). These contain repo-specific conventions (branching, formatting, writing style, framework patterns) that must be followed during implementation. For example, commit message style, prohibited characters, or required build verification commands.
+
 Work exclusively in the worktree directories. Follow the plan's latest revision:
 
 1. **Problem** — Understand what needs to be done
