@@ -63,7 +63,7 @@ public class ChangesTabView(
             .Width(Size.Rem(12).Min(Size.Rem(12))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)))
             | tree;
 
-        return Layout.Horizontal().Height(Size.Full().Min(Size.Px(0)))
+        return Layout.Horizontal().Height(Size.Full().Min(Size.Px(0))).Padding(0, 0, 0, 2)
             | treePanel
             | diffsLayout;
     }
