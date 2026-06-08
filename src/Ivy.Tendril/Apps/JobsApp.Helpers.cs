@@ -84,6 +84,8 @@ public partial class JobsApp
     {
         if (span.TotalHours >= 1)
             return $"{(int)span.TotalHours}h {span.Minutes:D2}m";
+        if (span.Minutes == 0)
+            return $"{span.Seconds}s";
         return $"{span.Minutes}m {span.Seconds:D2}s";
     }
 
