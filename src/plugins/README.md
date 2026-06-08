@@ -132,19 +132,55 @@ The directory name should match your main assembly name (e.g., `plugins/Ivy.Tend
 
 ## Submitting to the Tendril Marketplace
 
-> **To be implemented...** The Tendril Marketplace submission process, code policy enforcement, and automated review pipeline are planned but not yet available.
+The Tendril Marketplace is a curated catalog of approved plugins. Plugins are distributed as NuGet packages and go through an approval process before appearing in the marketplace.
 
 ### Package Requirements
 
-> **To be implemented...**
+Your plugin must be published as a NuGet package on [nuget.org](https://www.nuget.org). The following metadata is pulled automatically from your NuGet listing:
+
+| Field | Source | Notes |
+|-------|--------|-------|
+| Package ID | `.csproj` `<PackageId>` | Must be globally unique, max 128 chars |
+| Title | `.csproj` `<Title>` | Display name, max 256 chars |
+| Author | `.csproj` `<Authors>` | Comma-separated, max 256 chars |
+| Description | `.csproj` `<Description>` | Max 2000 chars |
+| Icon URL | `.csproj` `<PackageIcon>` or `<PackageIconUrl>` | Displayed in marketplace UI |
+| Project URL | `.csproj` `<PackageProjectUrl>` | Link to source/docs |
+| Tags | `.csproj` `<PackageTags>` | Comma-separated categories |
+| License | `.csproj` `<PackageLicenseExpression>` | e.g., `Apache-2.0`, `MIT` |
+
+**Additional requirements:**
+- Target framework must be `net10.0`
+- Set `<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>`
+- Must contain exactly one `[assembly: IvyPlugin(typeof(...))]` attribute
+- Package must build cleanly and contain all runtime dependencies
 
 ### Code Policy
 
-> **To be implemented...**
+Each plugin version submitted to the marketplace goes through a **three-state approval workflow**:
+
+| State | Description |
+|-------|-------------|
+| **Undecided** | Default state for newly submitted versions. Not available to users. |
+| **Approved** | Version has passed review and is available in the marketplace. |
+| **Denied** | Version was rejected. Not available to users. |
+
+**Package integrity:** A SHA256 hash of the `.nupkg` file is computed and stored at submission time. This hash is used to verify package integrity during installation.
+
+> **To be implemented...** Automated code policy enforcement (static analysis, dependency scanning, sandboxing) is planned but not yet available. Currently, approval is a manual process.
 
 ### Submission Process
 
-> **To be implemented...**
+Currently, plugin submission is managed by the Ivy team:
+
+1. **Publish your plugin** to nuget.org (e.g., `dotnet nuget push`)
+2. **Contact the Ivy team** to request addition to the marketplace
+3. The team registers your package ID and pulls metadata from NuGet
+4. A specific version is added and its `.nupkg` hash is recorded
+5. The version enters **Undecided** state pending review
+6. Upon approval, the plugin becomes available in the marketplace catalog
+
+> **To be implemented...** A self-service submission API and CLI command for plugin authors to submit directly is planned. The current workflow requires manual coordination with the Ivy team.
 
 ## Plugin Interfaces
 
