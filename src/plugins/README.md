@@ -211,7 +211,7 @@ public record PluginManifest
 Icons are specified via the `PluginIcon` record with three kinds:
 
 ```csharp
-// Use a built-in icon name (matches the Icons enum)
+// Use a built-in icon name (matches the Icons enum in Ivy-Framework)
 Icon = PluginIcon.Named("Linear")
 
 // Use an external image URL
