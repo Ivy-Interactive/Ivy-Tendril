@@ -1,6 +1,8 @@
+using System.Text.RegularExpressions;
 using Ivy.Hooks.Pty;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Helpers;
+using Ivy.Tendril.Apps.Agent;
 using Ivy.Tendril.Services;
 using Ivy.Widgets.Xterm;
 using Xterm = Ivy.Widgets.Xterm;
@@ -14,11 +16,32 @@ public class AgentApp : ViewBase
     {
         var configService = UseService<IConfigService>();
         var agentRunner = UseService<IAgentRunner>();
+        var args = UseArgs<AgentAppArgs>();
+
+        var promptSent = UseRef(false);
+        var ptyRef = UseRef<PtyHandle?>(null);
+
+        var options = new PtyOptions
+        {
+            OnOutput = output =>
+            {
+                if (promptSent.Value || string.IsNullOrEmpty(args?.Prompt)) return;
+                var patterns = GetActivityPatterns(configService, agentRunner);
+                if (patterns?.IdlePattern != null &&
+                    Regex.IsMatch(output, patterns.IdlePattern))
+                {
+                    promptSent.Value = true;
+                    ptyRef.Value?.HandleInput(args.Prompt + "\n");
+                }
+            }
+        };
 
         var ptyHandle = Context.UsePty(
             GetCommandLine(configService, agentRunner),
-            GetWorkDir(configService, agentRunner)
+            GetWorkDir(configService, agentRunner),
+            options
         );
+        ptyRef.Value = ptyHandle;
 
         var terminal = new Xterm.Terminal()
             .Stream(ptyHandle.Stream)
@@ -84,4 +107,11 @@ public class AgentApp : ViewBase
         !string.IsNullOrEmpty(config.TendrilHome)
             ? config.TendrilHome
             : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+    private static AgentActivityPatterns? GetActivityPatterns(IConfigService config, IAgentRunner runner)
+    {
+        var agentId = config.Settings.CodingAgent;
+        var pty = runner.GetPty(agentId);
+        return pty?.GetActivityPatterns();
+    }
 }
