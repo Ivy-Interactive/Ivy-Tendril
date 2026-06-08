@@ -32,8 +32,18 @@ public class ChangesTabView(
             return Text.Muted("No file changes.");
 
         var fileDiffs = allFileDiffs;
+        var hiddenCount = 0;
         if (hideFormatting.Value)
+        {
+            var beforeCount = allFileDiffs.Count;
             fileDiffs = allFileDiffs.Where(fd => !PlanContentHelpers.IsFormattingOnly(fd)).ToList();
+            hiddenCount = beforeCount - fileDiffs.Count;
+            Console.WriteLine($"[ChangesTab] Filtering enabled: {beforeCount} total files, {hiddenCount} hidden, {fileDiffs.Count} shown");
+        }
+        else
+        {
+            Console.WriteLine($"[ChangesTab] Filtering disabled: showing all {allFileDiffs.Count} files");
+        }
 
         var root = BuildFileTree(fileDiffs);
         var treeItems = ChildItems(root);
@@ -70,6 +80,12 @@ public class ChangesTabView(
 
         var toolbar = Layout.Horizontal().Gap(2).Padding(1)
             | hideFormatting.ToSwitchInput(label: "Hide formatting changes");
+
+        // Show stats: total files and hidden count
+        var statsText = $"{allFileDiffs.Count} files";
+        if (hideFormatting.Value && hiddenCount > 0)
+            statsText += $" ({hiddenCount} formatting-only hidden)";
+        toolbar |= Text.Muted(statsText).Small();
 
         var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0)))
             | treePanel
