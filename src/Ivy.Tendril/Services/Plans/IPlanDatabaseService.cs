@@ -13,6 +13,7 @@ public interface IPlanDatabaseService : IDisposable
     // Aggregates
     PlanReaderService.PlanCountSnapshot ComputePlanCounts();
     DashboardModels GetDashboardData(string? projectFilter);
+    List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days = 30);
 
     // Costs and tokens
     decimal GetPlanTotalCost(int planId);
