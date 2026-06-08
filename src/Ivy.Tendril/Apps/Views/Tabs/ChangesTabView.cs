@@ -54,7 +54,6 @@ public class ChangesTabView(
             diffsLayout |= Text.Block("").Anchor(path);
             diffsLayout |= new DiffView()
                 .Diff(fileDiff.Diff)
-                .Split()
                 .Collapsible()
                 .Width(Size.Full());
         }
