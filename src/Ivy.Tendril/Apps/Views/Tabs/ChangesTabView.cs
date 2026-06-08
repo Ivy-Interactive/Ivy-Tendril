@@ -78,7 +78,7 @@ public class ChangesTabView(
             .Width(Size.Rem(12).Min(Size.Rem(12))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)))
             | tree;
 
-        var toolbar = Layout.Horizontal().Gap(2).Padding(1)
+        var toolbar = Layout.Horizontal().Gap(2).Padding(1).AlignContent(Align.Center).Height(Size.Auto())
             | hideFormatting.ToSwitchInput(label: "Hide formatting changes");
 
         // Show stats: always display total, and show filtered count when applicable
@@ -94,7 +94,7 @@ public class ChangesTabView(
             toolbar |= Text.Muted($"Showing all {allFileDiffs.Count} files").Small();
         }
 
-        var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0)))
+        var mainLayout = Layout.Horizontal().Height(Size.Grow())
             | treePanel
             | diffsLayout;
 
