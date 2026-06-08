@@ -48,7 +48,7 @@ public class MyPlugin : IIvyPlugin
     public PluginManifest Manifest { get; } = new()
     {
         Id = "Ivy.Tendril.Plugin.MyPlugin",
-        Name = "My Plugin",
+        Title = "My Plugin",
         ConfigSectionName = "MyPlugin",
         Version = new Version(1, 0, 0),
         Icon = PluginIcon.Named("Puzzle"),
@@ -192,7 +192,7 @@ Every plugin exposes a `PluginManifest` record describing its identity:
 public record PluginManifest
 {
     public required string Id { get; init; }              // Unique ID (e.g., "Ivy.Tendril.Plugin.Linear")
-    public required string Name { get; init; }            // Display name (e.g., "Linear")
+    public required string Title { get; init; }           // Display name (e.g., "Linear")
     public required string ConfigSectionName { get; init; } // Key in plugin-config.yaml
     public required Version Version { get; init; }        // Semantic version
     public Version? MinimumHostVersion { get; init; }     // Minimum Tendril version required
@@ -556,7 +556,7 @@ public class LinearPlugin : IIvyPlugin
     public PluginManifest Manifest { get; } = new()
     {
         Id = "Ivy.Tendril.Plugin.Linear",
-        Name = "Linear",
+        Title = "Linear",
         ConfigSectionName = "Linear",
         Version = new Version(1, 0, 0),
         Icon = PluginIcon.Named("Linear"),
@@ -678,7 +678,7 @@ A: Yes. Set `Dependencies = ["Other.Plugin.Id"]` in your manifest. The loader to
 A: For referenced plugins, file watchers detect DLL changes in `bin/` directories and source file changes. Source changes trigger `dotnet build`, then the plugin is unloaded (contributions removed, `AssemblyLoadContext` unloaded) and reloaded fresh. This happens without restarting Tendril.
 
 **Q: What assemblies are shared between host and plugins?**
-A: `Ivy.Plugin.Abstractions`, `Ivy`, `Ivy.Tendril.Plugin.Abstractions`, and `Ivy.Tendril.Plugin.Extended.Abstractions` are loaded from the host. Do not bundle these in your plugin output — they'll be skipped during loading anyway.
+A: `Ivy.Plugin.Abstractions`, `Ivy`, `Ivy.Tendril.Plugin.Abstractions`, and `Ivy.Tendril.Plugin.Extended.Abstractions` are loaded from the host. You do not need to bundle these in your plugin output — they'll be skipped during loading anyway.
 
 **Q: Can my plugin serve static files (images, CSS, JS)?**
 A: Yes. Place files in your plugin directory and reference them via `PluginIcon.File("relative/path")` for icons, or use the built-in asset endpoint at `/ivy/plugins/{pluginId}/assets/{filePath}` for other resources.

@@ -10,7 +10,7 @@ public class SlackPlugin : IIvyPlugin
     public PluginManifest Manifest { get; } = new()
     {
         Id = "Ivy.Plugin.Slack",
-        Name = "Slack",
+        Title = "Slack",
         ConfigSectionName = "Slack",
         Version = new Version(1, 0, 0),
         Icon = PluginIcon.Named("Slack"),

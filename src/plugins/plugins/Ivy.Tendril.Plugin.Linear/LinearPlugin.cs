@@ -10,7 +10,7 @@ public class LinearPlugin : IIvyPlugin
     public PluginManifest Manifest { get; } = new()
     {
         Id = "Ivy.Tendril.Plugin.Linear",
-        Name = "Linear",
+        Title = "Linear",
         ConfigSectionName = "Linear",
         Version = new Version(1, 0, 0),
         Icon = PluginIcon.Named("Linear"),

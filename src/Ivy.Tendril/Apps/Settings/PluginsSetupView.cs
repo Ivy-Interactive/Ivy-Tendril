@@ -56,7 +56,7 @@ public class PluginsSetupView : ViewBase
                        var customView = pluginManager.BuildPluginConfigurationView(id, pluginConfig);
                        var header = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
                            | PluginIconHelper.ToWidget(manifest?.Icon, id)
-                           | Text.Block(manifest?.Name ?? id);
+                           | Text.Block(manifest?.Title ?? id);
                        var content = Layout.Vertical().Gap(3)
                            | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
                                | new Button("Reload", onClick: _ =>
@@ -86,7 +86,7 @@ public class PluginsSetupView : ViewBase
                        var header = Layout.Horizontal().Gap(2).AlignContent(Align.SpaceBetween)
                            | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
                                | PluginIconHelper.ToWidget(manifest?.Icon, p.Id)
-                               | Text.Block(p.Name))
+                               | Text.Block(p.Title))
                            | (Layout.Horizontal().Gap(1).AlignContent(Align.Right)
                                | Text.Block("Unconfigured").Muted().Small()
                                | new Icon(Icons.TriangleAlert, Colors.Warning));
