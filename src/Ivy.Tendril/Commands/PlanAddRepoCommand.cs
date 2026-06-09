@@ -2,7 +2,6 @@ using Ivy.Tendril.Models;
 using System.ComponentModel;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
-using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -20,40 +19,30 @@ public class PlanAddRepoSettings : CommandSettings
 
 public class PlanAddRepoCommand : Command<PlanAddRepoSettings>
 {
-    private readonly ILogger<PlanAddRepoCommand> _logger;
     private readonly IPlanWatcherService _planWatcher;
 
-    public PlanAddRepoCommand(ILogger<PlanAddRepoCommand> logger, IPlanWatcherService planWatcher)
+    public PlanAddRepoCommand(IPlanWatcherService planWatcher)
     {
-        _logger = logger;
         _planWatcher = planWatcher;
     }
 
     protected override int Execute(CommandContext context, PlanAddRepoSettings settings, CancellationToken cancellationToken)
     {
-        try
+        var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
+        var plan = PlanCommandHelpers.ReadPlan(planFolder);
+
+        if (plan.Repos.Contains(settings.RepoPath, StringComparer.OrdinalIgnoreCase))
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
-
-            if (plan.Repos.Contains(settings.RepoPath, StringComparer.OrdinalIgnoreCase))
-            {
-                _logger.LogInformation("Repository already in plan: {RepoPath}", settings.RepoPath);
-                return 0;
-            }
-
-            plan.Repos.Add(settings.RepoPath);
-            plan.Updated = DateTime.UtcNow;
-
-            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
-
-            _logger.LogInformation("Added repository: {RepoPath}", settings.RepoPath);
+            Console.WriteLine($"Repository already in plan: {settings.RepoPath}");
             return 0;
         }
-        catch (Exception ex)
-        {
-            _logger.LogError("Failed to add repository to plan {PlanId}: {Message}", settings.PlanId, ex.Message);
-            return 1;
-        }
+
+        plan.Repos.Add(settings.RepoPath);
+        plan.Updated = DateTime.UtcNow;
+
+        PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
+
+        Console.WriteLine($"Added repository: {settings.RepoPath}");
+        return 0;
     }
 }

@@ -2,7 +2,6 @@ using System.ComponentModel;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
-using Microsoft.Extensions.Logging;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -47,127 +46,89 @@ public class PlanVerificationRemoveSettings : CommandSettings
 
 public class PlanVerificationListCommand : Command<PlanVerificationListSettings>
 {
-    private readonly ILogger<PlanVerificationListCommand> _logger;
-
-    public PlanVerificationListCommand(ILogger<PlanVerificationListCommand> logger) => _logger = logger;
-
     protected override int Execute(CommandContext context, PlanVerificationListSettings settings, CancellationToken cancellationToken)
     {
-        try
+        var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
+        var plan = PlanCommandHelpers.ReadPlan(planFolder);
+        var verifications = plan.Verifications;
+
+        if (!string.IsNullOrEmpty(settings.Status))
+            verifications = verifications.Where(v => v.Status.Equals(settings.Status, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        if (verifications.Count == 0)
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
-            var verifications = plan.Verifications;
-
-            if (!string.IsNullOrEmpty(settings.Status))
-                verifications = verifications.Where(v => v.Status.Equals(settings.Status, StringComparison.OrdinalIgnoreCase)).ToList();
-
-            if (verifications.Count == 0)
-            {
-                AnsiConsole.MarkupLine("[dim]No verifications found.[/]");
-                return 0;
-            }
-
-            var table = new Spectre.Console.Table();
-            table.AddColumn("Name");
-            table.AddColumn("Status");
-
-            foreach (var v in verifications)
-                table.AddRow(v.Name.EscapeMarkup(), v.Status.EscapeMarkup());
-
-            AnsiConsole.Write(table);
+            AnsiConsole.MarkupLine("[dim]No verifications found.[/]");
             return 0;
         }
-        catch (Exception ex)
-        {
-            _logger.LogError("Failed to list verifications for plan {PlanId}: {Message}", settings.PlanId, ex.Message);
-            return 1;
-        }
+
+        var table = new Spectre.Console.Table();
+        table.AddColumn("Name");
+        table.AddColumn("Status");
+
+        foreach (var v in verifications)
+            table.AddRow(v.Name.EscapeMarkup(), v.Status.EscapeMarkup());
+
+        AnsiConsole.Write(table);
+        return 0;
     }
 }
 
 public class PlanVerificationAddCommand : Command<PlanVerificationAddSettings>
 {
-    private readonly ILogger<PlanVerificationAddCommand> _logger;
     private readonly IPlanWatcherService _planWatcher;
 
-    public PlanVerificationAddCommand(ILogger<PlanVerificationAddCommand> logger, IPlanWatcherService planWatcher)
+    public PlanVerificationAddCommand(IPlanWatcherService planWatcher)
     {
-        _logger = logger;
         _planWatcher = planWatcher;
     }
 
     protected override int Execute(CommandContext context, PlanVerificationAddSettings settings, CancellationToken cancellationToken)
     {
-        try
+        var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
+        var plan = PlanCommandHelpers.ReadPlan(planFolder);
+
+        if (plan.Verifications.Any(v => v.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException($"Verification already exists: {settings.Name}");
+
+        plan.Verifications.Add(new PlanVerificationEntry
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
+            Name = settings.Name,
+            Status = settings.Status ?? VerificationStatus.Pending
+        });
 
-            if (plan.Verifications.Any(v => v.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase)))
-            {
-                _logger.LogError("Verification already exists: {Name}", settings.Name);
-                return 1;
-            }
+        plan.Updated = DateTime.UtcNow;
+        PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
-            plan.Verifications.Add(new PlanVerificationEntry
-            {
-                Name = settings.Name,
-                Status = settings.Status ?? VerificationStatus.Pending
-            });
-
-            plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
-
-            _logger.LogInformation("Added verification: {Name}", settings.Name);
-            return 0;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError("Failed to add verification to plan {PlanId}: {Message}", settings.PlanId, ex.Message);
-            return 1;
-        }
+        Console.WriteLine($"Added verification: {settings.Name}");
+        return 0;
     }
 }
 
 public class PlanVerificationRemoveCommand : Command<PlanVerificationRemoveSettings>
 {
-    private readonly ILogger<PlanVerificationRemoveCommand> _logger;
     private readonly IPlanWatcherService _planWatcher;
 
-    public PlanVerificationRemoveCommand(ILogger<PlanVerificationRemoveCommand> logger, IPlanWatcherService planWatcher)
+    public PlanVerificationRemoveCommand(IPlanWatcherService planWatcher)
     {
-        _logger = logger;
         _planWatcher = planWatcher;
     }
 
     protected override int Execute(CommandContext context, PlanVerificationRemoveSettings settings, CancellationToken cancellationToken)
     {
-        try
-        {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
+        var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
+        var plan = PlanCommandHelpers.ReadPlan(planFolder);
 
-            var match = plan.Verifications
-                .FirstOrDefault(v => v.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
+        var match = plan.Verifications
+            .FirstOrDefault(v => v.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
 
-            if (match == null)
-            {
-                _logger.LogError("Verification not found: {Name}", settings.Name);
-                return 1;
-            }
+        if (match == null)
+            throw new InvalidOperationException($"Verification not found: {settings.Name}");
 
-            plan.Verifications.Remove(match);
-            plan.Updated = DateTime.UtcNow;
-            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
+        plan.Verifications.Remove(match);
+        plan.Updated = DateTime.UtcNow;
+        PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
-            _logger.LogInformation("Removed verification: {Name}", settings.Name);
-            return 0;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError("Failed to remove verification from plan {PlanId}: {Message}", settings.PlanId, ex.Message);
-            return 1;
-        }
+        Console.WriteLine($"Removed verification: {settings.Name}");
+        return 0;
     }
 }

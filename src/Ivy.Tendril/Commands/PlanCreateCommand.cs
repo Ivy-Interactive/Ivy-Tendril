@@ -2,7 +2,6 @@ using System.ComponentModel;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
-using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -61,85 +60,83 @@ public class PlanCreateSettings : CommandSettings
 
 public class PlanCreateCommand : Command<PlanCreateSettings>
 {
-    private readonly ILogger<PlanCreateCommand> _logger;
     private readonly IPlanWatcherService _planWatcher;
 
-    public PlanCreateCommand(ILogger<PlanCreateCommand> logger, IPlanWatcherService planWatcher)
+    public PlanCreateCommand(IPlanWatcherService planWatcher)
     {
-        _logger = logger;
         _planWatcher = planWatcher;
     }
 
     protected override int Execute(CommandContext context, PlanCreateSettings settings, CancellationToken cancellationToken)
     {
-        try
+        if (settings.Repos == null || settings.Repos.Length == 0)
+            throw new ArgumentException("At least one --repo is required.");
+
+        var plansDir = PlanCommandHelpers.GetPlansDirectory(settings.PlansDir);
+
+        var planId = PlanYamlHelper.AllocatePlanId(plansDir);
+        var safeTitle = PlanYamlHelper.ToSafeTitle(settings.Title);
+        var folderName = $"{planId}-{safeTitle}";
+        var planFolder = Path.Combine(plansDir, folderName);
+
+        if (Directory.Exists(planFolder))
+            throw new InvalidOperationException($"Plan folder already exists: {planFolder}");
+
+        var plan = new PlanYaml
         {
-            var plansDir = PlanCommandHelpers.GetPlansDirectory(settings.PlansDir);
+            State = nameof(PlanStatus.Draft),
+            Project = settings.Project ?? "Auto",
+            Level = settings.Level ?? "NiceToHave",
+            Title = settings.Title,
+            Created = DateTime.UtcNow,
+            Updated = DateTime.UtcNow,
+            InitialPrompt = settings.InitialPrompt,
+            SourceUrl = settings.SourceUrl,
+            ExecutionProfile = settings.ExecutionProfile,
+            Priority = settings.Priority ?? 0
+        };
 
-            var planId = PlanYamlHelper.AllocatePlanId(plansDir);
-            var safeTitle = PlanYamlHelper.ToSafeTitle(settings.Title);
-            var folderName = $"{planId}-{safeTitle}";
-            var planFolder = Path.Combine(plansDir, folderName);
+        if (settings.Repos != null)
+            foreach (var repo in settings.Repos)
+                plan.Repos.Add(repo);
 
-            if (Directory.Exists(planFolder))
+        if (settings.Verifications != null)
+            foreach (var v in settings.Verifications)
             {
-                _logger.LogError("Plan folder already exists: {PlanFolder}", planFolder);
-                return 1;
+                var eqIdx = v.IndexOf('=');
+                if (eqIdx < 0)
+                    throw new ArgumentException($"Invalid verification format '{v}'. Expected Name=Status.");
+                plan.Verifications.Add(new PlanVerificationEntry
+                {
+                    Name = v[..eqIdx],
+                    Status = v[(eqIdx + 1)..]
+                });
             }
 
-            Directory.CreateDirectory(planFolder);
-            FileHelper.GrantBroadWriteAccess(planFolder);
+        if (settings.RelatedPlans != null)
+            foreach (var rp in settings.RelatedPlans)
+                plan.RelatedPlans.Add(PlanCommandHelpers.ResolvePlanFolderName(rp));
 
-            var plan = new PlanYaml
-            {
-                State = nameof(PlanStatus.Draft),
-                Project = settings.Project ?? "Auto",
-                Level = settings.Level ?? "NiceToHave",
-                Title = settings.Title,
-                Created = DateTime.UtcNow,
-                Updated = DateTime.UtcNow,
-                InitialPrompt = settings.InitialPrompt,
-                SourceUrl = settings.SourceUrl,
-                ExecutionProfile = settings.ExecutionProfile,
-                Priority = settings.Priority ?? 0
-            };
+        if (settings.DependsOn != null)
+            foreach (var dep in settings.DependsOn)
+                plan.DependsOn.Add(PlanCommandHelpers.ResolvePlanFolderName(dep));
 
-            if (settings.Repos != null)
-                foreach (var repo in settings.Repos)
-                    plan.Repos.Add(repo);
+        Directory.CreateDirectory(planFolder);
+        FileHelper.GrantBroadWriteAccess(planFolder);
 
-            if (settings.Verifications != null)
-                foreach (var v in settings.Verifications)
-                {
-                    var eqIdx = v.IndexOf('=');
-                    if (eqIdx < 0)
-                        throw new ArgumentException($"Invalid verification format '{v}'. Expected Name=Status.");
-                    plan.Verifications.Add(new PlanVerificationEntry
-                    {
-                        Name = v[..eqIdx],
-                        Status = v[(eqIdx + 1)..]
-                    });
-                }
-
-            if (settings.RelatedPlans != null)
-                foreach (var rp in settings.RelatedPlans)
-                    plan.RelatedPlans.Add(PlanCommandHelpers.ResolvePlanFolderName(rp));
-
-            if (settings.DependsOn != null)
-                foreach (var dep in settings.DependsOn)
-                    plan.DependsOn.Add(PlanCommandHelpers.ResolvePlanFolderName(dep));
-
-            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
-
-            Console.WriteLine($"PlanId: {planId}");
-            Console.WriteLine($"Directory: {planFolder}");
-            Console.WriteLine($"Plan created: {folderName}");
-            return 0;
-        }
-        catch (Exception ex)
+        try
         {
-            _logger.LogError("Failed to create plan: {Message}", ex.Message);
-            return 1;
+            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
         }
+        catch
+        {
+            try { Directory.Delete(planFolder, true); } catch { }
+            throw;
+        }
+
+        Console.WriteLine($"PlanId: {planId}");
+        Console.WriteLine($"Directory: {planFolder}");
+        Console.WriteLine($"Plan created: {folderName}");
+        return 0;
     }
 }

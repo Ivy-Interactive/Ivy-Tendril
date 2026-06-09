@@ -2,7 +2,6 @@ using Ivy.Tendril.Models;
 using System.ComponentModel;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
-using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -20,41 +19,27 @@ public class PlanRemoveRepoSettings : CommandSettings
 
 public class PlanRemoveRepoCommand : Command<PlanRemoveRepoSettings>
 {
-    private readonly ILogger<PlanRemoveRepoCommand> _logger;
     private readonly IPlanWatcherService _planWatcher;
 
-    public PlanRemoveRepoCommand(ILogger<PlanRemoveRepoCommand> logger, IPlanWatcherService planWatcher)
+    public PlanRemoveRepoCommand(IPlanWatcherService planWatcher)
     {
-        _logger = logger;
         _planWatcher = planWatcher;
     }
 
     protected override int Execute(CommandContext context, PlanRemoveRepoSettings settings, CancellationToken cancellationToken)
     {
-        try
-        {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
+        var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
+        var plan = PlanCommandHelpers.ReadPlan(planFolder);
 
-            // Remove repo (case-insensitive)
-            var removed = plan.Repos.RemoveAll(r => r.Equals(settings.RepoPath, StringComparison.OrdinalIgnoreCase));
-            if (removed == 0)
-            {
-                _logger.LogError("Repository not found in plan: {RepoPath}", settings.RepoPath);
-                return 1;
-            }
+        var removed = plan.Repos.RemoveAll(r => r.Equals(settings.RepoPath, StringComparison.OrdinalIgnoreCase));
+        if (removed == 0)
+            throw new InvalidOperationException($"Repository not found in plan: {settings.RepoPath}");
 
-            plan.Updated = DateTime.UtcNow;
+        plan.Updated = DateTime.UtcNow;
 
-            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
+        PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
-            _logger.LogInformation("Removed repository: {RepoPath}", settings.RepoPath);
-            return 0;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError("Failed to remove repository from plan {PlanId}: {Message}", settings.PlanId, ex.Message);
-            return 1;
-        }
+        Console.WriteLine($"Removed repository: {settings.RepoPath}");
+        return 0;
     }
 }

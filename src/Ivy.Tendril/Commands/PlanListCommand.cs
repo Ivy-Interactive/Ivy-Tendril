@@ -2,7 +2,6 @@ using System.ComponentModel;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
-using Microsoft.Extensions.Logging;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -45,86 +44,68 @@ public class PlanListSettings : CommandSettings
 
 public class PlanListCommand : Command<PlanListSettings>
 {
-    private readonly ILogger<PlanListCommand> _logger;
-
-    public PlanListCommand(ILogger<PlanListCommand> logger) => _logger = logger;
-
     protected override int Execute(CommandContext context, PlanListSettings settings, CancellationToken cancellationToken)
     {
-        try
+        var plansDirectory = Environment.GetEnvironmentVariable("TENDRIL_PLANS")?.Trim();
+        if (string.IsNullOrEmpty(plansDirectory))
         {
-            var plansDirectory = Environment.GetEnvironmentVariable("TENDRIL_PLANS")?.Trim();
-            if (string.IsNullOrEmpty(plansDirectory))
-            {
-                var home = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
-                if (string.IsNullOrEmpty(home))
+            var home = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
+            if (string.IsNullOrEmpty(home))
+                throw new InvalidOperationException("TENDRIL_HOME environment variable is not set");
+            plansDirectory = Path.Combine(home, "Plans");
+        }
+
+        if (!Directory.Exists(plansDirectory))
+            throw new InvalidOperationException($"Plans directory not found: {plansDirectory}");
+
+        var results = ScanPlans(plansDirectory, settings);
+
+        if (settings.Limit.HasValue && settings.Limit.Value > 0)
+            results = results.Take(settings.Limit.Value).ToList();
+
+        var format = (settings.Format ?? "table").ToLower();
+        switch (format)
+        {
+            case "ids":
+                foreach (var r in results) Console.WriteLine(r.Id);
+                break;
+            case "folders":
+                foreach (var r in results) Console.WriteLine(r.FolderName);
+                break;
+            case "json":
+                Console.WriteLine("[");
+                for (var i = 0; i < results.Count; i++)
                 {
-                    _logger.LogError("TENDRIL_HOME environment variable is not set");
-                    return 1;
+                    var r = results[i];
+                    var comma = i < results.Count - 1 ? "," : "";
+                    Console.WriteLine($"  {{\"id\":\"{Escape(r.Id)}\",\"title\":\"{Escape(r.Title)}\",\"state\":\"{Escape(r.State)}\",\"project\":\"{Escape(r.Project)}\",\"level\":\"{Escape(r.Level)}\"}}{comma}");
                 }
-                plansDirectory = Path.Combine(home, "Plans");
-            }
-
-            if (!Directory.Exists(plansDirectory))
-            {
-                _logger.LogError("Plans directory not found: {PlansDirectory}", plansDirectory);
-                return 1;
-            }
-
-            var results = ScanPlans(plansDirectory, settings);
-
-            if (settings.Limit.HasValue && settings.Limit.Value > 0)
-                results = results.Take(settings.Limit.Value).ToList();
-
-            var format = (settings.Format ?? "table").ToLower();
-            switch (format)
-            {
-                case "ids":
-                    foreach (var r in results) Console.WriteLine(r.Id);
-                    break;
-                case "folders":
-                    foreach (var r in results) Console.WriteLine(r.FolderName);
-                    break;
-                case "json":
-                    Console.WriteLine("[");
-                    for (var i = 0; i < results.Count; i++)
-                    {
-                        var r = results[i];
-                        var comma = i < results.Count - 1 ? "," : "";
-                        Console.WriteLine($"  {{\"id\":\"{Escape(r.Id)}\",\"title\":\"{Escape(r.Title)}\",\"state\":\"{Escape(r.State)}\",\"project\":\"{Escape(r.Project)}\",\"level\":\"{Escape(r.Level)}\"}}{comma}");
-                    }
-                    Console.WriteLine("]");
-                    break;
-                default:
-                    if (results.Count == 0)
-                    {
-                        AnsiConsole.MarkupLine("[dim]No plans found.[/]");
-                        return 0;
-                    }
-                    var table = new Spectre.Console.Table();
-                    table.AddColumn("Id");
-                    table.AddColumn("Title");
-                    table.AddColumn("State");
-                    table.AddColumn("Project");
-                    table.AddColumn("Level");
-                    foreach (var r in results)
-                        table.AddRow(
-                            r.Id.EscapeMarkup(),
-                            Truncate(r.Title, 40).EscapeMarkup(),
-                            r.State.EscapeMarkup(),
-                            r.Project.EscapeMarkup(),
-                            r.Level.EscapeMarkup());
-                    AnsiConsole.Write(table);
-                    break;
-            }
-
-            return 0;
+                Console.WriteLine("]");
+                break;
+            default:
+                if (results.Count == 0)
+                {
+                    AnsiConsole.MarkupLine("[dim]No plans found.[/]");
+                    return 0;
+                }
+                var table = new Spectre.Console.Table();
+                table.AddColumn("Id");
+                table.AddColumn("Title");
+                table.AddColumn("State");
+                table.AddColumn("Project");
+                table.AddColumn("Level");
+                foreach (var r in results)
+                    table.AddRow(
+                        r.Id.EscapeMarkup(),
+                        Truncate(r.Title, 40).EscapeMarkup(),
+                        r.State.EscapeMarkup(),
+                        r.Project.EscapeMarkup(),
+                        r.Level.EscapeMarkup());
+                AnsiConsole.Write(table);
+                break;
         }
-        catch (Exception ex)
-        {
-            _logger.LogError("Failed to list plans: {Message}", ex.Message);
-            return 1;
-        }
+
+        return 0;
     }
 
     internal static List<PlanListEntry> ScanPlans(string plansDirectory, PlanListSettings settings)

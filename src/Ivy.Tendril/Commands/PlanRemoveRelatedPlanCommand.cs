@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
-using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -19,41 +18,28 @@ public class PlanRemoveRelatedPlanSettings : CommandSettings
 
 public class PlanRemoveRelatedPlanCommand : Command<PlanRemoveRelatedPlanSettings>
 {
-    private readonly ILogger<PlanRemoveRelatedPlanCommand> _logger;
     private readonly IPlanWatcherService _planWatcher;
 
-    public PlanRemoveRelatedPlanCommand(ILogger<PlanRemoveRelatedPlanCommand> logger, IPlanWatcherService planWatcher)
+    public PlanRemoveRelatedPlanCommand(IPlanWatcherService planWatcher)
     {
-        _logger = logger;
         _planWatcher = planWatcher;
     }
 
     protected override int Execute(CommandContext context, PlanRemoveRelatedPlanSettings settings, CancellationToken cancellationToken)
     {
-        try
-        {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
-            var resolvedRp = PlanCommandHelpers.ResolvePlanFolderName(settings.RelatedPlan);
+        var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
+        var plan = PlanCommandHelpers.ReadPlan(planFolder);
+        var resolvedRp = PlanCommandHelpers.ResolvePlanFolderName(settings.RelatedPlan);
 
-            var removed = plan.RelatedPlans.RemoveAll(r => r.Equals(resolvedRp, StringComparison.OrdinalIgnoreCase));
-            if (removed == 0)
-            {
-                _logger.LogError("Related plan not found: {RelatedPlan}", resolvedRp);
-                return 1;
-            }
+        var removed = plan.RelatedPlans.RemoveAll(r => r.Equals(resolvedRp, StringComparison.OrdinalIgnoreCase));
+        if (removed == 0)
+            throw new InvalidOperationException($"Related plan not found: {resolvedRp}");
 
-            plan.Updated = DateTime.UtcNow;
+        plan.Updated = DateTime.UtcNow;
 
-            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
+        PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
-            _logger.LogInformation("Removed related plan: {RelatedPlan}", resolvedRp);
-            return 0;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError("Failed to remove related plan from plan {PlanId}: {Message}", settings.PlanId, ex.Message);
-            return 1;
-        }
+        Console.WriteLine($"Removed related plan: {resolvedRp}");
+        return 0;
     }
 }
