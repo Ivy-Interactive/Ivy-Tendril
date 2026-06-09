@@ -41,7 +41,7 @@ public class IConfigServiceTests
 
         Assert.Equal("TestProject", config.GetProject("TestProject")?.Name);
         Assert.Null(config.GetProject("NonExistent"));
-        Assert.Equal(BadgeVariant.Outline, config.GetBadgeVariant("UnknownLevel"));
+        Assert.Null(config.GetLevelColor("UnknownLevel"));
         Assert.Null(config.GetProjectColor("NonExistent"));
         Assert.Equal(Colors.Blue, config.GetProjectColor("TestProject"));
     }

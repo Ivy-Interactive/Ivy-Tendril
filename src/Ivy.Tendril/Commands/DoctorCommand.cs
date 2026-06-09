@@ -464,7 +464,7 @@ public static class DoctorCommand
                 if (!File.Exists(yamlPath))
                 {
                     var folderTitle = TitleFromFolderName(Path.GetFileName(planPath));
-                    var scaffold = $"state: Draft\nproject: Auto\ntitle: {EscapeYamlString(folderTitle)}\nlevel: NiceToHave\nrepos: []\ncommits: []\nprs: []\ncreated: {DateTime.UtcNow:O}\nupdated: {DateTime.UtcNow:O}\nverifications: []\nrelatedPlans: []\ndependsOn: []\n";
+                    var scaffold = $"state: Draft\nproject: Auto\ntitle: {EscapeYamlString(folderTitle)}\nlevel: Feature\nrepos: []\ncommits: []\nprs: []\ncreated: {DateTime.UtcNow:O}\nupdated: {DateTime.UtcNow:O}\nverifications: []\nrelatedPlans: []\ndependsOn: []\n";
                     File.WriteAllText(yamlPath, scaffold);
                     repairs.Add("created missing plan.yaml");
                 }

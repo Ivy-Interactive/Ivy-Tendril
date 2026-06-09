@@ -92,7 +92,7 @@ public sealed class PlanTools : AuthenticatedToolBase
     public string CreatePlan(
         [Description("Plan title/description")] string title,
         [Description("Project name (optional)")] string? project = null,
-        [Description("Priority level: Critical, Important, NiceToHave (optional)")] string? level = null,
+        [Description("Priority level: Bug, Feature, Epic, Chore, Nitpick (optional)")] string? level = null,
         [Description("Detailed prompt/description for plan creation (optional)")] string? prompt = null)
     {
         return ExecuteAuthenticated(() =>
@@ -411,7 +411,7 @@ public sealed class PlanTools : AuthenticatedToolBase
     public string PlanCreate(
         [Description("Plan title")] string title,
         [Description("Project name (must match a configured project)")] string project,
-        [Description("Priority level: Critical, Important, NiceToHave (optional)")] string? level = null,
+        [Description("Priority level: Bug, Feature, Epic, Chore, Nitpick (optional)")] string? level = null,
         [Description("Initial prompt/description (optional)")] string? initialPrompt = null,
         [Description("Execution profile: deep or balanced (optional)")] string? executionProfile = null,
         [Description("Source URL (optional)")] string? sourceUrl = null,
@@ -436,7 +436,7 @@ public sealed class PlanTools : AuthenticatedToolBase
             {
                 State = nameof(PlanStatus.Draft),
                 Project = resolvedProject.Name,
-                Level = level ?? "NiceToHave",
+                Level = level ?? "Feature",
                 Title = title,
                 Created = DateTime.UtcNow,
                 Updated = DateTime.UtcNow,

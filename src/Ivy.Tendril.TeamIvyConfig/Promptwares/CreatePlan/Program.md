@@ -165,7 +165,7 @@ Use `tendril plan create` to allocate a plan ID, create the folder, and write `p
 ```bash
 tendril plan create "<Title>" "<TendrilProject>" \
   --plans-dir "<TendrilPlansFolder>" \
-  --level "NiceToHave" \
+  --level "Feature" \
   --initial-prompt "<cleaned task description>" \
   --execution-profile "balanced" \
   --verification "Build=Pending" \

@@ -261,9 +261,9 @@ public class BackgroundServiceActivatorTests : IAsyncLifetime
             return null;
         }
 
-        public BadgeVariant GetBadgeVariant(string level)
+        public Colors? GetLevelColor(string level)
         {
-            return BadgeVariant.Outline;
+            return null;
         }
 
         public Colors? GetProjectColor(string projectName)

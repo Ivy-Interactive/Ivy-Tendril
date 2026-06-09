@@ -17,7 +17,7 @@ public class PlanCreateSettings : CommandSettings
     [CommandArgument(1, "<project>")]
     public string Project { get; set; } = "";
 
-    [Description("Priority level: Critical, Bug, NiceToHave, Backlog, Icebox (default: NiceToHave)")]
+    [Description("Priority level: Bug, Feature, Epic, Chore, Nitpick (default: Feature)")]
     [CommandOption("--level")]
     public string? Level { get; set; }
 
@@ -102,7 +102,7 @@ public class PlanCreateCommand : Command<PlanCreateSettings>
         {
             State = nameof(PlanStatus.Draft),
             Project = resolvedProject.Name,
-            Level = settings.Level ?? "NiceToHave",
+            Level = settings.Level ?? "Feature",
             Title = settings.Title,
             Created = DateTime.UtcNow,
             Updated = DateTime.UtcNow,

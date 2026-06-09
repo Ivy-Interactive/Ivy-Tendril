@@ -184,7 +184,7 @@ internal class JobCompletionHandler
         if (job.TypedArgs is CreatePlanArgs)
         {
             var planFolder = job.TypedArgs?.PlanFolder ?? "";
-            var level = "NiceToHave";
+            var level = "Feature";
             if (Directory.Exists(planFolder))
             {
                 var plan = PlanYamlHelper.ReadPlanYaml(planFolder);
