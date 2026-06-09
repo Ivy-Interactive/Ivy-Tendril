@@ -37,7 +37,7 @@ public class ContentView(
         var args = UseArgs<ReviewAppArgs>();
         var nav = UseNavigation();
 
-        var processView = Context.UseTendrilProcessView();
+        var processView = Context.UseTendrilProcess();
 
         var githubService = UseService<IGithubService>();
         var assigneesError = UseState<string?>(null);

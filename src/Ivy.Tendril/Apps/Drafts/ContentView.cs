@@ -35,7 +35,7 @@ public class ContentView(
         var showDirtyDialog = UseState(false);
         var (runPreflight, isCheckingPreflight, preflightResult) = Context.UsePreflightCheck();
 
-        var processView = Context.UseTendrilProcessView();
+        var processView = Context.UseTendrilProcess();
 
         var (updateDialog, showUpdateDialog) = UseTrigger((isOpen) => !isOpen.Value ? null : new UpdatePlanDialog(isOpen, selectedPlan!, selectedPlanState, jobService, planService, refreshPlans));
 
@@ -197,7 +197,7 @@ public class ContentView(
         else
         {
             var tabs = Layout.Tabs(
-                // PlanMarkdownView owns its own scroll and the pinned FixedContent slot,
+                // DraftMarkdown owns its own scroll and the pinned FixedContent slot,
                 // so it is not wrapped in Cap() (whose outer scroll would also scroll the
                 // pinned element). The widget reproduces Cap()'s left inset + max-width.
                 new Tab("Plan", planTabContent),

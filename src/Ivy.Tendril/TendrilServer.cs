@@ -90,7 +90,7 @@ public static class TendrilServer
         // Eagerly register Ivy.Tendril.Widgets assembly to ensure Tendril widgets are discovered
         // when running in single-file published mode (where DLLs are not on disk)
         Ivy.Core.ExternalWidgets.ExternalWidgetRegistry.Instance.RegisterAssembly(
-            typeof(Ivy.Widgets.TendrilProcessView.TendrilProcessView).Assembly);
+            typeof(Ivy.Widgets.TendrilProcess.TendrilProcess).Assembly);
 
         var version = typeof(TendrilAppShell).Assembly.GetName().Version!;
         var versionString = version.ToString(3);

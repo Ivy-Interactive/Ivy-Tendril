@@ -2,15 +2,15 @@ using Ivy;
 using Ivy.Core;
 using Ivy.Core.ExternalWidgets;
 
-namespace Ivy.Widgets.AgentOutputView;
+namespace Ivy.Widgets.AgentOutput;
 
 [ExternalWidget(
     "Widgets/frontend/dist/ivy-tendril-widgets.js",
     StylePath = "Widgets/frontend/dist/ivy-tendril-widgets.css",
-    ExportName = "AgentOutputView",
+    ExportName = "AgentOutput",
     GlobalName = "IvyTendrilWidgets"
 )]
-public record AgentOutputView : WidgetBase<AgentOutputView>
+public record AgentOutput : WidgetBase<AgentOutput>
 {
     /// <summary>Pre-buffered newline-delimited EventWire JSON events.</summary>
     [Prop] public string? JsonStream { get; init; }
@@ -33,38 +33,38 @@ public record AgentOutputView : WidgetBase<AgentOutputView>
     /// <summary>Override the auto-derived status label text. Null = derive from latest event.</summary>
     [Prop] public string? StatusLabelOverride { get; init; }
 
-    [Event] public Func<Event<AgentOutputView, string>, ValueTask>? OnComplete { get; init; }
+    [Event] public Func<Event<AgentOutput, string>, ValueTask>? OnComplete { get; init; }
 }
 
-public static class AgentOutputViewExtensions
+public static class AgentOutputExtensions
 {
-    public static AgentOutputView JsonStream(this AgentOutputView w, string? jsonStream) =>
+    public static AgentOutput JsonStream(this AgentOutput w, string? jsonStream) =>
         w with { JsonStream = jsonStream };
 
-    public static AgentOutputView Stream(this AgentOutputView w, IWriteStream<string> stream) =>
+    public static AgentOutput Stream(this AgentOutput w, IWriteStream<string> stream) =>
         w with { Stream = stream };
 
-    public static AgentOutputView AutoScroll(this AgentOutputView w, bool autoScroll = true) =>
+    public static AgentOutput AutoScroll(this AgentOutput w, bool autoScroll = true) =>
         w with { AutoScroll = autoScroll };
 
-    public static AgentOutputView ShowThinking(this AgentOutputView w, bool showThinking = true) =>
+    public static AgentOutput ShowThinking(this AgentOutput w, bool showThinking = true) =>
         w with { ShowThinking = showThinking };
 
-    public static AgentOutputView ShowSystemEvents(this AgentOutputView w, bool showSystemEvents = true) =>
+    public static AgentOutput ShowSystemEvents(this AgentOutput w, bool showSystemEvents = true) =>
         w with { ShowSystemEvents = showSystemEvents };
 
-    public static AgentOutputView ShowStatusLabel(this AgentOutputView w, bool showStatusLabel = true) =>
+    public static AgentOutput ShowStatusLabel(this AgentOutput w, bool showStatusLabel = true) =>
         w with { ShowStatusLabel = showStatusLabel };
 
-    public static AgentOutputView StatusLabel(this AgentOutputView w, string? statusLabel) =>
+    public static AgentOutput StatusLabel(this AgentOutput w, string? statusLabel) =>
         w with { StatusLabelOverride = statusLabel };
 
-    public static AgentOutputView OnComplete(
-        this AgentOutputView w,
-        Func<Event<AgentOutputView, string>, ValueTask> handler
+    public static AgentOutput OnComplete(
+        this AgentOutput w,
+        Func<Event<AgentOutput, string>, ValueTask> handler
     ) => w with { OnComplete = handler };
 
-    public static AgentOutputView OnComplete(this AgentOutputView w, Action<string> handler) =>
+    public static AgentOutput OnComplete(this AgentOutput w, Action<string> handler) =>
         w with
         {
             OnComplete = e =>

@@ -2,7 +2,7 @@ using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
-using Ivy.Widgets.PlanMarkdownView;
+using Ivy.Widgets.DraftMarkdown;
 
 namespace Ivy.Tendril.Apps.Drafts;
 
@@ -57,7 +57,7 @@ public class PlanTabView(
                 }
             });
 
-            planLayout |= new PlanMarkdownView(annotatedContent)
+            planLayout |= new DraftMarkdown(annotatedContent)
                 .Article()
                 .DangerouslyAllowLocalFiles()
                 .Height(Size.Full())

@@ -1,13 +1,13 @@
-import { TendrilProcessView } from "./TendrilProcessView";
-import { AgentOutputView } from "./AgentOutputView";
-import { PlanMarkdownView } from "./PlanMarkdownView";
+import { TendrilProcess } from "./TendrilProcess";
+import { AgentOutput } from "./AgentOutput";
+import { DraftMarkdown } from "./DraftMarkdown";
 
 if (typeof window !== "undefined") {
   (window as unknown as Record<string, unknown>).IvyTendrilWidgets = {
-    TendrilProcessView,
-    AgentOutputView,
-    PlanMarkdownView,
+    TendrilProcess,
+    AgentOutput,
+    DraftMarkdown,
   };
 }
 
-export { TendrilProcessView, AgentOutputView, PlanMarkdownView };
+export { TendrilProcess, AgentOutput, DraftMarkdown };

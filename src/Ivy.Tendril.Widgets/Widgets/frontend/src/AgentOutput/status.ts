@@ -1,4 +1,4 @@
-import type { PresentationEvent } from "./agent-output-types";
+import type { PresentationEvent } from "./types";
 
 function basename(p: string): string {
   const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));

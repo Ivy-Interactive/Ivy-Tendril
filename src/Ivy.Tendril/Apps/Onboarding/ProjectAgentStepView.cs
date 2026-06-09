@@ -2,7 +2,7 @@ using Ivy.Tendril.Apps.Onboarding.Helpers;
 using Ivy.Tendril.Apps.Onboarding.Models;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
-using Ivy.Widgets.AgentOutputView;
+using Ivy.Widgets.AgentOutput;
 
 namespace Ivy.Tendril.Apps.Onboarding;
 
@@ -180,7 +180,7 @@ public class ProjectAgentStepView(
                    : null!)
                | (session.HasOutput.Value
                    ? (object)new Box(
-                        new AgentOutputView()
+                        new AgentOutput()
                             .Stream(session.Stream)
                             .AutoScroll(true)
                             .ShowStatusLabel(true)

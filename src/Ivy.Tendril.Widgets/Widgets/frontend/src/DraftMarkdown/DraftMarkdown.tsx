@@ -2,12 +2,12 @@ import React, { useCallback } from "react";
 import Markdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
-import "./plan-markdown-view.css";
-import { getHeight, getWidth } from "./styles";
+import "./draft-markdown.css";
+import { getHeight, getWidth } from "../styles";
 
 type IvyEventHandler = (eventName: string, widgetId: string, args: unknown[]) => void;
 
-interface PlanMarkdownViewProps {
+interface DraftMarkdownProps {
   id: string;
   width?: string;
   height?: string;
@@ -24,7 +24,7 @@ interface PlanMarkdownViewProps {
 
 const EMPTY_EVENTS: string[] = [];
 
-export const PlanMarkdownView: React.FC<PlanMarkdownViewProps> = ({
+export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
   id,
   width,
   height,
