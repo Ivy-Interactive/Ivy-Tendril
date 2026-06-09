@@ -198,6 +198,12 @@ public class PlanReaderService(
         return ParsePlanFolder(folderPath);
     }
 
+    public PlanFile? GetPlanByFolderFromDisk(string folderPath)
+    {
+        if (!Directory.Exists(folderPath)) return null;
+        return ParsePlanFolder(folderPath);
+    }
+
     /// <summary>
     ///     Retrieves all plans that are in the <see cref="PlanStatus.Icebox" /> state.
     /// </summary>
