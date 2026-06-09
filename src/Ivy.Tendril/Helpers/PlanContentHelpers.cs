@@ -168,7 +168,6 @@ public static class PlanContentHelpers
                 {
                     commitSheetContent |= new DiffView()
                         .Diff(fileDiff.Diff)
-                        .Split()
                         .Collapsible()
                         .DefaultCollapsed();
                 }
@@ -194,7 +193,7 @@ public static class PlanContentHelpers
                 if (!string.IsNullOrWhiteSpace(data.Diff))
                 {
                     commitSheetContent |= Text.Block("Diff").Bold();
-                    commitSheetContent |= new DiffView().Diff(data.Diff).Split();
+                    commitSheetContent |= new DiffView().Diff(data.Diff);
                 }
             }
 
