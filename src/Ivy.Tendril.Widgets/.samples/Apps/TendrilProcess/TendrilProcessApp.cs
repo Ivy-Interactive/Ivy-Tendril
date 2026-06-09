@@ -1,8 +1,10 @@
 using Ivy;
 using Ivy.Widgets.TendrilProcess;
 
+namespace Ivy.Tendril.Widgets.Samples;
+
 [App(title: "Process View", icon: Icons.Activity, group: ["TendrilProcess"])]
-class TendrilProcessDemo : ViewBase
+class TendrilProcessApp : ViewBase
 {
     public record ProcessViewModel(
         int DraftCount = 5,
