@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -16,6 +17,11 @@ public class VerificationAddSettings : CommandSettings
     [CommandOption("-p|--prompt")]
     [Description("Verification prompt (reads from stdin if omitted)")]
     public string? Prompt { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.RequireNonEmpty(Name, "name");
+    }
 }
 
 public class VerificationRemoveSettings : CommandSettings
@@ -23,6 +29,11 @@ public class VerificationRemoveSettings : CommandSettings
     [Description("Verification name")]
     [CommandArgument(0, "<name>")]
     public string Name { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.RequireNonEmpty(Name, "name");
+    }
 }
 
 public class VerificationGetSettings : CommandSettings
@@ -30,10 +41,17 @@ public class VerificationGetSettings : CommandSettings
     [Description("Verification name")]
     [CommandArgument(0, "<name>")]
     public string Name { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.RequireNonEmpty(Name, "name");
+    }
 }
 
 public class VerificationSetSettings : CommandSettings
 {
+    private static readonly string[] ValidFields = ["name", "prompt"];
+
     [Description("Verification name")]
     [CommandArgument(0, "<name>")]
     public string Name { get; set; } = "";
@@ -45,6 +63,15 @@ public class VerificationSetSettings : CommandSettings
     [Description("Field value")]
     [CommandArgument(2, "<value>")]
     public string Value { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(Name, "name"),
+            CliValidation.ValidateField(Field, ValidFields),
+            CliValidation.RequireNonEmpty(Value, "value")
+        );
+    }
 }
 
 public class VerificationListCommand : Command<VerificationListSettings>

@@ -13,6 +13,14 @@ public class PromptwareWriteMemorySettings : CommandSettings
     [Description("Filename to write (e.g., pattern-name.md)")]
     [CommandArgument(1, "<filename>")]
     public string Filename { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(Name, "name"),
+            CliValidation.RequireNonEmpty(Filename, "filename")
+        );
+    }
 }
 
 public class PromptwareWriteMemoryCommand : Command<PromptwareWriteMemorySettings>

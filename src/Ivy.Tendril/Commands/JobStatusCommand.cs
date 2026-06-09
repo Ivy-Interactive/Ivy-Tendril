@@ -23,6 +23,11 @@ public class JobStatusSettings : CommandSettings
     [Description("Plan title to report")]
     [CommandOption("--plan-title")]
     public string? PlanTitle { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.RequireNonEmpty(JobId, "job-id");
+    }
 }
 
 public class JobStatusCommand : Command<JobStatusSettings>

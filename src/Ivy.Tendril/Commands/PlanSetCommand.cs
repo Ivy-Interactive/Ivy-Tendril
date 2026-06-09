@@ -8,6 +8,9 @@ namespace Ivy.Tendril.Commands;
 
 public class PlanSetSettings : CommandSettings
 {
+    private static readonly string[] ValidFields =
+        ["state", "project", "level", "title", "created", "updated", "executionprofile", "initialprompt", "sourceurl", "priority"];
+
     [Description("Plan ID (e.g., 03430)")]
     [CommandArgument(0, "<plan-id>")]
     public string PlanId { get; set; } = "";
@@ -19,6 +22,25 @@ public class PlanSetSettings : CommandSettings
     [Description("Field value")]
     [CommandArgument(2, "<value>")]
     public string Value { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        var required = CliValidation.Combine(
+            CliValidation.RequireNonEmpty(PlanId, "plan-id"),
+            CliValidation.ValidateField(Field, ValidFields));
+        if (!required.Successful)
+            return required;
+
+        var field = Field.ToLower();
+        if (field == "state")
+            return CliValidation.ValidateOneOf(Value, "<value> for field 'state'", CliValidation.ValidStates);
+        if (field == "level")
+            return CliValidation.ValidateOneOf(Value, "<value> for field 'level'", CliValidation.ValidLevels);
+        if (field == "executionprofile")
+            return CliValidation.ValidateOneOf(Value, "<value> for field 'executionProfile'", CliValidation.ValidExecutionProfiles);
+
+        return Spectre.Console.ValidationResult.Success();
+    }
 }
 
 public class PlanSetCommand : Command<PlanSetSettings>
@@ -70,7 +92,7 @@ public class PlanSetCommand : Command<PlanSetSettings>
                 plan.Priority = priority;
                 break;
             default:
-                throw new ArgumentException($"Unknown field: {settings.Field}");
+                throw new ArgumentException($"Unknown field '{settings.Field}'. Valid fields: state, project, level, title, created, updated, executionProfile, initialPrompt, sourceUrl, priority");
         }
 
         if (settings.Field.ToLower() != "updated")

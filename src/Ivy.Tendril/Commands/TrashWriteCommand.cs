@@ -9,6 +9,11 @@ public class TrashWriteSettings : CommandSettings
     [Description("Filename to write (e.g., DuplicateTitle.md)")]
     [CommandArgument(0, "<filename>")]
     public string Filename { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.RequireNonEmpty(Filename, "filename");
+    }
 }
 
 public class TrashWriteCommand : Command<TrashWriteSettings>

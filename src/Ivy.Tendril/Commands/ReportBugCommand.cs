@@ -27,15 +27,20 @@ public class ReportBugSettings : CommandSettings
     [CommandOption("--dry-run")]
     [Description("Show what would be sent without uploading")]
     public bool DryRun { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        if (string.IsNullOrEmpty(PlanId) && string.IsNullOrEmpty(JobId))
+            return Spectre.Console.ValidationResult.Error(
+                "Either --plan or --job must be specified.");
+        return Spectre.Console.ValidationResult.Success();
+    }
 }
 
 public class ReportBugCommand : Command<ReportBugSettings>
 {
     protected override int Execute(CommandContext context, ReportBugSettings settings, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrEmpty(settings.PlanId) && string.IsNullOrEmpty(settings.JobId))
-            throw new ArgumentException("Either --plan or --job must be specified.");
-
         var configService = new ConfigService();
         var service = new BugReportService(configService);
 

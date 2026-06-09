@@ -16,6 +16,11 @@ public class PlanCleanupSettings : CommandSettings
     [CommandOption("--force")]
     [Description("Skip terminal-state and grace-period checks")]
     public bool Force { get; init; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.RequireNonEmpty(PlanId, "plan-id");
+    }
 }
 
 public class PlanCleanupCommand : Command<PlanCleanupSettings>

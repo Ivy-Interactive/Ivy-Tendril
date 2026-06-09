@@ -16,6 +16,14 @@ public class PlanVerificationListSettings : CommandSettings
     [CommandOption("--status")]
     [Description("Filter by status (Pending, Pass, Fail, Skipped)")]
     public string? Status { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(PlanId, "plan-id"),
+            CliValidation.ValidateOneOf(Status, "--status", CliValidation.ValidVerificationStatuses)
+        );
+    }
 }
 
 public class PlanVerificationAddSettings : CommandSettings
@@ -29,8 +37,17 @@ public class PlanVerificationAddSettings : CommandSettings
     public string Name { get; set; } = "";
 
     [CommandOption("--status")]
-    [Description("Initial status (default: Pending)")]
+    [Description("Initial status (default: Pending). Valid values: Pending, Pass, Fail, Skipped")]
     public string? Status { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(PlanId, "plan-id"),
+            CliValidation.RequireNonEmpty(Name, "name"),
+            CliValidation.ValidateOneOf(Status, "--status", CliValidation.ValidVerificationStatuses)
+        );
+    }
 }
 
 public class PlanVerificationRemoveSettings : CommandSettings
@@ -42,6 +59,14 @@ public class PlanVerificationRemoveSettings : CommandSettings
     [Description("Verification name")]
     [CommandArgument(1, "<name>")]
     public string Name { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(PlanId, "plan-id"),
+            CliValidation.RequireNonEmpty(Name, "name")
+        );
+    }
 }
 
 public class PlanVerificationListCommand : Command<PlanVerificationListSettings>

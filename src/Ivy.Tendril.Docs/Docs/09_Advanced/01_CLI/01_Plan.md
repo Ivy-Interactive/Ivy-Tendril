@@ -32,20 +32,18 @@ Create, read, update, and validate plans from the terminal. All subcommands reso
 #### plan create
 
 ```terminal
->tendril plan create <title> [options]
+>tendril plan create <title> <project> [options]
 ```
 
-Creates a new plan folder and `plan.yaml` scaffold with state `Draft`. The plan ID is auto-allocated from the `.counter` file.
+Creates a new plan folder and `plan.yaml` scaffold with state `Draft`. The plan ID is auto-allocated from the `.counter` file. Repos are derived from the project configuration.
 
 | Option | Description |
 |--------|-------------|
-| `--project <name>` | Project name (default: Auto) |
 | `--level <level>` | Priority level (default: NiceToHave) |
 | `--initial-prompt <text>` | Initial prompt text |
 | `--source-url <url>` | Source URL (GitHub issue or PR) |
 | `--execution-profile <profile>` | Execution profile (`deep` or `balanced`) |
 | `--priority <number>` | Priority number (default: 0) |
-| `--repo <path>` | Repository path (repeatable) |
 | `--verification <Name=Status>` | Verification entry (repeatable) |
 | `--related-plan <folder>` | Related plan folder name (repeatable) |
 | `--depends-on <folder>` | Dependency plan folder name (repeatable) |

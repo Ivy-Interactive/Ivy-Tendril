@@ -1,7 +1,7 @@
 using System.ComponentModel;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Helpers;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -19,6 +19,16 @@ public class PlanSetVerificationSettings : CommandSettings
     [Description("Verification status (Pending, Pass, Fail, Skipped)")]
     [CommandArgument(2, "<status>")]
     public string Status { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(PlanId, "plan-id"),
+            CliValidation.RequireNonEmpty(Name, "name"),
+            CliValidation.RequireNonEmpty(Status, "status"),
+            CliValidation.ValidateOneOf(Status, "<status>", CliValidation.ValidVerificationStatuses)
+        );
+    }
 }
 
 public class PlanSetVerificationCommand : Command<PlanSetVerificationSettings>

@@ -46,7 +46,7 @@ The **Projects** section of your firmware lists all available projects with thei
 **If `TendrilProject: Auto`**:
 - Analyze the task description to infer the correct project from the **Projects** section
 - Match based on keywords, repo paths, or component names in the description
-- If no project matches, set `project: Auto` in plan.yaml and leave `repos: []` empty
+- **If no project matches**: Write trash file via `tendril trash write <SafeTitle>.md <<'EOF'...EOF` explaining that the project could not be determined from the task description, list the available project names, then exit without creating a plan
 - Use the matched project's context to scope your research
 
 ### 2. Plan ID
@@ -174,20 +174,17 @@ Create the plan using CLI commands according to the plan structure in the **Refe
 Use `tendril plan create` to allocate a plan ID, create the folder, and write `plan.yaml` in a single command:
 
 ```bash
-tendril plan create "<Title>" \
+tendril plan create "<Title>" "<Project>" \
   --plans-dir "<TendrilPlansFolder>" \
-  --project "<TendrilProject>" \
   --level "NiceToHave" \
   --initial-prompt "<cleaned task description>" \
   --execution-profile "balanced" \
-  --repo "<repo-path-1>" \
-  --repo "<repo-path-2>" \
   --verification "Build=Pending" \
   --verification "Test=Pending" \
   --job-id TendrilJobId
 ```
 
-**IMPORTANT:** Always pass `--plans-dir` with the `TendrilPlansFolder` firmware value. This ensures the plan is created in the correct directory regardless of environment variable inheritance.
+**IMPORTANT:** Always pass `--plans-dir` with the `TendrilPlansFolder` firmware value. This ensures the plan is created in the correct directory regardless of environment variable inheritance. The `<Project>` must be the exact project name from the **Projects** section — repos are derived automatically from the project configuration.
 
 The command outputs:
 ```

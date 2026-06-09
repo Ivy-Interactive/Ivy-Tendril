@@ -12,9 +12,16 @@ public class PlanAddPrSettings : CommandSettings
     [CommandArgument(0, "<plan-id>")]
     public string PlanId { get; set; } = "";
 
-    [Description("PR URL")]
+    [Description("PR URL (e.g., https://github.com/org/repo/pull/123)")]
     [CommandArgument(1, "<pr-url>")]
     public string PrUrl { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(PlanId, "plan-id"),
+            CliValidation.RequireNonEmpty(PrUrl, "pr-url"));
+    }
 }
 
 public class PlanAddPrCommand : Command<PlanAddPrSettings>

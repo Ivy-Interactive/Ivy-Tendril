@@ -1,3 +1,4 @@
+using Ivy.Tendril.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -16,6 +17,7 @@ public class TendrilMcpServer
 
             // Register authentication service
             builder.Services.AddSingleton<McpAuthenticationService>();
+            builder.Services.AddSingleton<IConfigService>(new ConfigService());
 
             builder.Services
                 .AddMcpServer(options =>
@@ -46,7 +48,7 @@ public class TendrilMcpServer
         catch (Exception ex)
         {
             // Logger unavailable when host build fails; use stderr fallback
-            Console.Error.WriteLine($"MCP server error: {ex}");
+            await Console.Error.WriteLineAsync($"MCP server error: {ex}");
             return 1;
         }
     }

@@ -88,6 +88,18 @@ public class JobStartSettings : CommandSettings
     [Description("Create as draft PR")]
     [CommandOption("--draft")]
     public bool Draft { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        var result = CliValidation.RequireNonEmpty(JobType, "job-type");
+        if (!result.Successful) return result;
+
+        if (!Constants.JobTypes.BuiltIn.Contains(JobType, StringComparer.OrdinalIgnoreCase))
+            return Spectre.Console.ValidationResult.Error(
+                $"Unknown job type '{JobType}'. Valid types: {string.Join(", ", Constants.JobTypes.BuiltIn)}");
+
+        return Spectre.Console.ValidationResult.Success();
+    }
 }
 
 public class JobStartCommand : Command<JobStartSettings>

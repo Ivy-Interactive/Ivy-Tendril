@@ -13,6 +13,14 @@ public class PromptwareReadMemorySettings : CommandSettings
     [Description("Filename to read (e.g., cli-quirks.md)")]
     [CommandArgument(1, "<filename>")]
     public string Filename { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(Name, "name"),
+            CliValidation.RequireNonEmpty(Filename, "filename")
+        );
+    }
 }
 
 public class PromptwareReadMemoryCommand : Command<PromptwareReadMemorySettings>

@@ -13,6 +13,11 @@ public class PlanWriteRevisionSettings : CommandSettings
     [Description("Read content from file instead of STDIN")]
     [CommandOption("--file|-f")]
     public string? FilePath { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.RequireNonEmpty(PlanId, "plan-id");
+    }
 }
 
 public class PlanWriteRevisionCommand : Command<PlanWriteRevisionSettings>

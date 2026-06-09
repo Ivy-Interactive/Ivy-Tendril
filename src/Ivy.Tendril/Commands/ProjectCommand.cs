@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -22,6 +23,11 @@ public class ProjectAddSettings : CommandSettings
     [CommandOption("--context")]
     [Description("Project context/prompt")]
     public string? Context { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.RequireNonEmpty(Name, "name");
+    }
 }
 
 public class ProjectGetSettings : CommandSettings
@@ -29,6 +35,11 @@ public class ProjectGetSettings : CommandSettings
     [Description("Project name")]
     [CommandArgument(0, "<name>")]
     public string Name { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.RequireNonEmpty(Name, "name");
+    }
 }
 
 public class ProjectRemoveSettings : CommandSettings
@@ -36,10 +47,17 @@ public class ProjectRemoveSettings : CommandSettings
     [Description("Project name")]
     [CommandArgument(0, "<name>")]
     public string Name { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.RequireNonEmpty(Name, "name");
+    }
 }
 
 public class ProjectSetSettings : CommandSettings
 {
+    private static readonly string[] ValidFields = ["name", "color", "context"];
+
     [Description("Project name")]
     [CommandArgument(0, "<name>")]
     public string Name { get; set; } = "";
@@ -51,6 +69,14 @@ public class ProjectSetSettings : CommandSettings
     [Description("Field value")]
     [CommandArgument(2, "<value>")]
     public string Value { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(Name, "name"),
+            CliValidation.ValidateField(Field, ValidFields)
+        );
+    }
 }
 
 public class ProjectAddRepoSettings : CommandSettings
@@ -64,12 +90,21 @@ public class ProjectAddRepoSettings : CommandSettings
     public string RepoPath { get; set; } = "";
 
     [CommandOption("--pr-rule")]
-    [Description("PR rule (default, yolo)")]
+    [Description("PR rule: default, yolo")]
     public string? PrRule { get; set; }
 
     [CommandOption("--base-branch")]
     [Description("Base branch name")]
     public string? BaseBranch { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(RepoPath, "repo-path"),
+            CliValidation.ValidateOneOf(PrRule, "--pr-rule", CliValidation.ValidPrRules)
+        );
+    }
 }
 
 public class ProjectRemoveRepoSettings : CommandSettings
@@ -81,6 +116,13 @@ public class ProjectRemoveRepoSettings : CommandSettings
     [Description("Repository path")]
     [CommandArgument(1, "<repo-path>")]
     public string RepoPath { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(RepoPath, "repo-path"));
+    }
 }
 
 public class ProjectAddVerificationSettings : CommandSettings
@@ -100,6 +142,13 @@ public class ProjectAddVerificationSettings : CommandSettings
     [CommandOption("--after")]
     [Description("Place after this verification (default: append to end)")]
     public string? After { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(VerificationName, "verification-name"));
+    }
 }
 
 public class ProjectRemoveVerificationSettings : CommandSettings
@@ -111,6 +160,13 @@ public class ProjectRemoveVerificationSettings : CommandSettings
     [Description("Verification name")]
     [CommandArgument(1, "<verification-name>")]
     public string VerificationName { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(VerificationName, "verification-name"));
+    }
 }
 
 public class ProjectMoveVerificationSettings : CommandSettings
@@ -134,6 +190,13 @@ public class ProjectMoveVerificationSettings : CommandSettings
     [CommandOption("--position")]
     [Description("Place at this zero-based index position")]
     public int? Position { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(VerificationName, "verification-name"));
+    }
 }
 
 public class ProjectAddBuildDepSettings : CommandSettings
@@ -145,6 +208,13 @@ public class ProjectAddBuildDepSettings : CommandSettings
     [Description("Build dependency")]
     [CommandArgument(1, "<dependency>")]
     public string Dependency { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(Dependency, "dependency"));
+    }
 }
 
 public class ProjectRemoveBuildDepSettings : CommandSettings
@@ -156,6 +226,13 @@ public class ProjectRemoveBuildDepSettings : CommandSettings
     [Description("Build dependency")]
     [CommandArgument(1, "<dependency>")]
     public string Dependency { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(Dependency, "dependency"));
+    }
 }
 
 public class ProjectAddReviewActionSettings : CommandSettings
@@ -175,6 +252,13 @@ public class ProjectAddReviewActionSettings : CommandSettings
     [CommandOption("--condition")]
     [Description("Condition expression (e.g. Test-Path \"...\")")]
     public string? Condition { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(Name, "name"));
+    }
 }
 
 public class ProjectRemoveReviewActionSettings : CommandSettings
@@ -186,6 +270,13 @@ public class ProjectRemoveReviewActionSettings : CommandSettings
     [Description("Review action name")]
     [CommandArgument(1, "<name>")]
     public string Name { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(Name, "name"));
+    }
 }
 
 // --- Commands ---
