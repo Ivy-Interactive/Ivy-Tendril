@@ -1564,7 +1564,7 @@ maxConcurrentJobs: 10
         // registered at startup without requiring a redeploy after onboarding.
         var emptyDir = Path.Combine(Path.GetTempPath(), $"tendril-test-no-config-{Guid.NewGuid()}");
         Directory.CreateDirectory(emptyDir);
-        
+
         var prevHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         var prevPassword = Environment.GetEnvironmentVariable("TENDRIL_AUTH_PASSWORD");
         var prevHashSecret = Environment.GetEnvironmentVariable("TENDRIL_AUTH_HASH_SECRET");
