@@ -1,7 +1,7 @@
 using Ivy;
 using Ivy.Widgets.AgentOutput;
 
-namespace Ivy.Tendril.Widgets.Samples;
+namespace WidgetSamples;
 
 [App(title: "Error Case", icon: Icons.CircleX, group: ["AgentOutput"])]
 class ErrorApp : ViewBase

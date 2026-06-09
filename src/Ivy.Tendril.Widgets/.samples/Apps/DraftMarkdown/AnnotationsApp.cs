@@ -3,7 +3,7 @@ using System.Text.Json;
 using Ivy;
 using Ivy.Widgets.DraftMarkdown;
 
-namespace Ivy.Tendril.Widgets.Samples;
+namespace WidgetSamples;
 
 [App(title: "Annotations", icon: Icons.Highlighter, group: ["DraftMarkdown"])]
 class AnnotationsApp : ViewBase

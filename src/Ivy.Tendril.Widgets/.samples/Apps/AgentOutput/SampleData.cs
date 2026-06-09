@@ -1,4 +1,4 @@
-namespace Ivy.Tendril.Widgets.Samples;
+namespace WidgetSamples;
 
 static class SampleData
 {

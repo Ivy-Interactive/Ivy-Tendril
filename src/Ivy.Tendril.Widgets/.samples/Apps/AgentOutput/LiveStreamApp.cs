@@ -1,7 +1,7 @@
 using Ivy;
 using Ivy.Widgets.AgentOutput;
 
-namespace Ivy.Tendril.Widgets.Samples;
+namespace WidgetSamples;
 
 [App(title: "Live Stream", icon: Icons.Radio, group: ["AgentOutput"])]
 class LiveStreamApp : ViewBase
