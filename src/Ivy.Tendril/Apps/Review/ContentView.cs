@@ -253,7 +253,7 @@ public class ContentView(
     {
         // Title area (left): plain title on desktop, mobile picker on small screens.
         // Grows (minWidth:0) so the title text can wrap onto multiple lines.
-        var titleArea = Layout.Horizontal().Wrap().Gap(2).AlignContent(Align.Left).Width(Size.Grow())
+        var titleArea = Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
                         | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold())
                             .BorderThickness(0).Padding(0)
                             .HideOn(Breakpoint.Mobile, Breakpoint.Tablet)
@@ -266,13 +266,13 @@ public class ContentView(
                             .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
         if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
-            titleArea |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
-                .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
+            titleArea |= (Layout.Horizontal().Wrap().Gap(2).AlignContent(Align.Left)
+                | new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
+                    .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl)));
 
-        // Controls group (right): plan count + primary action. Stays together and wraps to a new
-        // line right-aligned (grow spacer) when the title is too long to share the row.
-        var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right).Width(Size.Grow())
-                       | new Spacer().Width(Size.Grow())
+        // Controls group (right): plan count + primary action. Content-sized and pinned to the
+        // top-right, so when the title wraps they stay on the first line instead of dropping down.
+        var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
                        | Text.Rich()
                            .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
                            .Muted("plans", word: true);
@@ -315,7 +315,8 @@ public class ContentView(
             }).ShortcutKey("m");
         }
 
-        var header = Layout.Horizontal().Width(Size.Full()).Wrap().Gap(2).AlignContent(Align.Left)
+        // Single non-wrapping row: title (grows + wraps) on the left, controls pinned top-right.
+        var header = Layout.Horizontal().Width(Size.Full()).Gap(2).AlignContent(Align.TopLeft)
                      | titleArea
                      | controls;
 

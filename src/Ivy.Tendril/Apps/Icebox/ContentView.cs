@@ -44,7 +44,8 @@ public class ContentView(
 
         var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan.FolderName);
 
-        var titleArea = Layout.Horizontal().Wrap().Gap(2).AlignContent(Align.Left).Width(Size.Grow())
+        // Title area (left): grows so the title text can wrap onto multiple lines.
+        var titleArea = Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
                         | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold())
                             .BorderThickness(0).Padding(0)
                             .HideOn(Breakpoint.Mobile, Breakpoint.Tablet)
@@ -56,13 +57,14 @@ public class ContentView(
                                 p => selectedPlanState.Set(p))
                             .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
-        var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right).Width(Size.Grow())
-                       | new Spacer().Width(Size.Grow())
+        // Controls (right): plan count, content-sized and pinned to the top-right.
+        var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
                        | Text.Rich()
                            .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
                            .Muted("plans", word: true);
 
-        var header = Layout.Horizontal().Width(Size.Full()).Wrap().Gap(2).AlignContent(Align.Left)
+        // Single non-wrapping row: title (grows + wraps) on the left, count pinned top-right.
+        var header = Layout.Horizontal().Width(Size.Full()).Gap(2).AlignContent(Align.TopLeft)
                      | titleArea
                      | controls;
 

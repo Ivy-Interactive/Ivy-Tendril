@@ -73,8 +73,8 @@ public class ContentView(
         var currentIndex = allRecommendations.FindIndex(r => r.PlanId == selectedRecommendation.PlanId && r.Title == selectedRecommendation.Title);
 
         // Title area (left): plain title on desktop, mobile picker on small screens, plus the
-        // project badge. Grows (minWidth:0) so the title text can wrap onto multiple lines.
-        var titleArea = Layout.Horizontal().Wrap().Gap(2).AlignContent(Align.Left).Width(Size.Grow())
+        // project badge below it. Grows (minWidth:0) so the title text can wrap onto multiple lines.
+        var titleArea = Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
                         | new Box(Text.Block($"#{selectedRecommendation.PlanId} {selectedRecommendation.Title}").Bold())
                             .BorderThickness(0).Padding(0)
                             .HideOn(Breakpoint.Mobile, Breakpoint.Tablet)
@@ -85,13 +85,13 @@ public class ContentView(
                                 r => r.PlanId == selectedRecommendation.PlanId && r.Title == selectedRecommendation.Title,
                                 r => selectedState.Set(r))
                             .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet)
-                        | new Badge(selectedRecommendation.Project).Variant(BadgeVariant.Outline)
-                            .WithProjectColor(config, selectedRecommendation.Project);
+                        | (Layout.Horizontal().Wrap().Gap(2).AlignContent(Align.Left)
+                            | new Badge(selectedRecommendation.Project).Variant(BadgeVariant.Outline)
+                                .WithProjectColor(config, selectedRecommendation.Project));
 
-        // Controls group (right): count + Decline/Accept. Stays together and wraps to a new line
-        // right-aligned (grow spacer) when the title is too long to share the row.
-        var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right).Width(Size.Grow())
-                       | new Spacer().Width(Size.Grow())
+        // Controls group (right): count + Decline/Accept. Content-sized and pinned to the top-right,
+        // so when the title wraps they stay on the first line instead of dropping down.
+        var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
                        | Text.Rich()
                            .Bold($"{(currentIndex == -1 ? "?" : (currentIndex + 1).ToString())}/{allRecommendations.Count}", word: true)
                            .Muted("recommendations", word: true)
@@ -110,8 +110,8 @@ public class ContentView(
                            GoToNext();
                        });
 
-        // Header with Accept action at right edge
-        var header = Layout.Horizontal().Width(Size.Full()).Wrap().Gap(2).AlignContent(Align.Left)
+        // Single non-wrapping row: title (grows + wraps) on the left, controls pinned top-right.
+        var header = Layout.Horizontal().Width(Size.Full()).Gap(2).AlignContent(Align.TopLeft)
                      | titleArea
                      | controls;
 
