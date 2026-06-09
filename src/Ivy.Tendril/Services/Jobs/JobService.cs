@@ -136,6 +136,9 @@ public class JobService : IJobService
         _completionHandler.HandleCompletion(
             job, _jobs, PersistJob, RaiseNotification, RaiseJobsPropertyChanged, StartJobSkipDepCheck);
 
+        if (job.Status == JobStatus.Completed)
+            job.StatusMessage = null;
+
         job.DisposeResources(_logger);
         PersistJob(job);
         EvictStaleJobs();
@@ -162,10 +165,6 @@ public class JobService : IJobService
                 {
                     success = false;
                     job.StatusMessage = errorMessage;
-                }
-                else
-                {
-                    job.StatusMessage = null;
                 }
             }
             else

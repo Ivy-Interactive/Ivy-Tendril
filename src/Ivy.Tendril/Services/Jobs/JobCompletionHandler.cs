@@ -471,7 +471,9 @@ internal class JobCompletionHandler
         job.EnqueueSystemOutput(
             "[Tendril] WARNING: CreatePlan completed but no plan folder or trash entry was found.");
         job.Status = JobStatus.Failed;
-        job.StatusMessage = JobFailureAnalyzer.TryReadFailureArtifact(job.OutputLines.ToList()) ?? "No plan created";
+        job.StatusMessage = JobFailureAnalyzer.TryReadFailureArtifact(job.OutputLines.ToList())
+            ?? job.StatusMessage
+            ?? "No plan created";
     }
 
     private static bool TryVerifyByReportedId(JobItem job, string plansDir)

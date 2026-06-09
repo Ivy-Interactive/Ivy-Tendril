@@ -46,7 +46,7 @@ The **Projects** section of your firmware lists all available projects with thei
 **If `TendrilProject: Auto`**:
 - Analyze the task description to infer the correct project from the **Projects** section
 - Match based on keywords, repo paths, or component names in the description
-- **If no project matches**: Write trash file via `tendril trash write <SafeTitle>.md <<'EOF'...EOF` explaining that the project could not be determined from the task description, list the available project names, then exit without creating a plan
+- **If no project matches**: Report final status via `tendril job status TendrilJobId --message "Could not determine project from task description. Available projects: <list>"`, write trash file via `tendril trash write <SafeTitle>.md <<'EOF'...EOF` explaining that the project could not be determined, list the available project names, then exit without creating a plan
 - Use the matched project's context to scope your research
 
 ### 2. Plan ID
@@ -95,7 +95,13 @@ Report status: `tendril job status TendrilJobId --message "Researching codebase.
 
   #### Step 5: Write trash file (when trashing)
 
-  Write a trash file using the CLI (where `<SafeTitle>` is the title with spaces replaced by hyphens and special characters removed), then exit without creating a plan folder:
+  First, report a final status describing why no plan is being created:
+
+  ```bash
+  tendril job status TendrilJobId --message "Duplicate of <existing plan folder name> (<state>): <brief reason>"
+  ```
+
+  Then write a trash file using the CLI (where `<SafeTitle>` is the title with spaces replaced by hyphens and special characters removed), then exit without creating a plan folder:
 
   ```bash
   tendril trash write <SafeTitle>.md <<'EOF'
@@ -159,7 +165,7 @@ For each assertion found:
 
 **Decision:**
 - **All validations pass** → Proceed to Step 4, include validated code blocks in plan with `**Current implementation**` headers
-- **Any validation fails** → Write trash file via `tendril trash write <SafeTitle>.md <<'EOF'...EOF` explaining the validation failure, then exit without creating a plan
+- **Any validation fails** → Report final status via `tendril job status TendrilJobId --message "Code state validation failed: <brief description of what changed>"`, write trash file via `tendril trash write <SafeTitle>.md <<'EOF'...EOF` explaining the validation failure, then exit without creating a plan
 
 This catches stale plans before they enter the review queue, reducing wasted review time.
 
