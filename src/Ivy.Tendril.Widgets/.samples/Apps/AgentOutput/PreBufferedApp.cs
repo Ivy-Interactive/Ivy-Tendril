@@ -1,7 +1,7 @@
 using Ivy;
 using Ivy.Widgets.AgentOutput;
 
-namespace Ivy.Tendril.Widgets.Samples;
+namespace WidgetSamples;
 
 [App(title: "Pre-buffered", icon: Icons.FileText, group: ["AgentOutput"])]
 class PreBufferedApp : ViewBase

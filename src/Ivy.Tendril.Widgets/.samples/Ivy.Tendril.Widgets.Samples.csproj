@@ -4,7 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <RootNamespace>Ivy.Tendril.Widgets.Samples</RootNamespace>
+    <RootNamespace>WidgetSamples</RootNamespace>
     <IvySource>true</IvySource>
   </PropertyGroup>
   <ItemGroup>

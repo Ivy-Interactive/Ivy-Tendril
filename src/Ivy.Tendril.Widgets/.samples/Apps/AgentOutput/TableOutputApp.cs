@@ -1,7 +1,7 @@
 using Ivy;
 using Ivy.Widgets.AgentOutput;
 
-namespace Ivy.Tendril.Widgets.Samples;
+namespace WidgetSamples;
 
 [App(title: "Table Output", icon: Icons.Table, group: ["AgentOutput"])]
 class TableOutputApp : ViewBase

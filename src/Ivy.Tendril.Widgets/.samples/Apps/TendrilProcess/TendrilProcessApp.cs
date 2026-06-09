@@ -1,7 +1,7 @@
 using Ivy;
 using Ivy.Widgets.TendrilProcess;
 
-namespace Ivy.Tendril.Widgets.Samples;
+namespace WidgetSamples;
 
 [App(title: "Process View", icon: Icons.Activity, group: ["TendrilProcess"])]
 class TendrilProcessApp : ViewBase
