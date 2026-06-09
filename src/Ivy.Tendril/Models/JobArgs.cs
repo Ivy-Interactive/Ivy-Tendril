@@ -103,7 +103,9 @@ public record UpdateProjectArgs(
 
 public record SyncRepoArgs(
     string RepoPath,
-    string BaseBranch = "main") : JobArgsBase
+    string BaseBranch = "main",
+    string? PlanFolderPath = null) : JobArgsBase
 {
     public override string Type => Constants.JobTypes.SyncRepo;
+    public override string? PlanFolder => PlanFolderPath;
 }

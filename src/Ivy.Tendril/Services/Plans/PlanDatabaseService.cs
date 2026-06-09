@@ -673,8 +673,8 @@ public class PlanDatabaseService : IPlanDatabaseService
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
-                              INSERT OR REPLACE INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, SessionId, StartedAt, CompletedAt, DurationSeconds, Cost, Tokens, StatusMessage, Args, TypedArgs)
-                              VALUES (@id, @type, @planFile, @project, @status, @provider, @sessionId, @startedAt, @completedAt, @durationSeconds, @cost, @tokens, @statusMessage, @args, @typedArgs)
+                              INSERT OR REPLACE INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, SessionId, StartedAt, CompletedAt, DurationSeconds, Cost, Tokens, StatusMessage, Args, TypedArgs, WorkingDirectory, CliCommand)
+                              VALUES (@id, @type, @planFile, @project, @status, @provider, @sessionId, @startedAt, @completedAt, @durationSeconds, @cost, @tokens, @statusMessage, @args, @typedArgs, @workingDirectory, @cliCommand)
                               """;
             cmd.Parameters.AddWithValue("@id", job.Id);
             cmd.Parameters.AddWithValue("@type", job.Type);
@@ -695,6 +695,8 @@ public class PlanDatabaseService : IPlanDatabaseService
             cmd.Parameters.AddWithValue("@typedArgs", job.TypedArgs != null
                 ? JsonSerializer.Serialize<JobArgsBase>(job.TypedArgs)
                 : DBNull.Value);
+            cmd.Parameters.AddWithValue("@workingDirectory", (object?)job.WorkingDirectory ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@cliCommand", (object?)job.CliCommand ?? DBNull.Value);
             cmd.ExecuteNonQuery();
         }
     }
@@ -763,7 +765,13 @@ public class PlanDatabaseService : IPlanDatabaseService
             StatusMessage = reader.IsDBNull(reader.GetOrdinal("StatusMessage"))
                 ? null
                 : reader.GetString(reader.GetOrdinal("StatusMessage")),
-            TypedArgs = ReadTypedArgs(reader)
+            TypedArgs = ReadTypedArgs(reader),
+            WorkingDirectory = reader.IsDBNull(reader.GetOrdinal("WorkingDirectory"))
+                ? null
+                : reader.GetString(reader.GetOrdinal("WorkingDirectory")),
+            CliCommand = reader.IsDBNull(reader.GetOrdinal("CliCommand"))
+                ? null
+                : reader.GetString(reader.GetOrdinal("CliCommand"))
         };
     }
 

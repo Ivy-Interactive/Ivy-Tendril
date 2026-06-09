@@ -87,9 +87,12 @@ public record JobItem
     public string? ReportedPlanId { get; set; }
     public string? ReportedPlanTitle { get; set; }
 
+    // Agent launch details (persisted)
+    public string? WorkingDirectory { get; set; }
+    public string? CliCommand { get; set; }
+
     // Automatic logging metadata (transient, not persisted)
     [JsonIgnore] public string? CompiledPrompt { get; set; }
-    [JsonIgnore] public string? CliCommand { get; set; }
     [JsonIgnore] public int? ExitCode { get; set; }
 
     private string? _logFilePath;
