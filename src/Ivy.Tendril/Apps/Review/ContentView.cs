@@ -104,7 +104,7 @@ public class ContentView(
                 () => isOpen.Set(false),
                 new JobDebugSheet(jobId, jobService, planService, config),
                 "Job Debug"
-            ).Width(Size.Half()).Resizable();
+            ).Width(UxHelper.SheetWidth).Resizable();
         });
 
         var artifactContentQuery = UseQuery<string, string>(
@@ -251,18 +251,31 @@ public class ContentView(
         INavigator nav,
         ReviewAppArgs? args)
     {
-        var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(40)).Gap(2)
-                     | Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis);
+        // Title area (left): plain title on desktop, mobile picker on small screens.
+        // Grows (minWidth:0) so the title text can wrap onto multiple lines.
+        var titleArea = Layout.Horizontal().Wrap().Gap(2).AlignContent(Align.Left).Width(Size.Grow())
+                        | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold())
+                            .BorderThickness(0).Padding(0)
+                            .HideOn(Breakpoint.Mobile, Breakpoint.Tablet)
+                        | MobileItemPicker.Build(
+                                $"#{selectedPlan.Id} {selectedPlan.Title}",
+                                allPlans,
+                                p => $"#{p.Id} {p.Title}",
+                                p => p.FolderName == selectedPlan.FolderName,
+                                p => selectedPlanState.Set(p))
+                            .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
         if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
-            header |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
+            titleArea |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
                 .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
 
-        header |= new Spacer().Width(Size.Grow());
-
-        header |= Text.Rich()
-                         .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
-                         .Muted("plans", word: true);
+        // Controls group (right): plan count + primary action. Stays together and wraps to a new
+        // line right-aligned (grow spacer) when the title is too long to share the row.
+        var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right).Width(Size.Grow())
+                       | new Spacer().Width(Size.Grow())
+                       | Text.Rich()
+                           .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
+                           .Muted("plans", word: true);
 
         if (selectedPlan.Commits.Count > 0)
         {
@@ -285,13 +298,13 @@ public class ContentView(
                 }
             }).ShortcutKey("m");
 
-            header |= allYolo
+            controls |= allYolo
                 ? createPrBtn.WithConfetti(AnimationTrigger.Click)
                 : createPrBtn;
         }
         else
         {
-            header |= new Button("Complete Plan").Icon(Icons.CircleCheck).Primary().OnClick(() =>
+            controls |= new Button("Complete Plan").Icon(Icons.CircleCheck).Primary().OnClick(() =>
             {
                 // Optimistic UI - update state and refresh immediately
                 planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
@@ -301,6 +314,10 @@ public class ContentView(
                 Task.Run(() => WorktreeCleanupService.RemoveWorktrees(selectedPlan.FolderPath));
             }).ShortcutKey("m");
         }
+
+        var header = Layout.Horizontal().Width(Size.Full()).Wrap().Gap(2).AlignContent(Align.Left)
+                     | titleArea
+                     | controls;
 
         return header;
     }
@@ -317,7 +334,7 @@ public class ContentView(
         INavigator nav,
         ReviewAppArgs? args)
     {
-        return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
+        return Layout.Horizontal().AlignContent(Align.Left).Gap(2).Wrap()
                 | new Button("Reset to Draft").Icon(Icons.RotateCcw).Outline().ShortcutKey("r").OnClick(showResetToDraftDialog)
                 | new Button("Request Changes").Icon(Icons.MessageSquare).Outline().OnClick(showSuggestChangesDialog).ShortcutKey("c")
                 | new Button("Discard").Icon(Icons.Trash).Outline().ShortcutKey("Backspace").OnClick(showDiscardDialog)
@@ -520,7 +537,7 @@ public class ContentView(
                                | new Markdown(rec.Description).DangerouslyAllowLocalFiles().Article();
 
                     var recTitle = rec.Title;
-                    var buttonRow = Layout.Horizontal().Gap(1)
+                    var buttonRow = Layout.Horizontal().Gap(1).Wrap()
                                     | new Button("Accept").Icon(Icons.Check).Primary().OnClick(() =>
                                     {
                                         planService.AcceptRecommendationAndRetry(selectedPlan.FolderName, recTitle);
@@ -596,7 +613,7 @@ public class ContentView(
                         ? Text.Muted($"Failed to load artifact: {err.Message}")
                         : new CodeBlock($"{language.ToString().ToLowerInvariant()}\n{artifactContentQuery.Value}\n", Languages.Text),
                 Path.GetFileName(artifactPath)
-            ).Width(Size.Half()).Resizable();
+            ).Width(UxHelper.SheetWidth).Resizable();
         }
 
         content |= new FileSheet(openFile, config);

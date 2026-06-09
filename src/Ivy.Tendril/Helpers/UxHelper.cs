@@ -2,6 +2,15 @@ namespace Ivy.Tendril.Helpers;
 
 public static class UxHelper
 {
+    /// <summary>
+    /// Standard width for side sheets: full width on phones/tablets (where a half-width sheet
+    /// would be unusably narrow), half width on desktop and wider. Use as
+    /// <c>new Sheet(...).Width(UxHelper.SheetWidth)</c>.
+    /// </summary>
+    public static Responsive<Size> SheetWidth =>
+        Size.Full().At(Breakpoint.Mobile).And(Breakpoint.Desktop, Size.Half());
+
+
     public static async Task AnimateProgressAsync(IState<int?> value, CancellationToken ct, double duration = 15.0, double ceiling = 92.0)
     {
         const int steps = 100;

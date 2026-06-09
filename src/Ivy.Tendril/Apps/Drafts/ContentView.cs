@@ -55,7 +55,7 @@ public class ContentView(
                 () => isOpen.Set(false),
                 new JobDebugSheet(jobId, jobService, planService, config),
                 "Job Debug"
-            ).Width(Size.Half()).Resizable();
+            ).Width(UxHelper.SheetWidth).Resizable();
         });
 
         var isEditing = UseState(false);
@@ -146,11 +146,22 @@ public class ContentView(
 
         var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan.FolderName);
 
-        var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(40)).Gap(2)
-                     | Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis);
+        // Title area (left): plain title on desktop, mobile picker on small screens, plus badges.
+        // Grows to fill the row (minWidth:0 lets the title text wrap onto multiple lines).
+        var titleArea = Layout.Horizontal().Wrap().Gap(2).AlignContent(Align.Left).Width(Size.Grow())
+                        | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold())
+                            .BorderThickness(0).Padding(0)
+                            .HideOn(Breakpoint.Mobile, Breakpoint.Tablet)
+                        | MobileItemPicker.Build(
+                                $"#{selectedPlan.Id} {selectedPlan.Title}",
+                                allPlans,
+                                p => $"#{p.Id} {p.Title}",
+                                p => p.FolderName == selectedPlan.FolderName,
+                                p => selectedPlanState.Set(p))
+                            .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
         if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
-            header |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
+            titleArea |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
                 .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
 
         if (selectedPlan.DependsOn.Count > 0)
@@ -161,23 +172,30 @@ public class ContentView(
                 var dashIdx = name.IndexOf('-');
                 return dashIdx > 0 ? name[..dashIdx] : name;
             }));
-            header |= new Badge($"Depends on: {depIds}").Variant(BadgeVariant.Secondary);
+            titleArea |= new Badge($"Depends on: {depIds}").Variant(BadgeVariant.Secondary);
         }
 
-        header |= new Spacer().Width(Size.Grow());
-        header |= Text.Rich()
-            .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
-            .Muted("plans", word: true);
-        header |= new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("x")
-            .Loading(isCheckingPreflight)
-            .Disabled(isCheckingPreflight)
-            .OnClick(() => runPreflight(selectedPlan.Project, result =>
-            {
-                if (result.DirtyRepos.Count > 0)
-                    showDirtyDialog.Set(true);
-                else
-                    LaunchExecute();
-            }));
+        // Controls group (right): the plan count and Execute button stay together and, when the
+        // title is too long to share the row, wrap to a new line right-aligned (grow spacer).
+        var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right).Width(Size.Grow())
+                       | new Spacer().Width(Size.Grow())
+                       | Text.Rich()
+                           .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
+                           .Muted("plans", word: true)
+                       | new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("x")
+                           .Loading(isCheckingPreflight)
+                           .Disabled(isCheckingPreflight)
+                           .OnClick(() => runPreflight(selectedPlan.Project, result =>
+                           {
+                               if (result.DirtyRepos.Count > 0)
+                                   showDirtyDialog.Set(true);
+                               else
+                                   LaunchExecute();
+                           }));
+
+        var header = Layout.Horizontal().Width(Size.Full()).Wrap().Gap(2).AlignContent(Align.Left)
+                     | titleArea
+                     | controls;
 
         var content = Layout.Vertical().Height(Size.Full());
 

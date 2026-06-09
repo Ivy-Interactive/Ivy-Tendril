@@ -27,7 +27,7 @@ public partial class JobsApp : ViewBase
                 () => isOpen.Set(false),
                 planSheetView.Build(),
                 planSheetView.GetSheetTitle()
-            ).Width(Size.Half()).Resizable();
+            ).Width(UxHelper.SheetWidth).Resizable();
             return new Fragment(sheet, new FileSheet(openFile, config));
         });
 
@@ -40,7 +40,7 @@ public partial class JobsApp : ViewBase
                 () => isOpen.Set(false),
                 new OutputSheet(jobId, jobService),
                 title
-            ).Width(Size.Half()).Resizable();
+            ).Width(UxHelper.SheetWidth).Resizable();
         });
 
         var (promptSheet, showPrompt) = UseTrigger<string>((isOpen, promptText) =>
@@ -51,7 +51,7 @@ public partial class JobsApp : ViewBase
                 () => isOpen.Set(false),
                 promptSheetView.Build(),
                 "Full Prompt"
-            ).Width(Size.Half()).Resizable();
+            ).Width(UxHelper.SheetWidth).Resizable();
         });
 
         var (debugSheet, showDebug) = UseTrigger<string>((isOpen, jobId) =>
@@ -61,7 +61,7 @@ public partial class JobsApp : ViewBase
                 () => isOpen.Set(false),
                 new JobDebugSheet(jobId, jobService, planService, config),
                 "Job Debug"
-            ).Width(Size.Half()).Resizable();
+            ).Width(UxHelper.SheetWidth).Resizable();
         });
 
         UseEffect(() => JobChangeHookDisposable(jobService, refreshToken));

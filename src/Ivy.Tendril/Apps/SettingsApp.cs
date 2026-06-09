@@ -93,6 +93,6 @@ public class SettingsApp : ViewBase
             _ => new CodingAgentSetupView()
         };
 
-        return new SidebarLayout(content, sidebar);
+        return new SidebarLayout(content, sidebar).CollapsibleOnMobile();
     }
 }

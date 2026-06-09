@@ -63,7 +63,7 @@ public class IceboxApp : ViewBase
             new ContentView(selectedPlanState.Value, filteredPlans, selectedPlanState, planService, jobService,
                 RefreshPlans, configService),
             sidebar
-        ).SidebarContentScroll(Scroll.None);
+        ).SidebarContentScroll(Scroll.None).CollapsibleOnMobile();
 
         void RefreshPlans()
         {
