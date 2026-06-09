@@ -248,3 +248,136 @@
 .pmv-article ol {
   padding-inline-start: 2.25rem;
 }
+
+/* ─── Annotation highlights ────────────────────────────────────────────── */
+.pmv-annotation-highlight {
+  background: hsl(48 96% 76% / 0.7);
+  border-radius: 0.125rem;
+  cursor: pointer;
+  padding: 0 0 0.125rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .pmv-annotation-highlight {
+    background: hsl(48 80% 20% / 0.5);
+  }
+}
+
+/* ─── Annotation popovers ─────────────────────────────────────────────── */
+.pmv-popover {
+  position: fixed;
+  z-index: 9999;
+  width: 18rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  padding: 0.75rem;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+}
+
+.pmv-popover-quote {
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pmv-popover-textarea {
+  width: 100%;
+  border-radius: 0.25rem;
+  border: 1px solid var(--input);
+  background: var(--background);
+  padding: 0.375rem 0.5rem;
+  font-size: 0.875rem;
+  resize: none;
+  outline: none;
+  font-family: inherit;
+  color: inherit;
+}
+
+.pmv-popover-textarea:focus {
+  box-shadow: 0 0 0 1px var(--ring);
+}
+
+.pmv-popover-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.pmv-popover-actions--end {
+  justify-content: flex-end;
+}
+
+.pmv-popover-actions--between {
+  justify-content: space-between;
+}
+
+.pmv-popover-btn {
+  border-radius: 0.25rem;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+}
+
+.pmv-popover-btn--ghost {
+  background: transparent;
+  color: var(--muted-foreground);
+}
+
+.pmv-popover-btn--ghost:hover {
+  background: var(--muted);
+}
+
+.pmv-popover-btn--primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.pmv-popover-btn--primary:hover {
+  opacity: 0.9;
+}
+
+.pmv-popover-btn--danger {
+  background: transparent;
+  color: var(--destructive);
+}
+
+.pmv-popover-btn--danger:hover {
+  background: hsl(0 84% 60% / 0.1);
+}
+
+/* ─── Selection toolbar ───────────────────────────────────────────────── */
+.pmv-selection-toolbar {
+  position: fixed;
+  z-index: 9999;
+  border-radius: 0.375rem;
+  border: 1px solid var(--border);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  padding: 0.25rem 0.5rem;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
+}
+
+.pmv-selection-toolbar-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  border-radius: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+}
+
+.pmv-selection-toolbar-btn:hover {
+  background: var(--muted);
+}
