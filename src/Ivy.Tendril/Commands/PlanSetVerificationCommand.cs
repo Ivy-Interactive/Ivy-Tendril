@@ -2,7 +2,6 @@ using System.ComponentModel;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
-using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -24,52 +23,39 @@ public class PlanSetVerificationSettings : CommandSettings
 
 public class PlanSetVerificationCommand : Command<PlanSetVerificationSettings>
 {
-    private readonly ILogger<PlanSetVerificationCommand> _logger;
     private readonly IPlanWatcherService _planWatcher;
 
-    public PlanSetVerificationCommand(ILogger<PlanSetVerificationCommand> logger, IPlanWatcherService planWatcher)
+    public PlanSetVerificationCommand(IPlanWatcherService planWatcher)
     {
-        _logger = logger;
         _planWatcher = planWatcher;
     }
 
     protected override int Execute(CommandContext context, PlanSetVerificationSettings settings, CancellationToken cancellationToken)
     {
-        try
+        var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
+        var plan = PlanCommandHelpers.ReadPlan(planFolder);
+
+        var verification = plan.Verifications.FirstOrDefault(v =>
+            v.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
+
+        if (verification != null)
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
-
-            // Find existing verification
-            var verification = plan.Verifications.FirstOrDefault(v =>
-                v.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
-
-            if (verification != null)
-            {
-                // Update existing
-                verification.Status = settings.Status;
-            }
-            else
-            {
-                // Add new
-                plan.Verifications.Add(new PlanVerificationEntry
-                {
-                    Name = settings.Name,
-                    Status = settings.Status
-                });
-            }
-
-            plan.Updated = DateTime.UtcNow;
-
-            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
-
-            _logger.LogInformation("Set verification {Name} = {Status}", settings.Name, settings.Status);
-            return 0;
+            verification.Status = settings.Status;
         }
-        catch (Exception ex)
+        else
         {
-            _logger.LogError("Failed to set verification on plan {PlanId}: {Message}", settings.PlanId, ex.Message);
-            return 1;
+            plan.Verifications.Add(new PlanVerificationEntry
+            {
+                Name = settings.Name,
+                Status = settings.Status
+            });
         }
+
+        plan.Updated = DateTime.UtcNow;
+
+        PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
+
+        Console.WriteLine($"Set verification {settings.Name} = {settings.Status}");
+        return 0;
     }
 }

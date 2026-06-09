@@ -2,7 +2,6 @@ using Ivy.Tendril.Models;
 using System.ComponentModel;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
-using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -24,74 +23,62 @@ public class PlanSetSettings : CommandSettings
 
 public class PlanSetCommand : Command<PlanSetSettings>
 {
-    private readonly ILogger<PlanSetCommand> _logger;
     private readonly IPlanWatcherService _planWatcher;
 
-    public PlanSetCommand(ILogger<PlanSetCommand> logger, IPlanWatcherService planWatcher)
+    public PlanSetCommand(IPlanWatcherService planWatcher)
     {
-        _logger = logger;
         _planWatcher = planWatcher;
     }
 
     protected override int Execute(CommandContext context, PlanSetSettings settings, CancellationToken cancellationToken)
     {
-        try
+        var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
+        var plan = PlanCommandHelpers.ReadPlan(planFolder);
+
+        switch (settings.Field.ToLower())
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
-
-            // Update the field
-            switch (settings.Field.ToLower())
-            {
-                case "state":
-                    plan.State = settings.Value;
-                    break;
-                case "project":
-                    plan.Project = settings.Value;
-                    break;
-                case "level":
-                    plan.Level = settings.Value;
-                    break;
-                case "title":
-                    plan.Title = settings.Value;
-                    break;
-                case "created":
-                    plan.Created = PlanValidationService.ParseDate(settings.Value, "created");
-                    break;
-                case "updated":
-                    plan.Updated = PlanValidationService.ParseDate(settings.Value, "updated");
-                    break;
-                case "executionprofile":
-                    plan.ExecutionProfile = settings.Value;
-                    break;
-                case "initialprompt":
-                    plan.InitialPrompt = settings.Value;
-                    break;
-                case "sourceurl":
-                    plan.SourceUrl = settings.Value;
-                    break;
-                case "priority":
-                    if (!int.TryParse(settings.Value, out var priority))
-                        throw new ArgumentException($"Invalid priority value: {settings.Value}. Must be an integer.");
-                    plan.Priority = priority;
-                    break;
-                default:
-                    throw new ArgumentException($"Unknown field: {settings.Field}");
-            }
-
-            // Always update the 'updated' timestamp when any field changes
-            if (settings.Field.ToLower() != "updated")
-                plan.Updated = DateTime.UtcNow;
-
-            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
-
-            _logger.LogInformation("Set {Field} = {Value}", settings.Field, settings.Value);
-            return 0;
+            case "state":
+                plan.State = settings.Value;
+                break;
+            case "project":
+                plan.Project = settings.Value;
+                break;
+            case "level":
+                plan.Level = settings.Value;
+                break;
+            case "title":
+                plan.Title = settings.Value;
+                break;
+            case "created":
+                plan.Created = PlanValidationService.ParseDate(settings.Value, "created");
+                break;
+            case "updated":
+                plan.Updated = PlanValidationService.ParseDate(settings.Value, "updated");
+                break;
+            case "executionprofile":
+                plan.ExecutionProfile = settings.Value;
+                break;
+            case "initialprompt":
+                plan.InitialPrompt = settings.Value;
+                break;
+            case "sourceurl":
+                plan.SourceUrl = settings.Value;
+                break;
+            case "priority":
+                if (!int.TryParse(settings.Value, out var priority))
+                    throw new ArgumentException($"Invalid priority value: {settings.Value}. Must be an integer.");
+                plan.Priority = priority;
+                break;
+            default:
+                throw new ArgumentException($"Unknown field: {settings.Field}");
         }
-        catch (Exception ex)
-        {
-            _logger.LogError("Failed to set {Field} on plan {PlanId}: {Message}", settings.Field, settings.PlanId, ex.Message);
-            return 1;
-        }
+
+        if (settings.Field.ToLower() != "updated")
+            plan.Updated = DateTime.UtcNow;
+
+        PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
+
+        Console.WriteLine($"Set {settings.Field} = {settings.Value}");
+        return 0;
     }
 }

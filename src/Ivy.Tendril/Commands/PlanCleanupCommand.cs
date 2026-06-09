@@ -2,7 +2,6 @@ using Ivy.Tendril.Models;
 using System.ComponentModel;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
-using Microsoft.Extensions.Logging;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -21,52 +20,36 @@ public class PlanCleanupSettings : CommandSettings
 
 public class PlanCleanupCommand : Command<PlanCleanupSettings>
 {
-    private readonly ILogger<PlanCleanupCommand> _logger;
-
-    public PlanCleanupCommand(ILogger<PlanCleanupCommand> logger) => _logger = logger;
-
     protected override int Execute(CommandContext context, PlanCleanupSettings settings, CancellationToken cancellationToken)
     {
-        try
+        var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
+        var plan = PlanCommandHelpers.ReadPlan(planFolder);
+
+        var terminalStates = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            { nameof(PlanStatus.Completed), nameof(PlanStatus.Failed), nameof(PlanStatus.Skipped), nameof(PlanStatus.Icebox) };
+
+        if (!settings.Force && !terminalStates.Contains(plan.State))
+            throw new InvalidOperationException($"Plan is not in a terminal state (current: {plan.State}). Use --force to override.");
+
+        var worktreesDir = Path.Combine(planFolder, "Worktrees");
+        if (!Directory.Exists(worktreesDir) || Directory.GetDirectories(worktreesDir).Length == 0)
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
-
-            var terminalStates = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                { nameof(PlanStatus.Completed), nameof(PlanStatus.Failed), nameof(PlanStatus.Skipped), nameof(PlanStatus.Icebox) };
-
-            if (!settings.Force && !terminalStates.Contains(plan.State))
-            {
-                AnsiConsole.MarkupLine($"[yellow]Plan is not in a terminal state (current: {plan.State.EscapeMarkup()}). Use --force to override.[/]");
-                return 1;
-            }
-
-            var worktreesDir = Path.Combine(planFolder, "Worktrees");
-            if (!Directory.Exists(worktreesDir) || Directory.GetDirectories(worktreesDir).Length == 0)
-            {
-                AnsiConsole.MarkupLine("[green]No worktrees to clean up.[/]");
-                return 0;
-            }
-
-            WorktreeCleanupService.RemoveWorktrees(planFolder);
-
-            var remaining = Directory.Exists(worktreesDir) ? Directory.GetDirectories(worktreesDir).Length : 0;
-            if (remaining == 0)
-            {
-                AnsiConsole.MarkupLine("[green]Worktrees cleaned up successfully.[/]");
-            }
-            else
-            {
-                AnsiConsole.MarkupLine($"[yellow]{remaining} {(remaining == 1 ? "worktree" : "Worktrees")} could not be removed.[/]");
-                return 1;
-            }
-
+            AnsiConsole.MarkupLine("[green]No worktrees to clean up.[/]");
             return 0;
         }
-        catch (Exception ex)
+
+        WorktreeCleanupService.RemoveWorktrees(planFolder);
+
+        var remaining = Directory.Exists(worktreesDir) ? Directory.GetDirectories(worktreesDir).Length : 0;
+        if (remaining == 0)
         {
-            _logger.LogError("Failed to clean up plan {PlanId}: {Message}", settings.PlanId, ex.Message);
-            return 1;
+            AnsiConsole.MarkupLine("[green]Worktrees cleaned up successfully.[/]");
         }
+        else
+        {
+            throw new InvalidOperationException($"{remaining} {(remaining == 1 ? "worktree" : "worktrees")} could not be removed.");
+        }
+
+        return 0;
     }
 }

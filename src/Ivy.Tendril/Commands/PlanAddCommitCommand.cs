@@ -3,7 +3,6 @@ using System.ComponentModel;
 using System.Text.RegularExpressions;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
-using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -21,47 +20,33 @@ public class PlanAddCommitSettings : CommandSettings
 
 public class PlanAddCommitCommand : Command<PlanAddCommitSettings>
 {
-    private readonly ILogger<PlanAddCommitCommand> _logger;
     private readonly IPlanWatcherService _planWatcher;
 
-    public PlanAddCommitCommand(ILogger<PlanAddCommitCommand> logger, IPlanWatcherService planWatcher)
+    public PlanAddCommitCommand(IPlanWatcherService planWatcher)
     {
-        _logger = logger;
         _planWatcher = planWatcher;
     }
 
     protected override int Execute(CommandContext context, PlanAddCommitSettings settings, CancellationToken cancellationToken)
     {
-        try
+        var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
+        var plan = PlanCommandHelpers.ReadPlan(planFolder);
+
+        if (!Regex.IsMatch(settings.Sha, @"^[0-9a-fA-F]{7,40}$"))
+            throw new ArgumentException($"Invalid commit hash format: {settings.Sha}. Expected 7-40 character hex string.");
+
+        if (plan.Commits.Contains(settings.Sha))
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
-
-            // Validate commit hash format
-            if (!Regex.IsMatch(settings.Sha, @"^[0-9a-fA-F]{7,40}$"))
-            {
-                _logger.LogError("Invalid commit hash format: {Sha}", settings.Sha);
-                return 1;
-            }
-
-            if (plan.Commits.Contains(settings.Sha))
-            {
-                _logger.LogInformation("Commit already in plan: {Sha}", settings.Sha);
-                return 0;
-            }
-
-            plan.Commits.Add(settings.Sha);
-            plan.Updated = DateTime.UtcNow;
-
-            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
-
-            _logger.LogInformation("Added commit: {Sha}", settings.Sha);
+            Console.WriteLine($"Commit already in plan: {settings.Sha}");
             return 0;
         }
-        catch (Exception ex)
-        {
-            _logger.LogError("Failed to add commit to plan {PlanId}: {Message}", settings.PlanId, ex.Message);
-            return 1;
-        }
+
+        plan.Commits.Add(settings.Sha);
+        plan.Updated = DateTime.UtcNow;
+
+        PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
+
+        Console.WriteLine($"Added commit: {settings.Sha}");
+        return 0;
     }
 }

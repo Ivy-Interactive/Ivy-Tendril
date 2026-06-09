@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Text;
 using System.Text.Json;
 using Ivy.Tendril.Helpers;
-using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -33,32 +32,20 @@ public class JobStatusCommand : Command<JobStatusSettings>
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    private readonly ILogger<JobStatusCommand> _logger;
-
-    public JobStatusCommand(ILogger<JobStatusCommand> logger) => _logger = logger;
-
     protected override int Execute(CommandContext context, JobStatusSettings settings, CancellationToken cancellationToken)
     {
-        try
-        {
-            var discovery = MasterClient.Discover();
-            using var client = MasterClient.CreateHttpClient(discovery);
+        var discovery = MasterClient.Discover();
+        using var client = MasterClient.CreateHttpClient(discovery);
 
-            var payload = new { message = settings.Message, planId = settings.PlanId, planTitle = settings.PlanTitle };
-            var json = JsonSerializer.Serialize(payload, JsonOptions);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
+        var payload = new { message = settings.Message, planId = settings.PlanId, planTitle = settings.PlanTitle };
+        var json = JsonSerializer.Serialize(payload, JsonOptions);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var response = client.PutAsync($"{discovery.BaseUrl}/api/jobs/{settings.JobId}/status", content, cancellationToken)
-                .GetAwaiter().GetResult();
-            response.EnsureSuccessStatusCode();
+        var response = client.PutAsync($"{discovery.BaseUrl}/api/jobs/{settings.JobId}/status", content, cancellationToken)
+            .GetAwaiter().GetResult();
+        response.EnsureSuccessStatusCode();
 
-            _logger.LogInformation("Status updated for job {JobId}: {Message}", settings.JobId, settings.Message);
-            return 0;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError("Failed to report status for job {JobId}: {Message}", settings.JobId, ex.Message);
-            return 1;
-        }
+        Console.WriteLine($"Status updated for job {settings.JobId}");
+        return 0;
     }
 }
