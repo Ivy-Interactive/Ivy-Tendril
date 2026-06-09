@@ -18,7 +18,7 @@ public class PlanListSettings : CommandSettings
     public string? Project { get; init; }
 
     [CommandOption("--level")]
-    [Description("Filter by level (Critical, Bug, NiceToHave, Backlog, Icebox)")]
+    [Description("Filter by level (Bug, Feature, Epic, Chore, Nitpick)")]
     public string? Level { get; init; }
 
     [CommandOption("--has-pr")]

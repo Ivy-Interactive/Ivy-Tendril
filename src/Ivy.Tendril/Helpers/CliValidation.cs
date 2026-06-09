@@ -15,7 +15,7 @@ public static class CliValidation
 
     public static readonly string[] ValidLevels =
     [
-        "Critical", "Bug", "NiceToHave", "Backlog", "Icebox"
+        "Bug", "Feature", "Epic", "Chore", "Nitpick"
     ];
 
     public static readonly string[] ValidVerificationStatuses =

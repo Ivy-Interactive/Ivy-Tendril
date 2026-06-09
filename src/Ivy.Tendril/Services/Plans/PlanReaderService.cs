@@ -962,7 +962,7 @@ public class PlanReaderService(
             var metadata = new PlanMetadata(
                 id,
                 string.IsNullOrWhiteSpace(planYaml.Project) ? "" : planYaml.Project,
-                string.IsNullOrWhiteSpace(planYaml.Level) ? "NiceToHave" : planYaml.Level,
+                string.IsNullOrWhiteSpace(planYaml.Level) ? "Feature" : planYaml.Level,
                 string.IsNullOrWhiteSpace(planYaml.Title) ? "" : planYaml.Title,
                 status,
                 planYaml.Repos ?? [],

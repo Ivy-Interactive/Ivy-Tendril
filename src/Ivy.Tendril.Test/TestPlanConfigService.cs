@@ -38,7 +38,7 @@ internal class TestPlanConfigService : IConfigService
     public bool TryAutoHeal() => false;
     public void ResetToDefaults() { }
     public void RetryLoadConfig() { }
-    public BadgeVariant GetBadgeVariant(string level) => BadgeVariant.Info;
+    public Colors? GetLevelColor(string level) => null;
     public Colors? GetProjectColor(string projectName) => null;
     public void SaveSettings() { }
     public void ReloadSettings() { }

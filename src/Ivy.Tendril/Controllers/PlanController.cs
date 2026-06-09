@@ -422,7 +422,7 @@ public class PlanController : ControllerBase
             {
                 State = nameof(PlanStatus.Draft),
                 Project = resolvedProject.Name,
-                Level = request.Level ?? "NiceToHave",
+                Level = request.Level ?? "Feature",
                 Title = request.Title,
                 Created = DateTime.UtcNow,
                 Updated = DateTime.UtcNow,

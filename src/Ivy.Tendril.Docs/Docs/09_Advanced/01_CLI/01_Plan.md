@@ -39,7 +39,7 @@ Creates a new plan folder and `plan.yaml` scaffold with state `Draft`. The plan 
 
 | Option | Description |
 |--------|-------------|
-| `--level <level>` | Priority level (default: NiceToHave) |
+| `--level <level>` | Priority level (default: Feature) |
 | `--initial-prompt <text>` | Initial prompt text |
 | `--source-url <url>` | Source URL (GitHub issue or PR) |
 | `--execution-profile <profile>` | Execution profile (`deep` or `balanced`) |
@@ -60,7 +60,7 @@ Lists plans with optional filters.
 |--------|--------|
 | `--state <state>` | Filter by state (e.g. `Draft`, `Executing`, `Failed`) |
 | `--project <name>` | Filter by project name |
-| `--level <level>` | Filter by level (e.g. `Bug`, `Critical`, `NiceToHave`) |
+| `--level <level>` | Filter by level (e.g. `Bug`, `Feature`, `Epic`) |
 | `--has-pr` | Only plans that have associated PRs |
 | `--has-worktree` | Only plans that have worktrees |
 | `--limit <n>` | Maximum number of results |

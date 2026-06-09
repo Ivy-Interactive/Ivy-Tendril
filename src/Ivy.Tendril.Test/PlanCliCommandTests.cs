@@ -255,7 +255,7 @@ public class PlanCliCommandTests : IDisposable
 
         Assert.Equal("Draft", plan.State);
         Assert.Equal("TestProject", plan.Project);
-        Assert.Equal("NiceToHave", plan.Level);
+        Assert.Equal("Feature", plan.Level);
         Assert.Equal("GetFieldTest", plan.Title);
         Assert.Equal(0, plan.Priority);
     }
@@ -359,8 +359,9 @@ public class PlanCliCommandTests : IDisposable
         var plan = PlanCommandHelpers.ReadPlan(folder);
         plan.Level = "BogusLevel";
 
-        Assert.Throws<ArgumentException>(() =>
-            PlanCommandHelpers.WritePlan(folder, plan));
+        // Level validation is no longer enforced by WritePlan (levels are user-configurable)
+        var exception = Record.Exception(() => PlanCommandHelpers.WritePlan(folder, plan));
+        Assert.Null(exception);
     }
 
     [Fact]

@@ -131,7 +131,7 @@ Plan created: <ID>-<SafeTitle>
 ```
 
 Options:
-- `--level <level>` — Priority level (default: NiceToHave)
+- `--level <level>` — Priority level (default: Feature)
 - `--initial-prompt <text>` — Original user description
 - `--source-url <url>` — GitHub issue or PR URL
 - `--execution-profile <profile>` — deep or balanced
@@ -167,7 +167,7 @@ tendril plan cleanup <plan-id> [--force]
 ```yaml
 state: Draft
 project: Tendril
-level: NiceToHave
+level: Feature
 title: "Make an empty app called Review"
 sessionId: "a1b2c3d4-e5f6-..."
 repos: []
