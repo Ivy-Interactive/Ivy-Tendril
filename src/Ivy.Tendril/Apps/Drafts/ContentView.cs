@@ -197,7 +197,10 @@ public class ContentView(
         else
         {
             var tabs = Layout.Tabs(
-                new Tab("Plan", Cap(planTabContent)),
+                // PlanMarkdownView owns its own scroll and the pinned FixedContent slot,
+                // so it is not wrapped in Cap() (whose outer scroll would also scroll the
+                // pinned element). The widget reproduces Cap()'s left inset + max-width.
+                new Tab("Plan", planTabContent),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan!,
                     jobService.GetJobsForPlan(selectedPlan!.FolderName),
                     showDebugJob, planService, selectedPlanState, refreshPlans)))
