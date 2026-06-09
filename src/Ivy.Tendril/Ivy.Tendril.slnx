@@ -5,6 +5,7 @@
     <Platform Name="x86" />
   </Configurations>
   <Project Path="Ivy.Tendril.csproj" />
+  <Project Path="../Ivy.Tendril.Widgets/.samples/Ivy.Tendril.Widgets.Samples.csproj" />
   <Project Path="../Ivy.Tendril.Widgets/Ivy.Tendril.Widgets.csproj" />
   <Project Path="../Ivy.Tendril.Updater/Ivy.Tendril.Updater.csproj" />
   <Project Path="../Ivy.Tendril.Test/Ivy.Tendril.Test.csproj" />

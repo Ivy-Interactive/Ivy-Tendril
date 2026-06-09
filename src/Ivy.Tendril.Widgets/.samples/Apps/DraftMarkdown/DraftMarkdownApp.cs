@@ -1,8 +1,10 @@
 using Ivy;
 using Ivy.Widgets.DraftMarkdown;
 
+namespace Ivy.Tendril.Widgets.Samples;
+
 [App(title: "Draft Markdown", icon: Icons.FileText, group: ["DraftMarkdown"])]
-class DraftMarkdownDemo : ViewBase
+class DraftMarkdownApp : ViewBase
 {
     public override object Build()
     {
