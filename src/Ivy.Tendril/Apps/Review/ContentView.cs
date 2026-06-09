@@ -677,7 +677,7 @@ public class ContentView(
             {
                 var planFolder = Path.GetFullPath(Path.Combine(worktreePath, "..", ".."));
                 planService.SyncPlanArtifacts(planFolder);
-                var refreshed = planService.GetPlanByFolder(planFolder);
+                var refreshed = planService.GetPlanByFolderFromDisk(planFolder);
                 if (refreshed != null)
                     selectedPlanState.Set(refreshed);
                 client.Toast("Worktree synchronized successfully", "Synchronized");
