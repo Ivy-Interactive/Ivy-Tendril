@@ -125,7 +125,7 @@ Report status: `tendril job status TendrilJobId --message "Researching codebase.
   - `AGENTS.md`
   - `CLAUDE.md`
   
-  These files contain repo-specific conventions (branching strategy, naming rules, writing style, framework patterns) that may affect the plan. Incorporate relevant constraints into the plan revision (e.g., if AGENTS.md says PRs must target `development`, note that in the plan).
+  These files contain repo-specific conventions (branching strategy, naming rules, writing style, framework patterns) that may affect the plan.
 
 ### 3.1. Search GitHub Issues
 
