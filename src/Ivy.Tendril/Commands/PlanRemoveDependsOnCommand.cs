@@ -12,7 +12,7 @@ public class PlanRemoveDependsOnSettings : CommandSettings
     [CommandArgument(0, "<plan-id>")]
     public string PlanId { get; set; } = "";
 
-    [Description("Dependency plan folder name (e.g., 01478-WorktreeIsolation)")]
+    [Description("Plan reference (ID, folder name, or path)")]
     [CommandArgument(1, "<depends-on>")]
     public string DependsOn { get; set; } = "";
 }
@@ -34,11 +34,12 @@ public class PlanRemoveDependsOnCommand : Command<PlanRemoveDependsOnSettings>
         {
             var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
             var plan = PlanCommandHelpers.ReadPlan(planFolder);
+            var resolvedDep = PlanCommandHelpers.ResolvePlanFolderName(settings.DependsOn);
 
-            var removed = plan.DependsOn.RemoveAll(d => d.Equals(settings.DependsOn, StringComparison.OrdinalIgnoreCase));
+            var removed = plan.DependsOn.RemoveAll(d => d.Equals(resolvedDep, StringComparison.OrdinalIgnoreCase));
             if (removed == 0)
             {
-                _logger.LogError("Dependency not found: {DependsOn}", settings.DependsOn);
+                _logger.LogError("Dependency not found: {DependsOn}", resolvedDep);
                 return 1;
             }
 
@@ -46,7 +47,7 @@ public class PlanRemoveDependsOnCommand : Command<PlanRemoveDependsOnSettings>
 
             PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
-            _logger.LogInformation("Removed dependency: {DependsOn}", settings.DependsOn);
+            _logger.LogInformation("Removed dependency: {DependsOn}", resolvedDep);
             return 0;
         }
         catch (Exception ex)

@@ -452,11 +452,11 @@ public sealed class PlanTools : AuthenticatedToolBase
 
             if (!string.IsNullOrEmpty(relatedPlans))
                 foreach (var rp in relatedPlans.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                    plan.RelatedPlans.Add(rp);
+                    plan.RelatedPlans.Add(PlanCommandHelpers.ResolvePlanFolderName(rp));
 
             if (!string.IsNullOrEmpty(dependsOn))
                 foreach (var dep in dependsOn.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                    plan.DependsOn.Add(dep);
+                    plan.DependsOn.Add(PlanCommandHelpers.ResolvePlanFolderName(dep));
 
             PlanCommandHelpers.WritePlan(planFolder, plan);
             return $"Plan created: {folderName}\nPlanId: {planId}\nDirectory: {planFolder}";
@@ -486,53 +486,59 @@ public sealed class PlanTools : AuthenticatedToolBase
     [McpServerTool(Name = "tendril_plan_add_related"), Description("Add a related plan link")]
     public string AddRelated(
         [Description("Plan ID")] string planId,
-        [Description("Related plan folder name (e.g., 01478-WorktreeIsolation)")] string relatedPlan)
+        [Description("Plan reference (ID, folder name, or path)")] string relatedPlan)
     {
         return ModifyPlan(planId, plan =>
         {
-            if (plan.RelatedPlans.Contains(relatedPlan, StringComparer.OrdinalIgnoreCase))
-                return;
-            plan.RelatedPlans.Add(relatedPlan);
-        }, $"Added related plan: {relatedPlan}");
+            var resolved = PlanCommandHelpers.ResolvePlanFolderName(relatedPlan);
+            if (!plan.RelatedPlans.Contains(resolved, StringComparer.OrdinalIgnoreCase))
+                plan.RelatedPlans.Add(resolved);
+            return $"Added related plan: {resolved}";
+        });
     }
 
     [McpServerTool(Name = "tendril_plan_remove_related"), Description("Remove a related plan link")]
     public string RemoveRelated(
         [Description("Plan ID")] string planId,
-        [Description("Related plan folder name")] string relatedPlan)
+        [Description("Plan reference (ID, folder name, or path)")] string relatedPlan)
     {
         return ModifyPlan(planId, plan =>
         {
-            var removed = plan.RelatedPlans.RemoveAll(r => r.Equals(relatedPlan, StringComparison.OrdinalIgnoreCase));
+            var resolved = PlanCommandHelpers.ResolvePlanFolderName(relatedPlan);
+            var removed = plan.RelatedPlans.RemoveAll(r => r.Equals(resolved, StringComparison.OrdinalIgnoreCase));
             if (removed == 0)
-                throw new InvalidOperationException($"Related plan not found: {relatedPlan}");
-        }, $"Removed related plan: {relatedPlan}");
+                throw new InvalidOperationException($"Related plan not found: {resolved}");
+            return $"Removed related plan: {resolved}";
+        });
     }
 
     [McpServerTool(Name = "tendril_plan_add_depends_on"), Description("Add a dependency to a plan")]
     public string AddDependsOn(
         [Description("Plan ID")] string planId,
-        [Description("Dependency plan folder name (e.g., 01478-WorktreeIsolation)")] string dependency)
+        [Description("Plan reference (ID, folder name, or path)")] string dependency)
     {
         return ModifyPlan(planId, plan =>
         {
-            if (plan.DependsOn.Contains(dependency, StringComparer.OrdinalIgnoreCase))
-                return;
-            plan.DependsOn.Add(dependency);
-        }, $"Added dependency: {dependency}");
+            var resolved = PlanCommandHelpers.ResolvePlanFolderName(dependency);
+            if (!plan.DependsOn.Contains(resolved, StringComparer.OrdinalIgnoreCase))
+                plan.DependsOn.Add(resolved);
+            return $"Added dependency: {resolved}";
+        });
     }
 
     [McpServerTool(Name = "tendril_plan_remove_depends_on"), Description("Remove a dependency from a plan")]
     public string RemoveDependsOn(
         [Description("Plan ID")] string planId,
-        [Description("Dependency plan folder name")] string dependency)
+        [Description("Plan reference (ID, folder name, or path)")] string dependency)
     {
         return ModifyPlan(planId, plan =>
         {
-            var removed = plan.DependsOn.RemoveAll(d => d.Equals(dependency, StringComparison.OrdinalIgnoreCase));
+            var resolved = PlanCommandHelpers.ResolvePlanFolderName(dependency);
+            var removed = plan.DependsOn.RemoveAll(d => d.Equals(resolved, StringComparison.OrdinalIgnoreCase));
             if (removed == 0)
-                throw new InvalidOperationException($"Dependency not found: {dependency}");
-        }, $"Removed dependency: {dependency}");
+                throw new InvalidOperationException($"Dependency not found: {resolved}");
+            return $"Removed dependency: {resolved}";
+        });
     }
 
     [McpServerTool(Name = "tendril_plan_validate"), Description("Validate plan health (checks required fields, valid states, repo paths, etc.)")]
@@ -629,16 +635,21 @@ public sealed class PlanTools : AuthenticatedToolBase
 
     private string ModifyPlan(string planId, Action<PlanYaml> modifier, string successMessage)
     {
+        return ModifyPlan(planId, plan => { modifier(plan); return successMessage; });
+    }
+
+    private string ModifyPlan(string planId, Func<PlanYaml, string> modifier)
+    {
         return ExecuteAuthenticated(() =>
         {
             var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
             var plan = PlanCommandHelpers.ReadPlan(planFolder);
 
-            modifier(plan);
+            var message = modifier(plan);
 
             plan.Updated = DateTime.UtcNow;
             PlanCommandHelpers.WritePlan(planFolder, plan);
-            return successMessage;
+            return message;
         });
     }
 

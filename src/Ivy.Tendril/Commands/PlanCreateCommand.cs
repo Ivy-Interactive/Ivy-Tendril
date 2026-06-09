@@ -123,11 +123,11 @@ public class PlanCreateCommand : Command<PlanCreateSettings>
 
             if (settings.RelatedPlans != null)
                 foreach (var rp in settings.RelatedPlans)
-                    plan.RelatedPlans.Add(rp);
+                    plan.RelatedPlans.Add(PlanCommandHelpers.ResolvePlanFolderName(rp));
 
             if (settings.DependsOn != null)
                 foreach (var dep in settings.DependsOn)
-                    plan.DependsOn.Add(dep);
+                    plan.DependsOn.Add(PlanCommandHelpers.ResolvePlanFolderName(dep));
 
             PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 

@@ -563,6 +563,7 @@ public class PlanToolsTests : IDisposable
     public void AddRelated_AddsLink()
     {
         CreateTestPlan();
+        CreateTestPlan("00010", "OtherPlan");
 
         var result = _planTools.AddRelated("00001", "00010-OtherPlan");
 
@@ -575,6 +576,7 @@ public class PlanToolsTests : IDisposable
     public void AddRelated_Duplicate_IsIdempotent()
     {
         CreateTestPlan();
+        CreateTestPlan("00010", "OtherPlan");
         _planTools.AddRelated("00001", "00010-OtherPlan");
 
         var result = _planTools.AddRelated("00001", "00010-OtherPlan");
@@ -586,6 +588,7 @@ public class PlanToolsTests : IDisposable
     public void RemoveRelated_RemovesLink()
     {
         CreateTestPlan();
+        CreateTestPlan("00010", "OtherPlan");
         _planTools.AddRelated("00001", "00010-OtherPlan");
 
         var result = _planTools.RemoveRelated("00001", "00010-OtherPlan");
@@ -611,6 +614,7 @@ public class PlanToolsTests : IDisposable
     public void AddDependsOn_AddsDependency()
     {
         CreateTestPlan();
+        CreateTestPlan("00005", "BasePlan");
 
         var result = _planTools.AddDependsOn("00001", "00005-BasePlan");
 
@@ -623,6 +627,7 @@ public class PlanToolsTests : IDisposable
     public void AddDependsOn_Duplicate_IsIdempotent()
     {
         CreateTestPlan();
+        CreateTestPlan("00005", "BasePlan");
         _planTools.AddDependsOn("00001", "00005-BasePlan");
 
         var result = _planTools.AddDependsOn("00001", "00005-BasePlan");
@@ -634,6 +639,7 @@ public class PlanToolsTests : IDisposable
     public void RemoveDependsOn_RemovesDependency()
     {
         CreateTestPlan();
+        CreateTestPlan("00005", "BasePlan");
         _planTools.AddDependsOn("00001", "00005-BasePlan");
 
         var result = _planTools.RemoveDependsOn("00001", "00005-BasePlan");
