@@ -1,4 +1,4 @@
-import type { EventWire, PresentationEvent, ToolUsePresentation } from "./agent-output-types";
+import type { EventWire, PresentationEvent, ToolUsePresentation } from "./types";
 
 export function parseEventWireStream(jsonStream: string): PresentationEvent[] {
   const lines = jsonStream.split("\n");

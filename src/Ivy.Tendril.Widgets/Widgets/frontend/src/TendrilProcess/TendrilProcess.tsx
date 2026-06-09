@@ -1,8 +1,8 @@
 import React from "react";
 import { Plus, Feather, ThumbsUp, LoaderCircle } from "lucide-react";
-import { TendrilProcessViewProps } from "./types";
-import { getWidth, getHeight } from "./styles";
-import "./TendrilProcessView.css";
+import { TendrilProcessProps } from "./types";
+import { getWidth, getHeight } from "../styles";
+import "./tendril-process.css";
 
 interface ArrowProps {
   count: number;
@@ -57,7 +57,7 @@ const LoopArrow: React.FC<LoopArrowProps> = ({ count, onClick }) => (
   </div>
 );
 
-export const TendrilProcessView: React.FC<TendrilProcessViewProps> = ({
+export const TendrilProcess: React.FC<TendrilProcessProps> = ({
   id,
   width = "full",
   height = "fit",

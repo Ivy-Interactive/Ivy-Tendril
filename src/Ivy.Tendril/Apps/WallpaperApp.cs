@@ -16,7 +16,7 @@ public class WallpaperApp : ViewBase
         var versionInfo = UseState<VersionInfo?>(null);
         var dismissedVersion = UseState<string?>(null);
 
-        var processView = Context.UseTendrilProcessView();
+        var processView = Context.UseTendrilProcess();
 
         UseEffect(() =>
         {

@@ -1,6 +1,6 @@
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
-using Ivy.Widgets.AgentOutputView;
+using Ivy.Widgets.AgentOutput;
 
 namespace Ivy.Tendril.Apps.Jobs;
 
@@ -29,14 +29,14 @@ public class OutputSheet(string jobId, IJobService jobService) : ViewBase
             var snapshot = !job.OutputLines.IsEmpty
                 ? string.Join("\n", job.OutputLines) : null;
 
-            return new AgentOutputView()
+            return new AgentOutput()
                 .JsonStream(snapshot)
                 .AutoScroll(false)
                 .ShowStatusLabel(false)
                 .Height(Size.Full());
         }
 
-        return new AgentOutputView()
+        return new AgentOutput()
             .JsonStream(initialSnapshot.Value)
             .Stream(outputStream)
             .Height(Size.Full());

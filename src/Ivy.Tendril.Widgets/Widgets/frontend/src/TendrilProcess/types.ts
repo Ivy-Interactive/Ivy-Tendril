@@ -4,7 +4,7 @@ export type IvyEventHandler = (
   args: unknown[]
 ) => void;
 
-export interface TendrilProcessViewProps {
+export interface TendrilProcessProps {
   id: string;
   width?: string;
   height?: string;

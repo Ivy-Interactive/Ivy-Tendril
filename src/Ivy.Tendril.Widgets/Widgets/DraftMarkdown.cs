@@ -2,7 +2,7 @@ using Ivy;
 using Ivy.Core;
 using Ivy.Core.ExternalWidgets;
 
-namespace Ivy.Widgets.PlanMarkdownView;
+namespace Ivy.Widgets.DraftMarkdown;
 
 /// <summary>
 /// Renders plan markdown in its own internal scroll container, alongside a
@@ -13,18 +13,18 @@ namespace Ivy.Widgets.PlanMarkdownView;
 [ExternalWidget(
     "Widgets/frontend/dist/ivy-tendril-widgets.js",
     StylePath = "Widgets/frontend/dist/ivy-tendril-widgets.css",
-    ExportName = "PlanMarkdownView",
+    ExportName = "DraftMarkdown",
     GlobalName = "IvyTendrilWidgets"
 )]
 [Slot("FixedContent")]
-public record PlanMarkdownView : WidgetBase<PlanMarkdownView>
+public record DraftMarkdown : WidgetBase<DraftMarkdown>
 {
-    public PlanMarkdownView(string content) : base()
+    public DraftMarkdown(string content) : base()
     {
         Content = content;
     }
 
-    internal PlanMarkdownView() { }
+    internal DraftMarkdown() { }
 
     /// <summary>The markdown source to render.</summary>
     [Prop] public string Content { get; init; } = string.Empty;
@@ -36,19 +36,19 @@ public record PlanMarkdownView : WidgetBase<PlanMarkdownView>
     [Prop] public bool DangerouslyAllowLocalFiles { get; init; }
 
     /// <summary>Fired when a link inside the markdown is clicked; the payload is the href.</summary>
-    [Event] public EventHandler<Event<PlanMarkdownView, string>>? OnLinkClick { get; init; }
+    [Event] public EventHandler<Event<DraftMarkdown, string>>? OnLinkClick { get; init; }
 }
 
-public static class PlanMarkdownViewExtensions
+public static class DraftMarkdownExtensions
 {
-    public static PlanMarkdownView Article(this PlanMarkdownView w, bool article = true) =>
+    public static DraftMarkdown Article(this DraftMarkdown w, bool article = true) =>
         w with { Article = article };
 
-    public static PlanMarkdownView DangerouslyAllowLocalFiles(this PlanMarkdownView w, bool allow = true) =>
+    public static DraftMarkdown DangerouslyAllowLocalFiles(this DraftMarkdown w, bool allow = true) =>
         w with { DangerouslyAllowLocalFiles = allow };
 
     /// <summary>Sets the pinned (non-scrolling) content rendered to the right of the markdown.</summary>
-    public static PlanMarkdownView FixedContent(this PlanMarkdownView w, object? content)
+    public static DraftMarkdown FixedContent(this DraftMarkdown w, object? content)
     {
         var others = w.Children.Where(c => c is not Slot s || s.Name != "FixedContent");
         var children = content != null
@@ -57,12 +57,12 @@ public static class PlanMarkdownViewExtensions
         return w with { Children = children };
     }
 
-    public static PlanMarkdownView OnLinkClick(
-        this PlanMarkdownView w,
-        Func<Event<PlanMarkdownView, string>, ValueTask> handler
+    public static DraftMarkdown OnLinkClick(
+        this DraftMarkdown w,
+        Func<Event<DraftMarkdown, string>, ValueTask> handler
     ) => w with { OnLinkClick = new(handler) };
 
-    public static PlanMarkdownView OnLinkClick(this PlanMarkdownView w, Action<string> handler) =>
+    public static DraftMarkdown OnLinkClick(this DraftMarkdown w, Action<string> handler) =>
         w with
         {
             OnLinkClick = new(e =>

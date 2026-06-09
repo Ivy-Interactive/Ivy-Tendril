@@ -2,9 +2,9 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Markdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
-import "./agent-output-view.css";
-import type { EventHandler, PresentationEvent } from "./agent-output-types";
-import { getHeight, getWidth } from "./styles";
+import "./agent-output.css";
+import type { EventHandler, PresentationEvent } from "./types";
+import { getHeight, getWidth } from "../styles";
 import { useAutoScroll } from "./use-auto-scroll";
 import { parseEventWireStream } from "./parse-events";
 import { deriveStatus } from "./status";
@@ -30,7 +30,7 @@ function buildSuppressIndices(events: PresentationEvent[]): Set<number> {
 
 type StreamSubscriber = (streamId: string, onData: (data: unknown) => void) => () => void;
 
-interface AgentOutputViewProps {
+interface AgentOutputProps {
   id: string;
   width?: string;
   height?: string;
@@ -46,7 +46,7 @@ interface AgentOutputViewProps {
   statusLabelOverride?: string;
 }
 
-export const AgentOutputView: React.FC<AgentOutputViewProps> = ({
+export const AgentOutput: React.FC<AgentOutputProps> = ({
   id,
   width,
   height,
