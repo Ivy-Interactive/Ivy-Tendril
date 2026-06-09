@@ -1,5 +1,6 @@
 using Ivy.Desktop;
 using Ivy.Tendril.Apps.Settings;
+using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Microsoft.AspNetCore.Http;
@@ -93,6 +94,29 @@ public class SettingsApp : ViewBase
             _ => new CodingAgentSetupView()
         };
 
-        return new SidebarLayout(content, sidebar).CollapsibleOnMobile();
+        // The sidebar collapses on mobile, so provide a header dropdown to switch sections.
+        // Only the navigable sections (not the "Open config.yaml" action) are switchable here.
+        var sections = children
+            .Where(m => m.Tag is string t && t != TagOpenConfig)
+            .Select(m => (Tag: (string)m.Tag!, Label: m.Label ?? ""))
+            .ToList();
+        var currentLabel = sections.FirstOrDefault(s => s.Tag == selected.Value).Label ?? "Configuration";
+
+        var mobileHeader = MobileItemPicker.Build(
+                currentLabel,
+                sections,
+                s => s.Label,
+                s => s.Tag == selected.Value,
+                s => selected.Set(s.Tag))
+            .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
+
+        // Prepend the mobile section switcher above the content. It is hidden on desktop, where
+        // the vertical stack collapses it to nothing (no reserved header band), so the layout is
+        // unchanged on larger screens.
+        var contentWithMobileHeader = Layout.Vertical().Height(Size.Full()).Gap(2)
+                                      | mobileHeader
+                                      | (Layout.Vertical().Height(Size.Grow()) | content);
+
+        return new SidebarLayout(contentWithMobileHeader, sidebar).CollapsibleOnMobile();
     }
 }
