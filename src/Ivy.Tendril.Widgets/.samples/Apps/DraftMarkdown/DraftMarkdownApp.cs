@@ -1,7 +1,7 @@
 using Ivy;
 using Ivy.Widgets.DraftMarkdown;
 
-namespace Ivy.Tendril.Widgets.Samples;
+namespace WidgetSamples;
 
 [App(title: "Draft Markdown", icon: Icons.FileText, group: ["DraftMarkdown"])]
 class DraftMarkdownApp : ViewBase
