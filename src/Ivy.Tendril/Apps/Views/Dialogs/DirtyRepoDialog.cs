@@ -41,13 +41,13 @@ public class DirtyRepoDialog(
                 | new Button("Cancel").Outline().OnClick(() => dialogOpen.Set(false))
                 | new Button(proceedLabel).Outline().OnClick(() =>
                 {
-                    onProceed();
                     dialogOpen.Set(false);
+                    onProceed();
                 })
                 | new Button("Sync Repos").Primary().Icon(Icons.RefreshCw).OnClick(() =>
                 {
-                    onSyncRepos();
                     dialogOpen.Set(false);
+                    onSyncRepos();
                 })
             )
         ).Width(Size.Rem(40));

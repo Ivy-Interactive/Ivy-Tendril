@@ -318,6 +318,21 @@ public class JobService : IJobService
         return _jobs.GetValueOrDefault(id) ?? _database?.GetJobById(id);
     }
 
+    public bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null)
+    {
+        if (!_jobs.TryGetValue(id, out var job))
+            return false;
+
+        job.StatusMessage = message;
+        if (!string.IsNullOrEmpty(planId))
+            job.ReportedPlanId = planId;
+        if (!string.IsNullOrEmpty(planTitle))
+            job.ReportedPlanTitle = planTitle;
+
+        RaiseJobsPropertyChanged();
+        return true;
+    }
+
     public List<JobItem> GetJobsForPlan(string planFile)
     {
         var activeJobs = _jobs.Values
@@ -427,6 +442,13 @@ public class JobService : IJobService
 
     private string StartJobInternal(JobArgsBase args, string? inboxFilePath, bool skipDependencyCheck = false)
     {
+        if (args is SyncRepoArgs syncRepoArgs)
+        {
+            var existingId = TryFindExistingSyncRepoJob(syncRepoArgs);
+            if (existingId != null)
+                return existingId;
+        }
+
         var id = _configService != null
             ? JobIdAllocator.AllocateJobId(_configService.TendrilHome)
             : Guid.NewGuid().ToString("N")[..5];
@@ -550,6 +572,18 @@ public class JobService : IJobService
             false));
         RaiseJobsStructureChanged();
         return true;
+    }
+
+    private string? TryFindExistingSyncRepoJob(SyncRepoArgs args)
+    {
+        var normalizedPath = Path.GetFullPath(args.RepoPath);
+
+        var existingJob = _jobs.Values.FirstOrDefault(j =>
+            j.TypedArgs is SyncRepoArgs existingArgs &&
+            j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked &&
+            Path.GetFullPath(existingArgs.RepoPath).Equals(normalizedPath, StringComparison.OrdinalIgnoreCase));
+
+        return existingJob?.Id;
     }
 
     private bool TryBlockForDependencies(JobItem job, bool skipDependencyCheck)

@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
-using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -12,47 +11,38 @@ public class PlanAddRelatedPlanSettings : CommandSettings
     [CommandArgument(0, "<plan-id>")]
     public string PlanId { get; set; } = "";
 
-    [Description("Related plan folder name (e.g., 01478-WorktreeIsolation)")]
+    [Description("Plan reference (ID, folder name, or path)")]
     [CommandArgument(1, "<related-plan>")]
     public string RelatedPlan { get; set; } = "";
 }
 
 public class PlanAddRelatedPlanCommand : Command<PlanAddRelatedPlanSettings>
 {
-    private readonly ILogger<PlanAddRelatedPlanCommand> _logger;
     private readonly IPlanWatcherService _planWatcher;
 
-    public PlanAddRelatedPlanCommand(ILogger<PlanAddRelatedPlanCommand> logger, IPlanWatcherService planWatcher)
+    public PlanAddRelatedPlanCommand(IPlanWatcherService planWatcher)
     {
-        _logger = logger;
         _planWatcher = planWatcher;
     }
 
     protected override int Execute(CommandContext context, PlanAddRelatedPlanSettings settings, CancellationToken cancellationToken)
     {
-        try
+        var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
+        var plan = PlanCommandHelpers.ReadPlan(planFolder);
+        var resolvedRp = PlanCommandHelpers.ResolvePlanFolderName(settings.RelatedPlan);
+
+        if (plan.RelatedPlans.Contains(resolvedRp, StringComparer.OrdinalIgnoreCase))
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
-
-            if (plan.RelatedPlans.Contains(settings.RelatedPlan, StringComparer.OrdinalIgnoreCase))
-            {
-                _logger.LogInformation("Related plan already present: {RelatedPlan}", settings.RelatedPlan);
-                return 0;
-            }
-
-            plan.RelatedPlans.Add(settings.RelatedPlan);
-            plan.Updated = DateTime.UtcNow;
-
-            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
-
-            _logger.LogInformation("Added related plan: {RelatedPlan}", settings.RelatedPlan);
+            Console.WriteLine($"Related plan already present: {resolvedRp}");
             return 0;
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to add related plan to plan {PlanId}", settings.PlanId);
-            return 1;
-        }
+
+        plan.RelatedPlans.Add(resolvedRp);
+        plan.Updated = DateTime.UtcNow;
+
+        PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
+
+        Console.WriteLine($"Added related plan: {resolvedRp}");
+        return 0;
     }
 }

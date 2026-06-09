@@ -61,6 +61,7 @@
     <ProjectReference Include="../../../Ivy-Framework/src/Ivy/Ivy.csproj" />
     <ProjectReference Include="../../../Ivy-Framework/src/Ivy.Desktop/Ivy.Desktop.csproj" />
     <ProjectReference Include="../../../Ivy-Framework/src/Ivy.Hooks.Pty/Ivy.Hooks.Pty.csproj" />
+    <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.ActivityHeatmap/Ivy.Widgets.ActivityHeatmap.csproj" />
     <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.AnimatedStatusLabel/Ivy.Widgets.AnimatedStatusLabel.csproj" />
     <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.DiffView/Ivy.Widgets.DiffView.csproj" />
     <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.QRCode/Ivy.Widgets.QRCode.csproj" />
@@ -71,6 +72,7 @@
     <PackageReference Include="Ivy" Version="1.2.66" />
     <PackageReference Include="Ivy.Desktop" Version="1.2.66" />
     <PackageReference Include="Ivy.Hooks.Pty" Version="1.2.66" />
+    <PackageReference Include="Ivy.Widgets.ActivityHeatmap" Version="1.2.66" />
     <PackageReference Include="Ivy.Widgets.AnimatedStatusLabel" Version="1.2.66" />
     <PackageReference Include="Ivy.Widgets.DiffView" Version="1.2.66" />
     <PackageReference Include="Ivy.Widgets.QRCode" Version="1.2.66" />

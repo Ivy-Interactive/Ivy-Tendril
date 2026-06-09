@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
-using Microsoft.Extensions.Logging;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -32,32 +31,11 @@ public class ReportBugSettings : CommandSettings
 
 public class ReportBugCommand : Command<ReportBugSettings>
 {
-    private readonly ILogger<ReportBugCommand> _logger;
-
-    public ReportBugCommand(ILogger<ReportBugCommand> logger) => _logger = logger;
-
     protected override int Execute(CommandContext context, ReportBugSettings settings, CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(settings.PlanId) && string.IsNullOrEmpty(settings.JobId))
-        {
-            AnsiConsole.MarkupLine("[red]Error:[/] Either --plan or --job must be specified.");
-            return 1;
-        }
+            throw new ArgumentException("Either --plan or --job must be specified.");
 
-        try
-        {
-            return Run(settings, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to report bug");
-            AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message.EscapeMarkup()}");
-            return 1;
-        }
-    }
-
-    private int Run(ReportBugSettings settings, CancellationToken cancellationToken)
-    {
         var configService = new ConfigService();
         var service = new BugReportService(configService);
 
@@ -95,10 +73,7 @@ public class ReportBugCommand : Command<ReportBugSettings>
         var result = service.SubmitReportAsync(description, files, cancellationToken).GetAwaiter().GetResult();
 
         if (result == null)
-        {
-            AnsiConsole.MarkupLine("[red]Upload failed.[/]");
-            return 1;
-        }
+            throw new InvalidOperationException("Upload failed.");
 
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("[green]Bug report submitted successfully![/]");

@@ -41,7 +41,7 @@ public class DashboardApp : ViewBase
 
         if (stats.TotalCount == 0)
         {
-            return new NoContentView("No plans yet", "Create your first plan to get started.", new NewPlanButton().Width(Size.Fit()));
+            return new NoContentView("No plans yet", "Create your first plan to get started", new NewPlanButton().Width(Size.Fit()));
         }
 
         // Statistics cards

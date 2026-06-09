@@ -63,7 +63,6 @@ public class ChangesTabView(
             diffsLayout |= Text.Block("").Anchor(path);
             diffsLayout |= new DiffView()
                 .Diff(fileDiff.Diff)
-                .Split()
                 .Collapsible()
                 .Width(Size.Full());
         }
@@ -78,7 +77,7 @@ public class ChangesTabView(
         if (hideFormatting.Value && hiddenCount > 0)
             toolbar |= Text.Muted($"{fileDiffs.Count} of {allFileDiffs.Count} files (hiding {hiddenCount} formatting-only)").Small();
 
-        var mainLayout = Layout.Horizontal().Height(Size.Grow())
+        var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0))).Padding(0, 0, 0, 2)
             | treePanel
             | diffsLayout;
 

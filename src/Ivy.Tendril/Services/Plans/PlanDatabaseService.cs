@@ -245,6 +245,37 @@ public class PlanDatabaseService : IPlanDatabaseService
     public DashboardModels GetDashboardData(string? projectFilter) =>
         _dashboardRepository.GetDashboardData(projectFilter);
 
+    public List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days = 30)
+    {
+        using (new ReadLockHandle(_lock))
+        {
+            var cutoff = DateTime.UtcNow.Date.AddDays(-days + 1).ToString("yyyy-MM-dd");
+            var results = new List<(DateOnly Date, int Count)>();
+
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT DATE(p.Updated) AS d, COUNT(*) AS cnt
+                FROM PullRequests pr
+                JOIN Plans p ON p.Id = pr.PlanId
+                WHERE p.Updated >= @cutoff AND p.State = 'Completed'
+                GROUP BY DATE(p.Updated)
+                ORDER BY DATE(p.Updated)
+                """;
+            cmd.Parameters.AddWithValue("@cutoff", cutoff);
+
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                var dateStr = reader.GetString(0);
+                var count = reader.GetInt32(1);
+                var date = DateOnly.ParseExact(dateStr, "yyyy-MM-dd", CultureInfo.InvariantCulture);
+                results.Add((date, count));
+            }
+
+            return results;
+        }
+    }
+
     public decimal GetPlanTotalCost(int planId)
     {
         using (new ReadLockHandle(_lock))
@@ -642,8 +673,8 @@ public class PlanDatabaseService : IPlanDatabaseService
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
-                              INSERT OR REPLACE INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, SessionId, StartedAt, CompletedAt, DurationSeconds, Cost, Tokens, StatusMessage, Args, TypedArgs)
-                              VALUES (@id, @type, @planFile, @project, @status, @provider, @sessionId, @startedAt, @completedAt, @durationSeconds, @cost, @tokens, @statusMessage, @args, @typedArgs)
+                              INSERT OR REPLACE INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, SessionId, StartedAt, CompletedAt, DurationSeconds, Cost, Tokens, StatusMessage, Args, TypedArgs, WorkingDirectory, CliCommand)
+                              VALUES (@id, @type, @planFile, @project, @status, @provider, @sessionId, @startedAt, @completedAt, @durationSeconds, @cost, @tokens, @statusMessage, @args, @typedArgs, @workingDirectory, @cliCommand)
                               """;
             cmd.Parameters.AddWithValue("@id", job.Id);
             cmd.Parameters.AddWithValue("@type", job.Type);
@@ -664,6 +695,8 @@ public class PlanDatabaseService : IPlanDatabaseService
             cmd.Parameters.AddWithValue("@typedArgs", job.TypedArgs != null
                 ? JsonSerializer.Serialize<JobArgsBase>(job.TypedArgs)
                 : DBNull.Value);
+            cmd.Parameters.AddWithValue("@workingDirectory", (object?)job.WorkingDirectory ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@cliCommand", (object?)job.CliCommand ?? DBNull.Value);
             cmd.ExecuteNonQuery();
         }
     }
@@ -732,7 +765,13 @@ public class PlanDatabaseService : IPlanDatabaseService
             StatusMessage = reader.IsDBNull(reader.GetOrdinal("StatusMessage"))
                 ? null
                 : reader.GetString(reader.GetOrdinal("StatusMessage")),
-            TypedArgs = ReadTypedArgs(reader)
+            TypedArgs = ReadTypedArgs(reader),
+            WorkingDirectory = reader.IsDBNull(reader.GetOrdinal("WorkingDirectory"))
+                ? null
+                : reader.GetString(reader.GetOrdinal("WorkingDirectory")),
+            CliCommand = reader.IsDBNull(reader.GetOrdinal("CliCommand"))
+                ? null
+                : reader.GetString(reader.GetOrdinal("CliCommand"))
         };
     }
 

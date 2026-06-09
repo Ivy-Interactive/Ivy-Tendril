@@ -36,7 +36,7 @@ public class ContentView(
         if (selectedPlan is null)
         {
             if (allPlans.Count == 0)
-                return new NoContentView("Icebox is empty", "Plans you put on ice will appear here.");
+                return new NoContentView("Icebox is empty", "Plans you put on ice will appear here");
 
             return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
                    | Text.Muted("Select a plan from the sidebar");
@@ -164,7 +164,7 @@ public class ContentView(
         var syncJobIds = new List<string>();
         foreach (var (repoPath, baseBranch, _) in preflight.DirtyRepos)
         {
-            var jobId = jobService.StartJob(new SyncRepoArgs(repoPath, baseBranch));
+            var jobId = jobService.StartJob(new SyncRepoArgs(repoPath, baseBranch, selectedPlan.FolderPath));
             syncJobIds.Add(jobId);
         }
 

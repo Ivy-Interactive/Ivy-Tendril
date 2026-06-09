@@ -55,6 +55,16 @@ public static class PlanCommandHelpers
     }
 
     /// <summary>
+    ///     Resolves any plan reference format to the canonical folder name (not the full path).
+    ///     Accepts: full path, folder name (e.g. "00015-Title"), zero-padded ID ("00015"), or bare number ("15").
+    /// </summary>
+    public static string ResolvePlanFolderName(string planRef)
+    {
+        var fullPath = ResolvePlanFolder(planRef);
+        return Path.GetFileName(fullPath);
+    }
+
+    /// <summary>
     ///     Resolves the plans directory from an explicit override, TENDRIL_PLANS, or TENDRIL_HOME/Plans.
     /// </summary>
     public static string GetPlansDirectory(string? explicitPlansDir = null)

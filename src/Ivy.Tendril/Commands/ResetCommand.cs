@@ -97,7 +97,7 @@ public class ResetCommand : Command<ResetSettings>
         AnsiConsole.WriteLine();
         foreach (var target in targets.Where(t => t.Exists))
         {
-            AnsiConsole.MarkupLine($"[yellow]{target.Type}:[/] {target.Description}");
+            AnsiConsole.MarkupLine($"[yellow]{target.Type}:[/] {target.Description.EscapeMarkup()}");
         }
         AnsiConsole.WriteLine();
 
@@ -120,13 +120,13 @@ public class ResetCommand : Command<ResetSettings>
             try
             {
                 Directory.Delete(tendrilHome, recursive: true);
-                AnsiConsole.MarkupLine($"[green]✓[/] Deleted directory: {tendrilHome}");
+                AnsiConsole.MarkupLine($"[green]✓[/] Deleted directory: {tendrilHome.EscapeMarkup()}");
             }
             catch (Exception ex)
             {
                 errors.Add($"Failed to delete {tendrilHome}: {ex.Message}");
-                AnsiConsole.MarkupLine($"[red]✗[/] Failed to delete directory: {tendrilHome}");
-                _logger.LogError(ex, "Failed to delete TENDRIL_HOME directory");
+                AnsiConsole.MarkupLine($"[red]✗[/] Failed to delete directory: {tendrilHome.EscapeMarkup()}");
+                _logger.LogError("Failed to delete TENDRIL_HOME directory: {Message}", ex.Message);
             }
         }
 
@@ -136,13 +136,13 @@ public class ResetCommand : Command<ResetSettings>
             try
             {
                 Directory.Delete(tendrilPlans, recursive: true);
-                AnsiConsole.MarkupLine($"[green]✓[/] Deleted directory: {tendrilPlans}");
+                AnsiConsole.MarkupLine($"[green]✓[/] Deleted directory: {tendrilPlans.EscapeMarkup()}");
             }
             catch (Exception ex)
             {
                 errors.Add($"Failed to delete {tendrilPlans}: {ex.Message}");
-                AnsiConsole.MarkupLine($"[red]✗[/] Failed to delete directory: {tendrilPlans}");
-                _logger.LogError(ex, "Failed to delete TENDRIL_PLANS directory");
+                AnsiConsole.MarkupLine($"[red]✗[/] Failed to delete directory: {tendrilPlans.EscapeMarkup()}");
+                _logger.LogError("Failed to delete TENDRIL_PLANS directory: {Message}", ex.Message);
             }
         }
 
@@ -158,7 +158,7 @@ public class ResetCommand : Command<ResetSettings>
             {
                 errors.Add($"Failed to remove TENDRIL_HOME env var: {ex.Message}");
                 AnsiConsole.MarkupLine("[red]✗[/] Failed to remove env var: TENDRIL_HOME");
-                _logger.LogError(ex, "Failed to remove TENDRIL_HOME environment variable");
+                _logger.LogError("Failed to remove TENDRIL_HOME environment variable: {Message}", ex.Message);
             }
 
             try
@@ -174,7 +174,7 @@ public class ResetCommand : Command<ResetSettings>
             {
                 errors.Add($"Failed to remove TENDRIL_PLANS env var: {ex.Message}");
                 AnsiConsole.MarkupLine("[red]✗[/] Failed to remove env var: TENDRIL_PLANS");
-                _logger.LogError(ex, "Failed to remove TENDRIL_PLANS environment variable");
+                _logger.LogError("Failed to remove TENDRIL_PLANS environment variable: {Message}", ex.Message);
             }
         }
         else
@@ -195,7 +195,7 @@ public class ResetCommand : Command<ResetSettings>
             AnsiConsole.MarkupLine("[yellow]Reset completed with errors.[/]");
             foreach (var error in errors)
             {
-                AnsiConsole.MarkupLine($"[red]- {error}[/]");
+                AnsiConsole.MarkupLine($"[red]- {error.EscapeMarkup()}[/]");
             }
         }
 

@@ -39,6 +39,7 @@ public interface IPlanReaderService
     void AcceptRecommendationAndRetry(string folderName, string recommendationTitle);
 
     void SyncPlanArtifacts(string planFolder);
+    PlanFile? GetPlanByFolderFromDisk(string folderPath) => GetPlanByFolder(folderPath);
     void InvalidateCaches();
     Task FlushPendingWritesAsync();
 

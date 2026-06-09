@@ -438,11 +438,11 @@ public class PlanController : ControllerBase
 
             if (request.RelatedPlans != null)
                 foreach (var rp in request.RelatedPlans)
-                    plan.RelatedPlans.Add(rp);
+                    plan.RelatedPlans.Add(PlanCommandHelpers.ResolvePlanFolderName(rp));
 
             if (request.DependsOn != null)
                 foreach (var dep in request.DependsOn)
-                    plan.DependsOn.Add(dep);
+                    plan.DependsOn.Add(PlanCommandHelpers.ResolvePlanFolderName(dep));
 
             PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
@@ -481,48 +481,72 @@ public class PlanController : ControllerBase
     }
 
     [HttpPost("{planId}/related-plans")]
-    public IActionResult AddRelatedPlan(string planId, [FromBody] AddRelatedPlanRequest request) =>
-        ModifyPlanEndpoint(planId, plan =>
-        {
-            if (plan.RelatedPlans.Contains(request.RelatedPlan, StringComparer.OrdinalIgnoreCase))
-                return (true, $"Related plan already present: {request.RelatedPlan}", 200);
+    public IActionResult AddRelatedPlan(string planId, [FromBody] AddRelatedPlanRequest request)
+    {
+        string resolved;
+        try { resolved = PlanCommandHelpers.ResolvePlanFolderName(request.RelatedPlan); }
+        catch (DirectoryNotFoundException) { return NotFound(new { error = $"Referenced plan '{request.RelatedPlan}' not found" }); }
 
-            plan.RelatedPlans.Add(request.RelatedPlan);
-            return (true, $"Added related plan: {request.RelatedPlan}", 200);
+        return ModifyPlanEndpoint(planId, plan =>
+        {
+            if (plan.RelatedPlans.Contains(resolved, StringComparer.OrdinalIgnoreCase))
+                return (true, $"Related plan already present: {resolved}", 200);
+
+            plan.RelatedPlans.Add(resolved);
+            return (true, $"Added related plan: {resolved}", 200);
         });
+    }
 
     [HttpDelete("{planId}/related-plans")]
-    public IActionResult RemoveRelatedPlan(string planId, [FromBody] RemoveRelatedPlanRequest request) =>
-        ModifyPlanEndpoint(planId, plan =>
-        {
-            var removed = plan.RelatedPlans.RemoveAll(r => r.Equals(request.RelatedPlan, StringComparison.OrdinalIgnoreCase));
-            if (removed == 0)
-                return (false, $"Related plan not found: {request.RelatedPlan}", 404);
+    public IActionResult RemoveRelatedPlan(string planId, [FromBody] RemoveRelatedPlanRequest request)
+    {
+        string resolved;
+        try { resolved = PlanCommandHelpers.ResolvePlanFolderName(request.RelatedPlan); }
+        catch (DirectoryNotFoundException) { return NotFound(new { error = $"Referenced plan '{request.RelatedPlan}' not found" }); }
 
-            return (true, $"Removed related plan: {request.RelatedPlan}", 200);
+        return ModifyPlanEndpoint(planId, plan =>
+        {
+            var removed = plan.RelatedPlans.RemoveAll(r => r.Equals(resolved, StringComparison.OrdinalIgnoreCase));
+            if (removed == 0)
+                return (false, $"Related plan not found: {resolved}", 404);
+
+            return (true, $"Removed related plan: {resolved}", 200);
         });
+    }
 
     [HttpPost("{planId}/depends-on")]
-    public IActionResult AddDependsOn(string planId, [FromBody] AddDependsOnRequest request) =>
-        ModifyPlanEndpoint(planId, plan =>
-        {
-            if (plan.DependsOn.Contains(request.DependsOn, StringComparer.OrdinalIgnoreCase))
-                return (true, $"Dependency already present: {request.DependsOn}", 200);
+    public IActionResult AddDependsOn(string planId, [FromBody] AddDependsOnRequest request)
+    {
+        string resolved;
+        try { resolved = PlanCommandHelpers.ResolvePlanFolderName(request.DependsOn); }
+        catch (DirectoryNotFoundException) { return NotFound(new { error = $"Referenced plan '{request.DependsOn}' not found" }); }
 
-            plan.DependsOn.Add(request.DependsOn);
-            return (true, $"Added dependency: {request.DependsOn}", 200);
+        return ModifyPlanEndpoint(planId, plan =>
+        {
+            if (plan.DependsOn.Contains(resolved, StringComparer.OrdinalIgnoreCase))
+                return (true, $"Dependency already present: {resolved}", 200);
+
+            plan.DependsOn.Add(resolved);
+            return (true, $"Added dependency: {resolved}", 200);
         });
+    }
 
     [HttpDelete("{planId}/depends-on")]
-    public IActionResult RemoveDependsOn(string planId, [FromBody] RemoveDependsOnRequest request) =>
-        ModifyPlanEndpoint(planId, plan =>
-        {
-            var removed = plan.DependsOn.RemoveAll(d => d.Equals(request.DependsOn, StringComparison.OrdinalIgnoreCase));
-            if (removed == 0)
-                return (false, $"Dependency not found: {request.DependsOn}", 404);
+    public IActionResult RemoveDependsOn(string planId, [FromBody] RemoveDependsOnRequest request)
+    {
+        string resolved;
+        try { resolved = PlanCommandHelpers.ResolvePlanFolderName(request.DependsOn); }
+        catch (DirectoryNotFoundException) { return NotFound(new { error = $"Referenced plan '{request.DependsOn}' not found" }); }
 
-            return (true, $"Removed dependency: {request.DependsOn}", 200);
+        return ModifyPlanEndpoint(planId, plan =>
+        {
+            var removed = plan.DependsOn.RemoveAll(d => d.Equals(resolved, StringComparison.OrdinalIgnoreCase));
+            if (removed == 0)
+                return (false, $"Dependency not found: {resolved}", 404);
+
+            return (true, $"Removed dependency: {resolved}", 200);
         });
+    }
 
     [HttpPost("{planId}/validate")]
     public IActionResult ValidatePlan(string planId)

@@ -58,17 +58,17 @@ public class MasterElectionService(
 
     private void OnApplicationStarted()
     {
-        var port = GetBoundPort();
-        if (port == null)
+        var bound = GetBoundAddress();
+        if (bound == null)
         {
             logger.LogWarning("Could not determine bound port — .master file not written");
             IsMaster = false;
             return;
         }
 
-        WriteMasterFile(port.Value);
+        WriteMasterFile(bound.Value.Port, bound.Value.Scheme);
         _heartbeatTimer = new Timer(UpdateHeartbeat, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
-        logger.LogInformation("Master election won — listening on port {Port}", port.Value);
+        logger.LogInformation("Master election won — listening on port {Port}", bound.Value.Port);
     }
 
     private void OnApplicationStopping()
@@ -117,7 +117,7 @@ public class MasterElectionService(
         }
     }
 
-    private void WriteMasterFile(int port)
+    private void WriteMasterFile(int port, string scheme)
     {
         if (_masterFilePath == null) return;
 
@@ -125,6 +125,7 @@ public class MasterElectionService(
         {
             Pid = Environment.ProcessId,
             Port = port,
+            Scheme = scheme,
             StartedAt = DateTime.UtcNow,
             Heartbeat = DateTime.UtcNow
         };
@@ -155,18 +156,18 @@ public class MasterElectionService(
         }
     }
 
-    private int? GetBoundPort()
+    private (int Port, string Scheme)? GetBoundAddress()
     {
         var addresses = server.Features.Get<IServerAddressesFeature>()?.Addresses;
         if (addresses == null || addresses.Count == 0) return null;
 
         var address = addresses.First();
         if (Uri.TryCreate(address, UriKind.Absolute, out var uri))
-            return uri.Port;
+            return (uri.Port, uri.Scheme);
 
         var lastColon = address.LastIndexOf(':');
         if (lastColon >= 0 && int.TryParse(address[(lastColon + 1)..], out var port))
-            return port;
+            return (port, "http");
 
         return null;
     }
@@ -216,6 +217,7 @@ public class MasterElectionService(
     {
         public int Pid { get; set; }
         public int Port { get; set; }
+        public string Scheme { get; set; } = "http";
         public DateTime StartedAt { get; set; }
         public DateTime Heartbeat { get; set; }
     }

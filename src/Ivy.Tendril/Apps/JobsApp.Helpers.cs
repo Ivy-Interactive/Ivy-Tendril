@@ -84,6 +84,8 @@ public partial class JobsApp
     {
         if (span.TotalHours >= 1)
             return $"{(int)span.TotalHours}h {span.Minutes:D2}m";
+        if (span.Minutes == 0)
+            return $"{span.Seconds}s";
         return $"{span.Minutes}m {span.Seconds:D2}s";
     }
 
@@ -109,6 +111,10 @@ public partial class JobsApp
         // Try CreatePlan description
         if (j.TypedArgs is CreatePlanArgs)
             return TruncatePrompt(GetFullPrompt(j) ?? j.PlanFile);
+
+        // Try SyncRepo path
+        if (j.TypedArgs is SyncRepoArgs syncArgs)
+            return TruncatePrompt(syncArgs.RepoPath);
 
         // Fallback to full prompt (resolves InitialPrompt/Title from plan.yaml) or plan file
         return TruncatePrompt(GetFullPrompt(j, planService) ?? j.PlanFile);

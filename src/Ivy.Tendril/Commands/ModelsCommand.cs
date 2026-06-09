@@ -54,7 +54,7 @@ public sealed class ModelsCommand(IAgentRunner runner) : AsyncCommand<ModelsComm
                 }
                 : "[dim]none[/]";
 
-            AnsiConsole.MarkupLine($"[bold]{agentId}[/]");
+            AnsiConsole.MarkupLine($"[bold]{agentId.EscapeMarkup()}[/]");
             AnsiConsole.MarkupLine(
                 $"  Installed: {(installed ? "[green]YES[/]" : "[red]NO[/]")}  " +
                 $"Authenticated: {(authenticated ? "[green]YES[/]" : "[red]NO[/]")}  " +
@@ -66,7 +66,7 @@ public sealed class ModelsCommand(IAgentRunner runner) : AsyncCommand<ModelsComm
                 foreach (var profile in descriptor.DefaultProfiles)
                 {
                     var model = profile.Model ?? "-";
-                    AnsiConsole.MarkupLine($"    {profile.Name,-10} : {model}");
+                    AnsiConsole.MarkupLine($"    {profile.Name.EscapeMarkup(),-10} : {model.EscapeMarkup()}");
                 }
             }
 

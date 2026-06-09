@@ -69,15 +69,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
 
     protected override int Execute(CommandContext context, PromptwareRunSettings settings, CancellationToken cancellationToken)
     {
-        try
-        {
-            return Run(settings, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to run promptware {Promptware}", settings.Promptware);
-            return 1;
-        }
+        return Run(settings, cancellationToken);
     }
 
 
@@ -93,10 +85,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         var programMd = Path.Combine(programFolder, "Program.md");
 
         if (!File.Exists(programMd))
-        {
-            _logger.LogError("Program.md not found at {ProgramMdPath}", programMd);
-            return 1;
-        }
+            throw new FileNotFoundException($"Program.md not found at {programMd}", programMd);
 
         var values = BuildFirmwareValues(settings, configService);
 
@@ -201,10 +190,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
 
         using var process = Process.Start(psi);
         if (process == null)
-        {
-            _logger.LogError("Failed to start agent process");
-            return 1;
-        }
+            throw new InvalidOperationException("Failed to start agent process");
 
         if (resolution.UsesStdinPrompt && psi.RedirectStandardInput)
         {

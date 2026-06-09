@@ -212,7 +212,7 @@ public class ContentView(
         if (selectedPlanState.Value is null)
         {
             if (allPlans.Count == 0)
-                return new NoContentView("No plans to review", "Completed plans will appear here for review.", processView);
+                return new NoContentView("No plans to review", "Completed plans will appear here for review", processView);
 
             return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
                    | Text.Muted("Select a completed plan to review");
@@ -319,7 +319,7 @@ public class ContentView(
     {
         return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
                 | new Button("Reset to Draft").Icon(Icons.RotateCcw).Outline().ShortcutKey("r").OnClick(showResetToDraftDialog)
-                | new Button("Suggest Changes").Icon(Icons.MessageSquare).Outline().OnClick(showSuggestChangesDialog).ShortcutKey("d")
+                | new Button("Request Changes").Icon(Icons.MessageSquare).Outline().OnClick(showSuggestChangesDialog).ShortcutKey("c")
                 | new Button("Discard").Icon(Icons.Trash).Outline().ShortcutKey("Backspace").OnClick(showDiscardDialog)
                 | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(() => GoToPrevious(nav, args))
                     .ShortcutKey("p")
@@ -606,7 +606,7 @@ public class ContentView(
         object Cap(object inner)
         {
             return Layout.Vertical().Scroll(Scroll.Auto).Width(Size.Full()).Height(Size.Full())
-                | (Layout.Vertical().Padding(0, 0, 0, 4).Width(Size.Full().Max(Size.Units(200))) | inner);
+                | (Layout.Vertical().Padding(6, 0, 0, 4).Width(Size.Full().Max(Size.Units(200))) | inner);
         }
     }
 
@@ -677,7 +677,7 @@ public class ContentView(
             {
                 var planFolder = Path.GetFullPath(Path.Combine(worktreePath, "..", ".."));
                 planService.SyncPlanArtifacts(planFolder);
-                var refreshed = planService.GetPlanByFolder(planFolder);
+                var refreshed = planService.GetPlanByFolderFromDisk(planFolder);
                 if (refreshed != null)
                     selectedPlanState.Set(refreshed);
                 client.Toast("Worktree synchronized successfully", "Synchronized");

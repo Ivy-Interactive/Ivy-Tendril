@@ -71,7 +71,7 @@ public class TrashApp : ViewBase
         object mainContent;
         if (files.Count == 0)
         {
-            mainContent = new NoContentView("No trash", "Duplicate plans will appear here.");
+            mainContent = new NoContentView("No trash", "Duplicate plans will appear here");
         }
         else if (selected is null)
         {

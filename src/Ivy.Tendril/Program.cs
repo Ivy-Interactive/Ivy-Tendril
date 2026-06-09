@@ -175,6 +175,13 @@ public class Program
                     AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message.EscapeMarkup()}");
                     return 1;
                 }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"Error: {ex.Message}");
+                    if (verbose)
+                        Console.Error.WriteLine(ex.ToString());
+                    return 1;
+                }
             }
         }
 
