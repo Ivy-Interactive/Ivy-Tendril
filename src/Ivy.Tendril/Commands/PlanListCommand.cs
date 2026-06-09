@@ -10,7 +10,7 @@ namespace Ivy.Tendril.Commands;
 public class PlanListSettings : CommandSettings
 {
     [CommandOption("--state")]
-    [Description("Filter by state (Draft, Executing, Failed, Completed, etc.)")]
+    [Description("Filter by state (Draft, Building, Updating, Executing, ReadyForReview, Failed, Completed, Skipped, Blocked, Icebox)")]
     public string? State { get; init; }
 
     [CommandOption("--project")]
@@ -40,6 +40,18 @@ public class PlanListSettings : CommandSettings
     [CommandOption("--limit")]
     [Description("Maximum number of results")]
     public int? Limit { get; init; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.ValidateOneOf(State, "--state", CliValidation.ValidStates),
+            CliValidation.ValidateOneOf(Level, "--level", CliValidation.ValidLevels),
+            CliValidation.ValidateOneOf(Format, "--format", CliValidation.ValidFormats),
+            Limit.HasValue && Limit.Value <= 0
+                ? Spectre.Console.ValidationResult.Error("--limit must be a positive integer.")
+                : Spectre.Console.ValidationResult.Success()
+        );
+    }
 }
 
 public class PlanListCommand : Command<PlanListSettings>

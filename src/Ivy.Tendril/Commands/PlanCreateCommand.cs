@@ -2,6 +2,7 @@ using System.ComponentModel;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Spectre.Console;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -12,12 +13,11 @@ public class PlanCreateSettings : CommandSettings
     [CommandArgument(0, "<title>")]
     public string Title { get; set; } = "";
 
+    [Description("Project name")]
+    [CommandArgument(1, "<project>")]
+    public string Project { get; set; } = "";
 
-    [Description("Project name (default: Auto)")]
-    [CommandOption("--project")]
-    public string? Project { get; set; }
-
-    [Description("Priority level (default: NiceToHave)")]
+    [Description("Priority level: Critical, Bug, NiceToHave, Backlog, Icebox (default: NiceToHave)")]
     [CommandOption("--level")]
     public string? Level { get; set; }
 
@@ -29,17 +29,13 @@ public class PlanCreateSettings : CommandSettings
     [CommandOption("--source-url")]
     public string? SourceUrl { get; set; }
 
-    [Description("Execution profile (deep or balanced)")]
+    [Description("Execution profile: deep, balanced")]
     [CommandOption("--execution-profile")]
     public string? ExecutionProfile { get; set; }
 
     [Description("Priority number (default: 0)")]
     [CommandOption("--priority")]
     public int? Priority { get; set; }
-
-    [Description("Repository paths (repeatable)")]
-    [CommandOption("--repo")]
-    public string[]? Repos { get; set; }
 
     [Description("Verifications in Name=Status format (repeatable)")]
     [CommandOption("--verification")]
@@ -56,21 +52,41 @@ public class PlanCreateSettings : CommandSettings
     [Description("Explicit plans directory (overrides TENDRIL_PLANS / TENDRIL_HOME)")]
     [CommandOption("--plans-dir")]
     public string? PlansDir { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(Title, "title"),
+            CliValidation.RequireNonEmpty(Project, "project"),
+            CliValidation.ValidateOneOf(Level, "--level", CliValidation.ValidLevels),
+            CliValidation.ValidateOneOf(ExecutionProfile, "--execution-profile", CliValidation.ValidExecutionProfiles)
+        );
+    }
 }
 
 public class PlanCreateCommand : Command<PlanCreateSettings>
 {
     private readonly IPlanWatcherService _planWatcher;
+    private readonly IConfigService _configService;
 
-    public PlanCreateCommand(IPlanWatcherService planWatcher)
+    public PlanCreateCommand(IPlanWatcherService planWatcher, IConfigService configService)
     {
         _planWatcher = planWatcher;
+        _configService = configService;
     }
 
     protected override int Execute(CommandContext context, PlanCreateSettings settings, CancellationToken cancellationToken)
     {
-        if (settings.Repos == null || settings.Repos.Length == 0)
-            throw new ArgumentException("At least one --repo is required.");
+        ProjectConfig resolvedProject;
+        try
+        {
+            resolvedProject = PlanProjectResolver.ResolveProject(settings.Project, _configService.Projects);
+        }
+        catch (ArgumentException ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message.EscapeMarkup()}");
+            return 1;
+        }
 
         var plansDir = PlanCommandHelpers.GetPlansDirectory(settings.PlansDir);
 
@@ -85,7 +101,7 @@ public class PlanCreateCommand : Command<PlanCreateSettings>
         var plan = new PlanYaml
         {
             State = nameof(PlanStatus.Draft),
-            Project = settings.Project ?? "Auto",
+            Project = resolvedProject.Name,
             Level = settings.Level ?? "NiceToHave",
             Title = settings.Title,
             Created = DateTime.UtcNow,
@@ -96,9 +112,8 @@ public class PlanCreateCommand : Command<PlanCreateSettings>
             Priority = settings.Priority ?? 0
         };
 
-        if (settings.Repos != null)
-            foreach (var repo in settings.Repos)
-                plan.Repos.Add(repo);
+        foreach (var repoPath in resolvedProject.RepoPaths)
+            plan.Repos.Add(repoPath);
 
         if (settings.Verifications != null)
             foreach (var v in settings.Verifications)

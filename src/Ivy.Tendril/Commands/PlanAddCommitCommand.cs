@@ -1,6 +1,5 @@
 using Ivy.Tendril.Models;
 using System.ComponentModel;
-using System.Text.RegularExpressions;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Spectre.Console.Cli;
@@ -13,9 +12,23 @@ public class PlanAddCommitSettings : CommandSettings
     [CommandArgument(0, "<plan-id>")]
     public string PlanId { get; set; } = "";
 
-    [Description("Commit SHA")]
+    [Description("Commit SHA (7-40 hex characters)")]
     [CommandArgument(1, "<sha>")]
     public string Sha { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        var result = CliValidation.Combine(
+            CliValidation.RequireNonEmpty(PlanId, "plan-id"),
+            CliValidation.RequireNonEmpty(Sha, "sha"));
+        if (!result.Successful) return result;
+
+        if (!System.Text.RegularExpressions.Regex.IsMatch(Sha, @"^[0-9a-fA-F]{7,40}$"))
+            return Spectre.Console.ValidationResult.Error(
+                $"Invalid commit SHA '{Sha}'. Expected 7-40 character hex string (e.g., abc1234 or full 40-char hash).");
+
+        return Spectre.Console.ValidationResult.Success();
+    }
 }
 
 public class PlanAddCommitCommand : Command<PlanAddCommitSettings>
@@ -31,9 +44,6 @@ public class PlanAddCommitCommand : Command<PlanAddCommitSettings>
     {
         var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
         var plan = PlanCommandHelpers.ReadPlan(planFolder);
-
-        if (!Regex.IsMatch(settings.Sha, @"^[0-9a-fA-F]{7,40}$"))
-            throw new ArgumentException($"Invalid commit hash format: {settings.Sha}. Expected 7-40 character hex string.");
 
         if (plan.Commits.Contains(settings.Sha))
         {

@@ -28,7 +28,7 @@ public class PromptwareRunSettings : CommandSettings
     public string? WorkingDir { get; init; }
 
     [CommandOption("--value")]
-    [Description("Additional firmware header values (key=value, repeatable)")]
+    [Description("Additional firmware header values (key=value format, repeatable). Example: --value MyKey=MyValue")]
     public string[]? Values { get; init; }
 
     [CommandOption("--plan")]
@@ -54,6 +54,24 @@ public class PromptwareRunSettings : CommandSettings
     [CommandOption("--dry-run")]
     [Description("Print the compiled firmware and exit without launching the agent")]
     public bool DryRun { get; init; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        var result = CliValidation.RequireNonEmpty(Promptware, "promptware");
+        if (!result.Successful) return result;
+
+        if (Values != null)
+        {
+            foreach (var kv in Values)
+            {
+                if (kv.IndexOf('=') <= 0)
+                    return Spectre.Console.ValidationResult.Error(
+                        $"Invalid --value format '{kv}'. Expected key=value (e.g., --value MyKey=MyValue).");
+            }
+        }
+
+        return Spectre.Console.ValidationResult.Success();
+    }
 }
 
 public class PromptwareRunCommand : Command<PromptwareRunSettings>

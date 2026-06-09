@@ -14,6 +14,13 @@ public class PlanAddRelatedPlanSettings : CommandSettings
     [Description("Plan reference (ID, folder name, or path)")]
     [CommandArgument(1, "<related-plan>")]
     public string RelatedPlan { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(PlanId, "plan-id"),
+            CliValidation.RequireNonEmpty(RelatedPlan, "related-plan"));
+    }
 }
 
 public class PlanAddRelatedPlanCommand : Command<PlanAddRelatedPlanSettings>

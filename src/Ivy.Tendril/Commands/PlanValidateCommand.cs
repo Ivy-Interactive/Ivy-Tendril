@@ -11,6 +11,11 @@ public class PlanValidateSettings : CommandSettings
     [Description("Plan ID (e.g., 03430)")]
     [CommandArgument(0, "<plan-id>")]
     public string PlanId { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.RequireNonEmpty(PlanId, "plan-id");
+    }
 }
 
 public class PlanValidateCommand : Command<PlanValidateSettings>

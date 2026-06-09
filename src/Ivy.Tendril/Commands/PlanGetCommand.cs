@@ -8,13 +8,32 @@ namespace Ivy.Tendril.Commands;
 
 public class PlanGetSettings : CommandSettings
 {
+    internal static readonly string[] ValidFields =
+        ["state", "project", "level", "title", "created", "updated", "executionprofile", "initialprompt", "sourceurl", "priority",
+         "repos", "prs", "commits", "verifications", "dependson", "relatedplans", "recommendations"];
+
     [Description("Plan ID (e.g., 03430)")]
     [CommandArgument(0, "<plan-id>")]
     public string PlanId { get; set; } = "";
 
-    [Description("Optional field name to read")]
+    [Description("Optional field name to read (state, project, level, title, created, updated, executionProfile, initialPrompt, sourceUrl, priority, repos, prs, commits, verifications, dependsOn, relatedPlans, recommendations)")]
     [CommandArgument(1, "[field]")]
     public string? Field { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        var result = CliValidation.RequireNonEmpty(PlanId, "plan-id");
+        if (!result.Successful) return result;
+
+        if (!string.IsNullOrWhiteSpace(Field))
+        {
+            if (!ValidFields.Contains(Field.ToLower(), StringComparer.OrdinalIgnoreCase))
+                return Spectre.Console.ValidationResult.Error(
+                    $"Unknown field '{Field}'. Valid fields: state, project, level, title, created, updated, executionProfile, initialPrompt, sourceUrl, priority, repos, prs, commits, verifications, dependsOn, relatedPlans, recommendations");
+        }
+
+        return Spectre.Console.ValidationResult.Success();
+    }
 }
 
 public class PlanGetCommand : Command<PlanGetSettings>
@@ -71,7 +90,7 @@ public class PlanGetCommand : Command<PlanGetSettings>
                 "initialprompt" => plan.InitialPrompt ?? "",
                 "sourceurl" => plan.SourceUrl ?? "",
                 "priority" => plan.Priority.ToString(),
-                _ => throw new ArgumentException($"Unknown field: {settings.Field}")
+                _ => throw new ArgumentException($"Unknown field '{settings.Field}'. Valid fields: state, project, level, title, created, updated, executionProfile, initialPrompt, sourceUrl, priority, repos, prs, commits, verifications, dependsOn, relatedPlans, recommendations")
             };
 
             Console.WriteLine(value);

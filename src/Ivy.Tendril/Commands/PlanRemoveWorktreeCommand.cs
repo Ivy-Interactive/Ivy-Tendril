@@ -22,6 +22,13 @@ public class PlanRemoveWorktreeSettings : CommandSettings
     [CommandOption("--branch")]
     [Description("Branch name to delete (auto-derived from plan if not specified)")]
     public string? Branch { get; init; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(PlanId, "plan-id"),
+            CliValidation.RequireNonEmpty(RepoName, "repo-name"));
+    }
 }
 
 public class PlanRemoveWorktreeCommand : Command<PlanRemoveWorktreeSettings>

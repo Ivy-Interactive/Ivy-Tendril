@@ -15,6 +15,13 @@ public class PlanAddRepoSettings : CommandSettings
     [Description("Repository path")]
     [CommandArgument(1, "<repo-path>")]
     public string RepoPath { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(PlanId, "plan-id"),
+            CliValidation.RequireNonEmpty(RepoPath, "repo-path"));
+    }
 }
 
 public class PlanAddRepoCommand : Command<PlanAddRepoSettings>

@@ -14,6 +14,13 @@ public class PlanAddDependsOnSettings : CommandSettings
     [Description("Plan reference (ID, folder name, or path)")]
     [CommandArgument(1, "<depends-on>")]
     public string DependsOn { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(PlanId, "plan-id"),
+            CliValidation.RequireNonEmpty(DependsOn, "depends-on"));
+    }
 }
 
 public class PlanAddDependsOnCommand : Command<PlanAddDependsOnSettings>

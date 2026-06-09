@@ -19,6 +19,13 @@ public class PlanAddLogSettings : CommandSettings
     [CommandOption("--summary")]
     [Description("Optional summary text")]
     public string? Summary { get; init; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(PlanId, "plan-id"),
+            CliValidation.RequireNonEmpty(Action, "action"));
+    }
 }
 
 public class PlanAddLogCommand : Command<PlanAddLogSettings>

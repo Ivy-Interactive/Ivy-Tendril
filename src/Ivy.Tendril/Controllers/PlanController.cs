@@ -67,10 +67,12 @@ internal static class PlanFieldAccessors
 public class PlanController : ControllerBase
 {
     private readonly IPlanWatcherService _planWatcher;
+    private readonly IConfigService _configService;
 
-    public PlanController(IPlanWatcherService planWatcher)
+    public PlanController(IPlanWatcherService planWatcher, IConfigService configService)
     {
         _planWatcher = planWatcher;
+        _configService = configService;
     }
 
     private IActionResult ModifyPlanEndpoint(
@@ -405,6 +407,8 @@ public class PlanController : ControllerBase
     {
         try
         {
+            var resolvedProject = PlanProjectResolver.ResolveProject(request.Project, _configService.Projects);
+
             var plansDir = PlanCommandHelpers.GetPlansDirectory();
             var planId = PlanYamlHelper.AllocatePlanId(plansDir);
             var safeTitle = PlanYamlHelper.ToSafeTitle(request.Title);
@@ -417,7 +421,7 @@ public class PlanController : ControllerBase
             var plan = new PlanYaml
             {
                 State = nameof(PlanStatus.Draft),
-                Project = request.Project ?? "Auto",
+                Project = resolvedProject.Name,
                 Level = request.Level ?? "NiceToHave",
                 Title = request.Title,
                 Created = DateTime.UtcNow,
@@ -428,9 +432,8 @@ public class PlanController : ControllerBase
                 Priority = 0
             };
 
-            if (request.Repos != null)
-                foreach (var repo in request.Repos)
-                    plan.Repos.Add(repo);
+            foreach (var repoPath in resolvedProject.RepoPaths)
+                plan.Repos.Add(repoPath);
 
             if (request.Verifications != null)
                 foreach (var v in request.Verifications)
@@ -697,12 +700,11 @@ public record AcceptRecRequest(string? Notes = null);
 public record DeclineRecRequest(string? Reason = null);
 public record CreatePlanDirectRequest(
     string Title,
-    string? Project = null,
+    string Project,
     string? Level = null,
     string? InitialPrompt = null,
     string? ExecutionProfile = null,
     string? SourceUrl = null,
-    List<string>? Repos = null,
     List<string>? Verifications = null,
     List<string>? RelatedPlans = null,
     List<string>? DependsOn = null);

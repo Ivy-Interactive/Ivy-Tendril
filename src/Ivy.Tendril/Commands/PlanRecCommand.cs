@@ -14,8 +14,16 @@ public class PlanRecListSettings : CommandSettings
     public string PlanId { get; set; } = "";
 
     [CommandOption("--state")]
-    [Description("Filter by state (Pending, Accepted, Declined)")]
+    [Description("Filter by state (Pending, Accepted, AcceptedWithNotes, Declined)")]
     public string? State { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(PlanId, "plan-id"),
+            CliValidation.ValidateOneOf(State, "--state", CliValidation.ValidRecommendationStates)
+        );
+    }
 }
 
 public class PlanRecAddSettings : CommandSettings
@@ -39,6 +47,16 @@ public class PlanRecAddSettings : CommandSettings
     [CommandOption("--risk")]
     [Description("Risk level (Small, Medium, High)")]
     public string? Risk { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(PlanId, "plan-id"),
+            CliValidation.RequireNonEmpty(Title, "title"),
+            CliValidation.ValidateOneOf(Impact, "--impact", CliValidation.ValidImpactLevels),
+            CliValidation.ValidateOneOf(Risk, "--risk", CliValidation.ValidImpactLevels)
+        );
+    }
 }
 
 public class PlanRecRemoveSettings : CommandSettings
@@ -50,6 +68,14 @@ public class PlanRecRemoveSettings : CommandSettings
     [Description("Recommendation title")]
     [CommandArgument(1, "<title>")]
     public string Title { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(PlanId, "plan-id"),
+            CliValidation.RequireNonEmpty(Title, "title")
+        );
+    }
 }
 
 public class PlanRecAcceptSettings : CommandSettings
@@ -65,6 +91,14 @@ public class PlanRecAcceptSettings : CommandSettings
     [CommandOption("--notes")]
     [Description("Optional notes to include")]
     public string? Notes { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(PlanId, "plan-id"),
+            CliValidation.RequireNonEmpty(Title, "title")
+        );
+    }
 }
 
 public class PlanRecDeclineSettings : CommandSettings
@@ -80,10 +114,20 @@ public class PlanRecDeclineSettings : CommandSettings
     [CommandOption("--reason")]
     [Description("Decline reason")]
     public string? Reason { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(PlanId, "plan-id"),
+            CliValidation.RequireNonEmpty(Title, "title")
+        );
+    }
 }
 
 public class PlanRecSetSettings : CommandSettings
 {
+    private static readonly string[] ValidFields = ["title", "description", "state", "impact", "risk", "declinereason"];
+
     [Description("Plan ID (e.g., 03430)")]
     [CommandArgument(0, "<plan-id>")]
     public string PlanId { get; set; } = "";
@@ -99,6 +143,24 @@ public class PlanRecSetSettings : CommandSettings
     [Description("Field value")]
     [CommandArgument(3, "<value>")]
     public string Value { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        var required = CliValidation.Combine(
+            CliValidation.RequireNonEmpty(PlanId, "plan-id"),
+            CliValidation.RequireNonEmpty(Title, "title"),
+            CliValidation.ValidateField(Field, ValidFields));
+        if (!required.Successful)
+            return required;
+
+        var field = Field.ToLower();
+        if (field == "state")
+            return CliValidation.ValidateOneOf(Value, "<value> for field 'state'", CliValidation.ValidRecommendationStates);
+        if (field == "impact" || field == "risk")
+            return CliValidation.ValidateOneOf(Value, $"<value> for field '{field}'", CliValidation.ValidImpactLevels);
+
+        return Spectre.Console.ValidationResult.Success();
+    }
 }
 
 public class PlanRecListCommand : Command<PlanRecListSettings>
@@ -312,7 +374,7 @@ public class PlanRecSetCommand : Command<PlanRecSetSettings>
                 rec.DeclineReason = settings.Value;
                 break;
             default:
-                throw new ArgumentException($"Unknown field: {settings.Field}");
+                throw new ArgumentException($"Unknown field '{settings.Field}'. Valid fields: title, description, state, impact, risk, declineReason");
         }
 
         plan.Updated = DateTime.UtcNow;

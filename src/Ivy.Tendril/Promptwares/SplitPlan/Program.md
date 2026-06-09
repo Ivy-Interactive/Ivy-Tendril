@@ -29,20 +29,18 @@ Report status: `tendril job status TendrilJobId --message "Creating split plans.
 For each distinct issue, use `tendril plan create` to allocate an ID, create the folder, and write `plan.yaml`:
 
 ```bash
-tendril plan create "<Title>" \
+tendril plan create "<Title>" "<TendrilProject>" \
   --plans-dir "<TendrilPlansFolder>" \
-  --project "<TendrilProject>" \
   --level "<Level>" \
   --initial-prompt "<original plan's initialPrompt>" \
   --execution-profile "balanced" \
-  --repo "<repo-path>" \
   --verification "Build=Pending" \
   --verification "Test=Pending" \
   --related-plan "<original-plan-folder-name>" \
   --job-id TendrilJobId
 ```
 
-**IMPORTANT:** Always pass `--plans-dir` with the plans directory (derive from the plan folder's parent). This ensures child plans are created in the correct directory regardless of environment variable inheritance.
+**IMPORTANT:** Always pass `--plans-dir` with the plans directory (derive from the plan folder's parent). This ensures child plans are created in the correct directory regardless of environment variable inheritance. Repos are derived automatically from the project configuration.
 
 The command outputs `PlanId`, `Directory`, and `Plan created` lines. Parse the `Directory` to write the revision file.
 
