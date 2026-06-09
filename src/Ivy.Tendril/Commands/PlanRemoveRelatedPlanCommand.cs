@@ -12,7 +12,7 @@ public class PlanRemoveRelatedPlanSettings : CommandSettings
     [CommandArgument(0, "<plan-id>")]
     public string PlanId { get; set; } = "";
 
-    [Description("Related plan folder name (e.g., 01478-WorktreeIsolation)")]
+    [Description("Plan reference (ID, folder name, or path)")]
     [CommandArgument(1, "<related-plan>")]
     public string RelatedPlan { get; set; } = "";
 }
@@ -34,11 +34,12 @@ public class PlanRemoveRelatedPlanCommand : Command<PlanRemoveRelatedPlanSetting
         {
             var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
             var plan = PlanCommandHelpers.ReadPlan(planFolder);
+            var resolvedRp = PlanCommandHelpers.ResolvePlanFolderName(settings.RelatedPlan);
 
-            var removed = plan.RelatedPlans.RemoveAll(r => r.Equals(settings.RelatedPlan, StringComparison.OrdinalIgnoreCase));
+            var removed = plan.RelatedPlans.RemoveAll(r => r.Equals(resolvedRp, StringComparison.OrdinalIgnoreCase));
             if (removed == 0)
             {
-                _logger.LogError("Related plan not found: {RelatedPlan}", settings.RelatedPlan);
+                _logger.LogError("Related plan not found: {RelatedPlan}", resolvedRp);
                 return 1;
             }
 
@@ -46,7 +47,7 @@ public class PlanRemoveRelatedPlanCommand : Command<PlanRemoveRelatedPlanSetting
 
             PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
-            _logger.LogInformation("Removed related plan: {RelatedPlan}", settings.RelatedPlan);
+            _logger.LogInformation("Removed related plan: {RelatedPlan}", resolvedRp);
             return 0;
         }
         catch (Exception ex)

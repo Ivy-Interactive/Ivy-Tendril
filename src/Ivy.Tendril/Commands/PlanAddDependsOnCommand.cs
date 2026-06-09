@@ -12,7 +12,7 @@ public class PlanAddDependsOnSettings : CommandSettings
     [CommandArgument(0, "<plan-id>")]
     public string PlanId { get; set; } = "";
 
-    [Description("Dependency plan folder name (e.g., 01478-WorktreeIsolation)")]
+    [Description("Plan reference (ID, folder name, or path)")]
     [CommandArgument(1, "<depends-on>")]
     public string DependsOn { get; set; } = "";
 }
@@ -34,19 +34,20 @@ public class PlanAddDependsOnCommand : Command<PlanAddDependsOnSettings>
         {
             var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
             var plan = PlanCommandHelpers.ReadPlan(planFolder);
+            var resolvedDep = PlanCommandHelpers.ResolvePlanFolderName(settings.DependsOn);
 
-            if (plan.DependsOn.Contains(settings.DependsOn, StringComparer.OrdinalIgnoreCase))
+            if (plan.DependsOn.Contains(resolvedDep, StringComparer.OrdinalIgnoreCase))
             {
-                _logger.LogInformation("Dependency already present: {DependsOn}", settings.DependsOn);
+                _logger.LogInformation("Dependency already present: {DependsOn}", resolvedDep);
                 return 0;
             }
 
-            plan.DependsOn.Add(settings.DependsOn);
+            plan.DependsOn.Add(resolvedDep);
             plan.Updated = DateTime.UtcNow;
 
             PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
 
-            _logger.LogInformation("Added dependency: {DependsOn}", settings.DependsOn);
+            _logger.LogInformation("Added dependency: {DependsOn}", resolvedDep);
             return 0;
         }
         catch (Exception ex)

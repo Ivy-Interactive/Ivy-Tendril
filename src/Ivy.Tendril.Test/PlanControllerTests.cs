@@ -605,6 +605,8 @@ public class PlanControllerTests : IDisposable
     {
         var plansDir = Path.Combine(_tempDir.Path, "Plans");
         Directory.CreateDirectory(plansDir);
+        CreateTestPlan("00010", "OtherPlan");
+        CreateTestPlan("00005", "BasePlan");
         var controller = CreateController();
 
         var request = new CreatePlanDirectRequest(
@@ -675,6 +677,7 @@ public class PlanControllerTests : IDisposable
     public void AddRelatedPlan_AddsLink()
     {
         CreateTestPlan();
+        CreateTestPlan("00010", "OtherPlan");
         var controller = CreateController();
 
         var result = controller.AddRelatedPlan("00001", new AddRelatedPlanRequest("00010-OtherPlan"));
@@ -689,6 +692,7 @@ public class PlanControllerTests : IDisposable
     public void AddRelatedPlan_Duplicate_ReturnsOk()
     {
         CreateTestPlan();
+        CreateTestPlan("00010", "OtherPlan");
         var controller = CreateController();
         controller.AddRelatedPlan("00001", new AddRelatedPlanRequest("00010-OtherPlan"));
 
@@ -703,6 +707,7 @@ public class PlanControllerTests : IDisposable
     public void RemoveRelatedPlan_RemovesLink()
     {
         CreateTestPlan();
+        CreateTestPlan("00010", "OtherPlan");
         var controller = CreateController();
         controller.AddRelatedPlan("00001", new AddRelatedPlanRequest("00010-OtherPlan"));
 
@@ -731,6 +736,7 @@ public class PlanControllerTests : IDisposable
     public void AddDependsOn_AddsDependency()
     {
         CreateTestPlan();
+        CreateTestPlan("00005", "BasePlan");
         var controller = CreateController();
 
         var result = controller.AddDependsOn("00001", new AddDependsOnRequest("00005-BasePlan"));
@@ -745,6 +751,7 @@ public class PlanControllerTests : IDisposable
     public void AddDependsOn_Duplicate_ReturnsOk()
     {
         CreateTestPlan();
+        CreateTestPlan("00005", "BasePlan");
         var controller = CreateController();
         controller.AddDependsOn("00001", new AddDependsOnRequest("00005-BasePlan"));
 
@@ -759,6 +766,7 @@ public class PlanControllerTests : IDisposable
     public void RemoveDependsOn_RemovesDependency()
     {
         CreateTestPlan();
+        CreateTestPlan("00005", "BasePlan");
         var controller = CreateController();
         controller.AddDependsOn("00001", new AddDependsOnRequest("00005-BasePlan"));
 
