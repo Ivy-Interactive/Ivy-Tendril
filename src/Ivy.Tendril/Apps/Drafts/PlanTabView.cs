@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
@@ -12,7 +13,8 @@ public class PlanTabView(
     bool isEditing,
     IState<string> editContentState,
     IState<string?> openFileState,
-    IPlanReaderService planService) : ViewBase
+    IPlanReaderService planService,
+    IState<ImmutableList<MarkdownAnnotation>> annotations) : ViewBase
 {
     public override object Build()
     {
@@ -62,6 +64,8 @@ public class PlanTabView(
                 .DangerouslyAllowLocalFiles()
                 .Height(Size.Full())
                 .StickyContent(fixedElement)
+                .Annotations(annotations.Value)
+                .OnAnnotationsChange(a => annotations.Set(a))
                 .OnLinkClick(onLinkClick);
 
             return planLayout;
