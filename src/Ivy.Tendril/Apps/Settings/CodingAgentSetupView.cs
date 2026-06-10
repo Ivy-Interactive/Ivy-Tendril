@@ -70,7 +70,6 @@ public class CodingAgentSetupView : ViewBase
         var registeredAgents = runner.RegisteredAgents;
         var visibleAgents = Agents.Where(a => registeredAgents.Contains(a.Key)).ToArray();
 
-        // 2 columns on phones/tablets (3-up overflows a narrow screen), 3 on desktop.
         var grid = Layout.Grid()
             .Columns(2.At(Breakpoint.Mobile).And(Breakpoint.Desktop, 3))
             .Gap(2);
@@ -89,7 +88,6 @@ public class CodingAgentSetupView : ViewBase
         return Layout.Vertical().Padding(4)
                | Text.Block("Coding Agent").Bold()
                | (Layout.Vertical().Padding(0)
-                   // Full width on mobile (2-up cards), capped reading width on desktop (3-up).
                    .Width(Size.Full().At(Breakpoint.Mobile).And(Breakpoint.Desktop, Size.Units(170)))
                    | grid.Width(Size.Full()))
                | (Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))

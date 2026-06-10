@@ -108,7 +108,7 @@ public class ReviewApp : ViewBase
             new ContentView(selectedPlanState, filteredPlans, planService, jobService,
                 RefreshPlans, configService, gitService),
             sidebar
-        ).SidebarContentScroll(Scroll.None).CollapsibleOnMobile();
+        ).SidebarContentScroll(Scroll.None);
 
         void RefreshPlans()
         {

@@ -131,7 +131,7 @@ public class TrashApp : ViewBase
             new SidebarLayout(
                 mainContent,
                 sidebar
-            ).SidebarContentScroll(Scroll.None).CollapsibleOnMobile()
+            ).SidebarContentScroll(Scroll.None)
         };
 
         elements.Add(new FileSheet(openFile, configService));

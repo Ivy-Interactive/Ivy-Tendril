@@ -112,7 +112,7 @@ public class DraftsApp : ViewBase
             new ContentView(selectedPlanState.Value, filteredPlans, selectedPlanState, planService, jobService,
                 RefreshPlans, configService, gitService),
             sidebar
-        ).SidebarContentScroll(Scroll.None).CollapsibleOnMobile();
+        ).SidebarContentScroll(Scroll.None);
 
         void RefreshPlans()
         {

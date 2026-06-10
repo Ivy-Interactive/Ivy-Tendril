@@ -251,8 +251,6 @@ public class ContentView(
         INavigator nav,
         ReviewAppArgs? args)
     {
-        // Title area (left): plain title on desktop, mobile picker on small screens.
-        // Grows and shrinks (Size.Grow() => minWidth:0) so the title truncates with an ellipsis.
         var titleArea = Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
                         | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
                             .BorderThickness(0).Padding(0).Width(Size.Full())
@@ -270,8 +268,6 @@ public class ContentView(
                 | new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
                     .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl)));
 
-        // Controls group (right): plan count + primary action. Content-sized and pinned to the
-        // top-right, so when the title wraps they stay on the first line instead of dropping down.
         var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
                        | Text.Rich()
                            .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
@@ -315,7 +311,6 @@ public class ContentView(
             }).ShortcutKey("m");
         }
 
-        // Single non-wrapping row: title (grows + wraps) on the left, controls pinned top-right.
         var header = Layout.Horizontal().Width(Size.Full()).Gap(2).AlignContent(Align.TopLeft)
                      | titleArea
                      | controls;

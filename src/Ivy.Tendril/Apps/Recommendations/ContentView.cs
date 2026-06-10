@@ -72,8 +72,6 @@ public class ContentView(
 
         var currentIndex = allRecommendations.FindIndex(r => r.PlanId == selectedRecommendation.PlanId && r.Title == selectedRecommendation.Title);
 
-        // Title area (left): plain title on desktop, mobile picker on small screens, plus the
-        // project badge below it. Grows and shrinks so the title truncates with an ellipsis.
         var titleArea = Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
                         | new Box(Text.Block($"#{selectedRecommendation.PlanId} {selectedRecommendation.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
                             .BorderThickness(0).Padding(0).Width(Size.Full())
@@ -89,8 +87,6 @@ public class ContentView(
                             | new Badge(selectedRecommendation.Project).Variant(BadgeVariant.Outline)
                                 .WithProjectColor(config, selectedRecommendation.Project));
 
-        // Controls group (right): count + Decline/Accept. Content-sized and pinned to the top-right,
-        // so when the title wraps they stay on the first line instead of dropping down.
         var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
                        | Text.Rich()
                            .Bold($"{(currentIndex == -1 ? "?" : (currentIndex + 1).ToString())}/{allRecommendations.Count}", word: true)
@@ -110,7 +106,6 @@ public class ContentView(
                            GoToNext();
                        });
 
-        // Single non-wrapping row: title (grows + wraps) on the left, controls pinned top-right.
         var header = Layout.Horizontal().Width(Size.Full()).Gap(2).AlignContent(Align.TopLeft)
                      | titleArea
                      | controls;

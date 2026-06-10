@@ -146,9 +146,6 @@ public class ContentView(
 
         var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan.FolderName);
 
-        // Title area (left): plain title on desktop, mobile picker on small screens, plus badges
-        // beneath. Grows and shrinks (Size.Grow() => minWidth:0) so the title truncates with an
-        // ellipsis instead of pushing the controls down or off-screen.
         var titleArea = Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
                         | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
                             .BorderThickness(0).Padding(0).Width(Size.Full())
@@ -186,8 +183,6 @@ public class ContentView(
         if (hasTitleBadges)
             titleArea |= titleBadges;
 
-        // Controls group (right): plan count + Execute. Content-sized and pinned to the top-right,
-        // so they stay put while the title truncates.
         var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
                        | Text.Rich()
                            .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
@@ -203,7 +198,6 @@ public class ContentView(
                                    LaunchExecute();
                            }));
 
-        // Single non-wrapping row: title (grows + truncates) on the left, controls pinned top-right.
         var header = Layout.Horizontal().Width(Size.Full()).Gap(2).AlignContent(Align.TopLeft)
                      | titleArea
                      | controls;

@@ -44,7 +44,6 @@ public class ContentView(
 
         var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan.FolderName);
 
-        // Title area (left): grows and shrinks so the title truncates with an ellipsis.
         var titleArea = Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
                         | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
                             .BorderThickness(0).Padding(0).Width(Size.Full())
@@ -57,13 +56,11 @@ public class ContentView(
                                 p => selectedPlanState.Set(p))
                             .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
-        // Controls (right): plan count, content-sized and pinned to the top-right.
         var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
                        | Text.Rich()
                            .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
                            .Muted("plans", word: true);
 
-        // Single non-wrapping row: title (grows + wraps) on the left, count pinned top-right.
         var header = Layout.Horizontal().Width(Size.Full()).Gap(2).AlignContent(Align.TopLeft)
                      | titleArea
                      | controls;

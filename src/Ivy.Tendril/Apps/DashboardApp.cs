@@ -45,7 +45,6 @@ public class DashboardApp : ViewBase
         }
 
         // Statistics cards
-        // 7 cards: 2 columns on phones, 4 on tablets, all 7 in a row on desktop+.
         var statsRow = Layout.Grid()
                            .Columns(2.At(Breakpoint.Mobile)
                                .And(Breakpoint.Tablet, 4)
