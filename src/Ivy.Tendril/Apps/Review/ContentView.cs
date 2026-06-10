@@ -424,10 +424,7 @@ public class ContentView(
         }
 
         var reviewAnnotated = MarkdownHelper.AnnotateAllBrokenLinks(selectedPlan.LatestRevisionContent, planService.PlansDirectory);
-        // On mobile the content pane only has left padding, leaving the Markdown flush to the
-        // right edge; add right padding on the mobile breakpoint to match.
         var planTabContent = Layout.Vertical().Height(Size.Full())
-                .Padding(new Responsive<Thickness?> { Mobile = new Thickness(0, 0, 2, 0) })
             | new Markdown(reviewAnnotated)
                 .DangerouslyAllowLocalFiles()
                 .Article()
@@ -627,7 +624,7 @@ public class ContentView(
         object Cap(object inner)
         {
             return Layout.Vertical().Scroll(Scroll.Auto).Width(Size.Full()).Height(Size.Full())
-                | (Layout.Vertical().Padding(6, 0, 0, 4).Width(Size.Full().Max(Size.Units(200))) | inner);
+                | (Layout.Vertical().Padding(6, 0, 6, 4).Width(Size.Full().Max(Size.Units(200))) | inner);
         }
     }
 
