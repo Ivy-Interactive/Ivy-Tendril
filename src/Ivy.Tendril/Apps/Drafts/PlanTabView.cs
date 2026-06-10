@@ -2,7 +2,7 @@ using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
-using Ivy.Widgets.DraftMarkdown;
+using Ivy.Tendril.Widgets;
 
 namespace Ivy.Tendril.Apps.Drafts;
 
@@ -37,7 +37,7 @@ public class PlanTabView(
                 planService.PlansDirectory);
 
             // Placeholder for the pinned interactive element. It lives in the widget's
-            // FixedContent slot, which renders outside the markdown's scroll region, so
+            // StickyContent slot, which renders outside the markdown's scroll region, so
             // it stays in place while the plan content scrolls.
             var fixedElement = new Card(
                 Layout.Vertical().Gap(2)
@@ -61,7 +61,7 @@ public class PlanTabView(
                 .Article()
                 .DangerouslyAllowLocalFiles()
                 .Height(Size.Full())
-                .FixedContent(fixedElement)
+                .StickyContent(fixedElement)
                 .OnLinkClick(onLinkClick);
 
             return planLayout;

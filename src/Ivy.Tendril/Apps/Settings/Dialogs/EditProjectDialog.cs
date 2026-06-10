@@ -5,7 +5,6 @@ using Ivy.Tendril.Apps.Onboarding.Models;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Apps.Views;
-using Ivy.Widgets.AgentOutput;
 
 namespace Ivy.Tendril.Apps.Settings.Dialogs;
 
