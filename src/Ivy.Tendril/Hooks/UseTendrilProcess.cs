@@ -2,7 +2,7 @@ using System.Reactive.Disposables;
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Services;
-using Ivy.Widgets.TendrilProcess;
+using Ivy.Tendril.Widgets;
 
 namespace Ivy.Tendril.Hooks;
 
@@ -22,7 +22,7 @@ public static class UseTendrilProcessExtensions
 
         var status = processStatus.Value;
         return new CreatePlanDialogLauncher(open =>
-            new TendrilProcess()
+            new TendrilProcessViewer()
                 .DraftCount(status.DraftCount)
                 .ReviewCount(status.ReviewCount)
                 .CreatingPlansCount(status.CreatingPlansCount)

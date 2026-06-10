@@ -1,9 +1,9 @@
 using System.Collections.Immutable;
-using System.Text.Json;
 using Ivy;
-using Ivy.Widgets.DraftMarkdown;
+using Ivy.Tendril.Widgets;
+using DraftMarkdownWidget = Ivy.Tendril.Widgets.DraftMarkdown;
 
-namespace WidgetSamples;
+namespace WidgetSamples.Apps.DraftMarkdown;
 
 [App(title: "Annotations", icon: Icons.Highlighter, group: ["DraftMarkdown"])]
 class AnnotationsApp : ViewBase
@@ -32,6 +32,31 @@ class AnnotationsApp : ViewBase
             - **Email**: Queued via SES with rate limiting
             - **Push**: Firebase Cloud Messaging for mobile devices
 
+            ## Implementation
+
+            ```typescript
+            export async function refreshToken(token: string): Promise<string> {
+              const response = await fetch('/api/auth/refresh', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              const { accessToken } = await response.json();
+              return accessToken;
+            }
+            ```
+
+            ## Status
+
+            | Channel | Status | Owner |
+            |---------|--------|-------|
+            | In-app | Done | @alice |
+            | Email | In progress | @bob |
+            | Push | Pending | TBD |
+
+            ## Visual Reference
+
+            ![Notification flow diagram](https://placehold.co/600x200/EEE/333?text=Notification+Flow+Diagram)
+
             ## Open Questions
             - Should we support notification templates with variables?
             - What is the retention policy for read notifications?
@@ -41,18 +66,34 @@ class AnnotationsApp : ViewBase
             > before implementation begins.
             """;
 
-        var annotationInfo = annotations.Value.Count > 0
-            ? Layout.Vertical().Gap(1)
-              | Text.Block($"Annotations: {annotations.Value.Count}").Bold()
-              | new CodeBlock(JsonSerializer.Serialize(annotations.Value, new JsonSerializerOptions { WriteIndented = true }))
-            : (object)Text.Muted("Select text in the markdown to add annotations.");
+        object sidePanel;
+        if (annotations.Value.Count > 0)
+        {
+            var items = annotations.Value.Select((a, i) =>
+                (object)(Layout.Vertical().Gap(1)
+                | Text.Muted($"\"{a.SelectedText}\"")
+                | Text.Block(a.Comment)
+                | new Button("Remove").Ghost().Destructive()
+                    .OnClick(() => annotations.Set(annotations.Value.RemoveAt(i))))
+            );
 
-        return Layout.Vertical().Height(Size.Full()).Gap(2)
-               | new DraftMarkdown(markdown)
+            sidePanel = Layout.Vertical().Gap(3).Width(Size.Units(80))
+                        | Text.Block($"Annotations ({annotations.Value.Count})").Bold()
+                        | items;
+        }
+        else
+        {
+            sidePanel = Layout.Vertical().Width(Size.Units(80))
+                        | Text.Muted("Select text in the markdown to add annotations.");
+        }
+
+        return Layout.Horizontal().Height(Size.Full()).Gap(4)
+               | new DraftMarkdownWidget(markdown)
                    .Article()
                    .Annotations(annotations.Value)
                    .OnAnnotationsChange(a => annotations.Set(a))
-                   .Height(Size.Fraction(0.65f))
-               | annotationInfo;
+                   .Width(Size.Full())
+                   .Height(Size.Full())
+               | sidePanel;
     }
 }
