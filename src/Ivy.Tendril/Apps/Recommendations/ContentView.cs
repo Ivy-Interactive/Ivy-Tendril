@@ -73,10 +73,10 @@ public class ContentView(
         var currentIndex = allRecommendations.FindIndex(r => r.PlanId == selectedRecommendation.PlanId && r.Title == selectedRecommendation.Title);
 
         // Title area (left): plain title on desktop, mobile picker on small screens, plus the
-        // project badge below it. Grows (minWidth:0) so the title text can wrap onto multiple lines.
+        // project badge below it. Grows and shrinks so the title truncates with an ellipsis.
         var titleArea = Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
-                        | new Box(Text.Block($"#{selectedRecommendation.PlanId} {selectedRecommendation.Title}").Bold())
-                            .BorderThickness(0).Padding(0)
+                        | new Box(Text.Block($"#{selectedRecommendation.PlanId} {selectedRecommendation.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
+                            .BorderThickness(0).Padding(0).Width(Size.Full())
                             .HideOn(Breakpoint.Mobile, Breakpoint.Tablet)
                         | MobileItemPicker.Build(
                                 $"#{selectedRecommendation.PlanId} {selectedRecommendation.Title}",

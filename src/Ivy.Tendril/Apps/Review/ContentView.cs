@@ -252,10 +252,10 @@ public class ContentView(
         ReviewAppArgs? args)
     {
         // Title area (left): plain title on desktop, mobile picker on small screens.
-        // Grows (minWidth:0) so the title text can wrap onto multiple lines.
+        // Grows and shrinks (Size.Grow() => minWidth:0) so the title truncates with an ellipsis.
         var titleArea = Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
-                        | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold())
-                            .BorderThickness(0).Padding(0)
+                        | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
+                            .BorderThickness(0).Padding(0).Width(Size.Full())
                             .HideOn(Breakpoint.Mobile, Breakpoint.Tablet)
                         | MobileItemPicker.Build(
                                 $"#{selectedPlan.Id} {selectedPlan.Title}",

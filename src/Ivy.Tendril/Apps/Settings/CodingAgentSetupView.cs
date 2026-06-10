@@ -81,7 +81,7 @@ public class CodingAgentSetupView : ViewBase
                 | Text.Block(a.Label)
                 | new Spacer()
                 | (a.Key == selectedAgent.Value ? Icons.Check.ToIcon() : null)
-            ).Width(Size.Full()).OnClick(() =>
+            ).Width(Size.Full()).Height(Size.Full()).OnClick(() =>
             {
                 selectedAgent.Set(a.Key);
             }));

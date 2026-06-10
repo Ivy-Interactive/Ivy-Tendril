@@ -44,10 +44,10 @@ public class ContentView(
 
         var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan.FolderName);
 
-        // Title area (left): grows so the title text can wrap onto multiple lines.
+        // Title area (left): grows and shrinks so the title truncates with an ellipsis.
         var titleArea = Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
-                        | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold())
-                            .BorderThickness(0).Padding(0)
+                        | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
+                            .BorderThickness(0).Padding(0).Width(Size.Full())
                             .HideOn(Breakpoint.Mobile, Breakpoint.Tablet)
                         | MobileItemPicker.Build(
                                 $"#{selectedPlan.Id} {selectedPlan.Title}",

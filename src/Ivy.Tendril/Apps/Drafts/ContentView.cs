@@ -146,12 +146,12 @@ public class ContentView(
 
         var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan.FolderName);
 
-        // Title area (left): plain title on desktop, mobile picker on small screens, plus badges.
-        // Grows to fill the row; Size.Grow() sets minWidth:0 so the title text can wrap onto
-        // multiple lines instead of pushing the controls off-screen.
+        // Title area (left): plain title on desktop, mobile picker on small screens, plus badges
+        // beneath. Grows and shrinks (Size.Grow() => minWidth:0) so the title truncates with an
+        // ellipsis instead of pushing the controls down or off-screen.
         var titleArea = Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
-                        | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold())
-                            .BorderThickness(0).Padding(0)
+                        | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
+                            .BorderThickness(0).Padding(0).Width(Size.Full())
                             .HideOn(Breakpoint.Mobile, Breakpoint.Tablet)
                         | MobileItemPicker.Build(
                                 $"#{selectedPlan.Id} {selectedPlan.Title}",
@@ -187,7 +187,7 @@ public class ContentView(
             titleArea |= titleBadges;
 
         // Controls group (right): plan count + Execute. Content-sized and pinned to the top-right,
-        // so when the title wraps they stay on the first line instead of dropping down.
+        // so they stay put while the title truncates.
         var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
                        | Text.Rich()
                            .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
@@ -203,7 +203,7 @@ public class ContentView(
                                    LaunchExecute();
                            }));
 
-        // Single non-wrapping row: title (grows + wraps) on the left, controls pinned top-right.
+        // Single non-wrapping row: title (grows + truncates) on the left, controls pinned top-right.
         var header = Layout.Horizontal().Width(Size.Full()).Gap(2).AlignContent(Align.TopLeft)
                      | titleArea
                      | controls;
