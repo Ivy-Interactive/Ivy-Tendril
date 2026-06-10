@@ -116,7 +116,7 @@ public class ContentView(
                      | controls;
 
         // Content
-        var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200))).Padding(2);
+        var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200))).Padding(6, 2, 6, 2);
 
         // Source plan info and Impact/Risk badges
         var metaRow = Layout.Horizontal().Gap(2).AlignContent(Align.Left)

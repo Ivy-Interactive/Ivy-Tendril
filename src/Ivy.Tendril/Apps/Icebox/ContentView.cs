@@ -68,7 +68,7 @@ public class ContentView(
                      | titleArea
                      | controls;
 
-        var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200)))
+        var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200))).Padding(6, 2, 6, 2)
                                 |
                                 new Markdown(MarkdownHelper.AnnotateAllBrokenLinks(selectedPlan.LatestRevisionContent, planService.PlansDirectory))
                                     .Article()
