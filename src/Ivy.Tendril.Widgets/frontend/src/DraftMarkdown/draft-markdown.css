@@ -154,7 +154,7 @@
   padding-inline-start: 2rem;
   display: flex;
   flex-direction: column;
-  row-gap: 0.25rem;
+  row-gap: 0.5rem;
 }
 .pmv-markdown ul {
   list-style: disc outside;
