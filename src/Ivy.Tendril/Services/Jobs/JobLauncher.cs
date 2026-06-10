@@ -271,6 +271,7 @@ internal class JobLauncher
             WritableDirectories = ResolveWritableDirectories(job.Type, programFolder),
             ExtraArguments = resolution.ExtraArgs,
             PromptFilePath = promptFilePath,
+            EnvironmentVariables = resolution.EnvironmentVariables,
         };
 
         job.Model = launchConfig.Model;

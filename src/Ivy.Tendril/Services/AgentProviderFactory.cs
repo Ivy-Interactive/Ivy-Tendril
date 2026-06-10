@@ -7,7 +7,8 @@ public record AgentResolution(
     string Model,
     string Effort,
     IReadOnlyList<string> AllowedTools,
-    IReadOnlyList<string> ExtraArgs)
+    IReadOnlyList<string> ExtraArgs,
+    IReadOnlyDictionary<string, string> EnvironmentVariables)
 {
     public string AgentId => Cli.Id;
     public bool UsesStdinPrompt => Cli.PromptTransport == PromptTransport.Stdin;
@@ -40,10 +41,10 @@ public static class AgentProviderFactory
         var cli = runner.GetCli(codingAgent);
 
         var allowedTools = ResolveAllowedTools(settings, promptwareName, jobContext);
-        var (profileName, extraArgs) = ResolveAgentConfig(settings, codingAgent, promptwareName, profileOverride);
+        var (profileName, extraArgs, envVars) = ResolveAgentConfig(settings, codingAgent, promptwareName, profileOverride);
         var (model, effort) = ApplyProfile(settings, codingAgent, profileName, cli, extraArgs);
 
-        return new AgentResolution(cli, model, effort, allowedTools, extraArgs);
+        return new AgentResolution(cli, model, effort, allowedTools, extraArgs, envVars);
     }
 
     private static List<string> ResolveAllowedTools(
@@ -78,7 +79,7 @@ public static class AgentProviderFactory
         return allowedTools.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
-    private static (string ProfileName, List<string> ExtraArgs) ResolveAgentConfig(
+    private static (string ProfileName, List<string> ExtraArgs, IReadOnlyDictionary<string, string> EnvironmentVariables) ResolveAgentConfig(
         TendrilSettings settings,
         string codingAgent,
         string promptwareName,
@@ -105,7 +106,11 @@ public static class AgentProviderFactory
         if (agentConfig != null && !string.IsNullOrWhiteSpace(agentConfig.Arguments))
             extraArgs.AddRange(SplitArgs(agentConfig.Arguments));
 
-        return (profileName, extraArgs);
+        IReadOnlyDictionary<string, string> envVars = agentConfig?.EnvironmentVariables is { Count: > 0 }
+            ? agentConfig.EnvironmentVariables
+            : new Dictionary<string, string>();
+
+        return (profileName, extraArgs, envVars);
     }
 
     private static (string Model, string Effort) ApplyProfile(
