@@ -133,6 +133,7 @@ public record AgentConfig
 {
     public string Name { get; set; } = "";
     public string Arguments { get; set; } = "";
+    public Dictionary<string, string> EnvironmentVariables { get; set; } = new();
     public List<AgentProfileConfig> Profiles { get; set; } = new();
 }
 
