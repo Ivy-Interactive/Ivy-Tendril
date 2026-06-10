@@ -19,7 +19,8 @@ public class AgentApp : ViewBase
 
         var ptyHandle = Context.UsePty(
             GetCommandLine(configService, agentRunner),
-            GetWorkDir(configService, agentRunner)
+            GetWorkDir(configService, agentRunner),
+            new PtyOptions { Environment = GetEnvironment(configService) }
         );
 
         var args = UseArgs<AgentAppArgs>();
@@ -101,6 +102,15 @@ public class AgentApp : ViewBase
             PermissionMode = PermissionMode.Default,
         });
         return spec?.WorkingDirectory ?? defaultDir;
+    }
+
+    private static Dictionary<string, string>? GetEnvironment(IConfigService config)
+    {
+        var agentId = config.Settings.CodingAgent;
+        var agentConfig = config.Settings.CodingAgents.FirstOrDefault(a =>
+            AgentProviderFactory.NormalizeAgentName(a.Name).Equals(agentId, StringComparison.OrdinalIgnoreCase));
+        return agentConfig?.EnvironmentVariables is { Count: > 0 } d
+            ? new Dictionary<string, string>(d) : null;
     }
 
     private static string GetDefaultWorkDir(IConfigService config) =>
