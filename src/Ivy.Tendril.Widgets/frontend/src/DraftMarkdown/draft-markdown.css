@@ -35,12 +35,14 @@
 }
 
 /* Fixed slot: sticky top-right, stays pinned while the shell scrolls.
-   The scrollbar is on the shell itself (far right edge). */
+   The scrollbar is on the shell itself (far right edge). Horizontal padding
+   keeps the slot content off the right edge and away from the markdown. */
 .pmv-sticky {
   flex: 0 0 auto;
   position: sticky;
   top: 0;
   z-index: 10;
+  padding: 0 1.5rem;
 }
 
 /* ─── Typography ─────────────────────────────────────────────────────────
@@ -63,13 +65,15 @@
   font-size: 2.25rem;
   line-height: 2.5rem;
   font-weight: 600;
-  margin: 0 0 0.75rem;
+  margin: 1.5rem 0 0.75rem;
 }
 .pmv-markdown h2 {
   font-size: 1.875rem;
   line-height: 2.25rem;
   font-weight: 500;
   margin: 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
 }
 .pmv-markdown h3 {
   font-size: 1.5rem;
@@ -108,14 +112,29 @@
 .pmv-markdown > :is(h1, h2, h3) + *:not(:is(h1, h2, h3, h4, h5, h6)) {
   margin-top: 1rem;
 }
-.pmv-markdown > * + pre {
-  margin-top: 0.75rem;
-}
-.pmv-markdown > pre + * {
-  margin-top: 0.25rem;
-}
-.pmv-markdown > :is(h1, h2, h3, h4, h5, h6) + :is(h1, h2, h3, h4, h5, h6) {
+/* Block elements (code blocks, diagrams, tables, images) get generous,
+   symmetric vertical spacing so they breathe regardless of neighbours. */
+.pmv-markdown > * + :is(pre, table, img),
+.pmv-markdown > * + :is(.pmv-code-block, .pmv-diagram-container) {
   margin-top: 1rem;
+}
+.pmv-markdown > :is(pre, table, img) + *,
+.pmv-markdown > :is(.pmv-code-block, .pmv-diagram-container) + * {
+  margin-top: 1rem;
+}
+/* Headings always get a clear top margin when they follow other content,
+   so an h2 after a paragraph keeps its spacing instead of collapsing. */
+.pmv-markdown > * + h1 {
+  margin-top: 1.5rem;
+}
+.pmv-markdown > * + h2 {
+  margin-top: 1.25rem;
+}
+.pmv-markdown > * + h3 {
+  margin-top: 1rem;
+}
+.pmv-markdown > * + :is(h4, h5, h6) {
+  margin-top: 0.75rem;
 }
 
 /* Body */
@@ -195,6 +214,13 @@
   border-radius: 0.375rem;
   border: 1px solid var(--border);
   background: var(--muted);
+}
+/* Code blocks (and diagrams) nested inside list items are not direct children
+   of .pmv-markdown, so the contextual spacing above never reaches them. Give
+   the wrapping <pre> its own vertical margin so they always breathe. */
+.pmv-markdown li :is(pre, .pmv-code-block, .pmv-diagram-container) {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
 }
 .pmv-code-block pre {
   margin: 0;
@@ -285,7 +311,12 @@
   height: auto;
   border: 1px solid var(--border);
   border-radius: 0.375rem;
-  margin: 1rem 0;
+  margin: 1rem auto;
+}
+/* A paragraph that only wraps an image shouldn't add its own spacing on top
+   of the image's margin. */
+.pmv-markdown p:has(> img:only-child) {
+  margin: 0;
 }
 .pmv-markdown hr {
   border: 0;
