@@ -61,7 +61,7 @@ public class ContentView(
                            .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
                            .Muted("plans", word: true);
 
-        var header = Layout.Horizontal().Width(Size.Full()).Gap(2).AlignContent(Align.TopLeft)
+        var header = Layout.Horizontal().Width(Size.Full()).Gap(2).AlignContent(Align.Left)
                      | titleArea
                      | controls;
 

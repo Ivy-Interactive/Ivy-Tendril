@@ -198,7 +198,7 @@ public class ContentView(
                                    LaunchExecute();
                            }));
 
-        var header = Layout.Horizontal().Width(Size.Full()).Gap(2).AlignContent(Align.TopLeft)
+        var header = Layout.Horizontal().Width(Size.Full()).Gap(2).AlignContent(Align.Left)
                      | titleArea
                      | controls;
 
