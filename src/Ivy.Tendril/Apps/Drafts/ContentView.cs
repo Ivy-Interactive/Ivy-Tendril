@@ -197,7 +197,7 @@ public class ContentView(
         else
         {
             var tabs = Layout.Tabs(
-                // DraftMarkdown owns its own scroll and the pinned FixedContent slot,
+                // DraftMarkdown owns its own scroll and the pinned StickyContent slot,
                 // so it is not wrapped in Cap() (whose outer scroll would also scroll the
                 // pinned element). The widget reproduces Cap()'s left inset + max-width.
                 new Tab("Plan", planTabContent),

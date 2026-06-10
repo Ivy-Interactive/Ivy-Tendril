@@ -5,6 +5,7 @@ using Ivy.Tendril.AppShell;
 using Ivy.Tendril.Controllers;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Widgets;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
@@ -90,7 +91,7 @@ public static class TendrilServer
         // Eagerly register Ivy.Tendril.Widgets assembly to ensure Tendril widgets are discovered
         // when running in single-file published mode (where DLLs are not on disk)
         Ivy.Core.ExternalWidgets.ExternalWidgetRegistry.Instance.RegisterAssembly(
-            typeof(Ivy.Widgets.TendrilProcess.TendrilProcess).Assembly);
+            typeof(TendrilProcessViewer).Assembly);
 
         var version = typeof(TendrilAppShell).Assembly.GetName().Version!;
         var versionString = version.ToString(3);
