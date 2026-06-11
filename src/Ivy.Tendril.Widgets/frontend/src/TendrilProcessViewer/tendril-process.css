@@ -215,6 +215,7 @@
     min-width: unset;
     width: 100%;
     max-width: 12rem;
+    min-height: 44px;
   }
 
   .tpv-arrow-segment {
@@ -227,6 +228,7 @@
     position: static;
     transform: none;
     margin-bottom: 0.125rem;
+    min-height: 44px;
   }
 
   .tpv-arrow-svg {
@@ -264,5 +266,6 @@
     position: static;
     transform: none;
     margin-top: 0.25rem;
+    min-height: 44px;
   }
 }
