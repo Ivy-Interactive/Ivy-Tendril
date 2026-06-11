@@ -47,9 +47,9 @@ public class ProjectInputStepView(
                           && !nameExists;
 
         var buttonArea = Layout.Horizontal().Width(Size.Full())
-            | (onBack != null ? (object)new Button("Back").Outline().Large().Icon(Icons.ArrowLeft).OnClick(onBack) : new Spacer())
-            | new Spacer()
             | (onSkip != null ? (object)new Button(skipButtonText).Ghost().Large().Disabled(disableSkipWhenCannotContinue && !canContinue).OnClick(() => onSkip()) : new Spacer())
+            | new Spacer()
+            | (onBack != null ? (object)new Button("Back").Outline().Large().Icon(Icons.ArrowLeft).OnClick(onBack) : null!)
             | new Button(nextButtonText).Secondary().Large().Icon(Icons.ArrowRight, Align.Right)
                 .Disabled(!canContinue)
                 .OnClick(onNext);

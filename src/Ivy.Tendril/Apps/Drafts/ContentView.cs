@@ -225,13 +225,17 @@ public class ContentView(
         var annotationsDialog = BuildAnnotationsGuardDialog(
             annotations, showAnnotationsDialog, preflightResult, pendingWaitJobIds, showDirtyDialog);
 
+        var hideScrollbar = new Html("<style>[role=tabpanel]>.overflow-hidden>[data-orientation]{display:none!important}</style>")
+            .DangerouslyAllowScripts().Width(Size.Px(0)).Height(Size.Px(0));
+
         var elements = new List<object>
         {
             mainLayout,
             updateDialog,
             deleteDialog,
             createIssueDialog,
-            debugSheet
+            debugSheet,
+            hideScrollbar
         };
 
         if (dirtyRepoDialog is not null)

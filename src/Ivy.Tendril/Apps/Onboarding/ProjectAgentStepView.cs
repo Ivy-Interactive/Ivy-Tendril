@@ -175,7 +175,7 @@ public class ProjectAgentStepView(
                    ? (object)new Progress(progressValue.Value.Value)
                    : null!)
                | (awaitingOutput
-                   ? (object)(Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+                   ? (object)(Layout.Horizontal().Gap(2).AlignContent(Align.Left)
                        | new Loading())
                    : null!)
                | (session.HasOutput.Value
