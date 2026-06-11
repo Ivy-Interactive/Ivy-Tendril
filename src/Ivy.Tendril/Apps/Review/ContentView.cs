@@ -239,7 +239,10 @@ public class ContentView(
             ).Scroll(Scroll.None).Size(Size.Full())
         ).Scroll(Scroll.None).Size(Size.Full()).Key(selectedPlanState.Value.Id);
 
-        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, customPrDialog, resetToDraftDialog, debugSheet);
+        var hideScrollbar = new Html("<style>[role=tabpanel]>.overflow-hidden>[data-orientation]{display:none!important}</style>")
+            .DangerouslyAllowScripts().Width(Size.Px(0)).Height(Size.Px(0));
+
+        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, customPrDialog, resetToDraftDialog, debugSheet, hideScrollbar);
     }
 
     private object BuildHeader(
