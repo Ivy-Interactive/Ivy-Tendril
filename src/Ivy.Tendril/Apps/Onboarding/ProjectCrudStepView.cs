@@ -97,7 +97,7 @@ public class ProjectCrudStepView(
                | (Layout.Vertical()
                   | Text.H4("Verifications")
                   | Text.Muted("The steps run after each plan execution to validate changes.")
-                  | (verificationRows.Count > 0 ? (object)verificationTable : Text.Muted("No verifications configured."))
+                  | (verificationRows.Count > 0 ? (object)verificationTable : null!)
                   | new Button("Add Verification").Icon(Icons.Plus).Outline()
                       .OnClick(() => showVerificationTrigger(null)))
                | (Layout.Vertical()
