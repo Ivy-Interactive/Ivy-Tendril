@@ -119,6 +119,19 @@ public class AddProjectDialog(
                 {
                     session.Reset();
                     isStepLoading.Set(false);
+
+                    if (hasCreated.Value && !string.IsNullOrWhiteSpace(editName.Value))
+                    {
+                        var project = config.Settings.Projects.FirstOrDefault(
+                            p => p.Name.Equals(editName.Value, StringComparison.OrdinalIgnoreCase));
+                        if (project != null)
+                        {
+                            config.Settings.Projects.Remove(project);
+                            try { config.SaveSettings(); } catch { }
+                        }
+                        hasCreated.Set(false);
+                    }
+
                     step.Set(0);
                 },
                 onNext: () =>
@@ -134,6 +147,18 @@ public class AddProjectDialog(
                 session,
                 onBack: () =>
                 {
+                    if (hasCreated.Value && !string.IsNullOrWhiteSpace(editName.Value))
+                    {
+                        var project = config.Settings.Projects.FirstOrDefault(
+                            p => p.Name.Equals(editName.Value, StringComparison.OrdinalIgnoreCase));
+                        if (project != null)
+                        {
+                            config.Settings.Projects.Remove(project);
+                            try { config.SaveSettings(); } catch { }
+                        }
+                        hasCreated.Set(false);
+                    }
+
                     step.Set(0);
                     session.Reset();
                 },
