@@ -100,12 +100,14 @@ public class ProjectCrudStepView(
                   | (verificationRows.Count > 0 ? (object)verificationTable : null!)
                   | new Button("Add Verification").Icon(Icons.Plus).Outline()
                       .OnClick(() => showVerificationTrigger(null)))
+               | new Separator()
                | (Layout.Vertical()
                   | Text.Block("Review Actions").Bold()
                   | Text.Muted("Commands that makes it easy to start you project for manual testing.")
                   | new ReviewActionsTableView(reviewActions, showReviewActionTrigger, showReviewActionAlert)
                   | new Button("Add Review Action").Icon(Icons.Plus).Outline()
                       .OnClick(() => showReviewActionTrigger(null)))
+               | new Separator()
                | verificationTriggerView
                | verificationAlertView
                | reviewActionTriggerView
