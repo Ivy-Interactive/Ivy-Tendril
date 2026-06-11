@@ -225,17 +225,13 @@ public class ContentView(
         var annotationsDialog = BuildAnnotationsGuardDialog(
             annotations, showAnnotationsDialog, preflightResult, pendingWaitJobIds, showDirtyDialog);
 
-        var hideScrollbar = new Html("<style>[role=tabpanel]>.overflow-hidden>[data-orientation]{display:none!important}</style>")
-            .DangerouslyAllowScripts().Width(Size.Px(0)).Height(Size.Px(0));
-
         var elements = new List<object>
         {
             mainLayout,
             updateDialog,
             deleteDialog,
             createIssueDialog,
-            debugSheet,
-            hideScrollbar
+            debugSheet
         };
 
         if (dirtyRepoDialog is not null)
@@ -248,7 +244,7 @@ public class ContentView(
 
         return new Fragment(elements.ToArray());
 
-        object Cap(object inner) => Layout.Vertical().Scroll().Width(Size.Full()).Height(Size.Full())
+        object Cap(object inner) => Layout.Vertical().Scroll().HideScrollbar().Width(Size.Full()).Height(Size.Full())
             | (Layout.Vertical().Padding(6, 0, 0, 4).Width(Size.Full().Max(Size.Units(200))) | inner);
     }
 
