@@ -239,10 +239,7 @@ public class ContentView(
             ).Scroll(Scroll.None).Size(Size.Full())
         ).Scroll(Scroll.None).Size(Size.Full()).Key(selectedPlanState.Value.Id);
 
-        var hideScrollbar = new Html("<style>[role=tabpanel]>.overflow-hidden>[data-orientation]{display:none!important}</style>")
-            .DangerouslyAllowScripts().Width(Size.Px(0)).Height(Size.Px(0));
-
-        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, customPrDialog, resetToDraftDialog, debugSheet, hideScrollbar);
+        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, customPrDialog, resetToDraftDialog, debugSheet);
     }
 
     private object BuildHeader(
@@ -608,7 +605,7 @@ public class ContentView(
 
         object Cap(object inner)
         {
-            return Layout.Vertical().Scroll(Scroll.Auto).Width(Size.Full()).Height(Size.Full())
+            return Layout.Vertical().Scroll(Scroll.Auto).HideScrollbar().Width(Size.Full()).Height(Size.Full())
                 | (Layout.Vertical().Padding(6, 0, 0, 4).Width(Size.Full().Max(Size.Units(200))) | inner);
         }
     }
