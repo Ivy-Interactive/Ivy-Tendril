@@ -175,17 +175,21 @@ public class ContentView(
         var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
                        | Text.Rich()
                            .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
-                           .Muted("plans", word: true)
-                       | new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("x")
-                           .Loading(isCheckingPreflight)
-                           .Disabled(isCheckingPreflight)
-                           .OnClick(() => runPreflight(selectedPlan.Project, result =>
-                           {
-                               if (result.DirtyRepos.Count > 0)
-                                   showDirtyDialog.Set(true);
-                               else
-                                   LaunchExecute();
-                           }));
+                           .Muted("plans", word: true);
+
+        if (annotations.Value.Count > 0)
+            controls |= BuildAnnotationsUpdateButton(annotations);
+
+        controls |= new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("x")
+                        .Loading(isCheckingPreflight)
+                        .Disabled(isCheckingPreflight)
+                        .OnClick(() => runPreflight(selectedPlan.Project, result =>
+                        {
+                            if (annotations.Value.Count > 0)
+                                showAnnotationsDialog.Set(true);
+                            else
+                                ContinueExecute(null, result, pendingWaitJobIds, showDirtyDialog);
+                        }));
 
         var header = Layout.Horizontal().Width(Size.Full()).Gap(2).AlignContent(Align.Left)
                      | titleArea
@@ -330,55 +334,6 @@ public class ContentView(
             v => File.Exists(Path.Combine(folderPath, "Verification", $"{v.Name}.md")));
 
         return new PlanContentData(summaryMd, artifacts, commitRows, verReports, allChanges);
-    }
-
-    private object BuildHeader(
-        IClientProvider client,
-        int currentIndex,
-        IState<ImmutableList<MarkdownAnnotation>> annotations,
-        bool isCheckingPreflight,
-        Action<string, Action<PreflightResult>> runPreflight,
-        IState<bool> showAnnotationsDialog,
-        IState<List<string>?> pendingWaitJobIds,
-        IState<bool> showDirtyDialog)
-    {
-        var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(40)).Gap(2)
-                     | Text.Block($"#{selectedPlan!.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis);
-
-        if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
-            header |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
-                .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
-
-        if (selectedPlan.DependsOn.Count > 0)
-        {
-            var depIds = string.Join(", ", selectedPlan.DependsOn.Select(d =>
-            {
-                var name = Path.GetFileName(d);
-                var dashIdx = name.IndexOf('-');
-                return dashIdx > 0 ? name[..dashIdx] : name;
-            }));
-            header |= new Badge($"Depends on: {depIds}").Variant(BadgeVariant.Secondary);
-        }
-
-        header |= new Spacer().Width(Size.Grow());
-        header |= Text.Rich()
-            .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
-            .Muted("plans", word: true);
-        if (annotations.Value.Count > 0)
-            header |= BuildAnnotationsUpdateButton(annotations);
-
-        header |= new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("x")
-            .Loading(isCheckingPreflight)
-            .Disabled(isCheckingPreflight)
-            .OnClick(() => runPreflight(selectedPlan.Project, result =>
-            {
-                if (annotations.Value.Count > 0)
-                    showAnnotationsDialog.Set(true);
-                else
-                    ContinueExecute(null, result, pendingWaitJobIds, showDirtyDialog);
-            }));
-
-        return header;
     }
 
     private PendingAnnotationsDialog? BuildAnnotationsGuardDialog(
