@@ -58,25 +58,29 @@ public sealed class ClaudePty : IAgentPty
     {
         var args = new List<string> { "claude" };
 
-        // Pass the initial prompt as a positional argument (claude "<prompt>" ...)
-        // so it is submitted on launch rather than typed into the PTY afterwards.
-        if (!string.IsNullOrEmpty(config.InitialPrompt))
-            args.Add(config.InitialPrompt);
-
         if (!string.IsNullOrEmpty(config.Model))
         {
             args.Add("--model");
             args.Add(config.Model);
         }
 
-        args.Add("--permission-mode");
-        args.Add(config.PermissionMode switch
+        if (config.PermissionMode == PermissionMode.FullAuto)
         {
-            PermissionMode.FullAuto => "dontAsk",
-            PermissionMode.AcceptEdits => "acceptEdits",
-            PermissionMode.Plan => "plan",
-            _ => "default"
-        });
+            // Full bypass for an interactive session — auto-approves every tool and
+            // command. --permission-mode dontAsk does NOT bypass command execution,
+            // so the agent would still prompt before running e.g. `tendril plan create`.
+            args.Add("--dangerously-skip-permissions");
+        }
+        else
+        {
+            args.Add("--permission-mode");
+            args.Add(config.PermissionMode switch
+            {
+                PermissionMode.AcceptEdits => "acceptEdits",
+                PermissionMode.Plan => "plan",
+                _ => "default"
+            });
+        }
 
         if (!string.IsNullOrEmpty(config.SessionId))
         {

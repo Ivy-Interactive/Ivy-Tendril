@@ -156,6 +156,24 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
     window.getSelection()?.removeAllRanges();
   }, [selectionToolbar]);
 
+  // Keyboard shortcuts while a selection toolbar is showing:
+  // Cmd/Ctrl+Alt+M opens the comment dialog, Escape dismisses the toolbar.
+  useEffect(() => {
+    if (!selectionToolbar) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Match the physical key (e.code) so Windows AltGr (Ctrl+Alt) and non-US
+      // layouts, which can remap e.key, still trigger the shortcut.
+      if (e.code === "KeyM" && (e.metaKey || e.ctrlKey) && e.altKey) {
+        e.preventDefault();
+        handleAddComment();
+      } else if (e.key === "Escape") {
+        setSelectionToolbar(null);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [selectionToolbar, handleAddComment]);
+
   const handleAddAnnotation = useCallback(
     (comment: string) => {
       if (!addPopover) return;
