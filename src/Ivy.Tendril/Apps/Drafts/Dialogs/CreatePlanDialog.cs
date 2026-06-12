@@ -23,6 +23,22 @@ public class CreatePlanDialog(
         _ => 0
     };
 
+    // Builds the seed prompt for the "Continue with Agent" flow. The description is
+    // trimmed, a single project reads "the project X", multiple read "the projects X or Y",
+    // and "Auto" lets the agent pick the project itself.
+    internal static string BuildAgentPrompt(string[] projects, string description)
+    {
+        var trimmed = description.Trim();
+        var realProjects = projects.Where(p => p != "Auto").ToArray();
+
+        if (realProjects.Length == 0)
+            return $"I want to discuss creating a Tendril plan from this description: \"{trimmed}\". Determine the most appropriate project for it yourself.";
+
+        var projectWord = realProjects.Length == 1 ? "project" : "projects";
+        var projectList = string.Join(" or ", realProjects);
+        return $"I want to discuss creating a Tendril plan for the {projectWord} {projectList} from this description: \"{trimmed}\"";
+    }
+
     public override object Build()
     {
         var nav = UseNavigation();
@@ -69,8 +85,7 @@ public class CreatePlanDialog(
                     var projects = selectedProjects.Value.Any()
                         ? selectedProjects.Value
                         : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
-                    var projectNamesStr = string.Join(", ", projects);
-                    var prompt = $"I want to discuss creating a Tendril plan for the project {projectNamesStr} from this description: \"{createPlanText.Value}\"";
+                    var prompt = BuildAgentPrompt(projects, createPlanText.Value);
                     nav.Navigate<AgentApp>(new AgentAppArgs(prompt));
                     onClose();
                 }),
@@ -82,7 +97,7 @@ public class CreatePlanDialog(
                         var projects = selectedProjects.Value.Any()
                             ? selectedProjects.Value
                             : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
-                        onCreatePlan(createPlanText.Value, projects, ParsePriority(selectedPriority.Value));
+                        onCreatePlan(createPlanText.Value.Trim(), projects, ParsePriority(selectedPriority.Value));
                         onClose();
                     }
                 })

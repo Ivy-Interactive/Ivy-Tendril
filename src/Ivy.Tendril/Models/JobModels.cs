@@ -59,6 +59,9 @@ public record JobItem
     public decimal? Cost { get; set; }
     public int? Tokens { get; set; }
 
+    // Soft-cleared from the Jobs app; still shown in plan Details history
+    public bool Cleared { get; set; }
+
     [JsonIgnore]
     public IEventParser? EventParser { get; set; }
     private IEventSerializer? _eventSerializer;

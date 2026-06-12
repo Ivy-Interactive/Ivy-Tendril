@@ -673,8 +673,8 @@ public class PlanDatabaseService : IPlanDatabaseService
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
-                              INSERT OR REPLACE INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, SessionId, StartedAt, CompletedAt, DurationSeconds, Cost, Tokens, StatusMessage, Args, TypedArgs, WorkingDirectory, CliCommand)
-                              VALUES (@id, @type, @planFile, @project, @status, @provider, @sessionId, @startedAt, @completedAt, @durationSeconds, @cost, @tokens, @statusMessage, @args, @typedArgs, @workingDirectory, @cliCommand)
+                              INSERT OR REPLACE INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, SessionId, StartedAt, CompletedAt, DurationSeconds, Cost, Tokens, StatusMessage, Args, TypedArgs, WorkingDirectory, CliCommand, Cleared)
+                              VALUES (@id, @type, @planFile, @project, @status, @provider, @sessionId, @startedAt, @completedAt, @durationSeconds, @cost, @tokens, @statusMessage, @args, @typedArgs, @workingDirectory, @cliCommand, @cleared)
                               """;
             cmd.Parameters.AddWithValue("@id", job.Id);
             cmd.Parameters.AddWithValue("@type", job.Type);
@@ -697,6 +697,7 @@ public class PlanDatabaseService : IPlanDatabaseService
                 : DBNull.Value);
             cmd.Parameters.AddWithValue("@workingDirectory", (object?)job.WorkingDirectory ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@cliCommand", (object?)job.CliCommand ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@cleared", job.Cleared ? 1 : 0);
             cmd.ExecuteNonQuery();
         }
     }
@@ -705,7 +706,7 @@ public class PlanDatabaseService : IPlanDatabaseService
     {
         using (new ReadLockHandle(_lock))
         {
-            return ReadList("SELECT * FROM Jobs ORDER BY CompletedAt DESC LIMIT @limit",
+            return ReadList("SELECT * FROM Jobs WHERE Cleared = 0 ORDER BY CompletedAt DESC LIMIT @limit",
                 MapJobRow,
                 new SqliteParameter("@limit", limit));
         }
@@ -771,7 +772,8 @@ public class PlanDatabaseService : IPlanDatabaseService
                 : reader.GetString(reader.GetOrdinal("WorkingDirectory")),
             CliCommand = reader.IsDBNull(reader.GetOrdinal("CliCommand"))
                 ? null
-                : reader.GetString(reader.GetOrdinal("CliCommand"))
+                : reader.GetString(reader.GetOrdinal("CliCommand")),
+            Cleared = reader.GetInt32(reader.GetOrdinal("Cleared")) != 0
         };
     }
 

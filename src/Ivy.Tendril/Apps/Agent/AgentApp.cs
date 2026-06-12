@@ -41,10 +41,14 @@ public class AgentApp : ViewBase
             {
                 promptSent.Value = true;
                 ptyHandle.HandleInput("\u001b[200~" + args.Prompt + "\u001b[201~");
-                await Task.Delay(300);
-                ptyHandle.HandleInput("\r");
-                await Task.Delay(300);
-                ptyHandle.HandleInput("\r");
+                // The paste takes a moment to settle before the agent accepts an Enter
+                // as "submit" (an Enter sent too early is absorbed). Retry over a longer
+                // window; once submitted, further Enters hit an empty buffer and no-op.
+                for (var i = 0; i < 3; i++)
+                {
+                    await Task.Delay(800);
+                    ptyHandle.HandleInput("\r");
+                }
             }
 
             return (IDisposable?)null;
@@ -55,7 +59,8 @@ public class AgentApp : ViewBase
             .OnInput(ptyHandle.HandleInput)
             .OnResize(ptyHandle.HandleResize)
             .Closed(ptyHandle.Closed)
-            .AllowClipboard();
+            .AllowClipboard()
+            .Loading($"Starting {agentRunner.GetCli(configService.Settings.CodingAgent).DisplayName}...");
 
         return terminal
             .WithLayout()

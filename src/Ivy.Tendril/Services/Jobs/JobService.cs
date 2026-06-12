@@ -301,7 +301,13 @@ public class JobService : IJobService
         foreach (var id in ids)
         {
             if (_jobs.TryRemove(id, out var removed))
+            {
+                // Soft-clear: hide from the Jobs app across restarts while keeping
+                // the row in SQLite so plan Details history stays complete.
+                removed.Cleared = true;
+                PersistJob(removed);
                 removed.DisposeResources(_logger);
+            }
         }
         if (ids.Count > 0)
             RaiseJobsStructureChanged();
