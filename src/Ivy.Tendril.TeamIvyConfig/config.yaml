@@ -379,7 +379,7 @@ codingAgents:
 - name: claude
   arguments: ''
   environmentVariables:
-    CLAUDE_CODE_USE_BEDROCK: "1"
+    CLAUDE_CODE_USE_BEDROCK: 1
   profiles:
   - name: deep
     model: opus
@@ -395,6 +395,7 @@ codingAgents:
     arguments: ''
 - name: codex
   arguments: ''
+  environmentVariables: {}
   profiles:
   - name: deep
     model: default
@@ -410,6 +411,7 @@ codingAgents:
     arguments: ''
 - name: opencode
   arguments: ''
+  environmentVariables: {}
   profiles:
   - name: deep
     model: default
@@ -425,6 +427,7 @@ codingAgents:
     arguments: ''
 - name: antigravity
   arguments: ''
+  environmentVariables: {}
   profiles:
   - name: deep
     model: default
@@ -440,6 +443,7 @@ codingAgents:
     arguments: ''
 - name: copilot
   arguments: ''
+  environmentVariables: {}
   profiles:
   - name: deep
     model: default
@@ -455,6 +459,7 @@ codingAgents:
     arguments: ''
 - name: gemini
   arguments: ''
+  environmentVariables: {}
   profiles:
   - name: deep
     model: default
