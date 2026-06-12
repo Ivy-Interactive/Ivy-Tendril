@@ -63,18 +63,16 @@ public class CreatePlanDialog(
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(onClose),
-                new Button("Chat with Agent").Outline().Icon(Icons.MessageCircle).Disabled(string.IsNullOrWhiteSpace(createPlanText.Value)).OnClick(() =>
+                new Button("Continue with Agent").Outline().Icon(Icons.MessageCircle).Disabled(string.IsNullOrWhiteSpace(createPlanText.Value)).OnClick(() =>
                 {
-                    if (!string.IsNullOrWhiteSpace(createPlanText.Value))
-                    {
-                        var projects = selectedProjects.Value.Any()
-                            ? selectedProjects.Value
-                            : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
-                        var projectNamesStr = string.Join(", ", projects);
-                        var prompt = $"User wants to chat about creating a Tendril plan for project {projectNamesStr} with the description \"{createPlanText.Value}\"";
-                        nav.Navigate<AgentApp>(new AgentAppArgs(prompt));
-                        onClose();
-                    }
+                    if (string.IsNullOrWhiteSpace(createPlanText.Value)) return;
+                    var projects = selectedProjects.Value.Any()
+                        ? selectedProjects.Value
+                        : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
+                    var projectNamesStr = string.Join(", ", projects);
+                    var prompt = $"User wants to chat about creating a Tendril plan for project {projectNamesStr} with the description \"{createPlanText.Value}\"";
+                    nav.Navigate<AgentApp>(new AgentAppArgs(prompt));
+                    onClose();
                 }),
                 new Button("Create").Primary().Disabled(isCreating.Value || string.IsNullOrWhiteSpace(createPlanText.Value)).ShortcutKey("Ctrl+Enter").OnClick(() =>
                 {

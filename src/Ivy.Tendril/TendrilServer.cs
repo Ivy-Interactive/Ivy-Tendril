@@ -106,6 +106,7 @@ public static class TendrilServer
                 ).Gap(2).Padding(2).AlignContent(Align.BottomLeft).Height(Size.Auto())
             )
             .WallpaperApp<Apps.WallpaperApp>()
+            .HideArgsInUrl()
             .UseTabs(true);
 
         server.UseAppShell(() => new TendrilAppShell(appShellSettings));

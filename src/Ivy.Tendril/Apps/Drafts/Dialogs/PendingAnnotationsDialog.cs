@@ -15,27 +15,28 @@ public class PendingAnnotationsDialog(
 
         return new Dialog(
             _ => dialogOpen.Set(false),
-            new DialogHeader("Unincorporated annotations"),
+            new DialogHeader("Unincorporated Annotations"),
             new DialogBody(
                 Text.P($"This plan has {annotationCount} {noun} that haven't been incorporated yet. Executing now would ignore them.")
             ),
             new DialogFooter(
-                new Button("Cancel").Outline().OnClick(() => dialogOpen.Set(false)),
-                new Button("Discard & Execute").Outline().Foreground(Colors.Destructive).OnClick(() =>
-                {
-                    dialogOpen.Set(false);
-                    onDiscardAndExecute();
-                }),
-                new Button("Update Plan").Outline().OnClick(() =>
-                {
-                    dialogOpen.Set(false);
-                    onUpdate();
-                }),
-                new Button("Update Plan & Execute").Primary().OnClick(() =>
-                {
-                    dialogOpen.Set(false);
-                    onUpdateAndExecute();
-                })
+                Layout.Wrap().Gap(4,2)
+                    | new Button("Cancel").Outline().OnClick(() => dialogOpen.Set(false))
+                    | new Button("Update Plan").Outline().OnClick(() =>
+                    {
+                        dialogOpen.Set(false);
+                        onUpdate();
+                    })
+                    |new Button("Discard Annotations & Execute").Outline().OnClick(() =>
+                    {
+                        dialogOpen.Set(false);
+                        onDiscardAndExecute();
+                    })
+                    | new Button("Update Plan & Execute").Primary().OnClick(() =>
+                    {
+                        dialogOpen.Set(false);
+                        onUpdateAndExecute();
+                    })
             )
         ).Width(Size.Rem(32));
     }

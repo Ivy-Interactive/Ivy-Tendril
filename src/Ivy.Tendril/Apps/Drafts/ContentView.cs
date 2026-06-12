@@ -494,15 +494,16 @@ public class ContentView(
     private bool HasActiveJob<TArgs>() where TArgs : JobArgsBase
     {
         return jobService.GetJobs().Any(j =>
-            j.TypedArgs is TArgs &&
-            j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
+            j is { TypedArgs: TArgs, Status: JobStatus.Running or JobStatus.Queued or JobStatus.Pending } &&
             j.TypedArgs.PlanFolder != null &&
             j.TypedArgs.PlanFolder.Equals(selectedPlan!.FolderPath, StringComparison.OrdinalIgnoreCase));
     }
 
     private Button BuildAnnotationsUpdateButton(IState<ImmutableList<MarkdownAnnotation>> annotations)
     {
-        return new Button("Update Plan").Icon(Icons.MessageSquareText).Outline()
+        return new Button("Update Plan")
+            .Icon(Icons.WandSparkles)
+            .Primary()
             .Badge(annotations.Value.Count.ToString())
             .Disabled(HasActiveJob<UpdatePlanArgs>())
             .Tooltip("Update the plan from your annotations")
