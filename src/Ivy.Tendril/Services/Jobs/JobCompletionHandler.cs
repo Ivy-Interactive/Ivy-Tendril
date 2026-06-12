@@ -184,7 +184,7 @@ internal class JobCompletionHandler
         if (job.TypedArgs is CreatePlanArgs)
         {
             var planFolder = job.TypedArgs?.PlanFolder ?? "";
-            var level = "NiceToHave";
+            var level = "Feature";
             if (Directory.Exists(planFolder))
             {
                 var plan = PlanYamlHelper.ReadPlanYaml(planFolder);
@@ -471,7 +471,9 @@ internal class JobCompletionHandler
         job.EnqueueSystemOutput(
             "[Tendril] WARNING: CreatePlan completed but no plan folder or trash entry was found.");
         job.Status = JobStatus.Failed;
-        job.StatusMessage = JobFailureAnalyzer.TryReadFailureArtifact(job.OutputLines.ToList()) ?? "No plan created";
+        job.StatusMessage = JobFailureAnalyzer.TryReadFailureArtifact(job.OutputLines.ToList())
+            ?? job.StatusMessage
+            ?? "No plan created";
     }
 
     private static bool TryVerifyByReportedId(JobItem job, string plansDir)

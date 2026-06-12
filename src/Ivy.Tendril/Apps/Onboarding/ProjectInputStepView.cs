@@ -47,9 +47,9 @@ public class ProjectInputStepView(
                           && !nameExists;
 
         var buttonArea = Layout.Horizontal().Width(Size.Full())
-            | (onBack != null ? (object)new Button("Back").Outline().Large().Icon(Icons.ArrowLeft).OnClick(onBack) : new Spacer())
-            | new Spacer()
             | (onSkip != null ? (object)new Button(skipButtonText).Ghost().Large().Disabled(disableSkipWhenCannotContinue && !canContinue).OnClick(() => onSkip()) : new Spacer())
+            | new Spacer()
+            | (onBack != null ? (object)new Button("Back").Outline().Large().Icon(Icons.ArrowLeft).OnClick(onBack) : null!)
             | new Button(nextButtonText).Secondary().Large().Icon(Icons.ArrowRight, Align.Right)
                 .Disabled(!canContinue)
                 .OnClick(onNext);
@@ -60,13 +60,13 @@ public class ProjectInputStepView(
                | new ProjectRepoPickerView(selectedRepos, projectName)
                | projectName.ToTextInput().WithField().Required().Label("Project Name")
                | (nameExists ? new Box()
-                   .Background(Colors.Destructive)
+                   .BorderColor(Colors.Destructive)
                    .Padding(8)
                    .BorderRadius(BorderRadius.Rounded)
                    .Content(
                        Layout.Vertical().Gap(2)
-                       | Text.Block("A project with this name already exists.").Bold().Color(Colors.White)
-                       | Text.Block("To resolve this conflict, you can either enter a different name above, or proceed using the existing project's configuration (its repository path and settings will be preserved).").Color(Colors.White).Small()
+                       | Text.Block("A project with this name already exists.").Bold().Color(Colors.Destructive)
+                       | Text.Block("To resolve this conflict, you can either enter a different name above, or proceed using the existing project's configuration (its repository path and settings will be preserved).").Small()
                        | (Layout.Horizontal().Margin(0, 0, 4, 0)
                            | new Button("Use Existing Project Configuration")
                                .Outline()

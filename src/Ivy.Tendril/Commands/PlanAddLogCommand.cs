@@ -2,7 +2,6 @@ using Ivy.Tendril.Models;
 using System.ComponentModel;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
-using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -20,28 +19,23 @@ public class PlanAddLogSettings : CommandSettings
     [CommandOption("--summary")]
     [Description("Optional summary text")]
     public string? Summary { get; init; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(PlanId, "plan-id"),
+            CliValidation.RequireNonEmpty(Action, "action"));
+    }
 }
 
 public class PlanAddLogCommand : Command<PlanAddLogSettings>
 {
-    private readonly ILogger<PlanAddLogCommand> _logger;
-
-    public PlanAddLogCommand(ILogger<PlanAddLogCommand> logger) => _logger = logger;
-
     protected override int Execute(CommandContext context, PlanAddLogSettings settings, CancellationToken cancellationToken)
     {
-        try
-        {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
-            var logPath = WriteLog(planFolder, settings.Action, settings.Summary);
-            Console.Write(logPath);
-            return 0;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError("Failed to add log to plan {PlanId}: {Message}", settings.PlanId, ex.Message);
-            return 1;
-        }
+        var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
+        var logPath = WriteLog(planFolder, settings.Action, settings.Summary);
+        Console.Write(logPath);
+        return 0;
     }
 
     internal static string WriteLog(string planFolder, string action, string? summary = null)

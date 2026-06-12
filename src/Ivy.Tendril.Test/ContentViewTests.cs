@@ -1,5 +1,6 @@
 using Ivy.Tendril.Apps.Drafts;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Widgets;
 using ReviewContentView = Ivy.Tendril.Apps.Review.ContentView;
 
 namespace Ivy.Tendril.Test;
@@ -115,6 +116,40 @@ public class ContentViewTests
             if (Directory.Exists(tempDir))
                 Directory.Delete(tempDir, true);
         }
+    }
+
+    [Fact]
+    public void BuildAnnotationsPrompt_NumbersAnnotationsAndQuotesSelectedText()
+    {
+        var annotations = new[]
+        {
+            new MarkdownAnnotation { SelectedText = "first passage", Comment = "make this clearer" },
+            new MarkdownAnnotation { SelectedText = "second passage", Comment = "remove this requirement" }
+        };
+
+        var prompt = ContentView.BuildAnnotationsPrompt(annotations);
+
+        Assert.Contains("## Annotation 1", prompt);
+        Assert.Contains("> first passage", prompt);
+        Assert.Contains("Comment: make this clearer", prompt);
+        Assert.Contains("## Annotation 2", prompt);
+        Assert.Contains("> second passage", prompt);
+        Assert.Contains("Comment: remove this requirement", prompt);
+    }
+
+    [Fact]
+    public void BuildAnnotationsPrompt_QuotesEveryLineOfMultilineSelection()
+    {
+        var annotations = new[]
+        {
+            new MarkdownAnnotation { SelectedText = "line one\r\nline two", Comment = "split this up" }
+        };
+
+        var prompt = ContentView.BuildAnnotationsPrompt(annotations);
+
+        var lines = prompt.Split('\n').Select(l => l.TrimEnd('\r')).ToArray();
+        Assert.Contains("> line one", lines);
+        Assert.Contains("> line two", lines);
     }
 
     [Fact]

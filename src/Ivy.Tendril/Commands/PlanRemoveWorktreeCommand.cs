@@ -22,6 +22,13 @@ public class PlanRemoveWorktreeSettings : CommandSettings
     [CommandOption("--branch")]
     [Description("Branch name to delete (auto-derived from plan if not specified)")]
     public string? Branch { get; init; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(PlanId, "plan-id"),
+            CliValidation.RequireNonEmpty(RepoName, "repo-name"));
+    }
 }
 
 public class PlanRemoveWorktreeCommand : Command<PlanRemoveWorktreeSettings>
@@ -32,59 +39,50 @@ public class PlanRemoveWorktreeCommand : Command<PlanRemoveWorktreeSettings>
 
     protected override int Execute(CommandContext context, PlanRemoveWorktreeSettings settings, CancellationToken cancellationToken)
     {
-        try
+        var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
+        var worktreePath = Path.Combine(planFolder, "Worktrees", settings.RepoName);
+
+        if (!Directory.Exists(worktreePath))
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
-            var worktreePath = Path.Combine(planFolder, "Worktrees", settings.RepoName);
+            AnsiConsole.MarkupLine($"[yellow]Worktree directory not found: {worktreePath.EscapeMarkup()}[/]");
+            return 0;
+        }
+
+        var branchName = settings.Branch ?? DeriveBranchName(planFolder);
+        var repoRoot = ResolveRepoRoot(worktreePath);
+
+        if (repoRoot != null)
+        {
+            var psi = new ProcessStartInfo("git", $"worktree remove --force \"{worktreePath}\"")
+            {
+                WorkingDirectory = repoRoot,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using var process = Process.Start(psi);
+            process?.WaitForExit(30000);
 
             if (!Directory.Exists(worktreePath))
             {
-                AnsiConsole.MarkupLine($"[yellow]Worktree directory not found: {worktreePath.EscapeMarkup()}[/]");
+                DeleteBranch(repoRoot, branchName);
+                AnsiConsole.MarkupLine("[green]Worktree removed successfully.[/]");
                 return 0;
             }
+        }
 
-            var branchName = settings.Branch ?? DeriveBranchName(planFolder);
-            var repoRoot = ResolveRepoRoot(worktreePath);
+        WorktreeCleanupService.ForceDeleteDirectory(worktreePath, _logger);
 
+        if (!Directory.Exists(worktreePath))
+        {
             if (repoRoot != null)
-            {
-                var psi = new ProcessStartInfo("git", $"worktree remove --force \"{worktreePath}\"")
-                {
-                    WorkingDirectory = repoRoot,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                using var process = Process.Start(psi);
-                process?.WaitForExit(30000);
-
-                if (!Directory.Exists(worktreePath))
-                {
-                    DeleteBranch(repoRoot, branchName);
-                    AnsiConsole.MarkupLine("[green]Worktree removed successfully.[/]");
-                    return 0;
-                }
-            }
-
-            WorktreeCleanupService.ForceDeleteDirectory(worktreePath, _logger);
-
-            if (!Directory.Exists(worktreePath))
-            {
-                if (repoRoot != null)
-                    DeleteBranch(repoRoot, branchName);
-                AnsiConsole.MarkupLine("[green]Worktree removed (force delete).[/]");
-                return 0;
-            }
-
-            AnsiConsole.MarkupLine("[red]Failed to remove worktree.[/]");
-            return 1;
+                DeleteBranch(repoRoot, branchName);
+            AnsiConsole.MarkupLine("[green]Worktree removed (force delete).[/]");
+            return 0;
         }
-        catch (Exception ex)
-        {
-            _logger.LogError("Failed to remove worktree for plan {PlanId}: {Message}", settings.PlanId, ex.Message);
-            return 1;
-        }
+
+        throw new InvalidOperationException("Failed to remove worktree.");
     }
 
     private static string? ResolveRepoRoot(string worktreePath)

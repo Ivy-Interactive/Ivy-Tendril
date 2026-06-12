@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using System.Text;
 using System.Text.RegularExpressions;
 using Ivy.Core;
 using Ivy.Tendril.Apps.Drafts.Dialogs;
@@ -10,6 +12,7 @@ using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Widgets;
 
 namespace Ivy.Tendril.Apps.Drafts;
 
@@ -33,9 +36,12 @@ public class ContentView(
         var issueLabelsState = UseState<string[]>([]);
         var issueCommentState = UseState("");
         var showDirtyDialog = UseState(false);
+        var annotations = UseState(ImmutableList<MarkdownAnnotation>.Empty);
+        var showAnnotationsDialog = UseState(false);
+        var pendingWaitJobIds = UseState<List<string>?>((List<string>?)null);
         var (runPreflight, isCheckingPreflight, preflightResult) = Context.UsePreflightCheck();
 
-        var processView = Context.UseTendrilProcessView();
+        var processView = Context.UseTendrilProcess();
 
         var (updateDialog, showUpdateDialog) = UseTrigger((isOpen) => !isOpen.Value ? null : new UpdatePlanDialog(isOpen, selectedPlan!, selectedPlanState, jobService, planService, refreshPlans));
 
@@ -63,6 +69,7 @@ public class ContentView(
         var originalContent = UseState("");
         var isEditingPrev = UseState(false);
         var lastPlanId = UseState(selectedPlan?.Id ?? -1);
+        var lastContentHash = UseState(selectedPlan?.LatestRevisionContent?.GetHashCode() ?? 0);
 
         var selectedTab = UseState(0);
         var openVerification = UseState<string?>(null);
@@ -72,31 +79,7 @@ public class ContentView(
 
         var planContentQuery = UseQuery<PlanContentData, string>(
             selectedPlan?.FolderPath ?? "",
-            async (folderPath, ct) =>
-            {
-                return await Task.Run(() =>
-                {
-                    if (selectedPlan is null)
-                        return new PlanContentData(null,
-                            new Dictionary<string, List<string>>(), [],
-                            new Dictionary<string, bool>(), null);
-
-                    var summaryPath = Path.Combine(folderPath, "Artifacts", "summary.md");
-                    var summaryMd = File.Exists(summaryPath) ? FileHelper.ReadAllText(summaryPath) : null;
-
-                    var artifacts = PlanContentHelpers.GetArtifacts(folderPath);
-
-                    var commitRows = PlanContentHelpers.BuildCommitRows(selectedPlan!, config, gitService);
-
-                    var allChanges = PlanContentHelpers.GetAllChangesData(selectedPlan!, config, gitService);
-
-                    var verReports = selectedPlan.Verifications.ToDictionary(
-                        v => v.Name,
-                        v => File.Exists(Path.Combine(folderPath, "Verification", $"{v.Name}.md")));
-
-                    return new PlanContentData(summaryMd, artifacts, commitRows, verReports, allChanges);
-                }, ct);
-            },
+            async (folderPath, ct) => await Task.Run(() => LoadPlanContent(folderPath), ct),
             initialValue: new PlanContentData(null,
                 new Dictionary<string, List<string>>(), new List<PlanContentHelpers.CommitRow>(), new Dictionary<string, bool>(), null)
         );
@@ -133,16 +116,22 @@ public class ContentView(
         {
             lastPlanId.Set(selectedPlan?.Id ?? -1);
             isEditing.Set(false);
+            annotations.Set(ImmutableList<MarkdownAnnotation>.Empty);
+            showAnnotationsDialog.Set(false);
+            pendingWaitJobIds.Set((List<string>?)null);
+        }
+
+        // Annotation offsets anchor to the plan text; drop them if the content changed
+        // underneath (plan updated, edited, or revised).
+        var contentHash = selectedPlan?.LatestRevisionContent?.GetHashCode() ?? 0;
+        if (lastContentHash.Value != contentHash)
+        {
+            lastContentHash.Set(contentHash);
+            annotations.Set(ImmutableList<MarkdownAnnotation>.Empty);
         }
 
         if (selectedPlan is null)
-        {
-            if (allPlans.Count == 0)
-                return new NoContentView("No draft plans", "Plans you create will appear here", processView);
-
-            return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
-                   | Text.Muted("Select a plan from the sidebar");
-        }
+            return BuildNoSelectionView(processView);
 
         var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan.FolderName);
 
@@ -210,7 +199,8 @@ public class ContentView(
             isEditing.Value,
             editContent,
             openFile,
-            planService);
+            planService,
+            annotations);
 
         if (planContentQuery.Loading)
         {
@@ -220,7 +210,10 @@ public class ContentView(
         else
         {
             var tabs = Layout.Tabs(
-                new Tab("Plan", Cap(planTabContent)),
+                // DraftMarkdown owns its own scroll and the pinned StickyContent slot,
+                // so it is not wrapped in Cap() (whose outer scroll would also scroll the
+                // pinned element). The widget reproduces Cap()'s left inset + max-width.
+                new Tab("Plan", planTabContent),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan!,
                     jobService.GetJobsForPlan(selectedPlan!.FolderName),
                     showDebugJob, planService, selectedPlanState, refreshPlans)))
@@ -232,17 +225,8 @@ public class ContentView(
         content |= new VerificationReportSheet(openVerification, selectedPlan);
         content |= new CommitDetailSheet(openCommit, selectedPlan, config, gitService);
 
-        // Check for active ExpandPlan job
-        var hasActiveExpandJob = jobService.GetJobs().Any(j =>
-            j is { TypedArgs: ExpandPlanArgs, Status: JobStatus.Running or JobStatus.Queued or JobStatus.Pending } &&
-            j.TypedArgs?.PlanFolder != null &&
-            j.TypedArgs.PlanFolder.Equals(selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
-
-        // Check for active SplitPlan job
-        var hasActiveSplitJob = jobService.GetJobs().Any(j =>
-            j is { TypedArgs: SplitPlanArgs, Status: JobStatus.Running or JobStatus.Queued or JobStatus.Pending } &&
-            j.TypedArgs?.PlanFolder != null &&
-            j.TypedArgs.PlanFolder.Equals(selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
+        var hasActiveExpandJob = HasActiveJob<ExpandPlanArgs>();
+        var hasActiveSplitJob = HasActiveJob<SplitPlanArgs>();
 
         var actionBar = new ActionBarView(
             selectedPlan,
@@ -278,9 +262,20 @@ public class ContentView(
                 preflightResult,
                 proceedLabel: "Execute Anyway",
                 contextMessage: "These changes will NOT be included in this plan. The plan will execute against origin/<baseBranch>. If these changes are meant for this plan, commit and push them first.",
-                onSyncRepos: () => LaunchWithSync(preflightResult),
-                onProceed: LaunchExecute)
+                onSyncRepos: () =>
+                {
+                    LaunchWithSync(preflightResult, pendingWaitJobIds.Value);
+                    pendingWaitJobIds.Set((List<string>?)null);
+                },
+                onProceed: () =>
+                {
+                    LaunchExecute(pendingWaitJobIds.Value);
+                    pendingWaitJobIds.Set((List<string>?)null);
+                })
             : null;
+
+        var annotationsDialog = BuildAnnotationsGuardDialog(
+            annotations, showAnnotationsDialog, preflightResult, pendingWaitJobIds, showDirtyDialog);
 
         var elements = new List<object>
         {
@@ -294,57 +289,174 @@ public class ContentView(
         if (dirtyRepoDialog is not null)
             elements.Add(dirtyRepoDialog);
 
+        if (annotationsDialog is not null)
+            elements.Add(annotationsDialog);
+
         elements.Add(new FileSheet(openFile, config));
 
         return new Fragment(elements.ToArray());
 
         object Cap(object inner) => Layout.Vertical().Scroll().Width(Size.Full()).Height(Size.Full())
-            | (Layout.Vertical().Padding(6, 0, 6, 4).Width(Size.Full().Max(Size.Units(200))) | inner);
+            | (Layout.Vertical().Padding(6, 0, 0, 4).Width(Size.Full().Max(Size.Units(200))) | inner);
+    }
+
+    private object BuildNoSelectionView(object processView)
+    {
+        if (allPlans.Count == 0)
+            return new NoContentView("No draft plans", "Plans you create will appear here", processView);
+
+        return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
+               | Text.Muted("Select a plan from the sidebar");
+    }
+
+    private PlanContentData LoadPlanContent(string folderPath)
+    {
+        if (selectedPlan is null)
+            return new PlanContentData(null,
+                new Dictionary<string, List<string>>(), [],
+                new Dictionary<string, bool>(), null);
+
+        var summaryPath = Path.Combine(folderPath, "Artifacts", "summary.md");
+        var summaryMd = File.Exists(summaryPath) ? FileHelper.ReadAllText(summaryPath) : null;
+
+        var artifacts = PlanContentHelpers.GetArtifacts(folderPath);
+
+        var commitRows = PlanContentHelpers.BuildCommitRows(selectedPlan, config, gitService);
+
+        var allChanges = PlanContentHelpers.GetAllChangesData(selectedPlan, config, gitService);
+
+        var verReports = selectedPlan.Verifications.ToDictionary(
+            v => v.Name,
+            v => File.Exists(Path.Combine(folderPath, "Verification", $"{v.Name}.md")));
+
+        return new PlanContentData(summaryMd, artifacts, commitRows, verReports, allChanges);
+    }
+
+    private object BuildHeader(
+        IClientProvider client,
+        int currentIndex,
+        IState<ImmutableList<MarkdownAnnotation>> annotations,
+        bool isCheckingPreflight,
+        Action<string, Action<PreflightResult>> runPreflight,
+        IState<bool> showAnnotationsDialog,
+        IState<List<string>?> pendingWaitJobIds,
+        IState<bool> showDirtyDialog)
+    {
+        var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(40)).Gap(2)
+                     | Text.Block($"#{selectedPlan!.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis);
+
+        if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
+            header |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
+                .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
+
+        if (selectedPlan.DependsOn.Count > 0)
+        {
+            var depIds = string.Join(", ", selectedPlan.DependsOn.Select(d =>
+            {
+                var name = Path.GetFileName(d);
+                var dashIdx = name.IndexOf('-');
+                return dashIdx > 0 ? name[..dashIdx] : name;
+            }));
+            header |= new Badge($"Depends on: {depIds}").Variant(BadgeVariant.Secondary);
+        }
+
+        header |= new Spacer().Width(Size.Grow());
+        header |= Text.Rich()
+            .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
+            .Muted("plans", word: true);
+        if (annotations.Value.Count > 0)
+            header |= BuildAnnotationsUpdateButton(annotations);
+
+        header |= new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("x")
+            .Loading(isCheckingPreflight)
+            .Disabled(isCheckingPreflight)
+            .OnClick(() => runPreflight(selectedPlan.Project, result =>
+            {
+                if (annotations.Value.Count > 0)
+                    showAnnotationsDialog.Set(true);
+                else
+                    ContinueExecute(null, result, pendingWaitJobIds, showDirtyDialog);
+            }));
+
+        return header;
+    }
+
+    private PendingAnnotationsDialog? BuildAnnotationsGuardDialog(
+        IState<ImmutableList<MarkdownAnnotation>> annotations,
+        IState<bool> showAnnotationsDialog,
+        PreflightResult? preflightResult,
+        IState<List<string>?> pendingWaitJobIds,
+        IState<bool> showDirtyDialog)
+    {
+        if (!showAnnotationsDialog.Value || annotations.Value.Count == 0) return null;
+
+        return new PendingAnnotationsDialog(
+            showAnnotationsDialog,
+            annotations.Value.Count,
+            onUpdate: () => SubmitAnnotationsUpdate(annotations),
+            onUpdateAndExecute: () => ContinueExecute(
+                [SubmitAnnotationsUpdate(annotations)], preflightResult, pendingWaitJobIds, showDirtyDialog),
+            onDiscardAndExecute: () =>
+            {
+                annotations.Set(ImmutableList<MarkdownAnnotation>.Empty);
+                ContinueExecute(null, preflightResult, pendingWaitJobIds, showDirtyDialog);
+            });
+    }
+
+    private void ContinueExecute(
+        List<string>? waitJobIds,
+        PreflightResult? result,
+        IState<List<string>?> pendingWaitJobIds,
+        IState<bool> showDirtyDialog)
+    {
+        if (result is { DirtyRepos.Count: > 0 })
+        {
+            pendingWaitJobIds.Set(waitJobIds);
+            showDirtyDialog.Set(true);
+        }
+        else
+        {
+            LaunchExecute(waitJobIds);
+        }
     }
 
     internal static object BuildFailureCallout(PlanFile plan)
+    {
+        return BuildVerificationFailureCallout(plan) ?? BuildLogFailureCallout(plan);
+    }
+
+    private static object? BuildVerificationFailureCallout(PlanFile plan)
     {
         var verificationDir = Path.Combine(plan.FolderPath, "Verification");
         var failedVerifications = plan.Verifications
             .Where(v => v.Status is VerificationStatus.Fail or VerificationStatus.Pending)
             .ToList();
 
-        if (failedVerifications.Count > 0 && Directory.Exists(verificationDir))
+        if (failedVerifications.Count == 0 || !Directory.Exists(verificationDir))
+            return null;
+
+        var parts = new List<string>();
+        foreach (var v in failedVerifications)
         {
-            var parts = new List<string>();
-            foreach (var v in failedVerifications)
+            var reportPath = Path.Combine(verificationDir, $"{v.Name}.md");
+            if (!File.Exists(reportPath))
             {
-                var reportPath = Path.Combine(verificationDir, $"{v.Name}.md");
-                if (!File.Exists(reportPath))
-                {
-                    parts.Add($"**{v.Name}** {v.Status}, no report generated");
-                    continue;
-                }
-
-                var report = FileHelper.ReadAllText(reportPath);
-
-                // Extract the Output section content
-                var outputMatch = Regex.Match(
-                    report, @"## Output\s*\n([\s\S]*?)(?=\n## |\z)");
-                var output = outputMatch.Success
-                    ? outputMatch.Groups[1].Value.Trim()
-                    : null;
-
-                // Extract Issues Found section
-                var issuesMatch = Regex.Match(
-                    report, @"## Issues Found\s*\n([\s\S]*?)(?=\n## |\z)");
-                var issues = issuesMatch.Success
-                    ? issuesMatch.Groups[1].Value.Trim()
-                    : null;
-
-                var detail = output ?? issues ?? "See verification report for details";
-                parts.Add($"**{v.Name}** {detail}");
+                parts.Add($"**{v.Name}** {v.Status}, no report generated");
+                continue;
             }
 
-            return Callout.Destructive(string.Join("\n\n", parts), "Execution Failed");
+            var report = FileHelper.ReadAllText(reportPath);
+            var detail = MatchSection(report, "Output")
+                         ?? MatchSection(report, "Issues Found")
+                         ?? "See verification report for details";
+            parts.Add($"**{v.Name}** {detail}");
         }
 
-        // Fall back to last execution log
+        return Callout.Destructive(string.Join("\n\n", parts), "Execution Failed");
+    }
+
+    private static object BuildLogFailureCallout(PlanFile plan)
+    {
         var logsDir = Path.Combine(plan.FolderPath, "Logs");
         if (!Directory.Exists(logsDir))
             return Callout.Destructive("No details available. Check the logs folder.", "Execution Failed");
@@ -353,13 +465,13 @@ public class ContentView(
             .FirstOrDefault();
         if (lastLog == null)
             return Callout.Destructive("No details available. Check the logs folder.", "Execution Failed");
+
         var logContent = FileHelper.ReadAllText(lastLog);
-        var summaryMatch = Regex.Match(
-            logContent, @"## Summary\s*\n([\s\S]*?)(?=\n## |\z)");
-        if (summaryMatch.Success)
-            return Callout.Destructive(summaryMatch.Groups[1].Value.Trim(), "Execution Failed");
-        var statusMatch = Regex.Match(
-            logContent, @"\*\*Status:\*\*\s*(.+)");
+        var summary = MatchSection(logContent, "Summary");
+        if (summary != null)
+            return Callout.Destructive(summary, "Execution Failed");
+
+        var statusMatch = Regex.Match(logContent, @"\*\*Status:\*\*\s*(.+)");
         if (!statusMatch.Success)
             return Callout.Destructive("No details available. Check the logs folder.", "Execution Failed");
         var status = statusMatch.Groups[1].Value.Trim();
@@ -368,44 +480,112 @@ public class ContentView(
                 "Execution reported as completed but plan is in Failed state. The process may have crashed during state transition.",
                 "State Mismatch");
         return Callout.Destructive($"Last execution status: {status}", "Execution Failed");
-
     }
 
-    private void LaunchExecute()
+    private static string? MatchSection(string content, string sectionName)
+    {
+        var match = Regex.Match(content, $@"## {Regex.Escape(sectionName)}\s*\n([\s\S]*?)(?=\n## |\z)");
+        return match.Success ? match.Groups[1].Value.Trim() : null;
+    }
+
+    private void LaunchExecute(List<string>? waitJobIds = null)
     {
         if (selectedPlan is null) return;
 
-        var optimisticPlan = selectedPlan with
-        {
-            Metadata = selectedPlan.Metadata with { State = PlanStatus.Building }
-        };
-        selectedPlanState.Set(optimisticPlan);
+        var hasWaits = waitJobIds is { Count: > 0 };
 
-        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
-        jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath));
+        // When chained behind an UpdatePlan job the plan is already Updating;
+        // JobLauncher sets Executing once the blocked ExecutePlan launches.
+        if (!hasWaits)
+            TransitionPlanOptimistically(PlanStatus.Building);
+
+        jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath) { WaitForJobs = hasWaits ? waitJobIds : null });
         refreshPlans();
     }
 
-    private void LaunchWithSync(PreflightResult preflight)
+    private void LaunchWithSync(PreflightResult preflight, List<string>? waitJobIds = null)
     {
         if (selectedPlan is null) return;
 
-        var syncJobIds = new List<string>();
+        var hasWaits = waitJobIds is { Count: > 0 };
+        var allWaitIds = hasWaits ? new List<string>(waitJobIds!) : new List<string>();
         foreach (var (repoPath, baseBranch, _) in preflight.DirtyRepos)
         {
             var jobId = jobService.StartJob(new SyncRepoArgs(repoPath, baseBranch, selectedPlan.FolderPath));
-            syncJobIds.Add(jobId);
+            allWaitIds.Add(jobId);
         }
 
-        var optimisticPlan = selectedPlan with
+        // When chained behind an UpdatePlan job the plan is already Updating;
+        // JobLauncher sets Executing once the blocked ExecutePlan launches.
+        if (!hasWaits)
+            TransitionPlanOptimistically(PlanStatus.Building);
+
+        jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath) { WaitForJobs = allWaitIds });
+        refreshPlans();
+    }
+
+    // Optimistically update UI state before disk I/O
+    private void TransitionPlanOptimistically(PlanStatus status)
+    {
+        var optimisticPlan = selectedPlan! with
         {
-            Metadata = selectedPlan.Metadata with { State = PlanStatus.Building }
+            Metadata = selectedPlan.Metadata with { State = status }
         };
         selectedPlanState.Set(optimisticPlan);
 
-        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
-        jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath) { WaitForJobs = syncJobIds });
+        planService.TransitionState(selectedPlan.FolderName, status);
+    }
+
+    private bool HasActiveJob<TArgs>() where TArgs : JobArgsBase
+    {
+        return jobService.GetJobs().Any(j =>
+            j.TypedArgs is TArgs &&
+            j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
+            j.TypedArgs.PlanFolder != null &&
+            j.TypedArgs.PlanFolder.Equals(selectedPlan!.FolderPath, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private Button BuildAnnotationsUpdateButton(IState<ImmutableList<MarkdownAnnotation>> annotations)
+    {
+        return new Button("Update Plan").Icon(Icons.MessageSquareText).Outline()
+            .Badge(annotations.Value.Count.ToString())
+            .Disabled(HasActiveJob<UpdatePlanArgs>())
+            .Tooltip("Update the plan from your annotations")
+            .OnClick(() => SubmitAnnotationsUpdate(annotations));
+    }
+
+    private string SubmitAnnotationsUpdate(IState<ImmutableList<MarkdownAnnotation>> annotations)
+    {
+        var prompt = BuildAnnotationsPrompt(annotations.Value);
+
+        TransitionPlanOptimistically(PlanStatus.Updating);
+        var jobId = jobService.StartJob(new UpdatePlanArgs(selectedPlan!.FolderPath, prompt));
+        annotations.Set(ImmutableList<MarkdownAnnotation>.Empty);
         refreshPlans();
+        return jobId;
+    }
+
+    internal static string BuildAnnotationsPrompt(IEnumerable<MarkdownAnnotation> annotations)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("I reviewed the plan and left inline annotations on specific passages.");
+        sb.AppendLine("Revise the plan to address every annotation below. Each item quotes the");
+        sb.AppendLine("passage I selected, followed by my comment about it.");
+
+        var index = 1;
+        foreach (var annotation in annotations)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"## Annotation {index}");
+            sb.AppendLine("Selected text:");
+            foreach (var line in annotation.SelectedText.Split('\n'))
+                sb.AppendLine($"> {line.TrimEnd('\r')}");
+            sb.AppendLine();
+            sb.AppendLine($"Comment: {annotation.Comment}");
+            index++;
+        }
+
+        return sb.ToString().TrimEnd();
     }
 
     private void GoToNext()

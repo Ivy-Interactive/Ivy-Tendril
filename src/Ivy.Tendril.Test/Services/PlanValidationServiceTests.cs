@@ -118,27 +118,39 @@ public class PlanValidationServiceTests : IDisposable
     }
 
     [Fact]
-    public void Validate_ThrowsForInvalidLevel()
+    public void Validate_ThrowsForInvalidLevel_WhenConfiguredLevelsProvided()
     {
         var plan = CreateValidPlan();
         plan.Level = "InvalidLevel";
+        var configuredLevels = new[] { "Bug", "Feature", "Epic", "Chore", "Nitpick" };
 
-        var ex = Assert.Throws<ArgumentException>(() => PlanValidationService.Validate(plan));
+        var ex = Assert.Throws<ArgumentException>(() => PlanValidationService.Validate(plan, configuredLevels));
 
         Assert.Contains("Invalid level value", ex.Message);
     }
 
     [Fact]
-    public void Validate_AcceptsAllValidLevels()
+    public void Validate_AcceptsAnyLevel_WhenNoConfiguredLevelsProvided()
     {
-        var validLevels = new[] { "Critical", "Bug", "NiceToHave", "Backlog", "Icebox" };
+        var plan = CreateValidPlan();
+        plan.Level = "AnythingGoes";
 
-        foreach (var level in validLevels)
+        var exception = Record.Exception(() => PlanValidationService.Validate(plan));
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public void Validate_AcceptsAllConfiguredLevels()
+    {
+        var configuredLevels = new[] { "Bug", "Feature", "Epic", "Chore", "Nitpick" };
+
+        foreach (var level in configuredLevels)
         {
             var plan = CreateValidPlan();
             plan.Level = level;
 
-            var exception = Record.Exception(() => PlanValidationService.Validate(plan));
+            var exception = Record.Exception(() => PlanValidationService.Validate(plan, configuredLevels));
 
             Assert.Null(exception);
         }

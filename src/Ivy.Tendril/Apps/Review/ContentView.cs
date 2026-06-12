@@ -37,7 +37,7 @@ public class ContentView(
         var args = UseArgs<ReviewAppArgs>();
         var nav = UseNavigation();
 
-        var processView = Context.UseTendrilProcessView();
+        var processView = Context.UseTendrilProcess();
 
         var githubService = UseService<IGithubService>();
         var assigneesError = UseState<string?>(null);
@@ -619,7 +619,7 @@ public class ContentView(
         object Cap(object inner)
         {
             return Layout.Vertical().Scroll(Scroll.Auto).Width(Size.Full()).Height(Size.Full())
-                | (Layout.Vertical().Padding(6, 0, 6, 4).Width(Size.Full().Max(Size.Units(200))) | inner);
+                | (Layout.Vertical().Padding(6, 0, 0, 4).Width(Size.Full().Max(Size.Units(200))) | inner);
         }
     }
 

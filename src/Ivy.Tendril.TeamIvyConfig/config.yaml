@@ -378,6 +378,8 @@ promptwares:
 codingAgents:
 - name: claude
   arguments: ''
+  environmentVariables:
+    CLAUDE_CODE_USE_BEDROCK: "1"
   profiles:
   - name: deep
     model: opus
@@ -475,10 +477,12 @@ telemetry: true
 desktopNotifications: true
 levels:
 - name: Bug
-  badge: Destructive
-- name: Critical
-  badge: Warning
-- name: NiceToHave
-  badge: Outline
+  color: Red
+- name: Feature
+  color: Blue
 - name: Epic
-  badge: Info
+  color: Purple
+- name: Chore
+  color: Slate
+- name: Nitpick
+  color: Gray

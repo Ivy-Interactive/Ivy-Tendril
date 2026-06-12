@@ -95,17 +95,19 @@ public class ProjectCrudStepView(
                | (showHeader ? Text.H3("Review Harness") : null!)
                | Text.Muted("Review and edit the configuration generated for your project.")
                | (Layout.Vertical()
-                  | Text.H4("Verifications")
+                  | Text.Block("Verifications").Bold()
                   | Text.Muted("The steps run after each plan execution to validate changes.")
-                  | (verificationRows.Count > 0 ? (object)verificationTable : Text.Muted("No verifications configured."))
+                  | (verificationRows.Count > 0 ? (object)verificationTable : null!)
                   | new Button("Add Verification").Icon(Icons.Plus).Outline()
                       .OnClick(() => showVerificationTrigger(null)))
+               | new Separator()
                | (Layout.Vertical()
-                  | Text.H4("Review Actions")
+                  | Text.Block("Review Actions").Bold()
                   | Text.Muted("Commands that makes it easy to start you project for manual testing.")
                   | new ReviewActionsTableView(reviewActions, showReviewActionTrigger, showReviewActionAlert)
                   | new Button("Add Review Action").Icon(Icons.Plus).Outline()
                       .OnClick(() => showReviewActionTrigger(null)))
+               | new Separator()
                | verificationTriggerView
                | verificationAlertView
                | reviewActionTriggerView

@@ -13,8 +13,11 @@ namespace Ivy.Tendril.Mcp.Tools;
 [McpServerToolType]
 public sealed class PlanTools : AuthenticatedToolBase
 {
-    public PlanTools(McpAuthenticationService authService) : base(authService)
+    private readonly IConfigService _configService;
+
+    public PlanTools(McpAuthenticationService authService, IConfigService configService) : base(authService)
     {
+        _configService = configService;
     }
 
     private static readonly Regex FolderNameRegex = new(@"^(\d{5})-(.+)$", RegexOptions.Compiled);
@@ -89,7 +92,7 @@ public sealed class PlanTools : AuthenticatedToolBase
     public string CreatePlan(
         [Description("Plan title/description")] string title,
         [Description("Project name (optional)")] string? project = null,
-        [Description("Priority level: Critical, Important, NiceToHave (optional)")] string? level = null,
+        [Description("Priority level: Bug, Feature, Epic, Chore, Nitpick (optional)")] string? level = null,
         [Description("Detailed prompt/description for plan creation (optional)")] string? prompt = null)
     {
         return ExecuteAuthenticated(() =>
@@ -407,18 +410,19 @@ public sealed class PlanTools : AuthenticatedToolBase
     [McpServerTool(Name = "tendril_plan_create"), Description("Create a plan directly (allocates ID, creates folder)")]
     public string PlanCreate(
         [Description("Plan title")] string title,
-        [Description("Project name (optional)")] string? project = null,
-        [Description("Priority level: Critical, Important, NiceToHave (optional)")] string? level = null,
+        [Description("Project name (must match a configured project)")] string project,
+        [Description("Priority level: Bug, Feature, Epic, Chore, Nitpick (optional)")] string? level = null,
         [Description("Initial prompt/description (optional)")] string? initialPrompt = null,
         [Description("Execution profile: deep or balanced (optional)")] string? executionProfile = null,
         [Description("Source URL (optional)")] string? sourceUrl = null,
-        [Description("Comma-separated repository paths (optional)")] string? repos = null,
         [Description("Comma-separated verification names (optional)")] string? verifications = null,
         [Description("Comma-separated related plan folder names (optional)")] string? relatedPlans = null,
         [Description("Comma-separated dependency plan folder names (optional)")] string? dependsOn = null)
     {
         return ExecuteAuthenticated(() =>
         {
+            var resolvedProject = PlanProjectResolver.ResolveProject(project, _configService.Projects);
+
             var plansDir = PlanCommandHelpers.GetPlansDirectory();
             var planId = PlanYamlHelper.AllocatePlanId(plansDir);
             var safeTitle = PlanYamlHelper.ToSafeTitle(title);
@@ -431,8 +435,8 @@ public sealed class PlanTools : AuthenticatedToolBase
             var plan = new PlanYaml
             {
                 State = nameof(PlanStatus.Draft),
-                Project = project ?? "Auto",
-                Level = level ?? "NiceToHave",
+                Project = resolvedProject.Name,
+                Level = level ?? "Feature",
                 Title = title,
                 Created = DateTime.UtcNow,
                 Updated = DateTime.UtcNow,
@@ -442,9 +446,8 @@ public sealed class PlanTools : AuthenticatedToolBase
                 Priority = 0
             };
 
-            if (!string.IsNullOrEmpty(repos))
-                foreach (var repo in repos.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                    plan.Repos.Add(repo);
+            foreach (var repoPath in resolvedProject.RepoPaths)
+                plan.Repos.Add(repoPath);
 
             if (!string.IsNullOrEmpty(verifications))
                 foreach (var v in verifications.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))

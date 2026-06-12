@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
-using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -15,45 +14,42 @@ public class PlanAddDependsOnSettings : CommandSettings
     [Description("Plan reference (ID, folder name, or path)")]
     [CommandArgument(1, "<depends-on>")]
     public string DependsOn { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(PlanId, "plan-id"),
+            CliValidation.RequireNonEmpty(DependsOn, "depends-on"));
+    }
 }
 
 public class PlanAddDependsOnCommand : Command<PlanAddDependsOnSettings>
 {
-    private readonly ILogger<PlanAddDependsOnCommand> _logger;
     private readonly IPlanWatcherService _planWatcher;
 
-    public PlanAddDependsOnCommand(ILogger<PlanAddDependsOnCommand> logger, IPlanWatcherService planWatcher)
+    public PlanAddDependsOnCommand(IPlanWatcherService planWatcher)
     {
-        _logger = logger;
         _planWatcher = planWatcher;
     }
 
     protected override int Execute(CommandContext context, PlanAddDependsOnSettings settings, CancellationToken cancellationToken)
     {
-        try
+        var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
+        var plan = PlanCommandHelpers.ReadPlan(planFolder);
+        var resolvedDep = PlanCommandHelpers.ResolvePlanFolderName(settings.DependsOn);
+
+        if (plan.DependsOn.Contains(resolvedDep, StringComparer.OrdinalIgnoreCase))
         {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
-            var plan = PlanCommandHelpers.ReadPlan(planFolder);
-            var resolvedDep = PlanCommandHelpers.ResolvePlanFolderName(settings.DependsOn);
-
-            if (plan.DependsOn.Contains(resolvedDep, StringComparer.OrdinalIgnoreCase))
-            {
-                _logger.LogInformation("Dependency already present: {DependsOn}", resolvedDep);
-                return 0;
-            }
-
-            plan.DependsOn.Add(resolvedDep);
-            plan.Updated = DateTime.UtcNow;
-
-            PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
-
-            _logger.LogInformation("Added dependency: {DependsOn}", resolvedDep);
+            Console.WriteLine($"Dependency already present: {resolvedDep}");
             return 0;
         }
-        catch (Exception ex)
-        {
-            _logger.LogError("Failed to add dependency to plan {PlanId}: {Message}", settings.PlanId, ex.Message);
-            return 1;
-        }
+
+        plan.DependsOn.Add(resolvedDep);
+        plan.Updated = DateTime.UtcNow;
+
+        PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
+
+        Console.WriteLine($"Added dependency: {resolvedDep}");
+        return 0;
     }
 }

@@ -43,7 +43,7 @@ Tendril CLI gives you complete control over your workflow without touching the U
 **3. Create a new plan**
 
 ```terminal
->tendril plan create "Fix login bug" --project MyProject
+>tendril plan create "Fix login bug" MyProject
 ```
 
 **4. List active plans**

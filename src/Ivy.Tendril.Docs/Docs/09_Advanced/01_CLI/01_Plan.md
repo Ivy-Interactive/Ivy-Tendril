@@ -32,20 +32,18 @@ Create, read, update, and validate plans from the terminal. All subcommands reso
 #### plan create
 
 ```terminal
->tendril plan create <title> [options]
+>tendril plan create <title> <project> [options]
 ```
 
-Creates a new plan folder and `plan.yaml` scaffold with state `Draft`. The plan ID is auto-allocated from the `.counter` file.
+Creates a new plan folder and `plan.yaml` scaffold with state `Draft`. The plan ID is auto-allocated from the `.counter` file. Repos are derived from the project configuration.
 
 | Option | Description |
 |--------|-------------|
-| `--project <name>` | Project name (default: Auto) |
-| `--level <level>` | Priority level (default: NiceToHave) |
+| `--level <level>` | Priority level (default: Feature) |
 | `--initial-prompt <text>` | Initial prompt text |
 | `--source-url <url>` | Source URL (GitHub issue or PR) |
 | `--execution-profile <profile>` | Execution profile (`deep` or `balanced`) |
 | `--priority <number>` | Priority number (default: 0) |
-| `--repo <path>` | Repository path (repeatable) |
 | `--verification <Name=Status>` | Verification entry (repeatable) |
 | `--related-plan <folder>` | Related plan folder name (repeatable) |
 | `--depends-on <folder>` | Dependency plan folder name (repeatable) |
@@ -62,7 +60,7 @@ Lists plans with optional filters.
 |--------|--------|
 | `--state <state>` | Filter by state (e.g. `Draft`, `Executing`, `Failed`) |
 | `--project <name>` | Filter by project name |
-| `--level <level>` | Filter by level (e.g. `Bug`, `Critical`, `NiceToHave`) |
+| `--level <level>` | Filter by level (e.g. `Bug`, `Feature`, `Epic`) |
 | `--has-pr` | Only plans that have associated PRs |
 | `--has-worktree` | Only plans that have worktrees |
 | `--limit <n>` | Maximum number of results |

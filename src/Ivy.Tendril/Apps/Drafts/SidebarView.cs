@@ -76,7 +76,7 @@ public class SidebarView(
                 badges |= new Badge(proj).Variant(BadgeVariant.Outline).Small()
                     .WithProjectColor(config, proj);
             }
-            badges |= new Badge(plan.Level).Variant(config.GetBadgeVariant(plan.Level)).Small();
+            badges |= new Badge(plan.Level).Color(config.GetLevelColor(plan.Level) ?? Colors.Gray).Small();
 
             return new ListItem($"#{plan.Id} {plan.Title}")
                 .Content(badges)

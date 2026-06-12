@@ -17,12 +17,12 @@ public class LevelsSetupView : ViewBase
         // Use levels in config.yaml order (not alphabetically sorted).
         var levels = config.Settings.Levels;
 
-        var rows = levels.Select((level, i) => new LevelRow(level.Name, level.Badge, i)).ToList();
+        var rows = levels.Select((level, i) => new LevelRow(level.Name, level.Color, i)).ToList();
 
         var table = new TableBuilder<LevelRow>(rows)
-            .Builder(t => t.Badge, f => f.Func<LevelRow, string>(badge =>
-                new Badge(badge).Variant(
-                    Enum.TryParse<BadgeVariant>(badge, out var v) ? v : BadgeVariant.Outline
+            .Builder(t => t.Color, f => f.Func<LevelRow, string>(color =>
+                new Badge(color).Color(
+                    Enum.TryParse<Colors>(color, out var c) ? c : Colors.Gray
                 )
             ))
             .Header(t => t.Index, "")
@@ -71,7 +71,7 @@ public class LevelsSetupView : ViewBase
                | alertView;
     }
 
-    private record LevelRow(string Name, string Badge, int Index);
+    private record LevelRow(string Name, string Color, int Index);
 }
 
 file class EditLevelDialogContent(
@@ -84,19 +84,19 @@ file class EditLevelDialogContent(
     public override object? Build()
     {
         var editName = UseState("");
-        var editBadge = UseState("Outline");
+        var editColor = UseState("Gray");
         UseEffect(() =>
         {
             var levels = config.Settings.Levels;
             if (existingIndex != null && existingIndex >= 0 && existingIndex < levels.Count)
             {
                 editName.Set(levels[existingIndex.Value].Name);
-                editBadge.Set(levels[existingIndex.Value].Badge);
+                editColor.Set(levels[existingIndex.Value].Color);
             }
         }, EffectTrigger.OnMount());
 
         var levels = config.Settings.Levels;
-        var badgeOptions = Enum.GetNames<BadgeVariant>().ToList();
+        var colorOptions = Enum.GetNames<Colors>().ToList();
         var isNew = existingIndex == null;
 
         return new Dialog(
@@ -105,7 +105,7 @@ file class EditLevelDialogContent(
             new DialogBody(
                 Layout.Vertical()
                 | editName.ToTextInput("Level name...").WithField().Label("Name")
-                | editBadge.ToSelectInput(badgeOptions).WithField().Label("Badge Variant")
+                | editColor.ToSelectInput(colorOptions).WithField().Label("Color")
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() => isOpen.Set(false)),
@@ -113,16 +113,16 @@ file class EditLevelDialogContent(
                 {
                     if (string.IsNullOrWhiteSpace(editName.Value)) return;
                     var oldLevelName = isNew ? null : levels[existingIndex!.Value].Name;
-                    var oldBadge = isNew ? null : levels[existingIndex!.Value].Badge;
+                    var oldColor = isNew ? null : levels[existingIndex!.Value].Color;
                     if (isNew)
                     {
-                        levels.Add(new LevelConfig { Name = editName.Value, Badge = editBadge.Value });
+                        levels.Add(new LevelConfig { Name = editName.Value, Color = editColor.Value });
                     }
                     else
                     {
                         var level = levels[existingIndex!.Value];
                         level.Name = editName.Value;
-                        level.Badge = editBadge.Value;
+                        level.Color = editColor.Value;
                     }
 
                     try
@@ -140,7 +140,7 @@ file class EditLevelDialogContent(
                         {
                             var level = levels[existingIndex!.Value];
                             level.Name = oldLevelName!;
-                            level.Badge = oldBadge!;
+                            level.Color = oldColor!;
                         }
                         refreshToken.Refresh();
                         client.Toast($"Failed to save level: {ex.Message}", "Error");

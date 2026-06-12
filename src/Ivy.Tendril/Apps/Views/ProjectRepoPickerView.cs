@@ -104,7 +104,7 @@ public class ProjectRepoPickerView(
             .Loading(isAdding.Value)
             .OnClick(() => { _ = AddAsync(); });
 
-        var listLayout = Layout.Vertical().Gap(2);
+        var listLayout = Layout.Vertical().Gap(3);
         var current = repos.Value;
         for (var i = 0; i < current.Count; i++)
         {
@@ -147,12 +147,15 @@ public class ProjectRepoPickerView(
             listLayout |= new Box(row).BorderStyle(BorderStyle.None).Background(Colors.Muted).Padding(4, 2, 2, 2).Width(Size.Full());
         }
 
-        return Layout.Vertical().Width(Size.Full()).Gap(2)
+        var scrollableContent = Layout.Vertical().Gap(3).Scroll(Scroll.Auto).Height(Size.Rem(20))
+               | pickerControls
+               | (current.Count > 0 ? listLayout : null!)
+               | addButton;
+
+        return Layout.Vertical().Width(Size.Full()).Gap(4)
                | Text.Label("Add one or more Git repositories")
                | (addingError.Value != null ? Text.Danger(addingError.Value) : null!)
-               | (Layout.Horizontal() | pickerControls | addButton)
-               //| (current.Count > 0 ? new Separator() : null!)
-               | (current.Count > 0 ? listLayout : null!);
+               | scrollableContent;
     }
 
     private static object BuildBaseBranchSelector(IState<List<RepoRef>> repos, int idx)

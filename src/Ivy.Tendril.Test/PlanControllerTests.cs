@@ -59,9 +59,9 @@ public class PlanControllerTests : IDisposable
         return planFolder;
     }
 
-    private static PlanController CreateController()
+    private PlanController CreateController()
     {
-        var controller = new PlanController(new NullPlanWatcherService());
+        var controller = new PlanController(new NullPlanWatcherService(), new TestPlanConfigService(_repoDir));
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()
@@ -591,7 +591,7 @@ public class PlanControllerTests : IDisposable
         Directory.CreateDirectory(plansDir);
         var controller = CreateController();
 
-        var result = controller.CreatePlanDirect(new CreatePlanDirectRequest("Test Direct Plan", Repos: [_repoDir]));
+        var result = controller.CreatePlanDirect(new CreatePlanDirectRequest("Test Direct Plan", "TestProject"));
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var json = JsonSerializer.Serialize(ok.Value);
@@ -611,12 +611,11 @@ public class PlanControllerTests : IDisposable
 
         var request = new CreatePlanDirectRequest(
             "Full Plan",
-            Project: "MyProject",
+            Project: "TestProject",
             Level: "Critical",
             InitialPrompt: "Do the thing",
             ExecutionProfile: "deep",
             SourceUrl: "https://github.com/org/repo/issues/1",
-            Repos: [_repoDir],
             Verifications: ["DotnetBuild", "DotnetTest"],
             RelatedPlans: ["00010-OtherPlan"],
             DependsOn: ["00005-BasePlan"]);
@@ -630,7 +629,7 @@ public class PlanControllerTests : IDisposable
         var getPlanResult = controller.GetPlan(idStr);
         var getOk = Assert.IsType<OkObjectResult>(getPlanResult);
         var planJson = JsonSerializer.Serialize(getOk.Value);
-        Assert.Contains("MyProject", planJson);
+        Assert.Contains("TestProject", planJson);
         Assert.Contains("Critical", planJson);
         Assert.Contains("Do the thing", planJson);
         Assert.Contains("deep", planJson);

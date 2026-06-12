@@ -82,7 +82,7 @@ public class PlanReaderServiceGetPlanTests : IDisposable
         Assert.NotNull(result.DependsOn);
         Assert.Equal("", result.Project);
         Assert.Equal("", result.Title);
-        Assert.Equal("NiceToHave", result.Level);
+        Assert.Equal("Feature", result.Level);
     }
 
     [Fact]

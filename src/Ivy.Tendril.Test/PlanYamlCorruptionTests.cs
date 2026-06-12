@@ -79,7 +79,7 @@ public class PlanYamlCorruptionTests : IClassFixture<ConfigServiceFixture>
         Directory.Delete(planFolder, true);
     }
 
-[Fact]
+    [Fact]
     public void SetPlanStateByFolder_UsesAtomicWrite()
     {
         // Arrange: Create a plan
