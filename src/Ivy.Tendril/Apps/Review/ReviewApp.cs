@@ -1,12 +1,8 @@
 using System.Reactive.Disposables;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Helpers;
-using Ivy.Tendril.Apps.Review;
-using ContentView = Ivy.Tendril.Apps.Review.ContentView;
-using SidebarView = Ivy.Tendril.Apps.Review.SidebarView;
 
-namespace Ivy.Tendril.Apps;
+namespace Ivy.Tendril.Apps.Review;
 
 [App(title: "Review", icon: Icons.ThumbsUp, group: ["Apps"], order: Constants.Review,
     allowDuplicateTabs: false)]

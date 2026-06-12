@@ -1,10 +1,8 @@
-using System.Reactive.Linq;
-using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
-namespace Ivy.Tendril.Apps;
+namespace Ivy.Tendril.Apps.Jobs;
 
 public partial class JobsApp
 {
@@ -20,26 +18,26 @@ public partial class JobsApp
     {
         return jobs.Select(j =>
         {
-            var planId = ExtractPlanId(j.PlanFile);
+            var planId = JobsApp.ExtractPlanId(j.PlanFile);
             if (string.IsNullOrEmpty(planId) && !string.IsNullOrEmpty(j.ReportedPlanId))
                 planId = j.ReportedPlanId;
 
             return new JobItemRow
             {
                 Id = j.Id,
-                Status = FormatStatusBadge(j.Status),
+                Status = JobsApp.FormatStatusBadge(j.Status),
                 PlanId = planId,
-                Plan = GetPromptDisplay(j, planService),
+                Plan = JobsApp.GetPromptDisplay(j, planService),
                 Type = j.Type,
                 Project = string.Join(", ", ProjectHelper.ParseProjects(j.Project)),
-                Timer = FormatTimer(j),
+                Timer = JobsApp.FormatTimer(j),
                 Cost = j.Cost.HasValue ? $"${j.Cost.Value:F2}" : "",
                 Tokens = j.Tokens.HasValue ? FormatHelper.FormatTokens(j.Tokens.Value) : "",
-                AgentOutput = FormatAgentOutput(j),
+                AgentOutput = JobsApp.FormatAgentOutput(j),
                 LastOutputTimestamp = j.LastOutputAt,
-                StatusMessage = GetStatusMessage(j),
+                StatusMessage = JobsApp.GetStatusMessage(j),
                 ErrorContext = j.Status is JobStatus.Failed or JobStatus.Timeout
-                    ? GetErrorContext(j)
+                    ? JobsApp.GetErrorContext(j)
                     : null
             };
         })
@@ -65,7 +63,7 @@ public partial class JobsApp
         var statusSegments = statusGroups
             .Select(g => new ProgressSegment(
                 g.Count,
-                GetStatusColor(g.Status),
+                JobsApp.GetStatusColor(g.Status),
                 g.Status.ToString()
             ))
             .ToArray();
@@ -83,12 +81,12 @@ public partial class JobsApp
                          && DateTime.UtcNow - j.CompletedAt.Value < TimeSpan.FromMinutes(1)))
             .SelectMany(j => new[]
             {
-                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Timer), FormatTimer(j)),
+                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Timer), JobsApp.FormatTimer(j)),
                 new DataTableCellUpdate(j.Id, nameof(JobItemRow.Cost), j.Cost.HasValue ? $"${j.Cost.Value:F2}" : ""),
                 new DataTableCellUpdate(j.Id, nameof(JobItemRow.Tokens), j.Tokens.HasValue ? FormatHelper.FormatTokens(j.Tokens.Value) : ""),
-                new DataTableCellUpdate(j.Id, nameof(JobItemRow.AgentOutput), FormatAgentOutput(j)),
-                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Status), FormatStatusBadge(j.Status)),
-                new DataTableCellUpdate(j.Id, nameof(JobItemRow.StatusMessage), GetStatusMessage(j))
+                new DataTableCellUpdate(j.Id, nameof(JobItemRow.AgentOutput), JobsApp.FormatAgentOutput(j)),
+                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Status), JobsApp.FormatStatusBadge(j.Status)),
+                new DataTableCellUpdate(j.Id, nameof(JobItemRow.StatusMessage), JobsApp.GetStatusMessage(j))
             });
     }
 }

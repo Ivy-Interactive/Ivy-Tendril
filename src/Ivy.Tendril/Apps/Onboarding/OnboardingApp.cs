@@ -1,8 +1,7 @@
-using Ivy.Tendril.Apps.Onboarding;
 using Ivy.Tendril.Apps.Onboarding.Models;
 using Ivy.Tendril.Services;
 
-namespace Ivy.Tendril.Apps;
+namespace Ivy.Tendril.Apps.Onboarding;
 
 [App(icon: Icons.Rocket, isVisible: false, order: Constants.Onboarding)]
 public class OnboardingApp : ViewBase

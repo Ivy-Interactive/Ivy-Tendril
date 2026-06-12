@@ -1,11 +1,8 @@
 using System.Reactive.Disposables;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Helpers;
-using ContentView = Ivy.Tendril.Apps.Icebox.ContentView;
-using SidebarView = Ivy.Tendril.Apps.Icebox.SidebarView;
 
-namespace Ivy.Tendril.Apps;
+namespace Ivy.Tendril.Apps.Icebox;
 
 [App(title: "Icebox", icon: Icons.Snowflake, group: ["Apps"], order: Constants.Icebox)]
 public class IceboxApp : ViewBase

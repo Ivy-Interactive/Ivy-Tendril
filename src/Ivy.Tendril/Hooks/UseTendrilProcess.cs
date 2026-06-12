@@ -1,8 +1,11 @@
 using System.Reactive.Disposables;
 using Ivy.Tendril.Apps;
+using Ivy.Tendril.Apps.Drafts;
+using Ivy.Tendril.Apps.Review;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Widgets;
+using JobsApp = Ivy.Tendril.Apps.Jobs.JobsApp;
 
 namespace Ivy.Tendril.Hooks;
 
