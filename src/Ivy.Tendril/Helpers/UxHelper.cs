@@ -2,6 +2,10 @@ namespace Ivy.Tendril.Helpers;
 
 public static class UxHelper
 {
+    public static Responsive<Size> SheetWidth =>
+        Size.Full().At(Breakpoint.Mobile).And(Breakpoint.Desktop, Size.Half());
+
+
     public static async Task AnimateProgressAsync(IState<int?> value, CancellationToken ct, double duration = 15.0, double ceiling = 92.0)
     {
         const int steps = 100;

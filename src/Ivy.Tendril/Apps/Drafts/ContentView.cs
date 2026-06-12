@@ -61,7 +61,7 @@ public class ContentView(
                 () => isOpen.Set(false),
                 new JobDebugSheet(jobId, jobService, planService, config),
                 "Job Debug"
-            ).Width(Size.Half()).Resizable();
+            ).Width(UxHelper.SheetWidth).Resizable();
         });
 
         var isEditing = UseState(false);
@@ -135,9 +135,61 @@ public class ContentView(
 
         var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan.FolderName);
 
-        var header = BuildHeader(
-            client, currentIndex, annotations, isCheckingPreflight, runPreflight,
-            showAnnotationsDialog, pendingWaitJobIds, showDirtyDialog);
+        var titleArea = Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
+                        | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
+                            .BorderThickness(0).Padding(0).Width(Size.Full())
+                            .HideOn(Breakpoint.Mobile, Breakpoint.Tablet)
+                        | MobileItemPicker.Build(
+                                $"#{selectedPlan.Id} {selectedPlan.Title}",
+                                allPlans,
+                                p => $"#{p.Id} {p.Title}",
+                                p => p.FolderName == selectedPlan.FolderName,
+                                p => selectedPlanState.Set(p))
+                            .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
+
+        var titleBadges = Layout.Horizontal().Wrap().Gap(2).AlignContent(Align.Left);
+        var hasTitleBadges = false;
+
+        if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
+        {
+            titleBadges |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
+                .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
+            hasTitleBadges = true;
+        }
+
+        if (selectedPlan.DependsOn.Count > 0)
+        {
+            var depIds = string.Join(", ", selectedPlan.DependsOn.Select(d =>
+            {
+                var name = Path.GetFileName(d);
+                var dashIdx = name.IndexOf('-');
+                return dashIdx > 0 ? name[..dashIdx] : name;
+            }));
+            titleBadges |= new Badge($"Depends on: {depIds}").Variant(BadgeVariant.Secondary);
+            hasTitleBadges = true;
+        }
+
+        if (hasTitleBadges)
+            titleArea |= titleBadges;
+
+        var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
+                       | Text.Rich()
+                           .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
+                           .Muted("plans", word: true)
+                       | new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("x")
+                           .Loading(isCheckingPreflight)
+                           .Disabled(isCheckingPreflight)
+                           .OnClick(() => runPreflight(selectedPlan.Project, result =>
+                           {
+                               if (result.DirtyRepos.Count > 0)
+                                   showDirtyDialog.Set(true);
+                               else
+                                   LaunchExecute();
+                           }));
+
+        var header = Layout.Horizontal().Width(Size.Full()).Gap(2).AlignContent(Align.Left)
+                     | titleArea
+                     | controls;
 
         var content = Layout.Vertical().Height(Size.Full());
 
@@ -244,7 +296,7 @@ public class ContentView(
 
         return new Fragment(elements.ToArray());
 
-        object Cap(object inner) => Layout.Vertical().Scroll().HideScrollbar().Width(Size.Full()).Height(Size.Full())
+        object Cap(object inner) => Layout.Vertical().Scroll().Width(Size.Full()).Height(Size.Full())
             | (Layout.Vertical().Padding(6, 0, 0, 4).Width(Size.Full().Max(Size.Units(200))) | inner);
     }
 

@@ -45,7 +45,12 @@ public class DashboardApp : ViewBase
         }
 
         // Statistics cards
-        var statsRow = Layout.Horizontal().Gap(2).Padding(2)
+        var statsRow = Layout.Grid()
+                           .Columns(2.At(Breakpoint.Mobile)
+                               .And(Breakpoint.Tablet, 4)
+                               .And(Breakpoint.Desktop, 7))
+                           .Gap(2)
+                           .Padding(2)
                        | BuildStatCard(stats.TotalCount.ToString(), "Total Plans")
                        | BuildStatCard(stats.DraftCount.ToString(), "Drafts")
                        | BuildStatCard(stats.InProgressCount.ToString(), "In Progress")
