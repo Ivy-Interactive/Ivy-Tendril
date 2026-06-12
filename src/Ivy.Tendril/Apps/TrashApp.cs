@@ -126,13 +126,14 @@ public class TrashApp : ViewBase
             ).Scroll(Scroll.None).Size(Size.Full());
         }
 
-        var elements = new List<object>
-        {
-            new SidebarLayout(
+        object body = files.Count == 0
+            ? mainContent
+            : new SidebarLayout(
                 mainContent,
                 sidebar
-            ).SidebarContentScroll(Scroll.None)
-        };
+            ).SidebarContentScroll(Scroll.None);
+
+        var elements = new List<object> { body };
 
         elements.Add(new FileSheet(openFile, configService));
 
