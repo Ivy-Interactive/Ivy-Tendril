@@ -13,7 +13,6 @@ public class ProjectsSetupView : ViewBase
         var refreshToken = UseRefreshToken();
         var editIndex = UseState<int?>(-1);
         var isAddOpen = UseState(false);
-        var (alertView, showAlert) = UseAlert();
 
         var projects = config.Settings.Projects;
         var allVerifications = config.Settings.Verifications.Select(v => v.Name).ToList();
@@ -45,27 +44,25 @@ public class ProjectsSetupView : ViewBase
                 | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete this project").OnClick(() =>
                 {
                     var name = projects[idx].Name;
-                    showAlert($"Are you sure you want to delete the project '{name}'? This cannot be undone.", result =>
+                    try
                     {
-                        if (result == AlertResult.Ok)
-                        {
-                            var removedProject = projects[idx];
-                            projects.RemoveAt(idx);
-                            try
-                            {
-                                config.SaveSettings();
-                                refreshToken.Refresh();
-                                client.Toast($"Project '{name}' deleted", "Deleted");
-                            }
-                            catch (Exception ex)
-                            {
-                                projects.Insert(idx, removedProject);
-                                refreshToken.Refresh();
-                                client.Toast($"Failed to delete project: {ex.Message}", "Error");
-                            }
-                        }
-                    }, "Delete Project", AlertButtonSet.OkCancel);
-                })
+                        var removedProject = projects[idx];
+                        projects.RemoveAt(idx);
+                        config.SaveSettings();
+                        refreshToken.Refresh();
+                        client.Toast($"Project '{name}' deleted", "Deleted");
+                    }
+                    catch (Exception ex)
+                    {
+                        refreshToken.Refresh();
+                        client.Toast($"Failed to delete project: {ex.Message}", "Error");
+                    }
+                }).WithConfirm(
+                    $"Are you sure you want to delete the project '{projects[idx].Name}'? This cannot be undone.",
+                    title: "Delete Project",
+                    confirmLabel: "Delete Project",
+                    destructive: true
+                )
             ))
             .Width(Size.Fit());
 
@@ -78,8 +75,7 @@ public class ProjectsSetupView : ViewBase
                    isAddOpen.Set(true);
                })
                | new EditProjectDialog(editIndex, projects, allVerifications, config, client, refreshToken)
-               | new AddProjectDialog(isAddOpen, config, client, refreshToken)
-               | alertView;
+               | new AddProjectDialog(isAddOpen, config, client, refreshToken);
     }
 
     private record ProjectRow(string Name, List<RepoRef> Repos, int Index);

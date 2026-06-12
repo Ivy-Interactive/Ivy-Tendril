@@ -36,7 +36,7 @@ public class ContentView(
         if (selectedPlan is null)
         {
             if (allPlans.Count == 0)
-                return new NoContentView("Icebox is empty", "Plans you put on ice will appear here.");
+                return new NoContentView("Icebox is empty", "Plans you put on ice will appear here");
 
             return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
                    | Text.Muted("Select a plan from the sidebar");
@@ -44,15 +44,28 @@ public class ContentView(
 
         var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan.FolderName);
 
-        var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(40)).Gap(2)
-                     | Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis)
-                     | new Spacer().Width(Size.Grow())
-                     | Text.Rich()
-                         .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
-                         .Muted("plans", word: true)
-            ;
+        var titleArea = Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
+                        | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
+                            .BorderThickness(0).Padding(0).Width(Size.Full())
+                            .HideOn(Breakpoint.Mobile, Breakpoint.Tablet)
+                        | MobileItemPicker.Build(
+                                $"#{selectedPlan.Id} {selectedPlan.Title}",
+                                allPlans,
+                                p => $"#{p.Id} {p.Title}",
+                                p => p.FolderName == selectedPlan.FolderName,
+                                p => selectedPlanState.Set(p))
+                            .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
-        var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200)))
+        var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
+                       | Text.Rich()
+                           .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
+                           .Muted("plans", word: true);
+
+        var header = Layout.Horizontal().Width(Size.Full()).Gap(2).AlignContent(Align.Left)
+                     | titleArea
+                     | controls;
+
+        var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200))).Padding(6, 2, 6, 2)
                                 |
                                 new Markdown(MarkdownHelper.AnnotateAllBrokenLinks(selectedPlan.LatestRevisionContent, planService.PlansDirectory))
                                     .Article()
@@ -69,7 +82,7 @@ public class ContentView(
                                         }
                                     }));
 
-        var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(1)
+        var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(1).Wrap()
                         | new Button("Delete").Icon(Icons.Trash).Outline().ShortcutKey("Backspace").OnClick(() => showDeleteDialog())
                         | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(() => GoToPrevious())
                             .ShortcutKey("p")
@@ -164,7 +177,7 @@ public class ContentView(
         var syncJobIds = new List<string>();
         foreach (var (repoPath, baseBranch, _) in preflight.DirtyRepos)
         {
-            var jobId = jobService.StartJob(new SyncRepoArgs(repoPath, baseBranch));
+            var jobId = jobService.StartJob(new SyncRepoArgs(repoPath, baseBranch, selectedPlan.FolderPath));
             syncJobIds.Add(jobId);
         }
 

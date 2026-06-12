@@ -72,8 +72,12 @@ public class RecommendationsApp : ViewBase
             filtersOpen
         );
 
+        var content = new ContentView(selectedState.Value, filtered, selectedState, planService, jobService, Refresh);
+        if (allPending.Count == 0)
+            return content;
+
         return new SidebarLayout(
-            new ContentView(selectedState.Value, filtered, selectedState, planService, jobService, Refresh),
+            content,
             sidebar
         ).SidebarContentScroll(Scroll.None);
     }

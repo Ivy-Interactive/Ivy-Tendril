@@ -351,6 +351,115 @@ projects:
         }
     }
 
+    [Theory]
+    [InlineData("Destructive", "Red")]
+    [InlineData("Warning", "Orange")]
+    [InlineData("Info", "Blue")]
+    [InlineData("Success", "Green")]
+    [InlineData("Secondary", "Slate")]
+    [InlineData("Outline", "Gray")]
+    [InlineData("Blue", "Blue")]
+    [InlineData("Purple", "Purple")]
+    [InlineData("", "Gray")]
+    [InlineData(null, "Gray")]
+    [InlineData("garbage", "Gray")]
+    public void MigrateLevelBadgeToColor_HandlesVariousInputs(string? input, string expected)
+    {
+        var result = ConfigService.MigrateLevelBadgeToColor(input);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void LoadSettings_MigratesLevelBadgeToColor()
+    {
+        var tempDir = CreateTempConfigFile(@"
+levels:
+  - name: Bug
+    badge: Destructive
+  - name: Critical
+    badge: Warning
+  - name: NiceToHave
+    badge: Outline
+");
+
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+
+            Assert.Equal("Red", service.Settings.Levels[0].Color);
+            Assert.Equal("Orange", service.Settings.Levels[1].Color);
+            Assert.Equal("Gray", service.Settings.Levels[2].Color);
+
+            Assert.Null(service.Settings.Levels[0].Badge);
+            Assert.Null(service.Settings.Levels[1].Badge);
+            Assert.Null(service.Settings.Levels[2].Badge);
+
+            var savedYaml = File.ReadAllText(Path.Combine(tempDir, "config.yaml"));
+            Assert.Contains("color: Red", savedYaml);
+            Assert.DoesNotContain("badge: Destructive", savedYaml);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void LoadSettings_PreservesAlreadyMigratedLevelColors()
+    {
+        var tempDir = CreateTempConfigFile(@"
+levels:
+  - name: Bug
+    color: Red
+  - name: Feature
+    color: Blue
+");
+
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+
+            Assert.Equal("Red", service.Settings.Levels[0].Color);
+            Assert.Equal("Blue", service.Settings.Levels[1].Color);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void LoadSettings_MigratesLevelBadge_PreservesNames()
+    {
+        var tempDir = CreateTempConfigFile(@"
+levels:
+  - name: MyCustomLevel
+    badge: Info
+  - name: AnotherLevel
+    badge: Success
+");
+
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+
+            Assert.Equal("MyCustomLevel", service.Settings.Levels[0].Name);
+            Assert.Equal("Blue", service.Settings.Levels[0].Color);
+            Assert.Equal("AnotherLevel", service.Settings.Levels[1].Name);
+            Assert.Equal("Green", service.Settings.Levels[1].Color);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
     [Fact]
     public void ExpandVariables_NormalizesMixedPathSeparators()
     {
@@ -1564,7 +1673,7 @@ maxConcurrentJobs: 10
         // registered at startup without requiring a redeploy after onboarding.
         var emptyDir = Path.Combine(Path.GetTempPath(), $"tendril-test-no-config-{Guid.NewGuid()}");
         Directory.CreateDirectory(emptyDir);
-        
+
         var prevHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         var prevPassword = Environment.GetEnvironmentVariable("TENDRIL_AUTH_PASSWORD");
         var prevHashSecret = Environment.GetEnvironmentVariable("TENDRIL_AUTH_HASH_SECRET");

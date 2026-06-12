@@ -39,7 +39,7 @@ public class ContentView(
                 () => isOpen.Set(false),
                 sheetContent,
                 plan?.Title ?? folderName
-            ).Width(Size.Half()).Resizable();
+            ).Width(UxHelper.SheetWidth).Resizable();
 
             return new Fragment(sheet, new FileSheet(openFile, config));
         });
@@ -64,40 +64,53 @@ public class ContentView(
         if (selectedRecommendation is null)
         {
             if (allRecommendations.Count == 0)
-                return new NoContentView("No recommendations", "Recommendations from completed plans will appear here.");
+                return new NoContentView("No recommendations", "Recommendations from completed plans will appear here");
 
             return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
                    | Text.Muted("Select a recommendation from the sidebar");
         }
-
         var currentIndex = allRecommendations.FindIndex(r => r.PlanId == selectedRecommendation.PlanId && r.Title == selectedRecommendation.Title);
 
-        // Header with Accept action at right edge
-        var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(40)).Gap(2)
-                     | Text.Block($"#{selectedRecommendation.PlanId} {selectedRecommendation.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis)
-                     | new Badge(selectedRecommendation.Project).Variant(BadgeVariant.Outline)
-                         .WithProjectColor(config, selectedRecommendation.Project)
-                     | new Spacer().Width(Size.Grow())
-                     | Text.Rich()
-                         .Bold($"{(currentIndex == -1 ? "?" : (currentIndex + 1).ToString())}/{allRecommendations.Count}", word: true)
-                         .Muted("recommendations", word: true)
-                     | new Button("Decline").Icon(Icons.X).Outline().ShortcutKey("Backspace").OnClick(() =>
-                     {
-                         planService.UpdateRecommendationState(selectedRecommendation.PlanFolderName, selectedRecommendation.Title, RecommendationStatus.Declined);
-                         refresh();
-                         GoToNext();
-                     })
-                     | new Button("Accept").Icon(Icons.Check).Primary().ShortcutKey("a").OnClick(() =>
-                     {
-                         planService.UpdateRecommendationState(selectedRecommendation.PlanFolderName, selectedRecommendation.Title, RecommendationStatus.Accepted);
-                         jobService.StartJob(new CreatePlanArgs(selectedRecommendation.Description, selectedRecommendation.Project));
-                         client.Toast($"Started CreatePlan: {selectedRecommendation.Title}", "Recommendation Accepted");
-                         refresh();
-                         GoToNext();
-                     });
+        var titleArea = Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
+                        | new Box(Text.Block($"#{selectedRecommendation.PlanId} {selectedRecommendation.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
+                            .BorderThickness(0).Padding(0).Width(Size.Full())
+                            .HideOn(Breakpoint.Mobile, Breakpoint.Tablet)
+                        | MobileItemPicker.Build(
+                                $"#{selectedRecommendation.PlanId} {selectedRecommendation.Title}",
+                                allRecommendations,
+                                r => $"#{r.PlanId} {r.Title}",
+                                r => r.PlanId == selectedRecommendation.PlanId && r.Title == selectedRecommendation.Title,
+                                r => selectedState.Set(r))
+                            .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet)
+                        | (Layout.Horizontal().Wrap().Gap(2).AlignContent(Align.Left)
+                            | new Badge(selectedRecommendation.Project).Variant(BadgeVariant.Outline)
+                                .WithProjectColor(config, selectedRecommendation.Project));
+
+        var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
+                       | Text.Rich()
+                           .Bold($"{(currentIndex == -1 ? "?" : (currentIndex + 1).ToString())}/{allRecommendations.Count}", word: true)
+                           .Muted("recommendations", word: true)
+                       | new Button("Decline").Icon(Icons.X).Outline().ShortcutKey("Backspace").OnClick(() =>
+                       {
+                           planService.UpdateRecommendationState(selectedRecommendation.PlanFolderName, selectedRecommendation.Title, RecommendationStatus.Declined);
+                           refresh();
+                           GoToNext();
+                       })
+                       | new Button("Accept").Icon(Icons.Check).Primary().ShortcutKey("a").OnClick(() =>
+                       {
+                           planService.UpdateRecommendationState(selectedRecommendation.PlanFolderName, selectedRecommendation.Title, RecommendationStatus.Accepted);
+                           jobService.StartJob(new CreatePlanArgs(selectedRecommendation.Description, selectedRecommendation.Project));
+                           client.Toast($"Started CreatePlan: {selectedRecommendation.Title}", "Recommendation Accepted");
+                           refresh();
+                           GoToNext();
+                       });
+
+        var header = Layout.Horizontal().Width(Size.Full()).Gap(2).AlignContent(Align.Left)
+                     | titleArea
+                     | controls;
 
         // Content
-        var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200))).Padding(2);
+        var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200))).Padding(6, 2, 6, 2);
 
         // Source plan info and Impact/Risk badges
         var metaRow = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
@@ -128,7 +141,7 @@ public class ContentView(
         scrollableContent |= new Markdown(selectedRecommendation.Description);
 
         // Action bar (secondary actions)
-        var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(2)
+        var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(2).Wrap()
                         | new Button("Accept with Notes").Icon(Icons.CircleCheck).Outline().ShortcutKey("w")
                             .OnClick(() => showNotesDialog())
                         | new Button("View Plan").Icon(Icons.ExternalLink).Outline().ShortcutKey("d").OnClick(() =>

@@ -12,7 +12,7 @@ This document defines what data Tendril may and may not send to third-party tele
 - **Counts**: Number of projects, plans, jobs (aggregate totals only)
 - **Durations**: Time taken to complete operations (in seconds)
 - **States/Types**: Enum values, state names, job types (e.g., "CreatePlan", "ExecutePlan")
-- **Levels**: Plan levels (e.g., "Bug", "Critical", "NiceToHave")
+- **Levels**: Plan levels (e.g., "Bug", "Feature", "Epic")
 - **Versions**: Application version strings, OS version strings
 - **Agent providers**: Coding agent name (e.g., "claude", "codex", "copilot", "gemini")
 - **Booleans**: Feature flags, configuration states (e.g., llm_configured: true)

@@ -71,7 +71,7 @@ public class TrashApp : ViewBase
         object mainContent;
         if (files.Count == 0)
         {
-            mainContent = new NoContentView("No trash", "Duplicate plans will appear here.");
+            mainContent = new NoContentView("No trash", "Duplicate plans will appear here");
         }
         else if (selected is null)
         {
@@ -80,8 +80,17 @@ public class TrashApp : ViewBase
         }
         else
         {
-            var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(40)).Gap(2)
-                         | Text.Block(selected.FileName).Bold().NoWrap().Overflow(Overflow.Ellipsis)
+            var header = Layout.Horizontal().Width(Size.Full()).Wrap().Gap(2).AlignContent(Align.Left)
+                         | new Box(Text.Block(selected.FileName).Bold())
+                             .BorderThickness(0).Padding(0)
+                             .HideOn(Breakpoint.Mobile, Breakpoint.Tablet)
+                         | MobileItemPicker.Build(
+                                 selected.FileName,
+                                 filteredList,
+                                 f => f.FileName,
+                                 f => f.FilePath == selected.FilePath,
+                                 f => selectedFile.Set(f.FilePath))
+                             .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet)
                          | new Badge(selected.Project).Variant(BadgeVariant.Outline)
                          | (string.IsNullOrEmpty(selected.DuplicateOf)
                              ? new Fragment()
@@ -100,7 +109,7 @@ public class TrashApp : ViewBase
                             });
 
             var annotatedContent = MarkdownHelper.AnnotateAllBrokenLinks(selected.Content, planService.PlansDirectory);
-            var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200)))
+            var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200))).Padding(6, 2, 6, 2)
                                     | new Markdown(annotatedContent)
                                         .DangerouslyAllowLocalFiles()
                                         .Article()
@@ -117,13 +126,14 @@ public class TrashApp : ViewBase
             ).Scroll(Scroll.None).Size(Size.Full());
         }
 
-        var elements = new List<object>
-        {
-            new SidebarLayout(
+        object body = files.Count == 0
+            ? mainContent
+            : new SidebarLayout(
                 mainContent,
                 sidebar
-            ).SidebarContentScroll(Scroll.None)
-        };
+            ).SidebarContentScroll(Scroll.None);
+
+        var elements = new List<object> { body };
 
         elements.Add(new FileSheet(openFile, configService));
 

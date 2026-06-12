@@ -55,6 +55,10 @@ public sealed class OpenCodePty : IAgentPty
     {
         var args = new List<string> { "opencode" };
 
+        // FullAuto → run without permission prompts.
+        if (config.PermissionMode == PermissionMode.FullAuto)
+            args.Add("--dangerously-skip-permissions");
+
         if (!string.IsNullOrEmpty(config.Model))
         {
             args.Add("--model");

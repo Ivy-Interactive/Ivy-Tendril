@@ -99,8 +99,7 @@ From the dashboard, click **New Plan** and describe what you want to build or fi
 You can also create a plan from the CLI:
 
 ```bash
-tendril plan create my-first-plan "Add a health-check endpoint"
-tendril plan add-repo my-first-plan "D:\Repos\MyProject"
+tendril plan create "Add a health-check endpoint" MyProject
 ```
 
 Either way, the plan starts in **Draft** state. Open it in the dashboard to review the drafted revision — this is your chance to refine the scope before execution.

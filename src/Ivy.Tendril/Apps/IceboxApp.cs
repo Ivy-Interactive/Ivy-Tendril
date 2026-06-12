@@ -59,9 +59,13 @@ public class IceboxApp : ViewBase
 
         var sidebar = new SidebarView(plans, selectedPlanState, projectFilter, levelFilter, textFilter, filtersOpen, configService);
 
+        var content = new ContentView(selectedPlanState.Value, filteredPlans, selectedPlanState, planService, jobService,
+            RefreshPlans, configService);
+        if (plans.Count == 0)
+            return content;
+
         return new SidebarLayout(
-            new ContentView(selectedPlanState.Value, filteredPlans, selectedPlanState, planService, jobService,
-                RefreshPlans, configService),
+            content,
             sidebar
         ).SidebarContentScroll(Scroll.None);
 

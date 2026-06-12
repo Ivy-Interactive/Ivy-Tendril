@@ -1,5 +1,6 @@
 using Ivy.Desktop;
 using Ivy.Tendril.Apps.Settings;
+using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Microsoft.AspNetCore.Http;
@@ -96,6 +97,24 @@ public class SettingsApp : ViewBase
             _ => new CodingAgentSetupView()
         };
 
-        return new SidebarLayout(content, sidebar);
+        var sections = children
+            .Where(m => m.Tag is string t && t != TagOpenConfig)
+            .Select(m => (Tag: (string)m.Tag!, Label: m.Label ?? ""))
+            .ToList();
+        var currentLabel = sections.FirstOrDefault(s => s.Tag == selected.Value).Label ?? "Configuration";
+
+        var mobileHeader = MobileItemPicker.Build(
+                currentLabel,
+                sections,
+                s => s.Label,
+                s => s.Tag == selected.Value,
+                s => selected.Set(s.Tag))
+            .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
+
+        var contentWithMobileHeader = Layout.Vertical().Height(Size.Full()).Gap(2)
+                                      | mobileHeader
+                                      | (Layout.Vertical().Height(Size.Grow()) | content);
+
+        return new SidebarLayout(contentWithMobileHeader, sidebar);
     }
 }

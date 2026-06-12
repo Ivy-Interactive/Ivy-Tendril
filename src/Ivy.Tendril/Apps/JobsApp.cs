@@ -15,6 +15,7 @@ public partial class JobsApp : ViewBase
         var planService = UseService<IPlanReaderService>();
         var client = UseService<IClientProvider>();
         var config = UseService<IConfigService>();
+        var nav = UseNavigation();
         var refreshToken = UseRefreshToken();
         var openFile = UseState<string?>(null);
 
@@ -26,7 +27,7 @@ public partial class JobsApp : ViewBase
                 () => isOpen.Set(false),
                 planSheetView.Build(),
                 planSheetView.GetSheetTitle()
-            ).Width(Size.Half()).Resizable();
+            ).Width(UxHelper.SheetWidth).Resizable();
             return new Fragment(sheet, new FileSheet(openFile, config));
         });
 
@@ -39,7 +40,7 @@ public partial class JobsApp : ViewBase
                 () => isOpen.Set(false),
                 new OutputSheet(jobId, jobService),
                 title
-            ).Width(Size.Half()).Resizable();
+            ).Width(UxHelper.SheetWidth).Resizable();
         });
 
         var (promptSheet, showPrompt) = UseTrigger<string>((isOpen, promptText) =>
@@ -50,7 +51,7 @@ public partial class JobsApp : ViewBase
                 () => isOpen.Set(false),
                 promptSheetView.Build(),
                 "Full Prompt"
-            ).Width(Size.Half()).Resizable();
+            ).Width(UxHelper.SheetWidth).Resizable();
         });
 
         var (debugSheet, showDebug) = UseTrigger<string>((isOpen, jobId) =>
@@ -60,7 +61,7 @@ public partial class JobsApp : ViewBase
                 () => isOpen.Set(false),
                 new JobDebugSheet(jobId, jobService, planService, config),
                 "Job Debug"
-            ).Width(Size.Half()).Resizable();
+            ).Width(UxHelper.SheetWidth).Resizable();
         });
 
         UseEffect(() => JobChangeHookDisposable(jobService, refreshToken));
@@ -75,7 +76,7 @@ public partial class JobsApp : ViewBase
         var rows = BuildJobRows(jobs, planService);
         var jobsProgress = BuildStatusProgress(jobs, config);
 
-        var dataTable = BuildDataTable(rows, refreshToken, updateStream, config, planService,
+        var dataTable = BuildDataTable(nav, rows, refreshToken, updateStream, config, planService,
             jobService, client, showPlan, showOutput, showPrompt, showDebug, jobs, projectColors, jobsProgress);
 
         var layout = Layout.Vertical().Height(Size.Full());

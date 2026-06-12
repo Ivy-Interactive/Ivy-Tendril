@@ -21,18 +21,6 @@ The launcher sets the working directory to the project's primary repo.
 
 **Resume-vs-redo on re-execution:** Before deleting anything, run an integrity check on the prior run. If `plan.yaml` has commits populated and all verifications `Pass`, every `Pass` verification has a report, `Artifacts/summary.md` exists, the worktree is clean with HEAD matching the last recorded commit, and the expected code changes are present in the files — then **resume** (log it and exit successfully) rather than redoing work. Redoing creates new commit hashes and breaks downstream CreatePr references. Only fall back to the full re-execution flow if any of those checks fail.
 
-## Time Budget Awareness
-
-**You have a 30-minute hard timeout.** Plan your time carefully:
-
-1. **Spend at most 10 minutes reading/understanding the codebase**, then start implementing. If you haven't started writing code by the 10-minute mark, simplify your approach.
-
-2. **Prefer implementing incrementally** (write code, build, fix errors) over exhaustive upfront research. You can read more code as needed during implementation.
-
-3. **If the plan involves unfamiliar patterns, look at ONE good example and follow it** — don't survey every usage in the codebase. Find a single clear reference and proceed.
-
-Focus on making progress, not achieving perfect understanding. A working implementation with minor imperfections beats a timeout with no code written.
-
 ## Execution Steps
 
 ### 1. Read Plan

@@ -47,6 +47,50 @@ public static class PlanContentHelpers
         return result;
     }
 
+    public static bool IsFormattingOnly(FileDiff fileDiff)
+    {
+        if (string.IsNullOrWhiteSpace(fileDiff.Diff))
+            return true;
+
+        var lines = fileDiff.Diff.Split('\n');
+        var removedLines = new List<string>();
+        var addedLines = new List<string>();
+
+        foreach (var line in lines)
+        {
+            if (line.StartsWith("---") || line.StartsWith("+++") || line.StartsWith("@@") || line.StartsWith("diff "))
+                continue;
+
+            if (line.StartsWith("-") && !line.StartsWith("---"))
+                removedLines.Add(NormalizeLine(line[1..]));
+            else if (line.StartsWith("+") && !line.StartsWith("+++"))
+                addedLines.Add(NormalizeLine(line[1..]));
+        }
+
+        if (removedLines.Count == 0 && addedLines.Count == 0)
+            return true;
+
+        if (removedLines.Count == 0 || addedLines.Count == 0)
+            return false;
+
+        removedLines.Sort();
+        addedLines.Sort();
+
+        return removedLines.SequenceEqual(addedLines);
+
+        static string NormalizeLine(string line)
+        {
+            // Collapse all whitespace
+            var normalized = Regex.Replace(line.Trim(), @"\s+", " ");
+
+            // Normalize spread operator syntax: [...x] and ...x are equivalent
+            // This catches linting fixes like: func(...args) -> func([...args])
+            normalized = Regex.Replace(normalized, @"\[\s*\.\.\.\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\]", "...$1");
+
+            return normalized;
+        }
+    }
+
     public record CommitDetailData(
         string Title,
         string? Diff,
@@ -168,7 +212,6 @@ public static class PlanContentHelpers
                 {
                     commitSheetContent |= new DiffView()
                         .Diff(fileDiff.Diff)
-                        .Split()
                         .Collapsible()
                         .DefaultCollapsed();
                 }
@@ -194,7 +237,7 @@ public static class PlanContentHelpers
                 if (!string.IsNullOrWhiteSpace(data.Diff))
                 {
                     commitSheetContent |= Text.Block("Diff").Bold();
-                    commitSheetContent |= new DiffView().Diff(data.Diff).Split();
+                    commitSheetContent |= new DiffView().Diff(data.Diff);
                 }
             }
 

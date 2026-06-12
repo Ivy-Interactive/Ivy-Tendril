@@ -28,7 +28,7 @@ public class PromptwareRunSettings : CommandSettings
     public string? WorkingDir { get; init; }
 
     [CommandOption("--value")]
-    [Description("Additional firmware header values (key=value, repeatable)")]
+    [Description("Additional firmware header values (key=value format, repeatable). Example: --value MyKey=MyValue")]
     public string[]? Values { get; init; }
 
     [CommandOption("--plan")]
@@ -54,6 +54,24 @@ public class PromptwareRunSettings : CommandSettings
     [CommandOption("--dry-run")]
     [Description("Print the compiled firmware and exit without launching the agent")]
     public bool DryRun { get; init; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        var result = CliValidation.RequireNonEmpty(Promptware, "promptware");
+        if (!result.Successful) return result;
+
+        if (Values != null)
+        {
+            foreach (var kv in Values)
+            {
+                if (kv.IndexOf('=') <= 0)
+                    return Spectre.Console.ValidationResult.Error(
+                        $"Invalid --value format '{kv}'. Expected key=value (e.g., --value MyKey=MyValue).");
+            }
+        }
+
+        return Spectre.Console.ValidationResult.Success();
+    }
 }
 
 public class PromptwareRunCommand : Command<PromptwareRunSettings>
@@ -69,15 +87,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
 
     protected override int Execute(CommandContext context, PromptwareRunSettings settings, CancellationToken cancellationToken)
     {
-        try
-        {
-            return Run(settings, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to run promptware {Promptware}", settings.Promptware);
-            return 1;
-        }
+        return Run(settings, cancellationToken);
     }
 
 
@@ -93,10 +103,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         var programMd = Path.Combine(programFolder, "Program.md");
 
         if (!File.Exists(programMd))
-        {
-            _logger.LogError("Program.md not found at {ProgramMdPath}", programMd);
-            return 1;
-        }
+            throw new FileNotFoundException($"Program.md not found at {programMd}", programMd);
 
         var values = BuildFirmwareValues(settings, configService);
 
@@ -201,10 +208,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
 
         using var process = Process.Start(psi);
         if (process == null)
-        {
-            _logger.LogError("Failed to start agent process");
-            return 1;
-        }
+            throw new InvalidOperationException("Failed to start agent process");
 
         if (resolution.UsesStdinPrompt && psi.RedirectStandardInput)
         {

@@ -1,5 +1,6 @@
 using Ivy.Tendril.Mcp;
 using Ivy.Tendril.Mcp.Tools;
+using Ivy.Tendril.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test.Mcp;
@@ -13,6 +14,7 @@ public class PlanToolsTests : IDisposable
     private readonly PlanTools _planTools;
     private readonly string _repoDir;
     private readonly string _tempDir;
+    private readonly IConfigService _configService;
 
     public PlanToolsTests()
     {
@@ -26,7 +28,8 @@ public class PlanToolsTests : IDisposable
         Environment.SetEnvironmentVariable("TENDRIL_HOME", _tempDir);
         Environment.SetEnvironmentVariable("TENDRIL_PLANS", null);
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", null);
-        _planTools = new PlanTools(new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance));
+        _configService = new TestPlanConfigService(_repoDir);
+        _planTools = new PlanTools(new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance), _configService);
     }
 
     public void Dispose()
@@ -425,7 +428,7 @@ public class PlanToolsTests : IDisposable
         var authedService = new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance);
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", null);
 
-        var authedTools = new PlanTools(authedService);
+        var authedTools = new PlanTools(authedService, _configService);
         var result = authedTools.GetPlan("00001");
         Assert.Contains("Error: Authentication failed", result);
     }
@@ -438,7 +441,7 @@ public class PlanToolsTests : IDisposable
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", "secret-token");
         var authedService = new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance);
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", null);
-        var authedTools = new PlanTools(authedService);
+        var authedTools = new PlanTools(authedService, _configService);
 
         // Act & Assert - verify all 15 tool methods return auth error
         Assert.Contains("Error: Authentication failed", authedTools.GetPlan("00001"));
@@ -494,7 +497,7 @@ public class PlanToolsTests : IDisposable
         var plansDir = Path.Combine(_tempDir, "Plans");
         Directory.CreateDirectory(plansDir);
 
-        var result = _planTools.PlanCreate("Direct Plan Test", repos: _repoDir);
+        var result = _planTools.PlanCreate("Direct Plan Test", project: "TestProject");
 
         Assert.Contains("Plan created:", result);
         Assert.Contains("PlanId:", result);
@@ -509,12 +512,11 @@ public class PlanToolsTests : IDisposable
 
         var result = _planTools.PlanCreate(
             "Full Plan",
-            project: "MyProject",
+            project: "TestProject",
             level: "Critical",
             initialPrompt: "Do the thing",
             executionProfile: "deep",
             sourceUrl: "https://github.com/org/repo/issues/1",
-            repos: _repoDir,
             verifications: "DotnetBuild,DotnetTest");
 
         Assert.Contains("Plan created:", result);
@@ -524,7 +526,7 @@ public class PlanToolsTests : IDisposable
             .Replace("PlanId: ", "").Trim();
 
         var plan = _planTools.GetPlan(planId);
-        Assert.Contains("MyProject", plan);
+        Assert.Contains("TestProject", plan);
         Assert.Contains("Critical", plan);
         Assert.Contains("Do the thing", plan);
     }
@@ -563,6 +565,7 @@ public class PlanToolsTests : IDisposable
     public void AddRelated_AddsLink()
     {
         CreateTestPlan();
+        CreateTestPlan("00010", "OtherPlan");
 
         var result = _planTools.AddRelated("00001", "00010-OtherPlan");
 
@@ -575,6 +578,7 @@ public class PlanToolsTests : IDisposable
     public void AddRelated_Duplicate_IsIdempotent()
     {
         CreateTestPlan();
+        CreateTestPlan("00010", "OtherPlan");
         _planTools.AddRelated("00001", "00010-OtherPlan");
 
         var result = _planTools.AddRelated("00001", "00010-OtherPlan");
@@ -586,6 +590,7 @@ public class PlanToolsTests : IDisposable
     public void RemoveRelated_RemovesLink()
     {
         CreateTestPlan();
+        CreateTestPlan("00010", "OtherPlan");
         _planTools.AddRelated("00001", "00010-OtherPlan");
 
         var result = _planTools.RemoveRelated("00001", "00010-OtherPlan");
@@ -611,6 +616,7 @@ public class PlanToolsTests : IDisposable
     public void AddDependsOn_AddsDependency()
     {
         CreateTestPlan();
+        CreateTestPlan("00005", "BasePlan");
 
         var result = _planTools.AddDependsOn("00001", "00005-BasePlan");
 
@@ -623,6 +629,7 @@ public class PlanToolsTests : IDisposable
     public void AddDependsOn_Duplicate_IsIdempotent()
     {
         CreateTestPlan();
+        CreateTestPlan("00005", "BasePlan");
         _planTools.AddDependsOn("00001", "00005-BasePlan");
 
         var result = _planTools.AddDependsOn("00001", "00005-BasePlan");
@@ -634,6 +641,7 @@ public class PlanToolsTests : IDisposable
     public void RemoveDependsOn_RemovesDependency()
     {
         CreateTestPlan();
+        CreateTestPlan("00005", "BasePlan");
         _planTools.AddDependsOn("00001", "00005-BasePlan");
 
         var result = _planTools.RemoveDependsOn("00001", "00005-BasePlan");

@@ -18,26 +18,26 @@
   </ItemGroup>
   
   <ItemGroup>
-    <WidgetsFrontendSourceFiles Include="Widgets/frontend/src/**/*" />
-    <WidgetsFrontendSourceFiles Include="Widgets/frontend/package.json" />
-    <WidgetsFrontendSourceFiles Include="Widgets/frontend/pnpm-lock.yaml" Condition="Exists('Widgets/frontend/pnpm-lock.yaml')" />
-    <WidgetsFrontendSourceFiles Include="Widgets/frontend/tsconfig.json" />
-    <WidgetsFrontendSourceFiles Include="Widgets/frontend/vite.widget.ts" />
+    <WidgetsFrontendSourceFiles Include="frontend/src/**/*" />
+    <WidgetsFrontendSourceFiles Include="frontend/package.json" />
+    <WidgetsFrontendSourceFiles Include="frontend/pnpm-lock.yaml" Condition="Exists('frontend/pnpm-lock.yaml')" />
+    <WidgetsFrontendSourceFiles Include="frontend/tsconfig.json" />
+    <WidgetsFrontendSourceFiles Include="frontend/vite.widget.ts" />
   </ItemGroup>
 
-  <Target Name="WidgetsNpmInstall" BeforeTargets="WidgetsBuildFrontend" Inputs="Widgets/frontend/package.json;Widgets/frontend/pnpm-lock.yaml" Outputs="Widgets/frontend/node_modules/.modules.yaml">
-    <Exec Command="npx -y pnpm@10.33.0 install" WorkingDirectory="Widgets/frontend" />
+  <Target Name="WidgetsNpmInstall" BeforeTargets="WidgetsBuildFrontend" Inputs="frontend/package.json;frontend/pnpm-lock.yaml" Outputs="frontend/node_modules/.modules.yaml">
+    <Exec Command="npx -y pnpm@10.33.0 install" WorkingDirectory="frontend" />
   </Target>
 
-  <Target Name="WidgetsBuildFrontend" BeforeTargets="BeforeCompile;BeforeBuild" Inputs="@(WidgetsFrontendSourceFiles)" Outputs="Widgets/frontend/dist/ivy-tendril-widgets.js;Widgets/frontend/dist/ivy-tendril-widgets.css;Widgets/frontend/dist/.build-stamp">
-    <Exec Command="npx -y pnpm@10.33.0 run build" WorkingDirectory="Widgets/frontend" EnvironmentVariables="NODE_OPTIONS=--max-old-space-size=4096" />
-    <Touch Files="Widgets/frontend/dist/.build-stamp" AlwaysCreate="true" />
+  <Target Name="WidgetsBuildFrontend" BeforeTargets="BeforeCompile;BeforeBuild" Inputs="@(WidgetsFrontendSourceFiles)" Outputs="frontend/dist/ivy-tendril-widgets.js;frontend/dist/ivy-tendril-widgets.css;frontend/dist/.build-stamp">
+    <Exec Command="npx -y pnpm@10.33.0 run build" WorkingDirectory="frontend" EnvironmentVariables="NODE_OPTIONS=--max-old-space-size=4096" />
+    <Touch Files="frontend/dist/.build-stamp" AlwaysCreate="true" />
   </Target>
 
   <Target Name="EmbedWidgetsFrontendResources" AfterTargets="WidgetsBuildFrontend" BeforeTargets="AssignTargetPaths">
     <ItemGroup>
-      <EmbeddedResource Include="Widgets/frontend/dist/ivy-tendril-widgets.js" LogicalName="Ivy.Tendril.Widgets.Widgets.frontend.dist.ivy-tendril-widgets.js" />
-      <EmbeddedResource Include="Widgets/frontend/dist/ivy-tendril-widgets.css" LogicalName="Ivy.Tendril.Widgets.Widgets.frontend.dist.ivy-tendril-widgets.css" />
+      <EmbeddedResource Include="frontend/dist/ivy-tendril-widgets.js" LogicalName="Ivy.Tendril.Widgets.frontend.dist.ivy-tendril-widgets.js" />
+      <EmbeddedResource Include="frontend/dist/ivy-tendril-widgets.css" LogicalName="Ivy.Tendril.Widgets.frontend.dist.ivy-tendril-widgets.css" />
     </ItemGroup>
   </Target>
 

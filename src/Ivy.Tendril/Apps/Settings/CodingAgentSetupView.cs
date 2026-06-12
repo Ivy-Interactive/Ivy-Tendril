@@ -70,7 +70,9 @@ public class CodingAgentSetupView : ViewBase
         var registeredAgents = runner.RegisteredAgents;
         var visibleAgents = Agents.Where(a => registeredAgents.Contains(a.Key)).ToArray();
 
-        var grid = Layout.Grid().Columns(3).Gap(2);
+        var grid = Layout.Grid()
+            .Columns(2.At(Breakpoint.Mobile).And(Breakpoint.Desktop, 3))
+            .Gap(2);
         grid = visibleAgents.Aggregate(grid, (current, a) =>
             current | new Card(
                 Layout.Horizontal().Gap(2).Padding(0)
@@ -78,14 +80,16 @@ public class CodingAgentSetupView : ViewBase
                 | Text.Block(a.Label)
                 | new Spacer()
                 | (a.Key == selectedAgent.Value ? Icons.Check.ToIcon() : null)
-            ).Width(Size.Full()).OnClick(() =>
+            ).Width(Size.Full()).Height(Size.Full()).OnClick(() =>
             {
                 selectedAgent.Set(a.Key);
             }));
 
         return Layout.Vertical().Padding(4)
                | Text.Block("Coding Agent").Bold()
-               | grid.Width(Size.Units(170))
+               | (Layout.Vertical().Padding(0)
+                   .Width(Size.Full().At(Breakpoint.Mobile).And(Breakpoint.Desktop, Size.Units(170)))
+                   | grid.Width(Size.Full()))
                | (Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
                    | Text.Block("Profile Models").Bold()
                    | Text.Muted("Promptwares are configured to use different profiles depending on the complexity of the task. You can specify what model to use for each profile.").Small()

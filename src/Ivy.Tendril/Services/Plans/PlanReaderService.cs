@@ -198,6 +198,12 @@ public class PlanReaderService(
         return ParsePlanFolder(folderPath);
     }
 
+    public PlanFile? GetPlanByFolderFromDisk(string folderPath)
+    {
+        if (!Directory.Exists(folderPath)) return null;
+        return ParsePlanFolder(folderPath);
+    }
+
     /// <summary>
     ///     Retrieves all plans that are in the <see cref="PlanStatus.Icebox" /> state.
     /// </summary>
@@ -956,7 +962,7 @@ public class PlanReaderService(
             var metadata = new PlanMetadata(
                 id,
                 string.IsNullOrWhiteSpace(planYaml.Project) ? "" : planYaml.Project,
-                string.IsNullOrWhiteSpace(planYaml.Level) ? "NiceToHave" : planYaml.Level,
+                string.IsNullOrWhiteSpace(planYaml.Level) ? "Feature" : planYaml.Level,
                 string.IsNullOrWhiteSpace(planYaml.Title) ? "" : planYaml.Title,
                 status,
                 planYaml.Repos ?? [],

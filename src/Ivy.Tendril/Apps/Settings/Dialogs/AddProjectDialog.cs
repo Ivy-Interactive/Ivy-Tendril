@@ -65,24 +65,25 @@ public class AddProjectDialog(
 
         if (!isOpen.Value) return null;
 
+        void RemoveCommittedProject()
+        {
+            if (!hasCreated.Value || string.IsNullOrWhiteSpace(editName.Value)) return;
+
+            var project = config.Settings.Projects.FirstOrDefault(
+                p => p.Name.Equals(editName.Value, StringComparison.OrdinalIgnoreCase));
+            if (project != null)
+            {
+                config.Settings.Projects.Remove(project);
+                try { config.SaveSettings(); } catch { }
+            }
+
+            hasCreated.Set(false);
+        }
+
         void CancelAndClose()
         {
             session.Reset();
-
-            if (hasCreated.Value && !string.IsNullOrWhiteSpace(editName.Value))
-            {
-                var project = config.Settings.Projects.FirstOrDefault(p => p.Name.Equals(editName.Value, StringComparison.OrdinalIgnoreCase));
-                if (project != null)
-                {
-                    config.Settings.Projects.Remove(project);
-                    try
-                    {
-                        config.SaveSettings();
-                    }
-                    catch { }
-                }
-            }
-
+            RemoveCommittedProject();
             isOpen.Set(false);
             refreshToken.Refresh();
         }
@@ -119,6 +120,7 @@ public class AddProjectDialog(
                 {
                     session.Reset();
                     isStepLoading.Set(false);
+                    RemoveCommittedProject();
                     step.Set(0);
                 },
                 onNext: () =>
@@ -134,6 +136,7 @@ public class AddProjectDialog(
                 session,
                 onBack: () =>
                 {
+                    RemoveCommittedProject();
                     step.Set(0);
                     session.Reset();
                 },

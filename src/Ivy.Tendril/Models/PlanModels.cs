@@ -130,7 +130,7 @@ public class PlanYaml
 {
     public string State { get; set; } = nameof(PlanStatus.Draft);
     public string Project { get; set; } = "Auto";
-    public string Level { get; set; } = "NiceToHave";
+    public string Level { get; set; } = "Feature";
     public string Title { get; set; } = "";
     public List<string> Repos { get; set; } = new();
     public DateTime Created { get; set; } = DateTime.UtcNow;
