@@ -58,6 +58,11 @@ public sealed class ClaudePty : IAgentPty
     {
         var args = new List<string> { "claude" };
 
+        // Pass the initial prompt as a positional argument (claude "<prompt>" ...)
+        // so it is submitted on launch rather than typed into the PTY afterwards.
+        if (!string.IsNullOrEmpty(config.InitialPrompt))
+            args.Add(config.InitialPrompt);
+
         if (!string.IsNullOrEmpty(config.Model))
         {
             args.Add("--model");

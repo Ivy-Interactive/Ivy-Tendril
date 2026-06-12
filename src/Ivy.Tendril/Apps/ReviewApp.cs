@@ -104,9 +104,13 @@ public class ReviewApp : ViewBase
 
         var sidebar = new SidebarView(plans, selectedPlanState, projectFilter, levelFilter, textFilter, filtersOpen, showCompleted, configService);
 
+        var content = new ContentView(selectedPlanState, filteredPlans, planService, jobService,
+            RefreshPlans, configService, gitService);
+        if (plans.Count == 0)
+            return content;
+
         return new SidebarLayout(
-            new ContentView(selectedPlanState, filteredPlans, planService, jobService,
-                RefreshPlans, configService, gitService),
+            content,
             sidebar
         ).SidebarContentScroll(Scroll.None);
 

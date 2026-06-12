@@ -16,20 +16,25 @@ public class AgentApp : ViewBase
     {
         var configService = UseService<IConfigService>();
         var agentRunner = UseService<IAgentRunner>();
+        var args = UseArgs<AgentAppArgs>();
+
+        // Agents that accept the prompt as a positional CLI argument get it embedded
+        // in the command line; the rest fall back to typing it into the PTY on launch.
+        var promptInArgs = PromptPassedAsArg(configService, agentRunner);
+        var initialPrompt = promptInArgs ? args?.Prompt : null;
 
         var ptyHandle = Context.UsePty(
-            GetCommandLine(configService, agentRunner),
+            GetCommandLine(configService, agentRunner, initialPrompt),
             GetWorkDir(configService, agentRunner),
             new PtyOptions { Environment = GetEnvironment(configService) }
         );
 
-        var args = UseArgs<AgentAppArgs>();
         var promptSent = UseRef(false);
 
-        // Auto-send prompt if provided
+        // Auto-send prompt if provided and not already passed on the command line.
         Context.UseEffect(async () =>
         {
-            if (string.IsNullOrEmpty(args?.Prompt) || promptSent.Value)
+            if (promptInArgs || string.IsNullOrEmpty(args?.Prompt) || promptSent.Value)
                 return (IDisposable?)null;
 
             // Wait for agent to be ready (simple delay approach)
@@ -57,7 +62,7 @@ public class AgentApp : ViewBase
             .RemoveParentPadding();
     }
 
-    private static string[] GetCommandLine(IConfigService config, IAgentRunner runner)
+    private static string[] GetCommandLine(IConfigService config, IAgentRunner runner, string? initialPrompt)
     {
         var agentId = config.Settings.CodingAgent;
         var cli = runner.GetCli(agentId);
@@ -67,14 +72,27 @@ public class AgentApp : ViewBase
 
         WriteAgentInstructionsIfNeeded(workDir, systemPrompt, pty);
 
+        // Claude takes "--model default" to explicitly select its configured default model.
+        var model = pty?.Id == AgentId.Claude ? "default" : null;
+
         var spec = pty?.BuildPtySpec(new AgentPtyConfig
         {
             WorkingDirectory = workDir,
-            PermissionMode = PermissionMode.Default,
+            PermissionMode = PermissionMode.FullAuto,
             SystemPrompt = systemPrompt,
             AppendSystemPrompt = true,
+            InitialPrompt = initialPrompt,
+            Model = model,
         });
         return spec?.ResolveCommand().CommandLine.ToArray() ?? [cli.Id];
+    }
+
+    // Claude accepts the initial prompt as a positional CLI argument; other agents
+    // (OpenCode, Gemini, Codex, Copilot, Antigravity) receive it typed into the PTY.
+    private static bool PromptPassedAsArg(IConfigService config, IAgentRunner runner)
+    {
+        var agentId = config.Settings.CodingAgent;
+        return runner.GetPty(agentId)?.Id == AgentId.Claude;
     }
 
     private static void WriteAgentInstructionsIfNeeded(string workDir, string? systemPrompt, IAgentPty? pty)

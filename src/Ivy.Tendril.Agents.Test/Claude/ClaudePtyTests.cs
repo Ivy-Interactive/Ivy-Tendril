@@ -155,6 +155,35 @@ public class ClaudePtyTests
     }
 
     [Fact]
+    public void BuildPtySpec_WithInitialPrompt_AddsAsPositionalArgAfterClaude()
+    {
+        var config = new AgentPtyConfig
+        {
+            WorkingDirectory = "/tmp/test",
+            InitialPrompt = "fix the failing test",
+        };
+
+        var spec = _pty.BuildPtySpec(config);
+
+        Assert.Equal("claude", spec.CommandLine[0]);
+        Assert.Equal("fix the failing test", spec.CommandLine[1]);
+    }
+
+    [Fact]
+    public void BuildPtySpec_NoInitialPrompt_SecondArgIsAFlag()
+    {
+        var config = new AgentPtyConfig
+        {
+            WorkingDirectory = "/tmp/test",
+        };
+
+        var spec = _pty.BuildPtySpec(config);
+
+        Assert.Equal("claude", spec.CommandLine[0]);
+        Assert.StartsWith("--", spec.CommandLine[1]);
+    }
+
+    [Fact]
     public void BuildPtySpec_WithModel_IncludesModelFlag()
     {
         var config = new AgentPtyConfig

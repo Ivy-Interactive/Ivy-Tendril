@@ -12,6 +12,11 @@ public sealed record AgentPtyConfig
     public string? Model { get; init; }
     public string? SystemPrompt { get; init; }
     public bool AppendSystemPrompt { get; init; }
+    /// <summary>
+    /// Initial user prompt to pass on the command line as a positional argument
+    /// (for agents that accept one), instead of typing it into the PTY after launch.
+    /// </summary>
+    public string? InitialPrompt { get; init; }
     public PermissionMode PermissionMode { get; init; } = PermissionMode.FullAuto;
     public string? SessionId { get; init; }
     public IReadOnlyDictionary<string, string> EnvironmentVariables { get; init; } = new Dictionary<string, string>();
