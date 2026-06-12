@@ -18,23 +18,21 @@ public class AgentApp : ViewBase
         var agentRunner = UseService<IAgentRunner>();
         var args = UseArgs<AgentAppArgs>();
 
-        // Agents that accept the prompt as a positional CLI argument get it embedded
-        // in the command line; the rest fall back to typing it into the PTY on launch.
-        var promptInArgs = PromptPassedAsArg(configService, agentRunner);
-        var initialPrompt = promptInArgs ? args?.Prompt : null;
-
         var ptyHandle = Context.UsePty(
-            GetCommandLine(configService, agentRunner, initialPrompt),
+            GetCommandLine(configService, agentRunner),
             GetWorkDir(configService, agentRunner),
             new PtyOptions { Environment = GetEnvironment(configService) }
         );
 
         var promptSent = UseRef(false);
 
-        // Auto-send prompt if provided and not already passed on the command line.
+        // Auto-send the prompt by typing it into the PTY once the agent is ready.
+        // Typing (rather than passing it as a CLI argument) keeps arbitrary content
+        // intact — quotes, '#', newlines, pasted-image references. A separate Enter
+        // keystroke is sent afterwards so the agent actually submits the prompt.
         Context.UseEffect(async () =>
         {
-            if (promptInArgs || string.IsNullOrEmpty(args?.Prompt) || promptSent.Value)
+            if (string.IsNullOrEmpty(args?.Prompt) || promptSent.Value)
                 return (IDisposable?)null;
 
             // Wait for agent to be ready (simple delay approach)
@@ -43,7 +41,16 @@ public class AgentApp : ViewBase
             if (!promptSent.Value)
             {
                 promptSent.Value = true;
-                ptyHandle.HandleInput(args.Prompt + "\n");
+                ptyHandle.HandleInput(args.Prompt);
+
+                // Submit with Enter. The text arrives as one chunk, so the agent's
+                // paste handling can absorb an Enter that follows too quickly — give it
+                // time to settle, then press Enter. A second Enter guards against the
+                // first being swallowed; an extra Enter on an empty buffer is a no-op.
+                await Task.Delay(700);
+                ptyHandle.HandleInput("\r");
+                await Task.Delay(300);
+                ptyHandle.HandleInput("\r");
             }
 
             return (IDisposable?)null;
@@ -62,7 +69,7 @@ public class AgentApp : ViewBase
             .RemoveParentPadding();
     }
 
-    private static string[] GetCommandLine(IConfigService config, IAgentRunner runner, string? initialPrompt)
+    private static string[] GetCommandLine(IConfigService config, IAgentRunner runner)
     {
         var agentId = config.Settings.CodingAgent;
         var cli = runner.GetCli(agentId);
@@ -81,18 +88,9 @@ public class AgentApp : ViewBase
             PermissionMode = PermissionMode.FullAuto,
             SystemPrompt = systemPrompt,
             AppendSystemPrompt = true,
-            InitialPrompt = initialPrompt,
             Model = model,
         });
         return spec?.ResolveCommand().CommandLine.ToArray() ?? [cli.Id];
-    }
-
-    // Claude accepts the initial prompt as a positional CLI argument; other agents
-    // (OpenCode, Gemini, Codex, Copilot, Antigravity) receive it typed into the PTY.
-    private static bool PromptPassedAsArg(IConfigService config, IAgentRunner runner)
-    {
-        var agentId = config.Settings.CodingAgent;
-        return runner.GetPty(agentId)?.Id == AgentId.Claude;
     }
 
     private static void WriteAgentInstructionsIfNeeded(string workDir, string? systemPrompt, IAgentPty? pty)

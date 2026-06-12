@@ -70,7 +70,7 @@ public class CreatePlanDialog(
                         ? selectedProjects.Value
                         : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
                     var projectNamesStr = string.Join(", ", projects);
-                    var prompt = $"User wants to chat about creating a Tendril plan for project {projectNamesStr} with the description \"{createPlanText.Value}\"";
+                    var prompt = $"I want to discuss creating a Tendril plan for the project {projectNamesStr} from this description: \"{createPlanText.Value}\"";
                     nav.Navigate<AgentApp>(new AgentAppArgs(prompt));
                     onClose();
                 }),

@@ -168,10 +168,18 @@ interface SelectionToolbarProps {
   onAddComment: () => void;
 }
 
+const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+const ADD_COMMENT_SHORTCUT = isMac ? "⌘⌥M" : "Ctrl+Alt+M";
+
 export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ position, onAddComment }) => {
   return createPortal(
     <div className="pmv-selection-toolbar" style={{ top: position.top, left: position.left }}>
-      <button type="button" className="pmv-selection-toolbar-btn" onClick={onAddComment}>
+      <button
+        type="button"
+        className="pmv-selection-toolbar-btn"
+        onClick={onAddComment}
+        title={`Add Comment (${ADD_COMMENT_SHORTCUT})`}
+      >
         <svg
           xmlns="http://www.w3.org/2000/svg"
           width="12"
@@ -187,6 +195,7 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ position, on
           <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />
         </svg>
         Add Comment
+        <kbd className="pmv-selection-toolbar-kbd">{ADD_COMMENT_SHORTCUT}</kbd>
       </button>
     </div>,
     document.body,
