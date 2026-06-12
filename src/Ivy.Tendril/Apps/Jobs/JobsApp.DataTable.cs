@@ -1,10 +1,9 @@
 using Ivy.Tendril.Apps.Drafts;
-using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Review;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
-namespace Ivy.Tendril.Apps;
+namespace Ivy.Tendril.Apps.Jobs;
 
 public partial class JobsApp
 {
@@ -95,7 +94,7 @@ public partial class JobsApp
                 var planId = e.Value.CellValue?.ToString();
                 if (!string.IsNullOrEmpty(planId))
                 {
-                    var job = jobs.FirstOrDefault(j => ExtractPlanId(j.PlanFile) == planId);
+                    var job = jobs.FirstOrDefault(j => JobsApp.ExtractPlanId(j.PlanFile) == planId);
                     if (job != null && !string.IsNullOrEmpty(job.PlanFile))
                     {
                         var fullPath = Path.Combine(planService.PlansDirectory, job.PlanFile);
@@ -167,7 +166,7 @@ public partial class JobsApp
                     var job = jobs.FirstOrDefault(j => j.Id == id);
                     if (job != null)
                     {
-                        var fullPrompt = GetFullPrompt(job, planService);
+                        var fullPrompt = JobsApp.GetFullPrompt(job, planService);
                         if (!string.IsNullOrEmpty(fullPrompt))
                             showPrompt(fullPrompt);
                     }

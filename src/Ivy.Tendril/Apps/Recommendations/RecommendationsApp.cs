@@ -1,9 +1,6 @@
-using Ivy.Tendril.Apps.Recommendations;
 using Ivy.Tendril.Models;
-using Ivy.Tendril.Services;
-using Ivy.Tendril.Helpers;
 
-namespace Ivy.Tendril.Apps;
+namespace Ivy.Tendril.Apps.Recommendations;
 
 [App(title: "Recommendations", icon: Icons.Lightbulb, group: ["Apps"], order: Constants.Recommendations)]
 public class RecommendationsApp : ViewBase

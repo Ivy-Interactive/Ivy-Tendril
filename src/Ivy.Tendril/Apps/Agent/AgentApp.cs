@@ -1,13 +1,11 @@
-using System.Text.RegularExpressions;
 using Ivy.Hooks.Pty;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Helpers;
-using Ivy.Tendril.Apps.Agent;
 using Ivy.Tendril.Services;
 using Ivy.Widgets.Xterm;
 using Xterm = Ivy.Widgets.Xterm;
 
-namespace Ivy.Tendril.Apps;
+namespace Ivy.Tendril.Apps.Agent;
 
 [App(title: "Agent", icon: Icons.Terminal, group: ["Apps"], order: Constants.Agent, isVisible: true, allowDuplicateTabs: true)]
 public class AgentApp : ViewBase
@@ -26,10 +24,11 @@ public class AgentApp : ViewBase
 
         var promptSent = UseRef(false);
 
-        // Auto-send the prompt by typing it into the PTY once the agent is ready.
-        // Typing (rather than passing it as a CLI argument) keeps arbitrary content
-        // intact — quotes, '#', newlines, pasted-image references. A separate Enter
-        // keystroke is sent afterwards so the agent actually submits the prompt.
+        // Deliver the prompt once the agent is ready. We type it in (rather than pass it
+        // as a CLI argument) because Windows command-line quoting mangles prompts that
+        // contain quotes or backslash paths. Sending it as a bracketed paste lets the
+        // agent ingest arbitrary content atomically, then Enter submits it. A second
+        // Enter guards against the first being swallowed (a no-op on an empty buffer).
         Context.UseEffect(async () =>
         {
             if (string.IsNullOrEmpty(args?.Prompt) || promptSent.Value)
@@ -41,13 +40,8 @@ public class AgentApp : ViewBase
             if (!promptSent.Value)
             {
                 promptSent.Value = true;
-                ptyHandle.HandleInput(args.Prompt);
-
-                // Submit with Enter. The text arrives as one chunk, so the agent's
-                // paste handling can absorb an Enter that follows too quickly — give it
-                // time to settle, then press Enter. A second Enter guards against the
-                // first being swallowed; an extra Enter on an empty buffer is a no-op.
-                await Task.Delay(700);
+                ptyHandle.HandleInput("\u001b[200~" + args.Prompt + "\u001b[201~");
+                await Task.Delay(300);
                 ptyHandle.HandleInput("\r");
                 await Task.Delay(300);
                 ptyHandle.HandleInput("\r");

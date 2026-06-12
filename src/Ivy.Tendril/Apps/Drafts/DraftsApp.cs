@@ -1,10 +1,8 @@
 using System.Reactive.Disposables;
-using Ivy.Tendril.Apps.Drafts;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Helpers;
 
-namespace Ivy.Tendril.Apps;
+namespace Ivy.Tendril.Apps.Drafts;
 
 [App(title: "Drafts", icon: Icons.Feather, group: ["Apps"], order: Constants.Drafts)]
 public class DraftsApp : ViewBase
