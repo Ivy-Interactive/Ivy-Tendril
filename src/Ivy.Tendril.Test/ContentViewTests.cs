@@ -11,7 +11,7 @@ public class ContentViewTests
     {
         var metadata = new PlanMetadata(
             1, "Test", "Bug", "Test Plan", PlanStatus.Failed,
-            [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null);
+            [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, null);
         return new PlanFile(metadata, "", folderPath, "");
     }
 

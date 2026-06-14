@@ -9,13 +9,13 @@ namespace Ivy.Tendril.Commands;
 public class PlanSetSettings : CommandSettings
 {
     private static readonly string[] ValidFields =
-        ["state", "project", "level", "title", "created", "updated", "executionprofile", "initialprompt", "sourceurl", "priority"];
+        ["state", "project", "level", "title", "created", "updated", "executionprofile", "initialprompt", "sourceurl", "sourceidentifier", "priority"];
 
     [Description("Plan ID (e.g., 03430)")]
     [CommandArgument(0, "<plan-id>")]
     public string PlanId { get; set; } = "";
 
-    [Description("Field name (state, project, level, title, created, updated, executionProfile, initialPrompt, sourceUrl, priority)")]
+    [Description("Field name (state, project, level, title, created, updated, executionProfile, initialPrompt, sourceUrl, sourceIdentifier, priority)")]
     [CommandArgument(1, "<field>")]
     public string Field { get; set; } = "";
 
@@ -86,13 +86,16 @@ public class PlanSetCommand : Command<PlanSetSettings>
             case "sourceurl":
                 plan.SourceUrl = settings.Value;
                 break;
+            case "sourceidentifier":
+                plan.SourceIdentifier = settings.Value;
+                break;
             case "priority":
                 if (!int.TryParse(settings.Value, out var priority))
                     throw new ArgumentException($"Invalid priority value: {settings.Value}. Must be an integer.");
                 plan.Priority = priority;
                 break;
             default:
-                throw new ArgumentException($"Unknown field '{settings.Field}'. Valid fields: state, project, level, title, created, updated, executionProfile, initialPrompt, sourceUrl, priority");
+                throw new ArgumentException($"Unknown field '{settings.Field}'. Valid fields: state, project, level, title, created, updated, executionProfile, initialPrompt, sourceUrl, sourceIdentifier, priority");
         }
 
         if (settings.Field.ToLower() != "updated")

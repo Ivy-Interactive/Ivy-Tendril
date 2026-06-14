@@ -20,6 +20,7 @@ internal static class PlanFieldAccessors
         ["executionprofile"] = p => p.ExecutionProfile,
         ["initialprompt"] = p => p.InitialPrompt,
         ["sourceurl"] = p => p.SourceUrl,
+        ["sourceidentifier"] = p => p.SourceIdentifier,
         ["priority"] = p => p.Priority.ToString()
     };
 
@@ -32,6 +33,7 @@ internal static class PlanFieldAccessors
         ["executionprofile"] = (p, v) => p.ExecutionProfile = v,
         ["initialprompt"] = (p, v) => p.InitialPrompt = v,
         ["sourceurl"] = (p, v) => p.SourceUrl = v,
+        ["sourceidentifier"] = (p, v) => p.SourceIdentifier = v,
         ["priority"] = (p, v) => p.Priority = int.Parse(v)
     };
 
@@ -675,6 +677,7 @@ public class PlanController : ControllerBase
             executionProfile = plan.ExecutionProfile,
             initialPrompt = plan.InitialPrompt,
             sourceUrl = plan.SourceUrl,
+            sourceIdentifier = plan.SourceIdentifier,
             recommendations = (plan.Recommendations ?? []).Select(r => new
             {
                 title = r.Title,

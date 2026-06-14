@@ -40,7 +40,7 @@ public class PlanDatabaseServiceTests : IDisposable
             DateTime.UtcNow,
             null,
             null
-        );
+        , null);
 
         return new PlanFile(
             metadata,
@@ -551,7 +551,7 @@ public class PlanDatabaseServiceTests : IDisposable
         var todayPlan = new PlanFile(
             new PlanMetadata(2000, "Tendril", "NiceToHave", "Today Plan", PlanStatus.Completed,
                 [], [], [], [], [], [],
-                today, today, null, null),
+                today, today, null, null, null),
             "# Content", "D:\\Plans\\02000-TodayPlan", "state: Completed");
         _db.UpsertPlan(todayPlan);
 
@@ -559,7 +559,7 @@ public class PlanDatabaseServiceTests : IDisposable
         var twoDaysAgoPlan = new PlanFile(
             new PlanMetadata(2001, "Tendril", "NiceToHave", "Two Days Ago", PlanStatus.Draft,
                 [], [], [], [], [], [],
-                today.AddDays(-2), today.AddDays(-2), null, null),
+                today.AddDays(-2), today.AddDays(-2), null, null, null),
             "# Content", "D:\\Plans\\02001-TwoDaysAgo", "state: Draft");
         _db.UpsertPlan(twoDaysAgoPlan);
 
@@ -655,7 +655,7 @@ public class PlanDatabaseServiceTests : IDisposable
             new List<string>(), new List<string>(),
             DateTime.UtcNow, DateTime.UtcNow, null,
             "https://github.com/Ivy-Interactive/Ivy-Framework/issues/42"
-        );
+        , null);
         var plan = new PlanFile(metadata, "# Content", "D:\\Plans\\01500-SourceUrlPlan", "state: Draft");
         _db.UpsertPlan(plan);
 
@@ -677,7 +677,7 @@ public class PlanDatabaseServiceTests : IDisposable
             DateTime.UtcNow, DateTime.UtcNow,
             "Fix the widget rendering/pipeline issue",
             null
-        );
+        , null);
         var plan = new PlanFile(metadata, "# Content", "D:\\Plans\\01501-InitialPromptPlan", "state: Draft");
         _db.UpsertPlan(plan);
 
@@ -977,7 +977,7 @@ public class PlanDatabaseServiceTests : IDisposable
             new List<PlanVerificationEntry>(), new List<string>(), new List<string>(),
             DateTime.UtcNow.AddDays(-1), DateTime.UtcNow, null,
             "https://github.com/Ivy-Interactive/Ivy-Framework/pull/42"
-        );
+        , null);
         var plan = new PlanFile(metadata, "# Content", "D:\\Plans\\01600-SourceUrlPlan", "state: Draft");
         _db.UpsertPlan(plan);
 
@@ -1008,7 +1008,7 @@ public class PlanDatabaseServiceTests : IDisposable
             new List<PlanVerificationEntry>(), new List<string>(), new List<string>(),
             DateTime.UtcNow, DateTime.UtcNow, null,
             "https://github.com/test/repo/issues/99"
-        );
+        , null);
         var plan = new PlanFile(metadata, "# Test", "D:\\Plans\\01602-MigrationTest", "state: Draft");
         _db.UpsertPlan(plan);
 
@@ -1129,7 +1129,7 @@ public class PlanDatabaseServiceTests : IDisposable
             new List<PlanVerificationEntry>(), new List<string>(), new List<string>(),
             DateTime.UtcNow.AddDays(-1), DateTime.UtcNow, null,
             "https://github.com/Ivy-Interactive/Ivy-Framework/issues/42"
-        );
+        , null);
         var plan = new PlanFile(metadata, "# Some content", "D:\\Plans\\01700-PlanWithSource", "state: Draft");
         _db.UpsertPlan(plan);
 
@@ -1153,21 +1153,21 @@ public class PlanDatabaseServiceTests : IDisposable
         _db.UpsertPlan(new PlanFile(
             new PlanMetadata(3200, "Tendril", "NiceToHave", "Recent Plan", PlanStatus.Completed,
                 [], [], [], [], [], [],
-                today, today, null, null),
+                today, today, null, null, null),
             "# Content", "D:\\Plans\\03200-RecentPlan", "state: Completed"));
 
         // Create plans outside the 7-day window (8 days ago)
         _db.UpsertPlan(new PlanFile(
             new PlanMetadata(3201, "Tendril", "NiceToHave", "Old Plan", PlanStatus.Completed,
                 [], [], [], [], [], [],
-                today.AddDays(-8), today.AddDays(-8), null, null),
+                today.AddDays(-8), today.AddDays(-8), null, null, null),
             "# Content", "D:\\Plans\\03201-OldPlan", "state: Completed"));
 
         // Create Framework project plan outside window for project count verification
         _db.UpsertPlan(new PlanFile(
             new PlanMetadata(3202, "Framework", "NiceToHave", "Old Framework Plan", PlanStatus.Draft,
                 [], [], [], [], [], [],
-                today.AddDays(-8), today.AddDays(-8), null, null),
+                today.AddDays(-8), today.AddDays(-8), null, null, null),
             "# Content", "D:\\Plans\\03202-OldFrameworkPlan", "state: Draft"));
 
         // Add costs for recent plans to test avg cost calculation
@@ -1279,7 +1279,7 @@ public class PlanDatabaseServiceTests : IDisposable
                 DateTime.UtcNow,
                 null,
                 null
-            );
+            , null);
             var plan = new PlanFile(metadata, "# Content", $"D:\\Plans\\{i:D5}-Plan{i}", "state: Draft");
             _db.UpsertPlan(plan);
         }
@@ -1337,7 +1337,7 @@ public class PlanDatabaseServiceTests : IDisposable
                 DateTime.UtcNow,
                 null,
                 null
-            );
+            , null);
             var plan = new PlanFile(metadata, "# Test", $"D:\\Plans\\{i:D5}-Test", "state: Draft");
             _db.UpsertPlan(plan);
         }
@@ -1372,7 +1372,7 @@ public class PlanDatabaseServiceTests : IDisposable
                 DateTime.UtcNow,
                 null,
                 null
-            );
+            , null);
             var plan = new PlanFile(metadata, "# Test", $"D:\\Plans\\{i:D5}-Test", "state: Draft");
             _db.UpsertPlan(plan);
         }

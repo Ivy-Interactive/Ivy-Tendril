@@ -25,9 +25,13 @@ public class PlanCreateSettings : CommandSettings
     [CommandOption("--initial-prompt")]
     public string? InitialPrompt { get; set; }
 
-    [Description("Source URL (GitHub issue or PR)")]
+    [Description("Source URL (GitHub issue, PR, or external tracker)")]
     [CommandOption("--source-url")]
     public string? SourceUrl { get; set; }
+
+    [Description("Source identifier (e.g., #123, IVY-456)")]
+    [CommandOption("--source-identifier")]
+    public string? SourceIdentifier { get; set; }
 
     [Description("Execution profile: deep, balanced")]
     [CommandOption("--execution-profile")]
@@ -108,6 +112,7 @@ public class PlanCreateCommand : Command<PlanCreateSettings>
             Updated = DateTime.UtcNow,
             InitialPrompt = settings.InitialPrompt,
             SourceUrl = settings.SourceUrl,
+            SourceIdentifier = settings.SourceIdentifier,
             ExecutionProfile = settings.ExecutionProfile,
             Priority = settings.Priority ?? 0
         };

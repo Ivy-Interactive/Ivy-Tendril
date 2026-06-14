@@ -98,6 +98,8 @@
   <!-- Tendril ProjectReferences -->
   <ItemGroup>
     <ProjectReference Include="../Ivy.Tendril.Agents/Ivy.Tendril.Agents.csproj" />
+    <ProjectReference Include="../Ivy.Tendril.Plugin.Abstractions/Ivy.Tendril.Plugin.Abstractions.csproj" />
+    <ProjectReference Include="../Ivy.Tendril.Plugin.Extended.Abstractions/Ivy.Tendril.Plugin.Extended.Abstractions.csproj" />
     <ProjectReference Include="../Ivy.Tendril.Widgets/Ivy.Tendril.Widgets.csproj" />
   </ItemGroup>
 

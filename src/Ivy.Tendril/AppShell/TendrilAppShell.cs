@@ -106,6 +106,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var serverArgs = UseService<ServerArgs>();
         var navigate = Context.UseSignal<NavigateSignal, NavigateArgs, Unit>();
         var navigator = UseNavigation();
+        Context.TryUseService<ITendrilPluginContributions>(out var pluginContext);
         var newsArticles = UseState(Array.Empty<SidebarNewsArticle>());
 
         var (importIssuesDialog, showImportIssuesDialog) = UseTrigger((isOpen) =>
@@ -418,7 +419,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             OnCtrlRightClickSelect = new EventHandler<Event<SidebarMenu, object>>(OnCtrlRightClickSelect)
         };
 
-        var settingsMenuItems = new[]
+        var builtInSettingsMenuItems = new[]
         {
             MenuItem.Default("Configuration")
                 .Tag("$setup")
@@ -452,6 +453,10 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 ),
 #endif
         };
+
+        var settingsMenuItems = pluginContext != null
+            ? SettingsMenuBuilder.Build(builtInSettingsMenuItems, pluginContext.SettingsMenuItems)
+            : builtInSettingsMenuItems;
 
         var settingsTrigger = new Button("Settings")
             .Content(
@@ -498,7 +503,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 ),
                 settings.Width
             ).Open(sidebarOpen.Value).MainAppSidebar(),
-            importIssuesDialog
+            importIssuesDialog,
+            pluginContext != null ? new PluginDialogHost(pluginContext) : null
         );
     }
 

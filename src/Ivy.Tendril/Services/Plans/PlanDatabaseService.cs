@@ -101,7 +101,7 @@ public class PlanDatabaseService : IPlanDatabaseService
         {
             var sql = """
                       SELECT Id, Title, Project, Level, State, FolderPath, FolderName,
-                             YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated, InitialPrompt, SourceUrl
+                             YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated, InitialPrompt, SourceUrl, SourceIdentifier
                       FROM Plans
                       """;
 
@@ -122,7 +122,7 @@ public class PlanDatabaseService : IPlanDatabaseService
             using var reader = cmd.ExecuteReader();
             var rawPlans = new List<(int Id, string Title, string Project, string Level, string State,
                 string FolderPath, string FolderName, string YamlRaw, int RevisionCount,
-                string LatestContent, string Created, string Updated, string? InitialPrompt, string? SourceUrl)>();
+                string LatestContent, string Created, string Updated, string? InitialPrompt, string? SourceUrl, string? SourceIdentifier)>();
 
             PlanRowOrdinals? ordinals = null;
             while (reader.Read())
@@ -147,7 +147,7 @@ public class PlanDatabaseService : IPlanDatabaseService
             {
                 var plan = BuildPlanFileFromRowData(row.Id, row.Title, row.Project, row.Level, row.State,
                     row.FolderPath, row.YamlRaw, row.RevisionCount, row.LatestContent,
-                    row.Created, row.Updated, row.InitialPrompt, row.SourceUrl,
+                    row.Created, row.Updated, row.InitialPrompt, row.SourceUrl, row.SourceIdentifier,
                     allRepos.GetValueOrDefault(row.Id, []),
                     allCommits.GetValueOrDefault(row.Id, []),
                     allPrs.GetValueOrDefault(row.Id, []),
@@ -169,7 +169,7 @@ public class PlanDatabaseService : IPlanDatabaseService
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
                               SELECT Id, Title, Project, Level, State, FolderPath, FolderName,
-                                     YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated, InitialPrompt, SourceUrl
+                                     YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated, InitialPrompt, SourceUrl, SourceIdentifier
                               FROM Plans WHERE FolderPath = @folderPath
                               """;
             cmd.Parameters.AddWithValue("@folderPath", folderPath);
@@ -189,7 +189,7 @@ public class PlanDatabaseService : IPlanDatabaseService
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
                               SELECT Id, Title, Project, Level, State, FolderPath, FolderName,
-                                     YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated, InitialPrompt, SourceUrl
+                                     YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated, InitialPrompt, SourceUrl, SourceIdentifier
                               FROM Plans WHERE Id = @id
                               """;
             cmd.Parameters.AddWithValue("@id", planId);
@@ -434,7 +434,7 @@ public class PlanDatabaseService : IPlanDatabaseService
                 using var ftsCmd = _connection.CreateCommand();
                 ftsCmd.CommandText = """
                                      SELECT p.Id, p.Title, p.Project, p.Level, p.State, p.FolderPath, p.FolderName,
-                                            p.YamlRaw, p.RevisionCount, p.LatestRevisionContent, p.Created, p.Updated, p.InitialPrompt, p.SourceUrl
+                                            p.YamlRaw, p.RevisionCount, p.LatestRevisionContent, p.Created, p.Updated, p.InitialPrompt, p.SourceUrl, p.SourceIdentifier
                                      FROM Plans p
                                      INNER JOIN PlanSearch fts ON fts.rowid = p.Id
                                      WHERE PlanSearch MATCH @query
@@ -461,7 +461,7 @@ public class PlanDatabaseService : IPlanDatabaseService
                 using var likeCmd = _connection.CreateCommand();
                 likeCmd.CommandText = """
                                       SELECT Id, Title, Project, Level, State, FolderPath, FolderName,
-                                             YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated, InitialPrompt, SourceUrl
+                                             YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated, InitialPrompt, SourceUrl, SourceIdentifier
                                       FROM Plans
                                       WHERE Title LIKE @search OR LatestRevisionContent LIKE @search
                                             OR CAST(Id AS TEXT) LIKE @search OR Project LIKE @search
@@ -1053,13 +1053,14 @@ public class PlanDatabaseService : IPlanDatabaseService
             reader.GetOrdinal("Created"),
             reader.GetOrdinal("Updated"),
             reader.GetOrdinal("InitialPrompt"),
-            reader.GetOrdinal("SourceUrl")
+            reader.GetOrdinal("SourceUrl"),
+            reader.GetOrdinal("SourceIdentifier")
         );
     }
 
     private static (int Id, string Title, string Project, string Level, string State,
         string FolderPath, string FolderName, string YamlRaw, int RevisionCount,
-        string LatestContent, string Created, string Updated, string? InitialPrompt, string? SourceUrl)
+        string LatestContent, string Created, string Updated, string? InitialPrompt, string? SourceUrl, string? SourceIdentifier)
         ReadPlanRow(SqliteDataReader reader, PlanRowOrdinals o)
     {
         return (
@@ -1076,7 +1077,8 @@ public class PlanDatabaseService : IPlanDatabaseService
             Created: reader.GetString(o.Created),
             Updated: reader.GetString(o.Updated),
             InitialPrompt: reader.GetStringOrNull(o.InitialPrompt),
-            SourceUrl: reader.GetStringOrNull(o.SourceUrl)
+            SourceUrl: reader.GetStringOrNull(o.SourceUrl),
+            SourceIdentifier: reader.GetStringOrNull(o.SourceIdentifier)
         );
     }
 
@@ -1103,16 +1105,17 @@ public class PlanDatabaseService : IPlanDatabaseService
         var updatedStr = reader.GetString(ordinals.Updated);
         var initialPrompt = reader.GetStringOrNull(ordinals.InitialPrompt);
         var sourceUrl = reader.GetStringOrNull(ordinals.SourceUrl);
+        var sourceIdentifier = reader.GetStringOrNull(ordinals.SourceIdentifier);
 
         return BuildPlanFileFromRowData(planId, title, project, level, state, folderPath,
-            yamlRaw, revisionCount, latestContent, createdStr, updatedStr, initialPrompt, sourceUrl,
+            yamlRaw, revisionCount, latestContent, createdStr, updatedStr, initialPrompt, sourceUrl, sourceIdentifier,
             repos, commits, prs, verifications, relatedPlans, dependsOn);
     }
 
     private static PlanFile? BuildPlanFileFromRowData(
         int planId, string title, string project, string level, string state,
         string folderPath, string yamlRaw, int revisionCount, string latestContent,
-        string createdStr, string updatedStr, string? initialPrompt, string? sourceUrl,
+        string createdStr, string updatedStr, string? initialPrompt, string? sourceUrl, string? sourceIdentifier,
         List<string> repos, List<string> commits, List<string> prs,
         List<PlanVerificationEntry> verifications, List<string> relatedPlans, List<string> dependsOn)
     {
@@ -1123,7 +1126,7 @@ public class PlanDatabaseService : IPlanDatabaseService
         var updated = DateTime.Parse(updatedStr, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal);
 
         var metadata = new PlanMetadata(planId, project, level, title, status,
-            repos, commits, prs, verifications, relatedPlans, dependsOn, created, updated, initialPrompt, sourceUrl);
+            repos, commits, prs, verifications, relatedPlans, dependsOn, created, updated, initialPrompt, sourceUrl, sourceIdentifier);
 
         return new PlanFile(metadata, latestContent, folderPath, yamlRaw, revisionCount);
     }
@@ -1199,7 +1202,7 @@ public class PlanDatabaseService : IPlanDatabaseService
         var planIds = new List<int>();
         var rawPlans = new List<(int Id, string Title, string Project, string Level, string State,
             string FolderPath, string FolderName, string YamlRaw, int RevisionCount,
-            string LatestContent, string Created, string Updated, string? InitialPrompt, string? SourceUrl)>();
+            string LatestContent, string Created, string Updated, string? InitialPrompt, string? SourceUrl, string? SourceIdentifier)>();
 
         using var reader = cmd.ExecuteReader();
         PlanRowOrdinals? ordinals = null;
@@ -1226,7 +1229,7 @@ public class PlanDatabaseService : IPlanDatabaseService
         {
             var plan = BuildPlanFileFromRowData(row.Id, row.Title, row.Project, row.Level, row.State,
                 row.FolderPath, row.YamlRaw, row.RevisionCount, row.LatestContent,
-                row.Created, row.Updated, row.InitialPrompt, row.SourceUrl,
+                row.Created, row.Updated, row.InitialPrompt, row.SourceUrl, row.SourceIdentifier,
                 allRepos.GetValueOrDefault(row.Id, []),
                 allCommits.GetValueOrDefault(row.Id, []),
                 allPrs.GetValueOrDefault(row.Id, []),
@@ -1246,9 +1249,9 @@ public class PlanDatabaseService : IPlanDatabaseService
         using var cmd = _connection.CreateCommand();
         cmd.CommandText = $"""
                            INSERT INTO Plans (Id, Title, Project, Level, State, FolderPath, FolderName,
-                                              YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated, InitialPrompt, SourceUrl)
+                                              YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated, InitialPrompt, SourceUrl, SourceIdentifier)
                            VALUES (@id, @title, @project, @level, @state, @folderPath, @folderName,
-                                   @yamlRaw, @revisionCount, @latestContent, @created, @updated, @initialPrompt, @sourceUrl)
+                                   @yamlRaw, @revisionCount, @latestContent, @created, @updated, @initialPrompt, @sourceUrl, @sourceIdentifier)
                            ON CONFLICT(Id) DO UPDATE SET
                                Title = excluded.Title,
                                Project = excluded.Project,
@@ -1262,7 +1265,8 @@ public class PlanDatabaseService : IPlanDatabaseService
                                Created = excluded.Created,
                                Updated = excluded.Updated,
                                InitialPrompt = excluded.InitialPrompt,
-                               SourceUrl = excluded.SourceUrl
+                               SourceUrl = excluded.SourceUrl,
+                               SourceIdentifier = excluded.SourceIdentifier
                            {updateGuard}
                            """;
 
@@ -1280,6 +1284,7 @@ public class PlanDatabaseService : IPlanDatabaseService
         cmd.Parameters.AddWithValue("@updated", plan.Updated.ToString("O", CultureInfo.InvariantCulture));
         cmd.Parameters.AddWithValue("@initialPrompt", plan.InitialPrompt ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@sourceUrl", plan.SourceUrl ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@sourceIdentifier", plan.SourceIdentifier ?? (object)DBNull.Value);
 
         cmd.ExecuteNonQuery();
 
@@ -1402,6 +1407,7 @@ public class PlanDatabaseService : IPlanDatabaseService
         int Created,
         int Updated,
         int InitialPrompt,
-        int SourceUrl);
+        int SourceUrl,
+        int SourceIdentifier);
 
 }

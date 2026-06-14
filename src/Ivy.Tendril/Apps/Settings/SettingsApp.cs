@@ -18,6 +18,7 @@ public class SettingsApp : ViewBase
     private const string TagVerifications = "verifications";
     private const string TagPromptwares = "promptwares";
     private const string TagProjects = "projects";
+    private const string TagPlugins = "plugins";
     private const string TagTunnel = "tunnel";
     private const string TagAdvanced = "advanced";
     private const string TagOpenConfig = "open-config";
@@ -45,6 +46,7 @@ public class SettingsApp : ViewBase
             MenuItem.Default("Levels", TagLevels).Icon(Icons.ListOrdered),
             MenuItem.Default("Notifications", TagNotifications).Icon(Icons.Bell),
             MenuItem.Default("Security", TagSecurity).Icon(Icons.Lock),
+            MenuItem.Default("Plugins", TagPlugins).Icon(Icons.Plug),
         };
 
         if (tendrilArgs.Beta)
@@ -88,6 +90,7 @@ public class SettingsApp : ViewBase
             TagVerifications => new VerificationsSetupView(),
             TagPromptwares => new PromptwaresSetupView(),
             TagProjects => new ProjectsSetupView(),
+            TagPlugins => new PluginsSetupView(),
             TagTunnel => new TunnelSetupView(),
             TagAdvanced => new AdvancedSetupView(),
             _ => new CodingAgentSetupView()
