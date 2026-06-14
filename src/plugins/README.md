@@ -314,12 +314,47 @@ The plugin lifecycle has a single entry point: `Configure(IIvyPluginContext cont
 - On plugin reload (after removing old contributions)
 - On reconfiguration (when config values change and validation passes)
 
-There is no explicit shutdown hook. When a plugin is unloaded or reloaded:
+Plugins can implement the `ShutdownAsync` method to perform cleanup before being unloaded:
+
+```csharp
+public class MyPlugin : IIvyPlugin
+{
+    private WebSocket? _connection;
+
+    // ... Manifest, ConfigurationSchema, Configure ...
+
+    public async Task ShutdownAsync(PluginShutdownContext context)
+    {
+        if (_connection is not null)
+        {
+            await _connection.CloseAsync(
+                WebSocketCloseStatus.NormalClosure,
+                "Plugin shutting down",
+                context.CancellationToken);
+        }
+
+        context.Logger.LogInformation("Disconnected cleanly");
+    }
+}
+```
+
+`ShutdownAsync` is called:
+- Before a plugin is unloaded (`PluginShutdownReason.Unload`)
+- Before a plugin is reloaded (`PluginShutdownReason.Reload`)
+- Before a plugin is reconfigured (`PluginShutdownReason.Reconfigure`)
+- When the host application exits (`PluginShutdownReason.HostExit`)
+
+The `PluginShutdownContext` provides:
+- `CancellationToken` — cancelled after a 5-second timeout
+- `Reason` — why the plugin is being shut down
+- `Logger` — for logging during shutdown
+
+After the timeout expires, the plugin is forcefully unloaded regardless of whether `ShutdownAsync` completed. Exceptions are logged and swallowed — one plugin's failure does not affect others.
+
+After `ShutdownAsync` completes (or times out):
 - All contributions (menu items, dialogs, apps, services) are automatically removed
 - The plugin's `AssemblyLoadContext` is unloaded
 - Any `IDisposable` service providers are disposed
-
-> **Note:** Explicit `IDisposable` support on the plugin class itself and async shutdown hooks are not yet available.
 
 ### Scheduled Execution
 
