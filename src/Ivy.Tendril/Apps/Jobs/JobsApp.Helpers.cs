@@ -1,8 +1,7 @@
 using System.Text.RegularExpressions;
 using Ivy.Tendril.Models;
-using Ivy.Tendril.Services;
 
-namespace Ivy.Tendril.Apps;
+namespace Ivy.Tendril.Apps.Jobs;
 
 public partial class JobsApp
 {

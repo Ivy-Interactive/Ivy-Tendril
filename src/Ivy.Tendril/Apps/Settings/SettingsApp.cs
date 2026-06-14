@@ -1,11 +1,10 @@
 using Ivy.Desktop;
-using Ivy.Tendril.Apps.Settings;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Microsoft.AspNetCore.Http;
 
-namespace Ivy.Tendril.Apps;
+namespace Ivy.Tendril.Apps.Settings;
 
 [App(title: "Configuration", icon: Icons.Settings, isVisible: false)]
 public class SettingsApp : ViewBase

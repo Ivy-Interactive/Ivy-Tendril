@@ -222,10 +222,22 @@ These commands are for internal use by other promptwares (e.g., a verification s
 | `tendril project add-review-action <name>` | Add review action |
 | `tendril project remove-review-action <name> <action>` | Remove review action |
 
+## Creating Plans Interactively
+
+When the user asks you to create a plan:
+
+1. **Do the work the description implies, first.** If the description asks you to *suggest*, *research*, *investigate*, *compare*, or *decide* something, actually do that work before creating the plan. Explore the project's repos, read the relevant code, and produce concrete, specific proposals. For example, "Suggest a few dev tools we can add" means you go look at the project and come back with named tools and why — it does **not** mean creating a plan titled "Suggest dev tools to add".
+2. **Confirm scope when it's open-ended.** Briefly share what you found and what you propose, so the user can steer before you commit it to a plan.
+3. **Create the plan by starting a CreatePlan job** — do **not** run `tendril plan create` / `write-revision` yourself. Once the scope is concrete, start the job:
+   ```bash
+   tendril job start CreatePlan --description "<concrete, refined description>" --project "<project>"
+   ```
+   The CreatePlan promptware then researches, detects duplicates, and writes the full plan. Pass the specific description you developed (the concrete tools/steps you proposed), **not** the user's original vague request. Add `--priority <n>` or `--force` if appropriate. Report the job back to the user.
+
 ## Important Notes
 
 - **Never read or write `plan.yaml` directly** -- always use `tendril plan` CLI commands.
 - **`tendril job start` and `tendril job status` require the Tendril server to be running.** They communicate via HTTP to the master instance (discovered via `TENDRIL_HOME/.master`).
 - Verification statuses: `Pending`, `Pass`, `Fail`, `Skipped`.
 - Plan states: `Draft`, `Building`, `Updating`, `Executing`, `ReadyForReview`, `Failed`, `Completed`, `Skipped`, `Blocked`, `Icebox`.
-- To create a plan interactively: use `tendril plan create "<title>"` then `tendril plan write-revision <id> <<'EOF' ... EOF` to add content.
+- To create a new plan, start a CreatePlan job: `tendril job start CreatePlan --description "<description>" --project "<project>"` (see "Creating Plans Interactively"). Use the lower-level `tendril plan create` / `write-revision` commands only to edit an existing plan's content, never to create a new plan from a chat request.

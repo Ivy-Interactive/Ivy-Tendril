@@ -1,10 +1,9 @@
 using System.Reactive.Linq;
-using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 
-namespace Ivy.Tendril.Apps;
+namespace Ivy.Tendril.Apps.Jobs;
 
 [App(title: "Jobs", icon: Icons.Activity, group: ["Apps"], order: Constants.Jobs)]
 public partial class JobsApp : ViewBase
@@ -35,7 +34,7 @@ public partial class JobsApp : ViewBase
         {
             if (!isOpen.Value) return null;
             var job = jobService.GetJob(jobId);
-            var title = job is not null ? $"{job.Type} {ExtractPlanId(job.PlanFile)}" : "Job Output";
+            var title = job is not null ? $"{job.Type} {JobsApp.ExtractPlanId(job.PlanFile)}" : "Job Output";
             return new Sheet(
                 () => isOpen.Set(false),
                 new OutputSheet(jobId, jobService),
@@ -64,19 +63,19 @@ public partial class JobsApp : ViewBase
             ).Width(UxHelper.SheetWidth).Resizable();
         });
 
-        UseEffect(() => JobChangeHookDisposable(jobService, refreshToken));
-        UseInterval(() => AutoRefreshCheck(jobService, refreshToken), TimeSpan.FromSeconds(5));
+        UseEffect(() => JobsApp.JobChangeHookDisposable(jobService, refreshToken));
+        UseInterval(() => JobsApp.AutoRefreshCheck(jobService, refreshToken), TimeSpan.FromSeconds(5));
 
         var updateStream = UseDataTableUpdates(
             Observable.Interval(TimeSpan.FromSeconds(1))
-                .SelectMany(_ => BuildDataTableUpdates(jobService)));
+                .SelectMany(_ => JobsApp.BuildDataTableUpdates(jobService)));
 
         var jobs = jobService.GetJobs();
         var projectColors = BuildProjectColorMapping(config);
         var rows = BuildJobRows(jobs, planService);
         var jobsProgress = BuildStatusProgress(jobs, config);
 
-        var dataTable = BuildDataTable(nav, rows, refreshToken, updateStream, config, planService,
+        var dataTable = JobsApp.BuildDataTable(nav, rows, refreshToken, updateStream, config, planService,
             jobService, client, showPlan, showOutput, showPrompt, showDebug, jobs, projectColors, jobsProgress);
 
         var layout = Layout.Vertical().Height(Size.Full());

@@ -1,6 +1,7 @@
 using Ivy.Core.Apps;
 using Ivy.Helpers;
 using Ivy.Tendril.Apps;
+using Ivy.Tendril.Apps.Agent;
 using Ivy.Tendril.AppShell;
 using Ivy.Tendril.Controllers;
 using Ivy.Tendril.Services;
@@ -123,7 +124,7 @@ public static class TendrilServer
                     ).Gap(0)
                 ).Gap(2).Padding(2).AlignContent(Align.BottomLeft).Height(Size.Auto())
             )
-            .WallpaperApp<Apps.WallpaperApp>()
+            .WallpaperApp<WallpaperApp>()
             .HideArgsInUrl()
             .UseTabs(true);
 

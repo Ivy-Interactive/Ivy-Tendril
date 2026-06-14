@@ -15,11 +15,26 @@ public class VerificationsSetupView : ViewBase
         var (alertView, showAlert) = UseAlert();
 
         var verifications = config.Settings.Verifications;
+        var projects = config.Settings.Projects;
 
-        var rows = verifications.Select((v, i) => new VerificationRow(v.Name, i)).OrderBy(r => r.Name).ToList();
+        var rows = verifications
+            .Select((v, i) => new VerificationRow(
+                v.Name,
+                projects.Where(p => p.Verifications.Any(pv => pv.Name == v.Name))
+                        .Select(p => p.Name).ToList(),
+                i))
+            .OrderBy(r => r.Name)
+            .ToList();
 
         var table = new TableBuilder<VerificationRow>(rows)
             .Header(t => t.Index, "")
+            .Header(t => t.Projects, "Projects")
+            .Builder(t => t.Projects, f => f.Func<VerificationRow, IReadOnlyList<string>>(names =>
+                names.Count == 0
+                    ? Text.Block("—").Muted().Small()
+                    : names.Aggregate(Layout.Wrap().Gap(1),
+                        (row, name) => row | new Badge(name)
+                            .Color(config.GetProjectColor(name) ?? Colors.Gray).Small())))
             .Builder(t => t.Index, f => f.Func<VerificationRow, int>(idx =>
                 Layout.Horizontal().Gap(1)
                 | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit this verification").OnClick(() =>
@@ -65,7 +80,7 @@ public class VerificationsSetupView : ViewBase
                | alertView;
     }
 
-    private record VerificationRow(string Name, int Index);
+    private record VerificationRow(string Name, IReadOnlyList<string> Projects, int Index);
 }
 
 file class EditVerificationDialogContent(
