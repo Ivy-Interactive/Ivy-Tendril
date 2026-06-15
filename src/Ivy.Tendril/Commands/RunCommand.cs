@@ -59,7 +59,7 @@ public class RunCommand : AsyncCommand<RunCommand.Settings>
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[red]Database migration failed: {ex.Message}[/]");
+            AnsiConsole.MarkupLine($"[red]Database migration failed: {ex.Message.EscapeMarkup()}[/]");
             return 1;
         }
 

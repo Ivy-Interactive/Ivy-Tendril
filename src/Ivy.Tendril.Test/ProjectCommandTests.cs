@@ -139,8 +139,7 @@ verifications: []
         config2.Settings.Projects[0].Repos.Add(new RepoRef
         {
             Path = repoPath,
-            PrRule = "default",
-            SyncStrategy = "fetch"
+            PrRule = "default"
         });
         config2.SaveSettings();
 

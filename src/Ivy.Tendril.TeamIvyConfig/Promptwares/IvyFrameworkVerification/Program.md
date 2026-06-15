@@ -130,8 +130,10 @@ From `<ArtifactsDir>/sample/`:
 Before building, kill any leftover processes from previous runs that may lock DLLs (scoped to this plan's artifacts only):
 
 ```bash
-powershell.exe -NoProfile -Command "Get-Process -ErrorAction SilentlyContinue | Where-Object { \$_.Path -and \$_.Path -like '<ArtifactsDir>*' } | ForEach-Object { Write-Host \"Killing \$(\$_.ProcessName) (PID \$(\$_.Id))\"; \$_ | Stop-Process -Force -ErrorAction Stop }; Start-Sleep -Milliseconds 2000"
+powershell.exe -NoProfile -Command "\$dir = '<ArtifactsDir>' -replace '/','\'; Get-Process -ErrorAction SilentlyContinue | Where-Object { \$_.Path -and \$_.Path -like \"\$dir*\" } | ForEach-Object { Write-Host \"Killing \$(\$_.ProcessName) (PID \$(\$_.Id))\"; Stop-Process -Id \$_.Id -Force }; Start-Sleep -Milliseconds 2000"
 ```
+
+**Important:** The `<ArtifactsDir>` firmware value uses forward slashes, but `Get-Process.Path` on Windows uses backslashes. The `-replace '/','\' ` normalization above is required for the `-like` filter to match.
 
 Use the pre-flight build validation tool:
 
@@ -156,83 +158,219 @@ Create `<ArtifactsDir>/sample/.ivy/tests/` directory with:
 
 **package.json** — minimal, with `@playwright/test` dependency
 
-**playwright.config.ts** — Chromium only, single worker, no retries, viewport `{ width: 1920, height: 1920 }` (set in both `use` and `projects[0].use`), uses `process.env.APP_PORT`
-
 **IMPORTANT:** Screenshots must be written to `<ArtifactsDir>/screenshots/` (sibling to `sample/`), not inside `sample/`. Since `projectRoot` resolves to `<ArtifactsDir>/sample/`, use `path.resolve(projectRoot, '..', 'screenshots')` (single `..`) — NOT double `..` which goes above `<ArtifactsDir>`.
 
-**test-utils.ts** — process tracking utility for cleanup on timeout/crash:
+**Architecture: Single shared server.** All spec files share ONE `dotnet run` instance managed by Playwright's `webServer` config. This avoids spawning multiple server processes (which on Windows create unkillable process trees). The server hosts all apps on different routes — there is no need for separate server instances.
+
+**playwright.config.ts:**
 
 ```typescript
-import { ChildProcess } from 'child_process';
+import { defineConfig, devices } from '@playwright/test';
+import path from 'path';
 
-const activeProcesses = new Set<ChildProcess>();
+const projectRoot = path.resolve(__dirname, '..', '..');
 
-/**
- * Track a spawned process so it can be killed on timeout/crash.
- */
-export function trackProcess(proc: ChildProcess) {
-  activeProcesses.add(proc);
-  proc.on('exit', () => activeProcesses.delete(proc));
-}
-
-/**
- * Kill all tracked processes. Called by cleanup handlers.
- */
-export function killAllTrackedProcesses() {
-  activeProcesses.forEach(proc => {
-    if (!proc.killed) {
-      try {
-        if (process.platform === 'win32') {
-          // Windows: taskkill with /F to force immediate termination
-          require('child_process').execSync(`taskkill /pid ${proc.pid} /F /T`, {
-            stdio: 'ignore',
-          });
-        } else {
-          proc.kill('SIGKILL');
-        }
-      } catch (e) {
-        // Process may have already exited
-      }
-    }
-  });
-  activeProcesses.clear();
-}
-
-// Register global cleanup handlers for abnormal termination
-process.on('SIGINT', () => {
-  console.log('\nTest runner interrupted (SIGINT), cleaning up processes...');
-  killAllTrackedProcesses();
-  process.exit(130);
-});
-
-process.on('SIGTERM', () => {
-  console.log('\nTest runner terminated (SIGTERM), cleaning up processes...');
-  killAllTrackedProcesses();
-  process.exit(143);
-});
-
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught exception:', err);
-  killAllTrackedProcesses();
-  process.exit(1);
-});
-
-// Best-effort cleanup on normal exit (afterAll should have already run)
-process.on('exit', () => {
-  killAllTrackedProcesses();
+export default defineConfig({
+  testDir: '.',
+  fullyParallel: false,
+  forbidOnly: !!process.env.CI,
+  retries: 0,
+  workers: 1,
+  reporter: 'list',
+  globalSetup: './global-setup.ts',
+  globalTeardown: './global-teardown.ts',
+  use: {
+    baseURL: `https://localhost:${process.env.APP_PORT || '5123'}`,
+    trace: 'retain-on-failure',
+    ignoreHTTPSErrors: true,
+    viewport: { width: 1920, height: 1920 },
+  },
+  projects: [
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1920, height: 1920 },
+      },
+    },
+  ],
 });
 ```
 
-**One `.spec.ts` per app:**
+**global-setup.ts** — spawns the server once before all tests:
 
-- Import `trackProcess` and `killAllTrackedProcesses` from `./test-utils`
-- `beforeAll`: find free port, spawn `dotnet run -- --port <port>`, **call `trackProcess(proc)`**, wait for HTTP 200
-- `afterAll`: kill process with `killAllTrackedProcesses()` (also kills any other tracked processes)
-- Set `test.setTimeout(60000)` (60s) to catch hung tests before Playwright's default timeout
+```typescript
+import { spawn, execSync } from 'child_process';
+import net from 'net';
+import https from 'https';
+import fs from 'fs';
+import path from 'path';
+
+async function findFreePort(): Promise<number> {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.listen(0, () => {
+      const addr = server.address();
+      const port = typeof addr === 'string' ? 0 : addr?.port ?? 0;
+      server.close(() => resolve(port));
+    });
+  });
+}
+
+async function waitForServer(url: string, timeoutMs: number): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        https.get(url, { rejectUnauthorized: false }, (res) => {
+          if (res.statusCode === 200) resolve();
+          else reject(new Error(`Status ${res.statusCode}`));
+        }).on('error', reject);
+      });
+      return;
+    } catch {
+      await new Promise(r => setTimeout(r, 500));
+    }
+  }
+  throw new Error(`Server at ${url} did not start within ${timeoutMs}ms`);
+}
+
+export default async function globalSetup() {
+  const projectRoot = path.resolve(__dirname, '..', '..');
+  const port = await findFreePort();
+
+  const backendLogPath = path.resolve(projectRoot, '..', 'tests', 'backend.log');
+  fs.mkdirSync(path.dirname(backendLogPath), { recursive: true });
+  const backendStream = fs.createWriteStream(backendLogPath);
+
+  const proc = spawn(
+    'dotnet',
+    ['run', '--no-build', '--', '--port', port.toString()],
+    {
+      cwd: projectRoot,
+      shell: false,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }
+  );
+
+  proc.stdout?.pipe(backendStream);
+  proc.stderr?.pipe(backendStream);
+
+  // Write PID and port so teardown and tests can find them
+  const stateFile = path.resolve(__dirname, '.server-state.json');
+  fs.writeFileSync(stateFile, JSON.stringify({ pid: proc.pid, port }));
+
+  // Export port for playwright config
+  process.env.APP_PORT = port.toString();
+
+  await waitForServer(`https://localhost:${port}`, 30000);
+
+  console.log(`Server started on port ${port} (PID ${proc.pid})`);
+}
+```
+
+**global-teardown.ts** — kills the server after all tests, with fallback by name:
+
+```typescript
+import { execSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
+
+export default async function globalTeardown() {
+  const stateFile = path.resolve(__dirname, '.server-state.json');
+
+  if (!fs.existsSync(stateFile)) {
+    console.warn('No .server-state.json found — skipping teardown');
+    return;
+  }
+
+  const { pid } = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
+  fs.unlinkSync(stateFile);
+
+  if (process.platform === 'win32') {
+    // Kill the process tree. /T kills child processes too.
+    try {
+      execSync(`taskkill /pid ${pid} /F /T`, { stdio: 'pipe' });
+      console.log(`Killed server process tree (PID ${pid})`);
+    } catch (e: any) {
+      // PID may already be gone — try name-based fallback scoped to plan artifacts
+      console.warn(`taskkill /pid ${pid} failed: ${e.stderr?.toString().trim()}`);
+    }
+
+    // Fallback: kill any remaining Sample.exe from this project's bin dir
+    const projectRoot = path.resolve(__dirname, '..', '..');
+    try {
+      const result = execSync(
+        `powershell.exe -NoProfile -Command "` +
+        `$dir = '${projectRoot.replace(/\//g, '\\\\')}' -replace '/','\\\\';" +
+        `Get-Process -Name Sample -ErrorAction SilentlyContinue | ` +
+        `Where-Object { \\$_.Path -and \\$_.Path -like \\"$dir*\\" } | ` +
+        `ForEach-Object { Write-Host \\"Killing \\$($_.ProcessName) (PID \\$($_.Id))\\"; Stop-Process -Id \\$_.Id -Force }"`,
+        { stdio: 'pipe' }
+      );
+      if (result.toString().trim()) console.log(result.toString().trim());
+    } catch {
+      // Best effort
+    }
+  } else {
+    try {
+      process.kill(pid, 'SIGKILL');
+      console.log(`Killed server process (PID ${pid})`);
+    } catch {
+      // Already exited
+    }
+  }
+}
+```
+
+**test-utils.ts** — screenshot helper (process management is now in global-setup/teardown):
+
+```typescript
+import { Page } from '@playwright/test';
+import path from 'path';
+import fs from 'fs';
+
+/**
+ * Take screenshot only if page has meaningful content.
+ * Skips screenshots of empty/blank pages.
+ */
+export async function takeScreenshotIfNotEmpty(page: Page, screenshotName: string): Promise<boolean> {
+  const projectRoot = process.cwd().replace(/[/\\]\.ivy[/\\]tests$/, '');
+  const screenshotsDir = path.resolve(projectRoot, '..', 'screenshots');
+  fs.mkdirSync(screenshotsDir, { recursive: true });
+  const fullPath = path.join(screenshotsDir, screenshotName);
+
+  const visibleText = await page.locator('body').innerText().catch(() => '');
+  const elementCount = await page.locator('body *').count().catch(() => 0);
+
+  if (visibleText.trim().length > 20 || elementCount > 5) {
+    await page.screenshot({ path: fullPath, fullPage: true });
+    return true;
+  }
+
+  console.log(`Skipped screenshot ${screenshotName} - page has no meaningful content`);
+  return false;
+}
+
+/**
+ * Read the server port from the state file written by global-setup.
+ */
+export function getServerPort(): number {
+  const stateFile = path.resolve(__dirname, '.server-state.json');
+  const { port } = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
+  return port;
+}
+```
+
+**One `.spec.ts` per app** (all sharing the same server instance):
+
+- Import `takeScreenshotIfNotEmpty` and `getServerPort` from `./test-utils`
+- Read port from `getServerPort()` (or use `process.env.APP_PORT`)
+- Set `test.setTimeout(60000)` (60s) to catch hung tests
 - Test each app at `https://localhost:<port>/<app-id>?shell=false`
-- Take screenshots directly to `<ArtifactsDir>/screenshots/` with descriptive names. **Before taking each screenshot, check if the page has meaningful content (visible text > 20 chars or > 5 visible elements). Skip screenshots of empty/blank pages** — these add no verification value. Use a `takeScreenshotIfNotEmpty()` helper (see PlaywrightKnowledge.md)
+- Take screenshots to `<ArtifactsDir>/screenshots/` with descriptive names. **Before taking each screenshot, check if the page has meaningful content (visible text > 20 chars or > 5 visible elements). Skip screenshots of empty/blank pages** — these add no verification value.
 - Capture browser console logs → `<ArtifactsDir>/tests/console.log`
-- Capture backend stdout/stderr → `<ArtifactsDir>/tests/backend.log`
+- Do NOT spawn any `dotnet run` inside spec files — the server is already running via `globalSetup`
 
 **Test coverage must verify:**
 
@@ -248,63 +386,47 @@ process.on('exit', () => {
 - Use `getByText()`, `getByRole()` locators
 - Use `.first()` when multiple matches possible
 - Use `waitForTimeout(500)` after interactions
-- On Windows use `shell: true` in spawn options
 - Resolve project root: `process.cwd().replace(/[/\\]\.ivy[/\\]tests$/, "")`
-- Wait for server ready by polling HTTP, not just stdout
 - Use `takeScreenshotIfNotEmpty()` instead of raw `page.screenshot()` — skips blank pages
+- Do NOT use `shell: true` or spawn `dotnet run` in spec files
 
-**Process management pattern:**
+**Spec file pattern:**
 
 ```typescript
 import { test, expect } from '@playwright/test';
-import { spawn, ChildProcess } from 'child_process';
-import http from 'http';
-import net from 'net';
 import path from 'path';
-import { trackProcess, killAllTrackedProcesses } from './test-utils';
+import fs from 'fs';
+import { takeScreenshotIfNotEmpty, getServerPort } from './test-utils';
 
 test.describe('Feature Tests', () => {
-  let serverProcess: ChildProcess;
-  let port: number;
   const projectRoot = process.cwd().replace(/[/\\]\.ivy[/\\]tests$/, '');
+  const consoleLogPath = path.resolve(projectRoot, '..', 'tests', 'console.log');
+  const consoleLogs: string[] = [];
+  let port: number;
 
-  test.setTimeout(60000); // 60s timeout per test
+  test.setTimeout(60000);
 
   test.beforeAll(async () => {
-    // Find free port
-    port = await new Promise<number>((resolve) => {
-      const server = net.createServer();
-      server.listen(0, () => {
-        const addr = server.address();
-        const port = typeof addr === 'string' ? 0 : addr?.port ?? 0;
-        server.close(() => resolve(port));
-      });
-    });
-
-    // Spawn dotnet process
-    serverProcess = spawn(
-      'dotnet',
-      ['run', '--no-build', '--', '--port', port.toString()],
-      {
-        cwd: projectRoot,
-        shell: true,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      }
-    );
-
-    // Track for cleanup on timeout/crash
-    trackProcess(serverProcess);
-
-    // Wait for server ready
-    await waitForServer(`http://localhost:${port}`, 30000);
+    port = getServerPort();
   });
 
   test.afterAll(() => {
-    // Kill this process and any other tracked processes
-    killAllTrackedProcesses();
+    fs.mkdirSync(path.dirname(consoleLogPath), { recursive: true });
+    fs.appendFileSync(consoleLogPath, consoleLogs.join('\n') + '\n');
   });
 
-  // ... tests ...
+  test('should render feature correctly', async ({ page }) => {
+    page.on('console', (msg) => consoleLogs.push(`[${msg.type()}] ${msg.text()}`));
+
+    await page.goto(`https://localhost:${port}/app-id?shell=false`);
+    await page.waitForTimeout(500);
+
+    // Verify content...
+    await takeScreenshotIfNotEmpty(page, 'feature-screenshot.png');
+
+    const errors = consoleLogs.filter(log => log.includes('[error]'));
+    expect(errors).toHaveLength(0);
+  });
 });
 ```
 
@@ -317,13 +439,29 @@ npx playwright install chromium
 npx playwright test
 ```
 
-### 8.5. Post-Test Cleanup
+### 8.5. Post-Test Cleanup (Mandatory)
 
-Even if tests pass, kill this plan's sample processes to ensure clean state:
+Even if tests pass, kill this plan's sample processes to ensure clean state. This step MUST succeed before proceeding — locked DLLs prevent rebuilds and leave zombie processes.
+
+**Step A — Kill by name, scoped to this plan's artifacts:**
 
 ```bash
-powershell.exe -NoProfile -Command "Get-Process -ErrorAction SilentlyContinue | Where-Object { \$_.Path -and \$_.Path -like '<ArtifactsDir>*' } | Stop-Process -Force -ErrorAction SilentlyContinue"
+powershell.exe -NoProfile -Command "\$dir = '<ArtifactsDir>' -replace '/','\'; Get-Process -Name Sample -ErrorAction SilentlyContinue | Where-Object { \$_.Path -and \$_.Path -like \"\$dir*\" } | ForEach-Object { Write-Host \"Killing \$(\$_.ProcessName) (PID \$(\$_.Id))\"; Stop-Process -Id \$_.Id -Force }; Start-Sleep -Milliseconds 2000"
 ```
+
+**Step B — Verify no processes remain:**
+
+```bash
+powershell.exe -NoProfile -Command "\$dir = '<ArtifactsDir>' -replace '/','\'; \$remaining = Get-Process -Name Sample -ErrorAction SilentlyContinue | Where-Object { \$_.Path -and \$_.Path -like \"\$dir*\" }; if (\$remaining) { Write-Host \"WARNING: \$(\$remaining.Count) processes still alive:\"; \$remaining | ForEach-Object { Write-Host \"  \$(\$_.ProcessName) PID=\$(\$_.Id) Path=\$(\$_.Path)\" }; exit 1 } else { Write-Host 'All sample processes cleaned up.' }"
+```
+
+**Step C — If Step B fails, escalate with taskkill /F /T on each PID:**
+
+```bash
+powershell.exe -NoProfile -Command "\$dir = '<ArtifactsDir>' -replace '/','\'; Get-Process -Name Sample -ErrorAction SilentlyContinue | Where-Object { \$_.Path -and \$_.Path -like \"\$dir*\" } | ForEach-Object { \$pid = \$_.Id; Write-Host \"Force-killing PID \$pid with /T\"; cmd /c \"taskkill /F /T /PID \$pid\" }; Start-Sleep -Milliseconds 3000"
+```
+
+If processes still survive after Step C, note this in the verification report as a test infrastructure issue but continue with report writing.
 
 ### 9. Fix Loop (up to 10 rounds)
 
@@ -408,6 +546,7 @@ Write to `<VerificationDir>/IvyFrameworkVerification.md`:
 
 ### Rules
 
+- **Fail-fast on missing permissions:** Before doing any work, verify you can use Write/Edit tools by checking your allowed tools. If Write is unavailable, immediately run `exit 1` via Bash with a message: "ERROR: Write tool not available. IvyFrameworkVerification requires Write permission to create sample projects and reports." Do NOT output a polite request for permission — you are in non-interactive mode.
 - Do NOT modify any source code in the Ivy Framework repos — this is a verification step only
 - If verification fails, describe the failure clearly in the report
 - Always produce a report, even for non-visual changes (just note it was skipped)

@@ -23,6 +23,7 @@ public static class DoctorCommand
 
     public static async Task<int> RunAsync()
     {
+        PathHelper.AugmentPath(forceShellPath: true);
         ConfigService? configService = null;
         try
         {
@@ -83,7 +84,7 @@ public static class DoctorCommand
         AnsiConsole.MarkupLine($"[cyan]── {title} ──[/]");
     }
 
-    private static void PrintStatus(string label, string value, DoctorChecks.StatusKind kind)
+    internal static void PrintStatus(string label, string value, DoctorChecks.StatusKind kind)
     {
         var (symbol, color) = kind switch
         {
@@ -92,7 +93,7 @@ public static class DoctorCommand
             DoctorChecks.StatusKind.Error => ("✗", "red"),
             _ => (" ", "grey")
         };
-        AnsiConsole.MarkupLine($"[{color}]{symbol} {label.PadRight(40)}{value}[/]");
+        AnsiConsole.MarkupLine($"[{color}]{symbol} {label.EscapeMarkup().PadRight(40)}{value.EscapeMarkup()}[/]");
     }
 
     // --- doctor plans subcommand ---
@@ -135,7 +136,7 @@ public static class DoctorCommand
             : Path.Combine(tendrilHome, "Plans");
         if (!Directory.Exists(plansDir))
         {
-            AnsiConsole.MarkupLine($"[red]Plans directory not found: {plansDir}[/]");
+            AnsiConsole.MarkupLine($"[red]Plans directory not found: {plansDir.EscapeMarkup()}[/]");
             return 1;
         }
 
@@ -180,12 +181,12 @@ public static class DoctorCommand
             var repairResult = RepairPlan(result.FolderPath, result);
             if (repairResult.Success)
             {
-                AnsiConsole.MarkupLine($"[green]  ✓ {result.Id}: {repairResult.Message}[/]");
+                AnsiConsole.MarkupLine($"[green]  ✓ {result.Id}: {repairResult.Message.EscapeMarkup()}[/]");
                 repairedCount++;
             }
             else if (repairResult.Message != null)
             {
-                AnsiConsole.MarkupLine($"[red]  ✗ {result.Id}: {repairResult.Message}[/]");
+                AnsiConsole.MarkupLine($"[red]  ✗ {result.Id}: {repairResult.Message.EscapeMarkup()}[/]");
                 failedCount++;
             }
         }
@@ -206,7 +207,7 @@ public static class DoctorCommand
 
             foreach (var (_, result, reason) in pruneCandidates)
             {
-                AnsiConsole.MarkupLine($"[grey]  {result.Id}-{result.Title}  ({reason})[/]");
+                AnsiConsole.MarkupLine($"[grey]  {result.Id}-{result.Title.EscapeMarkup()}  ({reason.EscapeMarkup()})[/]");
             }
 
             AnsiConsole.WriteLine();
@@ -218,12 +219,12 @@ public static class DoctorCommand
                     try
                     {
                         Directory.Delete(dir, true);
-                        AnsiConsole.MarkupLine($"[green]  ✓ Removed {result.Id}-{result.Title}[/]");
+                        AnsiConsole.MarkupLine($"[green]  ✓ Removed {result.Id}-{result.Title.EscapeMarkup()}[/]");
                         removed++;
                     }
                     catch (Exception ex)
                     {
-                        AnsiConsole.MarkupLine($"[red]  ✗ Failed to remove {result.Id}-{result.Title}: {ex.Message}[/]");
+                        AnsiConsole.MarkupLine($"[red]  ✗ Failed to remove {result.Id}-{result.Title.EscapeMarkup()}: {ex.Message.EscapeMarkup()}[/]");
                     }
                 }
 
@@ -434,7 +435,7 @@ public static class DoctorCommand
 
             var healthColor = r.IsHealthy ? "green" : "red";
             var healthText = r.IsHealthy ? "OK" : r.Health;
-            AnsiConsole.MarkupLine($"{r.Id.PadRight(idWidth)}  {truncatedTitle.PadRight(planWidth)}  {r.State.PadRight(stateWidth)}  {r.Worktrees.ToString().PadRight(wtWidth)}  [{healthColor}]{healthText}[/]");
+            AnsiConsole.MarkupLine($"{r.Id.PadRight(idWidth)}  {truncatedTitle.EscapeMarkup().PadRight(planWidth)}  {r.State.PadRight(stateWidth)}  {r.Worktrees.ToString().PadRight(wtWidth)}  [{healthColor}]{healthText.EscapeMarkup()}[/]");
         }
     }
 
@@ -463,7 +464,7 @@ public static class DoctorCommand
                 if (!File.Exists(yamlPath))
                 {
                     var folderTitle = TitleFromFolderName(Path.GetFileName(planPath));
-                    var scaffold = $"state: Draft\nproject: Auto\ntitle: {EscapeYamlString(folderTitle)}\nlevel: NiceToHave\nrepos: []\ncommits: []\nprs: []\ncreated: {DateTime.UtcNow:O}\nupdated: {DateTime.UtcNow:O}\nverifications: []\nrelatedPlans: []\ndependsOn: []\n";
+                    var scaffold = $"state: Draft\nproject: Auto\ntitle: {EscapeYamlString(folderTitle)}\nlevel: Feature\nrepos: []\ncommits: []\nprs: []\ncreated: {DateTime.UtcNow:O}\nupdated: {DateTime.UtcNow:O}\nverifications: []\nrelatedPlans: []\ndependsOn: []\n";
                     File.WriteAllText(yamlPath, scaffold);
                     repairs.Add("created missing plan.yaml");
                 }

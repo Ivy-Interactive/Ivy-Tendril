@@ -9,4 +9,7 @@ public record SoftwareCheck(
     bool IsRequired,
     Func<Task<bool>> InstallCheck,
     Func<Task<HealthCheckStatus>>? HealthCheck = null,
-    string? HealthHint = null);
+    string? HealthHint = null)
+{
+    public string? LastError { get; set; }
+}

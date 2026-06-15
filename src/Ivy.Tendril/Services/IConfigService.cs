@@ -17,7 +17,7 @@ public interface IConfigService
     bool TryAutoHeal();
     void ResetToDefaults();
     void RetryLoadConfig();
-    BadgeVariant GetBadgeVariant(string level);
+    Colors? GetLevelColor(string level);
     Colors? GetProjectColor(string projectName);
     void SaveSettings();
     void ReloadSettings();

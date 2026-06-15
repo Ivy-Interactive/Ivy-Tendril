@@ -13,6 +13,7 @@ public class ChangesTabView(
     public override object Build()
     {
         var client = UseService<IClientProvider>();
+        var hideFormatting = UseState(true);
 
         if (loading && changesData is null)
             return Text.Muted("Loading...");
@@ -25,10 +26,18 @@ public class ChangesTabView(
             return Text.Muted(errorMsg);
         }
 
-        var fileDiffs = PlanContentHelpers.SplitDiffByFile(changesData);
+        var allFileDiffs = PlanContentHelpers.SplitDiffByFile(changesData);
 
-        if (fileDiffs.Count == 0 && changesData.Files.Count == 0)
+        if (allFileDiffs.Count == 0 && changesData.Files.Count == 0)
             return Text.Muted("No file changes.");
+
+        var fileDiffs = allFileDiffs;
+        var hiddenCount = 0;
+        if (hideFormatting.Value)
+        {
+            fileDiffs = allFileDiffs.Where(fd => !PlanContentHelpers.IsFormattingOnly(fd)).ToList();
+            hiddenCount = allFileDiffs.Count - fileDiffs.Count;
+        }
 
         var root = BuildFileTree(fileDiffs);
         var treeItems = ChildItems(root);
@@ -54,7 +63,6 @@ public class ChangesTabView(
             diffsLayout |= Text.Block("").Anchor(path);
             diffsLayout |= new DiffView()
                 .Diff(fileDiff.Diff)
-                .Split()
                 .Collapsible()
                 .Width(Size.Full());
         }
@@ -63,9 +71,19 @@ public class ChangesTabView(
             .Width(Size.Rem(12).Min(Size.Rem(12))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)))
             | tree;
 
-        return Layout.Horizontal().Height(Size.Full().Min(Size.Px(0)))
+        var toolbar = Layout.Horizontal().Gap(2).Padding(1).AlignContent(Align.Center).Height(Size.Auto())
+            | hideFormatting.ToSwitchInput(label: "Hide formatting changes");
+
+        if (hideFormatting.Value && hiddenCount > 0)
+            toolbar |= Text.Muted($"{fileDiffs.Count} of {allFileDiffs.Count} files (hiding {hiddenCount} formatting-only)").Small();
+
+        var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0))).Padding(0, 0, 0, 2)
             | treePanel
             | diffsLayout;
+
+        return Layout.Vertical().Height(Size.Full().Min(Size.Px(0)))
+            | toolbar
+            | mainLayout;
     }
 
     private static TreeNode BuildFileTree(IReadOnlyList<PlanContentHelpers.FileDiff> fileDiffs)

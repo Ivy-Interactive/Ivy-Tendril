@@ -1,3 +1,4 @@
+using Ivy.Tendril.Commands;
 using Ivy.Tendril.Commands.DoctorChecks;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
@@ -41,5 +42,17 @@ public class DoctorChecksTests : IDisposable
         {
             Environment.SetEnvironmentVariable("TENDRIL_HOME", null);
         }
+    }
+
+    [Fact]
+    public void PrintStatus_WithBracketCharacters_DoesNotThrow()
+    {
+        var exception = Record.Exception(() =>
+            DoctorCommand.PrintStatus(
+                "[flags]",
+                "[error] markup",
+                StatusKind.Ok));
+
+        Assert.Null(exception);
     }
 }

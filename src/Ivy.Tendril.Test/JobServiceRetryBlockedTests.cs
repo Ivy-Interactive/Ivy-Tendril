@@ -351,26 +351,19 @@ public class JobServiceRetryBlockedTests : IDisposable
     }
 
     [Fact]
-    public void RetryBlockedJobs_WhenNewJobStartsBeforeRetry_DoesNotRetryBlockedJob()
+    public void RetryBlockedJobs_WhenSamePlanFolderJobRunning_DoesNotRetryBlockedJob()
     {
         SynchronizationContext.SetSynchronizationContext(null);
 
-        // Create three plan folders that will compete for the same repo
-        var planA = Path.Combine(_tempDir.Path, "plan-A-new");
-        var planB = Path.Combine(_tempDir.Path, "plan-B-new");
-        var planC = Path.Combine(_tempDir.Path, "plan-C-new");
+        // Same plan folder — this should still block (worktree conflict)
+        var planA = Path.Combine(_tempDir.Path, "plan-A-same");
         Directory.CreateDirectory(planA);
-        Directory.CreateDirectory(planB);
-        Directory.CreateDirectory(planC);
 
-        // All plans target the same repo
-        var repo = Path.Combine(_tempDir.Path, "shared-repo-new");
+        var repo = Path.Combine(planA, "repo");
         Directory.CreateDirectory(repo);
 
         var planYaml = $"state: Draft\nproject: TestProject\nlevel: NiceToHave\ntitle: Test\nupdated: 2026-01-01T00:00:00Z\nrepos:\n- {repo}\ndependsOn: []\nprs: []\ncommits: []\nverifications: []\nrelatedPlans: []\n";
         File.WriteAllText(Path.Combine(planA, "plan.yaml"), planYaml);
-        File.WriteAllText(Path.Combine(planB, "plan.yaml"), planYaml);
-        File.WriteAllText(Path.Combine(planC, "plan.yaml"), planYaml);
 
         var planReader = new FakePlanReaderService(_tempDir.Path);
         var service = new JobService(
@@ -378,33 +371,131 @@ public class JobServiceRetryBlockedTests : IDisposable
             TimeSpan.FromMinutes(10),
             planReaderService: planReader);
 
-        // Start job A (this will hold the repo lock)
-        var jobAId = service.CreateTestJob(new ExecutePlanArgs(planA));
-        Assert.Equal(JobStatus.Running, service.GetJob(jobAId)!.Status);
+        // Start job on planA
+        var jobRunningId = service.CreateTestJob(new ExecutePlanArgs(planA));
+        Assert.Equal(JobStatus.Running, service.GetJob(jobRunningId)!.Status);
 
-        // Attempt to start job B (should get blocked due to repo concurrency)
-        var jobBId = service.CreateTestJob(new ExecutePlanArgs(planB));
-        var blockedJob = service.GetJob(jobBId)!;
+        // Manually create a blocked job for same plan folder
+        var blockedId = service.CreateTestJob(new ExecutePlanArgs(planA));
+        var blockedJob = service.GetJob(blockedId)!;
         blockedJob.Status = JobStatus.Blocked;
 
-        // Start job C on the same repo (simulating a new job starting before job A completes)
-        var jobCId = service.CreateTestJob(new ExecutePlanArgs(planC));
-        Assert.Equal(JobStatus.Running, service.GetJob(jobCId)!.Status);
+        // Create a completing CreatePr job to trigger RetryBlockedJobs
+        var completingId = service.CreateTestJob(new CreatePrArgs(Path.GetTempPath()));
 
         var notifications = new List<JobNotification>();
         service.NotificationReady += n => notifications.Add(n);
 
-        // Fail job A — this should trigger RetryBlockedJobs
-        service.CompleteJob(jobAId, 1);
+        service.CompleteJob(completingId, 0);
 
-        // Job B should NOT be retried because job C is still running on the same repo
-        // Job B should still be blocked
-        var stillBlocked = service.GetJob(jobBId);
+        // Job should still be blocked — same plan folder has an active job
+        var stillBlocked = service.GetJob(blockedId);
         Assert.NotNull(stillBlocked);
         Assert.Equal(JobStatus.Blocked, stillBlocked.Status);
 
-        // Should NOT have received an "unblocked" notification for job B
         Assert.DoesNotContain(notifications, n => n.Title == "Job Unblocked");
+    }
+
+    [Fact]
+    public void DeleteJob_WhenDeletedJobWasDependency_RetryBlockedJobs()
+    {
+        SynchronizationContext.SetSynchronizationContext(null);
+
+        // Create plans directory with a completed dependency
+        var plansDir = CreatePlansDirectory(("01100-DepPlan", "Completed"));
+
+        // Create the dependent plan
+        var dependentPlan = CreatePlanFolder("Draft", ["01100-DepPlan"]);
+
+        var planReader = new FakePlanReaderService(plansDir);
+        var service = new JobService(
+            TimeSpan.FromMinutes(30),
+            TimeSpan.FromMinutes(10),
+            planReaderService: planReader);
+
+        // Create a blocked job for the dependent plan
+        var blockedId = service.CreateTestJob(new ExecutePlanArgs(dependentPlan));
+        var blockedJob = service.GetJob(blockedId)!;
+        blockedJob.Status = JobStatus.Blocked;
+
+        // Create a completed ExecutePlan job (simulating a completed dependency)
+        var completedId = service.CreateTestJob(new ExecutePlanArgs(Path.Combine(plansDir, "01100-DepPlan")));
+        var completedJob = service.GetJob(completedId)!;
+        completedJob.Status = JobStatus.Completed;
+
+        var notifications = new List<JobNotification>();
+        service.NotificationReady += n => notifications.Add(n);
+
+        // Delete the completed dependency job — this should trigger RetryBlockedJobs
+        service.DeleteJob(completedId);
+
+        // The blocked job should have been removed and restarted
+        Assert.Null(service.GetJob(blockedId));
+
+        // A new job should have been created (the restarted one)
+        var jobs = service.GetJobs();
+        var restartedJob = jobs.FirstOrDefault(j => j.Id != completedId && j.Type == "ExecutePlan");
+        Assert.NotNull(restartedJob);
+        Assert.NotEqual(JobStatus.Blocked, restartedJob.Status);
+
+        // Should have received an "unblocked" notification
+        Assert.Contains(notifications, n => n.Title == "Job Unblocked");
+
+        // Cleanup
+        Directory.Delete(dependentPlan, true);
+        Directory.Delete(plansDir, true);
+    }
+
+
+    [Fact]
+    public async Task PeriodicCheck_WhenDependencySatisfiedExternally_UnblocksJob()
+    {
+        SynchronizationContext.SetSynchronizationContext(null);
+
+        // Create plans directory with an incomplete dependency
+        var plansDir = CreatePlansDirectory(("01100-DepPlan", "Executing"));
+
+        // Create the dependent plan
+        var dependentPlan = CreatePlanFolder("Draft", ["01100-DepPlan"]);
+
+        var planReader = new FakePlanReaderService(plansDir);
+        var service = new JobService(
+            TimeSpan.FromMinutes(30),
+            TimeSpan.FromMinutes(10),
+            planReaderService: planReader);
+
+        // Create a blocked job
+        var blockedId = service.CreateTestJob(new ExecutePlanArgs(dependentPlan));
+        var blockedJob = service.GetJob(blockedId)!;
+        blockedJob.Status = JobStatus.Blocked;
+
+        var notifications = new List<JobNotification>();
+        service.NotificationReady += n => notifications.Add(n);
+
+        // Simulate the dependency plan being completed externally (e.g., manual PR merge)
+        var depPlanPath = Path.Combine(plansDir, "01100-DepPlan", "plan.yaml");
+        var depYaml = File.ReadAllText(depPlanPath);
+        depYaml = depYaml.Replace("state: Executing", "state: Completed");
+        File.WriteAllText(depPlanPath, depYaml);
+
+        // Wait for the periodic check to run (60 second interval, but we'll wait up to 70 seconds)
+        await Task.Delay(TimeSpan.FromSeconds(70));
+
+        // The blocked job should have been removed and restarted
+        Assert.Null(service.GetJob(blockedId));
+
+        // A new job should have been created (the restarted one)
+        var jobs = service.GetJobs();
+        var restartedJob = jobs.FirstOrDefault(j => j.Id != blockedId && j.Type == "ExecutePlan");
+        Assert.NotNull(restartedJob);
+        Assert.NotEqual(JobStatus.Blocked, restartedJob.Status);
+
+        // Should have received an "unblocked" notification
+        Assert.Contains(notifications, n => n.Title == "Job Unblocked");
+
+        // Cleanup
+        Directory.Delete(dependentPlan, true);
+        Directory.Delete(plansDir, true);
     }
 
     /// <summary>
@@ -455,6 +546,10 @@ public class JobServiceRetryBlockedTests : IDisposable
         }
 
         public void ResetVerificationsForRetry(string folderName)
+        {
+        }
+
+        public void RevertRevision(string folderName)
         {
         }
 
@@ -544,6 +639,15 @@ public class JobServiceRetryBlockedTests : IDisposable
         public Task FlushPendingWritesAsync()
         {
             return Task.CompletedTask;
+        }
+
+        public List<RecommendationYaml> GetRecommendationsForPlan(string folderName)
+        {
+            return [];
+        }
+
+        public void AcceptRecommendationAndRetry(string folderName, string recommendationTitle)
+        {
         }
     }
 }

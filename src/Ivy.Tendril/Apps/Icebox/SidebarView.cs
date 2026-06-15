@@ -69,7 +69,7 @@ public class SidebarView(
                 .Content(Layout.Horizontal().Gap(1)
                          | new Badge(plan.Project).Variant(BadgeVariant.Outline).Small()
                              .WithProjectColor(config, plan.Project)
-                         | new Badge(plan.Level).Variant(config.GetBadgeVariant(plan.Level)).Small())
+                         | new Badge(plan.Level).Color(config.GetLevelColor(plan.Level) ?? Colors.Gray).Small())
                 .OnClick(() => selectedPlanState.Set(clickablePlan));
         }));
 

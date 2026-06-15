@@ -30,7 +30,7 @@ public class SuggestChangesDialog(
                 suggestText.Set("");
                 _dialogOpen.Set(false);
             },
-            new DialogHeader($"Suggest Changes for Plan #{_selectedPlan.Id}"),
+            new DialogHeader($"Request Changes for Plan #{_selectedPlan.Id}"),
             new DialogBody(
                 Layout.Vertical()
                 | Text.P("Provide suggestions for changes to the plan.")
@@ -43,7 +43,7 @@ public class SuggestChangesDialog(
                     suggestText.Set("");
                     _dialogOpen.Set(false);
                 }),
-                new Button("Submit Suggestions").Primary().Disabled(isCreating.Value || string.IsNullOrWhiteSpace(suggestText.Value)).ShortcutKey("Ctrl+Enter").OnClick(() =>
+                new Button("Request Changes").Primary().Disabled(isCreating.Value || string.IsNullOrWhiteSpace(suggestText.Value)).ShortcutKey("Ctrl+Enter").OnClick(() =>
                 {
                     if (!string.IsNullOrWhiteSpace(suggestText.Value) && !isCreating.Value)
                     {

@@ -50,7 +50,7 @@ All paths derive from these sources:
 **What does NOT work in production:**
 - Setting process-specific env vars on the agent process and expecting nested `tendril` calls to read them (e.g., `TENDRIL_CLI_LOG`, `TENDRIL_JOB_ID`, `TENDRIL_SESSION_ID`)
 
-**CLI Logging:** The `--job-id <id>` global flag on `tendril` commands derives the CLI log path from `TENDRIL_HOME` (system-wide) + the job ID. The firmware template instructs agents to append `--job-id TendrilJobId` to all CLI commands. The `tendril job status` command also self-logs (derives the log path from its positional job ID argument). As a fallback for E2E tests, the `TENDRIL_CLI_LOG` env var still works.
+**CLI Logging:** The `--job-id <id>` global flag on `tendril` commands derives the CLI log path from `TENDRIL_HOME` (system-wide) + the job ID. The firmware template instructs agents to append `--job-id TendrilJobId` to all CLI commands. CLI invocations are logged to `TENDRIL_HOME/Jobs/{jobId}.cli.jsonl`. As a fallback for E2E tests, the `TENDRIL_CLI_LOG` env var still works.
 
 **Rule:** To pass information from Tendril to an agent and back through the CLI:
 1. Include it as a firmware header value (agent reads from prompt)
@@ -174,7 +174,7 @@ These are the primary debugging artifacts. The `.md` log tells you what the agen
 
 The Jobs table uses `DataTableCellUpdate` for live updates (Timer, Cost, Tokens, StatusMessage columns). A 1-second `Observable.Interval` emits cell updates via `UseDataTableUpdates` — this is how values change without a full table refresh.
 
-**Status messages flow:** Agent calls `tendril job status <TendrilJobId> --message "..."` → writes `{TENDRIL_HOME}/Jobs/{jobId}.status` → `JobMonitor.RunStatusFilePoller` reads it every 1s → sets `job.StatusMessage` → DataTable cell update picks it up on next tick.
+**Status messages flow:** Agent calls `tendril job status <TendrilJobId> --message "..."` → HTTP PUT to `localhost:{port}/api/jobs/{id}/status` → sets `job.StatusMessage` in memory → DataTable cell update picks it up on next tick.
 
 Do not trigger `RaiseStructureChanged` or full-table refreshes for individual cell value changes — the cell update stream already handles it.
 

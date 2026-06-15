@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Ivy.Helpers;
-using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Microsoft.Extensions.Logging;
 
@@ -38,8 +37,8 @@ internal class JobMonitor
         if (_ctx.StaleOutputTimeout > TimeSpan.Zero)
             _ = RunStaleOutputWatchdog(_id, _timeoutCts, _ctx.Jobs, _ctx.StaleOutputTimeout);
 
-        if (job != null && !string.IsNullOrEmpty(job.StatusFilePath))
-            _ = RunStatusFilePoller(_id, _timeoutCts, _ctx.Jobs);
+        // Status updates now arrive via HTTP (PUT /api/jobs/{id}/status)
+        // — no file polling needed.
     }
 
     private async Task MonitorProcessAsync()
@@ -144,35 +143,6 @@ internal class JobMonitor
         catch (ObjectDisposedException) { }
     }
 
-    internal static async Task RunStatusFilePoller(
-        string id,
-        CancellationTokenSource timeoutCts,
-        ConcurrentDictionary<string, JobItem> jobs)
-    {
-        try
-        {
-            while (!timeoutCts.Token.IsCancellationRequested)
-            {
-                await Task.Delay(TimeSpan.FromSeconds(1), timeoutCts.Token);
-                if (!jobs.TryGetValue(id, out var job) || job.Status != JobStatus.Running)
-                    return;
-                if (string.IsNullOrEmpty(job.StatusFilePath))
-                    return;
-
-                var payload = JobStatusFile.Read(job.StatusFilePath);
-                if (payload == null)
-                    continue;
-
-                job.StatusMessage = payload.Message;
-                if (IsValidPlanId(payload.PlanId))
-                    job.ReportedPlanId = payload.PlanId;
-                if (!string.IsNullOrEmpty(payload.PlanTitle))
-                    job.ReportedPlanTitle = payload.PlanTitle;
-            }
-        }
-        catch (OperationCanceledException) { }
-        catch (ObjectDisposedException) { }
-    }
 
     private static bool IsValidPlanId(string? planId)
     {

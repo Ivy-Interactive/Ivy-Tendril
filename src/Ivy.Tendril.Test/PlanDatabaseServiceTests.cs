@@ -888,6 +888,35 @@ public class PlanDatabaseServiceTests : IDisposable
     }
 
     [Fact]
+    public void ClearedJob_ExcludedFromRecentJobs_ButKeptInPlanHistory()
+    {
+        var job = new JobItem
+        {
+            Id = "job-001",
+            Type = "ExecutePlan",
+            PlanFile = "01500-TestPlan",
+            Project = "Tendril",
+            Status = JobStatus.Completed,
+            Provider = "claude",
+            CompletedAt = new DateTime(2026, 4, 7, 10, 0, 0, DateTimeKind.Utc)
+        };
+        _db.UpsertJob(job);
+        Assert.Single(_db.GetRecentJobs());
+
+        job.Cleared = true;
+        _db.UpsertJob(job);
+
+        // Hidden from the Jobs app (loaded via GetRecentJobs on startup)
+        Assert.Empty(_db.GetRecentJobs());
+
+        // Still visible in plan Details history and direct lookups
+        var planJobs = _db.GetJobsForPlan("01500-TestPlan");
+        Assert.Single(planJobs);
+        Assert.True(planJobs[0].Cleared);
+        Assert.NotNull(_db.GetJobById("job-001"));
+    }
+
+    [Fact]
     public void PurgeOldJobs_RemovesExcessJobs()
     {
         // Insert 600 jobs with distinct CompletedAt times

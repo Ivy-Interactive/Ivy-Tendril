@@ -118,10 +118,12 @@ tendril plan validate <plan-id>
 ### Creating a plan
 
 ```bash
-tendril plan create <title> [options]
+tendril plan create <title> <project> [options]
 ```
 
-Auto-allocates a plan ID, creates the folder, and writes `plan.yaml`. Outputs:
+Auto-allocates a plan ID, creates the folder, and writes `plan.yaml`. Repos are derived from the project configuration.
+
+Outputs:
 ```
 PlanId: <ID>
 Directory: <TendrilPlansFolder>/<ID>-<SafeTitle>
@@ -129,13 +131,11 @@ Plan created: <ID>-<SafeTitle>
 ```
 
 Options:
-- `--project <name>` — Project name (default: Auto)
-- `--level <level>` — Priority level (default: NiceToHave)
+- `--level <level>` — Priority level (default: Feature)
 - `--initial-prompt <text>` — Original user description
 - `--source-url <url>` — GitHub issue or PR URL
 - `--execution-profile <profile>` — deep or balanced
 - `--priority <number>` — Priority (default: 0)
-- `--repo <path>` — Repository path (repeatable)
 - `--verification <Name=Status>` — Verification entry (repeatable)
 - `--related-plan <folder>` — Related plan folder name (repeatable)
 - `--depends-on <folder>` — Dependency plan folder name (repeatable)
@@ -167,7 +167,7 @@ tendril plan cleanup <plan-id> [--force]
 ```yaml
 state: Draft
 project: Tendril
-level: NiceToHave
+level: Feature
 title: "Make an empty app called Review"
 sessionId: "a1b2c3d4-e5f6-..."
 repos: []

@@ -20,7 +20,6 @@ public record RepoRef
     public string Path { get; set; } = "";
     public string PrRule { get; set; } = "default";
     public string? BaseBranch { get; set; }
-    public string SyncStrategy { get; set; } = "fetch";
 }
 
 public record ProjectConfig
@@ -76,7 +75,8 @@ public record ProjectConfig
 public record LevelConfig
 {
     public string Name { get; set; } = "";
-    public string Badge { get; set; } = "Outline";
+    public string Color { get; set; } = "";
+    public string? Badge { get; set; }
 }
 
 public record VerificationConfig
@@ -133,6 +133,7 @@ public record AgentConfig
 {
     public string Name { get; set; } = "";
     public string Arguments { get; set; } = "";
+    public Dictionary<string, string> EnvironmentVariables { get; set; } = new();
     public List<AgentProfileConfig> Profiles { get; set; } = new();
 }
 
@@ -178,10 +179,11 @@ public class TendrilSettings
 
     public List<LevelConfig> Levels { get; set; } = new()
     {
-        new LevelConfig { Name = "Bug", Badge = "Destructive" },
-        new LevelConfig { Name = "Critical", Badge = "Warning" },
-        new LevelConfig { Name = "NiceToHave", Badge = "Outline" },
-        new LevelConfig { Name = "Epic", Badge = "Info" }
+        new LevelConfig { Name = "Bug", Color = "Red" },
+        new LevelConfig { Name = "Feature", Color = "Blue" },
+        new LevelConfig { Name = "Epic", Color = "Purple" },
+        new LevelConfig { Name = "Chore", Color = "Slate" },
+        new LevelConfig { Name = "Nitpick", Color = "Gray" }
     };
 }
 
@@ -248,6 +250,7 @@ public class ConfigService : IConfigService, IDisposable
                            ?? new TendrilSettings();
 
             MigrateProjectColors();
+            MigrateLevelColors();
             CreateConfigBackup();
 
             return (true, settings);
@@ -405,12 +408,10 @@ public class ConfigService : IConfigService, IDisposable
         return Settings.Projects.FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
     }
 
-    public BadgeVariant GetBadgeVariant(string level)
+    public Colors? GetLevelColor(string level)
     {
-        return Enum.TryParse<BadgeVariant>(Settings.Levels.FirstOrDefault(l => l.Name == level)?.Badge ?? "Outline",
-            out var v)
-            ? v
-            : BadgeVariant.Outline;
+        var colorStr = Settings.Levels.FirstOrDefault(l => l.Name == level)?.Color;
+        return !string.IsNullOrEmpty(colorStr) && Enum.TryParse<Colors>(colorStr, out var c) ? c : null;
     }
 
     public Colors? GetProjectColor(string projectName)
@@ -462,6 +463,7 @@ public class ConfigService : IConfigService, IDisposable
 
             ValidateSettings();
             MigrateProjectColors();
+            MigrateLevelColors();
             _levelNamesCache = null;
             VariableExpansion.InitializeUserSecrets(_logger);
             ExpandSettingsVariables();
@@ -637,6 +639,7 @@ public class ConfigService : IConfigService, IDisposable
                     FileHelper.WriteAllText(ConfigPath, backupYaml);
                     Settings = restored;
                     MigrateProjectColors();
+                    MigrateLevelColors();
                     VariableExpansion.InitializeUserSecrets(_logger);
                     ExpandSettingsVariables();
                     ExpandRepoPaths();
@@ -679,6 +682,7 @@ public class ConfigService : IConfigService, IDisposable
             yaml = Regex.Replace(yaml, @"(?m)^(\s*-\s+)(%\w+%.*)$", "$1'$2'");
             Settings = YamlHelper.Deserializer.Deserialize<TendrilSettings>(yaml) ?? new TendrilSettings();
             MigrateProjectColors();
+            MigrateLevelColors();
             CreateConfigBackup();
             ParseError = null;
             NeedsOnboarding = false;
@@ -736,10 +740,11 @@ public class ConfigService : IConfigService, IDisposable
             Verifications = new List<VerificationConfig>(),
             Levels = new List<LevelConfig>
             {
-                new() { Name = "Bug", Badge = "Destructive" },
-                new() { Name = "Critical", Badge = "Warning" },
-                new() { Name = "NiceToHave", Badge = "Outline" },
-                new() { Name = "Epic", Badge = "Info" }
+                new() { Name = "Bug", Color = "Red" },
+                new() { Name = "Feature", Color = "Blue" },
+                new() { Name = "Epic", Color = "Purple" },
+                new() { Name = "Chore", Color = "Slate" },
+                new() { Name = "Nitpick", Color = "Gray" }
             }
         };
     }
@@ -792,6 +797,52 @@ public class ConfigService : IConfigService, IDisposable
         }
     }
 
+    internal static string MigrateLevelBadgeToColor(string? badgeValue)
+    {
+        if (string.IsNullOrEmpty(badgeValue))
+            return "Gray";
+
+        return badgeValue switch
+        {
+            "Destructive" => "Red",
+            "Warning" => "Orange",
+            "Info" => "Blue",
+            "Success" => "Green",
+            "Secondary" => "Slate",
+            "Outline" => "Gray",
+            "Muted" => "Gray",
+            "Primary" => "Blue",
+            _ => Enum.TryParse<Colors>(badgeValue, out _) ? badgeValue : "Gray"
+        };
+    }
+
+    private void MigrateLevelColors()
+    {
+        if (Settings?.Levels == null) return;
+
+        var needsSave = false;
+        foreach (var level in Settings.Levels)
+        {
+            if (!string.IsNullOrEmpty(level.Badge) && string.IsNullOrEmpty(level.Color))
+            {
+                level.Color = MigrateLevelBadgeToColor(level.Badge);
+                level.Badge = null;
+                needsSave = true;
+            }
+            else if (!string.IsNullOrEmpty(level.Badge))
+            {
+                level.Badge = null;
+                needsSave = true;
+            }
+        }
+
+        if (needsSave && File.Exists(ConfigPath))
+        {
+            var yaml = YamlHelper.SerializerCompact.Serialize(Settings);
+            FileHelper.WriteAllText(ConfigPath, yaml);
+        }
+    }
+
     internal void SetTendrilHome(string tendrilHome)
     {
         TendrilHome = tendrilHome;
@@ -821,6 +872,7 @@ public class ConfigService : IConfigService, IDisposable
 
         ValidateSettings();
         MigrateProjectColors();
+        MigrateLevelColors();
         _levelNamesCache = null;
         VariableExpansion.InitializeUserSecrets(_logger);
         ExpandSettingsVariables();

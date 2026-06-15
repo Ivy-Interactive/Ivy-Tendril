@@ -45,13 +45,12 @@ public sealed class OpenCodeModelCatalog : CachedModelCatalogProvider
             if (string.IsNullOrWhiteSpace(id)) continue;
 
             var provider = ExtractProvider(id);
-            var displayName = FormatDisplayName(id);
             var pricing = LookupPricing(id);
 
             results.Add(new ModelInfo
             {
                 Id = id,
-                DisplayName = displayName,
+                DisplayName = id,
                 Capabilities = DefaultCaps,
                 Provider = provider,
                 IsDefault = first,
@@ -71,13 +70,6 @@ public sealed class OpenCodeModelCatalog : CachedModelCatalogProvider
     {
         var slash = modelId.IndexOf('/');
         return slash > 0 ? modelId[..slash] : "opencode";
-    }
-
-    private static string FormatDisplayName(string modelId)
-    {
-        var slash = modelId.IndexOf('/');
-        var name = slash > 0 ? modelId[(slash + 1)..] : modelId;
-        return name;
     }
 
     private record KnownPricing(decimal Input, decimal Output, decimal CacheRead = 0m, decimal CacheWrite = 0m, int? ContextWindow = null);

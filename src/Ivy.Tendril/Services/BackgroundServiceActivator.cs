@@ -37,9 +37,16 @@ public static class BackgroundServiceActivator
         logger?.LogInformation("PlanWatcherService initialized ({ElapsedMs}ms)", sw.ElapsedMilliseconds);
 
         sw.Restart();
-        logger?.LogInformation("Resolving InboxWatcherService...");
-        services.GetRequiredService<IInboxWatcherService>();
-        logger?.LogInformation("InboxWatcherService initialized ({ElapsedMs}ms)", sw.ElapsedMilliseconds);
+        if (Environment.GetEnvironmentVariable("TENDRIL_NOT_MASTER") != "1")
+        {
+            logger?.LogInformation("Resolving InboxWatcherService...");
+            services.GetRequiredService<IInboxWatcherService>();
+            logger?.LogInformation("InboxWatcherService initialized ({ElapsedMs}ms)", sw.ElapsedMilliseconds);
+        }
+        else
+        {
+            logger?.LogInformation("Skipping InboxWatcherService (TENDRIL_NOT_MASTER=1)");
+        }
 
         sw.Restart();
         logger?.LogInformation("Starting IStartable services...");

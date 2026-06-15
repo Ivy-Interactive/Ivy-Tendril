@@ -1,5 +1,6 @@
 using Ivy.Tendril.Mcp;
 using Ivy.Tendril.Mcp.Tools;
+using Ivy.Tendril.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test.Mcp;
@@ -13,6 +14,7 @@ public class PlanToolsTests : IDisposable
     private readonly PlanTools _planTools;
     private readonly string _repoDir;
     private readonly string _tempDir;
+    private readonly IConfigService _configService;
 
     public PlanToolsTests()
     {
@@ -26,7 +28,8 @@ public class PlanToolsTests : IDisposable
         Environment.SetEnvironmentVariable("TENDRIL_HOME", _tempDir);
         Environment.SetEnvironmentVariable("TENDRIL_PLANS", null);
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", null);
-        _planTools = new PlanTools(new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance));
+        _configService = new TestPlanConfigService(_repoDir);
+        _planTools = new PlanTools(new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance), _configService);
     }
 
     public void Dispose()
@@ -425,7 +428,7 @@ public class PlanToolsTests : IDisposable
         var authedService = new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance);
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", null);
 
-        var authedTools = new PlanTools(authedService);
+        var authedTools = new PlanTools(authedService, _configService);
         var result = authedTools.GetPlan("00001");
         Assert.Contains("Error: Authentication failed", result);
     }
@@ -438,7 +441,7 @@ public class PlanToolsTests : IDisposable
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", "secret-token");
         var authedService = new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance);
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", null);
-        var authedTools = new PlanTools(authedService);
+        var authedTools = new PlanTools(authedService, _configService);
 
         // Act & Assert - verify all 15 tool methods return auth error
         Assert.Contains("Error: Authentication failed", authedTools.GetPlan("00001"));
@@ -484,5 +487,333 @@ public class PlanToolsTests : IDisposable
         var content = File.ReadAllText(files[0]);
         Assert.Contains("Build a widget", content);
         Assert.Contains("project: TestProject", content);
+    }
+
+    // --- PlanCreate (direct) ---
+
+    [Fact]
+    public void PlanCreate_ReturnsIdAndFolder()
+    {
+        var plansDir = Path.Combine(_tempDir, "Plans");
+        Directory.CreateDirectory(plansDir);
+
+        var result = _planTools.PlanCreate("Direct Plan Test", project: "TestProject");
+
+        Assert.Contains("Plan created:", result);
+        Assert.Contains("PlanId:", result);
+        Assert.Contains("Directory:", result);
+    }
+
+    [Fact]
+    public void PlanCreate_WithAllOptions_SetsAllFields()
+    {
+        var plansDir = Path.Combine(_tempDir, "Plans");
+        Directory.CreateDirectory(plansDir);
+
+        var result = _planTools.PlanCreate(
+            "Full Plan",
+            project: "TestProject",
+            level: "Critical",
+            initialPrompt: "Do the thing",
+            executionProfile: "deep",
+            sourceUrl: "https://github.com/org/repo/issues/1",
+            verifications: "DotnetBuild,DotnetTest");
+
+        Assert.Contains("Plan created:", result);
+
+        var planId = result.Split('\n')
+            .First(l => l.StartsWith("PlanId:"))
+            .Replace("PlanId: ", "").Trim();
+
+        var plan = _planTools.GetPlan(planId);
+        Assert.Contains("TestProject", plan);
+        Assert.Contains("Critical", plan);
+        Assert.Contains("Do the thing", plan);
+    }
+
+    // --- WriteRevision ---
+
+    [Fact]
+    public void WriteRevision_CreatesRevisionFile()
+    {
+        var planFolder = CreateTestPlan();
+
+        var result = _planTools.WriteRevision("00001", "# Test Revision\n\nContent here.");
+
+        Assert.Contains("Revision written: 001.md", result);
+        var revFile = Path.Combine(planFolder, "Revisions", "001.md");
+        Assert.True(File.Exists(revFile));
+        Assert.Contains("Test Revision", File.ReadAllText(revFile));
+    }
+
+    [Fact]
+    public void WriteRevision_IncrementsNumber()
+    {
+        var planFolder = CreateTestPlan();
+        var revisionsDir = Path.Combine(planFolder, "Revisions");
+        Directory.CreateDirectory(revisionsDir);
+        File.WriteAllText(Path.Combine(revisionsDir, "001.md"), "First");
+
+        var result = _planTools.WriteRevision("00001", "Second revision");
+
+        Assert.Contains("002.md", result);
+    }
+
+    // --- AddRelated / RemoveRelated ---
+
+    [Fact]
+    public void AddRelated_AddsLink()
+    {
+        CreateTestPlan();
+        CreateTestPlan("00010", "OtherPlan");
+
+        var result = _planTools.AddRelated("00001", "00010-OtherPlan");
+
+        Assert.Contains("Added related plan", result);
+        var plan = _planTools.GetPlan("00001", "relatedPlans");
+        Assert.Contains("00010-OtherPlan", plan);
+    }
+
+    [Fact]
+    public void AddRelated_Duplicate_IsIdempotent()
+    {
+        CreateTestPlan();
+        CreateTestPlan("00010", "OtherPlan");
+        _planTools.AddRelated("00001", "00010-OtherPlan");
+
+        var result = _planTools.AddRelated("00001", "00010-OtherPlan");
+
+        Assert.Contains("Added related plan", result);
+    }
+
+    [Fact]
+    public void RemoveRelated_RemovesLink()
+    {
+        CreateTestPlan();
+        CreateTestPlan("00010", "OtherPlan");
+        _planTools.AddRelated("00001", "00010-OtherPlan");
+
+        var result = _planTools.RemoveRelated("00001", "00010-OtherPlan");
+
+        Assert.Contains("Removed related plan", result);
+        var plan = _planTools.GetPlan("00001", "relatedPlans");
+        Assert.DoesNotContain("00010-OtherPlan", plan);
+    }
+
+    [Fact]
+    public void RemoveRelated_NotFound_ReturnsError()
+    {
+        CreateTestPlan();
+
+        var result = _planTools.RemoveRelated("00001", "NonExistent");
+
+        Assert.Contains("Error:", result);
+    }
+
+    // --- AddDependsOn / RemoveDependsOn ---
+
+    [Fact]
+    public void AddDependsOn_AddsDependency()
+    {
+        CreateTestPlan();
+        CreateTestPlan("00005", "BasePlan");
+
+        var result = _planTools.AddDependsOn("00001", "00005-BasePlan");
+
+        Assert.Contains("Added dependency", result);
+        var plan = _planTools.GetPlan("00001", "dependsOn");
+        Assert.Contains("00005-BasePlan", plan);
+    }
+
+    [Fact]
+    public void AddDependsOn_Duplicate_IsIdempotent()
+    {
+        CreateTestPlan();
+        CreateTestPlan("00005", "BasePlan");
+        _planTools.AddDependsOn("00001", "00005-BasePlan");
+
+        var result = _planTools.AddDependsOn("00001", "00005-BasePlan");
+
+        Assert.Contains("Added dependency", result);
+    }
+
+    [Fact]
+    public void RemoveDependsOn_RemovesDependency()
+    {
+        CreateTestPlan();
+        CreateTestPlan("00005", "BasePlan");
+        _planTools.AddDependsOn("00001", "00005-BasePlan");
+
+        var result = _planTools.RemoveDependsOn("00001", "00005-BasePlan");
+
+        Assert.Contains("Removed dependency", result);
+        var plan = _planTools.GetPlan("00001", "dependsOn");
+        Assert.DoesNotContain("00005-BasePlan", plan);
+    }
+
+    [Fact]
+    public void RemoveDependsOn_NotFound_ReturnsError()
+    {
+        CreateTestPlan();
+
+        var result = _planTools.RemoveDependsOn("00001", "NonExistent");
+
+        Assert.Contains("Error:", result);
+    }
+
+    // --- Validate ---
+
+    [Fact]
+    public void Validate_ValidPlan_ReturnsValid()
+    {
+        CreateTestPlan();
+
+        var result = _planTools.Validate("00001");
+
+        Assert.Contains("Plan is valid", result);
+    }
+
+    [Fact]
+    public void Validate_InvalidPlan_ReturnsFailure()
+    {
+        var plansDir = Path.Combine(_tempDir, "Plans");
+        var planFolder = Path.Combine(plansDir, "00002-BadPlan");
+        Directory.CreateDirectory(planFolder);
+        File.WriteAllText(Path.Combine(planFolder, "plan.yaml"), """
+            state: InvalidState
+            project: TestProject
+            level: NiceToHave
+            title: Bad Plan
+            repos:
+            - /nonexistent/path
+            commits: []
+            prs: []
+            created: 2026-04-01T10:00:00.0000000Z
+            updated: 2026-04-01T10:00:00.0000000Z
+            verifications: []
+            relatedPlans: []
+            dependsOn: []
+            priority: 0
+            """);
+
+        var result = _planTools.Validate("00002");
+
+        Assert.Contains("Validation failed:", result);
+    }
+
+    // --- VerificationList ---
+
+    [Fact]
+    public void VerificationList_ReturnsAll()
+    {
+        CreateTestPlan();
+        _planTools.VerificationAdd("00001", "Build");
+        _planTools.VerificationAdd("00001", "Test", "Pass");
+
+        var result = _planTools.VerificationList("00001");
+
+        Assert.Contains("Build", result);
+        Assert.Contains("Test", result);
+    }
+
+    [Fact]
+    public void VerificationList_FilterByStatus()
+    {
+        CreateTestPlan();
+        _planTools.VerificationAdd("00001", "Build", "Pending");
+        _planTools.VerificationAdd("00001", "Test", "Pass");
+
+        var result = _planTools.VerificationList("00001", "Pass");
+
+        Assert.Contains("Test", result);
+        Assert.DoesNotContain("Build", result);
+    }
+
+    // --- VerificationAdd ---
+
+    [Fact]
+    public void VerificationAdd_AddsNew()
+    {
+        CreateTestPlan();
+
+        var result = _planTools.VerificationAdd("00001", "NewCheck");
+
+        Assert.Contains("Added verification", result);
+        var list = _planTools.VerificationList("00001");
+        Assert.Contains("NewCheck", list);
+        Assert.Contains("Pending", list);
+    }
+
+    [Fact]
+    public void VerificationAdd_Duplicate_ReturnsError()
+    {
+        CreateTestPlan();
+        _planTools.VerificationAdd("00001", "Build");
+
+        var result = _planTools.VerificationAdd("00001", "Build");
+
+        Assert.Contains("Error:", result);
+    }
+
+    // --- VerificationRemove ---
+
+    [Fact]
+    public void VerificationRemove_Removes()
+    {
+        CreateTestPlan();
+        _planTools.VerificationAdd("00001", "Build");
+
+        var result = _planTools.VerificationRemove("00001", "Build");
+
+        Assert.Contains("Removed verification", result);
+        var list = _planTools.VerificationList("00001");
+        Assert.DoesNotContain("Build", list);
+    }
+
+    [Fact]
+    public void VerificationRemove_NotFound_ReturnsError()
+    {
+        CreateTestPlan();
+
+        var result = _planTools.VerificationRemove("00001", "NonExistent");
+
+        Assert.Contains("Error:", result);
+    }
+
+    // --- RecSet ---
+
+    [Fact]
+    public void RecSet_UpdatesDescription()
+    {
+        CreateTestPlan();
+        _planTools.RecAdd("00001", "MyRec", "Original desc");
+
+        var result = _planTools.RecSet("00001", "MyRec", "description", "Updated desc");
+
+        Assert.Contains("Updated recommendation", result);
+        var list = _planTools.RecList("00001");
+        Assert.Contains("MyRec", list);
+    }
+
+    [Fact]
+    public void RecSet_UnknownField_ReturnsError()
+    {
+        CreateTestPlan();
+        _planTools.RecAdd("00001", "MyRec", "desc");
+
+        var result = _planTools.RecSet("00001", "MyRec", "nonexistent", "value");
+
+        Assert.Contains("Error:", result);
+        Assert.Contains("Unknown field", result);
+    }
+
+    [Fact]
+    public void RecSet_NotFound_ReturnsError()
+    {
+        CreateTestPlan();
+
+        var result = _planTools.RecSet("00001", "NonExistent", "description", "value");
+
+        Assert.Contains("Error:", result);
     }
 }

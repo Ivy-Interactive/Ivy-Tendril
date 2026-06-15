@@ -5,7 +5,6 @@ using Ivy.Tendril.Apps.Onboarding.Models;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Apps.Views;
-using Ivy.Widgets.AgentOutputView;
 
 namespace Ivy.Tendril.Apps.Settings.Dialogs;
 
@@ -59,7 +58,7 @@ public class EditProjectDialog(
                     editColor.Set(Enum.TryParse<Colors>(project.Color, out var c) ? c : null);
                     editContext.Set(project.Context);
                     editRepos.Set(
-                        new List<RepoRef>(project.Repos.Select(r => new RepoRef { Path = r.Path, PrRule = r.PrRule, BaseBranch = r.BaseBranch, SyncStrategy = r.SyncStrategy })));
+                        new List<RepoRef>(project.Repos.Select(r => new RepoRef { Path = r.Path, PrRule = r.PrRule, BaseBranch = r.BaseBranch })));
                     editVerifications.Set(new List<ProjectVerificationRef>(
                         project.Verifications.Select(v => new ProjectVerificationRef
                         { Name = v.Name, Required = v.Required })));
@@ -97,7 +96,7 @@ public class EditProjectDialog(
             return draft with { Path = destPath };
         };
 
-        var verificationsLayout = Layout.Vertical().Gap(1);
+        var verificationsLayout = Layout.Vertical().Gap(2);
         var allVerificationsList = _config.Settings.Verifications.Select(v => v.Name).ToList();
         foreach (var vName in allVerificationsList)
         {
@@ -148,19 +147,21 @@ public class EditProjectDialog(
             new DialogBody(
                 Layout.Tabs(
                     new Tab("Basic",
-                        Layout.Vertical()
+                        Layout.Vertical().Gap(4)
+                        | Text.Block("Configure the project's name, color, and AI context.").Muted()
                         | editName.ToTextInput("Project name...").WithField().Label("Name")
                         | editColor.ToColorInput().Variant(ColorInputVariant.SwatchPicker).Nullable().WithField().Label("Color")
                         | editContext.ToTextareaInput("Project context or prompt for AI agents (optional)...").Rows(4)
                             .WithField().Label("Context / Prompt (Optional)")
                     ),
                     new Tab("Repositories",
-                        Layout.Vertical().Gap(2)
+                        Layout.Vertical().Gap(4)
+                        | Text.Block("Manage source code repositories for this project.").Muted()
                         | new ProjectRepoPickerView(editRepos, onAdd: cloneRemoteOnAdd, showBaseBranchPicker: true)
                     ),
                     new Tab("Review Actions",
-                        Layout.Vertical().Gap(2)
-                        | Text.Block("Commands that run during plan review (e.g., tests, linting).").Muted().Small()
+                        Layout.Vertical().Gap(4)
+                        | Text.Block("Commands that run during plan review (e.g., tests, linting).").Muted()
                         | new ReviewActionsTableView(editReviewActions, showReviewActionTrigger, showReviewActionAlert)
                         | new Button("Add Review Action").Icon(Icons.Plus).Outline()
                             .OnClick(() => showReviewActionTrigger(null))
@@ -168,7 +169,8 @@ public class EditProjectDialog(
                         | reviewActionAlertView
                     ),
                     new Tab("Verifications",
-                        Layout.Vertical().Gap(2)
+                        Layout.Vertical().Gap(4)
+                        | Text.Block("Quality checks required before plans are marked complete.").Muted()
                         | verificationsLayout
                     )
                 ).Variant(TabsVariant.Content).Width(Size.Full())
@@ -234,7 +236,7 @@ public class EditProjectDialog(
                         _refreshToken.Refresh();
                         _client.Toast($"Failed to save project: {ex.Message}", "Error");
                     }
-                    })
+                })
                     .WithTooltip(hasInvalidRepos ? "Fix or remove invalid repositories before saving" : null)
             )
         ).Width(Size.Rem(40));

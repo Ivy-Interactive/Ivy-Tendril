@@ -1,4 +1,7 @@
 using Ivy.Tendril.Apps.Drafts.Dialogs;
+using Ivy.Tendril.Apps.Settings;
+using Ivy.Tendril.Apps.Views.Dialogs;
+using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
@@ -11,7 +14,11 @@ public class CreatePlanDialogLauncher(Func<Action, object> renderTrigger) : View
         var jobService = UseService<IJobService>();
         var configService = UseService<IConfigService>();
         var navigator = UseNavigation();
-        var lastSelectedProjects = UseState<string[]>(["Auto"]);
+        var preferences = UseService<ICreatePlanPreferences>();
+        var showDirtyDialog = UseState(false);
+        var pendingJobArgs = UseState<CreatePlanArgs?>(null);
+        var (runPreflight, _, preflightResult) = Context.UsePreflightCheck();
+
         var (dialog, showDialog) = UseTrigger((isOpen) =>
         {
             if (!isOpen.Value) return null;
@@ -25,15 +32,57 @@ public class CreatePlanDialogLauncher(Func<Action, object> renderTrigger) : View
                 projectNames,
                 (description, projects, priority) =>
                 {
-                    lastSelectedProjects.Set(projects);
+                    preferences.LastSelectedProjects = projects;
                     var project = string.Join(",", projects);
-                    jobService.StartJob(new CreatePlanArgs(description, project, priority, Force: true));
+                    var args = new CreatePlanArgs(description, project, priority, Force: true);
+                    pendingJobArgs.Set(args);
+                    isOpen.Set(false);
+                    runPreflight(project, result =>
+                    {
+                        if (result.DirtyRepos.Count > 0)
+                            showDirtyDialog.Set(true);
+                        else
+                            LaunchCreatePlan(args);
+                    });
                 },
                 () => isOpen.Set(false),
-                lastSelectedProjects.Value
+                preferences.LastSelectedProjects
             );
         });
 
-        return new Fragment(renderTrigger(() => showDialog()), dialog);
+        var dirtyRepoDialog = showDirtyDialog.Value && preflightResult is { DirtyRepos.Count: > 0 } && pendingJobArgs.Value is not null
+            ? new DirtyRepoDialog(
+                showDirtyDialog,
+                preflightResult,
+                proceedLabel: "Create Anyway",
+                contextMessage: "The plan will be based on this state, but ExecutePlan will branch from origin/<baseBranch>. Commit and push first if these changes should be included in the plan.",
+                onSyncRepos: () => LaunchWithSync(pendingJobArgs.Value, preflightResult),
+                onProceed: () => LaunchCreatePlan(pendingJobArgs.Value))
+            : null;
+
+        var elements = new List<object> { renderTrigger(() => showDialog()), dialog };
+        if (dirtyRepoDialog is not null)
+            elements.Add(dirtyRepoDialog);
+
+        return new Fragment(elements.ToArray());
+
+        void LaunchCreatePlan(CreatePlanArgs args)
+        {
+            jobService.StartJob(args);
+            pendingJobArgs.Set(null);
+        }
+
+        void LaunchWithSync(CreatePlanArgs args, PreflightResult preflight)
+        {
+            var syncJobIds = new List<string>();
+            foreach (var (repoPath, baseBranch, _) in preflight.DirtyRepos)
+            {
+                var jobId = jobService.StartJob(new SyncRepoArgs(repoPath, baseBranch));
+                syncJobIds.Add(jobId);
+            }
+
+            jobService.StartJob(args with { WaitForJobs = syncJobIds });
+            pendingJobArgs.Set(null);
+        }
     }
 }

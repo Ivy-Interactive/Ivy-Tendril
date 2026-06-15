@@ -1,4 +1,5 @@
 using Ivy.Core.Hooks;
+using Ivy.Tendril.Apps.Agent;
 
 namespace Ivy.Tendril.Apps.Drafts.Dialogs;
 
@@ -22,8 +23,25 @@ public class CreatePlanDialog(
         _ => 0
     };
 
+    // Builds the seed prompt for the "Continue with Agent" flow. The description is
+    // trimmed, a single project reads "the project X", multiple read "the projects X or Y",
+    // and "Auto" lets the agent pick the project itself.
+    internal static string BuildAgentPrompt(string[] projects, string description)
+    {
+        var trimmed = description.Trim();
+        var realProjects = projects.Where(p => p != "Auto").ToArray();
+
+        if (realProjects.Length == 0)
+            return $"I want to discuss creating a Tendril plan from this description: \"{trimmed}\". Determine the most appropriate project for it yourself.";
+
+        var projectWord = realProjects.Length == 1 ? "project" : "projects";
+        var projectList = string.Join(" or ", realProjects);
+        return $"I want to discuss creating a Tendril plan for the {projectWord} {projectList} from this description: \"{trimmed}\"";
+    }
+
     public override object Build()
     {
+        var nav = UseNavigation();
         var isCreating = UseState(false);
         var createPlanText = UseState("");
         var selectedProjects = UseState(_defaultProjects);
@@ -61,6 +79,16 @@ public class CreatePlanDialog(
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(onClose),
+                new Button("Continue with Agent").Outline().Icon(Icons.MessageCircle).Disabled(string.IsNullOrWhiteSpace(createPlanText.Value)).OnClick(() =>
+                {
+                    if (string.IsNullOrWhiteSpace(createPlanText.Value)) return;
+                    var projects = selectedProjects.Value.Any()
+                        ? selectedProjects.Value
+                        : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
+                    var prompt = BuildAgentPrompt(projects, createPlanText.Value);
+                    nav.Navigate<AgentApp>(new AgentAppArgs(prompt));
+                    onClose();
+                }),
                 new Button("Create").Primary().Disabled(isCreating.Value || string.IsNullOrWhiteSpace(createPlanText.Value)).ShortcutKey("Ctrl+Enter").OnClick(() =>
                 {
                     if (!string.IsNullOrWhiteSpace(createPlanText.Value) && !isCreating.Value)
@@ -69,7 +97,7 @@ public class CreatePlanDialog(
                         var projects = selectedProjects.Value.Any()
                             ? selectedProjects.Value
                             : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
-                        onCreatePlan(createPlanText.Value, projects, ParsePriority(selectedPriority.Value));
+                        onCreatePlan(createPlanText.Value.Trim(), projects, ParsePriority(selectedPriority.Value));
                         onClose();
                     }
                 })

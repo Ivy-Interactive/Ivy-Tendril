@@ -1,6 +1,7 @@
 using System.ComponentModel;
+using System.Text;
+using System.Text.Json;
 using Ivy.Tendril.Helpers;
-using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -22,26 +23,34 @@ public class JobStatusSettings : CommandSettings
     [Description("Plan title to report")]
     [CommandOption("--plan-title")]
     public string? PlanTitle { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.RequireNonEmpty(JobId, "job-id");
+    }
 }
 
 public class JobStatusCommand : Command<JobStatusSettings>
 {
-    private readonly ILogger<JobStatusCommand> _logger;
-
-    public JobStatusCommand(ILogger<JobStatusCommand> logger) => _logger = logger;
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
 
     protected override int Execute(CommandContext context, JobStatusSettings settings, CancellationToken cancellationToken)
     {
-        try
-        {
-            var statusFile = JobStatusFile.GetStatusFilePath(settings.JobId);
-            JobStatusFile.Write(statusFile, settings.Message, settings.PlanId, settings.PlanTitle);
-            return 0;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to write job status for {JobId}", settings.JobId);
-            return 1;
-        }
+        var discovery = MasterClient.Discover();
+        using var client = MasterClient.CreateHttpClient(discovery);
+
+        var payload = new { message = settings.Message, planId = settings.PlanId, planTitle = settings.PlanTitle };
+        var json = JsonSerializer.Serialize(payload, JsonOptions);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        var response = client.PutAsync($"{discovery.BaseUrl}/api/jobs/{settings.JobId}/status", content, cancellationToken)
+            .GetAwaiter().GetResult();
+        response.EnsureSuccessStatusCode();
+
+        Console.WriteLine($"Status updated for job {settings.JobId}");
+        return 0;
     }
 }

@@ -133,6 +133,16 @@ public class UseStartJobTests
             return new List<JobItem>();
         }
 
+        public List<JobItem> GetJobsForPlan(string planFile)
+        {
+            return new List<JobItem>();
+        }
+
+        public bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null)
+        {
+            return false;
+        }
+
         public bool IsInboxFileTracked(string filePath)
         {
             return false;

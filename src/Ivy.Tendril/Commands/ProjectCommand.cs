@@ -1,6 +1,6 @@
 using System.ComponentModel;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
-using Microsoft.Extensions.Logging;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -23,6 +23,11 @@ public class ProjectAddSettings : CommandSettings
     [CommandOption("--context")]
     [Description("Project context/prompt")]
     public string? Context { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.RequireNonEmpty(Name, "name");
+    }
 }
 
 public class ProjectGetSettings : CommandSettings
@@ -30,6 +35,11 @@ public class ProjectGetSettings : CommandSettings
     [Description("Project name")]
     [CommandArgument(0, "<name>")]
     public string Name { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.RequireNonEmpty(Name, "name");
+    }
 }
 
 public class ProjectRemoveSettings : CommandSettings
@@ -37,10 +47,17 @@ public class ProjectRemoveSettings : CommandSettings
     [Description("Project name")]
     [CommandArgument(0, "<name>")]
     public string Name { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.RequireNonEmpty(Name, "name");
+    }
 }
 
 public class ProjectSetSettings : CommandSettings
 {
+    private static readonly string[] ValidFields = ["name", "color", "context"];
+
     [Description("Project name")]
     [CommandArgument(0, "<name>")]
     public string Name { get; set; } = "";
@@ -52,6 +69,14 @@ public class ProjectSetSettings : CommandSettings
     [Description("Field value")]
     [CommandArgument(2, "<value>")]
     public string Value { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(Name, "name"),
+            CliValidation.ValidateField(Field, ValidFields)
+        );
+    }
 }
 
 public class ProjectAddRepoSettings : CommandSettings
@@ -65,16 +90,21 @@ public class ProjectAddRepoSettings : CommandSettings
     public string RepoPath { get; set; } = "";
 
     [CommandOption("--pr-rule")]
-    [Description("PR rule (default, yolo)")]
+    [Description("PR rule: default, yolo")]
     public string? PrRule { get; set; }
 
     [CommandOption("--base-branch")]
     [Description("Base branch name")]
     public string? BaseBranch { get; set; }
 
-    [CommandOption("--sync-strategy")]
-    [Description("Sync strategy (fetch, pull)")]
-    public string? SyncStrategy { get; set; }
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(RepoPath, "repo-path"),
+            CliValidation.ValidateOneOf(PrRule, "--pr-rule", CliValidation.ValidPrRules)
+        );
+    }
 }
 
 public class ProjectRemoveRepoSettings : CommandSettings
@@ -86,6 +116,13 @@ public class ProjectRemoveRepoSettings : CommandSettings
     [Description("Repository path")]
     [CommandArgument(1, "<repo-path>")]
     public string RepoPath { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(RepoPath, "repo-path"));
+    }
 }
 
 public class ProjectAddVerificationSettings : CommandSettings
@@ -105,6 +142,13 @@ public class ProjectAddVerificationSettings : CommandSettings
     [CommandOption("--after")]
     [Description("Place after this verification (default: append to end)")]
     public string? After { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(VerificationName, "verification-name"));
+    }
 }
 
 public class ProjectRemoveVerificationSettings : CommandSettings
@@ -116,6 +160,13 @@ public class ProjectRemoveVerificationSettings : CommandSettings
     [Description("Verification name")]
     [CommandArgument(1, "<verification-name>")]
     public string VerificationName { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(VerificationName, "verification-name"));
+    }
 }
 
 public class ProjectMoveVerificationSettings : CommandSettings
@@ -139,6 +190,13 @@ public class ProjectMoveVerificationSettings : CommandSettings
     [CommandOption("--position")]
     [Description("Place at this zero-based index position")]
     public int? Position { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(VerificationName, "verification-name"));
+    }
 }
 
 public class ProjectAddBuildDepSettings : CommandSettings
@@ -150,6 +208,13 @@ public class ProjectAddBuildDepSettings : CommandSettings
     [Description("Build dependency")]
     [CommandArgument(1, "<dependency>")]
     public string Dependency { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(Dependency, "dependency"));
+    }
 }
 
 public class ProjectRemoveBuildDepSettings : CommandSettings
@@ -161,6 +226,13 @@ public class ProjectRemoveBuildDepSettings : CommandSettings
     [Description("Build dependency")]
     [CommandArgument(1, "<dependency>")]
     public string Dependency { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(Dependency, "dependency"));
+    }
 }
 
 public class ProjectAddReviewActionSettings : CommandSettings
@@ -180,6 +252,13 @@ public class ProjectAddReviewActionSettings : CommandSettings
     [CommandOption("--condition")]
     [Description("Condition expression (e.g. Test-Path \"...\")")]
     public string? Condition { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(Name, "name"));
+    }
 }
 
 public class ProjectRemoveReviewActionSettings : CommandSettings
@@ -191,685 +270,443 @@ public class ProjectRemoveReviewActionSettings : CommandSettings
     [Description("Review action name")]
     [CommandArgument(1, "<name>")]
     public string Name { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(Name, "name"));
+    }
 }
 
 // --- Commands ---
 
 public class ProjectListCommand : Command<ProjectListSettings>
 {
-    private readonly ILogger<ProjectListCommand> _logger;
-
-    public ProjectListCommand(ILogger<ProjectListCommand> logger) => _logger = logger;
-
     protected override int Execute(CommandContext context, ProjectListSettings settings, CancellationToken cancellationToken)
     {
-        try
+        var config = new ConfigService();
+        var projects = config.Settings.Projects;
+
+        if (projects.Count == 0)
         {
-            var config = new ConfigService();
-            var projects = config.Settings.Projects;
-
-            if (projects.Count == 0)
-            {
-                AnsiConsole.MarkupLine("[dim]No projects found.[/]");
-                return 0;
-            }
-
-            foreach (var p in projects)
-                AnsiConsole.MarkupLine(p.Name.EscapeMarkup());
+            AnsiConsole.MarkupLine("[dim]No projects found.[/]");
             return 0;
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to list projects");
-            return 1;
-        }
+
+        foreach (var p in projects)
+            AnsiConsole.MarkupLine(p.Name.EscapeMarkup());
+        return 0;
     }
 }
 
 public class ProjectGetCommand : Command<ProjectGetSettings>
 {
-    private readonly ILogger<ProjectGetCommand> _logger;
-
-    public ProjectGetCommand(ILogger<ProjectGetCommand> logger) => _logger = logger;
-
     protected override int Execute(CommandContext context, ProjectGetSettings settings, CancellationToken cancellationToken)
     {
-        try
+        var config = new ConfigService();
+        var project = config.Settings.Projects
+            .FirstOrDefault(p => p.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
+
+        if (project == null)
+            throw new InvalidOperationException($"Project not found: {settings.Name}");
+
+        AnsiConsole.MarkupLine($"[bold]{project.Name.EscapeMarkup()}[/]");
+        if (!string.IsNullOrEmpty(project.Color))
+            AnsiConsole.MarkupLine($"  Color: {project.Color.EscapeMarkup()}");
+        if (!string.IsNullOrEmpty(project.Context))
+            AnsiConsole.MarkupLine($"  Context: {project.Context.EscapeMarkup()}");
+
+        if (project.Repos.Count > 0)
         {
-            var config = new ConfigService();
-            var project = config.Settings.Projects
-                .FirstOrDefault(p => p.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
-
-            if (project == null)
-            {
-                _logger.LogError("Project not found: {Name}", settings.Name);
-                return 1;
-            }
-
-            AnsiConsole.MarkupLine($"[bold]{project.Name.EscapeMarkup()}[/]");
-            if (!string.IsNullOrEmpty(project.Color))
-                AnsiConsole.MarkupLine($"  Color: {project.Color.EscapeMarkup()}");
-            if (!string.IsNullOrEmpty(project.Context))
-                AnsiConsole.MarkupLine($"  Context: {project.Context.EscapeMarkup()}");
-
-            if (project.Repos.Count > 0)
-            {
-                AnsiConsole.MarkupLine("\n[bold]Repositories[/]");
-                var repoTable = new Spectre.Console.Table();
-                repoTable.AddColumn("Path");
-                repoTable.AddColumn("PR Rule");
-                repoTable.AddColumn("Base Branch");
-                repoTable.AddColumn("Sync");
-                foreach (var r in project.Repos)
-                    repoTable.AddRow(
-                        r.Path.EscapeMarkup(),
-                        r.PrRule.EscapeMarkup(),
-                        (r.BaseBranch ?? "-").EscapeMarkup(),
-                        r.SyncStrategy.EscapeMarkup());
-                AnsiConsole.Write(repoTable);
-            }
-
-            if (project.Verifications.Count > 0)
-            {
-                AnsiConsole.MarkupLine("\n[bold]Verifications[/]");
-                var verTable = new Spectre.Console.Table();
-                verTable.AddColumn("Name");
-                verTable.AddColumn("Required");
-                foreach (var v in project.Verifications)
-                    verTable.AddRow(v.Name.EscapeMarkup(), v.Required ? "Yes" : "No");
-                AnsiConsole.Write(verTable);
-            }
-
-            if (project.ReviewActions.Count > 0)
-            {
-                AnsiConsole.MarkupLine("\n[bold]Review Actions[/]");
-                var raTable = new Spectre.Console.Table();
-                raTable.AddColumn("Name");
-                raTable.AddColumn("Command");
-                raTable.AddColumn("Condition");
-                foreach (var ra in project.ReviewActions)
-                    raTable.AddRow(
-                        ra.Name.EscapeMarkup(),
-                        ra.Command.EscapeMarkup(),
-                        ra.Condition.EscapeMarkup());
-                AnsiConsole.Write(raTable);
-            }
-
-            if (project.BuildDependencies.Count > 0)
-            {
-                AnsiConsole.MarkupLine("\n[bold]Build Dependencies[/]");
-                foreach (var dep in project.BuildDependencies)
-                    AnsiConsole.MarkupLine($"  - {dep.EscapeMarkup()}");
-            }
-
-            return 0;
+            AnsiConsole.MarkupLine("\n[bold]Repositories[/]");
+            var repoTable = new Spectre.Console.Table();
+            repoTable.AddColumn("Path");
+            repoTable.AddColumn("PR Rule");
+            repoTable.AddColumn("Base Branch");
+            foreach (var r in project.Repos)
+                repoTable.AddRow(
+                    r.Path.EscapeMarkup(),
+                    r.PrRule.EscapeMarkup(),
+                    (r.BaseBranch ?? "-").EscapeMarkup());
+            AnsiConsole.Write(repoTable);
         }
-        catch (Exception ex)
+
+        if (project.Verifications.Count > 0)
         {
-            _logger.LogError(ex, "Failed to get project");
-            return 1;
+            AnsiConsole.MarkupLine("\n[bold]Verifications[/]");
+            var verTable = new Spectre.Console.Table();
+            verTable.AddColumn("Name");
+            verTable.AddColumn("Required");
+            foreach (var v in project.Verifications)
+                verTable.AddRow(v.Name.EscapeMarkup(), v.Required ? "Yes" : "No");
+            AnsiConsole.Write(verTable);
         }
+
+        if (project.ReviewActions.Count > 0)
+        {
+            AnsiConsole.MarkupLine("\n[bold]Review Actions[/]");
+            var raTable = new Spectre.Console.Table();
+            raTable.AddColumn("Name");
+            raTable.AddColumn("Command");
+            raTable.AddColumn("Condition");
+            foreach (var ra in project.ReviewActions)
+                raTable.AddRow(
+                    ra.Name.EscapeMarkup(),
+                    ra.Command.EscapeMarkup(),
+                    ra.Condition.EscapeMarkup());
+            AnsiConsole.Write(raTable);
+        }
+
+        if (project.BuildDependencies.Count > 0)
+        {
+            AnsiConsole.MarkupLine("\n[bold]Build Dependencies[/]");
+            foreach (var dep in project.BuildDependencies)
+                AnsiConsole.MarkupLine($"  - {dep.EscapeMarkup()}");
+        }
+
+        return 0;
     }
 }
 
 public class ProjectAddCommand : Command<ProjectAddSettings>
 {
-    private readonly ILogger<ProjectAddCommand> _logger;
-
-    public ProjectAddCommand(ILogger<ProjectAddCommand> logger) => _logger = logger;
-
     protected override int Execute(CommandContext context, ProjectAddSettings settings, CancellationToken cancellationToken)
     {
-        try
+        var config = new ConfigService();
+
+        if (config.Settings.Projects.Any(p => p.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException($"Project already exists: {settings.Name}");
+
+        config.Settings.Projects.Add(new ProjectConfig
         {
-            var config = new ConfigService();
+            Name = settings.Name,
+            Color = settings.Color ?? "",
+            Context = settings.Context ?? ""
+        });
 
-            if (config.Settings.Projects.Any(p => p.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase)))
-            {
-                _logger.LogError("Project already exists: {Name}", settings.Name);
-                return 1;
-            }
-
-            config.Settings.Projects.Add(new ProjectConfig
-            {
-                Name = settings.Name,
-                Color = settings.Color ?? "",
-                Context = settings.Context ?? ""
-            });
-
-            config.SaveSettings();
-            _logger.LogInformation("Added project: {Name}", settings.Name);
-            return 0;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to add project");
-            return 1;
-        }
+        config.SaveSettings();
+        Console.WriteLine($"Added project: {settings.Name}");
+        return 0;
     }
 }
 
 public class ProjectRemoveCommand : Command<ProjectRemoveSettings>
 {
-    private readonly ILogger<ProjectRemoveCommand> _logger;
-
-    public ProjectRemoveCommand(ILogger<ProjectRemoveCommand> logger) => _logger = logger;
-
     protected override int Execute(CommandContext context, ProjectRemoveSettings settings, CancellationToken cancellationToken)
     {
-        try
-        {
-            var config = new ConfigService();
-            var match = config.Settings.Projects
-                .FirstOrDefault(p => p.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
+        var config = new ConfigService();
+        var match = config.Settings.Projects
+            .FirstOrDefault(p => p.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
 
-            if (match == null)
-            {
-                _logger.LogError("Project not found: {Name}", settings.Name);
-                return 1;
-            }
+        if (match == null)
+            throw new InvalidOperationException($"Project not found: {settings.Name}");
 
-            config.Settings.Projects.Remove(match);
-            config.SaveSettings();
-            _logger.LogInformation("Removed project: {Name}", settings.Name);
-            return 0;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to remove project");
-            return 1;
-        }
+        config.Settings.Projects.Remove(match);
+        config.SaveSettings();
+        Console.WriteLine($"Removed project: {settings.Name}");
+        return 0;
     }
 }
 
 public class ProjectSetCommand : Command<ProjectSetSettings>
 {
-    private readonly ILogger<ProjectSetCommand> _logger;
-
-    public ProjectSetCommand(ILogger<ProjectSetCommand> logger) => _logger = logger;
-
     protected override int Execute(CommandContext context, ProjectSetSettings settings, CancellationToken cancellationToken)
     {
-        try
+        var config = new ConfigService();
+        var match = config.Settings.Projects
+            .FirstOrDefault(p => p.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
+
+        if (match == null)
+            throw new InvalidOperationException($"Project not found: {settings.Name}");
+
+        switch (settings.Field.ToLower())
         {
-            var config = new ConfigService();
-            var match = config.Settings.Projects
-                .FirstOrDefault(p => p.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
-
-            if (match == null)
-            {
-                _logger.LogError("Project not found: {Name}", settings.Name);
-                return 1;
-            }
-
-            switch (settings.Field.ToLower())
-            {
-                case "name":
-                    match.Name = settings.Value;
-                    break;
-                case "color":
-                    match.Color = settings.Value;
-                    break;
-                case "context":
-                    match.Context = settings.Value;
-                    break;
-                default:
-                    _logger.LogError("Unknown field: {Field}. Valid fields: name, color, context", settings.Field);
-                    return 1;
-            }
-
-            config.SaveSettings();
-            _logger.LogInformation("Updated project {Field} to '{Value}'", settings.Field, settings.Value);
-            return 0;
+            case "name":
+                match.Name = settings.Value;
+                break;
+            case "color":
+                match.Color = settings.Value;
+                break;
+            case "context":
+                match.Context = settings.Value;
+                break;
+            default:
+                throw new ArgumentException($"Unknown field: {settings.Field}. Valid fields: name, color, context");
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to update project");
-            return 1;
-        }
+
+        config.SaveSettings();
+        Console.WriteLine($"Updated project {settings.Field} to '{settings.Value}'");
+        return 0;
     }
 }
 
 public class ProjectAddRepoCommand : Command<ProjectAddRepoSettings>
 {
-    private readonly ILogger<ProjectAddRepoCommand> _logger;
-
-    public ProjectAddRepoCommand(ILogger<ProjectAddRepoCommand> logger) => _logger = logger;
-
     protected override int Execute(CommandContext context, ProjectAddRepoSettings settings, CancellationToken cancellationToken)
     {
-        try
+        var config = new ConfigService();
+        var project = config.Settings.Projects
+            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+        if (project == null)
+            throw new InvalidOperationException($"Project not found: {settings.ProjectName}");
+
+        if (project.GetRepoRef(settings.RepoPath) != null)
+            throw new InvalidOperationException($"Repository already exists in project: {settings.RepoPath}");
+
+        if (!string.IsNullOrWhiteSpace(settings.BaseBranch))
         {
-            var config = new ConfigService();
-            var project = config.Settings.Projects
-                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
-
-            if (project == null)
-            {
-                _logger.LogError("Project not found: {Name}", settings.ProjectName);
-                return 1;
-            }
-
-            if (project.GetRepoRef(settings.RepoPath) != null)
-            {
-                _logger.LogError("Repository already exists in project: {Path}", settings.RepoPath);
-                return 1;
-            }
-
-            if (!string.IsNullOrWhiteSpace(settings.BaseBranch))
-            {
-                var isValid = Ivy.Tendril.Helpers.GitHelper.IsValidBranchAsync(settings.RepoPath, settings.BaseBranch, config.TendrilHome).GetAwaiter().GetResult();
-                if (!isValid)
-                {
-                    _logger.LogError("Branch '{Branch}' does not exist in repository: {Path}", settings.BaseBranch, settings.RepoPath);
-                    return 1;
-                }
-            }
-
-            project.Repos.Add(new RepoRef
-            {
-                Path = settings.RepoPath,
-                PrRule = settings.PrRule ?? "default",
-                BaseBranch = settings.BaseBranch,
-                SyncStrategy = settings.SyncStrategy ?? "fetch"
-            });
-
-            config.SaveSettings();
-            _logger.LogInformation("Added repository: {Path}", settings.RepoPath);
-            return 0;
+            var isValid = Ivy.Tendril.Helpers.GitHelper.IsValidBranchAsync(settings.RepoPath, settings.BaseBranch, config.TendrilHome).GetAwaiter().GetResult();
+            if (!isValid)
+                throw new InvalidOperationException($"Branch '{settings.BaseBranch}' does not exist in repository: {settings.RepoPath}");
         }
-        catch (Exception ex)
+
+        project.Repos.Add(new RepoRef
         {
-            _logger.LogError(ex, "Failed to add repository to project");
-            return 1;
-        }
+            Path = settings.RepoPath,
+            PrRule = settings.PrRule ?? "default",
+            BaseBranch = settings.BaseBranch
+        });
+
+        config.SaveSettings();
+        Console.WriteLine($"Added repository: {settings.RepoPath}");
+        return 0;
     }
 }
 
 public class ProjectRemoveRepoCommand : Command<ProjectRemoveRepoSettings>
 {
-    private readonly ILogger<ProjectRemoveRepoCommand> _logger;
-
-    public ProjectRemoveRepoCommand(ILogger<ProjectRemoveRepoCommand> logger) => _logger = logger;
-
     protected override int Execute(CommandContext context, ProjectRemoveRepoSettings settings, CancellationToken cancellationToken)
     {
-        try
-        {
-            var config = new ConfigService();
-            var project = config.Settings.Projects
-                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+        var config = new ConfigService();
+        var project = config.Settings.Projects
+            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
-            if (project == null)
-            {
-                _logger.LogError("Project not found: {Name}", settings.ProjectName);
-                return 1;
-            }
+        if (project == null)
+            throw new InvalidOperationException($"Project not found: {settings.ProjectName}");
 
-            var match = project.GetRepoRef(settings.RepoPath);
-            if (match == null)
-            {
-                _logger.LogError("Repository not found in project: {Path}", settings.RepoPath);
-                return 1;
-            }
+        var match = project.GetRepoRef(settings.RepoPath);
+        if (match == null)
+            throw new InvalidOperationException($"Repository not found in project: {settings.RepoPath}");
 
-            project.Repos.Remove(match);
-            config.SaveSettings();
-            _logger.LogInformation("Removed repository: {Path}", settings.RepoPath);
-            return 0;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to remove repository from project");
-            return 1;
-        }
+        project.Repos.Remove(match);
+        config.SaveSettings();
+        Console.WriteLine($"Removed repository: {settings.RepoPath}");
+        return 0;
     }
 }
 
 public class ProjectAddVerificationCommand : Command<ProjectAddVerificationSettings>
 {
-    private readonly ILogger<ProjectAddVerificationCommand> _logger;
-
-    public ProjectAddVerificationCommand(ILogger<ProjectAddVerificationCommand> logger) => _logger = logger;
-
     protected override int Execute(CommandContext context, ProjectAddVerificationSettings settings, CancellationToken cancellationToken)
     {
-        try
+        var config = new ConfigService();
+        var project = config.Settings.Projects
+            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+        if (project == null)
+            throw new InvalidOperationException($"Project not found: {settings.ProjectName}");
+
+        if (project.Verifications.Any(v => v.Name.Equals(settings.VerificationName, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException($"Verification already exists in project: {settings.VerificationName}");
+
+        var newRef = new ProjectVerificationRef
         {
-            var config = new ConfigService();
-            var project = config.Settings.Projects
-                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+            Name = settings.VerificationName,
+            Required = settings.Required
+        };
 
-            if (project == null)
-            {
-                _logger.LogError("Project not found: {Name}", settings.ProjectName);
-                return 1;
-            }
-
-            if (project.Verifications.Any(v => v.Name.Equals(settings.VerificationName, StringComparison.OrdinalIgnoreCase)))
-            {
-                _logger.LogError("Verification already exists in project: {Name}", settings.VerificationName);
-                return 1;
-            }
-
-            var newRef = new ProjectVerificationRef
-            {
-                Name = settings.VerificationName,
-                Required = settings.Required
-            };
-
-            if (!string.IsNullOrEmpty(settings.After))
-            {
-                var afterIndex = project.Verifications
-                    .FindIndex(v => v.Name.Equals(settings.After, StringComparison.OrdinalIgnoreCase));
-                if (afterIndex < 0)
-                {
-                    _logger.LogError("Verification not found for --after: {Name}", settings.After);
-                    return 1;
-                }
-                project.Verifications.Insert(afterIndex + 1, newRef);
-            }
-            else
-            {
-                project.Verifications.Add(newRef);
-            }
-
-            config.SaveSettings();
-            _logger.LogInformation("Added verification: {Name}", settings.VerificationName);
-            return 0;
-        }
-        catch (Exception ex)
+        if (!string.IsNullOrEmpty(settings.After))
         {
-            _logger.LogError(ex, "Failed to add verification to project");
-            return 1;
+            var afterIndex = project.Verifications
+                .FindIndex(v => v.Name.Equals(settings.After, StringComparison.OrdinalIgnoreCase));
+            if (afterIndex < 0)
+                throw new InvalidOperationException($"Verification not found for --after: {settings.After}");
+            project.Verifications.Insert(afterIndex + 1, newRef);
         }
+        else
+        {
+            project.Verifications.Add(newRef);
+        }
+
+        config.SaveSettings();
+        Console.WriteLine($"Added verification: {settings.VerificationName}");
+        return 0;
     }
 }
 
 public class ProjectRemoveVerificationCommand : Command<ProjectRemoveVerificationSettings>
 {
-    private readonly ILogger<ProjectRemoveVerificationCommand> _logger;
-
-    public ProjectRemoveVerificationCommand(ILogger<ProjectRemoveVerificationCommand> logger) => _logger = logger;
-
     protected override int Execute(CommandContext context, ProjectRemoveVerificationSettings settings, CancellationToken cancellationToken)
     {
-        try
-        {
-            var config = new ConfigService();
-            var project = config.Settings.Projects
-                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+        var config = new ConfigService();
+        var project = config.Settings.Projects
+            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
-            if (project == null)
-            {
-                _logger.LogError("Project not found: {Name}", settings.ProjectName);
-                return 1;
-            }
+        if (project == null)
+            throw new InvalidOperationException($"Project not found: {settings.ProjectName}");
 
-            var match = project.Verifications
-                .FirstOrDefault(v => v.Name.Equals(settings.VerificationName, StringComparison.OrdinalIgnoreCase));
+        var match = project.Verifications
+            .FirstOrDefault(v => v.Name.Equals(settings.VerificationName, StringComparison.OrdinalIgnoreCase));
 
-            if (match == null)
-            {
-                _logger.LogError("Verification not found in project: {Name}", settings.VerificationName);
-                return 1;
-            }
+        if (match == null)
+            throw new InvalidOperationException($"Verification not found in project: {settings.VerificationName}");
 
-            project.Verifications.Remove(match);
-            config.SaveSettings();
-            _logger.LogInformation("Removed verification: {Name}", settings.VerificationName);
-            return 0;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to remove verification from project");
-            return 1;
-        }
+        project.Verifications.Remove(match);
+        config.SaveSettings();
+        Console.WriteLine($"Removed verification: {settings.VerificationName}");
+        return 0;
     }
 }
 
 public class ProjectMoveVerificationCommand : Command<ProjectMoveVerificationSettings>
 {
-    private readonly ILogger<ProjectMoveVerificationCommand> _logger;
-
-    public ProjectMoveVerificationCommand(ILogger<ProjectMoveVerificationCommand> logger) => _logger = logger;
-
     protected override int Execute(CommandContext context, ProjectMoveVerificationSettings settings, CancellationToken cancellationToken)
     {
-        try
+        var optionCount = (settings.Before != null ? 1 : 0) + (settings.After != null ? 1 : 0) + (settings.Position != null ? 1 : 0);
+        if (optionCount != 1)
+            throw new ArgumentException("Specify exactly one of --before, --after, or --position");
+
+        var config = new ConfigService();
+        var project = config.Settings.Projects
+            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+        if (project == null)
+            throw new InvalidOperationException($"Project not found: {settings.ProjectName}");
+
+        var item = project.Verifications
+            .FirstOrDefault(v => v.Name.Equals(settings.VerificationName, StringComparison.OrdinalIgnoreCase));
+
+        if (item == null)
+            throw new InvalidOperationException($"Verification not found in project: {settings.VerificationName}");
+
+        project.Verifications.Remove(item);
+
+        int insertIndex;
+        if (settings.Before != null)
         {
-            var optionCount = (settings.Before != null ? 1 : 0) + (settings.After != null ? 1 : 0) + (settings.Position != null ? 1 : 0);
-            if (optionCount != 1)
+            var targetIndex = project.Verifications
+                .FindIndex(v => v.Name.Equals(settings.Before, StringComparison.OrdinalIgnoreCase));
+            if (targetIndex < 0)
             {
-                _logger.LogError("Specify exactly one of --before, --after, or --position");
-                return 1;
+                project.Verifications.Add(item);
+                throw new InvalidOperationException($"Target verification not found for --before: {settings.Before}");
             }
-
-            var config = new ConfigService();
-            var project = config.Settings.Projects
-                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
-
-            if (project == null)
-            {
-                _logger.LogError("Project not found: {Name}", settings.ProjectName);
-                return 1;
-            }
-
-            var item = project.Verifications
-                .FirstOrDefault(v => v.Name.Equals(settings.VerificationName, StringComparison.OrdinalIgnoreCase));
-
-            if (item == null)
-            {
-                _logger.LogError("Verification not found in project: {Name}", settings.VerificationName);
-                return 1;
-            }
-
-            project.Verifications.Remove(item);
-
-            int insertIndex;
-            if (settings.Before != null)
-            {
-                var targetIndex = project.Verifications
-                    .FindIndex(v => v.Name.Equals(settings.Before, StringComparison.OrdinalIgnoreCase));
-                if (targetIndex < 0)
-                {
-                    project.Verifications.Add(item);
-                    _logger.LogError("Target verification not found for --before: {Name}", settings.Before);
-                    return 1;
-                }
-                insertIndex = targetIndex;
-            }
-            else if (settings.After != null)
-            {
-                var targetIndex = project.Verifications
-                    .FindIndex(v => v.Name.Equals(settings.After, StringComparison.OrdinalIgnoreCase));
-                if (targetIndex < 0)
-                {
-                    project.Verifications.Add(item);
-                    _logger.LogError("Target verification not found for --after: {Name}", settings.After);
-                    return 1;
-                }
-                insertIndex = targetIndex + 1;
-            }
-            else
-            {
-                insertIndex = Math.Clamp(settings.Position!.Value, 0, project.Verifications.Count);
-            }
-
-            project.Verifications.Insert(insertIndex, item);
-            config.SaveSettings();
-            _logger.LogInformation("Moved verification '{Name}' to position {Position}", settings.VerificationName, insertIndex);
-            return 0;
+            insertIndex = targetIndex;
         }
-        catch (Exception ex)
+        else if (settings.After != null)
         {
-            _logger.LogError(ex, "Failed to move verification in project");
-            return 1;
+            var targetIndex = project.Verifications
+                .FindIndex(v => v.Name.Equals(settings.After, StringComparison.OrdinalIgnoreCase));
+            if (targetIndex < 0)
+            {
+                project.Verifications.Add(item);
+                throw new InvalidOperationException($"Target verification not found for --after: {settings.After}");
+            }
+            insertIndex = targetIndex + 1;
         }
+        else
+        {
+            insertIndex = Math.Clamp(settings.Position!.Value, 0, project.Verifications.Count);
+        }
+
+        project.Verifications.Insert(insertIndex, item);
+        config.SaveSettings();
+        Console.WriteLine($"Moved verification '{settings.VerificationName}' to position {insertIndex}");
+        return 0;
     }
 }
 
 public class ProjectAddBuildDepCommand : Command<ProjectAddBuildDepSettings>
 {
-    private readonly ILogger<ProjectAddBuildDepCommand> _logger;
-
-    public ProjectAddBuildDepCommand(ILogger<ProjectAddBuildDepCommand> logger) => _logger = logger;
-
     protected override int Execute(CommandContext context, ProjectAddBuildDepSettings settings, CancellationToken cancellationToken)
     {
-        try
-        {
-            var config = new ConfigService();
-            var project = config.Settings.Projects
-                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+        var config = new ConfigService();
+        var project = config.Settings.Projects
+            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
-            if (project == null)
-            {
-                _logger.LogError("Project not found: {Name}", settings.ProjectName);
-                return 1;
-            }
+        if (project == null)
+            throw new InvalidOperationException($"Project not found: {settings.ProjectName}");
 
-            if (project.BuildDependencies.Contains(settings.Dependency, StringComparer.OrdinalIgnoreCase))
-            {
-                _logger.LogError("Build dependency already exists: {Dependency}", settings.Dependency);
-                return 1;
-            }
+        if (project.BuildDependencies.Contains(settings.Dependency, StringComparer.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"Build dependency already exists: {settings.Dependency}");
 
-            project.BuildDependencies.Add(settings.Dependency);
-            config.SaveSettings();
-            _logger.LogInformation("Added build dependency: {Dependency}", settings.Dependency);
-            return 0;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to add build dependency to project");
-            return 1;
-        }
+        project.BuildDependencies.Add(settings.Dependency);
+        config.SaveSettings();
+        Console.WriteLine($"Added build dependency: {settings.Dependency}");
+        return 0;
     }
 }
 
 public class ProjectRemoveBuildDepCommand : Command<ProjectRemoveBuildDepSettings>
 {
-    private readonly ILogger<ProjectRemoveBuildDepCommand> _logger;
-
-    public ProjectRemoveBuildDepCommand(ILogger<ProjectRemoveBuildDepCommand> logger) => _logger = logger;
-
     protected override int Execute(CommandContext context, ProjectRemoveBuildDepSettings settings, CancellationToken cancellationToken)
     {
-        try
-        {
-            var config = new ConfigService();
-            var project = config.Settings.Projects
-                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+        var config = new ConfigService();
+        var project = config.Settings.Projects
+            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
-            if (project == null)
-            {
-                _logger.LogError("Project not found: {Name}", settings.ProjectName);
-                return 1;
-            }
+        if (project == null)
+            throw new InvalidOperationException($"Project not found: {settings.ProjectName}");
 
-            var removed = project.BuildDependencies.RemoveAll(d => d.Equals(settings.Dependency, StringComparison.OrdinalIgnoreCase));
-            if (removed == 0)
-            {
-                _logger.LogError("Build dependency not found: {Dependency}", settings.Dependency);
-                return 1;
-            }
+        var removed = project.BuildDependencies.RemoveAll(d => d.Equals(settings.Dependency, StringComparison.OrdinalIgnoreCase));
+        if (removed == 0)
+            throw new InvalidOperationException($"Build dependency not found: {settings.Dependency}");
 
-            config.SaveSettings();
-            _logger.LogInformation("Removed build dependency: {Dependency}", settings.Dependency);
-            return 0;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to remove build dependency from project");
-            return 1;
-        }
+        config.SaveSettings();
+        Console.WriteLine($"Removed build dependency: {settings.Dependency}");
+        return 0;
     }
 }
 
 public class ProjectAddReviewActionCommand : Command<ProjectAddReviewActionSettings>
 {
-    private readonly ILogger<ProjectAddReviewActionCommand> _logger;
-
-    public ProjectAddReviewActionCommand(ILogger<ProjectAddReviewActionCommand> logger) => _logger = logger;
-
     protected override int Execute(CommandContext context, ProjectAddReviewActionSettings settings, CancellationToken cancellationToken)
     {
-        try
+        var config = new ConfigService();
+        var project = config.Settings.Projects
+            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+        if (project == null)
+            throw new InvalidOperationException($"Project not found: {settings.ProjectName}");
+
+        if (project.ReviewActions.Any(r => r.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException($"Review action already exists: {settings.Name}");
+
+        project.ReviewActions.Add(new ReviewActionConfig
         {
-            var config = new ConfigService();
-            var project = config.Settings.Projects
-                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+            Name = settings.Name,
+            Command = settings.Command ?? "",
+            Condition = settings.Condition ?? ""
+        });
 
-            if (project == null)
-            {
-                _logger.LogError("Project not found: {Name}", settings.ProjectName);
-                return 1;
-            }
-
-            if (project.ReviewActions.Any(r => r.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase)))
-            {
-                _logger.LogError("Review action already exists: {Name}", settings.Name);
-                return 1;
-            }
-
-            project.ReviewActions.Add(new ReviewActionConfig
-            {
-                Name = settings.Name,
-                Command = settings.Command ?? "",
-                Condition = settings.Condition ?? ""
-            });
-
-            config.SaveSettings();
-            _logger.LogInformation("Added review action: {Name}", settings.Name);
-            return 0;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to add review action to project");
-            return 1;
-        }
+        config.SaveSettings();
+        Console.WriteLine($"Added review action: {settings.Name}");
+        return 0;
     }
 }
 
 public class ProjectRemoveReviewActionCommand : Command<ProjectRemoveReviewActionSettings>
 {
-    private readonly ILogger<ProjectRemoveReviewActionCommand> _logger;
-
-    public ProjectRemoveReviewActionCommand(ILogger<ProjectRemoveReviewActionCommand> logger) => _logger = logger;
-
     protected override int Execute(CommandContext context, ProjectRemoveReviewActionSettings settings, CancellationToken cancellationToken)
     {
-        try
-        {
-            var config = new ConfigService();
-            var project = config.Settings.Projects
-                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+        var config = new ConfigService();
+        var project = config.Settings.Projects
+            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
-            if (project == null)
-            {
-                _logger.LogError("Project not found: {Name}", settings.ProjectName);
-                return 1;
-            }
+        if (project == null)
+            throw new InvalidOperationException($"Project not found: {settings.ProjectName}");
 
-            var match = project.ReviewActions
-                .FirstOrDefault(r => r.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
+        var match = project.ReviewActions
+            .FirstOrDefault(r => r.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
 
-            if (match == null)
-            {
-                _logger.LogError("Review action not found: {Name}", settings.Name);
-                return 1;
-            }
+        if (match == null)
+            throw new InvalidOperationException($"Review action not found: {settings.Name}");
 
-            project.ReviewActions.Remove(match);
-            config.SaveSettings();
-            _logger.LogInformation("Removed review action: {Name}", settings.Name);
-            return 0;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to remove review action from project");
-            return 1;
-        }
+        project.ReviewActions.Remove(match);
+        config.SaveSettings();
+        Console.WriteLine($"Removed review action: {settings.Name}");
+        return 0;
     }
 }

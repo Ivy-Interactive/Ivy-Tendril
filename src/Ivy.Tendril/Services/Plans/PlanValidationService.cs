@@ -15,15 +15,10 @@ public static class PlanValidationService
         nameof(PlanStatus.Failed), nameof(PlanStatus.Completed), nameof(PlanStatus.Skipped), nameof(PlanStatus.Blocked), nameof(PlanStatus.Icebox)
     ];
 
-    private static readonly string[] ValidLevels =
-    [
-        "Critical", "Bug", "NiceToHave", "Backlog", "Icebox"
-    ];
-
     /// <summary>
     ///     Validates a PlanYaml object. Throws ArgumentException with detailed error message on failure.
     /// </summary>
-    public static void Validate(PlanYaml plan)
+    public static void Validate(PlanYaml plan, string[]? configuredLevels = null)
     {
         // Required fields
         if (string.IsNullOrWhiteSpace(plan.State))
@@ -40,10 +35,11 @@ public static class PlanValidationService
             throw new ArgumentException(
                 $"Invalid state value '{plan.State}'. Valid states: {string.Join(", ", ValidStates)}");
 
-        // Validate level enum
-        if (!ValidLevels.Contains(plan.Level, StringComparer.OrdinalIgnoreCase))
+        // Validate level against configured levels (if provided)
+        if (configuredLevels is { Length: > 0 } &&
+            !configuredLevels.Contains(plan.Level, StringComparer.OrdinalIgnoreCase))
             throw new ArgumentException(
-                $"Invalid level value '{plan.Level}'. Valid levels: {string.Join(", ", ValidLevels)}");
+                $"Invalid level value '{plan.Level}'. Valid levels: {string.Join(", ", configuredLevels)}");
 
         // Validate dates
         ValidateDate(plan.Created, "created");

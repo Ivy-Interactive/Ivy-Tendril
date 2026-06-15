@@ -9,6 +9,7 @@ using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Apps.Views.Tabs;
 using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Git;
 using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.Logging;
 
@@ -36,7 +37,7 @@ public class ContentView(
         var args = UseArgs<ReviewAppArgs>();
         var nav = UseNavigation();
 
-        var processView = Context.UseTendrilProcessView();
+        var processView = Context.UseTendrilProcess();
 
         var githubService = UseService<IGithubService>();
         var assigneesError = UseState<string?>(null);
@@ -103,7 +104,7 @@ public class ContentView(
                 () => isOpen.Set(false),
                 new JobDebugSheet(jobId, jobService, planService, config),
                 "Job Debug"
-            ).Width(Size.Half()).Resizable();
+            ).Width(UxHelper.SheetWidth).Resizable();
         });
 
         var artifactContentQuery = UseQuery<string, string>(
@@ -133,25 +134,15 @@ public class ContentView(
                             new Dictionary<string, List<string>>(), new List<PlanContentHelpers.CommitRow>(),
                             new Dictionary<string, bool>(), new List<(string Name, bool ConditionMet)>(), null);
 
-                    // Recommendations from plan.yaml
+                    // Recommendations from database (or plan.yaml fallback)
                     List<RecommendationYaml> recs;
                     try
                     {
-                        var planYamlPath = Path.Combine(folderPath, "plan.yaml");
-                        if (File.Exists(planYamlPath))
-                        {
-                            var yaml = FileHelper.ReadAllText(planYamlPath);
-                            var planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml);
-                            recs = planYaml?.Recommendations ?? new List<RecommendationYaml>();
-                        }
-                        else
-                        {
-                            recs = new List<RecommendationYaml>();
-                        }
+                        recs = planService.GetRecommendationsForPlan(selectedPlanState.Value.FolderName);
                     }
                     catch (Exception ex)
                     {
-                        logger.LogWarning(ex, "Failed to parse recommendations from plan.yaml for {FolderPath}", folderPath);
+                        logger.LogWarning(ex, "Failed to get recommendations for {FolderPath}", folderPath);
                         recs = new List<RecommendationYaml>();
                     }
 
@@ -221,7 +212,7 @@ public class ContentView(
         if (selectedPlanState.Value is null)
         {
             if (allPlans.Count == 0)
-                return new NoContentView("No plans to review", "Completed plans will appear here for review.", processView);
+                return new NoContentView("No plans to review", "Completed plans will appear here for review", processView);
 
             return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
                    | Text.Muted("Select a completed plan to review");
@@ -260,41 +251,69 @@ public class ContentView(
         INavigator nav,
         ReviewAppArgs? args)
     {
-        var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(40)).Gap(2)
-                     | Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis);
+        var titleArea = Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
+                        | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
+                            .BorderThickness(0).Padding(0).Width(Size.Full())
+                            .HideOn(Breakpoint.Mobile, Breakpoint.Tablet)
+                        | MobileItemPicker.Build(
+                                $"#{selectedPlan.Id} {selectedPlan.Title}",
+                                allPlans,
+                                p => $"#{p.Id} {p.Title}",
+                                p => p.FolderName == selectedPlan.FolderName,
+                                p => selectedPlanState.Set(p))
+                            .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
         if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
-            header |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
-                .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
+            titleArea |= (Layout.Horizontal().Wrap().Gap(2).AlignContent(Align.Left)
+                | new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
+                    .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl)));
 
-        header |= new Spacer().Width(Size.Grow());
+        var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
+                       | Text.Rich()
+                           .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
+                           .Muted("plans", word: true);
 
-        header |= Text.Rich()
-                         .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
-                         .Muted("plans", word: true);
-
-        var repoPaths = selectedPlan.GetEffectiveRepoPaths(config);
-        var project = config.GetProject(selectedPlan.Project);
-        var allYolo = repoPaths.All(rp =>
-            project?.GetRepoRef(rp)?.PrRule == "yolo");
-
-        var createPrBtn = new Button("Create PR").Icon(Icons.GitPullRequest).Primary().OnClick(() =>
+        if (selectedPlan.Commits.Count > 0)
         {
-            if (allYolo)
-            {
-                jobService.StartJob(new CreatePrArgs(selectedPlan.FolderPath));
-                planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
-                refreshPlans();
-            }
-            else
-            {
-                showCustomPrDialog();
-            }
-        }).ShortcutKey("m");
+            var repoPaths = selectedPlan.GetEffectiveRepoPaths(config);
+            var project = config.GetProject(selectedPlan.Project);
+            var allYolo = repoPaths.All(rp =>
+                project?.GetRepoRef(rp)?.PrRule == "yolo");
 
-        header |= allYolo
-            ? createPrBtn.WithConfetti(AnimationTrigger.Click)
-            : createPrBtn;
+            var createPrBtn = new Button("Create PR").Icon(Icons.GitPullRequest).Primary().OnClick(() =>
+            {
+                if (allYolo)
+                {
+                    jobService.StartJob(new CreatePrArgs(selectedPlan.FolderPath, SolveMergeConflicts: true));
+                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
+                    refreshPlans();
+                }
+                else
+                {
+                    showCustomPrDialog();
+                }
+            }).ShortcutKey("m");
+
+            controls |= allYolo
+                ? createPrBtn.WithConfetti(AnimationTrigger.Click)
+                : createPrBtn;
+        }
+        else
+        {
+            controls |= new Button("Complete Plan").Icon(Icons.CircleCheck).Primary().OnClick(() =>
+            {
+                // Optimistic UI - update state and refresh immediately
+                planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+                refreshPlans();
+
+                // Fire and forget - clean up worktrees in the background
+                Task.Run(() => WorktreeCleanupService.RemoveWorktrees(selectedPlan.FolderPath));
+            }).ShortcutKey("m");
+        }
+
+        var header = Layout.Horizontal().Height(Size.Px(40)).Width(Size.Full()).Gap(2).AlignContent(Align.Left)
+                     | titleArea
+                     | controls;
 
         return header;
     }
@@ -311,9 +330,9 @@ public class ContentView(
         INavigator nav,
         ReviewAppArgs? args)
     {
-        return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
+        return Layout.Horizontal().AlignContent(Align.Left).Gap(2).Wrap()
                 | new Button("Reset to Draft").Icon(Icons.RotateCcw).Outline().ShortcutKey("r").OnClick(showResetToDraftDialog)
-                | new Button("Suggest Changes").Icon(Icons.MessageSquare).Outline().OnClick(showSuggestChangesDialog).ShortcutKey("d")
+                | new Button("Request Changes").Icon(Icons.MessageSquare).Outline().OnClick(showSuggestChangesDialog).ShortcutKey("c")
                 | new Button("Discard").Icon(Icons.Trash).Outline().ShortcutKey("Backspace").OnClick(showDiscardDialog)
                 | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(() => GoToPrevious(nav, args))
                     .ShortcutKey("p")
@@ -514,12 +533,10 @@ public class ContentView(
                                | new Markdown(rec.Description).DangerouslyAllowLocalFiles().Article();
 
                     var recTitle = rec.Title;
-                    var buttonRow = Layout.Horizontal().Gap(1)
+                    var buttonRow = Layout.Horizontal().Gap(1).Wrap()
                                     | new Button("Accept").Icon(Icons.Check).Primary().OnClick(() =>
                                     {
-                                        planService.ResetVerificationsForRetry(selectedPlan.FolderName);
-                                        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Executing);
-                                        planService.UpdateRecommendationState(selectedPlan.FolderName, recTitle, RecommendationStatus.Accepted);
+                                        planService.AcceptRecommendationAndRetry(selectedPlan.FolderName, recTitle);
                                         jobService.StartJob(new RetryPlanArgs(selectedPlan.FolderPath, rec.Description));
                                         refreshPlans();
                                         planContentQuery.Mutator.Revalidate();
@@ -544,8 +561,8 @@ public class ContentView(
                 new Tab("Summary", Cap(new SummaryTabView(planData.SummaryMarkdown, planContentQuery.Loading))),
                 new Tab("Plan", Cap(planTabContent)),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan,
-                    jobService.GetJobs().Where(j => j.PlanFile == selectedPlan.FolderName).ToList(),
-                    showDebugJob))),
+                    jobService.GetJobsForPlan(selectedPlan.FolderName),
+                    showDebugJob, planService, selectedPlanState, refreshPlans))),
                 new Tab("Verifications", Cap(new VerificationsTabView(
                     selectedPlan.Verifications, planData.VerificationReports,
                     v => openVerification.Set(v)))).Badge(selectedPlan.Verifications.Count.ToString()),
@@ -592,7 +609,7 @@ public class ContentView(
                         ? Text.Muted($"Failed to load artifact: {err.Message}")
                         : new CodeBlock($"{language.ToString().ToLowerInvariant()}\n{artifactContentQuery.Value}\n", Languages.Text),
                 Path.GetFileName(artifactPath)
-            ).Width(Size.Half()).Resizable();
+            ).Width(UxHelper.SheetWidth).Resizable();
         }
 
         content |= new FileSheet(openFile, config);
@@ -601,8 +618,8 @@ public class ContentView(
 
         object Cap(object inner)
         {
-            return Layout.Vertical().Scroll(Scroll.Auto).Width(Size.Full()).Height(Size.Full())
-                | (Layout.Vertical().Padding(0, 0, 0, 4).Width(Size.Full().Max(Size.Units(200))) | inner);
+            return Layout.Vertical().Scroll(Scroll.Auto).HideScrollbar().Width(Size.Full()).Height(Size.Full())
+                | (Layout.Vertical().Padding(6, 0, 0, 4).Width(Size.Full().Max(Size.Units(200))) | inner);
         }
     }
 
@@ -673,7 +690,7 @@ public class ContentView(
             {
                 var planFolder = Path.GetFullPath(Path.Combine(worktreePath, "..", ".."));
                 planService.SyncPlanArtifacts(planFolder);
-                var refreshed = planService.GetPlanByFolder(planFolder);
+                var refreshed = planService.GetPlanByFolderFromDisk(planFolder);
                 if (refreshed != null)
                     selectedPlanState.Set(refreshed);
                 client.Toast("Worktree synchronized successfully", "Synchronized");

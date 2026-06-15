@@ -62,7 +62,7 @@ public class AgentTestDialog(
                 new("Authentication", TestStatus.Pending),
             };
             results.AddRange(models.Select(m => new AgentTestResult($"Model: {m.DisplayName}", TestStatus.Pending)));
-            testResults.Set([..results]);
+            testResults.Set([.. results]);
 
             try
             {
@@ -70,7 +70,7 @@ public class AgentTestDialog(
                 var healthCheck = runner.GetHealthCheck(agentId);
 
                 results[0] = results[0] with { Status = TestStatus.Running };
-                testResults.Set([..results]);
+                testResults.Set([.. results]);
 
                 var installStatus = await healthCheck.CheckInstallAsync(ct);
                 results[0] = installStatus.IsInstalled
@@ -78,7 +78,7 @@ public class AgentTestDialog(
                         installStatus.Version != null ? $"v{installStatus.Version}" : "Installed")
                     : new AgentTestResult("Installation", TestStatus.Failed,
                         installStatus.Error ?? "Not installed", installStatus.Error);
-                testResults.Set([..results]);
+                testResults.Set([.. results]);
 
                 if (!installStatus.IsInstalled)
                 {
@@ -90,7 +90,7 @@ public class AgentTestDialog(
                 ct.ThrowIfCancellationRequested();
 
                 results[1] = results[1] with { Status = TestStatus.Running };
-                testResults.Set([..results]);
+                testResults.Set([.. results]);
 
                 var authResult = await healthCheck.CheckAuthAsync(ct);
                 var providerLabel = authResult.Provider != null ? $" ({authResult.Provider})" : "";
@@ -103,7 +103,7 @@ public class AgentTestDialog(
                     _ => new AgentTestResult("Authentication", TestStatus.Warning,
                         authResult.Error ?? "Check inconclusive", authResult.Error)
                 };
-                testResults.Set([..results]);
+                testResults.Set([.. results]);
 
                 for (var i = 0; i < models.Count; i++)
                 {
@@ -112,7 +112,7 @@ public class AgentTestDialog(
                     var entry = models[i];
 
                     results[idx] = results[idx] with { Status = TestStatus.Running };
-                    testResults.Set([..results]);
+                    testResults.Set([.. results]);
 
                     var modelResult = await healthCheck.ValidateModelAsync(entry.Id ?? "", ct);
                     results[idx] = modelResult.Status switch
@@ -127,7 +127,7 @@ public class AgentTestDialog(
                         _ => new AgentTestResult($"Model: {entry.DisplayName}", TestStatus.Warning,
                             modelResult.ErrorMessage ?? "Unknown", modelResult.ErrorMessage)
                     };
-                    testResults.Set([..results]);
+                    testResults.Set([.. results]);
                 }
             }
             catch (OperationCanceledException)
@@ -135,12 +135,12 @@ public class AgentTestDialog(
                 for (var i = 0; i < results.Count; i++)
                     if (results[i].Status is TestStatus.Running or TestStatus.Pending)
                         results[i] = results[i] with { Status = TestStatus.Warning, Message = "Cancelled" };
-                testResults.Set([..results]);
+                testResults.Set([.. results]);
             }
             catch (Exception ex)
             {
                 results.Add(new AgentTestResult("Unexpected error", TestStatus.Failed, "Test run failed", ex.ToString()));
-                testResults.Set([..results]);
+                testResults.Set([.. results]);
             }
 
             isTesting.Set(false);

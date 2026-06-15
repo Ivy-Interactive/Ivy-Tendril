@@ -58,7 +58,7 @@ public static class RepoPathValidator
     {
         var kind = Classify(path);
         if (kind != RepoPathKind.LocalPath)
-            return null; 
+            return null;
 
         var expanded = tendrilHome != null
             ? VariableExpansion.ExpandVariables(path, tendrilHome)

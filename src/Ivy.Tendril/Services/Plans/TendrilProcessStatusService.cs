@@ -106,6 +106,7 @@ public class TendrilProcessStatusService : ITendrilProcessStatusService
             j.Type is Constants.JobTypes.UpdatePlan or Constants.JobTypes.ExpandPlan or Constants.JobTypes.SplitPlan);
         var executingCount = activeJobs.Count(j => j.Type == Constants.JobTypes.ExecutePlan);
         var retryingCount = activeJobs.Count(j => j.Type == Constants.JobTypes.RetryPlan);
+        var creatingPrCount = activeJobs.Count(j => j.Type == Constants.JobTypes.CreatePr);
 
         var activePlanFolders = activeJobs
             .Select(j => j.TypedArgs?.PlanFolder)
@@ -156,6 +157,7 @@ public class TendrilProcessStatusService : ITendrilProcessStatusService
             UpdatingPlansCount = updatingCount,
             ExecutingPlansCount = executingCount,
             RetryingPlansCount = retryingCount,
+            CreatingPrCount = creatingPrCount,
             RecommendationsCount = snapshot.PendingRecommendations
         };
     }

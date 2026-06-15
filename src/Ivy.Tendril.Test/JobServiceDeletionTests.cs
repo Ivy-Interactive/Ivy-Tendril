@@ -48,7 +48,7 @@ public class JobServiceDeletionTests
     }
 
     [Fact]
-    public void ClearCompletedJobs_DeletesFromMemoryAndDatabase()
+    public void ClearCompletedJobs_RemovesFromMemoryButNotDatabase()
     {
         var db = new FakeDatabaseService();
         var service = CreateService(db);
@@ -61,13 +61,17 @@ public class JobServiceDeletionTests
         Assert.Null(service.GetJob("completed-1"));
         Assert.Null(service.GetJob("completed-2"));
         Assert.NotNull(service.GetJob("running-1"));
-        Assert.Contains("completed-1", db.DeletedJobIds);
-        Assert.Contains("completed-2", db.DeletedJobIds);
-        Assert.DoesNotContain("running-1", db.DeletedJobIds);
+        Assert.Empty(db.DeletedJobIds);
+
+        // Cleared jobs are soft-deleted: persisted with Cleared=true so they
+        // stay out of the Jobs app after restart but remain in plan history
+        Assert.Contains(db.UpsertedJobs, j => j.Id == "completed-1" && j.Cleared);
+        Assert.Contains(db.UpsertedJobs, j => j.Id == "completed-2" && j.Cleared);
+        Assert.DoesNotContain(db.UpsertedJobs, j => j.Id == "running-1");
     }
 
     [Fact]
-    public void ClearFailedJobs_DeletesFromMemoryAndDatabase()
+    public void ClearFailedJobs_RemovesFromMemoryButNotDatabase()
     {
         var db = new FakeDatabaseService();
         var service = CreateService(db);
@@ -82,10 +86,9 @@ public class JobServiceDeletionTests
         Assert.Null(service.GetJob("timeout-1"));
         Assert.NotNull(service.GetJob("blocked-1"));
         Assert.NotNull(service.GetJob("completed-1"));
-        Assert.Contains("failed-1", db.DeletedJobIds);
-        Assert.Contains("timeout-1", db.DeletedJobIds);
-        Assert.DoesNotContain("blocked-1", db.DeletedJobIds);
-        Assert.DoesNotContain("completed-1", db.DeletedJobIds);
+        Assert.Empty(db.DeletedJobIds);
+        Assert.Contains(db.UpsertedJobs, j => j.Id == "failed-1" && j.Cleared);
+        Assert.Contains(db.UpsertedJobs, j => j.Id == "timeout-1" && j.Cleared);
     }
 
     [Fact]
@@ -103,6 +106,7 @@ public class JobServiceDeletionTests
     private class FakeDatabaseService : IPlanDatabaseService
     {
         public List<string> DeletedJobIds { get; } = new();
+        public List<JobItem> UpsertedJobs { get; } = new();
         public bool ThrowOnDelete { get; init; }
 
         public void DeleteJob(string id)
@@ -138,6 +142,11 @@ public class JobServiceDeletionTests
         public DashboardModels GetDashboardData(string? projectFilter)
         {
             return new DashboardModels(0, 0, 0, 0, 0, 0, 0, new List<DashboardDayStats>(), new List<ProjectCount>());
+        }
+
+        public List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days = 30)
+        {
+            return new List<(DateOnly Date, int Count)>();
         }
 
         public decimal GetPlanTotalCost(int planId)
@@ -215,9 +224,20 @@ public class JobServiceDeletionTests
 
         public void UpsertJob(JobItem job)
         {
+            UpsertedJobs.Add(job);
         }
 
         public List<JobItem> GetRecentJobs(int limit = 100)
+        {
+            return new List<JobItem>();
+        }
+
+        public JobItem? GetJobById(string id)
+        {
+            return null;
+        }
+
+        public List<JobItem> GetJobsForPlan(string planFile)
         {
             return new List<JobItem>();
         }

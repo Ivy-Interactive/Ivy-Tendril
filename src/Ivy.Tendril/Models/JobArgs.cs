@@ -11,12 +11,14 @@ namespace Ivy.Tendril.Models;
 [JsonDerivedType(typeof(CreatePrArgs), "CreatePr")]
 [JsonDerivedType(typeof(CreateIssueArgs), "CreateIssue")]
 [JsonDerivedType(typeof(UpdateProjectArgs), "UpdateProject")]
+[JsonDerivedType(typeof(SyncRepoArgs), "SyncRepo")]
 public abstract record JobArgsBase
 {
     [JsonIgnore]
     public abstract string Type { get; }
     [JsonIgnore]
     public virtual string? PlanFolder => null;
+    public List<string>? WaitForJobs { get; init; }
 }
 
 public record CreatePlanArgs(
@@ -69,6 +71,7 @@ public record SplitPlanArgs(
 
 public record CreatePrArgs(
     string FolderPath,
+    bool SolveMergeConflicts = true,
     bool Merge = true,
     bool DeleteBranch = true,
     bool IncludeArtifacts = true,
@@ -96,4 +99,13 @@ public record UpdateProjectArgs(
 {
     public override string Type => Constants.JobTypes.UpdateProject;
     public override string PlanFolder => FolderPath;
+}
+
+public record SyncRepoArgs(
+    string RepoPath,
+    string BaseBranch = "main",
+    string? PlanFolderPath = null) : JobArgsBase
+{
+    public override string Type => Constants.JobTypes.SyncRepo;
+    public override string? PlanFolder => PlanFolderPath;
 }

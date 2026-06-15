@@ -12,7 +12,6 @@ projects:
   - path: D:\Repos\_Ivy\Ivy-Framework
     prRule: yolo
     baseBranch: development
-    syncStrategy: fetch
   verifications:
   - name: FrameworkDotnetBuild
     required: true
@@ -35,13 +34,13 @@ projects:
   reviewActions:
   - name: Sample
     condition: Test-Path "artifacts\sample\*.csproj"
-    command: ''
+    command: dotnet run --project '.\artifacts\sample' --find-available-port --browse
   - name: Docs
     condition: Test-Path "worktrees\Ivy-Framework\src\Ivy.Docs"
-    command: ''
+    command: "& '.\\worktrees\\Ivy-Framework\\src\\IvyDocs.ps1'"
   - name: Samples
     condition: Test-Path "worktrees\Ivy-Framework\src\Ivy.Samples"
-    command: ''
+    command: "& '.\\worktrees\\Ivy-Framework\\src\\IvySamples.ps1'"
   hooks:
   - name: SlackNotify
     when: after
@@ -58,17 +57,17 @@ projects:
   - path: D:\Repos\_Ivy\Ivy-Tendril
     prRule: yolo
     baseBranch: development
-    syncStrategy: fetch
   - path: D:\Repos\_Ivy\Ivy-Framework
     prRule: yolo
     baseBranch: development
-    syncStrategy: fetch
   verifications:
   - name: DotnetBuild
     required: true
   - name: DotnetFormat
     required: true
   - name: DotnetTest
+    required: false
+  - name: CodeReview
     required: false
   - name: CheckResult
     required: true
@@ -97,7 +96,6 @@ projects:
   - path: D:\Repos\_Ivy\Rustino
     prRule: yolo
     baseBranch: development
-    syncStrategy: fetch
   verifications:
   - name: DotnetBuild
     required: true
@@ -133,7 +131,6 @@ projects:
   repos:
   - path: D:\Tendril\Repos\lots-of-dev-tools
     prRule: default
-    syncStrategy: fetch
   verifications:
   - name: NpmLint
     required: true
@@ -157,7 +154,6 @@ projects:
   - path: D:\Repos\_Ivy\Ivy-Tendril-Services
     prRule: default
     baseBranch: development
-    syncStrategy: fetch
   verifications:
   - name: DotnetFormat
     required: true
@@ -236,6 +232,62 @@ verifications:
     ## Issues Found
 
     <any gaps between plan and implementation, or "None"> ```
+- name: CodeReview
+  prompt: >
+    Perform a code review of all files changed by this plan's commits.
+
+    **Step 1: Identify changed files** Get the list of changed files from all commits made during this execution: - If there are worktrees in `<TendrilPlanFolder>\Worktrees\`, check each one for commits - Otherwise, check the current working directory - Use `git log --oneline --all --author="<execution-agent>" --since="<plan-execution-start>"` to find commits - Use `git diff --name-only <before>..<after>` to list changed files for each commit range
+
+    **Step 2: CodeScene Analysis (if available)** Check if CodeScene CLI is available using the codescene MCP tools. If available: 1. Run `mcp__codescene__pre_commit_code_health_safeguard` on the git repository to get quality gate results for all staged\modified files 2. For each changed source file (.cs, .ts, .tsx, .js), run `mcp__codescene__code_health_review` to get detailed Code Health scores and code smell findings 3. Document findings with:
+       - File path
+       - Code Health score (1.0-10.0 scale: Red 1.0-3.9, Yellow 4.0-8.9, Green 9.0-9.9, Optimal 10.0)
+       - Specific code smells found
+       - Quality gate pass\fail status
+
+    **Step 3: Manual Review** For each changed source file (.cs, .ts, .tsx, .js), review for: - Dead code or unused imports - Code duplication (within the file or with nearby files) - Overly complex methods - Poor naming or unclear intent - Missing error handling at system boundaries - Inconsistent patterns vs. the rest of the codebase - Unnecessary abstractions or over-engineering - Backwards-compatibility code that is no longer needed
+
+    **Step 4: Fix Issues** If fixable issues are found (from either CodeScene or manual review), fix them directly in the appropriate worktree or working directory — stage and commit the fixes.
+
+    **Step 5: Write Report** Write the verification report to `<TendrilPlanFolder>\Verification\CodeReview.md` with format: ``` # CodeReview
+
+    - **Date:** <timestamp> - **Result:** Pass | Fail - **Attempts:** 1
+
+    ## CodeScene Analysis
+
+    **CLI Available:** Yes\No
+
+    ### Quality Gates
+
+    | File | Score | Gate | Issues | |------|-------|------|--------| | <path> | <score> | Pass\Fail | <count> |
+
+    ### Code Smells by File
+
+    <for each file with Code Health < 9.0, list specific smells found>
+
+    ## Manual Review
+
+    ### Files Reviewed
+
+    | File | Issues | Fixed | |------|--------|-------| | <path> | <count> | Yes\No |
+
+    ### Issues Found
+
+    <list each issue with file, line, description, and whether it was fixed>
+
+    ## Fixes Applied
+
+    <list commits created to fix issues, or "None">
+
+    ## Summary
+
+    <overall assessment combining CodeScene metrics and manual findings> ```
+
+    **Step 6: Determine Result** - Result is **Pass** if:
+      - All CodeScene quality gates pass (or CodeScene not available)
+      - No unfixable manual review issues remain
+    - Result is **Fail** if:
+      - Any CodeScene quality gate fails with unresolved degradations
+      - Manual review found issues that could not be auto-fixed (e.g. design-level concerns requiring human decision)
 - name: NewWidgetChecklist
   prompt: >
     Verify all 6 required elements exist for any new widget created by this plan: 1. Backend widget class — src\Ivy\Widgets\<WidgetName>.cs with [Prop]\[Event] attributes, [JsonIgnore] on delegates, Has* booleans 2. Frontend React component — src\frontend\src\widgets\<widgetName>\<WidgetName>Widget.tsx 3. Index export — src\frontend\src\widgets\<widgetName>\index.ts 4. Widget map registration — import + entry in src\frontend\src\widgets\widgetMap.ts 5. Sample app — src\Ivy.Samples.Shared\Apps\Widgets\<WidgetName>App.cs 6. Documentation page — src\Ivy.Docs.Shared\Docs\02_Widgets\<category>\<WidgetName>.md Check each file exists and follows conventions. Report which elements are present vs missing.
@@ -326,6 +378,8 @@ promptwares:
 codingAgents:
 - name: claude
   arguments: ''
+  environmentVariables:
+    CLAUDE_CODE_USE_BEDROCK: 1
   profiles:
   - name: deep
     model: opus
@@ -341,6 +395,7 @@ codingAgents:
     arguments: ''
 - name: codex
   arguments: ''
+  environmentVariables: {}
   profiles:
   - name: deep
     model: default
@@ -356,6 +411,7 @@ codingAgents:
     arguments: ''
 - name: opencode
   arguments: ''
+  environmentVariables: {}
   profiles:
   - name: deep
     model: default
@@ -371,6 +427,7 @@ codingAgents:
     arguments: ''
 - name: antigravity
   arguments: ''
+  environmentVariables: {}
   profiles:
   - name: deep
     model: default
@@ -386,6 +443,7 @@ codingAgents:
     arguments: ''
 - name: copilot
   arguments: ''
+  environmentVariables: {}
   profiles:
   - name: deep
     model: default
@@ -401,6 +459,7 @@ codingAgents:
     arguments: ''
 - name: gemini
   arguments: ''
+  environmentVariables: {}
   profiles:
   - name: deep
     model: default
@@ -423,10 +482,12 @@ telemetry: true
 desktopNotifications: true
 levels:
 - name: Bug
-  badge: Destructive
-- name: Critical
-  badge: Warning
-- name: NiceToHave
-  badge: Outline
+  color: Red
+- name: Feature
+  color: Blue
 - name: Epic
-  badge: Info
+  color: Purple
+- name: Chore
+  color: Slate
+- name: Nitpick
+  color: Gray

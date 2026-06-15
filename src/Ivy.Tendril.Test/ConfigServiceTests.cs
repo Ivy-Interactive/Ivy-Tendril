@@ -351,6 +351,115 @@ projects:
         }
     }
 
+    [Theory]
+    [InlineData("Destructive", "Red")]
+    [InlineData("Warning", "Orange")]
+    [InlineData("Info", "Blue")]
+    [InlineData("Success", "Green")]
+    [InlineData("Secondary", "Slate")]
+    [InlineData("Outline", "Gray")]
+    [InlineData("Blue", "Blue")]
+    [InlineData("Purple", "Purple")]
+    [InlineData("", "Gray")]
+    [InlineData(null, "Gray")]
+    [InlineData("garbage", "Gray")]
+    public void MigrateLevelBadgeToColor_HandlesVariousInputs(string? input, string expected)
+    {
+        var result = ConfigService.MigrateLevelBadgeToColor(input);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void LoadSettings_MigratesLevelBadgeToColor()
+    {
+        var tempDir = CreateTempConfigFile(@"
+levels:
+  - name: Bug
+    badge: Destructive
+  - name: Critical
+    badge: Warning
+  - name: NiceToHave
+    badge: Outline
+");
+
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+
+            Assert.Equal("Red", service.Settings.Levels[0].Color);
+            Assert.Equal("Orange", service.Settings.Levels[1].Color);
+            Assert.Equal("Gray", service.Settings.Levels[2].Color);
+
+            Assert.Null(service.Settings.Levels[0].Badge);
+            Assert.Null(service.Settings.Levels[1].Badge);
+            Assert.Null(service.Settings.Levels[2].Badge);
+
+            var savedYaml = File.ReadAllText(Path.Combine(tempDir, "config.yaml"));
+            Assert.Contains("color: Red", savedYaml);
+            Assert.DoesNotContain("badge: Destructive", savedYaml);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void LoadSettings_PreservesAlreadyMigratedLevelColors()
+    {
+        var tempDir = CreateTempConfigFile(@"
+levels:
+  - name: Bug
+    color: Red
+  - name: Feature
+    color: Blue
+");
+
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+
+            Assert.Equal("Red", service.Settings.Levels[0].Color);
+            Assert.Equal("Blue", service.Settings.Levels[1].Color);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void LoadSettings_MigratesLevelBadge_PreservesNames()
+    {
+        var tempDir = CreateTempConfigFile(@"
+levels:
+  - name: MyCustomLevel
+    badge: Info
+  - name: AnotherLevel
+    badge: Success
+");
+
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+
+            Assert.Equal("MyCustomLevel", service.Settings.Levels[0].Name);
+            Assert.Equal("Blue", service.Settings.Levels[0].Color);
+            Assert.Equal("AnotherLevel", service.Settings.Levels[1].Name);
+            Assert.Equal("Green", service.Settings.Levels[1].Color);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
     [Fact]
     public void ExpandVariables_NormalizesMixedPathSeparators()
     {
@@ -1048,14 +1157,7 @@ jobTimeout: 30
     }
 
     [Fact]
-    public void RepoRef_SyncStrategy_DefaultsToFetch()
-    {
-        var repo = new RepoRef();
-        Assert.Equal("fetch", repo.SyncStrategy);
-    }
-
-    [Fact]
-    public void Should_Deserialize_RepoRef_With_BaseBranch_And_SyncStrategy()
+    public void Should_Deserialize_RepoRef_With_BaseBranch()
     {
         var yaml = @"
 projects:
@@ -1064,7 +1166,6 @@ projects:
       - path: D:\Repos\Test
         prRule: yolo
         baseBranch: develop
-        syncStrategy: rebase
 ";
 
         var tempDir = CreateTempConfigFile(yaml);
@@ -1078,7 +1179,6 @@ projects:
             Assert.Equal(@"D:\Repos\Test", repo.Path);
             Assert.Equal("yolo", repo.PrRule);
             Assert.Equal("develop", repo.BaseBranch);
-            Assert.Equal("rebase", repo.SyncStrategy);
         }
         finally
         {
@@ -1087,7 +1187,7 @@ projects:
     }
 
     [Fact]
-    public void Should_Deserialize_RepoRef_Without_New_Fields_BackwardCompatible()
+    public void Should_Deserialize_RepoRef_Without_BaseBranch_BackwardCompatible()
     {
         var yaml = @"
 projects:
@@ -1108,7 +1208,6 @@ projects:
             Assert.Equal(@"D:\Repos\Test", repo.Path);
             Assert.Equal("default", repo.PrRule);
             Assert.Null(repo.BaseBranch);
-            Assert.Equal("fetch", repo.SyncStrategy);
         }
         finally
         {
@@ -1117,35 +1216,7 @@ projects:
     }
 
     [Fact]
-    public void Should_Deserialize_RepoRef_With_Only_BaseBranch()
-    {
-        var yaml = @"
-projects:
-  - name: TestProject
-    repos:
-      - path: D:\Repos\Test
-        baseBranch: release/2.0
-";
-
-        var tempDir = CreateTempConfigFile(yaml);
-        var service = new ConfigService(new TendrilSettings());
-
-        try
-        {
-            service.SetTendrilHome(tempDir);
-
-            var repo = service.Settings.Projects[0].Repos[0];
-            Assert.Equal("release/2.0", repo.BaseBranch);
-            Assert.Equal("fetch", repo.SyncStrategy);
-        }
-        finally
-        {
-            Directory.Delete(tempDir, true);
-        }
-    }
-
-    [Fact]
-    public void Should_Roundtrip_RepoRef_With_New_Fields()
+    public void Should_Roundtrip_RepoRef_With_BaseBranch()
     {
         var yaml = @"
 projects:
@@ -1154,7 +1225,6 @@ projects:
       - path: D:\Repos\Test
         prRule: yolo
         baseBranch: develop
-        syncStrategy: merge
 ";
 
         var tempDir = CreateTempConfigFile(yaml);
@@ -1170,7 +1240,6 @@ projects:
 
             var repo = reloaded.Settings.Projects[0].Repos[0];
             Assert.Equal("develop", repo.BaseBranch);
-            Assert.Equal("merge", repo.SyncStrategy);
         }
         finally
         {
@@ -1604,7 +1673,7 @@ maxConcurrentJobs: 10
         // registered at startup without requiring a redeploy after onboarding.
         var emptyDir = Path.Combine(Path.GetTempPath(), $"tendril-test-no-config-{Guid.NewGuid()}");
         Directory.CreateDirectory(emptyDir);
-        
+
         var prevHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         var prevPassword = Environment.GetEnvironmentVariable("TENDRIL_AUTH_PASSWORD");
         var prevHashSecret = Environment.GetEnvironmentVariable("TENDRIL_AUTH_HASH_SECRET");
