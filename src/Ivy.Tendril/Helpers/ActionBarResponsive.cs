@@ -36,7 +36,7 @@ public static class ActionBarResponsive
     /// Creates a dropdown menu that is visible only on Desktop and above (>=768px).
     /// Hidden on Mobile and Tablet.
     /// </summary>
-    public static Button DropdownAtDesktop(Button trigger, params MenuItem[] items)
+    public static DropDownMenu DropdownAtDesktop(Button trigger, params MenuItem[] items)
     {
         return trigger.WithDropDown(items).ShowOn(Breakpoint.Desktop);
     }
@@ -45,7 +45,7 @@ public static class ActionBarResponsive
     /// Creates a dropdown menu that is visible only below Desktop (&lt;768px).
     /// Visible on Mobile and Tablet only.
     /// </summary>
-    public static Button DropdownAtMobile(Button trigger, params MenuItem[] items)
+    public static DropDownMenu DropdownAtMobile(Button trigger, params MenuItem[] items)
     {
         return trigger.WithDropDown(items).ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
     }
