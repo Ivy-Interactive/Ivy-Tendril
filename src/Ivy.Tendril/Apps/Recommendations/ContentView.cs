@@ -175,46 +175,54 @@ public class ContentView(
             })
         };
 
-        // Desktop dropdown: View Plan + standard overflow
-        var desktopDropdownItems = new List<MenuItem>
+        void ViewPlan()
         {
-            new MenuItem("View Plan", Icon: Icons.ExternalLink, Tag: "ViewPlan").OnSelect(() =>
-            {
-                var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
-                if (Directory.Exists(fullPath))
-                    showPlan(fullPath);
-            })
-        };
-        desktopDropdownItems.AddRange(standardOverflowItems);
+            var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
+            if (Directory.Exists(fullPath))
+                showPlan(fullPath);
+        }
 
-        // Mobile dropdown: Accept with Notes, View Plan + standard overflow
-        var mobileDropdownItems = new List<MenuItem>
+        // Full-tier dropdown: standard overflow items only (all buttons shown inline)
+        var fullDropdownItems = standardOverflowItems;
+
+        // Compact-tier dropdown: View Plan + standard overflow
+        var compactDropdownItems = new List<MenuItem>
+        {
+            new MenuItem("View Plan", Icon: Icons.ExternalLink, Tag: "ViewPlan").OnSelect(ViewPlan)
+        };
+        compactDropdownItems.AddRange(standardOverflowItems);
+
+        // Minimal-tier dropdown: Accept with Notes, View Plan + standard overflow
+        var minimalDropdownItems = new List<MenuItem>
         {
             new MenuItem("Accept with Notes", Icon: Icons.CircleCheck, Tag: "AcceptWithNotes")
                 .OnSelect(() => showNotesDialog()),
-            new MenuItem("View Plan", Icon: Icons.ExternalLink, Tag: "ViewPlan").OnSelect(() =>
-            {
-                var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
-                if (Directory.Exists(fullPath))
-                    showPlan(fullPath);
-            })
+            new MenuItem("View Plan", Icon: Icons.ExternalLink, Tag: "ViewPlan").OnSelect(ViewPlan)
         };
-        mobileDropdownItems.AddRange(standardOverflowItems);
+        minimalDropdownItems.AddRange(standardOverflowItems);
 
-        // Action bar without .Wrap() - single row with progressive collapse
+        // Action bar without .Wrap() - single row with progressive collapse.
+        // Full (>=1024px): Previous, Next, Accept with Notes, View Plan inline + overflow dropdown.
+        // Compact (768-1023px): Previous, Next, Accept with Notes inline; View Plan in dropdown.
+        // Minimal (<768px): Previous, Next inline; everything else in dropdown.
         var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(2)
                         | new Button("Previous").Icon(Icons.ChevronLeft).Outline().ShortcutKey("p")
                             .OnClick(GoToPrevious).AlwaysVisible()
                         | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().ShortcutKey("n")
                             .OnClick(GoToNext).AlwaysVisible()
                         | new Button("Accept with Notes").Icon(Icons.CircleCheck).Outline().ShortcutKey("w")
-                            .OnClick(() => showNotesDialog()).DesktopUp()
-                        | ActionBarResponsive.DropdownAtDesktop(
+                            .OnClick(() => showNotesDialog()).CompactUp()
+                        | new Button("View Plan").Icon(Icons.ExternalLink).Outline()
+                            .OnClick(ViewPlan).FullOnly()
+                        | ActionBarResponsive.DropdownAtFull(
                             new Button().Icon(Icons.EllipsisVertical).Ghost(),
-                            desktopDropdownItems.ToArray())
-                        | ActionBarResponsive.DropdownAtMobile(
+                            fullDropdownItems)
+                        | ActionBarResponsive.DropdownAtCompact(
                             new Button().Icon(Icons.EllipsisVertical).Ghost(),
-                            mobileDropdownItems.ToArray());
+                            compactDropdownItems.ToArray())
+                        | ActionBarResponsive.DropdownAtMinimal(
+                            new Button().Icon(Icons.EllipsisVertical).Ghost(),
+                            minimalDropdownItems.ToArray());
 
         var mainLayout = new HeaderLayout(
             header,

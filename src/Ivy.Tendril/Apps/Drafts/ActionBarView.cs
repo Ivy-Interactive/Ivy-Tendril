@@ -111,100 +111,90 @@ public class ActionBarView(
             })
         };
 
-        // Desktop dropdown items: buttons that don't fit at Desktop tier + standard overflow
-        var desktopDropdownItems = new List<MenuItem>
+        // Split / Expand share the same OnClick logic whether shown as an inline button
+        // (Full tier) or a dropdown item (Compact/Minimal tiers).
+        void StartSplit()
+        {
+            if (hasActiveSplitJob) return;
+            var optimisticPlan = selectedPlan with
+            {
+                Metadata = selectedPlan.Metadata with { State = PlanStatus.Updating }
+            };
+            selectedPlanState.Set(optimisticPlan);
+            planService.TransitionState(selectedPlan.FolderName, PlanStatus.Updating);
+            jobService.StartJob(new SplitPlanArgs(selectedPlan.FolderPath));
+            refreshPlans();
+        }
+
+        void StartExpand()
+        {
+            if (hasActiveExpandJob) return;
+            var optimisticPlan = selectedPlan with
+            {
+                Metadata = selectedPlan.Metadata with { State = PlanStatus.Building }
+            };
+            selectedPlanState.Set(optimisticPlan);
+            planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
+            jobService.StartJob(new ExpandPlanArgs(selectedPlan.FolderPath));
+            refreshPlans();
+        }
+
+        // Compact-tier dropdown items: buttons that don't fit at the Compact tier + standard overflow
+        var compactDropdownItems = new List<MenuItem>
         {
             new MenuItem("Split", Icon: Icons.Scissors, Tag: "Split")
-                .OnSelect(() =>
-                {
-                    if (hasActiveSplitJob) return;
-                    var optimisticPlan = selectedPlan with
-                    {
-                        Metadata = selectedPlan.Metadata with { State = PlanStatus.Updating }
-                    };
-                    selectedPlanState.Set(optimisticPlan);
-                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Updating);
-                    jobService.StartJob(new SplitPlanArgs(selectedPlan.FolderPath));
-                    refreshPlans();
-                })
-                .Disabled(hasActiveSplitJob),
+                .OnSelect(StartSplit).Disabled(hasActiveSplitJob),
             new MenuItem("Expand", Icon: Icons.UnfoldVertical, Tag: "Expand")
-                .OnSelect(() =>
-                {
-                    if (hasActiveExpandJob) return;
-                    var optimisticPlan = selectedPlan with
-                    {
-                        Metadata = selectedPlan.Metadata with { State = PlanStatus.Building }
-                    };
-                    selectedPlanState.Set(optimisticPlan);
-                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
-                    var planPath = selectedPlan.FolderPath;
-                    jobService.StartJob(new ExpandPlanArgs(planPath));
-                    refreshPlans();
-                })
-                .Disabled(hasActiveExpandJob),
+                .OnSelect(StartExpand).Disabled(hasActiveExpandJob),
             new MenuItem("Delete", Icon: Icons.Trash, Tag: "Delete").OnSelect(showDeleteDialog)
         };
-        desktopDropdownItems.AddRange(standardOverflowItems);
+        compactDropdownItems.AddRange(standardOverflowItems);
 
-        // Mobile dropdown items: all action buttons + standard overflow
-        var mobileDropdownItems = new List<MenuItem>
+        // Minimal-tier dropdown items: all action buttons + standard overflow
+        var minimalDropdownItems = new List<MenuItem>
         {
             new MenuItem("Edit", Icon: Icons.Pencil, Tag: "Edit")
                 .OnSelect(() => isEditingState.Set(true)),
             new MenuItem("Update", Icon: Icons.WandSparkles, Tag: "Update")
                 .OnSelect(showUpdateDialog),
             new MenuItem("Split", Icon: Icons.Scissors, Tag: "Split")
-                .OnSelect(() =>
-                {
-                    if (hasActiveSplitJob) return;
-                    var optimisticPlan = selectedPlan with
-                    {
-                        Metadata = selectedPlan.Metadata with { State = PlanStatus.Updating }
-                    };
-                    selectedPlanState.Set(optimisticPlan);
-                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Updating);
-                    jobService.StartJob(new SplitPlanArgs(selectedPlan.FolderPath));
-                    refreshPlans();
-                })
-                .Disabled(hasActiveSplitJob),
+                .OnSelect(StartSplit).Disabled(hasActiveSplitJob),
             new MenuItem("Expand", Icon: Icons.UnfoldVertical, Tag: "Expand")
-                .OnSelect(() =>
-                {
-                    if (hasActiveExpandJob) return;
-                    var optimisticPlan = selectedPlan with
-                    {
-                        Metadata = selectedPlan.Metadata with { State = PlanStatus.Building }
-                    };
-                    selectedPlanState.Set(optimisticPlan);
-                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
-                    var planPath = selectedPlan.FolderPath;
-                    jobService.StartJob(new ExpandPlanArgs(planPath));
-                    refreshPlans();
-                })
-                .Disabled(hasActiveExpandJob),
+                .OnSelect(StartExpand).Disabled(hasActiveExpandJob),
             new MenuItem("Delete", Icon: Icons.Trash, Tag: "Delete").OnSelect(showDeleteDialog)
         };
-        mobileDropdownItems.AddRange(standardOverflowItems);
+        minimalDropdownItems.AddRange(standardOverflowItems);
 
-        // Action bar without .Wrap() - single row layout with progressive collapse
+        // Action bar without .Wrap() - single row layout with progressive collapse.
+        // Full tier (>=1024px): all buttons inline + overflow-only dropdown.
+        // Compact tier (768-1023px): Previous, Next, Edit, Update inline; Split/Expand/Delete in dropdown.
+        // Minimal tier (<768px): Previous, Next inline; everything else in dropdown.
         return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
-               // Desktop: Previous, Next, Edit, Update visible
                | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(goToPrevious)
                    .ShortcutKey("p").AlwaysVisible()
                | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().OnClick(goToNext)
                    .ShortcutKey("n").AlwaysVisible()
                | new Button("Edit").Icon(Icons.Pencil).Outline().ShortcutKey("E")
-                   .OnClick(() => isEditingState.Set(true)).DesktopUp()
+                   .OnClick(() => isEditingState.Set(true)).CompactUp()
                | new Button("Update").Icon(Icons.WandSparkles).Outline().ShortcutKey("u")
-                   .OnClick(showUpdateDialog).DesktopUp()
-               // Desktop dropdown: Split, Expand, Delete + standard overflow
-               | ActionBarResponsive.DropdownAtDesktop(
+                   .OnClick(showUpdateDialog).CompactUp()
+               | new Button("Split").Icon(Icons.Scissors).Outline()
+                   .OnClick(StartSplit).Disabled(hasActiveSplitJob).FullOnly()
+               | new Button("Expand").Icon(Icons.UnfoldVertical).Outline()
+                   .OnClick(StartExpand).Disabled(hasActiveExpandJob).FullOnly()
+               | new Button("Delete").Icon(Icons.Trash).Outline()
+                   .OnClick(showDeleteDialog).FullOnly()
+               // Full-tier dropdown: standard overflow items only
+               | ActionBarResponsive.DropdownAtFull(
                    new Button().Icon(Icons.EllipsisVertical).Ghost(),
-                   desktopDropdownItems.ToArray())
-               // Mobile dropdown: all action buttons + standard overflow
-               | ActionBarResponsive.DropdownAtMobile(
+                   standardOverflowItems)
+               // Compact-tier dropdown: Split, Expand, Delete + standard overflow
+               | ActionBarResponsive.DropdownAtCompact(
                    new Button().Icon(Icons.EllipsisVertical).Ghost(),
-                   mobileDropdownItems.ToArray());
+                   compactDropdownItems.ToArray())
+               // Minimal-tier dropdown: all action buttons + standard overflow
+               | ActionBarResponsive.DropdownAtMinimal(
+                   new Button().Icon(Icons.EllipsisVertical).Ghost(),
+                   minimalDropdownItems.ToArray());
     }
 }

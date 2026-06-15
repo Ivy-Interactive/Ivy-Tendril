@@ -383,38 +383,49 @@ public class ContentView(
             })
         };
 
-        // Desktop dropdown: Discard + standard overflow
-        var desktopDropdownItems = new List<MenuItem>
+        // Full-tier dropdown: standard overflow items only (all buttons shown inline)
+        var fullDropdownItems = standardOverflowItems;
+
+        // Compact-tier dropdown: Discard + standard overflow
+        var compactDropdownItems = new List<MenuItem>
         {
             new MenuItem("Discard", Icon: Icons.Trash, Tag: "Discard").OnSelect(showDiscardDialog)
         };
-        desktopDropdownItems.AddRange(standardOverflowItems);
+        compactDropdownItems.AddRange(standardOverflowItems);
 
-        // Mobile dropdown: all action buttons + standard overflow
-        var mobileDropdownItems = new List<MenuItem>
+        // Minimal-tier dropdown: all action buttons + standard overflow
+        var minimalDropdownItems = new List<MenuItem>
         {
             new MenuItem("Reset to Draft", Icon: Icons.RotateCcw, Tag: "ResetToDraft").OnSelect(showResetToDraftDialog),
             new MenuItem("Request Changes", Icon: Icons.MessageSquare, Tag: "RequestChanges").OnSelect(showSuggestChangesDialog),
             new MenuItem("Discard", Icon: Icons.Trash, Tag: "Discard").OnSelect(showDiscardDialog)
         };
-        mobileDropdownItems.AddRange(standardOverflowItems);
+        minimalDropdownItems.AddRange(standardOverflowItems);
 
-        // Action bar without .Wrap() - single row with progressive collapse
+        // Action bar without .Wrap() - single row with progressive collapse.
+        // Full (>=1024px): Previous, Next, Reset to Draft, Request Changes, Discard inline + overflow dropdown.
+        // Compact (768-1023px): Previous, Next, Reset to Draft, Request Changes inline; Discard in dropdown.
+        // Minimal (<768px): Previous, Next inline; everything else in dropdown.
         return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
                 | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(() => GoToPrevious(nav, args))
                     .ShortcutKey("p").AlwaysVisible()
                 | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().OnClick(() => GoToNext(nav, args))
                     .ShortcutKey("n").AlwaysVisible()
                 | new Button("Reset to Draft").Icon(Icons.RotateCcw).Outline().ShortcutKey("r")
-                    .OnClick(showResetToDraftDialog).DesktopUp()
+                    .OnClick(showResetToDraftDialog).CompactUp()
                 | new Button("Request Changes").Icon(Icons.MessageSquare).Outline().ShortcutKey("c")
-                    .OnClick(showSuggestChangesDialog).DesktopUp()
-                | ActionBarResponsive.DropdownAtDesktop(
+                    .OnClick(showSuggestChangesDialog).CompactUp()
+                | new Button("Discard").Icon(Icons.Trash).Outline()
+                    .OnClick(showDiscardDialog).FullOnly()
+                | ActionBarResponsive.DropdownAtFull(
                     new Button().Icon(Icons.EllipsisVertical).Ghost(),
-                    desktopDropdownItems.ToArray())
-                | ActionBarResponsive.DropdownAtMobile(
+                    fullDropdownItems)
+                | ActionBarResponsive.DropdownAtCompact(
                     new Button().Icon(Icons.EllipsisVertical).Ghost(),
-                    mobileDropdownItems.ToArray());
+                    compactDropdownItems.ToArray())
+                | ActionBarResponsive.DropdownAtMinimal(
+                    new Button().Icon(Icons.EllipsisVertical).Ghost(),
+                    minimalDropdownItems.ToArray());
     }
 
     private object BuildContent(
