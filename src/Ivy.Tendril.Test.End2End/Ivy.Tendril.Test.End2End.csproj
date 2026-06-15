@@ -36,7 +36,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Ivy.Tendril.Agents\Ivy.Tendril.Agents.csproj" />
+    <ProjectReference Include="../Ivy.Tendril.Agents/Ivy.Tendril.Agents.csproj" />
   </ItemGroup>
 
 </Project>

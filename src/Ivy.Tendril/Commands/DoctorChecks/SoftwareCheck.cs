@@ -8,7 +8,6 @@ namespace Ivy.Tendril.Commands.DoctorChecks;
 internal class SoftwareCheck : IDoctorCheck
 {
     private static readonly string[] RequiredSoftware = ["gh", "git"];
-    private static readonly string[] OptionalSoftware = ["pandoc"];
 
     private readonly ConfigService? _configService;
     private readonly IAgentRunner? _agentRunner;
@@ -27,7 +26,6 @@ internal class SoftwareCheck : IDoctorCheck
 
         var reqErrors = await CheckRequiredSoftware(statuses);
         var agentErrors = await CheckAgentClis(statuses);
-        await CheckOptionalSoftware(statuses);
         var pwshErrors = await CheckPowerShell(statuses);
 
         return new CheckResult(reqErrors || agentErrors || pwshErrors, statuses);
@@ -100,23 +98,14 @@ internal class SoftwareCheck : IDoctorCheck
         return hasErrors;
     }
 
-    private static async Task CheckOptionalSoftware(List<CheckStatus> statuses)
-    {
-        foreach (var sw in OptionalSoftware)
-        {
-            var installed = await ProcessCheckHelper.CheckCommand(sw, "--version");
-            statuses.Add(installed
-                ? new CheckStatus(sw, "OK", StatusKind.Ok)
-                : new CheckStatus(sw, "Not found", StatusKind.Warn));
-        }
-    }
-
     private static async Task<bool> CheckPowerShell(List<CheckStatus> statuses)
     {
-        var pwshInstalled = await ProcessCheckHelper.CheckCommand("pwsh", "-Version");
+        var pwshPath = PathHelper.GetPwshPath();
+        var pwshInstalled = await ProcessCheckHelper.CheckCommand(pwshPath, "-Version");
         if (pwshInstalled)
         {
-            statuses.Add(new CheckStatus("powershell", "OK (pwsh)", StatusKind.Ok));
+            var isBundled = pwshPath != "pwsh";
+            statuses.Add(new CheckStatus("powershell", isBundled ? "OK (bundled pwsh)" : "OK (pwsh)", StatusKind.Ok));
             return false;
         }
 
@@ -130,16 +119,6 @@ internal class SoftwareCheck : IDoctorCheck
     private string[] GetAgentIds()
     {
         if (_agentRunner == null) return [];
-
-        if (_configService?.Settings.CodingAgents is { Count: > 0 } agents)
-        {
-            return agents
-                .Select(a => AgentProviderFactory.NormalizeAgentName(a.Name))
-                .Where(id => _agentRunner.RegisteredAgents.Contains(id, StringComparer.OrdinalIgnoreCase))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-        }
-
-        return [_configService?.Settings.CodingAgent ?? "claude"];
+        return _agentRunner.RegisteredAgents.ToArray();
     }
 }

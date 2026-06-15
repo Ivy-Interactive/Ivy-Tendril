@@ -44,11 +44,13 @@ Before processing, read `plan.yaml` and check the `state` field. After reading, 
 
 ### 2. For Each Worktree
 
+Report status: `tendril job status TendrilJobId --message "Pushing branches..."`
+
 Check `<TendrilPlanFolder>/Worktrees/` for each repo worktree.
 
 > **Worktree already removed:** If the Worktrees/ directory is empty (worktree was already cleaned up), fall back to `plan.yaml` to get the repo path and branch name (format: `tendril/<planId>-<SafeTitle>`, where SafeTitle is extracted from the plan folder name: e.g. `03158-ChangeBranchNaming` → `ChangeBranchNaming`). The commit objects may still exist in the original repo's object store. Use `git cat-file -t <sha>` to verify, then create or force-update the local branch: `git branch -f <branch-name> <sha>` (use `-f` because the branch may already exist from a WIP auto-commit) and push from the original repo path.
 >
-> **Commit lost (object GC'd):** If `git cat-file -t <sha>` fails, the commit was garbage-collected after worktree removal. In this case: (1) check if the change is already on main, (2) if not, recreate the change from the plan revision — create a new branch from main, apply the changes as described in the revision, commit with a descriptive message matching the plan title, and push. Update commits via CLI: `tendril plan add-commit <plan-id> <new-sha>`.
+> **Commit lost (object GC'd):** If `git cat-file -t <sha>` fails, the commit was garbage-collected after worktree removal. In this case: (1) check if the change is already on main, (2) if not, recreate the change from the plan revision — create a new branch from main, apply the changes as described in the revision, commit with a descriptive message matching the plan title, and push. Update commits via CLI: `tendril plan add-commit <plan-id> <new-sha> --job-id TendrilJobId`.
 
 For each worktree:
 
@@ -70,6 +72,8 @@ Otherwise, if an artifact upload tool is available in `Tools/`, run it to upload
 Capture the returned markdown. If non-empty, it will be appended to the PR body under an `## Artifacts` heading in the next step. If no upload tool is available, skip this step.
 
 ### 3. Create PR
+
+Report status: `tendril job status TendrilJobId --message "Creating pull request..."`
 
 For each pushed branch:
 
@@ -119,6 +123,8 @@ gh pr comment <pr-number> --repo <owner/repo> --body "<comment>"
 If no custom options or `comment` is empty, skip this step.
 
 ### 4. Apply PR Rule
+
+Report status: `tendril job status TendrilJobId --message "Applying PR rule..."`
 
 **!MANDATORY** — look up the `prRule` for this repo in the `RepoConfigs` firmware header.
 
@@ -201,12 +207,14 @@ git pull origin <default-branch>
 
 ### 5. Clean Up Worktrees
 
+Report status: `tendril job status TendrilJobId --message "Cleaning up worktrees..."`
+
 After successful `yolo` merges (or custom options with `merge: true`), clean up the worktrees to reclaim disk space:
 
 For each repo where the PR was merged:
 
 ```bash
-tendril plan remove-worktree <TendrilPlanId> <repo-folder-name>
+tendril plan remove-worktree <TendrilPlanId> <repo-folder-name> --job-id TendrilJobId
 ```
 
 **Skip cleanup** for repos using the `default` PR rule (or custom options with `merge: false`) — the worktree is still needed for potential review revisions.
@@ -220,13 +228,13 @@ Use the CLI to update the plan — **never edit plan.yaml directly**.
 Add each PR URL:
 
 ```bash
-tendril plan add-pr <plan-id> <pr-url>
+tendril plan add-pr <plan-id> <pr-url> --job-id TendrilJobId
 ```
 
 **Update state to Completed:** If ALL repos in the plan used the `yolo` prRule (or custom options with `merge: true`) and ALL PRs were successfully merged, update the state:
 
 ```bash
-tendril plan set <plan-id> state Completed
+tendril plan set <plan-id> state Completed --job-id TendrilJobId
 ```
 
 If ANY repo used the `default` prRule (or custom options with `merge: false`), do NOT update the state — the plan remains open for manual review and potential revisions.
@@ -235,7 +243,7 @@ If ANY repo used the `default` prRule (or custom options with `merge: false`), d
 
 Some plans create new repos and push directly to main (e.g., repo scaffolding). These have `repos: []`, no worktrees, and commits already on `origin/main`. When detected:
 1. Verify the commit(s) exist on the remote default branch
-2. Mark state as Completed: `tendril plan set <plan-id> state Completed`
+2. Mark state as Completed: `tendril plan set <plan-id> state Completed --job-id TendrilJobId`
 3. Log outcome as "No PR Required — Direct-to-Main"
 4. Skip steps 2–5 entirely
 

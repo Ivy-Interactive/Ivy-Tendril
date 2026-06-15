@@ -1,10 +1,12 @@
 using System.Text.RegularExpressions;
 using Ivy.Core;
 using Ivy.Tendril.Apps.Drafts.Dialogs;
+using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Apps.Views.Tabs;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
@@ -22,7 +24,6 @@ public class ContentView(
 {
     public override object Build()
     {
-        var downloadUrl = PlanDownloadHelper.UsePlanDownload(Context, planService, selectedPlan);
         var client = UseService<IClientProvider>();
         var copyToClipboard = UseClipboard();
         var openFile = UseState<string?>(null);
@@ -30,6 +31,8 @@ public class ContentView(
         var issueAssigneeState = UseState<string?>(null);
         var issueLabelsState = UseState<string[]>([]);
         var issueCommentState = UseState("");
+
+        var processView = Context.UseTendrilProcessView();
 
         var (updateDialog, showUpdateDialog) = UseTrigger((isOpen) => !isOpen.Value ? null : new UpdatePlanDialog(isOpen, selectedPlan!, selectedPlanState, jobService, planService, refreshPlans));
 
@@ -40,6 +43,16 @@ public class ContentView(
             if (!isOpen.Value) return null;
             return new CreateIssueDialog(isOpen, selectedRepoState, issueAssigneeState, issueLabelsState,
                 issueCommentState, selectedPlan!, jobService);
+        });
+
+        var (debugSheet, showDebugJob) = UseTrigger<string>((isOpen, jobId) =>
+        {
+            if (!isOpen.Value) return null;
+            return new Sheet(
+                () => isOpen.Set(false),
+                new JobDebugSheet(jobId, jobService, planService, config),
+                "Job Debug"
+            ).Width(Size.Half()).Resizable();
         });
 
         var isEditing = UseState(false);
@@ -122,7 +135,7 @@ public class ContentView(
         if (selectedPlan is null)
         {
             if (allPlans.Count == 0)
-                return new NoContentView("No draft plans", "Plans you create will appear here.", new NewPlanButton().Width(Size.Fit()));
+                return new NoContentView("No draft plans", "Plans you create will appear here.", processView);
 
             return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
                    | Text.Muted("Select a plan from the sidebar");
@@ -132,7 +145,6 @@ public class ContentView(
 
         var header = Layout.Horizontal().Width(Size.Full()).Height(Size.Px(40)).Gap(2)
                      | Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis);
-        header |= Text.Muted($"rev:{selectedPlan.RevisionCount}");
 
         if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
             header |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
@@ -186,8 +198,10 @@ public class ContentView(
         {
             var tabs = Layout.Tabs(
                 new Tab("Plan", Cap(planTabContent)),
-                new Tab("Details", Cap(new DetailsTabView(selectedPlan!)))
-            ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content);
+                new Tab("Details", Cap(new DetailsTabView(selectedPlan!,
+                    jobService.GetJobs().Where(j => j.PlanFile == selectedPlan!.FolderName).ToList(),
+                    showDebugJob)))
+            ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content).RemoveParentPadding();
 
             content |= (Layout.Vertical().Padding(2).Height(Size.Full()) | tabs);
         }
@@ -225,8 +239,7 @@ public class ContentView(
             hasActiveExpandJob,
             hasActiveSplitJob,
             GoToNext,
-            GoToPrevious,
-            downloadUrl.Value);
+            GoToPrevious);
 
         var mainLayout = new HeaderLayout(
             header,
@@ -241,7 +254,8 @@ public class ContentView(
             mainLayout,
             updateDialog,
             deleteDialog,
-            createIssueDialog
+            createIssueDialog,
+            debugSheet
         };
 
         elements.Add(new FileSheet(openFile, config));
@@ -249,7 +263,7 @@ public class ContentView(
         return new Fragment(elements.ToArray());
 
         object Cap(object inner) => Layout.Vertical().Scroll().Width(Size.Full()).Height(Size.Full())
-            | (Layout.Vertical().Width(Size.Full().Max(Size.Units(200))) | inner);
+            | (Layout.Vertical().Padding(0, 0, 0, 4).Width(Size.Full().Max(Size.Units(200))) | inner);
     }
 
     internal static object BuildFailureCallout(PlanFile plan)

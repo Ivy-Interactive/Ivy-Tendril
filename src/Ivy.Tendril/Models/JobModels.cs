@@ -110,6 +110,7 @@ public record JobItem
     {
         EventParser ??= new ClaudeEventParser();
         _eventSerializer ??= new JsonEventSerializer();
+        AppendToRawLog(line);
         foreach (var evt in EventParser.ParseLine(line))
         {
             if (evt is SessionInitEvent { Model: not null } initEvt)
@@ -120,20 +121,19 @@ public record JobItem
             while (OutputLines.Count > MaxOutputLines)
                 OutputLines.TryDequeue(out _);
             _outputSubject.OnNext(serialized);
-            AppendToRawLog(serialized);
         }
     }
 
     public void EnqueueSystemOutput(string message)
     {
         _eventSerializer ??= new JsonEventSerializer();
+        AppendToRawLog(message);
         var evt = new TextEvent { Kind = AgentEventKind.Text, Text = message };
         var serialized = _eventSerializer.Serialize(evt);
         OutputLines.Enqueue(serialized);
         while (OutputLines.Count > MaxOutputLines)
             OutputLines.TryDequeue(out _);
         _outputSubject.OnNext(serialized);
-        AppendToRawLog(serialized);
     }
 
     public void FlushParser()
@@ -145,7 +145,6 @@ public record JobItem
             var serialized = _eventSerializer.Serialize(evt);
             OutputLines.Enqueue(serialized);
             _outputSubject.OnNext(serialized);
-            AppendToRawLog(serialized);
         }
     }
 

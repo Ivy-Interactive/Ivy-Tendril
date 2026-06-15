@@ -12,7 +12,7 @@ namespace Ivy.Tendril;
 
 internal static class ServiceRegistration
 {
-    public static void AddTendrilServices(this Server server, ConfigService configService)
+    public static void AddTendrilServices(this Server server, ConfigService configService, TendrilArgs? tendrilArgs = null)
     {
         server.Services.AddHttpClient();
         server.Services.AddSingleton<IExceptionHandler>(sp =>
@@ -28,7 +28,10 @@ internal static class ServiceRegistration
         if (configService.Settings.Auth != null)
             server.UseAuth<Auth.TendrilAuthProvider>();
 
-        server.Services.AddAgentInfrastructure();
+        server.Services.AddAgentInfrastructure(opts =>
+        {
+            opts.IncludeBetaProviders = tendrilArgs?.Beta ?? false;
+        });
 
         server.Services.AddSingleton<ModelPricingService>();
 
@@ -59,8 +62,10 @@ internal static class ServiceRegistration
         server.Services.AddSingleton<IWorktreeLifecycleLogger>(sp =>
         {
             var config = sp.GetRequiredService<IConfigService>();
-            return new WorktreeLifecycleLogger(
-                string.IsNullOrEmpty(config.TendrilHome) ? "." : config.TendrilHome);
+            var home = string.IsNullOrEmpty(config.TendrilHome)
+                ? System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), ".tendril")
+                : config.TendrilHome;
+            return new WorktreeLifecycleLogger(home);
         });
         server.Services.AddSingleton<PlanReaderService>(sp =>
         {

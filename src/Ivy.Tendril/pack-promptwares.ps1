@@ -20,6 +20,7 @@ $shippedTools = @{
     'CreatePr'    = @()
     'ExecutePlan' = @()
     'ExpandPlan'  = @()
+    'RetryPlan'   = @()
     'SplitPlan'   = @()
     'UpdatePlan'  = @()
     'CreateIssue' = @()

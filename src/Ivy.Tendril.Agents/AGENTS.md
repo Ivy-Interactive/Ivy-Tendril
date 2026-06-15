@@ -1,6 +1,6 @@
 # Ivy.Tendril.Agents
 
-Cross-platform .NET 10 library for orchestrating coding agent CLIs. Provides a unified API to spawn, stream events from, and manage sessions with Claude Code, GitHub Copilot, Gemini CLI, and OpenCode.
+Cross-platform .NET 10 library for orchestrating coding agent CLIs. Provides a unified API to spawn, stream events from, and manage sessions with Claude Code, GitHub Copilot, Codex, Gemini CLI, and OpenCode.
 
 ## Architecture
 
@@ -9,6 +9,7 @@ Ivy.Tendril.Agents/
 ├── Abstractions/          # Public contracts (interfaces, records, enums)
 ├── Providers/
 │   ├── Claude/            # Claude Code CLI integration
+│   ├── Codex/             # Codex CLI integration
 │   ├── Copilot/           # GitHub Copilot CLI integration
 │   ├── Gemini/            # Gemini CLI integration
 │   └── OpenCode/          # OpenCode CLI integration

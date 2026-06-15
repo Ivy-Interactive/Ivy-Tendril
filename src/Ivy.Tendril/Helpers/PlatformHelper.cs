@@ -17,7 +17,7 @@ public static class PlatformHelper
         {
             var psi = new ProcessStartInfo
             {
-                FileName = "pwsh",
+                FileName = PathHelper.GetPwshPath(),
                 Arguments = $"-NoProfile -Command \"if ({condition}) {{ exit 0 }} else {{ exit 1 }}\"",
                 WorkingDirectory = workingDirectory,
                 RedirectStandardOutput = true,
@@ -48,12 +48,13 @@ public static class PlatformHelper
     {
         try
         {
+            var pwshPath = PathHelper.GetPwshPath();
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
                 // On macOS, create a temporary .command script and open it in Terminal.app
                 // This ensures the terminal window is visible and interactive
                 var scriptPath = Path.Combine(Path.GetTempPath(), $"tendril-action-{Guid.NewGuid():N}.command");
-                var scriptContent = $"#!/bin/bash\ncd \"{workingDirectory}\"\npwsh -NoExit -NoProfile -Command \"{action.Replace("\"", "\\\"")}\"\nrm \"{scriptPath}\"\n";
+                var scriptContent = $"#!/bin/bash\ncd \"{workingDirectory}\"\n\"{pwshPath}\" -NoExit -NoProfile -Command \"{action.Replace("\"", "\\\"")}\"\nrm \"{scriptPath}\"\n";
                 File.WriteAllText(scriptPath, scriptContent);
 
                 // Make the script executable
@@ -80,7 +81,7 @@ public static class PlatformHelper
             // Windows and Linux: run pwsh directly
             Process.Start(new ProcessStartInfo
             {
-                FileName = "pwsh",
+                FileName = pwshPath,
                 Arguments = $"-NoExit -NoProfile -Command \"{action}\"",
                 WorkingDirectory = workingDirectory,
                 UseShellExecute = true
@@ -164,6 +165,29 @@ public static class PlatformHelper
                     CreateNoWindow = true
                 });
                 return true;
+            }
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX) || RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                if (!Path.IsPathRooted(editorCommand))
+                {
+                    using var check = Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "which",
+                        Arguments = editorCommand,
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true
+                    });
+                    check?.WaitForExit(3000);
+                    if (check is null || check.ExitCode != 0)
+                        return false;
+                }
+                else if (!File.Exists(editorCommand))
+                {
+                    return false;
+                }
             }
 
             // UseShellExecute = false prevents the OS from printing "The file X does not exist"

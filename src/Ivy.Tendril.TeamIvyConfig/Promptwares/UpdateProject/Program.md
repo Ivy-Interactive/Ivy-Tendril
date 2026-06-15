@@ -9,7 +9,7 @@ The firmware header contains:
 - **Instructions** — what to do (e.g. "Setup verifications and review actions for this project.")
 - **CurrentTime** — current UTC timestamp
 
-Project and verification configuration is available via `tendril project list`, `tendril verification list`, and by reading the config file at `$TENDRIL_CONFIG`.
+Project and verification configuration is available via `tendril project list` and `tendril verification list`.
 
 ## Rules
 
@@ -30,8 +30,11 @@ tendril verification set <name> <field> <value>
 
 ### Project verifications (references)
 ```bash
-tendril project add-verification <project-name> <verification-name> --required
+tendril project add-verification <project-name> <verification-name> --required [--after <other>]
 tendril project remove-verification <project-name> <verification-name>
+tendril project move-verification <project-name> <verification-name> --after <other>
+tendril project move-verification <project-name> <verification-name> --before <other>
+tendril project move-verification <project-name> <verification-name> --position <n>
 ```
 
 ### Review actions
@@ -88,25 +91,48 @@ Always add `CheckResult` as a verification (it exists in the default config):
 tendril project add-verification <project-name> CheckResult --required
 ```
 
+### 2.5. Ensure Correct Verification Order
+
+Verifications run top-to-bottom during plan execution. The correct order is:
+
+1. **Linting/Formatting** — e.g. `DotnetFormat`, `NpmLint`, `RustClippy`, `GoFmt`, `FrameworkFrontendLint`, `VitePlusCheck`
+2. **Build** — e.g. `DotnetBuild`, `FrameworkDotnetBuild`, `NpmBuild`, `RustBuild`, `GoBuild`
+3. **Tests** — e.g. `DotnetTest`, `NpmTest`, `RustTest`, `GoTest`
+4. **CheckResult** — always last
+
+After adding all verifications, verify ordering with `tendril project get <project-name>` and fix with:
+```bash
+tendril project move-verification <project-name> <name> --after <other>
+```
+
+Use `--after` when adding verifications to place them correctly from the start:
+```bash
+tendril project add-verification <project-name> DotnetBuild --required --after DotnetFormat
+tendril project add-verification <project-name> DotnetTest --required --after DotnetBuild
+tendril project add-verification <project-name> CheckResult --required --after DotnetTest
+```
+
 ### 3. Setup Review Actions
 
 Review actions make it easy to start the application from a worktree during code review.
 
-Inspect each repo to determine how to run the application:
-- .NET project with a runnable entry point: `dotnet run --project worktrees/<RepoName>/<path-to-project> --browse --find-available-port`
-- Node.js app: `cd worktrees/<RepoName> && npm run dev`
-- Python app: `cd worktrees/<RepoName> && python -m <module>` or `flask run`
-- Static docs: `start worktrees/<RepoName>/docs/index.html`
+Inspect each repo to determine how to run the application. For website projects, prefer commands that open the browser automatically:
+- .NET project with a runnable entry point: `dotnet run --project Worktrees/<RepoName>/<path-to-project> --browse --find-available-port`
+- Vite or webpack-dev-server: `cd Worktrees/<RepoName> && npm run dev -- --open`
+- Angular CLI: `cd Worktrees/<RepoName> && ng serve --open`
+- Other Node.js app (no open support): `cd Worktrees/<RepoName> && npm run dev`
+- Python app: `cd Worktrees/<RepoName> && python -m <module>` or `flask run`
+- Static docs: `start Worktrees/<RepoName>/docs/index.html`
 
 For each review action:
 - **name**: Short descriptive name (e.g. "App", "Docs", "Frontend", "API")
-- **condition**: A `Test-Path` expression that checks if the worktree path exists (e.g. `Test-Path "worktrees/<RepoName>/src/<Project>"`)
+- **condition**: A `Test-Path` expression that checks if the worktree path exists (e.g. `Test-Path "Worktrees/<RepoName>/src/<Project>"`)
 - **command**: The command to launch the application
 
 ```bash
 tendril project add-review-action <project-name> "<name>" \
   --command "<launch command>" \
-  --condition "Test-Path \"worktrees/<RepoName>/<path>\""
+  --condition "Test-Path \"Worktrees/<RepoName>/<path>\""
 ```
 
 ### 4. Summary

@@ -75,7 +75,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     {
         var badges = new Dictionary<string, int>
         {
-            ["plans"] = status.DraftCount,
+            ["drafts"] = status.DraftCount,
             ["review"] = status.ReviewCount,
             ["jobs"] = status.JobCount,
             ["icebox"] = status.IceboxCount,
@@ -432,7 +432,17 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                     MenuItem.Checkbox("Dark").Icon(Icons.Moon).OnSelect(() => client.SetThemeMode(ThemeMode.Dark)),
                     MenuItem.Checkbox("System").Icon(Icons.SunMoon)
                         .OnSelect(() => client.SetThemeMode(ThemeMode.System))
-                )
+                ),
+#if DEBUG
+            MenuItem.Default("Debug")
+                .Tag("$debug")
+                .Icon(Icons.Bug)
+                .Children(
+                    MenuItem.Default("Onboarding")
+                        .Icon(Icons.Rocket)
+                        .OnSelect(() => navigator.Navigate<OnboardingApp>())
+                ),
+#endif
         };
 
         var settingsTrigger = new Button("Settings")

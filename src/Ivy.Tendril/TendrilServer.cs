@@ -26,7 +26,7 @@ public static class TendrilServer
 
         var configService = new ConfigService(Microsoft.Extensions.Logging.Abstractions.NullLogger<ConfigService>.Instance);
         server.Services.AddSingleton(tendrilArgs);
-        server.AddTendrilServices(configService);
+        server.AddTendrilServices(configService, tendrilArgs);
 
         var logLevel = tendrilArgs.Verbose ? "Debug"
             : tendrilArgs.Quiet ? "Warning"
@@ -85,6 +85,11 @@ public static class TendrilServer
             .Where(a => tendrilArgs.Beta || a.Type != typeof(AgentApp))
             .ToArray());
         server.AddConnectionsFromAssembly(typeof(TendrilServer).Assembly);
+
+        // Eagerly register Ivy.Tendril.Widgets assembly to ensure Tendril widgets are discovered
+        // when running in single-file published mode (where DLLs are not on disk)
+        Ivy.Core.ExternalWidgets.ExternalWidgetRegistry.Instance.RegisterAssembly(
+            typeof(Ivy.Widgets.TendrilProcessView.TendrilProcessView).Assembly);
 
         var version = typeof(TendrilAppShell).Assembly.GetName().Version!;
         var versionString = version.ToString(3);

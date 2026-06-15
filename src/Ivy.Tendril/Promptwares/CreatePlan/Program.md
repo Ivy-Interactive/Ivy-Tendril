@@ -26,6 +26,8 @@ Project information (repos, verifications, context) is in the **Projects** secti
 
 ### 1. Parse Task Description
 
+Report status: `tendril job status TendrilJobId --message "Parsing task..."`
+
 The `TaskDescription` header value contains the user's task description. If it references related plans with `[number]` syntax (e.g. `[01205]`), find and read those plan files from `TendrilPlansFolder` for context.
 
 **Extract Source URL**: Check if the task description contains a GitHub PR URL (`https://github.com/{owner}/{repo}/pull/{number}`) or issue URL (`https://github.com/{owner}/{repo}/issues/{number}`). If found, store it as `sourceUrl` in plan.yaml. Use `gh pr view <url> --json title,body` or `gh issue view <url> --json title,body` to fetch the title and body for additional context when writing the plan.
@@ -54,6 +56,8 @@ The **Projects** section of your firmware lists all available projects with thei
 Do NOT read or modify `.counter` directly. Plan IDs are allocated by the `tendril plan create` CLI command (see Step 4).
 
 ### 3. Research
+
+Report status: `tendril job status TendrilJobId --message "Researching codebase..."`
 
 - **Check for duplicate plans** first — **unless `Force: true` is set in the firmware header**, in which case skip duplicate detection entirely. However, if you discover related existing plans during research (e.g., from grep results or memory), still link them via `--related-plan` on `tendril plan create`. `Force` means "create the plan regardless" — not "ignore prior work." Check the `DuplicateCandidates` firmware value. If present, it contains pre-computed matches (format: `folderName|title|state` per line). For each match, perform **state-aware duplicate detection** on those specific plans only. If `DuplicateCandidates` is absent, no potential duplicates were found — skip duplicate detection. When matches are found, decide as follows:
 
@@ -158,6 +162,8 @@ This catches stale plans before they enter the review queue, reducing wasted rev
 
 ### 4. Create Plan
 
+Report status: `tendril job status TendrilJobId --message "Creating plan..."`
+
 Create the plan using CLI commands according to the plan structure in the **Reference Documents** section. **Never write `plan.yaml` directly** — use `tendril plan` commands for all plan metadata.
 
 #### 4.1. Create plan folder and plan.yaml via CLI
@@ -174,7 +180,8 @@ tendril plan create "<Title>" \
   --repo "<repo-path-1>" \
   --repo "<repo-path-2>" \
   --verification "Build=Pending" \
-  --verification "Test=Pending"
+  --verification "Test=Pending" \
+  --job-id TendrilJobId
 ```
 
 **IMPORTANT:** Always pass `--plans-dir` with the `TendrilPlansFolder` firmware value. This ensures the plan is created in the correct directory regardless of environment variable inheritance.
@@ -201,7 +208,7 @@ Populate `--verification` flags from the project's verifications in the **Projec
 Write the revision content via CLI:
 
 ```bash
-tendril plan write-revision <PlanId> <<'EOF'
+tendril plan write-revision <PlanId> --job-id TendrilJobId <<'EOF'
 <revision content here>
 EOF
 ```
@@ -221,11 +228,11 @@ tendril job status <TendrilJobId> --message "Creating plan..." --plan-id <PlanId
 For any fields that need to be set after initial creation, use individual CLI commands:
 
 ```bash
-tendril plan set <PlanId> initialPrompt "<text>"
-tendril plan add-repo <PlanId> "<repo-path>"
-tendril plan set-verification <PlanId> Build Pending
-tendril plan add-related-plan <PlanId> "<folder-name>"
-tendril plan add-depends-on <PlanId> "<folder-name>"
+tendril plan set <PlanId> initialPrompt "<text>" --job-id TendrilJobId
+tendril plan add-repo <PlanId> "<repo-path>" --job-id TendrilJobId
+tendril plan set-verification <PlanId> Build Pending --job-id TendrilJobId
+tendril plan add-related-plan <PlanId> "<folder-name>" --job-id TendrilJobId
+tendril plan add-depends-on <PlanId> "<folder-name>" --job-id TendrilJobId
 ```
 
 **Validate repo paths**: After determining the project and repos from the **Projects** section, verify each repo path exists locally:

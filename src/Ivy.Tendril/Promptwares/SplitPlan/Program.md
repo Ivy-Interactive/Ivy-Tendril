@@ -24,6 +24,8 @@ The plans directory path can be derived from the plan folder's parent directory.
 
 ### 2. Create Split Plans
 
+Report status: `tendril job status TendrilJobId --message "Creating split plans..."`
+
 For each distinct issue, use `tendril plan create` to allocate an ID, create the folder, and write `plan.yaml`:
 
 ```bash
@@ -36,7 +38,8 @@ tendril plan create "<Title>" \
   --repo "<repo-path>" \
   --verification "Build=Pending" \
   --verification "Test=Pending" \
-  --related-plan "<original-plan-folder-name>"
+  --related-plan "<original-plan-folder-name>" \
+  --job-id TendrilJobId
 ```
 
 **IMPORTANT:** Always pass `--plans-dir` with the plans directory (derive from the plan folder's parent). This ensures child plans are created in the correct directory regardless of environment variable inheritance.
@@ -55,7 +58,7 @@ Do NOT read or modify `.counter` directly — `tendril plan create` handles ID a
 After creating each plan, write the revision via CLI:
 
 ```bash
-tendril plan write-revision <PlanId> <<'EOF'
+tendril plan write-revision <PlanId> --job-id TendrilJobId <<'EOF'
 <revision content here>
 EOF
 ```
@@ -70,6 +73,8 @@ Each new plan may belong to a different project than the original. For each spli
 - If a sub-plan spans multiple projects, prefer the primary project (where most changes occur)
 
 ### 3. Dependencies Between Split Plans
+
+Report status: `tendril job status TendrilJobId --message "Setting up dependencies..."`
 
 Add `--depends-on` between sibling plans **only** when one plan would fail to compile or run without the other's changes being merged first. This is rare — most split plans are independent.
 
@@ -86,6 +91,8 @@ Add `--depends-on` between sibling plans **only** when one plan would fail to co
 Ask: "Will Plan B fail to compile/run if Plan A's changes aren't merged first?" — if no, skip `dependsOn`.
 
 ### 4. Original Plan
+
+Report status: `tendril job status TendrilJobId --message "Updating original plan..."`
 
 Do NOT modify the original plan — the launcher transitions it to `Skipped` automatically on success.
 

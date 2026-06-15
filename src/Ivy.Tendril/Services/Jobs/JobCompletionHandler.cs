@@ -295,7 +295,7 @@ internal class JobCompletionHandler
 
         var condPsi = new ProcessStartInfo
         {
-            FileName = "pwsh",
+            FileName = PathHelper.GetPwshPath(),
             Arguments = $"-NoProfile -NonInteractive -EncodedCommand {EncodeForPowerShell(hook.Condition)}",
             WorkingDirectory = string.IsNullOrEmpty(planFolder) ? "." : planFolder,
             RedirectStandardOutput = true,
@@ -321,7 +321,7 @@ internal class JobCompletionHandler
     {
         var actionPsi = new ProcessStartInfo
         {
-            FileName = "pwsh",
+            FileName = PathHelper.GetPwshPath(),
             Arguments = $"-NoProfile -NonInteractive -EncodedCommand {EncodeForPowerShell(hook.Action)}",
             WorkingDirectory = string.IsNullOrEmpty(planFolder) ? "." : planFolder,
             RedirectStandardOutput = true,
@@ -619,8 +619,6 @@ internal class JobCompletionHandler
         try
         {
             PromptwareLogWriter.WriteLog(job);
-            if (!string.IsNullOrEmpty(job.LogFilePath) && job.OutputLines.Count > 0)
-                PromptwareLogWriter.WriteRawLog(job.LogFilePath, job.OutputLines);
         }
         catch { }
 

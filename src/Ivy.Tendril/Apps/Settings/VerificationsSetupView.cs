@@ -16,7 +16,7 @@ public class VerificationsSetupView : ViewBase
 
         var verifications = config.Settings.Verifications;
 
-        var rows = verifications.Select((v, i) => new VerificationRow(v.Name, i)).ToList();
+        var rows = verifications.Select((v, i) => new VerificationRow(v.Name, i)).OrderBy(r => r.Name).ToList();
 
         var table = new TableBuilder<VerificationRow>(rows)
             .Header(t => t.Index, "")

@@ -90,7 +90,10 @@ internal class JobLauncher
         ctx.RunHooks("before", type, planFolderForHooks, job.Project, job);
 
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs && !string.IsNullOrEmpty(job.TypedArgs?.PlanFolder))
+        {
+            EnsurePlanFolderWritable(job.TypedArgs!.PlanFolder!);
             PlanYamlHelper.SetPlanStateByFolder(job.TypedArgs!.PlanFolder!, nameof(PlanStatus.Executing));
+        }
 
         job.SessionId = Guid.NewGuid().ToString();
     }
@@ -215,7 +218,7 @@ internal class JobLauncher
             {
                 if (e.Data != null)
                 {
-                    job.EnqueueSystemOutput($"[stderr] {e.Data}");
+                    job.EnqueueOutput($"[stderr] {e.Data}");
                     job.LastOutputAt = DateTime.UtcNow;
                 }
             }
@@ -265,7 +268,7 @@ internal class JobLauncher
             SessionId = job.SessionId,
             PermissionMode = PermissionMode.FullAuto,
             AllowedTools = resolution.AllowedTools,
-            WritableDirectories = ResolveWritableDirectories(job.Type),
+            WritableDirectories = ResolveWritableDirectories(job.Type, programFolder),
             ExtraArguments = resolution.ExtraArgs,
             PromptFilePath = promptFilePath,
         };
@@ -458,19 +461,87 @@ internal class JobLauncher
         return workDir;
     }
 
-    private IReadOnlyList<string> ResolveWritableDirectories(string promptwareType)
+    private IReadOnlyList<string> ResolveWritableDirectories(string promptwareType, string promptwareFolder)
     {
         if (_configService == null) return [];
 
-        var dirs = new List<string>();
+        var homeDir = _configService.TendrilHome;
+        var homePrefix = homeDir.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var dirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { homeDir };
 
-        if (PlanWritingTypes.Contains(promptwareType))
+        var planFolder = _configService.PlanFolder;
+        if (!planFolder.StartsWith(homePrefix, StringComparison.OrdinalIgnoreCase))
+            dirs.Add(planFolder);
+
+        var memoryDir = Path.Combine(promptwareFolder, "Memory");
+        if (!memoryDir.StartsWith(homePrefix, StringComparison.OrdinalIgnoreCase))
+            dirs.Add(memoryDir);
+
+        var toolsDir = Path.Combine(promptwareFolder, "Tools");
+        if (!toolsDir.StartsWith(homePrefix, StringComparison.OrdinalIgnoreCase))
+            dirs.Add(toolsDir);
+
+        return [.. dirs];
+    }
+
+    private void EnsurePlanFolderWritable(string planFolder)
+    {
+        var testFile = Path.Combine(planFolder, $".write-test-{Guid.NewGuid():N}");
+        try
         {
-            dirs.Add(_configService.PlanFolder);
-            dirs.Add(Path.Combine(_configService.TendrilHome, "Trash"));
+            using (File.Create(testFile)) { }
+            File.Delete(testFile);
         }
+        catch (UnauthorizedAccessException)
+        {
+            _logger.LogWarning("Plan folder is not writable, attempting repair: {PlanFolder}", planFolder);
+            TryRepairFolderAccess(planFolder);
+        }
+        finally
+        {
+            try { if (File.Exists(testFile)) File.Delete(testFile); } catch { /* best-effort cleanup */ }
+        }
+    }
 
-        return dirs;
+    private void TryRepairFolderAccess(string planFolder)
+    {
+        try
+        {
+            string fileName;
+            string arguments;
+            if (OperatingSystem.IsWindows())
+            {
+                var username = Environment.UserName;
+                fileName = "icacls";
+                arguments = $"\"{planFolder}\" /grant \"{username}:(OI)(CI)M\" /T /C /Q";
+            }
+            else
+            {
+                fileName = "chmod";
+                arguments = $"-R 777 \"{planFolder}\"";
+            }
+
+            using var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = fileName,
+                Arguments = arguments,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            });
+            process?.WaitForExit(10_000);
+
+            if (process is { ExitCode: 0 })
+                _logger.LogInformation("Repaired folder access: {PlanFolder}", planFolder);
+            else
+                _logger.LogWarning("Folder access repair may have failed (exit code {ExitCode}): {PlanFolder}",
+                    process?.ExitCode, planFolder);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to repair access on {PlanFolder}", planFolder);
+        }
     }
 
     private void SetTendrilEnvironment(ProcessStartInfo psi, JobItem job)

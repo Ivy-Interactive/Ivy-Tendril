@@ -10,6 +10,8 @@ using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Console;
+using Spectre.Console;
 using Spectre.Console.Cli;
 using Velopack;
 
@@ -53,13 +55,55 @@ public class Program
 
         VelopackApp.Build().Run();
 
-        var (verbose, quiet, forceDesktop, forceWeb, beta, filteredArgs) = ParseGlobalFlags(args);
+        var (verbose, quiet, forceDesktop, forceWeb, beta, jobId, filteredArgs) = ParseGlobalFlags(args);
 
         bool isTool = IsTendrilToolInvocation();
-        bool useDesktop = (isTool || forceDesktop) && !forceWeb;
+        bool isPackagedApp = IsPackagedApp();
+        bool useDesktop = (forceDesktop || isPackagedApp || (isTool && !verbose && !quiet)) && !forceWeb;
+        if (useDesktop && OperatingSystem.IsLinux())
+        {
+            // On Linux, default to web mode (foreground server) unless desktop is explicitly forced
+            if (!forceDesktop)
+            {
+                useDesktop = false;
+            }
+        }
+
+        if (useDesktop && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("IVY_TLS")))
+            Environment.SetEnvironmentVariable("IVY_TLS", "0");
+
         bool isDetachedChild = args.Contains(DetachedLaunchMarker);
 
-        if (isTool && useDesktop && !isDetachedChild && ShouldDetachDesktopLaunch(filteredArgs))
+        // Check if we are launching the web server/desktop UI (not executing a CLI subcommand)
+        bool isServerLaunch = filteredArgs.Length == 0 || !ShouldHandleAsCliCommand(filteredArgs[0]);
+        if (isServerLaunch && !isDetachedChild)
+        {
+            var checkArgs = new Services.TendrilArgs { Beta = beta, Verbose = verbose, Quiet = quiet };
+            var checkServer = TendrilServer.Create(filteredArgs, checkArgs);
+            if (useDesktop)
+            {
+                checkServer.Args.FindAvailablePort = true;
+            }
+            if (!checkServer.Args.FindAvailablePort && IsPortInUse(checkServer.Args.Port))
+            {
+                AnsiConsole.MarkupLine($"[red]Error: Port {checkServer.Args.Port} is already in use.[/]");
+                AnsiConsole.MarkupLine("[yellow]Please make sure another instance of Tendril is not already running.[/]");
+                AnsiConsole.MarkupLine("");
+                if (OperatingSystem.IsWindows())
+                {
+                    AnsiConsole.MarkupLine($"To find the process using this port, run: [blue]netstat -ano | findstr :{checkServer.Args.Port}[/]");
+                }
+                else
+                {
+                    AnsiConsole.MarkupLine($"To find the process using this port, run: [blue]lsof -i :{checkServer.Args.Port}[/]");
+                }
+                AnsiConsole.MarkupLine("");
+                AnsiConsole.MarkupLine("To use a different port, set the [green]PORT[/] environment variable (e.g., [green]PORT=5011 tendril[/]) or specify it directly (e.g., [green]tendril --port 5011[/]).");
+                return 1;
+            }
+        }
+
+        if ((isTool || isPackagedApp) && useDesktop && !isDetachedChild && ShouldDetachDesktopLaunch(filteredArgs, verbose))
             return RelaunchDesktopDetached(filteredArgs);
 
         if (isDetachedChild && useDesktop)
@@ -73,9 +117,16 @@ public class Program
         {
             var cliServices = new ServiceCollection();
             var cliLogLevel = verbose ? LogLevel.Debug : quiet ? LogLevel.Warning : LogLevel.Information;
-            cliServices.AddLogging(builder => builder.AddConsole().SetMinimumLevel(cliLogLevel));
+            cliServices.AddLogging(builder => builder
+                .SetMinimumLevel(cliLogLevel)
+                .AddConsole(options => options.FormatterName = "clean")
+                .AddConsoleFormatter<CleanConsoleFormatter, ConsoleFormatterOptions>());
             cliServices.AddSingleton<IPlanWatcherService, NullPlanWatcherService>();
-            cliServices.AddAgentInfrastructure();
+            cliServices.AddAgentInfrastructure(opts => opts.IncludeBetaProviders = beta);
+
+            var configService = new ConfigService(Microsoft.Extensions.Logging.Abstractions.NullLogger<ConfigService>.Instance);
+            cliServices.AddSingleton<IConfigService>(configService);
+            cliServices.AddSingleton<ConfigService>(configService);
 
             var app = ConfigureCliCommands(cliServices);
             var firstArg = filteredArgs[0];
@@ -86,17 +137,41 @@ public class Program
 
             if (ShouldHandleAsCliCommand(firstArg))
             {
-                var cliLog = Environment.GetEnvironmentVariable("TENDRIL_CLI_LOG");
-                if (!string.IsNullOrEmpty(cliLog))
+                try
                 {
-                    var commandLine = string.Join(" ", filteredArgs);
-                    var sw = Stopwatch.StartNew();
-                    var exitCode = app.Run(filteredArgs);
-                    sw.Stop();
-                    JobStatusFile.AppendCliInvocationDirect(cliLog, commandLine, exitCode, sw.Elapsed.TotalMilliseconds);
-                    return exitCode;
+                    var cliLog = Environment.GetEnvironmentVariable("TENDRIL_CLI_LOG");
+                    if (string.IsNullOrEmpty(cliLog))
+                    {
+                        var resolvedJobId = jobId ?? TryExtractJobIdFromStatusCommand(filteredArgs);
+                        if (!string.IsNullOrEmpty(resolvedJobId))
+                        {
+                            var home = Environment.GetEnvironmentVariable("TENDRIL_HOME");
+                            if (!string.IsNullOrEmpty(home))
+                                cliLog = JobStatusFile.GetStatusFilePath(resolvedJobId) + ".jsonl";
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(cliLog))
+                    {
+                        var commandLine = string.Join(" ", filteredArgs);
+                        var sw = Stopwatch.StartNew();
+                        var exitCode = app.Run(filteredArgs);
+                        sw.Stop();
+                        JobStatusFile.AppendCliInvocationDirect(cliLog, commandLine, exitCode, sw.Elapsed.TotalMilliseconds);
+                        return exitCode;
+                    }
+                    return app.Run(filteredArgs);
                 }
-                return app.Run(filteredArgs);
+                catch (CommandParseException ex)
+                {
+                    AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message.EscapeMarkup()}");
+                    return 1;
+                }
+                catch (CommandRuntimeException ex)
+                {
+                    AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message.EscapeMarkup()}");
+                    return 1;
+                }
             }
         }
 
@@ -137,11 +212,31 @@ public class Program
         ConfigureExceptionHandlers();
         StartMemoryWatchdog();
 
-        if (useDesktop && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("IVY_TLS")))
-            Environment.SetEnvironmentVariable("IVY_TLS", "0");
-
         var tendrilArgs = new Services.TendrilArgs { Beta = beta, Verbose = verbose, Quiet = quiet };
         var server = TendrilServer.Create(filteredArgs, tendrilArgs);
+
+        if (useDesktop)
+        {
+            server.Args.FindAvailablePort = true;
+        }
+
+        if (!server.Args.FindAvailablePort && IsPortInUse(server.Args.Port))
+        {
+            AnsiConsole.MarkupLine($"[red]Error: Port {server.Args.Port} is already in use.[/]");
+            AnsiConsole.MarkupLine("[yellow]Please make sure another instance of Tendril is not already running.[/]");
+            AnsiConsole.MarkupLine("");
+            if (OperatingSystem.IsWindows())
+            {
+                AnsiConsole.MarkupLine($"To find the process using this port, run: [blue]netstat -ano | findstr :{server.Args.Port}[/]");
+            }
+            else
+            {
+                AnsiConsole.MarkupLine($"To find the process using this port, run: [blue]lsof -i :{server.Args.Port}[/]");
+            }
+            AnsiConsole.MarkupLine("");
+            AnsiConsole.MarkupLine("To use a different port, set the [green]PORT[/] environment variable (e.g., [green]PORT=5011 tendril[/]) or specify it directly (e.g., [green]tendril --port 5011[/]).");
+            return 1;
+        }
 
         if (useDesktop)
         {
@@ -193,7 +288,7 @@ public class Program
         }
     }
 
-    private static (bool verbose, bool quiet, bool forceDesktop, bool forceWeb, bool beta, string[] filtered)
+    private static (bool verbose, bool quiet, bool forceDesktop, bool forceWeb, bool beta, string? jobId, string[] filtered)
         ParseGlobalFlags(string[] args)
     {
         bool verbose = args.Contains("--verbose") || args.Contains("-v");
@@ -202,20 +297,40 @@ public class Program
         bool forceWeb = args.Contains("--web");
         bool beta = args.Contains("--beta");
 
+        string? jobId = null;
+        var jobIdIndex = Array.IndexOf(args, "--job-id");
+        if (jobIdIndex >= 0 && jobIdIndex + 1 < args.Length)
+            jobId = args[jobIdIndex + 1];
+
         if (verbose)
             Environment.SetEnvironmentVariable("TENDRIL_VERBOSE", "1");
         if (quiet)
             Environment.SetEnvironmentVariable("TENDRIL_QUIET", "1");
+        if (beta)
+            Environment.SetEnvironmentVariable("TENDRIL_BETA", "1");
 
-        var filtered = args.Where(a =>
-            a != "--desktop" && a != "--web" &&
-            a != "--verbose" && a != "-v" &&
-            a != "--quiet" && a != "-q" &&
-            a != "--beta" &&
-            a != DetachedLaunchMarker
-        ).ToArray();
+        var skipNext = false;
+        var filtered = args.Where((a, _) =>
+        {
+            if (skipNext) { skipNext = false; return false; }
+            if (a == "--job-id") { skipNext = true; return false; }
+            return a != "--desktop" && a != "--web" &&
+                   a != "--verbose" && a != "-v" &&
+                   a != "--quiet" && a != "-q" &&
+                   a != "--beta" &&
+                   a != DetachedLaunchMarker;
+        }).ToArray();
 
-        return (verbose, quiet, forceDesktop, forceWeb, beta, filtered);
+        return (verbose, quiet, forceDesktop, forceWeb, beta, jobId, filtered);
+    }
+
+    private static string? TryExtractJobIdFromStatusCommand(string[] args)
+    {
+        if (args.Length >= 3 &&
+            args[0].Equals("job", StringComparison.OrdinalIgnoreCase) &&
+            args[1].Equals("status", StringComparison.OrdinalIgnoreCase))
+            return args[2];
+        return null;
     }
 
     private static bool ShouldHandleAsCliCommand(string firstArg)
@@ -226,15 +341,27 @@ public class Program
             "update-promptwares", "job", "plan", "promptware",
             "trash", "verification", "project", "models",
             "version", "--version", "report-bug", "reset", "update",
-            "--help", "-h"
+            "--help", "-h", "run"
         };
         return cliCommands.Contains(firstArg);
     }
 
-    private static bool ShouldDetachDesktopLaunch(string[] filteredArgs)
+    private static bool IsPackagedApp()
     {
-        // Detach only for desktop startup and not for CLI commands.
-        return filteredArgs.Length == 0;
+        var fileName = Path.GetFileName(Environment.ProcessPath ?? string.Empty);
+        return fileName.Equals("Ivy.Tendril", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("Ivy.Tendril.exe", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("IvyTendril", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("IvyTendril.exe", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ShouldDetachDesktopLaunch(string[] filteredArgs, bool verbose)
+    {
+        if (IsPackagedApp())
+            return false;
+
+        // Detach only for desktop startup, not for CLI commands, and NOT if verbose logging is requested.
+        return filteredArgs.Length == 0 && !verbose;
     }
 
     private static bool IsTendrilToolInvocation()
@@ -296,6 +423,10 @@ public class Program
             // Doctor command
             config.AddCommand<DoctorCliCommand>("doctor")
                 .WithDescription("System health check");
+
+            // Run command
+            config.AddCommand<RunCommand>("run")
+                .WithDescription("Run the Tendril web server in the foreground");
 
             // Database commands
             config.AddCommand<DbVersionCommand>("db-version")
@@ -542,8 +673,23 @@ public class Program
     private static void UpdateBadge(DesktopWindow window, int activeJobs)
     {
         if (activeJobs > 0)
-            window.SetBadgeCount(activeJobs);
+            window.SetBadgeCount(activeJobs, background: "#5B21B6", foreground: "#FFFFFF");
         else
             window.ClearBadge();
+    }
+
+    private static bool IsPortInUse(int port)
+    {
+        try
+        {
+            var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, port);
+            listener.Start();
+            listener.Stop();
+            return false;
+        }
+        catch
+        {
+            return true;
+        }
     }
 }

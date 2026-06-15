@@ -4,7 +4,7 @@
 
 When changing the `plan.yaml` structure (adding/removing/renaming fields, changing field types):
 
-1. **Update `Plans.md`** (`Assets/Plans.md`) — this is the source of truth for the plan schema (embedded as an assembly resource)
+1. **Update `Plans.md`** (`Prompts/Plans.md`) — this is the source of truth for the plan schema (embedded as an assembly resource)
 2. **Add a repair step** in `PlanReaderService.RepairPlans()` — this runs on every Tendril startup and must migrate all existing plans to the new format
 3. **Keep `PlanYaml.cs` in sync** — the deserialization model must match what `Plans.md` documents
 4. **Update promptware instructions** — any promptware that writes `plan.yaml` (CreatePlan, ExecutePlan, UpdatePlan, SplitPlan, ExpandPlan) must produce the new format
@@ -16,7 +16,7 @@ Existing plans on disk are never recreated — they must be repaired in place. I
 - `Services/` — ConfigService, PlanReaderService, JobService, GitService
 - `Apps/` — PlansApp, ReviewApp, JobsApp, IceboxApp, and their views
 - `Promptwares/` — CreatePlan, ExecutePlan, UpdatePlan, SplitPlan, ExpandPlan, CreatePr, IvyFrameworkVerification
-- `Assets/Plans.md` — Plan schema reference (embedded in assembly, injected into firmware)
+- `Prompts/Plans.md` — Plan schema reference (embedded in assembly, injected into firmware)
 - `AppShell/` — Custom TendrilAppShell with sidebar badges
 
 ## Config
@@ -50,7 +50,7 @@ All paths derive from these sources:
 **What does NOT work in production:**
 - Setting process-specific env vars on the agent process and expecting nested `tendril` calls to read them (e.g., `TENDRIL_CLI_LOG`, `TENDRIL_JOB_ID`, `TENDRIL_SESSION_ID`)
 
-**Exception — E2E tests:** The `--cli-log` option on `tendril promptware` sets `TENDRIL_CLI_LOG` on the agent process. This works in E2E tests because the test agent (typically a simple script) properly inherits env vars from its parent process. This is intentionally kept for testing only.
+**CLI Logging:** The `--job-id <id>` global flag on `tendril` commands derives the CLI log path from `TENDRIL_HOME` (system-wide) + the job ID. The firmware template instructs agents to append `--job-id TendrilJobId` to all CLI commands. The `tendril job status` command also self-logs (derives the log path from its positional job ID argument). As a fallback for E2E tests, the `TENDRIL_CLI_LOG` env var still works.
 
 **Rule:** To pass information from Tendril to an agent and back through the CLI:
 1. Include it as a firmware header value (agent reads from prompt)

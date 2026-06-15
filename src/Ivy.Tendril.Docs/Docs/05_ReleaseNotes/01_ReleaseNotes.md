@@ -14,6 +14,70 @@ icon: ScrollText
 Version history, new features, improvements, and bug fixes for each Tendril release.
 </Ingress>
 
+## 1.0.39 (2026-05-28)
+
+### Features
+
+- **Gemini agent provider** — Added Gemini CLI (`gemini`) as a supported coding agent, with full health check, authentication, and session cost tracking.
+- **Tunnel support** — Remote access via Cloudflare tunnels with QR code in Settings, automatic server-ready detection, and routable-before-connected checks.
+- **Agent test dialog** — New Test Agent button in Settings that auto-runs install, auth, and model checks for all configured agents.
+- **Model-per-profile selection** — Choose specific models per effort profile (deep/balanced/quick) in Coding Agent settings.
+- **Per-provider model catalogs** — Replaced global `models.yaml` with per-provider catalogs and a `tendril models` CLI command.
+- **`tendril update` command** — Self-update with Photino GUI updater.
+- **Plan template injection** — Plan templates are injected into firmware; actual model used is tracked per job.
+- **Human-readable tool titles** — Description field on ToolCallWire for clearer Agent Output display.
+- **Sandboxed agent file access** — Agents get writable access to TENDRIL_HOME, plans, and promptware folders.
+- **`--search` option for plan list** — Filter plans by search term from the CLI.
+- **AgentApp with system prompt** — Beta agent chat app with injected Tendril system prompt.
+- **Create Plan from wallpaper** — New Plan button on the wallpaper opens the CreatePlanDialog directly.
+- **Copy all Details button** — Copy full job debug details to clipboard in the Job Debug Sheet.
+- **Newsletter view extraction** — Shared newsletter component with better error reporting.
+
+### Improvements
+
+- **Settings split** — General settings split into Coding Agent, Plans, and Appearance tabs.
+- **PlansApp → DraftsApp rename** — Sidebar badge and navigation updated to match.
+- **Coding agent settings layout** — Improved layout with display names and default model handling for all providers.
+- **CLI polish** — Clean console formatter, `--help` without starting server, clean error for unknown commands, doctor output formatting.
+- **AgentOutputView polish** — Tool cards with no-wrap output, cleaner titles, uniform spacing, hidden status on complete.
+- **Process view improvements** — Equal-width buttons, gray pulse, semantic color tokens for dark mode, deduplicated hook.
+- **TendrilProcessView widget** — Added to solution with dark mode support via semantic color tokens.
+- **Install script improvements** — Verified git execution, prepended .NET 10 to PATH, cleaner scripts.
+- **Dependency security** — Pinned dependency version ranges to exact versions to prevent hijack and confusion attacks.
+- **Validate base branch** — Prevents adding projects with invalid base branches or invalid local repositories.
+- **Raw agent output** — Written to `.raw.jsonl` instead of EventWire format for better debugging.
+- **Copilot improvements** — Switched to stdin prompt for Windows command-line length limit, fallback to `gh copilot` when standalone binary not on PATH, parse updated JSON format.
+- **CodeBlock widget** — Agent output and resolution uses CodeBlock instead of raw Markdown.
+- **Service organization** — Services refactored into subdirectories; status constants extracted.
+
+### Bug Fixes
+
+- Fixed process view showing swapped updating/executing plan counts.
+- Fixed onboarding path resolution when tendrilHome parameter is empty.
+- Fixed onboarding infinite "Setting up agent" loading screen.
+- Fixed database migration 10→11 upgrade by making Migration 11 idempotent.
+- Fixed backslashes in .csproj files and onboarding Promptwares path lookup.
+- Fixed Copilot process hangs with 5s STDIN timeout.
+- Fixed missing ResolveCommandShim call in PromptwareRunner.
+- Fixed command-line length limit when launching Gemini
+- Fixed Codex `item.updated` events emitting UnknownEvent.
+- Fixed default models for Copilot and Codex profiles in new installations.
+- Fixed sidebar badge key from "plans" to "drafts" after rename.
+- Fixed duplicate headers and styling in Add Project dialog.
+- Fixed wrong edit project dialog index mismatch after adding project.
+- Fixed model dropdown not showing Default option.
+- Fixed Windows PTY command resolution to .cmd extension.
+- Fixed null models during agent switch.
+- Fixed "undefined:" prefix in job status messages.
+- Fixed duplicate project name blocking onboarding.
+- Fixed onboarding raw agent output parsing to EventWire in real-time.
+- Fixed Windows app launch extra window and missing taskbar icon.
+- Fixed AgentOutputView tool results not rendering.
+- Fixed Claude Code tool result parsing from user messages.
+- Fixed cloudflared 502 by reading actual server address.
+- Fixed OpenCode `model: default` to skip --model flag.
+- Fixed OpenCode intermediate step_finish events in output view.
+
 ## 1.0.35 (2026-05-20)
 
 ### Features

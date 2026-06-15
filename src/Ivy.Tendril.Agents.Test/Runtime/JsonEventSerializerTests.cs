@@ -380,4 +380,39 @@ public class JsonEventSerializerTests
         Assert.DoesNotContain("\"output\"", json);
         Assert.DoesNotContain("\"tool_name\"", json);
     }
+
+    [Fact]
+    public void Serialize_SystemEvent_ProducesEmptyTextWire()
+    {
+        var evt = new SystemEvent
+        {
+            Kind = AgentEventKind.System,
+            Subtype = "init",
+            Message = "System initialized",
+        };
+
+        var json = _serializer.Serialize(evt);
+
+        Assert.Contains("\"kind\":\"text\"", json);
+        Assert.Contains("\"text\":\"\"", json);
+        Assert.DoesNotContain("SystemEvent", json);
+        Assert.DoesNotContain("Subtype", json);
+    }
+
+    [Fact]
+    public void Serialize_UnknownEvent_ProducesEmptyTextWire()
+    {
+        var evt = new UnknownEvent
+        {
+            Kind = AgentEventKind.Unknown,
+            Content = "{\"type\":\"future_event\"}",
+        };
+
+        var json = _serializer.Serialize(evt);
+
+        Assert.Contains("\"kind\":\"text\"", json);
+        Assert.Contains("\"text\":\"\"", json);
+        Assert.DoesNotContain("UnknownEvent", json);
+        Assert.DoesNotContain("Content", json);
+    }
 }

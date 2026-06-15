@@ -40,6 +40,7 @@ public sealed record ToolCallWire : EventWire
     public override string Kind => "tool_call";
     public required string ToolUseId { get; init; }
     public required string ToolName { get; init; }
+    public string? Description { get; init; }
     public JsonElement? Input { get; init; }
 }
 
