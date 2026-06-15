@@ -83,6 +83,21 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [voiceStatus]);
+  // Stop recording when component unmounts
+  useEffect(() => {
+    return () => {
+      if (recorderRef.current) {
+        recorderRef.current.stop();
+        // Prevent state updates on unmounted component
+        (recorderRef.current as any).options = {
+          onStatusChange: () => {},
+          onResult: () => {},
+          onError: () => {},
+          onVolumeChange: () => {},
+        };
+      }
+    };
+  }, []);
 
   const handleSubmit = () => {
     if (voiceStatus !== "idle") return;
