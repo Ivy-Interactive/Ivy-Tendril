@@ -140,52 +140,81 @@ public class ContentView(
         scrollableContent |= new Separator();
         scrollableContent |= new Markdown(selectedRecommendation.Description);
 
-        // Action bar (secondary actions)
-        var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(2).Wrap()
-                        | new Button("Accept with Notes").Icon(Icons.CircleCheck).Outline().ShortcutKey("w")
-                            .OnClick(() => showNotesDialog())
-                        | new Button("View Plan").Icon(Icons.ExternalLink).Outline().ShortcutKey("d").OnClick(() =>
-                        {
-                            var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
-                            if (Directory.Exists(fullPath))
-                                showPlan(fullPath);
-                        })
+        // Standard overflow menu items
+        var standardOverflowItems = new[]
+        {
+            new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
+                .OnSelect(() =>
+                {
+                    var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
+                    if (Directory.Exists(fullPath))
+                        PlatformHelper.OpenInFileManager(fullPath);
+                }),
+            new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
+                .OnSelect(() =>
+                {
+                    var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
+                    copyToClipboard(fullPath);
+                    client.Toast("Copied path to clipboard", "Path Copied");
+                }),
+            new MenuItem("Open plan.yaml", Icon: Icons.FileText, Tag: "OpenPlanYaml").OnSelect(() =>
+            {
+                var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
+                var yamlPath = Path.Combine(fullPath, "plan.yaml");
+                try
+                {
+                    config.OpenInEditor(yamlPath);
+                }
+                catch (EditorNotAvailableException ex)
+                {
+                    client.Toast(
+                        $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
+                        "Editor Not Available",
+                        variant: ToastVariant.Destructive);
+                }
+            })
+        };
+
+        // Desktop dropdown: View Plan + standard overflow
+        var desktopDropdownItems = new List<MenuItem>
+        {
+            new MenuItem("View Plan", Icon: Icons.ExternalLink, Tag: "ViewPlan").OnSelect(() =>
+            {
+                var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
+                if (Directory.Exists(fullPath))
+                    showPlan(fullPath);
+            })
+        };
+        desktopDropdownItems.AddRange(standardOverflowItems);
+
+        // Mobile dropdown: Accept with Notes, View Plan + standard overflow
+        var mobileDropdownItems = new List<MenuItem>
+        {
+            new MenuItem("Accept with Notes", Icon: Icons.CircleCheck, Tag: "AcceptWithNotes")
+                .OnSelect(() => showNotesDialog()),
+            new MenuItem("View Plan", Icon: Icons.ExternalLink, Tag: "ViewPlan").OnSelect(() =>
+            {
+                var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
+                if (Directory.Exists(fullPath))
+                    showPlan(fullPath);
+            })
+        };
+        mobileDropdownItems.AddRange(standardOverflowItems);
+
+        // Action bar without .Wrap() - single row with progressive collapse
+        var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(2)
                         | new Button("Previous").Icon(Icons.ChevronLeft).Outline().ShortcutKey("p")
-                            .OnClick(GoToPrevious)
+                            .OnClick(GoToPrevious).AlwaysVisible()
                         | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().ShortcutKey("n")
-                            .OnClick(GoToNext)
-                        | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
-                            new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
-                                .OnSelect(() =>
-                                {
-                                    var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
-                                    if (Directory.Exists(fullPath))
-                                        PlatformHelper.OpenInFileManager(fullPath);
-                                }),
-                            new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
-                                .OnSelect(() =>
-                                {
-                                    var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
-                                    copyToClipboard(fullPath);
-                                    client.Toast("Copied path to clipboard", "Path Copied");
-                                }),
-                            new MenuItem("Open plan.yaml", Icon: Icons.FileText, Tag: "OpenPlanYaml").OnSelect(() =>
-                            {
-                                var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
-                                var yamlPath = Path.Combine(fullPath, "plan.yaml");
-                                try
-                                {
-                                    config.OpenInEditor(yamlPath);
-                                }
-                                catch (EditorNotAvailableException ex)
-                                {
-                                    client.Toast(
-                                        $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
-                                        "Editor Not Available",
-                                        variant: ToastVariant.Destructive);
-                                }
-                            })
-                        );
+                            .OnClick(GoToNext).AlwaysVisible()
+                        | new Button("Accept with Notes").Icon(Icons.CircleCheck).Outline().ShortcutKey("w")
+                            .OnClick(() => showNotesDialog()).DesktopUp()
+                        | ActionBarResponsive.DropdownAtDesktop(
+                            new Button().Icon(Icons.EllipsisVertical).Ghost(),
+                            desktopDropdownItems.ToArray())
+                        | ActionBarResponsive.DropdownAtMobile(
+                            new Button().Icon(Icons.EllipsisVertical).Ghost(),
+                            mobileDropdownItems.ToArray());
 
         var mainLayout = new HeaderLayout(
             header,
