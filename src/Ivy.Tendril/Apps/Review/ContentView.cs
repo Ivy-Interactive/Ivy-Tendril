@@ -311,7 +311,7 @@ public class ContentView(
             }).ShortcutKey("m");
         }
 
-        var header = Layout.Horizontal().Width(Size.Full()).Gap(2).AlignContent(Align.Left)
+        var header = Layout.Horizontal().Height(Size.Px(40)).Width(Size.Full()).Gap(2).AlignContent(Align.Left)
                      | titleArea
                      | controls;
 
