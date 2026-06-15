@@ -116,7 +116,7 @@ public class EditProjectDialog(
 
         var sortableVerificationList = new SortableVerificationList()
             .ItemsJson(verificationsJson)
-            .OnReorder(json =>
+            .WithOnReorder(json =>
             {
                 var indices = JsonSerializer.Deserialize<int[]>(json);
                 if (indices == null) return;
@@ -136,7 +136,7 @@ public class EditProjectDialog(
                     _client.Toast($"Failed to reorder verifications: {ex.Message}", "Error");
                 }
             })
-            .OnChange(json =>
+            .WithOnChange(json =>
             {
                 var item = JsonSerializer.Deserialize<VerificationItem>(json);
                 if (item == null) return;

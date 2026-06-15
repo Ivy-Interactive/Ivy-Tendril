@@ -23,12 +23,19 @@ public static class SortableVerificationListExtensions
     public static SortableVerificationList ItemsJson(this SortableVerificationList w, string? itemsJson) =>
         w with { ItemsJson = itemsJson };
 
-    public static SortableVerificationList OnReorder(
+    // NOTE: These fluent methods are intentionally NOT named OnReorder/OnChange.
+    // The widget exposes invocable delegate properties of the same name (OnReorder,
+    // OnChange). A method whose name matches a delegate-typed property is shadowed by
+    // delegate-invocation member access for single-parameter lambdas (e.g. json => ...),
+    // so `.OnReorder(json => ...)` would bind to the property and fail with CS1660.
+    // The property names must stay OnReorder/OnChange because the external-widget
+    // serializer emits the event name from the property name (see WidgetSerializer).
+    public static SortableVerificationList WithOnReorder(
         this SortableVerificationList w,
         Func<Event<SortableVerificationList, string>, ValueTask> handler
     ) => w with { OnReorder = handler };
 
-    public static SortableVerificationList OnReorder(
+    public static SortableVerificationList WithOnReorder(
         this SortableVerificationList w,
         Action<string> handler
     ) => w with
@@ -40,12 +47,12 @@ public static class SortableVerificationListExtensions
         },
     };
 
-    public static SortableVerificationList OnChange(
+    public static SortableVerificationList WithOnChange(
         this SortableVerificationList w,
         Func<Event<SortableVerificationList, string>, ValueTask> handler
     ) => w with { OnChange = handler };
 
-    public static SortableVerificationList OnChange(
+    public static SortableVerificationList WithOnChange(
         this SortableVerificationList w,
         Action<string> handler
     ) => w with
