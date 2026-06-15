@@ -129,7 +129,7 @@ public static class ContentInputViewExtensions
                     Directory.CreateDirectory(tempDir);
 
                     var fileName = Path.GetFileName(e.Value.Name);
-                    var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+                    var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName).Replace(" ", "_");
                     var ext = Path.GetExtension(fileName);
                     var uniqueName = $"{nameWithoutExt}_{Guid.NewGuid().ToString()[..8]}{ext}";
                     filePath = Path.Combine(tempDir, uniqueName);

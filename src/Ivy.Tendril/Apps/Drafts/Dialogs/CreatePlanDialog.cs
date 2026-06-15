@@ -63,7 +63,7 @@ public class CreatePlanDialog(
             Directory.CreateDirectory(tempDir);
 
             var fileName = Path.GetFileName(fileUpload.FileName);
-            var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+            var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName).Replace(" ", "_");
             var ext = Path.GetExtension(fileName);
             var uniqueName = $"{nameWithoutExt}_{Guid.NewGuid().ToString()[..8]}{ext}";
             var filePath = Path.Combine(tempDir, uniqueName);
