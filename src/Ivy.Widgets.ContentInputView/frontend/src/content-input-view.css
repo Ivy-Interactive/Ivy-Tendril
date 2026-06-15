@@ -24,6 +24,18 @@
   box-sizing: border-box;
 }
 
+.civ-shell,
+.civ-shell * {
+  box-sizing: border-box;
+}
+
+.civ-shell button,
+.civ-shell input,
+.civ-shell textarea {
+  margin: 0;
+}
+
+
 /* Error Banner */
 .civ-error-banner {
   display: flex;
@@ -234,16 +246,17 @@
   display: flex;
   align-items: center;
   background: transparent;
-  border: 1px solid transparent;
+  border: 0px solid transparent;
   border-radius: var(--radius-buttons, 6px);
-  padding: 2px;
-  transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
+  padding: 0;
+  transition: background-color 0.2s, border-color 0.2s, border-width 0.2s, box-shadow 0.2s;
 }
 
 .civ-voice-container.active {
   background: color-mix(in srgb, var(--civ-accent) 8%, transparent);
-  border-color: var(--civ-accent);
+  border: 1px solid var(--civ-accent);
   box-shadow: 0 0 10px color-mix(in srgb, var(--civ-accent) 15%, transparent);
+  padding: 2px;
 }
 
 /* Recording Bar inside Pill */
