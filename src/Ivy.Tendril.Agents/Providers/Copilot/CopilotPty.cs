@@ -62,6 +62,14 @@ public sealed class CopilotPty : IAgentPty
         var args = new List<string> { fileName };
         args.AddRange(prefixArgs);
 
+        // FullAuto → grant all tools, paths, and URLs without prompting.
+        if (config.PermissionMode == PermissionMode.FullAuto)
+        {
+            args.Add("--allow-all-paths");
+            args.Add("--allow-all-urls");
+            args.Add("--allow-all-tools");
+        }
+
         if (!string.IsNullOrEmpty(config.Model))
         {
             args.Add("--model");

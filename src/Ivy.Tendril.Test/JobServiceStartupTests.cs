@@ -81,6 +81,16 @@ public class JobServiceStartupTests
             return Jobs;
         }
 
+        public JobItem? GetJobById(string id)
+        {
+            return Jobs.FirstOrDefault(j => j.Id == id);
+        }
+
+        public List<JobItem> GetJobsForPlan(string planFile)
+        {
+            return Jobs.Where(j => j.PlanFile == planFile).ToList();
+        }
+
         public void DeleteJob(string id)
         {
         }
@@ -112,6 +122,11 @@ public class JobServiceStartupTests
         public DashboardModels GetDashboardData(string? projectFilter)
         {
             return new DashboardModels(0, 0, 0, 0, 0, 0, 0, new List<DashboardDayStats>(), new List<ProjectCount>());
+        }
+
+        public List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days = 30)
+        {
+            return new List<(DateOnly Date, int Count)>();
         }
 
         public decimal GetPlanTotalCost(int planId)

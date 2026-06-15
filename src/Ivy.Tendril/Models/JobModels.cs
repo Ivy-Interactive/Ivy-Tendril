@@ -55,8 +55,12 @@ public record JobItem
     public string Provider { get; init; } = "claude";
     public string? Model { get; set; }
     public int Priority { get; init; }
+    public List<string>? WaitForJobIds { get; init; }
     public decimal? Cost { get; set; }
     public int? Tokens { get; set; }
+
+    // Soft-cleared from the Jobs app; still shown in plan Details history
+    public bool Cleared { get; set; }
 
     [JsonIgnore]
     public IEventParser? EventParser { get; set; }
@@ -82,16 +86,16 @@ public record JobItem
     // Pre-allocated plan ID for CreatePlan jobs (used for filesystem verification)
     public string? AllocatedPlanId { get; set; }
 
-    // Reported by the agent via the status file during execution
+    // Reported by the agent via HTTP during execution
     public string? ReportedPlanId { get; set; }
     public string? ReportedPlanTitle { get; set; }
 
-    // Path to the status file used for cross-process status updates
-    public string? StatusFilePath { get; set; }
+    // Agent launch details (persisted)
+    public string? WorkingDirectory { get; set; }
+    public string? CliCommand { get; set; }
 
     // Automatic logging metadata (transient, not persisted)
     [JsonIgnore] public string? CompiledPrompt { get; set; }
-    [JsonIgnore] public string? CliCommand { get; set; }
     [JsonIgnore] public int? ExitCode { get; set; }
 
     private string? _logFilePath;
@@ -113,6 +117,8 @@ public record JobItem
         AppendToRawLog(line);
         foreach (var evt in EventParser.ParseLine(line))
         {
+            if (evt is SystemEvent or UnknownEvent) continue;
+
             if (evt is SessionInitEvent { Model: not null } initEvt)
                 Model = initEvt.Model;
 
@@ -208,19 +214,6 @@ public record JobItem
         catch (Exception ex)
         {
             logger?.LogWarning(ex, "Job {JobId}: Failed to dispose TimeoutCts", Id);
-        }
-
-        try
-        {
-            if (StatusFilePath != null && File.Exists(StatusFilePath))
-            {
-                File.Delete(StatusFilePath);
-                logger?.LogDebug("Job {JobId}: Status file deleted successfully", Id);
-            }
-        }
-        catch (Exception ex)
-        {
-            logger?.LogWarning(ex, "Job {JobId}: Failed to delete status file at {StatusFilePath}", Id, StatusFilePath);
         }
 
         Process = null;

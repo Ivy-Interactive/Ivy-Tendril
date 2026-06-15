@@ -43,7 +43,7 @@ Tendril CLI gives you complete control over your workflow without touching the U
 **3. Create a new plan**
 
 ```terminal
->tendril plan create "Fix login bug" --project MyProject
+>tendril plan create "Fix login bug" MyProject
 ```
 
 **4. List active plans**
@@ -78,6 +78,7 @@ Every command supports `--help` for detailed usage. For example: `tendril plan c
 | `TENDRIL_PLANS` | Override plans directory (defaults to `TENDRIL_HOME/Plans`) |
 | `TENDRIL_VERBOSE` | Enable verbose debug output (set to `1`) |
 | `TENDRIL_QUIET` | Suppress non-essential output (set to `1`) |
+| `TENDRIL_NOT_MASTER` | Run server without claiming master (set to `1`). Used for development/debugging — the instance won't accept CLI IPC or process inbox files. |
 
 ## Common Commands
 

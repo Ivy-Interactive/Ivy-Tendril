@@ -65,24 +65,25 @@ public class AddProjectDialog(
 
         if (!isOpen.Value) return null;
 
+        void RemoveCommittedProject()
+        {
+            if (!hasCreated.Value || string.IsNullOrWhiteSpace(editName.Value)) return;
+
+            var project = config.Settings.Projects.FirstOrDefault(
+                p => p.Name.Equals(editName.Value, StringComparison.OrdinalIgnoreCase));
+            if (project != null)
+            {
+                config.Settings.Projects.Remove(project);
+                try { config.SaveSettings(); } catch { }
+            }
+
+            hasCreated.Set(false);
+        }
+
         void CancelAndClose()
         {
             session.Reset();
-
-            if (hasCreated.Value && !string.IsNullOrWhiteSpace(editName.Value))
-            {
-                var project = config.Settings.Projects.FirstOrDefault(p => p.Name.Equals(editName.Value, StringComparison.OrdinalIgnoreCase));
-                if (project != null)
-                {
-                    config.Settings.Projects.Remove(project);
-                    try
-                    {
-                        config.SaveSettings();
-                    }
-                    catch { }
-                }
-            }
-
+            RemoveCommittedProject();
             isOpen.Set(false);
             refreshToken.Refresh();
         }
@@ -95,11 +96,13 @@ public class AddProjectDialog(
                 editRepos,
                 editName,
                 isStepLoading,
-                onNext: () => {
+                onNext: () =>
+                {
                     skipAgent.Set(false);
                     step.Set(1);
                 },
-                onSkip: () => {
+                onSkip: () =>
+                {
                     skipAgent.Set(true);
                     step.Set(1);
                 },
@@ -113,12 +116,15 @@ public class AddProjectDialog(
                 editName,
                 isStepLoading,
                 session,
-                onBack: () => {
+                onBack: () =>
+                {
                     session.Reset();
                     isStepLoading.Set(false);
+                    RemoveCommittedProject();
                     step.Set(0);
                 },
-                onNext: () => {
+                onNext: () =>
+                {
                     step.Set(2);
                 },
                 onSkip: null,
@@ -128,11 +134,14 @@ public class AddProjectDialog(
                 editName,
                 isStepLoading,
                 session,
-                onBack: () => {
+                onBack: () =>
+                {
+                    RemoveCommittedProject();
                     step.Set(0);
                     session.Reset();
                 },
-                onNext: () => {
+                onNext: () =>
+                {
                     hasCreated.Set(false); // Clear so we don't delete on close
                     isOpen.Set(false);
                     refreshToken.Refresh();

@@ -64,14 +64,23 @@ public sealed class ClaudePty : IAgentPty
             args.Add(config.Model);
         }
 
-        args.Add("--permission-mode");
-        args.Add(config.PermissionMode switch
+        if (config.PermissionMode == PermissionMode.FullAuto)
         {
-            PermissionMode.FullAuto => "dontAsk",
-            PermissionMode.AcceptEdits => "acceptEdits",
-            PermissionMode.Plan => "plan",
-            _ => "default"
-        });
+            // Full bypass for an interactive session — auto-approves every tool and
+            // command. --permission-mode dontAsk does NOT bypass command execution,
+            // so the agent would still prompt before running e.g. `tendril plan create`.
+            args.Add("--dangerously-skip-permissions");
+        }
+        else
+        {
+            args.Add("--permission-mode");
+            args.Add(config.PermissionMode switch
+            {
+                PermissionMode.AcceptEdits => "acceptEdits",
+                PermissionMode.Plan => "plan",
+                _ => "default"
+            });
+        }
 
         if (!string.IsNullOrEmpty(config.SessionId))
         {

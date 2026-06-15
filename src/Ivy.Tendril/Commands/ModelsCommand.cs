@@ -54,7 +54,7 @@ public sealed class ModelsCommand(IAgentRunner runner) : AsyncCommand<ModelsComm
                 }
                 : "[dim]none[/]";
 
-            AnsiConsole.MarkupLine($"[bold]{agentId}[/]");
+            AnsiConsole.MarkupLine($"[bold]{agentId.EscapeMarkup()}[/]");
             AnsiConsole.MarkupLine(
                 $"  Installed: {(installed ? "[green]YES[/]" : "[red]NO[/]")}  " +
                 $"Authenticated: {(authenticated ? "[green]YES[/]" : "[red]NO[/]")}  " +
@@ -66,7 +66,7 @@ public sealed class ModelsCommand(IAgentRunner runner) : AsyncCommand<ModelsComm
                 foreach (var profile in descriptor.DefaultProfiles)
                 {
                     var model = profile.Model ?? "-";
-                    AnsiConsole.MarkupLine($"    {profile.Name,-10} : {model}");
+                    AnsiConsole.MarkupLine($"    {profile.Name.EscapeMarkup(),-10} : {model.EscapeMarkup()}");
                 }
             }
 
@@ -92,6 +92,7 @@ public sealed class ModelsCommand(IAgentRunner runner) : AsyncCommand<ModelsComm
         table.AddColumn(new TableColumn("Cache W $/M").RightAligned());
         table.AddColumn("Source");
         table.AddColumn("Default");
+        table.AddColumn("Vision");
 
         var sourceIndex = new Dictionary<string, int>();
 
@@ -110,6 +111,8 @@ public sealed class ModelsCommand(IAgentRunner runner) : AsyncCommand<ModelsComm
                 sourceRef = $"[dim]{idx}[/]";
             }
 
+            var hasVision = model.Capabilities.HasFlag(ModelCapabilities.ImageInput) ? "[green]✓[/]" : "[dim]-[/]";
+
             table.AddRow(
                 model.Id.EscapeMarkup(),
                 model.DisplayName.EscapeMarkup(),
@@ -118,7 +121,8 @@ public sealed class ModelsCommand(IAgentRunner runner) : AsyncCommand<ModelsComm
                 FormatPrice(model.CacheReadPerMillion),
                 FormatPrice(model.CacheWritePerMillion),
                 sourceRef,
-                isDefault);
+                isDefault,
+                hasVision);
         }
 
         AnsiConsole.Write(table);

@@ -191,7 +191,10 @@ When the PR status is `CONFLICTING`, resolve the conflict locally before retryin
 ```bash
 gh pr merge <pr-number> --repo <owner/repo> --merge --delete-branch --admin
 cd <original-repo-path>
-git pull origin <default-branch>
+# Only pull if the local repo is clean (no uncommitted changes, on the default branch)
+if [ -z "$(git status --porcelain)" ] && [ "$(git symbolic-ref --short HEAD)" = "<default-branch>" ]; then
+  git pull origin <default-branch>
+fi
 ```
 
 > **Note:** If `--merge` fails with "Merge commits are not allowed", retry with `--squash` instead.

@@ -39,7 +39,7 @@ public class PullRequestApp : ViewBase
                 () => isOpen.Set(false),
                 sheetContent,
                 plan?.Title ?? folderName
-            ).Width(Size.Half()).Resizable();
+            ).Width(UxHelper.SheetWidth).Resizable();
 
             return new Fragment(sheet, new FileSheet(openFile, config));
         });

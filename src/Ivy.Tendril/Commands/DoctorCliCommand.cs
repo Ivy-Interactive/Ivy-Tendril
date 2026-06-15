@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Ivy.Tendril.Helpers;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -22,12 +23,17 @@ public class PlanDoctorSettings : CommandSettings
     public bool Prune { get; init; }
 
     [CommandOption("--state")]
-    [Description("Filter plans by state")]
+    [Description("Filter plans by state (Draft, Building, Updating, Executing, ReadyForReview, Failed, Completed, Skipped, Blocked, Icebox)")]
     public string? State { get; init; }
 
     [CommandOption("--worktrees")]
     [Description("Check worktrees only")]
     public bool WorktreesOnly { get; init; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.ValidateOneOf(State, "--state", CliValidation.ValidStates);
+    }
 }
 
 public class DoctorCliCommand : AsyncCommand<DoctorSettings>

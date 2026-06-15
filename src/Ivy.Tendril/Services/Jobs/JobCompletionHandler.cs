@@ -70,6 +70,8 @@ internal class JobCompletionHandler
         if (job.Status is JobStatus.Failed or JobStatus.Timeout)
             ScheduleWorktreeCleanup(job);
 
+        HandleWaitForJobsDependents(job, jobs, raiseNotification, startJobSkipDepCheck, persistJob);
+
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
             _dependencyChecker.RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck);
 
@@ -182,7 +184,7 @@ internal class JobCompletionHandler
         if (job.TypedArgs is CreatePlanArgs)
         {
             var planFolder = job.TypedArgs?.PlanFolder ?? "";
-            var level = "NiceToHave";
+            var level = "Feature";
             if (Directory.Exists(planFolder))
             {
                 var plan = PlanYamlHelper.ReadPlanYaml(planFolder);
@@ -219,8 +221,17 @@ internal class JobCompletionHandler
         Action<JobItem> persistJob,
         Action raisePropertyChanged)
     {
-        var isSuccess = job.Status == JobStatus.Completed;
-        if (!isSuccess || _modelPricingService == null || string.IsNullOrEmpty(job.SessionId))
+        if (string.IsNullOrEmpty(job.SessionId))
+            return;
+
+        var inlineCost = ExtractCostFromOutputLines(job.OutputLines.ToArray());
+        if (inlineCost != null)
+        {
+            ApplyCost(job, persistJob, raisePropertyChanged, inlineCost.Value.tokens, inlineCost.Value.cost);
+            return;
+        }
+
+        if (_modelPricingService == null)
             return;
 
         var sessionId = job.SessionId;
@@ -236,7 +247,7 @@ internal class JobCompletionHandler
             try
             {
                 var costCalc = _modelPricingService.CalculateSessionCost(sessionId, provider);
-                if (costCalc.TotalCost > 0)
+                if (costCalc.TotalCost > 0 || costCalc.TotalTokens > 0)
                 {
                     if (jobs.TryGetValue(jobId, out var j))
                     {
@@ -255,6 +266,40 @@ internal class JobCompletionHandler
                 _logger.LogWarning(ex, "Failed to calculate session cost for job {JobId}", jobId);
             }
         });
+    }
+
+    private void ApplyCost(
+        JobItem job,
+        Action<JobItem> persistJob,
+        Action raisePropertyChanged,
+        int tokens,
+        decimal cost)
+    {
+        job.Cost = cost;
+        job.Tokens = tokens;
+        persistJob(job);
+        raisePropertyChanged();
+
+        var jobPlanFolder = job.TypedArgs?.PlanFolder;
+        if (jobPlanFolder != null)
+            PlanYamlHelper.LogCostToCsv(jobPlanFolder, job.Type, tokens, (double)cost);
+    }
+
+    private static (int tokens, decimal cost)? ExtractCostFromOutputLines(IReadOnlyList<string> outputLines)
+    {
+        var serializer = new JsonEventSerializer();
+        for (var i = outputLines.Count - 1; i >= 0; i--)
+        {
+            var evt = serializer.Deserialize(outputLines[i]);
+            if (evt is ResultEvent { Usage: { } usage })
+            {
+                var tokens = usage.InputTokens + usage.OutputTokens;
+                var cost = usage.CostUsd ?? 0;
+                if (tokens > 0 || cost > 0)
+                    return (tokens, cost);
+            }
+        }
+        return null;
     }
 
     internal void RunHooks(string when, string jobType, string planFolder, string project, JobItem job)
@@ -429,7 +474,9 @@ internal class JobCompletionHandler
         job.EnqueueSystemOutput(
             "[Tendril] WARNING: CreatePlan completed but no plan folder or trash entry was found.");
         job.Status = JobStatus.Failed;
-        job.StatusMessage = JobFailureAnalyzer.TryReadFailureArtifact(job.OutputLines.ToList()) ?? "No plan created";
+        job.StatusMessage = JobFailureAnalyzer.TryReadFailureArtifact(job.OutputLines.ToList())
+            ?? job.StatusMessage
+            ?? "No plan created";
     }
 
     private static bool TryVerifyByReportedId(JobItem job, string plansDir)
@@ -516,6 +563,62 @@ internal class JobCompletionHandler
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to reset plan state to Blocked for job {JobId}", job.Id);
+        }
+    }
+
+    internal void HandleWaitForJobsDependents(
+        JobItem completedJob,
+        ConcurrentDictionary<string, JobItem> jobs,
+        Action<JobNotification> raiseNotification,
+        Func<JobArgsBase, string> startJobSkipDepCheck,
+        Action<JobItem>? persistJob = null)
+    {
+        var queue = new Queue<JobItem>();
+        queue.Enqueue(completedJob);
+
+        while (queue.Count > 0)
+        {
+            var current = queue.Dequeue();
+
+            var waitingJobs = jobs.Values
+                .Where(j => j.Status == JobStatus.Blocked &&
+                            j.WaitForJobIds is { Count: > 0 } &&
+                            j.WaitForJobIds.Contains(current.Id))
+                .ToList();
+
+            foreach (var waitingJob in waitingJobs)
+            {
+                if (current.Status is JobStatus.Failed or JobStatus.Timeout or JobStatus.Stopped)
+                {
+                    waitingJob.Status = JobStatus.Failed;
+                    waitingJob.StatusMessage = $"Blocked job {current.Id} failed";
+                    waitingJob.CompletedAt = DateTime.UtcNow;
+                    persistJob?.Invoke(waitingJob);
+
+                    raiseNotification(new JobNotification(
+                        "Job Failed",
+                        $"{waitingJob.PlanFile}: blocked job {current.Id} failed",
+                        false));
+
+                    queue.Enqueue(waitingJob);
+                    continue;
+                }
+
+                var stillPending = waitingJob.WaitForJobIds!
+                    .Any(id => jobs.TryGetValue(id, out var dep) &&
+                               dep.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked);
+
+                if (stillPending)
+                    continue;
+
+                jobs.TryRemove(waitingJob.Id, out _);
+                startJobSkipDepCheck(waitingJob.TypedArgs!);
+
+                raiseNotification(new JobNotification(
+                    "Job Unblocked",
+                    $"{waitingJob.PlanFile}: all blocking jobs completed, starting",
+                    true));
+            }
         }
     }
 
@@ -620,13 +723,19 @@ internal class JobCompletionHandler
         {
             PromptwareLogWriter.WriteLog(job);
         }
-        catch { }
+        catch
+        {
+            // ignored
+        }
 
         try
         {
-            MoveStatusFileIfNeeded(job);
+            MoveCliLogIfNeeded(job);
         }
-        catch { }
+        catch
+        {
+            // ignored
+        }
 
         if (_planReaderService == null || string.IsNullOrEmpty(job.PlanFile))
             return;
@@ -642,16 +751,18 @@ internal class JobCompletionHandler
         }
         catch
         {
+            // ignored
         }
     }
 
-    private void MoveStatusFileIfNeeded(JobItem job)
+    private void MoveCliLogIfNeeded(JobItem job)
     {
-        if (string.IsNullOrEmpty(job.StatusFilePath)) return;
+        var logPath = JobStatusFile.GetCliLogPath(job.Id);
+        if (!File.Exists(logPath)) return;
 
         var planFolder = ResolvePlanFolder(job);
         if (!string.IsNullOrEmpty(planFolder) && Directory.Exists(planFolder))
-            JobStatusFile.MoveLogToPlanFolder(job.StatusFilePath, planFolder, job.Type, job.Id);
+            JobStatusFile.MoveLogToPlanFolder(logPath, planFolder, job.Type, job.Id);
     }
 
     private string BuildJobLogContent(JobItem job)

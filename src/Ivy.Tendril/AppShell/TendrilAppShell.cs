@@ -5,6 +5,9 @@ using Ivy.Core;
 using Ivy.Core.Apps;
 using Ivy.Tendril.AppShell.Dialogs;
 using Ivy.Tendril.Apps;
+using Ivy.Tendril.Apps.Onboarding;
+using Ivy.Tendril.Apps.Settings;
+using Ivy.Tendril.Apps.Trash;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
@@ -103,8 +106,13 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var serverArgs = UseService<ServerArgs>();
         var navigate = Context.UseSignal<NavigateSignal, NavigateArgs, Unit>();
         var navigator = UseNavigation();
-        var importIssuesDialogOpen = UseState(false);
         var newsArticles = UseState(Array.Empty<SidebarNewsArticle>());
+
+        var (importIssuesDialog, showImportIssuesDialog) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value) return null;
+            return new ImportIssuesDialog(isOpen, config);
+        });
 
         UseEffect(async () =>
         {
@@ -189,7 +197,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         void RedirectToAppIfNotError(NavigateArgs navigateArgs, bool replaceHistory = false, string? tabId = null)
         {
             if (IsErrorApp(navigateArgs.AppId)) return;
-            client.Redirect(navigateArgs.GetUrl(), replaceHistory, tabId);
+            client.Redirect(navigateArgs.GetUrl(includeArgs: settings.IncludeArgsInUrl), replaceHistory, tabId);
         }
 
         void OpenApp(NavigateArgs navigateArgs, bool replaceHistory = false)
@@ -423,7 +431,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             MenuItem.Default("Import Issues from GitHub")
                 .Tag("$import-issues")
                 .Icon(Icons.Download)
-                .OnSelect(() => importIssuesDialogOpen.Set(true)),
+                .OnSelect(showImportIssuesDialog),
             MenuItem.Default("Theme")
                 .Tag("$theme")
                 .Icon(Icons.SunMoon)
@@ -466,7 +474,16 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
         if (config.NeedsOnboarding) return new OnboardingApp();
 
+        // Warm up SelectInput so its frontend chunk is loaded before dialogs open.
+        var selectInputWarmup = new FuncView(context =>
+        {
+            var noop = context.UseState<string?>(() => null);
+            return Layout.Vertical().Height(Size.Px(0)).Width(Size.Px(0))
+                | noop.ToSelectInput(new[] { "_" }.ToOptions()).Disabled();
+        });
+
         return new Fragment(
+            selectInputWarmup,
             new SidebarLayout(
                 body ?? null!,
                 sidebarMenu,
@@ -481,7 +498,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 ),
                 settings.Width
             ).Open(sidebarOpen.Value).MainAppSidebar(),
-            new ImportIssuesDialog(importIssuesDialogOpen, config)
+            importIssuesDialog
         );
     }
 

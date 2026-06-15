@@ -122,10 +122,8 @@ promptwares:
 #       - path: /absolute/path/to/repo
 #         prRule: default    # PR merge strategy: default or yolo (auto-merge)
 #         # baseBranch: develop       # Override default branch (auto-detected if omitted)
-#         # syncStrategy: fetch       # fetch (default) | rebase | merge
 #       - path: "%REPOS_HOME%/my-repo"
 #         baseBranch: main
-#         syncStrategy: rebase
 #     verifications:
 #       - name: Build
 #         required: true
@@ -161,7 +159,6 @@ promptwares:
 #     repos:
 #       - path: %REPOS_HOME%/Ivy-Tendril
 #         prRule: default
-#         syncStrategy: fetch
 #     verifications:
 #       - name: CheckResult
 #         required: true
@@ -226,13 +223,15 @@ verifications:
 
 levels:
   - name: Bug
-    badge: Destructive
-  - name: Critical
-    badge: Warning
-  - name: NiceToHave
-    badge: Outline
+    color: Red
+  - name: Feature
+    color: Blue
   - name: Epic
-    badge: Info
+    color: Purple
+  - name: Chore
+    color: Slate
+  - name: Nitpick
+    color: Gray
 
 # Editor configuration for opening files and folders.
 # The 'command' must be available on your system's PATH.

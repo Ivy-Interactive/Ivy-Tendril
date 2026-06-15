@@ -11,7 +11,9 @@ public class HelpApp : ViewBase
         var client = UseService<IClientProvider>();
 
         return Layout.TopCenter()
-               | (Layout.Vertical().Margin(0, 20).Width(150)
+               | (Layout.Vertical().Margin(0, 20)
+                  .Width(Size.Full().At(Breakpoint.Mobile).And(Breakpoint.Desktop, Size.Units(150)))
+                  .Padding(new Responsive<Thickness?> { Mobile = new Thickness(4, 0, 4, 0) })
                   | Text.H1("Help")
                   | Text.Muted($"View documentation at {Constants.DocsUrl} or join us on Discord for help.")
                   | (Layout.Horizontal()

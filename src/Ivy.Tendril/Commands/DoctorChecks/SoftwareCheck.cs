@@ -27,8 +27,9 @@ internal class SoftwareCheck : IDoctorCheck
         var reqErrors = await CheckRequiredSoftware(statuses);
         var agentErrors = await CheckAgentClis(statuses);
         var pwshErrors = await CheckPowerShell(statuses);
+        var dotnetErrors = await CheckDotNet(statuses);
 
-        return new CheckResult(reqErrors || agentErrors || pwshErrors, statuses);
+        return new CheckResult(reqErrors || agentErrors || pwshErrors || dotnetErrors, statuses);
     }
 
     private static async Task<bool> CheckRequiredSoftware(List<CheckStatus> statuses)
@@ -100,20 +101,47 @@ internal class SoftwareCheck : IDoctorCheck
 
     private static async Task<bool> CheckPowerShell(List<CheckStatus> statuses)
     {
-        var pwshPath = PathHelper.GetPwshPath();
-        var pwshInstalled = await ProcessCheckHelper.CheckCommand(pwshPath, "-Version");
-        if (pwshInstalled)
+        var bundledPath = PathHelper.GetPwshPath();
+        var (success, error) = await ProcessCheckHelper.CheckPowerShellWithDetails();
+        if (success)
         {
-            var isBundled = pwshPath != "pwsh";
+            // Determine if the working PowerShell is the bundled one
+            var isBundled = bundledPath != "pwsh" && await ProcessCheckHelper.CheckCommand(bundledPath, "-Version");
             statuses.Add(new CheckStatus("powershell", isBundled ? "OK (bundled pwsh)" : "OK (pwsh)", StatusKind.Ok));
             return false;
         }
 
-        var legacyInstalled = await ProcessCheckHelper.CheckCommand("powershell", "-Version");
-        statuses.Add(legacyInstalled
-            ? new CheckStatus("powershell", "OK (powershell)", StatusKind.Ok)
-            : new CheckStatus("powershell", "Not found", StatusKind.Error));
-        return !legacyInstalled;
+        var errorMessage = $"Not found or failed to execute. Details: {error}";
+        statuses.Add(new CheckStatus("powershell", errorMessage, StatusKind.Error));
+        return true;
+    }
+
+    private static async Task<bool> CheckDotNet(List<CheckStatus> statuses)
+    {
+        var bundledPath = PathHelper.GetBundledDotnetPath();
+
+        // Try bundled first if it exists
+        if (bundledPath != null)
+        {
+            var (success, err) = await ProcessCheckHelper.TryCheckCommand(bundledPath, "--version");
+            if (success)
+            {
+                statuses.Add(new CheckStatus("dotnet", "OK (bundled dotnet)", StatusKind.Ok));
+                return false;
+            }
+        }
+
+        // Try system dotnet next
+        var (sysSuccess, sysErr) = await ProcessCheckHelper.TryCheckCommand("dotnet", "--version");
+        if (sysSuccess)
+        {
+            statuses.Add(new CheckStatus("dotnet", "OK (dotnet)", StatusKind.Ok));
+            return false;
+        }
+
+        var details = bundledPath != null ? $"bundled: {bundledPath} failed, system: {sysErr}" : sysErr;
+        statuses.Add(new CheckStatus("dotnet", $"Not found or failed to execute. Details: {details}", StatusKind.Error));
+        return true;
     }
 
     private string[] GetAgentIds()

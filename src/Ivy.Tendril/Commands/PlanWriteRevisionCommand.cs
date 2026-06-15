@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using Ivy.Tendril.Helpers;
-using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -14,42 +13,34 @@ public class PlanWriteRevisionSettings : CommandSettings
     [Description("Read content from file instead of STDIN")]
     [CommandOption("--file|-f")]
     public string? FilePath { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.RequireNonEmpty(PlanId, "plan-id");
+    }
 }
 
 public class PlanWriteRevisionCommand : Command<PlanWriteRevisionSettings>
 {
-    private readonly ILogger<PlanWriteRevisionCommand> _logger;
-
-    public PlanWriteRevisionCommand(ILogger<PlanWriteRevisionCommand> logger) => _logger = logger;
-
     protected override int Execute(CommandContext context, PlanWriteRevisionSettings settings, CancellationToken cancellationToken)
     {
-        try
-        {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
-            var revisionsDir = Path.Combine(planFolder, "Revisions");
-            Directory.CreateDirectory(revisionsDir);
+        var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
+        var revisionsDir = Path.Combine(planFolder, "Revisions");
+        Directory.CreateDirectory(revisionsDir);
 
-            var number = ResolveRevisionNumber(revisionsDir);
-            var filename = $"{number:D3}.md";
-            var filePath = Path.Combine(revisionsDir, filename);
+        var number = ResolveRevisionNumber(revisionsDir);
+        var filename = $"{number:D3}.md";
+        var filePath = Path.Combine(revisionsDir, filename);
 
-            var content = !string.IsNullOrEmpty(settings.FilePath)
-                ? File.ReadAllText(settings.FilePath)
-                : ConsoleHelper.ReadStdinWithTimeout();
-            if (string.IsNullOrWhiteSpace(content))
-                throw new ArgumentException("No content provided (use --file or pipe to STDIN)");
+        var content = !string.IsNullOrEmpty(settings.FilePath)
+            ? File.ReadAllText(settings.FilePath)
+            : ConsoleHelper.ReadStdinWithTimeout();
+        if (string.IsNullOrWhiteSpace(content))
+            throw new ArgumentException("No content provided (use --file or pipe to STDIN)");
 
-            File.WriteAllText(filePath, content);
-            Console.WriteLine(filePath);
-            return 0;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to write revision for plan {PlanId}", settings.PlanId);
-            Console.Error.WriteLine($"Error: {ex.Message}");
-            return 1;
-        }
+        File.WriteAllText(filePath, content);
+        Console.Write(filePath);
+        return 0;
     }
 
     private static int ResolveRevisionNumber(string revisionsDir)

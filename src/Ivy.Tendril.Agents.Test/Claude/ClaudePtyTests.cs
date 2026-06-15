@@ -171,7 +171,7 @@ public class ClaudePtyTests
     }
 
     [Fact]
-    public void BuildPtySpec_FullAutoPermission_MapsToDontAsk()
+    public void BuildPtySpec_FullAutoPermission_SkipsPermissions()
     {
         var config = new AgentPtyConfig
         {
@@ -181,9 +181,8 @@ public class ClaudePtyTests
 
         var spec = _pty.BuildPtySpec(config);
 
-        var idx = IndexOf(spec.CommandLine,"--permission-mode");
-        Assert.NotEqual(-1, idx);
-        Assert.Equal("dontAsk", spec.CommandLine[idx + 1]);
+        Assert.Contains("--dangerously-skip-permissions", spec.CommandLine);
+        Assert.DoesNotContain("--permission-mode", spec.CommandLine);
     }
 
     [Fact]

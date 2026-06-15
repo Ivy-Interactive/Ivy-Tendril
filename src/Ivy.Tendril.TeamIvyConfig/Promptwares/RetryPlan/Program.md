@@ -62,17 +62,6 @@ fi
 
 4. **Switch to the worktree directory** — all subsequent work happens here.
 
-5. **Sync with base branch** if configured:
-
-```bash
-SYNC_STRATEGY="<from RepoConfigs or 'fetch' if not specified>"
-BASE_BRANCH="<resolved-base-branch>"
-WORKTREE_PATH="<TendrilPlanFolder>/Worktrees/<repo-folder-name>"
-
-tendril plan sync-worktree "$WORKTREE_PATH" --strategy "$SYNC_STRATEGY" --base-branch "$BASE_BRANCH"
-```
-
-If sync fails due to conflicts, report the conflict and fail — do not force-resolve.
 
 ### 3. Implement Changes
 

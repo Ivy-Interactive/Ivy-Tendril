@@ -304,6 +304,64 @@ jobs:
           fi
           echo "PowerShell bundled successfully!"
 
+      - name: Bundle .NET 10 SDK
+        shell: bash
+        run: |
+          DOTNET_VERSION="10.0.100"
+          RID="${{ matrix.rid }}"
+          PUBLISH_DIR="./publish/desktop/$RID"
+          TARGET_DIR="$PUBLISH_DIR/dotnet"
+          mkdir -p "$TARGET_DIR"
+          
+          echo "Bundling .NET $DOTNET_VERSION for $RID into $TARGET_DIR..."
+          
+          if [[ "$RID" == win-x64 ]]; then
+            URL="https://dotnetcli.azureedge.net/dotnet/Sdk/$DOTNET_VERSION/dotnet-sdk-$DOTNET_VERSION-win-x64.zip"
+            curl -L -o dotnet.zip "$URL"
+            unzip -q dotnet.zip -d "$TARGET_DIR"
+            rm dotnet.zip
+          elif [[ "$RID" == win-arm64 ]]; then
+            URL="https://dotnetcli.azureedge.net/dotnet/Sdk/$DOTNET_VERSION/dotnet-sdk-$DOTNET_VERSION-win-arm64.zip"
+            curl -L -o dotnet.zip "$URL"
+            unzip -q dotnet.zip -d "$TARGET_DIR"
+            rm dotnet.zip
+          elif [[ "$RID" == osx-x64 ]]; then
+            URL="https://dotnetcli.azureedge.net/dotnet/Sdk/$DOTNET_VERSION/dotnet-sdk-$DOTNET_VERSION-osx-x64.tar.gz"
+            curl -L -o dotnet.tar.gz "$URL"
+            tar -xzf dotnet.tar.gz -C "$TARGET_DIR"
+            rm dotnet.tar.gz
+          elif [[ "$RID" == osx-arm64 ]]; then
+            URL="https://dotnetcli.azureedge.net/dotnet/Sdk/$DOTNET_VERSION/dotnet-sdk-$DOTNET_VERSION-osx-arm64.tar.gz"
+            curl -L -o dotnet.tar.gz "$URL"
+            tar -xzf dotnet.tar.gz -C "$TARGET_DIR"
+            rm dotnet.tar.gz
+          elif [[ "$RID" == linux-x64 ]]; then
+            URL="https://dotnetcli.azureedge.net/dotnet/Sdk/$DOTNET_VERSION/dotnet-sdk-$DOTNET_VERSION-linux-x64.tar.gz"
+            curl -L -o dotnet.tar.gz "$URL"
+            tar -xzf dotnet.tar.gz -C "$TARGET_DIR"
+            rm dotnet.tar.gz
+          elif [[ "$RID" == linux-arm64 ]]; then
+            URL="https://dotnetcli.azureedge.net/dotnet/Sdk/$DOTNET_VERSION/dotnet-sdk-$DOTNET_VERSION-linux-arm64.tar.gz"
+            curl -L -o dotnet.tar.gz "$URL"
+            tar -xzf dotnet.tar.gz -C "$TARGET_DIR"
+            rm dotnet.tar.gz
+          fi
+          
+          # Verify dotnet executable exists and is executable
+          if [[ "$RID" == win-* ]]; then
+            if [[ ! -f "$TARGET_DIR/dotnet.exe" ]]; then
+              echo "Error: dotnet.exe not found after extraction!"
+              exit 1
+            fi
+          else
+            if [[ ! -f "$TARGET_DIR/dotnet" ]]; then
+              echo "Error: dotnet not found after extraction!"
+              exit 1
+            fi
+            chmod +x "$TARGET_DIR/dotnet"
+          fi
+          echo ".NET SDK bundled successfully!"
+
       - name: Pack Installer (Velopack)
         run: |
           export PATH="$PATH:$HOME/.dotnet/tools"

@@ -46,6 +46,10 @@ public sealed class CodexPty : IAgentPty
     {
         var args = new List<string> { "codex" };
 
+        // FullAuto → run without approval prompts (workspace-write sandbox).
+        if (config.PermissionMode == PermissionMode.FullAuto)
+            args.Add("--full-auto");
+
         if (!string.IsNullOrEmpty(config.Model))
         {
             args.Add("--model");

@@ -114,9 +114,19 @@ public class InboxControllerTests
             return new List<JobItem>();
         }
 
+        public List<JobItem> GetJobsForPlan(string planFile)
+        {
+            return new List<JobItem>();
+        }
+
         public JobItem? GetJob(string id)
         {
             return null;
+        }
+
+        public bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null)
+        {
+            return false;
         }
 
         public bool IsInboxFileTracked(string filePath)

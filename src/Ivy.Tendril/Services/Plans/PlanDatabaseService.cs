@@ -245,6 +245,37 @@ public class PlanDatabaseService : IPlanDatabaseService
     public DashboardModels GetDashboardData(string? projectFilter) =>
         _dashboardRepository.GetDashboardData(projectFilter);
 
+    public List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days = 30)
+    {
+        using (new ReadLockHandle(_lock))
+        {
+            var cutoff = DateTime.UtcNow.Date.AddDays(-days + 1).ToString("yyyy-MM-dd");
+            var results = new List<(DateOnly Date, int Count)>();
+
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT DATE(p.Updated) AS d, COUNT(*) AS cnt
+                FROM PullRequests pr
+                JOIN Plans p ON p.Id = pr.PlanId
+                WHERE p.Updated >= @cutoff AND p.State = 'Completed'
+                GROUP BY DATE(p.Updated)
+                ORDER BY DATE(p.Updated)
+                """;
+            cmd.Parameters.AddWithValue("@cutoff", cutoff);
+
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                var dateStr = reader.GetString(0);
+                var count = reader.GetInt32(1);
+                var date = DateOnly.ParseExact(dateStr, "yyyy-MM-dd", CultureInfo.InvariantCulture);
+                results.Add((date, count));
+            }
+
+            return results;
+        }
+    }
+
     public decimal GetPlanTotalCost(int planId)
     {
         using (new ReadLockHandle(_lock))
@@ -642,8 +673,8 @@ public class PlanDatabaseService : IPlanDatabaseService
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
-                              INSERT OR REPLACE INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, SessionId, StartedAt, CompletedAt, DurationSeconds, Cost, Tokens, StatusMessage, Args, TypedArgs)
-                              VALUES (@id, @type, @planFile, @project, @status, @provider, @sessionId, @startedAt, @completedAt, @durationSeconds, @cost, @tokens, @statusMessage, @args, @typedArgs)
+                              INSERT OR REPLACE INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, SessionId, StartedAt, CompletedAt, DurationSeconds, Cost, Tokens, StatusMessage, Args, TypedArgs, WorkingDirectory, CliCommand, Cleared)
+                              VALUES (@id, @type, @planFile, @project, @status, @provider, @sessionId, @startedAt, @completedAt, @durationSeconds, @cost, @tokens, @statusMessage, @args, @typedArgs, @workingDirectory, @cliCommand, @cleared)
                               """;
             cmd.Parameters.AddWithValue("@id", job.Id);
             cmd.Parameters.AddWithValue("@type", job.Type);
@@ -664,6 +695,9 @@ public class PlanDatabaseService : IPlanDatabaseService
             cmd.Parameters.AddWithValue("@typedArgs", job.TypedArgs != null
                 ? JsonSerializer.Serialize<JobArgsBase>(job.TypedArgs)
                 : DBNull.Value);
+            cmd.Parameters.AddWithValue("@workingDirectory", (object?)job.WorkingDirectory ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@cliCommand", (object?)job.CliCommand ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@cleared", job.Cleared ? 1 : 0);
             cmd.ExecuteNonQuery();
         }
     }
@@ -672,42 +706,75 @@ public class PlanDatabaseService : IPlanDatabaseService
     {
         using (new ReadLockHandle(_lock))
         {
-            return ReadList("SELECT * FROM Jobs ORDER BY CompletedAt DESC LIMIT @limit",
-                reader => new JobItem
-                {
-                    Id = reader.GetString(reader.GetOrdinal("Id")),
-                    Type = reader.GetString(reader.GetOrdinal("Type")),
-                    PlanFile = reader.GetString(reader.GetOrdinal("PlanFile")),
-                    Project = reader.GetString(reader.GetOrdinal("Project")),
-                    Status = Enum.Parse<JobStatus>(reader.GetString(reader.GetOrdinal("Status"))),
-                    Provider = reader.GetString(reader.GetOrdinal("Provider")),
-                    SessionId = reader.IsDBNull(reader.GetOrdinal("SessionId"))
-                        ? null
-                        : reader.GetString(reader.GetOrdinal("SessionId")),
-                    StartedAt = reader.IsDBNull(reader.GetOrdinal("StartedAt"))
-                        ? null
-                        : DateTime.Parse(reader.GetString(reader.GetOrdinal("StartedAt")), CultureInfo.InvariantCulture,
-                            DateTimeStyles.RoundtripKind),
-                    CompletedAt = reader.IsDBNull(reader.GetOrdinal("CompletedAt"))
-                        ? null
-                        : DateTime.Parse(reader.GetString(reader.GetOrdinal("CompletedAt")),
-                            CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
-                    DurationSeconds = reader.IsDBNull(reader.GetOrdinal("DurationSeconds"))
-                        ? null
-                        : reader.GetInt32(reader.GetOrdinal("DurationSeconds")),
-                    Cost = reader.IsDBNull(reader.GetOrdinal("Cost"))
-                        ? null
-                        : (decimal)reader.GetDouble(reader.GetOrdinal("Cost")),
-                    Tokens = reader.IsDBNull(reader.GetOrdinal("Tokens"))
-                        ? null
-                        : reader.GetInt32(reader.GetOrdinal("Tokens")),
-                    StatusMessage = reader.IsDBNull(reader.GetOrdinal("StatusMessage"))
-                        ? null
-                        : reader.GetString(reader.GetOrdinal("StatusMessage")),
-                    TypedArgs = ReadTypedArgs(reader)
-                },
+            return ReadList("SELECT * FROM Jobs WHERE Cleared = 0 ORDER BY CompletedAt DESC LIMIT @limit",
+                MapJobRow,
                 new SqliteParameter("@limit", limit));
         }
+    }
+
+    public JobItem? GetJobById(string id)
+    {
+        using (new ReadLockHandle(_lock))
+        {
+            return ReadList("SELECT * FROM Jobs WHERE Id = @id LIMIT 1",
+                MapJobRow,
+                new SqliteParameter("@id", id))
+                .FirstOrDefault();
+        }
+    }
+
+    public List<JobItem> GetJobsForPlan(string planFile)
+    {
+        using (new ReadLockHandle(_lock))
+        {
+            return ReadList("SELECT * FROM Jobs WHERE PlanFile = @planFile ORDER BY CompletedAt DESC",
+                MapJobRow,
+                new SqliteParameter("@planFile", planFile));
+        }
+    }
+
+    private JobItem MapJobRow(SqliteDataReader reader)
+    {
+        return new JobItem
+        {
+            Id = reader.GetString(reader.GetOrdinal("Id")),
+            Type = reader.GetString(reader.GetOrdinal("Type")),
+            PlanFile = reader.GetString(reader.GetOrdinal("PlanFile")),
+            Project = reader.GetString(reader.GetOrdinal("Project")),
+            Status = Enum.Parse<JobStatus>(reader.GetString(reader.GetOrdinal("Status"))),
+            Provider = reader.GetString(reader.GetOrdinal("Provider")),
+            SessionId = reader.IsDBNull(reader.GetOrdinal("SessionId"))
+                ? null
+                : reader.GetString(reader.GetOrdinal("SessionId")),
+            StartedAt = reader.IsDBNull(reader.GetOrdinal("StartedAt"))
+                ? null
+                : DateTime.Parse(reader.GetString(reader.GetOrdinal("StartedAt")), CultureInfo.InvariantCulture,
+                    DateTimeStyles.RoundtripKind),
+            CompletedAt = reader.IsDBNull(reader.GetOrdinal("CompletedAt"))
+                ? null
+                : DateTime.Parse(reader.GetString(reader.GetOrdinal("CompletedAt")),
+                    CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
+            DurationSeconds = reader.IsDBNull(reader.GetOrdinal("DurationSeconds"))
+                ? null
+                : reader.GetInt32(reader.GetOrdinal("DurationSeconds")),
+            Cost = reader.IsDBNull(reader.GetOrdinal("Cost"))
+                ? null
+                : (decimal)reader.GetDouble(reader.GetOrdinal("Cost")),
+            Tokens = reader.IsDBNull(reader.GetOrdinal("Tokens"))
+                ? null
+                : reader.GetInt32(reader.GetOrdinal("Tokens")),
+            StatusMessage = reader.IsDBNull(reader.GetOrdinal("StatusMessage"))
+                ? null
+                : reader.GetString(reader.GetOrdinal("StatusMessage")),
+            TypedArgs = ReadTypedArgs(reader),
+            WorkingDirectory = reader.IsDBNull(reader.GetOrdinal("WorkingDirectory"))
+                ? null
+                : reader.GetString(reader.GetOrdinal("WorkingDirectory")),
+            CliCommand = reader.IsDBNull(reader.GetOrdinal("CliCommand"))
+                ? null
+                : reader.GetString(reader.GetOrdinal("CliCommand")),
+            Cleared = reader.GetInt32(reader.GetOrdinal("Cleared")) != 0
+        };
     }
 
     public void PurgeOldJobs(int keepCount = 500)

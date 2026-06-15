@@ -91,6 +91,6 @@ public class FileSheet(
             () => openFile.Set(null),
             finalContent,
             Path.GetFileName(filePath)
-        ).Width(Size.Half()).Resizable();
+        ).Width(UxHelper.SheetWidth).Resizable();
     }
 }

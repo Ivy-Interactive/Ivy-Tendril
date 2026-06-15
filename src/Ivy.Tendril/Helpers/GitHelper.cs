@@ -60,11 +60,11 @@ public static class GitHelper
 
                     using var process = Process.Start(psi);
                     if (process == null) return false;
-                    
+
                     var outTask = process.StandardOutput.ReadToEndAsync();
                     var errTask = process.StandardError.ReadToEndAsync();
                     process.WaitForExit(5000);
-                    
+
                     var output = outTask.GetAwaiter().GetResult();
                     _ = errTask.GetAwaiter().GetResult();
 
@@ -110,11 +110,11 @@ public static class GitHelper
 
                     using var process = Process.Start(psi);
                     if (process == null) return false;
-                    
+
                     var outTask = process.StandardOutput.ReadToEndAsync();
                     var errTask = process.StandardError.ReadToEndAsync();
                     process.WaitForExit(10000);
-                    
+
                     var output = outTask.GetAwaiter().GetResult();
                     _ = errTask.GetAwaiter().GetResult();
 
@@ -153,14 +153,14 @@ public static class GitHelper
 
             using var process = Process.Start(psi);
             if (process == null) return false;
-            
+
             var outTask = process.StandardOutput.ReadToEndAsync();
             var errTask = process.StandardError.ReadToEndAsync();
             process.WaitForExit(5000);
-            
+
             _ = outTask.GetAwaiter().GetResult();
             _ = errTask.GetAwaiter().GetResult();
-            
+
             return process.ExitCode == 0;
         }
         catch

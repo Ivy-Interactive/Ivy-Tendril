@@ -44,7 +44,7 @@ The **Projects** section of your firmware lists all available projects with thei
 **If `TendrilProject: Auto`**:
 - Analyze the task description to infer the correct project from the **Projects** section
 - Match based on keywords, repo paths, or component names in the description
-- If no project matches, set `project: Auto` in plan.yaml and leave `repos: []` empty
+- **If no project matches**: Report final status via `tendril job status TendrilJobId --message "Could not determine project from task description. Available projects: <list>"`, write trash file via `tendril trash write <SafeTitle>.md <<'EOF'...EOF` explaining that the project could not be determined, list the available project names, then exit without creating a plan
 - Use the matched project's context to scope your research
 
 ### 2. Plan ID
@@ -91,7 +91,13 @@ Do NOT read or modify `.counter` directly. Plan IDs are allocated by the `tendri
 
   #### Step 5: Write trash file (when trashing)
 
-  Write a trash file using the CLI (where `<SafeTitle>` is the title with spaces replaced by hyphens and special characters removed), then exit without creating a plan folder:
+  First, report a final status describing why no plan is being created:
+
+  ```bash
+  tendril job status TendrilJobId --message "Duplicate of <existing plan folder name> (<state>): <brief reason>"
+  ```
+
+  Then write a trash file using the CLI (where `<SafeTitle>` is the title with spaces replaced by hyphens and special characters removed), then exit without creating a plan folder:
 
   ```bash
   tendril trash write <SafeTitle>.md <<'EOF'
@@ -150,7 +156,7 @@ For each assertion found:
 
 **Decision:**
 - **All validations pass** → Proceed to Step 4, include validated code blocks in plan with `**Current implementation**` headers
-- **Any validation fails** → Write trash file via `tendril trash write <SafeTitle>.md <<'EOF'...EOF` explaining the validation failure, then exit without creating a plan
+- **Any validation fails** → Report final status via `tendril job status TendrilJobId --message "Code state validation failed: <brief description of what changed>"`, write trash file via `tendril trash write <SafeTitle>.md <<'EOF'...EOF` explaining the validation failure, then exit without creating a plan
 
 This catches stale plans before they enter the review queue, reducing wasted review time.
 
@@ -163,19 +169,16 @@ Create the plan using CLI commands according to the plan structure in the **Refe
 Use `tendril plan create` to allocate a plan ID, create the folder, and write `plan.yaml` in a single command:
 
 ```bash
-tendril plan create "<Title>" \
+tendril plan create "<Title>" "<TendrilProject>" \
   --plans-dir "<TendrilPlansFolder>" \
-  --project "<TendrilProject>" \
-  --level "NiceToHave" \
+  --level "Feature" \
   --initial-prompt "<cleaned task description>" \
   --execution-profile "balanced" \
-  --repo "<repo-path-1>" \
-  --repo "<repo-path-2>" \
   --verification "Build=Pending" \
   --verification "Test=Pending"
 ```
 
-**IMPORTANT:** Always pass `--plans-dir` with the `TendrilPlansFolder` firmware value. This ensures the plan is created in the correct directory regardless of environment variable inheritance.
+**IMPORTANT:** Always pass `--plans-dir` with the `TendrilPlansFolder` firmware value. This ensures the plan is created in the correct directory regardless of environment variable inheritance. The project name must be the exact name from the **Projects** section — repos are derived automatically from the project configuration.
 
 The command outputs:
 ```

@@ -41,6 +41,9 @@ public class Program
     [STAThread]
     public static async Task<int> Main(string[] args)
     {
+        PathHelper.AugmentPath(forceShellPath: false);
+        PathHelper.EnsureCliSymlink();
+
         if (OperatingSystem.IsWindows())
         {
             try
@@ -147,7 +150,7 @@ public class Program
                         {
                             var home = Environment.GetEnvironmentVariable("TENDRIL_HOME");
                             if (!string.IsNullOrEmpty(home))
-                                cliLog = JobStatusFile.GetStatusFilePath(resolvedJobId) + ".jsonl";
+                                cliLog = JobStatusFile.GetCliLogPath(resolvedJobId);
                         }
                     }
 
@@ -170,6 +173,13 @@ public class Program
                 catch (CommandRuntimeException ex)
                 {
                     AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message.EscapeMarkup()}");
+                    return 1;
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"Error: {ex.Message}");
+                    if (verbose)
+                        Console.Error.WriteLine(ex.ToString());
                     return 1;
                 }
             }
@@ -348,11 +358,7 @@ public class Program
 
     private static bool IsPackagedApp()
     {
-        var fileName = Path.GetFileName(Environment.ProcessPath ?? string.Empty);
-        return fileName.Equals("Ivy.Tendril", StringComparison.OrdinalIgnoreCase) ||
-               fileName.Equals("Ivy.Tendril.exe", StringComparison.OrdinalIgnoreCase) ||
-               fileName.Equals("IvyTendril", StringComparison.OrdinalIgnoreCase) ||
-               fileName.Equals("IvyTendril.exe", StringComparison.OrdinalIgnoreCase);
+        return Velopack.Locators.VelopackLocator.Current?.CurrentlyInstalledVersion != null;
     }
 
     private static bool ShouldDetachDesktopLaunch(string[] filteredArgs, bool verbose)
@@ -366,6 +372,14 @@ public class Program
 
     private static bool IsTendrilToolInvocation()
     {
+        // If the executing assembly is in the .store / .dotnet folder, it's a global tool invocation
+        var path = System.AppContext.BaseDirectory;
+        if (path.Contains(".store", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains(".dotnet", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
         // ProcessPath can be "dotnet" for global tools, so inspect argv[0] too.
         var processPathName = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? string.Empty);
         if (processPathName.Equals("tendril", StringComparison.OrdinalIgnoreCase))
@@ -465,6 +479,8 @@ public class Program
             {
                 job.AddCommand<JobStatusCommand>("status")
                     .WithDescription("Report job status (message, planId, planTitle)");
+                job.AddCommand<JobStartCommand>("start")
+                    .WithDescription("Start a job via the running Tendril server");
             });
 
             // Plan management commands
@@ -508,8 +524,6 @@ public class Program
                     .WithDescription("Remove worktrees from a plan");
                 plan.AddCommand<PlanRemoveWorktreeCommand>("remove-worktree")
                     .WithDescription("Remove a single worktree from a plan");
-                plan.AddCommand<PlanSyncWorktreeCommand>("sync-worktree")
-                    .WithDescription("Apply sync strategy to a worktree");
                 plan.AddCommand<PlanDoctorCommand>("doctor")
                     .WithDescription("Check plan health");
 
@@ -556,6 +570,9 @@ public class Program
 
             config.AddCommand<ModelsCommand>("models")
                 .WithDescription("List available models and pricing for agent CLIs");
+
+            config.AddCommand<AgentInstructionsCommand>("agent-instructions")
+                .WithDescription("Print the agent system prompt");
 
             config.AddBranch("trash", trash =>
             {
@@ -618,6 +635,25 @@ public class Program
         AppDomain.CurrentDomain.ProcessExit += (_, _) =>
         {
             CrashLog.Write($"[{DateTime.UtcNow:O}] ProcessExit event fired (PID {Environment.ProcessId}) | {GetMemoryStats()}");
+
+            // Clean up .master file if we own it
+            try
+            {
+                var home = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
+                if (!string.IsNullOrEmpty(home))
+                {
+                    var masterFile = Path.Combine(home, ".master");
+                    if (File.Exists(masterFile))
+                    {
+                        var masterJson = File.ReadAllText(masterFile);
+                        var masterData = System.Text.Json.JsonSerializer.Deserialize<Services.MasterElectionService.MasterFileData>(
+                            masterJson, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase });
+                        if (masterData?.Pid == Environment.ProcessId)
+                            File.Delete(masterFile);
+                    }
+                }
+            }
+            catch { }
 
             // Clean up tracked temp files
             try
