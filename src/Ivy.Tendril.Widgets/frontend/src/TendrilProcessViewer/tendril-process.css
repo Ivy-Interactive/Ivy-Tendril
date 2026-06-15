@@ -232,8 +232,13 @@
   }
 
   .tpv-arrow-svg {
-    width: 50px;
-    height: 12px;
+    /* Square footprint so the rotated arrow reserves its full vertical length.
+       With preserveAspectRatio="xMidYMid meet" the 80x12 viewBox scales down
+       uniformly and is centered, then rotate(90deg) makes it a vertical
+       connector. A 12px-tall footprint (the old value) let the rotated arrow
+       overflow into the boxes above/below; a square box reserves the space. */
+    width: 44px;
+    height: 44px;
     transform: rotate(90deg);
   }
 
