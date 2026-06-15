@@ -9,6 +9,9 @@
     "preview": "vp preview"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@hpcc-js/wasm-graphviz": "^1.22.0",
     "lucide-react": "0.511.0",
     "mermaid": "^11.15.0",
