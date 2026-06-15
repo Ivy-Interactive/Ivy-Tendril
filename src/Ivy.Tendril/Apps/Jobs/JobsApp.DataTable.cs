@@ -22,7 +22,7 @@ public partial class JobsApp
         Action<string>? showDebug,
         List<JobItem> jobs,
         Dictionary<string, string> projectColors,
-        StackedProgress jobsProgress)
+        StackedProgress? jobsProgress)
     {
         return rows.AsQueryable()
             .ToDataTable(t => t.Id)
@@ -263,7 +263,7 @@ public partial class JobsApp
                 return ValueTask.CompletedTask;
             })
             .HeaderRight(_ => Layout.Horizontal()
-                              | jobsProgress
+                              | (jobsProgress != null ? jobsProgress : null!)
                               | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
                                   new MenuItem("Clear Completed", Icon: Icons.Trash, Tag: "ClearCompleted")
                                       .OnSelect(() =>
