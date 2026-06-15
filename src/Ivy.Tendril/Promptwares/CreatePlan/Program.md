@@ -55,6 +55,8 @@ If it references related plans with `[number]` syntax (e.g. `[01205]`), find and
 
 **Format screenshot paths**: If the task description contains file paths to images (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`), include them in the plan revision as markdown images using `file:///` URLs. Convert backslashes to forward slashes. Example: a path like `D:\Screenshots\2026-05-07_17-16.png` in the description becomes `![screenshot](file:///D:/Screenshots/2026-05-07_17-16.png)` in the revision.
 
+**Look at uploaded attachments**: If the task description contains local file path references (e.g. `[file: /Users/rorychatt/.tendril/Temp/.../image_xyz.png]` or text files/logs in the `Temp` folder), they are local attachments uploaded by the user. Read and inspect these files for additional details or context when writing the plan. If they are images or screenshots, format them in the plan revision as markdown images using `file:///` URLs.
+
 **Preserve remote images**: If the task description contains markdown image references with remote URLs (`![...](https://...)`), include relevant ones in the plan revision as-is. Images showing bugs, UI mockups, error messages, or expected behavior are relevant. Decorative or unrelated images may be omitted.
 
 ### 1.3. Select Project
