@@ -73,7 +73,7 @@ public partial class JobsApp : ViewBase
         var jobs = jobService.GetJobs();
         var projectColors = BuildProjectColorMapping(config);
         var rows = BuildJobRows(jobs, planService);
-        var jobsProgress = BuildStatusProgress(jobs, config);
+        var jobsProgress = jobs.Count > 0 ? BuildStatusProgress(jobs, config) : null;
 
         var dataTable = JobsApp.BuildDataTable(nav, rows, refreshToken, updateStream, config, planService,
             jobService, client, showPlan, showOutput, showPrompt, showDebug, jobs, projectColors, jobsProgress);
