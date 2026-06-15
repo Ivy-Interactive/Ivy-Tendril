@@ -234,9 +234,9 @@
 .civ-voice-container {
   display: flex;
   align-items: center;
-  background: var(--civ-pill-bg);
-  border: 1px solid var(--civ-border);
-  border-radius: 20px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-buttons, 6px);
   padding: 2px;
   transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
 }
@@ -289,17 +289,17 @@
 
 /* Mic button */
 .civ-mic-btn {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  border: none;
-  background: transparent;
+  border: 1px solid var(--civ-border);
+  background: var(--civ-pill-bg);
   color: var(--civ-text);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: transform 0.2s, background-color 0.2s;
+  transition: transform 0.2s, background-color 0.2s, border-color 0.2s;
   position: relative;
 }
 
@@ -309,17 +309,30 @@
 }
 
 .civ-mic-btn svg {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
+}
+
+/* Active State overrides for Mic Button inside active container */
+.civ-voice-container.active .civ-mic-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+}
+
+.civ-voice-container.active .civ-mic-btn:hover {
+  background: color-mix(in srgb, var(--civ-accent) 10%, transparent);
+  transform: none;
 }
 
 .civ-mic-btn.civ-status-recording {
-  color: var(--civ-accent);
+  color: var(--civ-primary);
   background: transparent;
 }
 
 .civ-mic-btn.civ-status-recording:hover {
-  background: color-mix(in srgb, var(--civ-accent) 10%, transparent);
+  background: color-mix(in srgb, var(--civ-primary) 10%, transparent);
 }
 
 /* Spinner */
