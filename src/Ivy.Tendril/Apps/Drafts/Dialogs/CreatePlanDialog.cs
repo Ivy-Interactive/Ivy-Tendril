@@ -128,23 +128,23 @@ public class CreatePlanDialog(
                 | exclusiveProjects.ToSelectInput(options).Variant(SelectInputVariant.Toggle).WithField().Label("Select Project(s)")
                 | selectedPriority.ToSelectInput(PriorityOptions).Variant(SelectInputVariant.Toggle).WithField().Label("Priority")
                 | new ContentInputView
+                {
+                    UploadUrl = uploadContext.Value.UploadUrl,
+                    OnSubmit = e =>
                     {
-                        UploadUrl = uploadContext.Value.UploadUrl,
-                        OnSubmit = e =>
+                        if (!string.IsNullOrWhiteSpace(createPlanText.Value) && !isCreating.Value)
                         {
-                            if (!string.IsNullOrWhiteSpace(createPlanText.Value) && !isCreating.Value)
-                            {
-                                isCreating.Set(true);
-                                planWasCreated = true;
-                                var projects = selectedProjects.Value.Any()
-                                    ? selectedProjects.Value
-                                    : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
-                                onCreatePlan(createPlanText.Value, projects, ParsePriority(selectedPriority.Value), uploadSessionId.Value);
-                                onClose();
-                            }
-                            return ValueTask.CompletedTask;
+                            isCreating.Set(true);
+                            planWasCreated = true;
+                            var projects = selectedProjects.Value.Any()
+                                ? selectedProjects.Value
+                                : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
+                            onCreatePlan(createPlanText.Value, projects, ParsePriority(selectedPriority.Value), uploadSessionId.Value);
+                            onClose();
                         }
+                        return ValueTask.CompletedTask;
                     }
+                }
                     .Bind(createPlanText)
                     .SubmitLabel("Create")
                     .Placeholder("Enter task description...")
