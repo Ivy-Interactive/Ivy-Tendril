@@ -219,9 +219,7 @@
   }
 
   .tpv-arrow-segment {
-    /* Gap above and below the connector so the short arrow sits clearly
-       between the stacked boxes instead of touching them. */
-    margin: 0.5rem 0;
+    margin: 0;
     flex-direction: column;
     align-items: center;
   }
@@ -234,14 +232,8 @@
   }
 
   .tpv-arrow-svg {
-    /* Short square footprint so the rotated arrow is a brief connector that
-       sits between the stacked boxes. preserveAspectRatio="xMidYMid meet"
-       scales the 80x12 viewBox down uniformly and centers it; rotate(90deg)
-       makes it vertical. The square box reserves the arrow's full length so
-       it never overflows into the boxes above/below (combined with the
-       margin on .tpv-arrow-segment that adds breathing room). */
-    width: 20px;
-    height: 20px;
+    width: 12px;
+    height: 50px;
     transform: rotate(90deg);
   }
 
