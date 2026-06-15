@@ -61,7 +61,7 @@
   background: var(--civ-bg);
   border: 1px solid var(--civ-border);
   border-radius: var(--radius-fields);
-  padding: 14px;
+  padding: 12px;
   box-shadow: var(--civ-card-shadow);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -169,7 +169,7 @@
   font-size: 0.95rem;
   line-height: 1.5;
   color: var(--civ-text);
-  padding: 4px 0;
+  padding: 2px 0;
   min-height: 40px;
   max-height: 200px;
   width: 100%;
@@ -184,7 +184,6 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-top: 12px;
 }
 
 /* Plus button container */
