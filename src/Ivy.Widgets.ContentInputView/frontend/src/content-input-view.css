@@ -242,9 +242,9 @@
 }
 
 .civ-voice-container.active {
-  background: rgba(139, 92, 246, 0.08);
+  background: color-mix(in srgb, var(--civ-accent) 8%, transparent);
   border-color: var(--civ-accent);
-  box-shadow: 0 0 10px rgba(139, 92, 246, 0.15);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--civ-accent) 15%, transparent);
 }
 
 /* Recording Bar inside Pill */
@@ -281,7 +281,7 @@
 
 .civ-eq-bar {
   width: 2px;
-  background: linear-gradient(to top, var(--civ-accent), #a78bfa);
+  background: linear-gradient(to top, var(--civ-accent), color-mix(in srgb, var(--civ-accent) 30%, var(--civ-text)));
   border-radius: 1px;
   transition: height 0.08s ease-out;
   /* fast reactions */
@@ -319,7 +319,7 @@
 }
 
 .civ-mic-btn.civ-status-recording:hover {
-  background: rgba(139, 92, 246, 0.1);
+  background: color-mix(in srgb, var(--civ-accent) 10%, transparent);
 }
 
 /* Spinner */
