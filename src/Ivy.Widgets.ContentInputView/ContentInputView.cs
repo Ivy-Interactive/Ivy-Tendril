@@ -118,14 +118,14 @@ public static class ContentInputViewExtensions
                 {
                     tendrilHome = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
                 }
-                var attachmentsDir = Path.Combine(tendrilHome, "Attachments");
-                Directory.CreateDirectory(attachmentsDir);
+                var tempDir = Path.Combine(tendrilHome, "Temp");
+                Directory.CreateDirectory(tempDir);
 
                 var fileName = Path.GetFileName(e.Value.Name);
                 var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
                 var ext = Path.GetExtension(fileName);
                 var uniqueName = $"{nameWithoutExt}_{Guid.NewGuid().ToString()[..8]}{ext}";
-                var filePath = Path.Combine(attachmentsDir, uniqueName);
+                var filePath = Path.Combine(tempDir, uniqueName);
 
                 var bytes = Convert.FromBase64String(e.Value.Base64Data);
                 await File.WriteAllBytesAsync(filePath, bytes);
