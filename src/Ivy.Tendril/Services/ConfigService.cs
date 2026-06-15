@@ -316,7 +316,9 @@ public class ConfigService : IConfigService, IDisposable
         Directory.CreateDirectory(PlanFolder);
         Directory.CreateDirectory(Path.Combine(TendrilHome, "Promptwares"));
         Directory.CreateDirectory(Path.Combine(TendrilHome, "Hooks"));
+        Directory.CreateDirectory(Path.Combine(TendrilHome, "Attachments"));
         CleanAndCreateTempDirectory();
+        CleanStaleAttachmentsDirectory();
     }
 
     private void CleanAndCreateTempDirectory()
@@ -337,6 +339,37 @@ public class ConfigService : IConfigService, IDisposable
         catch
         {
             Directory.CreateDirectory(tempDir);
+        }
+    }
+
+    private void CleanStaleAttachmentsDirectory()
+    {
+        var attachmentsDir = Path.Combine(TendrilHome, "Attachments");
+        try
+        {
+            if (Directory.Exists(attachmentsDir))
+            {
+                var now = DateTime.UtcNow;
+                foreach (var dir in Directory.GetDirectories(attachmentsDir))
+                {
+                    try
+                    {
+                        var creationTime = Directory.GetCreationTimeUtc(dir);
+                        if (now - creationTime > TimeSpan.FromHours(24))
+                        {
+                            Directory.Delete(dir, recursive: true);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to clean stale attachments directory: {Dir}", dir);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to check attachments directory for stale folders.");
         }
     }
 

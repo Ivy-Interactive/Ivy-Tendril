@@ -456,6 +456,7 @@ internal class JobCompletionHandler
                 TryVerifyByOutputRegex(job) ||
                 TryVerifyByFilesystem(job, plansDir))
             {
+                MoveAttachmentsToPlanFolder(job);
                 return;
             }
 
@@ -466,6 +467,82 @@ internal class JobCompletionHandler
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to verify CreatePlan result for job {JobId}", job.Id);
+        }
+    }
+
+    private void MoveAttachmentsToPlanFolder(JobItem job)
+    {
+        if (job.TypedArgs is not CreatePlanArgs cp || string.IsNullOrEmpty(cp.UploadSessionId) || _configService == null || _planReaderService == null)
+            return;
+
+        try
+        {
+            var tempDir = Path.Combine(_configService.TendrilHome, "Attachments", cp.UploadSessionId);
+            if (!Directory.Exists(tempDir)) return;
+
+            var planFolder = Path.Combine(_planReaderService.PlansDirectory, job.PlanFile);
+            if (!Directory.Exists(planFolder)) return;
+
+            var attachmentsDir = Path.Combine(planFolder, "Attachments");
+            Directory.CreateDirectory(attachmentsDir);
+
+            var files = Directory.GetFiles(tempDir);
+            foreach (var file in files)
+            {
+                var fileName = Path.GetFileName(file);
+                var destPath = Path.Combine(attachmentsDir, fileName);
+                File.Move(file, destPath, overwrite: true);
+            }
+
+            try
+            {
+                Directory.Delete(tempDir, recursive: true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to delete temporary session attachments folder: {Dir}", tempDir);
+            }
+
+            RewritePathReferences(planFolder, tempDir, attachmentsDir);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error occurred moving attachments to plan folder for job {JobId}", job.Id);
+        }
+    }
+
+    private void RewritePathReferences(string planFolder, string oldPath, string newPath)
+    {
+        try
+        {
+            var oldPathAlt = oldPath.Replace('\\', '/');
+            var newPathAlt = newPath.Replace('\\', '/');
+
+            var files = Directory.GetFiles(planFolder, "*.*", SearchOption.AllDirectories);
+            foreach (var file in files)
+            {
+                var ext = Path.GetExtension(file).ToLowerInvariant();
+                if (ext is ".md" or ".yaml" or ".yml")
+                {
+                    var content = File.ReadAllText(file);
+                    var originalContent = content;
+
+                    if (content.Contains(oldPath))
+                        content = content.Replace(oldPath, newPath);
+
+                    if (content.Contains(oldPathAlt))
+                        content = content.Replace(oldPathAlt, newPathAlt);
+
+                    if (content != originalContent)
+                    {
+                        File.WriteAllText(file, content);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to rewrite attachment path references in folder {Folder}", planFolder);
         }
     }
 

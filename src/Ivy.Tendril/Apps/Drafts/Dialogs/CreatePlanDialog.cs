@@ -53,12 +53,13 @@ public class CreatePlanDialog(
         var selectedProjects = UseState(_defaultProjects);
         var selectedPriority = UseState("Normal");
         var configService = UseService<IConfigService>();
+        var uploadSessionId = UseState(() => Guid.NewGuid().ToString("N"));
 
         var uploadedFiles = UseState(new List<string>());
 
         var uploadContext = this.UseUpload(async (fileUpload, stream, token) =>
         {
-            var tempDir = Path.Combine(configService.TendrilHome, "Temp");
+            var tempDir = Path.Combine(configService.TendrilHome, "Attachments", uploadSessionId.Value);
             Directory.CreateDirectory(tempDir);
 
             var fileName = Path.GetFileName(fileUpload.FileName);
@@ -103,19 +104,17 @@ public class CreatePlanDialog(
         {
             if (!planWasCreated)
             {
-                foreach (var filePath in uploadedFiles.Value)
+                var tempDir = Path.Combine(configService.TendrilHome, "Attachments", uploadSessionId.Value);
+                try
                 {
-                    try
+                    if (Directory.Exists(tempDir))
                     {
-                        if (File.Exists(filePath))
-                        {
-                            File.Delete(filePath);
-                        }
+                        Directory.Delete(tempDir, recursive: true);
                     }
-                    catch
-                    {
-                        // Best-effort cleanup
-                    }
+                }
+                catch
+                {
+                    // Best-effort cleanup
                 }
             }
             onClose();
@@ -140,7 +139,7 @@ public class CreatePlanDialog(
                                 var projects = selectedProjects.Value.Any()
                                     ? selectedProjects.Value
                                     : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
-                                onCreatePlan(createPlanText.Value, projects, ParsePriority(selectedPriority.Value), null);
+                                onCreatePlan(createPlanText.Value, projects, ParsePriority(selectedPriority.Value), uploadSessionId.Value);
                                 onClose();
                             }
                             return ValueTask.CompletedTask;
