@@ -45,12 +45,14 @@ export class VoiceRecorder {
 
       this.ws.onopen = () => {
         console.log("[VoiceRecorder] WebSocket open. Sending start message.");
-        const startMsg = {
+        const startMsg: any = {
           type: "start",
-          ...(this.options.language && { language: this.options.language }),
           format: "pcm16",
           cleanup: this.options.cleanup !== false,
         };
+        if (this.options.language) {
+          startMsg.language = this.options.language;
+        }
         this.ws?.send(JSON.stringify(startMsg));
       };
 

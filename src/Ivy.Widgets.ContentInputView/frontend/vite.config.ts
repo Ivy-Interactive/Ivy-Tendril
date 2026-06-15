@@ -12,6 +12,7 @@ export default defineConfig({
     "process.env.NODE_ENV": JSON.stringify("production"),
   },
   build: {
+    target: "es2020",
     lib: {
       entry: resolve(__dirname, "src/index.ts"),
       formats: ["iife"],
