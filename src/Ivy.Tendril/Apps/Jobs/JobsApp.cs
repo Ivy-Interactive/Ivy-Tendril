@@ -17,6 +17,8 @@ public partial class JobsApp : ViewBase
         var nav = UseNavigation();
         var refreshToken = UseRefreshToken();
         var openFile = UseState<string?>(null);
+        var confirmDeleteOpen = UseState(false);
+        var deleteJobId = UseState<string?>(null);
 
         var (planSheet, showPlan) = UseTrigger<string>((isOpen, planPath) =>
         {
@@ -76,7 +78,8 @@ public partial class JobsApp : ViewBase
         var jobsProgress = jobs.Count > 0 ? BuildStatusProgress(jobs, config) : null;
 
         var dataTable = JobsApp.BuildDataTable(nav, rows, refreshToken, updateStream, config, planService,
-            jobService, client, showPlan, showOutput, showPrompt, showDebug, jobs, projectColors, jobsProgress);
+            jobService, client, showPlan, showOutput, showPrompt, showDebug, jobs, projectColors, jobsProgress,
+            confirmDeleteOpen, deleteJobId);
 
         var layout = Layout.Vertical().Height(Size.Full());
 
