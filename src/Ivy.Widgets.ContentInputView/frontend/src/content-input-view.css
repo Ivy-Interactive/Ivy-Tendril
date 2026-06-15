@@ -326,12 +326,12 @@
 }
 
 .civ-mic-btn.civ-status-recording {
-  color: var(--civ-primary);
+  color: var(--civ-error);
   background: transparent;
 }
 
 .civ-mic-btn.civ-status-recording:hover {
-  background: color-mix(in srgb, var(--civ-primary) 10%, transparent);
+  background: color-mix(in srgb, var(--civ-error) 10%, transparent);
 }
 
 /* Spinner */

@@ -374,6 +374,10 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
                   <div className="civ-spinner" />
                 ) : voiceStatus === "processing" ? (
                   <div className="civ-spinner processing" />
+                ) : voiceStatus === "recording" ? (
+                  <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2">
+                    <rect x="6" y="6" width="12" height="12" rx="2" ry="2" />
+                  </svg>
                 ) : (
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
