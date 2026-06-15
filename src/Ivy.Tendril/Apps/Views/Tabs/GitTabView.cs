@@ -77,7 +77,7 @@ public class GitTabView(
         if (onSynchronize != null && !isSyncing)
             syncMenuItem = syncMenuItem.OnSelect(() => onSynchronize(section.Path));
 
-        var headerRow = Layout.Horizontal().AlignContent(Align.SpaceBetween)
+        var headerRow = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween)
             | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
                 | Icons.GitBranchPlus.ToIcon().Color(Colors.Muted)
                 | Text.H3(section.Name))
