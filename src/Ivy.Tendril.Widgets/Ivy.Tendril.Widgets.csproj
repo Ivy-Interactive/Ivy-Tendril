@@ -26,11 +26,11 @@
   </ItemGroup>
 
   <Target Name="WidgetsNpmInstall" BeforeTargets="WidgetsBuildFrontend" Inputs="frontend/package.json;frontend/pnpm-lock.yaml" Outputs="frontend/node_modules/.modules.yaml">
-    <Exec Command="npx -y pnpm@10.33.0 install" WorkingDirectory="frontend" />
+    <Exec Command="npx -y pnpm@10.33.0 install" WorkingDirectory="frontend" EnvironmentVariables="CI=true" />
   </Target>
 
   <Target Name="WidgetsBuildFrontend" BeforeTargets="BeforeCompile;BeforeBuild" Inputs="@(WidgetsFrontendSourceFiles)" Outputs="frontend/dist/ivy-tendril-widgets.js;frontend/dist/ivy-tendril-widgets.css;frontend/dist/.build-stamp">
-    <Exec Command="npx -y pnpm@10.33.0 run build" WorkingDirectory="frontend" EnvironmentVariables="NODE_OPTIONS=--max-old-space-size=4096" />
+    <Exec Command="npx -y pnpm@10.33.0 run build" WorkingDirectory="frontend" EnvironmentVariables="CI=true;NODE_OPTIONS=--max-old-space-size=4096" />
     <Touch Files="frontend/dist/.build-stamp" AlwaysCreate="true" />
   </Target>
 
