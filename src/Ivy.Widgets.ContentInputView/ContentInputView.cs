@@ -22,6 +22,7 @@ public record ContentInputView : WidgetBase<ContentInputView>, IAnyInput
     [Prop] public bool Nullable { get; set; }
     [Prop] public bool AutoFocus { get; set; }
     [Prop] public string? SubmitLabel { get; init; }
+    [Prop] public string? UploadUrl { get; init; }
 
     [Event] public EventHandler<Event<IAnyInput>>? OnBlur { get; set; }
     [Event] public EventHandler<Event<IAnyInput>>? OnFocus { get; set; }
@@ -56,6 +57,9 @@ public static class ContentInputViewExtensions
 
     public static ContentInputView SubmitLabel(this ContentInputView w, string? label) =>
         w with { SubmitLabel = label };
+
+    public static ContentInputView UploadUrl(this ContentInputView w, string? url) =>
+        w with { UploadUrl = url };
 
     public static ContentInputView Value(this ContentInputView w, string value) =>
         w with { Value = value };

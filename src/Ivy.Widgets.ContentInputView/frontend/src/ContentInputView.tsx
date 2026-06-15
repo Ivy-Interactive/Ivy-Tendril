@@ -17,6 +17,7 @@ interface ContentInputViewProps {
   placeholder?: string;
   value?: string;
   transcriptionUrl?: string;
+  uploadUrl?: string;
   models?: string[];
   selectedModel?: string;
   attachedFiles?: AttachedFile[];
@@ -33,6 +34,7 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
   placeholder = "How can I help you today?",
   value = "",
   transcriptionUrl = "wss://tendril-api.ivy.app/transcribe/ws",
+  uploadUrl,
   selectedModel = "Build",
   attachedFiles = [],
   submitLabel,
@@ -99,6 +101,90 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
     };
   }, []);
 
+  // Prevent dialog from closing on drag-and-drop operations
+  useEffect(() => {
+    let dragCounter = 0;
+    let isDraggingGlobal = false;
+    let dragTimeout: any = null;
+
+    const resetDragTimeout = () => {
+      if (dragTimeout) {
+        clearTimeout(dragTimeout);
+      }
+      dragTimeout = setTimeout(() => {
+        isDraggingGlobal = false;
+        dragCounter = 0;
+      }, 500); // 500ms watchdog
+    };
+
+    const handleDragEnterWindow = () => {
+      dragCounter++;
+      isDraggingGlobal = true;
+      resetDragTimeout();
+    };
+
+    const handleDragOverWindow = (e: DragEvent) => {
+      e.preventDefault(); // Required to allow drop events and prevent browser navigation
+      isDraggingGlobal = true;
+      resetDragTimeout();
+    };
+
+    const handleDragLeaveWindow = () => {
+      dragCounter--;
+      if (dragCounter <= 0) {
+        dragCounter = 0;
+        isDraggingGlobal = false;
+        if (dragTimeout) {
+          clearTimeout(dragTimeout);
+          dragTimeout = null;
+        }
+      }
+    };
+
+    const handleDropWindow = (e: DragEvent) => {
+      e.preventDefault(); // Prevent browser default navigation
+      dragCounter = 0;
+      isDraggingGlobal = false;
+      if (dragTimeout) {
+        clearTimeout(dragTimeout);
+        dragTimeout = null;
+      }
+    };
+
+    const handleFocusInWindow = (e: FocusEvent) => {
+      if (isDraggingGlobal) {
+        // Stop Radix's DismissableLayer from closing the dialog when window gains focus due to drag-and-drop
+        e.stopImmediatePropagation();
+      }
+    };
+
+    const handlePointerDownWindow = (e: Event) => {
+      if (isDraggingGlobal) {
+        // Stop Radix's DismissableLayer from closing the dialog on pointer downs during a drag
+        e.stopImmediatePropagation();
+      }
+    };
+
+    window.addEventListener("dragenter", handleDragEnterWindow, true);
+    window.addEventListener("dragover", handleDragOverWindow, true);
+    window.addEventListener("dragleave", handleDragLeaveWindow, true);
+    window.addEventListener("drop", handleDropWindow, true);
+    window.addEventListener("focusin", handleFocusInWindow, true);
+    window.addEventListener("pointerdown", handlePointerDownWindow, true);
+    window.addEventListener("mousedown", handlePointerDownWindow, true);
+
+    return () => {
+      if (dragTimeout) clearTimeout(dragTimeout);
+      window.removeEventListener("dragenter", handleDragEnterWindow, true);
+      window.removeEventListener("dragover", handleDragOverWindow, true);
+      window.removeEventListener("dragleave", handleDragLeaveWindow, true);
+      window.removeEventListener("drop", handleDropWindow, true);
+      window.removeEventListener("focusin", handleFocusInWindow, true);
+      window.removeEventListener("pointerdown", handlePointerDownWindow, true);
+      window.removeEventListener("mousedown", handlePointerDownWindow, true);
+    };
+  }, []);
+
   const handleSubmit = () => {
     if (voiceStatus !== "idle") return;
     if (dispatchEvent) {
@@ -129,32 +215,47 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
   };
 
   const handleUploadFile = async (file: File) => {
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
+    if (uploadUrl) {
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
 
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
+        const response = await fetch(uploadUrl, {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Upload failed with status ${response.status}`);
+        }
+      } catch (err) {
+        console.error("[ContentInputView] File upload failed:", err);
+        setRecordError(`Failed to upload file: ${err instanceof Error ? err.message : err}`);
+        throw err;
+      }
+    } else {
+      // Fallback to base64 WebSocket transfer
+      return new Promise<void>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = async () => {
+          const result = reader.result as string;
+          const base64Data = result.split(",")[1];
+          if (dispatchEvent) {
+            dispatchEvent("OnUploadFile", id, [{
+              name: file.name,
+              Name: file.name,
+              base64Data: base64Data,
+              Base64Data: base64Data,
+            }]);
+          }
+          resolve();
+        };
+        reader.onerror = (err) => {
+          setRecordError("Failed to read file");
+          reject(err);
+        };
+        reader.readAsDataURL(file);
       });
-
-      if (!response.ok) {
-        throw new Error(`Upload failed with status ${response.status}`);
-      }
-
-      const result = await response.json();
-      if (dispatchEvent) {
-        dispatchEvent("OnUploadFile", id, [{
-          name: file.name,
-          Name: file.name,
-          filePath: result.filePath,
-          FilePath: result.filePath,
-        }]);
-      }
-    } catch (err) {
-      console.error("[ContentInputView] File upload failed:", err);
-      setRecordError(`Failed to upload file: ${err instanceof Error ? err.message : err}`);
-      throw err;
     }
   };
 

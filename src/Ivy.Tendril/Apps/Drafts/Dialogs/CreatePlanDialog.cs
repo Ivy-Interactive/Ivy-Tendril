@@ -1,3 +1,4 @@
+using Ivy;
 using Ivy.Core.Hooks;
 using Ivy.Widgets.ContentInputView;
 using Ivy.Tendril.Services;
@@ -55,6 +56,29 @@ public class CreatePlanDialog(
 
         var uploadedFiles = UseState(new List<string>());
 
+        var uploadContext = this.UseUpload(async (fileUpload, stream, token) =>
+        {
+            var tempDir = Path.Combine(configService.TendrilHome, "Temp");
+            Directory.CreateDirectory(tempDir);
+
+            var fileName = Path.GetFileName(fileUpload.FileName);
+            var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+            var ext = Path.GetExtension(fileName);
+            var uniqueName = $"{nameWithoutExt}_{Guid.NewGuid().ToString()[..8]}{ext}";
+            var filePath = Path.Combine(tempDir, uniqueName);
+
+            await using (var fileStream = new FileStream(filePath, FileMode.Create))
+            {
+                await stream.CopyToAsync(fileStream, token);
+            }
+
+            var fileRef = $" [file: {filePath}]";
+            createPlanText.Set(createPlanText.Value + fileRef);
+
+            var newList = new List<string>(uploadedFiles.Value) { filePath };
+            uploadedFiles.Set(newList);
+        });
+
         var exclusiveProjects = new ConvertedState<string[], string[]>(
             selectedProjects,
             forward: v => v,
@@ -106,40 +130,7 @@ public class CreatePlanDialog(
                 | selectedPriority.ToSelectInput(PriorityOptions).Variant(SelectInputVariant.Toggle).WithField().Label("Priority")
                 | new ContentInputView
                     {
-                        OnUploadFile = async e =>
-                        {
-                            try
-                            {
-                                var name = e.Value?.Name;
-                                var filePath = e.Value?.FilePath;
-                                Ivy.Helpers.CrashLog.Write($"[{DateTime.UtcNow:O}] OnUploadFile called. Name='{name ?? "null"}', FilePath='{filePath ?? "null"}'");
-
-                                if (string.IsNullOrEmpty(filePath))
-                                {
-                                    var tempDir = Path.Combine(configService.TendrilHome, "Temp");
-                                    Directory.CreateDirectory(tempDir);
-
-                                    var fileName = Path.GetFileName(e.Value.Name);
-                                    var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
-                                    var ext = Path.GetExtension(fileName);
-                                    var uniqueName = $"{nameWithoutExt}_{Guid.NewGuid().ToString()[..8]}{ext}";
-                                    filePath = Path.Combine(tempDir, uniqueName);
-
-                                    var bytes = Convert.FromBase64String(e.Value.Base64Data ?? "");
-                                    await File.WriteAllBytesAsync(filePath, bytes);
-                                }
-
-                                var fileRef = $" [file: {filePath}]";
-                                createPlanText.Set(createPlanText.Value + fileRef);
-
-                                var newList = new List<string>(uploadedFiles.Value) { filePath };
-                                uploadedFiles.Set(newList);
-                            }
-                            catch (Exception ex)
-                            {
-                                Ivy.Helpers.CrashLog.Write($"[{DateTime.UtcNow:O}] Error in OnUploadFile: {ex}");
-                            }
-                        },
+                        UploadUrl = uploadContext.Value.UploadUrl,
                         OnSubmit = e =>
                         {
                             if (!string.IsNullOrWhiteSpace(createPlanText.Value) && !isCreating.Value)
