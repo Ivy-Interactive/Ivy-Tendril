@@ -129,27 +129,33 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
   };
 
   const handleUploadFile = async (file: File) => {
-    return new Promise<void>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const result = reader.result as string;
-        const base64Data = result.split(",")[1];
-        if (dispatchEvent) {
-          dispatchEvent("OnUploadFile", id, [{
-            name: file.name,
-            Name: file.name,
-            base64Data: base64Data,
-            Base64Data: base64Data,
-          }]);
-        }
-        resolve();
-      };
-      reader.onerror = (err) => {
-        setRecordError("Failed to read file");
-        reject(err);
-      };
-      reader.readAsDataURL(file);
-    });
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Upload failed with status ${response.status}`);
+      }
+
+      const result = await response.json();
+      if (dispatchEvent) {
+        dispatchEvent("OnUploadFile", id, [{
+          name: file.name,
+          Name: file.name,
+          filePath: result.filePath,
+          FilePath: result.filePath,
+        }]);
+      }
+    } catch (err) {
+      console.error("[ContentInputView] File upload failed:", err);
+      setRecordError(`Failed to upload file: ${err instanceof Error ? err.message : err}`);
+      throw err;
+    }
   };
 
   const handleFiles = async (files: FileList | File[]) => {

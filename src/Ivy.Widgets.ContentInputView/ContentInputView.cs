@@ -47,7 +47,7 @@ public record AttachedFile(string Name, string Type, string? Size = null);
 
 public record SubmitEventArgs(string Value, string SelectedModel, List<AttachedFile> AttachedFiles);
 
-public record UploadFileEventArgs(string Name, string Base64Data);
+public record UploadFileEventArgs(string Name, string? Base64Data = null, string? FilePath = null);
 
 public static class ContentInputViewExtensions
 {
@@ -113,22 +113,26 @@ public static class ContentInputViewExtensions
             },
             OnUploadFile = w.OnUploadFile ?? (async e =>
             {
-                var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
-                if (string.IsNullOrEmpty(tendrilHome))
+                var filePath = e.Value.FilePath;
+                if (string.IsNullOrEmpty(filePath))
                 {
-                    tendrilHome = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
+                    var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
+                    if (string.IsNullOrEmpty(tendrilHome))
+                    {
+                        tendrilHome = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
+                    }
+                    var tempDir = Path.Combine(tendrilHome, "Temp");
+                    Directory.CreateDirectory(tempDir);
+
+                    var fileName = Path.GetFileName(e.Value.Name);
+                    var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+                    var ext = Path.GetExtension(fileName);
+                    var uniqueName = $"{nameWithoutExt}_{Guid.NewGuid().ToString()[..8]}{ext}";
+                    filePath = Path.Combine(tempDir, uniqueName);
+
+                    var bytes = Convert.FromBase64String(e.Value.Base64Data ?? "");
+                    await File.WriteAllBytesAsync(filePath, bytes);
                 }
-                var tempDir = Path.Combine(tendrilHome, "Temp");
-                Directory.CreateDirectory(tempDir);
-
-                var fileName = Path.GetFileName(e.Value.Name);
-                var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
-                var ext = Path.GetExtension(fileName);
-                var uniqueName = $"{nameWithoutExt}_{Guid.NewGuid().ToString()[..8]}{ext}";
-                var filePath = Path.Combine(tempDir, uniqueName);
-
-                var bytes = Convert.FromBase64String(e.Value.Base64Data);
-                await File.WriteAllBytesAsync(filePath, bytes);
 
                 var fileRef = $" [file: {filePath}]";
                 state.Set(state.Value + fileRef);

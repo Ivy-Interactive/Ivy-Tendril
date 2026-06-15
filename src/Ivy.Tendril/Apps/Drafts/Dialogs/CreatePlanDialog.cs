@@ -111,20 +111,23 @@ public class CreatePlanDialog(
                             try
                             {
                                 var name = e.Value?.Name;
-                                var base64 = e.Value?.Base64Data;
-                                Ivy.Helpers.CrashLog.Write($"[{DateTime.UtcNow:O}] OnUploadFile called. Name='{name ?? "null"}', Base64Length={base64?.Length ?? 0}");
+                                var filePath = e.Value?.FilePath;
+                                Ivy.Helpers.CrashLog.Write($"[{DateTime.UtcNow:O}] OnUploadFile called. Name='{name ?? "null"}', FilePath='{filePath ?? "null"}'");
 
-                                var tempDir = Path.Combine(configService.TendrilHome, "Temp");
-                                Directory.CreateDirectory(tempDir);
+                                if (string.IsNullOrEmpty(filePath))
+                                {
+                                    var tempDir = Path.Combine(configService.TendrilHome, "Temp");
+                                    Directory.CreateDirectory(tempDir);
 
-                                var fileName = Path.GetFileName(e.Value.Name);
-                                var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
-                                var ext = Path.GetExtension(fileName);
-                                var uniqueName = $"{nameWithoutExt}_{Guid.NewGuid().ToString()[..8]}{ext}";
-                                var filePath = Path.Combine(tempDir, uniqueName);
+                                    var fileName = Path.GetFileName(e.Value.Name);
+                                    var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+                                    var ext = Path.GetExtension(fileName);
+                                    var uniqueName = $"{nameWithoutExt}_{Guid.NewGuid().ToString()[..8]}{ext}";
+                                    filePath = Path.Combine(tempDir, uniqueName);
 
-                                var bytes = Convert.FromBase64String(e.Value.Base64Data);
-                                await File.WriteAllBytesAsync(filePath, bytes);
+                                    var bytes = Convert.FromBase64String(e.Value.Base64Data ?? "");
+                                    await File.WriteAllBytesAsync(filePath, bytes);
+                                }
 
                                 var fileRef = $" [file: {filePath}]";
                                 createPlanText.Set(createPlanText.Value + fileRef);
