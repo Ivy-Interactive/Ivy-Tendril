@@ -1,5 +1,12 @@
 namespace Ivy.Plugins.Messaging;
 
+/// <summary>
+/// Contract for messaging platform integrations.
+///
+/// COMPATIBILITY NOTE: All future methods added to this interface MUST provide
+/// a default implementation (DIM) to avoid breaking existing plugin implementations.
+/// Plugins implement this interface directly, so adding abstract members is a breaking change.
+/// </summary>
 public interface IMessagingChannel
 {
     string Platform { get; }
