@@ -31,21 +31,27 @@ public class WallpaperApp : ViewBase
         var prData = planDbService.GetCompletedPrsByDay(90);
         var activities = prData.Select(x => new Activity { Date = x.Date, Count = x.Count }).ToArray();
 
+        // Build vertical layout conditionally including heatmap only if there are PRs
+        var verticalLayout = Layout.Vertical().Gap(2).AlignContent(Align.Center)
+            | new Image("/tendril/assets/Tendril.svg").Width(Size.Units(30)).Height(Size.Auto())
+            | Text.H2("What are we making next?")
+            | processView;
+
+        if (activities.Length > 0)
+        {
+            verticalLayout = verticalLayout
+                | new ActivityHeatmap()
+                    .Data(activities)
+                    .ShowMonthLabels(false)
+                    .ShowDayLabels(false)
+                    .StartDate(DateOnly.FromDateTime(DateTime.Today.AddDays(-89)))
+                    .EndDate(DateOnly.FromDateTime(DateTime.Today))
+                    .ValueLabel("PRs");
+        }
+
         var elements = new List<object>
         {
-            Layout.Center()
-                | (Layout.Vertical().Gap(2).AlignContent(Align.Center)
-                   | new Image("/tendril/assets/Tendril.svg").Width(Size.Units(30)).Height(Size.Auto())
-                   | Text.H2("What are we making next?")
-                   | processView
-                   | new ActivityHeatmap()
-                       .Data(activities)
-                       .ShowMonthLabels(false)
-                       .ShowDayLabels(false)
-                       .StartDate(DateOnly.FromDateTime(DateTime.Today.AddDays(-89)))
-                       .EndDate(DateOnly.FromDateTime(DateTime.Today))
-                       .ValueLabel("PRs")
-                )
+            Layout.Center() | verticalLayout
         };
 
         if (versionInfo.Value?.HasUpdate == true && versionInfo.Value.LatestVersion != dismissedVersion.Value)

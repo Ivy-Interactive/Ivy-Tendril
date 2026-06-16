@@ -1,7 +1,6 @@
 using Ivy.Core.Apps;
 using Ivy.Helpers;
 using Ivy.Tendril.Apps;
-using Ivy.Tendril.Apps.Agent;
 using Ivy.Tendril.AppShell;
 using Ivy.Tendril.Controllers;
 using Ivy.Tendril.Services;
@@ -85,7 +84,6 @@ public static class TendrilServer
 
         var assembly = typeof(TendrilServer).Assembly;
         server.AppRepository.AddFactory(() => AppHelpers.GetApps(assembly)
-            .Where(a => tendrilArgs.Beta || a.Type != typeof(AgentApp))
             .ToArray());
         server.AddConnectionsFromAssembly(typeof(TendrilServer).Assembly);
 

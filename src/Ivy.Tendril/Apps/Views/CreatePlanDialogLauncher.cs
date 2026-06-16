@@ -30,11 +30,11 @@ public class CreatePlanDialogLauncher(Func<Action, object> renderTrigger) : View
                 );
             return new CreatePlanDialog(
                 projectNames,
-                (description, projects, priority) =>
+                (description, projects, priority, uploadSessionId) =>
                 {
                     preferences.LastSelectedProjects = projects;
                     var project = string.Join(",", projects);
-                    var args = new CreatePlanArgs(description, project, priority, Force: true);
+                    var args = new CreatePlanArgs(description, project, priority, Force: true, UploadSessionId: uploadSessionId);
                     pendingJobArgs.Set(args);
                     isOpen.Set(false);
                     runPreflight(project, result =>
