@@ -45,6 +45,23 @@
   padding: 0 1.5rem;
 }
 
+@media (max-width: 768px) {
+  .pmv-shell {
+    flex-direction: column;
+  }
+
+  .pmv-sticky {
+    position: static;
+    order: -1;
+    padding: 0.75rem 1rem;
+    width: 100%;
+  }
+
+  .pmv-markdown {
+    padding-left: 1rem;
+  }
+}
+
 /* ─── Typography ─────────────────────────────────────────────────────────
    Replicates the Ivy framework Markdown widget's `typography` map (and the
    `article` variant) using the host design-system CSS variables, since the
