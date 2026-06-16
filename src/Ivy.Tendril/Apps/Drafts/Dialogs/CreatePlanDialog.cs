@@ -1,11 +1,17 @@
+using Ivy;
 using Ivy.Core.Hooks;
+using Ivy.Widgets.ContentInputView;
+using Ivy.Tendril.Services;
+using Ivy.Tendril.Helpers;
+using System;
+using System.IO;
 using Ivy.Tendril.Apps.Agent;
 
 namespace Ivy.Tendril.Apps.Drafts.Dialogs;
 
 public class CreatePlanDialog(
     List<string> projectNames,
-    Action<string, string[], int> onCreatePlan,
+    Action<string, string[], int, string?> onCreatePlan,
     Action onClose,
     string[]? defaultProjects = null) : ViewBase
 {
@@ -46,6 +52,33 @@ public class CreatePlanDialog(
         var createPlanText = UseState("");
         var selectedProjects = UseState(_defaultProjects);
         var selectedPriority = UseState("Normal");
+        var configService = UseService<IConfigService>();
+        var uploadSessionId = UseState(() => Guid.NewGuid().ToString("N"));
+
+        var uploadedFiles = UseState(new List<string>());
+
+        var uploadContext = this.UseUpload(async (fileUpload, stream, token) =>
+        {
+            var tempDir = Path.Combine(configService.TendrilHome, "Attachments", uploadSessionId.Value);
+            Directory.CreateDirectory(tempDir);
+
+            var fileName = Path.GetFileName(fileUpload.FileName);
+            var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName).Replace(" ", "_");
+            var ext = Path.GetExtension(fileName);
+            var uniqueName = $"{nameWithoutExt}_{Guid.NewGuid().ToString()[..8]}{ext}";
+            var filePath = Path.Combine(tempDir, uniqueName);
+
+            await using (var fileStream = new FileStream(filePath, FileMode.Create))
+            {
+                await stream.CopyToAsync(fileStream, token);
+            }
+
+            var fileRef = $" [file: {filePath}]";
+            createPlanText.Set(createPlanText.Value + fileRef);
+
+            var newList = new List<string>(uploadedFiles.Value) { filePath };
+            uploadedFiles.Set(newList);
+        });
 
         var exclusiveProjects = new ConvertedState<string[], string[]>(
             selectedProjects,
@@ -66,40 +99,71 @@ public class CreatePlanDialog(
             options.Add(new Option<string>("Auto", "Auto", icon: Icons.WandSparkles));
         options.AddRange(projectNames.Select(p => new Option<string>(p, p)));
 
+        var planWasCreated = false;
+        void HandleClose()
+        {
+            if (!planWasCreated)
+            {
+                var tempDir = Path.Combine(configService.TendrilHome, "Attachments", uploadSessionId.Value);
+                try
+                {
+                    if (Directory.Exists(tempDir))
+                    {
+                        Directory.Delete(tempDir, recursive: true);
+                    }
+                }
+                catch
+                {
+                    // Best-effort cleanup
+                }
+            }
+            onClose();
+        }
+
         return new Dialog(
-            _ => onClose(),
+            _ => HandleClose(),
             new DialogHeader("Create New Plan"),
             new DialogBody(
                 Layout.Vertical()
                 | exclusiveProjects.ToSelectInput(options).Variant(SelectInputVariant.Toggle).WithField().Label("Select Project(s)")
                 | selectedPriority.ToSelectInput(PriorityOptions).Variant(SelectInputVariant.Toggle).WithField().Label("Priority")
-                | createPlanText.ToTextareaInput("Enter task description...").Rows(6).AutoFocus().WithField()
-                    .Label("Describe what you want to accomplish")
+                | new ContentInputView
+                {
+                    UploadUrl = uploadContext.Value.UploadUrl,
+                    OnSubmit = e =>
+                    {
+                        if (!string.IsNullOrWhiteSpace(createPlanText.Value) && !isCreating.Value)
+                        {
+                            isCreating.Set(true);
+                            planWasCreated = true;
+                            var projects = selectedProjects.Value.Any()
+                                ? selectedProjects.Value
+                                : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
+                            onCreatePlan(createPlanText.Value, projects, ParsePriority(selectedPriority.Value), uploadSessionId.Value);
+                            onClose();
+                        }
+                        return ValueTask.CompletedTask;
+                    }
+                }
+                    .Bind(createPlanText)
+                    .SubmitLabel("Create")
+                    .Placeholder("Enter task description...")
+                    .WithField()
+                    .Label("Describe the task for the new plan")
                     .Required()
             ),
             new DialogFooter(
-                new Button("Cancel").Outline().OnClick(onClose),
+                new Button("Cancel").Outline().OnClick(HandleClose),
                 new Button("Continue with Agent").Outline().Icon(Icons.MessageCircle).Disabled(string.IsNullOrWhiteSpace(createPlanText.Value)).OnClick(() =>
                 {
                     if (string.IsNullOrWhiteSpace(createPlanText.Value)) return;
                     var projects = selectedProjects.Value.Any()
                         ? selectedProjects.Value
                         : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
+                    planWasCreated = true;
                     var prompt = BuildAgentPrompt(projects, createPlanText.Value);
                     nav.Navigate<AgentApp>(new AgentAppArgs(prompt));
                     onClose();
-                }),
-                new Button("Create").Primary().Disabled(isCreating.Value || string.IsNullOrWhiteSpace(createPlanText.Value)).ShortcutKey("Ctrl+Enter").OnClick(() =>
-                {
-                    if (!string.IsNullOrWhiteSpace(createPlanText.Value) && !isCreating.Value)
-                    {
-                        isCreating.Set(true);
-                        var projects = selectedProjects.Value.Any()
-                            ? selectedProjects.Value
-                            : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
-                        onCreatePlan(createPlanText.Value.Trim(), projects, ParsePriority(selectedPriority.Value));
-                        onClose();
-                    }
                 })
             )
         ).Width(Size.Rem(30));

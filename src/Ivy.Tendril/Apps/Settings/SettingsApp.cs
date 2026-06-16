@@ -26,7 +26,6 @@ public class SettingsApp : ViewBase
     public override object Build()
     {
         var config = UseService<IConfigService>();
-        var tendrilArgs = UseService<TendrilArgs>();
         var navigator = UseNavigation();
         var client = UseService<IClientProvider>();
         var httpContextAccessor = UseService<IHttpContextAccessor>();
@@ -49,9 +48,7 @@ public class SettingsApp : ViewBase
             MenuItem.Default("Plugins", TagPlugins).Icon(Icons.Plug),
         };
 
-        if (tendrilArgs.Beta)
-            children.Add(MenuItem.Default("Tunnel", TagTunnel).Icon(Icons.Globe));
-
+        children.Add(MenuItem.Default("Tunnel", TagTunnel).Icon(Icons.Globe));
         children.Add(MenuItem.Default("Advanced", TagAdvanced).Icon(Icons.Cog));
         children.Add(MenuItem.Default("Open config.yaml", TagOpenConfig).Icon(Icons.FileText));
 
