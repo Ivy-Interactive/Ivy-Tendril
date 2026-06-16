@@ -21,16 +21,23 @@ Ivy Tendril supports plugins that can extend its functionality. Plugins are .NET
 
 ### 1. Use the GitHub Template
 
-> **To be implemented...** A GitHub template repository for bootstrapping new Tendril plugins is planned but not yet available.
+Create a new plugin repository from the official template:
 
-For now, create a new .NET class library manually:
+1. Go to [Ivy-Tendril-Plugin-Template](https://github.com/Ivy-Interactive/Ivy-Tendril-Plugin-Template) on GitHub
+2. Click **"Use this template"** → **"Create a new repository"**
+3. Clone your new repository and rename the project to match your plugin:
 
 ```bash
-mkdir MyPlugin && cd MyPlugin
-dotnet new classlib -n Ivy.Tendril.Plugin.MyPlugin --framework net10.0
-cd Ivy.Tendril.Plugin.MyPlugin
-dotnet add package Ivy.Tendril.Plugin.Abstractions
+git clone https://github.com/your-org/your-plugin.git
+cd your-plugin
+# Rename files and update namespaces from "Template" to your plugin name
+mv Ivy.Tendril.Plugin.Template.csproj Ivy.Tendril.Plugin.MyPlugin.csproj
+mv TemplatePlugin.cs MyPlugin.cs
 ```
+
+4. Update the `.csproj` metadata (`PackageId`, `Authors`, `Description`, URLs) and namespaces in your plugin class
+
+The template includes the correct target framework (`net10.0`), `CopyLocalLockFileAssemblies`, and a reference to `Ivy.Tendril.Plugin.Abstractions`.
 
 ### 2. Implement Your Plugin
 
