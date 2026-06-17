@@ -149,7 +149,8 @@ public class ContentView(
             {
                 var name = Path.GetFileName(d);
                 var dashIdx = name.IndexOf('-');
-                return dashIdx > 0 ? name[..dashIdx] : name;
+                var idStr = dashIdx > 0 ? name[..dashIdx] : name;
+                return int.TryParse(idStr, out var id) ? $"#{id}" : idStr;
             }));
             desktopTitleLayout |= new Badge($"Depends on: {depIds}").Variant(BadgeVariant.Secondary);
         }
