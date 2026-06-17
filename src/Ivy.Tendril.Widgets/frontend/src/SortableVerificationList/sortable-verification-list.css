@@ -14,11 +14,10 @@
   flex-direction: column;
   gap: 0.5rem;
   color: var(--svl-fg);
-
-  /* Only the list scrolls; the dialog title and tab bar stay fixed. */
-  max-height: 40vh;
-  overflow-y: auto;
-  /* Avoid clipping focus rings / drag shadows against the scroll edge. */
+  /* Scrolling is owned by the surrounding fixed-height container so that the
+     dialog title, tab bar, and Add Verification button stay pinned at the top
+     and only this list scrolls. A little padding keeps focus rings and drag
+     shadows from clipping against the scroll edge. */
   padding: 0.125rem;
 }
 

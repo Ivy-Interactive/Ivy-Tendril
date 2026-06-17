@@ -33,12 +33,6 @@ public class EditProjectDialog(
         var editVerifications = UseState(new List<ProjectVerificationRef>());
         var editReviewActions = UseState(new List<ReviewActionConfig>());
 
-        // Tracks the active tab so the footer can show the "Add Verification" button
-        // only while the Verifications tab is selected.
-        var activeTab = UseState(0);
-
-
-
         var (reviewActionTriggerView, showReviewActionTrigger) = UseTrigger((IState<bool> isOpen, int? existingIndex) =>
             new EditReviewActionDialogContent(isOpen, existingIndex, editReviewActions));
         var (reviewActionAlertView, showReviewActionAlert) = UseAlert();
@@ -229,20 +223,6 @@ public class EditProjectDialog(
             })
             .WithTooltip(hasInvalidRepos ? "Fix or remove invalid repositories before saving" : null);
 
-        // Build the footer children, keeping the "Add Verification" action on the far
-        // left (only while the Verifications tab is active) and the Cancel/Save pair
-        // pushed to the right via a growing spacer.
-        const int verificationsTabIndex = 3;
-        var footerChildren = new List<object>();
-        if (activeTab.Value == verificationsTabIndex)
-        {
-            footerChildren.Add(new Button("Add Verification").Icon(Icons.Plus).Outline()
-                .OnClick(() => showVerificationTrigger()));
-        }
-        footerChildren.Add(Layout.Spacer());
-        footerChildren.Add(new Button("Cancel").Outline().OnClick(() => _editIndex.Set(-1)));
-        footerChildren.Add(saveButton);
-
         var mainDialog = new Dialog(
             _ => _editIndex.Set(-1),
             new DialogHeader(isNew ? "Add Project" : $"Edit Project: {editName.Value}"),
@@ -271,16 +251,22 @@ public class EditProjectDialog(
                         | reviewActionAlertView
                     ),
                     new Tab("Verifications",
+                        // Title and the Add Verification button stay pinned at the top;
+                        // only the list below scrolls when it grows long.
                         Layout.Vertical().Gap(4)
                         | Text.Block("Quality checks required before plans are marked complete.").Muted()
-                        | sortableVerificationList
+                        | new Button("Add Verification").Icon(Icons.Plus).Outline()
+                            .OnClick(() => showVerificationTrigger())
+                        | (Layout.Vertical().Scroll(Scroll.Auto).Height(Size.Rem(20)).Width(Size.Full())
+                            | sortableVerificationList)
                         | verificationTriggerView
                     )
                 ).Variant(TabsVariant.Content).Width(Size.Full())
-                    .SelectedIndex(activeTab.Value)
-                    .OnSelect(i => activeTab.Set(i))
             ),
-            new DialogFooter(footerChildren.ToArray())
+            new DialogFooter(
+                new Button("Cancel").Outline().OnClick(() => _editIndex.Set(-1)),
+                saveButton
+            )
         ).Width(Size.Rem(40));
 
         return mainDialog;
