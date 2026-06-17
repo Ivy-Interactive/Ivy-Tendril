@@ -1,0 +1,90 @@
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Sortable verification list (uses framework CSS variables, adapts to light/dark) ─ */
+.svl-root {
+  --svl-bg: var(--card);
+  --svl-bg-hover: color-mix(in srgb, var(--muted) 60%, transparent);
+  --svl-border: var(--border);
+  --svl-fg: var(--foreground);
+  --svl-fg-muted: var(--muted-foreground);
+  --svl-accent: var(--primary);
+
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  color: var(--svl-fg);
+
+  /* Only the list scrolls; the dialog title and tab bar stay fixed. */
+  max-height: 40vh;
+  overflow-y: auto;
+  /* Avoid clipping focus rings / drag shadows against the scroll edge. */
+  padding: 0.125rem;
+}
+
+.svl-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--svl-bg);
+  border: 1px solid var(--svl-border);
+  border-radius: var(--radius-fields, 0.375rem);
+  color: var(--svl-fg);
+}
+
+.svl-row:hover {
+  background: var(--svl-bg-hover);
+}
+
+.svl-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  touch-action: none;
+  color: var(--svl-fg-muted);
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.svl-handle:active {
+  cursor: grabbing;
+}
+
+.svl-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.svl-name {
+  flex: 1 1 auto;
+}
+
+.svl-spacer {
+  flex: 1 1 auto;
+}
+
+.svl-required {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--svl-fg-muted);
+}
+
+.svl-checkbox {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--svl-accent);
+  cursor: pointer;
+}
+
+.svl-handle-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}

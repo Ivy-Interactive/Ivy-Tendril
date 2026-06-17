@@ -33,6 +33,10 @@ public class EditProjectDialog(
         var editVerifications = UseState(new List<ProjectVerificationRef>());
         var editReviewActions = UseState(new List<ReviewActionConfig>());
 
+        // Tracks the active tab so the footer can show the "Add Verification" button
+        // only while the Verifications tab is selected.
+        var activeTab = UseState(0);
+
 
 
         var (reviewActionTriggerView, showReviewActionTrigger) = UseTrigger((IState<bool> isOpen, int? existingIndex) =>
@@ -163,6 +167,82 @@ public class EditProjectDialog(
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         var hasInvalidRepos = RepoPathValidator.HasInvalidLocalRepos(editRepos.Value, tendrilHome);
 
+        var saveButton = new Button(isNew ? "Add" : "Save").Primary()
+            .Disabled(hasInvalidRepos)
+            .OnClick(async () =>
+            {
+                if (string.IsNullOrWhiteSpace(editName.Value)) return;
+
+                // Perform base branch validation
+                foreach (var repo in editRepos.Value)
+                {
+                    if (!string.IsNullOrWhiteSpace(repo.BaseBranch))
+                    {
+                        var isValid = await GitHelper.IsValidBranchAsync(repo.Path, repo.BaseBranch, _config.TendrilHome);
+                        if (!isValid)
+                        {
+                            var repoName = RepoPathValidator.ExtractRepoName(repo.Path) ?? repo.Path;
+                            _client.Toast($"Branch '{repo.BaseBranch}' does not exist in repository '{repoName}'", "Error");
+                            return;
+                        }
+                    }
+                }
+
+                var projectsList = _config.Projects;
+                var project = isNew ? new ProjectConfig() : projectsList[_editIndex.Value!.Value];
+                var oldName = project.Name;
+                var oldColor = project.Color;
+                var oldContext = project.Context;
+                var oldRepos = project.Repos;
+                var oldVerifications = project.Verifications;
+                var oldReviewActions = project.ReviewActions;
+                project.Name = editName.Value;
+                project.Color = editColor.Value?.ToString() ?? "";
+                project.Context = editContext.Value;
+                project.Repos = new List<RepoRef>(editRepos.Value);
+                project.Verifications = new List<ProjectVerificationRef>(editVerifications.Value);
+                project.ReviewActions = new List<ReviewActionConfig>(editReviewActions.Value);
+                if (isNew) projectsList.Add(project);
+                try
+                {
+                    _config.SaveSettings();
+                    _editIndex.Set(-1);
+                    _refreshToken.Refresh();
+                    _client.Toast($"Project '{editName.Value}' saved", "Saved");
+                }
+                catch (Exception ex)
+                {
+                    if (isNew)
+                        projectsList.Remove(project);
+                    else
+                    {
+                        project.Name = oldName;
+                        project.Color = oldColor;
+                        project.Context = oldContext;
+                        project.Repos = oldRepos;
+                        project.Verifications = oldVerifications;
+                        project.ReviewActions = oldReviewActions;
+                    }
+                    _refreshToken.Refresh();
+                    _client.Toast($"Failed to save project: {ex.Message}", "Error");
+                }
+            })
+            .WithTooltip(hasInvalidRepos ? "Fix or remove invalid repositories before saving" : null);
+
+        // Build the footer children, keeping the "Add Verification" action on the far
+        // left (only while the Verifications tab is active) and the Cancel/Save pair
+        // pushed to the right via a growing spacer.
+        const int verificationsTabIndex = 3;
+        var footerChildren = new List<object>();
+        if (activeTab.Value == verificationsTabIndex)
+        {
+            footerChildren.Add(new Button("Add Verification").Icon(Icons.Plus).Outline()
+                .OnClick(() => showVerificationTrigger()));
+        }
+        footerChildren.Add(Layout.Spacer());
+        footerChildren.Add(new Button("Cancel").Outline().OnClick(() => _editIndex.Set(-1)));
+        footerChildren.Add(saveButton);
+
         var mainDialog = new Dialog(
             _ => _editIndex.Set(-1),
             new DialogHeader(isNew ? "Add Project" : $"Edit Project: {editName.Value}"),
@@ -194,76 +274,13 @@ public class EditProjectDialog(
                         Layout.Vertical().Gap(4)
                         | Text.Block("Quality checks required before plans are marked complete.").Muted()
                         | sortableVerificationList
-                        | new Button("Add Verification").Icon(Icons.Plus).Outline()
-                            .OnClick(() => showVerificationTrigger())
                         | verificationTriggerView
                     )
                 ).Variant(TabsVariant.Content).Width(Size.Full())
+                    .SelectedIndex(activeTab.Value)
+                    .OnSelect(i => activeTab.Set(i))
             ),
-            new DialogFooter(
-                new Button("Cancel").Outline().OnClick(() => _editIndex.Set(-1)),
-                new Button(isNew ? "Add" : "Save").Primary()
-                    .Disabled(hasInvalidRepos)
-                    .OnClick(async () =>
-                {
-                    if (string.IsNullOrWhiteSpace(editName.Value)) return;
-
-                    // Perform base branch validation
-                    foreach (var repo in editRepos.Value)
-                    {
-                        if (!string.IsNullOrWhiteSpace(repo.BaseBranch))
-                        {
-                            var isValid = await GitHelper.IsValidBranchAsync(repo.Path, repo.BaseBranch, _config.TendrilHome);
-                            if (!isValid)
-                            {
-                                var repoName = RepoPathValidator.ExtractRepoName(repo.Path) ?? repo.Path;
-                                _client.Toast($"Branch '{repo.BaseBranch}' does not exist in repository '{repoName}'", "Error");
-                                return;
-                            }
-                        }
-                    }
-
-                    var projectsList = _config.Projects;
-                    var project = isNew ? new ProjectConfig() : projectsList[_editIndex.Value!.Value];
-                    var oldName = project.Name;
-                    var oldColor = project.Color;
-                    var oldContext = project.Context;
-                    var oldRepos = project.Repos;
-                    var oldVerifications = project.Verifications;
-                    var oldReviewActions = project.ReviewActions;
-                    project.Name = editName.Value;
-                    project.Color = editColor.Value?.ToString() ?? "";
-                    project.Context = editContext.Value;
-                    project.Repos = new List<RepoRef>(editRepos.Value);
-                    project.Verifications = new List<ProjectVerificationRef>(editVerifications.Value);
-                    project.ReviewActions = new List<ReviewActionConfig>(editReviewActions.Value);
-                    if (isNew) projectsList.Add(project);
-                    try
-                    {
-                        _config.SaveSettings();
-                        _editIndex.Set(-1);
-                        _refreshToken.Refresh();
-                        _client.Toast($"Project '{editName.Value}' saved", "Saved");
-                    }
-                    catch (Exception ex)
-                    {
-                        if (isNew)
-                            projectsList.Remove(project);
-                        else
-                        {
-                            project.Name = oldName;
-                            project.Color = oldColor;
-                            project.Context = oldContext;
-                            project.Repos = oldRepos;
-                            project.Verifications = oldVerifications;
-                            project.ReviewActions = oldReviewActions;
-                        }
-                        _refreshToken.Refresh();
-                        _client.Toast($"Failed to save project: {ex.Message}", "Error");
-                    }
-                })
-                    .WithTooltip(hasInvalidRepos ? "Fix or remove invalid repositories before saving" : null)
-            )
+            new DialogFooter(footerChildren.ToArray())
         ).Width(Size.Rem(40));
 
         return mainDialog;

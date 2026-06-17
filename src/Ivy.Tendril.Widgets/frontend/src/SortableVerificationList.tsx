@@ -17,6 +17,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
+import "./sortable-verification-list.css";
 
 interface VerificationItem {
   name: string;
@@ -49,39 +50,30 @@ function SortableItem({
   };
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="flex items-center gap-2 py-2 px-3 bg-white border border-gray-200 rounded hover:bg-gray-50"
-    >
-      <button
-        {...attributes}
-        {...listeners}
-        className="cursor-grab active:cursor-grabbing touch-none"
-        aria-label="Drag handle"
-      >
-        <GripVertical className="w-5 h-5 text-gray-400" />
+    <div ref={setNodeRef} style={style} className="svl-row">
+      <button {...attributes} {...listeners} className="svl-handle" aria-label="Drag handle">
+        <GripVertical className="svl-handle-icon" />
       </button>
 
-      <label className="flex items-center gap-2 cursor-pointer">
+      <label className="svl-label">
         <input
           type="checkbox"
           checked={item.enabled}
           onChange={(e) => onChange?.({ ...item, enabled: e.target.checked })}
-          className="w-4 h-4"
+          className="svl-checkbox"
         />
-        <span className="flex-1">{item.name}</span>
+        <span className="svl-name">{item.name}</span>
       </label>
 
-      <div className="flex-1"></div>
+      <div className="svl-spacer"></div>
 
       {item.enabled && (
-        <label className="flex items-center gap-2 cursor-pointer text-sm">
+        <label className="svl-required">
           <input
             type="checkbox"
             checked={item.required}
             onChange={(e) => onChange?.({ ...item, required: e.target.checked })}
-            className="w-4 h-4"
+            className="svl-checkbox"
           />
           <span>Required</span>
         </label>
@@ -149,7 +141,7 @@ export function SortableVerificationList({
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={items.map((item) => item.name)} strategy={verticalListSortingStrategy}>
-        <div className="flex flex-col gap-2">
+        <div className="svl-root">
           {items.map((item) => (
             <SortableItem key={item.name} item={item} onChange={handleChange} />
           ))}
