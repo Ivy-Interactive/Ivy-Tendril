@@ -1,10 +1,12 @@
 using System.Threading.Tasks;
+using System.Text.Json;
 using Ivy.Core.Hooks;
 using Ivy.Tendril.Apps.Onboarding;
 using Ivy.Tendril.Apps.Onboarding.Models;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Apps.Views;
+using Ivy.Tendril.Widgets;
 
 namespace Ivy.Tendril.Apps.Settings.Dialogs;
 
@@ -31,11 +33,12 @@ public class EditProjectDialog(
         var editVerifications = UseState(new List<ProjectVerificationRef>());
         var editReviewActions = UseState(new List<ReviewActionConfig>());
 
-
-
         var (reviewActionTriggerView, showReviewActionTrigger) = UseTrigger((IState<bool> isOpen, int? existingIndex) =>
             new EditReviewActionDialogContent(isOpen, existingIndex, editReviewActions));
         var (reviewActionAlertView, showReviewActionAlert) = UseAlert();
+
+        var (verificationTriggerView, showVerificationTrigger) = UseTrigger((IState<bool> isOpen) =>
+            new EditVerificationDialogContent(isOpen, editVerifications, _config, _client, _refreshToken));
 
         UseEffect(() =>
         {
@@ -96,50 +99,129 @@ public class EditProjectDialog(
             return draft with { Path = destPath };
         };
 
-        var verificationsLayout = Layout.Vertical().Gap(2);
-        var allVerificationsList = _config.Settings.Verifications.Select(v => v.Name).ToList();
-        foreach (var vName in allVerificationsList)
-        {
-            var capturedName = vName;
-
-            var enabledState = new ConvertedState<List<ProjectVerificationRef>, bool>(
-                editVerifications,
-                list => list.Any(v => v.Name == capturedName),
-                enabled =>
+        var verificationsJson = JsonSerializer.Serialize(
+            _config.Settings.Verifications.Select(v =>
+            {
+                var projectVerif = editVerifications.Value.FirstOrDefault(pv => pv.Name == v.Name);
+                return new
                 {
-                    var list = new List<ProjectVerificationRef>(editVerifications.Value);
-                    if (enabled)
-                        list.Add(new ProjectVerificationRef { Name = capturedName, Required = false });
-                    else
-                        list.RemoveAll(v => v.Name == capturedName);
-                    return list;
-                }
-            );
+                    name = v.Name,
+                    enabled = projectVerif != null,
+                    required = projectVerif?.Required ?? false
+                };
+            }).ToList()
+        );
 
-            var requiredState = new ConvertedState<List<ProjectVerificationRef>, bool>(
-                editVerifications,
-                list => list.FirstOrDefault(v => v.Name == capturedName)?.Required ?? false,
-                required =>
+        var sortableVerificationList = new SortableVerificationList()
+            .ItemsJson(verificationsJson)
+            .WithOnReorder(json =>
+            {
+                var indices = JsonSerializer.Deserialize<int[]>(json);
+                if (indices == null) return;
+
+                var allVerifs = _config.Settings.Verifications.ToList();
+                var reorderedVerifs = indices.Select(i => allVerifs[i]).ToList();
+                _config.Settings.Verifications.Clear();
+                _config.Settings.Verifications.AddRange(reorderedVerifs);
+
+                try
                 {
-                    var list = new List<ProjectVerificationRef>(editVerifications.Value);
-                    var item = list.FirstOrDefault(v => v.Name == capturedName);
-                    if (item != null) item.Required = required;
-                    return list;
+                    _config.SaveSettings();
+                    _refreshToken.Refresh();
                 }
-            );
+                catch (Exception ex)
+                {
+                    _client.Toast($"Failed to reorder verifications: {ex.Message}", "Error");
+                }
+            })
+            .WithOnChange(json =>
+            {
+                var item = JsonSerializer.Deserialize<VerificationItem>(json);
+                if (item == null) return;
 
-            var isEnabled = enabledState.Value;
+                var list = new List<ProjectVerificationRef>(editVerifications.Value);
+                var existing = list.FirstOrDefault(v => v.Name == item.Name);
 
-            verificationsLayout |= Layout.Horizontal().Gap(2).AlignContent(Align.Center)
-                                   | enabledState.ToSwitchInput(label: capturedName)
-                                   | new Spacer().Width(Size.Grow())
-                                   | (isEnabled
-                                       ? (object)requiredState.ToBoolInput("Required")
-                                       : new Spacer());
-        }
+                if (item.Enabled && existing == null)
+                {
+                    list.Add(new ProjectVerificationRef { Name = item.Name, Required = item.Required });
+                }
+                else if (!item.Enabled && existing != null)
+                {
+                    list.Remove(existing);
+                }
+                else if (existing != null)
+                {
+                    existing.Required = item.Required;
+                }
+
+                editVerifications.Set(list);
+            });
 
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         var hasInvalidRepos = RepoPathValidator.HasInvalidLocalRepos(editRepos.Value, tendrilHome);
+
+        var saveButton = new Button(isNew ? "Add" : "Save").Primary()
+            .Disabled(hasInvalidRepos)
+            .OnClick(async () =>
+            {
+                if (string.IsNullOrWhiteSpace(editName.Value)) return;
+
+                // Perform base branch validation
+                foreach (var repo in editRepos.Value)
+                {
+                    if (!string.IsNullOrWhiteSpace(repo.BaseBranch))
+                    {
+                        var isValid = await GitHelper.IsValidBranchAsync(repo.Path, repo.BaseBranch, _config.TendrilHome);
+                        if (!isValid)
+                        {
+                            var repoName = RepoPathValidator.ExtractRepoName(repo.Path) ?? repo.Path;
+                            _client.Toast($"Branch '{repo.BaseBranch}' does not exist in repository '{repoName}'", "Error");
+                            return;
+                        }
+                    }
+                }
+
+                var projectsList = _config.Projects;
+                var project = isNew ? new ProjectConfig() : projectsList[_editIndex.Value!.Value];
+                var oldName = project.Name;
+                var oldColor = project.Color;
+                var oldContext = project.Context;
+                var oldRepos = project.Repos;
+                var oldVerifications = project.Verifications;
+                var oldReviewActions = project.ReviewActions;
+                project.Name = editName.Value;
+                project.Color = editColor.Value?.ToString() ?? "";
+                project.Context = editContext.Value;
+                project.Repos = new List<RepoRef>(editRepos.Value);
+                project.Verifications = new List<ProjectVerificationRef>(editVerifications.Value);
+                project.ReviewActions = new List<ReviewActionConfig>(editReviewActions.Value);
+                if (isNew) projectsList.Add(project);
+                try
+                {
+                    _config.SaveSettings();
+                    _editIndex.Set(-1);
+                    _refreshToken.Refresh();
+                    _client.Toast($"Project '{editName.Value}' saved", "Saved");
+                }
+                catch (Exception ex)
+                {
+                    if (isNew)
+                        projectsList.Remove(project);
+                    else
+                    {
+                        project.Name = oldName;
+                        project.Color = oldColor;
+                        project.Context = oldContext;
+                        project.Repos = oldRepos;
+                        project.Verifications = oldVerifications;
+                        project.ReviewActions = oldReviewActions;
+                    }
+                    _refreshToken.Refresh();
+                    _client.Toast($"Failed to save project: {ex.Message}", "Error");
+                }
+            })
+            .WithTooltip(hasInvalidRepos ? "Fix or remove invalid repositories before saving" : null);
 
         var mainDialog = new Dialog(
             _ => _editIndex.Set(-1),
@@ -169,75 +251,21 @@ public class EditProjectDialog(
                         | reviewActionAlertView
                     ),
                     new Tab("Verifications",
+                        // Title and the Add Verification button stay pinned at the top;
+                        // only the list below scrolls when it grows long.
                         Layout.Vertical().Gap(4)
                         | Text.Block("Quality checks required before plans are marked complete.").Muted()
-                        | verificationsLayout
+                        | new Button("Add Verification").Icon(Icons.Plus).Outline()
+                            .OnClick(() => showVerificationTrigger())
+                        | (Layout.Vertical().Scroll(Scroll.Auto).Height(Size.Rem(20)).Width(Size.Full())
+                            | sortableVerificationList)
+                        | verificationTriggerView
                     )
                 ).Variant(TabsVariant.Content).Width(Size.Full())
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() => _editIndex.Set(-1)),
-                new Button(isNew ? "Add" : "Save").Primary()
-                    .Disabled(hasInvalidRepos)
-                    .OnClick(async () =>
-                {
-                    if (string.IsNullOrWhiteSpace(editName.Value)) return;
-
-                    // Perform base branch validation
-                    foreach (var repo in editRepos.Value)
-                    {
-                        if (!string.IsNullOrWhiteSpace(repo.BaseBranch))
-                        {
-                            var isValid = await GitHelper.IsValidBranchAsync(repo.Path, repo.BaseBranch, _config.TendrilHome);
-                            if (!isValid)
-                            {
-                                var repoName = RepoPathValidator.ExtractRepoName(repo.Path) ?? repo.Path;
-                                _client.Toast($"Branch '{repo.BaseBranch}' does not exist in repository '{repoName}'", "Error");
-                                return;
-                            }
-                        }
-                    }
-
-                    var projectsList = _config.Projects;
-                    var project = isNew ? new ProjectConfig() : projectsList[_editIndex.Value!.Value];
-                    var oldName = project.Name;
-                    var oldColor = project.Color;
-                    var oldContext = project.Context;
-                    var oldRepos = project.Repos;
-                    var oldVerifications = project.Verifications;
-                    var oldReviewActions = project.ReviewActions;
-                    project.Name = editName.Value;
-                    project.Color = editColor.Value?.ToString() ?? "";
-                    project.Context = editContext.Value;
-                    project.Repos = new List<RepoRef>(editRepos.Value);
-                    project.Verifications = new List<ProjectVerificationRef>(editVerifications.Value);
-                    project.ReviewActions = new List<ReviewActionConfig>(editReviewActions.Value);
-                    if (isNew) projectsList.Add(project);
-                    try
-                    {
-                        _config.SaveSettings();
-                        _editIndex.Set(-1);
-                        _refreshToken.Refresh();
-                        _client.Toast($"Project '{editName.Value}' saved", "Saved");
-                    }
-                    catch (Exception ex)
-                    {
-                        if (isNew)
-                            projectsList.Remove(project);
-                        else
-                        {
-                            project.Name = oldName;
-                            project.Color = oldColor;
-                            project.Context = oldContext;
-                            project.Repos = oldRepos;
-                            project.Verifications = oldVerifications;
-                            project.ReviewActions = oldReviewActions;
-                        }
-                        _refreshToken.Refresh();
-                        _client.Toast($"Failed to save project: {ex.Message}", "Error");
-                    }
-                })
-                    .WithTooltip(hasInvalidRepos ? "Fix or remove invalid repositories before saving" : null)
+                saveButton
             )
         ).Width(Size.Rem(40));
 
@@ -348,5 +376,65 @@ internal class EditReviewActionDialogContent(
                 })
             )
         ).Width(Size.Rem(30));
+    }
+}
+
+internal record VerificationItem(string Name, bool Enabled, bool Required);
+
+internal class EditVerificationDialogContent(
+    IState<bool> isOpen,
+    IState<List<ProjectVerificationRef>> projectVerifications,
+    IConfigService config,
+    IClientProvider client,
+    RefreshToken refreshToken) : ViewBase
+{
+    public override object? Build()
+    {
+        var editName = UseState("");
+        var editPrompt = UseState("");
+
+        return new Dialog(
+            _ => isOpen.Set(false),
+            new DialogHeader("Add Verification"),
+            new DialogBody(
+                Layout.Vertical()
+                | editName.ToTextInput("Verification name...").WithField().Label("Name")
+                | editPrompt.ToCodeInput("Verification prompt...").Language(Languages.Markdown).Height(Size.Units(60)).WithField().Label("Prompt")
+            ),
+            new DialogFooter(
+                new Button("Cancel").Outline().OnClick(() => isOpen.Set(false)),
+                new Button("Add").Primary().OnClick(() =>
+                {
+                    if (string.IsNullOrWhiteSpace(editName.Value)) return;
+
+                    var verifications = config.Settings.Verifications;
+                    verifications.Add(new VerificationConfig
+                    {
+                        Name = editName.Value,
+                        Prompt = editPrompt.Value
+                    });
+
+                    try
+                    {
+                        config.SaveSettings();
+
+                        // Also add to project's enabled verifications
+                        var list = new List<ProjectVerificationRef>(projectVerifications.Value);
+                        list.Add(new ProjectVerificationRef { Name = editName.Value, Required = false });
+                        projectVerifications.Set(list);
+
+                        isOpen.Set(false);
+                        refreshToken.Refresh();
+                        client.Toast("Verification added", "Saved");
+                    }
+                    catch (Exception ex)
+                    {
+                        verifications.RemoveAt(verifications.Count - 1);
+                        refreshToken.Refresh();
+                        client.Toast($"Failed to add verification: {ex.Message}", "Error");
+                    }
+                })
+            )
+        ).Width(Size.Rem(35));
     }
 }
