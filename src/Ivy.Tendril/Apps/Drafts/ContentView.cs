@@ -215,7 +215,8 @@ public class ContentView(
                 new Tab("Plan", planTabContent),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan!,
                     jobService.GetJobsForPlan(selectedPlan!.FolderName),
-                    showDebugJob, planService, selectedPlanState, refreshPlans)))
+                    showDebugJob, planService, selectedPlanState, refreshPlans,
+                    folderPath => selectedPlanState.Set(planService.GetPlanByFolder(folderPath)))))
             ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content).RemoveParentPadding();
 
             content |= (Layout.Vertical().Padding(2).Height(Size.Full()) | tabs);
