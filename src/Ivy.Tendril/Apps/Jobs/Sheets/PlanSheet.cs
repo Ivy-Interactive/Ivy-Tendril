@@ -1,8 +1,7 @@
 using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Helpers;
-using Ivy.Tendril.Services;
 
-namespace Ivy.Tendril.Apps.Jobs;
+namespace Ivy.Tendril.Apps.Jobs.Sheets;
 
 public class PlanSheet(
     string planPath,

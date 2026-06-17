@@ -52,7 +52,7 @@ Report status: `tendril job status TendrilJobId --message "Writing expanded revi
 
 - Write the new revision via CLI (number auto-incremented):
   ```bash
-  tendril plan write-revision <plan-id> --job-id TendrilJobId <<'EOF'
+  tendril plan write-revision <plan-id> <<'EOF'
   <expanded revision content here>
   EOF
   ```

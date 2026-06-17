@@ -1,4 +1,4 @@
-namespace Ivy.Tendril.Apps.Jobs;
+namespace Ivy.Tendril.Apps.Jobs.Sheets;
 
 public class PromptSheet(string promptText) : ViewBase
 {
