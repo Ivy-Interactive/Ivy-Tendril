@@ -162,7 +162,7 @@ public class GitService : IGitService
                 reasons.Add(new DirtyReasonDetail
                 {
                     Reason = DirtyReason.AheadOfOrigin,
-                    Message = $"{commits.Count} commit(s) ahead of origin/{expectedBaseBranch}",
+                    Message = $"{commits.Count} {(commits.Count == 1 ? "commit" : "commits")} ahead of origin/{expectedBaseBranch}",
                     Commits = commits
                 });
             }
@@ -194,7 +194,7 @@ public class GitService : IGitService
             reasons.Add(new DirtyReasonDetail
             {
                 Reason = DirtyReason.UncommittedChanges,
-                Message = $"{tracked.Count} file(s) with uncommitted changes",
+                Message = $"{tracked.Count} {(tracked.Count == 1 ? "file" : "files")} with uncommitted changes",
                 Files = tracked
             });
         }
@@ -216,7 +216,7 @@ public class GitService : IGitService
             reasons.Add(new DirtyReasonDetail
             {
                 Reason = DirtyReason.UntrackedFiles,
-                Message = $"{files.Count} untracked file(s)",
+                Message = $"{files.Count} untracked {(files.Count == 1 ? "file" : "files")}",
                 Files = files
             });
         }
