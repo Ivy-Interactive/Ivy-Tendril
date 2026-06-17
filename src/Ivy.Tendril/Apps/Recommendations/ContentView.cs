@@ -144,52 +144,89 @@ public class ContentView(
         scrollableContent |= new Separator();
         scrollableContent |= new Markdown(selectedRecommendation.Description);
 
-        // Action bar (secondary actions)
-        var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(2).Wrap()
-                        | new Button("Accept with Notes").Icon(Icons.CircleCheck).Outline().ShortcutKey("w")
-                            .OnClick(() => showNotesDialog())
-                        | new Button("View Plan").Icon(Icons.ExternalLink).Outline().ShortcutKey("d").OnClick(() =>
-                        {
-                            var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
-                            if (Directory.Exists(fullPath))
-                                showPlan(fullPath);
-                        })
+        // Standard overflow menu items
+        var standardOverflowItems = new[]
+        {
+            new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
+                .OnSelect(() =>
+                {
+                    var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
+                    if (Directory.Exists(fullPath))
+                        PlatformHelper.OpenInFileManager(fullPath);
+                }),
+            new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
+                .OnSelect(() =>
+                {
+                    var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
+                    copyToClipboard(fullPath);
+                    client.Toast("Copied path to clipboard", "Path Copied");
+                }),
+            new MenuItem("Open plan.yaml", Icon: Icons.FileText, Tag: "OpenPlanYaml").OnSelect(() =>
+            {
+                var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
+                var yamlPath = Path.Combine(fullPath, "plan.yaml");
+                try
+                {
+                    config.OpenInEditor(yamlPath);
+                }
+                catch (EditorNotAvailableException ex)
+                {
+                    client.Toast(
+                        $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
+                        "Editor Not Available",
+                        variant: ToastVariant.Destructive);
+                }
+            })
+        };
+
+        void ViewPlan()
+        {
+            var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
+            if (Directory.Exists(fullPath))
+                showPlan(fullPath);
+        }
+
+        // Full-tier dropdown: standard overflow items only (all buttons shown inline)
+        var fullDropdownItems = standardOverflowItems;
+
+        // Compact-tier dropdown: View Plan + standard overflow
+        var compactDropdownItems = new List<MenuItem>
+        {
+            new MenuItem("View Plan", Icon: Icons.ExternalLink, Tag: "ViewPlan").OnSelect(ViewPlan)
+        };
+        compactDropdownItems.AddRange(standardOverflowItems);
+
+        // Minimal-tier dropdown: Accept with Notes, View Plan + standard overflow
+        var minimalDropdownItems = new List<MenuItem>
+        {
+            new MenuItem("Accept with Notes", Icon: Icons.CircleCheck, Tag: "AcceptWithNotes")
+                .OnSelect(() => showNotesDialog()),
+            new MenuItem("View Plan", Icon: Icons.ExternalLink, Tag: "ViewPlan").OnSelect(ViewPlan)
+        };
+        minimalDropdownItems.AddRange(standardOverflowItems);
+
+        // Action bar without .Wrap() - single row with progressive collapse.
+        // Full (>=1024px): Previous, Next, Accept with Notes, View Plan inline + overflow dropdown.
+        // Compact (768-1023px): Previous, Next, Accept with Notes inline; View Plan in dropdown.
+        // Minimal (<768px): Previous, Next inline; everything else in dropdown.
+        var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(2)
                         | new Button("Previous").Icon(Icons.ChevronLeft).Outline().ShortcutKey("p")
-                            .OnClick(GoToPrevious)
+                            .OnClick(GoToPrevious).AlwaysVisible()
                         | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().ShortcutKey("n")
-                            .OnClick(GoToNext)
-                        | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
-                            new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
-                                .OnSelect(() =>
-                                {
-                                    var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
-                                    if (Directory.Exists(fullPath))
-                                        PlatformHelper.OpenInFileManager(fullPath);
-                                }),
-                            new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
-                                .OnSelect(() =>
-                                {
-                                    var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
-                                    copyToClipboard(fullPath);
-                                    client.Toast("Copied path to clipboard", "Path Copied");
-                                }),
-                            new MenuItem("Open plan.yaml", Icon: Icons.FileText, Tag: "OpenPlanYaml").OnSelect(() =>
-                            {
-                                var fullPath = Path.Combine(planService.PlansDirectory, selectedRecommendation.PlanFolderName);
-                                var yamlPath = Path.Combine(fullPath, "plan.yaml");
-                                try
-                                {
-                                    config.OpenInEditor(yamlPath);
-                                }
-                                catch (EditorNotAvailableException ex)
-                                {
-                                    client.Toast(
-                                        $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
-                                        "Editor Not Available",
-                                        variant: ToastVariant.Destructive);
-                                }
-                            })
-                        );
+                            .OnClick(GoToNext).AlwaysVisible()
+                        | new Button("Accept with Notes").Icon(Icons.CircleCheck).Outline().ShortcutKey("w")
+                            .OnClick(() => showNotesDialog()).CompactUp()
+                        | new Button("View Plan").Icon(Icons.ExternalLink).Outline()
+                            .OnClick(ViewPlan).FullOnly()
+                        | ActionBarResponsive.DropdownAtFull(
+                            new Button().Icon(Icons.EllipsisVertical).Ghost(),
+                            fullDropdownItems)
+                        | ActionBarResponsive.DropdownAtCompact(
+                            new Button().Icon(Icons.EllipsisVertical).Ghost(),
+                            compactDropdownItems.ToArray())
+                        | ActionBarResponsive.DropdownAtMinimal(
+                            new Button().Icon(Icons.EllipsisVertical).Ghost(),
+                            minimalDropdownItems.ToArray());
 
         var mainLayout = new HeaderLayout(
             header,

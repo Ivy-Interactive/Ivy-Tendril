@@ -5,6 +5,7 @@ using Ivy.Core;
 using Ivy.Core.Apps;
 using Ivy.Tendril.AppShell.Dialogs;
 using Ivy.Tendril.Apps;
+using Ivy.Tendril.Apps.Debug;
 using Ivy.Tendril.Apps.Onboarding;
 using Ivy.Tendril.Apps.Settings;
 using Ivy.Tendril.Apps.Trash;
@@ -448,7 +449,10 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .Children(
                     MenuItem.Default("Onboarding")
                         .Icon(Icons.Rocket)
-                        .OnSelect(() => navigator.Navigate<OnboardingApp>())
+                        .OnSelect(() => navigator.Navigate<OnboardingApp>()),
+                    MenuItem.Default("Dialogs")
+                        .Icon(Icons.MessageSquare)
+                        .OnSelect(() => navigator.Navigate<DialogsApp>())
                 ),
 #endif
         };

@@ -137,7 +137,7 @@ public class ContentView(
 
         var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full())
             | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
-                .BorderThickness(0).Padding(0).Width(Size.Grow());
+                .BorderThickness(0).Padding(0);
 
         if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
             desktopTitleLayout |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
@@ -149,7 +149,8 @@ public class ContentView(
             {
                 var name = Path.GetFileName(d);
                 var dashIdx = name.IndexOf('-');
-                return dashIdx > 0 ? name[..dashIdx] : name;
+                var idStr = dashIdx > 0 ? name[..dashIdx] : name;
+                return int.TryParse(idStr, out var id) ? $"#{id}" : idStr;
             }));
             desktopTitleLayout |= new Badge($"Depends on: {depIds}").Variant(BadgeVariant.Secondary);
         }
@@ -215,7 +216,8 @@ public class ContentView(
                 new Tab("Plan", planTabContent),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan!,
                     jobService.GetJobsForPlan(selectedPlan!.FolderName),
-                    showDebugJob, planService, selectedPlanState, refreshPlans)))
+                    showDebugJob, planService, selectedPlanState, refreshPlans,
+                    folderPath => selectedPlanState.Set(planService.GetPlanByFolder(folderPath)))))
             ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content).RemoveParentPadding();
 
             content |= (Layout.Vertical().Padding(2).Height(Size.Full()) | tabs);

@@ -13,14 +13,6 @@ public class CustomPrDialog(
     QueryResult<string[]> assigneesQuery,
     IState<string?> assigneesError) : ViewBase
 {
-    private readonly IState<string?> _assigneesError = assigneesError;
-    private readonly QueryResult<string[]> _assigneesQuery = assigneesQuery;
-    private readonly IState<bool> _dialogOpen = dialogOpen;
-    private readonly IJobService _jobService = jobService;
-    private readonly IPlanReaderService _planService = planService;
-    private readonly Action _refreshPlans = refreshPlans;
-    private readonly PlanFile _selectedPlan = selectedPlan;
-
     public override object? Build()
     {
         var isCreating = UseState(false);
@@ -37,7 +29,7 @@ public class CustomPrDialog(
             if (!customPrMerge.Value) customPrDeleteBranch.Set(false);
         }, customPrMerge);
 
-        if (!_dialogOpen.Value) return null;
+        if (!dialogOpen.Value) return null;
 
         return new Dialog(
             _ =>
@@ -50,9 +42,9 @@ public class CustomPrDialog(
                 customPrAssignee.Set(null);
                 customPrComment.Set("");
                 customPrDraft.Set(false);
-                _dialogOpen.Set(false);
+                dialogOpen.Set(false);
             },
-            new DialogHeader($"Custom PR for #{_selectedPlan.Id}"),
+            new DialogHeader($"Custom PR for #{selectedPlan.Id}"),
             new DialogBody(
                 Layout.Vertical().Gap(2)
                 | customPrSolveMergeConflicts.ToBoolInput("Solve Merge Conflicts").AutoFocus()
@@ -61,9 +53,9 @@ public class CustomPrDialog(
                     .Disabled(!customPrMerge.Value)
                 | customPrIncludeArtifacts.ToBoolInput("Include Artifacts")
                 | customPrDraft.ToBoolInput("Create as Draft")
-                | customPrAssignee.ToSelectInput((_assigneesQuery.Value ?? Array.Empty<string>()).ToOptions())
+                | customPrAssignee.ToSelectInput((assigneesQuery.Value ?? Array.Empty<string>()).ToOptions())
                     .Nullable().WithField().Label("Assignee")
-                | (_assigneesError.Value is { } err
+                | (assigneesError.Value is { } err
                     ? Text.Danger(err).Small()
                     : null)
                 | customPrComment.ToTextareaInput("Comment").Rows(3)
@@ -79,15 +71,15 @@ public class CustomPrDialog(
                     customPrAssignee.Set(null);
                     customPrComment.Set("");
                     customPrDraft.Set(false);
-                    _dialogOpen.Set(false);
+                    dialogOpen.Set(false);
                 }),
                 new Button("Create PR").Primary().Disabled(isCreating.Value).ShortcutKey("Ctrl+Enter").OnClick(() =>
                 {
                     if (!isCreating.Value)
                     {
                         isCreating.Set(true);
-                        _jobService.StartJob(new CreatePrArgs(
-                            _selectedPlan.FolderPath,
+                        jobService.StartJob(new CreatePrArgs(
+                            selectedPlan.FolderPath,
                             SolveMergeConflicts: customPrSolveMergeConflicts.Value,
                             Merge: customPrMerge.Value,
                             DeleteBranch: customPrDeleteBranch.Value && customPrMerge.Value,
@@ -95,8 +87,8 @@ public class CustomPrDialog(
                             Assignee: customPrAssignee.Value,
                             Comment: string.IsNullOrEmpty(customPrComment.Value) ? null : customPrComment.Value,
                             Draft: customPrDraft.Value));
-                        _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Building);
-                        _refreshPlans();
+                        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
+                        refreshPlans();
                         isCreating.Set(false);
                         customPrSolveMergeConflicts.Set(true);
                         customPrMerge.Set(true);
@@ -105,7 +97,7 @@ public class CustomPrDialog(
                         customPrAssignee.Set(null);
                         customPrComment.Set("");
                         customPrDraft.Set(false);
-                        _dialogOpen.Set(false);
+                        dialogOpen.Set(false);
                     }
                 })
             )

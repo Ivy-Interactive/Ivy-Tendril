@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import Markdown from "react-markdown";
+import Markdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import "./draft-markdown.css";
 import { getHeight, getWidth } from "../styles";
@@ -8,6 +8,7 @@ import type { MarkdownAnnotation } from "./annotationUtils";
 import { applyAnnotationHighlights, getPlainTextOffset } from "./annotationUtils";
 import { AddAnnotationPopover, EditAnnotationPopover, SelectionToolbar } from "./AnnotationPopover";
 import { AlertBlockquote } from "./AlertBlockquote";
+import { isLocalFileUrl, transformLocalFileUrl } from "./localFiles";
 
 type IvyEventHandler = (eventName: string, widgetId: string, args: unknown[]) => void;
 
@@ -242,6 +243,20 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
     [events, dangerouslyAllowLocalFiles, handleLinkClick],
   );
 
+  // react-markdown's default transform strips file:// URLs. When local files
+  // are allowed, route image sources through the host's /ivy/local-file proxy
+  // (the browser cannot load file:// from a served page) and preserve file://
+  // URLs on links so the anchor renderer / OnLinkClick can handle them.
+  const urlTransform = useCallback(
+    (url: string, key: string) => {
+      if (dangerouslyAllowLocalFiles && isLocalFileUrl(url)) {
+        return transformLocalFileUrl(url, key);
+      }
+      return defaultUrlTransform(url);
+    },
+    [dangerouslyAllowLocalFiles],
+  );
+
   const fixed = slots?.StickyContent;
   const hasFixed = !!fixed && React.Children.count(fixed) > 0;
 
@@ -254,7 +269,11 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
     <div className="pmv-shell" style={shellStyle}>
       <div className="pmv-body">
         <div ref={contentRef} className={article ? "pmv-markdown pmv-article" : "pmv-markdown"}>
-          <Markdown remarkPlugins={[remarkGfm]} components={{ a: anchor, code: CodeBlock, blockquote: AlertBlockquote }}>
+          <Markdown
+            remarkPlugins={[remarkGfm]}
+            urlTransform={urlTransform}
+            components={{ a: anchor, code: CodeBlock, blockquote: AlertBlockquote }}
+          >
             {content}
           </Markdown>
         </div>

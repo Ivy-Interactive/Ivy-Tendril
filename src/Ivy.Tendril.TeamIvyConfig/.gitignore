@@ -4,6 +4,7 @@ Logs/
 Plans/
 Trash/
 Repos/
+Attachments/
 *.db
 *.db-shm
 *.db-wal

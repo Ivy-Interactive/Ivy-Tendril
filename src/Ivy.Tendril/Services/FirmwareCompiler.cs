@@ -95,9 +95,7 @@ public static class FirmwareCompiler
 
         if (headerValues.TryGetValue("TendrilJobId", out var tendrilJobId) && !string.IsNullOrEmpty(tendrilJobId))
         {
-            firmware += $"\n\n**CLI Logging:** Append `--job-id {tendrilJobId}` to every `tendril` CLI command you run " +
-                        $"(e.g., `tendril plan add-commit ... --job-id {tendrilJobId}`). This enables execution logging.\n" +
-                        $"\n**Status Reporting:** Use `tendril job status {tendrilJobId} --message \"your status\"` to report progress. " +
+            firmware += $"\n\n**Status Reporting:** Use `tendril job status {tendrilJobId} --message \"your status\"` to report progress. " +
                         "You can also pass `--plan-id` and `--plan-title` to associate the job with a plan.\n";
         }
 
