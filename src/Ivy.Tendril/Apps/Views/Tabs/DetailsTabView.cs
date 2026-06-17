@@ -17,8 +17,8 @@ public class DetailsTabView(
     public override object Build()
     {
         var copyToClipboard = UseClipboard();
+        var navigateToPlan = Context.UsePlanNavigation(planService, showPlanSheet);
         var planYaml = PlanYamlHelper.ParsePlanYaml(plan.PlanYamlRaw);
-        var navigateToPlan = this.UsePlanNavigation(planService, showPlanSheet);
 
         var detailsData = new
         {

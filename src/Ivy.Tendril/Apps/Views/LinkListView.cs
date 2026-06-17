@@ -18,7 +18,7 @@ public class LinkListView(List<Link> links, Action<string> onLinkClick) : ViewBa
                 new Button()
                     .Ghost()
                     .Small()
-                    .Text($"[{link.Title}]")
+                    .Title($"[{link.Title}]")
                     .OnClick(() => onLinkClick(link.Href))
             );
 
