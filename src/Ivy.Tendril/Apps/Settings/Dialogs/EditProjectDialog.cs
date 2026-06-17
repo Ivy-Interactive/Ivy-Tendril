@@ -161,7 +161,7 @@ public class EditProjectDialog(
                     ),
                     new Tab("Review Actions",
                         Layout.Vertical().Gap(4)
-                        | Text.Block("Commands that run during plan review (e.g., tests, linting).").Muted()
+                        | Text.Block("Quick-launch buttons shown during review to preview or run the app.").Muted()
                         | new ReviewActionsTableView(editReviewActions, showReviewActionTrigger, showReviewActionAlert)
                         | new Button("Add Review Action").Icon(Icons.Plus).Outline()
                             .OnClick(() => showReviewActionTrigger(null))
