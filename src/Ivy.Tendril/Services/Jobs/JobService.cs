@@ -643,7 +643,7 @@ public class JobService : IJobService
         }
 
         job.Status = JobStatus.Blocked;
-        job.StatusMessage = $"Waiting for job(s): {string.Join(", ", pendingIds)}";
+        job.StatusMessage = $"Waiting for {(pendingIds.Count == 1 ? "job" : "jobs")}: {string.Join(", ", pendingIds)}";
         RaiseNotification(new JobNotification("Job Blocked", $"{job.PlanFile}: waiting for {string.Join(", ", pendingIds)}", false));
         RaiseJobsStructureChanged();
         return true;
