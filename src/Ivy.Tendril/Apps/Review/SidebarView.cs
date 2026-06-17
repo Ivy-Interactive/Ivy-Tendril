@@ -73,9 +73,9 @@ public class SidebarView(
                 .Content(Layout.Horizontal().Gap(1)
                          | new Badge(plan.Project).Variant(BadgeVariant.Outline).Small()
                              .WithProjectColor(config, plan.Project)
-                         | (verificationsPassed
-                             ? new Badge("Verified").Variant(BadgeVariant.Success).Small()
-                             : new Badge("Unverified").Variant(BadgeVariant.Warning).Small())
+                         | (!verificationsPassed
+                             ? new Badge("Unverified").Variant(BadgeVariant.Warning).Small()
+                             : null)
                 )
                 .OnClick(() => selectedPlanState.Set(clickablePlan));
         }));
