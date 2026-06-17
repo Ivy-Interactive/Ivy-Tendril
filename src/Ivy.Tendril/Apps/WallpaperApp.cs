@@ -39,14 +39,14 @@ public class WallpaperApp : ViewBase
 
         if (activities.Length > 0)
         {
-            verticalLayout = verticalLayout
-                | new ActivityHeatmap()
-                    .Data(activities)
-                    .ShowMonthLabels(false)
-                    .ShowDayLabels(false)
-                    .StartDate(DateOnly.FromDateTime(DateTime.Today.AddDays(-89)))
-                    .EndDate(DateOnly.FromDateTime(DateTime.Today))
-                    .ValueLabel("PRs");
+            verticalLayout |= new Spacer().Height(Size.Units(5));
+            verticalLayout |= new ActivityHeatmap()
+                .Data(activities)
+                .ShowMonthLabels(true)
+                .ShowDayLabels(true)
+                .StartDate(DateOnly.FromDateTime(DateTime.Today.AddDays(-89)))
+                .EndDate(DateOnly.FromDateTime(DateTime.Today))
+                .ValueLabel("PRs");
         }
 
         var elements = new List<object>

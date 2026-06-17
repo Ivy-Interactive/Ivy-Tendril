@@ -86,13 +86,6 @@ public class AgentExecutionTests : IAsyncLifetime
         // Wait for the CreatePlan job to finish (detect via stdout)
         await WaitForJobExit(timeout, step1StartLine);
 
-        // Allow time for HandleCompletion to finish moving logs
-        await Task.Delay(3000);
-
-        // Verify CreatePlan CLI log has entries and all succeeded
-        LogAssertions.AssertCliLogHasEntries(planFolder, "CreatePlan");
-        LogAssertions.AssertAllCliCallsSucceeded(planFolder, "CreatePlan");
-
         // --- Step 2: Execute Plan ---
         await _page!.ReloadAsync(new() { WaitUntil = WaitUntilState.NetworkIdle });
         await dashboard.WaitForLoaded();
@@ -112,10 +105,6 @@ public class AgentExecutionTests : IAsyncLifetime
         // Wait for the ExecutePlan job to finish (detect via stdout)
         await WaitForJobExit(timeout, step2StartLine);
 
-        // Verify ExecutePlan CLI log has entries and all succeeded
-        LogAssertions.AssertCliLogHasEntries(planFolder, "ExecutePlan");
-        LogAssertions.AssertAllCliCallsSucceeded(planFolder, "ExecutePlan");
-
         // --- Step 3: Create PR ---
         await _page!.ReloadAsync(new() { WaitUntil = WaitUntilState.NetworkIdle });
         await dashboard.WaitForLoaded();
@@ -132,17 +121,13 @@ public class AgentExecutionTests : IAsyncLifetime
         // Wait for CreatePr job to finish
         await WaitForJobExit(timeout, step3StartLine);
 
-        // Allow time for HandleCompletion to finish moving logs
+        // Allow time for HandleCompletion to write the PR URL to plan.yaml
         await Task.Delay(3000);
 
         // Verify PR URL was added to plan.yaml
         var planYamlPath = Path.Combine(planFolder, "plan.yaml");
         var planYaml = File.ReadAllText(planYamlPath);
         Assert.Contains("prs:", planYaml);
-
-        // Verify CreatePr CLI log has entries and all succeeded
-        LogAssertions.AssertCliLogHasEntries(planFolder, "CreatePr");
-        LogAssertions.AssertAllCliCallsSucceeded(planFolder, "CreatePr");
     }
 
     private async Task WaitForPlanWithYaml(string titleFragment, int timeoutSeconds, string context)

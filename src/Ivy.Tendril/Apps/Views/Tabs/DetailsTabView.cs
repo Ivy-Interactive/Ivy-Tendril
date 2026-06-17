@@ -66,25 +66,18 @@ public class DetailsTabView(
             .Builder(x => x.RelatedPlans, f => f.Func((List<Link> links) =>
                 new LinkListView(links, href =>
                 {
-                    if (href.StartsWith("plan://"))
-                    {
-                        var planIdStr = href.Replace("plan://", "").TrimStart('0');
-                        if (int.TryParse(planIdStr, out var planId))
-                            navigateToPlan(planId);
-                    }
+                    if (int.TryParse(href, out var planId))
+                        navigateToPlan(planId);
                 })))
             .Builder(x => x.DependsOn, f => f.Func((List<Link> links) =>
                 new LinkListView(links, href =>
                 {
-                    if (href.StartsWith("plan://"))
-                    {
-                        var planIdStr = href.Replace("plan://", "").TrimStart('0');
-                        if (int.TryParse(planIdStr, out var planId))
-                            navigateToPlan(planId);
-                    }
+                    if (int.TryParse(href, out var planId))
+                        navigateToPlan(planId);
                 })))
             .Builder(x => x.Issue, f => f.Link(target: LinkTarget.Blank))
-            .RemoveEmpty();
+            ;
+            //.RemoveEmpty();
 
         return Layout.Vertical().Gap(4)
                | details
@@ -102,11 +95,8 @@ public class DetailsTabView(
             var fileName = Path.GetFileName(folder);
             var dashIdx = fileName.IndexOf('-');
             var planIdStr = dashIdx > 0 ? fileName[..dashIdx] : fileName;
-
-            if (int.TryParse(planIdStr, out var planId))
-                return new Link($"#{planId}", $"plan://{planIdStr}");
-
-            return new Link(planIdStr, $"plan://{planIdStr}");
+            planIdStr = planIdStr.TrimStart('0');
+            return new Link(planIdStr, $"{planIdStr}");
         }).ToList();
     }
 }
