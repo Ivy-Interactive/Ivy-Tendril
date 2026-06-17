@@ -5,7 +5,6 @@ using Ivy.Core;
 using Ivy.Core.Apps;
 using Ivy.Tendril.AppShell.Dialogs;
 using Ivy.Tendril.Apps;
-using Ivy.Tendril.Apps.Debug;
 using Ivy.Tendril.Apps.Onboarding;
 using Ivy.Tendril.Apps.Settings;
 using Ivy.Tendril.Apps.Trash;
