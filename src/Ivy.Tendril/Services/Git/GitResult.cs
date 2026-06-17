@@ -25,6 +25,7 @@ public record DirtyReasonDetail
     public DirtyReason Reason { get; init; }
     public string Message { get; init; } = "";
     public List<string> Files { get; init; } = new();
+    public List<string> Commits { get; init; } = new();
 }
 
 public record DirtyRepoResult

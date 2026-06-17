@@ -163,7 +163,7 @@ public class GitService : IGitService
                 {
                     Reason = DirtyReason.AheadOfOrigin,
                     Message = $"{commits.Count} commit(s) ahead of origin/{expectedBaseBranch}",
-                    Files = commits
+                    Commits = commits
                 });
             }
         }
