@@ -20,14 +20,14 @@ public class PendingAnnotationsDialog(
                 Text.P($"This plan has {annotationCount} {noun} that haven't been incorporated yet. Executing now would ignore them.")
             ),
             new DialogFooter(
-                Layout.Wrap().Gap(4,2)
+                Layout.Wrap().Gap(4, 2)
                     | new Button("Cancel").Outline().OnClick(() => dialogOpen.Set(false))
                     | new Button("Update Plan").Outline().OnClick(() =>
                     {
                         dialogOpen.Set(false);
                         onUpdate();
                     })
-                    |new Button("Discard Annotations & Execute").Outline().OnClick(() =>
+                    | new Button("Discard Annotations & Execute").Outline().OnClick(() =>
                     {
                         dialogOpen.Set(false);
                         onDiscardAndExecute();

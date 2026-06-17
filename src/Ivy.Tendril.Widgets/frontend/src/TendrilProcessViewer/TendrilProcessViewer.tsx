@@ -18,7 +18,7 @@ const Arrow: React.FC<ArrowProps> = ({ count, spinning, onClick }) => (
         {spinning && <LoaderCircle className="tpv-spinner" size={13} />}
       </button>
     )}
-    <svg className="tpv-arrow-svg" viewBox="0 0 80 12" preserveAspectRatio="none">
+    <svg className="tpv-arrow-svg" viewBox="0 0 80 12" preserveAspectRatio="xMidYMid meet">
       <defs>
         <marker id="arrowhead" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
           <polygon points="0,0 6,3 0,6" fill="currentColor" />

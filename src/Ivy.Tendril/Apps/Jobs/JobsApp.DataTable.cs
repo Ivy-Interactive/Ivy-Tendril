@@ -22,9 +22,11 @@ public partial class JobsApp
         Action<string>? showDebug,
         List<JobItem> jobs,
         Dictionary<string, string> projectColors,
-        StackedProgress jobsProgress)
+        StackedProgress? jobsProgress,
+        IState<bool> confirmDeleteOpen,
+        IState<string?> deleteJobId)
     {
-        return rows.AsQueryable()
+        var dataTable = rows.AsQueryable()
             .ToDataTable(t => t.Id)
             .Density(new Responsive<Density?> { Default = Density.Large, Desktop = Density.Medium })
             .RefreshToken(refreshToken)
@@ -250,20 +252,15 @@ public partial class JobsApp
                     }
                     else if (tag == "delete-job")
                     {
-                        if (job.Status is JobStatus.Running or JobStatus.Queued)
-                        {
-                            jobService.StopJob(job.Id);
-                        }
-
-                        jobService.DeleteJob(job.Id);
-                        refreshToken.Refresh();
+                        deleteJobId.Set(job.Id);
+                        confirmDeleteOpen.Set(true);
                     }
                 }
 
                 return ValueTask.CompletedTask;
             })
             .HeaderRight(_ => Layout.Horizontal()
-                              | jobsProgress
+                              | (jobsProgress != null ? jobsProgress : null!)
                               | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
                                   new MenuItem("Clear Completed", Icon: Icons.Trash, Tag: "ClearCompleted")
                                       .OnSelect(() =>
@@ -282,5 +279,30 @@ public partial class JobsApp
                                       refreshToken.Refresh();
                                   })
                               ));
+
+        var confirmDialog = confirmDeleteOpen.Value ? new Dialog(
+            _ => confirmDeleteOpen.Set(false),
+            new DialogHeader("Delete Job"),
+            new DialogBody(Text.P("Are you sure you want to delete this job? This cannot be undone.")),
+            new DialogFooter(
+                new Button("Cancel").Outline().OnClick(() => confirmDeleteOpen.Set(false)),
+                new Button("Delete").Destructive().ShortcutKey("Enter").AutoFocus().OnClick(() =>
+                {
+                    var id = deleteJobId.Value;
+                    if (id != null)
+                    {
+                        var jobToDelete = jobs.FirstOrDefault(j => j.Id == id);
+                        if (jobToDelete?.Status is JobStatus.Running or JobStatus.Queued)
+                            jobService.StopJob(id);
+                        jobService.DeleteJob(id);
+                    }
+                    confirmDeleteOpen.Set(false);
+                    deleteJobId.Set(null);
+                    refreshToken.Refresh();
+                })
+            )
+        ).Width(Size.Rem(40)) : null;
+
+        return new Fragment(dataTable, confirmDialog);
     }
 }

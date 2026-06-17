@@ -1,4 +1,5 @@
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services.Plans;
 
@@ -10,11 +11,13 @@ public class DetailsTabView(
     Action<string> showDebug,
     IPlanReaderService planService,
     IState<PlanFile?> selectedPlanState,
-    Action refreshPlans) : ViewBase
+    Action refreshPlans,
+    Action<string> showPlanSheet) : ViewBase
 {
     public override object Build()
     {
         var copyToClipboard = UseClipboard();
+        var navigateToPlan = Context.UsePlanNavigation(planService, showPlanSheet);
         var planYaml = PlanYamlHelper.ParsePlanYaml(plan.PlanYamlRaw);
 
         var detailsData = new
@@ -24,8 +27,8 @@ public class DetailsTabView(
             plan.InitialPrompt,
             Revision = plan.RevisionCount,
             Profile = planYaml?.ExecutionProfile ?? "",
-            RelatedPlans = FormatPlanLinks(plan.RelatedPlans),
-            DependsOn = FormatPlanLinks(plan.DependsOn),
+            RelatedPlans = ParsePlanLinks(plan.RelatedPlans),
+            DependsOn = ParsePlanLinks(plan.DependsOn),
             Issue = plan.SourceUrl ?? "",
             Created = plan.Created.ToString("yyyy-MM-dd"),
             plan.Level,
@@ -60,7 +63,27 @@ public class DetailsTabView(
                         if (updated != null) selectedPlanState.Set(updated);
                         refreshPlans();
                     })))
-            .Builder(x => x.Issue, f => f.Link(target:LinkTarget.Blank))
+            .Builder(x => x.RelatedPlans, f => f.Func((List<Link> links) =>
+                new LinkListView(links, href =>
+                {
+                    if (href.StartsWith("plan://"))
+                    {
+                        var planIdStr = href.Replace("plan://", "").TrimStart('0');
+                        if (int.TryParse(planIdStr, out var planId))
+                            navigateToPlan(planId);
+                    }
+                })))
+            .Builder(x => x.DependsOn, f => f.Func((List<Link> links) =>
+                new LinkListView(links, href =>
+                {
+                    if (href.StartsWith("plan://"))
+                    {
+                        var planIdStr = href.Replace("plan://", "").TrimStart('0');
+                        if (int.TryParse(planIdStr, out var planId))
+                            navigateToPlan(planId);
+                    }
+                })))
+            .Builder(x => x.Issue, f => f.Link(target: LinkTarget.Blank))
             .RemoveEmpty();
 
         return Layout.Vertical().Gap(4)
@@ -72,19 +95,18 @@ public class DetailsTabView(
                    : null);
     }
 
-    private static string FormatPlanLinks(List<string> planFolders)
+    private static List<Link> ParsePlanLinks(List<string> planFolders)
     {
-        if (planFolders.Count == 0)
-            return "";
-
-        var links = planFolders.Select(folder =>
+        return planFolders.Select(folder =>
         {
             var fileName = Path.GetFileName(folder);
             var dashIdx = fileName.IndexOf('-');
-            var planId = dashIdx > 0 ? fileName[..dashIdx] : fileName;
-            return $"[{planId}](plan://{planId})";
-        });
+            var planIdStr = dashIdx > 0 ? fileName[..dashIdx] : fileName;
 
-        return string.Join(", ", links);
+            if (int.TryParse(planIdStr, out var planId))
+                return new Link($"#{planId}", $"plan://{planIdStr}");
+
+            return new Link(planIdStr, $"plan://{planIdStr}");
+        }).ToList();
     }
 }

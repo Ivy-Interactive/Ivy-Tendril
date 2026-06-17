@@ -3,7 +3,10 @@ namespace Ivy.Tendril.Helpers;
 public static class UxHelper
 {
     public static Responsive<Size> SheetWidth =>
-        Size.Full().At(Breakpoint.Mobile).And(Breakpoint.Desktop, Size.Half());
+        Size.Full().At(Breakpoint.Mobile)
+            .And(Breakpoint.Tablet, Size.Fraction(0.75f))
+            .And(Breakpoint.Desktop, Size.Fraction(0.5f))
+            .And(Breakpoint.Wide, Size.Fraction(0.4f));
 
 
     public static async Task AnimateProgressAsync(IState<int?> value, CancellationToken ct, double duration = 15.0, double ceiling = 92.0)

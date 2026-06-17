@@ -26,7 +26,8 @@ public record CreatePlanArgs(
     string Project,
     int Priority = 0,
     bool Force = false,
-    string? SourcePath = null) : JobArgsBase
+    string? SourcePath = null,
+    string? UploadSessionId = null) : JobArgsBase
 {
     public override string Type => Constants.JobTypes.CreatePlan;
 }

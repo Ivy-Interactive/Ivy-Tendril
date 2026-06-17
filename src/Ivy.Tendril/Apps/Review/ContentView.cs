@@ -251,10 +251,19 @@ public class ContentView(
         INavigator nav,
         ReviewAppArgs? args)
     {
+        var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full())
+            | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
+                .BorderThickness(0).Padding(0).Width(Size.Grow());
+
+        if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
+            desktopTitleLayout |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
+                .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
+
+        var desktopTitle = new Box(desktopTitleLayout).BorderThickness(0).Padding(0)
+            .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
+
         var titleArea = Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
-                        | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
-                            .BorderThickness(0).Padding(0).Width(Size.Full())
-                            .HideOn(Breakpoint.Mobile, Breakpoint.Tablet)
+                        | desktopTitle
                         | MobileItemPicker.Build(
                                 $"#{selectedPlan.Id} {selectedPlan.Title}",
                                 allPlans,
@@ -262,11 +271,6 @@ public class ContentView(
                                 p => p.FolderName == selectedPlan.FolderName,
                                 p => selectedPlanState.Set(p))
                             .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
-
-        if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
-            titleArea |= (Layout.Horizontal().Wrap().Gap(2).AlignContent(Align.Left)
-                | new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
-                    .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl)));
 
         var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
                        | Text.Rich()
@@ -562,7 +566,8 @@ public class ContentView(
                 new Tab("Plan", Cap(planTabContent)),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan,
                     jobService.GetJobsForPlan(selectedPlan.FolderName),
-                    showDebugJob, planService, selectedPlanState, refreshPlans))),
+                    showDebugJob, planService, selectedPlanState, refreshPlans,
+                    folderPath => selectedPlanState.Set(planService.GetPlanByFolder(folderPath))))),
                 new Tab("Verifications", Cap(new VerificationsTabView(
                     selectedPlan.Verifications, planData.VerificationReports,
                     v => openVerification.Set(v)))).Badge(selectedPlan.Verifications.Count.ToString()),
