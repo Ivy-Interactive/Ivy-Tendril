@@ -19,6 +19,8 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 import "./sortable-verification-list.css";
 
+type IvyEventHandler = (eventName: string, widgetId: string, args: unknown[]) => void;
+
 interface VerificationItem {
   name: string;
   enabled: boolean;
@@ -26,11 +28,13 @@ interface VerificationItem {
 }
 
 interface SortableVerificationListProps {
+  id: string;
   itemsJson?: string;
-  onReorder?: (newIndices: number[]) => void;
-  onChange?: (item: VerificationItem) => void;
-  id?: string;
+  events?: string[];
+  eventHandler?: IvyEventHandler;
 }
+
+const EMPTY_EVENTS: string[] = [];
 
 function SortableItem({
   item,
@@ -83,9 +87,10 @@ function SortableItem({
 }
 
 export function SortableVerificationList({
+  id,
   itemsJson = "[]",
-  onReorder,
-  onChange,
+  events = EMPTY_EVENTS,
+  eventHandler,
 }: SortableVerificationListProps) {
   const [items, setItems] = React.useState<VerificationItem[]>(() => {
     try {
@@ -128,14 +133,20 @@ export function SortableVerificationList({
           originalItems.findIndex((orig) => orig.name === item.name),
         );
 
-        onReorder?.(reorderMapping);
+        // The C# OnReorder event carries a single string value (JSON array of indices).
+        if (eventHandler && events.includes("OnReorder")) {
+          eventHandler("OnReorder", id, [JSON.stringify(reorderMapping)]);
+        }
       }
     }
   };
 
   const handleChange = (updatedItem: VerificationItem) => {
     setItems((prev) => prev.map((item) => (item.name === updatedItem.name ? updatedItem : item)));
-    onChange?.(updatedItem);
+    // The C# OnChange event carries a single string value (JSON of the updated item).
+    if (eventHandler && events.includes("OnChange")) {
+      eventHandler("OnChange", id, [JSON.stringify(updatedItem)]);
+    }
   };
 
   return (
