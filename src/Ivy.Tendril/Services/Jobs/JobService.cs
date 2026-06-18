@@ -445,7 +445,33 @@ public class JobService : IJobService
         return StartJobInternal(args, inboxFilePath: null, skipDependencyCheck: true);
     }
 
-    private string StartJobInternal(JobArgsBase args, string? inboxFilePath, bool skipDependencyCheck = false)
+    public void ForceStartJob(string id)
+    {
+        if (!_jobs.TryGetValue(id, out var job)) return;
+        if (job.Status != JobStatus.Blocked) return;
+
+        if (job.TypedArgs == null)
+        {
+            RaiseNotification(new JobNotification(
+                "Force Start Failed",
+                $"{job.PlanFile}: original args were not preserved.",
+                false));
+            return;
+        }
+
+        var typedArgs = job.TypedArgs;
+        var planFolder = typedArgs.PlanFolder ?? "";
+
+        if (!_jobs.TryRemove(id, out _)) return;
+
+        if (typedArgs is ExecutePlanArgs or RetryPlanArgs && !string.IsNullOrEmpty(planFolder))
+            PlanYamlHelper.SetPlanStateByFolder(planFolder, nameof(PlanStatus.Building));
+
+        StartJobInternal(typedArgs, inboxFilePath: null, skipDependencyCheck: true, skipWaitForCheck: true);
+        RaiseJobsStructureChanged();
+    }
+
+    private string StartJobInternal(JobArgsBase args, string? inboxFilePath, bool skipDependencyCheck = false, bool skipWaitForCheck = false)
     {
         if (args is SyncRepoArgs syncRepoArgs)
         {
@@ -467,7 +493,7 @@ public class JobService : IJobService
         if (TryBlockForDependencies(job, skipDependencyCheck))
             return id;
 
-        if (TryBlockForWaitForJobs(job))
+        if (!skipWaitForCheck && TryBlockForWaitForJobs(job))
             return id;
 
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or ExpandPlanArgs or UpdatePlanArgs or SplitPlanArgs)
