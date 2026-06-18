@@ -11,6 +11,7 @@ public interface IJobService : IDisposable
     event Action<JobNotification>? NotificationReady;
 
     string StartJob(JobArgsBase args, string? inboxFilePath = null);
+    void ForceStartJob(string id);
     void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false);
     void StopJob(string id);
     void DeleteJob(string id);

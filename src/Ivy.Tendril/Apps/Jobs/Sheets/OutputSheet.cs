@@ -1,8 +1,7 @@
 using Ivy.Tendril.Models;
-using Ivy.Tendril.Services;
 using Ivy.Tendril.Widgets;
 
-namespace Ivy.Tendril.Apps.Jobs;
+namespace Ivy.Tendril.Apps.Jobs.Sheets;
 
 public class OutputSheet(string jobId, IJobService jobService) : ViewBase
 {

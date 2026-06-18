@@ -48,9 +48,7 @@ All paths derive from these sources:
 - **CLI arguments** — the agent passes values explicitly (e.g., `tendril job status <TendrilJobId> --message "..."`)
 
 **What does NOT work in production:**
-- Setting process-specific env vars on the agent process and expecting nested `tendril` calls to read them (e.g., `TENDRIL_CLI_LOG`, `TENDRIL_JOB_ID`, `TENDRIL_SESSION_ID`)
-
-**CLI Logging:** The `--job-id <id>` global flag on `tendril` commands derives the CLI log path from `TENDRIL_HOME` (system-wide) + the job ID. The firmware template instructs agents to append `--job-id TendrilJobId` to all CLI commands. CLI invocations are logged to `TENDRIL_HOME/Jobs/{jobId}.cli.jsonl`. As a fallback for E2E tests, the `TENDRIL_CLI_LOG` env var still works.
+- Setting process-specific env vars on the agent process and expecting nested `tendril` calls to read them (e.g., `TENDRIL_JOB_ID`, `TENDRIL_SESSION_ID`)
 
 **Rule:** To pass information from Tendril to an agent and back through the CLI:
 1. Include it as a firmware header value (agent reads from prompt)

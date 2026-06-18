@@ -192,6 +192,12 @@ public partial class JobsApp
                         .Tooltip("Rerun this job"));
                 }
 
+                if (job?.Status is JobStatus.Blocked)
+                {
+                    actions.Add(new MenuItem("Force Start", Icon: Icons.Zap, Tag: "force-start-job")
+                        .Tooltip("Force start this blocked job"));
+                }
+
                 if (showDebug != null)
                 {
                     actions.Add(new MenuItem("Debug", Icon: Icons.Bug, Tag: "debug-job")
@@ -243,6 +249,14 @@ public partial class JobsApp
                             jobService.DeleteJob(job.Id);
                             jobService.StartJob(job.TypedArgs);
 
+                            refreshToken.Refresh();
+                        }
+                    }
+                    else if (tag == "force-start-job")
+                    {
+                        if (job.Status is JobStatus.Blocked)
+                        {
+                            jobService.ForceStartJob(job.Id);
                             refreshToken.Refresh();
                         }
                     }

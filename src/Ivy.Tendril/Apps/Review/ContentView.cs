@@ -334,64 +334,102 @@ public class ContentView(
         INavigator nav,
         ReviewAppArgs? args)
     {
-        return Layout.Horizontal().AlignContent(Align.Left).Gap(2).Wrap()
-                | new Button("Reset to Draft").Icon(Icons.RotateCcw).Outline().ShortcutKey("r").OnClick(showResetToDraftDialog)
-                | new Button("Request Changes").Icon(Icons.MessageSquare).Outline().OnClick(showSuggestChangesDialog).ShortcutKey("c")
-                | new Button("Discard").Icon(Icons.Trash).Outline().ShortcutKey("Backspace").OnClick(showDiscardDialog)
+        // Standard overflow menu items
+        var standardOverflowItems = new[]
+        {
+            new MenuItem("Custom PR", Icon: Icons.GitPullRequest, Tag: "CustomPR").OnSelect(showCustomPrDialog),
+            new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
+            {
+                planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+                refreshPlans();
+            }),
+            new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
+                .OnSelect(() => { PlatformHelper.OpenInFileManager(selectedPlan.FolderPath, logger); }),
+            new MenuItem("Open in Terminal", Icon: Icons.Terminal, Tag: "OpenInTerminal").OnSelect(() =>
+            {
+                PlatformHelper.OpenInTerminal(selectedPlan.FolderPath, logger);
+            }),
+            new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
+                .OnSelect(() =>
+                {
+                    copyToClipboard(selectedPlan.FolderPath);
+                    client.Toast("Copied path to clipboard", "Path Copied");
+                }),
+            new MenuItem($"Open in {config.Editor.Label}", Icon: Icons.Code, Tag: "OpenInEditor")
+                .OnSelect(() =>
+                {
+                    try
+                    {
+                        config.OpenInEditor(selectedPlan.FolderPath);
+                    }
+                    catch (EditorNotAvailableException ex)
+                    {
+                        client.Toast(
+                            $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
+                            "Editor Not Available",
+                            variant: ToastVariant.Destructive);
+                    }
+                }),
+            new MenuItem("Open plan.yaml", Icon: Icons.FileText, Tag: "OpenPlanYaml").OnSelect(() =>
+            {
+                var yamlPath = Path.Combine(selectedPlan.FolderPath, "plan.yaml");
+                try
+                {
+                    config.OpenInEditor(yamlPath);
+                }
+                catch (EditorNotAvailableException ex)
+                {
+                    client.Toast(
+                        $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
+                        "Editor Not Available",
+                        variant: ToastVariant.Destructive);
+                }
+            })
+        };
+
+        // Full-tier dropdown: standard overflow items only (all buttons shown inline)
+        var fullDropdownItems = standardOverflowItems;
+
+        // Compact-tier dropdown: Discard + standard overflow
+        var compactDropdownItems = new List<MenuItem>
+        {
+            new MenuItem("Discard", Icon: Icons.Trash, Tag: "Discard").OnSelect(showDiscardDialog)
+        };
+        compactDropdownItems.AddRange(standardOverflowItems);
+
+        // Minimal-tier dropdown: all action buttons + standard overflow
+        var minimalDropdownItems = new List<MenuItem>
+        {
+            new MenuItem("Reset to Draft", Icon: Icons.RotateCcw, Tag: "ResetToDraft").OnSelect(showResetToDraftDialog),
+            new MenuItem("Request Changes", Icon: Icons.MessageSquare, Tag: "RequestChanges").OnSelect(showSuggestChangesDialog),
+            new MenuItem("Discard", Icon: Icons.Trash, Tag: "Discard").OnSelect(showDiscardDialog)
+        };
+        minimalDropdownItems.AddRange(standardOverflowItems);
+
+        // Action bar without .Wrap() - single row with progressive collapse.
+        // Full (>=1024px): Previous, Next, Reset to Draft, Request Changes, Discard inline + overflow dropdown.
+        // Compact (768-1023px): Previous, Next, Reset to Draft, Request Changes inline; Discard in dropdown.
+        // Minimal (<768px): Previous, Next inline; everything else in dropdown.
+        return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
                 | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(() => GoToPrevious(nav, args))
-                    .ShortcutKey("p")
+                    .ShortcutKey("p").AlwaysVisible()
                 | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().OnClick(() => GoToNext(nav, args))
-                    .ShortcutKey("n")
-                | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
-                    new MenuItem("Custom PR", Icon: Icons.GitPullRequest, Tag: "CustomPR").OnSelect(showCustomPrDialog),
-                    new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
-                    {
-                        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
-                        refreshPlans();
-                    }),
-                    new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
-                        .OnSelect(() => { PlatformHelper.OpenInFileManager(selectedPlan.FolderPath, logger); }),
-                    new MenuItem("Open in Terminal", Icon: Icons.Terminal, Tag: "OpenInTerminal").OnSelect(() =>
-                    {
-                        PlatformHelper.OpenInTerminal(selectedPlan.FolderPath, logger);
-                    }),
-                    new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
-                        .OnSelect(() =>
-                        {
-                            copyToClipboard(selectedPlan.FolderPath);
-                            client.Toast("Copied path to clipboard", "Path Copied");
-                        }),
-                    new MenuItem($"Open in {config.Editor.Label}", Icon: Icons.Code, Tag: "OpenInEditor")
-                        .OnSelect(() =>
-                        {
-                            try
-                            {
-                                config.OpenInEditor(selectedPlan.FolderPath);
-                            }
-                            catch (EditorNotAvailableException ex)
-                            {
-                                client.Toast(
-                                    $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
-                                    "Editor Not Available",
-                                    variant: ToastVariant.Destructive);
-                            }
-                        }),
-                    new MenuItem("Open plan.yaml", Icon: Icons.FileText, Tag: "OpenPlanYaml").OnSelect(() =>
-                    {
-                        var yamlPath = Path.Combine(selectedPlan.FolderPath, "plan.yaml");
-                        try
-                        {
-                            config.OpenInEditor(yamlPath);
-                        }
-                        catch (EditorNotAvailableException ex)
-                        {
-                            client.Toast(
-                                $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
-                                "Editor Not Available",
-                                variant: ToastVariant.Destructive);
-                        }
-                    })
-                );
+                    .ShortcutKey("n").AlwaysVisible()
+                | new Button("Reset to Draft").Icon(Icons.RotateCcw).Outline().ShortcutKey("r")
+                    .OnClick(showResetToDraftDialog).CompactUp()
+                | new Button("Request Changes").Icon(Icons.MessageSquare).Outline().ShortcutKey("c")
+                    .OnClick(showSuggestChangesDialog).CompactUp()
+                | new Button("Discard").Icon(Icons.Trash).Outline()
+                    .OnClick(showDiscardDialog).FullOnly()
+                | ActionBarResponsive.DropdownAtFull(
+                    new Button().Icon(Icons.EllipsisVertical).Ghost(),
+                    fullDropdownItems)
+                | ActionBarResponsive.DropdownAtCompact(
+                    new Button().Icon(Icons.EllipsisVertical).Ghost(),
+                    compactDropdownItems.ToArray())
+                | ActionBarResponsive.DropdownAtMinimal(
+                    new Button().Icon(Icons.EllipsisVertical).Ghost(),
+                    minimalDropdownItems.ToArray());
     }
 
     private object BuildContent(
@@ -566,7 +604,8 @@ public class ContentView(
                 new Tab("Plan", Cap(planTabContent)),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan,
                     jobService.GetJobsForPlan(selectedPlan.FolderName),
-                    showDebugJob, planService, selectedPlanState, refreshPlans))),
+                    showDebugJob, planService, selectedPlanState, refreshPlans,
+                    folderPath => selectedPlanState.Set(planService.GetPlanByFolder(folderPath))))),
                 new Tab("Verifications", Cap(new VerificationsTabView(
                     selectedPlan.Verifications, planData.VerificationReports,
                     v => openVerification.Set(v)))).Badge(selectedPlan.Verifications.Count.ToString()),
@@ -623,7 +662,9 @@ public class ContentView(
         object Cap(object inner)
         {
             return Layout.Vertical().Scroll(Scroll.Auto).HideScrollbar().Width(Size.Full()).Height(Size.Full())
-                | (Layout.Vertical().Padding(6, 0, 0, 4).Width(Size.Full().Max(Size.Units(200))) | inner);
+                | (Layout.Vertical()
+                    .Padding(new Responsive<Thickness?> { Default = new Thickness(6, 0, 0, 4), Mobile = new Thickness(6, 4, 0, 4) })
+                    .Width(Size.Full().Max(Size.Units(200))) | inner);
         }
     }
 

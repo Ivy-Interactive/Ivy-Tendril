@@ -222,6 +222,8 @@ public class InboxWatcherServiceTests : IDisposable
             return $"job-{StartedJobs.Count:D3}";
         }
 
+        public void ForceStartJob(string id) { }
+
         public bool IsInboxFileTracked(string filePath) => TrackedReturnValue;
 
         public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false) { }
@@ -361,6 +363,8 @@ public class InboxWatcherServiceTests : IDisposable
             return $"job-{StartedJobs.Count:D3}";
         }
 
+        public void ForceStartJob(string id) { }
+
         public bool IsInboxFileTracked(string filePath)
         {
             // Delete the file when InboxWatcherService checks if it's tracked
@@ -403,6 +407,8 @@ public class InboxWatcherServiceTests : IDisposable
             StartedJobs.Add((args, inboxFilePath));
             return $"job-{StartedJobs.Count:D3}";
         }
+
+        public void ForceStartJob(string id) { }
 
         public bool IsInboxFileTracked(string filePath) => false;
 

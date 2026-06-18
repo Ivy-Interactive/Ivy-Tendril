@@ -3,6 +3,8 @@ using YamlDotNet.Serialization;
 
 namespace Ivy.Tendril.Models;
 
+public record Link(string Title, string Href);
+
 public enum PlanStatus
 {
     Draft,

@@ -778,36 +778,11 @@ internal class JobCompletionHandler
         Func<JobArgsBase, string> startJobSkipDepCheck)
         => _dependencyChecker.RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck);
 
-    private string? ResolvePlanFolder(JobItem job)
-    {
-        if (job.TypedArgs is not CreatePlanArgs)
-            return job.TypedArgs?.PlanFolder;
-
-        var planId = job.ReportedPlanId ?? job.AllocatedPlanId;
-        if (string.IsNullOrEmpty(planId)) return null;
-
-        var plansDir = _planReaderService?.PlansDirectory
-                       ?? _configService?.PlanFolder;
-        if (string.IsNullOrEmpty(plansDir)) return null;
-
-        var folderName = PlanYamlHelper.FindPlanFolderById(plansDir, planId);
-        return folderName != null ? Path.Combine(plansDir, folderName) : null;
-    }
-
     internal void WriteJobLog(JobItem job)
     {
         try
         {
             PromptwareLogWriter.WriteLog(job);
-        }
-        catch
-        {
-            // ignored
-        }
-
-        try
-        {
-            MoveCliLogIfNeeded(job);
         }
         catch
         {
@@ -830,16 +805,6 @@ internal class JobCompletionHandler
         {
             // ignored
         }
-    }
-
-    private void MoveCliLogIfNeeded(JobItem job)
-    {
-        var logPath = JobStatusFile.GetCliLogPath(job.Id);
-        if (!File.Exists(logPath)) return;
-
-        var planFolder = ResolvePlanFolder(job);
-        if (!string.IsNullOrEmpty(planFolder) && Directory.Exists(planFolder))
-            JobStatusFile.MoveLogToPlanFolder(logPath, planFolder, job.Type, job.Id);
     }
 
     private string BuildJobLogContent(JobItem job)

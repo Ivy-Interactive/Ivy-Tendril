@@ -12,6 +12,8 @@ class ComparisonApp : ViewBase
         var markdown = """
             # Plan: Migrate to Event-Driven Architecture
 
+            ![screenshot](file:///D:/Screenshots/2026-06-15_14-41.png)
+            
             ## Overview
             This plan migrates the order processing pipeline from synchronous HTTP calls
             to an event-driven architecture using message queues. See [Plan #01205](plan://01205)
@@ -142,9 +144,11 @@ class ComparisonApp : ViewBase
         return Layout.Horizontal().Height(Size.Full()).Gap(4)
                | (Layout.Vertical().Width(Size.Fraction(0.5f)).Height(Size.Full())
                   | Text.Block("Markdown (Framework)").Bold().Small()
-                  | new Markdown(markdown).Article().Height(Size.Full()))
+                  | new Markdown(markdown).Article().Height(Size.Full()).DangerouslyAllowLocalFiles()
+                  )
                | (Layout.Vertical().Width(Size.Fraction(0.5f)).Height(Size.Full())
                   | Text.Block("DraftMarkdown (Widget)").Bold().Small()
-                  | new DraftMarkdownWidget(markdown).Article().Height(Size.Full()));
+                  | new DraftMarkdownWidget(markdown).Article().Height(Size.Full()).DangerouslyAllowLocalFiles()
+                  );
     }
 }

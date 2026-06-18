@@ -85,6 +85,10 @@ public class InboxControllerTests
             return id;
         }
 
+        public void ForceStartJob(string id)
+        {
+        }
+
         public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false)
         {
         }

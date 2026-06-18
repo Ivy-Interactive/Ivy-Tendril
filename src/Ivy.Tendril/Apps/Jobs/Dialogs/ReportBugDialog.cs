@@ -1,6 +1,6 @@
 using Ivy.Tendril.Services;
 
-namespace Ivy.Tendril.Apps.Jobs;
+namespace Ivy.Tendril.Apps.Jobs.Dialogs;
 
 public class ReportBugDialog(IState<bool> isOpen, string jobId) : ViewBase
 {

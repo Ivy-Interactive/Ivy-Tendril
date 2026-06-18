@@ -147,7 +147,7 @@ public class ProjectRepoPickerView(
             listLayout |= new Box(row).BorderStyle(BorderStyle.None).Background(Colors.Muted).Padding(4, 2, 2, 2).Width(Size.Full());
         }
 
-        var scrollableContent = Layout.Vertical().Gap(3).Scroll(Scroll.Auto).Height(Size.Rem(20))
+        var scrollableContent = Layout.Vertical().Gap(3)
                | pickerControls
                | (current.Count > 0 ? listLayout : null!)
                | addButton;

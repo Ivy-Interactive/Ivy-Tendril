@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Change directory to the repository root directory
+cd "$(dirname "$0")/.."
+
 VERSION="1.0.52-local-test"
 RID="osx-arm64"
 PUBLISH_DIR="./publish/desktop/$RID"

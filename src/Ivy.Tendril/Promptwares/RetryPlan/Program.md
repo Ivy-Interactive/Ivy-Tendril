@@ -123,15 +123,15 @@ Use the CLI to record commits — **never edit plan.yaml directly**.
 Add each commit hash:
 
 ```bash
-tendril plan add-commit <plan-id> abc1234 --job-id TendrilJobId
-tendril plan add-commit <plan-id> def5678 --job-id TendrilJobId
+tendril plan add-commit <plan-id> abc1234
+tendril plan add-commit <plan-id> def5678
 ```
 
 Set verification statuses from the plan revision. Set checked items (`- [x]`) to `Pending` and unchecked items (`- [ ]`) to `Skipped`:
 
 ```bash
-tendril plan set-verification <plan-id> Build Pending --job-id TendrilJobId
-tendril plan set-verification <plan-id> Test Skipped --job-id TendrilJobId
+tendril plan set-verification <plan-id> Build Pending
+tendril plan set-verification <plan-id> Test Skipped
 ```
 
 **CRITICAL:** The `tendril plan add-commit` and `tendril plan set-verification` CLI commands are the ONLY mechanism that updates plan.yaml. You MUST call these commands.
@@ -151,8 +151,8 @@ For each checked verification:
 3. **Check if delegated:** Follow the prompt's instructions to invoke it as an external process if delegated.
 4. Execute the prompt in the worktree directory
 5. If it fails: diagnose, fix the issue, **commit the fix**, and re-run. Repeat until it passes (fail the plan after 3+ failed attempts).
-6. Document all fix commits via CLI: `tendril plan add-commit <plan-id> <sha> --job-id TendrilJobId`
-7. Update the verification status via CLI: `tendril plan set-verification <plan-id> <Name> Pass --job-id TendrilJobId` (or `Fail`)
+6. Document all fix commits via CLI: `tendril plan add-commit <plan-id> <sha>`
+7. Update the verification status via CLI: `tendril plan set-verification <plan-id> <Name> Pass` (or `Fail`)
 
 **CRITICAL:** You MUST call `tendril plan set-verification` after EACH verification.
 

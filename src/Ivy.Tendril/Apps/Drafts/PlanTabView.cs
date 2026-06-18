@@ -23,7 +23,9 @@ public class PlanTabView(
             // The Plan tab is no longer wrapped in Cap(), so provide the scroll,
             // full height, and 1.5rem left inset (Padding(6,…)) here.
             return Layout.Vertical().Scroll(Scroll.Vertical).Width(Size.Full()).Height(Size.Full())
-                | (Layout.Vertical().Padding(6, 0, 0, 4).Width(Size.Full().Max(Size.Units(200)))
+                | (Layout.Vertical()
+                    .Padding(new Responsive<Thickness?> { Default = new Thickness(6, 0, 0, 4), Mobile = new Thickness(6, 4, 0, 4) })
+                    .Width(Size.Full().Max(Size.Units(200)))
                     | editContentState.ToCodeInput()
                         .Language(Languages.Markdown)
                         .Width(Size.Full()));

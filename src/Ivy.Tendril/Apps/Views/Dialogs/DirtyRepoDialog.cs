@@ -26,6 +26,25 @@ public class DirtyRepoDialog(
             foreach (var reason in dirtyState.Reasons)
             {
                 repoSection |= Text.Block($"• {FormatReason(reason)}");
+
+                // Show file/commit details
+                var items = reason.Reason == DirtyReason.AheadOfOrigin
+                    ? reason.Commits
+                    : reason.Files;
+
+                var displayCount = Math.Min(3, items.Count);
+                for (var i = 0; i < displayCount; i++)
+                {
+                    var item = items[i];
+                    // Strip leading status characters from uncommitted changes
+                    if (reason.Reason == DirtyReason.UncommittedChanges && item.Length > 3)
+                        item = item.Substring(3);
+
+                    repoSection |= Text.Muted($"  {item}");
+                }
+
+                if (items.Count > 3)
+                    repoSection |= Text.Muted($"  + {items.Count - 3} more");
             }
 
             repoSection |= Text.Markdown(contextMessage.Replace("origin/<baseBranch>", $"`origin/{baseBranch}`")).Muted();
