@@ -453,7 +453,7 @@ public class ContentView(
         ReviewAppArgs? args,
         Action<string> showDebugJob)
     {
-        var content = Layout.Vertical().Height(Size.Full()).Gap(0);
+        var content = Layout.Vertical().Height(Size.Full());
 
         if (selectedPlan is null)
         {
@@ -635,7 +635,7 @@ public class ContentView(
                     nav.Navigate<ReviewApp>(new ReviewAppArgs(selectedPlanState.Value.FolderName, actualTabNames[v]));
             }).SelectedIndex(actualSelectedTabIndex).Variant(TabsVariant.Content).RemoveParentPadding();
 
-            content |= (Layout.Vertical().Padding(2).Gap(0).Height(Size.Grow().Min(Size.Px(0))) | tabs);
+            content |= (Layout.Vertical().Padding(2).Height(Size.Full()) | tabs);
         }
 
         content |= new VerificationReportSheet(openVerification, selectedPlan);
@@ -661,7 +661,7 @@ public class ContentView(
 
         object Cap(object inner)
         {
-            return Layout.Vertical().Scroll(Scroll.Auto).HideScrollbar().Width(Size.Full()).Height(Size.Full())
+            return Layout.Vertical().Scroll().HideScrollbar().Width(Size.Full()).Height(Size.Full())
                 | (Layout.Vertical()
                     .Padding(new Responsive<Thickness?> { Default = new Thickness(6, 0, 0, 4), Mobile = new Thickness(6, 4, 0, 4) })
                     .Width(Size.Full().Max(Size.Units(200))) | inner);
