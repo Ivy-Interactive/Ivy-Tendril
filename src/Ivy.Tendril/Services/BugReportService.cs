@@ -10,12 +10,17 @@ public sealed class BugReportService
 {
     private static readonly Regex JobIdFromLogRegex = new(@"^(\d{5})-", RegexOptions.Compiled);
     private const string BugReportApiUrl = "https://tendril-api.ivy.app/report-bug";
+    private const string RedactedPlaceholder = "[REDACTED]";
 
     private readonly IConfigService _config;
 
     public BugReportService(IConfigService config) => _config = config;
 
-    public record BugReportFile(string AbsolutePath, string ZipEntryPath);
+    /// <summary>
+    ///     A file to include in a bug report. When <see cref="Content" /> is set the bytes are zipped directly
+    ///     (used for synthesized artifacts like the sanitized config); otherwise the file is read from <see cref="AbsolutePath" />.
+    /// </summary>
+    public record BugReportFile(string AbsolutePath, string ZipEntryPath, byte[]? Content = null);
     public record BugReportResult(string ReportId, string IssueUrl);
 
     public static string NormalizeJobId(string input)
@@ -31,6 +36,7 @@ public sealed class BugReportService
         var files = new List<BugReportFile>();
         var normalized = NormalizeJobId(jobId);
         CollectPromptwareLogFiles([normalized], files);
+        AddSanitizedConfig(files);
         return files;
     }
 
@@ -44,6 +50,8 @@ public sealed class BugReportService
 
         if (jobIds.Count > 0)
             CollectPromptwareLogFiles(jobIds, files);
+
+        AddSanitizedConfig(files);
 
         return files;
     }
@@ -63,6 +71,72 @@ public sealed class BugReportService
         {
             File.Delete(zipPath);
         }
+    }
+
+    private void AddSanitizedConfig(List<BugReportFile> files)
+    {
+        var config = CollectSanitizedConfig();
+        if (config != null)
+            files.Add(config);
+    }
+
+    /// <summary>
+    ///     Reads <c>config.yaml</c>, strips secret-bearing fields (auth password/hash, API keys, agent environment
+    ///     variable values) and returns it as an in-memory file. Bug reports become public GitHub issues, so the raw
+    ///     config (which may contain credentials) must never be uploaded verbatim. Reads from disk rather than the
+    ///     in-memory <c>Settings</c> so that <c>%VAR%</c> references are kept literal instead of expanded to their values.
+    ///     Returns <c>null</c> when there is no config or it cannot be parsed — failing closed rather than risk a leak.
+    /// </summary>
+    public BugReportFile? CollectSanitizedConfig()
+    {
+        var configPath = _config.ConfigPath;
+        if (string.IsNullOrEmpty(configPath) || !File.Exists(configPath))
+            return null;
+
+        string yaml;
+        try
+        {
+            var raw = FileHelper.ReadAllText(configPath);
+            raw = QuoteUnquotedVariablePatterns(raw);
+            var settings = YamlHelper.Deserializer.Deserialize<TendrilSettings>(raw) ?? new TendrilSettings();
+            RedactSecrets(settings);
+            yaml = YamlHelper.SerializerCompact.Serialize(settings);
+        }
+        catch
+        {
+            return null;
+        }
+
+        return new BugReportFile(string.Empty, "config.sanitized.yaml", System.Text.Encoding.UTF8.GetBytes(yaml));
+    }
+
+    private static void RedactSecrets(TendrilSettings settings)
+    {
+        if (settings.Auth != null)
+        {
+            if (!string.IsNullOrEmpty(settings.Auth.Password))
+                settings.Auth.Password = RedactedPlaceholder;
+            if (!string.IsNullOrEmpty(settings.Auth.HashSecret))
+                settings.Auth.HashSecret = RedactedPlaceholder;
+        }
+
+        if (settings.Llm != null && !string.IsNullOrEmpty(settings.Llm.ApiKey))
+            settings.Llm.ApiKey = RedactedPlaceholder;
+
+        if (settings.Api != null && !string.IsNullOrEmpty(settings.Api.ApiKey))
+            settings.Api.ApiKey = RedactedPlaceholder;
+
+        foreach (var agent in settings.CodingAgents)
+            foreach (var key in agent.EnvironmentVariables.Keys.ToList())
+                agent.EnvironmentVariables[key] = RedactedPlaceholder;
+    }
+
+    // Mirrors ConfigService's preprocessing so unquoted %VAR% values that the app can load also parse here.
+    private static string QuoteUnquotedVariablePatterns(string yaml)
+    {
+        yaml = Regex.Replace(yaml, @"(?m)(?<=:\s+)(%\w+%.*)$", "'$1'");
+        yaml = Regex.Replace(yaml, @"(?m)^(\s*-\s+)(%\w+%.*)$", "$1'$2'");
+        return yaml;
     }
 
     private void CollectPromptwareLogFiles(IReadOnlyCollection<string> jobIds, List<BugReportFile> files)
@@ -121,7 +195,19 @@ public sealed class BugReportService
         using var zip = ZipFile.Open(zipPath, ZipArchiveMode.Create);
 
         foreach (var file in files)
-            zip.CreateEntryFromFile(file.AbsolutePath, file.ZipEntryPath.Replace('\\', '/'));
+        {
+            var entryPath = file.ZipEntryPath.Replace('\\', '/');
+            if (file.Content != null)
+            {
+                var entry = zip.CreateEntry(entryPath);
+                using var entryStream = entry.Open();
+                entryStream.Write(file.Content, 0, file.Content.Length);
+            }
+            else
+            {
+                zip.CreateEntryFromFile(file.AbsolutePath, entryPath);
+            }
+        }
 
         return zipPath;
     }

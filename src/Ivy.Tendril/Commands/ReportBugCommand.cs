@@ -111,7 +111,7 @@ public class ReportBugCommand : Command<ReportBugSettings>
         long totalSize = 0;
         foreach (var file in files)
         {
-            var size = new FileInfo(file.AbsolutePath).Length;
+            var size = file.Content?.Length ?? new FileInfo(file.AbsolutePath).Length;
             totalSize += size;
             table.AddRow(
                 file.ZipEntryPath.EscapeMarkup(),
