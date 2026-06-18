@@ -9,24 +9,17 @@ public class LinkListView(List<Link> links, Action<string> onLinkClick) : ViewBa
         if (links.Count == 0)
             return Text.Block("");
 
-        var elements = new List<object>();
-
+        var builder = Text.Rich().OnLinkClick(onLinkClick);
+        
         for (var i = 0; i < links.Count; i++)
         {
             var link = links[i];
-            elements.Add(
-                new Button()
-                    .Ghost()
-                    .Small()
-                    .Title($"[{link.Title}]")
-                    .OnClick(() => onLinkClick(link.Href))
-            );
-
+            builder = builder.Link($"#{link.Title}", link.Href);
+            
             if (i < links.Count - 1)
-                elements.Add(Text.Block(", "));
+                builder = builder.Run(", ");
         }
 
-        return Layout.Horizontal().Gap(1).AlignContent(Align.Center)
-               | elements;
+        return builder;
     }
 }
