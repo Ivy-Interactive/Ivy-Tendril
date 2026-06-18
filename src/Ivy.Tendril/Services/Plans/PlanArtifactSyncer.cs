@@ -75,7 +75,7 @@ internal class PlanArtifactSyncer
                 var result = PlanYamlHelper.ParseVerificationResultFromReport(content);
                 if (result != null)
                 {
-                    verification.Status = result;
+                    verification.Status = result.Value;
                     changed = true;
                 }
             }

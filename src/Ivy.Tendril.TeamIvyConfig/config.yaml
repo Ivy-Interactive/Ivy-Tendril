@@ -325,8 +325,6 @@ planTemplate: >
   **Test scope (dotnet test --filter):**
 
   `FullyQualifiedName~Namespace.SpecificTestClass` (or "No existing test coverage" \ "Run all tests — <justification>")
-
-  ## Verification
 editor:
   command: code
   label: VS Code

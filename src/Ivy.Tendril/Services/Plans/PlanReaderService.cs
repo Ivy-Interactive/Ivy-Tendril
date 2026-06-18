@@ -306,11 +306,32 @@ public class PlanReaderService(
             planYaml.Updated = DateTime.UtcNow;
             foreach (var v in planYaml.Verifications)
             {
-                if (!v.Status.Equals(VerificationStatus.Skipped, StringComparison.OrdinalIgnoreCase))
+                if (v.Status != VerificationStatus.Skipped)
                     v.Status = VerificationStatus.Pending;
             }
             FileHelper.WriteAllText(planYamlPath, YamlHelper.SerializerCompact.Serialize(planYaml));
         }, Path.Combine(PlansDirectory, folderName));
+    }
+
+    /// <summary>
+    ///     Sets a single verification's status on a plan and persists plan.yaml immediately.
+    ///     Written synchronously (not in the background) so the UI can re-read the value right
+    ///     after toggling. Reuses the same atomic/validated/file-locked write path as the CLI.
+    /// </summary>
+    public void SetVerificationStatus(string folderName, string name, VerificationStatus status)
+    {
+        var planFolder = Path.Combine(PlansDirectory, folderName);
+        var plan = PlanCommandHelpers.ReadPlan(planFolder);
+
+        var verification = plan.Verifications.FirstOrDefault(v =>
+            v.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+        if (verification != null)
+            verification.Status = status;
+        else
+            plan.Verifications.Add(new PlanVerificationEntry { Name = name, Status = status });
+
+        plan.Updated = DateTime.UtcNow;
+        PlanCommandHelpers.WritePlan(planFolder, plan, planWatcherService);
     }
 
     /// <summary>
@@ -795,7 +816,7 @@ public class PlanReaderService(
             // Reset verifications
             foreach (var v in planYaml.Verifications)
             {
-                if (!v.Status.Equals(VerificationStatus.Skipped, StringComparison.OrdinalIgnoreCase))
+                if (v.Status != VerificationStatus.Skipped)
                     v.Status = VerificationStatus.Pending;
             }
 

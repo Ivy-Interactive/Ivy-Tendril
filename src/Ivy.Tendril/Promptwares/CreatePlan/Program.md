@@ -211,9 +211,7 @@ tendril plan create "<Title>" "<Project>" \
   --plans-dir "<TendrilPlansFolder>" \
   --level "Feature" \
   --initial-prompt "<cleaned task description>" \
-  --execution-profile "balanced" \
-  --verification "Build=Pending" \
-  --verification "Test=Pending"
+  --execution-profile "balanced"
 ```
 
 **IMPORTANT:** Always pass `--plans-dir` with the `TendrilPlansFolder` firmware value. This ensures the plan is created in the correct directory regardless of environment variable inheritance. The `<Project>` must be the exact project name from the **Projects** section — repos are derived automatically from the project configuration.
@@ -233,7 +231,11 @@ Include optional flags as needed:
 - `--depends-on "<folder-name>"` — for blocking dependencies (see Section 4.4)
 - `--priority <number>` — if non-default priority
 
-Populate `--verification` flags from the project's verifications in the **Projects** section, all set to `Pending`.
+**Verifications are seeded automatically.** `tendril plan create` adds **every** verification of the project (in the **Projects** section), in their configured order, defaulting **Required → `Pending`** and **Optional → `Skipped`**. You do **not** need to pass `--verification` or ensure they are present.
+
+Adjust them as the task warrants (the user can also toggle them later in the UI; ExecutePlan runs only the `Pending` ones):
+- Enable an optional verification relevant to this task: `tendril plan set-verification <PlanId> <Name> Pending`.
+- Skip a verification you judge unnecessary: `tendril plan set-verification <PlanId> <Name> Skipped`.
 
 #### 4.2. Write the revision
 
@@ -394,29 +396,6 @@ The `## Tests` section MUST include two parts:
    - If the change is so broad that all tests are genuinely needed, explicitly state: "Run all tests (broad cross-cutting change)." and justify why.
    
    Never leave test scope unspecified — this causes the full suite to run unnecessarily.
-
-### 5. Verification Checklist
-
-In the `## Verification` section of the plan revision, generate a checklist from the project's verifications in the **Projects** section.
-
-For each verification assigned to the project:
-- **Required** → `- [x] VerificationName`
-- **Optional** → `- [ ] VerificationName`
-
-Example:
-```markdown
-## Verification
-
-- [x] Build
-- [x] Format
-- [x] Test
-- [x] Lint
-- [x] CheckResult
-```
-
-If the project has no verifications (e.g. `Auto`), leave the section empty or omit it.
-
-The user can edit the checklist before execution — unchecking a required verification or checking an optional one. ExecutePlan will run only the checked items.
 
 ### Rules
 

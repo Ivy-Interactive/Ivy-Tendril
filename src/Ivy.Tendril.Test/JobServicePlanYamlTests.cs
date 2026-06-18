@@ -1,3 +1,4 @@
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
@@ -73,8 +74,8 @@ public class JobServicePlanYamlTests : IDisposable
         Assert.Equal("abc1234", result.Commits[0]);
         Assert.Equal(2, result.Verifications.Count);
         Assert.Equal("DotnetBuild", result.Verifications[0].Name);
-        Assert.Equal("Pass", result.Verifications[0].Status);
-        Assert.Equal("Pending", result.Verifications[1].Status);
+        Assert.Equal(VerificationStatus.Pass, result.Verifications[0].Status);
+        Assert.Equal(VerificationStatus.Pending, result.Verifications[1].Status);
         Assert.Single(result.DependsOn);
         Assert.Equal("01100-OtherPlan", result.DependsOn[0]);
     }

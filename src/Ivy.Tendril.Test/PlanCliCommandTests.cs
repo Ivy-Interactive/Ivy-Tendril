@@ -619,14 +619,14 @@ public class PlanCliCommandTests : IDisposable
 
         var folder = PlanCommandHelpers.ResolvePlanFolder("20070");
         var plan = PlanCommandHelpers.ReadPlan(folder);
-        plan.Verifications.Add(new PlanVerificationEntry { Name = "DotnetBuild", Status = "Pass" });
+        plan.Verifications.Add(new PlanVerificationEntry { Name = "DotnetBuild", Status = VerificationStatus.Pass });
         plan.Updated = DateTime.UtcNow;
         PlanCommandHelpers.WritePlan(folder, plan);
 
         var result = ReadPlan("20070");
         Assert.Single(result.Verifications);
         Assert.Equal("DotnetBuild", result.Verifications[0].Name);
-        Assert.Equal("Pass", result.Verifications[0].Status);
+        Assert.Equal(VerificationStatus.Pass, result.Verifications[0].Status);
     }
 
     [Fact]
@@ -640,43 +640,29 @@ public class PlanCliCommandTests : IDisposable
             Repos = [_tempDir.Path],
             Created = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc),
             Updated = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc),
-            Verifications = [new PlanVerificationEntry { Name = "DotnetBuild", Status = "Pending" }]
+            Verifications = [new PlanVerificationEntry { Name = "DotnetBuild", Status = VerificationStatus.Pending }]
         });
 
         var folder = PlanCommandHelpers.ResolvePlanFolder("20071");
         var plan = PlanCommandHelpers.ReadPlan(folder);
         var verif = plan.Verifications.First(v => v.Name.Equals("DotnetBuild", StringComparison.OrdinalIgnoreCase));
-        verif.Status = "Pass";
+        verif.Status = VerificationStatus.Pass;
         plan.Updated = DateTime.UtcNow;
         PlanCommandHelpers.WritePlan(folder, plan);
 
         var result = ReadPlan("20071");
         Assert.Single(result.Verifications);
-        Assert.Equal("Pass", result.Verifications[0].Status);
-    }
-
-    [Fact]
-    public void PlanSetVerification_InvalidStatus_Throws()
-    {
-        CreatePlanFolder("20072", "InvalidVerifTest");
-
-        var folder = PlanCommandHelpers.ResolvePlanFolder("20072");
-        var plan = PlanCommandHelpers.ReadPlan(folder);
-        plan.Verifications.Add(new PlanVerificationEntry { Name = "DotnetBuild", Status = "BogusStatus" });
-
-        Assert.Throws<ArgumentException>(() =>
-            PlanCommandHelpers.WritePlan(folder, plan));
+        Assert.Equal(VerificationStatus.Pass, result.Verifications[0].Status);
     }
 
     [Fact]
     public void PlanSetVerification_AllValidStatuses()
     {
         CreatePlanFolder("20073", "AllStatusesTest");
-        var validStatuses = new[] { "Pending", "Pass", "Fail", "Skipped" };
 
         var folder = PlanCommandHelpers.ResolvePlanFolder("20073");
 
-        foreach (var status in validStatuses)
+        foreach (var status in Enum.GetValues<VerificationStatus>())
         {
             var plan = PlanCommandHelpers.ReadPlan(folder);
             plan.Verifications.Clear();
@@ -1001,7 +987,7 @@ public class PlanCliCommandTests : IDisposable
             Updated = new DateTime(2026, 3, 2, 14, 30, 0, DateTimeKind.Utc),
             Prs = ["https://github.com/org/repo/pull/1"],
             Commits = ["abc1234"],
-            Verifications = [new PlanVerificationEntry { Name = "Build", Status = "Pass" }],
+            Verifications = [new PlanVerificationEntry { Name = "Build", Status = VerificationStatus.Pass }],
             RelatedPlans = ["20199-OtherPlan"],
             DependsOn = ["20198-BasePlan"],
             Priority = 3,
@@ -1130,8 +1116,8 @@ public class PlanCliCommandTests : IDisposable
             Repos = [_tempDir.Path],
             Verifications =
             [
-                new PlanVerificationEntry { Name = "DotnetBuild", Status = "Pending" },
-                new PlanVerificationEntry { Name = "DotnetTest", Status = "Pending" }
+                new PlanVerificationEntry { Name = "DotnetBuild", Status = VerificationStatus.Pending },
+                new PlanVerificationEntry { Name = "DotnetTest", Status = VerificationStatus.Pending }
             ],
             RelatedPlans = ["20201-OtherPlan"],
             DependsOn = ["20202-BasePlan"],
@@ -1190,10 +1176,10 @@ public class PlanCliCommandTests : IDisposable
             Repos = [_tempDir.Path],
             Verifications =
             [
-                new PlanVerificationEntry { Name = "DotnetBuild", Status = "Pending" },
-                new PlanVerificationEntry { Name = "DotnetFormat", Status = "Pending" },
-                new PlanVerificationEntry { Name = "DotnetTest", Status = "Pending" },
-                new PlanVerificationEntry { Name = "CheckResult", Status = "Pending" }
+                new PlanVerificationEntry { Name = "DotnetBuild", Status = VerificationStatus.Pending },
+                new PlanVerificationEntry { Name = "DotnetFormat", Status = VerificationStatus.Pending },
+                new PlanVerificationEntry { Name = "DotnetTest", Status = VerificationStatus.Pending },
+                new PlanVerificationEntry { Name = "CheckResult", Status = VerificationStatus.Pending }
             ],
             Created = DateTime.UtcNow,
             Updated = DateTime.UtcNow
@@ -1202,7 +1188,7 @@ public class PlanCliCommandTests : IDisposable
 
         var result = PlanCommandHelpers.ReadPlan(planDir);
         Assert.Equal(4, result.Verifications.Count);
-        Assert.All(result.Verifications, v => Assert.Equal("Pending", v.Status));
+        Assert.All(result.Verifications, v => Assert.Equal(VerificationStatus.Pending, v.Status));
     }
 
     // ==================== PlanAddRelatedPlan ====================

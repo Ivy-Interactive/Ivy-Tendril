@@ -14,6 +14,7 @@ public class PlanTabView(
     IState<string> editContentState,
     IState<string?> openFileState,
     IPlanReaderService planService,
+    IConfigService config,
     IState<ImmutableList<MarkdownAnnotation>> annotations) : ViewBase
 {
     public override object Build()
@@ -40,11 +41,7 @@ public class PlanTabView(
                 selectedPlan.LatestRevisionContent,
                 planService.PlansDirectory);
             
-            var fixedElement = new Card(
-                Layout.Vertical().Gap(2)
-                | Text.Block("Actions").Bold()
-                | new Button("Placeholder").Outline()
-            ).Width(Size.Px(280));
+            var fixedElement = new VerificationsCardView(selectedPlan, planService, config);
 
             Action<string> onLinkClick = FileSheet.CreateLinkClickHandler(openFileState, planId =>
             {

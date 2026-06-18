@@ -96,6 +96,62 @@ public static class PlanCommandHelpers
     }
 
     /// <summary>
+    ///     Seeds <paramref name="plan"/>.Verifications with the full project verification set, in
+    ///     project-config order (the order they run in). Each verification gets its explicit override
+    ///     status if one was supplied, otherwise the default: Required → Pending, Optional → Skipped.
+    ///     Any override name not present in the project config is appended afterward (custom/ad-hoc),
+    ///     preserving the order it was supplied in. Replaces any existing entries on the plan.
+    /// </summary>
+    public static void ApplyProjectVerifications(
+        PlanYaml plan, ProjectConfig project, IReadOnlyDictionary<string, VerificationStatus> overrides)
+    {
+        var seeded = new List<PlanVerificationEntry>();
+        var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var pv in project.Verifications)
+        {
+            var status = overrides.TryGetValue(pv.Name, out var overrideStatus)
+                ? overrideStatus
+                : pv.Required ? VerificationStatus.Pending : VerificationStatus.Skipped;
+            seeded.Add(new PlanVerificationEntry { Name = pv.Name, Status = status });
+            seenNames.Add(pv.Name);
+        }
+
+        // Explicit verifications that aren't part of the project config (custom/ad-hoc) are kept,
+        // appended after the project set in the order they were supplied.
+        foreach (var (name, status) in overrides)
+            if (!seenNames.Contains(name))
+            {
+                seeded.Add(new PlanVerificationEntry { Name = name, Status = status });
+                seenNames.Add(name);
+            }
+
+        plan.Verifications = seeded;
+    }
+
+    /// <summary>
+    ///     Orders verifications by their position in the project config (the authoritative run order),
+    ///     regardless of how they happen to be stored in plan.yaml. Verifications not present in the
+    ///     project config (custom, or since-removed) sort to the end, keeping their relative order.
+    ///     Used at the presentation (UI card) and execution (verification list) read points so order
+    ///     always follows the current project config even if plan.yaml drifted.
+    /// </summary>
+    public static List<PlanVerificationEntry> OrderByProjectConfig(
+        IEnumerable<PlanVerificationEntry> verifications,
+        IReadOnlyList<ProjectVerificationRef>? projectVerifications)
+    {
+        var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        if (projectVerifications != null)
+            for (var i = 0; i < projectVerifications.Count; i++)
+                order[projectVerifications[i].Name] = i;
+
+        // OrderBy is a stable sort, so unknown entries (all int.MaxValue) keep their original order.
+        return verifications
+            .OrderBy(v => order.TryGetValue(v.Name, out var idx) ? idx : int.MaxValue)
+            .ToList();
+    }
+
+    /// <summary>
     ///     Reads a plan.yaml file and deserializes it.
     /// </summary>
     public static PlanYaml ReadPlan(string planFolder)

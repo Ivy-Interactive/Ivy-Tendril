@@ -311,7 +311,7 @@ public class PlanValidationServiceTests : IDisposable
         var plan = CreateValidPlan();
         plan.Verifications = new List<PlanVerificationEntry>
         {
-            new PlanVerificationEntry { Name = "", Status = "Pending" }
+            new PlanVerificationEntry { Name = "", Status = VerificationStatus.Pending }
         };
 
         var ex = Assert.Throws<ArgumentException>(() => PlanValidationService.Validate(plan));
@@ -320,40 +320,11 @@ public class PlanValidationServiceTests : IDisposable
     }
 
     [Fact]
-    public void Validate_ThrowsForVerificationWithEmptyStatus()
-    {
-        var plan = CreateValidPlan();
-        plan.Verifications = new List<PlanVerificationEntry>
-        {
-            new PlanVerificationEntry { Name = "Build", Status = "" }
-        };
-
-        var ex = Assert.Throws<ArgumentException>(() => PlanValidationService.Validate(plan));
-
-        Assert.Contains("empty status", ex.Message);
-    }
-
-    [Fact]
-    public void Validate_ThrowsForVerificationWithInvalidStatus()
-    {
-        var plan = CreateValidPlan();
-        plan.Verifications = new List<PlanVerificationEntry>
-        {
-            new PlanVerificationEntry { Name = "Build", Status = "InvalidStatus" }
-        };
-
-        var ex = Assert.Throws<ArgumentException>(() => PlanValidationService.Validate(plan));
-
-        Assert.Contains("Invalid status", ex.Message);
-        Assert.Contains("Build", ex.Message);
-    }
-
-    [Fact]
     public void Validate_AcceptsAllValidVerificationStatuses()
     {
-        var validStatuses = new[] { "Pending", "Pass", "Fail", "Skipped" };
-
-        foreach (var status in validStatuses)
+        // Status is a VerificationStatus enum, so every value is inherently valid —
+        // Validate() must accept all of them without throwing.
+        foreach (var status in Enum.GetValues<VerificationStatus>())
         {
             var plan = CreateValidPlan();
             plan.Verifications = new List<PlanVerificationEntry>

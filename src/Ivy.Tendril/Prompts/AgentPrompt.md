@@ -101,11 +101,9 @@ Technical approach with file paths and steps
 
 ## Tests
 New tests to write + test scope filter
-
-## Verification
-- [x] DotnetBuild
-- [x] DotnetTest
 ```
+
+Verifications are **not** part of the revision markdown — they live in `plan.yaml` (seeded at creation, toggled in the UI).
 
 ## Tendril CLI Reference
 

@@ -48,16 +48,17 @@ public class PlanSetVerificationCommand : Command<PlanSetVerificationSettings>
         var verification = plan.Verifications.FirstOrDefault(v =>
             v.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
 
+        var status = VerificationStatusExtensions.Parse(settings.Status);
         if (verification != null)
         {
-            verification.Status = settings.Status;
+            verification.Status = status;
         }
         else
         {
             plan.Verifications.Add(new PlanVerificationEntry
             {
                 Name = settings.Name,
-                Status = settings.Status
+                Status = status
             });
         }
 

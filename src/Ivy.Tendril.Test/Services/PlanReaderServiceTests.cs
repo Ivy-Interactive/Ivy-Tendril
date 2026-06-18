@@ -1,3 +1,4 @@
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Test.TestHelpers;
@@ -122,6 +123,58 @@ public class PlanReaderServiceTests
             Assert.Contains("abc1234", result);
             Assert.Contains("def5678", result);
             Assert.Contains(folderName, testWatcher.NotifiedFolders);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void SetVerificationStatus_TogglesStatus_PersistsAndPreservesOthers_NotifiesWatcher()
+    {
+        // Arrange
+        var tempDir = Path.Combine(Path.GetTempPath(), $"ivy-test-{Guid.NewGuid()}");
+        Directory.CreateDirectory(tempDir);
+        var testConfig = new TempDirConfigService(tempDir);
+        var testLogger = new TestLogger();
+        var testWatcher = new TestPlanWatcherService();
+
+        var service = new PlanReaderService(
+            testConfig,
+            testLogger,
+            planWatcherService: testWatcher);
+
+        var folderName = "01234-TestPlan";
+        var planFolder = Path.Combine(tempDir, folderName);
+        Directory.CreateDirectory(planFolder);
+
+        // repos must point at an existing directory to pass plan validation
+        var planYaml =
+            $"state: Draft\nproject: TestProject\ntitle: TestPlan\nrepos:\n- {tempDir.Replace("\\", "/")}\n" +
+            "created: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\n" +
+            "verifications:\n- name: Build\n  status: Pending\n- name: Test\n  status: Pending\n";
+        File.WriteAllText(Path.Combine(planFolder, "plan.yaml"), planYaml);
+
+        try
+        {
+            // Act — skip Test, leave Build untouched
+            service.SetVerificationStatus(folderName, "Test", VerificationStatus.Skipped);
+
+            // Assert — written synchronously, so re-read straight away
+            var plan = PlanCommandHelpers.ReadPlan(planFolder);
+            Assert.Equal(VerificationStatus.Pending,
+                plan.Verifications.First(v => v.Name == "Build").Status);
+            Assert.Equal(VerificationStatus.Skipped,
+                plan.Verifications.First(v => v.Name == "Test").Status);
+            Assert.Contains(folderName, testWatcher.NotifiedFolders);
+
+            // Act again — toggle back to Pending
+            service.SetVerificationStatus(folderName, "Test", VerificationStatus.Pending);
+            plan = PlanCommandHelpers.ReadPlan(planFolder);
+            Assert.Equal(VerificationStatus.Pending,
+                plan.Verifications.First(v => v.Name == "Test").Status);
         }
         finally
         {
