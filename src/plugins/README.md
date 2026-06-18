@@ -200,7 +200,6 @@ public class MyPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
 
     public void Configure(ITendrilExtendedPluginContext context)
     {
-        // Strongly-typed — no casting needed
         context.RegisterDialog(...);
         context.AddSettingsMenuItem(...);
     }
