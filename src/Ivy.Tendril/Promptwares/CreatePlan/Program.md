@@ -202,6 +202,10 @@ Create the plan using CLI commands according to the plan structure in the **Refe
 
 Use `tendril plan create` to allocate a plan ID, create the folder, and write `plan.yaml` in a single command:
 
+**Title format:** `<Title>` MUST be human-readable **Title Case with spaces** and normal capitalization. Do NOT use the PascalCase / no-space folder form — the CLI derives the folder `SafeTitle` from your title automatically.
+- ✅ `Show File Details in Local Changes Dialog`
+- ❌ `ShowFileDetailsInLocalChangesDialog`
+
 ```bash
 tendril plan create "<Title>" "<Project>" \
   --plans-dir "<TendrilPlansFolder>" \
@@ -240,6 +244,8 @@ tendril plan write-revision <PlanId> <<'EOF'
 <revision content here>
 EOF
 ```
+
+**The revision's first line is the `# {title}` H1 heading — it MUST be the exact same string you passed as `<Title>` to `tendril plan create` above** (human-readable Title Case, not the PascalCase folder form). The `plan.yaml` title and the spec H1 must always match.
 
 This reads from STDIN and auto-creates `Revisions/001.md` (or the next sequential number) in the plan folder. Do NOT use the Write or Edit tools to create revision files directly in `Revisions/`.
 

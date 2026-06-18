@@ -39,10 +39,7 @@ public class PlanTabView(
             var annotatedContent = MarkdownHelper.AnnotateAllBrokenLinks(
                 selectedPlan.LatestRevisionContent,
                 planService.PlansDirectory);
-
-            // Placeholder for the pinned interactive element. It lives in the widget's
-            // StickyContent slot, which renders outside the markdown's scroll region, so
-            // it stays in place while the plan content scrolls.
+            
             var fixedElement = new Card(
                 Layout.Vertical().Gap(2)
                 | Text.Block("Actions").Bold()
