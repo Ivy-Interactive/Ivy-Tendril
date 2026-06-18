@@ -77,7 +77,7 @@ public class DetailsTabView(
                 })))
             .Builder(x => x.Issue, f => f.Link(target: LinkTarget.Blank))
             ;
-            //.RemoveEmpty();
+        //.RemoveEmpty();
 
         return Layout.Vertical().Gap(4)
                | details
