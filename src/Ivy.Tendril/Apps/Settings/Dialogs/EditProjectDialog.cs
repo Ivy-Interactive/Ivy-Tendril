@@ -99,8 +99,15 @@ public class EditProjectDialog(
             return draft with { Path = destPath };
         };
 
+        // Display order is driven by the PROJECT'S verification order (project.Verifications),
+        // not the global definition order, so the arrangement a user makes for this project is
+        // what they see when they reopen the dialog. Enabled verifications come first in their
+        // stored project order; verifications defined globally but not yet enabled for this
+        // project are appended afterwards so they can still be toggled on.
+        var displayedVerifications = OrderForDisplay(editVerifications.Value, _config.Settings.Verifications);
+
         var verificationsJson = JsonSerializer.Serialize(
-            _config.Settings.Verifications.Select(v =>
+            displayedVerifications.Select(v =>
             {
                 var projectVerif = editVerifications.Value.FirstOrDefault(pv => pv.Name == v.Name);
                 return new
@@ -119,28 +126,11 @@ public class EditProjectDialog(
                 var indices = JsonSerializer.Deserialize<int[]>(json);
                 if (indices == null) return;
 
-                var allVerifs = _config.Settings.Verifications.ToList();
-                var reorderedVerifs = indices.Select(i => allVerifs[i]).ToList();
-                _config.Settings.Verifications.Clear();
-                _config.Settings.Verifications.AddRange(reorderedVerifs);
-
-                // Reorder the project-level verifications to match the new global order
-                var currentProjectVerifs = editVerifications.Value;
-                var reorderedProjectVerifs = reorderedVerifs
-                    .Select(gv => currentProjectVerifs.FirstOrDefault(pv => pv.Name == gv.Name))
-                    .Where(pv => pv != null)
-                    .ToList();
-                editVerifications.Set(reorderedProjectVerifs!);
-
-                try
-                {
-                    _config.SaveSettings();
-                    _refreshToken.Refresh();
-                }
-                catch (Exception ex)
-                {
-                    _client.Toast($"Failed to reorder verifications: {ex.Message}", "Error");
-                }
+                // indices map into the currently displayed list. Rebuild the project's verification
+                // order from the enabled items in their new relative order; the project order is then
+                // persisted when the user clicks Save (see saveButton), so it survives a reopen.
+                editVerifications.Set(
+                    ReorderProjectVerifications(indices, displayedVerifications, editVerifications.Value));
             })
             .WithOnChange(json =>
             {
@@ -280,6 +270,71 @@ public class EditProjectDialog(
         return mainDialog;
     }
 
+    /// <summary>
+    /// Orders verifications for display in the Edit Project dialog: the project's enabled
+    /// verifications first, in their stored project order, followed by any globally-defined
+    /// verifications not yet enabled for this project (so they can still be toggled on).
+    /// Driving the display from the project order makes a saved reorder survive a reopen.
+    /// </summary>
+    internal static List<VerificationConfig> OrderForDisplay(
+        List<ProjectVerificationRef> projectVerifications,
+        List<VerificationConfig> allVerifications)
+    {
+        var byName = allVerifications.ToDictionary(v => v.Name);
+        var ordered = new List<VerificationConfig>();
+        var seen = new HashSet<string>();
+
+        // Enabled verifications, in the order the project stores them.
+        foreach (var pv in projectVerifications)
+        {
+            if (byName.TryGetValue(pv.Name, out var def) && seen.Add(pv.Name))
+                ordered.Add(def);
+        }
+
+        // Remaining globally-defined verifications not enabled for this project.
+        foreach (var def in allVerifications)
+        {
+            if (seen.Add(def.Name))
+                ordered.Add(def);
+        }
+
+        return ordered;
+    }
+
+    /// <summary>
+    /// Maps a drag-reorder of the displayed verification list back onto the project's verification
+    /// list. <paramref name="newIndices"/> is the new order expressed as indices into
+    /// <paramref name="displayed"/>. Only verifications enabled for the project are returned, in
+    /// their new relative order; disabled (available-pool) items are ignored since they are not
+    /// part of the project's stored order.
+    /// </summary>
+    internal static List<ProjectVerificationRef> ReorderProjectVerifications(
+        int[] newIndices,
+        List<VerificationConfig> displayed,
+        List<ProjectVerificationRef> projectVerifications)
+    {
+        var byName = projectVerifications.ToDictionary(pv => pv.Name);
+        var reordered = new List<ProjectVerificationRef>();
+        var seen = new HashSet<string>();
+
+        foreach (var i in newIndices)
+        {
+            if (i < 0 || i >= displayed.Count) continue;
+            var name = displayed[i].Name;
+            if (byName.TryGetValue(name, out var pv) && seen.Add(name))
+                reordered.Add(pv);
+        }
+
+        // Preserve any enabled verifications the indices didn't cover (defensive: keeps the
+        // project's selection intact even if the displayed list and indices ever disagree).
+        foreach (var pv in projectVerifications)
+        {
+            if (seen.Add(pv.Name))
+                reordered.Add(pv);
+        }
+
+        return reordered;
+    }
 }
 
 internal class ReviewActionsTableView(
