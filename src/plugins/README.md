@@ -13,7 +13,7 @@ Ivy Tendril supports plugins that can extend its functionality. Plugins are .NET
 - Hot-reload is supported: changes to plugin DLLs or source files trigger automatic reload
 
 **Architecture layers:**
-- `Ivy.Plugin.Abstractions` — base interfaces shared across all Ivy hosts (`IIvyPlugin`, `IIvyPluginContext`)
+- `Ivy.Plugin.Abstractions` — base interfaces shared across all Ivy hosts (`IIvyPlugin`, `IIvyPlugin<TContext>`, `IIvyPluginContext`)
 - `Ivy.Tendril.Plugin.Abstractions` — Tendril-specific interfaces (`ITendrilPluginContext`, `IMessagingChannel`)
 - `Ivy.Tendril.Plugin.Extended.Abstractions` — UI contribution interfaces (`ITendrilExtendedPluginContext`, which extends both `IIvyExtendedPluginContext` and `ITendrilPluginContext`)
 
@@ -41,16 +41,17 @@ The template includes the correct target framework (`net10.0`), `CopyLocalLockFi
 
 ### 2. Implement Your Plugin
 
-Create a single class implementing `IIvyPlugin` and mark the assembly with `[IvyPlugin]`:
+Create a single class implementing `IIvyPlugin<TContext>` and mark the assembly with `[IvyPlugin]`:
 
 ```csharp
 using Ivy.Plugins;
+using Ivy.Tendril.Plugins;
 
 [assembly: IvyPlugin(typeof(Ivy.Tendril.Plugin.MyPlugin.MyPlugin))]
 
 namespace Ivy.Tendril.Plugin.MyPlugin;
 
-public class MyPlugin : IIvyPlugin
+public class MyPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
 {
     public PluginManifest Manifest { get; } = new()
     {
@@ -75,12 +76,9 @@ public class MyPlugin : IIvyPlugin
         ]
     };
 
-    public void Configure(IIvyPluginContext context)
+    public void Configure(ITendrilExtendedPluginContext context)
     {
         var apiKey = context.Config.GetValue("ApiKey")!;
-
-        if (context is not ITendrilExtendedPluginContext tendrilContext)
-            return;
 
         // Register services, messaging channels, dialogs, etc.
     }
@@ -191,6 +189,34 @@ Currently, plugin submission is managed by the Ivy team:
 
 ## Plugin Interfaces
 
+### The Generic `IIvyPlugin<TContext>` Interface
+
+Tendril plugins implement the generic `IIvyPlugin<TContext>` interface, which provides compile-time type safety — you declare the context type your plugin requires, and receive it directly in `Configure()` without manual casting:
+
+```csharp
+public class MyPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
+{
+    // ... Manifest, ConfigurationSchema ...
+
+    public void Configure(ITendrilExtendedPluginContext context)
+    {
+        // Strongly-typed — no casting needed
+        context.RegisterDialog(...);
+        context.AddSettingsMenuItem(...);
+    }
+}
+```
+
+**Available Tendril context types:**
+| Type | Package | Features |
+|------|---------|----------|
+| `ITendrilExtendedPluginContext` | `Ivy.Tendril.Plugin.Extended.Abstractions` | UI contributions (dialogs, menu items, apps) + messaging + TendrilHome |
+| `ITendrilPluginContext` | `Ivy.Tendril.Plugin.Abstractions` | Messaging channels + TendrilHome access |
+
+Use `ITendrilExtendedPluginContext` if your plugin contributes UI elements (dialogs, menu items, apps). Use `ITendrilPluginContext` if your plugin only needs messaging or TendrilHome access.
+
+If a plugin declares a context type that the host cannot provide, an `InvalidOperationException` is thrown at load time with a clear error message.
+
 ### The Plugin Manifest
 
 Every plugin exposes a `PluginManifest` record describing its identity:
@@ -298,9 +324,9 @@ public void Configure(IIvyPluginContext context)
 For plugins that need more than auto-generated forms, override `BuildConfigurationView`:
 
 ```csharp
-public class MyPlugin : IIvyPlugin
+public class MyPlugin : IIvyPlugin<ITendrilPluginContext>
 {
-    // ... Manifest, ConfigurationSchema ...
+    // ... Manifest, ConfigurationSchema, Configure ...
 
     public object? BuildConfigurationView(IIvyPluginConfig configWriter)
     {
@@ -316,7 +342,7 @@ When this method returns a non-null value, the Plugins settings page renders you
 
 ### Startup and Shutdown
 
-The plugin lifecycle has a single entry point: `Configure(IIvyPluginContext context)`. This is called:
+The plugin lifecycle has a single entry point: `Configure(...)`. When using the generic interface, the parameter type matches `TContext`. This method is called:
 - During initial Tendril startup (after configuration validation passes)
 - On plugin reload (after removing old contributions)
 - On reconfiguration (when config values change and validation passes)
@@ -324,7 +350,7 @@ The plugin lifecycle has a single entry point: `Configure(IIvyPluginContext cont
 Plugins can implement the `ShutdownAsync` method to perform cleanup before being unloaded:
 
 ```csharp
-public class MyPlugin : IIvyPlugin
+public class MyPlugin : IIvyPlugin<ITendrilPluginContext>
 {
     private WebSocket? _connection;
 
@@ -379,15 +405,17 @@ To contribute UI elements, your plugin needs the Extended Abstractions package:
 dotnet add package Ivy.Tendril.Plugin.Extended.Abstractions
 ```
 
-Then cast to `ITendrilExtendedPluginContext` in `Configure()`:
+Then implement `IIvyPlugin<ITendrilExtendedPluginContext>` to receive the extended context directly:
 
 ```csharp
-public void Configure(IIvyPluginContext context)
+public class MyPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
 {
-    if (context is not ITendrilExtendedPluginContext tendrilContext)
-        return;
+    // ... Manifest, ConfigurationSchema ...
 
-    // Now you can add menu items, register dialogs, access TendrilHome, etc.
+    public void Configure(ITendrilExtendedPluginContext context)
+    {
+        // Add menu items, register dialogs, access TendrilHome, etc.
+    }
 }
 ```
 
@@ -449,16 +477,13 @@ internal class MyDialog(IState<bool> dialogOpen) : ViewBase
 
 ### Adding a Main Menu App
 
-Plugins can register full applications that appear in Tendril's main navigation:
+Plugins can register full applications that appear in Tendril's main navigation. Use `IIvyPlugin<ITendrilExtendedPluginContext>` (or `IIvyPlugin<IIvyExtendedPluginContext>` for host-agnostic plugins):
 
 ```csharp
-public void Configure(IIvyPluginContext context)
+public void Configure(ITendrilExtendedPluginContext context)
 {
-    if (context is not IIvyExtendedPluginContext extendedContext)
-        return;
-
     // Register a single app
-    extendedContext.AddApp(new AppDescriptor
+    context.AddApp(new AppDescriptor
     {
         Id = "my-plugin-app",
         Label = "My App",
@@ -466,7 +491,7 @@ public void Configure(IIvyPluginContext context)
     });
 
     // Or discover apps from the plugin assembly via [App] attributes
-    extendedContext.AddAppsFromAssembly(typeof(MyPlugin).Assembly);
+    context.AddAppsFromAssembly(typeof(MyPlugin).Assembly);
 }
 ```
 
@@ -502,21 +527,23 @@ The token is then retrieved in `Configure()` via `context.Config.GetValue("ApiKe
 
 ### Registering a Messaging Channel
 
-Plugins can register messaging channels that Tendril uses to send notifications (e.g., plan completion updates):
+Plugins can register messaging channels that Tendril uses to send notifications (e.g., plan completion updates). Use `IIvyPlugin<ITendrilPluginContext>` (or `ITendrilExtendedPluginContext` if you also need UI contributions):
 
 ```csharp
-public void Configure(IIvyPluginContext context)
+public class SlackPlugin : IIvyPlugin<ITendrilPluginContext>
 {
-    if (context is not ITendrilPluginContext tendrilContext)
-        return;
+    // ... Manifest, ConfigurationSchema ...
 
-    var config = new SlackConfig
+    public void Configure(ITendrilPluginContext context)
     {
-        BotToken = context.Config.GetValue("BotToken")!,
-        DefaultChannel = context.Config.GetValue("DefaultChannel")!,
-    };
+        var config = new SlackConfig
+        {
+            BotToken = context.Config.GetValue("BotToken")!,
+            DefaultChannel = context.Config.GetValue("DefaultChannel")!,
+        };
 
-    tendrilContext.RegisterMessagingChannel(new SlackMessagingChannel(config));
+        context.RegisterMessagingChannel(new SlackMessagingChannel(config));
+    }
 }
 ```
 
@@ -591,7 +618,7 @@ using Ivy.Tendril.Plugins;
 
 namespace Ivy.Tendril.Plugin.Linear;
 
-public class LinearPlugin : IIvyPlugin
+public class LinearPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
 {
     public PluginManifest Manifest { get; } = new()
     {
@@ -616,20 +643,16 @@ public class LinearPlugin : IIvyPlugin
         ]
     };
 
-    public void Configure(IIvyPluginContext context)
+    public void Configure(ITendrilExtendedPluginContext context)
     {
         var apiKey = context.Config.GetValue("ApiKey")!;
-
-        if (context is not ITendrilExtendedPluginContext tendrilContext)
-            return;
-
         var clientFactory = new LinearClientFactory(apiKey);
 
-        var openImportDialog = tendrilContext.RegisterDialog(
+        var openImportDialog = context.RegisterDialog(
             "$linear-import-dialog",
-            dialogOpen => new ImportFromLinearDialog(dialogOpen, clientFactory, tendrilContext.TendrilHome));
+            dialogOpen => new ImportFromLinearDialog(dialogOpen, clientFactory, context.TendrilHome));
 
-        tendrilContext.AddSettingsMenuItem(
+        context.AddSettingsMenuItem(
             MenuItem.Default("Import Issues from Linear")
                 .Tag("$linear-import-issues")
                 .Icon(Icons.Download)
