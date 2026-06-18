@@ -200,6 +200,7 @@ public class ContentView(
             editContent,
             openFile,
             planService,
+            config,
             annotations);
 
         if (planContentQuery.Loading)

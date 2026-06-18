@@ -112,18 +112,36 @@ public static class PlanFilters
     }
 }
 
-public static class VerificationStatus
+/// <summary>
+///     Verification lifecycle status. Serialized to/from plan.yaml and JSON by its PascalCase
+///     member name (Pending/Pass/Fail/Skipped) — keep the names stable for wire compatibility.
+/// </summary>
+[System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter))]
+public enum VerificationStatus
 {
-    public const string Pending = nameof(Pending);
-    public const string Pass = nameof(Pass);
-    public const string Fail = nameof(Fail);
-    public const string Skipped = nameof(Skipped);
+    Pending,
+    Pass,
+    Fail,
+    Skipped
+}
+
+public static class VerificationStatusExtensions
+{
+    /// <summary>Case-insensitive parse that rejects numeric/undefined values.</summary>
+    public static bool TryParse(string? value, out VerificationStatus status) =>
+        Enum.TryParse(value, ignoreCase: true, out status) && Enum.IsDefined(status);
+
+    public static VerificationStatus Parse(string? value) =>
+        TryParse(value, out var status)
+            ? status
+            : throw new ArgumentException(
+                $"Invalid verification status '{value}'. Valid values: Pending, Pass, Fail, Skipped.");
 }
 
 public class PlanVerificationEntry
 {
     public string Name { get; set; } = "";
-    public string Status { get; set; } = VerificationStatus.Pending;
+    public VerificationStatus Status { get; set; } = VerificationStatus.Pending;
 }
 
 public class PlanYaml

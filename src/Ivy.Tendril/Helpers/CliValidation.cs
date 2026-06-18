@@ -20,7 +20,8 @@ public static class CliValidation
 
     public static readonly string[] ValidVerificationStatuses =
     [
-        VerificationStatus.Pending, VerificationStatus.Pass, VerificationStatus.Fail, VerificationStatus.Skipped
+        nameof(VerificationStatus.Pending), nameof(VerificationStatus.Pass),
+        nameof(VerificationStatus.Fail), nameof(VerificationStatus.Skipped)
     ];
 
     public static readonly string[] ValidRecommendationStates =

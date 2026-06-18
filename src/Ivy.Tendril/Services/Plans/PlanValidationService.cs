@@ -97,13 +97,7 @@ public static class PlanValidationService
                 if (string.IsNullOrWhiteSpace(verification.Name))
                     throw new ArgumentException("Verification entry has empty name");
 
-                if (string.IsNullOrWhiteSpace(verification.Status))
-                    throw new ArgumentException($"Verification '{verification.Name}' has empty status");
-
-                var validStatuses = new[] { VerificationStatus.Pending, VerificationStatus.Pass, VerificationStatus.Fail, VerificationStatus.Skipped };
-                if (!validStatuses.Contains(verification.Status, StringComparer.OrdinalIgnoreCase))
-                    throw new ArgumentException(
-                        $"Invalid status '{verification.Status}' for verification '{verification.Name}'. Valid statuses: {string.Join(", ", validStatuses)}");
+                // Status is a VerificationStatus enum — always valid once deserialized.
             }
         }
     }

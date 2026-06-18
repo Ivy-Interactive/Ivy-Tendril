@@ -268,17 +268,7 @@ Single integer in `{planFolder}/.counter`; managed by `tendril plan create`. Do 
 
 ## Verifications
 
-Each revision can include `## Verification` with checkboxes from `config.yaml`:
-
-```markdown
-## Verification
-
-- [x] DotnetBuild
-- [x] DotnetTest
-- [ ] FrameworkFrontendLint
-```
-
-`- [x]` = ExecutePlan will run; `- [ ]` = skipped. Definitions live in top-level `config.yaml` `verifications`; projects reference by name + `required`.
+Verifications live in `plan.yaml` (not in the revision markdown), each with a `Name` and a `Status` of `Pending | Pass | Fail | Skipped`. Every verification of the plan's project is seeded at creation, in the project's configured order (which is the order they run in). `Pending` = ExecutePlan will run it; `Skipped` = it won't. Users toggle Pending/Skipped from the Verifications card in the plan UI; the agent sets `Pass`/`Fail` via `tendril plan set-verification` after running each one. Definitions live in top-level `config.yaml` `verifications`; projects reference them by name + `required`.
 
 ## Notes
 

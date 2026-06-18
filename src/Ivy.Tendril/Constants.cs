@@ -39,7 +39,7 @@ public static class Constants
         [PlanStatus.Blocked] = BadgeVariant.Warning
     };
 
-    public static readonly Dictionary<string, BadgeVariant> VerificationStatusBadgeVariants = new()
+    public static readonly Dictionary<VerificationStatus, BadgeVariant> VerificationStatusBadgeVariants = new()
     {
         [VerificationStatus.Pass] = BadgeVariant.Success,
         [VerificationStatus.Fail] = BadgeVariant.Destructive,

@@ -68,14 +68,14 @@ public class PlanVerificationCommandTests : IDisposable
         var planFolder = PlanCommandHelpers.ResolvePlanFolder("30001");
         var plan = PlanCommandHelpers.ReadPlan(planFolder);
 
-        plan.Verifications.Add(new PlanVerificationEntry { Name = "UnitTests", Status = "Pending" });
+        plan.Verifications.Add(new PlanVerificationEntry { Name = "UnitTests", Status = VerificationStatus.Pending });
         plan.Updated = DateTime.UtcNow;
         PlanCommandHelpers.WritePlan(planFolder, plan);
 
         var result = ReadPlan("30001");
         Assert.Single(result.Verifications);
         Assert.Equal("UnitTests", result.Verifications[0].Name);
-        Assert.Equal("Pending", result.Verifications[0].Status);
+        Assert.Equal(VerificationStatus.Pending, result.Verifications[0].Status);
     }
 
     [Fact]
@@ -85,8 +85,8 @@ public class PlanVerificationCommandTests : IDisposable
 
         var planFolder = PlanCommandHelpers.ResolvePlanFolder("30002");
         var plan = PlanCommandHelpers.ReadPlan(planFolder);
-        plan.Verifications.Add(new PlanVerificationEntry { Name = "UnitTests", Status = "Pending" });
-        plan.Verifications.Add(new PlanVerificationEntry { Name = "Integration", Status = "Pass" });
+        plan.Verifications.Add(new PlanVerificationEntry { Name = "UnitTests", Status = VerificationStatus.Pending });
+        plan.Verifications.Add(new PlanVerificationEntry { Name = "Integration", Status = VerificationStatus.Pass });
         PlanCommandHelpers.WritePlan(planFolder, plan);
 
         var result = ReadPlan("30002");
@@ -99,18 +99,18 @@ public class PlanVerificationCommandTests : IDisposable
     public void AddVerification_PreservesExisting()
     {
         CreatePlan("30003", "PreserveVerTest", [
-            new PlanVerificationEntry { Name = "Existing", Status = "Pass" }
+            new PlanVerificationEntry { Name = "Existing", Status = VerificationStatus.Pass }
         ]);
 
         var planFolder = PlanCommandHelpers.ResolvePlanFolder("30003");
         var plan = PlanCommandHelpers.ReadPlan(planFolder);
-        plan.Verifications.Add(new PlanVerificationEntry { Name = "New", Status = "Pending" });
+        plan.Verifications.Add(new PlanVerificationEntry { Name = "New", Status = VerificationStatus.Pending });
         PlanCommandHelpers.WritePlan(planFolder, plan);
 
         var result = ReadPlan("30003");
         Assert.Equal(2, result.Verifications.Count);
         Assert.Equal("Existing", result.Verifications[0].Name);
-        Assert.Equal("Pass", result.Verifications[0].Status);
+        Assert.Equal(VerificationStatus.Pass, result.Verifications[0].Status);
         Assert.Equal("New", result.Verifications[1].Name);
     }
 
@@ -120,8 +120,8 @@ public class PlanVerificationCommandTests : IDisposable
     public void RemoveVerification_RemovesEntry()
     {
         CreatePlan("30010", "RemoveVerTest", [
-            new PlanVerificationEntry { Name = "ToRemove", Status = "Pending" },
-            new PlanVerificationEntry { Name = "ToKeep", Status = "Pass" }
+            new PlanVerificationEntry { Name = "ToRemove", Status = VerificationStatus.Pending },
+            new PlanVerificationEntry { Name = "ToKeep", Status = VerificationStatus.Pass }
         ]);
 
         var planFolder = PlanCommandHelpers.ResolvePlanFolder("30010");
@@ -140,7 +140,7 @@ public class PlanVerificationCommandTests : IDisposable
     public void RemoveVerification_LastEntry_LeavesEmptyList()
     {
         CreatePlan("30011", "RemoveLastVer", [
-            new PlanVerificationEntry { Name = "Only", Status = "Fail" }
+            new PlanVerificationEntry { Name = "Only", Status = VerificationStatus.Fail }
         ]);
 
         var planFolder = PlanCommandHelpers.ResolvePlanFolder("30011");
@@ -158,27 +158,31 @@ public class PlanVerificationCommandTests : IDisposable
     public void SetVerificationStatus_UpdatesExisting()
     {
         CreatePlan("30020", "SetStatusTest", [
-            new PlanVerificationEntry { Name = "UnitTests", Status = "Pending" }
+            new PlanVerificationEntry { Name = "UnitTests", Status = VerificationStatus.Pending }
         ]);
 
         var planFolder = PlanCommandHelpers.ResolvePlanFolder("30020");
         var plan = PlanCommandHelpers.ReadPlan(planFolder);
-        plan.Verifications[0].Status = "Pass";
+        plan.Verifications[0].Status = VerificationStatus.Pass;
         plan.Updated = DateTime.UtcNow;
         PlanCommandHelpers.WritePlan(planFolder, plan);
 
         var result = ReadPlan("30020");
-        Assert.Equal("Pass", result.Verifications[0].Status);
+        Assert.Equal(VerificationStatus.Pass, result.Verifications[0].Status);
     }
 
     [Fact]
     public void SetVerificationStatus_AllStatuses()
     {
-        foreach (var status in new[] { "Pass", "Fail", "Pending", "Skipped" })
+        var statuses = new[]
         {
-            var id = $"3003{Array.IndexOf(new[] { "Pass", "Fail", "Pending", "Skipped" }, status)}";
+            VerificationStatus.Pass, VerificationStatus.Fail, VerificationStatus.Pending, VerificationStatus.Skipped
+        };
+        foreach (var status in statuses)
+        {
+            var id = $"3003{Array.IndexOf(statuses, status)}";
             CreatePlan(id, $"Status{status}", [
-                new PlanVerificationEntry { Name = "Test", Status = "Pending" }
+                new PlanVerificationEntry { Name = "Test", Status = VerificationStatus.Pending }
             ]);
 
             var planFolder = PlanCommandHelpers.ResolvePlanFolder(id);
@@ -203,7 +207,7 @@ public class PlanVerificationCommandTests : IDisposable
 
         var planFolder = PlanCommandHelpers.ResolvePlanFolder("30040");
         var plan = PlanCommandHelpers.ReadPlan(planFolder);
-        plan.Verifications.Add(new PlanVerificationEntry { Name = "New", Status = "Pending" });
+        plan.Verifications.Add(new PlanVerificationEntry { Name = "New", Status = VerificationStatus.Pending });
         plan.Updated = DateTime.UtcNow;
         PlanCommandHelpers.WritePlan(planFolder, plan);
 
@@ -217,18 +221,35 @@ public class PlanVerificationCommandTests : IDisposable
     public void Verifications_SurviveRoundtrip()
     {
         CreatePlan("30050", "RoundtripTest", [
-            new PlanVerificationEntry { Name = "UnitTests", Status = "Pass" },
-            new PlanVerificationEntry { Name = "Integration", Status = "Fail" },
-            new PlanVerificationEntry { Name = "E2E", Status = "Skipped" }
+            new PlanVerificationEntry { Name = "UnitTests", Status = VerificationStatus.Pass },
+            new PlanVerificationEntry { Name = "Integration", Status = VerificationStatus.Fail },
+            new PlanVerificationEntry { Name = "E2E", Status = VerificationStatus.Skipped }
         ]);
 
         var result = ReadPlan("30050");
         Assert.Equal(3, result.Verifications.Count);
         Assert.Equal("UnitTests", result.Verifications[0].Name);
-        Assert.Equal("Pass", result.Verifications[0].Status);
+        Assert.Equal(VerificationStatus.Pass, result.Verifications[0].Status);
         Assert.Equal("Integration", result.Verifications[1].Name);
-        Assert.Equal("Fail", result.Verifications[1].Status);
+        Assert.Equal(VerificationStatus.Fail, result.Verifications[1].Status);
         Assert.Equal("E2E", result.Verifications[2].Name);
-        Assert.Equal("Skipped", result.Verifications[2].Status);
+        Assert.Equal(VerificationStatus.Skipped, result.Verifications[2].Status);
+    }
+
+    // --- Wire format: status must serialize as PascalCase string in plan.yaml ---
+
+    [Fact]
+    public void Verifications_SerializeAsPascalCaseStringsOnDisk()
+    {
+        CreatePlan("30060", "WireFormatTest", [
+            new PlanVerificationEntry { Name = "Build", Status = VerificationStatus.Pending },
+            new PlanVerificationEntry { Name = "Lint", Status = VerificationStatus.Skipped }
+        ]);
+
+        var planFolder = PlanCommandHelpers.ResolvePlanFolder("30060");
+        var raw = File.ReadAllText(Path.Combine(planFolder, "plan.yaml"));
+
+        Assert.Contains("status: Pending", raw);
+        Assert.Contains("status: Skipped", raw);
     }
 }

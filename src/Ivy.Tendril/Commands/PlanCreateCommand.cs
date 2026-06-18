@@ -115,18 +115,18 @@ public class PlanCreateCommand : Command<PlanCreateSettings>
         foreach (var repoPath in resolvedProject.RepoPaths)
             plan.Repos.Add(repoPath);
 
+        // Seed the full project verification set (Required=Pending, Optional=Skipped);
+        // any Name=Status passed via --verification overrides that default.
+        var verificationOverrides = new Dictionary<string, VerificationStatus>(StringComparer.OrdinalIgnoreCase);
         if (settings.Verifications != null)
             foreach (var v in settings.Verifications)
             {
                 var eqIdx = v.IndexOf('=');
                 if (eqIdx < 0)
                     throw new ArgumentException($"Invalid verification format '{v}'. Expected Name=Status.");
-                plan.Verifications.Add(new PlanVerificationEntry
-                {
-                    Name = v[..eqIdx],
-                    Status = v[(eqIdx + 1)..]
-                });
+                verificationOverrides[v[..eqIdx]] = VerificationStatusExtensions.Parse(v[(eqIdx + 1)..]);
             }
+        PlanCommandHelpers.ApplyProjectVerifications(plan, resolvedProject, verificationOverrides);
 
         if (settings.RelatedPlans != null)
             foreach (var rp in settings.RelatedPlans)

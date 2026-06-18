@@ -339,12 +339,7 @@ tendril plan add-commit <plan-id> abc1234
 tendril plan add-commit <plan-id> def5678
 ```
 
-Set verification statuses from the plan revision. Set checked items (`- [x]`) to `Pending` and unchecked items (`- [ ]`) to `Skipped`:
-
-```bash
-tendril plan set-verification <plan-id> Build Pending
-tendril plan set-verification <plan-id> Test Skipped
-```
+Verification statuses are already set in `plan.yaml` (seeded at plan creation, optionally adjusted by the user in the UI). Do **not** derive them from the plan revision — there is no `## Verification` section anymore. You only update each verification's status to `Pass`/`Fail` after running it (Step 7).
 
 If the plan references other plans (e.g. split-from, follow-up), add them via CLI.
 
@@ -354,13 +349,13 @@ If the plan references other plans (e.g. split-from, follow-up), add them via CL
 
 Create a `Verification/` directory in the plan folder if it doesn't exist.
 
-Check the `## Verification` section in the plan revision for checked items (`- [x]`). Skip unchecked items (`- [ ]`).
+Get the run-set via `tendril plan verification list <plan-id> --json` — it emits a JSON array of `{ name, status }` **in run order**. Run the entries whose `status` is `Pending`, in array order. Skip entries whose `status` is `Skipped`.
 
 **Delegated verifications:** Some verifications are implemented as separate promptwares (e.g., `IvyFrameworkVerification`). The **Projects** section marks delegated verifications. Delegated verifications MUST be run via `tendril promptware run <Name>` — you are FORBIDDEN from writing their report files or setting their status to Pass yourself. If the `tendril` CLI is unavailable and you cannot invoke the sub-promptware, you MUST set the verification to `Fail` with a report explaining the CLI failure. Never self-certify a delegated verification.
 
 **IMPORTANT — delegated invocation syntax:** The `tendril promptware run` CLI takes the plan folder as a **positional argument** (NOT a named flag like `--plan-folder`). You MUST also pass `--value` flags for each required firmware value. The exact command is in the verification's prompt (fetched via `tendril verification get <Name>`) — copy it character-for-character, only replacing angle-bracketed placeholders with actual paths. If the command is wrong, the child promptware receives no arguments and silently fails.
 
-For each checked verification:
+For each `Pending` verification (in listed order):
 
 1. Send a status message: `tendril job status TendrilJobId --message "Verifying: <Name>"`
 2. Fetch its full prompt: `tendril verification get <Name>`

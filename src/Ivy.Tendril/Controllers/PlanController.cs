@@ -252,12 +252,13 @@ public class PlanController : ControllerBase
             var verification = plan.Verifications.FirstOrDefault(v =>
                 v.Name.Equals(request.Name, StringComparison.OrdinalIgnoreCase));
 
+            var status = VerificationStatusExtensions.Parse(request.Status);
             if (verification != null)
-                verification.Status = request.Status;
+                verification.Status = status;
             else
-                plan.Verifications.Add(new PlanVerificationEntry { Name = request.Name, Status = request.Status });
+                plan.Verifications.Add(new PlanVerificationEntry { Name = request.Name, Status = status });
 
-            return (true, $"Set verification '{request.Name}' to '{request.Status}'", 200);
+            return (true, $"Set verification '{request.Name}' to '{status}'", 200);
         });
 
     [HttpPost("{planId}/logs")]
@@ -435,9 +436,13 @@ public class PlanController : ControllerBase
             foreach (var repoPath in resolvedProject.RepoPaths)
                 plan.Repos.Add(repoPath);
 
+            // Seed the full project verification set (Required=Pending, Optional=Skipped);
+            // names passed in the request override that default to Pending.
+            var verificationOverrides = new Dictionary<string, VerificationStatus>(StringComparer.OrdinalIgnoreCase);
             if (request.Verifications != null)
                 foreach (var v in request.Verifications)
-                    plan.Verifications.Add(new PlanVerificationEntry { Name = v, Status = VerificationStatus.Pending });
+                    verificationOverrides[v] = VerificationStatus.Pending;
+            PlanCommandHelpers.ApplyProjectVerifications(plan, resolvedProject, verificationOverrides);
 
             if (request.RelatedPlans != null)
                 foreach (var rp in request.RelatedPlans)
@@ -585,7 +590,7 @@ public class PlanController : ControllerBase
             var verifications = plan.Verifications;
 
             if (!string.IsNullOrEmpty(status))
-                verifications = verifications.Where(v => v.Status.Equals(status, StringComparison.OrdinalIgnoreCase)).ToList();
+                verifications = verifications.Where(v => v.Status.ToString().Equals(status, StringComparison.OrdinalIgnoreCase)).ToList();
 
             return Ok(verifications.Select(v => new { name = v.Name, status = v.Status }));
         }
@@ -609,7 +614,7 @@ public class PlanController : ControllerBase
             plan.Verifications.Add(new PlanVerificationEntry
             {
                 Name = request.Name,
-                Status = request.Status ?? VerificationStatus.Pending
+                Status = request.Status != null ? VerificationStatusExtensions.Parse(request.Status) : VerificationStatus.Pending
             });
 
             return (true, $"Added verification '{request.Name}'", 200);

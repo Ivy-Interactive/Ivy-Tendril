@@ -209,7 +209,7 @@ internal static class PlanYamlHelper
     ///     Parses the result status from a verification report file.
     ///     Supports YAML frontmatter format (preferred) and legacy markdown format (fallback).
     /// </summary>
-    internal static string? ParseVerificationResultFromReport(string reportContent)
+    internal static VerificationStatus? ParseVerificationResultFromReport(string reportContent)
     {
         if (string.IsNullOrWhiteSpace(reportContent)) return null;
 
@@ -226,7 +226,9 @@ internal static class PlanYamlHelper
                     if (trimmed.StartsWith("result:", StringComparison.OrdinalIgnoreCase))
                     {
                         var value = trimmed["result:".Length..].Trim();
-                        if (value is VerificationStatus.Pass or VerificationStatus.Fail or VerificationStatus.Skipped) return value;
+                        if (VerificationStatusExtensions.TryParse(value, out var parsed)
+                            && parsed is VerificationStatus.Pass or VerificationStatus.Fail or VerificationStatus.Skipped)
+                            return parsed;
                     }
                 }
             }
@@ -234,7 +236,9 @@ internal static class PlanYamlHelper
 
         // Fallback: legacy markdown format  - **Result:** Pass
         var match = Regex.Match(reportContent, @"^-\s+\*\*Result:\*\*\s+(Pass|Fail|Skipped)", RegexOptions.Multiline);
-        return match.Success ? match.Groups[1].Value : null;
+        return match.Success && VerificationStatusExtensions.TryParse(match.Groups[1].Value, out var legacy)
+            ? legacy
+            : null;
     }
 
     internal static string? ExtractPlanIdFromFolder(string planFolder)
