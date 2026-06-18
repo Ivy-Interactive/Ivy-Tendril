@@ -216,6 +216,11 @@ public class TendrilProcessStatusServiceTests : IDisposable
             throw new NotImplementedException();
         }
 
+        public void ForceStartJob(string id)
+        {
+            throw new NotImplementedException();
+        }
+
         public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false)
         {
             throw new NotImplementedException();
