@@ -124,6 +124,14 @@ public class EditProjectDialog(
                 _config.Settings.Verifications.Clear();
                 _config.Settings.Verifications.AddRange(reorderedVerifs);
 
+                // Reorder the project-level verifications to match the new global order
+                var currentProjectVerifs = editVerifications.Value;
+                var reorderedProjectVerifs = reorderedVerifs
+                    .Select(gv => currentProjectVerifs.FirstOrDefault(pv => pv.Name == gv.Name))
+                    .Where(pv => pv != null)
+                    .ToList();
+                editVerifications.Set(reorderedProjectVerifs!);
+
                 try
                 {
                     _config.SaveSettings();
