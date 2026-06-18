@@ -36,6 +36,8 @@ Plans live under `planFolder` from `config.yaml`.
 - **ID**: 5-digit value from `.counter`
 - **SafeTitle**: Title-cased, first 60 chars of description, alphanumeric only, no spaces (e.g. `"Fix login bug"` – `FixLoginBug`)
 
+**SafeTitle is for the folder name only.** It is derived automatically from the title by the CLI — do not pass it anywhere. The plan's `title` field is a separate, **human-readable** string (Title Case *with spaces*). Never reuse the PascalCase SafeTitle form as the `title`.
+
 ## Modifying Plans — Use the CLI
 
 **IMPORTANT: Never read or write `plan.yaml` directly.** Always use `tendril plan` CLI commands. This ensures validation, atomic writes, timestamp updates, and database sync.
@@ -194,7 +196,7 @@ priority: 0
 | `state`        | Current plan state (see lifecycle below)         |
 | `project`      | Project name matching a `projects` entry in `config.yaml` |
 | `level`        | One of the levels defined in `config.yaml`       |
-| `title`        | Human-readable plan title                        |
+| `title`        | Human-readable plan title in **Title Case with spaces** (e.g. `Show File Details in Local Changes Dialog`). **Never** PascalCase / no-space form (`ShowFileDetailsInLocalChangesDialog`) — that form is reserved for the folder `SafeTitle` only. MUST be identical to the `# {title}` H1 heading in the revision markdown. |
 | `sessionId`    | Claude session ID from CreatePlan (for `claude --resume`) |
 | `repos`        | Affected repository paths (plain strings, e.g. `- D:\Repos\Foo` on Windows or `- /home/user/repos/Foo` on Linux — NOT objects) |
 | `created`      | UTC timestamp when the plan was created (use `CurrentTime` from firmware header) |
