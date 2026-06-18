@@ -99,6 +99,10 @@ public class UseStartJobTests
             return Guid.NewGuid().ToString();
         }
 
+        public void ForceStartJob(string id)
+        {
+        }
+
         public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false)
         {
         }
