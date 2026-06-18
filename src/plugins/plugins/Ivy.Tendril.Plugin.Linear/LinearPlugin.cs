@@ -5,7 +5,7 @@ using Ivy.Tendril.Plugins;
 
 namespace Ivy.Tendril.Plugin.Linear;
 
-public class LinearPlugin : IIvyPlugin
+public class LinearPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
 {
     public PluginManifest Manifest { get; } = new()
     {
@@ -30,20 +30,16 @@ public class LinearPlugin : IIvyPlugin
         ]
     };
 
-    public void Configure(IIvyPluginContext context)
+    public void Configure(ITendrilExtendedPluginContext context)
     {
         var apiKey = context.Config.GetValue("ApiKey")!;
-
-        if (context is not ITendrilExtendedPluginContext tendrilContext)
-            return;
-
         var clientFactory = new LinearClientFactory(apiKey);
 
-        var openImportDialog = tendrilContext.RegisterDialog(
+        var openImportDialog = context.RegisterDialog(
             "$linear-import-dialog",
-            dialogOpen => new ImportFromLinearDialog(dialogOpen, clientFactory, tendrilContext.TendrilHome));
+            dialogOpen => new ImportFromLinearDialog(dialogOpen, clientFactory, context.TendrilHome));
 
-        tendrilContext.AddSettingsMenuItem(
+        context.AddSettingsMenuItem(
             MenuItem.Default("Import Issues from Linear")
                 .Tag("$linear-import-issues")
                 .Icon(Icons.Download)

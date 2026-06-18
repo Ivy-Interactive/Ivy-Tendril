@@ -5,7 +5,7 @@ using Ivy.Plugins.Messaging;
 
 namespace Ivy.Plugin.Slack;
 
-public class SlackPlugin : IIvyPlugin
+public class SlackPlugin : IIvyPlugin<ITendrilPluginContext>
 {
     public PluginManifest Manifest { get; } = new()
     {
@@ -46,11 +46,8 @@ public class SlackPlugin : IIvyPlugin
         ]
     };
 
-    public void Configure(IIvyPluginContext context)
+    public void Configure(ITendrilPluginContext context)
     {
-        if (context is not ITendrilPluginContext tendrilContext)
-            return;
-
         var config = new SlackConfig
         {
             BotToken = context.Config.GetValue("BotToken")!,
@@ -58,6 +55,6 @@ public class SlackPlugin : IIvyPlugin
             MaxRetries = int.Parse(context.Config.GetValue("MaxRetries")!)
         };
 
-        tendrilContext.RegisterMessagingChannel(new SlackMessagingChannel(config));
+        context.RegisterMessagingChannel(new SlackMessagingChannel(config));
     }
 }
