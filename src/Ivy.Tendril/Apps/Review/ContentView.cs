@@ -661,9 +661,15 @@ public class ContentView(
 
         object Cap(object inner)
         {
+            // NOTE: a Responsive<Thickness?> with more than just Default set serializes to a
+            // breakpoint OBJECT that the StackLayout frontend drops on the floor (it reads
+            // `responsivePadding`, not the `padding` object), so the padding never rendered —
+            // which is why earlier spacing fixes here had no visible effect. Use a flat
+            // Thickness so it serializes to a plain "L,T,R,B" string the frontend parses.
+            // Left = 8 units (32px) gives the markdown the left gutter requested in #1252.
             return Layout.Vertical().Scroll().HideScrollbar().Width(Size.Full()).Height(Size.Full())
                 | (Layout.Vertical()
-                    .Padding(new Responsive<Thickness?> { Default = new Thickness(6, 0, 0, 4), Mobile = new Thickness(6, 4, 0, 4) })
+                    .Padding(8, 2, 0, 4)
                     .Width(Size.Full().Max(Size.Units(200))) | inner);
         }
     }
