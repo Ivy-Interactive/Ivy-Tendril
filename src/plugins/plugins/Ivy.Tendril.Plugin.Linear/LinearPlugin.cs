@@ -11,7 +11,6 @@ public class LinearPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
     {
         Id = "Ivy.Tendril.Plugin.Linear",
         Title = "Linear",
-        ConfigSectionName = "Linear",
         Version = new Version(1, 0, 0),
         Icon = PluginIcon.Named("Linear"),
     };
