@@ -15,6 +15,12 @@ public interface ITendrilExtendedPluginContext : IIvyExtendedPluginContext, ITen
     void TransformSettingsMenuItems(Func<IEnumerable<MenuItem>, IEnumerable<MenuItem>> transformer, int priority = 0);
 
     /// <summary>
+    /// Adds a badge provider for the given menu tag. The count function is called
+    /// during menu rendering to display notification badges on sidebar items.
+    /// </summary>
+    void AddBadgeProvider(string menuTag, Func<IServiceProvider, int> countProvider);
+
+    /// <summary>
     /// Registers a dialog factory and returns an Action that, when invoked, opens it.
     /// The factory receives an IState&lt;bool&gt; controlling the dialog's open/close state.
     /// </summary>

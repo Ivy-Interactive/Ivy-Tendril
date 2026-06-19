@@ -75,7 +75,11 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         return item;
     }
 
-    private static MenuItem[] BuildMenuItems(IAppRepository repo, TendrilProcessStatus status, IPluginMenuContributions? contributions = null)
+    private static MenuItem[] BuildMenuItems(
+        IAppRepository repo,
+        TendrilProcessStatus status,
+        IPluginMenuContributions? menuContributions = null,
+        ITendrilPluginContributions? tendrilContributions = null)
     {
         var badges = new Dictionary<string, int>
         {
@@ -87,9 +91,9 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             ["trash"] = status.TrashCount
         };
 
-        if (contributions != null)
+        if (tendrilContributions != null)
         {
-            foreach (var (tag, provider) in contributions.BadgeProviders)
+            foreach (var (tag, provider) in tendrilContributions.BadgeProviders)
             {
                 try { badges[tag] = provider(null!); }
                 catch { /* provider may fail — skip */ }
@@ -98,9 +102,9 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
         IEnumerable<MenuItem> items = repo.GetMenuItems();
 
-        if (contributions != null)
+        if (menuContributions != null)
         {
-            foreach (var transformer in contributions.MenuTransformers)
+            foreach (var transformer in menuContributions.MenuTransformers)
                 items = transformer(items);
         }
 
@@ -120,7 +124,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var statusService = UseService<ITendrilProcessStatusService>();
         Context.TryUseService<ITendrilPluginContributions>(out var pluginContext);
         Context.TryUseService<IPluginMenuContributions>(out var pluginMenuContributions);
-        var menuItems = UseState(() => BuildMenuItems(appRepository, statusService.Current, pluginMenuContributions));
+        var menuItems = UseState(() => BuildMenuItems(appRepository, statusService.Current, pluginMenuContributions, pluginContext));
         var status = UseState(() => statusService.Current);
         var sidebarOpen = UseState(settings.SidebarOpen);
         var args = UseService<AppContext>();
@@ -155,7 +159,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             });
         });
 
-        UseEffect(() => { menuItems.Set(BuildMenuItems(appRepository, status.Value, pluginMenuContributions)); },
+        UseEffect(() => { menuItems.Set(BuildMenuItems(appRepository, status.Value, pluginMenuContributions, pluginContext)); },
             appRepository.Reloaded.ToTrigger(), status);
 
         var jobService = UseService<IJobService>();

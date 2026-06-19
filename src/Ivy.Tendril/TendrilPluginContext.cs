@@ -13,6 +13,7 @@ internal class TendrilPluginContext(Server server, WebApplicationBuilder builder
 {
     public string TendrilHome { get; } = tendrilHome;
     private readonly List<(Func<IEnumerable<MenuItem>, IEnumerable<MenuItem>> Transformer, int Priority, string PluginId)> _settingsMenuTransformers = [];
+    private readonly List<(string Tag, Func<IServiceProvider, int> CountProvider, string PluginId)> _badgeProviders = [];
     private readonly Dictionary<string, Func<IState<bool>, object?>> _dialogFactories = [];
     private readonly Dictionary<string, string> _dialogOwners = []; // dialog id -> plugin id
 
@@ -22,6 +23,9 @@ internal class TendrilPluginContext(Server server, WebApplicationBuilder builder
             .Select(x => x.Transformer)
             .ToList();
 
+    public IReadOnlyList<(string Tag, Func<IServiceProvider, int> CountProvider)> BadgeProviders =>
+        _badgeProviders.Select(x => (x.Tag, x.CountProvider)).ToList();
+
     public IReadOnlyDictionary<string, Func<IState<bool>, object?>> DialogFactories => _dialogFactories;
 
     public event Action<string>? DialogOpenRequested;
@@ -30,6 +34,12 @@ internal class TendrilPluginContext(Server server, WebApplicationBuilder builder
     {
         var pluginId = CurrentPluginId ?? "__unknown__";
         _settingsMenuTransformers.Add((transformer, priority, pluginId));
+    }
+
+    public void AddBadgeProvider(string menuTag, Func<IServiceProvider, int> countProvider)
+    {
+        var pluginId = CurrentPluginId ?? "__unknown__";
+        _badgeProviders.Add((menuTag, countProvider, pluginId));
     }
 
     public Action RegisterDialog(string id, Func<IState<bool>, object?> factory)
@@ -45,6 +55,7 @@ internal class TendrilPluginContext(Server server, WebApplicationBuilder builder
         base.RemovePluginContributions(pluginId);
 
         _settingsMenuTransformers.RemoveAll(x => x.PluginId == pluginId);
+        _badgeProviders.RemoveAll(x => x.PluginId == pluginId);
 
         var dialogsToRemove = _dialogOwners
             .Where(kv => kv.Value == pluginId)
