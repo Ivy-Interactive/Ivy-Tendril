@@ -200,7 +200,7 @@ public class MyPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
     public void Configure(ITendrilExtendedPluginContext context)
     {
         context.RegisterDialog(...);
-        context.AddSettingsMenuItems(...);
+        context.TransformSettingsMenuItems(...);
     }
 }
 ```
@@ -418,10 +418,10 @@ public class MyPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
 
 ### Modifying the Settings Menu
 
-Use `AddSettingsMenuItems` to transform the footer settings menu. Transformers receive the current menu items and return a modified list, sorted by priority (lower = first):
+Use `TransformSettingsMenuItems` to transform the footer settings menu. Transformers receive the current menu items and return a modified list, sorted by priority (lower = first):
 
 ```csharp
-context.AddSettingsMenuItems(items =>
+context.TransformSettingsMenuItems(items =>
 {
     var list = items.ToList();
     var importIndex = list.FindIndex(m => (string?)m.Tag == "$import-issues");
@@ -496,7 +496,7 @@ public void Configure(ITendrilExtendedPluginContext context)
 ```
 
 Additional extended context capabilities:
-- `AddMenuItems(transformer)` — modify the main menu item list
+- `TransformMenuItems(transformer)` — modify the main menu item list
 - `AddBadgeProvider(menuTag, countProvider)` — add notification badges to menu items
 - `UseWebApplication(configure)` — add ASP.NET middleware to the host pipeline
 - `UseWebApplicationBuilder(configure)` — configure the host's `WebApplicationBuilder`
@@ -718,7 +718,7 @@ public class LinearPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
             "$linear-import-dialog",
             dialogOpen => new ImportFromLinearDialog(dialogOpen, clientFactory, context.TendrilHome));
 
-        context.AddSettingsMenuItems(items =>
+        context.TransformSettingsMenuItems(items =>
         {
             var list = items.ToList();
             var importIndex = list.FindIndex(m => (string?)m.Tag == "$import-issues");

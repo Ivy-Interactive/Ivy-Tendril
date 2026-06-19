@@ -38,7 +38,7 @@ public class LinearPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
             "$linear-import-dialog",
             dialogOpen => new ImportFromLinearDialog(dialogOpen, clientFactory, context.TendrilHome));
 
-        context.AddSettingsMenuItems(items =>
+        context.TransformSettingsMenuItems(items =>
         {
             var list = items.ToList();
             var importIndex = list.FindIndex(m => (string?)m.Tag == "$import-issues");

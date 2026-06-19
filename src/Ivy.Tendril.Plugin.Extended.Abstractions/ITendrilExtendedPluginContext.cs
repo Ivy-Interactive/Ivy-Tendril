@@ -12,7 +12,7 @@ public interface ITendrilExtendedPluginContext : IIvyExtendedPluginContext, ITen
     /// Adds a transformer that modifies the settings menu items.
     /// Transformers are applied in priority order (lower = first).
     /// </summary>
-    void AddSettingsMenuItems(Func<IEnumerable<MenuItem>, IEnumerable<MenuItem>> transformer, int priority = 0);
+    void TransformSettingsMenuItems(Func<IEnumerable<MenuItem>, IEnumerable<MenuItem>> transformer, int priority = 0);
 
     /// <summary>
     /// Registers a dialog factory and returns an Action that, when invoked, opens it.

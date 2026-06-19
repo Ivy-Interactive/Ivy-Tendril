@@ -26,7 +26,7 @@ internal class TendrilPluginContext(Server server, WebApplicationBuilder builder
 
     public event Action<string>? DialogOpenRequested;
 
-    public void AddSettingsMenuItems(Func<IEnumerable<MenuItem>, IEnumerable<MenuItem>> transformer, int priority = 0)
+    public void TransformSettingsMenuItems(Func<IEnumerable<MenuItem>, IEnumerable<MenuItem>> transformer, int priority = 0)
     {
         var pluginId = CurrentPluginId ?? "__unknown__";
         _settingsMenuTransformers.Add((transformer, priority, pluginId));
