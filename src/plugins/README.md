@@ -593,7 +593,9 @@ The token is then retrieved in `Configure()` via `context.Config.GetValue("ApiKe
 
 ### Registering a Messaging Channel
 
-Plugins can register messaging channels that Tendril uses to send notifications (e.g., plan completion updates). Use `IIvyPlugin<ITendrilPluginContext>` (or `ITendrilExtendedPluginContext` if you also need UI contributions):
+> **To be implemented...** Although messaging channels can be implemented and registered, Tendril does not use them yet.
+
+Plugins can register messaging channels that Tendril can use to send notifications (e.g., plan completion updates). Use `IIvyPlugin<ITendrilPluginContext>` (or `ITendrilExtendedPluginContext` if you also need UI contributions):
 
 ```csharp
 public class SlackPlugin : IIvyPlugin<ITendrilPluginContext>
