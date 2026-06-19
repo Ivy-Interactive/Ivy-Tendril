@@ -1,23 +1,26 @@
 namespace Ivy.Tendril.Plugins;
 
 /// <summary>
-/// Specifies where a plugin-contributed settings menu item should be placed
-/// relative to the built-in footer menu items.
+/// Specifies where a plugin-contributed settings menu item should be placed.
+/// Use the static factory methods to create placements.
 /// </summary>
-public enum FooterMenuPosition
+public sealed record MenuPlacement
 {
-    /// <summary>
-    /// Insert at the top of the settings menu, before all built-in items.
-    /// </summary>
-    Top = 0,
+    /// <summary>Place at the top of the menu. Lower priority = closer to the top.</summary>
+    public static MenuPlacement Top(int priority = 0) => new() { Position = MenuPosition.Top, Priority = priority };
 
-    /// <summary>
-    /// Insert at the bottom of the settings menu, after all built-in items.
-    /// </summary>
-    Bottom = 1,
+    /// <summary>Place at the bottom of the menu. Lower priority = closer to the last built-in item.</summary>
+    public static MenuPlacement Bottom(int priority = 0) => new() { Position = MenuPosition.Bottom, Priority = priority };
 
-    /// <summary>
-    /// Insert after the "Import Issues from GitHub" menu item.
-    /// </summary>
-    ImportIssues = 2,
+    /// <summary>Place after the item with the given tag. Lower priority = closer to the anchor.</summary>
+    public static MenuPlacement After(string tag, int priority = 0) => new() { Position = MenuPosition.After, AnchorTag = tag, Priority = priority };
+
+    /// <summary>Place before the item with the given tag. Lower priority = closer to the anchor.</summary>
+    public static MenuPlacement Before(string tag, int priority = 0) => new() { Position = MenuPosition.Before, AnchorTag = tag, Priority = priority };
+
+    public MenuPosition Position { get; init; }
+    public string? AnchorTag { get; init; }
+    public int Priority { get; init; }
 }
+
+public enum MenuPosition { Top, Bottom, After, Before }

@@ -43,6 +43,6 @@ public class LinearPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
                 .Tag("$linear-import-issues")
                 .Icon(Icons.Download)
                 .OnSelect(() => openImportDialog()),
-            FooterMenuPosition.ImportIssues);
+            MenuPlacement.After("$import-issues"));
     }
 }

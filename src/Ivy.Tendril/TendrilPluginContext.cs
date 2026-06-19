@@ -12,25 +12,25 @@ internal class TendrilPluginContext(Server server, WebApplicationBuilder builder
     : PluginContextBase(server, builder), ITendrilExtendedPluginContext, ITendrilPluginContributions
 {
     public string TendrilHome { get; } = tendrilHome;
-    private readonly List<(MenuItem Item, FooterMenuPosition Position, string PluginId)> _settingsMenuItems = [];
+    private readonly List<(MenuItem Item, MenuPlacement Placement, string PluginId)> _settingsMenuItems = [];
     private readonly Dictionary<string, Func<IState<bool>, object?>> _dialogFactories = [];
     private readonly Dictionary<string, string> _dialogOwners = []; // dialog id -> plugin id
 
-    public IReadOnlyList<(MenuItem Item, FooterMenuPosition Position)> SettingsMenuItems =>
-        _settingsMenuItems.Select(x => (x.Item, x.Position)).ToList();
+    public IReadOnlyList<(MenuItem Item, MenuPlacement Placement)> SettingsMenuItems =>
+        _settingsMenuItems.Select(x => (x.Item, x.Placement)).ToList();
 
     public IReadOnlyDictionary<string, Func<IState<bool>, object?>> DialogFactories => _dialogFactories;
 
     public event Action<string>? DialogOpenRequested;
 
-    public void AddSettingsMenuItem(MenuItem item, FooterMenuPosition position)
+    public void AddSettingsMenuItem(MenuItem item, MenuPlacement placement)
     {
         if (item.Tag is null)
             throw new InvalidOperationException(
                 "Settings menu items contributed by plugins must have a Tag set for stable ordering.");
 
         var pluginId = CurrentPluginId ?? "__unknown__";
-        _settingsMenuItems.Add((item, position, pluginId));
+        _settingsMenuItems.Add((item, placement, pluginId));
     }
 
     public Action RegisterDialog(string id, Func<IState<bool>, object?> factory)

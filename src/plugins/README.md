@@ -424,15 +424,16 @@ extendedContext.AddSettingsMenuItem(
         .Tag("$linear-import-issues")    // Required: used for stable sorting
         .Icon(Icons.Download)
         .OnSelect(() => openImportDialog()),
-    FooterMenuPosition.ImportIssues);
+    MenuPlacement.After("$import-issues"));
 ```
 
-**FooterMenuPosition options:**
-- `Top` — before all built-in items
-- `Bottom` — after all built-in items
-- `ImportIssues` — after the "Import Issues from GitHub" item
+**MenuPlacement options:**
+- `MenuPlacement.Top(priority)` — before all built-in items
+- `MenuPlacement.Bottom(priority)` — after all built-in items
+- `MenuPlacement.After(tag, priority)` — after the item with the given tag
+- `MenuPlacement.Before(tag, priority)` — before the item with the given tag
 
-Items within the same position bucket are sorted alphabetically by `Tag`.
+Items within the same position bucket are sorted by priority (lower = closer to anchor), then alphabetically by `Tag`. Plugins can position relative to other plugin items by referencing their tags.
 
 ### Adding a Dialog
 
@@ -653,7 +654,7 @@ public class LinearPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
                 .Tag("$linear-import-issues")
                 .Icon(Icons.Download)
                 .OnSelect(() => openImportDialog()),
-            FooterMenuPosition.ImportIssues);
+            MenuPlacement.After("$import-issues"));
     }
 }
 ```
