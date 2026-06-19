@@ -52,7 +52,7 @@ public class SlackPlugin : IIvyPlugin<ITendrilPluginContext>
         {
             BotToken = context.Config.GetValue("BotToken")!,
             DefaultChannel = context.Config.GetValue("DefaultChannel")!,
-            MaxRetries = int.Parse(context.Config.GetValue("MaxRetries")!)
+            MaxRetries = context.Config.GetInt("MaxRetries") ?? 3
         };
 
         context.RegisterMessagingChannel(new SlackMessagingChannel(config));
