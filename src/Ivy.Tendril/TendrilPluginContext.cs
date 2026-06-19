@@ -12,25 +12,24 @@ internal class TendrilPluginContext(Server server, WebApplicationBuilder builder
     : PluginContextBase(server, builder), ITendrilExtendedPluginContext, ITendrilPluginContributions
 {
     public string TendrilHome { get; } = tendrilHome;
-    private readonly List<(MenuItem Item, MenuPlacement Placement, string PluginId)> _settingsMenuItems = [];
+    private readonly List<(Func<IEnumerable<MenuItem>, IEnumerable<MenuItem>> Transformer, int Priority, string PluginId)> _settingsMenuTransformers = [];
     private readonly Dictionary<string, Func<IState<bool>, object?>> _dialogFactories = [];
     private readonly Dictionary<string, string> _dialogOwners = []; // dialog id -> plugin id
 
-    public IReadOnlyList<(MenuItem Item, MenuPlacement Placement)> SettingsMenuItems =>
-        _settingsMenuItems.Select(x => (x.Item, x.Placement)).ToList();
+    public IReadOnlyList<Func<IEnumerable<MenuItem>, IEnumerable<MenuItem>>> SettingsMenuTransformers =>
+        _settingsMenuTransformers
+            .OrderBy(x => x.Priority)
+            .Select(x => x.Transformer)
+            .ToList();
 
     public IReadOnlyDictionary<string, Func<IState<bool>, object?>> DialogFactories => _dialogFactories;
 
     public event Action<string>? DialogOpenRequested;
 
-    public void AddSettingsMenuItem(MenuItem item, MenuPlacement placement)
+    public void AddSettingsMenuItems(Func<IEnumerable<MenuItem>, IEnumerable<MenuItem>> transformer, int priority = 0)
     {
-        if (item.Tag is null)
-            throw new InvalidOperationException(
-                "Settings menu items contributed by plugins must have a Tag set for stable ordering.");
-
         var pluginId = CurrentPluginId ?? "__unknown__";
-        _settingsMenuItems.Add((item, placement, pluginId));
+        _settingsMenuTransformers.Add((transformer, priority, pluginId));
     }
 
     public Action RegisterDialog(string id, Func<IState<bool>, object?> factory)
@@ -45,7 +44,7 @@ internal class TendrilPluginContext(Server server, WebApplicationBuilder builder
     {
         base.RemovePluginContributions(pluginId);
 
-        _settingsMenuItems.RemoveAll(x => x.PluginId == pluginId);
+        _settingsMenuTransformers.RemoveAll(x => x.PluginId == pluginId);
 
         var dialogsToRemove = _dialogOwners
             .Where(kv => kv.Value == pluginId)

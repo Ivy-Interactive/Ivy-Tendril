@@ -1,10 +1,8 @@
-using Ivy.Tendril.Plugins;
-
 namespace Ivy.Tendril.AppShell;
 
 internal interface ITendrilPluginContributions
 {
-    IReadOnlyList<(MenuItem Item, MenuPlacement Placement)> SettingsMenuItems { get; }
+    IReadOnlyList<Func<IEnumerable<MenuItem>, IEnumerable<MenuItem>>> SettingsMenuTransformers { get; }
     IReadOnlyDictionary<string, Func<IState<bool>, object?>> DialogFactories { get; }
     event Action<string>? DialogOpenRequested;
 }

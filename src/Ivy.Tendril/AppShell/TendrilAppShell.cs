@@ -474,9 +474,13 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 #endif
         };
 
-        var settingsMenuItems = pluginContext != null
-            ? SettingsMenuBuilder.Build(builtInSettingsMenuItems, pluginContext.SettingsMenuItems)
-            : builtInSettingsMenuItems;
+        IEnumerable<MenuItem> settingsMenuItems = builtInSettingsMenuItems;
+        if (pluginContext != null)
+        {
+            foreach (var transformer in pluginContext.SettingsMenuTransformers)
+                settingsMenuItems = transformer(settingsMenuItems);
+        }
+        var finalSettingsMenuItems = settingsMenuItems.ToArray();
 
         var settingsTrigger = new Button("Settings")
             .Content(
@@ -490,7 +494,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 DropDownMenu.DefaultSelectHandler(),
                 settingsTrigger)
             .Top()
-            .Items(settings.FooterMenuItemsTransformer(settingsMenuItems, navigator));
+            .Items(settings.FooterMenuItemsTransformer(finalSettingsMenuItems, navigator));
 
         object? footer = settingsMenu;
 

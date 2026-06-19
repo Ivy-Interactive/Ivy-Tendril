@@ -9,11 +9,10 @@ namespace Ivy.Tendril.Plugins;
 public interface ITendrilExtendedPluginContext : IIvyExtendedPluginContext, ITendrilPluginContext
 {
     /// <summary>
-    /// Adds a menu item to the footer settings menu at the specified placement.
-    /// The item's Tag property must be set and will be used for stable sorting
-    /// within the same position bucket.
+    /// Adds a transformer that modifies the settings menu items.
+    /// Transformers are applied in priority order (lower = first).
     /// </summary>
-    void AddSettingsMenuItem(MenuItem item, MenuPlacement placement);
+    void AddSettingsMenuItems(Func<IEnumerable<MenuItem>, IEnumerable<MenuItem>> transformer, int priority = 0);
 
     /// <summary>
     /// Registers a dialog factory and returns an Action that, when invoked, opens it.

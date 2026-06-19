@@ -200,7 +200,7 @@ public class MyPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
     public void Configure(ITendrilExtendedPluginContext context)
     {
         context.RegisterDialog(...);
-        context.AddSettingsMenuItem(...);
+        context.AddSettingsMenuItems(...);
     }
 }
 ```
@@ -416,24 +416,26 @@ public class MyPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
 }
 ```
 
-### Adding a Settings Menu Item
+### Modifying the Settings Menu
+
+Use `AddSettingsMenuItems` to transform the footer settings menu. Transformers receive the current menu items and return a modified list, sorted by priority (lower = first):
 
 ```csharp
-extendedContext.AddSettingsMenuItem(
-    MenuItem.Default("Import Issues from Linear")
-        .Tag("$linear-import-issues")    // Required: used for stable sorting
-        .Icon(Icons.Download)
-        .OnSelect(() => openImportDialog()),
-    MenuPlacement.After("$import-issues"));
+context.AddSettingsMenuItems(items =>
+{
+    var list = items.ToList();
+    var importIndex = list.FindIndex(m => (string?)m.Tag == "$import-issues");
+    var insertAt = importIndex >= 0 ? importIndex + 1 : list.Count;
+    list.Insert(insertAt,
+        MenuItem.Default("Import Issues from Linear")
+            .Tag("$linear-import-issues")
+            .Icon(Icons.Download)
+            .OnSelect(() => openImportDialog()));
+    return list;
+});
 ```
 
-**MenuPlacement options:**
-- `MenuPlacement.Top(priority)` — before all built-in items
-- `MenuPlacement.Bottom(priority)` — after all built-in items
-- `MenuPlacement.After(tag, priority)` — after the item with the given tag
-- `MenuPlacement.Before(tag, priority)` — before the item with the given tag
-
-Items within the same position bucket are sorted by priority (lower = closer to anchor), then alphabetically by `Tag`. Plugins can position relative to other plugin items by referencing their tags.
+Built-in settings menu tags: `$setup`, `$trash`, `$import-issues`, `$theme`, `$debug` (debug builds only).
 
 ### Adding a Dialog
 
@@ -716,12 +718,18 @@ public class LinearPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
             "$linear-import-dialog",
             dialogOpen => new ImportFromLinearDialog(dialogOpen, clientFactory, context.TendrilHome));
 
-        context.AddSettingsMenuItem(
-            MenuItem.Default("Import Issues from Linear")
-                .Tag("$linear-import-issues")
-                .Icon(Icons.Download)
-                .OnSelect(() => openImportDialog()),
-            MenuPlacement.After("$import-issues"));
+        context.AddSettingsMenuItems(items =>
+        {
+            var list = items.ToList();
+            var importIndex = list.FindIndex(m => (string?)m.Tag == "$import-issues");
+            var insertAt = importIndex >= 0 ? importIndex + 1 : list.Count;
+            list.Insert(insertAt,
+                MenuItem.Default("Import Issues from Linear")
+                    .Tag("$linear-import-issues")
+                    .Icon(Icons.Download)
+                    .OnSelect(() => openImportDialog()));
+            return list;
+        });
     }
 }
 ```

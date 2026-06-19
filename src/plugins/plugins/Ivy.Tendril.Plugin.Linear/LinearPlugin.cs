@@ -38,11 +38,17 @@ public class LinearPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
             "$linear-import-dialog",
             dialogOpen => new ImportFromLinearDialog(dialogOpen, clientFactory, context.TendrilHome));
 
-        context.AddSettingsMenuItem(
-            MenuItem.Default("Import Issues from Linear")
-                .Tag("$linear-import-issues")
-                .Icon(Icons.Download)
-                .OnSelect(() => openImportDialog()),
-            MenuPlacement.After("$import-issues"));
+        context.AddSettingsMenuItems(items =>
+        {
+            var list = items.ToList();
+            var importIndex = list.FindIndex(m => (string?)m.Tag == "$import-issues");
+            var insertAt = importIndex >= 0 ? importIndex + 1 : list.Count;
+            list.Insert(insertAt,
+                MenuItem.Default("Import Issues from Linear")
+                    .Tag("$linear-import-issues")
+                    .Icon(Icons.Download)
+                    .OnSelect(() => openImportDialog()));
+            return list;
+        });
     }
 }
