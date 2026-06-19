@@ -496,7 +496,6 @@ public void Configure(ITendrilExtendedPluginContext context)
 ```
 
 Additional extended context capabilities:
-- `TransformMenuItems(transformer)` — modify the main menu item list
 - `AddBadgeProvider(menuTag, countProvider)` — add notification badges to menu items
 - `UseWebApplication(configure)` — add ASP.NET middleware to the host pipeline
 - `UseWebApplicationBuilder(configure)` — configure the host's `WebApplicationBuilder`

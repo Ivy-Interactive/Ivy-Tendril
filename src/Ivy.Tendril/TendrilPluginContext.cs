@@ -29,6 +29,7 @@ internal class TendrilPluginContext(Server server, WebApplicationBuilder builder
     public IReadOnlyDictionary<string, Func<IState<bool>, object?>> DialogFactories => _dialogFactories;
 
     public event Action<string>? DialogOpenRequested;
+    public event Action? MenuInvalidated;
 
     public void TransformSettingsMenuItems(Func<IEnumerable<MenuItem>, IEnumerable<MenuItem>> transformer, int priority = 0)
     {
@@ -41,6 +42,8 @@ internal class TendrilPluginContext(Server server, WebApplicationBuilder builder
         var pluginId = CurrentPluginId ?? "__unknown__";
         _badgeProviders.Add((menuTag, countProvider, pluginId));
     }
+
+    public void InvalidateMenu() => MenuInvalidated?.Invoke();
 
     public Action RegisterDialog(string id, Func<IState<bool>, object?> factory)
     {

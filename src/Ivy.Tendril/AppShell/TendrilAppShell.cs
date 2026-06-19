@@ -3,7 +3,6 @@ using System.Reactive.Disposables;
 using System.Text.Json;
 using Ivy.Core;
 using Ivy.Core.Apps;
-using Ivy.Core.Plugins;
 using Ivy.Tendril.AppShell.Dialogs;
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Apps.Onboarding;
@@ -78,8 +77,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     private static MenuItem[] BuildMenuItems(
         IAppRepository repo,
         TendrilProcessStatus status,
-        IPluginMenuContributions? menuContributions = null,
-        ITendrilPluginContributions? tendrilContributions = null)
+        ITendrilPluginContributions? pluginContributions = null)
     {
         var badges = new Dictionary<string, int>
         {
@@ -91,24 +89,16 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             ["trash"] = status.TrashCount
         };
 
-        if (tendrilContributions != null)
+        if (pluginContributions != null)
         {
-            foreach (var (tag, provider) in tendrilContributions.BadgeProviders)
+            foreach (var (tag, provider) in pluginContributions.BadgeProviders)
             {
                 try { badges[tag] = provider(null!); }
                 catch { /* provider may fail — skip */ }
             }
         }
 
-        IEnumerable<MenuItem> items = repo.GetMenuItems();
-
-        if (menuContributions != null)
-        {
-            foreach (var transformer in menuContributions.MenuTransformers)
-                items = transformer(items);
-        }
-
-        return items.Select(m => AddBadge(m, badges)).ToArray();
+        return repo.GetMenuItems().Select(m => AddBadge(m, badges)).ToArray();
     }
 
     public override object Build()
@@ -123,8 +113,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var currentApp = UseState<AppHost?>();
         var statusService = UseService<ITendrilProcessStatusService>();
         Context.TryUseService<ITendrilPluginContributions>(out var pluginContext);
-        Context.TryUseService<IPluginMenuContributions>(out var pluginMenuContributions);
-        var menuItems = UseState(() => BuildMenuItems(appRepository, statusService.Current, pluginMenuContributions, pluginContext));
+        var menuItems = UseState(() => BuildMenuItems(appRepository, statusService.Current, pluginContext));
         var status = UseState(() => statusService.Current);
         var sidebarOpen = UseState(settings.SidebarOpen);
         var args = UseService<AppContext>();
@@ -159,8 +148,18 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             });
         });
 
-        UseEffect(() => { menuItems.Set(BuildMenuItems(appRepository, status.Value, pluginMenuContributions, pluginContext)); },
-            appRepository.Reloaded.ToTrigger(), status);
+        var menuVersion = UseState(0);
+
+        UseEffect(() =>
+        {
+            if (pluginContext is null) return Disposable.Empty;
+            void OnMenuInvalidated() => menuVersion.Set(menuVersion.Value + 1);
+            pluginContext.MenuInvalidated += OnMenuInvalidated;
+            return Disposable.Create(() => pluginContext.MenuInvalidated -= OnMenuInvalidated);
+        });
+
+        UseEffect(() => { menuItems.Set(BuildMenuItems(appRepository, status.Value, pluginContext)); },
+            appRepository.Reloaded.ToTrigger(), status, menuVersion);
 
         var jobService = UseService<IJobService>();
 

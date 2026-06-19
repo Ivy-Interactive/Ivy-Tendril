@@ -6,4 +6,5 @@ internal interface ITendrilPluginContributions
     IReadOnlyList<(string Tag, Func<IServiceProvider, int> CountProvider)> BadgeProviders { get; }
     IReadOnlyDictionary<string, Func<IState<bool>, object?>> DialogFactories { get; }
     event Action<string>? DialogOpenRequested;
+    event Action? MenuInvalidated;
 }

@@ -21,6 +21,12 @@ public interface ITendrilExtendedPluginContext : IIvyExtendedPluginContext, ITen
     void AddBadgeProvider(string menuTag, Func<IServiceProvider, int> countProvider);
 
     /// <summary>
+    /// Signals that plugin-contributed menu items or badges have changed and
+    /// the sidebar should re-render.
+    /// </summary>
+    void InvalidateMenu();
+
+    /// <summary>
     /// Registers a dialog factory and returns an Action that, when invoked, opens it.
     /// The factory receives an IState&lt;bool&gt; controlling the dialog's open/close state.
     /// </summary>
