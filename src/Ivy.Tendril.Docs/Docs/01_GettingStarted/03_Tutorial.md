@@ -94,7 +94,7 @@ Add a `CLAUDE.md` or `AGENTS.md` file to your repo root with project conventions
 
 ## Step 4 — Create a Plan
 
-From the dashboard, click **New Plan** and describe what you want to build or fix. Tendril will run the `CreatePlan` promptware to draft a structured plan with a problem statement, proposed solution, and verification checklist.
+From the dashboard, click **New Plan** and describe what you want to build or fix. Tendril will run the `CreatePlan` promptware to draft a structured plan with a problem statement, proposed solution, and tests. Its verifications are seeded into the plan and shown in the Verifications card, where you can toggle which ones run.
 
 You can also create a plan from the CLI:
 

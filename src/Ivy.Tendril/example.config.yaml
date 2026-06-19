@@ -265,5 +265,3 @@ planTemplate: >
   **Test scope:**
 
   Specify which tests to run using your test framework's syntax (e.g., `dotnet test --filter "..."`, `jest --testPathPattern=...`, `pytest tests/specific/`, or "No existing test coverage" / "Run all tests — <justification>")
-
-  ## Verification

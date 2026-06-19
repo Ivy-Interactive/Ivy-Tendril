@@ -14,6 +14,7 @@ public class PlanTabView(
     IState<string> editContentState,
     IState<string?> openFileState,
     IPlanReaderService planService,
+    IConfigService config,
     IState<ImmutableList<MarkdownAnnotation>> annotations) : ViewBase
 {
     public override object Build()
@@ -39,15 +40,8 @@ public class PlanTabView(
             var annotatedContent = MarkdownHelper.AnnotateAllBrokenLinks(
                 selectedPlan.LatestRevisionContent,
                 planService.PlansDirectory);
-
-            // Placeholder for the pinned interactive element. It lives in the widget's
-            // StickyContent slot, which renders outside the markdown's scroll region, so
-            // it stays in place while the plan content scrolls.
-            var fixedElement = new Card(
-                Layout.Vertical().Gap(2)
-                | Text.Block("Actions").Bold()
-                | new Button("Placeholder").Outline()
-            ).Width(Size.Px(280));
+            
+            var fixedElement = new VerificationsCardView(selectedPlan, planService, config);
 
             Action<string> onLinkClick = FileSheet.CreateLinkClickHandler(openFileState, planId =>
             {

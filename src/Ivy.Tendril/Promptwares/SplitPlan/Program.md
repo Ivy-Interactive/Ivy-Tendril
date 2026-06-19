@@ -28,6 +28,10 @@ Report status: `tendril job status TendrilJobId --message "Creating split plans.
 
 For each distinct issue, use `tendril plan create` to allocate an ID, create the folder, and write `plan.yaml`:
 
+**Title format:** `<Title>` MUST be human-readable **Title Case with spaces** and normal capitalization. Do NOT use the PascalCase / no-space folder form — the CLI derives the folder `SafeTitle` from your title automatically.
+- ✅ `Show File Details in Local Changes Dialog`
+- ❌ `ShowFileDetailsInLocalChangesDialog`
+
 ```bash
 tendril plan create "<Title>" "<TendrilProject>" \
   --plans-dir "<TendrilPlansFolder>" \
@@ -59,6 +63,8 @@ tendril plan write-revision <PlanId> <<'EOF'
 <revision content here>
 EOF
 ```
+
+**The revision's first line is the `# {title}` H1 heading — it MUST be the exact same string you passed as `<Title>` to `tendril plan create` for that plan** (human-readable Title Case, not the PascalCase folder form). The `plan.yaml` title and the spec H1 must always match.
 
 The command reads from STDIN and auto-creates the next numbered revision file. Fill in Problem, Solution, Remaining Design Questions, Tests sections. Each plan must be fully self-contained. Do NOT use the Write or Edit tools to create revision files directly in `Revisions/`.
 

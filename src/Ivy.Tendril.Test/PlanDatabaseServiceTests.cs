@@ -33,7 +33,7 @@ public class PlanDatabaseServiceTests : IDisposable
             new List<string> { "D:\\Repos\\Test" },
             new List<string> { "abc123" },
             new List<string> { "https://github.com/test/pr/1" },
-            new List<PlanVerificationEntry> { new() { Name = "DotnetBuild", Status = "Pass" } },
+            new List<PlanVerificationEntry> { new() { Name = "DotnetBuild", Status = VerificationStatus.Pass } },
             new List<string>(),
             new List<string>(),
             DateTime.UtcNow.AddDays(-1),
@@ -1269,9 +1269,9 @@ public class PlanDatabaseServiceTests : IDisposable
                 new List<string>(),
                 new List<PlanVerificationEntry>
                 {
-                    new() { Name = "DotnetBuild", Status = "Pass" },
-                    new() { Name = "DotnetTest", Status = "Pass" },
-                    new() { Name = "DotnetFormat", Status = "Pass" }
+                    new() { Name = "DotnetBuild", Status = VerificationStatus.Pass },
+                    new() { Name = "DotnetTest", Status = VerificationStatus.Pass },
+                    new() { Name = "DotnetFormat", Status = VerificationStatus.Pass }
                 },
                 new List<string>(),
                 new List<string>(),
@@ -1365,7 +1365,7 @@ public class PlanDatabaseServiceTests : IDisposable
                 new List<string> { $"D:\\Repos\\Repo{i}" },
                 new List<string>(),
                 new List<string>(),
-                new List<PlanVerificationEntry> { new() { Name = "DotnetBuild", Status = "Pass" } },
+                new List<PlanVerificationEntry> { new() { Name = "DotnetBuild", Status = VerificationStatus.Pass } },
                 new List<string>(),
                 new List<string>(),
                 DateTime.UtcNow.AddDays(-1),
@@ -1387,7 +1387,7 @@ public class PlanDatabaseServiceTests : IDisposable
             Assert.Equal($"D:\\Repos\\Repo{plan.Id}", plan.Repos[0]);
             Assert.Single(plan.Verifications);
             Assert.Equal("DotnetBuild", plan.Verifications[0].Name);
-            Assert.Equal("Pass", plan.Verifications[0].Status);
+            Assert.Equal(VerificationStatus.Pass, plan.Verifications[0].Status);
         }
     }
 }

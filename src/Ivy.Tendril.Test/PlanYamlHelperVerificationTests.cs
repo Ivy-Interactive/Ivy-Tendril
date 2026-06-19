@@ -1,4 +1,5 @@
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 
 namespace Ivy.Tendril.Test;
 
@@ -20,7 +21,7 @@ public class PlanYamlHelperVerificationTests
             Build succeeded.
             """;
 
-        Assert.Equal("Pass", PlanYamlHelper.ParseVerificationResultFromReport(content));
+        Assert.Equal(VerificationStatus.Pass, PlanYamlHelper.ParseVerificationResultFromReport(content));
     }
 
     [Fact]
@@ -39,7 +40,7 @@ public class PlanYamlHelperVerificationTests
             Build failed with 2 errors.
             """;
 
-        Assert.Equal("Fail", PlanYamlHelper.ParseVerificationResultFromReport(content));
+        Assert.Equal(VerificationStatus.Fail, PlanYamlHelper.ParseVerificationResultFromReport(content));
     }
 
     [Fact]
@@ -54,7 +55,7 @@ public class PlanYamlHelperVerificationTests
             # DotnetTest
             """;
 
-        Assert.Equal("Skipped", PlanYamlHelper.ParseVerificationResultFromReport(content));
+        Assert.Equal(VerificationStatus.Skipped, PlanYamlHelper.ParseVerificationResultFromReport(content));
     }
 
     [Fact]
@@ -72,7 +73,7 @@ public class PlanYamlHelperVerificationTests
             Build succeeded with 0 warnings and 0 errors.
             """;
 
-        Assert.Equal("Pass", PlanYamlHelper.ParseVerificationResultFromReport(content));
+        Assert.Equal(VerificationStatus.Pass, PlanYamlHelper.ParseVerificationResultFromReport(content));
     }
 
     [Fact]
@@ -90,7 +91,7 @@ public class PlanYamlHelperVerificationTests
             3 tests failed.
             """;
 
-        Assert.Equal("Fail", PlanYamlHelper.ParseVerificationResultFromReport(content));
+        Assert.Equal(VerificationStatus.Fail, PlanYamlHelper.ParseVerificationResultFromReport(content));
     }
 
     [Fact]

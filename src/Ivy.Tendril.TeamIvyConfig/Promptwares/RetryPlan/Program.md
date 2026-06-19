@@ -119,12 +119,7 @@ tendril plan add-commit <plan-id> abc1234
 tendril plan add-commit <plan-id> def5678
 ```
 
-Set verification statuses from the plan revision. Set checked items (`- [x]`) to `Pending` and unchecked items (`- [ ]`) to `Skipped`:
-
-```bash
-tendril plan set-verification <plan-id> Build Pending
-tendril plan set-verification <plan-id> Test Skipped
-```
+Verification statuses already live in `plan.yaml`. Do **not** derive them from the plan revision — there is no `## Verification` section. You only update each verification's status to `Pass`/`Fail` after running it (Step 6).
 
 **CRITICAL:** The `tendril plan add-commit` and `tendril plan set-verification` CLI commands are the ONLY mechanism that updates plan.yaml. You MUST call these commands.
 
@@ -132,11 +127,11 @@ tendril plan set-verification <plan-id> Test Skipped
 
 Create a `Verification/` directory in the plan folder if it doesn't exist.
 
-Check the `## Verification` section in the plan revision for checked items (`- [x]`). Skip unchecked items (`- [ ]`).
+Get the run-set via `tendril plan verification list <plan-id> --json` — it emits a JSON array of `{ name, status }` **in run order**. Run the entries whose `status` is `Pending`, in array order. Skip entries whose `status` is `Skipped`.
 
 **Delegated verifications:** Some verifications are implemented as separate promptwares. The **Projects** section marks delegated verifications. Delegated verifications MUST be run via `tendril promptware run <Name>` — you are FORBIDDEN from writing their report files or setting their status to Pass yourself.
 
-For each checked verification:
+For each `Pending` verification (in listed order):
 
 1. Send a status message: `tendril job status TendrilJobId --message "Verifying: <Name>"`
 2. Fetch its full prompt: `tendril verification get <Name>`

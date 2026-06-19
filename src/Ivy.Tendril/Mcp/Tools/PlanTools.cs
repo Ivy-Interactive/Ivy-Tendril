@@ -235,17 +235,18 @@ public sealed class PlanTools : AuthenticatedToolBase
             var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
             var plan = PlanCommandHelpers.ReadPlan(planFolder);
 
+            var parsedStatus = VerificationStatusExtensions.Parse(status);
             var verification = plan.Verifications.FirstOrDefault(v =>
                 v.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 
             if (verification != null)
-                verification.Status = status;
+                verification.Status = parsedStatus;
             else
-                plan.Verifications.Add(new PlanVerificationEntry { Name = name, Status = status });
+                plan.Verifications.Add(new PlanVerificationEntry { Name = name, Status = parsedStatus });
 
             plan.Updated = DateTime.UtcNow;
             PlanCommandHelpers.WritePlan(planFolder, plan);
-            return $"Set verification '{name}' to '{status}'";
+            return $"Set verification '{name}' to '{parsedStatus}'";
         });
     }
 
@@ -449,9 +450,13 @@ public sealed class PlanTools : AuthenticatedToolBase
             foreach (var repoPath in resolvedProject.RepoPaths)
                 plan.Repos.Add(repoPath);
 
+            // Seed the full project verification set (Required=Pending, Optional=Skipped);
+            // names passed to the tool override that default to Pending.
+            var verificationOverrides = new Dictionary<string, VerificationStatus>(StringComparer.OrdinalIgnoreCase);
             if (!string.IsNullOrEmpty(verifications))
                 foreach (var v in verifications.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                    plan.Verifications.Add(new PlanVerificationEntry { Name = v, Status = VerificationStatus.Pending });
+                    verificationOverrides[v] = VerificationStatus.Pending;
+            PlanCommandHelpers.ApplyProjectVerifications(plan, resolvedProject, verificationOverrides);
 
             if (!string.IsNullOrEmpty(relatedPlans))
                 foreach (var rp in relatedPlans.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
@@ -577,7 +582,7 @@ public sealed class PlanTools : AuthenticatedToolBase
             var verifications = plan.Verifications;
 
             if (!string.IsNullOrEmpty(status))
-                verifications = verifications.Where(v => v.Status.Equals(status, StringComparison.OrdinalIgnoreCase)).ToList();
+                verifications = verifications.Where(v => v.Status.ToString().Equals(status, StringComparison.OrdinalIgnoreCase)).ToList();
 
             if (verifications.Count == 0)
                 return "No verifications found.";
@@ -605,7 +610,7 @@ public sealed class PlanTools : AuthenticatedToolBase
             plan.Verifications.Add(new PlanVerificationEntry
             {
                 Name = name,
-                Status = status ?? VerificationStatus.Pending
+                Status = status != null ? VerificationStatusExtensions.Parse(status) : VerificationStatus.Pending
             });
         }, $"Added verification '{name}'");
     }

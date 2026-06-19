@@ -1172,7 +1172,9 @@ public class PlanDatabaseService : IPlanDatabaseService
             list.Add(new PlanVerificationEntry
             {
                 Name = reader.GetString(nameOrdinal),
-                Status = reader.GetString(statusOrdinal)
+                Status = VerificationStatusExtensions.TryParse(reader.GetString(statusOrdinal), out var st)
+                    ? st
+                    : VerificationStatus.Pending
             });
         }
 
@@ -1192,7 +1194,9 @@ public class PlanDatabaseService : IPlanDatabaseService
             return new PlanVerificationEntry
             {
                 Name = reader.GetString(reader.GetOrdinal("Name")),
-                Status = reader.GetString(reader.GetOrdinal("Status"))
+                Status = VerificationStatusExtensions.TryParse(reader.GetString(reader.GetOrdinal("Status")), out var st)
+                    ? st
+                    : VerificationStatus.Pending
             };
         });
     }
@@ -1341,7 +1345,7 @@ public class PlanDatabaseService : IPlanDatabaseService
         {
             insertCmd.Parameters["@planId"].Value = planId;
             insertCmd.Parameters["@name"].Value = v.Name;
-            insertCmd.Parameters["@status"].Value = v.Status;
+            insertCmd.Parameters["@status"].Value = v.Status.ToString();
             insertCmd.ExecuteNonQuery();
         }
     }

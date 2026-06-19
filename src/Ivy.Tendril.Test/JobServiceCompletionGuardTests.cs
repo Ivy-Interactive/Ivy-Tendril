@@ -216,6 +216,10 @@ public class JobServiceCompletionGuardTests : IDisposable
         {
         }
 
+        public void SetVerificationStatus(string folderName, string name, VerificationStatus status)
+        {
+        }
+
         public void RevertRevision(string folderName)
         {
         }

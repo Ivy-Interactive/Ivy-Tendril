@@ -15,6 +15,7 @@ public interface IPlanReaderService
     void TransitionState(string folderName, PlanStatus newState);
     void ResetToDraft(string folderName);
     void ResetVerificationsForRetry(string folderName);
+    void SetVerificationStatus(string folderName, string name, VerificationStatus status);
     void SaveRevision(string folderName, string content);
     void RevertRevision(string folderName);
     string ReadLatestRevision(string folderName);

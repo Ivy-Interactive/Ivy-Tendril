@@ -19,8 +19,8 @@ public class VerificationsTabView(
 
         return new TableBuilder<VerificationRow>(rows)
             .Order(t => t.Status, t => t.Name)
-            .Builder(t => t.Status, f => f.Func<VerificationRow, string>(status =>
-                new Badge(status).Variant(
+            .Builder(t => t.Status, f => f.Func<VerificationRow, VerificationStatus>(status =>
+                new Badge(status.ToString()).Variant(
                     Constants.VerificationStatusBadgeVariants.GetValueOrDefault(status, BadgeVariant.Outline))))
             .Builder(t => t.Name, f => f.Func<VerificationRow, string>(name =>
                 reportLookup.GetValueOrDefault(name)
@@ -30,5 +30,5 @@ public class VerificationsTabView(
             .ColumnWidth(t => t.Name, Size.Grow());
     }
 
-    private record VerificationRow(string Status, string Name, bool HasReport);
+    private record VerificationRow(VerificationStatus Status, string Name, bool HasReport);
 }

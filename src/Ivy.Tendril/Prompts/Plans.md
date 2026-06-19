@@ -36,6 +36,8 @@ Plans live under `planFolder` from `config.yaml`.
 - **ID**: 5-digit value from `.counter`
 - **SafeTitle**: Title-cased, first 60 chars of description, alphanumeric only, no spaces (e.g. `"Fix login bug"` – `FixLoginBug`)
 
+**SafeTitle is for the folder name only.** It is derived automatically from the title by the CLI — do not pass it anywhere. The plan's `title` field is a separate, **human-readable** string (Title Case *with spaces*). Never reuse the PascalCase SafeTitle form as the `title`.
+
 ## Modifying Plans — Use the CLI
 
 **IMPORTANT: Never read or write `plan.yaml` directly.** Always use `tendril plan` CLI commands. This ensures validation, atomic writes, timestamp updates, and database sync.
@@ -194,7 +196,7 @@ priority: 0
 | `state`        | Current plan state (see lifecycle below)         |
 | `project`      | Project name matching a `projects` entry in `config.yaml` |
 | `level`        | One of the levels defined in `config.yaml`       |
-| `title`        | Human-readable plan title                        |
+| `title`        | Human-readable plan title in **Title Case with spaces** (e.g. `Show File Details in Local Changes Dialog`). **Never** PascalCase / no-space form (`ShowFileDetailsInLocalChangesDialog`) — that form is reserved for the folder `SafeTitle` only. MUST be identical to the `# {title}` H1 heading in the revision markdown. |
 | `sessionId`    | Claude session ID from CreatePlan (for `claude --resume`) |
 | `repos`        | Affected repository paths (plain strings, e.g. `- D:\Repos\Foo` on Windows or `- /home/user/repos/Foo` on Linux — NOT objects) |
 | `created`      | UTC timestamp when the plan was created (use `CurrentTime` from firmware header) |
@@ -266,17 +268,7 @@ Single integer in `{planFolder}/.counter`; managed by `tendril plan create`. Do 
 
 ## Verifications
 
-Each revision can include `## Verification` with checkboxes from `config.yaml`:
-
-```markdown
-## Verification
-
-- [x] DotnetBuild
-- [x] DotnetTest
-- [ ] FrameworkFrontendLint
-```
-
-`- [x]` = ExecutePlan will run; `- [ ]` = skipped. Definitions live in top-level `config.yaml` `verifications`; projects reference by name + `required`.
+Verifications live in `plan.yaml` (not in the revision markdown), each with a `Name` and a `Status` of `Pending | Pass | Fail | Skipped`. Every verification of the plan's project is seeded at creation, in the project's configured order (which is the order they run in). `Pending` = ExecutePlan will run it; `Skipped` = it won't. Users toggle Pending/Skipped from the Verifications card in the plan UI; the agent sets `Pass`/`Fail` via `tendril plan set-verification` after running each one. Definitions live in top-level `config.yaml` `verifications`; projects reference them by name + `required`.
 
 ## Notes
 
