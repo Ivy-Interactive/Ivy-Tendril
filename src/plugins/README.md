@@ -692,8 +692,8 @@ Ivy.Tendril.Plugin.Linear/
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Ivy.Tendril.Plugin.Abstractions" Version="1.0.34" />
-    <PackageReference Include="Ivy.Tendril.Plugin.Extended.Abstractions" Version="1.0.34" />
+    <PackageReference Include="Ivy.Tendril.Plugin.Abstractions" Version="1.0.53" />
+    <PackageReference Include="Ivy.Tendril.Plugin.Extended.Abstractions" Version="1.0.53" />
     <!-- Plugin-specific dependencies -->
     <PackageReference Include="StrawberryShake.Transport.Http" Version="16.0.7" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
