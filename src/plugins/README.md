@@ -501,7 +501,74 @@ Additional extended context capabilities:
 
 ### External Widgets
 
-> **To be implemented...** A dedicated external widget system for Tendril plugins (e.g., React-backed custom components contributed by plugins) is not yet available. Plugins can use the standard Ivy widget framework (`ViewBase`, layouts, inputs, etc.) for their dialogs and apps.
+Plugins can ship custom React-backed widgets using the `[ExternalWidget]` attribute. The host automatically registers widget assemblies on plugin load and unregisters them on unload.
+
+**C# widget definition:**
+
+```csharp
+[ExternalWidget("frontend/dist/Ivy_Tendril_Plugin_SampleWidget.js", ExportName = "Counter")]
+public record CounterWidget : WidgetBase<CounterWidget>
+{
+    [Prop] public string Label { get; init; } = "Count";
+    [Prop] public int InitialValue { get; init; } = 0;
+    [Prop] public int Step { get; init; } = 1;
+}
+```
+
+**React component (`frontend/src/Counter.tsx`):**
+
+```tsx
+import React, { useState } from "react";
+
+interface CounterProps {
+  id: string;
+  label?: string;
+  initialValue?: number;
+  step?: number;
+}
+
+export const Counter: React.FC<CounterProps> = ({ label = "Count", initialValue = 0, step = 1 }) => {
+  const [count, setCount] = useState(initialValue);
+  return (
+    <div>
+      <span>{label}: {count}</span>
+      <button onClick={() => setCount(c => c - step)}>−</button>
+      <button onClick={() => setCount(c => c + step)}>+</button>
+    </div>
+  );
+};
+```
+
+**Frontend entry (`frontend/src/index.ts`):**
+
+```ts
+import { Counter } from "./Counter";
+
+if (typeof window !== "undefined") {
+  (window as unknown as Record<string, unknown>).Ivy_Tendril_Plugin_SampleWidget = { Counter };
+}
+
+export { Counter };
+```
+
+**Project setup:**
+
+- The `.csproj` must import `Ivy.ExternalWidget.targets` to embed the built JS as a resource:
+  ```xml
+  <Import Project="path/to/Ivy.ExternalWidget.targets" Condition="'$(IvySource)' == 'true'" />
+  ```
+- The `vite.config.ts` must build as IIFE with `name` matching the namespace (dots replaced with underscores)
+- React, ReactDOM, and react/jsx-runtime are externalized (provided by the host)
+
+**How it works:**
+
+1. The frontend is built with `pnpm build` → produces an IIFE bundle in `frontend/dist/`
+2. The MSBuild targets embed `frontend/dist/**` as assembly resources
+3. On plugin load, `ExternalWidgetRegistry.RegisterAssembly()` scans for `[ExternalWidget]` types
+4. The host serves the JS bundle at `/ivy/external-widgets/{typeName}/script.js`
+5. The frontend loads the bundle and renders the exported React component
+
+See `Ivy.Tendril.Plugin.SampleWidget` for a complete working example.
 
 ### OAuth Integration
 
