@@ -475,7 +475,7 @@ internal class MyDialog(IState<bool> dialogOpen) : ViewBase
 
 ### Adding a Main Menu App
 
-Plugins can register full applications that appear in Tendril's main navigation. Use `IIvyPlugin<ITendrilExtendedPluginContext>` (or `IIvyPlugin<IIvyExtendedPluginContext>` for host-agnostic plugins):
+Plugins can register apps that appear in Tendril's main navigation. Use `IIvyPlugin<ITendrilExtendedPluginContext>` (or `IIvyPlugin<IIvyExtendedPluginContext>` for host-agnostic plugins):
 
 ```csharp
 public void Configure(ITendrilExtendedPluginContext context)
