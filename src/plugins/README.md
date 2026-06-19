@@ -57,7 +57,6 @@ public class MyPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
     {
         Id = "Ivy.Tendril.Plugin.MyPlugin",
         Title = "My Plugin",
-        ConfigSectionName = "MyPlugin",
         Version = new Version(1, 0, 0),
         Icon = PluginIcon.Named("Puzzle"),
     };
@@ -225,7 +224,6 @@ public record PluginManifest
 {
     public required string Id { get; init; }              // Unique ID (e.g., "Ivy.Tendril.Plugin.Linear")
     public required string Title { get; init; }           // Display name (e.g., "Linear")
-    public required string ConfigSectionName { get; init; } // Key in plugin-config.yaml
     public required Version Version { get; init; }        // Semantic version
     public Version? MinimumHostVersion { get; init; }     // Minimum Tendril version required
     public PluginIcon? Icon { get; init; }                // Display icon
@@ -305,7 +303,7 @@ public PluginConfigurationSchema? ConfigurationSchema { get; } = new()
 - Required fields missing a value cause the plugin to load as "Unconfigured" (not activated)
 - `DefaultValue` is returned by `Config.GetValue(key)` when no explicit value is set
 - Secret fields are rendered as password inputs in the UI
-- Values are persisted in `<TENDRIL_HOME>/plugins/plugin-config.yaml` under the plugin's `ConfigSectionName`
+- Values are persisted in `<TENDRIL_HOME>/plugins/plugin-config.yaml` under the plugin's `Id`
 
 **Runtime config access:**
 ```csharp
@@ -623,7 +621,6 @@ public class LinearPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
     {
         Id = "Ivy.Tendril.Plugin.Linear",
         Title = "Linear",
-        ConfigSectionName = "Linear",
         Version = new Version(1, 0, 0),
         Icon = PluginIcon.Named("Linear"),
     };
