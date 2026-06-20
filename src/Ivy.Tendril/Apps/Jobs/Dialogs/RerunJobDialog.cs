@@ -88,15 +88,16 @@ public class RerunJobDialog(
 
         var folderName = Path.GetFileName(folder);
 
+        // Only transition the plan for the job types that already drive plan state on a
+        // fresh in-app start. CreatePr/CreateIssue/Split/SyncRepo are deliberately left
+        // untouched so rerunning them doesn't knock the plan out of its current state
+        // (e.g. ReadyForReview -> Building, hiding it from the Review queue).
         var targetState = args switch
         {
             ExecutePlanArgs => PlanStatus.Building,
             ExpandPlanArgs => PlanStatus.Building,
-            CreatePrArgs => PlanStatus.Building,
-            CreateIssueArgs => PlanStatus.Building,
             RetryPlanArgs => PlanStatus.Executing,
             UpdatePlanArgs => PlanStatus.Updating,
-            SplitPlanArgs => PlanStatus.Updating,
             _ => (PlanStatus?)null
         };
 
