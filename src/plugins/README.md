@@ -1064,6 +1064,125 @@ context.TendrilConfig.Modify(config =>
 - The `BeforeConfigSave` lifecycle hook (see Lifecycle Hooks above) fires for config modifications made by plugins too — other plugins can validate or reject your changes.
 - Avoid modifying auth, tunnel, or LLM settings unless your plugin is specifically an auth/tunnel/LLM provider. These sections are sensitive and user-managed.
 
+### Adding to the Inbox
+
+> **To be implemented...** This API is designed but not yet available at runtime. The interfaces below describe the intended contract.
+
+Plugins can programmatically add items to the Tendril Inbox, which triggers plan creation. This is the primary way for plugins to feed work into Tendril — whether from external issue trackers, scheduled syncs, webhooks, or user-initiated imports.
+
+**Adding inbox items:**
+
+```csharp
+public void Configure(ITendrilPluginContext context)
+{
+    // Simple: just a description (project auto-detected)
+    context.Inbox.Add("Fix the login timeout bug on the settings page");
+
+    // With project and source metadata
+    context.Inbox.Add(new InboxItem
+    {
+        Description = """
+            The dashboard chart doesn't render when there are more than 1000 data points.
+            It throws a JavaScript heap out of memory error in the browser console.
+            """,
+        Project = "Framework",
+        SourceUrl = "https://linear.app/ivy/issue/IVY-456",
+        SourceIdentifier = "IVY-456",
+        Labels = ["bug", "performance"]
+    });
+}
+```
+
+**The `IInbox` interface:**
+
+```csharp
+public interface IInbox
+{
+    /// <summary>Add a simple text description to the inbox.</summary>
+    void Add(string description);
+
+    /// <summary>Add a structured inbox item with metadata.</summary>
+    void Add(InboxItem item);
+
+    /// <summary>Add multiple items at once (avoids thundering herd on the InboxWatcher).</summary>
+    void AddRange(IEnumerable<InboxItem> items);
+}
+```
+
+**The `InboxItem` record:**
+
+```csharp
+public record InboxItem
+{
+    /// <summary>
+    /// The task description. This becomes the body of the inbox markdown file
+    /// and is passed to the CreatePlan promptware as the task to plan.
+    /// </summary>
+    public required string Description { get; init; }
+
+    /// <summary>
+    /// Target project name, or "Auto" to let Tendril detect the project from context.
+    /// Must match a project name in config.yaml.
+    /// </summary>
+    public string Project { get; init; } = "Auto";
+
+    /// <summary>URL linking back to the source (e.g., GitHub issue, Linear issue, Jira ticket).</summary>
+    public string? SourceUrl { get; init; }
+
+    /// <summary>Short identifier from the source system (e.g., "#123", "IVY-456").</summary>
+    public string? SourceIdentifier { get; init; }
+
+    /// <summary>Optional labels for categorization. Written to frontmatter.</summary>
+    public IReadOnlyList<string> Labels { get; init; } = [];
+}
+```
+
+**What happens under the hood:**
+
+Calling `context.Inbox.Add(...)` writes a markdown file to `<TendrilHome>/Inbox/` with YAML frontmatter:
+
+```markdown
+---
+project: Framework
+sourceUrl: https://linear.app/ivy/issue/IVY-456
+sourceIdentifier: IVY-456
+labels: [bug, performance]
+---
+The dashboard chart doesn't render when there are more than 1000 data points.
+It throws a JavaScript heap out of memory error in the browser console.
+```
+
+The `InboxWatcherService` detects the new file and creates a `CreatePlan` job from it — exactly the same pipeline as manually dropping a file into the Inbox folder. The API is a convenience layer that handles file naming, frontmatter formatting, and staggered writes (for `AddRange`).
+
+**File naming:** Files are named `<timestamp>-<sanitized-identifier-or-hash>.md` to avoid collisions. If `SourceIdentifier` is set, it's used in the filename (e.g., `20260620T091500-IVY-456.md`); otherwise a short hash of the description is used.
+
+**Typical usage with scheduled tasks:**
+
+```csharp
+context.RegisterScheduledTask(new ScheduledTaskDescriptor
+{
+    Id = "github-issue-sync",
+    DisplayName = "Sync GitHub Issues",
+    Schedule = Schedule.Every(TimeSpan.FromMinutes(15)),
+    ExecuteAsync = async (ctx, ct) =>
+    {
+        var issues = await FetchNewIssuesFromGitHub(ct);
+        var items = issues.Select(issue => new InboxItem
+        {
+            Description = $"[{issue.Title}]({issue.Url})\n\n{issue.Body}",
+            Project = "Auto",
+            SourceUrl = issue.Url,
+            SourceIdentifier = $"#{issue.Number}"
+        });
+
+        context.Inbox.AddRange(items);
+        return ScheduledTaskResult.Success($"Added {issues.Count} issues to inbox");
+    }
+});
+```
+
+**Deduplication:** The API does **not** deduplicate automatically — if you add the same item twice, two plans will be created. Plugins are responsible for tracking what they've already imported (e.g., using plugin config values, a local JSON log, or checking `SourceIdentifier` against existing plan metadata).
+
 ### Installing a Promptware Verification
 
 > **To be implemented...** A plugin API for registering custom promptware verification steps is not yet available.
