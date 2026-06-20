@@ -193,6 +193,20 @@ public class GitHelperTests : IDisposable
         Assert.Equal("development", GitHelper.ResolveDefaultBranch(clone));
     }
 
+    [Theory]
+    [InlineData("https://github.com/Ivy-Interactive/Ivy-Framework", "development")]
+    [InlineData("https://github.com/Ivy-Interactive/Tendril-Test-Runner", "main")]
+    [InlineData("https://github.com/nielsbosma/SeoTools-for-Excel-Connectors", "master")]
+    public async Task ResolveDefaultBranch_KnownRemoteUrl_DetectsDefaultBranch(string url, string expectedBranch)
+    {
+        // Skip when the remote is unreachable (offline) so we don't fail on connectivity,
+        // and don't false-pass: probing the expected branch confirms the network is up.
+        if (!await GitHelper.IsValidBranchAsync(url, expectedBranch))
+            return;
+
+        Assert.Equal(expectedBranch, GitHelper.ResolveDefaultBranch(url));
+    }
+
     /// <summary>
     /// Builds a bare remote whose default branch is <paramref name="defaultBranch"/> and clones it.
     /// Returns the clone path, or null if the git operations did not produce a usable clone.
