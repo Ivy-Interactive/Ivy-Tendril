@@ -184,13 +184,11 @@ Currently, plugin submission is managed by the Ivy team:
 5. The version enters **Undecided** state pending review
 6. Upon approval, the plugin becomes available in the marketplace catalog
 
-> **To be implemented...** A self-service submission API and CLI command for plugin authors to submit directly is planned. The current workflow requires manual coordination with the Ivy team.
-
 ## Plugin Interfaces
 
-### The Generic `IIvyPlugin<TContext>` Interface
+### The `IIvyPlugin<TContext>` Interface
 
-Tendril plugins implement the generic `IIvyPlugin<TContext>` interface, which provides compile-time type safety — you declare the context type your plugin requires, and receive it directly in `Configure()` without manual casting:
+Tendril plugins implement `IIvyPlugin<TContext>`, where `TContext` is the plugin context type your plugin requires:
 
 ```csharp
 public class MyPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
@@ -386,13 +384,290 @@ After `ShutdownAsync` completes (or times out):
 - The plugin's `AssemblyLoadContext` is unloaded
 - Any `IDisposable` service providers are disposed
 
-### Scheduled Execution
+### Scheduled Tasks
 
-> **To be implemented...** Scheduled/recurring plugin execution (e.g., cron-style hooks) is not yet available.
+> **To be implemented...** This API is designed but not yet available at runtime. The interfaces below describe the intended contract.
 
-### Before/After Promptware
+Plugins can register recurring tasks that execute on a schedule. This is useful for periodic syncing (e.g., importing issues from GitHub every 15 minutes, polling an external API for updates, refreshing cached data).
 
-> **To be implemented...** Hooks that fire before or after promptware execution are not yet available.
+**Registering a scheduled task:**
+
+```csharp
+public void Configure(ITendrilPluginContext context)
+{
+    context.RegisterScheduledTask(new ScheduledTaskDescriptor
+    {
+        Id = "github-issue-sync",
+        DisplayName = "Sync GitHub Issues",
+        Schedule = Schedule.Every(TimeSpan.FromMinutes(15)),
+        OverlapPolicy = OverlapPolicy.Skip,  // Skip if previous execution still running
+        Retry = RetryPolicy.Backoff(maxAttempts: 3, initialDelay: TimeSpan.FromMinutes(2)),
+        ExecuteAsync = async (ctx, ct) =>
+        {
+            var issues = await FetchNewIssues(ct);
+            foreach (var issue in issues)
+                await WriteToInbox(ctx.TendrilHome, issue, ct);
+
+            return ScheduledTaskResult.Success($"Imported {issues.Count} issues");
+        }
+    });
+}
+```
+
+**The `ScheduledTaskDescriptor` record:**
+
+```csharp
+public record ScheduledTaskDescriptor
+{
+    /// <summary>Unique ID within this plugin (namespaced automatically by plugin ID at runtime).</summary>
+    public required string Id { get; init; }
+
+    /// <summary>Human-readable name shown in the Jobs/Settings UI.</summary>
+    public required string DisplayName { get; init; }
+
+    /// <summary>When to run.</summary>
+    public required Schedule Schedule { get; init; }
+
+    /// <summary>What to do if the previous execution hasn't finished when the next tick fires.</summary>
+    public OverlapPolicy OverlapPolicy { get; init; } = OverlapPolicy.Skip;
+
+    /// <summary>What to do when execution fails. Default: no retry (wait for next scheduled tick).</summary>
+    public RetryPolicy Retry { get; init; } = RetryPolicy.None;
+
+    /// <summary>The async callback to execute on each tick.</summary>
+    public required Func<ScheduledTaskContext, CancellationToken, Task<ScheduledTaskResult>> ExecuteAsync { get; init; }
+
+    /// <summary>Whether the task starts enabled. Users can toggle this in Settings.</summary>
+    public bool EnabledByDefault { get; init; } = true;
+}
+```
+
+**Schedule expressions:**
+
+```csharp
+// Simple intervals (minimum 1 minute)
+Schedule.Every(TimeSpan.FromMinutes(15))
+Schedule.Every(TimeSpan.FromHours(1))
+
+// Named presets
+Schedule.Hourly
+Schedule.Daily(hour: 9)
+Schedule.Daily(hour: 9, minute: 30)
+```
+
+**Overlap policies:**
+
+| Policy | Behavior |
+|--------|----------|
+| `Skip` | If the previous execution is still running, skip this tick entirely. Default. |
+| `Queue` | Queue the new execution to start immediately after the current one finishes. At most one queued. |
+| `Concurrent` | Start the new execution regardless. Use with caution. |
+
+**Retry policy:**
+
+When a task returns `ScheduledTaskResult.Failure(...)`, the retry policy determines what happens next. Without a retry policy, the task simply waits for its next scheduled tick — which could be hours or a day away.
+
+```csharp
+// No retry — wait for the next scheduled tick (default)
+RetryPolicy.None
+
+// Exponential backoff: retry up to N times with increasing delays
+// e.g., 2min → 4min → 8min, then give up until next scheduled tick
+RetryPolicy.Backoff(maxAttempts: 3, initialDelay: TimeSpan.FromMinutes(2))
+
+// Fixed interval: retry up to N times with a constant delay between attempts
+RetryPolicy.Fixed(maxAttempts: 5, delay: TimeSpan.FromMinutes(5))
+```
+
+Retry state is tracked per-task. When all retry attempts are exhausted, `ConsecutiveFailures` on the context reflects the total count (initial attempt + retries). The next scheduled tick resets the retry counter. Retries do not interfere with the overlap policy — if a retry is pending and a normal tick fires, the tick takes priority and resets the retry state.
+
+**Execution context:**
+
+```csharp
+public record ScheduledTaskContext
+{
+    public string TendrilHome { get; }
+    public ILogger Logger { get; }
+    public DateTimeOffset ScheduledTime { get; }       // When this tick was supposed to fire
+    public DateTimeOffset LastSuccessTime { get; }     // When the task last completed successfully
+    public int ConsecutiveFailures { get; }            // How many times in a row it has failed
+}
+```
+
+**Result reporting:**
+
+```csharp
+// Success — optional message shown in task history
+ScheduledTaskResult.Success("Imported 3 issues")
+
+// Failure — logged, increments ConsecutiveFailures
+ScheduledTaskResult.Failure("API returned 401 — check credentials")
+
+// Skipped — the task decided not to do work this tick (not counted as failure)
+ScheduledTaskResult.Skipped("No new issues since last sync")
+```
+
+**Lifecycle:**
+- Scheduled tasks are automatically unregistered when the plugin is unloaded, reloaded, or reconfigured.
+- The host cancels any in-flight execution via the `CancellationToken` during shutdown (5-second grace period, same as `ShutdownAsync`).
+- Task enable/disable state is persisted in `plugin-config.yaml` under the plugin's ID, so user preferences survive plugin reloads.
+- Task execution history (last 50 results per task) is stored in memory and visible in the Settings UI.
+
+**Design notes:**
+- Scheduled tasks do NOT create Tendril Jobs — they are lightweight background operations. If your task needs to trigger a full plan creation, write a file to the Inbox instead (the `InboxWatcherService` will pick it up).
+- The scheduler uses a single timer wheel shared across all plugins. Minimum interval is 1 minute.
+- If Tendril is not running (e.g., machine is off), missed ticks are not replayed. The task simply runs on the next tick after startup.
+
+### Lifecycle Hooks
+
+> **To be implemented...** This API is designed but not yet available at runtime. The interfaces below describe the intended contract.
+
+Plugins can register in-process callbacks that fire at specific points in the Tendril lifecycle. Unlike config-based hooks (which run shell commands), these are code callbacks that execute inside the host process with full access to plugin state.
+
+**Registering hooks (selected examples — see `IPluginHooks` below for the full list):**
+
+```csharp
+public void Configure(ITendrilPluginContext context)
+{
+    // Fire after any promptware job completes
+    context.Hooks.AfterJob(async (evt, ct) =>
+    {
+        if (evt.Status == JobStatus.Completed && evt.JobType == "CreatePr")
+            await NotifySlack(evt.PlanFolder, ct);
+    });
+
+    // Fire before a plan is created (from inbox, UI, or API)
+    context.Hooks.BeforeCreatePlan(async (evt, ct) =>
+    {
+        // Enrich the plan description with external context
+        evt.Description = await EnrichWithLinearContext(evt.Description, ct);
+    });
+
+    // Fire when an inbox file is detected (before parsing/job creation)
+    context.Hooks.OnInboxItem(async (evt, ct) =>
+    {
+        // Reject duplicates at the file level
+        if (await IsDuplicate(evt.FilePath, ct))
+            evt.Cancel("Duplicate issue — already tracked");
+    });
+
+    // Fire when config is about to be saved
+    context.Hooks.BeforeConfigSave((evt) =>
+    {
+        // Validate or reject config changes
+        if (evt.NewSettings.MaxConcurrentJobs > 50)
+            evt.Reject("MaxConcurrentJobs cannot exceed 50 with current license");
+    });
+}
+```
+
+**The `IPluginHooks` interface:**
+
+```csharp
+public interface IPluginHooks
+{
+    // Job lifecycle
+    void BeforeJob(Func<BeforeJobEvent, CancellationToken, Task> handler);
+    void AfterJob(Func<AfterJobEvent, CancellationToken, Task> handler);
+
+    // Plan lifecycle
+    void BeforeCreatePlan(Func<BeforeCreatePlanEvent, CancellationToken, Task> handler);
+    void AfterCreatePlan(Func<AfterCreatePlanEvent, CancellationToken, Task> handler);
+
+    // Inbox
+    void OnInboxItem(Func<InboxItemEvent, CancellationToken, Task> handler);
+
+    // Configuration
+    void BeforeConfigSave(Action<ConfigSaveEvent> handler);
+    void AfterConfigReload(Action handler);
+}
+```
+
+**Hook event types:**
+
+```csharp
+public record BeforeJobEvent
+{
+    public required string JobType { get; init; }      // "CreatePlan", "ExecutePlan", "CreatePr", etc.
+    public required string PlanFolder { get; init; }
+    public required string Project { get; init; }
+    public bool Cancelled { get; private set; }
+    public void Cancel(string reason) { /* ... */ }
+}
+
+public record AfterJobEvent
+{
+    public required string JobId { get; init; }
+    public required string JobType { get; init; }
+    public required JobStatus Status { get; init; }    // Completed, Failed, Stopped, TimedOut
+    public required string PlanFolder { get; init; }
+    public required string Project { get; init; }
+    public int? ExitCode { get; init; }
+    public TimeSpan Duration { get; init; }
+}
+
+public record BeforeCreatePlanEvent
+{
+    public string Description { get; set; }            // Mutable — hooks can enrich/transform
+    public string Project { get; set; }
+    public string? SourceUrl { get; init; }
+    public string? SourceIdentifier { get; init; }
+    public bool Cancelled { get; private set; }
+    public void Cancel(string reason) { /* ... */ }
+}
+
+public record AfterCreatePlanEvent
+{
+    public required string PlanFolder { get; init; }
+    public required string PlanId { get; init; }
+    public required string Project { get; init; }
+    public required string Title { get; init; }
+}
+
+public record InboxItemEvent
+{
+    public required string FilePath { get; init; }
+    public required string Content { get; init; }
+    public required string Project { get; init; }
+    public bool Cancelled { get; private set; }
+    public void Cancel(string reason) { /* ... */ }
+}
+
+public record ConfigSaveEvent
+{
+    public required TendrilSettings CurrentSettings { get; init; }
+    public required TendrilSettings NewSettings { get; init; }
+    public bool Rejected { get; private set; }
+    public string? RejectionReason { get; private set; }
+    public void Reject(string reason) { /* ... */ }
+}
+```
+
+**`OnInboxItem` vs `BeforeCreatePlan` — when to use which:**
+
+These two hooks fire at different stages of the inbox-to-plan pipeline:
+
+1. A `.md` file lands in the Inbox directory → **`OnInboxItem`** fires
+2. The file is parsed (frontmatter extracted, project/description resolved)
+3. A CreatePlan job is about to be submitted → **`BeforeCreatePlan`** fires
+
+Use `OnInboxItem` for raw-file-level concerns: deduplication, routing files to external systems, rejecting spam, or logging what enters the inbox. At this stage you have the file path and raw content but no structured metadata.
+
+Use `BeforeCreatePlan` for semantic enrichment: modifying the description, overriding the project assignment, or adding context from external APIs. At this stage the frontmatter has been parsed into structured fields you can read and mutate.
+
+Additionally, `BeforeCreatePlan` fires for *all* plan creation — not just inbox-originated ones. Plans created via the UI, the CLI, or the HTTP API also trigger `BeforeCreatePlan`. `OnInboxItem` only fires for the file-based inbox path.
+
+**Execution semantics:**
+- Multiple plugins can register handlers for the same event. They execute in plugin load order.
+- `Before*` hooks with `Cancel()` prevent the operation from proceeding. The first cancellation wins.
+- `Before*` hooks with mutable properties (like `BeforeCreatePlanEvent.Description`) allow enrichment — each hook sees the result of the previous hook's modifications.
+- Hook handlers have a 10-second timeout. If a handler exceeds this, it is cancelled and the operation proceeds without it. Timeouts are logged as warnings.
+- Exceptions in hook handlers are caught, logged, and do not prevent the operation from proceeding (fail-open). This ensures one plugin cannot break the system.
+- Hooks are automatically unregistered when the plugin is unloaded.
+
+**Relationship to config-based hooks:**
+
+Config-based hooks (`PromptwareHookConfig` in `config.yaml`) run as external shell commands and are owned by the user. Plugin lifecycle hooks run in-process and are owned by the plugin. Both can coexist — config hooks run after plugin hooks for `After*` events, and before plugin hooks for `Before*` events. This gives users the final say on transformations/cancellations.
 
 ## UX: Contributing UI Elements
 
@@ -665,13 +940,279 @@ public record MessageResult
 }
 ```
 
-### Updating Ivy Configuration
+### Updating Tendril Configuration
 
-> **To be implemented...** A plugin API for modifying Tendril/Ivy configuration programmatically is not yet available.
+> **To be implemented...** This API is designed but not yet available at runtime. The interfaces below describe the intended contract.
+
+Plugins can programmatically read and modify the main `config.yaml` through a scoped, transactional API. This is useful for plugins that need to install hooks, add verifications, register projects, or adjust settings as part of their setup.
+
+**Accessing the config API:**
+
+```csharp
+public void Configure(ITendrilPluginContext context)
+{
+    // Read current configuration (read-only snapshot)
+    var settings = context.TendrilConfig.Current;
+    var projects = settings.Projects;
+    var hasMyProject = projects.Any(p => p.Name == "MyProject");
+
+    // Modify configuration with a transaction
+    context.TendrilConfig.Modify(config =>
+    {
+        // Add a hook to an existing project
+        var project = config.Projects.FirstOrDefault(p => p.Name == "Framework");
+        project?.Hooks.Add(new PromptwareHookConfig
+        {
+            Name = "LinearSync",
+            When = "after",
+            Promptwares = ["CreatePr"],
+            Action = "curl -X POST https://my-webhook.example.com/notify"
+        });
+
+        // Add a custom verification
+        config.Verifications.Add(new VerificationConfig
+        {
+            Name = "LinearStatusUpdate",
+            Prompt = "Update the corresponding Linear issue status to 'In Review'."
+        });
+    });
+}
+```
+
+**The `ITendrilConfigWriter` interface:**
+
+```csharp
+public interface ITendrilConfigWriter
+{
+    /// <summary>Read-only snapshot of the current TendrilSettings.</summary>
+    TendrilSettings Current { get; }
+
+    /// <summary>
+    /// Apply modifications to config.yaml within a transaction.
+    /// The callback receives a mutable clone of the current settings.
+    /// Changes are validated, persisted, and a reload is triggered.
+    /// Throws ConfigModificationException if validation fails.
+    /// </summary>
+    void Modify(Action<TendrilSettings> mutator);
+
+    /// <summary>Async variant for mutations that need I/O (e.g., fetching defaults from an API).</summary>
+    Task ModifyAsync(Func<TendrilSettings, Task> mutator, CancellationToken ct = default);
+}
+```
+
+**Transaction semantics:**
+
+- The `mutator` callback receives a **deep clone** of the current settings. Your modifications do not affect the live config until the transaction commits.
+- After the mutator returns, the host **validates** the modified settings (same checks as manual config edits — path validation, range checks, duplicate detection).
+- If validation passes, the settings are serialized to YAML, written to `config.yaml` (with backup), and a reload is triggered (`SettingsReloaded` event fires).
+- If validation fails, a `ConfigModificationException` is thrown with details, and the existing config is untouched.
+- Only one `Modify` call executes at a time (serialized via a lock). Concurrent calls queue and each sees the result of the previous.
+
+**Common operations:**
+
+```csharp
+// Add a project
+context.TendrilConfig.Modify(config =>
+{
+    config.Projects.Add(new ProjectConfig
+    {
+        Name = "MyService",
+        Color = "Teal",
+        Repos = [new RepoRef { Path = "/path/to/repo", BaseBranch = "main" }],
+        Verifications = [new ProjectVerificationRef { Name = "DotnetBuild", Required = true }]
+    });
+});
+
+// Install a hook on all projects
+context.TendrilConfig.Modify(config =>
+{
+    foreach (var project in config.Projects)
+    {
+        if (project.Hooks.Any(h => h.Name == "MyPluginHook")) continue;
+        project.Hooks.Add(new PromptwareHookConfig
+        {
+            Name = "MyPluginHook",
+            When = "after",
+            Promptwares = ["CreatePr"],
+            Action = "pwsh -NoProfile -File ~/.tendril/hooks/my-plugin-notify.ps1"
+        });
+    }
+});
+
+// Add a verification definition
+context.TendrilConfig.Modify(config =>
+{
+    if (config.Verifications.Any(v => v.Name == "SecurityScan")) return;
+    config.Verifications.Add(new VerificationConfig
+    {
+        Name = "SecurityScan",
+        Prompt = "Run a security scan on all changed files using the Snyk CLI."
+    });
+});
+
+// Modify a scalar setting
+context.TendrilConfig.Modify(config =>
+{
+    config.MaxConcurrentJobs = Math.Max(config.MaxConcurrentJobs, 10);
+});
+```
+
+**Safety considerations:**
+
+- Plugins should be **additive** — prefer adding entries over removing or replacing existing ones. Users may have manually configured hooks, verifications, or projects that your plugin shouldn't touch.
+- Use **idempotent checks** (e.g., `if (already exists) return;`) to avoid duplicating entries on plugin reload.
+- The `BeforeConfigSave` lifecycle hook (see Lifecycle Hooks above) fires for config modifications made by plugins too — other plugins can validate or reject your changes.
+- Avoid modifying auth, tunnel, or LLM settings unless your plugin is specifically an auth/tunnel/LLM provider. These sections are sensitive and user-managed.
 
 ### Installing a Promptware Verification
 
 > **To be implemented...** A plugin API for registering custom promptware verification steps is not yet available.
+
+### Installing a Promptware
+
+> **To be implemented...** This API is designed but not yet available at runtime. The interfaces below describe the intended contract.
+
+Plugins can install custom promptwares that become available for use in plan execution, verifications, and hooks. A promptware is an AI-driven program defined by a `Program.md` file that instructs a coding agent what to do, along with optional memory and tool definitions.
+
+**Registering a promptware:**
+
+```csharp
+public void Configure(ITendrilPluginContext context)
+{
+    context.RegisterPromptware(new PromptwareDescriptor
+    {
+        Name = "SecurityScan",
+        DisplayName = "Security Scan",
+        Description = "Scans changed files for common security vulnerabilities using Snyk CLI.",
+        Program = """
+            # SecurityScan
+
+            Scan all files changed by this plan's commits for security vulnerabilities.
+
+            ## Context
+
+            The firmware header contains:
+            - **TendrilPlanFolder** — the plan folder path
+            - **VerificationDir** — where to write the verification report
+
+            ## Steps
+
+            1. Get the list of changed files from the plan's commits
+            2. Run `snyk code test --file=<file>` for each changed file
+            3. Write a verification report to `<VerificationDir>/SecurityScan.md`
+            """,
+        DefaultProfile = "balanced",
+        AllowedTools = ["Bash(snyk *)"],
+        Values = [
+            new PromptwareValueDescriptor { Name = "VerificationDir", Description = "Output directory for the report", Required = true }
+        ]
+    });
+}
+```
+
+**The `PromptwareDescriptor` record:**
+
+```csharp
+public record PromptwareDescriptor
+{
+    /// <summary>
+    /// Unique name for this promptware. Used as the folder name under Promptwares/
+    /// and referenced in config.yaml promptwares section and verification hooks.
+    /// Convention: PascalCase, no spaces (e.g., "SecurityScan", "LinearStatusSync").
+    /// </summary>
+    public required string Name { get; init; }
+
+    /// <summary>Human-readable name for display in Settings UI.</summary>
+    public required string DisplayName { get; init; }
+
+    /// <summary>Short description of what this promptware does.</summary>
+    public string? Description { get; init; }
+
+    /// <summary>
+    /// The Program.md content — the AI instructions that define this promptware's behavior.
+    /// This is the core of the promptware: it tells the coding agent what to do.
+    /// </summary>
+    public required string Program { get; init; }
+
+    /// <summary>
+    /// Default execution profile (e.g., "deep", "balanced", "quick").
+    /// Can be overridden per-project in config.yaml.
+    /// </summary>
+    public string DefaultProfile { get; init; } = "balanced";
+
+    /// <summary>
+    /// Tools the coding agent is allowed to use during execution.
+    /// Same syntax as the config.yaml allowedTools field.
+    /// </summary>
+    public IReadOnlyList<string> AllowedTools { get; init; } = [];
+
+    /// <summary>
+    /// Declared value parameters that can be passed to this promptware at runtime.
+    /// These become header values accessible in Program.md.
+    /// </summary>
+    public IReadOnlyList<PromptwareValueDescriptor> Values { get; init; } = [];
+}
+
+public record PromptwareValueDescriptor
+{
+    public required string Name { get; init; }
+    public string? Description { get; init; }
+    public bool Required { get; init; }
+    public string? DefaultValue { get; init; }
+}
+```
+
+**How it works:**
+
+When a plugin registers a promptware, the host:
+1. Writes `Program.md` to `<TendrilHome>/Promptwares/<Name>/Program.md` (creating the directory if needed)
+2. Registers a default config entry in the `promptwares` section (profile + allowedTools) if one doesn't already exist
+3. Creates `Memory/` and `Tools/` subdirectories
+
+The promptware then becomes available for:
+- **Verifications** — reference it by name in a project's `verifications` list
+- **Hooks** — reference it in `promptwares` field of a `PromptwareHookConfig`
+- **CLI** — run it with `tendril promptware run <Name> <planFolder> --value Key=Value`
+- **Jobs** — the system can invoke it as part of plan execution
+
+**Lifecycle:**
+- When the plugin is unloaded, the promptware files are **not** removed, as they may be referenced in existing config entries and plan histories.
+- If the plugin is reinstalled and registers the same promptware name, it updates `Program.md` with the new content (preserving `Logs/` and `Memory/`).
+- Users can override the profile and allowedTools in `config.yaml` — plugin defaults only apply when no config entry exists.
+
+**Using with the Config API:**
+
+A plugin that installs both a promptware and the corresponding verification wiring:
+
+```csharp
+public void Configure(ITendrilPluginContext context)
+{
+    // Install the promptware
+    context.RegisterPromptware(new PromptwareDescriptor
+    {
+        Name = "SecurityScan",
+        DisplayName = "Security Scan",
+        Description = "Scans for vulnerabilities using Snyk.",
+        Program = LoadEmbeddedProgram("SecurityScan.Program.md"),
+        AllowedTools = ["Bash(snyk *)"]
+    });
+
+    // Wire it up as a verification in config
+    context.TendrilConfig.Modify(config =>
+    {
+        if (config.Verifications.Any(v => v.Name == "SecurityScan")) return;
+        config.Verifications.Add(new VerificationConfig
+        {
+            Name = "SecurityScan",
+            Prompt = """
+                Run the SecurityScan promptware:
+                `tendril promptware run SecurityScan "<TendrilPlanFolder>" --value VerificationDir="<TendrilPlanFolder>\verification"`
+                Read the resulting report and set status based on its Result field.
+                """
+        });
+    });
+}
+```
 
 ## Complete Example: Linear Plugin
 
