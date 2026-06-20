@@ -23,6 +23,18 @@ Project configuration (repos, `prRule` settings) is available from the firmware 
 
 ## Execution Steps
 
+> **Transient-error retry convention (applies to every `git` and `gh` command below):**
+> Network/remote operations intermittently fail and then succeed on a second try. Whenever a
+> `git push`/`git fetch`/`git pull` or any `gh` command fails with a **transient** error,
+> **retry up to 3 times with exponential backoff (~2s, then 4s, then 8s)** before treating it
+> as a real failure. Treat these as transient (case-insensitive):
+> `could not resolve host`, `connection reset`, `connection timed out`, `could not connect`,
+> `failed to connect`, `kex_exchange_identification`, `early EOF`, `RPC failed`, `TLS`,
+> HTTP `5xx`, `429`, `rate limit exceeded` (GitHub API), `Bad gateway`, `timed out`.
+> Do **not** retry genuine, non-transient errors — authentication failures, `not found` /
+> invalid repo, permission/`403`, validation errors, or merge conflicts — fail fast on those
+> with a clear, specific message.
+
 ### 0. Check Plan State
 
 Before processing, read `plan.yaml` and check the `state` field. After reading, report plan context: `tendril job status TendrilJobId --message "Creating PR..." --plan-id <plan-id> --plan-title "<title>"`
@@ -58,7 +70,8 @@ For each worktree:
 1. `git remote get-url origin` (from the worktree) to get the GitHub remote
 2. Extract `owner/repo` from the remote URL
 3. `git rev-parse --abbrev-ref HEAD` to get the branch name
-4. `git push -u origin <branch>`
+4. `git push -u origin <branch>` — apply the **transient-error retry convention** above (a
+   first-attempt `git push` commonly fails transiently and succeeds on retry)
 
 > **Stale remote tracking refs warning:** A ref appearing in `git branch -a` as `remotes/origin/<branch>` does NOT guarantee the branch exists on GitHub. Always verify with `gh api repos/<owner>/<repo>/branches/<branch>` or `git ls-remote origin <branch>` before assuming the push succeeded.
 >
@@ -72,9 +85,32 @@ Otherwise, if an artifact upload tool is available in `Tools/`, run it to upload
 
 Capture the returned markdown. If non-empty, it will be appended to the PR body under an `## Artifacts` heading in the next step. If no upload tool is available, skip this step.
 
+### 2.6. Verify Branch Is Visible on the Remote
+
+Before creating the PR, confirm GitHub's API actually sees the freshly pushed branch. There
+is a short propagation lag between a successful `git push` and the branch being queryable via
+the API — creating the PR too early is a primary cause of intermittent first-attempt
+failures ("No commits between ..." / "head branch not found") that then succeed on retry.
+
+For each pushed branch, poll briefly until the branch is visible:
+
+```bash
+for i in $(seq 1 5); do
+  if gh api "repos/<owner>/<repo>/branches/<branch>" >/dev/null 2>&1; then break; fi
+  sleep 2
+done
+```
+
+If the branch is still not visible after polling, re-push (`git push -u origin <branch>`,
+applying the transient-error retry convention) and poll once more before proceeding.
+
 ### 3. Create PR
 
 Report status: `tendril job status TendrilJobId --message "Creating pull request..."`
+
+Apply the **transient-error retry convention** to every `gh` command in this step (and steps
+3.5–6): retry transient/network/`5xx`/`429` failures up to 3 times with backoff; fail fast on
+genuine errors (auth, invalid repo, validation).
 
 For each pushed branch:
 
@@ -267,4 +303,9 @@ Some plans create new repos and push directly to main (e.g., repo scaffolding). 
 - One PR per repo worktree that has commits
 - Skip worktrees with no commits ahead of the base branch
 - Use `gh` CLI for all GitHub operations
+- **Retry transient failures** per the transient-error retry convention before giving up
+- **Accurate failure reporting:** if a step ultimately fails, the final error message must
+  state the *actual* cause (e.g. `git push to origin failed after 3 retries: <stderr>` or
+  `gh pr create failed: <stderr>`). Never phrase a git/GitHub/network failure as a Claude
+  usage, quota, or rate-limit problem — that misleads the user about what to fix.
 - NEVER embed images via GitHub branch URLs (`github.com/blob/<branch>/...`) — these 404 after branch deletion. All screenshots/images in PR bodies must use persistent storage URLs (from the artifact upload tool, if available).
