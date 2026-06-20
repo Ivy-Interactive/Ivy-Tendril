@@ -48,8 +48,6 @@ For each changed source file:
    - Unnecessary abstractions or over-engineering
    - Legacy/backwards-compatibility code that may no longer be needed
 
-3. Use `mcp__codescene__code_health_review` on each changed source file to get an objective code health assessment
-
 **Important:** For any legacy support or backwards-compatibility code identified for removal — **ASK the user before removing**. Do not auto-delete.
 
 ### Phase 3 — Test Review

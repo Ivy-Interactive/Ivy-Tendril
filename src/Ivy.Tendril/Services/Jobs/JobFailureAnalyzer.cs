@@ -13,50 +13,70 @@ internal static class JobFailureAnalyzer
             return "Unknown error (exit code non-zero)";
 
         // 1. Check for PowerShell terminating errors
-        var psError = FindPattern(outputLines, new[] {
+        var psError = FindPattern(outputLines, [
             @"At line:\d+",
             @"CategoryInfo\s+:",
             @"TerminatingError\(",
             "ScriptHalted",
-            @"^\s*\+\s+CategoryInfo",
-        });
+            @"^\s*\+\s+CategoryInfo"
+        ]);
         if (psError != null) return psError;
 
-        // 2. Check for Claude API errors (from JSON stream)
-        var apiError = FindPattern(outputLines, new[] {
+
+        
+        // 2. Check for transient git / GitHub (gh) failures. These are the real, actionable
+        //    cause and must win over an incidental JSON "error" object further down the output
+        //    (e.g. a `gh api` response body), which would otherwise be mislabeled as a Claude
+        //    API/usage problem.
+        var gitGhError = FindPattern(outputLines, new[] {
+            @"\bfatal:\s",
+            "could not resolve host",
+            "connection reset",
+            "connection timed out",
+            "could not connect",
+            "failed to connect",
+            "kex_exchange_identification",
+            @"\bearly EOF\b",
+            "RPC failed",
+        });
+        if (gitGhError != null) return gitGhError;
+
+        // 3. Check for Claude API errors (from JSON stream). Only specific, unambiguous error
+        //    markers — NOT a bare `"error": { ... }` object, which any tool's JSON output can
+        //    contain.
+        var apiError = FindPattern(outputLines, [
             @"""type"":\s*""error""",
-            @"""error"":\s*\{",
             "rate_limit_error",
             "overloaded_error",
-            "authentication_error",
-        });
+            "authentication_error"
+        ]);
         if (apiError != null) return ParseClaudeApiError(apiError);
 
-        // 3. Check for CreatePlan-specific failures and failure artifacts
+        // 4. Check for CreatePlan-specific failures and failure artifacts
         if (jobType == Constants.JobTypes.CreatePlan)
         {
-            var makePlanError = FindPattern(outputLines, new[] {
+            var makePlanError = FindPattern(outputLines, [
                 "ERROR: Plan",
                 "WARNING: TENDRIL_HOME",
                 "Failed to parse",
-                "Repository path does not exist",
-            });
+                "Repository path does not exist"
+            ]);
             if (makePlanError != null) return makePlanError;
 
             var failureArtifactMessage = TryReadFailureArtifact(outputLines);
             if (failureArtifactMessage != null) return failureArtifactMessage;
         }
 
-        // 4. Check for validation/assertion failures
-        var validationError = FindPattern(outputLines, new[] {
+        // 5. Check for validation/assertion failures
+        var validationError = FindPattern(outputLines, [
             @"validation\s+failed",
             @"assertion\s+failed",
             "Repository path does not exist",
-            @"\[stderr\].*(?-i)ERROR:",
-        });
+            @"\[stderr\].*(?-i)ERROR:"
+        ]);
         if (validationError != null) return validationError;
 
-        // 5. Search from end for stderr lines
+        // 6. Search from end for stderr lines
         var stderrLines = new List<string>();
         for (var i = outputLines.Count - 1; i >= 0 && stderrLines.Count < 3; i--)
         {
@@ -72,7 +92,7 @@ internal static class JobFailureAnalyzer
         if (stderrLines.Count > 0)
             return SanitizeForDisplay(string.Join(" | ", stderrLines));
 
-        // 6. Fall back to last non-progress line
+        // 7. Fall back to last non-progress line
         for (var i = outputLines.Count - 1; i >= 0; i--)
         {
             var trimmed = outputLines[i].Trim();
@@ -126,15 +146,28 @@ internal static class JobFailureAnalyzer
 
     private static string ParseClaudeApiError(string jsonErrorLine)
     {
+        // Only frame the message as a Claude API/usage error when the line genuinely carries a
+        // Claude API error token. A bare `"type":"error"` event (or other JSON) is reported as
+        // its plain message so the user isn't misled toward a quota/usage explanation.
+        var isClaudeApiError = Regex.IsMatch(
+            jsonErrorLine,
+            "rate_limit_error|overloaded_error|authentication_error|api_error",
+            RegexOptions.IgnoreCase);
+
         try
         {
             var match = Regex.Match(jsonErrorLine, @"""message"":\s*""([^""]+)""");
             if (match.Success)
-                return $"Claude API: {match.Groups[1].Value}";
+            {
+                var message = SanitizeForDisplay(match.Groups[1].Value);
+                return isClaudeApiError ? $"Claude API: {message}" : message;
+            }
         }
         catch { }
 
-        return "Claude API error (see output for details)";
+        return isClaudeApiError
+            ? "Claude API error (see output for details)"
+            : SanitizeForDisplay(jsonErrorLine);
     }
 
     internal static string? TryExtractErrorEvent(IEnumerable<string> outputLines)
@@ -190,7 +223,10 @@ internal static class JobFailureAnalyzer
                 return string.IsNullOrWhiteSpace(summary) ? null : SanitizeForDisplay(summary);
             }
         }
-        catch { }
+        catch
+        {
+            // ignored
+        }
 
         return null;
     }
