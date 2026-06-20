@@ -40,9 +40,10 @@ public static class UsePreflightCheckExtensions
 
                     foreach (var repo in project.Repos)
                     {
-                        var baseBranch = repo.BaseBranch ?? "main";
                         var expanded = Environment.ExpandEnvironmentVariables(repo.Path);
                         if (!checkedPaths.Add(expanded)) continue;
+
+                        var baseBranch = repo.BaseBranch ?? GitHelper.ResolveDefaultBranch(expanded, configService.TendrilHome);
 
                         var checkResult = gitService.GetRepoDirtyState(expanded, baseBranch);
                         if (checkResult.IsSuccess && checkResult.Value!.IsDirty)
