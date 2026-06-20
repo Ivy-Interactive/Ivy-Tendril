@@ -1,4 +1,5 @@
 using System.Reactive.Linq;
+using Ivy.Tendril.Apps.Jobs.Dialogs;
 using Ivy.Tendril.Apps.Jobs.Sheets;
 using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Helpers;
@@ -66,6 +67,14 @@ public partial class JobsApp : ViewBase
             ).Width(UxHelper.SheetWidth).Resizable();
         });
 
+        var (rerunDialog, showRerun) = UseTrigger<string>((isOpen, jobId) =>
+        {
+            if (!isOpen.Value) return null;
+            var job = jobService.GetJob(jobId);
+            if (job == null) return null;
+            return new RerunJobDialog(isOpen, job, jobService, planService, () => refreshToken.Refresh());
+        });
+
         UseEffect(() => JobsApp.JobChangeHookDisposable(jobService, refreshToken));
         UseInterval(() => JobsApp.AutoRefreshCheck(jobService, refreshToken), TimeSpan.FromSeconds(5));
 
@@ -79,11 +88,11 @@ public partial class JobsApp : ViewBase
         var jobsProgress = jobs.Count > 0 ? BuildStatusProgress(jobs, config) : null;
 
         var dataTable = JobsApp.BuildDataTable(nav, rows, refreshToken, updateStream, config, planService,
-            jobService, client, showPlan, showOutput, showPrompt, showDebug, jobs, projectColors, jobsProgress,
+            jobService, client, showPlan, showOutput, showPrompt, showDebug, showRerun, jobs, projectColors, jobsProgress,
             confirmDeleteOpen, deleteJobId);
 
         var layout = Layout.Vertical().Height(Size.Full());
 
-        return layout | new Fragment(dataTable, planSheet, outputSheet, promptSheet, debugSheet);
+        return layout | new Fragment(dataTable, planSheet, outputSheet, promptSheet, debugSheet, rerunDialog);
     }
 }
