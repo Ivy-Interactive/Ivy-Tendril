@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Ivy Tendril supports plugins that can extend its functionality. Plugins are .NET class libraries that implement the `IIvyPlugin` interface and are loaded dynamically at runtime. They can contribute UI elements, register messaging channels, add full apps, and more.
+Ivy Tendril supports plugins that can extend its functionality. Plugins are .NET class libraries that implement the `IIvyPlugin` interface and are loaded dynamically at runtime. They can contribute UI elements, schedule background tasks, add full apps, and more.
 
 **Key concepts:**
 - Plugins are discovered via directory scanning or a `plugin-references.yaml` file
@@ -206,10 +206,10 @@ public class MyPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
 **Available Tendril context types:**
 | Type | Package | Features |
 |------|---------|----------|
-| `ITendrilExtendedPluginContext` | `Ivy.Tendril.Plugin.Extended.Abstractions` | UI contributions (dialogs, menu items, apps) + messaging + TendrilHome |
-| `ITendrilPluginContext` | `Ivy.Tendril.Plugin.Abstractions` | Messaging channels + TendrilHome access |
+| `ITendrilExtendedPluginContext` | `Ivy.Tendril.Plugin.Extended.Abstractions` | Everything below + UI contributions (dialogs, menu items, apps, widgets) |
+| `ITendrilPluginContext` | `Ivy.Tendril.Plugin.Abstractions` | TendrilHome, messaging, scheduled tasks, lifecycle hooks, inbox, config modification, promptware registration |
 
-Use `ITendrilExtendedPluginContext` if your plugin contributes UI elements (dialogs, menu items, apps). Use `ITendrilPluginContext` if your plugin only needs messaging or TendrilHome access.
+Use `ITendrilExtendedPluginContext` if your plugin contributes UI elements. Use `ITendrilPluginContext` if your plugin is purely a background service (syncing, notifications, automation).
 
 If a plugin declares a context type that the host cannot provide, an `InvalidOperationException` is thrown at load time with a clear error message.
 
@@ -333,7 +333,7 @@ public class MyPlugin : IIvyPlugin<ITendrilPluginContext>
 
 When this method returns a non-null value, the Plugins settings page renders your custom view instead of the auto-generated field list. The `configWriter` allows your view to read/write configuration values and call `Save()` to trigger reconfiguration.
 
-## Hooks: Lifecycle and Scheduling
+## Plugin Lifecycle
 
 ### Startup and Shutdown
 
@@ -487,6 +487,7 @@ Retry state is tracked per-task. When all retry attempts are exhausted, `Consecu
 public record ScheduledTaskContext
 {
     public string TendrilHome { get; }
+    public IInbox Inbox { get; }
     public ILogger Logger { get; }
     public DateTimeOffset ScheduledTime { get; }       // When this tick was supposed to fire
     public DateTimeOffset LastSuccessTime { get; }     // When the task last completed successfully
@@ -543,14 +544,6 @@ public void Configure(ITendrilPluginContext context)
         evt.Description = await EnrichWithLinearContext(evt.Description, ct);
     });
 
-    // Fire when an inbox file is detected (before parsing/job creation)
-    context.Hooks.OnInboxItem(async (evt, ct) =>
-    {
-        // Reject duplicates at the file level
-        if (await IsDuplicate(evt.FilePath, ct))
-            evt.Cancel("Duplicate issue — already tracked");
-    });
-
     // Fire when config is about to be saved
     context.Hooks.BeforeConfigSave((evt) =>
     {
@@ -573,9 +566,6 @@ public interface IPluginHooks
     // Plan lifecycle
     void BeforeCreatePlan(Func<BeforeCreatePlanEvent, CancellationToken, Task> handler);
     void AfterCreatePlan(Func<AfterCreatePlanEvent, CancellationToken, Task> handler);
-
-    // Inbox
-    void OnInboxItem(Func<InboxItemEvent, CancellationToken, Task> handler);
 
     // Configuration
     void BeforeConfigSave(Action<ConfigSaveEvent> handler);
@@ -624,15 +614,6 @@ public record AfterCreatePlanEvent
     public required string Title { get; init; }
 }
 
-public record InboxItemEvent
-{
-    public required string FilePath { get; init; }
-    public required string Content { get; init; }
-    public required string Project { get; init; }
-    public bool Cancelled { get; private set; }
-    public void Cancel(string reason) { /* ... */ }
-}
-
 public record ConfigSaveEvent
 {
     public required TendrilSettings CurrentSettings { get; init; }
@@ -642,20 +623,6 @@ public record ConfigSaveEvent
     public void Reject(string reason) { /* ... */ }
 }
 ```
-
-**`OnInboxItem` vs `BeforeCreatePlan` — when to use which:**
-
-These two hooks fire at different stages of the inbox-to-plan pipeline:
-
-1. A `.md` file lands in the Inbox directory → **`OnInboxItem`** fires
-2. The file is parsed (frontmatter extracted, project/description resolved)
-3. A CreatePlan job is about to be submitted → **`BeforeCreatePlan`** fires
-
-Use `OnInboxItem` for raw-file-level concerns: deduplication, routing files to external systems, rejecting spam, or logging what enters the inbox. At this stage you have the file path and raw content but no structured metadata.
-
-Use `BeforeCreatePlan` for semantic enrichment: modifying the description, overriding the project assignment, or adding context from external APIs. At this stage the frontmatter has been parsed into structured fields you can read and mutate.
-
-Additionally, `BeforeCreatePlan` fires for *all* plan creation — not just inbox-originated ones. Plans created via the UI, the CLI, or the HTTP API also trigger `BeforeCreatePlan`. `OnInboxItem` only fires for the file-based inbox path.
 
 **Execution semantics:**
 - Multiple plugins can register handlers for the same event. They execute in plugin load order.
@@ -667,7 +634,7 @@ Additionally, `BeforeCreatePlan` fires for *all* plan creation — not just inbo
 
 **Relationship to config-based hooks:**
 
-Config-based hooks (`PromptwareHookConfig` in `config.yaml`) run as external shell commands and are owned by the user. Plugin lifecycle hooks run in-process and are owned by the plugin. Both can coexist — config hooks run after plugin hooks for `After*` events, and before plugin hooks for `Before*` events. This gives users the final say on transformations/cancellations.
+Config-based hooks (`PromptwareHookConfig` in `config.yaml`) run as external shell commands and are owned by the user. Plugin lifecycle hooks run in-process and are owned by the plugin. Both can coexist — plugin hooks always run first, then config-based hooks. This means user-configured hooks see the final state after all plugin transformations, and can override or react to plugin behavior.
 
 ## UX: Contributing UI Elements
 
@@ -757,16 +724,33 @@ Plugins can register apps that appear in Tendril's main navigation. Use `IIvyPlu
 ```csharp
 public void Configure(ITendrilExtendedPluginContext context)
 {
-    // Register a single app
+    // Register an app with a view factory
     context.AddApp(new AppDescriptor
     {
         Id = "my-plugin-app",
         Label = "My App",
-        // ... view factory, icon, etc.
+        Icon = Icons.BarChart,
+        ViewFactory = () => new MyDashboardView()
     });
 
     // Or discover apps from the plugin assembly via [App] attributes
     context.AddAppsFromAssembly(typeof(MyPlugin).Assembly);
+}
+```
+
+The `ViewFactory` returns a `ViewBase` subclass that renders the app's content:
+
+```csharp
+internal class MyDashboardView : ViewBase
+{
+    public override object? Build()
+    {
+        var data = UseQuery("dashboard-data", async (_, ct) => await FetchMetrics(ct));
+
+        return Layout.Vertical().Gap(3)
+            | Text.Heading("My Dashboard")
+            | (data.Loading ? new Loading() : new DataTable(data.Value));
+    }
 }
 ```
 
@@ -868,9 +852,9 @@ The token is then retrieved in `Configure()` via `context.Config.GetValue("ApiKe
 
 ### Registering a Messaging Channel
 
-> **To be implemented...** Although messaging channels can be implemented and registered, Tendril does not use them yet.
+> **To be implemented...** The messaging channel interface can be implemented and registered today, but nothing currently consumes registered channels to send messages. Automatic notifications (e.g., on PR creation or job completion) are planned — the triggering logic may live in Tendril core, in a separate notifications plugin, or in the messaging plugins themselves (using lifecycle hooks to decide when to send).
 
-Plugins can register messaging channels that Tendril can use to send notifications (e.g., plan completion updates). Use `IIvyPlugin<ITendrilPluginContext>` (or `ITendrilExtendedPluginContext` if you also need UI contributions):
+Plugins can register messaging channels for sending notifications (e.g., plan completion updates, job failures). Use `IIvyPlugin<ITendrilPluginContext>` (or `ITendrilExtendedPluginContext` if you also need UI contributions):
 
 ```csharp
 public class SlackPlugin : IIvyPlugin<ITendrilPluginContext>
@@ -1008,21 +992,9 @@ public interface ITendrilConfigWriter
 - If validation fails, a `ConfigModificationException` is thrown with details, and the existing config is untouched.
 - Only one `Modify` call executes at a time (serialized via a lock). Concurrent calls queue and each sees the result of the previous.
 
-**Common operations:**
+**More examples:**
 
 ```csharp
-// Add a project
-context.TendrilConfig.Modify(config =>
-{
-    config.Projects.Add(new ProjectConfig
-    {
-        Name = "MyService",
-        Color = "Teal",
-        Repos = [new RepoRef { Path = "/path/to/repo", BaseBranch = "main" }],
-        Verifications = [new ProjectVerificationRef { Name = "DotnetBuild", Required = true }]
-    });
-});
-
 // Install a hook on all projects
 context.TendrilConfig.Modify(config =>
 {
@@ -1048,12 +1020,6 @@ context.TendrilConfig.Modify(config =>
         Name = "SecurityScan",
         Prompt = "Run a security scan on all changed files using the Snyk CLI."
     });
-});
-
-// Modify a scalar setting
-context.TendrilConfig.Modify(config =>
-{
-    config.MaxConcurrentJobs = Math.Max(config.MaxConcurrentJobs, 10);
 });
 ```
 
@@ -1175,17 +1141,13 @@ context.RegisterScheduledTask(new ScheduledTaskDescriptor
             SourceIdentifier = $"#{issue.Number}"
         });
 
-        context.Inbox.AddRange(items);
+        ctx.Inbox.AddRange(items);
         return ScheduledTaskResult.Success($"Added {issues.Count} issues to inbox");
     }
 });
 ```
 
 **Deduplication:** The API does **not** deduplicate automatically — if you add the same item twice, two plans will be created. Plugins are responsible for tracking what they've already imported (e.g., using plugin config values, a local JSON log, or checking `SourceIdentifier` against existing plan metadata).
-
-### Installing a Promptware Verification
-
-> **To be implemented...** A plugin API for registering custom promptware verification steps is not yet available.
 
 ### Installing a Promptware
 
@@ -1449,7 +1411,7 @@ Ivy.Tendril.Plugin.Linear/
 **Version compatibility:**
 - `Ivy.Tendril.Plugin.Abstractions` depends on `Ivy.Plugin.Abstractions`
 - `Ivy.Tendril.Plugin.Extended.Abstractions` depends on `Ivy` (the full framework, for `ViewBase`, `MenuItem`, etc.)
-- Both Tendril packages are versioned together (currently v1.0.34)
+- Both Tendril packages are versioned together
 
 **Target framework:** All plugins must target `net10.0`.
 
