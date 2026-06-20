@@ -20,6 +20,7 @@ public partial class JobsApp
         Action<string> showOutput,
         Action<string> showPrompt,
         Action<string>? showDebug,
+        Action<string> showRerun,
         List<JobItem> jobs,
         Dictionary<string, string> projectColors,
         StackedProgress? jobsProgress,
@@ -236,20 +237,7 @@ public partial class JobsApp
                                 return ValueTask.CompletedTask;
                             }
 
-                            var folder = job.TypedArgs.PlanFolder;
-                            if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or ExpandPlanArgs && folder != null)
-                            {
-                                planService.TransitionState(Path.GetFileName(folder), PlanStatus.Building);
-                            }
-                            else if (job.TypedArgs is UpdatePlanArgs && folder != null)
-                            {
-                                planService.TransitionState(Path.GetFileName(folder), PlanStatus.Updating);
-                            }
-
-                            jobService.DeleteJob(job.Id);
-                            jobService.StartJob(job.TypedArgs);
-
-                            refreshToken.Refresh();
+                            showRerun(job.Id);
                         }
                     }
                     else if (tag == "force-start-job")
