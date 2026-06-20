@@ -152,7 +152,7 @@ public class JobStartCommand : Command<JobStartSettings>
 
             return new SyncRepoArgs(
                 settings.RepoPath,
-                settings.BaseBranch ?? "main");
+                settings.BaseBranch ?? GitHelper.ResolveDefaultBranch(settings.RepoPath));
         }
 
         if (string.IsNullOrEmpty(settings.PlanId))

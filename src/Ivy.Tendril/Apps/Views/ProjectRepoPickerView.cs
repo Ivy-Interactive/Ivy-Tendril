@@ -53,10 +53,12 @@ public class ProjectRepoPickerView(
             isAdding.Set(true);
             try
             {
-                RepoRef? toAdd = draft;
+                // Detect and persist the repo's real default branch so the project config is
+                // explicit, rather than letting downstream steps assume "main".
+                RepoRef? toAdd = draft with { BaseBranch = await GitHelper.ResolveDefaultBranchAsync(path, tendrilHome) };
                 if (onAdd != null)
                 {
-                    toAdd = await onAdd(draft);
+                    toAdd = await onAdd(toAdd);
                     if (toAdd == null) return;
                 }
 

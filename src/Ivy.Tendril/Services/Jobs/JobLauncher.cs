@@ -595,7 +595,7 @@ internal class JobLauncher
             var repoRef = FindProjectRepoConfig(projectConfig, Path.GetFileName(expanded));
             var entry = new RepoConfigEntry(
                 expanded,
-                repoRef?.BaseBranch ?? "main",
+                repoRef?.BaseBranch ?? GitHelper.ResolveDefaultBranch(expanded, _configService?.TendrilHome),
                 repoRef?.PrRule ?? "default",
                 ReadOnly: false);
             AddRepoToConfigLines(lines, entry);
@@ -616,7 +616,9 @@ internal class JobLauncher
 
             var entry = new RepoConfigEntry(
                 expanded,
-                FindBaseBranchAcrossProjects(repoName),
+                // Pass the raw config path: ResolveDefaultBranch owns expansion, so pre-expanding here
+                // would just run env-var expansion twice on the same value.
+                FindBaseBranchAcrossProjects(repoName, depPath),
                 "default",
                 ReadOnly: true);
             AddRepoToConfigLines(lines, entry);
@@ -639,9 +641,11 @@ internal class JobLauncher
                 .Equals(repoName, StringComparison.OrdinalIgnoreCase));
     }
 
-    private string FindBaseBranchAcrossProjects(string repoName)
+    // repoConfigPath is the raw (unexpanded) config path; ResolveDefaultBranch expands it.
+    private string FindBaseBranchAcrossProjects(string repoName, string repoConfigPath)
     {
-        if (_configService == null) return "main";
+        if (_configService == null)
+            return GitHelper.ResolveDefaultBranch(repoConfigPath);
 
         foreach (var proj in _configService.Projects)
         {
@@ -652,7 +656,7 @@ internal class JobLauncher
                 return configured;
         }
 
-        return "main";
+        return GitHelper.ResolveDefaultBranch(repoConfigPath, _configService.TendrilHome);
     }
 
     private ProjectInfo[]? BuildProjectInfos(JobItem job)
