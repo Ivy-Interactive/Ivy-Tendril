@@ -220,30 +220,5 @@ internal class PlanArtifactSyncer
     }
 
     private static string DetectBaseBranch(string repoRoot)
-    {
-        try
-        {
-            var psi = new ProcessStartInfo("git", "symbolic-ref refs/remotes/origin/HEAD")
-            {
-                WorkingDirectory = repoRoot,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using var process = Process.Start(psi);
-            if (process == null) return "origin/main";
-            var output = process.StandardOutput.ReadToEnd().Trim();
-            process.WaitForExitOrKill(5000);
-
-            if (process.ExitCode == 0 && !string.IsNullOrEmpty(output))
-                return output.Replace("refs/remotes/", "");
-        }
-        catch
-        {
-        }
-
-        return "origin/main";
-    }
+        => "origin/" + GitHelper.ResolveDefaultBranch(repoRoot);
 }

@@ -153,6 +153,100 @@ public class GitHelperTests : IDisposable
         }
     }
 
+    [Fact]
+    public void ResolveDefaultBranch_EmptyPath_ReturnsMain()
+    {
+        Assert.Equal("main", GitHelper.ResolveDefaultBranch(""));
+    }
+
+    [Fact]
+    public void ResolveDefaultBranch_LocalRepoWithoutRemote_FallsBackToMain()
+    {
+        var repoPath = Path.Combine(_tempDir, "no-remote");
+        Directory.CreateDirectory(repoPath);
+        InitGitRepo(repoPath, "development");
+
+        // No origin remote and no origin/HEAD → graceful fallback.
+        Assert.Equal("main", GitHelper.ResolveDefaultBranch(repoPath));
+    }
+
+    [Fact]
+    public void ResolveDefaultBranch_CloneWithOriginHead_DetectsNonMainDefault()
+    {
+        var clone = SetUpRemoteAndClone("development");
+        if (clone == null) return; // git unavailable — skip
+
+        // origin/HEAD is set by clone → resolved via the local symbolic-ref.
+        Assert.Equal("development", GitHelper.ResolveDefaultBranch(clone));
+    }
+
+    [Fact]
+    public void ResolveDefaultBranch_CloneWithoutOriginHead_DetectsViaLsRemote()
+    {
+        var clone = SetUpRemoteAndClone("development");
+        if (clone == null) return; // git unavailable — skip
+
+        // Reproduce the bug condition: origin/HEAD not set up locally.
+        RunGit("symbolic-ref -d refs/remotes/origin/HEAD", clone);
+
+        // Must fall back to querying the remote, not assume "main".
+        Assert.Equal("development", GitHelper.ResolveDefaultBranch(clone));
+    }
+
+    [Theory]
+    [InlineData("https://github.com/Ivy-Interactive/Ivy-Framework", "development")]
+    [InlineData("https://github.com/Ivy-Interactive/Tendril-Test-Runner", "main")]
+    [InlineData("https://github.com/nielsbosma/SeoTools-for-Excel-Connectors", "master")]
+    public async Task ResolveDefaultBranch_KnownRemoteUrl_DetectsDefaultBranch(string url, string expectedBranch)
+    {
+        // Skip when the remote is unreachable (offline) so we don't fail on connectivity,
+        // and don't false-pass: probing the expected branch confirms the network is up.
+        if (!await GitHelper.IsValidBranchAsync(url, expectedBranch))
+            return;
+
+        Assert.Equal(expectedBranch, GitHelper.ResolveDefaultBranch(url));
+    }
+
+    /// <summary>
+    /// Builds a bare remote whose default branch is <paramref name="defaultBranch"/> and clones it.
+    /// Returns the clone path, or null if the git operations did not produce a usable clone.
+    /// </summary>
+    private string? SetUpRemoteAndClone(string defaultBranch)
+    {
+        var remote = Path.Combine(_tempDir, "remote.git");
+        Directory.CreateDirectory(remote);
+        RunGit($"init --bare -b {defaultBranch}", remote);
+
+        var work = Path.Combine(_tempDir, "work");
+        Directory.CreateDirectory(work);
+        RunGit($"init -b {defaultBranch}", work);
+        RunGit("config user.email \"test@example.com\"", work);
+        RunGit("config user.name \"Test User\"", work);
+        File.WriteAllText(Path.Combine(work, "a.txt"), "x");
+        RunGit("add -A", work);
+        RunGit("commit -m initial", work);
+        RunGit($"remote add origin \"{remote}\"", work);
+        RunGit($"push -u origin {defaultBranch}", work);
+
+        var clone = Path.Combine(_tempDir, "clone");
+        RunGit($"clone \"{remote}\" \"{clone}\"", _tempDir);
+
+        return Directory.Exists(Path.Combine(clone, ".git")) ? clone : null;
+    }
+
+    private static void RunGit(string args, string workingDir)
+    {
+        using var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("git", args)
+        {
+            WorkingDirectory = workingDir,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        });
+        p?.WaitForExit(15000);
+    }
+
     private static void InitGitRepo(string path, string branchName)
     {
         using var pInit = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("git", "init") { WorkingDirectory = path, CreateNoWindow = true });
