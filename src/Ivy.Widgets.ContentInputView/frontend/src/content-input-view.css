@@ -369,11 +369,12 @@
   border: none;
   background: var(--civ-text);
   color: var(--civ-bg);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: transform 0.2s, background-color 0.2s, opacity 0.2s;
+  line-height: 1;
 }
 
 .civ-submit-btn:hover:not(:disabled) {
@@ -403,12 +404,22 @@
   background: var(--civ-primary);
   color: var(--primary-foreground, #ffffff);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 .civ-submit-btn.civ-submit-btn-labeled:hover:not(:disabled) {
   background: var(--civ-primary);
   opacity: 0.9;
   transform: translateY(-1px);
+}
+
+.civ-submit-text {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
 }
 
 .civ-submit-shortcut {
@@ -425,6 +436,7 @@
   justify-content: center;
   background: rgba(255, 255, 255, 0.1);
   color: inherit;
+  line-height: 1;
 }
 
 /* Animations */
