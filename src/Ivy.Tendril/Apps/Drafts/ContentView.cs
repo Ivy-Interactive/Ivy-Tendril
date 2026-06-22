@@ -452,7 +452,7 @@ public class ContentView(
         // When chained behind an UpdatePlan job the plan is already Updating;
         // JobLauncher sets Executing once the blocked ExecutePlan launches.
         if (!hasWaits)
-            TransitionPlanOptimistically(PlanStatus.Building);
+            TransitionPlanOptimistically(PlanStatus.Creating);
 
         jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath) { WaitForJobs = hasWaits ? waitJobIds : null });
         refreshPlans();
@@ -473,7 +473,7 @@ public class ContentView(
         // When chained behind an UpdatePlan job the plan is already Updating;
         // JobLauncher sets Executing once the blocked ExecutePlan launches.
         if (!hasWaits)
-            TransitionPlanOptimistically(PlanStatus.Building);
+            TransitionPlanOptimistically(PlanStatus.Creating);
 
         jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath) { WaitForJobs = allWaitIds });
         refreshPlans();

@@ -61,7 +61,7 @@ public class PlanYamlCorruptionTests : IClassFixture<ConfigServiceFixture>
         var planFolder = CreateTestPlan(initialPrompt: largePrompt);
 
         // Act: Change state multiple times
-        PlanYamlHelper.SetPlanStateByFolder(planFolder, "Building");
+        PlanYamlHelper.SetPlanStateByFolder(planFolder, "Creating");
         PlanYamlHelper.SetPlanStateByFolder(planFolder, "Draft");
 
         // Assert: plan.yaml is valid and intact
@@ -94,7 +94,7 @@ public class PlanYamlCorruptionTests : IClassFixture<ConfigServiceFixture>
         // mtime. A fixed 10ms sleep was below that resolution and could leave mtimes equal.
         RetryHelper.WaitUntil(() => DateTime.UtcNow > beforeModTime.AddMilliseconds(20),
             TimeSpan.FromSeconds(2));
-        PlanYamlHelper.SetPlanStateByFolder(planFolder, "Building");
+        PlanYamlHelper.SetPlanStateByFolder(planFolder, "Creating");
 
         // Assert: File was modified
         var afterModTime = File.GetLastWriteTimeUtc(planYamlPath);
@@ -106,7 +106,7 @@ public class PlanYamlCorruptionTests : IClassFixture<ConfigServiceFixture>
 
         // Verify content is valid
         var plan = PlanCommandHelpers.ReadPlan(planFolder);
-        Assert.Equal("Building", plan.State);
+        Assert.Equal("Creating", plan.State);
 
         // Cleanup
         Directory.Delete(planFolder, true);
@@ -122,7 +122,7 @@ public class PlanYamlCorruptionTests : IClassFixture<ConfigServiceFixture>
 
         // Act: Wait briefly then change state
         Thread.Sleep(100);
-        PlanYamlHelper.SetPlanStateByFolder(planFolder, "Building");
+        PlanYamlHelper.SetPlanStateByFolder(planFolder, "Creating");
 
         // Assert: Updated timestamp changed
         var updatedPlan = PlanCommandHelpers.ReadPlan(planFolder);

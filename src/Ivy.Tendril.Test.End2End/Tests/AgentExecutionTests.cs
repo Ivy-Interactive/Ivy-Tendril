@@ -99,8 +99,8 @@ public class AgentExecutionTests : IAsyncLifetime
         var step2StartLine = _fixture.Tendril.StdoutLines.Count;
         await plans.ClickExecute();
 
-        await WaitForPlanState("Reverse", "ReadyForReview", timeout,
-            $"Step 2 (ExecutePlan) failed: plan #{planId} did not reach ReadyForReview, agent={agent}");
+        await WaitForPlanState("Reverse", "Review", timeout,
+            $"Step 2 (ExecutePlan) failed: plan #{planId} did not reach Review, agent={agent}");
 
         // Wait for the ExecutePlan job to finish (detect via stdout)
         await WaitForJobExit(timeout, step2StartLine);

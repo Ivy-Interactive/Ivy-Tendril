@@ -210,7 +210,7 @@ public class PlanDatabaseService : IPlanDatabaseService
             cmd.CommandText = """
                               SELECT
                                   COALESCE(SUM(CASE WHEN State IN ('Draft', 'Blocked') THEN 1 ELSE 0 END), 0) AS DraftCount,
-                                  COALESCE(SUM(CASE WHEN State = 'ReadyForReview' THEN 1 ELSE 0 END), 0) AS ReadyForReviewCount,
+                                  COALESCE(SUM(CASE WHEN State = 'Review' THEN 1 ELSE 0 END), 0) AS ReviewCount,
                                   COALESCE(SUM(CASE WHEN State = 'Failed' THEN 1 ELSE 0 END), 0) AS FailedCount,
                                   COALESCE(SUM(CASE WHEN State = 'Icebox' THEN 1 ELSE 0 END), 0) AS IceboxCount,
                                   (SELECT COUNT(*) FROM Recommendations WHERE State = 'Pending' AND SourcePlanStatus = 'Completed') AS PendingRecommendationsCount,
@@ -222,7 +222,7 @@ public class PlanDatabaseService : IPlanDatabaseService
             if (reader.Read())
             {
                 var draftOrdinal = reader.GetOrdinal("DraftCount");
-                var readyForReviewOrdinal = reader.GetOrdinal("ReadyForReviewCount");
+                var reviewOrdinal = reader.GetOrdinal("ReviewCount");
                 var failedOrdinal = reader.GetOrdinal("FailedCount");
                 var iceboxOrdinal = reader.GetOrdinal("IceboxCount");
                 var pendingRecsOrdinal = reader.GetOrdinal("PendingRecommendationsCount");
@@ -230,7 +230,7 @@ public class PlanDatabaseService : IPlanDatabaseService
 
                 return new PlanReaderService.PlanCountSnapshot(
                     reader.GetInt32(draftOrdinal),
-                    reader.GetInt32(readyForReviewOrdinal),
+                    reader.GetInt32(reviewOrdinal),
                     reader.GetInt32(failedOrdinal),
                     reader.GetInt32(iceboxOrdinal),
                     reader.GetInt32(pendingRecsOrdinal),

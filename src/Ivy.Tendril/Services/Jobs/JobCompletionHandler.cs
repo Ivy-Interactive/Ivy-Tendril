@@ -411,7 +411,7 @@ internal class JobCompletionHandler
 
             var hasIncomplete = planYaml.Verifications?
                 .Any(v => v.Status is VerificationStatus.Pending or VerificationStatus.Fail) ?? false;
-            var targetState = hasIncomplete ? PlanStatus.Failed : PlanStatus.ReadyForReview;
+            var targetState = hasIncomplete ? PlanStatus.Failed : PlanStatus.Review;
 
             var folderName = Path.GetFileName(planFolder);
             if (_planReaderService != null)
@@ -644,7 +644,7 @@ internal class JobCompletionHandler
     private static PlanStatus? FallbackPreviousState(JobArgsBase? args) => args switch
     {
         ExecutePlanArgs => PlanStatus.Draft,
-        RetryPlanArgs => PlanStatus.ReadyForReview,
+        RetryPlanArgs => PlanStatus.Review,
         ExpandPlanArgs or UpdatePlanArgs or SplitPlanArgs => PlanStatus.Draft,
         _ => null
     };

@@ -12,7 +12,7 @@ public class ExecutePlanTests
 
     [Theory]
     [MemberData(nameof(AgentTestData.Agents), MemberType = typeof(AgentTestData))]
-    public async Task ExecutePlan_ImplementsPlan_TransitionsToReadyForReview(string agent)
+    public async Task ExecutePlan_ImplementsPlan_TransitionsToReview(string agent)
     {
         var cliLog = Path.Combine(_fixture.TendrilHome, $"execute-plan-{agent}.jsonl");
 
@@ -41,7 +41,7 @@ public class ExecutePlanTests
         CliLogAssertions.AssertAllCommandsSucceeded(cliLog);
 
         // Assert state transition
-        PromptwareAssertions.AssertPlanState(planFolder, "ReadyForReview");
+        PromptwareAssertions.AssertPlanState(planFolder, "Review");
     }
 
     [Theory]

@@ -82,13 +82,13 @@ public class PlanReaderService(
     }
 
     /// <summary>
-    ///     On startup, reset any plans stuck in transient states (Building, Executing, Updating)
+    ///     On startup, reset any plans stuck in transient states (Creating, Executing, Updating)
     ///     back to Failed. These are leftovers from a previous Tendril shutdown.
     /// </summary>
     public void RecoverStuckPlans()
     {
         var stuckStates = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            { nameof(PlanStatus.Building), nameof(PlanStatus.Executing), nameof(PlanStatus.Updating), nameof(PlanStatus.Blocked) };
+            { nameof(PlanStatus.Creating), nameof(PlanStatus.Executing), nameof(PlanStatus.Updating), nameof(PlanStatus.Blocked) };
 
         if (!Directory.Exists(PlansDirectory)) return;
 
@@ -120,6 +120,50 @@ public class PlanReaderService(
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Failed to recover plan in {Folder}", Path.GetFileName(dir));
+            }
+    }
+
+    /// <summary>
+    ///     One-time, idempotent migration: rewrite legacy plan state names in plan.yaml files to
+    ///     their current spelling (Building → Creating, ReadyForReview → Review). Must run before
+    ///     <see cref="RecoverStuckPlans" />/<see cref="RepairPlans" /> and the database sync, which
+    ///     all compare against the new enum names. Re-running is a no-op once values are migrated.
+    /// </summary>
+    public void MigratePlanStateNames()
+    {
+        var renames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Building"] = nameof(PlanStatus.Creating),
+            ["ReadyForReview"] = nameof(PlanStatus.Review),
+        };
+
+        if (!Directory.Exists(PlansDirectory)) return;
+
+        foreach (var dir in Directory.GetDirectories(PlansDirectory))
+            try
+            {
+                var planYamlPath = Path.Combine(dir, "plan.yaml");
+                if (!File.Exists(planYamlPath)) continue;
+
+                var yaml = FileHelper.ReadAllText(planYamlPath);
+                var stateMatch = StateLineRegex.Match(yaml);
+                if (!stateMatch.Success) continue;
+
+                var state = stateMatch.Groups[1].Value.Trim();
+                if (!renames.TryGetValue(state, out var newState)) continue;
+
+                // Name-only migration: rewrite the state value but leave `updated:` untouched.
+                var updated = Regex.Replace(yaml, @"(?m)^state:\s*.*$", $"state: {newState}");
+                FileHelper.WriteAllText(planYamlPath, updated);
+                logger.LogInformation("Migrated plan state {Old} → {New} in {Folder}",
+                    state, newState, Path.GetFileName(dir));
+                planWatcherService?.NotifyChanged(Path.GetFileName(dir));
+                _planCountsCache.Invalidate();
+                _recommendationsCache.Invalidate();
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to migrate plan state in {Folder}", Path.GetFileName(dir));
             }
     }
 
@@ -1151,7 +1195,7 @@ public class PlanReaderService(
                 {
                     case "draft": drafts++; break;
                     case "blocked": drafts++; break;
-                    case "readyforreview": reviews++; break;
+                    case "review": reviews++; break;
                     case "failed": failed++; break;
                     case "icebox": icebox++; break;
                 }
@@ -1268,7 +1312,7 @@ public class PlanReaderService(
 
     public record PlanCountSnapshot(
         int Drafts,
-        int ReadyForReview,
+        int Review,
         int Failed,
         int Icebox,
         int PendingRecommendations,

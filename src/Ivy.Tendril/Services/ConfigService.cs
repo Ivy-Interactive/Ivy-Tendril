@@ -167,7 +167,7 @@ public class TendrilSettings
     // Background worktree reclamation (WorktreeCleanupService).
     public int WorktreeCleanupIntervalMinutes { get; set; } = 30;
     public int WorktreeTerminalGraceMinutes { get; set; } = 10;   // Completed/Skipped/Icebox
-    public int WorktreeStaleReaperDays { get; set; } = 7;         // Failed/Draft/ReadyForReview
+    public int WorktreeStaleReaperDays { get; set; } = 7;         // Failed/Draft/Review
 
     public List<ProjectConfig> Projects { get; set; } = new();
     public List<VerificationConfig> Verifications { get; set; } = new();

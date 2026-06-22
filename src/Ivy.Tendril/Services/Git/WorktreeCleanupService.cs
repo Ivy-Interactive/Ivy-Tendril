@@ -19,10 +19,10 @@ public class WorktreeCleanupService : IStartable, IDisposable
         { nameof(PlanStatus.Completed), nameof(PlanStatus.Skipped), nameof(PlanStatus.Icebox) };
 
     // Non-terminal states that keep their worktree for recovery/resume (Failed = verifications
-    // failed; Draft/ReadyForReview = a stopped or reverted execution). The worktree is reaped
+    // failed; Draft/Review = a stopped or reverted execution). The worktree is reaped
     // only once the plan has been idle past the stale-reaper window. Re-executing recreates it.
     private static readonly HashSet<string> StaleReapStates = new(StringComparer.OrdinalIgnoreCase)
-        { nameof(PlanStatus.Failed), nameof(PlanStatus.Draft), nameof(PlanStatus.ReadyForReview) };
+        { nameof(PlanStatus.Failed), nameof(PlanStatus.Draft), nameof(PlanStatus.Review) };
 
     private static readonly TimeSpan DefaultTerminalGrace = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan DefaultStaleReaperPeriod = TimeSpan.FromDays(7);
@@ -55,7 +55,7 @@ public class WorktreeCleanupService : IStartable, IDisposable
 
     /// <summary>
     ///     Resolves how long a plan in the given state must be idle before its worktree is reaped,
-    ///     or <c>null</c> for active/transient states (Building/Executing/Updating/Blocked) whose
+    ///     or <c>null</c> for active/transient states (Creating/Executing/Updating/Blocked) whose
     ///     worktrees are never reaped.
     /// </summary>
     internal static TimeSpan? ResolveGrace(string state, TimeSpan terminalGrace, TimeSpan staleReaperPeriod)

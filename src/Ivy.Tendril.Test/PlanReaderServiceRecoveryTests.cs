@@ -53,7 +53,7 @@ public class PlanReaderServiceRecoveryTests : IDisposable
     [Fact]
     public void Building_Plans_Are_Recovered_To_Draft()
     {
-        CreatePlan("01100-BuildPlan", "Building");
+        CreatePlan("01100-BuildPlan", "Creating");
 
         _service.RecoverStuckPlans();
 
@@ -109,7 +109,7 @@ public class PlanReaderServiceRecoveryTests : IDisposable
     public void Multiple_Stuck_Plans_Are_All_Recovered()
     {
         CreatePlan("01200-Plan1", "Executing");
-        CreatePlan("01201-Plan2", "Building");
+        CreatePlan("01201-Plan2", "Creating");
         CreatePlan("01202-Plan3", "Updating");
         CreatePlan("01203-Plan4", "Draft");
         CreatePlan("01204-Plan5", "Failed");
@@ -121,5 +121,30 @@ public class PlanReaderServiceRecoveryTests : IDisposable
         Assert.Equal("Draft", ReadState("01202-Plan3"));
         Assert.Equal("Draft", ReadState("01203-Plan4"));
         Assert.Equal("Failed", ReadState("01204-Plan5"));
+    }
+
+    [Fact]
+    public void MigratePlanStateNames_RewritesLegacyStateNames()
+    {
+        CreatePlan("01300-Legacy1", "Building");
+        CreatePlan("01301-Legacy2", "ReadyForReview");
+
+        _service.MigratePlanStateNames();
+
+        Assert.Equal("Creating", ReadState("01300-Legacy1"));
+        Assert.Equal("Review", ReadState("01301-Legacy2"));
+    }
+
+    [Fact]
+    public void MigratePlanStateNames_LeavesCurrentStatesUntouched_AndIsIdempotent()
+    {
+        CreatePlan("01302-Current", "Draft");
+        CreatePlan("01303-Migrated", "Building");
+
+        _service.MigratePlanStateNames();
+        _service.MigratePlanStateNames(); // re-running is a no-op
+
+        Assert.Equal("Draft", ReadState("01302-Current"));
+        Assert.Equal("Creating", ReadState("01303-Migrated"));
     }
 }

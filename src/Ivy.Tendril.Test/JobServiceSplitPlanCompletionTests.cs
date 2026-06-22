@@ -71,6 +71,7 @@ public class JobServiceSplitPlanCompletionTests
         public void SetVerificationStatus(string folderName, string name, VerificationStatus status) { }
         public void RevertRevision(string folderName) { }
 
+        public void MigratePlanStateNames() { }
         public void RecoverStuckPlans() { }
         public void RepairPlans() { }
         public List<PlanFile> GetPlans(PlanStatus? statusFilter = null) => [];

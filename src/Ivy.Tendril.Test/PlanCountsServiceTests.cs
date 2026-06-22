@@ -95,7 +95,7 @@ public class TendrilProcessStatusServiceTests : IDisposable
     {
         CreatePlan("00001-DraftPlan", "Draft");
         CreatePlan("00002-AnotherDraft", "Draft");
-        CreatePlan("00003-ReviewPlan", "ReadyForReview");
+        CreatePlan("00003-ReviewPlan", "Review");
         CreatePlan("00004-FailedPlan", "Failed");
         CreatePlan("00005-IceboxPlan", "Icebox");
         CreatePlan("00006-CompletedPlan", "Completed");

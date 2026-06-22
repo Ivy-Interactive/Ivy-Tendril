@@ -131,7 +131,7 @@ public class ActionBarView(
             if (hasActiveExpandJob) return;
             var optimisticPlan = selectedPlan with
             {
-                Metadata = selectedPlan.Metadata with { State = PlanStatus.Building }
+                Metadata = selectedPlan.Metadata with { State = PlanStatus.Creating }
             };
             selectedPlanState.Set(optimisticPlan);
             // Plan state transition (and pre-state snapshot) handled by JobService.StartJob.

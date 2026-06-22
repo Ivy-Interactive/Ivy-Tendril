@@ -41,7 +41,7 @@ public sealed class PlanTools : AuthenticatedToolBase
 
     [McpServerTool(Name = "tendril_list_plans"), Description("Query plans by state, project, or date range")]
     public string ListPlans(
-        [Description("Filter by plan state (e.g., Draft, Executing, ReadyForReview, Failed, Completed)")] string? state = null,
+        [Description("Filter by plan state (e.g., Draft, Executing, Review, Failed, Completed)")] string? state = null,
         [Description("Filter by project name")] string? project = null,
         [Description("Filter plans created after this date (ISO 8601, e.g., 2026-04-01)")] string? since = null)
     {
