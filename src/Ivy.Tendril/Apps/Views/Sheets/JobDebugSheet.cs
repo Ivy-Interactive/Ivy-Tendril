@@ -120,9 +120,10 @@ public class JobDebugSheet(
             })
             | new Button("Report Bug").Icon(Icons.Bug).OnClick(() => showReportDialog.Set(true));
 
-        return Layout.Vertical()
-            | new HeaderLayout(header, detailsView)
-            | (showReportDialog.Value ? new ReportBugDialog(showReportDialog, jobId) : null);
+        return new Fragment(
+            new HeaderLayout(header, detailsView).Size(Size.Full()),
+            showReportDialog.Value ? new ReportBugDialog(showReportDialog, jobId) : null
+        );
     }
 
     private object PathDropDown(string path, Action<string> copyToClipboard, IClientProvider client)
