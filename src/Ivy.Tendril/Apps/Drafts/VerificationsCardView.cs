@@ -31,7 +31,7 @@ public class VerificationsCardView(
             .Any(pv => pv.Name.Equals(name, StringComparison.OrdinalIgnoreCase) && pv.Required);
 
         var inner = Layout.Vertical().Gap(0)
-                    | Text.Block("Verifications").Bold().Margin(0, 0, 2, 0);
+                    | new Box(Text.Block("Verifications").Bold()).Margin(0, 0, 2, 0);
 
         if (verifications.Count == 0)
         {
