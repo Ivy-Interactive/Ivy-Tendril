@@ -196,6 +196,6 @@ public class ProjectAgentStepView(
                         .Padding(4, 4, 0, 4)
                    : null!)
                | buttonArea
-               | new Spacer().Height(Size.Units(4));
+               | (showHeader ? (object)new Spacer().Height(Size.Units(4)) : null!);
     }
 }
