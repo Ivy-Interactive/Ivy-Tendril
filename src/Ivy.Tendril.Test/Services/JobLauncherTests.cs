@@ -82,6 +82,51 @@ projects:
         Assert.Contains("baseBranch: development", yaml);
     }
 
+    private static Dictionary<string, string> InvokeAddCreatePrOptions(JobItem job)
+    {
+        var values = new Dictionary<string, string>();
+        var method = typeof(JobLauncher).GetMethod("AddCreatePrOptions",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        method?.Invoke(null, new object[] { job, values });
+        return values;
+    }
+
+    // The PR dialog's "Reviewer" field flows into CreatePrArgs.Reviewer and must reach the
+    // CreatePr promptware as the PrReviewer firmware value (issue #1311). It used to be the
+    // PrAssignee value, which emitted a GitHub assignee instead of a requested reviewer.
+    [Fact]
+    public void AddCreatePrOptions_EmitsPrReviewer_WhenReviewerSet()
+    {
+        var job = new JobItem
+        {
+            Id = "pr-1",
+            Type = "CreatePr",
+            TypedArgs = new CreatePrArgs(@"D:\Plans\01234-TestPlan", Reviewer: "octocat"),
+            Project = "TestProject"
+        };
+
+        var values = InvokeAddCreatePrOptions(job);
+
+        Assert.Equal("octocat", values["PrReviewer"]);
+        Assert.False(values.ContainsKey("PrAssignee"));
+    }
+
+    [Fact]
+    public void AddCreatePrOptions_OmitsPrReviewer_WhenReviewerNull()
+    {
+        var job = new JobItem
+        {
+            Id = "pr-2",
+            Type = "CreatePr",
+            TypedArgs = new CreatePrArgs(@"D:\Plans\01234-TestPlan"),
+            Project = "TestProject"
+        };
+
+        var values = InvokeAddCreatePrOptions(job);
+
+        Assert.False(values.ContainsKey("PrReviewer"));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempTendrilHome))

@@ -189,7 +189,7 @@ public class JobStartCommand : Command<JobStartSettings>
                 Merge: !settings.NoMerge,
                 DeleteBranch: !settings.NoDeleteBranch,
                 IncludeArtifacts: !settings.NoArtifacts,
-                Assignee: settings.Assignee,
+                Reviewer: settings.Assignee,
                 Comment: settings.Comment,
                 Draft: settings.Draft);
 
