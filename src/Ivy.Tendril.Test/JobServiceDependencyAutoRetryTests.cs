@@ -126,7 +126,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
-        // Verify plan.yaml was updated — Building then immediately Executing when job launches
+        // Verify plan.yaml was updated — Creating then immediately Executing when job launches
         var planYamlContent = File.ReadAllText(Path.Combine(planA, "plan.yaml"));
         Assert.Contains("state: Executing", planYamlContent);
     }
@@ -152,7 +152,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
     public void RetryBlockedDependents_WhenPlanNotInDraftState_DoesNotRequeue()
     {
         var planB = CreatePlanFolder("02300-PlanB", "Completed");
-        var planA = CreatePlanFolder("02301-PlanA", "Building", ["02300-PlanB"]);
+        var planA = CreatePlanFolder("02301-PlanA", "Creating", ["02300-PlanB"]);
 
         var service = CreateService();
 
@@ -309,6 +309,10 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
 #pragma warning disable CS0067
         public event Action? CountsInvalidated;
 #pragma warning restore CS0067
+
+        public void MigratePlanStateNames()
+        {
+        }
 
         public void RecoverStuckPlans()
         {

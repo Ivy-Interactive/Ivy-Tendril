@@ -219,19 +219,19 @@ priority: 0
 ```
 CreatePlan ──► Draft
                │
-               ├─ ExpandPlan ──► Building ──► Draft
+               ├─ ExpandPlan ──► Creating ──► Draft
                ├─ UpdatePlan ──► Updating ──► Draft
                ├─ SplitPlan  ──► Updating ──► Skipped
                │
                ├─ ExecutePlan (dependencies unmet)
-               │    Draft ──► Blocked ──► Draft (when unblocked) ──► Building ──► ...
+               │    Draft ──► Blocked ──► Draft (when unblocked) ──► Creating ──► ...
                │
                ├─ ExecutePlan (Execute button)
-               │    Draft ──► Building ──► Executing ──► ReadyForReview
+               │    Draft ──► Creating ──► Executing ──► Review
                │                                    └──► Failed
                │
                ├─ CreatePr (from Review app)
-               │    ReadyForReview ──► Completed
+               │    Review ──► Completed
                │
                ├─ (manual) ──► Skipped
                └─ (manual) ──► Icebox
@@ -240,10 +240,10 @@ CreatePlan ──► Draft
 | State            | Meaning                                    | Visible in      |
 |------------------|--------------------------------------------|-----------------|
 | `Draft`          | Ready for review/action                    | Plans           |
-| `Building`       | ExpandPlan or ExecutePlan in progress       | Jobs            |
+| `Creating`       | ExpandPlan or ExecutePlan in progress       | Jobs            |
 | `Updating`       | UpdatePlan or SplitPlan in progress         | Jobs            |
 | `Executing`      | ExecutePlan agent running                   | Jobs            |
-| `ReadyForReview` | ExecutePlan finished, awaiting human review | Review          |
+| `Review` | ExecutePlan finished, awaiting human review | Review          |
 | `Failed`         | ExecutePlan errored                         | Review          |
 | `Completed`      | PR created, plan done                       | —               |
 | `Skipped`        | Manually dismissed or split                 | —               |

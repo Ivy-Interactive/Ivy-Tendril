@@ -68,8 +68,8 @@ public class ReviewApp : ViewBase
 
         var plans = planService.GetPlans()
             .Where(p => showCompleted.Value
-                ? p.Status is PlanStatus.ReadyForReview or PlanStatus.Failed or PlanStatus.Completed
-                : p.Status is PlanStatus.ReadyForReview or PlanStatus.Failed)
+                ? p.Status is PlanStatus.Review or PlanStatus.Failed or PlanStatus.Completed
+                : p.Status is PlanStatus.Review or PlanStatus.Failed)
             .Where(p => !activePlanFolders.Contains(p.FolderPath))
             .ToList();
         var filteredPlans = PlanFilters.ApplyFilters(plans, projectFilter.Value, levelFilter.Value, textFilter.Value).ToList();

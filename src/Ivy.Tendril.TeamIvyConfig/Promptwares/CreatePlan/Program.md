@@ -65,8 +65,8 @@ Do NOT read or modify `.counter` directly. Plan IDs are allocated by the `tendri
   |---|---|
   | `Completed` (with merged PR) | Check for regression (Step 4), otherwise trash |
   | `Completed` (no PR, but commits exist) | Check for regression (Step 4), trash with note "no PR found" |
-  | `Draft` / `Building` / `Executing` | Trash, but note "plan in progress (state: X)" |
-  | `ReadyForReview` | Trash, note "awaiting review" |
+  | `Draft` / `Creating` / `Executing` | Trash, but note "plan in progress (state: X)" |
+  | `Review` | Trash, note "awaiting review" |
   | `Failed` | **Do NOT trash** — create the plan (the previous attempt failed) |
   | `Icebox` / `Skipped` | Trash with note "existing plan state: X" (issue is already covered) |
 

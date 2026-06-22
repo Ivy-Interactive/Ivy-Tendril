@@ -29,10 +29,10 @@ Plans move through these states:
 | State | Meaning |
 |-------|---------|
 | `Draft` | Ready for review or action by the user |
-| `Building` | CreatePlan or ExpandPlan agent working |
+| `Creating` | CreatePlan or ExpandPlan agent working |
 | `Updating` | UpdatePlan or SplitPlan agent refining |
 | `Executing` | ExecutePlan agent implementing in a worktree |
-| `ReadyForReview` | Execution complete, awaiting human review |
+| `Review` | Execution complete, awaiting human review |
 | `Failed` | Agent errored or verifications consistently failed |
 | `Completed` | PR created and merged |
 | `Skipped` | Dismissed or split into child plans |
@@ -43,10 +43,10 @@ Plans move through these states:
 
 ```
 CreatePlan ──► Draft
-               ├─ ExpandPlan ──► Building ──► Draft
+               ├─ ExpandPlan ──► Creating ──► Draft
                ├─ UpdatePlan ──► Updating ──► Draft
                ├─ SplitPlan  ──► Updating ──► Skipped (original) + new Drafts
-               ├─ ExecutePlan ──► Executing ──► ReadyForReview or Failed
+               ├─ ExecutePlan ──► Executing ──► Review or Failed
                ├─ CreatePr (from Review) ──► Completed
                ├─ (manual) ──► Skipped / Icebox
                └─ (dependencies unmet) ──► Blocked ──► Draft (when unblocked)
@@ -54,7 +54,7 @@ CreatePlan ──► Draft
 
 **Key rules:**
 - `dependsOn` blocks execution until all dependencies are Completed AND their PRs merged
-- Verifications (Build, Test, Format, CheckResult) gate progress from Executing to ReadyForReview
+- Verifications (Build, Test, Format, CheckResult) gate progress from Executing to Review
 - Plans execute in isolated git worktrees, never in the original repos
 
 ## Promptwares
@@ -195,5 +195,5 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 
 - **Never read or write `plan.yaml` directly** -- always use `tendril plan` CLI commands.
 - Verification statuses: `Pending`, `Pass`, `Fail`, `Skipped`.
-- Plan states: `Draft`, `Building`, `Updating`, `Executing`, `ReadyForReview`, `Failed`, `Completed`, `Skipped`, `Blocked`, `Icebox`.
+- Plan states: `Draft`, `Creating`, `Updating`, `Executing`, `Review`, `Failed`, `Completed`, `Skipped`, `Blocked`, `Icebox`.
 - To create a plan interactively: use `tendril plan create "<title>"` then `tendril plan write-revision <id> <<'EOF' ... EOF` to add content.

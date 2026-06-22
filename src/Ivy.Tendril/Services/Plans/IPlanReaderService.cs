@@ -7,6 +7,7 @@ public interface IPlanReaderService
     string PlansDirectory { get; }
     bool IsDatabaseReady { get; }
 
+    void MigratePlanStateNames();
     void RecoverStuckPlans();
     void RepairPlans();
     List<PlanFile> GetPlans(PlanStatus? statusFilter = null);

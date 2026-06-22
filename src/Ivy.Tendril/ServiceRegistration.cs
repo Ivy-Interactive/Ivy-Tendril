@@ -75,6 +75,7 @@ internal static class ServiceRegistration
                 sp.GetRequiredService<ILogger<PlanReaderService>>(),
                 sp.GetRequiredService<ITelemetryService>(),
                 sp.GetRequiredService<IWorktreeLifecycleLogger>());
+            planService.MigratePlanStateNames();
             planService.MigratePlanSubfolderCasing();
             planService.RepairPlans();
             planService.RecoverStuckPlans();

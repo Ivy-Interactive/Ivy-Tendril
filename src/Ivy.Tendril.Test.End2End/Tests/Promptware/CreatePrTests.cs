@@ -33,7 +33,7 @@ public class CreatePrTests
             agent: agent);
 
         PromptwareAssertions.AssertExitSuccess(execResult, $"ExecutePlan ({agent})");
-        PromptwareAssertions.AssertPlanState(planFolder, "ReadyForReview");
+        PromptwareAssertions.AssertPlanState(planFolder, "Review");
 
         // Now create the PR
         var result = await _fixture.Runner.RunAsync(

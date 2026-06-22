@@ -7,7 +7,7 @@ Playwright-based E2E tests that drive Tendril as a black-box subprocess and veri
 ```bash
 # IMPORTANT: Pre-build both projects first to avoid MSBuild lock conflicts.
 # The test fixture uses `dotnet run` which triggers a build — if the test runner
-# is also building, MSBuild child nodes collide and restore gets cancelled.
+# is also Creating, MSBuild child nodes collide and restore gets cancelled.
 dotnet build src/Ivy.Tendril/Ivy.Tendril.csproj
 dotnet build src/Ivy.Tendril.Test.End2End/
 
@@ -83,12 +83,12 @@ The tests use `Ivy-Interactive/Ivy-Templates` — a real dotnet project with `Pr
 | OnboardingTests | 1 | Full onboarding wizard: welcome → software check → agent selection → home setup → project setup → complete |
 | VerificationTests | 4 | Directory structure, config.yaml, tendril.db, dashboard loads |
 | PlanLifecycleTests | 1 | Plan creation via UI submits job (verifies job appears in Jobs grid) |
-| AgentExecutionTests | 1 | Full lifecycle: CreatePlan → Execute → CreatePR (plan reaches ReadyForReview, PR URL in plan.yaml) |
+| AgentExecutionTests | 1 | Full lifecycle: CreatePlan → Execute → CreatePR (plan reaches Review, PR URL in plan.yaml) |
 | CleanupTests | 2 | Fixture teardown, GitHub fork deletion |
 
 ## Common gotchas
 
-- **MSBuild lock conflicts**: The test fixture launches Tendril via `dotnet run`, which triggers a build. If the test runner is also building, MSBuild child nodes collide (`MSB4166: Child node exited prematurely`). Always pre-build both projects and run tests with `--no-build`.
+- **MSBuild lock conflicts**: The test fixture launches Tendril via `dotnet run`, which triggers a build. If the test runner is also Creating, MSBuild child nodes collide (`MSB4166: Child node exited prematurely`). Always pre-build both projects and run tests with `--no-build`.
 - **Plan folder names are CamelCase** (e.g., `00001-UppercaseAllStringLiteralsInProgramCs`). `FindPlanFolder` normalizes by removing hyphens for comparison.
 - **Plan IDs in sidebar are unpadded** — sidebar shows `#1`, not `#00001`. `GetPlanId` strips leading zeros.
 - **Plan folders appear before `plan.yaml` is written.** Always wait for `plan.yaml` to exist, not just the folder.
@@ -122,7 +122,7 @@ The tests use `Ivy-Interactive/Ivy-Templates` — a real dotnet project with `Pr
 - **"New Plan" button not found** — The sidebar failed to render (check for exceptions in Tendril stdout) or the button hasn't appeared yet (increase `WaitForAsync` timeout).
 - **"Plan not visible in sidebar"** — The plan folder exists but the UI hasn't refreshed. The test retries with reloads for 120s. If it still fails, the sidebar rendering may have changed.
 - **"plan.yaml not created"** — The coding agent failed or timed out. Check promptware logs for the agent's error output.
-- **"state: ReadyForReview not found"** — ExecutePlan didn't complete. Check if the agent errored, if verifications failed, or if the process was killed early.
+- **"state: Review not found"** — ExecutePlan didn't complete. Check if the agent errored, if verifications failed, or if the process was killed early.
 - **"PR URL not found in plan.yaml"** — CreatePR promptware failed. Check GitHub auth (`gh auth status`) and fork permissions.
 - **Port conflict in CleanupTests** — The `TendrilProcessFixture_CleansUpTempDirectories` test starts its own Tendril instance. If the main E2E fixture is still running, ports may collide even with `--find-available-port`. The test handles this gracefully via try/catch on `TimeoutException`.
 

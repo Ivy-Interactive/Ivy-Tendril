@@ -131,7 +131,7 @@ public class TendrilProcessStatusService : ITendrilProcessStatusService
                         p.FolderName.StartsWith(id + "-", StringComparison.OrdinalIgnoreCase));
                 if (!hasActiveJob) continue;
 
-                if (p.Status is PlanStatus.ReadyForReview or PlanStatus.Failed)
+                if (p.Status is PlanStatus.Review or PlanStatus.Failed)
                     prematureReviews++;
                 else if (p.Status is PlanStatus.Draft or PlanStatus.Blocked)
                     prematureDrafts++;
@@ -149,7 +149,7 @@ public class TendrilProcessStatusService : ITendrilProcessStatusService
         return new TendrilProcessStatus
         {
             DraftCount = Math.Max(0, snapshot.Drafts - prematureDrafts),
-            ReviewCount = Math.Max(0, snapshot.ReadyForReview + snapshot.Failed - prematureReviews),
+            ReviewCount = Math.Max(0, snapshot.Review + snapshot.Failed - prematureReviews),
             IceboxCount = snapshot.Icebox,
             JobCount = activeJobs.Count,
             TrashCount = trashCount,

@@ -182,7 +182,7 @@ public class JobService : IJobService
 
         // Set the cancellation flag before claiming completion so a racing CompleteJob
         // (process exiting at the same instant) still sees it and reverts the plan
-        // instead of transitioning it to ReadyForReview.
+        // instead of transitioning it to Review.
         job.CancellationRequested = true;
 
         if (!job.TryClaimCompletion()) return;
@@ -562,10 +562,10 @@ public class JobService : IJobService
 
         var target = job.TypedArgs switch
         {
-            ExecutePlanArgs => PlanStatus.Building,
-            ExpandPlanArgs => PlanStatus.Building,
-            CreatePrArgs => PlanStatus.Building,
-            CreateIssueArgs => PlanStatus.Building,
+            ExecutePlanArgs => PlanStatus.Creating,
+            ExpandPlanArgs => PlanStatus.Creating,
+            CreatePrArgs => PlanStatus.Creating,
+            CreateIssueArgs => PlanStatus.Creating,
             RetryPlanArgs => PlanStatus.Executing,
             UpdatePlanArgs => PlanStatus.Updating,
             SplitPlanArgs => PlanStatus.Updating,
@@ -574,10 +574,10 @@ public class JobService : IJobService
         if (target == null) return;
 
         // Skip transient/in-flight states so a re-start, force-start, or restart of a
-        // previously-blocked job doesn't snapshot Building/Executing/Updating/Blocked
+        // previously-blocked job doesn't snapshot Creating/Executing/Updating/Blocked
         // (the revert fallback map covers those cases).
         var current = _planReaderService.GetPlanByFolder(folder)?.Status;
-        if (current is not (PlanStatus.Building or PlanStatus.Executing or PlanStatus.Updating or PlanStatus.Blocked))
+        if (current is not (PlanStatus.Creating or PlanStatus.Executing or PlanStatus.Updating or PlanStatus.Blocked))
             job.PreviousPlanState = current;
 
         var folderName = Path.GetFileName(folder);

@@ -120,7 +120,7 @@ public partial class JobsApp
                                     {
                                         nav.Navigate<DraftsApp>(new DraftsAppArgs(plan.FolderName));
                                     }
-                                    else if (plan.Status is PlanStatus.ReadyForReview or PlanStatus.Failed)
+                                    else if (plan.Status is PlanStatus.Review or PlanStatus.Failed)
                                     {
                                         nav.Navigate<ReviewApp>(new ReviewAppArgs(plan.FolderName));
                                     }

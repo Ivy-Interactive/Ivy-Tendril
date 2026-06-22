@@ -52,8 +52,8 @@ public class WorktreeCleanupServiceTests : IDisposable
     public void RunCleanup_Skips_Active_State_Plans()
     {
         // Truly active/transient states are never reaped, regardless of age. (Draft and
-        // ReadyForReview are handled by the stale-reaper tests — they ARE reaped once idle.)
-        var activeStates = new[] { "Building", "Executing", "Updating", "Blocked" };
+        // Review are handled by the stale-reaper tests — they ARE reaped once idle.)
+        var activeStates = new[] { "Creating", "Executing", "Updating", "Blocked" };
         foreach (var state in activeStates)
         {
             var dir = CreatePlan($"01{Array.IndexOf(activeStates, state):D3}-{state}Plan", state);
@@ -520,9 +520,9 @@ public class WorktreeCleanupServiceTests : IDisposable
     [Fact]
     public void RunCleanup_Reaps_StaleRecoveryStates_PastReaperWindow()
     {
-        // Failed/Draft/ReadyForReview keep their worktree for recovery/resume, but once the
+        // Failed/Draft/Review keep their worktree for recovery/resume, but once the
         // plan has been idle past the reaper window the worktree is reclaimed.
-        var states = new[] { "Failed", "Draft", "ReadyForReview" };
+        var states = new[] { "Failed", "Draft", "Review" };
         foreach (var state in states)
         {
             var dir = CreatePlan($"15{Array.IndexOf(states, state):D3}-{state}Stale", state, DateTime.UtcNow.AddDays(-8));
@@ -541,7 +541,7 @@ public class WorktreeCleanupServiceTests : IDisposable
     [Fact]
     public void RunCleanup_Keeps_StaleRecoveryStates_WithinReaperWindow()
     {
-        var states = new[] { "Failed", "Draft", "ReadyForReview" };
+        var states = new[] { "Failed", "Draft", "Review" };
         foreach (var state in states)
         {
             var dir = CreatePlan($"16{Array.IndexOf(states, state):D3}-{state}Fresh", state, DateTime.UtcNow.AddHours(-2));
@@ -560,7 +560,7 @@ public class WorktreeCleanupServiceTests : IDisposable
     [Fact]
     public void RunCleanup_NeverReaps_ActiveStates_EvenWhenOld()
     {
-        var states = new[] { "Building", "Executing", "Updating", "Blocked" };
+        var states = new[] { "Creating", "Executing", "Updating", "Blocked" };
         foreach (var state in states)
         {
             var dir = CreatePlan($"17{Array.IndexOf(states, state):D3}-{state}Old", state, DateTime.UtcNow.AddDays(-30));
@@ -619,8 +619,8 @@ public class WorktreeCleanupServiceTests : IDisposable
         Assert.Equal(terminal, WorktreeCleanupService.ResolveGrace("Icebox", terminal, stale));
         Assert.Equal(stale, WorktreeCleanupService.ResolveGrace("Failed", terminal, stale));
         Assert.Equal(stale, WorktreeCleanupService.ResolveGrace("Draft", terminal, stale));
-        Assert.Equal(stale, WorktreeCleanupService.ResolveGrace("ReadyForReview", terminal, stale));
-        Assert.Null(WorktreeCleanupService.ResolveGrace("Building", terminal, stale));
+        Assert.Equal(stale, WorktreeCleanupService.ResolveGrace("Review", terminal, stale));
+        Assert.Null(WorktreeCleanupService.ResolveGrace("Creating", terminal, stale));
         Assert.Null(WorktreeCleanupService.ResolveGrace("Executing", terminal, stale));
         Assert.Null(WorktreeCleanupService.ResolveGrace("Updating", terminal, stale));
         Assert.Null(WorktreeCleanupService.ResolveGrace("Blocked", terminal, stale));

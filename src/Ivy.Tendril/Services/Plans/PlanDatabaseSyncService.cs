@@ -104,7 +104,7 @@ public class PlanDatabaseSyncService : IDisposable
     private void RecoverStuckPlansInDatabase(List<PlanFile> plans)
     {
         var stuckStates = new HashSet<PlanStatus>
-            { PlanStatus.Building, PlanStatus.Executing, PlanStatus.Updating, PlanStatus.Blocked };
+            { PlanStatus.Creating, PlanStatus.Executing, PlanStatus.Updating, PlanStatus.Blocked };
 
         var recovered = 0;
         foreach (var plan in plans)

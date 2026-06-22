@@ -115,7 +115,7 @@ Once you're happy with the draft, click **Execute** in the dashboard. Tendril's 
 
 Monitor progress in real time from the **Jobs** view. You can see status updates, token usage, and cost tracking as the agent works.
 
-If the agent succeeds and verifications pass, the plan moves to **ReadyForReview**.
+If the agent succeeds and verifications pass, the plan moves to **Review**.
 
 <Callout type="Info">
 If execution fails, the plan moves to **Failed**. Check the logs, fix any blockers, and retry — the worktree is preserved so the agent can pick up where it left off.
@@ -140,7 +140,7 @@ If something needs work, send the plan back to **Draft** to refine and re-execut
 You walked through the full Tendril loop:
 
 ```
-Draft → Building → Executing → ReadyForReview → Completed
+Draft → Creating → Executing → Review → Completed
 ```
 
 The agent worked in an isolated worktree, ran your verification suite, and the result is a reviewable diff — all tracked in a single plan folder on disk.

@@ -978,7 +978,7 @@ public class PlanCliCommandTests : IDisposable
     {
         var plan = new PlanYaml
         {
-            State = "ReadyForReview",
+            State = "Review",
             Project = "MyProject",
             Level = "Bug",
             Title = "Full Plan",
@@ -1010,7 +1010,7 @@ public class PlanCliCommandTests : IDisposable
         CreatePlanFolder("20110", "FullRoundtrip", plan);
 
         var result = ReadPlan("20110");
-        Assert.Equal("ReadyForReview", result.State);
+        Assert.Equal("Review", result.State);
         Assert.Equal("MyProject", result.Project);
         Assert.Equal("Bug", result.Level);
         Assert.Equal("Full Plan", result.Title);

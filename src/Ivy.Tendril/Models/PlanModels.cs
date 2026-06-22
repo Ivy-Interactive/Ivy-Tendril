@@ -8,12 +8,12 @@ public record Link(string Title, string Href);
 public enum PlanStatus
 {
     Draft,
-    Building,
+    Creating,
     Updating,
     Executing,
     Completed,
     Failed,
-    ReadyForReview,
+    Review,
     Skipped,
     Icebox,
     Blocked
