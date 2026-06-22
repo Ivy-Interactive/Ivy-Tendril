@@ -43,6 +43,7 @@ public class GitServiceDirtyStateTests : IDisposable
 
         RunGit("config user.email test@example.com");
         RunGit("config user.name TestUser");
+        RunGit("checkout -b master");
 
         File.WriteAllText(Path.Combine(_testRepoPath, "file1.txt"), "Initial content");
         RunGit("add file1.txt");

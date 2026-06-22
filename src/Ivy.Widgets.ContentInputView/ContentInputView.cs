@@ -32,6 +32,7 @@ public record ContentInputView : WidgetBase<ContentInputView>, IAnyInput
     [Prop] public List<string> Models { get; init; } = new() { "Build", "Edit", "Chat" };
     [Prop] public string SelectedModel { get; init; } = "Build";
     [Prop] public List<AttachedFile> AttachedFiles { get; init; } = new();
+    [Prop] public List<string> MenuOptions { get; init; } = new();
 
     [Event] public Func<Event<ContentInputView, SubmitEventArgs>, ValueTask>? OnSubmit { get; init; }
     [Event] public Func<Event<ContentInputView, string>, ValueTask>? OnChange { get; init; }
@@ -52,6 +53,12 @@ public record UploadFileEventArgs(string Name, string? Base64Data = null, string
 
 public static class ContentInputViewExtensions
 {
+    public static ContentInputView MenuOptions(this ContentInputView w, List<string> menuOptions) =>
+        w with { MenuOptions = menuOptions };
+
+    public static ContentInputView MenuOptions(this ContentInputView w, params string[] menuOptions) =>
+        w with { MenuOptions = menuOptions.ToList() };
+
     public static ContentInputView Placeholder(this ContentInputView w, string placeholder) =>
         w with { Placeholder = placeholder };
 

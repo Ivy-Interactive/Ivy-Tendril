@@ -20,7 +20,16 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
   box-sizing: border-box;
 }
 
@@ -34,7 +43,6 @@
 .civ-shell textarea {
   margin: 0;
 }
-
 
 /* Error Banner */
 .civ-error-banner {
@@ -73,7 +81,7 @@
   background: var(--civ-bg);
   border: 1px solid var(--civ-border);
   border-radius: var(--radius-fields);
-  padding: 12px;
+  padding: 8px 12px 12px 12px;
   box-shadow: var(--civ-card-shadow);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -113,7 +121,9 @@
   font-size: 0.8rem;
   color: var(--civ-text);
   max-width: 220px;
-  transition: transform 0.15s, background-color 0.15s;
+  transition:
+    transform 0.15s,
+    background-color 0.15s;
   animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -159,7 +169,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.15s, background-color 0.15s;
+  transition:
+    color 0.15s,
+    background-color 0.15s;
 }
 
 .civ-attachment-remove:hover {
@@ -181,10 +193,11 @@
   font-size: 0.95rem;
   line-height: 1.5;
   color: var(--civ-text);
-  padding: 2px 0;
+  padding: 2px 12px 2px 0;
   min-height: 40px;
   max-height: 200px;
-  width: 100%;
+  width: calc(100% + 12px);
+  margin-right: -12px;
 }
 
 .civ-textarea::placeholder {
@@ -214,7 +227,10 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: transform 0.2s, background-color 0.2s, border-color 0.2s;
+  transition:
+    transform 0.2s,
+    background-color 0.2s,
+    border-color 0.2s;
 }
 
 .civ-plus-btn:hover {
@@ -249,7 +265,11 @@
   border: 0px solid transparent;
   border-radius: var(--radius-buttons, 6px);
   padding: 0;
-  transition: background-color 0.2s, border-color 0.2s, border-width 0.2s, box-shadow 0.2s;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s,
+    border-width 0.2s,
+    box-shadow 0.2s;
 }
 
 .civ-voice-container.active {
@@ -293,7 +313,11 @@
 
 .civ-eq-bar {
   width: 2px;
-  background: linear-gradient(to top, var(--civ-accent), color-mix(in srgb, var(--civ-accent) 30%, var(--civ-text)));
+  background: linear-gradient(
+    to top,
+    var(--civ-accent),
+    color-mix(in srgb, var(--civ-accent) 30%, var(--civ-text))
+  );
   border-radius: 1px;
   transition: height 0.08s ease-out;
   /* fast reactions */
@@ -311,7 +335,10 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: transform 0.2s, background-color 0.2s, border-color 0.2s;
+  transition:
+    transform 0.2s,
+    background-color 0.2s,
+    border-color 0.2s;
   position: relative;
 }
 
@@ -373,7 +400,10 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: transform 0.2s, background-color 0.2s, opacity 0.2s;
+  transition:
+    transform 0.2s,
+    background-color 0.2s,
+    opacity 0.2s;
   line-height: 1;
 }
 
@@ -492,4 +522,103 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Split button container */
+.civ-split-btn-container {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+  background: var(--civ-primary);
+  border-radius: var(--radius-buttons, 6px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  height: 32px;
+}
+
+.civ-split-btn-container:hover {
+  opacity: 0.9;
+}
+
+.civ-split-btn-container.disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* Left side of split button */
+.civ-split-btn-left {
+  background: transparent !important;
+  box-shadow: none !important;
+  border-top-right-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.2) !important;
+  height: 100% !important;
+  margin: 0 !important;
+}
+
+/* Arrow button on the right */
+.civ-split-btn-arrow {
+  width: 22px;
+  height: 100%;
+  border-top-right-radius: var(--radius-buttons, 6px);
+  border-bottom-right-radius: var(--radius-buttons, 6px);
+  border: none;
+  background: transparent;
+  color: var(--primary-foreground, #ffffff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+}
+
+.civ-split-btn-arrow:disabled {
+  cursor: not-allowed;
+}
+
+.civ-split-btn-arrow svg {
+  width: 14px;
+  height: 14px;
+}
+
+.civ-split-btn-arrow:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Dropdown Menu */
+.civ-dropdown-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  background: var(--civ-bg);
+  border: 1px solid var(--civ-border);
+  border-radius: 6px;
+  box-shadow:
+    var(--civ-card-shadow),
+    0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 4px 0;
+  min-width: 160px;
+  z-index: 50;
+  animation: menuFadeIn 0.15s ease-out;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Dropdown Item */
+.civ-dropdown-item {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--civ-text);
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.civ-dropdown-item:hover {
+  background: var(--civ-accent);
+  color: var(--accent-foreground, inherit);
 }
