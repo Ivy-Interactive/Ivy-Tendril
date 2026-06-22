@@ -158,6 +158,36 @@ public class CreatePlanDialog(
                             onClose();
                         }
                         return ValueTask.CompletedTask;
+                    },
+                    OnRemoveAttachment = e =>
+                    {
+                        var filePath = e.Value;
+                        try
+                        {
+                            if (File.Exists(filePath))
+                            {
+                                File.Delete(filePath);
+                            }
+                        }
+                        catch
+                        {
+                            // ignore
+                        }
+                        var newList = new List<string>(uploadedFiles.Value);
+                        newList.Remove(filePath);
+                        uploadedFiles.Set(newList);
+
+                        var fileRef = $" [file: {filePath}]";
+                        var currentText = createPlanText.Value;
+                        if (currentText.Contains(fileRef))
+                        {
+                            createPlanText.Set(currentText.Replace(fileRef, ""));
+                        }
+                        else if (currentText.Contains(fileRef.Trim()))
+                        {
+                            createPlanText.Set(currentText.Replace(fileRef.Trim(), ""));
+                        }
+                        return ValueTask.CompletedTask;
                     }
                 }
                     .Bind(createPlanText)

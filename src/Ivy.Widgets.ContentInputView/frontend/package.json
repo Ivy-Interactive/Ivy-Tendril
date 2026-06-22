@@ -8,7 +8,9 @@
     "build": "tsc && vp build",
     "preview": "vp preview"
   },
-  "dependencies": {},
+  "dependencies": {
+    "pdfjs-dist": "6.0.227"
+  },
   "devDependencies": {
     "@types/node": "25.9.1",
     "@types/react": "19.2.8",
