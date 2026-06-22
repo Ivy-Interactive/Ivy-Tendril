@@ -378,7 +378,10 @@ public class Program
         var startInfo = new ProcessStartInfo(processPath)
         {
             UseShellExecute = false,
-            CreateNoWindow = true
+            CreateNoWindow = true,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
         };
 
         foreach (var arg in childArgs)
