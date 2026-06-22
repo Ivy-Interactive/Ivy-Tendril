@@ -79,13 +79,13 @@ public class ContentView(
         var (suggestChangesDialog, showSuggestChangesDialog) = UseTrigger((isOpen) =>
         {
             if (!isOpen.Value) return null;
-            return new SuggestChangesDialog(isOpen, selectedPlanState.Value!, jobService, planService, refreshPlans);
+            return new SuggestChangesDialog(isOpen, selectedPlanState.Value!, jobService, refreshPlans);
         });
 
         var (customPrDialog, showCustomPrDialog) = UseTrigger((isOpen) =>
         {
             if (!isOpen.Value) return null;
-            return new CustomPrDialog(isOpen, selectedPlanState.Value!, jobService, planService, refreshPlans,
+            return new CustomPrDialog(isOpen, selectedPlanState.Value!, jobService, refreshPlans,
                 assigneesQuery, assigneesError);
         });
 
@@ -296,7 +296,7 @@ public class ContentView(
                         Merge: true,
                         DeleteBranch: true,
                         IncludeArtifacts: true));
-                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
+                    // Plan transition (and pre-state snapshot) handled by JobService.StartJob.
                     refreshPlans();
                 }
                 else

@@ -8,12 +8,10 @@ public class SuggestChangesDialog(
     IState<bool> dialogOpen,
     PlanFile selectedPlan,
     IJobService jobService,
-    IPlanReaderService planService,
     Action refreshPlans) : ViewBase
 {
     private readonly IState<bool> _dialogOpen = dialogOpen;
     private readonly IJobService _jobService = jobService;
-    private readonly IPlanReaderService _planService = planService;
     private readonly Action _refreshPlans = refreshPlans;
     private readonly PlanFile _selectedPlan = selectedPlan;
 
@@ -49,8 +47,7 @@ public class SuggestChangesDialog(
                     {
                         isCreating.Set(true);
 
-                        _planService.ResetVerificationsForRetry(_selectedPlan.FolderName);
-                        _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Executing);
+                        // Verification reset + plan transition (and pre-state snapshot) handled by JobService.StartJob.
                         _jobService.StartJob(new RetryPlanArgs(_selectedPlan.FolderPath, suggestText.Value));
                         _refreshPlans();
                         isCreating.Set(false);

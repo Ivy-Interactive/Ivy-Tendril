@@ -8,12 +8,10 @@ public class UpdatePlanDialog(
     PlanFile selectedPlan,
     IState<PlanFile?> selectedPlanState,
     IJobService jobService,
-    IPlanReaderService planService,
     Action refreshPlans) : ViewBase
 {
     private readonly IState<bool> _dialogOpen = dialogOpen;
     private readonly IJobService _jobService = jobService;
-    private readonly IPlanReaderService _planService = planService;
     private readonly Action _refreshPlans = refreshPlans;
     private readonly PlanFile _selectedPlan = selectedPlan;
     private readonly IState<PlanFile?> _selectedPlanState = selectedPlanState;
@@ -65,7 +63,7 @@ public class UpdatePlanDialog(
                         };
                         _selectedPlanState.Set(optimisticPlan);
 
-                        _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Updating);
+                        // Plan transition (and pre-state snapshot) handled by JobService.StartJob.
                         _jobService.StartJob(new UpdatePlanArgs(_selectedPlan.FolderPath, updateText.Value));
                         _refreshPlans();
                         updateText.Set("");

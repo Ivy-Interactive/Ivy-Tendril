@@ -39,7 +39,6 @@ public class JobCompletionAttachmentTests : IDisposable
             planReaderService: null,
             telemetryService: null,
             planWatcherService: null,
-            worktreeLifecycleLogger: null,
             promptsRoot: _promptsRoot
         );
     }

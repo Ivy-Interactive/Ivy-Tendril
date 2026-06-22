@@ -72,7 +72,7 @@ public partial class JobsApp : ViewBase
             if (!isOpen.Value) return null;
             var job = jobService.GetJob(jobId);
             if (job == null) return null;
-            return new RerunJobDialog(isOpen, job, jobService, planService, () => refreshToken.Refresh());
+            return new RerunJobDialog(isOpen, job, jobService, () => refreshToken.Refresh());
         });
 
         UseEffect(() => JobsApp.JobChangeHookDisposable(jobService, refreshToken));

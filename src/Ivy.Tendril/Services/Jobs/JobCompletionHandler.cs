@@ -19,7 +19,6 @@ internal class JobCompletionHandler
     private readonly IPlanReaderService? _planReaderService;
     private readonly IPlanWatcherService? _planWatcherService;
     private readonly ITelemetryService? _telemetryService;
-    private readonly IWorktreeLifecycleLogger? _worktreeLifecycleLogger;
     private readonly string _promptsRoot;
     private readonly PlanArtifactSyncer _artifactSyncer;
     private readonly DependencyChecker _dependencyChecker;
@@ -31,7 +30,6 @@ internal class JobCompletionHandler
         IPlanReaderService? planReaderService,
         ITelemetryService? telemetryService,
         IPlanWatcherService? planWatcherService,
-        IWorktreeLifecycleLogger? worktreeLifecycleLogger,
         string promptsRoot)
     {
         _configService = configService;
@@ -40,7 +38,6 @@ internal class JobCompletionHandler
         _planReaderService = planReaderService;
         _telemetryService = telemetryService;
         _planWatcherService = planWatcherService;
-        _worktreeLifecycleLogger = worktreeLifecycleLogger;
         _promptsRoot = promptsRoot;
         _artifactSyncer = new PlanArtifactSyncer(configService, logger, planWatcherService);
         _dependencyChecker = new DependencyChecker(planReaderService);
@@ -67,8 +64,9 @@ internal class JobCompletionHandler
         NotifyPlanWatcher(job);
         ScheduleCostCalculation(job, jobs, persistJob, raisePropertyChanged);
 
-        if (job.Status is JobStatus.Failed or JobStatus.Timeout)
-            ScheduleWorktreeCleanup(job);
+        // Failed/Timeout is treated like Stop: the work product (worktree) is preserved
+        // so the user can inspect or resume. Worktree cleanup happens only on explicit
+        // user actions (Delete ExecutePlan, Complete Plan, Reset to Draft).
 
         HandleWaitForJobsDependents(job, jobs, raiseNotification, startJobSkipDepCheck, persistJob);
 
@@ -140,9 +138,11 @@ internal class JobCompletionHandler
 
     private void HandlePlanStateTransition(JobItem job, bool isSuccess)
     {
-        if (job.Status is JobStatus.Failed or JobStatus.Timeout)
+        // Stop/Delete/Failed/Timeout all revert the plan to where it came from.
+        // A cancelled job that the completion path won the race for is handled here too.
+        if (job.Status is JobStatus.Failed or JobStatus.Timeout || job.CancellationRequested)
         {
-            ResetPlanState(job);
+            RevertPlanStateToPrevious(job);
             return;
         }
 
@@ -614,21 +614,40 @@ internal class JobCompletionHandler
         return trashEntry != null;
     }
 
-    internal void ResetPlanState(JobItem job)
+    /// <summary>
+    ///     Reverts the plan to the state it had before the job started
+    ///     (<see cref="JobItem.PreviousPlanState"/>). Used by Stop, Delete, and
+    ///     Failed/Timeout. Falls back to a per-promptware "home" state when the snapshot
+    ///     was not captured (e.g. after an app restart).
+    /// </summary>
+    internal void RevertPlanStateToPrevious(JobItem job)
     {
         try
         {
-            if (job.TypedArgs is CreatePlanArgs or CreatePrArgs or CreateIssueArgs) return;
-
             var planFolder = job.TypedArgs?.PlanFolder ?? "";
-            var newState = job.TypedArgs is ExecutePlanArgs or RetryPlanArgs ? nameof(PlanStatus.Failed) : nameof(PlanStatus.Draft);
-            PlanYamlHelper.SetPlanStateByFolder(planFolder, newState);
+            if (string.IsNullOrEmpty(planFolder)) return;
+
+            var target = job.PreviousPlanState ?? FallbackPreviousState(job.TypedArgs);
+            if (target == null) return;
+
+            if (_planReaderService != null)
+                _planReaderService.TransitionState(Path.GetFileName(planFolder), target.Value);
+            else
+                PlanYamlHelper.SetPlanStateByFolder(planFolder, target.Value.ToString());
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to reset plan state for job {JobId}", job.Id);
+            _logger.LogWarning(ex, "Failed to revert plan state for job {JobId}", job.Id);
         }
     }
+
+    private static PlanStatus? FallbackPreviousState(JobArgsBase? args) => args switch
+    {
+        ExecutePlanArgs => PlanStatus.Draft,
+        RetryPlanArgs => PlanStatus.ReadyForReview,
+        ExpandPlanArgs or UpdatePlanArgs or SplitPlanArgs => PlanStatus.Draft,
+        _ => null
+    };
 
     internal void ResetPlanStateToBlocked(JobItem job)
     {
@@ -732,41 +751,6 @@ internal class JobCompletionHandler
         catch
         {
         }
-    }
-
-    private void ScheduleWorktreeCleanup(JobItem job)
-    {
-        if (job.TypedArgs is not (ExecutePlanArgs or RetryPlanArgs)) return;
-
-        var planFolder = job.TypedArgs?.PlanFolder ?? "";
-        if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder)) return;
-
-        var worktreesDir = Path.Combine(planFolder, "Worktrees");
-        if (!Directory.Exists(worktreesDir)) return;
-
-        ScheduleWorktreeRemoval(planFolder, worktreesDir);
-    }
-
-    private void ScheduleWorktreeRemoval(string planFolder, string worktreesDir)
-    {
-        var lifecycleLogger = _worktreeLifecycleLogger;
-        var logger = _logger;
-
-        Task.Run(async () =>
-        {
-            await Task.Delay(TimeSpan.FromSeconds(30));
-            try
-            {
-                WorktreeCleanupService.RemoveWorktrees(planFolder, lifecycleLogger: lifecycleLogger);
-
-                if (Directory.Exists(worktreesDir) && Directory.GetDirectories(worktreesDir).Length == 0)
-                    Directory.Delete(worktreesDir, false);
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Failed to cleanup worktrees for {PlanFolder}", Path.GetFileName(planFolder));
-            }
-        });
     }
 
     internal (bool Ok, string? BlockReason) CheckDependencies(string planFolder)
