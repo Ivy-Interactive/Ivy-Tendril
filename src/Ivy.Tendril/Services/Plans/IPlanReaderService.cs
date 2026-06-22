@@ -7,9 +7,8 @@ public interface IPlanReaderService
     string PlansDirectory { get; }
     bool IsDatabaseReady { get; }
 
-    void MigratePlanStateNames();
+    void MigratePlans();
     void RecoverStuckPlans();
-    void RepairPlans();
     List<PlanFile> GetPlans(PlanStatus? statusFilter = null);
     PlanFile? GetPlanByFolder(string folderPath);
     List<PlanFile> GetIceboxPlans();

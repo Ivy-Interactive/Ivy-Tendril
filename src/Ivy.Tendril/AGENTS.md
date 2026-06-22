@@ -5,11 +5,11 @@
 When changing the `plan.yaml` structure (adding/removing/renaming fields, changing field types):
 
 1. **Update `Plans.md`** (`Prompts/Plans.md`) — this is the source of truth for the plan schema (embedded as an assembly resource)
-2. **Add a repair step** in `PlanReaderService.RepairPlans()` — this runs on every Tendril startup and must migrate all existing plans to the new format
+2. **Add a migration** — create a new `PlanMigration_NNN_*` class in `Services/Plans/Migrations/` implementing `IPlanMigration`, and bump `PlanYaml.CurrentSchemaVersion` to match. Migrations are auto-discovered and run by `PlanMigrator` on every startup; each non-terminal plan is brought up to the latest version, then stamped with its `schemaVersion` so it is skipped on later startups. Bumping the version forces a one-time re-sweep of all non-terminal plans.
 3. **Keep `PlanYaml.cs` in sync** — the deserialization model must match what `Plans.md` documents
 4. **Update promptware instructions** — any promptware that writes `plan.yaml` (CreatePlan, ExecutePlan, UpdatePlan, SplitPlan, ExpandPlan) must produce the new format
 
-Existing plans on disk are never recreated — they must be repaired in place. If `RepairPlans()` can't fix a plan, it will silently fail and that plan won't appear in the UI. Always test your repair logic against real plan files.
+Existing plans on disk are never recreated — they must be migrated in place. If a migration can't fix a plan it is logged and skipped, and that plan won't appear in the UI. Always test your migration against real plan files. Terminal plans (Completed/Skipped) are treated as immutable and are not migrated.
 
 ## Project Structure
 
@@ -210,6 +210,6 @@ tendril plan get <id>       # Show plan details
 ### Common Issues
 
 - **Plan counter collisions**: `$TENDRIL_PLANS/.counter` is protected by file-based locking in `tendril plan create`. If plans get duplicate IDs, check for concurrent access issues.
-- **Plans not appearing in UI**: Run `tendril doctor plans` to check for malformed `plan.yaml` files. `PlanReaderService.RepairPlans()` runs on startup but silently skips plans it can't fix.
+- **Plans not appearing in UI**: Run `tendril doctor plans` to check for malformed `plan.yaml` files. `PlanMigrator` (driven by `PlanReaderService.MigratePlans()`) runs on startup but logs and skips plans it can't fix.
 - **Build errors from locked files**: Tendril locks its own exe while running. Use `--no-dependencies` or stop the running instance before building.
 - **Missing `.raw.jsonl` logs**: These are written by `PromptwareLogWriter.WriteRawLog` on job completion. The Logs directory is created automatically by `FirmwareCompiler.GetLogFile`.

@@ -146,6 +146,21 @@ public class PlanVerificationEntry
 
 public class PlanYaml
 {
+    /// <summary>
+    ///     Current plan.yaml schema version. Equals the highest <see cref="Services.Plans.Migrations.IPlanMigration" />
+    ///     version; adding a new migration file bumps this and forces a one-time re-sweep of all non-terminal
+    ///     plans on the next startup. Kept in sync by a unit test guard.
+    /// </summary>
+    public const int CurrentSchemaVersion = 3;
+
+    /// <summary>
+    ///     Schema version stamped into plan.yaml once a plan has been upgraded to the current
+    ///     structure. Legacy files lacking this field are treated as version 0. Defaults to
+    ///     <see cref="CurrentSchemaVersion" /> so newly-created plans are stamped current on write.
+    ///     NOTE: gating logic must read this from raw YAML text (absent ⇒ 0), not from this default.
+    /// </summary>
+    public int SchemaVersion { get; set; } = CurrentSchemaVersion;
+
     public string State { get; set; } = nameof(PlanStatus.Draft);
     public string Project { get; set; } = "Auto";
     public string Level { get; set; } = "Feature";
