@@ -32,10 +32,12 @@ A plan progresses through the following comprehensive set of states:
 | **Executing** | The `ExecutePlan` agent is actively implementing the plan in a worktree. |
 | **Updating** | The `UpdatePlan` agent is refining an existing, already-executed plan. |
 | **ReadyForReview** | Execution is complete, automated verifications passed. Ready for human review. |
-| **Failed** | The agent encountered a fatal error during implementation or verifications consistently failed. |
+| **Failed** | Automated verifications consistently failed after execution, or an interrupted execution could not be recovered. |
 | **Completed** | The plan has been reviewed, approved, and merged/PR'd successfully. |
 | **Skipped** | The plan was abandoned, discarded, or deemed unnecessary. |
 | **Icebox** | The plan has been shelved for later consideration. |
+
+> **Stopping or deleting a running job** returns the plan to the state it was in *before* the job started — e.g. a stopped `ExecutePlan` returns to `Draft`, a stopped `RetryPlan` returns to `ReadyForReview`. A stopped or failed run keeps its work product (worktree) so you can inspect or resume it; **deleting** an `ExecutePlan` job is the exception — it discards the work product (worktrees/artifacts) and resets the plan to a clean `Draft`.
 
 ## Creating a Plan
 

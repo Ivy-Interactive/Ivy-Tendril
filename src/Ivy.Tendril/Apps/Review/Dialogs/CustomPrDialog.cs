@@ -8,7 +8,6 @@ public class CustomPrDialog(
     IState<bool> dialogOpen,
     PlanFile selectedPlan,
     IJobService jobService,
-    IPlanReaderService planService,
     Action refreshPlans,
     QueryResult<string[]> assigneesQuery,
     IState<string?> assigneesError) : ViewBase
@@ -87,7 +86,7 @@ public class CustomPrDialog(
                             Assignee: customPrAssignee.Value,
                             Comment: string.IsNullOrEmpty(customPrComment.Value) ? null : customPrComment.Value,
                             Draft: customPrDraft.Value));
-                        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
+                        // Plan transition (and pre-state snapshot) handled by JobService.StartJob.
                         refreshPlans();
                         isCreating.Set(false);
                         customPrSolveMergeConflicts.Set(true);

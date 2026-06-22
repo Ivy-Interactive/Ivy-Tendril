@@ -26,6 +26,154 @@ public class JobServiceCompletionGuardTests : IDisposable
             planReaderService: new StubPlanReaderService(plansDir));
     }
 
+    private (JobService Service, StubPlanReaderService Plan) CreateServiceWithStub(PlanStatus? currentStatus = null)
+    {
+        SynchronizationContext.SetSynchronizationContext(null);
+        var stub = new StubPlanReaderService(_tempDir.Path) { CurrentStatus = currentStatus };
+        var service = new JobService(
+            TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), planReaderService: stub);
+        return (service, stub);
+    }
+
+    [Fact]
+    public void StopJob_ExecutePlan_RevertsToPreviousDraft()
+    {
+        var (service, plan) = CreateServiceWithStub();
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
+        service.GetJob(id)!.PreviousPlanState = PlanStatus.Draft;
+
+        service.StopJob(id);
+
+        Assert.Equal(JobStatus.Stopped, service.GetJob(id)!.Status);
+        Assert.Contains(("test-plan", PlanStatus.Draft), plan.Transitions);
+        Assert.DoesNotContain(plan.Transitions, t => t.State == PlanStatus.ReadyForReview);
+        Assert.Empty(plan.ResetToDraftCalls);
+    }
+
+    [Fact]
+    public void StopJob_RetryPlan_RevertsToPreviousReview()
+    {
+        var (service, plan) = CreateServiceWithStub();
+        var id = service.CreateTestJob(new RetryPlanArgs("test-plan", "fix it"));
+        service.GetJob(id)!.PreviousPlanState = PlanStatus.ReadyForReview;
+
+        service.StopJob(id);
+
+        Assert.Contains(("test-plan", PlanStatus.ReadyForReview), plan.Transitions);
+        Assert.Empty(plan.ResetToDraftCalls);
+    }
+
+    [Fact]
+    public void StopJob_CreatePr_RevertsToPreviousReview()
+    {
+        var (service, plan) = CreateServiceWithStub();
+        var id = service.CreateTestJob(new CreatePrArgs("test-plan"));
+        // CreatePr starts from Review; snapshot lets it revert there (no fallback covers CreatePr).
+        service.GetJob(id)!.PreviousPlanState = PlanStatus.ReadyForReview;
+
+        service.StopJob(id);
+
+        Assert.Contains(("test-plan", PlanStatus.ReadyForReview), plan.Transitions);
+        Assert.DoesNotContain(plan.Transitions, t => t.State == PlanStatus.Building);
+    }
+
+    [Fact]
+    public void StopJob_UsesFallbackWhenSnapshotMissing()
+    {
+        var (service, plan) = CreateServiceWithStub();
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
+        // PreviousPlanState left null (e.g. after restart) → fallback map → Draft.
+
+        service.StopJob(id);
+
+        Assert.Contains(("test-plan", PlanStatus.Draft), plan.Transitions);
+    }
+
+    [Fact]
+    public void DeleteJob_ExecutePlan_NonTerminal_ResetsToDraft()
+    {
+        var (service, plan) = CreateServiceWithStub(currentStatus: PlanStatus.ReadyForReview);
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
+
+        service.DeleteJob(id);
+
+        Assert.Contains("test-plan", plan.ResetToDraftCalls);
+    }
+
+    [Fact]
+    public void DeleteJob_ExecutePlan_Terminal_DoesNotResetToDraft()
+    {
+        var (service, plan) = CreateServiceWithStub(currentStatus: PlanStatus.Completed);
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
+        service.GetJob(id)!.PreviousPlanState = PlanStatus.Draft;
+
+        service.DeleteJob(id);
+
+        Assert.Empty(plan.ResetToDraftCalls);
+    }
+
+    [Fact]
+    public void DeleteJob_RetryPlan_RevertsToReviewWithoutReset()
+    {
+        var (service, plan) = CreateServiceWithStub(currentStatus: PlanStatus.ReadyForReview);
+        var id = service.CreateTestJob(new RetryPlanArgs("test-plan", "again"));
+        service.GetJob(id)!.PreviousPlanState = PlanStatus.ReadyForReview;
+
+        service.DeleteJob(id);
+
+        Assert.Empty(plan.ResetToDraftCalls);
+        Assert.Contains(("test-plan", PlanStatus.ReadyForReview), plan.Transitions);
+    }
+
+    [Fact]
+    public void CompleteJob_CancelledExecutePlan_RevertsInsteadOfReview()
+    {
+        var (service, plan) = CreateServiceWithStub();
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
+        var job = service.GetJob(id)!;
+        job.PreviousPlanState = PlanStatus.Draft;
+        job.CancellationRequested = true;
+
+        // Completion path wins the race after cancellation was requested.
+        service.CompleteJob(id, 0);
+
+        Assert.Contains(("test-plan", PlanStatus.Draft), plan.Transitions);
+        Assert.DoesNotContain(plan.Transitions, t => t.State == PlanStatus.ReadyForReview);
+    }
+
+    [Fact]
+    public void CompleteJob_FailedExecutePlan_RevertsAndKeepsWorktree()
+    {
+        var (service, plan) = CreateServiceWithStub();
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
+        service.GetJob(id)!.PreviousPlanState = PlanStatus.Draft;
+
+        service.CompleteJob(id, 1);
+
+        Assert.Equal(JobStatus.Failed, service.GetJob(id)!.Status);
+        Assert.Contains(("test-plan", PlanStatus.Draft), plan.Transitions);
+        Assert.DoesNotContain(plan.Transitions, t => t.State is PlanStatus.Failed or PlanStatus.ReadyForReview);
+    }
+
+    [Fact]
+    public void CompleteJob_SuccessWithIncompleteVerifications_TransitionsToFailed()
+    {
+        // The success path is now the only producer of PlanStatus.Failed: execution
+        // completed (exit 0) but a verification is still Pending.
+        var (service, plan) = CreateServiceWithStub();
+        var planFolder = Path.Combine(_tempDir.Path, "00777-VerFail");
+        Directory.CreateDirectory(planFolder);
+        File.WriteAllText(Path.Combine(planFolder, "plan.yaml"),
+            "state: Executing\nproject: Test\nverifications:\n- name: DotnetBuild\n  status: Pending\n");
+
+        var id = service.CreateTestJob(new ExecutePlanArgs(planFolder));
+
+        service.CompleteJob(id, 0);
+
+        Assert.Contains(("00777-VerFail", PlanStatus.Failed), plan.Transitions);
+        Assert.DoesNotContain(plan.Transitions, t => t.State == PlanStatus.ReadyForReview);
+    }
+
     [Fact]
     public void CompleteJob_ConcurrentCalls_OnlyFirstCompletes()
     {
@@ -181,6 +329,13 @@ public class JobServiceCompletionGuardTests : IDisposable
         public event Action? CountsInvalidated;
 #pragma warning restore CS0067
 
+        // Recording hooks for plan-state assertions.
+        public readonly List<(string Folder, PlanStatus State)> Transitions = new();
+        public readonly List<string> ResetToDraftCalls = new();
+
+        // Status returned by GetPlanByFolder (simulates the plan's current state).
+        public PlanStatus? CurrentStatus { get; set; }
+
         public void RecoverStuckPlans()
         {
         }
@@ -196,7 +351,10 @@ public class JobServiceCompletionGuardTests : IDisposable
 
         public PlanFile? GetPlanByFolder(string folderPath)
         {
-            return null;
+            if (CurrentStatus is not { } status) return null;
+            var metadata = new PlanMetadata(0, "", "", "", status, [], [], [], [], [], [],
+                default, default, null, null);
+            return new PlanFile(metadata, "", folderPath, "", 1);
         }
 
         public List<PlanFile> GetIceboxPlans()
@@ -206,10 +364,12 @@ public class JobServiceCompletionGuardTests : IDisposable
 
         public void TransitionState(string folderName, PlanStatus newState)
         {
+            Transitions.Add((folderName, newState));
         }
 
         public void ResetToDraft(string folderName)
         {
+            ResetToDraftCalls.Add(folderName);
         }
 
         public void ResetVerificationsForRetry(string folderName)

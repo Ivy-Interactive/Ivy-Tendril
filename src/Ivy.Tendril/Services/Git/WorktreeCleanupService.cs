@@ -148,6 +148,44 @@ public class WorktreeCleanupService : IStartable, IDisposable
     ///     applies mitigations (clear read-only attributes, shutdown build servers,
     ///     kill locking processes) before throwing.
     /// </remarks>
+    /// <summary>
+    ///     Removes a plan's execution work product: the Artifacts, Logs and Verification
+    ///     directories plus all git worktrees. Used when resetting a plan to a clean Draft
+    ///     (Reset to Draft, or deleting an ExecutePlan job).
+    /// </summary>
+    public static void CleanPlanState(string planFolderPath, ILogger? logger = null)
+    {
+        var artifactsDir = Path.Combine(planFolderPath, "Artifacts");
+        if (Directory.Exists(artifactsDir))
+        {
+            logger?.LogInformation("Cleaning artifacts directory: {Path}", artifactsDir);
+            ForceDeleteDirectory(artifactsDir, logger);
+        }
+
+        var logsDir = Path.Combine(planFolderPath, "Logs");
+        if (Directory.Exists(logsDir))
+        {
+            logger?.LogInformation("Cleaning logs directory: {Path}", logsDir);
+            ForceDeleteDirectory(logsDir, logger);
+        }
+
+        var verificationDir = Path.Combine(planFolderPath, "Verification");
+        if (Directory.Exists(verificationDir))
+        {
+            logger?.LogInformation("Cleaning verification directory: {Path}", verificationDir);
+            ForceDeleteDirectory(verificationDir, logger);
+        }
+
+        RemoveWorktrees(planFolderPath, logger);
+
+        var worktreesDir = Path.Combine(planFolderPath, "Worktrees");
+        if (Directory.Exists(worktreesDir))
+        {
+            logger?.LogInformation("Cleaning worktrees directory: {Path}", worktreesDir);
+            ForceDeleteDirectory(worktreesDir, logger);
+        }
+    }
+
     internal static void ForceDeleteDirectory(string path, ILogger? logger = null)
     {
         const int maxRetries = 3;

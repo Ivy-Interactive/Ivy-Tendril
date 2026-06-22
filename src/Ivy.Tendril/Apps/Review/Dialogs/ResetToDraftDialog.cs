@@ -51,7 +51,7 @@ public class ResetToDraftDialog(
                         {
                             try
                             {
-                                CleanPlanState(folderPath, _logger);
+                                WorktreeCleanupService.CleanPlanState(folderPath, _logger);
                             }
                             catch (Exception ex)
                             {
@@ -62,38 +62,5 @@ public class ResetToDraftDialog(
                 })
             )
         ).Width(Size.Rem(40));
-    }
-
-    internal static void CleanPlanState(string planFolderPath, ILogger? logger = null)
-    {
-        var artifactsDir = Path.Combine(planFolderPath, "Artifacts");
-        if (Directory.Exists(artifactsDir))
-        {
-            logger?.LogInformation("Cleaning artifacts directory: {Path}", artifactsDir);
-            WorktreeCleanupService.ForceDeleteDirectory(artifactsDir, logger);
-        }
-
-        var logsDir = Path.Combine(planFolderPath, "Logs");
-        if (Directory.Exists(logsDir))
-        {
-            logger?.LogInformation("Cleaning logs directory: {Path}", logsDir);
-            WorktreeCleanupService.ForceDeleteDirectory(logsDir, logger);
-        }
-
-        var verificationDir = Path.Combine(planFolderPath, "Verification");
-        if (Directory.Exists(verificationDir))
-        {
-            logger?.LogInformation("Cleaning verification directory: {Path}", verificationDir);
-            WorktreeCleanupService.ForceDeleteDirectory(verificationDir, logger);
-        }
-
-        WorktreeCleanupService.RemoveWorktrees(planFolderPath, logger);
-
-        var worktreesDir = Path.Combine(planFolderPath, "Worktrees");
-        if (Directory.Exists(worktreesDir))
-        {
-            logger?.LogInformation("Cleaning worktrees directory: {Path}", worktreesDir);
-            WorktreeCleanupService.ForceDeleteDirectory(worktreesDir, logger);
-        }
     }
 }

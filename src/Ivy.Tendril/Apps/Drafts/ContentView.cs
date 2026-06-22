@@ -43,7 +43,7 @@ public class ContentView(
 
         var processView = Context.UseTendrilProcess();
 
-        var (updateDialog, showUpdateDialog) = UseTrigger((isOpen) => !isOpen.Value ? null : new UpdatePlanDialog(isOpen, selectedPlan!, selectedPlanState, jobService, planService, refreshPlans));
+        var (updateDialog, showUpdateDialog) = UseTrigger((isOpen) => !isOpen.Value ? null : new UpdatePlanDialog(isOpen, selectedPlan!, selectedPlanState, jobService, refreshPlans));
 
         var (deleteDialog, showDeleteDialog) = UseTrigger((isOpen) => !isOpen.Value ? null : new DeletePlanDialog(isOpen, selectedPlan!, selectedPlanState, planService, refreshPlans));
 
@@ -479,7 +479,8 @@ public class ContentView(
         refreshPlans();
     }
 
-    // Optimistically update UI state before disk I/O
+    // Optimistically update UI state; the authoritative plan transition (and pre-state
+    // snapshot) is performed by JobService.StartJob.
     private void TransitionPlanOptimistically(PlanStatus status)
     {
         var optimisticPlan = selectedPlan! with
@@ -487,8 +488,6 @@ public class ContentView(
             Metadata = selectedPlan.Metadata with { State = status }
         };
         selectedPlanState.Set(optimisticPlan);
-
-        planService.TransitionState(selectedPlan.FolderName, status);
     }
 
     private bool HasActiveJob<TArgs>() where TArgs : JobArgsBase

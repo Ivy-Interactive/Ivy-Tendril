@@ -14,7 +14,6 @@ public class RerunJobDialog(
     IState<bool> dialogOpen,
     JobItem job,
     IJobService jobService,
-    IPlanReaderService planService,
     Action onRerun) : ViewBase
 {
     public override object? Build()
@@ -57,8 +56,9 @@ public class RerunJobDialog(
         if (job.TypedArgs == null) return;
 
         var newArgs = BuildRerunArgs(job.TypedArgs, feedbackText);
-        TransitionPlanState(newArgs);
 
+        // Plan state transition (and pre-state snapshot) is handled centrally by
+        // JobService.StartJob.
         jobService.DeleteJob(job.Id);
         jobService.StartJob(newArgs);
         onRerun();
@@ -79,33 +79,5 @@ public class RerunJobDialog(
             UpdatePlanArgs u => new UpdatePlanArgs(u.FolderPath, feedback),
             _ => original
         };
-    }
-
-    private void TransitionPlanState(JobArgsBase args)
-    {
-        var folder = args.PlanFolder;
-        if (string.IsNullOrEmpty(folder)) return;
-
-        var folderName = Path.GetFileName(folder);
-
-        // Only transition the plan for the job types that already drive plan state on a
-        // fresh in-app start. CreatePr/CreateIssue/Split/SyncRepo are deliberately left
-        // untouched so rerunning them doesn't knock the plan out of its current state
-        // (e.g. ReadyForReview -> Building, hiding it from the Review queue).
-        var targetState = args switch
-        {
-            ExecutePlanArgs => PlanStatus.Building,
-            ExpandPlanArgs => PlanStatus.Building,
-            RetryPlanArgs => PlanStatus.Executing,
-            UpdatePlanArgs => PlanStatus.Updating,
-            _ => (PlanStatus?)null
-        };
-
-        if (targetState == null) return;
-
-        if (args is RetryPlanArgs)
-            planService.ResetVerificationsForRetry(folderName);
-
-        planService.TransitionState(folderName, targetState.Value);
     }
 }

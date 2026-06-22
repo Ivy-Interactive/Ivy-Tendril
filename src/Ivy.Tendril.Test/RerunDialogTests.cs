@@ -1,4 +1,4 @@
-using Ivy.Tendril.Apps.Review.Dialogs;
+using Ivy.Tendril.Services.Git;
 
 namespace Ivy.Tendril.Test;
 
@@ -18,7 +18,7 @@ public class ResetToDraftDialogTests
             File.WriteAllText(Path.Combine(artifactsDir, "summary.md"), "test");
             File.WriteAllText(Path.Combine(logsDir, "001.md"), "test");
 
-            ResetToDraftDialog.CleanPlanState(planDir);
+            WorktreeCleanupService.CleanPlanState(planDir);
 
             Assert.False(Directory.Exists(artifactsDir));
             Assert.False(Directory.Exists(logsDir));
@@ -39,7 +39,7 @@ public class ResetToDraftDialogTests
             var planDir = Path.Combine(tempDir, "00001-TestPlan");
             Directory.CreateDirectory(planDir);
 
-            var ex = Record.Exception(() => ResetToDraftDialog.CleanPlanState(planDir));
+            var ex = Record.Exception(() => WorktreeCleanupService.CleanPlanState(planDir));
             Assert.Null(ex);
         }
         finally
@@ -65,7 +65,7 @@ public class ResetToDraftDialogTests
             Directory.CreateDirectory(verificationDir);
             Directory.CreateDirectory(revisionsDir);
 
-            ResetToDraftDialog.CleanPlanState(planDir);
+            WorktreeCleanupService.CleanPlanState(planDir);
 
             Assert.False(Directory.Exists(artifactsDir));
             Assert.False(Directory.Exists(logsDir));
@@ -93,7 +93,7 @@ public class ResetToDraftDialogTests
             File.WriteAllText(Path.Combine(screenshotsDir, "img.png"), "test");
             File.WriteAllText(Path.Combine(sampleDir, "app.dll"), "test");
 
-            ResetToDraftDialog.CleanPlanState(planDir);
+            WorktreeCleanupService.CleanPlanState(planDir);
 
             Assert.False(Directory.Exists(Path.Combine(planDir, "Artifacts")));
         }
@@ -116,7 +116,7 @@ public class ResetToDraftDialogTests
             Directory.CreateDirectory(repoDir);
             File.WriteAllText(Path.Combine(repoDir, "dummy.txt"), "test");
 
-            ResetToDraftDialog.CleanPlanState(planDir);
+            WorktreeCleanupService.CleanPlanState(planDir);
 
             Assert.False(Directory.Exists(worktreesDir));
         }
