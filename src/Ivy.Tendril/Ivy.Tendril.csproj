@@ -52,6 +52,7 @@
     <PackageReference Include="OpenAI" Version="2.9.1" />
     <PackageReference Include="PostHog" Version="2.6.0" />
     <PackageReference Include="Spectre.Console.Cli" Version="1.0.0-alpha.0.16" />
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
     <PackageReference Include="Velopack" Version="0.0.1298" />
     <PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>
