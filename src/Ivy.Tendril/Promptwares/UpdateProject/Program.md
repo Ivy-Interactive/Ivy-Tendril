@@ -26,23 +26,23 @@ Project and verification configuration is available via `tendril project list` a
 ### Verifications (global definitions)
 ```bash
 tendril verification list
-tendril verification add <name> --prompt "<prompt>"
+tendril verification add <name> --prompt="<prompt>"
 tendril verification remove <name>
 tendril verification set <name> <field> <value>
 ```
 
 ### Project verifications (references)
 ```bash
-tendril project add-verification <project-name> <verification-name> --required [--after <other>]
+tendril project add-verification <project-name> <verification-name> --required [--after=<other>]
 tendril project remove-verification <project-name> <verification-name>
-tendril project move-verification <project-name> <verification-name> --after <other>
-tendril project move-verification <project-name> <verification-name> --before <other>
-tendril project move-verification <project-name> <verification-name> --position <n>
+tendril project move-verification <project-name> <verification-name> --after=<other>
+tendril project move-verification <project-name> <verification-name> --before=<other>
+tendril project move-verification <project-name> <verification-name> --position=<n>
 ```
 
 ### Review actions
 ```bash
-tendril project add-review-action <project-name> <name> --command "<cmd>" --condition "<condition>"
+tendril project add-review-action <project-name> <name> --command="<cmd>" --condition="<condition>"
 tendril project remove-review-action <project-name> <name>
 ```
 
@@ -86,7 +86,7 @@ For each detected tech stack, ensure the following verification definitions exis
 
 For each verification:
 1. Check if it already exists in `tendril verification list`
-2. If not, create it with `tendril verification add <name> --prompt "<prompt>"`
+2. If not, create it with `tendril verification add <name> --prompt="<prompt>"`
 3. Add it to the project with `tendril project add-verification <project-name> <name> --required`
 
 Always add `CheckResult` as a verification (it exists in the default config):
@@ -105,14 +105,14 @@ Verifications run top-to-bottom during plan execution. The correct order is:
 
 After adding all verifications, verify ordering with `tendril project get <project-name>` and fix with:
 ```bash
-tendril project move-verification <project-name> <name> --after <other>
+tendril project move-verification <project-name> <name> --after=<other>
 ```
 
 Use `--after` when adding verifications to place them correctly from the start:
 ```bash
-tendril project add-verification <project-name> DotnetBuild --required --after DotnetFormat
-tendril project add-verification <project-name> DotnetTest --required --after DotnetBuild
-tendril project add-verification <project-name> CheckResult --required --after DotnetTest
+tendril project add-verification <project-name> DotnetBuild --required --after=DotnetFormat
+tendril project add-verification <project-name> DotnetTest --required --after=DotnetBuild
+tendril project add-verification <project-name> CheckResult --required --after=DotnetTest
 ```
 
 ### 3. Setup Review Actions
@@ -139,8 +139,8 @@ For each review action:
 
 ```bash
 tendril project add-review-action <project-name> "<name>" \
-  --command "<launch command>" \
-  --condition "Test-Path \"Worktrees/<RepoName>/<path>\""
+  --command="<launch command>" \
+  --condition="Test-Path \"Worktrees/<RepoName>/<path>\""
 ```
 
 ### 4. Summary

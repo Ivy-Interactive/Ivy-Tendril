@@ -6,13 +6,13 @@ internal class TestPlanConfigService : IConfigService
 {
     private readonly List<ProjectConfig> _projects;
 
-    public TestPlanConfigService(string repoDir)
+    public TestPlanConfigService(string repoDir, string projectName = "TestProject")
     {
         _projects =
         [
             new ProjectConfig
             {
-                Name = "TestProject",
+                Name = projectName,
                 Repos = [new RepoRef { Path = repoDir }]
             }
         ];
