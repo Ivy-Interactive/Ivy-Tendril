@@ -71,7 +71,7 @@ public class JobDebugSheet(
             .Label(x => x.CliCommand, "Arguments")
             .Label(x => x.JobId, "Job Id")
             .Builder(x => x.PermissionDenials, f => f.Func((string denials) =>
-                new CodeBlock(denials)))
+                string.IsNullOrEmpty(denials) ? null : new CodeBlock(denials)))
             .Builder(x => x.PlanFolder, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .Builder(x => x.PlanLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .Builder(x => x.PromptwareLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
