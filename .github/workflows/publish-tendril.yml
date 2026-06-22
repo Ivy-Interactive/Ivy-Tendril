@@ -123,7 +123,8 @@ jobs:
           dotnet pack src/Ivy.Tendril/Ivy.Tendril.csproj \
             --configuration Release \
             --output ./nupkg \
-            /p:Version=${{ needs.version.outputs.version }}
+            /p:Version=${{ needs.version.outputs.version }} \
+            /p:CommitId=${{ github.sha }}
 
       - name: NuGet login
         uses: NuGet/login@v1
@@ -244,6 +245,7 @@ jobs:
             -p:PublishSingleFile=true \
             -p:ReadyToRun=false \
             -p:Version=${{ needs.version.outputs.version }} \
+            -p:CommitId=${{ github.sha }} \
             --self-contained true
 
       - name: Bundle PowerShell 7

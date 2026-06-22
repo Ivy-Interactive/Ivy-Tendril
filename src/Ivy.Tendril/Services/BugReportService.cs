@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Net.Http.Headers;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Ivy.Tendril.Helpers;
@@ -64,14 +65,25 @@ public sealed class BugReportService
             var version = typeof(BugReportService).Assembly.GetName().Version?.ToString(3) ?? "unknown";
             var osVersion = Environment.OSVersion.VersionString;
             var agent = _config.Settings.CodingAgent;
+            var commitId = GetCommitId();
 
-            return await UploadAsync(zipPath, description, osVersion, version, agent, ct);
+            return await UploadAsync(zipPath, description, osVersion, version, agent, commitId, ct);
         }
         finally
         {
             File.Delete(zipPath);
         }
     }
+
+    /// <summary>
+    ///     Reads the git commit the assembly was built from, embedded as <c>[AssemblyMetadata("CommitId", ...)]</c>
+    ///     by the <c>SetCommitId</c> MSBuild target. Returns <c>null</c> when no commit was embedded
+    ///     (e.g. a build with no git working tree), in which case the report is sent without a commit id.
+    /// </summary>
+    private static string? GetCommitId() =>
+        typeof(BugReportService).Assembly
+            .GetCustomAttributes<AssemblyMetadataAttribute>()
+            .FirstOrDefault(a => a.Key == "CommitId")?.Value;
 
     private void AddSanitizedConfig(List<BugReportFile> files)
     {
@@ -212,7 +224,7 @@ public sealed class BugReportService
         return zipPath;
     }
 
-    private static async Task<BugReportResult?> UploadAsync(string zipPath, string description, string osVersion, string tendrilVersion, string agent, CancellationToken ct)
+    private static async Task<BugReportResult?> UploadAsync(string zipPath, string description, string osVersion, string tendrilVersion, string agent, string? commitId, CancellationToken ct)
     {
         using var httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
         using var form = new MultipartFormDataContent();
@@ -221,6 +233,9 @@ public sealed class BugReportService
         form.Add(new StringContent(osVersion), "osVersion");
         form.Add(new StringContent(tendrilVersion), "tendrilVersion");
         form.Add(new StringContent(agent), "agent");
+
+        if (!string.IsNullOrWhiteSpace(commitId))
+            form.Add(new StringContent(commitId), "commitId");
 
         var fileStream = File.OpenRead(zipPath);
         var fileContent = new StreamContent(fileStream);
