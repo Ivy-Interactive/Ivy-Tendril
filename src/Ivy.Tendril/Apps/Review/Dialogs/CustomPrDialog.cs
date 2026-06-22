@@ -19,7 +19,7 @@ public class CustomPrDialog(
         var customPrMerge = UseState(false);
         var customPrDeleteBranch = UseState(false);
         var customPrIncludeArtifacts = UseState(false);
-        var customPrAssignee = UseState<string?>(null);
+        var customPrReviewer = UseState<string?>(null);
         var customPrComment = UseState("");
         var customPrDraft = UseState(false);
 
@@ -40,7 +40,7 @@ public class CustomPrDialog(
                 customPrMerge.Set(true);
                 customPrDeleteBranch.Set(true);
                 customPrIncludeArtifacts.Set(true);
-                customPrAssignee.Set(null);
+                customPrReviewer.Set(null);
                 customPrComment.Set("");
                 customPrDraft.Set(false);
                 dialogOpen.Set(false);
@@ -58,8 +58,8 @@ public class CustomPrDialog(
                     .Disabled(!customPrMerge.Value)
                 | customPrIncludeArtifacts.ToBoolInput("Include Artifacts")
                 | customPrDraft.ToBoolInput("Create as Draft")
-                | customPrAssignee.ToSelectInput((assigneesQuery.Value ?? Array.Empty<string>()).ToOptions())
-                    .Nullable().WithField().Label("Assignee")
+                | customPrReviewer.ToSelectInput((assigneesQuery.Value ?? Array.Empty<string>()).ToOptions())
+                    .Nullable().WithField().Label("Reviewer")
                 | (assigneesError.Value is { } err
                     ? Text.Danger(err).Small()
                     : null)
@@ -73,7 +73,7 @@ public class CustomPrDialog(
                     customPrMerge.Set(true);
                     customPrDeleteBranch.Set(true);
                     customPrIncludeArtifacts.Set(true);
-                    customPrAssignee.Set(null);
+                    customPrReviewer.Set(null);
                     customPrComment.Set("");
                     customPrDraft.Set(false);
                     dialogOpen.Set(false);
@@ -89,7 +89,7 @@ public class CustomPrDialog(
                             Merge: customPrMerge.Value,
                             DeleteBranch: customPrDeleteBranch.Value && customPrMerge.Value,
                             IncludeArtifacts: customPrIncludeArtifacts.Value,
-                            Assignee: customPrAssignee.Value,
+                            Reviewer: customPrReviewer.Value,
                             Comment: string.IsNullOrEmpty(customPrComment.Value) ? null : customPrComment.Value,
                             Draft: customPrDraft.Value));
                         // Plan transition (and pre-state snapshot) handled by JobService.StartJob.
@@ -99,7 +99,7 @@ public class CustomPrDialog(
                         customPrMerge.Set(true);
                         customPrDeleteBranch.Set(true);
                         customPrIncludeArtifacts.Set(true);
-                        customPrAssignee.Set(null);
+                        customPrReviewer.Set(null);
                         customPrComment.Set("");
                         customPrDraft.Set(false);
                         dialogOpen.Set(false);

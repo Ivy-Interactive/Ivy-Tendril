@@ -429,8 +429,8 @@ internal class JobLauncher
         values["PrDeleteBranch"] = pr.DeleteBranch.ToString().ToLowerInvariant();
         values["PrIncludeArtifacts"] = pr.IncludeArtifacts.ToString().ToLowerInvariant();
         values["PrDraft"] = pr.Draft.ToString().ToLowerInvariant();
-        if (!string.IsNullOrEmpty(pr.Assignee))
-            values["PrAssignee"] = pr.Assignee;
+        if (!string.IsNullOrEmpty(pr.Reviewer))
+            values["PrReviewer"] = pr.Reviewer;
         if (!string.IsNullOrEmpty(pr.Comment))
             values["PrComment"] = pr.Comment;
     }

@@ -45,7 +45,7 @@ Before processing, read `plan.yaml` and check the `state` field. After reading, 
   - `PrMerge` — `true`/`false` (default: `true`) — **whether to merge the PR after creating it**
   - `PrDeleteBranch` — `true`/`false` (default: `true`)
   - `PrIncludeArtifacts` — `true`/`false` (default: `true`)
-  - `PrAssignee` — GitHub username (default: none)
+  - `PrReviewer` — GitHub username to request as reviewer (default: none)
   - `PrComment` — Review comment text (default: none)
   - `PrDraft` — `true`/`false` (default: `false`)
 
@@ -141,7 +141,7 @@ EOF
   body="${issueLink}${summaryContent}\n\n---\n${commitsList}${artifactMarkdown}\n\n---\nCreated using [Ivy Tendril](https://ivy.app)."
   ```
 - **Draft (custom options):** If custom options exist and `draft` is `true`, add `--draft` to the `gh pr create` command to create the PR in draft mode. If no custom options or `draft` is `false`, create as ready for review (default behavior).
-- **Assignee (custom options):** If custom options exist and `assignee` is non-empty, add `--assignee <assignee>` to the `gh pr create` command.
+- **Reviewer (custom options):** If custom options exist and `reviewer` is non-empty, add `--reviewer <reviewer>` to the `gh pr create` command.
 
 ### 3.5. Add PR Comment (custom options)
 
