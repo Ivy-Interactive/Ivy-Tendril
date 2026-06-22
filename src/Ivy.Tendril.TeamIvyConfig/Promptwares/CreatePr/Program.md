@@ -20,7 +20,7 @@ The plan structure and CLI commands are in the **Reference Documents** section o
 
 ### 0. Check Plan State
 
-Before processing, read `plan.yaml` and check the `state` field. After reading, report plan context: `tendril job status TendrilJobId --message "Creating PR..." --plan-id <plan-id> --plan-title "<title>"`
+Before processing, read `plan.yaml` and check the `state` field. After reading, report plan context: `tendril job status TendrilJobId --message="Creating PR..." --plan-id=<plan-id> --plan-title="<title>"`
 - If `state: Completed`, the plan was already processed. Exit early with a message indicating the plan is already completed and showing the existing PR URLs from the `prs` list.
 - Otherwise, proceed with step 1.
 

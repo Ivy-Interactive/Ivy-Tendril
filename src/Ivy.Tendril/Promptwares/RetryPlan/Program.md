@@ -30,11 +30,11 @@ Read the ChangeRequest carefully before starting implementation. The original pl
 - Read `plan.yaml` from the plan folder (project, repos, title)
 - Read the latest revision from `Revisions/` (highest numbered .md file)
 - Extract the plan ID from the folder name (e.g. `00012` from `00012-AddNewsletterSignupToHelpApp`)
-- Report plan context to Jobs UI: `tendril job status TendrilJobId --message "Retrying plan..." --plan-id <plan-id> --plan-title "<title>"`
+- Report plan context to Jobs UI: `tendril job status TendrilJobId --message="Retrying plan..." --plan-id=<plan-id> --plan-title="<title>"`
 
 ### 2. Enter Existing Worktrees
 
-Report status: `tendril job status TendrilJobId --message "Entering worktrees..."`
+Report status: `tendril job status TendrilJobId --message="Entering worktrees..."`
 
 The worktrees were created by the prior ExecutePlan run and already contain branches with previous commits. A project may consist of multiple repos — each has its own worktree under `<TendrilPlanFolder>/Worktrees/`.
 
@@ -67,7 +67,7 @@ fi
 
 ### 3. Implement Changes
 
-Report status: `tendril job status TendrilJobId --message "Implementing changes..."`
+Report status: `tendril job status TendrilJobId --message="Implementing changes..."`
 
 Work exclusively in the worktree directories. Address the **ChangeRequest** feedback:
 
@@ -78,7 +78,7 @@ Work exclusively in the worktree directories. Address the **ChangeRequest** feed
 
 ### 4. Commit
 
-Report status: `tendril job status TendrilJobId --message "Committing changes..."`
+Report status: `tendril job status TendrilJobId --message="Committing changes..."`
 
 Make logically grouped commits in the worktree(s). Each commit should be a coherent unit of work.
 
@@ -141,7 +141,7 @@ Get the run-set via `tendril plan verification list <plan-id> --json` — it emi
 
 For each `Pending` verification (in listed order):
 
-1. Send a status message: `tendril job status TendrilJobId --message "Verifying: <Name>"`
+1. Send a status message: `tendril job status TendrilJobId --message="Verifying: <Name>"`
 2. Fetch its full prompt: `tendril verification get <Name>`
 3. **Check if delegated:** Follow the prompt's instructions to invoke it as an external process if delegated.
 4. Execute the prompt in the worktree directory
@@ -176,7 +176,7 @@ attempts: <number>
 
 ### 7. Final Clean Check
 
-Report status: `tendril job status TendrilJobId --message "Running final checks..."`
+Report status: `tendril job status TendrilJobId --message="Running final checks..."`
 
 After all verifications pass:
 

@@ -106,12 +106,12 @@ tendril plan add-related-plan <plan-id> <folder-name>
 tendril plan add-depends-on <plan-id> <folder-name>
 
 # Recommendations
-tendril plan rec add <plan-id> <title> -d <description> [--impact Small|Medium|High] [--risk Small|Medium|High]
-tendril plan rec accept <plan-id> <title> [--notes <text>]
-tendril plan rec decline <plan-id> <title> [--reason <text>]
+tendril plan rec add <plan-id> <title> -d <description> [--impact=Small|Medium|High] [--risk=Small|Medium|High]
+tendril plan rec accept <plan-id> <title> [--notes=<text>]
+tendril plan rec decline <plan-id> <title> [--reason=<text>]
 tendril plan rec set <plan-id> <title> <field> <value>
 tendril plan rec remove <plan-id> <title>
-tendril plan rec list <plan-id> [--state Pending|Accepted|Declined]
+tendril plan rec list <plan-id> [--state=Pending|Accepted|Declined]
 
 # Validate plan health
 tendril plan validate <plan-id>
@@ -124,6 +124,8 @@ tendril plan create <title> <project> [options]
 ```
 
 Auto-allocates a plan ID, creates the folder, and writes `plan.yaml`. Repos are derived from the project configuration.
+
+Pass options in the `--option=value` (equals) form, e.g. `--initial-prompt="..."`. The parser reads any token starting with `-` as an option name, so the space-separated form breaks when a value itself begins with a dash (e.g. a prompt opening with a `-` bullet). Likewise, `<title>` must not begin with a `-`.
 
 Outputs:
 ```
@@ -155,7 +157,7 @@ Reads content from STDIN and writes it to `revisions/<NNN>.md` in the plan folde
 ### Writing execution logs
 
 ```bash
-tendril plan add-log <plan-id> <action> [--summary <text>]
+tendril plan add-log <plan-id> <action> [--summary=<text>]
 ```
 
 ### Cleaning up worktrees

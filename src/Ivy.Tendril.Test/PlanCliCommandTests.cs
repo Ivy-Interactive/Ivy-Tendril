@@ -1,7 +1,11 @@
 using Ivy.Tendril.Commands;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Infrastructure;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Plans;
+using Microsoft.Extensions.DependencyInjection;
+using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Test;
 
@@ -230,6 +234,88 @@ public class PlanCliCommandTests : IDisposable
         var result = PlanCommandHelpers.ReadPlan(planDir);
         Assert.Equal("Failed", result.State);
         Assert.Equal("NewProject", result.Project);
+    }
+
+    // Builds a real Spectre.Console.Cli app exposing `plan create`, wired to a config
+    // service that knows <project> (with an existing repo). Mirrors how Program.cs
+    // registers the command, so tests exercise the actual argument parser.
+    private CommandApp BuildPlanCreateApp(string project)
+    {
+        var repoDir = Path.Combine(_tempDir.Path, "repos", project);
+        Directory.CreateDirectory(repoDir);
+
+        var services = new ServiceCollection();
+        services.AddSingleton<IPlanWatcherService, NullPlanWatcherService>();
+        services.AddSingleton<IConfigService>(new TestPlanConfigService(repoDir, project));
+
+        var app = new CommandApp(new TypeRegistrar(services));
+        app.Configure(config =>
+        {
+            config.PropagateExceptions();
+            config.AddBranch("plan", plan => plan.AddCommand<PlanCreateCommand>("create"));
+        });
+        return app;
+    }
+
+    // Regression for #1297 / #1303: `tendril plan create <title> <project>` must bind a
+    // hyphenated project name to the positional <project> argument. Drives the real
+    // Spectre.Console.Cli parser (the layer that threw "Could not match 'Ivy-Framework'
+    // with an argument") end-to-end through PlanCreateCommand.
+    [Fact]
+    public void PlanCreate_CommandApp_HyphenatedProjectName_BindsPositionalAndCreatesPlan()
+    {
+        var app = BuildPlanCreateApp("Ivy-Framework");
+
+        var exit = app.Run(new[]
+        {
+            "plan", "create",
+            "Fix Pagination Density Not Applied to Items", "Ivy-Framework",
+            "--plans-dir", _plansDir,
+            "--level", "Feature",
+            "--initial-prompt",
+            "Fix that density is not properly applied in the Pagination widget - all three density sizes (Small, Medium, Large) render identically",
+            "--execution-profile", "balanced"
+        });
+
+        Assert.Equal(0, exit);
+
+        var planFolder = Directory.GetDirectories(_plansDir).Single();
+        var plan = PlanCommandHelpers.ReadPlan(planFolder);
+        Assert.Equal("Ivy-Framework", plan.Project);
+        Assert.Equal("Fix Pagination Density Not Applied to Items", plan.Title);
+    }
+
+    // Regression for #1303: a CreatePlan/SplitPlan task description can begin with a dash
+    // (e.g. a markdown bullet "- ..." or a flag-like word "--watch ..."). Spectre.Console.Cli
+    // treats any token starting with '-' as an option name, so the space-separated form
+    // `--initial-prompt "- ..."` fails to parse. The promptware now emits the equals form
+    // `--initial-prompt=<value>` (a single argv token), which binds correctly. This test
+    // locks that contract in for leading-dash prompt values.
+    [Theory]
+    [InlineData("- Fix density rendering")]                       // value starts with '-'
+    [InlineData("--force a rebuild of the widget")]               // value starts with '--'
+    [InlineData("Fix that density - all sizes (Small, Medium, Large) render identically")] // dash mid-string
+    [InlineData("Normal prompt with : colon and = equals")]      // special chars
+    public void PlanCreate_CommandApp_EqualsForm_BindsLeadingDashInitialPrompt(string initialPrompt)
+    {
+        var app = BuildPlanCreateApp("Ivy-Framework");
+
+        // Equals form: each option value is glued to its option as a single argv token,
+        // exactly as the CreatePlan/SplitPlan promptware now generates it.
+        var exit = app.Run(new[]
+        {
+            "plan", "create", "Fix Pagination Density", "Ivy-Framework",
+            $"--plans-dir={_plansDir}",
+            "--level=Feature",
+            $"--initial-prompt={initialPrompt}",
+            "--execution-profile=balanced"
+        });
+
+        Assert.Equal(0, exit);
+        var planFolder = Directory.GetDirectories(_plansDir).Single();
+        var plan = PlanCommandHelpers.ReadPlan(planFolder);
+        Assert.Equal("Ivy-Framework", plan.Project);
+        Assert.Equal(initialPrompt, plan.InitialPrompt);
     }
 
     // ==================== PlanGet ====================

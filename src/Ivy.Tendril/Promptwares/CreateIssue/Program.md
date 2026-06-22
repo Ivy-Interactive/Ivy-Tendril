@@ -17,7 +17,7 @@ The firmware header contains:
 
 - Read `plan.yaml` from the plan folder
 - Read the latest revision for the plan title and Problem section
-- Report plan context to Jobs UI: `tendril job status TendrilJobId --message "Creating issue..." --plan-id <plan-id> --plan-title "<title>"`
+- Report plan context to Jobs UI: `tendril job status TendrilJobId --message="Creating issue..." --plan-id=<plan-id> --plan-title="<title>"`
 
 ### 2. Identify GitHub Repository
 
@@ -31,7 +31,7 @@ If this fails, report that the repo is not a GitHub repository and stop.
 
 ### 3. Create Issue
 
-Report status: `tendril job status TendrilJobId --message "Creating GitHub issue..."`
+Report status: `tendril job status TendrilJobId --message="Creating GitHub issue..."`
 
 Use the plan's title and Problem section to create a well-formatted issue:
 

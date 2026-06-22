@@ -40,7 +40,7 @@ Focus on making progress, not achieving perfect understanding. A working impleme
 - Read `plan.yaml` from the plan folder (project, repos, title)
 - Read the latest revision from `Revisions/` (highest numbered .md file)
 - Extract the plan ID from the folder name (e.g. `01105` from `01105-TestPlan`)
-- Report plan context to Jobs UI: `tendril job status TendrilJobId --message "Reading plan..." --plan-id <plan-id> --plan-title "<title>"`
+- Report plan context to Jobs UI: `tendril job status TendrilJobId --message="Reading plan..." --plan-id=<plan-id> --plan-title="<title>"`
 
 ### 1.5. Verify Dependencies
 
@@ -355,7 +355,7 @@ Get the run-set via `tendril plan verification list <plan-id> --json` — it emi
 
 For each `Pending` verification (in listed order):
 
-1. Send a status message: `tendril job status TendrilJobId --message "Verifying: <Name>"`
+1. Send a status message: `tendril job status TendrilJobId --message="Verifying: <Name>"`
 2. Fetch its full prompt: `tendril verification get <Name>`
 3. **Check if delegated:** The **Projects** section indicates which verifications are delegated — follow the prompt's instructions to invoke it as an external process. If the external process cannot be invoked (CLI broken, file lock, etc.), set the verification to `Fail` immediately. Do NOT attempt to do the verification inline or write the report yourself.
 4. Execute the prompt in the worktree directory
@@ -402,7 +402,7 @@ After all verifications pass, reflect on what you observed during this plan's ex
 For each item, register it via the CLI:
 
 ```bash
-tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact Medium --risk Small
+tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact=Medium --risk=Small
 ```
 
 `--impact` and `--risk` are optional (Small, Medium, or High). Impact indicates the value of implementing it; Risk indicates the potential for complications or bugs.

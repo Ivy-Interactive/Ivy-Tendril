@@ -18,7 +18,7 @@ Project configuration is available from the firmware header.
 
 - Read the latest revision from `Revisions/` (highest numbered .md file)
 - Get the plan title: `tendril plan get <TendrilPlanId> title`
-- Report plan context to Jobs UI: `tendril job status TendrilJobId --message "Updating plan..." --plan-id <plan-id> --plan-title "<title>"`
+- Report plan context to Jobs UI: `tendril job status TendrilJobId --message="Updating plan..." --plan-id=<plan-id> --plan-title="<title>"`
 
 ### 2. Parse Instructions
 
@@ -28,7 +28,7 @@ Read the `UpdateInstructions` value from the firmware header. Instructions are e
 
 ### 3. Research and Answer Questions
 
-Report status: `tendril job status TendrilJobId --message "Researching questions..."`
+Report status: `tendril job status TendrilJobId --message="Researching questions..."`
 
 For each question in the instructions:
 1. Read relevant source files to find the answer
@@ -48,7 +48,7 @@ If all questions are resolved and no new questions arose, omit the `## Questions
 
 ### 4. Apply Changes
 
-Report status: `tendril job status TendrilJobId --message "Applying changes..."`
+Report status: `tendril job status TendrilJobId --message="Applying changes..."`
 
 - Write the new revision via CLI (number auto-incremented):
   ```bash

@@ -32,7 +32,7 @@ The plan structure and CLI commands are in the **Reference Documents** section o
 
 ### 0. Check Plan State
 
-Before processing, read `plan.yaml` and check the `state` field. After reading, report plan context: `tendril job status TendrilJobId --message "Creating PR..." --plan-id <plan-id> --plan-title "<title>"`
+Before processing, read `plan.yaml` and check the `state` field. After reading, report plan context: `tendril job status TendrilJobId --message="Creating PR..." --plan-id=<plan-id> --plan-title="<title>"`
 - If `state: Completed`, the plan was already processed. Exit early with a message indicating the plan is already completed and showing the existing PR URLs from the `prs` list.
 - Otherwise, proceed with step 1.
 
@@ -51,7 +51,7 @@ Before processing, read `plan.yaml` and check the `state` field. After reading, 
 
 ### 2. For Each Worktree
 
-Report status: `tendril job status TendrilJobId --message "Pushing branches..."`
+Report status: `tendril job status TendrilJobId --message="Pushing branches..."`
 
 Check `<TendrilPlanFolder>/Worktrees/` for each repo worktree.
 
@@ -100,7 +100,7 @@ applying the transient-error retry convention) and poll once more before proceed
 
 ### 3. Create PR
 
-Report status: `tendril job status TendrilJobId --message "Creating pull request..."`
+Report status: `tendril job status TendrilJobId --message="Creating pull request..."`
 
 Apply the **transient-error retry convention** to every `gh` command in this step (and steps
 3.5–6): retry transient/network/`5xx`/`429` failures up to 3 times with backoff; fail fast on
@@ -157,7 +157,7 @@ If no custom options or `comment` is empty, skip this step.
 
 If `PrSolveMergeConflicts` is `true` (default), check each PR for merge conflicts and resolve them proactively:
 
-Report status: `tendril job status TendrilJobId --message "Checking for merge conflicts..."`
+Report status: `tendril job status TendrilJobId --message="Checking for merge conflicts..."`
 
 For each PR created in step 3:
 
@@ -223,7 +223,7 @@ If `PrSolveMergeConflicts` is `false`, skip this step entirely — the PR may be
 
 ### 4. Merge (only if `PrMerge` is `true`)
 
-Report status: `tendril job status TendrilJobId --message "Applying merge options..."`
+Report status: `tendril job status TendrilJobId --message="Applying merge options..."`
 
 **!STOP — MERGE GATE. The single deciding factor is the `PrMerge` firmware header value. Nothing else.**
 
@@ -249,7 +249,7 @@ fi
 
 ### 5. Clean Up Worktrees
 
-Report status: `tendril job status TendrilJobId --message "Cleaning up worktrees..."`
+Report status: `tendril job status TendrilJobId --message="Cleaning up worktrees..."`
 
 After a successful merge (`PrMerge: true`), clean up the worktrees to reclaim disk space:
 
