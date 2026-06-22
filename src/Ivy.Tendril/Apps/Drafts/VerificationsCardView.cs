@@ -30,8 +30,8 @@ public class VerificationsCardView(
         bool IsRequired(string name) => projectVerifications
             .Any(pv => pv.Name.Equals(name, StringComparison.OrdinalIgnoreCase) && pv.Required);
 
-        var inner = Layout.Vertical().Gap(1)
-                    | Text.Block("Verifications").Bold();
+        var inner = Layout.Vertical().Gap(0)
+                    | Text.Block("Verifications").Bold().Margin(0, 0, 2, 0);
 
         if (verifications.Count == 0)
         {
