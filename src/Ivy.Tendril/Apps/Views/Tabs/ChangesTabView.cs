@@ -1,4 +1,5 @@
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Apps.Views;
 using Ivy.Widgets.DiffView;
 
 namespace Ivy.Tendril.Apps.Views.Tabs;
@@ -67,9 +68,22 @@ public class ChangesTabView(
                 .Width(Size.Full());
         }
 
-        var treePanel = Layout.Vertical().Gap(2).Padding(1)
-            .Width(Size.Rem(12).Min(Size.Rem(12))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)))
-            | tree;
+        // Desktop/laptop: the file tree sits in a fixed-width sidebar beside the diffs.
+        var treePanel = new Box(Layout.Vertical().Gap(2).Padding(1)
+                .Width(Size.Rem(12).Min(Size.Rem(12))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)))
+                | tree)
+            .BorderThickness(0).Padding(0).Width(Size.Auto()).Height(Size.Full().Min(Size.Px(0)))
+            .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
+
+        // Mobile/tablet: the tree has no room, so collapse it into a dropdown list of
+        // files that jumps to the corresponding diff (same anchor as the tree select).
+        var mobileFilePicker = MobileItemPicker.Build(
+                $"Jump to file ({sortedFileDiffs.Count})",
+                sortedFileDiffs,
+                fd => fd.FilePath,
+                _ => false,
+                fd => client.Redirect($"#{fd.FilePath}"))
+            .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
         var toolbar = Layout.Horizontal().Gap(2).Padding(1).AlignContent(Align.Center).Height(Size.Auto())
             | hideFormatting.ToSwitchInput(label: "Hide formatting changes");
@@ -83,6 +97,7 @@ public class ChangesTabView(
 
         return Layout.Vertical().Height(Size.Full().Min(Size.Px(0)))
             | toolbar
+            | mobileFilePicker
             | mainLayout;
     }
 
