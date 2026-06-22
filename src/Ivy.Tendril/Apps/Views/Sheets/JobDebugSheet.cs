@@ -128,7 +128,7 @@ public class JobDebugSheet(
 
     private object PathDropDown(string path, Action<string> copyToClipboard, IClientProvider client)
     {
-        return Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+        return Layout.Horizontal().Gap(2).Width(Size.Full()).AlignContent(Align.SpaceBetween)
             | Text.Block(path)
             | new Button().Icon(Icons.EllipsisVertical).Ghost().Small()
                 .WithDropDown(
