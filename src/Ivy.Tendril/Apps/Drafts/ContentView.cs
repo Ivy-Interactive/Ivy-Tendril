@@ -300,7 +300,7 @@ public class ContentView(
 
         object Cap(object inner) => Layout.Vertical().Scroll().HideScrollbar().Width(Size.Full()).Height(Size.Full())
             | (Layout.Vertical()
-                .Padding(new Responsive<Thickness?> { Default = new Thickness(6, 0, 0, 4), Mobile = new Thickness(6, 4, 0, 4) })
+                .Padding(6, 0, 0, 4)
                 .Width(Size.Full().Max(Size.Units(200))) | inner);
     }
 
