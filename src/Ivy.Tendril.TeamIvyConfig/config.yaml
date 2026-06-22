@@ -144,7 +144,7 @@ projects:
   reviewActions:
   - name: App
     condition: Test-Path 'Worktrees\lots-of-dev-tools\package.json'
-    command: cd Worktrees\lots-of-dev-tools && npm run dev
+    command: cd Worktrees\lots-of-dev-tools && pnpm install && pnpm run dev
   hooks: []
   buildDependencies: []
 - name: Tendril-Services
