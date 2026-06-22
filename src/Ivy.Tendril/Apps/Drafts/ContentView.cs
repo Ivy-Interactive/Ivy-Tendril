@@ -137,7 +137,7 @@ public class ContentView(
 
         var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full())
             | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
-                .BorderThickness(0).Padding(0);
+                .BorderThickness(0).Padding(0).Width(Size.Fit());
 
         if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
             desktopTitleLayout |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")

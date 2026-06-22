@@ -73,7 +73,7 @@ public class ContentView(
 
         var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full())
             | new Box(Text.Block($"#{selectedRecommendation.PlanId} {selectedRecommendation.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
-                .BorderThickness(0).Padding(0).Width(Size.Grow())
+                .BorderThickness(0).Padding(0).Width(Size.Fit())
             | new Badge(selectedRecommendation.Project).Variant(BadgeVariant.Outline)
                 .WithProjectColor(config, selectedRecommendation.Project);
 
