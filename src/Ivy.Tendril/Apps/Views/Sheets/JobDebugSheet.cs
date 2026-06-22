@@ -71,7 +71,7 @@ public class JobDebugSheet(
             .Label(x => x.CliCommand, "Arguments")
             .Label(x => x.JobId, "Job Id")
             .Builder(x => x.PermissionDenials, f => f.Func((string denials) =>
-                new CodeBlock(denials)))
+                string.IsNullOrEmpty(denials) ? null : new CodeBlock(denials)))
             .Builder(x => x.PlanFolder, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .Builder(x => x.PlanLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .Builder(x => x.PromptwareLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
@@ -79,8 +79,18 @@ public class JobDebugSheet(
                 f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .Builder(x => x.WorkingDirectory, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .Builder(x => x.CliCommand, f => f.Func((string cmd) => new CodeBlock(cmd)))
-            .Builder(x => x.JobId, f => f.CopyToClipboard())
-            .Builder(x => x.PlanId, f => f.CopyToClipboard());
+            .Builder(x => x.JobId, f => f.Func((string id) =>
+                Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+                | Text.Block(id)
+                | new Button().Icon(Icons.ClipboardCopy).Ghost().Small()
+                    .Tooltip("Copy job ID")
+                    .OnClick(() => copyToClipboard(id))))
+            .Builder(x => x.PlanId, f => f.Func((string id) =>
+                Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+                | Text.Block(id)
+                | new Button().Icon(Icons.ClipboardCopy).Ghost().Small()
+                    .Tooltip("Copy plan ID")
+                    .OnClick(() => copyToClipboard(id))));
 
         var header = Layout.Horizontal().Gap(2)
             | new Button("Copy Details").Icon(Icons.ClipboardCopy).Outline().OnClick(() =>
@@ -120,14 +130,15 @@ public class JobDebugSheet(
             })
             | new Button("Report Bug").Icon(Icons.Bug).OnClick(() => showReportDialog.Set(true));
 
-        return Layout.Vertical()
-            | new HeaderLayout(header, detailsView)
-            | (showReportDialog.Value ? new ReportBugDialog(showReportDialog, jobId) : null);
+        return new Fragment(
+            new HeaderLayout(header, detailsView).Size(Size.Full()),
+            showReportDialog.Value ? new ReportBugDialog(showReportDialog, jobId) : null
+        );
     }
 
     private object PathDropDown(string path, Action<string> copyToClipboard, IClientProvider client)
     {
-        return Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+        return Layout.Horizontal().Gap(2).Width(Size.Full()).AlignContent(Align.SpaceBetween)
             | Text.Block(path)
             | new Button().Icon(Icons.EllipsisVertical).Ghost().Small()
                 .WithDropDown(
