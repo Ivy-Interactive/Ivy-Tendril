@@ -45,7 +45,7 @@
   padding: 0 1.5rem;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .pmv-shell {
     flex-direction: column;
   }
