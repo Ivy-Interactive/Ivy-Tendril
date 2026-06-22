@@ -15,7 +15,10 @@ Project and verification configuration is available via `tendril project list` a
 
 - **CLI-only modifications.** You MUST use `tendril` CLI commands to modify configuration. Never edit config.yaml directly.
 - **Reuse existing verifications.** Before creating a new verification, check if a suitable one already exists with `tendril verification list`. Verifications are shared across projects.
-- **Stack detection.** Inspect the project's repositories to determine the tech stack (look for package.json, *.csproj, Cargo.toml, go.mod, requirements.txt, pyproject.toml, etc.).
+- **Stack detection.** Inspect the project's repositories to determine the tech stack.
+  - Look for configuration files: `package.json`, `*.csproj`, `Cargo.toml`, `go.mod`, `requirements.txt`, `pyproject.toml`, etc.
+  - If a `package.json` exists, identify the package manager: check if `pnpm-lock.yaml` is present, or if the `packageManager` field in `package.json` specifies `pnpm`. If not, check for `yarn.lock`. Otherwise, assume `npm`.
+  - Identify if the frontend uses Vite or Vite+ (`vite-plus`): check if `vite-plus` is listed in `package.json` dependencies or devDependencies, or if scripts call `vp`. If it uses Vite+ (`vite-plus`), use `vp` commands (e.g. `vp dev`). Otherwise, use `npm`/`pnpm`/`yarn` commands.
 - **Keep it minimal.** Only add verifications and review actions that are appropriate for the detected stack.
 
 ## Available CLI Commands
@@ -115,14 +118,19 @@ tendril project add-verification <project-name> CheckResult --required --after D
 ### 3. Setup Review Actions
 
 Review actions make it easy to start the application from a worktree during code review.
+To ensure the setup works out-of-the-box on fresh worktrees, review actions MUST automatically install dependencies before running the application (e.g. using `&&` to chain the installation and start commands).
 
 Inspect each repo to determine how to run the application. For website projects, prefer commands that open the browser automatically:
-- .NET project with a runnable entry point: `dotnet run --project Worktrees/<RepoName>/<path-to-project> --browse --find-available-port`
-- Vite or webpack-dev-server: `cd Worktrees/<RepoName> && npm run dev -- --open`
-- Angular CLI: `cd Worktrees/<RepoName> && ng serve --open`
-- Other Node.js app (no open support): `cd Worktrees/<RepoName> && npm run dev`
-- Python app: `cd Worktrees/<RepoName> && python -m <module>` or `flask run`
-- Static docs: `start Worktrees/<RepoName>/docs/index.html`
+- **.NET project** with a runnable entry point: `dotnet run --project Worktrees/<RepoName>/<path-to-project> --browse --find-available-port`
+- **Vite+ (`vite-plus`) project**: `cd Worktrees/<RepoName>/<path-to-frontend> && vp install && vp dev`
+- **Vite project**:
+  - Under `pnpm`: `cd Worktrees/<RepoName>/<path-to-frontend> && pnpm install && pnpm run dev -- --open`
+  - Under `npm`: `cd Worktrees/<RepoName>/<path-to-frontend> && npm install && npm run dev -- --open`
+  - Under `yarn`: `cd Worktrees/<RepoName>/<path-to-frontend> && yarn install && yarn run dev -- --open`
+- **Angular CLI**: `cd Worktrees/<RepoName>/<path> && npm install && ng serve --open` (adapt for `pnpm`/`yarn` if detected)
+- **Other Node.js app** (no open support): `cd Worktrees/<RepoName>/<path> && npm install && npm run dev` (adapt package manager as detected)
+- **Python app**: `cd Worktrees/<RepoName> && python -m pip install -r requirements.txt && python -m <module>` (or `flask run` / `uv run ...` / `poetry run ...` if detected)
+- **Static docs**: `start Worktrees/<RepoName>/docs/index.html`
 
 For each review action:
 - **name**: Short descriptive name (e.g. "App", "Docs", "Frontend", "API")
