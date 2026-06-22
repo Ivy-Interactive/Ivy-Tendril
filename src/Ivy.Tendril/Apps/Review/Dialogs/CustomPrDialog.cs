@@ -30,6 +30,8 @@ public class CustomPrDialog(
 
         if (!dialogOpen.Value) return null;
 
+        var multipleBranches = selectedPlan.Repos.Count > 1;
+
         return new Dialog(
             _ =>
             {
@@ -48,7 +50,11 @@ public class CustomPrDialog(
                 Layout.Vertical().Gap(2)
                 | customPrSolveMergeConflicts.ToBoolInput("Solve Merge Conflicts").AutoFocus()
                 | customPrMerge.ToBoolInput("Merge")
-                | customPrDeleteBranch.ToBoolInput("Delete Branch")
+                | customPrDeleteBranch
+                    .ToBoolInput(multipleBranches ? "Delete branches" : "Delete branch")
+                    .Description(multipleBranches
+                        ? "Deletes the branches pushed to origin after successful merge."
+                        : "Deletes the branch pushed to origin after successful merge.")
                     .Disabled(!customPrMerge.Value)
                 | customPrIncludeArtifacts.ToBoolInput("Include Artifacts")
                 | customPrDraft.ToBoolInput("Create as Draft")
