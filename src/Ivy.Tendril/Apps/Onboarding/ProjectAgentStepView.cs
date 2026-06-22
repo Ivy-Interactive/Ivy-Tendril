@@ -15,7 +15,8 @@ public class ProjectAgentStepView(
     Action onNext,
     Action? onSkip = null,
     bool skipAgent = false,
-    bool showHeader = true) : ViewBase
+    bool showHeader = true,
+    IState<bool>? setupTrigger = null) : ViewBase
 {
     public override object Build()
     {
@@ -31,6 +32,9 @@ public class ProjectAgentStepView(
         UseEffect(async () =>
         {
             if (session.Started.Value) return;
+
+            // If setupTrigger is provided, wait for it to be true
+            if (setupTrigger != null && !setupTrigger.Value) return;
 
             error.Set(null);
             isCloning.Set(true);
@@ -149,7 +153,7 @@ public class ProjectAgentStepView(
                 isCloning.Set(false);
                 isStepLoading.Set(false);
             }
-        }, [EffectTrigger.OnMount()]);
+        }, setupTrigger != null ? [setupTrigger] : [EffectTrigger.OnMount()]);
 
         var running = session.Running.Value || isCloning.Value;
 
