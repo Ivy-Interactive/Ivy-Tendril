@@ -310,15 +310,11 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         public event Action? CountsInvalidated;
 #pragma warning restore CS0067
 
-        public void MigratePlanStateNames()
+        public void MigratePlans()
         {
         }
 
         public void RecoverStuckPlans()
-        {
-        }
-
-        public void RepairPlans()
         {
         }
 

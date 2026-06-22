@@ -6,6 +6,7 @@ public static class PlanYamlRepairService
 {
     private static readonly HashSet<string> TopLevelKeys = new(StringComparer.Ordinal)
     {
+        "schemaVersion",
         "state", "project", "level", "title", "sessionId",
         "repos", "created", "updated", "initialPrompt", "sourceUrl",
         "prs", "commits", "verifications", "relatedPlans", "dependsOn",

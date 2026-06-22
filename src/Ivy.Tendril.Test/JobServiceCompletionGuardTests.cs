@@ -336,15 +336,11 @@ public class JobServiceCompletionGuardTests : IDisposable
         // Status returned by GetPlanByFolder (simulates the plan's current state).
         public PlanStatus? CurrentStatus { get; set; }
 
-        public void MigratePlanStateNames()
+        public void MigratePlans()
         {
         }
 
         public void RecoverStuckPlans()
-        {
-        }
-
-        public void RepairPlans()
         {
         }
 
