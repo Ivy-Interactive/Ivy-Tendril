@@ -156,7 +156,9 @@ public class GitServiceDirtyStateTests : IDisposable
         Assert.True(result.IsSuccess);
         Assert.True(result.Value!.IsDirty);
         var reason = Assert.Single(result.Value!.Reasons, r => r.Reason == DirtyReason.AheadOfOrigin);
-        Assert.NotEmpty(reason.Files);
+        // AheadOfOrigin reports the unpushed commits (not files) — matches DirtyRepoDialog,
+        // which renders reason.Commits for this reason and reason.Files for the others.
+        Assert.NotEmpty(reason.Commits);
     }
 
     [Fact]

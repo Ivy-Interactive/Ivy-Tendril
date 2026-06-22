@@ -9,7 +9,7 @@ namespace Ivy.Tendril.Test.Services;
 public class PlanReaderServiceTests
 {
     [Fact]
-    public void TransitionState_NotifiesPlanWatcher()
+    public async Task TransitionState_NotifiesPlanWatcher()
     {
         // Arrange
         var testConfig = new StubConfigService();
@@ -34,6 +34,9 @@ public class PlanReaderServiceTests
             // Act
             service.TransitionState(folderName, PlanStatus.ReadyForReview);
 
+            // Wait for the background plan.yaml write so the finally-block cleanup doesn't race it.
+            await service.FlushPendingWritesAsync();
+
             // Assert
             Assert.Contains(folderName, testWatcher.NotifiedFolders);
             Assert.Single(testWatcher.NotifiedFolders);
@@ -47,7 +50,7 @@ public class PlanReaderServiceTests
     }
 
     [Fact]
-    public void SaveRevision_NotifiesPlanWatcher()
+    public async Task SaveRevision_NotifiesPlanWatcher()
     {
         // Arrange
         var testConfig = new StubConfigService();
@@ -71,8 +74,9 @@ public class PlanReaderServiceTests
             // Act
             service.SaveRevision(folderName, content);
 
-            // Give background write a moment to complete
-            Thread.Sleep(100);
+            // Deterministically wait for the background write to finish (not a fixed sleep) so the
+            // assertions and the finally-block cleanup don't race the still-open file handle.
+            await service.FlushPendingWritesAsync();
 
             // Assert
             Assert.Contains(folderName, testWatcher.NotifiedFolders);

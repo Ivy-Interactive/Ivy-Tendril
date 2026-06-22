@@ -73,7 +73,10 @@ projects:
         File.WriteAllText(Path.Combine(configDir, "config.yaml"), yaml);
 
         var testLogger = new TestLogger<ConfigService>();
-        var service = new ConfigService(logger: testLogger);
+        // Use the in-memory-settings ctor (not the public one) so construction doesn't read/write
+        // the shared default TENDRIL_HOME — that's a parallel-test race. SetTendrilHome below loads
+        // the real config from the isolated temp dir.
+        var service = new ConfigService(new TendrilSettings(), logger: testLogger);
         service.SetTendrilHome(configDir);
 
         service.ValidateRepoPathsAreNotWorktrees();
@@ -102,7 +105,10 @@ projects:
         File.WriteAllText(Path.Combine(configDir, "config.yaml"), yaml);
 
         var testLogger = new TestLogger<ConfigService>();
-        var service = new ConfigService(logger: testLogger);
+        // Use the in-memory-settings ctor (not the public one) so construction doesn't read/write
+        // the shared default TENDRIL_HOME — that's a parallel-test race. SetTendrilHome below loads
+        // the real config from the isolated temp dir.
+        var service = new ConfigService(new TendrilSettings(), logger: testLogger);
         service.SetTendrilHome(configDir);
 
         service.ValidateRepoPathsAreNotWorktrees();

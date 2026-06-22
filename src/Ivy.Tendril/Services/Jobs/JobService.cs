@@ -248,6 +248,12 @@ public class JobService : IJobService
         RaiseJobsStructureChanged();
     }
 
+    /// <summary>
+    ///     Runs the blocked-job dependency re-check synchronously. Exposed for tests so they can
+    ///     drive the check deterministically instead of waiting for the 60s periodic timer.
+    /// </summary>
+    internal void RunBlockedJobCheck() => OnBlockedJobCheckTimer(null);
+
     private void OnBlockedJobCheckTimer(object? state)
     {
         try
