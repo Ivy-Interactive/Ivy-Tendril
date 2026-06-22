@@ -227,12 +227,17 @@
   border-radius: 4px;
 }
 
-/* Timeline connector between tool cards */
+/* Timeline connector between tool cards.
+   Dot geometry within the header (relative to .aov-tool left edge):
+   card pad-left 6 + chevron 14 + flex gap 8 = 28 → dot spans 28–35px, center 31.5px.
+   The line is 1px wide, so left: 31px centers it on the dot.
+   Vertically the dot center sits ~15px from the card top; the line starts just
+   below the dot and runs into the 4px inter-card gap to meet the next dot. */
 .aov-body .aov-tool::after {
   content: '';
   position: absolute;
-  left: 25.5px;
-  top: calc(2px + 7px + 4px);
+  left: 31px;
+  top: 21px;
   bottom: -6px;
   width: 1px;
   background: var(--aov-border);
@@ -342,7 +347,7 @@
   font-size: 11px;
   font-weight: 600;
   color: var(--aov-fg-muted);
-  text-align: center;
+  text-align: left;
   user-select: none;
 }
 
