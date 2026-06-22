@@ -21,7 +21,6 @@ internal record JobLaunchContext(
 internal record RepoConfigEntry(
     string Path,
     string BaseBranch,
-    string PrRule,
     bool ReadOnly);
 
 internal class JobLauncher
@@ -596,7 +595,6 @@ internal class JobLauncher
             var entry = new RepoConfigEntry(
                 expanded,
                 repoRef?.BaseBranch ?? GitHelper.ResolveDefaultBranch(expanded, _configService?.TendrilHome),
-                repoRef?.PrRule ?? "default",
                 ReadOnly: false);
             AddRepoToConfigLines(lines, entry);
         }
@@ -619,7 +617,6 @@ internal class JobLauncher
                 // Pass the raw config path: ResolveDefaultBranch owns expansion, so pre-expanding here
                 // would just run env-var expansion twice on the same value.
                 FindBaseBranchAcrossProjects(repoName, depPath),
-                "default",
                 ReadOnly: true);
             AddRepoToConfigLines(lines, entry);
         }
@@ -629,7 +626,6 @@ internal class JobLauncher
     {
         lines.Add($"- path: {entry.Path}");
         lines.Add($"  baseBranch: {entry.BaseBranch}");
-        lines.Add($"  prRule: {entry.PrRule}");
         if (entry.ReadOnly)
             lines.Add("  readOnly: true");
     }

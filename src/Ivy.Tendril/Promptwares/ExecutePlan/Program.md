@@ -190,10 +190,8 @@ git worktree add "<TendrilPlanFolder>/Worktrees/<RepoName>" -b "tendril/<Tendril
 RepoConfigs: |
   - path: /home/user/repos/my-project
     baseBranch: main
-    prRule: yolo
   - path: /home/user/repos/shared-lib
     baseBranch: main
-    prRule: default
     readOnly: true
 ```
 If `baseBranch` is present for a repo, use it instead of auto-detecting. If absent, fall back to `git symbolic-ref refs/remotes/origin/HEAD`.
@@ -462,7 +460,7 @@ After all verifications pass:
 Worktrees are **not** cleaned up by ExecutePlan. They remain on disk so that CreatePr can push branches and create PRs directly from the worktree.
 
 **Cleanup happens later, in two places:**
-1. **CreatePr Step 5** — cleans up worktrees after PRs are created and (for yolo-rule repos) merged.
+1. **CreatePr Step 5** — cleans up worktrees after PRs are created and (when `PrMerge` is `true`) merged.
 2. **WorktreeCleanupService** — safety net that runs every 30 minutes and removes worktrees for plans in terminal states (Completed, Failed, Skipped) after a 10-minute grace period.
 
 **Git branches are preserved** until CreatePr consumes them — only the worktree filesystem directories are removed.

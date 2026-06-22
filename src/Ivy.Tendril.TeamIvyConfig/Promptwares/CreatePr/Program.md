@@ -2,9 +2,9 @@
 
 **Note:** This promptware is stack-agnostic. Stack-specific operations (build, format, test) are defined as verifications in the project configuration. Examples in this document use multiple tech stacks for illustration.
 
-Create GitHub pull requests and apply PR rules.
+Create GitHub pull requests, then merge them only when explicitly told to.
 
-**!CRITICAL: ALL steps are mandatory. Do not skip PR rule application.**
+**!CRITICAL: ALL steps are mandatory. Whether to merge is controlled entirely by the `PrMerge` firmware header value — never infer it from anything else.**
 
 ## Context
 
@@ -12,14 +12,9 @@ The firmware header contains:
 - **TendrilPlanFolder** — path to the plan folder
 - **CurrentTime** — current UTC timestamp
 - **SourceUrl** — (optional) GitHub issue or PR URL from plan.yaml
+- **`Pr*` flags** — the explicit PR options (see step 1). These are the *only* source of truth for what to do.
 
 The plan structure and CLI commands are in the **Reference Documents** section of your firmware.
-Project configuration (repos, `prRule` settings) is available from the firmware header.
-
-## PR Rules (per repo, from RepoConfigs header)
-
-- **`default`** — Create the PR and stop
-- **`yolo`** — Create PR → auto-merge with `--admin` → delete remote branch → pull default branch into the original local repo
 
 ## Execution Steps
 
@@ -33,9 +28,8 @@ Before processing, read `plan.yaml` and check the `state` field. After reading, 
 
 - Read `plan.yaml` from the plan folder (project, commits, repos)
 - Read the latest revision for the plan title and description
-- Find the `prRule` for each repo from the firmware header
-- **Check for custom options:** Read the following firmware header values (if present). These override the default behavior in subsequent steps. If not present, all flags default to the behavior defined by the repo's `prRule`.
-  - `PrMerge` — `true`/`false` (default: `true`)
+- **Read the PR option flags** from the firmware header. These drive every decision below. If a flag is absent, use the default shown:
+  - `PrMerge` — `true`/`false` (default: `true`) — **whether to merge the PR after creating it**
   - `PrDeleteBranch` — `true`/`false` (default: `true`)
   - `PrIncludeArtifacts` — `true`/`false` (default: `true`)
   - `PrAssignee` — GitHub username (default: none)
@@ -118,16 +112,14 @@ gh pr comment <pr-number> --repo <owner/repo> --body "<comment>"
 
 If no custom options or `comment` is empty, skip this step.
 
-### 4. Apply PR Rule
+### 4. Merge (only if `PrMerge` is `true`)
 
-**!MANDATORY** — look up the `prRule` for this repo in the `RepoConfigs` firmware header.
+**!STOP — MERGE GATE. The single deciding factor is the `PrMerge` firmware header value. Nothing else.**
 
-**Custom options override:** If custom options exist, the flags override the yolo behavior:
-- If `merge` is `false`: skip the entire merge step (treat as `default` rule regardless of prRule)
-- If `merge` is `true` but `deleteBranch` is `false`: merge without `--delete-branch` flag
-- If `merge` and `deleteBranch` are both `true`: behave exactly like `yolo`
+- **If `PrMerge` is `false`: do NOT merge.** Do **not** run `gh pr merge` under any circumstances. The PR stays open for manual review. Skip directly to step 5. (Do not look for any other rule or signal — there is none.)
+- **If `PrMerge` is `true` (or the flag is absent):** merge the PR using the flags below — always `--merge --admin`, plus `--delete-branch` only when `PrDeleteBranch` is `true` (default `true`).
 
-**Merge conflict handling (applies to ALL merge paths below):**
+**Merge conflict handling (applies only when merging):**
 
 Before calling `gh pr merge`, check for merge conflicts:
 
@@ -187,9 +179,9 @@ When the PR status is `CONFLICTING`, resolve the conflict locally before retryin
 
 **Important:** Only attempt conflict resolution **once**. If the second mergeability check still shows CONFLICTING, fail the execution — infinite retry loops waste tokens and time.
 
-**If `yolo` (and no custom options overriding):**
+**Merge command** (build `--delete-branch` from `PrDeleteBranch`):
 ```bash
-gh pr merge <pr-number> --repo <owner/repo> --merge --delete-branch --admin
+gh pr merge <pr-number> --repo <owner/repo> --merge [--delete-branch] --admin
 cd <original-repo-path>
 # Only pull if the local repo is clean (no uncommitted changes, on the default branch)
 if [ -z "$(git status --porcelain)" ] && [ "$(git symbolic-ref --short HEAD)" = "<default-branch>" ]; then
@@ -199,12 +191,9 @@ fi
 
 > **Note:** If `--merge` fails with "Merge commits are not allowed", retry with `--squash` instead.
 
-
-**If `default`:** PR stays open for manual review.
-
 ### 5. Clean Up Worktrees
 
-After successful `yolo` merges (or custom options with `merge: true`), clean up the worktrees to reclaim disk space:
+After a successful merge (`PrMerge: true`), clean up the worktrees to reclaim disk space:
 
 For each repo where the PR was merged:
 
@@ -212,7 +201,7 @@ For each repo where the PR was merged:
 tendril plan remove-worktree <TendrilPlanId> <repo-folder-name>
 ```
 
-**Skip cleanup** for repos using the `default` PR rule (or custom options with `merge: false`) — the worktree is still needed for potential review revisions.
+**Skip cleanup** when `PrMerge` is `false` — the worktree is still needed for potential review revisions.
 
 If cleanup fails, log a warning but do not fail the overall CreatePr execution.
 
@@ -226,13 +215,13 @@ Add each PR URL:
 tendril plan add-pr <plan-id> <pr-url>
 ```
 
-**Update state to Completed:** If ALL repos in the plan used the `yolo` prRule (or custom options with `merge: true`) and ALL PRs were successfully merged, update the state:
+**Update state to Completed:** If `PrMerge` is `true` and ALL PRs were successfully merged, update the state:
 
 ```bash
 tendril plan set <plan-id> state Completed
 ```
 
-If ANY repo used the `default` prRule (or custom options with `merge: false`), do NOT update the state — the plan remains open for manual review and potential revisions.
+If `PrMerge` is `false`, do NOT update the state — the plan remains open for manual review and potential revisions.
 
 ### Edge Case: Direct-to-Main (No PR Needed)
 

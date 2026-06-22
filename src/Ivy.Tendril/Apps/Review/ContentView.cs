@@ -288,7 +288,14 @@ public class ContentView(
             {
                 if (allYolo)
                 {
-                    jobService.StartJob(new CreatePrArgs(selectedPlan.FolderPath, SolveMergeConflicts: true));
+                    // "yolo" is purely a UI setting: skip the dialog and create the PR with the
+                    // merge-and-clean-up defaults. The promptware acts only on these explicit flags.
+                    jobService.StartJob(new CreatePrArgs(
+                        selectedPlan.FolderPath,
+                        SolveMergeConflicts: true,
+                        Merge: true,
+                        DeleteBranch: true,
+                        IncludeArtifacts: true));
                     planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
                     refreshPlans();
                 }
