@@ -85,7 +85,7 @@ public class ChangesTabView(
                 fd => client.Redirect($"#{fd.FilePath}"))
             .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
-        var toolbar = Layout.Horizontal().Gap(2).Padding(1).AlignContent(Align.Center).Height(Size.Auto())
+        var toolbar = Layout.Horizontal().Gap(2).Padding(1).AlignContent(Align.Left).Height(Size.Auto())
             | hideFormatting.ToSwitchInput(label: "Hide formatting changes");
 
         if (hideFormatting.Value && hiddenCount > 0)
