@@ -51,7 +51,9 @@ public class WorktreeCleanupServiceTests : IDisposable
     [Fact]
     public void RunCleanup_Skips_Active_State_Plans()
     {
-        var activeStates = new[] { "Draft", "Building", "Executing", "ReadyForReview", "Blocked" };
+        // Truly active/transient states are never reaped, regardless of age. (Draft and
+        // ReadyForReview are handled by the stale-reaper tests — they ARE reaped once idle.)
+        var activeStates = new[] { "Building", "Executing", "Updating", "Blocked" };
         foreach (var state in activeStates)
         {
             var dir = CreatePlan($"01{Array.IndexOf(activeStates, state):D3}-{state}Plan", state);
@@ -93,14 +95,15 @@ public class WorktreeCleanupServiceTests : IDisposable
     [Fact]
     public void RunCleanup_Respects_Grace_Period()
     {
-        // Plan just failed 5 minutes ago — should NOT be cleaned (grace period is 10 minutes)
+        // Plan failed 5 minutes ago — well within the stale-reaper window (default 7 days),
+        // so its worktree must be kept for recovery/inspection.
         var dir = CreatePlan("03000-RecentFail", "Failed", DateTime.UtcNow.AddMinutes(-5));
         CreateWorktreeDir(dir, "Repo");
 
         _service.RunCleanup();
 
         var worktreesDir = Path.Combine(dir, "Worktrees");
-        Assert.True(Directory.Exists(worktreesDir), "Recently failed plan should keep worktrees during grace period");
+        Assert.True(Directory.Exists(worktreesDir), "Recently failed plan should keep worktrees during recovery window");
     }
 
     [Fact]
@@ -512,6 +515,115 @@ public class WorktreeCleanupServiceTests : IDisposable
         var ex = Record.Exception(() => WorktreeCleanupService.RemoveWorktrees(dir, logger));
         Assert.Null(ex);
         Assert.False(Directory.Exists(worktreeDir), "Worktree should still be cleaned up");
+    }
+
+    [Fact]
+    public void RunCleanup_Reaps_StaleRecoveryStates_PastReaperWindow()
+    {
+        // Failed/Draft/ReadyForReview keep their worktree for recovery/resume, but once the
+        // plan has been idle past the reaper window the worktree is reclaimed.
+        var states = new[] { "Failed", "Draft", "ReadyForReview" };
+        foreach (var state in states)
+        {
+            var dir = CreatePlan($"15{Array.IndexOf(states, state):D3}-{state}Stale", state, DateTime.UtcNow.AddDays(-8));
+            CreateWorktreeDir(dir, "Repo");
+        }
+
+        _service.RunCleanup();
+
+        foreach (var state in states)
+        {
+            var worktreesDir = Path.Combine(_plansDir, $"15{Array.IndexOf(states, state):D3}-{state}Stale", "Worktrees");
+            Assert.False(Directory.Exists(worktreesDir), $"Idle {state} plan past the reaper window should have its worktree reaped");
+        }
+    }
+
+    [Fact]
+    public void RunCleanup_Keeps_StaleRecoveryStates_WithinReaperWindow()
+    {
+        var states = new[] { "Failed", "Draft", "ReadyForReview" };
+        foreach (var state in states)
+        {
+            var dir = CreatePlan($"16{Array.IndexOf(states, state):D3}-{state}Fresh", state, DateTime.UtcNow.AddHours(-2));
+            CreateWorktreeDir(dir, "Repo");
+        }
+
+        _service.RunCleanup();
+
+        foreach (var state in states)
+        {
+            var worktreesDir = Path.Combine(_plansDir, $"16{Array.IndexOf(states, state):D3}-{state}Fresh", "Worktrees");
+            Assert.True(Directory.Exists(worktreesDir), $"{state} plan within the reaper window should keep its worktree");
+        }
+    }
+
+    [Fact]
+    public void RunCleanup_NeverReaps_ActiveStates_EvenWhenOld()
+    {
+        var states = new[] { "Building", "Executing", "Updating", "Blocked" };
+        foreach (var state in states)
+        {
+            var dir = CreatePlan($"17{Array.IndexOf(states, state):D3}-{state}Old", state, DateTime.UtcNow.AddDays(-30));
+            CreateWorktreeDir(dir, "Repo");
+        }
+
+        _service.RunCleanup();
+
+        foreach (var state in states)
+        {
+            var worktreesDir = Path.Combine(_plansDir, $"17{Array.IndexOf(states, state):D3}-{state}Old", "Worktrees");
+            Assert.True(Directory.Exists(worktreesDir), $"Active {state} plan should never be reaped regardless of age");
+        }
+    }
+
+    [Fact]
+    public void Service_HonorsConfiguredStaleReaperPeriod()
+    {
+        using var service = new WorktreeCleanupService(_plansDir, NullLogger<WorktreeCleanupService>.Instance,
+            staleReaperPeriod: TimeSpan.FromDays(1));
+
+        var reapDir = CreatePlan("18000-FailedTwoDays", "Failed", DateTime.UtcNow.AddDays(-2));
+        CreateWorktreeDir(reapDir, "Repo");
+        var keepDir = CreatePlan("18001-FailedOneHour", "Failed", DateTime.UtcNow.AddHours(-1));
+        CreateWorktreeDir(keepDir, "Repo");
+
+        service.RunCleanup();
+
+        Assert.False(Directory.Exists(Path.Combine(reapDir, "Worktrees")), "Failed plan past the 1-day window should be reaped");
+        Assert.True(Directory.Exists(Path.Combine(keepDir, "Worktrees")), "Failed plan within the 1-day window should be kept");
+    }
+
+    [Fact]
+    public void CleanupPlanWorktrees_HonorsCustomStaleReaperPeriod()
+    {
+        var dir = CreatePlan("19000-CustomGrace", "Draft", DateTime.UtcNow.AddDays(-2));
+        CreateWorktreeDir(dir, "Repo");
+
+        // 5-day window: a 2-day-old Draft worktree is still within the window -> kept.
+        WorktreeCleanupService.CleanupPlanWorktrees(dir, staleReaperPeriod: TimeSpan.FromDays(5));
+        Assert.True(Directory.Exists(Path.Combine(dir, "Worktrees")), "Within custom window -> kept");
+
+        // 1-day window: the same 2-day-old worktree is now past the window -> reaped.
+        WorktreeCleanupService.CleanupPlanWorktrees(dir, staleReaperPeriod: TimeSpan.FromDays(1));
+        Assert.False(Directory.Exists(Path.Combine(dir, "Worktrees")), "Past custom window -> reaped");
+    }
+
+    [Fact]
+    public void ResolveGrace_MapsStatesToWindows()
+    {
+        var terminal = TimeSpan.FromMinutes(10);
+        var stale = TimeSpan.FromDays(7);
+
+        Assert.Equal(terminal, WorktreeCleanupService.ResolveGrace("Completed", terminal, stale));
+        Assert.Equal(terminal, WorktreeCleanupService.ResolveGrace("Skipped", terminal, stale));
+        Assert.Equal(terminal, WorktreeCleanupService.ResolveGrace("Icebox", terminal, stale));
+        Assert.Equal(stale, WorktreeCleanupService.ResolveGrace("Failed", terminal, stale));
+        Assert.Equal(stale, WorktreeCleanupService.ResolveGrace("Draft", terminal, stale));
+        Assert.Equal(stale, WorktreeCleanupService.ResolveGrace("ReadyForReview", terminal, stale));
+        Assert.Null(WorktreeCleanupService.ResolveGrace("Building", terminal, stale));
+        Assert.Null(WorktreeCleanupService.ResolveGrace("Executing", terminal, stale));
+        Assert.Null(WorktreeCleanupService.ResolveGrace("Updating", terminal, stale));
+        Assert.Null(WorktreeCleanupService.ResolveGrace("Blocked", terminal, stale));
     }
 
     private class LoggerAdapter(ILogger inner) : ILogger<WorktreeCleanupService>

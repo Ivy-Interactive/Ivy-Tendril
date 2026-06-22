@@ -1580,6 +1580,84 @@ maxConcurrentJobs: 10
     }
 
     [Fact]
+    public void ValidateSettings_WorktreeStaleReaperDays_Zero_UsesDefault()
+    {
+        var yaml = "\nworktreeStaleReaperDays: 0\n";
+        var tempDir = CreateTempConfigFile(yaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+            Assert.Equal(7, service.Settings.WorktreeStaleReaperDays);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void ValidateSettings_WorktreeCleanupIntervalMinutes_TooLarge_UsesDefault()
+    {
+        var yaml = "\nworktreeCleanupIntervalMinutes: 99999\n";
+        var tempDir = CreateTempConfigFile(yaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+            Assert.Equal(30, service.Settings.WorktreeCleanupIntervalMinutes);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void ValidateSettings_WorktreeTerminalGraceMinutes_Negative_UsesDefault()
+    {
+        var yaml = "\nworktreeTerminalGraceMinutes: -1\n";
+        var tempDir = CreateTempConfigFile(yaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+            Assert.Equal(10, service.Settings.WorktreeTerminalGraceMinutes);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void ValidateSettings_WorktreeSettings_Valid_NoChanges()
+    {
+        var yaml = @"
+worktreeCleanupIntervalMinutes: 60
+worktreeTerminalGraceMinutes: 0
+worktreeStaleReaperDays: 14
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+            Assert.Equal(60, service.Settings.WorktreeCleanupIntervalMinutes);
+            Assert.Equal(0, service.Settings.WorktreeTerminalGraceMinutes);
+            Assert.Equal(14, service.Settings.WorktreeStaleReaperDays);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
     public void LoadConfig_WhenFileNotFound_ServiceInitializesWithDefaults()
     {
         var tempDir = _tempDir.Path;
