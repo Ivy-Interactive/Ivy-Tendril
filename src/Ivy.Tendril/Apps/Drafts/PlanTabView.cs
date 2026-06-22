@@ -40,7 +40,7 @@ public class PlanTabView(
             var annotatedContent = MarkdownHelper.AnnotateAllBrokenLinks(
                 selectedPlan.LatestRevisionContent,
                 planService.PlansDirectory);
-            
+
             var fixedElement = new VerificationsCardView(selectedPlan, planService, config);
 
             Action<string> onLinkClick = FileSheet.CreateLinkClickHandler(openFileState, planId =>
