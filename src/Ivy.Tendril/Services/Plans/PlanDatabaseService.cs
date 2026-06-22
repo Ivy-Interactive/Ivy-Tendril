@@ -51,6 +51,8 @@ public class PlanDatabaseService : IPlanDatabaseService
         var directory = Path.GetDirectoryName(databasePath);
         if (!string.IsNullOrEmpty(directory))
             Directory.CreateDirectory(directory);
+        // Open raw (no PRAGMAs yet) so the integrity check below runs before WAL is enabled — a
+        // corrupt DB must be detected and recreated before journal_mode=WAL is applied.
         _connection = new SqliteConnection($"Data Source={databasePath};Mode=ReadWriteCreate");
         _connection.Open();
 
@@ -84,9 +86,11 @@ public class PlanDatabaseService : IPlanDatabaseService
             _connection.Open();
         }
 
-        using var pragmaCmd = _connection.CreateCommand();
-        pragmaCmd.CommandText = "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;";
-        pragmaCmd.ExecuteNonQuery();
+        // Enable WAL + busy_timeout + foreign_keys. busy_timeout makes this connection's SQLite busy
+        // handler wait for the write lock — including during transactional lock escalation, which the
+        // ADO-layer SQLITE_BUSY retry does not cover — instead of surfacing "database is locked" when
+        // another process (e.g. a CLI command) contends for the same database file.
+        SqliteConnectionFactory.ApplyPragmas(_connection);
 
         var migrator = new DatabaseMigrator(_connection);
         migrator.ApplyMigrations();
