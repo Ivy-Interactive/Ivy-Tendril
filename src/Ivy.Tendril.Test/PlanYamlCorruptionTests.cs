@@ -1,5 +1,6 @@
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Test.Helpers;
 
 namespace Ivy.Tendril.Test;
 
@@ -88,7 +89,11 @@ public class PlanYamlCorruptionTests : IClassFixture<ConfigServiceFixture>
 
         // Act: Change state
         var beforeModTime = File.GetLastWriteTimeUtc(planYamlPath);
-        Thread.Sleep(10); // Ensure timestamp difference
+        // Wait until the wall clock has advanced past the current mtime by more than the Windows
+        // filesystem timestamp resolution (~15ms), so the next write is guaranteed a strictly newer
+        // mtime. A fixed 10ms sleep was below that resolution and could leave mtimes equal.
+        RetryHelper.WaitUntil(() => DateTime.UtcNow > beforeModTime.AddMilliseconds(20),
+            TimeSpan.FromSeconds(2));
         PlanYamlHelper.SetPlanStateByFolder(planFolder, "Building");
 
         // Assert: File was modified
