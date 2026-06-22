@@ -103,12 +103,16 @@ public class ExecutePlanWorktreeCleanupTests : IDisposable
     }
 
     [Fact]
-    public void GracePeriod_Is_Ten_Minutes()
+    public void DefaultGraceWindows_AreTenMinutesAndSevenDays()
     {
-        var field = typeof(WorktreeCleanupService)
-            .GetField("GracePeriod", BindingFlags.NonPublic | BindingFlags.Static);
-        Assert.NotNull(field);
-        var value = (TimeSpan)field!.GetValue(null)!;
-        Assert.Equal(TimeSpan.FromMinutes(10), value);
+        var terminal = typeof(WorktreeCleanupService)
+            .GetField("DefaultTerminalGrace", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(terminal);
+        Assert.Equal(TimeSpan.FromMinutes(10), (TimeSpan)terminal!.GetValue(null)!);
+
+        var stale = typeof(WorktreeCleanupService)
+            .GetField("DefaultStaleReaperPeriod", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(stale);
+        Assert.Equal(TimeSpan.FromDays(7), (TimeSpan)stale!.GetValue(null)!);
     }
 }

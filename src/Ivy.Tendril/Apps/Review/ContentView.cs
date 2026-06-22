@@ -318,7 +318,7 @@ public class ContentView(
                 refreshPlans();
 
                 // Fire and forget - clean up worktrees in the background
-                Task.Run(() => WorktreeCleanupService.RemoveWorktrees(selectedPlan.FolderPath));
+                WorktreeCleanupService.RemoveWorktreesInBackground(selectedPlan.FolderPath);
             }).ShortcutKey("m");
         }
 

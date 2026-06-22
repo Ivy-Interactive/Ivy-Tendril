@@ -164,6 +164,11 @@ public class TendrilSettings
     public int StaleOutputTimeout { get; set; } = 10;
     public int GitTimeout { get; set; } = 10;
     public int MaxConcurrentJobs { get; set; } = 5;
+    // Background worktree reclamation (WorktreeCleanupService).
+    public int WorktreeCleanupIntervalMinutes { get; set; } = 30;
+    public int WorktreeTerminalGraceMinutes { get; set; } = 10;   // Completed/Skipped/Icebox
+    public int WorktreeStaleReaperDays { get; set; } = 7;         // Failed/Draft/ReadyForReview
+
     public List<ProjectConfig> Projects { get; set; } = new();
     public List<VerificationConfig> Verifications { get; set; } = new();
     public string PlanTemplate { get; set; } = "";
@@ -405,6 +410,30 @@ public class ConfigService : IConfigService, IDisposable
             _logger.LogWarning("MaxConcurrentJobs {Value} is out of bounds (1-100). Using default 5.",
                 Settings.MaxConcurrentJobs);
             Settings.MaxConcurrentJobs = 5;
+        }
+
+        // WorktreeCleanupIntervalMinutes: 1-1440 (24h)
+        if (Settings.WorktreeCleanupIntervalMinutes < 1 || Settings.WorktreeCleanupIntervalMinutes > 1440)
+        {
+            _logger.LogWarning("WorktreeCleanupIntervalMinutes {Value} is out of bounds (1-1440 minutes). Using default 30.",
+                Settings.WorktreeCleanupIntervalMinutes);
+            Settings.WorktreeCleanupIntervalMinutes = 30;
+        }
+
+        // WorktreeTerminalGraceMinutes: 0-1440 (0 = reclaim on next sweep)
+        if (Settings.WorktreeTerminalGraceMinutes < 0 || Settings.WorktreeTerminalGraceMinutes > 1440)
+        {
+            _logger.LogWarning("WorktreeTerminalGraceMinutes {Value} is out of bounds (0-1440 minutes). Using default 10.",
+                Settings.WorktreeTerminalGraceMinutes);
+            Settings.WorktreeTerminalGraceMinutes = 10;
+        }
+
+        // WorktreeStaleReaperDays: 1-365
+        if (Settings.WorktreeStaleReaperDays < 1 || Settings.WorktreeStaleReaperDays > 365)
+        {
+            _logger.LogWarning("WorktreeStaleReaperDays {Value} is out of bounds (1-365 days). Using default 7.",
+                Settings.WorktreeStaleReaperDays);
+            Settings.WorktreeStaleReaperDays = 7;
         }
     }
 

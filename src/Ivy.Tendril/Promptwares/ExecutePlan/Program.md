@@ -457,15 +457,9 @@ After all verifications pass:
 
 ### 8.5. Worktree Lifecycle
 
-Worktrees are **not** cleaned up by ExecutePlan. They remain on disk so that CreatePr can push branches and create PRs directly from the worktree.
+Do **not** clean up worktrees in ExecutePlan. Leave them on disk so that CreatePr can push branches and create PRs directly from the worktree.
 
-**Cleanup happens later, in two places:**
-1. **CreatePr Step 5** — cleans up worktrees after PRs are created and (when `PrMerge` is `true`) merged.
-2. **WorktreeCleanupService** — safety net that runs every 30 minutes and removes worktrees for plans in terminal states (Completed, Failed, Skipped) after a 10-minute grace period.
-
-**Git branches are preserved** until CreatePr consumes them — only the worktree filesystem directories are removed.
-
-**Manual inspection:** If you need to inspect worktrees after failure, check the plan folder's `Worktrees/` directory before CreatePr runs. After PR creation, worktrees are cleaned up automatically. You can also temporarily pause WorktreeCleanupService if needed for extended debugging.
+Cleanup is handled elsewhere — by CreatePr after PRs are created/merged, and by the background `WorktreeCleanupService` (which retains a failed plan's worktree for later inspection, so failure is not a reason to remove it).
 
 ### 9. Plan State
 

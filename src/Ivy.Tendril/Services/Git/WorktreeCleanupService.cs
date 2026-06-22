@@ -13,27 +13,56 @@ namespace Ivy.Tendril.Services.Git;
 public class WorktreeCleanupService : IStartable, IDisposable
 {
     private static readonly Regex SafeTitleRegex = new(@"^\d{5}-(.+)", RegexOptions.Compiled);
+
+    // Terminal states: the user is done with the plan, so its worktree is reclaimed promptly.
     private static readonly HashSet<string> TerminalStates = new(StringComparer.OrdinalIgnoreCase)
         { nameof(PlanStatus.Completed), nameof(PlanStatus.Skipped), nameof(PlanStatus.Icebox) };
 
-    private static readonly TimeSpan GracePeriod = TimeSpan.FromMinutes(10);
-    private static readonly TimeSpan TimerInterval = TimeSpan.FromMinutes(30);
+    // Non-terminal states that keep their worktree for recovery/resume (Failed = verifications
+    // failed; Draft/ReadyForReview = a stopped or reverted execution). The worktree is reaped
+    // only once the plan has been idle past the stale-reaper window. Re-executing recreates it.
+    private static readonly HashSet<string> StaleReapStates = new(StringComparer.OrdinalIgnoreCase)
+        { nameof(PlanStatus.Failed), nameof(PlanStatus.Draft), nameof(PlanStatus.ReadyForReview) };
+
+    private static readonly TimeSpan DefaultTerminalGrace = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan DefaultStaleReaperPeriod = TimeSpan.FromDays(7);
+    private static readonly TimeSpan DefaultTimerInterval = TimeSpan.FromMinutes(30);
 
     private readonly string _plansDirectory;
     private readonly ILogger<WorktreeCleanupService> _logger;
     private readonly IWorktreeLifecycleLogger? _lifecycleLogger;
+    private readonly TimeSpan _terminalGrace;
+    private readonly TimeSpan _staleReaperPeriod;
+    private readonly TimeSpan _timerInterval;
     private Timer? _timer;
 
-    public WorktreeCleanupService(string plansDirectory, ILogger<WorktreeCleanupService> logger, IWorktreeLifecycleLogger? lifecycleLogger = null)
+    public WorktreeCleanupService(string plansDirectory, ILogger<WorktreeCleanupService> logger,
+        IWorktreeLifecycleLogger? lifecycleLogger = null, TimeSpan? terminalGrace = null,
+        TimeSpan? staleReaperPeriod = null, TimeSpan? timerInterval = null)
     {
         _plansDirectory = plansDirectory;
         _logger = logger;
         _lifecycleLogger = lifecycleLogger;
+        _terminalGrace = terminalGrace ?? DefaultTerminalGrace;
+        _staleReaperPeriod = staleReaperPeriod ?? DefaultStaleReaperPeriod;
+        _timerInterval = timerInterval ?? DefaultTimerInterval;
     }
 
     public void Start()
     {
-        _timer = new Timer(_ => RunCleanup(), null, TimeSpan.FromMinutes(5), TimerInterval);
+        _timer = new Timer(_ => RunCleanup(), null, TimeSpan.FromMinutes(5), _timerInterval);
+    }
+
+    /// <summary>
+    ///     Resolves how long a plan in the given state must be idle before its worktree is reaped,
+    ///     or <c>null</c> for active/transient states (Building/Executing/Updating/Blocked) whose
+    ///     worktrees are never reaped.
+    /// </summary>
+    internal static TimeSpan? ResolveGrace(string state, TimeSpan terminalGrace, TimeSpan staleReaperPeriod)
+    {
+        if (TerminalStates.Contains(state)) return terminalGrace;
+        if (StaleReapStates.Contains(state)) return staleReaperPeriod;
+        return null;
     }
 
     public void Dispose()
@@ -52,7 +81,7 @@ public class WorktreeCleanupService : IStartable, IDisposable
             {
                 try
                 {
-                    CleanupPlanWorktrees(dir, _logger, _lifecycleLogger);
+                    CleanupPlanWorktrees(dir, _logger, _lifecycleLogger, _terminalGrace, _staleReaperPeriod);
                 }
                 catch (Exception ex)
                 {
@@ -66,7 +95,8 @@ public class WorktreeCleanupService : IStartable, IDisposable
         }
     }
 
-    internal static void CleanupPlanWorktrees(string planFolderPath, ILogger? logger = null, IWorktreeLifecycleLogger? lifecycleLogger = null)
+    internal static void CleanupPlanWorktrees(string planFolderPath, ILogger? logger = null, IWorktreeLifecycleLogger? lifecycleLogger = null,
+        TimeSpan? terminalGrace = null, TimeSpan? staleReaperPeriod = null)
     {
         var worktreesDir = Path.Combine(planFolderPath, "Worktrees");
         if (!Directory.Exists(worktreesDir)) return;
@@ -91,9 +121,10 @@ public class WorktreeCleanupService : IStartable, IDisposable
 
         if (planYaml == null) return;
 
-        if (!TerminalStates.Contains(planYaml.State)) return;
+        var grace = ResolveGrace(planYaml.State, terminalGrace ?? DefaultTerminalGrace, staleReaperPeriod ?? DefaultStaleReaperPeriod);
+        if (grace is null) return;
 
-        if (DateTime.UtcNow - planYaml.Updated < GracePeriod) return;
+        if (DateTime.UtcNow - planYaml.Updated < grace.Value) return;
 
         var planId = WorktreeLifecycleLogger.ExtractPlanId(planFolderPath);
 
@@ -325,6 +356,26 @@ public class WorktreeCleanupService : IStartable, IDisposable
         }
     }
 
+    /// <summary>
+    ///     Fire-and-forget worktree removal for terminal-state UI actions (Complete / Discard) so
+    ///     disk is reclaimed promptly without blocking the UI thread. The background stale reaper
+    ///     remains the backstop if this fails.
+    /// </summary>
+    internal static void RemoveWorktreesInBackground(string planFolderPath, ILogger? logger = null)
+    {
+        Task.Run(() =>
+        {
+            try
+            {
+                RemoveWorktrees(planFolderPath, logger);
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Background worktree cleanup failed for {PlanFolder}", Path.GetFileName(planFolderPath));
+            }
+        });
+    }
+
     internal static void RemoveWorktrees(string planFolderPath, ILogger? logger = null, IWorktreeLifecycleLogger? lifecycleLogger = null)
     {
         var worktreesDir = Path.Combine(planFolderPath, "Worktrees");
@@ -434,10 +485,5 @@ public class WorktreeCleanupService : IStartable, IDisposable
         {
             // Best-effort
         }
-    }
-
-    private void CleanupPlanWorktrees(string planFolderPath)
-    {
-        CleanupPlanWorktrees(planFolderPath, _logger, _lifecycleLogger);
     }
 }
