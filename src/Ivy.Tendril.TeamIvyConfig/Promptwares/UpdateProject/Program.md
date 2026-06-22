@@ -72,9 +72,9 @@ For each detected tech stack, ensure the following verification definitions exis
 | .NET | DotnetFormat | Run `dotnet format` scoped to changed .cs files, commit fixes if any |
 | .NET | DotnetBuild | Run `dotnet build --warnaserror` in worktree, verify zero errors/warnings |
 | .NET | DotnetTest | Run `dotnet test` with filter from plan's Tests section |
-| JS/TS | NpmLint | Run `npm run lint` (or equivalent) on changed files |
-| JS/TS | NpmBuild | Run `npm run build` and verify success |
-| JS/TS | NpmTest | Run `npm test` with appropriate filter |
+| JS/TS | NpmLint | Run `npm run lint` / `pnpm lint` (or equivalent) on changed files |
+| JS/TS | NpmBuild | Run `npm run build` / `pnpm build` (or equivalent) and verify success |
+| JS/TS | NpmTest | Run `npm test` / `pnpm test` with appropriate filter |
 | Python | PythonLint | Run linter (black/ruff/flake8) on changed .py files |
 | Python | PythonTest | Run `pytest` with filter from plan's Tests section |
 | Rust | RustClippy | Run `cargo clippy -- -D warnings` |

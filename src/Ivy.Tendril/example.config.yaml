@@ -203,11 +203,11 @@ verifications:
 
 # JavaScript/TypeScript:
 # - name: NpmBuild
-#   prompt: Run `npm run build` in the plan's worktree directory and verify it succeeds.
+#   prompt: Run `npm run build` / `pnpm build` in the plan's worktree directory and verify it succeeds.
 # - name: NpmLint
-#   prompt: Run `npm run lint` on changed files and fix any errors.
+#   prompt: Run `npm run lint` / `pnpm lint` on changed files and fix any errors.
 # - name: NpmTest
-#   prompt: Run `npm test` with the filter from the plan's **## Tests** section.
+#   prompt: Run `npm test` / `pnpm test` with the filter from the plan's **## Tests** section.
 
 # Python:
 # - name: PythonLint
