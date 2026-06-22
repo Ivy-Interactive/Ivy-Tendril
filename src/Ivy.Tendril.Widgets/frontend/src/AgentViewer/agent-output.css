@@ -231,14 +231,14 @@
    Dot geometry within the header (relative to .aov-tool left edge):
    card pad-left 6 + chevron 14 + flex gap 8 = 28 → dot spans 28–35px, center 31.5px.
    The line is 1px wide, so left: 31px centers it on the dot.
-   Vertically the dot center sits ~15px from the card top; the line starts just
-   below the dot and runs into the 4px inter-card gap to meet the next dot. */
+   Vertically the dot center sits ~15px from the card top; the line keeps a gap
+   below this dot and stops short of the next dot rather than touching either. */
 .aov-body .aov-tool::after {
   content: '';
   position: absolute;
   left: 31px;
-  top: 21px;
-  bottom: -6px;
+  top: 24px;
+  bottom: -1px;
   width: 1px;
   background: var(--aov-border);
   pointer-events: none;
