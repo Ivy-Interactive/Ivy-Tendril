@@ -84,13 +84,6 @@ public static class DatabaseCommands
         return 0;
     }
 
-    private static SqliteConnection OpenConnection(string dbPath)
-    {
-        var connection = new SqliteConnection($"Data Source={dbPath}");
-        connection.Open();
-        using var pragmaCmd = connection.CreateCommand();
-        pragmaCmd.CommandText = "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;";
-        pragmaCmd.ExecuteNonQuery();
-        return connection;
-    }
+    private static SqliteConnection OpenConnection(string dbPath) =>
+        SqliteConnectionFactory.OpenConfigured(dbPath);
 }
