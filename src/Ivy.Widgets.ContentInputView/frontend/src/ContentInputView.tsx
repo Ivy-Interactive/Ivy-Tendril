@@ -22,6 +22,7 @@ interface ContentInputViewProps {
   selectedModel?: string;
   attachedFiles?: AttachedFile[];
   submitLabel?: string;
+  menuOptions?: string[];
   onIvyEvent?: (eventName: string, id: string, argumentsArray: unknown[]) => void;
   eventHandler?: (eventName: string, id: string, argumentsArray: unknown[]) => void;
   events?: string[];
@@ -38,6 +39,7 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
   selectedModel = "Build",
   attachedFiles = [],
   submitLabel,
+  menuOptions = [],
   onIvyEvent,
   eventHandler,
 }) => {
@@ -48,11 +50,27 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
   const [volume, setVolume] = useState(0);
   const [recordError, setRecordError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const recorderRef = useRef<VoiceRecorder | null>(null);
   const timerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [menuOpen]);
 
   // Sync value prop to text state
   useEffect(() => {
@@ -188,14 +206,16 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
   const handleSubmit = () => {
     if (voiceStatus !== "idle") return;
     if (dispatchEvent) {
-      dispatchEvent("OnSubmit", id, [{
-        value: text,
-        Value: text,
-        selectedModel: selectedModel,
-        SelectedModel: selectedModel,
-        attachedFiles: attachedFiles,
-        AttachedFiles: attachedFiles,
-      }]);
+      dispatchEvent("OnSubmit", id, [
+        {
+          value: text,
+          Value: text,
+          selectedModel: selectedModel,
+          SelectedModel: selectedModel,
+          attachedFiles: attachedFiles,
+          AttachedFiles: attachedFiles,
+        },
+      ]);
     }
     setText("");
   };
@@ -241,12 +261,14 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
           const result = reader.result as string;
           const base64Data = result.split(",")[1];
           if (dispatchEvent) {
-            dispatchEvent("OnUploadFile", id, [{
-              name: file.name,
-              Name: file.name,
-              base64Data: base64Data,
-              Base64Data: base64Data,
-            }]);
+            dispatchEvent("OnUploadFile", id, [
+              {
+                name: file.name,
+                Name: file.name,
+                base64Data: base64Data,
+                Base64Data: base64Data,
+              },
+            ]);
           }
           resolve();
         };
@@ -369,10 +391,16 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
       {recordError && (
         <div className="civ-error-banner">
           <svg className="civ-icon-error" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
+            <path
+              fillRule="evenodd"
+              d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+              clipRule="evenodd"
+            />
           </svg>
           <span>{recordError}</span>
-          <button className="civ-error-close" onClick={() => setRecordError(null)}>×</button>
+          <button className="civ-error-close" onClick={() => setRecordError(null)}>
+            ×
+          </button>
         </div>
       )}
 
@@ -388,7 +416,13 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
           <div className="civ-attachments-list">
             {attachedFiles.map((file, idx) => (
               <div key={idx} className="civ-attachment-item">
-                <svg className="civ-icon-attachment" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  className="civ-icon-attachment"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
                 </svg>
                 <div className="civ-attachment-details">
@@ -462,11 +496,7 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
                   <span className="civ-timer">{formatTime(duration)}</span>
                   <div className="civ-equalizer">
                     {bars.map((h, i) => (
-                      <div
-                        key={i}
-                        className="civ-eq-bar"
-                        style={{ height: `${h}px` }}
-                      />
+                      <div key={i} className="civ-eq-bar" style={{ height: `${h}px` }} />
                     ))}
                   </div>
                 </div>
@@ -482,7 +512,12 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
                 ) : voiceStatus === "processing" ? (
                   <div className="civ-spinner processing" />
                 ) : voiceStatus === "recording" ? (
-                  <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
                     <rect x="6" y="6" width="12" height="12" rx="2" ry="2" />
                   </svg>
                 ) : (
@@ -494,28 +529,74 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
               </button>
             </div>
 
-            {/* Submit Button */}
-            <button
-              className={`civ-submit-btn ${submitLabel ? "civ-submit-btn-labeled" : ""}`}
-              onClick={handleSubmit}
-              disabled={!text.trim() || voiceStatus !== "idle"}
-              type="button"
-              title={submitLabel || "Send"}
-            >
-              {submitLabel ? (
-                <>
+            {/* Submit Button or Split Button */}
+            {menuOptions && menuOptions.length > 0 ? (
+              <div
+                className={`civ-split-btn-container ${!text.trim() || voiceStatus !== "idle" ? "disabled" : ""}`}
+                ref={menuRef}
+              >
+                <button
+                  className="civ-submit-btn civ-submit-btn-labeled civ-split-btn-left"
+                  onClick={handleSubmit}
+                  disabled={!text.trim() || voiceStatus !== "idle"}
+                  type="button"
+                  title={submitLabel || "Send"}
+                >
                   <span className="civ-submit-text">{submitLabel}</span>
-                  <kbd className="civ-submit-shortcut">
-                    {isMac ? "⌘↵" : "Ctrl+Enter"}
-                  </kbd>
-                </>
-              ) : (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <line x1="12" y1="19" x2="12" y2="5" />
-                  <polyline points="5 12 12 5 19 12" />
-                </svg>
-              )}
-            </button>
+                  <kbd className="civ-submit-shortcut">{isMac ? "⌘↵" : "Ctrl+Enter"}</kbd>
+                </button>
+                <button
+                  className="civ-split-btn-arrow"
+                  onClick={() => setMenuOpen(!menuOpen)}
+                  disabled={!text.trim() || voiceStatus !== "idle"}
+                  type="button"
+                  title="More options"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+                {menuOpen && (
+                  <div className="civ-dropdown-menu">
+                    {menuOptions.map((option, idx) => (
+                      <button
+                        key={idx}
+                        className="civ-dropdown-item"
+                        type="button"
+                        onClick={() => {
+                          setMenuOpen(false);
+                          if (dispatchEvent) {
+                            dispatchEvent("OnMenuAction", id, [option]);
+                          }
+                        }}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                className={`civ-submit-btn ${submitLabel ? "civ-submit-btn-labeled" : ""}`}
+                onClick={handleSubmit}
+                disabled={!text.trim() || voiceStatus !== "idle"}
+                type="button"
+                title={submitLabel || "Send"}
+              >
+                {submitLabel ? (
+                  <>
+                    <span className="civ-submit-text">{submitLabel}</span>
+                    <kbd className="civ-submit-shortcut">{isMac ? "⌘↵" : "Ctrl+Enter"}</kbd>
+                  </>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <line x1="12" y1="19" x2="12" y2="5" />
+                    <polyline points="5 12 12 5 19 12" />
+                  </svg>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>
