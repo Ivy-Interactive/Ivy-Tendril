@@ -86,8 +86,7 @@ public class Program
             }
         }
 
-        if (useDesktop && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("IVY_TLS")))
-            Environment.SetEnvironmentVariable("IVY_TLS", "0");
+
 
         bool isDetachedChild = args.Contains(DetachedLaunchMarker);
 
