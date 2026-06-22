@@ -110,6 +110,24 @@
     <None Include="../../README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
+  <Target Name="SetCommitId" BeforeTargets="GetAssemblyAttributes">
+    <!-- CI passes -p:CommitId=<sha>; locally fall back to git. Embedded as assembly metadata
+         and read at runtime by BugReportService to tag bug reports with the source revision. -->
+    <Exec Condition="'$(CommitId)' == ''"
+          Command="git rev-parse HEAD"
+          ConsoleToMSBuild="true"
+          ContinueOnError="true"
+          StandardOutputImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="CommitId" />
+    </Exec>
+    <ItemGroup Condition="'$(CommitId)' != ''">
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>CommitId</_Parameter1>
+        <_Parameter2>$(CommitId)</_Parameter2>
+      </AssemblyAttribute>
+    </ItemGroup>
+  </Target>
+
   <Target Name="PackPromptwaresZip" BeforeTargets="PrepareForBuild" Condition="'$(Configuration)' == 'Release'">
     <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildThisFileDirectory)pack-promptwares.ps1&quot; -IntermediateOutputPath &quot;$(IntermediateOutputPath).&quot;" />
     <ItemGroup>
