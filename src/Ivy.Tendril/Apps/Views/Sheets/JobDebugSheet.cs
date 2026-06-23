@@ -50,6 +50,7 @@ public class JobDebugSheet(
         };
 
         var detailsView = data.ToDetails()
+            .RemoveEmpty()
             .Multiline(x => x.PromptTitle)
             .Multiline(x => x.PermissionDenials)
             .Multiline(x => x.Status)
