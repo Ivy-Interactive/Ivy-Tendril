@@ -23,7 +23,7 @@ internal static class JobFailureAnalyzer
         if (psError != null) return psError;
 
 
-        
+
         // 2. Check for transient git / GitHub (gh) failures. These are the real, actionable
         //    cause and must win over an incidental JSON "error" object further down the output
         //    (e.g. a `gh api` response body), which would otherwise be mislabeled as a Claude
