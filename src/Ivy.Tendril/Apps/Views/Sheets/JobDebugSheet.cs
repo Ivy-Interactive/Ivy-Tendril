@@ -79,18 +79,8 @@ public class JobDebugSheet(
                 f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .Builder(x => x.WorkingDirectory, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .Builder(x => x.CliCommand, f => f.Func((string cmd) => new CodeBlock(cmd)))
-            .Builder(x => x.JobId, f => f.Func((string id) =>
-                Layout.Horizontal().Gap(2).AlignContent(Align.Center)
-                | Text.Block(id)
-                | new Button().Icon(Icons.ClipboardCopy).Ghost().Small()
-                    .Tooltip("Copy job ID")
-                    .OnClick(() => copyToClipboard(id))))
-            .Builder(x => x.PlanId, f => f.Func((string id) =>
-                Layout.Horizontal().Gap(2).AlignContent(Align.Center)
-                | Text.Block(id)
-                | new Button().Icon(Icons.ClipboardCopy).Ghost().Small()
-                    .Tooltip("Copy plan ID")
-                    .OnClick(() => copyToClipboard(id))));
+            .Builder(x => x.JobId, f => f.CopyToClipboard())
+            .Builder(x => x.PlanId, f => f.CopyToClipboard());
 
         var header = Layout.Horizontal().Gap(2)
             | new Button("Copy Details").Icon(Icons.ClipboardCopy).Outline().OnClick(() =>
