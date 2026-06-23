@@ -193,16 +193,18 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
 
         while (!ct.IsCancellationRequested && consecutiveFailures < maxRestarts)
         {
+            TunnelSession? session = null;
             try
             {
                 SetStatus(TunnelStatus.Connecting);
-                _currentSession = new TunnelSession(binaryPath, originUrl, _logger);
-                var url = await _currentSession.StartAsync(ct);
+                session = new TunnelSession(binaryPath, originUrl, _logger);
+                _currentSession = session;
+                var url = await session.StartAsync(ct);
                 await WaitForTunnelHealthyAsync(url, ct);
                 consecutiveFailures = 0;
                 SetStatus(TunnelStatus.Connected);
 
-                await _currentSession.WaitForExitAsync(ct);
+                await session.WaitForExitAsync(ct);
                 if (ct.IsCancellationRequested) break;
                 _logger.LogWarning("Tunnel process exited unexpectedly");
                 SetStatus(TunnelStatus.Connecting);
@@ -220,8 +222,12 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
             }
             finally
             {
-                _currentSession?.Dispose();
-                _currentSession = null;
+                // Tear down only our own session. Guard the shared field so a
+                // superseded supervisor can never dispose or null a newer
+                // generation's session (which would kill a freshly started tunnel).
+                session?.Dispose();
+                if (ReferenceEquals(_currentSession, session))
+                    _currentSession = null;
             }
 
             if (ct.IsCancellationRequested) break;
