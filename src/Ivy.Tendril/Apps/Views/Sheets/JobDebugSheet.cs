@@ -130,7 +130,7 @@ public class JobDebugSheet(
     private object PathDropDown(string path, Action<string> copyToClipboard, IClientProvider client)
     {
         return Layout.Horizontal().Gap(2).Width(Size.Full()).AlignContent(Align.SpaceBetween)
-            | Text.Block(path)
+            | Text.Block(path).Width(Size.Grow())
             | new Button().Icon(Icons.EllipsisVertical).Ghost().Small()
                 .WithDropDown(
                     new MenuItem("Copy to Clipboard", Icon: Icons.ClipboardCopy, Tag: "Copy")
