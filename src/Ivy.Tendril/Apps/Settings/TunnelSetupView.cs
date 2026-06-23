@@ -50,30 +50,37 @@ public class TunnelSetupView : ViewBase
         }
         else if (status.Value == TunnelStatus.Connected && tunnelUrl.Value is not null)
         {
-            form |= Callout.Success("Your tunnel is running and accessible at the URL below.", "Tunnel Active");
-            form |= Text.Block("Tunnel URL").Bold().Small();
-            form |= Text.Monospaced(tunnelUrl.Value);
-            form |= Layout.Horizontal()
-                   | new Button("Copy URL").Icon(Icons.ClipboardCopy).Outline()
-                       .OnClick(() =>
-                       {
-                           copyToClipboard(tunnelUrl.Value!);
-                           client.Toast("Tunnel URL copied to clipboard", "URL Copied");
-                       })
-                   | new Button("Open in Browser").Icon(Icons.ExternalLink).Outline()
-                       .OnClick(() => client.OpenUrl(tunnelUrl.Value!));
-            form |= Text.Block("Scan QR Code").Bold().Small();
-            form |= new QRCode { Value = tunnelUrl.Value, PixelSize = 200, ErrorCorrectionLevel = QrErrorCorrectionLevel.Medium };
-            form |= new Button("Deactivate").Secondary()
-                .OnClick(async () =>
-                {
-                    // Optimistically flip to the disconnected view immediately;
-                    // the actual teardown runs in the background below.
-                    status.Set(TunnelStatus.Disabled);
-                    tunnelUrl.Set(null);
-                    client.Toast("Tunnel stopped", "Deactivated");
-                    await tunnelService.DeactivateAsync();
-                });
+            var calloutContent = Layout.Vertical()
+                                 | "Your tunnel is running and accessible at the URL below."
+                                 | Text.Monospaced(tunnelUrl.Value)
+                                 | (Layout.Horizontal()
+                                    | new Button("Copy URL").Icon(Icons.ClipboardCopy).Outline()
+                                        .OnClick(() =>
+                                        {
+                                            copyToClipboard(tunnelUrl.Value!);
+                                            client.Toast("Tunnel URL copied to clipboard", "URL Copied");
+                                        })
+                                    | new Button("Open in Browser").Icon(Icons.ExternalLink).Outline()
+                                        .OnClick(() => client.OpenUrl(tunnelUrl.Value!)))
+                                 //| Text.Block("Scan QR Code").Bold().Small()
+                                 | new QRCode
+                                 {
+                                     Value = tunnelUrl.Value, PixelSize = 200,
+                                     ErrorCorrectionLevel = QrErrorCorrectionLevel.Medium
+                                 }
+                                 | new Button("Deactivate").Outline()
+                                     .OnClick(async () =>
+                                     {
+                                         // Optimistically flip to the disconnected view immediately;
+                                         // the actual teardown runs in the background below.
+                                         status.Set(TunnelStatus.Disabled);
+                                         tunnelUrl.Set(null);
+                                         client.Toast("Tunnel stopped", "Deactivated");
+                                         await tunnelService.DeactivateAsync();
+                                     })
+                ;
+            
+            form |= Callout.Success(calloutContent, "Tunnel Active");
         }
         else
         {

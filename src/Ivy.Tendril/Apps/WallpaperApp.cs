@@ -33,7 +33,7 @@ public class WallpaperApp : ViewBase
                 var info = await versionService.CheckForUpdatesAsync();
                 versionInfo.Set(info);
             });
-        }, []);
+        });
 
         UseEffect(() =>
         {
@@ -82,7 +82,7 @@ public class WallpaperApp : ViewBase
         // (Status == Connected), never during the Connecting phase.
         if (tunnelStatus.Value == TunnelStatus.Connected && tunnelUrl.Value is { } tunnelAddress)
         {
-            var tunnelMenu = new Button().Icon(Icons.Ellipsis).Ghost().WithDropDown(
+            var tunnelMenu = new Button().Icon(Icons.Ellipsis).Ghost().Small().WithDropDown(
                 new MenuItem("Copy to Clipboard", Icon: Icons.ClipboardCopy, Tag: "copy").OnSelect(() =>
                 {
                     copyToClipboard(tunnelAddress);
@@ -100,8 +100,7 @@ public class WallpaperApp : ViewBase
 
             var tunnelQr = new FloatingPanel(
                 new Card(
-                    Layout.Vertical().Gap(2).AlignContent(Align.Center)
-                    | new QRCode { Value = tunnelAddress, PixelSize = 160, ErrorCorrectionLevel = QrErrorCorrectionLevel.Medium }
+                    new QRCode { Value = tunnelAddress, PixelSize = 160, ErrorCorrectionLevel = QrErrorCorrectionLevel.Medium }
                 ).Header("Tunnel", null, tunnelMenu)
             ).AlignSelf(Align.TopRight).Offset(new Thickness(0, 8, 8, 0));
 
