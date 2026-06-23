@@ -13,38 +13,25 @@ public class TunnelSetupView : ViewBase
         var tunnelService = UseService<ICloudflaredService>();
         var copyToClipboard = UseClipboard();
 
-        var isLoading = UseState(false);
         var error = UseState<string?>(null);
+        var status = UseState(tunnelService.Status);
         var tunnelUrl = UseState<string?>(tunnelService.TunnelUrl);
-        var isConnected = UseState(tunnelService.IsConnected);
         var (alertView, showAlert) = UseAlert();
 
         UseEffect(() =>
         {
-            void OnConnected(string url)
+            void OnStatusChanged(TunnelStatus newStatus)
             {
-                tunnelUrl.Set(url);
-                isConnected.Set(true);
-                isLoading.Set(false);
+                status.Set(newStatus);
+                tunnelUrl.Set(tunnelService.TunnelUrl);
             }
 
-            void OnDisconnected()
-            {
-                tunnelUrl.Set(null);
-                isConnected.Set(false);
-            }
+            tunnelService.StatusChanged += OnStatusChanged;
 
-            tunnelService.TunnelConnected += OnConnected;
-            tunnelService.TunnelDisconnected += OnDisconnected;
-
+            status.Set(tunnelService.Status);
             tunnelUrl.Set(tunnelService.TunnelUrl);
-            isConnected.Set(tunnelService.IsConnected);
 
-            return Disposable.Create(() =>
-            {
-                tunnelService.TunnelConnected -= OnConnected;
-                tunnelService.TunnelDisconnected -= OnDisconnected;
-            });
+            return Disposable.Create(() => tunnelService.StatusChanged -= OnStatusChanged);
         });
 
         var form = Layout.Vertical().Padding(4).Width(Size.Auto().Max(Size.Units(120)))
@@ -56,22 +43,25 @@ public class TunnelSetupView : ViewBase
             form |= Callout.Error(error.Value, "Error");
         }
 
-        if (isLoading.Value)
+        if (status.Value == TunnelStatus.Connecting)
         {
             form |= Callout.Info("Starting tunnel and waiting for it to become routable. This typically takes 15-30 seconds.", "Tunnel Starting");
             form |= new Loading();
         }
-        else if (isConnected.Value && tunnelUrl.Value is not null)
+        else if (status.Value == TunnelStatus.Connected && tunnelUrl.Value is not null)
         {
             form |= Callout.Success("Your tunnel is running and accessible at the URL below.", "Tunnel Active");
             form |= Text.Block("Tunnel URL").Bold().Small();
             form |= Text.Monospaced(tunnelUrl.Value);
-            form |= new Button("Copy URL").Icon(Icons.ClipboardCopy).Outline()
-                .OnClick(() =>
-                {
-                    copyToClipboard(tunnelUrl.Value!);
-                    client.Toast("Tunnel URL copied to clipboard", "URL Copied");
-                });
+            form |= Layout.Horizontal()
+                   | new Button("Copy URL").Icon(Icons.ClipboardCopy).Outline()
+                       .OnClick(() =>
+                       {
+                           copyToClipboard(tunnelUrl.Value!);
+                           client.Toast("Tunnel URL copied to clipboard", "URL Copied");
+                       })
+                   | new Button("Open in Browser").Icon(Icons.ExternalLink).Outline()
+                       .OnClick(() => client.OpenUrl(tunnelUrl.Value!));
             form |= Text.Block("Scan QR Code").Bold().Small();
             form |= new QRCode { Value = tunnelUrl.Value, PixelSize = 200, ErrorCorrectionLevel = QrErrorCorrectionLevel.Medium };
             form |= new Button("Deactivate").Secondary()
@@ -79,7 +69,7 @@ public class TunnelSetupView : ViewBase
                 {
                     // Optimistically flip to the disconnected view immediately;
                     // the actual teardown runs in the background below.
-                    isConnected.Set(false);
+                    status.Set(TunnelStatus.Disabled);
                     tunnelUrl.Set(null);
                     client.Toast("Tunnel stopped", "Deactivated");
                     await tunnelService.DeactivateAsync();
@@ -88,24 +78,24 @@ public class TunnelSetupView : ViewBase
         else
         {
             form |= new Button("Activate").Primary()
-                .Loading(isLoading.Value)
-                .Disabled(isLoading.Value)
                 .OnClick(async () =>
                 {
-                    isLoading.Set(true);
                     error.Set(null);
+                    // Optimistically show the connecting state; the service drives
+                    // it to Connected (or back to Disabled on failure) via StatusChanged.
+                    status.Set(TunnelStatus.Connecting);
 
                     try
                     {
                         var installed = await tunnelService.CheckInstalledAsync();
                         if (!installed)
                         {
-                            isLoading.Set(false);
+                            status.Set(TunnelStatus.Disabled);
                             showAlert("Cloudflared is not installed. Would you like to download and install it?", async result =>
                             {
                                 if (result == AlertResult.Ok)
                                 {
-                                    isLoading.Set(true);
+                                    status.Set(TunnelStatus.Connecting);
                                     try
                                     {
                                         await tunnelService.InstallAsync();
@@ -114,8 +104,12 @@ public class TunnelSetupView : ViewBase
                                     catch (Exception ex)
                                     {
                                         error.Set($"Failed to install cloudflared: {ex.Message}");
-                                        isLoading.Set(false);
+                                        status.Set(TunnelStatus.Disabled);
                                     }
+                                }
+                                else
+                                {
+                                    status.Set(TunnelStatus.Disabled);
                                 }
                             });
                             return;
@@ -126,7 +120,7 @@ public class TunnelSetupView : ViewBase
                     catch (Exception ex)
                     {
                         error.Set($"Failed to start tunnel: {ex.Message}");
-                        isLoading.Set(false);
+                        status.Set(TunnelStatus.Disabled);
                     }
                 });
         }
