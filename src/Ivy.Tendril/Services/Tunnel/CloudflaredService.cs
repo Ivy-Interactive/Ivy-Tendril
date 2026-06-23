@@ -16,6 +16,7 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
     private Task? _supervisorTask;
     private TunnelSession? _currentSession;
     private bool _isInstalled;
+    private TunnelStatus _status = TunnelStatus.Disabled;
 
     public CloudflaredService(
         IConfigService config,
@@ -32,11 +33,18 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
     }
 
     public string? TunnelUrl => _currentSession?.TunnelUrl;
-    public bool IsConnected => _currentSession?.IsRunning == true && TunnelUrl is not null;
+    public TunnelStatus Status => _status;
+    public bool IsConnected => _status == TunnelStatus.Connected;
     public bool IsInstalled => _isInstalled;
 
-    public event Action<string>? TunnelConnected;
-    public event Action? TunnelDisconnected;
+    public event Action<TunnelStatus>? StatusChanged;
+
+    private void SetStatus(TunnelStatus status)
+    {
+        if (_status == status) return;
+        _status = status;
+        StatusChanged?.Invoke(status);
+    }
 
     public void Start()
     {
@@ -104,7 +112,7 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
         _config.Settings.Tunnel.Enabled = false;
         _config.SaveSettings();
 
-        TunnelDisconnected?.Invoke();
+        SetStatus(TunnelStatus.Disabled);
     }
 
     private void StartSupervisor()
@@ -112,6 +120,7 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
         _cts?.Cancel();
         _cts?.Dispose();
         _cts = new CancellationTokenSource();
+        SetStatus(TunnelStatus.Connecting);
         _supervisorTask = Task.Run(() => SupervisorLoopAsync(_cts.Token));
     }
 
@@ -186,16 +195,17 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
         {
             try
             {
+                SetStatus(TunnelStatus.Connecting);
                 _currentSession = new TunnelSession(binaryPath, originUrl, _logger);
                 var url = await _currentSession.StartAsync(ct);
                 await WaitForTunnelHealthyAsync(url, ct);
                 consecutiveFailures = 0;
-                TunnelConnected?.Invoke(url);
+                SetStatus(TunnelStatus.Connected);
 
                 await _currentSession.WaitForExitAsync(ct);
                 if (ct.IsCancellationRequested) break;
                 _logger.LogWarning("Tunnel process exited unexpectedly");
-                TunnelDisconnected?.Invoke();
+                SetStatus(TunnelStatus.Connecting);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -204,6 +214,7 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
             catch (Exception ex)
             {
                 consecutiveFailures++;
+                SetStatus(TunnelStatus.Connecting);
                 _logger.LogWarning(ex, "Tunnel session failed (attempt {Count}/{Max})",
                     consecutiveFailures, maxRestarts);
             }
@@ -221,7 +232,10 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
         }
 
         if (consecutiveFailures >= maxRestarts)
+        {
             _logger.LogError("Tunnel exceeded max restarts ({Max}), giving up", maxRestarts);
+            SetStatus(TunnelStatus.Disabled);
+        }
     }
 
     public void Dispose()
