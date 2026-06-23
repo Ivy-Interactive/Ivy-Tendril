@@ -78,16 +78,24 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
         StartSupervisor();
     }
 
-    public void Deactivate()
+    public async Task DeactivateAsync()
     {
         _cts?.Cancel();
         _currentSession?.Stop();
+
+        var supervisorTask = _supervisorTask;
+        if (supervisorTask is not null)
+        {
+            // Never block the calling (UI dispatcher) thread: the supervisor's
+            // own event callbacks marshal back to it, so a synchronous .Wait()
+            // here deadlocks until it times out.
+            try { await supervisorTask.WaitAsync(TimeSpan.FromSeconds(5)); }
+            catch (TimeoutException) { }
+            catch (OperationCanceledException) { }
+        }
+
         _currentSession?.Dispose();
         _currentSession = null;
-
-        try { _supervisorTask?.Wait(TimeSpan.FromSeconds(5)); }
-        catch (AggregateException) { }
-
         _cts?.Dispose();
         _cts = null;
         _supervisorTask = null;
@@ -185,6 +193,7 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
                 TunnelConnected?.Invoke(url);
 
                 await _currentSession.WaitForExitAsync(ct);
+                if (ct.IsCancellationRequested) break;
                 _logger.LogWarning("Tunnel process exited unexpectedly");
                 TunnelDisconnected?.Invoke();
             }
