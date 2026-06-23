@@ -65,14 +65,18 @@ public class AddProjectDialog(
             }
         }, isOpen);
 
-        // Transition to step 1 when agent output is ready
+        // Transition to step 1 as soon as the agent run is triggered (not after first
+        // output). The ProjectAgentStepView's setup effect, which actually starts the run,
+        // only fires once that view is mounted — so this mount must happen up front. The
+        // AgentViewer then renders immediately and shows its own "Starting…" loading state
+        // below the stream until output arrives.
         UseEffect(() =>
         {
-            if (session.HasOutput.Value && step.Value == 0 && setupTriggered.Value)
+            if (setupTriggered.Value && !skipAgent.Value && step.Value == 0)
             {
                 step.Set(1);
             }
-        }, session.HasOutput);
+        }, [setupTriggered, skipAgent]);
 
         // Transition to step 2 when skipAgent is enabled and setup is done
         UseEffect(() =>

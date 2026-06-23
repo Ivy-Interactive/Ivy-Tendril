@@ -166,7 +166,11 @@ public class ProjectAgentStepView(
                 .Disabled(running)
                 .OnClick(onNext);
 
-        var awaitingOutput = !isCloning.Value && session.Running.Value && !session.HasOutput.Value;
+        // The agent output stream always renders while the agent is running. Before any
+        // output arrives, the AgentViewer's own status label (below the stream) shows the
+        // "Starting…" loading indicator, so we don't render a separate Loading() above it —
+        // that avoided a layout shift when the bordered/padded Box swapped in on first output.
+        var showStream = !isCloning.Value && session.Running.Value;
 
         return Layout.Vertical()
                | (showHeader ? Text.H3("Setting up your project") : null!)
@@ -178,11 +182,7 @@ public class ProjectAgentStepView(
                | (isCloning.Value && progressValue.Value != null
                    ? (object)new Progress(progressValue.Value.Value)
                    : null!)
-               | (awaitingOutput
-                   ? (object)(Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                       | new Loading())
-                   : null!)
-               | (session.HasOutput.Value
+               | (showStream
                    ? (object)new Box(
                         new AgentViewer()
                             .Stream(session.Stream)
