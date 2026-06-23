@@ -58,7 +58,7 @@ public class TunnelSetupView : ViewBase
 
         if (isLoading.Value)
         {
-            form |= Callout.Info("Starting tunnel and waiting for it to become routable. This typically takes 15-30 seconds.", "Tunnel Starting...");
+            form |= Callout.Info("Starting tunnel and waiting for it to become routable. This typically takes 15-30 seconds.", "Tunnel Starting");
             form |= new Loading();
         }
         else if (isConnected.Value && tunnelUrl.Value is not null)
@@ -75,12 +75,14 @@ public class TunnelSetupView : ViewBase
             form |= Text.Block("Scan QR Code").Bold().Small();
             form |= new QRCode { Value = tunnelUrl.Value, PixelSize = 200, ErrorCorrectionLevel = QrErrorCorrectionLevel.Medium };
             form |= new Button("Deactivate").Secondary()
-                .OnClick(() =>
+                .OnClick(async () =>
                 {
-                    tunnelService.Deactivate();
+                    // Optimistically flip to the disconnected view immediately;
+                    // the actual teardown runs in the background below.
                     isConnected.Set(false);
                     tunnelUrl.Set(null);
                     client.Toast("Tunnel stopped", "Deactivated");
+                    await tunnelService.DeactivateAsync();
                 });
         }
         else

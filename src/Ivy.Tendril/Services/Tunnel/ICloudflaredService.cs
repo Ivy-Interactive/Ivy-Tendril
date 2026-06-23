@@ -10,5 +10,5 @@ public interface ICloudflaredService
     Task<bool> CheckInstalledAsync(CancellationToken ct = default);
     Task InstallAsync(CancellationToken ct = default);
     Task ActivateAsync(CancellationToken ct = default);
-    void Deactivate();
+    Task DeactivateAsync();
 }
