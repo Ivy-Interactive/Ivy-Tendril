@@ -37,6 +37,8 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  /* Inner padding keeps content clear of the scrollbar on the right edge. */
+  padding: 4px 12px 4px 4px;
 }
 
 .aov-body > * {
@@ -225,27 +227,6 @@
   font-family: var(--aov-mono);
   padding: 2px 6px;
   border-radius: 4px;
-}
-
-/* Timeline connector between tool cards.
-   Dot geometry within the header (relative to .aov-tool left edge):
-   card pad-left 6 + chevron 14 + flex gap 8 = 28 → dot spans 28–35px, center 31.5px.
-   The line is 1px wide, so left: 31px centers it on the dot.
-   Vertically the dot center sits ~15px from the card top; the line keeps a gap
-   below this dot and stops short of the next dot rather than touching either. */
-.aov-body .aov-tool::after {
-  content: '';
-  position: absolute;
-  left: 31px;
-  top: 24px;
-  bottom: -1px;
-  width: 1px;
-  background: var(--aov-border);
-  pointer-events: none;
-}
-
-.aov-body .aov-tool:last-child::after {
-  display: none;
 }
 
 .aov-tool:hover {
