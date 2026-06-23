@@ -31,7 +31,7 @@ public class VerificationsCardView(
             .Any(pv => pv.Name.Equals(name, StringComparison.OrdinalIgnoreCase) && pv.Required);
 
         var inner = Layout.Vertical().Gap(0)
-                    | new Box(Text.Block("Verifications").Bold()).Margin(0, 0, 2, 0);
+                    | new Box(Text.Block("Verifications").Bold()).Margin(0, 0, 0, 2);
 
         if (verifications.Count == 0)
         {
@@ -47,7 +47,7 @@ public class VerificationsCardView(
                     status => planService.SetVerificationStatus(selectedPlan.FolderName, v.Name, status));
         }
 
-        return new Card(inner).Width(Size.Px(280));
+        return new Box(inner).BorderThickness(0).Padding(0, 0, 0, 2).Width(Size.Px(280));
     }
 }
 
@@ -84,13 +84,15 @@ public class VerificationRowView(
         if (editable && required && !isChecked.Value)
             checkbox = checkbox.Invalid("This verification is required according to project settings");
 
-        var row = Layout.Horizontal().Gap(2).Width(Size.Full()) | checkbox;
-
         // Only surface a badge for terminal outcomes; Pending/Skipped are conveyed by the checkbox.
         if (status is VerificationStatus.Pass or VerificationStatus.Fail)
+        {
+            var row = Layout.Horizontal().Gap(2).Width(Size.Full()) | checkbox;
             row |= new Badge(status.ToString()).Variant(
                 Constants.VerificationStatusBadgeVariants.GetValueOrDefault(status, BadgeVariant.Outline));
+            return row;
+        }
 
-        return row;
+        return checkbox;
     }
 }
