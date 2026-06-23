@@ -150,10 +150,7 @@ internal static class ServiceRegistration
             var config = sp.GetRequiredService<IConfigService>();
             var logger = sp.GetRequiredService<ILogger<WorktreeCleanupService>>();
             var lifecycleLogger = sp.GetRequiredService<IWorktreeLifecycleLogger>();
-            return new WorktreeCleanupService(config.PlanFolder, logger, lifecycleLogger,
-                terminalGrace: TimeSpan.FromMinutes(config.Settings.WorktreeTerminalGraceMinutes),
-                staleReaperPeriod: TimeSpan.FromDays(config.Settings.WorktreeStaleReaperDays),
-                timerInterval: TimeSpan.FromMinutes(config.Settings.WorktreeCleanupIntervalMinutes));
+            return new WorktreeCleanupService(config.PlanFolder, logger, lifecycleLogger);
         });
         server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<WorktreeCleanupService>());
         server.Services.AddSingleton<PrStatusSyncService>(sp =>
