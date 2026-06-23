@@ -124,24 +124,41 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
         _supervisorTask = Task.Run(() => SupervisorLoopAsync(_cts.Token));
     }
 
+    private static readonly TimeSpan HealthCheckTimeout = TimeSpan.FromSeconds(180);
+    private static readonly TimeSpan HealthCheckInterval = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan HealthCheckInitialDelay = TimeSpan.FromSeconds(3);
+
     private async Task WaitForTunnelHealthyAsync(string tunnelUrl, CancellationToken ct)
     {
         using var http = _httpClientFactory.CreateClient("TunnelHealthCheck");
         http.Timeout = TimeSpan.FromSeconds(10);
 
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(60);
+        // Give cloudflare a moment to publish DNS for the freshly created hostname before
+        // the first probe. Probing too early returns NXDOMAIN, which the OS resolver caches
+        // negatively and then keeps returning for the negative-TTL window even after the
+        // record goes live — making the tunnel look broken far longer than it actually is.
+        try { await Task.Delay(HealthCheckInitialDelay, ct); }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+
+        var deadline = DateTime.UtcNow + HealthCheckTimeout;
         _logger.LogInformation("Waiting for tunnel to become routable: {Url}", tunnelUrl);
 
-        while (DateTime.UtcNow < deadline && !ct.IsCancellationRequested)
+        var attempt = 0;
+        while (!ct.IsCancellationRequested)
         {
+            attempt++;
             try
             {
-                var response = await http.GetAsync(tunnelUrl, ct);
-                if (response.StatusCode != System.Net.HttpStatusCode.BadGateway)
+                using var response = await http.GetAsync(tunnelUrl, HttpCompletionOption.ResponseHeadersRead, ct);
+                if (!IsTunnelNotReady(response.StatusCode))
                 {
-                    _logger.LogInformation("Tunnel is routable (HTTP {Status})", (int)response.StatusCode);
+                    _logger.LogInformation("Tunnel is routable after {Attempts} attempt(s) (HTTP {Status})",
+                        attempt, (int)response.StatusCode);
                     return;
                 }
+
+                _logger.LogDebug("Tunnel not ready yet (HTTP {Status}), attempt {Attempt}",
+                    (int)response.StatusCode, attempt);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -149,14 +166,31 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
             }
             catch (Exception ex)
             {
-                _logger.LogDebug("Tunnel health check attempt failed: {Error}", ex.Message);
+                // Expected early on: DNS for the new hostname has not propagated yet, or the
+                // edge connections are still being established. Keep polling.
+                _logger.LogDebug("Tunnel health check attempt {Attempt} failed: {Error}", attempt, ex.Message);
             }
 
-            await Task.Delay(2000, ct);
-        }
+            if (DateTime.UtcNow >= deadline)
+            {
+                // Never report a tunnel as connected when it isn't actually routable. Throwing
+                // lets the supervisor tear this session down and try a fresh one (new hostname,
+                // no poisoned negative-DNS cache) instead of leaving a dead "Connected" tunnel.
+                throw new TimeoutException(
+                    $"Tunnel did not become routable within {HealthCheckTimeout.TotalSeconds:0}s ({tunnelUrl})");
+            }
 
-        _logger.LogWarning("Tunnel health check timed out after 60s, proceeding anyway");
+            await Task.Delay(HealthCheckInterval, ct);
+        }
     }
+
+    // Status codes cloudflare returns while a tunnel exists but is not yet routable end to end:
+    // 502 Bad Gateway, 504 Gateway Timeout, and 530 (Argo/Cloudflare Tunnel error, e.g. 1033).
+    // Any other completed response means the request reached our origin through the tunnel.
+    private static bool IsTunnelNotReady(System.Net.HttpStatusCode status) =>
+        status is System.Net.HttpStatusCode.BadGateway
+            or System.Net.HttpStatusCode.GatewayTimeout
+            or (System.Net.HttpStatusCode)530;
 
     private async Task SupervisorLoopAsync(CancellationToken ct)
     {
