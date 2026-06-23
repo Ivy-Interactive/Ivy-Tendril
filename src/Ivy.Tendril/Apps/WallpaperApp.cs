@@ -14,9 +14,11 @@ public class WallpaperApp : ViewBase
 {
     public override object Build()
     {
+        var client = UseService<IClientProvider>();
         var versionService = UseService<IVersionCheckService>();
         var planDbService = UseService<IPlanDatabaseService>();
         var tunnelService = UseService<ICloudflaredService>();
+        var copyToClipboard = UseClipboard();
         var versionInfo = UseState<VersionInfo?>(null);
         var dismissedVersion = UseState<string?>(null);
         var tunnelStatus = UseState(tunnelService.Status);
@@ -80,12 +82,27 @@ public class WallpaperApp : ViewBase
         // (Status == Connected), never during the Connecting phase.
         if (tunnelStatus.Value == TunnelStatus.Connected && tunnelUrl.Value is { } tunnelAddress)
         {
+            var tunnelMenu = new Button().Icon(Icons.Ellipsis).Ghost().WithDropDown(
+                new MenuItem("Copy to Clipboard", Icon: Icons.ClipboardCopy, Tag: "copy").OnSelect(() =>
+                {
+                    copyToClipboard(tunnelAddress);
+                    client.Toast("Tunnel URL copied to clipboard", "URL Copied");
+                }),
+                new MenuItem("Open in Browser", Icon: Icons.ExternalLink, Tag: "open").OnSelect(() => client.OpenUrl(tunnelAddress)),
+                new MenuItem("Deactivate", Icon: Icons.Power, Tag: "deactivate").OnSelect(() =>
+                {
+                    // Optimistically remove the panel; the teardown runs in the background.
+                    tunnelStatus.Set(TunnelStatus.Disabled);
+                    client.Toast("Tunnel stopped", "Deactivated");
+                    _ = tunnelService.DeactivateAsync();
+                })
+            );
+
             var tunnelQr = new FloatingPanel(
                 new Card(
                     Layout.Vertical().Gap(2).AlignContent(Align.Center)
                     | new QRCode { Value = tunnelAddress, PixelSize = 160, ErrorCorrectionLevel = QrErrorCorrectionLevel.Medium }
-                    | Text.Block("Scan to open Tendril on your phone").Muted().Small()
-                ).Header("Tunnel", null, Icons.QrCode)
+                ).Header("Tunnel", null, tunnelMenu)
             ).AlignSelf(Align.TopRight).Offset(new Thickness(0, 8, 8, 0));
 
             elements.Add(tunnelQr);
