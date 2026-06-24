@@ -91,7 +91,7 @@ public class ProjectCrudStepView(
             | new Button(nextButtonText).Secondary().Large().Icon(Icons.ArrowRight, Align.Right)
                 .OnClick(onNext);
 
-        return Layout.Vertical()
+        return Layout.Vertical().Margin(0, 0, 0, 20)
                | (showHeader ? Text.H3("Review Harness") : null!)
                | Text.Muted("Review and edit the configuration generated for your project.")
                | (Layout.Vertical()

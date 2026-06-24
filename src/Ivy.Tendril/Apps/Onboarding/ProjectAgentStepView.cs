@@ -172,7 +172,7 @@ public class ProjectAgentStepView(
         // that avoided a layout shift when the bordered/padded Box swapped in on first output.
         var showStream = !isCloning.Value && session.Running.Value;
 
-        return Layout.Vertical()
+        return Layout.Vertical().Margin(0, 0, 0, 20)
                | (showHeader ? Text.H3("Setting up your project") : null!)
                | Text.Muted(isCloning.Value
                    ? (progressMessage.Value ?? "Setting up your project...")
