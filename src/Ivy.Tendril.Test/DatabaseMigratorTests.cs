@@ -259,6 +259,38 @@ public class DatabaseMigratorTests : IDisposable
     }
 
     [Fact]
+    public void Migration015_RewritesLegacyPlanStates_AndLeavesOthers()
+    {
+        new Migration_001_InitialSchema().Apply(_connection);
+
+        using var insertCmd = _connection.CreateCommand();
+        insertCmd.CommandText = """
+                                INSERT INTO Plans (Id, Title, Project, Level, State, FolderPath, FolderName,
+                                                   YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated)
+                                VALUES
+                                    (1, 'A', 'Tendril', 'NiceToHave', 'Building',        '/a', 'a', 'y', 1, 'c', '2026-01-01', '2026-01-01'),
+                                    (2, 'B', 'Tendril', 'NiceToHave', 'ReadyForReview',  '/b', 'b', 'y', 1, 'c', '2026-01-01', '2026-01-01'),
+                                    (3, 'C', 'Tendril', 'NiceToHave', 'Completed',       '/c', 'c', 'y', 1, 'c', '2026-01-01', '2026-01-01')
+                                """;
+        insertCmd.ExecuteNonQuery();
+
+        new Migration_015_RenamePlanStates().Apply(_connection);
+
+        Assert.Equal("Creating", GetState(1));
+        Assert.Equal("Review", GetState(2));
+        Assert.Equal("Completed", GetState(3));
+        Assert.Equal(15, GetUserVersion());
+    }
+
+    private string GetState(int planId)
+    {
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = "SELECT State FROM Plans WHERE Id = @id;";
+        cmd.Parameters.AddWithValue("@id", planId);
+        return (string)cmd.ExecuteScalar()!;
+    }
+
+    [Fact]
     public void Migration006_CreatesCompositeIndex_AndDropsSingleColumnIndexes()
     {
         // Apply migrations 1 through 5 first to set up schema and individual indexes

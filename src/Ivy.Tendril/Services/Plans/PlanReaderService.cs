@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using Ivy.Helpers;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Services.Plans.Migrations;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services.Plans;
@@ -16,9 +17,6 @@ public class PlanReaderService(
 {
     private static readonly Regex FolderNameRegex = new(@"^(\d{5})-(.+)$", RegexOptions.Compiled);
     private static readonly Regex StateLineRegex = new(@"(?m)^state:\s*(.+)$", RegexOptions.Compiled);
-
-    private static readonly HashSet<string> TerminalStates = new(StringComparer.OrdinalIgnoreCase)
-        { nameof(PlanStatus.Completed), nameof(PlanStatus.Skipped) };
 
     private readonly TimeCache<Dictionary<string, DashboardModels>> _dashboardCache =
         new(TimeSpan.FromSeconds(10));
@@ -42,53 +40,30 @@ public class PlanReaderService(
     public event Action? CountsInvalidated;
 
     /// <summary>
-    ///     On startup, rename plan subfolders from lowercase to Title Case for consistency
-    ///     with TENDRIL_HOME folder naming (Inbox, Trash, Plans, etc.).
+    ///     On startup, bring every non-terminal plan up to the current schema version by running the
+    ///     <see cref="Migrations.IPlanMigration" /> set (state-name renames, subfolder casing, YAML
+    ///     structure repair). Plans already at the latest version are skipped via their stamped
+    ///     <c>schemaVersion</c>. Must run before <see cref="RecoverStuckPlans" /> and the database sync,
+    ///     which compare against the current enum names.
     /// </summary>
-    public void MigratePlanSubfolderCasing()
+    public void MigratePlans()
     {
-        if (!Directory.Exists(PlansDirectory)) return;
-
-        var titleCase = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        new PlanMigrator(logger).MigratePlans(PlansDirectory, folderName =>
         {
-            ["revisions"] = "Revisions",
-            ["logs"] = "Logs",
-            ["artifacts"] = "Artifacts",
-            ["verification"] = "Verification",
-            ["worktrees"] = "Worktrees"
-        };
-
-        foreach (var dir in Directory.GetDirectories(PlansDirectory))
-        {
-            foreach (var subDir in Directory.GetDirectories(dir))
-            {
-                var actualName = Path.GetFileName(subDir);
-                if (!titleCase.TryGetValue(actualName, out var desired)) continue;
-                if (actualName == desired) continue;
-
-                try
-                {
-                    var tmpPath = subDir + "_tmp";
-                    Directory.Move(subDir, tmpPath);
-                    Directory.Move(tmpPath, Path.Combine(dir, desired));
-                    logger.LogDebug("Renamed {Old} → {New}", actualName, desired);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex, "Failed to rename {Old} to {New}", subDir, desired);
-                }
-            }
-        }
+            planWatcherService?.NotifyChanged(folderName);
+            _planCountsCache.Invalidate();
+            _recommendationsCache.Invalidate();
+        });
     }
 
     /// <summary>
-    ///     On startup, reset any plans stuck in transient states (Building, Executing, Updating)
+    ///     On startup, reset any plans stuck in transient states (Creating, Executing, Updating)
     ///     back to Failed. These are leftovers from a previous Tendril shutdown.
     /// </summary>
     public void RecoverStuckPlans()
     {
         var stuckStates = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            { nameof(PlanStatus.Building), nameof(PlanStatus.Executing), nameof(PlanStatus.Updating), nameof(PlanStatus.Blocked) };
+            { nameof(PlanStatus.Creating), nameof(PlanStatus.Executing), nameof(PlanStatus.Updating), nameof(PlanStatus.Blocked) };
 
         if (!Directory.Exists(PlansDirectory)) return;
 
@@ -121,56 +96,6 @@ public class PlanReaderService(
             {
                 logger.LogWarning(ex, "Failed to recover plan in {Folder}", Path.GetFileName(dir));
             }
-    }
-
-    /// <summary>
-    ///     On startup, fix plan.yaml files that have structured repos (path: + prRule:)
-    ///     by normalizing them to plain path strings.
-    /// </summary>
-    public void RepairPlans()
-    {
-        try
-        {
-            if (!Directory.Exists(PlansDirectory)) return;
-
-            var failedFolders = new List<string>();
-
-            foreach (var dir in Directory.GetDirectories(PlansDirectory))
-                try
-                {
-                    var planYamlPath = Path.Combine(dir, "plan.yaml");
-                    if (!File.Exists(planYamlPath)) continue;
-
-                    var yaml = FileHelper.ReadAllText(planYamlPath);
-
-                    var stateMatch = StateLineRegex.Match(yaml);
-                    if (stateMatch.Success && TerminalStates.Contains(stateMatch.Groups[1].Value.Trim()))
-                        continue;
-
-                    var repaired = PlanYamlRepairService.RepairPlanYaml(yaml);
-
-                    if (repaired != yaml)
-                    {
-                        FileHelper.WriteAllText(planYamlPath, repaired);
-                        logger.LogInformation("Repaired plan.yaml in {Folder}", Path.GetFileName(dir));
-                        planWatcherService?.NotifyChanged(Path.GetFileName(dir));
-                        _planCountsCache.Invalidate();
-                        _recommendationsCache.Invalidate();
-                    }
-                }
-                catch
-                {
-                    failedFolders.Add(Path.GetFileName(dir));
-                }
-
-            if (failedFolders.Count > 0)
-                logger.LogWarning("Failed to repair {Count} plans due to file access errors: {Folders}.",
-                    failedFolders.Count, string.Join(", ", failedFolders));
-        }
-        catch
-        {
-            /* Best-effort repair on startup; individual plan errors are non-fatal */
-        }
     }
 
     /// <summary>
@@ -1025,7 +950,7 @@ public class PlanReaderService(
         {
             // Fall back to the repair pass for malformed agent-generated YAML.
             logger.LogWarning(ex, "Failed to parse plan YAML {PlanYamlPath}, attempting repair", planYamlPath);
-            var repaired = PlanYamlRepairService.RepairPlanYaml(yamlContent);
+            var repaired = PlanSchemaVersion.Stamp(PlanYamlRepairService.RepairPlanYaml(yamlContent), PlanYaml.CurrentSchemaVersion);
             if (repaired != yamlContent)
                 FileHelper.WriteAllText(planYamlPath, repaired);
 
@@ -1152,7 +1077,7 @@ public class PlanReaderService(
                 {
                     case "draft": drafts++; break;
                     case "blocked": drafts++; break;
-                    case "readyforreview": reviews++; break;
+                    case "review": reviews++; break;
                     case "failed": failed++; break;
                     case "icebox": icebox++; break;
                 }
@@ -1269,7 +1194,7 @@ public class PlanReaderService(
 
     public record PlanCountSnapshot(
         int Drafts,
-        int ReadyForReview,
+        int Review,
         int Failed,
         int Icebox,
         int PendingRecommendations,

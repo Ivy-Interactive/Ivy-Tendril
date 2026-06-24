@@ -8,7 +8,6 @@ public class CustomPrDialog(
     IState<bool> dialogOpen,
     PlanFile selectedPlan,
     IJobService jobService,
-    IPlanReaderService planService,
     Action refreshPlans,
     QueryResult<string[]> assigneesQuery,
     IState<string?> assigneesError) : ViewBase
@@ -20,7 +19,7 @@ public class CustomPrDialog(
         var customPrMerge = UseState(false);
         var customPrDeleteBranch = UseState(false);
         var customPrIncludeArtifacts = UseState(false);
-        var customPrAssignee = UseState<string?>(null);
+        var customPrReviewer = UseState<string?>(null);
         var customPrComment = UseState("");
         var customPrDraft = UseState(false);
 
@@ -31,6 +30,8 @@ public class CustomPrDialog(
 
         if (!dialogOpen.Value) return null;
 
+        var multipleBranches = selectedPlan.Repos.Count > 1;
+
         return new Dialog(
             _ =>
             {
@@ -39,7 +40,7 @@ public class CustomPrDialog(
                 customPrMerge.Set(true);
                 customPrDeleteBranch.Set(true);
                 customPrIncludeArtifacts.Set(true);
-                customPrAssignee.Set(null);
+                customPrReviewer.Set(null);
                 customPrComment.Set("");
                 customPrDraft.Set(false);
                 dialogOpen.Set(false);
@@ -49,12 +50,16 @@ public class CustomPrDialog(
                 Layout.Vertical().Gap(2)
                 | customPrSolveMergeConflicts.ToBoolInput("Solve Merge Conflicts").AutoFocus()
                 | customPrMerge.ToBoolInput("Merge")
-                | customPrDeleteBranch.ToBoolInput("Delete Branch")
+                | customPrDeleteBranch
+                    .ToBoolInput(multipleBranches ? "Delete branches" : "Delete branch")
+                    .Description(multipleBranches
+                        ? "Deletes the branches pushed to origin after successful merge."
+                        : "Deletes the branch pushed to origin after successful merge.")
                     .Disabled(!customPrMerge.Value)
                 | customPrIncludeArtifacts.ToBoolInput("Include Artifacts")
                 | customPrDraft.ToBoolInput("Create as Draft")
-                | customPrAssignee.ToSelectInput((assigneesQuery.Value ?? Array.Empty<string>()).ToOptions())
-                    .Nullable().WithField().Label("Assignee")
+                | customPrReviewer.ToSelectInput((assigneesQuery.Value ?? Array.Empty<string>()).ToOptions())
+                    .Nullable().WithField().Label("Reviewer")
                 | (assigneesError.Value is { } err
                     ? Text.Danger(err).Small()
                     : null)
@@ -68,7 +73,7 @@ public class CustomPrDialog(
                     customPrMerge.Set(true);
                     customPrDeleteBranch.Set(true);
                     customPrIncludeArtifacts.Set(true);
-                    customPrAssignee.Set(null);
+                    customPrReviewer.Set(null);
                     customPrComment.Set("");
                     customPrDraft.Set(false);
                     dialogOpen.Set(false);
@@ -84,17 +89,17 @@ public class CustomPrDialog(
                             Merge: customPrMerge.Value,
                             DeleteBranch: customPrDeleteBranch.Value && customPrMerge.Value,
                             IncludeArtifacts: customPrIncludeArtifacts.Value,
-                            Assignee: customPrAssignee.Value,
+                            Reviewer: customPrReviewer.Value,
                             Comment: string.IsNullOrEmpty(customPrComment.Value) ? null : customPrComment.Value,
                             Draft: customPrDraft.Value));
-                        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
+                        // Plan transition (and pre-state snapshot) handled by JobService.StartJob.
                         refreshPlans();
                         isCreating.Set(false);
                         customPrSolveMergeConflicts.Set(true);
                         customPrMerge.Set(true);
                         customPrDeleteBranch.Set(true);
                         customPrIncludeArtifacts.Set(true);
-                        customPrAssignee.Set(null);
+                        customPrReviewer.Set(null);
                         customPrComment.Set("");
                         customPrDraft.Set(false);
                         dialogOpen.Set(false);

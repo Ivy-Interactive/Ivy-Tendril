@@ -15,7 +15,8 @@ public class ProjectAgentStepView(
     Action onNext,
     Action? onSkip = null,
     bool skipAgent = false,
-    bool showHeader = true) : ViewBase
+    bool showHeader = true,
+    IState<bool>? setupTrigger = null) : ViewBase
 {
     public override object Build()
     {
@@ -31,6 +32,9 @@ public class ProjectAgentStepView(
         UseEffect(async () =>
         {
             if (session.Started.Value) return;
+
+            // If setupTrigger is provided, wait for it to be true
+            if (setupTrigger != null && !setupTrigger.Value) return;
 
             error.Set(null);
             isCloning.Set(true);
@@ -149,7 +153,7 @@ public class ProjectAgentStepView(
                 isCloning.Set(false);
                 isStepLoading.Set(false);
             }
-        }, [EffectTrigger.OnMount()]);
+        }, setupTrigger != null ? [setupTrigger] : [EffectTrigger.OnMount()]);
 
         var running = session.Running.Value || isCloning.Value;
 
@@ -162,7 +166,11 @@ public class ProjectAgentStepView(
                 .Disabled(running)
                 .OnClick(onNext);
 
-        var awaitingOutput = !isCloning.Value && session.Running.Value && !session.HasOutput.Value;
+        // The agent output stream always renders while the agent is running. Before any
+        // output arrives, the AgentViewer's own status label (below the stream) shows the
+        // "Starting…" loading indicator, so we don't render a separate Loading() above it —
+        // that avoided a layout shift when the bordered/padded Box swapped in on first output.
+        var showStream = !isCloning.Value && session.Running.Value;
 
         return Layout.Vertical()
                | (showHeader ? Text.H3("Setting up your project") : null!)
@@ -174,11 +182,7 @@ public class ProjectAgentStepView(
                | (isCloning.Value && progressValue.Value != null
                    ? (object)new Progress(progressValue.Value.Value)
                    : null!)
-               | (awaitingOutput
-                   ? (object)(Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                       | new Loading())
-                   : null!)
-               | (session.HasOutput.Value
+               | (showStream
                    ? (object)new Box(
                         new AgentViewer()
                             .Stream(session.Stream)
@@ -189,9 +193,9 @@ public class ProjectAgentStepView(
                       )
                         .Width(Size.Full())
                         .Height(Size.Units(100).Max(Size.Fraction(0.6f)))
-                        .Padding(4, 4, 2, 4)
+                        .Padding(4, 4, 0, 4)
                    : null!)
                | buttonArea
-               | new Spacer().Height(Size.Units(4));
+               | (showHeader ? (object)new Spacer().Height(Size.Units(4)) : null!);
     }
 }

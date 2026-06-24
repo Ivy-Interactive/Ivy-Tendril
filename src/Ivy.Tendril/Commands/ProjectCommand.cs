@@ -455,18 +455,24 @@ public class ProjectAddRepoCommand : Command<ProjectAddRepoSettings>
         if (project.GetRepoRef(settings.RepoPath) != null)
             throw new InvalidOperationException($"Repository already exists in project: {settings.RepoPath}");
 
-        if (!string.IsNullOrWhiteSpace(settings.BaseBranch))
+        string? baseBranch = settings.BaseBranch;
+        if (!string.IsNullOrWhiteSpace(baseBranch))
         {
-            var isValid = Ivy.Tendril.Helpers.GitHelper.IsValidBranchAsync(settings.RepoPath, settings.BaseBranch, config.TendrilHome).GetAwaiter().GetResult();
+            var isValid = Ivy.Tendril.Helpers.GitHelper.IsValidBranchAsync(settings.RepoPath, baseBranch, config.TendrilHome).GetAwaiter().GetResult();
             if (!isValid)
-                throw new InvalidOperationException($"Branch '{settings.BaseBranch}' does not exist in repository: {settings.RepoPath}");
+                throw new InvalidOperationException($"Branch '{baseBranch}' does not exist in repository: {settings.RepoPath}");
+        }
+        else
+        {
+            // No branch supplied — detect and persist the repo's real default branch.
+            baseBranch = Ivy.Tendril.Helpers.GitHelper.ResolveDefaultBranch(settings.RepoPath, config.TendrilHome);
         }
 
         project.Repos.Add(new RepoRef
         {
             Path = settings.RepoPath,
             PrRule = settings.PrRule ?? "default",
-            BaseBranch = settings.BaseBranch
+            BaseBranch = baseBranch
         });
 
         config.SaveSettings();

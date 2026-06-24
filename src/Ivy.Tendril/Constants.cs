@@ -27,10 +27,10 @@ public static class Constants
 
     public static readonly Dictionary<PlanStatus, BadgeVariant> PlanStatusBadgeVariants = new()
     {
-        [PlanStatus.Building] = BadgeVariant.Info,
+        [PlanStatus.Creating] = BadgeVariant.Info,
         [PlanStatus.Updating] = BadgeVariant.Info,
         [PlanStatus.Executing] = BadgeVariant.Info,
-        [PlanStatus.ReadyForReview] = BadgeVariant.Success,
+        [PlanStatus.Review] = BadgeVariant.Success,
         [PlanStatus.Failed] = BadgeVariant.Destructive,
         [PlanStatus.Draft] = BadgeVariant.Outline,
         [PlanStatus.Completed] = BadgeVariant.Success,

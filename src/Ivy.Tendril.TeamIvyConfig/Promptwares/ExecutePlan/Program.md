@@ -40,7 +40,7 @@ Focus on making progress, not achieving perfect understanding. A working impleme
 - Read `plan.yaml` from the plan folder (project, repos, title)
 - Read the latest revision from `Revisions/` (highest numbered .md file)
 - Extract the plan ID from the folder name (e.g. `01105` from `01105-TestPlan`)
-- Report plan context to Jobs UI: `tendril job status TendrilJobId --message "Reading plan..." --plan-id <plan-id> --plan-title "<title>"`
+- Report plan context to Jobs UI: `tendril job status TendrilJobId --message="Reading plan..." --plan-id=<plan-id> --plan-title="<title>"`
 
 ### 1.5. Verify Dependencies
 
@@ -196,10 +196,8 @@ git worktree add "<TendrilPlanFolder>/Worktrees/<RepoName>" -b "tendril/<Tendril
 RepoConfigs: |
   - path: /home/user/repos/my-project
     baseBranch: main
-    prRule: yolo
   - path: /home/user/repos/shared-lib
     baseBranch: main
-    prRule: default
     readOnly: true
 ```
 If `baseBranch` is present for a repo, use it instead of auto-detecting. If absent, fall back to `git symbolic-ref refs/remotes/origin/HEAD`.
@@ -357,7 +355,7 @@ Get the run-set via `tendril plan verification list <plan-id> --json` — it emi
 
 For each `Pending` verification (in listed order):
 
-1. Send a status message: `tendril job status TendrilJobId --message "Verifying: <Name>"`
+1. Send a status message: `tendril job status TendrilJobId --message="Verifying: <Name>"`
 2. Fetch its full prompt: `tendril verification get <Name>`
 3. **Check if delegated:** The **Projects** section indicates which verifications are delegated — follow the prompt's instructions to invoke it as an external process. If the external process cannot be invoked (CLI broken, file lock, etc.), set the verification to `Fail` immediately. Do NOT attempt to do the verification inline or write the report yourself.
 4. Execute the prompt in the worktree directory
@@ -404,7 +402,7 @@ After all verifications pass, reflect on what you observed during this plan's ex
 For each item, register it via the CLI:
 
 ```bash
-tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact Medium --risk Small
+tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact=Medium --risk=Small
 ```
 
 `--impact` and `--risk` are optional (Small, Medium, or High). Impact indicates the value of implementing it; Risk indicates the potential for complications or bugs.
@@ -442,15 +440,9 @@ After all verifications pass:
 
 ### 8.5. Worktree Lifecycle
 
-Worktrees are **not** cleaned up by ExecutePlan. They remain on disk so that CreatePr can push branches and create PRs directly from the worktree.
+Do **not** clean up worktrees in ExecutePlan. Leave them on disk so that CreatePr can push branches and create PRs directly from the worktree.
 
-**Cleanup happens later, in two places:**
-1. **CreatePr Step 5** — cleans up worktrees after PRs are created and (for yolo-rule repos) merged.
-2. **WorktreeCleanupService** — safety net that runs every 30 minutes and removes worktrees for plans in terminal states (Completed, Failed, Skipped) after a 10-minute grace period.
-
-**Git branches are preserved** until CreatePr consumes them — only the worktree filesystem directories are removed.
-
-**Manual inspection:** If you need to inspect worktrees after failure, check the plan folder's `Worktrees/` directory before CreatePr runs. After PR creation, worktrees are cleaned up automatically. You can also temporarily pause WorktreeCleanupService if needed for extended debugging.
+Cleanup is handled elsewhere — by CreatePr after PRs are created/merged, and by the background `WorktreeCleanupService` (which retains a failed plan's worktree for later inspection, so failure is not a reason to remove it).
 
 ### 9. Plan State
 

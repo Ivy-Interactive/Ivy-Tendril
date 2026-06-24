@@ -26,7 +26,6 @@ public class JobService : IJobService
     private TimeSpan _staleOutputTimeout;
     private readonly SynchronizationContext? _syncContext;
     private readonly ITelemetryService? _telemetryService;
-    private readonly IWorktreeLifecycleLogger? _worktreeLifecycleLogger;
     private readonly ILogger<JobService> _logger;
     private readonly JobLauncher _jobLauncher;
     private readonly JobCompletionHandler _completionHandler;
@@ -39,7 +38,6 @@ public class JobService : IJobService
         ITelemetryService? telemetryService = null,
         IPlanWatcherService? planWatcherService = null,
         IPlanDatabaseService? database = null,
-        IWorktreeLifecycleLogger? worktreeLifecycleLogger = null,
         IAgentRunner? agentRunner = null)
     {
         _syncContext = SynchronizationContext.Current;
@@ -50,7 +48,6 @@ public class JobService : IJobService
         _telemetryService = telemetryService;
         _planWatcherService = planWatcherService;
         _database = database;
-        _worktreeLifecycleLogger = worktreeLifecycleLogger;
         _jobTimeout = TimeSpan.FromMinutes(configService.Settings.JobTimeout);
         _staleOutputTimeout = TimeSpan.FromMinutes(configService.Settings.StaleOutputTimeout);
         _maxConcurrentJobs = configService.Settings.MaxConcurrentJobs;
@@ -62,7 +59,7 @@ public class JobService : IJobService
         _jobLauncher = new JobLauncher(configService, agentRunner, _logger, promptsRoot);
         _completionHandler = new JobCompletionHandler(
             configService, _logger, modelPricingService, planReaderService,
-            telemetryService, planWatcherService, worktreeLifecycleLogger, promptsRoot);
+            telemetryService, planWatcherService, promptsRoot);
         configService.SettingsReloaded += OnSettingsReloaded;
         JobIdAllocator.SeedIfNeeded(configService.TendrilHome, promptsRoot);
         LoadHistoricalJobs();
@@ -96,7 +93,7 @@ public class JobService : IJobService
         _jobLauncher = new JobLauncher(null, agentRunner!, _logger, promptsRoot);
         _completionHandler = new JobCompletionHandler(
             null, _logger, null, planReaderService, telemetryService,
-            null, null, promptsRoot);
+            null, promptsRoot);
         LoadHistoricalJobs();
         _blockedJobCheckTimer = new Timer(OnBlockedJobCheckTimer, null, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60));
     }
@@ -182,11 +179,16 @@ public class JobService : IJobService
     public void StopJob(string id)
     {
         if (!_jobs.TryGetValue(id, out var job)) return;
+
+        // Set the cancellation flag before claiming completion so a racing CompleteJob
+        // (process exiting at the same instant) still sees it and reverts the plan
+        // instead of transitioning it to Review.
+        job.CancellationRequested = true;
+
         if (!job.TryClaimCompletion()) return;
 
         job.FlushParser();
         var wasRunning = job.Status == JobStatus.Running;
-        job.CancellationRequested = true;
         try
         {
             job.TimeoutCts?.Cancel();
@@ -219,7 +221,7 @@ public class JobService : IJobService
             _jobSlotSemaphore.Release();
 
         JobCompletionHandler.CleanupInboxFile(job);
-        _completionHandler.ResetPlanState(job);
+        _completionHandler.RevertPlanStateToPrevious(job);
 
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
             _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);
@@ -240,6 +242,8 @@ public class JobService : IJobService
             removed.DisposeResources(_logger);
             try { _database?.DeleteJob(id); } catch { /* Best-effort */ }
 
+            ApplyDeletePlanState(removed);
+
             if (removed.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
                 _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);
 
@@ -247,6 +251,38 @@ public class JobService : IJobService
         }
         RaiseJobsStructureChanged();
     }
+
+    /// <summary>
+    ///     Deleting a job reverts its plan to where it came from. For an ExecutePlan job
+    ///     (and only when the plan isn't already shipped) deleting discards the execution's
+    ///     work product entirely: the plan is reset to a clean Draft and worktrees/artifacts
+    ///     are removed.
+    /// </summary>
+    private void ApplyDeletePlanState(JobItem removed)
+    {
+        var planFolder = removed.TypedArgs?.PlanFolder;
+
+        if (removed.TypedArgs is ExecutePlanArgs && _planReaderService != null
+            && !string.IsNullOrEmpty(planFolder))
+        {
+            var current = _planReaderService.GetPlanByFolder(planFolder)?.Status;
+            var isTerminal = current is PlanStatus.Completed or PlanStatus.Skipped;
+            if (!isTerminal)
+            {
+                _planReaderService.ResetToDraft(Path.GetFileName(planFolder));
+                WorktreeCleanupService.CleanPlanState(planFolder, _logger);
+                return;
+            }
+        }
+
+        _completionHandler.RevertPlanStateToPrevious(removed);
+    }
+
+    /// <summary>
+    ///     Runs the blocked-job dependency re-check synchronously. Exposed for tests so they can
+    ///     drive the check deterministically instead of waiting for the 60s periodic timer.
+    /// </summary>
+    internal void RunBlockedJobCheck() => OnBlockedJobCheckTimer(null);
 
     private void OnBlockedJobCheckTimer(object? state)
     {
@@ -460,13 +496,10 @@ public class JobService : IJobService
         }
 
         var typedArgs = job.TypedArgs;
-        var planFolder = typedArgs.PlanFolder ?? "";
 
         if (!_jobs.TryRemove(id, out _)) return;
 
-        if (typedArgs is ExecutePlanArgs or RetryPlanArgs && !string.IsNullOrEmpty(planFolder))
-            PlanYamlHelper.SetPlanStateByFolder(planFolder, nameof(PlanStatus.Building));
-
+        // Plan transition is handled centrally by StartJobInternal.
         StartJobInternal(typedArgs, inboxFilePath: null, skipDependencyCheck: true, skipWaitForCheck: true);
         RaiseJobsStructureChanged();
     }
@@ -499,6 +532,11 @@ public class JobService : IJobService
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or ExpandPlanArgs or UpdatePlanArgs or SplitPlanArgs)
             _planReaderService?.FlushPendingWritesAsync().GetAwaiter().GetResult();
 
+        // Snapshot the plan's pre-job state and perform the start transition in one
+        // place (only once the job is actually starting, not while blocked) so
+        // Stop/Delete/Failed can revert the plan to where it came from.
+        CaptureAndTransitionPlanStateForStart(job);
+
         if (!_jobSlotSemaphore.Wait(0))
         {
             job.Status = JobStatus.Queued;
@@ -510,6 +548,43 @@ public class JobService : IJobService
 
         LaunchJob(job);
         return id;
+    }
+
+    /// <summary>
+    ///     Captures the plan's current ("came-from") state onto the job and transitions the
+    ///     plan into its in-progress state for the job type. Centralizing this here means
+    ///     Stop/Delete/Failed can revert the plan to <see cref="JobItem.PreviousPlanState"/>.
+    /// </summary>
+    private void CaptureAndTransitionPlanStateForStart(JobItem job)
+    {
+        var folder = job.TypedArgs?.PlanFolder;
+        if (string.IsNullOrEmpty(folder) || _planReaderService == null) return;
+
+        var target = job.TypedArgs switch
+        {
+            ExecutePlanArgs => PlanStatus.Creating,
+            ExpandPlanArgs => PlanStatus.Creating,
+            CreatePrArgs => PlanStatus.Creating,
+            CreateIssueArgs => PlanStatus.Creating,
+            RetryPlanArgs => PlanStatus.Executing,
+            UpdatePlanArgs => PlanStatus.Updating,
+            SplitPlanArgs => PlanStatus.Updating,
+            _ => (PlanStatus?)null
+        };
+        if (target == null) return;
+
+        // Skip transient/in-flight states so a re-start, force-start, or restart of a
+        // previously-blocked job doesn't snapshot Creating/Executing/Updating/Blocked
+        // (the revert fallback map covers those cases).
+        var current = _planReaderService.GetPlanByFolder(folder)?.Status;
+        if (current is not (PlanStatus.Creating or PlanStatus.Executing or PlanStatus.Updating or PlanStatus.Blocked))
+            job.PreviousPlanState = current;
+
+        var folderName = Path.GetFileName(folder);
+        if (job.TypedArgs is RetryPlanArgs)
+            _planReaderService.ResetVerificationsForRetry(folderName);
+
+        _planReaderService.TransitionState(folderName, target.Value);
     }
 
     private JobItem BuildJobItem(string id, JobArgsBase args, string? inboxFilePath)

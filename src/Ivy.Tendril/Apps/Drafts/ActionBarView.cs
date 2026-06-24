@@ -121,7 +121,7 @@ public class ActionBarView(
                 Metadata = selectedPlan.Metadata with { State = PlanStatus.Updating }
             };
             selectedPlanState.Set(optimisticPlan);
-            planService.TransitionState(selectedPlan.FolderName, PlanStatus.Updating);
+            // Plan state transition (and pre-state snapshot) handled by JobService.StartJob.
             jobService.StartJob(new SplitPlanArgs(selectedPlan.FolderPath));
             refreshPlans();
         }
@@ -131,10 +131,10 @@ public class ActionBarView(
             if (hasActiveExpandJob) return;
             var optimisticPlan = selectedPlan with
             {
-                Metadata = selectedPlan.Metadata with { State = PlanStatus.Building }
+                Metadata = selectedPlan.Metadata with { State = PlanStatus.Creating }
             };
             selectedPlanState.Set(optimisticPlan);
-            planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
+            // Plan state transition (and pre-state snapshot) handled by JobService.StartJob.
             jobService.StartJob(new ExpandPlanArgs(selectedPlan.FolderPath));
             refreshPlans();
         }

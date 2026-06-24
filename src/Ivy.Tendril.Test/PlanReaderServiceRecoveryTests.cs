@@ -1,4 +1,6 @@
 using System.Text.RegularExpressions;
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -40,6 +42,15 @@ public class PlanReaderServiceRecoveryTests : IDisposable
         return match.Success ? match.Groups[1].Value.Trim() : "";
     }
 
+    private string ReadRaw(string folderName) =>
+        File.ReadAllText(Path.Combine(_service.PlansDirectory, folderName, "plan.yaml"));
+
+    private int? ReadSchemaVersion(string folderName)
+    {
+        var match = Regex.Match(ReadRaw(folderName), @"(?m)^schemaVersion:\s*(\d+)\s*$");
+        return match.Success ? int.Parse(match.Groups[1].Value) : null;
+    }
+
     [Fact]
     public void Executing_Plans_Are_Recovered_To_Failed()
     {
@@ -53,7 +64,7 @@ public class PlanReaderServiceRecoveryTests : IDisposable
     [Fact]
     public void Building_Plans_Are_Recovered_To_Draft()
     {
-        CreatePlan("01100-BuildPlan", "Building");
+        CreatePlan("01100-BuildPlan", "Creating");
 
         _service.RecoverStuckPlans();
 
@@ -109,7 +120,7 @@ public class PlanReaderServiceRecoveryTests : IDisposable
     public void Multiple_Stuck_Plans_Are_All_Recovered()
     {
         CreatePlan("01200-Plan1", "Executing");
-        CreatePlan("01201-Plan2", "Building");
+        CreatePlan("01201-Plan2", "Creating");
         CreatePlan("01202-Plan3", "Updating");
         CreatePlan("01203-Plan4", "Draft");
         CreatePlan("01204-Plan5", "Failed");
@@ -121,5 +132,72 @@ public class PlanReaderServiceRecoveryTests : IDisposable
         Assert.Equal("Draft", ReadState("01202-Plan3"));
         Assert.Equal("Draft", ReadState("01203-Plan4"));
         Assert.Equal("Failed", ReadState("01204-Plan5"));
+    }
+
+    [Fact]
+    public void MigratePlans_RewritesLegacyStateNames()
+    {
+        CreatePlan("01300-Legacy1", "Building");
+        CreatePlan("01301-Legacy2", "ReadyForReview");
+
+        _service.MigratePlans();
+
+        Assert.Equal("Creating", ReadState("01300-Legacy1"));
+        Assert.Equal("Review", ReadState("01301-Legacy2"));
+    }
+
+    [Fact]
+    public void MigratePlans_LeavesCurrentStatesUntouched_AndIsIdempotent()
+    {
+        CreatePlan("01302-Current", "Draft");
+        CreatePlan("01303-Migrated", "Building");
+
+        _service.MigratePlans();
+        _service.MigratePlans(); // re-running is a no-op (gated by stamped schemaVersion)
+
+        Assert.Equal("Draft", ReadState("01302-Current"));
+        Assert.Equal("Creating", ReadState("01303-Migrated"));
+    }
+
+    [Fact]
+    public void MigratePlans_StampsCurrentSchemaVersion_OnLegacyPlan()
+    {
+        // CreatePlan writes well-formed YAML with no schemaVersion (version 0). The structural repair is
+        // a no-op here, but we must still stamp the version so later startups skip the plan (constraint #3).
+        CreatePlan("01400-Legacy", "Draft");
+        Assert.Null(ReadSchemaVersion("01400-Legacy"));
+
+        _service.MigratePlans();
+
+        Assert.Equal(PlanYaml.CurrentSchemaVersion, ReadSchemaVersion("01400-Legacy"));
+        // The stamped file must still deserialize cleanly.
+        var plan = YamlHelper.Deserializer.Deserialize<PlanYaml>(ReadRaw("01400-Legacy"));
+        Assert.Equal("Draft", plan.State);
+    }
+
+    [Fact]
+    public void MigratePlans_SkipsPlanAlreadyAtCurrentVersion()
+    {
+        CreatePlan("01401-Current", "Draft");
+        _service.MigratePlans(); // first pass stamps the version
+        var afterFirst = ReadRaw("01401-Current");
+        Assert.Equal(PlanYaml.CurrentSchemaVersion, ReadSchemaVersion("01401-Current"));
+
+        _service.MigratePlans(); // second pass must be a no-op (gated by schemaVersion)
+
+        Assert.Equal(afterFirst, ReadRaw("01401-Current"));
+    }
+
+    [Fact]
+    public void MigratePlans_LeavesTerminalPlanUntouched()
+    {
+        CreatePlan("01402-Done", "Completed");
+        var before = ReadRaw("01402-Done");
+
+        _service.MigratePlans();
+
+        // Terminal plans are skipped entirely, so they are never rewritten or stamped.
+        Assert.Equal(before, ReadRaw("01402-Done"));
+        Assert.Null(ReadSchemaVersion("01402-Done"));
     }
 }

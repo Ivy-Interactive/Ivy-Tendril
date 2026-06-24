@@ -75,8 +75,7 @@ internal static class ServiceRegistration
                 sp.GetRequiredService<ILogger<PlanReaderService>>(),
                 sp.GetRequiredService<ITelemetryService>(),
                 sp.GetRequiredService<IWorktreeLifecycleLogger>());
-            planService.MigratePlanSubfolderCasing();
-            planService.RepairPlans();
+            planService.MigratePlans();
             planService.RecoverStuckPlans();
             return planService;
         });
@@ -119,7 +118,6 @@ internal static class ServiceRegistration
                 sp.GetRequiredService<ITelemetryService>(),
                 sp.GetRequiredService<IPlanWatcherService>(),
                 string.IsNullOrEmpty(cfg.TendrilHome) ? null : sp.GetRequiredService<IPlanDatabaseService>(),
-                sp.GetRequiredService<IWorktreeLifecycleLogger>(),
                 sp.GetRequiredService<IAgentRunner>());
         });
         server.Services.AddSingleton<IJobService>(sp => sp.GetRequiredService<JobService>());

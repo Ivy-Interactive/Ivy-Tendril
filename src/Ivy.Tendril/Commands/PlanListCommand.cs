@@ -10,7 +10,7 @@ namespace Ivy.Tendril.Commands;
 public class PlanListSettings : CommandSettings
 {
     [CommandOption("--state")]
-    [Description("Filter by state (Draft, Building, Updating, Executing, ReadyForReview, Failed, Completed, Skipped, Blocked, Icebox)")]
+    [Description("Filter by state (Draft, Creating, Updating, Executing, Review, Failed, Completed, Skipped, Blocked, Icebox)")]
     public string? State { get; init; }
 
     [CommandOption("--project")]

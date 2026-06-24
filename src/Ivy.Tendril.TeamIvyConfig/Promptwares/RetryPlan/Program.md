@@ -30,7 +30,7 @@ Read the ChangeRequest carefully before starting implementation. The original pl
 - Read `plan.yaml` from the plan folder (project, repos, title)
 - Read the latest revision from `Revisions/` (highest numbered .md file)
 - Extract the plan ID from the folder name (e.g. `00012` from `00012-AddNewsletterSignupToHelpApp`)
-- Report plan context to Jobs UI: `tendril job status TendrilJobId --message "Retrying plan..." --plan-id <plan-id> --plan-title "<title>"`
+- Report plan context to Jobs UI: `tendril job status TendrilJobId --message="Retrying plan..." --plan-id=<plan-id> --plan-title="<title>"`
 
 ### 2. Enter Existing Worktrees
 
@@ -133,7 +133,7 @@ Get the run-set via `tendril plan verification list <plan-id> --json` — it emi
 
 For each `Pending` verification (in listed order):
 
-1. Send a status message: `tendril job status TendrilJobId --message "Verifying: <Name>"`
+1. Send a status message: `tendril job status TendrilJobId --message="Verifying: <Name>"`
 2. Fetch its full prompt: `tendril verification get <Name>`
 3. **Check if delegated:** Follow the prompt's instructions to invoke it as an external process if delegated.
 4. Execute the prompt in the worktree directory
@@ -178,7 +178,7 @@ After all verifications pass, write down anything you noticed that isn't part of
 For each item, register it via the CLI:
 
 ```bash
-tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact Medium --risk Small
+tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact=Medium --risk=Small
 ```
 
 **After registering recommendations**, create `<TendrilPlanFolder>/Artifacts/recommendations.md`:

@@ -28,11 +28,11 @@ The launcher sets the working directory to the project's primary repo.
 - Read `plan.yaml` from the plan folder (project, repos, title)
 - Read the latest revision from `Revisions/` (highest numbered .md file)
 - Extract the plan ID from the folder name (e.g. `01105` from `01105-TestPlan`)
-- Report plan context to Jobs UI: `tendril job status TendrilJobId --message "Reading plan..." --plan-id <plan-id> --plan-title "<title>"`
+- Report plan context to Jobs UI: `tendril job status TendrilJobId --message="Reading plan..." --plan-id=<plan-id> --plan-title="<title>"`
 
 ### 1.5. Verify Dependencies
 
-Report status: `tendril job status TendrilJobId --message "Checking dependencies..."`
+Report status: `tendril job status TendrilJobId --message="Checking dependencies..."`
 
 If `plan.yaml` has a `dependsOn` list, for each entry:
 
@@ -88,7 +88,7 @@ This prevents recursive worktree scenarios that would corrupt git state and caus
 
 ### 1.7. Validate Code State
 
-Report status: `tendril job status TendrilJobId --message "Validating code state..."`
+Report status: `tendril job status TendrilJobId --message="Validating code state..."`
 
 After reading the plan revision, scan it for code validation markers to detect stale plans (where the described code has already been changed by another plan).
 
@@ -144,7 +144,7 @@ After reading the plan revision, scan it for code validation markers to detect s
 
 ### 2. Create Worktrees
 
-Report status: `tendril job status TendrilJobId --message "Creating worktrees..."`
+Report status: `tendril job status TendrilJobId --message="Creating worktrees..."`
 
 For each repo in `RepoConfigs` (this includes both the plan's repos AND any read-only build dependencies from the project config):
 
@@ -190,10 +190,8 @@ git worktree add "<TendrilPlanFolder>/Worktrees/<RepoName>" -b "tendril/<Tendril
 RepoConfigs: |
   - path: /home/user/repos/my-project
     baseBranch: main
-    prRule: yolo
   - path: /home/user/repos/shared-lib
     baseBranch: main
-    prRule: default
     readOnly: true
 ```
 If `baseBranch` is present for a repo, use it instead of auto-detecting. If absent, fall back to `git symbolic-ref refs/remotes/origin/HEAD`.
@@ -217,7 +215,7 @@ This ensures ExecutePlan fails immediately if worktree creation is incomplete, r
 
 **Note:** This section applies only when the project has build-time dependencies (e.g. frontend packages, generated code, pre-built artifacts) that need special handling in worktrees. Skip if not applicable.
 
-If this step applies, report status: `tendril job status TendrilJobId --message "Setting up build dependencies..."`
+If this step applies, report status: `tendril job status TendrilJobId --message="Setting up build dependencies..."`
 
 Worktrees start with a clean checkout and may be missing build artifacts (e.g. `dist/`, `node_modules/`, generated files) that exist in the original repo. Determine whether the plan modifies these areas:
 
@@ -257,7 +255,7 @@ These paths point to the original repos, not the worktree copies. Since we only 
 
 ### 4. Implement
 
-Report status: `tendril job status TendrilJobId --message "Implementing: <plan title>"`
+Report status: `tendril job status TendrilJobId --message="Implementing: <plan title>"`
 
 Work exclusively in the worktree directories. Follow the plan's latest revision:
 
@@ -269,7 +267,7 @@ Work exclusively in the worktree directories. Follow the plan's latest revision:
 
 ### 5. Commit
 
-Report status: `tendril job status TendrilJobId --message "Committing changes..."`
+Report status: `tendril job status TendrilJobId --message="Committing changes..."`
 
 Make logically grouped commits in the worktree(s). Each commit should be a coherent unit of work.
 
@@ -306,7 +304,7 @@ If there are uncommitted changes, either commit them or discard them with a clea
 
 ### 5.5. Generate Summary
 
-Report status: `tendril job status TendrilJobId --message "Generating summary..."`
+Report status: `tendril job status TendrilJobId --message="Generating summary..."`
 
 After all implementation commits are made, create `<TendrilPlanFolder>/Artifacts/summary.md` summarizing what was done.
 
@@ -370,7 +368,7 @@ Get the run-set via `tendril plan verification list <plan-id> --json` — it emi
 
 For each `Pending` verification (in listed order):
 
-1. Send a status message: `tendril job status TendrilJobId --message "Verifying: <Name>"`
+1. Send a status message: `tendril job status TendrilJobId --message="Verifying: <Name>"`
 2. Fetch its full prompt: `tendril verification get <Name>`
 3. **Check if delegated:** The **Projects** section indicates which verifications are delegated — follow the prompt's instructions to invoke it as an external process. If the external process cannot be invoked (CLI broken, file lock, etc.), set the verification to `Fail` immediately. Do NOT attempt to do the verification inline or write the report yourself.
 4. Execute the prompt in the worktree directory
@@ -407,7 +405,7 @@ The `result` field in the frontmatter MUST be one of: `Pass`, `Fail`, or `Skippe
 
 ### 7.5. Generate Recommendations
 
-Report status: `tendril job status TendrilJobId --message "Generating recommendations..."`
+Report status: `tendril job status TendrilJobId --message="Generating recommendations..."`
 
 After all verifications pass, reflect on what you observed during this plan's execution. Write down anything you noticed that isn't part of this plan's scope:
 
@@ -419,7 +417,7 @@ After all verifications pass, reflect on what you observed during this plan's ex
 For each item, register it via the CLI:
 
 ```bash
-tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact Medium --risk Small
+tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact=Medium --risk=Small
 ```
 
 `--impact` and `--risk` are optional (Small, Medium, or High). Impact indicates the value of implementing it; Risk indicates the potential for complications or bugs.
@@ -443,7 +441,7 @@ Do NOT include items that are part of the current plan's scope. Do NOT include r
 
 ### 8. Final Clean Check
 
-Report status: `tendril job status TendrilJobId --message "Running final checks..."`
+Report status: `tendril job status TendrilJobId --message="Running final checks..."`
 
 After all verifications pass:
 
@@ -459,15 +457,9 @@ After all verifications pass:
 
 ### 8.5. Worktree Lifecycle
 
-Worktrees are **not** cleaned up by ExecutePlan. They remain on disk so that CreatePr can push branches and create PRs directly from the worktree.
+Do **not** clean up worktrees in ExecutePlan. Leave them on disk so that CreatePr can push branches and create PRs directly from the worktree.
 
-**Cleanup happens later, in two places:**
-1. **CreatePr Step 5** — cleans up worktrees after PRs are created and (for yolo-rule repos) merged.
-2. **WorktreeCleanupService** — safety net that runs every 30 minutes and removes worktrees for plans in terminal states (Completed, Failed, Skipped) after a 10-minute grace period.
-
-**Git branches are preserved** until CreatePr consumes them — only the worktree filesystem directories are removed.
-
-**Manual inspection:** If you need to inspect worktrees after failure, check the plan folder's `Worktrees/` directory before CreatePr runs. After PR creation, worktrees are cleaned up automatically. You can also temporarily pause WorktreeCleanupService if needed for extended debugging.
+Cleanup is handled elsewhere — by CreatePr after PRs are created/merged, and by the background `WorktreeCleanupService` (which retains a failed plan's worktree for later inspection, so failure is not a reason to remove it).
 
 ### 9. Plan State
 

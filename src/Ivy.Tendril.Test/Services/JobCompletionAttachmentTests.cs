@@ -39,7 +39,6 @@ public class JobCompletionAttachmentTests : IDisposable
             planReaderService: null,
             telemetryService: null,
             planWatcherService: null,
-            worktreeLifecycleLogger: null,
             promptsRoot: _promptsRoot
         );
     }
@@ -63,5 +62,12 @@ public class JobCompletionAttachmentTests : IDisposable
     {
         var view = new ContentInputView().SubmitLabel("Submit Label");
         Assert.Equal("Submit Label", view.SubmitLabel);
+    }
+
+    [Fact]
+    public void ContentInputView_MenuOptions_IsSetCorrectly()
+    {
+        var view = new ContentInputView().MenuOptions("Option 1", "Option 2");
+        Assert.Equal(["Option 1", "Option 2"], view.MenuOptions);
     }
 }

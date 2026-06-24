@@ -290,8 +290,9 @@ public class InboxWatcherServiceTests : IDisposable
         var jobService = new DeleteBeforeRenameJobService(filePath);
         using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
 
-        // Wait for async processing
-        Thread.Sleep(2000);
+        // The fake deletes the file during the watcher's tracked-check; once it's gone, processing
+        // has reached (and handled) the race. Poll for that instead of guessing a fixed delay.
+        RetryHelper.WaitUntil(() => !File.Exists(filePath), TimeSpan.FromSeconds(10));
 
         // No job should have been started, and no .processing file should exist
         Assert.Empty(jobService.StartedJobs);
@@ -318,15 +319,13 @@ public class InboxWatcherServiceTests : IDisposable
         var config = new ConfigService(new TendrilSettings(), _tempDir.Path);
         var jobService = new TimestampedJobService();
 
-        // Manually call ProcessExistingFiles (without creating watcher to avoid auto-processing)
-        var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
+        // The constructor runs ProcessExistingFiles, which launches the 5 files with a 2s
+        // Thread.Sleep between each — so construction alone blocks ~8s.
+        var constructionStart = DateTime.UtcNow;
+        using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
 
         // Wait for all jobs to be started
-        var startTime = DateTime.UtcNow;
-        while (jobService.StartedJobs.Count < 5 && (DateTime.UtcNow - startTime).TotalSeconds < 15)
-        {
-            Thread.Sleep(100);
-        }
+        RetryHelper.WaitUntil(() => jobService.StartedJobs.Count >= 5, TimeSpan.FromSeconds(30));
 
         // Verify we got all 5 jobs
         Assert.Equal(5, jobService.StartedJobs.Count);
@@ -338,13 +337,14 @@ public class InboxWatcherServiceTests : IDisposable
             Assert.Contains(jobService.StartedJobs, job => job.InboxFilePath == processingPath);
         }
 
-        // Verify time between StartJob calls is approximately 2 seconds
-        for (int i = 1; i < jobService.StartJobTimestamps.Count; i++)
-        {
-            var delay = (jobService.StartJobTimestamps[i] - jobService.StartJobTimestamps[i - 1]).TotalMilliseconds;
-            // Allow some tolerance (1800ms to 2200ms) for system scheduling
-            Assert.InRange(delay, 1800, 2500);
-        }
+        // Verify the startup is staggered rather than a thundering herd. Per-gap timing is not a
+        // reliable signal: each StartJob is recorded after a fire-and-forget Task.Delay(500) whose
+        // continuation can be scheduled with arbitrary jitter under a loaded thread pool. What IS
+        // deterministic is the cumulative floor — the 4 × Thread.Sleep(2000) between launches is a
+        // wall-clock minimum (load can only lengthen it), so the 5 jobs must span at least ~8s.
+        var span = (jobService.StartJobTimestamps.Last() - constructionStart).TotalMilliseconds;
+        Assert.True(span >= 7000,
+            $"Expected staggered startup to span >= ~8s, but the 5 jobs started within {span}ms");
     }
 
     private class DeleteBeforeRenameJobService : IJobService

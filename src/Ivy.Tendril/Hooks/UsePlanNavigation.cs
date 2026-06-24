@@ -29,7 +29,7 @@ public static class UsePlanNavigationExtensions
 
             if (plan.Status is PlanStatus.Draft or PlanStatus.Blocked)
                 nav.Navigate<DraftsApp>(new DraftsAppArgs(plan.FolderName));
-            else if (plan.Status is PlanStatus.ReadyForReview or PlanStatus.Failed)
+            else if (plan.Status is PlanStatus.Review or PlanStatus.Failed)
                 nav.Navigate<ReviewApp>(new ReviewAppArgs(plan.FolderName));
             else
                 showPlanSheet(planFolder);

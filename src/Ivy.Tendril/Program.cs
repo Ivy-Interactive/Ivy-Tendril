@@ -32,6 +32,9 @@ public class Program
     [DllImport("shell32.dll", SetLastError = true)]
     private static extern void SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string appId);
 
+    [DllImport("libc", SetLastError = true)]
+    private static extern int setsid();
+
     // Must be a static field to prevent GC from collecting the delegate
     private static ConsoleCtrlHandlerDelegate? _consoleCtrlHandler;
 
@@ -41,6 +44,17 @@ public class Program
     [STAThread]
     public static async Task<int> Main(string[] args)
     {
+        if (args.Contains(DetachedLaunchMarker))
+        {
+            try
+            {
+                if (!OperatingSystem.IsWindows())
+                {
+                    setsid();
+                }
+            }
+            catch { }
+        }
         PathHelper.AugmentPath(forceShellPath: false);
         PathHelper.EnsureCliSymlink();
 
@@ -72,8 +86,7 @@ public class Program
             }
         }
 
-        if (useDesktop && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("IVY_TLS")))
-            Environment.SetEnvironmentVariable("IVY_TLS", "0");
+
 
         bool isDetachedChild = args.Contains(DetachedLaunchMarker);
 
@@ -375,18 +388,38 @@ public class Program
             DetachedLaunchMarker
         };
 
-        var startInfo = new ProcessStartInfo(processPath)
-        {
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
-
-        foreach (var arg in childArgs)
-            startInfo.ArgumentList.Add(arg);
-
         try
         {
-            Process.Start(startInfo);
+            if (OperatingSystem.IsWindows())
+            {
+                var startInfo = new ProcessStartInfo(processPath)
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                foreach (var arg in childArgs)
+                    startInfo.ArgumentList.Add(arg);
+                Process.Start(startInfo);
+            }
+            else
+            {
+                // On macOS/Linux, run via shell with nohup and redirect streams to /dev/null
+                // to completely detach the shim wrapper and grandchild processes from the TTY.
+                var escapedPath = processPath.Replace("\"", "\\\"");
+                var escapedArgs = string.Join(" ", childArgs.Select(a => $"\"{a.Replace("\"", "\\\"")}\""));
+                var shellCmd = $"nohup \"{escapedPath}\" {escapedArgs} >/dev/null 2>&1 &";
+
+                var startInfo = new ProcessStartInfo("/bin/sh")
+                {
+                    ArgumentList = { "-c", shellCmd },
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardInput = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+                Process.Start(startInfo);
+            }
             return 0;
         }
         catch (Exception ex)

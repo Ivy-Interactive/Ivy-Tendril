@@ -78,7 +78,7 @@ public record CreatePrArgs(
     bool Merge = true,
     bool DeleteBranch = true,
     bool IncludeArtifacts = true,
-    string? Assignee = null,
+    string? Reviewer = null,
     string? Comment = null,
     bool Draft = false) : JobArgsBase
 {

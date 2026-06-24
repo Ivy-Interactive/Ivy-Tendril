@@ -18,7 +18,7 @@ Project configuration is available from the firmware header.
 - Read `plan.yaml` from the plan folder
 - Read the latest revision from `Revisions/` (highest numbered .md file)
 - Identify sections with investigative/exploratory language ("Investigate...", "Check if...", "Research...", "Explore...")
-- Report plan context to Jobs UI: `tendril job status TendrilJobId --message "Expanding plan..." --plan-id <plan-id> --plan-title "<title>"`
+- Report plan context to Jobs UI: `tendril job status TendrilJobId --message="Expanding plan..." --plan-id=<plan-id> --plan-title="<title>"`
 
 ### 2. Research and Resolve
 

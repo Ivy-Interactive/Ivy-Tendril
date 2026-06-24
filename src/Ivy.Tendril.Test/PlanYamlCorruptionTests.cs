@@ -1,5 +1,6 @@
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Test.Helpers;
 
 namespace Ivy.Tendril.Test;
 
@@ -60,7 +61,7 @@ public class PlanYamlCorruptionTests : IClassFixture<ConfigServiceFixture>
         var planFolder = CreateTestPlan(initialPrompt: largePrompt);
 
         // Act: Change state multiple times
-        PlanYamlHelper.SetPlanStateByFolder(planFolder, "Building");
+        PlanYamlHelper.SetPlanStateByFolder(planFolder, "Creating");
         PlanYamlHelper.SetPlanStateByFolder(planFolder, "Draft");
 
         // Assert: plan.yaml is valid and intact
@@ -88,8 +89,12 @@ public class PlanYamlCorruptionTests : IClassFixture<ConfigServiceFixture>
 
         // Act: Change state
         var beforeModTime = File.GetLastWriteTimeUtc(planYamlPath);
-        Thread.Sleep(10); // Ensure timestamp difference
-        PlanYamlHelper.SetPlanStateByFolder(planFolder, "Building");
+        // Wait until the wall clock has advanced past the current mtime by more than the Windows
+        // filesystem timestamp resolution (~15ms), so the next write is guaranteed a strictly newer
+        // mtime. A fixed 10ms sleep was below that resolution and could leave mtimes equal.
+        RetryHelper.WaitUntil(() => DateTime.UtcNow > beforeModTime.AddMilliseconds(20),
+            TimeSpan.FromSeconds(2));
+        PlanYamlHelper.SetPlanStateByFolder(planFolder, "Creating");
 
         // Assert: File was modified
         var afterModTime = File.GetLastWriteTimeUtc(planYamlPath);
@@ -101,9 +106,44 @@ public class PlanYamlCorruptionTests : IClassFixture<ConfigServiceFixture>
 
         // Verify content is valid
         var plan = PlanCommandHelpers.ReadPlan(planFolder);
-        Assert.Equal("Building", plan.State);
+        Assert.Equal("Creating", plan.State);
 
         // Cleanup
+        Directory.Delete(planFolder, true);
+    }
+
+    [Fact]
+    public void RepairPlanYaml_PreservesSchemaVersion()
+    {
+        // schemaVersion must survive the repair pass, otherwise the stamp gets stripped by the
+        // structure normalizer and the plan is re-repaired on every startup (constraint #2).
+        var malformed =
+            "schemaVersion: 1\n" +
+            "state: Draft\n" +
+            "repos:\n" +
+            "  - name: my-repo\n" +
+            "    path: C:\\repos\\my-repo\n" +
+            "    branch: main\n";
+
+        var repaired = Ivy.Tendril.Services.Plans.PlanYamlRepairService.RepairPlanYaml(malformed);
+
+        Assert.Matches(@"(?m)^schemaVersion:\s*1\s*$", repaired);
+        var plan = YamlHelper.Deserializer.Deserialize<PlanYaml>(repaired);
+        Assert.Equal(1, plan.SchemaVersion);
+        Assert.Equal("Draft", plan.State);
+    }
+
+    [Fact]
+    public void WritePlan_StampsCurrentSchemaVersion()
+    {
+        var planFolder = CreateTestPlan();
+
+        var raw = File.ReadAllText(Path.Combine(planFolder, "plan.yaml"));
+        Assert.Matches($@"(?m)^schemaVersion:\s*{PlanYaml.CurrentSchemaVersion}\s*$", raw);
+
+        var plan = PlanCommandHelpers.ReadPlan(planFolder);
+        Assert.Equal(PlanYaml.CurrentSchemaVersion, plan.SchemaVersion);
+
         Directory.Delete(planFolder, true);
     }
 
@@ -117,7 +157,7 @@ public class PlanYamlCorruptionTests : IClassFixture<ConfigServiceFixture>
 
         // Act: Wait briefly then change state
         Thread.Sleep(100);
-        PlanYamlHelper.SetPlanStateByFolder(planFolder, "Building");
+        PlanYamlHelper.SetPlanStateByFolder(planFolder, "Creating");
 
         // Assert: Updated timestamp changed
         var updatedPlan = PlanCommandHelpers.ReadPlan(planFolder);

@@ -50,6 +50,7 @@ public class JobDebugSheet(
         };
 
         var detailsView = data.ToDetails()
+            .RemoveEmpty()
             .Multiline(x => x.PromptTitle)
             .Multiline(x => x.PermissionDenials)
             .Multiline(x => x.Status)
@@ -71,7 +72,7 @@ public class JobDebugSheet(
             .Label(x => x.CliCommand, "Arguments")
             .Label(x => x.JobId, "Job Id")
             .Builder(x => x.PermissionDenials, f => f.Func((string denials) =>
-                new CodeBlock(denials)))
+                string.IsNullOrEmpty(denials) ? null : new CodeBlock(denials)))
             .Builder(x => x.PlanFolder, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .Builder(x => x.PlanLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .Builder(x => x.PromptwareLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
@@ -120,15 +121,16 @@ public class JobDebugSheet(
             })
             | new Button("Report Bug").Icon(Icons.Bug).OnClick(() => showReportDialog.Set(true));
 
-        return Layout.Vertical()
-            | new HeaderLayout(header, detailsView)
-            | (showReportDialog.Value ? new ReportBugDialog(showReportDialog, jobId) : null);
+        return new Fragment(
+            new HeaderLayout(header, detailsView).Size(Size.Full()),
+            showReportDialog.Value ? new ReportBugDialog(showReportDialog, jobId) : null
+        );
     }
 
     private object PathDropDown(string path, Action<string> copyToClipboard, IClientProvider client)
     {
-        return Layout.Horizontal().Gap(2).AlignContent(Align.Center)
-            | Text.Block(path)
+        return Layout.Horizontal().Gap(2).Width(Size.Full()).AlignContent(Align.SpaceBetween)
+            | Text.Block(path).Width(Size.Grow())
             | new Button().Icon(Icons.EllipsisVertical).Ghost().Small()
                 .WithDropDown(
                     new MenuItem("Copy to Clipboard", Icon: Icons.ClipboardCopy, Tag: "Copy")

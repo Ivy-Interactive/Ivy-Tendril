@@ -51,6 +51,16 @@ public record JobItem
     public int? DurationSeconds { get; set; }
     public JobArgsBase? TypedArgs { get; init; }
     public bool CancellationRequested { get; set; }
+
+    /// <summary>
+    /// Plan state captured at job start, before the start transition. On Stop/Delete/
+    /// Failed the plan is reverted to this "came-from" state. In-memory only (not
+    /// persisted); after an app restart the fallback mapping in
+    /// <see cref="Services.Jobs.JobCompletionHandler"/> is used instead.
+    /// </summary>
+    [JsonIgnore]
+    public PlanStatus? PreviousPlanState { get; set; }
+
     public string? SessionId { get; set; }
     public string Provider { get; init; } = "claude";
     public string? Model { get; set; }

@@ -8,7 +8,9 @@
     "build": "tsc && vp build",
     "preview": "vp preview"
   },
-  "dependencies": {},
+  "dependencies": {
+    "pdfjs-dist": "6.0.227"
+  },
   "devDependencies": {
     "@types/node": "25.9.1",
     "@types/react": "19.2.8",
@@ -25,6 +27,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
+  "packageManager": "pnpm@10.33.0",
   "pnpm": {
     "overrides": {
       "jiti": "2.7.0",
@@ -33,6 +36,5 @@
       "vite": "npm:@voidzero-dev/vite-plus-core@0.1.24",
       "vitest": "npm:@voidzero-dev/vite-plus-test@0.1.24"
     }
-  },
-  "packageManager": "pnpm@10.33.0"
+  }
 }

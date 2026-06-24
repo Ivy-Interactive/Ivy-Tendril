@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using Ivy.Tendril.Database;
 
 namespace Ivy.Tendril.Commands.DoctorChecks;
@@ -31,11 +30,7 @@ internal class DatabaseCheck : IDoctorCheck
 
         try
         {
-            using var connection = new SqliteConnection($"Data Source={dbPath}");
-            connection.Open();
-            using var pragmaCmd = connection.CreateCommand();
-            pragmaCmd.CommandText = "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;";
-            pragmaCmd.ExecuteNonQuery();
+            using var connection = SqliteConnectionFactory.OpenConfigured(dbPath);
 
             using var integrityCmd = connection.CreateCommand();
             integrityCmd.CommandText = "PRAGMA integrity_check";

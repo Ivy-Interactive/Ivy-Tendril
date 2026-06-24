@@ -29,10 +29,10 @@ Plans move through these states:
 | State | Meaning |
 |-------|---------|
 | `Draft` | Ready for review or action by the user |
-| `Building` | CreatePlan or ExpandPlan agent working |
+| `Creating` | CreatePlan or ExpandPlan agent working |
 | `Updating` | UpdatePlan or SplitPlan agent refining |
 | `Executing` | ExecutePlan agent implementing in a worktree |
-| `ReadyForReview` | Execution complete, awaiting human review |
+| `Review` | Execution complete, awaiting human review |
 | `Failed` | Agent errored or verifications consistently failed |
 | `Completed` | PR created and merged |
 | `Skipped` | Dismissed or split into child plans |
@@ -43,10 +43,10 @@ Plans move through these states:
 
 ```
 CreatePlan ──► Draft
-               ├─ ExpandPlan ──► Building ──► Draft
+               ├─ ExpandPlan ──► Creating ──► Draft
                ├─ UpdatePlan ──► Updating ──► Draft
                ├─ SplitPlan  ──► Updating ──► Skipped (original) + new Drafts
-               ├─ ExecutePlan ──► Executing ──► ReadyForReview or Failed
+               ├─ ExecutePlan ──► Executing ──► Review or Failed
                ├─ CreatePr (from Review) ──► Completed
                ├─ (manual) ──► Skipped / Icebox
                └─ (dependencies unmet) ──► Blocked ──► Draft (when unblocked)
@@ -54,7 +54,7 @@ CreatePlan ──► Draft
 
 **Key rules:**
 - `dependsOn` blocks execution until all dependencies are Completed AND their PRs merged
-- Verifications (Build, Test, Format, CheckResult) gate progress from Executing to ReadyForReview
+- Verifications (Build, Test, Format, CheckResult) gate progress from Executing to Review
 - Plans execute in isolated git worktrees, never in the original repos
 
 ## Promptwares
@@ -189,8 +189,8 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 Examples:
 ```bash
 tendril job start ExecutePlan 00042
-tendril job start RetryPlan 00042 --change-request "Fix the failing tests"
-tendril job start CreatePlan --description "Add dark mode" --project MyProject
+tendril job start RetryPlan 00042 --change-request="Fix the failing tests"
+tendril job start CreatePlan --description="Add dark mode" --project=MyProject
 ```
 
 ### Promptware Commands
@@ -228,7 +228,7 @@ When the user asks you to create a plan:
 2. **Confirm scope when it's open-ended.** Briefly share what you found and what you propose, so the user can steer before you commit it to a plan.
 3. **Create the plan by starting a CreatePlan job** — do **not** run `tendril plan create` / `write-revision` yourself. Once the scope is concrete, start the job:
    ```bash
-   tendril job start CreatePlan --description "<concrete, refined description>" --project "<project>"
+   tendril job start CreatePlan --description="<concrete, refined description>" --project="<project>"
    ```
    The CreatePlan promptware then researches, detects duplicates, and writes the full plan. Pass the specific description you developed (the concrete tools/steps you proposed), **not** the user's original vague request. Add `--priority <n>` or `--force` if appropriate. Report the job back to the user.
 
@@ -237,5 +237,5 @@ When the user asks you to create a plan:
 - **Never read or write `plan.yaml` directly** -- always use `tendril plan` CLI commands.
 - **`tendril job start` and `tendril job status` require the Tendril server to be running.** They communicate via HTTP to the master instance (discovered via `TENDRIL_HOME/.master`).
 - Verification statuses: `Pending`, `Pass`, `Fail`, `Skipped`.
-- Plan states: `Draft`, `Building`, `Updating`, `Executing`, `ReadyForReview`, `Failed`, `Completed`, `Skipped`, `Blocked`, `Icebox`.
-- To create a new plan, start a CreatePlan job: `tendril job start CreatePlan --description "<description>" --project "<project>"` (see "Creating Plans Interactively"). Use the lower-level `tendril plan create` / `write-revision` commands only to edit an existing plan's content, never to create a new plan from a chat request.
+- Plan states: `Draft`, `Creating`, `Updating`, `Executing`, `Review`, `Failed`, `Completed`, `Skipped`, `Blocked`, `Icebox`.
+- To create a new plan, start a CreatePlan job: `tendril job start CreatePlan --description="<description>" --project="<project>"` (see "Creating Plans Interactively"). Use the lower-level `tendril plan create` / `write-revision` commands only to edit an existing plan's content, never to create a new plan from a chat request.

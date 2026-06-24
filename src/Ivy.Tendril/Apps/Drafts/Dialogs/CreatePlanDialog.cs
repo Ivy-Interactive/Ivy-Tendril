@@ -143,28 +143,60 @@ public class CreatePlanDialog(
                             onClose();
                         }
                         return ValueTask.CompletedTask;
+                    },
+                    OnMenuAction = e =>
+                    {
+                        if (e.Value == "Continue with Agent")
+                        {
+                            if (string.IsNullOrWhiteSpace(createPlanText.Value)) return ValueTask.CompletedTask;
+                            var projects = selectedProjects.Value.Any()
+                                ? selectedProjects.Value
+                                : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
+                            planWasCreated = true;
+                            var prompt = BuildAgentPrompt(projects, createPlanText.Value);
+                            nav.Navigate<AgentApp>(new AgentAppArgs(prompt));
+                            onClose();
+                        }
+                        return ValueTask.CompletedTask;
+                    },
+                    OnRemoveAttachment = e =>
+                    {
+                        var filePath = e.Value;
+                        try
+                        {
+                            if (File.Exists(filePath))
+                            {
+                                File.Delete(filePath);
+                            }
+                        }
+                        catch
+                        {
+                            // ignore
+                        }
+                        var newList = new List<string>(uploadedFiles.Value);
+                        newList.Remove(filePath);
+                        uploadedFiles.Set(newList);
+
+                        var fileRef = $" [file: {filePath}]";
+                        var currentText = createPlanText.Value;
+                        if (currentText.Contains(fileRef))
+                        {
+                            createPlanText.Set(currentText.Replace(fileRef, ""));
+                        }
+                        else if (currentText.Contains(fileRef.Trim()))
+                        {
+                            createPlanText.Set(currentText.Replace(fileRef.Trim(), ""));
+                        }
+                        return ValueTask.CompletedTask;
                     }
                 }
                     .Bind(createPlanText)
                     .SubmitLabel("Create")
+                    .MenuOptions("Continue with Agent")
                     .Placeholder("Enter task description...")
                     .WithField()
                     .Label("Describe the task for the new plan")
                     .Required()
-            ),
-            new DialogFooter(
-                new Button("Cancel").Outline().OnClick(HandleClose),
-                new Button("Continue with Agent").Outline().Icon(Icons.MessageCircle).Disabled(string.IsNullOrWhiteSpace(createPlanText.Value)).OnClick(() =>
-                {
-                    if (string.IsNullOrWhiteSpace(createPlanText.Value)) return;
-                    var projects = selectedProjects.Value.Any()
-                        ? selectedProjects.Value
-                        : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
-                    planWasCreated = true;
-                    var prompt = BuildAgentPrompt(projects, createPlanText.Value);
-                    nav.Navigate<AgentApp>(new AgentAppArgs(prompt));
-                    onClose();
-                })
             )
         ).Width(Size.Rem(30));
     }

@@ -79,13 +79,13 @@ public class ContentView(
         var (suggestChangesDialog, showSuggestChangesDialog) = UseTrigger((isOpen) =>
         {
             if (!isOpen.Value) return null;
-            return new SuggestChangesDialog(isOpen, selectedPlanState.Value!, jobService, planService, refreshPlans);
+            return new SuggestChangesDialog(isOpen, selectedPlanState.Value!, jobService, refreshPlans);
         });
 
         var (customPrDialog, showCustomPrDialog) = UseTrigger((isOpen) =>
         {
             if (!isOpen.Value) return null;
-            return new CustomPrDialog(isOpen, selectedPlanState.Value!, jobService, planService, refreshPlans,
+            return new CustomPrDialog(isOpen, selectedPlanState.Value!, jobService, refreshPlans,
                 assigneesQuery, assigneesError);
         });
 
@@ -253,7 +253,7 @@ public class ContentView(
     {
         var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full())
             | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
-                .BorderThickness(0).Padding(0).Width(Size.Grow());
+                .BorderThickness(0).Padding(0).Width(Size.Fit());
 
         if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
             desktopTitleLayout |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
@@ -288,8 +288,15 @@ public class ContentView(
             {
                 if (allYolo)
                 {
-                    jobService.StartJob(new CreatePrArgs(selectedPlan.FolderPath, SolveMergeConflicts: true));
-                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
+                    // "yolo" is purely a UI setting: skip the dialog and create the PR with the
+                    // merge-and-clean-up defaults. The promptware acts only on these explicit flags.
+                    jobService.StartJob(new CreatePrArgs(
+                        selectedPlan.FolderPath,
+                        SolveMergeConflicts: true,
+                        Merge: true,
+                        DeleteBranch: true,
+                        IncludeArtifacts: true));
+                    // Plan transition (and pre-state snapshot) handled by JobService.StartJob.
                     refreshPlans();
                 }
                 else
@@ -311,7 +318,7 @@ public class ContentView(
                 refreshPlans();
 
                 // Fire and forget - clean up worktrees in the background
-                Task.Run(() => WorktreeCleanupService.RemoveWorktrees(selectedPlan.FolderPath));
+                WorktreeCleanupService.RemoveWorktreesInBackground(selectedPlan.FolderPath);
             }).ShortcutKey("m");
         }
 
@@ -419,7 +426,7 @@ public class ContentView(
                     .OnClick(showResetToDraftDialog).CompactUp()
                 | new Button("Request Changes").Icon(Icons.MessageSquare).Outline().ShortcutKey("c")
                     .OnClick(showSuggestChangesDialog).CompactUp()
-                | new Button("Discard").Icon(Icons.Trash).Outline()
+                | new Button("Discard").Icon(Icons.Trash).Outline().ShortcutKey("Backspace")
                     .OnClick(showDiscardDialog).FullOnly()
                 | ActionBarResponsive.DropdownAtFull(
                     new Button().Icon(Icons.EllipsisVertical).Ghost(),

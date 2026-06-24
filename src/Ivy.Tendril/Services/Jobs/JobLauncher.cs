@@ -21,7 +21,6 @@ internal record JobLaunchContext(
 internal record RepoConfigEntry(
     string Path,
     string BaseBranch,
-    string PrRule,
     bool ReadOnly);
 
 internal class JobLauncher
@@ -436,8 +435,8 @@ internal class JobLauncher
         values["PrDeleteBranch"] = pr.DeleteBranch.ToString().ToLowerInvariant();
         values["PrIncludeArtifacts"] = pr.IncludeArtifacts.ToString().ToLowerInvariant();
         values["PrDraft"] = pr.Draft.ToString().ToLowerInvariant();
-        if (!string.IsNullOrEmpty(pr.Assignee))
-            values["PrAssignee"] = pr.Assignee;
+        if (!string.IsNullOrEmpty(pr.Reviewer))
+            values["PrReviewer"] = pr.Reviewer;
         if (!string.IsNullOrEmpty(pr.Comment))
             values["PrComment"] = pr.Comment;
     }
@@ -601,8 +600,7 @@ internal class JobLauncher
             var repoRef = FindProjectRepoConfig(projectConfig, Path.GetFileName(expanded));
             var entry = new RepoConfigEntry(
                 expanded,
-                repoRef?.BaseBranch ?? "main",
-                repoRef?.PrRule ?? "default",
+                repoRef?.BaseBranch ?? GitHelper.ResolveDefaultBranch(expanded, _configService?.TendrilHome),
                 ReadOnly: false);
             AddRepoToConfigLines(lines, entry);
         }
@@ -622,8 +620,9 @@ internal class JobLauncher
 
             var entry = new RepoConfigEntry(
                 expanded,
-                FindBaseBranchAcrossProjects(repoName),
-                "default",
+                // Pass the raw config path: ResolveDefaultBranch owns expansion, so pre-expanding here
+                // would just run env-var expansion twice on the same value.
+                FindBaseBranchAcrossProjects(repoName, depPath),
                 ReadOnly: true);
             AddRepoToConfigLines(lines, entry);
         }
@@ -633,7 +632,6 @@ internal class JobLauncher
     {
         lines.Add($"- path: {entry.Path}");
         lines.Add($"  baseBranch: {entry.BaseBranch}");
-        lines.Add($"  prRule: {entry.PrRule}");
         if (entry.ReadOnly)
             lines.Add("  readOnly: true");
     }
@@ -645,9 +643,11 @@ internal class JobLauncher
                 .Equals(repoName, StringComparison.OrdinalIgnoreCase));
     }
 
-    private string FindBaseBranchAcrossProjects(string repoName)
+    // repoConfigPath is the raw (unexpanded) config path; ResolveDefaultBranch expands it.
+    private string FindBaseBranchAcrossProjects(string repoName, string repoConfigPath)
     {
-        if (_configService == null) return "main";
+        if (_configService == null)
+            return GitHelper.ResolveDefaultBranch(repoConfigPath);
 
         foreach (var proj in _configService.Projects)
         {
@@ -658,7 +658,7 @@ internal class JobLauncher
                 return configured;
         }
 
-        return "main";
+        return GitHelper.ResolveDefaultBranch(repoConfigPath, _configService.TendrilHome);
     }
 
     private ProjectInfo[]? BuildProjectInfos(JobItem job)

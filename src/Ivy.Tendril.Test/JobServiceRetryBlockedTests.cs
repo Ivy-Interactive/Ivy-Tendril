@@ -1,5 +1,6 @@
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Test.Helpers;
 
 namespace Ivy.Tendril.Test;
 
@@ -478,8 +479,10 @@ public class JobServiceRetryBlockedTests : IDisposable
         depYaml = depYaml.Replace("state: Executing", "state: Completed");
         File.WriteAllText(depPlanPath, depYaml);
 
-        // Wait for the periodic check to run (60 second interval, but we'll wait up to 70 seconds)
-        await Task.Delay(TimeSpan.FromSeconds(70));
+        // Drive the periodic dependency re-check directly instead of waiting for the 60s timer
+        // (deterministic and instant — the timer body is identical to RunBlockedJobCheck).
+        service.RunBlockedJobCheck();
+        RetryHelper.WaitUntil(() => service.GetJob(blockedId) == null, TimeSpan.FromSeconds(10));
 
         // The blocked job should have been removed and restarted
         Assert.Null(service.GetJob(blockedId));
@@ -514,11 +517,11 @@ public class JobServiceRetryBlockedTests : IDisposable
         public event Action? CountsInvalidated;
 #pragma warning restore CS0067
 
-        public void RecoverStuckPlans()
+        public void MigratePlans()
         {
         }
 
-        public void RepairPlans()
+        public void RecoverStuckPlans()
         {
         }
 

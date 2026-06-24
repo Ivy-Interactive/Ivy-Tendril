@@ -6,7 +6,7 @@ namespace Ivy.Tendril.Controllers;
 
 [ApiController]
 [Route("api/jobs")]
-public class JobController(IJobService jobService, IPlanReaderService planReaderService) : ControllerBase
+public class JobController(IJobService jobService) : ControllerBase
 {
     private static string NormalizeJobId(string jobId) =>
         int.TryParse(jobId, out var num) ? num.ToString("D5") : jobId;
@@ -16,7 +16,8 @@ public class JobController(IJobService jobService, IPlanReaderService planReader
     {
         try
         {
-            TransitionPlanState(args);
+            // Plan state transition (and pre-state snapshot) is handled centrally
+            // by JobService.StartJob.
             var jobId = jobService.StartJob(args);
             return Ok(new { jobId, status = "Started" });
         }
@@ -47,32 +48,6 @@ public class JobController(IJobService jobService, IPlanReaderService planReader
 
     [HttpGet("health")]
     public IActionResult Health() => Ok(new { status = "ok", pid = Environment.ProcessId });
-
-    private void TransitionPlanState(JobArgsBase args)
-    {
-        if (args.PlanFolder == null) return;
-
-        var folderName = Path.GetFileName(args.PlanFolder);
-
-        var targetState = args switch
-        {
-            ExecutePlanArgs => PlanStatus.Building,
-            ExpandPlanArgs => PlanStatus.Building,
-            CreatePrArgs => PlanStatus.Building,
-            CreateIssueArgs => PlanStatus.Building,
-            RetryPlanArgs => PlanStatus.Executing,
-            UpdatePlanArgs => PlanStatus.Updating,
-            SplitPlanArgs => PlanStatus.Updating,
-            _ => (PlanStatus?)null
-        };
-
-        if (targetState == null) return;
-
-        if (args is RetryPlanArgs)
-            planReaderService.ResetVerificationsForRetry(folderName);
-
-        planReaderService.TransitionState(folderName, targetState.Value);
-    }
 }
 
 public record UpdateJobStatusRequest(string Message, string? PlanId = null, string? PlanTitle = null);

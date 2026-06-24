@@ -106,7 +106,7 @@ internal class DependencyChecker
             if (HasActiveJobForPlan(planFolder, jobs)) continue;
             if (!jobs.TryRemove(blockedJob.Id, out _)) continue;
 
-            PlanYamlHelper.SetPlanStateByFolder(planFolder, nameof(PlanStatus.Building));
+            PlanYamlHelper.SetPlanStateByFolder(planFolder, nameof(PlanStatus.Creating));
             startJobSkipDepCheck(blockedJob.TypedArgs!);
 
             raiseNotification(new JobNotification(
@@ -135,7 +135,7 @@ internal class DependencyChecker
                 var (allMet, _) = CheckDependencies(dir);
                 if (allMet)
                 {
-                    PlanYamlHelper.SetPlanStateByFolder(dir, nameof(PlanStatus.Building));
+                    PlanYamlHelper.SetPlanStateByFolder(dir, nameof(PlanStatus.Creating));
                     startJobSkipDepCheck(new ExecutePlanArgs(dir));
                 }
             }

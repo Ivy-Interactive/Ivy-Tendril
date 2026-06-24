@@ -43,7 +43,7 @@ public class ContentView(
 
         var processView = Context.UseTendrilProcess();
 
-        var (updateDialog, showUpdateDialog) = UseTrigger((isOpen) => !isOpen.Value ? null : new UpdatePlanDialog(isOpen, selectedPlan!, selectedPlanState, jobService, planService, refreshPlans));
+        var (updateDialog, showUpdateDialog) = UseTrigger((isOpen) => !isOpen.Value ? null : new UpdatePlanDialog(isOpen, selectedPlan!, selectedPlanState, jobService, refreshPlans));
 
         var (deleteDialog, showDeleteDialog) = UseTrigger((isOpen) => !isOpen.Value ? null : new DeletePlanDialog(isOpen, selectedPlan!, selectedPlanState, planService, refreshPlans));
 
@@ -137,7 +137,7 @@ public class ContentView(
 
         var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full())
             | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
-                .BorderThickness(0).Padding(0);
+                .BorderThickness(0).Padding(0).Width(Size.Fit());
 
         if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
             desktopTitleLayout |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
@@ -300,7 +300,7 @@ public class ContentView(
 
         object Cap(object inner) => Layout.Vertical().Scroll().HideScrollbar().Width(Size.Full()).Height(Size.Full())
             | (Layout.Vertical()
-                .Padding(new Responsive<Thickness?> { Default = new Thickness(6, 0, 0, 4), Mobile = new Thickness(6, 4, 0, 4) })
+                .Padding(6, 0, 0, 4)
                 .Width(Size.Full().Max(Size.Units(200))) | inner);
     }
 
@@ -452,7 +452,7 @@ public class ContentView(
         // When chained behind an UpdatePlan job the plan is already Updating;
         // JobLauncher sets Executing once the blocked ExecutePlan launches.
         if (!hasWaits)
-            TransitionPlanOptimistically(PlanStatus.Building);
+            TransitionPlanOptimistically(PlanStatus.Creating);
 
         jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath) { WaitForJobs = hasWaits ? waitJobIds : null });
         refreshPlans();
@@ -473,13 +473,14 @@ public class ContentView(
         // When chained behind an UpdatePlan job the plan is already Updating;
         // JobLauncher sets Executing once the blocked ExecutePlan launches.
         if (!hasWaits)
-            TransitionPlanOptimistically(PlanStatus.Building);
+            TransitionPlanOptimistically(PlanStatus.Creating);
 
         jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath) { WaitForJobs = allWaitIds });
         refreshPlans();
     }
 
-    // Optimistically update UI state before disk I/O
+    // Optimistically update UI state; the authoritative plan transition (and pre-state
+    // snapshot) is performed by JobService.StartJob.
     private void TransitionPlanOptimistically(PlanStatus status)
     {
         var optimisticPlan = selectedPlan! with
@@ -487,8 +488,6 @@ public class ContentView(
             Metadata = selectedPlan.Metadata with { State = status }
         };
         selectedPlanState.Set(optimisticPlan);
-
-        planService.TransitionState(selectedPlan.FolderName, status);
     }
 
     private bool HasActiveJob<TArgs>() where TArgs : JobArgsBase

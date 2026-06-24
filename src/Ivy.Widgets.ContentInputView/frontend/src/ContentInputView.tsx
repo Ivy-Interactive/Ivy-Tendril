@@ -1,8 +1,84 @@
 import React, { useState, useRef, useEffect } from "react";
+import * as pdfjsLib from "pdfjs-dist";
+import pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { VoiceRecorder, type VoiceStatus } from "./voice-recorder";
 import "./content-input-view.css";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
+
+if (typeof window !== "undefined") {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+}
+
+const PdfThumbnail: React.FC<{ url: string }> = ({ url }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const renderPdf = async () => {
+      try {
+        const loadingTask = pdfjsLib.getDocument({ url });
+        const pdf = await loadingTask.promise;
+        if (!active) return;
+        const page = await pdf.getPage(1);
+        if (!active) return;
+
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const context = canvas.getContext("2d");
+        if (!context) return;
+
+        const unscaledViewport = page.getViewport({ scale: 1.0 });
+        const scaleX = 140 / unscaledViewport.width;
+        const scaleY = 105 / unscaledViewport.height;
+        const baseScale = Math.max(scaleX, scaleY);
+        const scale = baseScale * 3;
+        const viewport = page.getViewport({ scale });
+
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+
+        const renderContext = {
+          canvasContext: context,
+          viewport: viewport,
+          canvas: canvas,
+        };
+        await page.render(renderContext).promise;
+      } catch (err) {
+        console.error("PDF.js render failed:", err);
+        if (active) setError(true);
+      }
+    };
+
+    renderPdf();
+
+    return () => {
+      active = false;
+    };
+  }, [url]);
+
+  if (error) {
+    return (
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: "1.5rem",
+          background: "var(--civ-pill-bg)",
+        }}
+      >
+        📄
+      </div>
+    );
+  }
+
+  return <canvas ref={canvasRef} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top", display: "block" }} />;
+};
 
 interface AttachedFile {
   name: string;
@@ -22,10 +98,34 @@ interface ContentInputViewProps {
   selectedModel?: string;
   attachedFiles?: AttachedFile[];
   submitLabel?: string;
+  menuOptions?: string[];
   onIvyEvent?: (eventName: string, id: string, argumentsArray: unknown[]) => void;
   eventHandler?: (eventName: string, id: string, argumentsArray: unknown[]) => void;
   events?: string[];
 }
+
+const fileRegExp = /\s?\[file:\s*([^\]]+)\]/g;
+
+const parseValue = (val: string) => {
+  const filePaths: string[] = [];
+  const cleanText = val.replace(fileRegExp, (_match, path) => {
+    filePaths.push(path.trim());
+    return "";
+  });
+  return { cleanText, filePaths };
+};
+
+const renderShortcut = (isMac: boolean) => {
+  if (isMac) {
+    return (
+      <>
+        <span>⌘</span>
+        <span className="civ-shortcut-enter">↵</span>
+      </>
+    );
+  }
+  return "Ctrl+Enter";
+};
 
 export const ContentInputView: React.FC<ContentInputViewProps> = ({
   id,
@@ -38,25 +138,103 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
   selectedModel = "Build",
   attachedFiles = [],
   submitLabel,
+  menuOptions = [],
   onIvyEvent,
   eventHandler,
 }) => {
   const dispatchEvent = onIvyEvent || eventHandler;
-  const [text, setText] = useState(value);
+
+  const parsed = parseValue(value);
+  const [text, setText] = useState(parsed.cleanText);
+  const [files, setFiles] = useState<string[]>(parsed.filePaths);
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>("idle");
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0);
   const [recordError, setRecordError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const [previews, setPreviews] = useState<Record<string, string>>({});
+  const [fileMeta, setFileMeta] = useState<Record<string, { lineCount?: number; size: string }>>({});
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const recorderRef = useRef<VoiceRecorder | null>(null);
   const timerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const filesRef = useRef(files);
 
-  // Sync value prop to text state
   useEffect(() => {
-    setText(value);
+    filesRef.current = files;
+  }, [files]);
+
+  const isImageFile = (path: string) => {
+    const ext = path.split(".").pop()?.toLowerCase();
+    return ["png", "jpg", "jpeg", "webp", "gif", "svg"].includes(ext || "");
+  };
+
+  const isPdfFile = (path: string) => {
+    const ext = path.split(".").pop()?.toLowerCase();
+    return ext === "pdf";
+  };
+
+
+  const getFileMetadata = (filePath: string) => {
+    const fileName = filePath.split(/[/\\]/).pop() || "";
+    const lowerName = fileName.toLowerCase();
+    const ext = fileName.split(".").pop()?.toUpperCase() || "";
+
+    for (const [origName, meta] of Object.entries(fileMeta)) {
+      const origBase = origName.split(".")[0].toLowerCase().replace(/\s+/g, "_");
+      if (lowerName.includes(origBase)) {
+        return {
+          name: origName,
+          metaText: meta.lineCount !== undefined ? `${meta.lineCount} lines` : meta.size,
+          badge: ext,
+        };
+      }
+    }
+
+    const cleanName = fileName.replace(/_[a-f0-9]{8}(\.[^.]+)$/i, "$1");
+    return {
+      name: cleanName,
+      metaText: "Document",
+      badge: ext,
+    };
+  };
+
+  const getPreviewUrl = (filePath: string) => {
+    const fileName = filePath.split(/[/\\]/).pop() || "";
+    const lowerName = fileName.toLowerCase();
+
+    for (const [origName, url] of Object.entries(previews)) {
+      const origBase = origName.split(".")[0].toLowerCase().replace(/\s+/g, "_");
+      if (lowerName.includes(origBase)) {
+        return url;
+      }
+    }
+    return null;
+  };
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [menuOpen]);
+
+  // Sync value prop to text and files state
+  useEffect(() => {
+    const { cleanText, filePaths } = parseValue(value);
+    setText(cleanText);
+    setFiles(filePaths);
   }, [value]);
 
   // Textarea Auto-Growing Height
@@ -66,7 +244,7 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
       textarea.style.height = "auto";
       textarea.style.height = `${textarea.scrollHeight}px`;
     }
-  }, [text]);
+  }, [text, files]);
 
   // Timer logic for voice recording
   useEffect(() => {
@@ -92,10 +270,10 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
         recorderRef.current.stop();
         // Prevent state updates on unmounted component
         (recorderRef.current as any).options = {
-          onStatusChange: () => {},
-          onResult: () => {},
-          onError: () => {},
-          onVolumeChange: () => {},
+          onStatusChange: () => { },
+          onResult: () => { },
+          onError: () => { },
+          onVolumeChange: () => { },
         };
       }
     };
@@ -187,23 +365,28 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
 
   const handleSubmit = () => {
     if (voiceStatus !== "idle") return;
+    const fullText = text + files.map((f) => ` [file: ${f}]`).join("");
     if (dispatchEvent) {
-      dispatchEvent("OnSubmit", id, [{
-        value: text,
-        Value: text,
-        selectedModel: selectedModel,
-        SelectedModel: selectedModel,
-        attachedFiles: attachedFiles,
-        AttachedFiles: attachedFiles,
-      }]);
+      dispatchEvent("OnSubmit", id, [
+        {
+          value: fullText,
+          Value: fullText,
+          selectedModel: selectedModel,
+          SelectedModel: selectedModel,
+          attachedFiles: attachedFiles,
+          AttachedFiles: attachedFiles,
+        },
+      ]);
     }
     setText("");
+    setFiles([]);
   };
 
   const handleTextChange = (val: string) => {
     setText(val);
     if (dispatchEvent) {
-      dispatchEvent("OnChange", id, [val]);
+      const fullText = val + files.map((f) => ` [file: ${f}]`).join("");
+      dispatchEvent("OnChange", id, [fullText]);
     }
   };
 
@@ -241,12 +424,14 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
           const result = reader.result as string;
           const base64Data = result.split(",")[1];
           if (dispatchEvent) {
-            dispatchEvent("OnUploadFile", id, [{
-              name: file.name,
-              Name: file.name,
-              base64Data: base64Data,
-              Base64Data: base64Data,
-            }]);
+            dispatchEvent("OnUploadFile", id, [
+              {
+                name: file.name,
+                Name: file.name,
+                base64Data: base64Data,
+                Base64Data: base64Data,
+              },
+            ]);
           }
           resolve();
         };
@@ -259,8 +444,42 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
     }
   };
 
-  const handleFiles = async (files: FileList | File[]) => {
-    const list = Array.from(files);
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const handleFiles = async (filesList: FileList | File[]) => {
+    const list = Array.from(filesList);
+
+    for (const file of list) {
+      const sizeStr = formatSize(file.size);
+      let lineCount: number | undefined;
+
+      if (file.type.startsWith("text/") || file.name.endsWith(".txt") || file.name.endsWith(".log") || file.name.endsWith(".json") || file.name.endsWith(".csv")) {
+        try {
+          const textContent = await file.text();
+          lineCount = textContent.split("\n").length;
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      setFileMeta((prev) => ({
+        ...prev,
+        [file.name]: { lineCount, size: sizeStr },
+      }));
+
+      if (file.type.startsWith("image/") || file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+        const objectUrl = URL.createObjectURL(file);
+        setPreviews((prev) => ({
+          ...prev,
+          [file.name]: objectUrl,
+        }));
+      }
+    }
+
     for (const file of list) {
       await handleUploadFile(file);
     }
@@ -315,9 +534,30 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
     }
   };
 
-  const handleRemoveAttachment = (fileName: string) => {
+
+  const handleRemoveFile = (filePath: string) => {
+    const fileName = filePath.split(/[/\\]/).pop() || "";
+    const lowerName = fileName.toLowerCase();
+
+    for (const [origName, url] of Object.entries(previews)) {
+      const origBase = origName.split(".")[0].toLowerCase().replace(/\s+/g, "_");
+      if (lowerName.includes(origBase)) {
+        URL.revokeObjectURL(url);
+        const newPreviews = { ...previews };
+        delete newPreviews[origName];
+        setPreviews(newPreviews);
+        break;
+      }
+    }
+
+    const newFiles = files.filter((f) => f !== filePath);
+    setFiles(newFiles);
     if (dispatchEvent) {
-      dispatchEvent("OnRemoveAttachment", id, [fileName]);
+      dispatchEvent("OnRemoveAttachment", id, [filePath]);
+    }
+    const fullText = text + newFiles.map((f) => ` [file: ${f}]`).join("");
+    if (dispatchEvent) {
+      dispatchEvent("OnChange", id, [fullText]);
     }
   };
 
@@ -335,7 +575,8 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
             const next = prev ? `${prev} ${transcription}` : transcription;
             console.log("[ContentInputView] Next text state:", next);
             if (dispatchEvent) {
-              dispatchEvent("OnChange", id, [next]);
+              const fullText = next + filesRef.current.map((f) => ` [file: ${f}]`).join("");
+              dispatchEvent("OnChange", id, [fullText]);
             }
             return next;
           });
@@ -369,10 +610,16 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
       {recordError && (
         <div className="civ-error-banner">
           <svg className="civ-icon-error" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
+            <path
+              fillRule="evenodd"
+              d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+              clipRule="evenodd"
+            />
           </svg>
           <span>{recordError}</span>
-          <button className="civ-error-close" onClick={() => setRecordError(null)}>×</button>
+          <button className="civ-error-close" onClick={() => setRecordError(null)}>
+            ×
+          </button>
         </div>
       )}
 
@@ -383,33 +630,57 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
         onDragOver={handleDragOver}
         onDrop={handleDrop}
       >
-        {/* Render Attached Files */}
-        {attachedFiles.length > 0 && (
+        {/* Render Attached Files as Thumbnails */}
+        {files.length > 0 && (
           <div className="civ-attachments-list">
-            {attachedFiles.map((file, idx) => (
-              <div key={idx} className="civ-attachment-item">
-                <svg className="civ-icon-attachment" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                </svg>
-                <div className="civ-attachment-details">
-                  <span className="civ-attachment-name">{file.name}</span>
-                  <span className="civ-attachment-meta">
-                    {file.type} {file.size ? `• ${file.size}` : ""}
-                  </span>
+            {files.map((filePath, idx) => {
+              const isImage = isImageFile(filePath);
+              const isPdf = isPdfFile(filePath);
+              const previewUrl = (isImage || isPdf) ? getPreviewUrl(filePath) : null;
+              const meta = getFileMetadata(filePath);
+
+              return (
+                <div key={idx} className="civ-thumbnail-card">
+                  {/* Background Preview for images/PDFs */}
+                  {(isImage || isPdf) && previewUrl && (
+                    <div className="civ-thumbnail-preview-container">
+                      {isImage ? (
+                        <img className="civ-thumbnail-image-preview" src={previewUrl} alt="preview" />
+                      ) : (
+                        <PdfThumbnail url={previewUrl} />
+                      )}
+                      <div className="civ-thumbnail-preview-overlay" />
+                    </div>
+                  )}
+
+                  {/* Overlaid Close Button */}
+                  <button
+                    className="civ-thumbnail-card-remove"
+                    onClick={() => handleRemoveFile(filePath)}
+                    type="button"
+                    title="Remove file"
+                  >
+                    ×
+                  </button>
+
+                  {/* Overlaid File Metadata & Badge */}
+                  <div className="civ-thumbnail-content">
+                    {!(previewUrl && (isImage || isPdf)) ? (
+                      <div style={{ minWidth: 0 }}>
+                        <div className="civ-thumbnail-doc-name">{meta.name}</div>
+                        <div className="civ-thumbnail-doc-meta">{meta.metaText}</div>
+                      </div>
+                    ) : (
+                      <div />
+                    )}
+                    <div className="civ-thumbnail-doc-badge">{meta.badge}</div>
+                  </div>
                 </div>
-                <button
-                  className="civ-attachment-remove"
-                  onClick={() => handleRemoveAttachment(file.name)}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
+
 
         {/* Text Area Input */}
         <textarea
@@ -426,30 +697,32 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
 
         {/* Action Controls Row */}
         <div className="civ-control-bar">
-          {/* Attachment upload button */}
-          <div className="civ-attachment-upload-container">
-            <input
-              type="file"
-              multiple
-              ref={fileInputRef}
-              style={{ display: "none" }}
-              onChange={(e) => {
-                if (e.target.files) {
-                  handleFiles(e.target.files);
-                  e.target.value = "";
-                }
-              }}
-            />
-            <button
-              className="civ-plus-btn"
-              onClick={() => fileInputRef.current?.click()}
-              type="button"
-              title="Attach files"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-              </svg>
-            </button>
+          {/* Attachment upload button & pills */}
+          <div className="civ-attachment-row">
+            <div className="civ-attachment-upload-container">
+              <input
+                type="file"
+                multiple
+                ref={fileInputRef}
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  if (e.target.files) {
+                    handleFiles(e.target.files);
+                    e.target.value = "";
+                  }
+                }}
+              />
+              <button
+                className="civ-plus-btn"
+                onClick={() => fileInputRef.current?.click()}
+                type="button"
+                title="Attach files"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           {/* Right Side Buttons */}
@@ -462,11 +735,7 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
                   <span className="civ-timer">{formatTime(duration)}</span>
                   <div className="civ-equalizer">
                     {bars.map((h, i) => (
-                      <div
-                        key={i}
-                        className="civ-eq-bar"
-                        style={{ height: `${h}px` }}
-                      />
+                      <div key={i} className="civ-eq-bar" style={{ height: `${h}px` }} />
                     ))}
                   </div>
                 </div>
@@ -482,7 +751,12 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
                 ) : voiceStatus === "processing" ? (
                   <div className="civ-spinner processing" />
                 ) : voiceStatus === "recording" ? (
-                  <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
                     <rect x="6" y="6" width="12" height="12" rx="2" ry="2" />
                   </svg>
                 ) : (
@@ -494,28 +768,74 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
               </button>
             </div>
 
-            {/* Submit Button */}
-            <button
-              className={`civ-submit-btn ${submitLabel ? "civ-submit-btn-labeled" : ""}`}
-              onClick={handleSubmit}
-              disabled={!text.trim() || voiceStatus !== "idle"}
-              type="button"
-              title={submitLabel || "Send"}
-            >
-              {submitLabel ? (
-                <>
+            {/* Submit Button or Split Button */}
+            {menuOptions && menuOptions.length > 0 ? (
+              <div
+                className={`civ-split-btn-container ${!text.trim() || voiceStatus !== "idle" ? "disabled" : ""}`}
+                ref={menuRef}
+              >
+                <button
+                  className="civ-submit-btn civ-submit-btn-labeled civ-split-btn-left"
+                  onClick={handleSubmit}
+                  disabled={!text.trim() || voiceStatus !== "idle"}
+                  type="button"
+                  title={submitLabel || "Send"}
+                >
                   <span className="civ-submit-text">{submitLabel}</span>
-                  <kbd className="civ-submit-shortcut">
-                    {isMac ? "⌘↵" : "Ctrl+Enter"}
-                  </kbd>
-                </>
-              ) : (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <line x1="12" y1="19" x2="12" y2="5" />
-                  <polyline points="5 12 12 5 19 12" />
-                </svg>
-              )}
-            </button>
+                  <kbd className="civ-submit-shortcut">{renderShortcut(isMac)}</kbd>
+                </button>
+                <button
+                  className="civ-split-btn-arrow"
+                  onClick={() => setMenuOpen(!menuOpen)}
+                  disabled={!text.trim() || voiceStatus !== "idle"}
+                  type="button"
+                  title="More options"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+                {menuOpen && (
+                  <div className="civ-dropdown-menu">
+                    {menuOptions.map((option, idx) => (
+                      <button
+                        key={idx}
+                        className="civ-dropdown-item"
+                        type="button"
+                        onClick={() => {
+                          setMenuOpen(false);
+                          if (dispatchEvent) {
+                            dispatchEvent("OnMenuAction", id, [option]);
+                          }
+                        }}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                className={`civ-submit-btn ${submitLabel ? "civ-submit-btn-labeled" : ""}`}
+                onClick={handleSubmit}
+                disabled={!text.trim() || voiceStatus !== "idle"}
+                type="button"
+                title={submitLabel || "Send"}
+              >
+                {submitLabel ? (
+                  <>
+                    <span className="civ-submit-text">{submitLabel}</span>
+                    <kbd className="civ-submit-shortcut">{renderShortcut(isMac)}</kbd>
+                  </>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <line x1="12" y1="19" x2="12" y2="5" />
+                    <polyline points="5 12 12 5 19 12" />
+                  </svg>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>

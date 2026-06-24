@@ -165,7 +165,7 @@ public class ContentView(
     private void LaunchExecute()
     {
         if (selectedPlan is null) return;
-        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
+        // Plan transition (and pre-state snapshot) handled by JobService.StartJob.
         jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath));
         refreshPlans();
     }
@@ -181,7 +181,7 @@ public class ContentView(
             syncJobIds.Add(jobId);
         }
 
-        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Building);
+        // Plan transition (and pre-state snapshot) handled by JobService.StartJob.
         jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath) { WaitForJobs = syncJobIds });
         refreshPlans();
     }

@@ -23,7 +23,7 @@ public class PlanDoctorSettings : CommandSettings
     public bool Prune { get; init; }
 
     [CommandOption("--state")]
-    [Description("Filter plans by state (Draft, Building, Updating, Executing, ReadyForReview, Failed, Completed, Skipped, Blocked, Icebox)")]
+    [Description("Filter plans by state (Draft, Creating, Updating, Executing, Review, Failed, Completed, Skipped, Blocked, Icebox)")]
     public string? State { get; init; }
 
     [CommandOption("--worktrees")]

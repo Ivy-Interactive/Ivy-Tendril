@@ -148,14 +148,14 @@ public class PlanDatabaseServiceTests : IDisposable
     {
         _db.UpsertPlan(CreateTestPlan(1500, "Draft1"));
         _db.UpsertPlan(CreateTestPlan(1501, "Draft2"));
-        _db.UpsertPlan(CreateTestPlan(1502, "Review", PlanStatus.ReadyForReview));
+        _db.UpsertPlan(CreateTestPlan(1502, "Review", PlanStatus.Review));
         _db.UpsertPlan(CreateTestPlan(1503, "Failed", PlanStatus.Failed));
         _db.UpsertPlan(CreateTestPlan(1504, "Icebox", PlanStatus.Icebox));
         _db.UpsertPlan(CreateTestPlan(1505, "Completed", PlanStatus.Completed));
 
         var counts = _db.ComputePlanCounts();
         Assert.Equal(2, counts.Drafts);
-        Assert.Equal(1, counts.ReadyForReview);
+        Assert.Equal(1, counts.Review);
         Assert.Equal(1, counts.Failed);
         Assert.Equal(1, counts.Icebox);
     }
@@ -519,7 +519,7 @@ public class PlanDatabaseServiceTests : IDisposable
         _db.UpsertPlan(CreateTestPlan(1900, "Draft Tendril"));
         _db.UpsertPlan(CreateTestPlan(1901, "Completed Tendril", PlanStatus.Completed));
         _db.UpsertPlan(CreateTestPlan(1902, "Failed Tendril", PlanStatus.Failed));
-        _db.UpsertPlan(CreateTestPlan(1903, "Review Framework", PlanStatus.ReadyForReview,
+        _db.UpsertPlan(CreateTestPlan(1903, "Review Framework", PlanStatus.Review,
             "Framework"));
         _db.UpsertPlan(CreateTestPlan(1904, "InProgress Tendril", PlanStatus.Executing));
 
@@ -1216,7 +1216,7 @@ public class PlanDatabaseServiceTests : IDisposable
         for (int i = 0; i < 50; i++)
         {
             tasks.Add(Task.Run(() => _db.GetPlans()));
-            tasks.Add(Task.Run(() => _db.UpdatePlanState(1500, PlanStatus.Building)));
+            tasks.Add(Task.Run(() => _db.UpdatePlanState(1500, PlanStatus.Creating)));
         }
 
         // Verify: All operations complete without deadlock (5 second timeout)

@@ -20,11 +20,11 @@ The plans directory path can be derived from the plan folder's parent directory.
 - Read `plan.yaml` via `tendril plan get <plan-id>` from the plan folder
 - Read the latest revision from `Revisions/` (highest numbered .md file)
 - Identify distinct issues/tasks that should be separate plans
-- Report plan context to Jobs UI: `tendril job status TendrilJobId --message "Splitting plan..." --plan-id <plan-id> --plan-title "<title>"`
+- Report plan context to Jobs UI: `tendril job status TendrilJobId --message="Splitting plan..." --plan-id=<plan-id> --plan-title="<title>"`
 
 ### 2. Create Split Plans
 
-Report status: `tendril job status TendrilJobId --message "Creating split plans..."`
+Report status: `tendril job status TendrilJobId --message="Creating split plans..."`
 
 For each distinct issue, use `tendril plan create` to allocate an ID, create the folder, and write `plan.yaml`:
 
@@ -34,23 +34,25 @@ For each distinct issue, use `tendril plan create` to allocate an ID, create the
 
 ```bash
 tendril plan create "<Title>" "<TendrilProject>" \
-  --plans-dir "<TendrilPlansFolder>" \
-  --level "<Level>" \
-  --initial-prompt "<original plan's initialPrompt>" \
-  --execution-profile "balanced" \
-  --verification "Build=Pending" \
-  --verification "Test=Pending" \
-  --related-plan "<original-plan-folder-name>"
+  --plans-dir="<TendrilPlansFolder>" \
+  --level="<Level>" \
+  --initial-prompt="<original plan's initialPrompt>" \
+  --execution-profile="balanced" \
+  --verification="Build=Pending" \
+  --verification="Test=Pending" \
+  --related-plan="<original-plan-folder-name>"
 ```
+
+**CRITICAL — use the `--option=value` (equals) form for every option, exactly as shown above.** The CLI reads any token that begins with `-` as an option name, so the space-separated form (`--initial-prompt "..."`) fails whenever a value starts with a dash (e.g. an `initialPrompt` that opens with a bullet `- ...`). The equals form keeps the value glued to its option as one token and parses correctly. Also ensure `<Title>` does **not** begin with a `-`.
 
 **IMPORTANT:** Always pass `--plans-dir` with the plans directory (derive from the plan folder's parent). This ensures child plans are created in the correct directory regardless of environment variable inheritance. Repos are derived automatically from the project configuration.
 
 The command outputs `PlanId`, `Directory`, and `Plan created` lines. Parse the `Directory` to write the revision file.
 
-Include optional flags as needed:
-- `--source-url "<url>"` — if the original plan had a sourceUrl
-- `--depends-on "<sibling-plan-folder>"` — only when a sibling plan has a true blocking dependency (see Section 3)
-- `--priority <number>` — if non-default priority
+Include optional flags as needed (always use the `--option=value` form):
+- `--source-url="<url>"` — if the original plan had a sourceUrl
+- `--depends-on="<sibling-plan-folder>"` — only when a sibling plan has a true blocking dependency (see Section 3)
+- `--priority=<number>` — if non-default priority
 
 Populate `--verification` flags from the project's verifications in the **Projects** section, all set to `Pending`.
 
@@ -77,7 +79,7 @@ Each new plan may belong to a different project than the original. For each spli
 
 ### 3. Dependencies Between Split Plans
 
-Report status: `tendril job status TendrilJobId --message "Setting up dependencies..."`
+Report status: `tendril job status TendrilJobId --message="Setting up dependencies..."`
 
 Add `--depends-on` between sibling plans **only** when one plan would fail to compile or run without the other's changes being merged first. This is rare — most split plans are independent.
 
@@ -95,7 +97,7 @@ Ask: "Will Plan B fail to compile/run if Plan A's changes aren't merged first?" 
 
 ### 4. Original Plan
 
-Report status: `tendril job status TendrilJobId --message "Updating original plan..."`
+Report status: `tendril job status TendrilJobId --message="Updating original plan..."`
 
 Do NOT modify the original plan — the launcher transitions it to `Skipped` automatically on success.
 

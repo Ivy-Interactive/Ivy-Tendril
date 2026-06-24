@@ -9,7 +9,7 @@ namespace Ivy.Tendril.Test.Services;
 public class PlanReaderServiceTests
 {
     [Fact]
-    public void TransitionState_NotifiesPlanWatcher()
+    public async Task TransitionState_NotifiesPlanWatcher()
     {
         // Arrange
         var testConfig = new StubConfigService();
@@ -32,7 +32,10 @@ public class PlanReaderServiceTests
         try
         {
             // Act
-            service.TransitionState(folderName, PlanStatus.ReadyForReview);
+            service.TransitionState(folderName, PlanStatus.Review);
+
+            // Wait for the background plan.yaml write so the finally-block cleanup doesn't race it.
+            await service.FlushPendingWritesAsync();
 
             // Assert
             Assert.Contains(folderName, testWatcher.NotifiedFolders);
@@ -47,7 +50,7 @@ public class PlanReaderServiceTests
     }
 
     [Fact]
-    public void SaveRevision_NotifiesPlanWatcher()
+    public async Task SaveRevision_NotifiesPlanWatcher()
     {
         // Arrange
         var testConfig = new StubConfigService();
@@ -71,8 +74,9 @@ public class PlanReaderServiceTests
             // Act
             service.SaveRevision(folderName, content);
 
-            // Give background write a moment to complete
-            Thread.Sleep(100);
+            // Deterministically wait for the background write to finish (not a fixed sleep) so the
+            // assertions and the finally-block cleanup don't race the still-open file handle.
+            await service.FlushPendingWritesAsync();
 
             // Assert
             Assert.Contains(folderName, testWatcher.NotifiedFolders);
@@ -105,7 +109,7 @@ public class PlanReaderServiceTests
         var planFolder = Path.Combine(tempDir, folderName);
         Directory.CreateDirectory(planFolder);
 
-        var planYaml = "state: ReadyForReview\nproject: TestProject\ncommits:\n- abc1234\n- def5678\nverifications:\n- name: Build\n  status: Pass\n- name: Test\n  status: Fail\n- name: Lint\n  status: Skipped\n- name: Format\n  status: Pending\n";
+        var planYaml = "state: Review\nproject: TestProject\ncommits:\n- abc1234\n- def5678\nverifications:\n- name: Build\n  status: Pass\n- name: Test\n  status: Fail\n- name: Lint\n  status: Skipped\n- name: Format\n  status: Pending\n";
         File.WriteAllText(Path.Combine(planFolder, "plan.yaml"), planYaml);
 
         try

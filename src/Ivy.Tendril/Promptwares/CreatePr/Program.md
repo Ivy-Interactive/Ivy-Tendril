@@ -2,9 +2,9 @@
 
 **Note:** This promptware is stack-agnostic. Stack-specific operations (build, format, test) are defined as verifications in the project configuration. Examples in this document use multiple tech stacks for illustration.
 
-Create GitHub pull requests and apply PR rules.
+Create GitHub pull requests, then merge them only when explicitly told to.
 
-**!CRITICAL: ALL steps are mandatory. Do not skip PR rule application.**
+**!CRITICAL: ALL steps are mandatory. Whether to merge is controlled entirely by the `PrMerge` firmware header value — never infer it from anything else.**
 
 ## Context
 
@@ -13,20 +13,27 @@ The firmware header contains:
 - **CurrentTime** — current UTC timestamp
 - **SourceUrl** — (optional) source URL from plan.yaml (GitHub issue/PR, Linear issue, or other tracker)
 - **SourceIdentifier** — (optional) short identifier from plan.yaml (e.g. `#123`, `IVY-456`)
+- **`Pr*` flags** — the explicit PR options (see step 1). These are the *only* source of truth for what to do.
 
 The plan structure and CLI commands are in the **Reference Documents** section of your firmware.
-Project configuration (repos, `prRule` settings) is available from the firmware header.
-
-## PR Rules (per repo, from RepoConfigs header)
-
-- **`default`** — Create the PR and stop
-- **`yolo`** — Create PR → auto-merge with `--admin` → delete remote branch → pull default branch into the original local repo
 
 ## Execution Steps
 
+> **Transient-error retry convention (applies to every `git` and `gh` command below):**
+> Network/remote operations intermittently fail and then succeed on a second try. Whenever a
+> `git push`/`git fetch`/`git pull` or any `gh` command fails with a **transient** error,
+> **retry up to 3 times with exponential backoff (~2s, then 4s, then 8s)** before treating it
+> as a real failure. Treat these as transient (case-insensitive):
+> `could not resolve host`, `connection reset`, `connection timed out`, `could not connect`,
+> `failed to connect`, `kex_exchange_identification`, `early EOF`, `RPC failed`, `TLS`,
+> HTTP `5xx`, `429`, `rate limit exceeded` (GitHub API), `Bad gateway`, `timed out`.
+> Do **not** retry genuine, non-transient errors — authentication failures, `not found` /
+> invalid repo, permission/`403`, validation errors, or merge conflicts — fail fast on those
+> with a clear, specific message.
+
 ### 0. Check Plan State
 
-Before processing, read `plan.yaml` and check the `state` field. After reading, report plan context: `tendril job status TendrilJobId --message "Creating PR..." --plan-id <plan-id> --plan-title "<title>"`
+Before processing, read `plan.yaml` and check the `state` field. After reading, report plan context: `tendril job status TendrilJobId --message="Creating PR..." --plan-id=<plan-id> --plan-title="<title>"`
 - If `state: Completed`, the plan was already processed. Exit early with a message indicating the plan is already completed and showing the existing PR URLs from the `prs` list.
 - Otherwise, proceed with step 1.
 
@@ -34,19 +41,18 @@ Before processing, read `plan.yaml` and check the `state` field. After reading, 
 
 - Read `plan.yaml` from the plan folder (project, commits, repos)
 - Read the latest revision for the plan title and description
-- Find the `prRule` for each repo from the firmware header
-- **Check for custom options:** Read the following firmware header values (if present). These override the default behavior in subsequent steps. If not present, all flags default to the behavior defined by the repo's `prRule`.
+- **Read the PR option flags** from the firmware header. These drive every decision below. If a flag is absent, use the default shown:
   - `PrSolveMergeConflicts` — `true`/`false` (default: `true`)
-  - `PrMerge` — `true`/`false` (default: `true`)
+  - `PrMerge` — `true`/`false` (default: `true`) — **whether to merge the PR after creating it**
   - `PrDeleteBranch` — `true`/`false` (default: `true`)
   - `PrIncludeArtifacts` — `true`/`false` (default: `true`)
-  - `PrAssignee` — GitHub username (default: none)
+  - `PrReviewer` — GitHub username to request as reviewer (default: none)
   - `PrComment` — Review comment text (default: none)
   - `PrDraft` — `true`/`false` (default: `false`)
 
 ### 2. For Each Worktree
 
-Report status: `tendril job status TendrilJobId --message "Pushing branches..."`
+Report status: `tendril job status TendrilJobId --message="Pushing branches..."`
 
 Check `<TendrilPlanFolder>/Worktrees/` for each repo worktree.
 
@@ -59,7 +65,8 @@ For each worktree:
 1. `git remote get-url origin` (from the worktree) to get the GitHub remote
 2. Extract `owner/repo` from the remote URL
 3. `git rev-parse --abbrev-ref HEAD` to get the branch name
-4. `git push -u origin <branch>`
+4. `git push -u origin <branch>` — apply the **transient-error retry convention** above (a
+   first-attempt `git push` commonly fails transiently and succeeds on retry)
 
 > **Stale remote tracking refs warning:** A ref appearing in `git branch -a` as `remotes/origin/<branch>` does NOT guarantee the branch exists on GitHub. Always verify with `gh api repos/<owner>/<repo>/branches/<branch>` or `git ls-remote origin <branch>` before assuming the push succeeded.
 >
@@ -73,9 +80,32 @@ Otherwise, if an artifact upload tool is available in `Tools/`, run it to upload
 
 Capture the returned markdown. If non-empty, it will be appended to the PR body under an `## Artifacts` heading in the next step. If no upload tool is available, skip this step.
 
+### 2.6. Verify Branch Is Visible on the Remote
+
+Before creating the PR, confirm GitHub's API actually sees the freshly pushed branch. There
+is a short propagation lag between a successful `git push` and the branch being queryable via
+the API — creating the PR too early is a primary cause of intermittent first-attempt
+failures ("No commits between ..." / "head branch not found") that then succeed on retry.
+
+For each pushed branch, poll briefly until the branch is visible:
+
+```bash
+for i in $(seq 1 5); do
+  if gh api "repos/<owner>/<repo>/branches/<branch>" >/dev/null 2>&1; then break; fi
+  sleep 2
+done
+```
+
+If the branch is still not visible after polling, re-push (`git push -u origin <branch>`,
+applying the transient-error retry convention) and poll once more before proceeding.
+
 ### 3. Create PR
 
-Report status: `tendril job status TendrilJobId --message "Creating pull request..."`
+Report status: `tendril job status TendrilJobId --message="Creating pull request..."`
+
+Apply the **transient-error retry convention** to every `gh` command in this step (and steps
+3.5–6): retry transient/network/`5xx`/`429` failures up to 3 times with backoff; fail fast on
+genuine errors (auth, invalid repo, validation).
 
 For each pushed branch:
 
@@ -117,7 +147,7 @@ EOF
   body="${issueLink}${summaryContent}\n\n---\n${commitsList}${artifactMarkdown}\n\n---\nCreated using [Ivy Tendril](https://ivy.app)."
   ```
 - **Draft (custom options):** If custom options exist and `draft` is `true`, add `--draft` to the `gh pr create` command to create the PR in draft mode. If no custom options or `draft` is `false`, create as ready for review (default behavior).
-- **Assignee (custom options):** If custom options exist and `assignee` is non-empty, add `--assignee <assignee>` to the `gh pr create` command.
+- **Reviewer (custom options):** If custom options exist and `reviewer` is non-empty, add `--reviewer <reviewer>` to the `gh pr create` command.
 
 ### 3.5. Add PR Comment (custom options)
 
@@ -133,7 +163,7 @@ If no custom options or `comment` is empty, skip this step.
 
 If `PrSolveMergeConflicts` is `true` (default), check each PR for merge conflicts and resolve them proactively:
 
-Report status: `tendril job status TendrilJobId --message "Checking for merge conflicts..."`
+Report status: `tendril job status TendrilJobId --message="Checking for merge conflicts..."`
 
 For each PR created in step 3:
 
@@ -197,22 +227,23 @@ This step runs regardless of whether a merge will be performed in step 4. Even i
 
 If `PrSolveMergeConflicts` is `false`, skip this step entirely — the PR may be left in a conflicting state.
 
-### 4. Apply PR Rule
+### 4. Merge (only if `PrMerge` is `true`)
 
-Report status: `tendril job status TendrilJobId --message "Applying PR rule..."`
+Report status: `tendril job status TendrilJobId --message="Applying merge options..."`
 
-**!MANDATORY** — look up the `prRule` for this repo in the `RepoConfigs` firmware header.
+**!STOP — MERGE GATE. The single deciding factor is the `PrMerge` firmware header value. Nothing else.**
 
-**Custom options override:** If custom options exist, the flags override the yolo behavior:
-- If `merge` is `false`: skip the entire merge step (treat as `default` rule regardless of prRule)
-- If `merge` is `true` but `deleteBranch` is `false`: merge without `--delete-branch` flag
-- If `merge` and `deleteBranch` are both `true`: behave exactly like `yolo`
+- **If `PrMerge` is `false`: do NOT merge.** Do **not** run `gh pr merge` under any circumstances. The PR stays open for manual review. Skip directly to step 5. (Do not look for any other rule or signal — there is none.)
+- **If `PrMerge` is `true` (or the flag is absent):** merge the PR using the flags below.
 
 **Note:** Merge conflict resolution is handled in step 3.7 if `PrSolveMergeConflicts` was `true`. By this step, the PR should already be conflict-free (if step 3.7 ran successfully).
 
-**If `yolo` (and no custom options overriding):**
+When merging, build the command from the flags:
+- Always pass `--merge --admin`.
+- Add `--delete-branch` **only if `PrDeleteBranch` is `true`** (default `true`).
+
 ```bash
-gh pr merge <pr-number> --repo <owner/repo> --merge --delete-branch --admin
+gh pr merge <pr-number> --repo <owner/repo> --merge [--delete-branch] --admin
 cd <original-repo-path>
 # Only pull if the local repo is clean (no uncommitted changes, on the default branch)
 if [ -z "$(git status --porcelain)" ] && [ "$(git symbolic-ref --short HEAD)" = "<default-branch>" ]; then
@@ -222,14 +253,11 @@ fi
 
 > **Note:** If `--merge` fails with "Merge commits are not allowed", retry with `--squash` instead.
 
-
-**If `default`:** PR stays open for manual review.
-
 ### 5. Clean Up Worktrees
 
-Report status: `tendril job status TendrilJobId --message "Cleaning up worktrees..."`
+Report status: `tendril job status TendrilJobId --message="Cleaning up worktrees..."`
 
-After successful `yolo` merges (or custom options with `merge: true`), clean up the worktrees to reclaim disk space:
+After a successful merge (`PrMerge: true`), clean up the worktrees to reclaim disk space:
 
 For each repo where the PR was merged:
 
@@ -237,7 +265,7 @@ For each repo where the PR was merged:
 tendril plan remove-worktree <TendrilPlanId> <repo-folder-name>
 ```
 
-**Skip cleanup** for repos using the `default` PR rule (or custom options with `merge: false`) — the worktree is still needed for potential review revisions.
+**Skip cleanup** when `PrMerge` is `false` — the worktree is still needed for potential review revisions.
 
 If cleanup fails, log a warning but do not fail the overall CreatePr execution.
 
@@ -251,13 +279,13 @@ Add each PR URL:
 tendril plan add-pr <plan-id> <pr-url>
 ```
 
-**Update state to Completed:** If ALL repos in the plan used the `yolo` prRule (or custom options with `merge: true`) and ALL PRs were successfully merged, update the state:
+**Update state to Completed:** If `PrMerge` is `true` and ALL PRs were successfully merged, update the state:
 
 ```bash
 tendril plan set <plan-id> state Completed
 ```
 
-If ANY repo used the `default` prRule (or custom options with `merge: false`), do NOT update the state — the plan remains open for manual review and potential revisions.
+If `PrMerge` is `false`, do NOT update the state — the plan remains open for manual review and potential revisions.
 
 ### Edge Case: Direct-to-Main (No PR Needed)
 
@@ -273,4 +301,9 @@ Some plans create new repos and push directly to main (e.g., repo scaffolding). 
 - One PR per repo worktree that has commits
 - Skip worktrees with no commits ahead of the base branch
 - Use `gh` CLI for all GitHub operations
+- **Retry transient failures** per the transient-error retry convention before giving up
+- **Accurate failure reporting:** if a step ultimately fails, the final error message must
+  state the *actual* cause (e.g. `git push to origin failed after 3 retries: <stderr>` or
+  `gh pr create failed: <stderr>`). Never phrase a git/GitHub/network failure as a Claude
+  usage, quota, or rate-limit problem — that misleads the user about what to fix.
 - NEVER embed images via GitHub branch URLs (`github.com/blob/<branch>/...`) — these 404 after branch deletion. All screenshots/images in PR bodies must use persistent storage URLs (from the artifact upload tool, if available).

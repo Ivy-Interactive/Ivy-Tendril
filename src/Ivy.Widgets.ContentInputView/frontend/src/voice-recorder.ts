@@ -90,9 +90,13 @@ export class VoiceRecorder {
       };
 
       this.ws.onclose = (evt) => {
-        console.log(`[VoiceRecorder] WebSocket closed: code=${evt.code}, reason=${evt.reason || 'No reason'}, wasClean=${evt.wasClean}`);
+        console.log(
+          `[VoiceRecorder] WebSocket closed: code=${evt.code}, reason=${evt.reason || "No reason"}, wasClean=${evt.wasClean}`,
+        );
         if (!evt.wasClean && evt.code !== 1000 && evt.code !== 1005) {
-          this.options.onError(`WebSocket connection closed unexpectedly (code ${evt.code}: ${evt.reason || 'No reason given'})`);
+          this.options.onError(
+            `WebSocket connection closed unexpectedly (code ${evt.code}: ${evt.reason || "No reason given"})`,
+          );
         }
         this.cleanup();
       };

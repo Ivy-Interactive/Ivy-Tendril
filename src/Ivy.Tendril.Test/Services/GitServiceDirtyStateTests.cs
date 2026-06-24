@@ -43,6 +43,7 @@ public class GitServiceDirtyStateTests : IDisposable
 
         RunGit("config user.email test@example.com");
         RunGit("config user.name TestUser");
+        RunGit("checkout -b master");
 
         File.WriteAllText(Path.Combine(_testRepoPath, "file1.txt"), "Initial content");
         RunGit("add file1.txt");
@@ -156,7 +157,9 @@ public class GitServiceDirtyStateTests : IDisposable
         Assert.True(result.IsSuccess);
         Assert.True(result.Value!.IsDirty);
         var reason = Assert.Single(result.Value!.Reasons, r => r.Reason == DirtyReason.AheadOfOrigin);
-        Assert.NotEmpty(reason.Files);
+        // AheadOfOrigin reports the unpushed commits (not files) — matches DirtyRepoDialog,
+        // which renders reason.Commits for this reason and reason.Files for the others.
+        Assert.NotEmpty(reason.Commits);
     }
 
     [Fact]

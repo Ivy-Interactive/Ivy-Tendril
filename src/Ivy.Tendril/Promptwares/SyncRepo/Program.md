@@ -21,7 +21,7 @@ The firmware header contains:
 ### 1. Report Status
 
 ```bash
-tendril job status TendrilJobId --message "Syncing repo: BaseBranch..."
+tendril job status TendrilJobId --message="Syncing repo: BaseBranch..."
 ```
 
 ### 2. Abort In-Progress Operations

@@ -164,6 +164,7 @@ public class TendrilSettings
     public int StaleOutputTimeout { get; set; } = 10;
     public int GitTimeout { get; set; } = 10;
     public int MaxConcurrentJobs { get; set; } = 5;
+
     public List<ProjectConfig> Projects { get; set; } = new();
     public List<VerificationConfig> Verifications { get; set; } = new();
     public string PlanTemplate { get; set; } = "";

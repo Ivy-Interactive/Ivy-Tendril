@@ -30,6 +30,7 @@ public class AddProjectDialog(
         var verificationRefreshToken = UseState(0);
         var hasCreated = UseState(false);
         var skipAgent = UseState(false);
+        var setupTriggered = UseState(false);
 
         var session = new OnboardingVerificationSession(
             verificationStream,
@@ -59,9 +60,32 @@ public class AddProjectDialog(
                 isStepLoading.Set(false);
                 hasCreated.Set(false);
                 skipAgent.Set(false);
+                setupTriggered.Set(false);
                 session.Reset();
             }
         }, isOpen);
+
+        // Transition to step 1 as soon as the agent run is triggered (not after first
+        // output). The ProjectAgentStepView's setup effect, which actually starts the run,
+        // only fires once that view is mounted — so this mount must happen up front. The
+        // AgentViewer then renders immediately and shows its own "Starting…" loading state
+        // below the stream until output arrives.
+        UseEffect(() =>
+        {
+            if (setupTriggered.Value && !skipAgent.Value && step.Value == 0)
+            {
+                step.Set(1);
+            }
+        }, [setupTriggered, skipAgent]);
+
+        // Transition to step 2 when skipAgent is enabled and setup is done
+        UseEffect(() =>
+        {
+            if (skipAgent.Value && setupTriggered.Value && step.Value == 0 && !session.Running.Value && !isStepLoading.Value)
+            {
+                step.Set(2);
+            }
+        }, [skipAgent, setupTriggered, step, session.Running, isStepLoading]);
 
         if (!isOpen.Value) return null;
 
@@ -99,12 +123,12 @@ public class AddProjectDialog(
                 onNext: () =>
                 {
                     skipAgent.Set(false);
-                    step.Set(1);
+                    setupTriggered.Set(true);
                 },
                 onSkip: () =>
                 {
                     skipAgent.Set(true);
-                    step.Set(1);
+                    setupTriggered.Set(true);
                 },
                 skipButtonText: "Manual Setup",
                 nextButtonText: "Create Project",
@@ -121,6 +145,7 @@ public class AddProjectDialog(
                     session.Reset();
                     isStepLoading.Set(false);
                     RemoveCommittedProject();
+                    setupTriggered.Set(false);
                     step.Set(0);
                 },
                 onNext: () =>
@@ -129,7 +154,8 @@ public class AddProjectDialog(
                 },
                 onSkip: null,
                 skipAgent: skipAgent.Value,
-                showHeader: false),
+                showHeader: false,
+                setupTrigger: setupTriggered),
             2 => new ProjectCrudStepView(
                 editName,
                 isStepLoading,

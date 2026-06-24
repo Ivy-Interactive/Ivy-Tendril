@@ -51,6 +51,8 @@ public class PlanDatabaseService : IPlanDatabaseService
         var directory = Path.GetDirectoryName(databasePath);
         if (!string.IsNullOrEmpty(directory))
             Directory.CreateDirectory(directory);
+        // Open raw (no PRAGMAs yet) so the integrity check below runs before WAL is enabled — a
+        // corrupt DB must be detected and recreated before journal_mode=WAL is applied.
         _connection = new SqliteConnection($"Data Source={databasePath};Mode=ReadWriteCreate");
         _connection.Open();
 
@@ -84,9 +86,11 @@ public class PlanDatabaseService : IPlanDatabaseService
             _connection.Open();
         }
 
-        using var pragmaCmd = _connection.CreateCommand();
-        pragmaCmd.CommandText = "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;";
-        pragmaCmd.ExecuteNonQuery();
+        // Enable WAL + busy_timeout + foreign_keys. busy_timeout makes this connection's SQLite busy
+        // handler wait for the write lock — including during transactional lock escalation, which the
+        // ADO-layer SQLITE_BUSY retry does not cover — instead of surfacing "database is locked" when
+        // another process (e.g. a CLI command) contends for the same database file.
+        SqliteConnectionFactory.ApplyPragmas(_connection);
 
         var migrator = new DatabaseMigrator(_connection);
         migrator.ApplyMigrations();
@@ -210,7 +214,7 @@ public class PlanDatabaseService : IPlanDatabaseService
             cmd.CommandText = """
                               SELECT
                                   COALESCE(SUM(CASE WHEN State IN ('Draft', 'Blocked') THEN 1 ELSE 0 END), 0) AS DraftCount,
-                                  COALESCE(SUM(CASE WHEN State = 'ReadyForReview' THEN 1 ELSE 0 END), 0) AS ReadyForReviewCount,
+                                  COALESCE(SUM(CASE WHEN State = 'Review' THEN 1 ELSE 0 END), 0) AS ReviewCount,
                                   COALESCE(SUM(CASE WHEN State = 'Failed' THEN 1 ELSE 0 END), 0) AS FailedCount,
                                   COALESCE(SUM(CASE WHEN State = 'Icebox' THEN 1 ELSE 0 END), 0) AS IceboxCount,
                                   (SELECT COUNT(*) FROM Recommendations WHERE State = 'Pending' AND SourcePlanStatus = 'Completed') AS PendingRecommendationsCount,
@@ -222,7 +226,7 @@ public class PlanDatabaseService : IPlanDatabaseService
             if (reader.Read())
             {
                 var draftOrdinal = reader.GetOrdinal("DraftCount");
-                var readyForReviewOrdinal = reader.GetOrdinal("ReadyForReviewCount");
+                var reviewOrdinal = reader.GetOrdinal("ReviewCount");
                 var failedOrdinal = reader.GetOrdinal("FailedCount");
                 var iceboxOrdinal = reader.GetOrdinal("IceboxCount");
                 var pendingRecsOrdinal = reader.GetOrdinal("PendingRecommendationsCount");
@@ -230,7 +234,7 @@ public class PlanDatabaseService : IPlanDatabaseService
 
                 return new PlanReaderService.PlanCountSnapshot(
                     reader.GetInt32(draftOrdinal),
-                    reader.GetInt32(readyForReviewOrdinal),
+                    reader.GetInt32(reviewOrdinal),
                     reader.GetInt32(failedOrdinal),
                     reader.GetInt32(iceboxOrdinal),
                     reader.GetInt32(pendingRecsOrdinal),

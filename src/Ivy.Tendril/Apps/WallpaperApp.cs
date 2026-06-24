@@ -1,8 +1,11 @@
+using System.Reactive.Disposables;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Plans;
+using Ivy.Tendril.Services.Tunnel;
 using Ivy.Widgets.ActivityHeatmap;
+using Ivy.Widgets.QRCode;
 
 namespace Ivy.Tendril.Apps;
 
@@ -11,10 +14,15 @@ public class WallpaperApp : ViewBase
 {
     public override object Build()
     {
+        var client = UseService<IClientProvider>();
         var versionService = UseService<IVersionCheckService>();
         var planDbService = UseService<IPlanDatabaseService>();
+        var tunnelService = UseService<ICloudflaredService>();
+        var copyToClipboard = UseClipboard();
         var versionInfo = UseState<VersionInfo?>(null);
         var dismissedVersion = UseState<string?>(null);
+        var tunnelStatus = UseState(tunnelService.Status);
+        var tunnelUrl = UseState<string?>(tunnelService.TunnelUrl);
 
         var processView = Context.UseTendrilProcess();
 
@@ -25,7 +33,23 @@ public class WallpaperApp : ViewBase
                 var info = await versionService.CheckForUpdatesAsync();
                 versionInfo.Set(info);
             });
-        }, []);
+        });
+
+        UseEffect(() =>
+        {
+            void OnStatusChanged(TunnelStatus newStatus)
+            {
+                tunnelStatus.Set(newStatus);
+                tunnelUrl.Set(tunnelService.TunnelUrl);
+            }
+
+            tunnelService.StatusChanged += OnStatusChanged;
+
+            tunnelStatus.Set(tunnelService.Status);
+            tunnelUrl.Set(tunnelService.TunnelUrl);
+
+            return Disposable.Create(() => tunnelService.StatusChanged -= OnStatusChanged);
+        });
 
         // Query last 90 days of completed PRs
         var prData = planDbService.GetCompletedPrsByDay(90);
@@ -53,6 +77,35 @@ public class WallpaperApp : ViewBase
         {
             Layout.Center() | verticalLayout
         };
+
+        // Only show the tunnel QR once the tunnel is fully established and routable
+        // (Status == Connected), never during the Connecting phase.
+        if (tunnelStatus.Value == TunnelStatus.Connected && tunnelUrl.Value is { } tunnelAddress)
+        {
+            var tunnelMenu = new Button().Icon(Icons.Ellipsis).Ghost().Small().WithDropDown(
+                new MenuItem("Copy to Clipboard", Icon: Icons.ClipboardCopy, Tag: "copy").OnSelect(() =>
+                {
+                    copyToClipboard(tunnelAddress);
+                    client.Toast("Tunnel URL copied to clipboard", "URL Copied");
+                }),
+                new MenuItem("Open in Browser", Icon: Icons.ExternalLink, Tag: "open").OnSelect(() => client.OpenUrl(tunnelAddress)),
+                new MenuItem("Deactivate", Icon: Icons.Power, Tag: "deactivate").OnSelect(() =>
+                {
+                    // Optimistically remove the panel; the teardown runs in the background.
+                    tunnelStatus.Set(TunnelStatus.Disabled);
+                    client.Toast("Tunnel stopped", "Deactivated");
+                    _ = tunnelService.DeactivateAsync();
+                })
+            );
+
+            var tunnelQr = new FloatingPanel(
+                new Card(
+                    new QRCode { Value = tunnelAddress, PixelSize = 160, ErrorCorrectionLevel = QrErrorCorrectionLevel.Medium }
+                ).Header("Tunnel", null, tunnelMenu)
+            ).AlignSelf(Align.TopRight).Offset(new Thickness(0, 8, 8, 0));
+
+            elements.Add(tunnelQr);
+        }
 
         if (versionInfo.Value?.HasUpdate == true && versionInfo.Value.LatestVersion != dismissedVersion.Value)
         {

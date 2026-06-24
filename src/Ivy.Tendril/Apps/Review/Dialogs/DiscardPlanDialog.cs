@@ -1,5 +1,6 @@
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Git;
 using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps.Review.Dialogs;
@@ -32,6 +33,10 @@ public class DiscardPlanDialog(
                     _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Skipped);
                     _refreshPlans();
                     _dialogOpen.Set(false);
+
+                    // Discard is an explicit "I don't want this" — reclaim the worktree promptly
+                    // instead of waiting for the background reaper.
+                    WorktreeCleanupService.RemoveWorktreesInBackground(_selectedPlan.FolderPath);
                 })
             )
         ).Width(Size.Rem(40));

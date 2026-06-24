@@ -11,7 +11,7 @@ public static class PlanValidationService
 {
     private static readonly string[] ValidStates =
     [
-        nameof(PlanStatus.Draft), nameof(PlanStatus.Building), nameof(PlanStatus.Updating), nameof(PlanStatus.Executing), nameof(PlanStatus.ReadyForReview),
+        nameof(PlanStatus.Draft), nameof(PlanStatus.Creating), nameof(PlanStatus.Updating), nameof(PlanStatus.Executing), nameof(PlanStatus.Review),
         nameof(PlanStatus.Failed), nameof(PlanStatus.Completed), nameof(PlanStatus.Skipped), nameof(PlanStatus.Blocked), nameof(PlanStatus.Icebox)
     ];
 

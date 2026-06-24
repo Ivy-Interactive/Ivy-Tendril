@@ -32,7 +32,99 @@ projects:
     repos:
       - path: D:\TestRepo
         prRule: default
+      - path: D:\YoloRepo
+        prRule: yolo
+        baseBranch: development
 ");
+    }
+
+    private JobLauncher CreateLauncher()
+    {
+        var configService = new ConfigService(new TendrilSettings());
+        configService.SetTendrilHome(_tempTendrilHome);
+        return new JobLauncher(configService, null,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance, _tempPromptsRoot);
+    }
+
+    private string? InvokeBuildRepoConfigsYaml(JobLauncher launcher, PlanYaml plan, string project)
+    {
+        var method = typeof(JobLauncher).GetMethod("BuildRepoConfigsYaml",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        return (string?)method?.Invoke(launcher, new object[] { plan, project });
+    }
+
+    // prRule is a UI-only concept (it decides whether the PR dialog is shown and its defaults).
+    // It must NOT leak into the firmware header — the CreatePr promptware acts solely on the
+    // explicit Pr* flags, and a stray "prRule: yolo" used to make the agent merge despite the
+    // user opting out (issue #1272).
+    [Fact]
+    public void BuildRepoConfigsYaml_DoesNotEmitPrRule_EvenForYoloRepo()
+    {
+        var launcher = CreateLauncher();
+        var plan = new PlanYaml { Project = "TestProject", Repos = { @"D:\YoloRepo" } };
+
+        var yaml = InvokeBuildRepoConfigsYaml(launcher, plan, "TestProject");
+
+        Assert.NotNull(yaml);
+        Assert.DoesNotContain("prRule", yaml);
+        Assert.DoesNotContain("yolo", yaml);
+    }
+
+    [Fact]
+    public void BuildRepoConfigsYaml_StillEmitsBaseBranch()
+    {
+        var launcher = CreateLauncher();
+        var plan = new PlanYaml { Project = "TestProject", Repos = { @"D:\YoloRepo" } };
+
+        var yaml = InvokeBuildRepoConfigsYaml(launcher, plan, "TestProject");
+
+        Assert.NotNull(yaml);
+        Assert.Contains("baseBranch: development", yaml);
+    }
+
+    private static Dictionary<string, string> InvokeAddCreatePrOptions(JobItem job)
+    {
+        var values = new Dictionary<string, string>();
+        var method = typeof(JobLauncher).GetMethod("AddCreatePrOptions",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        method?.Invoke(null, new object[] { job, values });
+        return values;
+    }
+
+    // The PR dialog's "Reviewer" field flows into CreatePrArgs.Reviewer and must reach the
+    // CreatePr promptware as the PrReviewer firmware value (issue #1311). It used to be the
+    // PrAssignee value, which emitted a GitHub assignee instead of a requested reviewer.
+    [Fact]
+    public void AddCreatePrOptions_EmitsPrReviewer_WhenReviewerSet()
+    {
+        var job = new JobItem
+        {
+            Id = "pr-1",
+            Type = "CreatePr",
+            TypedArgs = new CreatePrArgs(@"D:\Plans\01234-TestPlan", Reviewer: "octocat"),
+            Project = "TestProject"
+        };
+
+        var values = InvokeAddCreatePrOptions(job);
+
+        Assert.Equal("octocat", values["PrReviewer"]);
+        Assert.False(values.ContainsKey("PrAssignee"));
+    }
+
+    [Fact]
+    public void AddCreatePrOptions_OmitsPrReviewer_WhenReviewerNull()
+    {
+        var job = new JobItem
+        {
+            Id = "pr-2",
+            Type = "CreatePr",
+            TypedArgs = new CreatePrArgs(@"D:\Plans\01234-TestPlan"),
+            Project = "TestProject"
+        };
+
+        var values = InvokeAddCreatePrOptions(job);
+
+        Assert.False(values.ContainsKey("PrReviewer"));
     }
 
     public void Dispose()
