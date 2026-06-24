@@ -15,35 +15,11 @@ public class SlackPlugin : IIvyPlugin<ITendrilPluginContext>
         Icon = PluginIcon.Named("Slack"),
     };
 
-    public PluginConfigurationSchema ConfigurationSchema { get; } = new()
-    {
-        Fields =
-        [
-            new()
-            {
-                Key = "BotToken",
-                Type = ConfigFieldType.Secret,
-                IsRequired = true,
-                Description = "Slack Bot User OAuth Token (starts with xoxb-)"
-            },
-            new()
-            {
-                Key = "DefaultChannel",
-                Type = ConfigFieldType.String,
-                IsRequired = false,
-                Description = "Default channel ID or name for messages",
-                DefaultValue = "general"
-            },
-            new()
-            {
-                Key = "MaxRetries",
-                Type = ConfigFieldType.Integer,
-                IsRequired = false,
-                Description = "Maximum number of retry attempts for failed messages",
-                DefaultValue = "3"
-            }
-        ]
-    };
+    public PluginConfigurationSchema ConfigurationSchema { get; } = new SchemaBuilder()
+        .AddSecret("BotToken", description: "Slack Bot User OAuth Token (starts with xoxb-)", isRequired: true)
+        .AddString("DefaultChannel", defaultValue: "general", description: "Default channel ID or name for messages")
+        .AddInteger("MaxRetries", defaultValue: 3, description: "Maximum number of retry attempts for failed messages")
+        .Build();
 
     public void Configure(ITendrilPluginContext context)
     {

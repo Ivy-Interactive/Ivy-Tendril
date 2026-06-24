@@ -15,19 +15,9 @@ public class LinearPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
         Icon = PluginIcon.Named("Linear"),
     };
 
-    public PluginConfigurationSchema ConfigurationSchema { get; } = new()
-    {
-        Fields =
-        [
-            new()
-            {
-                Key = "ApiKey",
-                Type = ConfigFieldType.Secret,
-                IsRequired = true,
-                Description = "Linear API key (starts with lin_api_)"
-            }
-        ]
-    };
+    public PluginConfigurationSchema ConfigurationSchema { get; } = new SchemaBuilder()
+        .AddSecret("ApiKey", description: "Linear API key (starts with lin_api_)", isRequired: true)
+        .Build();
 
     public void Configure(ITendrilExtendedPluginContext context)
     {
