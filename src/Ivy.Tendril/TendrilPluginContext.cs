@@ -1,8 +1,10 @@
 using Ivy.Core.Plugins;
 using Ivy.Plugins;
+using Ivy.Plugins.Inbox;
 using Ivy.Plugins.Messaging;
 using Ivy.Tendril.AppShell;
 using Ivy.Tendril.Plugins;
+using Ivy.Tendril.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -12,6 +14,7 @@ internal class TendrilPluginContext(Server server, WebApplicationBuilder builder
     : PluginContextBase(server, builder), ITendrilExtendedPluginContext, ITendrilPluginContributions
 {
     public string TendrilHome { get; } = tendrilHome;
+    public IInbox Inbox { get; } = new PluginInbox(Path.Combine(tendrilHome, "Inbox"));
     private readonly List<(Func<IEnumerable<MenuItem>, IEnumerable<MenuItem>> Transformer, int Priority, string PluginId)> _settingsMenuTransformers = [];
     private readonly List<(string Tag, Func<IServiceProvider, int> CountProvider, string PluginId)> _badgeProviders = [];
     private readonly Dictionary<string, Func<IState<bool>, object?>> _dialogFactories = [];
