@@ -1,10 +1,10 @@
-using System.Text.RegularExpressions;
+using Ivy.Plugins.Inbox;
 using Ivy.Tendril.Plugin.Linear.GraphQL;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Plugin.Linear;
 
-internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFactory clientFactory, string tendrilHome) : ViewBase
+internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFactory clientFactory, IInbox inbox) : ViewBase
 {
     public override object? Build()
     {
@@ -270,46 +270,25 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
             selectedPriority.Value is not null || selectedStatus.Value is not null ||
             !string.IsNullOrWhiteSpace(searchText.Value);
 
-        async Task ImportSelected()
+        Task ImportSelected()
         {
-            if (issues.Value is not { Count: > 0 } allIssues) return;
-            if (selectedIssueIds.Value.Count == 0) return;
+            if (issues.Value is not { Count: > 0 } allIssues) return Task.CompletedTask;
+            if (selectedIssueIds.Value.Count == 0) return Task.CompletedTask;
 
             isImporting.Set(true);
             try
             {
-                var inboxPath = Path.Combine(tendrilHome, "Inbox");
-                Directory.CreateDirectory(inboxPath);
+                var selected = allIssues.Where(i => selectedIssueIds.Value.Contains(i.Id)).ToList();
 
-                var importedCount = 0;
-                foreach (var issue in allIssues.Where(i => selectedIssueIds.Value.Contains(i.Id)))
+                inbox.AddRange(selected.Select(issue => new InboxItem
                 {
-                    var safeName = SanitizeFileName(issue.Title);
-                    var fileName = $"{issue.Identifier}-{safeName}.md";
-                    var filePath = Path.Combine(inboxPath, fileName);
+                    Description = $"[{issue.Identifier}]({issue.Url})\n\n{issue.Description ?? "No description."}",
+                    SourceUrl = issue.Url,
+                    SourceIdentifier = issue.Identifier,
+                    Labels = issue.Labels
+                }));
 
-                    if (File.Exists(filePath)) continue;
-
-                    var labels = issue.Labels.Count > 0
-                        ? $"\nlabels: [{string.Join(", ", issue.Labels)}]"
-                        : "";
-
-                    var content = $"""
-                                   ---
-                                   project: Auto
-                                   sourceUrl: {issue.Url}
-                                   sourceIdentifier: {issue.Identifier}{labels}
-                                   ---
-                                   [{issue.Identifier}]({issue.Url})
-
-                                   {issue.Description ?? "No description."}
-                                   """;
-
-                    await File.WriteAllTextAsync(filePath, content);
-                    importedCount++;
-                }
-
-                client.Toast($"Imported {importedCount} issue{(importedCount == 1 ? "" : "s")} to Inbox", "Import Complete");
+                client.Toast($"Imported {selected.Count} issue{(selected.Count == 1 ? "" : "s")} to Inbox", "Import Complete");
                 dialogOpen.Set(false);
             }
             catch (Exception ex)
@@ -321,6 +300,8 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
             {
                 isImporting.Set(false);
             }
+
+            return Task.CompletedTask;
         }
 
         void ToggleIssue(string id)
@@ -462,13 +443,6 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
         return trimmed.Length > maxLength ? trimmed[..maxLength].TrimEnd() + "…" : trimmed;
     }
 
-    private static string SanitizeFileName(string title)
-    {
-        var sanitized = Regex.Replace(title, @"[^a-zA-Z0-9\s-]", "");
-        sanitized = Regex.Replace(sanitized, @"\s+", "-");
-        sanitized = sanitized.Trim('-').ToLowerInvariant();
-        return sanitized.Length > 60 ? sanitized[..60].TrimEnd('-') : sanitized;
-    }
 }
 
 internal record LinearTeamInfo(string Id, string Name, string Key);

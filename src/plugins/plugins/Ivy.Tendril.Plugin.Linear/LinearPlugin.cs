@@ -26,7 +26,7 @@ public class LinearPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
 
         var openImportDialog = context.RegisterDialog(
             "$linear-import-dialog",
-            dialogOpen => new ImportFromLinearDialog(dialogOpen, clientFactory, context.TendrilHome));
+            dialogOpen => new ImportFromLinearDialog(dialogOpen, clientFactory, context.Inbox));
 
         context.TransformSettingsMenuItems(items =>
         {
