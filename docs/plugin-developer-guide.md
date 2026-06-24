@@ -926,8 +926,6 @@ context.TendrilConfig.Modify(config =>
 
 ### Adding to the Inbox
 
-> **To be implemented...** This API is designed but not yet available at runtime. The interfaces below describe the intended contract.
-
 Plugins can programmatically add items to the Tendril Inbox, which triggers plan creation. This is the primary way for plugins to feed work into Tendril — whether from external issue trackers, scheduled syncs, webhooks, or user-initiated imports.
 
 **Adding inbox items:**
