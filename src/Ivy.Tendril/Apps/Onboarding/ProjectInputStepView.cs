@@ -54,7 +54,7 @@ public class ProjectInputStepView(
                 .Disabled(!canContinue)
                 .OnClick(onNext);
 
-        return Layout.Vertical()
+        return Layout.Vertical().Margin(0, 0, 0, 20)
                | (showHeader ? Text.H3(title) : null!)
                | Text.Muted("A project groups one or more repositories together so Tendril can plan and verify changes across them.")
                | new ProjectRepoPickerView(selectedRepos, projectName)
