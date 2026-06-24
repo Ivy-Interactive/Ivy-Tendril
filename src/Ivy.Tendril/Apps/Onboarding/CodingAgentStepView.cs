@@ -71,9 +71,6 @@ public class CodingAgentStepView(
         var client = UseService<IClientProvider>();
         var agentRunner = UseService<IAgentRunner>();
 
-        var registeredAgents = agentRunner.RegisteredAgents;
-        var visibleAgents = Agents.Where(a => registeredAgents.Contains(a.Key)).ToArray();
-
         var selectedAgent = UseState<string?>(null);
         var progressMessage = UseState<string?>(null);
         var progressValue = UseState<int?>(null);
@@ -82,6 +79,9 @@ public class CodingAgentStepView(
 
         var (installDialog, showInstallDialog) = UseTrigger<InstallDialogArgs>((isOpen, args) =>
             new InstallMissingDialog(isOpen, args));
+
+        var registeredAgents = agentRunner.RegisteredAgents;
+        var visibleAgents = Agents.Where(a => registeredAgents.Contains(a.Key)).ToArray();
 
         if (selectedAgent.Value is null)
         {
