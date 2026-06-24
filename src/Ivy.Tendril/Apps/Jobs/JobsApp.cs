@@ -21,6 +21,7 @@ public partial class JobsApp : ViewBase
         var openFile = UseState<string?>(null);
         var confirmDeleteOpen = UseState(false);
         var deleteJobId = UseState<string?>(null);
+        var selectedView = UseState(0);
 
         var (planSheet, showPlan) = UseTrigger<string>((isOpen, planPath) =>
         {
@@ -91,8 +92,19 @@ public partial class JobsApp : ViewBase
             jobService, client, showPlan, showOutput, showPrompt, showDebug, showRerun, jobs, projectColors, jobsProgress,
             confirmDeleteOpen, deleteJobId);
 
+        var board = BuildBoard(jobs, planService, projectColors, jobId => showOutput(jobId));
+
+        var content = Layout.Tabs(
+                new Tab("Table", dataTable),
+                new Tab("Board", board)
+            )
+            .OnSelect(v => selectedView.Set(v))
+            .SelectedIndex(selectedView.Value)
+            .Variant(TabsVariant.Content)
+            .RemoveParentPadding();
+
         var layout = Layout.Vertical().Height(Size.Full());
 
-        return layout | new Fragment(dataTable, planSheet, outputSheet, promptSheet, debugSheet, rerunDialog);
+        return layout | new Fragment(content, planSheet, outputSheet, promptSheet, debugSheet, rerunDialog);
     }
 }
