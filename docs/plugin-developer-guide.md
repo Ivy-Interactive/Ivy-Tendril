@@ -364,8 +364,12 @@ public void Configure(ITendrilPluginContext context)
         ExecuteAsync = async (ctx, ct) =>
         {
             var issues = await FetchNewIssues(ct);
-            foreach (var issue in issues)
-                await WriteToInbox(ctx.TendrilHome, issue, ct);
+            ctx.Inbox.AddRange(issues.Select(issue => new InboxItem
+            {
+                Description = issue.Body,
+                SourceUrl = issue.Url,
+                SourceIdentifier = issue.Identifier
+            }));
 
             return ScheduledTaskResult.Success($"Imported {issues.Count} issues");
         }
@@ -1220,7 +1224,7 @@ public class LinearPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
 
         var openImportDialog = context.RegisterDialog(
             "$linear-import-dialog",
-            dialogOpen => new ImportFromLinearDialog(dialogOpen, clientFactory, context.TendrilHome));
+            dialogOpen => new ImportFromLinearDialog(dialogOpen, clientFactory, context.Inbox));
 
         context.TransformSettingsMenuItems(items =>
         {
