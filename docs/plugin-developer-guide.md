@@ -1121,7 +1121,7 @@ public void Configure(ITendrilPluginContext context)
             2. Run `snyk code test --file=<file>` for each changed file
             3. Write a verification report to `<VerificationDir>/SecurityScan.md`
             """,
-        DefaultProfile = "balanced",
+        DefaultProfile = ProfileTier.Balanced,
         AllowedTools = ["Bash(snyk *)"],
         Values = [
             new PromptwareValueDescriptor { Name = "VerificationDir", Description = "Output directory for the report", Required = true }
@@ -1155,10 +1155,9 @@ public record PromptwareDescriptor
     public required string Program { get; init; }
 
     /// <summary>
-    /// Default execution profile (e.g., "deep", "balanced", "quick").
-    /// Can be overridden per-project in config.yaml.
+    /// Default execution profile. Can be overridden per-project in config.yaml.
     /// </summary>
-    public string DefaultProfile { get; init; } = "balanced";
+    public ProfileTier DefaultProfile { get; init; } = ProfileTier.Balanced;
 
     /// <summary>
     /// Tools the coding agent is allowed to use during execution.
