@@ -97,8 +97,11 @@ public static class TendrilServer
                 new TendrilPluginConfigFactory(pluginsDir),
                 contextFactory: (s, builder) =>
                 {
-                    tendrilPluginContext = new TendrilPluginContext(s, builder, configService.TendrilHome);
+                    tendrilPluginContext = new TendrilPluginContext(s, builder, configService.TendrilHome,
+                        Microsoft.Extensions.Logging.Abstractions.NullLogger<TendrilPluginContext>.Instance);
                     builder.Services.AddSingleton<AppShell.ITendrilPluginContributions>(tendrilPluginContext);
+                    builder.Services.AddSingleton(tendrilPluginContext.HookRegistry);
+                    configService.PluginHooks = tendrilPluginContext.HookRegistry;
                     return tendrilPluginContext;
                 },
                 sharedAssemblyNames: ["Ivy.Tendril.Plugin.Abstractions", "Ivy.Tendril.Plugin.Extended.Abstractions"],

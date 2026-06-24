@@ -1,5 +1,6 @@
 using Ivy.Core.Plugins;
 using Ivy.Plugins;
+using Ivy.Plugins.Hooks;
 using Ivy.Plugins.Inbox;
 using Ivy.Plugins.Messaging;
 using Ivy.Tendril.AppShell;
@@ -7,14 +8,18 @@ using Ivy.Tendril.Plugins;
 using Ivy.Tendril.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril;
 
-internal class TendrilPluginContext(Server server, WebApplicationBuilder builder, string tendrilHome)
+internal class TendrilPluginContext(Server server, WebApplicationBuilder builder, string tendrilHome, ILogger logger)
     : PluginContextBase(server, builder), ITendrilExtendedPluginContext, ITendrilPluginContributions
 {
     public string TendrilHome { get; } = tendrilHome;
     public IInbox Inbox { get; } = new PluginInbox(Path.Combine(tendrilHome, "Inbox"));
+    public IPluginHooks Hooks => HookRegistry;
+    internal PluginHookRegistry HookRegistry => _hookRegistry ??= new(logger, () => CurrentPluginId);
+    private PluginHookRegistry? _hookRegistry;
     private readonly List<(Func<IEnumerable<MenuItem>, IEnumerable<MenuItem>> Transformer, int Priority, string PluginId)> _settingsMenuTransformers = [];
     private readonly List<(string Tag, Func<IServiceProvider, int> CountProvider, string PluginId)> _badgeProviders = [];
     private readonly Dictionary<string, Func<IState<bool>, object?>> _dialogFactories = [];
@@ -60,6 +65,7 @@ internal class TendrilPluginContext(Server server, WebApplicationBuilder builder
     {
         base.RemovePluginContributions(pluginId);
 
+        HookRegistry.RemovePluginHooks(pluginId);
         _settingsMenuTransformers.RemoveAll(x => x.PluginId == pluginId);
         _badgeProviders.RemoveAll(x => x.PluginId == pluginId);
 

@@ -484,8 +484,6 @@ ScheduledTaskResult.Skipped("No new issues since last sync")
 
 ### Lifecycle Hooks
 
-> **To be implemented...** This API is designed but not yet available at runtime. The interfaces below describe the intended contract.
-
 Plugins can register in-process callbacks that fire at specific points in the Tendril lifecycle. Unlike config-based hooks (which run shell commands), these are code callbacks that execute inside the host process with full access to plugin state.
 
 **Registering hooks (selected examples — see `IPluginHooks` below for the full list):**

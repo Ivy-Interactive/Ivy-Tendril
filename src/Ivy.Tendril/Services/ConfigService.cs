@@ -197,6 +197,7 @@ public class ConfigService : IConfigService, IDisposable
     private readonly List<string> _trackedTempFiles = new();
     private readonly object _tempFileLock = new();
     private string[]? _levelNamesCache;
+    internal PluginHookRegistry? PluginHooks { get; set; }
     private string? _pendingCodingAgent;
     private ProjectConfig? _pendingProject;
     private string? _pendingTendrilHome;
@@ -458,6 +459,21 @@ public class ConfigService : IConfigService, IDisposable
 
     public void SaveSettings()
     {
+        if (PluginHooks is { } hooks)
+        {
+            var evt = new Ivy.Plugins.Hooks.ConfigSaveEvent
+            {
+                CurrentSettings = Settings,
+                NewSettings = Settings
+            };
+            hooks.FireBeforeConfigSave(evt);
+            if (evt.Rejected)
+            {
+                _logger.LogWarning("Config save rejected by plugin: {Reason}", evt.RejectionReason);
+                return;
+            }
+        }
+
         WriteSettingsToDisk();
         ReloadSettings();
     }
@@ -504,6 +520,7 @@ public class ConfigService : IConfigService, IDisposable
 
             SyncAuthFromEnvironmentAndPersistIfNeeded();
             SettingsReloaded?.Invoke(this, EventArgs.Empty);
+            PluginHooks?.FireAfterConfigReload();
         }
         catch (Exception ex)
         {

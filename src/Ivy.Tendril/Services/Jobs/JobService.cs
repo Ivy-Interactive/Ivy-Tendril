@@ -30,6 +30,8 @@ public class JobService : IJobService
     private readonly JobLauncher _jobLauncher;
     private readonly JobCompletionHandler _completionHandler;
     private Timer? _blockedJobCheckTimer;
+    private readonly PluginHookRegistry? _pluginHooks;
+
     public JobService(
         IConfigService configService,
         ILogger<JobService>? logger = null,
@@ -38,7 +40,8 @@ public class JobService : IJobService
         ITelemetryService? telemetryService = null,
         IPlanWatcherService? planWatcherService = null,
         IPlanDatabaseService? database = null,
-        IAgentRunner? agentRunner = null)
+        IAgentRunner? agentRunner = null,
+        PluginHookRegistry? pluginHooks = null)
     {
         _syncContext = SynchronizationContext.Current;
         _configService = configService;
@@ -54,6 +57,7 @@ public class JobService : IJobService
         _jobSlotSemaphore = _maxConcurrentJobs > 0
             ? new SemaphoreSlim(_maxConcurrentJobs, _maxConcurrentJobs)
             : new SemaphoreSlim(0, 1);
+        _pluginHooks = pluginHooks;
         _inboxPath = Path.Combine(configService.TendrilHome, "Inbox");
         var promptsRoot = Ivy.Tendril.Helpers.PromptwareHelper.ResolvePromptsRoot(configService.TendrilHome);
         _jobLauncher = new JobLauncher(configService, agentRunner, _logger, promptsRoot);
@@ -828,7 +832,57 @@ public class JobService : IJobService
     }
 
     internal void RunHooks(string when, string jobType, string planFolder, string project, JobItem job)
-        => _completionHandler.RunHooks(when, jobType, planFolder, project, job);
+    {
+        // Fire plugin lifecycle hooks first, then shell-based hooks
+        if (_pluginHooks is not null)
+        {
+            try
+            {
+                if (when.Equals("before", StringComparison.OrdinalIgnoreCase))
+                {
+                    var evt = new Ivy.Plugins.Hooks.BeforeJobEvent
+                    {
+                        JobId = job.Id,
+                        JobType = jobType,
+                        PlanFolder = planFolder,
+                        Project = project
+                    };
+                    _pluginHooks.FireBeforeJobAsync(evt).GetAwaiter().GetResult();
+                }
+                else
+                {
+                    var evt = new Ivy.Plugins.Hooks.AfterJobEvent
+                    {
+                        JobId = job.Id,
+                        JobType = jobType,
+                        Status = MapJobStatus(job.Status),
+                        PlanFolder = planFolder,
+                        Project = project,
+                        ExitCode = job.ExitCode,
+                        Duration = job.StartedAt.HasValue
+                            ? DateTime.UtcNow - job.StartedAt.Value
+                            : TimeSpan.Zero
+                    };
+                    _pluginHooks.FireAfterJobAsync(evt).GetAwaiter().GetResult();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Plugin hook execution failed for {When} {JobType}", when, jobType);
+            }
+        }
+
+        _completionHandler.RunHooks(when, jobType, planFolder, project, job);
+    }
+
+    private static Ivy.Plugins.Hooks.JobStatus MapJobStatus(Models.JobStatus status) => status switch
+    {
+        Models.JobStatus.Completed => Ivy.Plugins.Hooks.JobStatus.Completed,
+        Models.JobStatus.Failed => Ivy.Plugins.Hooks.JobStatus.Failed,
+        Models.JobStatus.Stopped => Ivy.Plugins.Hooks.JobStatus.Stopped,
+        Models.JobStatus.Timeout => Ivy.Plugins.Hooks.JobStatus.TimedOut,
+        _ => Ivy.Plugins.Hooks.JobStatus.Failed
+    };
 
     internal Task RunStaleOutputWatchdog(string id, CancellationTokenSource timeoutCts)
         => JobMonitor.RunStaleOutputWatchdog(id, timeoutCts, _jobs, _staleOutputTimeout);
