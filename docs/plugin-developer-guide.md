@@ -61,19 +61,9 @@ public class MyPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
         Icon = PluginIcon.Named("Puzzle"),
     };
 
-    public PluginConfigurationSchema? ConfigurationSchema { get; } = new()
-    {
-        Fields =
-        [
-            new()
-            {
-                Key = "ApiKey",
-                Type = ConfigFieldType.Secret,
-                IsRequired = true,
-                Description = "Your API key"
-            }
-        ]
-    };
+    public PluginConfigurationSchema? ConfigurationSchema { get; } = new SchemaBuilder()
+        .AddSecret("ApiKey", description: "Your API key", isRequired: true)
+        .Build();
 
     public void Configure(ITendrilExtendedPluginContext context)
     {
@@ -253,46 +243,15 @@ The plugin loader validates file-based icons at load time and logs a warning if 
 
 ### Configuration Schema
 
-Plugins declare their configuration requirements with `PluginConfigurationSchema`:
+Plugins declare their configuration requirements with `PluginConfigurationSchema`, built using the fluent `SchemaBuilder`:
 
 ```csharp
-public PluginConfigurationSchema? ConfigurationSchema { get; } = new()
-{
-    Fields =
-    [
-        new()
-        {
-            Key = "BotToken",
-            Type = ConfigFieldType.Secret,
-            IsRequired = true,
-            Description = "Slack Bot User OAuth Token (starts with xoxb-)"
-        },
-        new()
-        {
-            Key = "DefaultChannel",
-            Type = ConfigFieldType.String,
-            IsRequired = false,
-            Description = "Default channel ID or name for messages",
-            DefaultValue = "general"
-        },
-        new()
-        {
-            Key = "MaxRetries",
-            Type = ConfigFieldType.Integer,
-            IsRequired = false,
-            Description = "Maximum number of retry attempts",
-            DefaultValue = "3"
-        },
-        new()
-        {
-            Key = "Enabled",
-            Type = ConfigFieldType.Boolean,
-            IsRequired = false,
-            DefaultValue = "true",
-            Description = "Whether the plugin is active"
-        }
-    ]
-};
+public PluginConfigurationSchema? ConfigurationSchema { get; } = new SchemaBuilder()
+    .AddSecret("BotToken", description: "Slack Bot User OAuth Token (starts with xoxb-)", isRequired: true)
+    .AddString("DefaultChannel", defaultValue: "general", description: "Default channel ID or name for messages")
+    .AddInteger("MaxRetries", defaultValue: 3, description: "Maximum number of retry attempts")
+    .AddBoolean("Enabled", defaultValue: true, description: "Whether the plugin is active")
+    .Build();
 ```
 
 **Field types:** `ConfigFieldType.String`, `ConfigFieldType.Integer`, `ConfigFieldType.Boolean`, `ConfigFieldType.Secret`
@@ -773,16 +732,12 @@ See `Ivy.Tendril.Plugin.SampleWidget` for a complete working example.
 
 > **To be implemented...** A built-in OAuth flow (redirect-based token acquisition) for plugins is not yet available.
 
-Currently, plugins handle authentication via `ConfigFieldType.Secret` fields where users manually paste API tokens or keys:
+Currently, plugins handle authentication via secret fields where users manually paste API tokens or keys:
 
 ```csharp
-new ConfigFieldDefinition
-{
-    Key = "ApiKey",
-    Type = ConfigFieldType.Secret,
-    IsRequired = true,
-    Description = "Linear API key (starts with lin_api_)"
-}
+public PluginConfigurationSchema? ConfigurationSchema { get; } = new SchemaBuilder()
+    .AddSecret("ApiKey", description: "Linear API key (starts with lin_api_)", isRequired: true)
+    .Build();
 ```
 
 The token is then retrieved in `Configure()` via `context.Config.GetValue("ApiKey")`.
@@ -1256,19 +1211,9 @@ public class LinearPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
         Icon = PluginIcon.Named("Linear"),
     };
 
-    public PluginConfigurationSchema ConfigurationSchema { get; } = new()
-    {
-        Fields =
-        [
-            new()
-            {
-                Key = "ApiKey",
-                Type = ConfigFieldType.Secret,
-                IsRequired = true,
-                Description = "Linear API key (starts with lin_api_)"
-            }
-        ]
-    };
+    public PluginConfigurationSchema ConfigurationSchema { get; } = new SchemaBuilder()
+        .AddSecret("ApiKey", description: "Linear API key (starts with lin_api_)", isRequired: true)
+        .Build();
 
     public void Configure(ITendrilExtendedPluginContext context)
     {
