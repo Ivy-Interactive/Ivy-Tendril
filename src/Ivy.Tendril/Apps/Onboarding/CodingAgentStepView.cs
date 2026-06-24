@@ -71,6 +71,9 @@ public class CodingAgentStepView(
         var client = UseService<IClientProvider>();
         var agentRunner = UseService<IAgentRunner>();
 
+        var registeredAgents = agentRunner.RegisteredAgents;
+        var visibleAgents = Agents.Where(a => registeredAgents.Contains(a.Key)).ToArray();
+
         var selectedAgent = UseState<string?>(null);
         var progressMessage = UseState<string?>(null);
         var progressValue = UseState<int?>(null);
@@ -82,7 +85,7 @@ public class CodingAgentStepView(
 
         if (selectedAgent.Value is null)
         {
-            return BuildPicker(agentKey =>
+            return BuildPicker(visibleAgents, agentKey =>
             {
                 selectedAgent.Set(agentKey);
                 _ = RunFlowAsync(agentKey);
@@ -226,11 +229,11 @@ public class CodingAgentStepView(
         }
     }
 
-    private static object BuildPicker(Action<string> onSelect, string? errorMessage)
+    private static object BuildPicker(AgentInfo[] agents, Action<string> onSelect, string? errorMessage)
     {
         var grid = Layout.Grid().Columns(3).Gap(2);
 
-        grid = Agents.Aggregate(grid, (current, a) => current | new Card(Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(0) | a.Logo.ToIcon().Width(Size.Px(32)).Height(Size.Px(32)) | Text.Block(a.Label)).OnClick(() => onSelect(a.Key)));
+        grid = agents.Aggregate(grid, (current, a) => current | new Card(Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(0) | a.Logo.ToIcon().Width(Size.Px(32)).Height(Size.Px(32)) | Text.Block(a.Label)).OnClick(() => onSelect(a.Key)));
 
         return Layout.Vertical().Margin(0, 0, 0, 20)
                | Text.H3("What is your coding agent?")
