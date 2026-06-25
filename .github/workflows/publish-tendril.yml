@@ -396,7 +396,8 @@ jobs:
           xcrun notarytool store-credentials "tendril-notary" \
             --apple-id "$APPLE_ID" \
             --team-id "$APPLE_TEAM_ID" \
-            --password "$APPLE_ID_PASSWORD"
+            --password "$APPLE_ID_PASSWORD" \
+            --keychain "$RUNNER_TEMP/app-signing.keychain-db"
 
       - name: Pack Installer (Velopack)
         run: |
