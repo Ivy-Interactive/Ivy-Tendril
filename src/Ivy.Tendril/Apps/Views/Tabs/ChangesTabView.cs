@@ -70,7 +70,7 @@ public class ChangesTabView(
 
         // Desktop/laptop: the file tree sits in a fixed-width sidebar beside the diffs.
         var treePanel = new Box(Layout.Vertical().Gap(2).Padding(1)
-                .Width(Size.Rem(12).Min(Size.Rem(12))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)))
+                .Width(Size.Rem(14).Min(Size.Rem(14))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)))
                 | tree)
             .BorderThickness(0).Padding(0).Width(Size.Auto()).Height(Size.Full().Min(Size.Px(0)))
             .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
