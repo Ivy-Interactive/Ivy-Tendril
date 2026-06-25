@@ -263,21 +263,24 @@ public static class PlanContentHelpers
         List<(string Status, string FilePath)> Files,
         int AddedCount,
         int ModifiedCount,
-        int DeletedCount
+        int DeletedCount,
+        // The repo/worktree the diff was read from, and whether that was a worktree NOT in the
+        // plan's configured repos (the work landed in a repo outside the plan's project — #1340).
+        string? SourceRepoPath = null,
+        bool FromUnlistedWorktree = false
     );
 
     public static AllChangesData? GetAllChangesData(PlanFile plan, IConfigService config, IGitService gitService)
     {
         if (plan.Commits.Count == 0) return null;
 
-        var repoPaths = plan.GetEffectiveRepoPaths(config);
         var firstCommit = plan.Commits.First();
         var lastCommit = plan.Commits.Last();
 
-        foreach (var repo in repoPaths)
+        AllChangesData? BuildFromRepo(string repo, bool fromUnlistedWorktree)
         {
             var titleResult = gitService.GetCommitTitle(repo, firstCommit);
-            if (!titleResult.IsSuccess) continue;
+            if (!titleResult.IsSuccess) return null;
 
             string? diff;
             List<(string Status, string FilePath)>? files;
@@ -302,7 +305,27 @@ public static class PlanContentHelpers
             var deleted = fileList.Count(f => f.Status == "D");
             var modified = fileList.Count - added - deleted;
 
-            return new AllChangesData(diff, fileList, added, modified, deleted);
+            return new AllChangesData(diff, fileList, added, modified, deleted, repo, fromUnlistedWorktree);
+        }
+
+        // Prefer the plan's / project's configured repos.
+        foreach (var repo in plan.GetEffectiveRepoPaths(config))
+        {
+            var result = BuildFromRepo(repo, fromUnlistedWorktree: false);
+            if (result != null) return result;
+        }
+
+        // Fall back to the plan's worktrees — the same source the Git tab reads (GitTabDataBuilder).
+        // A commit found here but not in the configured repos means the work landed in a repo outside
+        // the plan's project (#1340); surface the diff with a flag instead of showing "No commits yet.".
+        var worktreesDir = Path.Combine(plan.FolderPath, "Worktrees");
+        if (Directory.Exists(worktreesDir))
+        {
+            foreach (var worktree in Directory.GetDirectories(worktreesDir))
+            {
+                var result = BuildFromRepo(worktree, fromUnlistedWorktree: true);
+                if (result != null) return result;
+            }
         }
 
         return null;

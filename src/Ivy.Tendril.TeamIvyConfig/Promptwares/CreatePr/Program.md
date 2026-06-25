@@ -48,8 +48,18 @@ For each worktree:
 
 1. `git remote get-url origin` (from the worktree) to get the GitHub remote
 2. Extract `owner/repo` from the remote URL
-3. `git rev-parse --abbrev-ref HEAD` to get the branch name
-4. `git push -u origin <branch>`
+3. **!MANDATORY project gate — do not skip.** Verify this worktree's repo is one the project
+   authorizes: its repo path/name must appear in the `RepoConfigs` firmware header (the project's
+   configured repos). If the worktree's repo is **NOT** in `RepoConfigs`, **abort this worktree**:
+   do **not** push, create a PR, or merge. Report the mismatch and fail the job for this repo:
+   ```bash
+   tendril job status TendrilJobId --message="ERROR: worktree repo <owner/repo> is not part of this project's RepoConfigs — refusing to push/merge. The plan was likely created in the wrong project."
+   ```
+   Then skip to the next worktree (or exit if this is the only one). This is the stop that prevents
+   merging a change into a repo outside the plan's project (#1340). Never push to a repo just because
+   a worktree for it exists on disk.
+4. `git rev-parse --abbrev-ref HEAD` to get the branch name
+5. `git push -u origin <branch>`
 
 > **Stale remote tracking refs warning:** A ref appearing in `git branch -a` as `remotes/origin/<branch>` does NOT guarantee the branch exists on GitHub. Always verify with `gh api repos/<owner>/<repo>/branches/<branch>` or `git ls-remote origin <branch>` before assuming the push succeeded.
 >

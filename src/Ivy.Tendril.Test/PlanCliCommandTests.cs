@@ -3,8 +3,10 @@ using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Infrastructure;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Git;
 using Ivy.Tendril.Services.Plans;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Test;
@@ -246,7 +248,11 @@ public class PlanCliCommandTests : IDisposable
 
         var services = new ServiceCollection();
         services.AddSingleton<IPlanWatcherService, NullPlanWatcherService>();
-        services.AddSingleton<IConfigService>(new TestPlanConfigService(repoDir, project));
+        var configService = new TestPlanConfigService(repoDir, project);
+        services.AddSingleton<IConfigService>(configService);
+        // PlanCreateCommand now depends on IGithubService (source-URL ↔ project guard). These tests
+        // create plans without a --source-url, so the guard no-ops and git is never invoked.
+        services.AddSingleton<IGithubService>(new GithubService(configService, NullLogger<GithubService>.Instance));
 
         var app = new CommandApp(new TypeRegistrar(services));
         app.Configure(config =>
@@ -255,6 +261,76 @@ public class PlanCliCommandTests : IDisposable
             config.AddBranch("plan", plan => plan.AddCommand<PlanCreateCommand>("create"));
         });
         return app;
+    }
+
+    // Builds an app exposing `plan add-repo` and `plan validate`, wired to a config whose <project>
+    // authorizes only the repo at repos/<project>. Used to drive the #1340 project/repo guard.
+    private CommandApp BuildPlanGuardApp(string project, out string inProjectRepo)
+    {
+        inProjectRepo = Path.Combine(_tempDir.Path, "repos", project);
+        Directory.CreateDirectory(inProjectRepo);
+
+        var services = new ServiceCollection();
+        services.AddSingleton<IPlanWatcherService, NullPlanWatcherService>();
+        services.AddSingleton<IConfigService>(new TestPlanConfigService(inProjectRepo, project));
+
+        var app = new CommandApp(new TypeRegistrar(services));
+        app.Configure(config =>
+        {
+            config.PropagateExceptions();
+            config.AddBranch("plan", plan =>
+            {
+                plan.AddCommand<PlanAddRepoCommand>("add-repo");
+                plan.AddCommand<PlanValidateCommand>("validate");
+            });
+        });
+        return app;
+    }
+
+    // #1340: `plan add-repo` must refuse a repo that isn't part of the plan's project.
+    [Fact]
+    public void PlanAddRepo_RepoOutsideProject_RefusedWithExitCode1()
+    {
+        var app = BuildPlanGuardApp("TestProject", out var inProjectRepo);
+        var outsideRepo = Path.Combine(_tempDir.Path, "repos", "Ivy-Framework");
+        Directory.CreateDirectory(outsideRepo);
+
+        CreatePlanFolder("00001", "Test", new PlanYaml
+        {
+            State = "Draft",
+            Project = "TestProject",
+            Title = "Test",
+            Repos = [inProjectRepo],
+            Created = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc),
+            Updated = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc)
+        });
+
+        var exit = app.Run(["plan", "add-repo", "00001", outsideRepo]);
+
+        Assert.Equal(1, exit);
+        Assert.DoesNotContain(outsideRepo, ReadPlan("00001").Repos);
+    }
+
+    // #1340: `plan validate` must fail a plan whose repo isn't part of its project.
+    [Fact]
+    public void PlanValidate_RepoOutsideProject_Throws()
+    {
+        var app = BuildPlanGuardApp("TestProject", out _);
+        var outsideRepo = Path.Combine(_tempDir.Path, "repos", "Ivy-Framework");
+        Directory.CreateDirectory(outsideRepo);
+
+        CreatePlanFolder("00002", "Test", new PlanYaml
+        {
+            State = "Draft",
+            Project = "TestProject",
+            Title = "Test",
+            Repos = [outsideRepo],
+            Created = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc),
+            Updated = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc)
+        });
+
+        var ex = Assert.Throws<ArgumentException>(() => app.Run(["plan", "validate", "00002"]));
+        Assert.Contains("not part of project", ex.Message);
     }
 
     // Regression for #1297 / #1303: `tendril plan create <title> <project>` must bind a

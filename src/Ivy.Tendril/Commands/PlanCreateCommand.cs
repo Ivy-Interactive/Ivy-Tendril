@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Git;
+using Ivy.Tendril.Services.Plans;
 using Ivy.Tendril.Helpers;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -68,11 +70,13 @@ public class PlanCreateCommand : Command<PlanCreateSettings>
 {
     private readonly IPlanWatcherService _planWatcher;
     private readonly IConfigService _configService;
+    private readonly IGithubService _githubService;
 
-    public PlanCreateCommand(IPlanWatcherService planWatcher, IConfigService configService)
+    public PlanCreateCommand(IPlanWatcherService planWatcher, IConfigService configService, IGithubService githubService)
     {
         _planWatcher = planWatcher;
         _configService = configService;
+        _githubService = githubService;
     }
 
     protected override int Execute(CommandContext context, PlanCreateSettings settings, CancellationToken cancellationToken)
@@ -81,6 +85,7 @@ public class PlanCreateCommand : Command<PlanCreateSettings>
         try
         {
             resolvedProject = PlanProjectResolver.ResolveProject(settings.Project, _configService.Projects);
+            PlanSourceProjectGuard.EnsureSourceUrlMatchesProject(settings.SourceUrl, resolvedProject, _githubService);
         }
         catch (ArgumentException ex)
         {

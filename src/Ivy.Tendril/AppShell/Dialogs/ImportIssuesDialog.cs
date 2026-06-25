@@ -400,16 +400,10 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
         ).Width(Size.Rem(42));
     }
 
-    private string GetProjectForRepo(IGithubService githubService, string owner, string repo)
+    private static string GetProjectForRepo(IGithubService githubService, string owner, string repo)
     {
-        var repoPath = $"{owner}/{repo}";
-        var matchingProjects = _config.Settings.Projects
-            .Where(p => p.RepoPaths.Any(path =>
-                githubService.GetRepoConfigFromPathCached(path)?.FullName
-                    .Equals(repoPath, StringComparison.OrdinalIgnoreCase) ?? false))
-            .ToList();
-
-        return matchingProjects.Count == 1 ? matchingProjects[0].Name : "Auto";
+        // "Auto" defers project selection to the CreatePlan agent when zero or multiple projects match.
+        return githubService.FindProjectForGithubRepo($"{owner}/{repo}")?.Name ?? "Auto";
     }
 
     internal static string SanitizeFileName(string title)

@@ -598,7 +598,7 @@ public class ContentView(
                     recommendationsLayout |= new Separator();
                 }
 
-            var changesTabView = new ChangesTabView(planData.AllChanges, planContentQuery.Loading, planContentQuery.Error);
+            var changesTabView = new ChangesTabView(planData.AllChanges, planContentQuery.Loading, planContentQuery.Error, selectedPlan.Project);
 
             var tabNamesList = new List<string> { "summary", "plan", "details", "verifications", "git" };
             var tabList = new List<Tab>
