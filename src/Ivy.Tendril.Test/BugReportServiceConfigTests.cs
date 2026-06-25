@@ -99,4 +99,43 @@ projects:
         var config = Assert.Single(files, f => f.ZipEntryPath == "config.sanitized.yaml");
         Assert.DoesNotContain("secret", ReadContent(config));
     }
+
+    [Fact]
+    public void CollectFilesForJob_Includes_Plan_Context_And_Worktrees_Manifest()
+    {
+        var service = CreateService("codingAgent: claude\n");
+
+        // A plan folder owns the job when its Logs/ holds a "<jobId>-<action>.md" log.
+        var planFolder = Path.Combine(_tempDir.Path, "Plans", "00123-Demo");
+        var logsDir = Path.Combine(planFolder, "Logs");
+        Directory.CreateDirectory(logsDir);
+        File.WriteAllText(Path.Combine(planFolder, "plan.yaml"), "id: 123\nproject: Demo\n");
+        File.WriteAllText(Path.Combine(logsDir, "00123-ExecutePlan.md"), "# execute log");
+        Directory.CreateDirectory(Path.Combine(planFolder, "Worktrees", "Ivy-Framework"));
+
+        var files = service.CollectFilesForJob("123");
+
+        static string Entry(BugReportService.BugReportFile f) => f.ZipEntryPath.Replace('\\', '/');
+
+        Assert.Contains(files, f => Entry(f) == "plan.yaml");
+        Assert.Contains(files, f => Entry(f) == "Logs/00123-ExecutePlan.md");
+
+        // worktrees.txt lists each worktree dir's identity (git fields are "(unknown)" for a non-repo dir).
+        var manifest = Assert.Single(files, f => f.ZipEntryPath == "worktrees.txt");
+        Assert.Contains("Ivy-Framework", ReadContent(manifest));
+
+        // The worktree trees themselves stay excluded for size.
+        Assert.DoesNotContain(files, f => Entry(f).StartsWith("Worktrees/"));
+    }
+
+    [Fact]
+    public void CollectFilesForJob_Without_Plan_Omits_Plan_Context()
+    {
+        var service = CreateService("codingAgent: claude\n");
+
+        var files = service.CollectFilesForJob("999");
+
+        Assert.DoesNotContain(files, f => f.ZipEntryPath == "plan.yaml");
+        Assert.DoesNotContain(files, f => f.ZipEntryPath == "worktrees.txt");
+    }
 }

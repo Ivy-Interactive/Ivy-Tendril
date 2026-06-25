@@ -37,9 +37,83 @@ public sealed class BugReportService
         var files = new List<BugReportFile>();
         var normalized = NormalizeJobId(jobId);
         CollectPromptwareLogFiles([normalized], files);
+
+        // Make the job report self-sufficient for plan-context debugging: include the parent plan's
+        // plan.yaml and Logs/* (the ExecutePlan log records which worktree the job operated on) plus a
+        // synthesized identity for each worktree. Worktree trees themselves stay excluded for size.
+        var planFolder = ResolvePlanFolderForJob(normalized);
+        if (planFolder != null)
+        {
+            CollectPlanFiles(planFolder, files);
+            var worktrees = BuildWorktreesManifest(planFolder);
+            if (worktrees != null)
+                files.Add(worktrees);
+        }
+
         AddSanitizedConfig(files);
         return files;
     }
+
+    /// <summary>
+    ///     Finds the plan folder that owns <paramref name="normalizedJobId" /> by scanning each plan's
+    ///     <c>Logs/</c> directory for a <c>&lt;jobId&gt;-&lt;action&gt;.md</c> log (the naming used by
+    ///     <c>PlanReaderService.AddLog</c>). Returns <c>null</c> when the job has no plan or none can be located.
+    /// </summary>
+    private string? ResolvePlanFolderForJob(string normalizedJobId)
+    {
+        var plansRoot = _config.PlanFolder;
+        if (string.IsNullOrEmpty(plansRoot) || !Directory.Exists(plansRoot))
+            return null;
+
+        foreach (var planDir in Directory.GetDirectories(plansRoot))
+        {
+            var logsDir = Path.Combine(planDir, "Logs");
+            if (!Directory.Exists(logsDir)) continue;
+
+            if (Directory.EnumerateFiles(logsDir, $"{normalizedJobId}-*.md").Any())
+                return planDir;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    ///     Builds <c>worktrees.txt</c>: for each <c>Worktrees/&lt;dir&gt;</c> under the plan, the git remote
+    ///     origin url, the HEAD branch, and the HEAD sha. This is the identity needed to spot a project/repo
+    ///     mismatch (e.g. plan project vs. the repo the worktree actually points at) without bundling the trees.
+    ///     Returns <c>null</c> when the plan has no worktrees.
+    /// </summary>
+    private static BugReportFile? BuildWorktreesManifest(string planFolder)
+    {
+        var worktreesDir = Path.Combine(planFolder, "Worktrees");
+        if (!Directory.Exists(worktreesDir))
+            return null;
+
+        var dirs = Directory.GetDirectories(worktreesDir);
+        if (dirs.Length == 0)
+            return null;
+
+        var sb = new System.Text.StringBuilder();
+        foreach (var wtDir in dirs)
+        {
+            var remote = GitField(wtDir, "remote get-url origin");
+            var branch = GitField(wtDir, "rev-parse --abbrev-ref HEAD");
+            var sha = GitField(wtDir, "rev-parse HEAD");
+
+            sb.AppendLine(Path.GetFileName(wtDir));
+            sb.AppendLine($"  remote: {remote}");
+            sb.AppendLine($"  branch: {branch}");
+            sb.AppendLine($"  HEAD:   {sha}");
+            sb.AppendLine();
+        }
+
+        return new BugReportFile(string.Empty, "worktrees.txt", System.Text.Encoding.UTF8.GetBytes(sb.ToString()));
+    }
+
+    private static string GitField(string workingDir, string args) =>
+        GitHelper.RunGitCapture(workingDir, args, 5000)?.Trim() is { Length: > 0 } value
+            ? value
+            : "(unknown)";
 
     public List<BugReportFile> CollectFilesForPlan(string planFolder)
     {
@@ -226,7 +300,8 @@ public sealed class BugReportService
 
     private static async Task<BugReportResult?> UploadAsync(string zipPath, string description, string osVersion, string tendrilVersion, string agent, string? commitId, CancellationToken ct)
     {
-        using var httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+        using var httpClient = new HttpClient();
+        httpClient.Timeout = TimeSpan.FromMinutes(5);
         using var form = new MultipartFormDataContent();
 
         form.Add(new StringContent(description), "description");

@@ -124,6 +124,7 @@ public class TelemetryService : ITelemetryService, IAsyncDisposable
                 ["duration_seconds"] = context.DurationSeconds ?? 0
             };
             if (context.Agent != null) properties["agent"] = context.Agent;
+            if (context.StackHash != null) properties["stack_hash"] = context.StackHash;
             _client?.Capture(_distinctId, "plan_created", properties);
             _logger?.LogDebug("Tracked plan_created event");
         }

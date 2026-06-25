@@ -185,12 +185,17 @@ internal class JobCompletionHandler
         {
             var planFolder = job.TypedArgs?.PlanFolder ?? "";
             var level = "Feature";
+            string? stackHash = null;
             if (Directory.Exists(planFolder))
             {
                 var plan = PlanYamlHelper.ReadPlanYaml(planFolder);
-                if (plan != null) level = plan.Level;
+                if (plan != null)
+                {
+                    level = plan.Level;
+                    stackHash = _configService?.GetProject(plan.Project)?.StackHash;
+                }
             }
-            _telemetryService?.TrackPlanCreated(new PlanCreatedContext(level, job.DurationSeconds, job.Provider));
+            _telemetryService?.TrackPlanCreated(new PlanCreatedContext(level, job.DurationSeconds, job.Provider, stackHash));
         }
         else if (job.TypedArgs is CreatePrArgs)
         {
