@@ -80,7 +80,7 @@ public class TunnelSetupView : ViewBase
                                      })
                 ;
             
-            form |= Callout.Success(calloutContent, "Tunnel Active");
+            form |= new Callout(calloutContent, "Tunnel Active", CalloutVariant.Success);
         }
         else
         {
