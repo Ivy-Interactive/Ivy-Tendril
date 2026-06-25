@@ -448,7 +448,7 @@ public class PlanControllerTests : IDisposable
         var controller = CreateController();
 
         var result = controller.AddRecommendation("00001",
-            new AddRecRequest("Add tests", "Need unit tests", "Medium", "Small"));
+            new AddRecRequest("Add tests", "Need unit tests", "Medium"));
 
         Assert.IsType<OkObjectResult>(result);
 

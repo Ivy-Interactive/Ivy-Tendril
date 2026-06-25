@@ -328,7 +328,7 @@ public class PlanToolsTests : IDisposable
     public void RecAdd_AddsRecommendation()
     {
         CreateTestPlan();
-        var result = _planTools.RecAdd("00001", "Add tests", "Need unit tests", "Medium", "Small");
+        var result = _planTools.RecAdd("00001", "Add tests", "Need unit tests", "Medium");
         Assert.Contains("Added recommendation", result);
 
         var recs = _planTools.RecList("00001");
