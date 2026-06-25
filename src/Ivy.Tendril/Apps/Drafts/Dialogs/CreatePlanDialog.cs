@@ -55,8 +55,6 @@ public class CreatePlanDialog(
         var configService = UseService<IConfigService>();
         var uploadSessionId = UseState(() => Guid.NewGuid().ToString("N"));
 
-        // Tracks the browser's active breakpoint so the surface can switch between a centered dialog
-        // and a bottom sheet on mobile. The (invisible) breakpointListener must be rendered for updates.
         var (breakpoint, breakpointListener) = Context.UseBreakpoint();
 
         var uploadedFiles = UseState(new List<string>());
