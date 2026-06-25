@@ -51,7 +51,7 @@
   gap: 8px;
   padding: 8px 12px;
   background-color: var(--civ-error-bg);
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  border: 1px solid color-mix(in srgb, var(--civ-error) 20%, transparent);
   border-radius: 8px;
   color: var(--civ-error);
   font-size: 0.85rem;
@@ -372,21 +372,27 @@
   line-height: 1;
 }
 
+/* Matches the Ivy Framework key cap (Kbd / ShortcutKeys, `inherit` variant):
+   16px tall, 10px text, 0.25rem corners, transparent fill with a current-color
+   border, on a colored surface. Keep these values in sync with Kbd.tsx keyCapBase. */
 .civ-submit-shortcut {
   margin-left: 6px;
-  padding: 1px 4px;
-  font-size: 0.65rem;
-  font-weight: 500;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 4px;
-  opacity: 0.7;
+  box-sizing: border-box;
+  height: 16px;
+  min-width: 16px;
+  padding: 0 4px;
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 0.5;
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-radius: 0.25rem;
+  opacity: 0.8;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.1);
+  gap: 2px;
+  background: transparent;
   color: inherit;
-  line-height: 1;
 }
 
 /* Animations */
@@ -470,7 +476,7 @@
   box-shadow: none !important;
   border-top-right-radius: 0 !important;
   border-bottom-right-radius: 0 !important;
-  border-right: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-right: 1px solid color-mix(in srgb, currentColor 20%, transparent) !important;
   height: 100% !important;
   margin: 0 !important;
 }
@@ -502,7 +508,7 @@
 }
 
 .civ-split-btn-arrow:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, currentColor 10%, transparent);
 }
 
 /* Dropdown Menu */
@@ -711,9 +717,7 @@
   width: fit-content;
 }
 
-/* Adjust shortcut enter key alignment */
 .civ-shortcut-enter {
-  display: inline-block;
-  transform: translateY(-1.5px);
-  margin-left: 1px;
+  display: inline-flex;
+  align-items: center;
 }

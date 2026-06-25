@@ -396,7 +396,8 @@ jobs:
           xcrun notarytool store-credentials "tendril-notary" \
             --apple-id "$APPLE_ID" \
             --team-id "$APPLE_TEAM_ID" \
-            --password "$APPLE_ID_PASSWORD"
+            --password "$APPLE_ID_PASSWORD" \
+            --keychain "$RUNNER_TEMP/app-signing.keychain-db"
 
       - name: Pack Installer (Velopack)
         run: |
@@ -442,38 +443,36 @@ jobs:
             cp "$ICON_PATH" "$APP_DIR/Contents/Resources/icon.icns"
 
             # Create Info.plist
-            cat <<EOF > "$APP_DIR/Contents/Info.plist"
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleDevelopmentRegion</key>
-    <string>en</string>
-    <key>CFBundleDisplayName</key>
-    <string>Ivy Tendril</string>
-    <key>CFBundleExecutable</key>
-    <string>Ivy.Tendril</string>
-    <key>CFBundleIdentifier</key>
-    <string>com.ivy.tendril</string>
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
-    <key>CFBundleName</key>
-    <string>Ivy Tendril</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>${{ needs.version.outputs.version }}</string>
-    <key>CFBundleVersion</key>
-    <string>${{ needs.version.outputs.version }}</string>
-    <key>CFBundleIconFile</key>
-    <string>icon.icns</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>10.15</string>
-    <key>NSHighResolutionCapable</key>
-    <true/>
-</dict>
-</plist>
-EOF
+            echo '<?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0">
+            <dict>
+                <key>CFBundleDevelopmentRegion</key>
+                <string>en</string>
+                <key>CFBundleDisplayName</key>
+                <string>Ivy Tendril</string>
+                <key>CFBundleExecutable</key>
+                <string>Ivy.Tendril</string>
+                <key>CFBundleIdentifier</key>
+                <string>com.ivy.tendril</string>
+                <key>CFBundleInfoDictionaryVersion</key>
+                <string>6.0</string>
+                <key>CFBundleName</key>
+                <string>Ivy Tendril</string>
+                <key>CFBundlePackageType</key>
+                <string>APPL</string>
+                <key>CFBundleShortVersionString</key>
+                <string>${{ needs.version.outputs.version }}</string>
+                <key>CFBundleVersion</key>
+                <string>${{ needs.version.outputs.version }}</string>
+                <key>CFBundleIconFile</key>
+                <string>icon.icns</string>
+                <key>LSMinimumSystemVersion</key>
+                <string>10.15</string>
+                <key>NSHighResolutionCapable</key>
+                <true/>
+            </dict>
+            </plist>' | sed 's/^            //' > "$APP_DIR/Contents/Info.plist"
 
             # Delete all PDB (debug symbol) files as they cannot be code-signed and are not needed in production
             find "$APP_DIR" -name "*.pdb" -delete
@@ -497,14 +496,22 @@ EOF
               fi
             done
 
-            # Pre-sign native Mach-O binaries in the runner's keychain
+            # Pre-sign native Mach-O binaries in the runner's keychain (inside-out order)
             echo "Pre-signing internal binaries to avoid codesign --deep errors on nested SDK folders..."
-            find "$APP_DIR" -type f | while read -r file; do
+            # 1. Sign all native dynamic libraries/files first (excluding the main executable)
+            find "$APP_DIR" -depth -type f ! -name "Ivy.Tendril" | while read -r file; do
               if file "$file" | grep -q "Mach-O"; then
-                echo "Signing: $file"
+                echo "Signing library: $file"
                 codesign --force --options runtime --timestamp --keychain "$RUNNER_TEMP/app-signing.keychain-db" --sign "$VPK_SIGN_APP_IDENTITY" "$file"
               fi
             done
+
+            # 2. Sign the main executable last
+            MAIN_EXE_PATH="$APP_DIR/Contents/MacOS/Ivy.Tendril"
+            if [ -f "$MAIN_EXE_PATH" ]; then
+              echo "Signing main executable: $MAIN_EXE_PATH"
+              codesign --force --options runtime --timestamp --keychain "$RUNNER_TEMP/app-signing.keychain-db" --sign "$VPK_SIGN_APP_IDENTITY" "$MAIN_EXE_PATH"
+            fi
 
             PACK_DIR="$APP_DIR"
           fi
