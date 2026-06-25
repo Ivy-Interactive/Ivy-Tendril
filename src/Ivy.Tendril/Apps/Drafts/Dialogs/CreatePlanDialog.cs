@@ -1,6 +1,6 @@
 using Ivy;
 using Ivy.Core.Hooks;
-using Ivy.Widgets.ContentInputView;
+using Ivy.Tendril.Widgets;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using System;
@@ -127,7 +127,7 @@ public class CreatePlanDialog(
                 Layout.Vertical()
                 | exclusiveProjects.ToSelectInput(options).Variant(SelectInputVariant.Toggle).WithField().Label("Select Project(s)")
                 | selectedPriority.ToSelectInput(PriorityOptions).Variant(SelectInputVariant.Toggle).WithField().Label("Priority")
-                | new ContentInputView
+                | new ContentInput
                 {
                     UploadUrl = uploadContext.Value.UploadUrl,
                     OnSubmit = e =>

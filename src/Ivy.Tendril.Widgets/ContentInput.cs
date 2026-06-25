@@ -6,15 +6,15 @@ using System.IO;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace Ivy.Widgets.ContentInputView;
+namespace Ivy.Tendril.Widgets;
 
 [ExternalWidget(
-    "frontend/dist/Ivy_Widgets_ContentInputView.js",
-    StylePath = "frontend/dist/ivy-widgets-contentinputview.css",
-    ExportName = "ContentInputView",
-    GlobalName = "Ivy_Widgets_ContentInputView"
+    "frontend/dist/ivy-tendril-widgets.js",
+    StylePath = "frontend/dist/ivy-tendril-widgets.css",
+    ExportName = "ContentInput",
+    GlobalName = "IvyTendrilWidgets"
 )]
-public record ContentInputView : WidgetBase<ContentInputView>, IAnyInput
+public record ContentInput : WidgetBase<ContentInput>, IAnyInput
 {
     [Prop] public bool Disabled { get; set; }
     [Prop] public string? Placeholder { get; set; } = "How can I help you today?";
@@ -34,13 +34,13 @@ public record ContentInputView : WidgetBase<ContentInputView>, IAnyInput
     [Prop] public List<AttachedFile> AttachedFiles { get; init; } = new();
     [Prop] public List<string> MenuOptions { get; init; } = new();
 
-    [Event] public Func<Event<ContentInputView, SubmitEventArgs>, ValueTask>? OnSubmit { get; init; }
-    [Event] public Func<Event<ContentInputView, string>, ValueTask>? OnChange { get; init; }
-    [Event] public Func<Event<ContentInputView, string>, ValueTask>? OnModelChanged { get; init; }
-    [Event] public Func<Event<ContentInputView, string>, ValueTask>? OnMenuAction { get; init; }
-    [Event] public Func<Event<ContentInputView, string>, ValueTask>? OnQuickAction { get; init; }
-    [Event] public Func<Event<ContentInputView, string>, ValueTask>? OnRemoveAttachment { get; init; }
-    [Event] public Func<Event<ContentInputView, UploadFileEventArgs>, ValueTask>? OnUploadFile { get; init; }
+    [Event] public Func<Event<ContentInput, SubmitEventArgs>, ValueTask>? OnSubmit { get; init; }
+    [Event] public Func<Event<ContentInput, string>, ValueTask>? OnChange { get; init; }
+    [Event] public Func<Event<ContentInput, string>, ValueTask>? OnModelChanged { get; init; }
+    [Event] public Func<Event<ContentInput, string>, ValueTask>? OnMenuAction { get; init; }
+    [Event] public Func<Event<ContentInput, string>, ValueTask>? OnQuickAction { get; init; }
+    [Event] public Func<Event<ContentInput, string>, ValueTask>? OnRemoveAttachment { get; init; }
+    [Event] public Func<Event<ContentInput, UploadFileEventArgs>, ValueTask>? OnUploadFile { get; init; }
 
     public Type[] SupportedStateTypes() => [typeof(string)];
 }
@@ -51,44 +51,44 @@ public record SubmitEventArgs(string Value, string SelectedModel, List<AttachedF
 
 public record UploadFileEventArgs(string Name, string? Base64Data = null, string? FilePath = null);
 
-public static class ContentInputViewExtensions
+public static class ContentInputExtensions
 {
-    public static ContentInputView MenuOptions(this ContentInputView w, List<string> menuOptions) =>
+    public static ContentInput MenuOptions(this ContentInput w, List<string> menuOptions) =>
         w with { MenuOptions = menuOptions };
 
-    public static ContentInputView MenuOptions(this ContentInputView w, params string[] menuOptions) =>
+    public static ContentInput MenuOptions(this ContentInput w, params string[] menuOptions) =>
         w with { MenuOptions = menuOptions.ToList() };
 
-    public static ContentInputView Placeholder(this ContentInputView w, string placeholder) =>
+    public static ContentInput Placeholder(this ContentInput w, string placeholder) =>
         w with { Placeholder = placeholder };
 
-    public static ContentInputView SubmitLabel(this ContentInputView w, string? label) =>
+    public static ContentInput SubmitLabel(this ContentInput w, string? label) =>
         w with { SubmitLabel = label };
 
-    public static ContentInputView UploadUrl(this ContentInputView w, string? url) =>
+    public static ContentInput UploadUrl(this ContentInput w, string? url) =>
         w with { UploadUrl = url };
 
-    public static ContentInputView Value(this ContentInputView w, string value) =>
+    public static ContentInput Value(this ContentInput w, string value) =>
         w with { Value = value };
 
-    public static ContentInputView TranscriptionUrl(this ContentInputView w, string url) =>
+    public static ContentInput TranscriptionUrl(this ContentInput w, string url) =>
         w with { TranscriptionUrl = url };
 
-    public static ContentInputView Models(this ContentInputView w, List<string> models) =>
+    public static ContentInput Models(this ContentInput w, List<string> models) =>
         w with { Models = models };
 
-    public static ContentInputView SelectedModel(this ContentInputView w, string model) =>
+    public static ContentInput SelectedModel(this ContentInput w, string model) =>
         w with { SelectedModel = model };
 
-    public static ContentInputView AttachedFiles(this ContentInputView w, List<AttachedFile> files) =>
+    public static ContentInput AttachedFiles(this ContentInput w, List<AttachedFile> files) =>
         w with { AttachedFiles = files };
 
-    public static ContentInputView OnSubmit(
-        this ContentInputView w,
-        Func<Event<ContentInputView, SubmitEventArgs>, ValueTask> handler
+    public static ContentInput OnSubmit(
+        this ContentInput w,
+        Func<Event<ContentInput, SubmitEventArgs>, ValueTask> handler
     ) => w with { OnSubmit = handler };
 
-    public static ContentInputView OnSubmit(this ContentInputView w, Action<SubmitEventArgs> handler) =>
+    public static ContentInput OnSubmit(this ContentInput w, Action<SubmitEventArgs> handler) =>
         w with
         {
             OnSubmit = e =>
@@ -98,12 +98,12 @@ public static class ContentInputViewExtensions
             }
         };
 
-    public static ContentInputView OnChange(
-        this ContentInputView w,
-        Func<Event<ContentInputView, string>, ValueTask> handler
+    public static ContentInput OnChange(
+        this ContentInput w,
+        Func<Event<ContentInput, string>, ValueTask> handler
     ) => w with { OnChange = handler };
 
-    public static ContentInputView OnChange(this ContentInputView w, Action<string> handler) =>
+    public static ContentInput OnChange(this ContentInput w, Action<string> handler) =>
         w with
         {
             OnChange = e =>
@@ -113,7 +113,7 @@ public static class ContentInputViewExtensions
             }
         };
 
-    public static ContentInputView Bind(this ContentInputView w, IState<string> state) =>
+    public static ContentInput Bind(this ContentInput w, IState<string> state) =>
         w with
         {
             Value = state.Value,
@@ -150,17 +150,17 @@ public static class ContentInputViewExtensions
             })
         };
 
-    public static ContentInputView OnUploadFile(
-        this ContentInputView w,
-        Func<Event<ContentInputView, UploadFileEventArgs>, Task> handler
+    public static ContentInput OnUploadFile(
+        this ContentInput w,
+        Func<Event<ContentInput, UploadFileEventArgs>, Task> handler
     ) => w with { OnUploadFile = async e => await handler(e) };
 
-    public static ContentInputView OnModelChanged(
-        this ContentInputView w,
-        Func<Event<ContentInputView, string>, ValueTask> handler
+    public static ContentInput OnModelChanged(
+        this ContentInput w,
+        Func<Event<ContentInput, string>, ValueTask> handler
     ) => w with { OnModelChanged = handler };
 
-    public static ContentInputView OnModelChanged(this ContentInputView w, Action<string> handler) =>
+    public static ContentInput OnModelChanged(this ContentInput w, Action<string> handler) =>
         w with
         {
             OnModelChanged = e =>
@@ -170,12 +170,12 @@ public static class ContentInputViewExtensions
             }
         };
 
-    public static ContentInputView OnMenuAction(
-        this ContentInputView w,
-        Func<Event<ContentInputView, string>, ValueTask> handler
+    public static ContentInput OnMenuAction(
+        this ContentInput w,
+        Func<Event<ContentInput, string>, ValueTask> handler
     ) => w with { OnMenuAction = handler };
 
-    public static ContentInputView OnMenuAction(this ContentInputView w, Action<string> handler) =>
+    public static ContentInput OnMenuAction(this ContentInput w, Action<string> handler) =>
         w with
         {
             OnMenuAction = e =>
@@ -185,12 +185,12 @@ public static class ContentInputViewExtensions
             }
         };
 
-    public static ContentInputView OnQuickAction(
-        this ContentInputView w,
-        Func<Event<ContentInputView, string>, ValueTask> handler
+    public static ContentInput OnQuickAction(
+        this ContentInput w,
+        Func<Event<ContentInput, string>, ValueTask> handler
     ) => w with { OnQuickAction = handler };
 
-    public static ContentInputView OnQuickAction(this ContentInputView w, Action<string> handler) =>
+    public static ContentInput OnQuickAction(this ContentInput w, Action<string> handler) =>
         w with
         {
             OnQuickAction = e =>
@@ -200,12 +200,12 @@ public static class ContentInputViewExtensions
             }
         };
 
-    public static ContentInputView OnRemoveAttachment(
-        this ContentInputView w,
-        Func<Event<ContentInputView, string>, ValueTask> handler
+    public static ContentInput OnRemoveAttachment(
+        this ContentInput w,
+        Func<Event<ContentInput, string>, ValueTask> handler
     ) => w with { OnRemoveAttachment = handler };
 
-    public static ContentInputView OnRemoveAttachment(this ContentInputView w, Action<string> handler) =>
+    public static ContentInput OnRemoveAttachment(this ContentInput w, Action<string> handler) =>
         w with
         {
             OnRemoveAttachment = e =>
