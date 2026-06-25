@@ -262,6 +262,8 @@ public PluginConfigurationSchema? ConfigurationSchema { get; } = new SchemaBuild
 - Secret fields are rendered as password inputs in the UI
 - Values are persisted in `<TENDRIL_HOME>/plugins/plugin-config.yaml` under the plugin's `Id`
 
+> **To be implemented...** **Custom validation.** The `SchemaBuilder` handles common cases (required fields, type checking), but some plugins might need richer constraints in the future — conditional requirements ("if A is set, B is required"), format validation ("must start with `lin_api_`"), range checks, or cross-field logic. A planned `ValidateConfig` method on `IIvyPlugin` will let plugins optionally provide custom validation that returns field-keyed errors, enabling inline error display in both the default schema-driven UI and custom configuration views. Plugins that don't need custom validation will continue working unchanged.
+
 **Runtime config access:**
 ```csharp
 public void Configure(IIvyPluginContext context)
