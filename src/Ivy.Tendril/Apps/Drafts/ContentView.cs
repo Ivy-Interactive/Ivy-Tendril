@@ -135,59 +135,67 @@ public class ContentView(
 
         var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan.FolderName);
 
-        var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full())
-            | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
-                .BorderThickness(0).Padding(0).Width(Size.Fit().Min(Size.Px(0)));
-
-        if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
-            desktopTitleLayout |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
-                .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
-
-        if (selectedPlan.DependsOn.Count > 0)
+        object BuildTitleArea()
         {
-            var depIds = string.Join(", ", selectedPlan.DependsOn.Select(d =>
+            var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full())
+                | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
+                    .BorderThickness(0).Padding(0).Width(Size.Fit().Min(Size.Px(0)));
+
+            if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
+                desktopTitleLayout |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
+                    .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
+
+            if (selectedPlan.DependsOn.Count > 0)
             {
-                var name = Path.GetFileName(d);
-                var dashIdx = name.IndexOf('-');
-                var idStr = dashIdx > 0 ? name[..dashIdx] : name;
-                return int.TryParse(idStr, out var id) ? $"#{id}" : idStr;
-            }));
-            desktopTitleLayout |= new Badge($"Depends on: {depIds}").Variant(BadgeVariant.Secondary);
+                var depIds = string.Join(", ", selectedPlan.DependsOn.Select(d =>
+                {
+                    var name = Path.GetFileName(d);
+                    var dashIdx = name.IndexOf('-');
+                    var idStr = dashIdx > 0 ? name[..dashIdx] : name;
+                    return int.TryParse(idStr, out var id) ? $"#{id}" : idStr;
+                }));
+                desktopTitleLayout |= new Badge($"Depends on: {depIds}").Variant(BadgeVariant.Secondary);
+            }
+
+            var desktopTitle = new Box(desktopTitleLayout).BorderThickness(0).Padding(0)
+                .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
+
+            return Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
+                   | desktopTitle
+                   | MobileItemPicker.Build(
+                           $"#{selectedPlan.Id} {selectedPlan.Title}",
+                           allPlans,
+                           p => $"#{p.Id} {p.Title}",
+                           p => p.FolderName == selectedPlan.FolderName,
+                           p => selectedPlanState.Set(p))
+                       .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
         }
 
-        var desktopTitle = new Box(desktopTitleLayout).BorderThickness(0).Padding(0)
-            .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
+        object BuildControls()
+        {
+            var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
+                           | Text.Rich()
+                               .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
+                               .Muted("plans", word: true);
 
-        var titleArea = Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
-                        | desktopTitle
-                        | MobileItemPicker.Build(
-                                $"#{selectedPlan.Id} {selectedPlan.Title}",
-                                allPlans,
-                                p => $"#{p.Id} {p.Title}",
-                                p => p.FolderName == selectedPlan.FolderName,
-                                p => selectedPlanState.Set(p))
-                            .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
+            if (annotations.Value.Count > 0)
+                controls |= BuildAnnotationsUpdateButton(annotations);
 
-        var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
-                       | Text.Rich()
-                           .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
-                           .Muted("plans", word: true);
+            controls |= new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("x")
+                            .Loading(isCheckingPreflight)
+                            .Disabled(isCheckingPreflight)
+                            .OnClick(() => runPreflight(selectedPlan.Project, result =>
+                            {
+                                if (annotations.Value.Count > 0)
+                                    showAnnotationsDialog.Set(true);
+                                else
+                                    ContinueExecute(null, result, pendingWaitJobIds, showDirtyDialog);
+                            }));
 
-        if (annotations.Value.Count > 0)
-            controls |= BuildAnnotationsUpdateButton(annotations);
+            return controls;
+        }
 
-        controls |= new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("x")
-                        .Loading(isCheckingPreflight)
-                        .Disabled(isCheckingPreflight)
-                        .OnClick(() => runPreflight(selectedPlan.Project, result =>
-                        {
-                            if (annotations.Value.Count > 0)
-                                showAnnotationsDialog.Set(true);
-                            else
-                                ContinueExecute(null, result, pendingWaitJobIds, showDirtyDialog);
-                        }));
-
-        var header = ResponsiveHeader.Build(titleArea, controls);
+        var header = ResponsiveHeader.Build(BuildTitleArea, BuildControls);
 
         var content = Layout.Vertical().Height(Size.Full());
 
