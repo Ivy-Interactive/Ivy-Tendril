@@ -181,6 +181,12 @@ public sealed class PlanTools : AuthenticatedToolBase
         {
             if (plan.Repos.Contains(repoPath, StringComparer.OrdinalIgnoreCase))
                 throw new InvalidOperationException($"Repository already in plan: {repoPath}");
+
+            // Refuse repos outside the plan's project (issue #1340).
+            var project = _configService.GetProject(plan.Project);
+            if (project != null)
+                PlanProjectRepoGuard.EnsureReposBelongToProject([repoPath], project);
+
             plan.Repos.Add(repoPath);
         }, $"Added repository: {repoPath}");
     }

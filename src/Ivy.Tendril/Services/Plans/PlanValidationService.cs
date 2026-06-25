@@ -17,8 +17,10 @@ public static class PlanValidationService
 
     /// <summary>
     ///     Validates a PlanYaml object. Throws ArgumentException with detailed error message on failure.
+    ///     When <paramref name="project" /> is supplied, also enforces that every repo belongs to it
+    ///     (issue #1340) — callers that have config resolved should pass it.
     /// </summary>
-    public static void Validate(PlanYaml plan, string[]? configuredLevels = null)
+    public static void Validate(PlanYaml plan, string[]? configuredLevels = null, ProjectConfig? project = null)
     {
         // Required fields
         if (string.IsNullOrWhiteSpace(plan.State))
@@ -100,6 +102,10 @@ public static class PlanValidationService
                 // Status is a VerificationStatus enum — always valid once deserialized.
             }
         }
+
+        // Validate repos belong to the project (issue #1340), when the project is known.
+        if (project != null && plan.Repos != null)
+            PlanProjectRepoGuard.EnsureReposBelongToProject(plan.Repos, project);
     }
 
     private static void ValidateDate(DateTime date, string fieldName)

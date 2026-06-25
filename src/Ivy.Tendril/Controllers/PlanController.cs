@@ -1,6 +1,7 @@
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Commands;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Git;
 using Ivy.Tendril.Services.Plans;
 using Ivy.Tendril.Helpers;
 using Microsoft.AspNetCore.Mvc;
@@ -68,11 +69,13 @@ public class PlanController : ControllerBase
 {
     private readonly IPlanWatcherService _planWatcher;
     private readonly IConfigService _configService;
+    private readonly IGithubService _githubService;
 
-    public PlanController(IPlanWatcherService planWatcher, IConfigService configService)
+    public PlanController(IPlanWatcherService planWatcher, IConfigService configService, IGithubService githubService)
     {
         _planWatcher = planWatcher;
         _configService = configService;
+        _githubService = githubService;
     }
 
     private IActionResult ModifyPlanEndpoint(
@@ -406,6 +409,7 @@ public class PlanController : ControllerBase
         try
         {
             var resolvedProject = PlanProjectResolver.ResolveProject(request.Project, _configService.Projects);
+            PlanSourceProjectGuard.EnsureSourceUrlMatchesProject(request.SourceUrl, resolvedProject, _githubService);
 
             var plansDir = PlanCommandHelpers.GetPlansDirectory();
             var planId = PlanYamlHelper.AllocatePlanId(plansDir);

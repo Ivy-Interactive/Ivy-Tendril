@@ -7,7 +7,8 @@ namespace Ivy.Tendril.Apps.Views.Tabs;
 public class ChangesTabView(
     PlanContentHelpers.AllChangesData? changesData,
     bool loading,
-    Exception? error) : ViewBase
+    Exception? error,
+    string? projectName = null) : ViewBase
 {
     public int FileCount => changesData?.Files.Count ?? 0;
 
@@ -25,6 +26,20 @@ public class ChangesTabView(
                 ? $"Failed to load changes: {err.Message}"
                 : "No commits yet.";
             return Text.Muted(errorMsg);
+        }
+
+        // The diff was read from a worktree whose repo isn't part of the plan's project (#1340).
+        // Warn so the reviewer doesn't merge blind.
+        object? mismatchBanner = null;
+        if (changesData.FromUnlistedWorktree)
+        {
+            var repoLabel = string.IsNullOrEmpty(changesData.SourceRepoPath)
+                ? "a different repository"
+                : Path.GetFileName(changesData.SourceRepoPath!.TrimEnd('/', '\\'));
+            var projectLabel = string.IsNullOrEmpty(projectName) ? "this plan's project" : $"project '{projectName}'";
+            mismatchBanner = Callout.Warning(
+                $"These changes are in {repoLabel}, which is not part of {projectLabel}. " +
+                "The plan may have been created in the wrong project.", "Wrong project?");
         }
 
         var allFileDiffs = PlanContentHelpers.SplitDiffByFile(changesData);
@@ -95,10 +110,13 @@ public class ChangesTabView(
             | treePanel
             | diffsLayout;
 
-        return Layout.Vertical().Height(Size.Full().Min(Size.Px(0)))
-            | toolbar
-            | mobileFilePicker
-            | mainLayout;
+        var outer = Layout.Vertical().Height(Size.Full().Min(Size.Px(0)));
+        if (mismatchBanner != null)
+            outer |= mismatchBanner;
+        outer |= toolbar;
+        outer |= mobileFilePicker;
+        outer |= mainLayout;
+        return outer;
     }
 
     private static TreeNode BuildFileTree(IReadOnlyList<PlanContentHelpers.FileDiff> fileDiffs)
