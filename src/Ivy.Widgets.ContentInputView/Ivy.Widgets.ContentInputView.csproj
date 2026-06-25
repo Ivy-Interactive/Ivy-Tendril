@@ -40,7 +40,7 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(IvySource)' != 'true'">
-    <PackageReference Include="Ivy" Version="1.2.58" GeneratePathProperty="true" />
+    <PackageReference Include="Ivy" Version="1.2.69" GeneratePathProperty="true" />
   </ItemGroup>
 
   <ItemGroup>
