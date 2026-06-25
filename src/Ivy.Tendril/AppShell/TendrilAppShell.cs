@@ -448,10 +448,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .Children(
                     MenuItem.Default("Onboarding")
                         .Icon(Icons.Rocket)
-                        .OnSelect(() => navigator.Navigate<OnboardingApp>()),
-                    MenuItem.Default("Dialogs")
-                        .Icon(Icons.MessageSquare)
-                        .OnSelect(() => navigator.Navigate<Apps.Debug.DialogsApp>())
+                        .OnSelect(() => navigator.Navigate<OnboardingApp>())
                 ),
 #endif
         };
