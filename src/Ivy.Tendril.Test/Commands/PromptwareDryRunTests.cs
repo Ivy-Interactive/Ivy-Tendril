@@ -80,7 +80,7 @@ public class PromptwareDryRunTests : IDisposable
                 profile: balanced
               CreateIssue:
                 profile: balanced
-              UpdateProject:
+              SetupProject:
                 profile: deep
             projects:
             - name: TestProject
@@ -95,7 +95,7 @@ public class PromptwareDryRunTests : IDisposable
     private string CreateFallbackPromptwareDir()
     {
         var root = Path.Combine(_tempDir, "Promptwares");
-        foreach (var name in new[] { "CreatePlan", "ExecutePlan", "ExpandPlan", "UpdatePlan", "SplitPlan", "CreatePr", "CreateIssue", "UpdateProject" })
+        foreach (var name in new[] { "CreatePlan", "ExecutePlan", "ExpandPlan", "UpdatePlan", "SplitPlan", "CreatePr", "CreateIssue", "SetupProject" })
         {
             var dir = Path.Combine(root, name);
             Directory.CreateDirectory(dir);
@@ -294,12 +294,12 @@ public class PromptwareDryRunTests : IDisposable
         Assert.Contains("model: sonnet", output);
     }
 
-    // ==================== UpdateProject ====================
+    // ==================== SetupProject ====================
 
     [Fact]
-    public void UpdateProject_CompilesFirmware()
+    public void SetupProject_CompilesFirmware()
     {
-        var output = RunDryRun("UpdateProject", ["ProjectName=TestProject", "Instructions=Setup verifications"]);
+        var output = RunDryRun("SetupProject", ["ProjectName=TestProject", "Instructions=Setup verifications"]);
 
         Assert.Contains("ProjectName: TestProject", output);
         Assert.Contains("Instructions: Setup verifications", output);
@@ -307,9 +307,9 @@ public class PromptwareDryRunTests : IDisposable
     }
 
     [Fact]
-    public void UpdateProject_ResolvesDeepProfile()
+    public void SetupProject_ResolvesDeepProfile()
     {
-        var output = RunDryRun("UpdateProject", ["ProjectName=TestProject", "Instructions=Setup"]);
+        var output = RunDryRun("SetupProject", ["ProjectName=TestProject", "Instructions=Setup"]);
 
         Assert.Contains("model: opus", output);
         Assert.Contains("effort: max", output);
@@ -320,7 +320,7 @@ public class PromptwareDryRunTests : IDisposable
     [Fact]
     public void AllPromptwareNames_ResolveWithoutError()
     {
-        var promptwares = new[] { "CreatePlan", "ExecutePlan", "ExpandPlan", "UpdatePlan", "SplitPlan", "CreatePr", "CreateIssue", "UpdateProject" };
+        var promptwares = new[] { "CreatePlan", "ExecutePlan", "ExpandPlan", "UpdatePlan", "SplitPlan", "CreatePr", "CreateIssue", "SetupProject" };
 
         foreach (var name in promptwares)
         {

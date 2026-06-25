@@ -949,7 +949,7 @@ public class PlanDatabaseService : IPlanDatabaseService
             Constants.JobTypes.CreateIssue => new CreateIssueArgs(
                 args[0],
                 GetLegacyArg(args, "-Repo") ?? ""),
-            Constants.JobTypes.UpdateProject => new UpdateProjectArgs(args[0]),
+            Constants.JobTypes.SetupProject => new SetupProjectArgs(args[0]),
             _ => null
         };
 
