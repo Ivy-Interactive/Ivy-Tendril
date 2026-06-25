@@ -83,7 +83,6 @@ public class RecommendationYaml
     public string State { get; set; } = RecommendationStatus.Pending;
     public string? DeclineReason { get; set; }
     public string? Impact { get; set; }
-    public string? Risk { get; set; }
 }
 
 public static class PlanFilters
