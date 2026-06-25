@@ -608,7 +608,7 @@ public class ContentView(
 
             var changesTabView = new ChangesTabView(planData.AllChanges, planContentQuery.Loading, planContentQuery.Error);
 
-            var tabNamesList = new List<string> { "summary", "plan", "details", "verifications", "git", "changes" };
+            var tabNamesList = new List<string> { "summary", "plan", "details", "verifications", "git" };
             var tabList = new List<Tab>
             {
                 new Tab("Summary", Cap(new SummaryTabView(planData.SummaryMarkdown, planContentQuery.Loading))),
@@ -621,8 +621,17 @@ public class ContentView(
                     selectedPlan.Verifications, planData.VerificationReports,
                     v => openVerification.Set(v)))).Badge(selectedPlan.Verifications.Count.ToString()),
                 new Tab("Git", Cap(gitTabView)).Badge((gitData.WorktreeSections.Count + selectedPlan.Commits.Count + selectedPlan.Prs.Count).ToString()),
-                new Tab("Changes", Layout.Vertical().Width(Size.Full()).Height(Size.Full().Min(Size.Px(0))) | changesTabView).Badge(changesTabView.FileCount > 0 ? changesTabView.FileCount.ToString() : "")
             };
+
+            // Only surface the Changes tab once there are actual file changes — no point showing
+            // an empty "No commits yet." tab before any work has landed.
+            if (changesTabView.FileCount > 0)
+            {
+                tabList.Add(new Tab("Changes",
+                        Layout.Vertical().Width(Size.Full()).Height(Size.Full().Min(Size.Px(0))) | changesTabView)
+                    .Badge(changesTabView.FileCount.ToString()));
+                tabNamesList.Add("changes");
+            }
 
             if (totalArtifacts > 0)
             {
