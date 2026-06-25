@@ -49,7 +49,7 @@ public class JobCompletionAttachmentTests : IDisposable
     public void ContentInput_OnUploadFile_IsNotNullAfterInstantiationAndBind()
     {
         var textState = new State<string>("");
-        var view = new ContentInput
+        var view = new Ivy.Tendril.Widgets.ContentInput
         {
             OnUploadFile = async e => { await Task.CompletedTask; }
         }.Bind(textState);
@@ -60,14 +60,14 @@ public class JobCompletionAttachmentTests : IDisposable
     [Fact]
     public void ContentInput_SubmitLabel_IsSetCorrectly()
     {
-        var view = new ContentInput().SubmitLabel("Submit Label");
+        var view = new Ivy.Tendril.Widgets.ContentInput().SubmitLabel("Submit Label");
         Assert.Equal("Submit Label", view.SubmitLabel);
     }
 
     [Fact]
     public void ContentInput_MenuOptions_IsSetCorrectly()
     {
-        var view = new ContentInput().MenuOptions("Option 1", "Option 2");
+        var view = new Ivy.Tendril.Widgets.ContentInput().MenuOptions("Option 1", "Option 2");
         Assert.Equal(["Option 1", "Option 2"], view.MenuOptions);
     }
 }
