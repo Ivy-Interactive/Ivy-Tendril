@@ -55,7 +55,7 @@ Report status: `tendril job status TendrilJobId --message="Pushing branches..."`
 
 Check `<TendrilPlanFolder>/Worktrees/` for each repo worktree.
 
-> **Worktree already removed:** If the Worktrees/ directory is empty (worktree was already cleaned up), fall back to `plan.yaml` to get the repo path and branch name (format: `tendril/<planId>-<SafeTitle>`, where SafeTitle is extracted from the plan folder name: e.g. `03158-ChangeBranchNaming` → `ChangeBranchNaming`). The commit objects may still exist in the original repo's object store. Use `git cat-file -t <sha>` to verify, then create or force-update the local branch: `git branch -f <branch-name> <sha>` (use `-f` because the branch may already exist from a WIP auto-commit) and push from the original repo path.
+> **Worktree already removed:** If the Worktrees/ directory is empty (worktree was already cleaned up), fall back to `plan.yaml` to get the repo path and branch name. The branch is normally `tendril/<planId>-<SafeTitle>` (SafeTitle extracted from the plan folder name: e.g. `03158-ChangeBranchNaming` → `ChangeBranchNaming`). **Exception — PR-source plans:** if `SourceUrl` is an open same-repo pull request, ExecutePlan based the worktree on the PR's head branch, so the branch is the PR's `headRefName`, not the `tendril/…` pattern — resolve it via `gh pr view <number> --repo <owner/repo> --json headRefName`. The commit objects may still exist in the original repo's object store. Use `git cat-file -t <sha>` to verify, then create or force-update the local branch: `git branch -f <branch-name> <sha>` (use `-f` because the branch may already exist from a WIP auto-commit) and push from the original repo path.
 >
 > **Commit lost (object GC'd):** If `git cat-file -t <sha>` fails, the commit was garbage-collected after worktree removal. In this case: (1) check if the change is already on main, (2) if not, recreate the change from the plan revision — create a new branch from main, apply the changes as described in the revision, commit with a descriptive message matching the plan title, and push. Update commits via CLI: `tendril plan add-commit <plan-id> <new-sha>`.
 
@@ -116,7 +116,24 @@ Apply the **transient-error retry convention** to every `gh` command in this ste
 3.5–6): retry transient/network/`5xx`/`429` failures up to 3 times with backoff; fail fast on
 genuine errors (auth, invalid repo, validation).
 
-For each pushed branch:
+**!CRITICAL — create is idempotent. Never open a second PR for a branch that already has one.**
+For each pushed branch, first check whether an open PR already targets it:
+
+```bash
+EXISTING=$(gh pr list --repo <owner/repo> --head <branch> --state open --json number,url -q '.[0]')
+```
+
+- **If `EXISTING` is non-empty → UPDATE path (do NOT run `gh pr create`).** The `git push` in step 2
+  already pushed the new commits onto the PR's branch, which updates the existing PR. Capture its
+  `number` and `url`. Do **not** overwrite the PR title/body. Report
+  `tendril job status TendrilJobId --message="Updated existing PR #<number>"`. If `PrComment` is set,
+  add it via step 3.5. Then continue to step 3.7 (conflict resolution) and step 4 (merge gate) as
+  normal — they apply to updated PRs too.
+  > This is the case for plans whose `SourceUrl` is a PR: ExecutePlan based the worktree on the PR's
+  > head branch, so the branch already has an open PR and we update it in place instead of opening a
+  > second one.
+
+- **If `EXISTING` is empty → CREATE path (default).** For each pushed branch:
 
 ```bash
 gh pr create [--draft] --repo <owner/repo> --base <default-branch> --head <branch> --assignee @me --title "<title>" --body "$(cat <<'EOF'
@@ -283,6 +300,10 @@ Add each PR URL:
 ```bash
 tendril plan add-pr <plan-id> <pr-url>
 ```
+
+> **Idempotent:** on the UPDATE path the PR URL is usually already in the plan's `prs` list (and may
+> equal `SourceUrl`). Read `plan.yaml` first and only run `add-pr` if the URL is not already present —
+> do not add a duplicate.
 
 **Update state to Completed:** If `PrMerge` is `true` and ALL PRs were successfully merged, update the state:
 
