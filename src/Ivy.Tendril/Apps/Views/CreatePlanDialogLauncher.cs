@@ -54,7 +54,7 @@ public class CreatePlanDialogLauncher(Func<Action, object> renderTrigger) : View
             ? new DirtyRepoDialog(
                 showDirtyDialog,
                 preflightResult,
-                proceedLabel: "Create Anyway",
+                proceedLabel: "Create Without Syncing",
                 contextMessage: "The plan will be based on this state, but ExecutePlan will branch from origin/<baseBranch>. Commit and push first if these changes should be included in the plan.",
                 onSyncRepos: () => LaunchWithSync(pendingJobArgs.Value, preflightResult),
                 onProceed: () => LaunchCreatePlan(pendingJobArgs.Value))
