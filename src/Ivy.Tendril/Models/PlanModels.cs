@@ -59,6 +59,10 @@ public record PlanFile(
     public DateTime Updated => Metadata.Updated;
     public string? InitialPrompt => Metadata.InitialPrompt;
     public string? SourceUrl => Metadata.SourceUrl;
+
+    /// <summary>True when the plan's source is a GitHub pull request (vs. an issue or none).</summary>
+    public bool IsPullRequestSource => SourceUrl?.Contains("/pull/") == true;
+
     public string FolderName => Path.GetFileName(FolderPath);
 }
 

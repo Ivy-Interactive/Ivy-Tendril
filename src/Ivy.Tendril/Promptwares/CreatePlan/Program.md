@@ -51,7 +51,17 @@ C) Unrelated tickets (→ delegate steps below)
 
 If it references related plans with `[number]` syntax (e.g. `[01205]`), find and read those plan files from `TendrilPlansFolder` for context.
 
-**Extract Source URL**: Check if the task description contains a GitHub PR URL (`https://github.com/{owner}/{repo}/pull/{number}`) or issue URL (`https://github.com/{owner}/{repo}/issues/{number}`). If found, store it as `sourceUrl` in plan.yaml. Use `gh pr view <url> --json title,body` or `gh issue view <url> --json title,body` to fetch the title and body for additional context when writing the plan.
+**Extract Source URL**: Check if the task description contains a GitHub PR URL (`https://github.com/{owner}/{repo}/pull/{number}`) or issue URL (`https://github.com/{owner}/{repo}/issues/{number}`). If found, store it as `sourceUrl` in plan.yaml.
+
+- **Issue URL**: `gh issue view <url> --json title,body,comments` — fetch the title, body, and comments for context when writing the plan.
+- **PR URL**: the plan must be based on the **review feedback on the PR**, not just its description. Fetch the full conversation:
+  ```bash
+  # Title, body, top-level conversation comments, and review summaries (with their state: APPROVED / CHANGES_REQUESTED / COMMENTED)
+  gh pr view <url> --json title,body,comments,reviews
+  # Inline (line-level) review comments — the specific code feedback. These are the most important.
+  gh api "repos/{owner}/{repo}/pulls/{number}/comments" --paginate
+  ```
+  Treat every **unresolved review comment** and every **"changes requested"** point as a requirement the plan MUST address. In the plan revision, incorporate this feedback explicitly: in `## Problem`, summarize what the reviewers asked for (quote/attribute the key comments); in `## Solution`, map each comment to a concrete change, referencing the exact files and lines the inline comments point at (`path` + `line` from the API response). Do not silently drop a reviewer comment — if one is out of scope or already resolved, say so. This plan will update the **same PR** (ExecutePlan bases the worktree on the PR's branch), so it is iterating on that PR, not opening a new one.
 
 **Format screenshot paths**: If the task description contains file paths to images (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`), include them in the plan revision as markdown images using `file:///` URLs. Convert backslashes to forward slashes. Example: a path like `D:\Screenshots\2026-05-07_17-16.png` in the description becomes `![screenshot](file:///D:/Screenshots/2026-05-07_17-16.png)` in the revision.
 
