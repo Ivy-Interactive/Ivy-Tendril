@@ -459,14 +459,14 @@ public class AgentProviderFactoryTests
     [InlineData("antigravity")]
     [InlineData("copilot")]
     [InlineData("opencode")]
-    public void Resolve_UpdateProject_GetsBaseToolsForAllAgents(string agent)
+    public void Resolve_SetupProject_GetsBaseToolsForAllAgents(string agent)
     {
         var runner = CreateRunner();
         var settings = CreateSettings(
             agent,
             promptwares: new Dictionary<string, PromptwareConfig>
             {
-                ["UpdateProject"] = new() { Profile = "deep" }
+                ["SetupProject"] = new() { Profile = "deep" }
             },
             codingAgents: new List<AgentConfig>
             {
@@ -482,10 +482,10 @@ public class AgentProviderFactoryTests
 
         var jobContext = new Dictionary<string, string>
         {
-            ["PROMPTWARE_DIR"] = "/promptwares/UpdateProject"
+            ["PROMPTWARE_DIR"] = "/promptwares/SetupProject"
         };
 
-        var resolution = AgentProviderFactory.Resolve(runner, settings, "UpdateProject", jobContext: jobContext);
+        var resolution = AgentProviderFactory.Resolve(runner, settings, "SetupProject", jobContext: jobContext);
 
         Assert.Equal(agent, resolution.AgentId);
         var cli = runner.GetCli(agent);

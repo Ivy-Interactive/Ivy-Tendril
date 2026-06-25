@@ -27,11 +27,11 @@ public class PromptwareRunCommandTests : IDisposable
     {
         var settings = new PromptwareRunSettings
         {
-            Promptware = "UpdateProject",
+            Promptware = "SetupProject",
             Args = ["Setup verifications"]
         };
 
-        Assert.Equal("UpdateProject", settings.Promptware);
+        Assert.Equal("SetupProject", settings.Promptware);
         Assert.Single(settings.Args);
         Assert.Equal("Setup verifications", settings.Args[0]);
     }

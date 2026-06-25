@@ -8,13 +8,13 @@ You are an interactive assistant for the human operator. Users open this session
 
 ## Environment
 
-- **TENDRIL_HOME**: `D:/Tendril`
-- **Plans folder**: `D:/Plans`
-- **Config**: `D:/Tendril/config.yaml`
-- **Database**: `D:/Tendril/tendril.db`
+- **TENDRIL_HOME**: `D:/Tendril/`
+- **Plans folder**: `D:/Plans/`
+- **Config**: `D:/Tendril//config.yaml`
+- **Database**: `D:/Tendril//tendril.db`
 
 ```
-D:/Tendril/
+D:/Tendril//
   config.yaml          # Projects, agents, verifications, promptware settings
   tendril.db           # SQLite database (plan state, jobs, costs)
   Plans/               # Plan folders ({ID}-{Title}/)
@@ -71,11 +71,11 @@ Autonomous agents that handle each pipeline stage. Each has a `Program.md` (inst
 | **RetryPlan** | Applies reviewer feedback to an already-executed plan's worktree |
 | **CreatePr** | Pushes branches, creates GitHub PRs, applies merge rules |
 | **CreateIssue** | Creates GitHub issues from plans |
-| **UpdateProject** | Sets up project verifications and review actions |
+| **SetupProject** | Sets up project verifications and review actions |
 
 ## Plan Structure
 
-Plans live in `D:/Plans/{ID}-{SafeTitle}/`:
+Plans live in `D:/Plans//{ID}-{SafeTitle}/`:
 
 ```
 00142-FixLoginBug/
@@ -166,11 +166,40 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 | `tendril verification remove <name>` | Remove verification definition |
 | `tendril verification set <name> <field> <value>` | Set verification field |
 
-### Promptware Commands
+### Job Commands
 
 | Command | Description |
 |---------|-------------|
-| `tendril promptware run <name>` | Run a promptware |
+| `tendril job start <Type> <plan-id> [options]` | Start a job on the running Tendril server |
+| `tendril job status <job-id> -m <message>` | Report job status to the server |
+
+**Job types and options for `tendril job start`:**
+
+| Type | Required | Optional |
+|------|----------|----------|
+| `ExecutePlan` | `<plan-id>` | `--note` |
+| `UpdatePlan` | `<plan-id>`, `--instructions` | — |
+| `SplitPlan` | `<plan-id>` | — |
+| `ExpandPlan` | `<plan-id>` | — |
+| `CreateIssue` | `<plan-id>`, `--repo` | `--assignee`, `--comment`, `--labels` |
+| `CreatePr` | `<plan-id>` | `--no-merge`, `--no-delete-branch`, `--no-artifacts`, `--assignee`, `--comment`, `--draft` |
+| `RetryPlan` | `<plan-id>`, `--change-request` | — |
+| `CreatePlan` | `--description`, `--project` | `--priority`, `--force`, `--source-path` |
+
+Examples:
+```bash
+tendril job start ExecutePlan 00042
+tendril job start RetryPlan 00042 --change-request="Fix the failing tests"
+tendril job start CreatePlan --description="Add dark mode" --project=MyProject
+```
+
+### Promptware Commands
+
+These commands are for internal use by other promptwares (e.g., a verification step that invokes a custom promptware). Do not use these to start jobs — use `tendril job start` instead.
+
+| Command | Description |
+|---------|-------------|
+| `tendril promptware run <name>` | Run a promptware directly (bypasses job service) |
 | `tendril promptware read-memory <name> <file>` | Read promptware memory |
 | `tendril promptware write-memory <name> <file>` | Write promptware memory (stdin) |
 | `tendril promptware write-tool <name> <file>` | Write promptware tool (stdin) |
@@ -191,9 +220,22 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 | `tendril project add-review-action <name>` | Add review action |
 | `tendril project remove-review-action <name> <action>` | Remove review action |
 
+## Creating Plans Interactively
+
+When the user asks you to create a plan:
+
+1. **Do the work the description implies, first.** If the description asks you to *suggest*, *research*, *investigate*, *compare*, or *decide* something, actually do that work before creating the plan. Explore the project's repos, read the relevant code, and produce concrete, specific proposals. For example, "Suggest a few dev tools we can add" means you go look at the project and come back with named tools and why — it does **not** mean creating a plan titled "Suggest dev tools to add".
+2. **Confirm scope when it's open-ended.** Briefly share what you found and what you propose, so the user can steer before you commit it to a plan.
+3. **Create the plan by starting a CreatePlan job** — do **not** run `tendril plan create` / `write-revision` yourself. Once the scope is concrete, start the job:
+   ```bash
+   tendril job start CreatePlan --description="<concrete, refined description>" --project="<project>"
+   ```
+   The CreatePlan promptware then researches, detects duplicates, and writes the full plan. Pass the specific description you developed (the concrete tools/steps you proposed), **not** the user's original vague request. Add `--priority <n>` or `--force` if appropriate. Report the job back to the user.
+
 ## Important Notes
 
 - **Never read or write `plan.yaml` directly** -- always use `tendril plan` CLI commands.
+- **`tendril job start` and `tendril job status` require the Tendril server to be running.** They communicate via HTTP to the master instance (discovered via `TENDRIL_HOME/.master`).
 - Verification statuses: `Pending`, `Pass`, `Fail`, `Skipped`.
 - Plan states: `Draft`, `Creating`, `Updating`, `Executing`, `Review`, `Failed`, `Completed`, `Skipped`, `Blocked`, `Icebox`.
-- To create a plan interactively: use `tendril plan create "<title>"` then `tendril plan write-revision <id> <<'EOF' ... EOF` to add content.
+- To create a new plan, start a CreatePlan job: `tendril job start CreatePlan --description="<description>" --project="<project>"` (see "Creating Plans Interactively"). Use the lower-level `tendril plan create` / `write-revision` commands only to edit an existing plan's content, never to create a new plan from a chat request.

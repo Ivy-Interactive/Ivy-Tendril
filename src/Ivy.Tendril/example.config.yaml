@@ -109,7 +109,7 @@ promptwares:
     profile: balanced
   CreateIssue:
     profile: balanced
-  UpdateProject:
+  SetupProject:
     profile: deep
 
 # Projects — add your projects here. Each project groups repos, verifications, and context.

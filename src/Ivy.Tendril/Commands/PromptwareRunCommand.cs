@@ -11,7 +11,7 @@ namespace Ivy.Tendril.Commands;
 
 public class PromptwareRunSettings : CommandSettings
 {
-    [Description("Promptware name (e.g., UpdateProject)")]
+    [Description("Promptware name (e.g., SetupProject)")]
     [CommandArgument(0, "<promptware>")]
     public string Promptware { get; set; } = "";
 
