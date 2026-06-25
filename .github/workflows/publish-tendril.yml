@@ -442,8 +442,7 @@ jobs:
             cp "$ICON_PATH" "$APP_DIR/Contents/Resources/icon.icns"
 
             # Create Info.plist
-            cat <<EOF > "$APP_DIR/Contents/Info.plist"
-            <?xml version="1.0" encoding="UTF-8"?>
+            echo '<?xml version="1.0" encoding="UTF-8"?>
             <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
             <plist version="1.0">
             <dict>
@@ -472,8 +471,7 @@ jobs:
                 <key>NSHighResolutionCapable</key>
                 <true/>
             </dict>
-            </plist>
-            EOF
+            </plist>' | sed 's/^            //' > "$APP_DIR/Contents/Info.plist"
 
             # Delete all PDB (debug symbol) files as they cannot be code-signed and are not needed in production
             find "$APP_DIR" -name "*.pdb" -delete
