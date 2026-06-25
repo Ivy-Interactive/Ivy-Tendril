@@ -210,7 +210,7 @@ public class ConfigService : IConfigService, IDisposable
         TendrilHome = tendrilHome ?? PathHelper.GetDefaultTendrilHome();
         ConfigPath = !string.IsNullOrEmpty(TendrilHome)
             ? Path.Combine(TendrilHome, "config.yaml")
-            : Path.Combine(System.AppContext.BaseDirectory, "config.yaml");
+            : PathHelper.GetResourcePath("config.yaml");
     }
 
     public ConfigService(ILogger<ConfigService>? logger = null)

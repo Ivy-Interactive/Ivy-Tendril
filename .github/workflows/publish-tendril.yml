@@ -406,18 +406,113 @@ jobs:
             EXE_NAME="Ivy.Tendril.exe"
           fi
 
+          PACK_DIR="./publish/desktop/${{ matrix.rid }}"
+
           # Export macOS environment variables for signing & notarization
           if [[ "${{ matrix.rid }}" == osx-* ]]; then
             export VPK_SIGN_APP_IDENTITY="${{ secrets.MACOS_SIGN_APP_IDENTITY }}"
             export VPK_SIGN_INSTALL_IDENTITY="${{ secrets.MACOS_SIGN_INSTALL_IDENTITY }}"
             export VPK_NOTARY_PROFILE="tendril-notary"
             export VPK_KEYCHAIN="$RUNNER_TEMP/app-signing.keychain-db"
+            export VPK_SIGN_DISABLE_DEEP="true"
+
+            APP_DIR="./publish/desktop/IvyTendril.app"
+            rm -rf "$APP_DIR"
+            mkdir -p "$APP_DIR/Contents/MacOS"
+            mkdir -p "$APP_DIR/Contents/Resources"
+
+            # Copy published outputs to Contents/MacOS
+            cp -R ./publish/desktop/${{ matrix.rid }}/* "$APP_DIR/Contents/MacOS/"
+
+            # Move nested runtime folders and config files to Contents/Resources
+            if [ -d "$APP_DIR/Contents/MacOS/dotnet" ]; then
+              mv "$APP_DIR/Contents/MacOS/dotnet" "$APP_DIR/Contents/Resources/"
+            fi
+            if [ -d "$APP_DIR/Contents/MacOS/PowerShell" ]; then
+              mv "$APP_DIR/Contents/MacOS/PowerShell" "$APP_DIR/Contents/Resources/"
+            fi
+            if [ -f "$APP_DIR/Contents/MacOS/example.config.yaml" ]; then
+              mv "$APP_DIR/Contents/MacOS/example.config.yaml" "$APP_DIR/Contents/Resources/"
+            fi
+            if [ -f "$APP_DIR/Contents/MacOS/config.yaml" ]; then
+              mv "$APP_DIR/Contents/MacOS/config.yaml" "$APP_DIR/Contents/Resources/"
+            fi
+
+            # Copy icon
+            cp "$ICON_PATH" "$APP_DIR/Contents/Resources/icon.icns"
+
+            # Create Info.plist
+            cat <<EOF > "$APP_DIR/Contents/Info.plist"
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleDisplayName</key>
+    <string>Ivy Tendril</string>
+    <key>CFBundleExecutable</key>
+    <string>Ivy.Tendril</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.ivy.tendril</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>Ivy Tendril</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>${{ needs.version.outputs.version }}</string>
+    <key>CFBundleVersion</key>
+    <string>${{ needs.version.outputs.version }}</string>
+    <key>CFBundleIconFile</key>
+    <string>icon.icns</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>10.15</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+</dict>
+</plist>
+EOF
+
+            # Delete all PDB (debug symbol) files as they cannot be code-signed and are not needed in production
+            find "$APP_DIR" -name "*.pdb" -delete
+            # Delete all XML documentation files in MacOS folder as they cause codesign issues
+            find "$APP_DIR/Contents/MacOS" -name "*.xml" -delete
+            # Delete Linux and Windows native libraries as they are not used on macOS and cause codesign issues
+            find "$APP_DIR/Contents/MacOS" -name "*.so" -delete
+            find "$APP_DIR/Contents/MacOS" -name "rustino_native.dll" -delete
+
+            # Clean up obsolete dnx
+            if [ -f "$APP_DIR/Contents/Resources/dotnet/dnx" ]; then
+              rm "$APP_DIR/Contents/Resources/dotnet/dnx"
+            fi
+
+            # Remove executable permission on non-binary files
+            find "$APP_DIR" -type f | while read -r file; do
+              if [ -x "$file" ]; then
+                if ! file "$file" | grep -q "Mach-O"; then
+                  chmod -x "$file"
+                fi
+              fi
+            done
+
+            # Pre-sign native Mach-O binaries in the runner's keychain
+            echo "Pre-signing internal binaries to avoid codesign --deep errors on nested SDK folders..."
+            find "$APP_DIR" -type f | while read -r file; do
+              if file "$file" | grep -q "Mach-O"; then
+                echo "Signing: $file"
+                codesign --force --options runtime --timestamp --keychain "$RUNNER_TEMP/app-signing.keychain-db" --sign "$VPK_SIGN_APP_IDENTITY" "$file"
+              fi
+            done
+
+            PACK_DIR="$APP_DIR"
           fi
 
           vpk pack \
             --packId IvyTendril \
             --packVersion ${{ needs.version.outputs.version }} \
-            --packDir ./publish/desktop/${{ matrix.rid }} \
+            --packDir "$PACK_DIR" \
             --mainExe $EXE_NAME \
             --outputDir ./releases \
             --icon "$ICON_PATH" \
