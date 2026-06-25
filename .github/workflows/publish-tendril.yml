@@ -170,6 +170,8 @@ jobs:
     needs: version
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
+    env:
+      KEYCHAIN_PASSWORD: "temporary-keychain-pwd"
     strategy:
       fail-fast: false
       matrix:
@@ -369,7 +371,6 @@ jobs:
         env:
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
-          KEYCHAIN_PASSWORD: "temporary-keychain-pwd"
         run: |
           CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
@@ -381,6 +382,7 @@ jobs:
           security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -t 21600 -u $KEYCHAIN_PATH
 
           # Import p12
           security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign -T /usr/bin/productsign
@@ -393,6 +395,7 @@ jobs:
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/app-signing.keychain-db"
           xcrun notarytool store-credentials "tendril-notary" \
             --apple-id "$APPLE_ID" \
             --team-id "$APPLE_TEAM_ID" \
@@ -411,6 +414,7 @@ jobs:
 
           # Export macOS environment variables for signing & notarization
           if [[ "${{ matrix.rid }}" == osx-* ]]; then
+            security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/app-signing.keychain-db"
             export VPK_SIGN_APP_IDENTITY="${{ secrets.MACOS_SIGN_APP_IDENTITY }}"
             export VPK_SIGN_INSTALL_IDENTITY="${{ secrets.MACOS_SIGN_INSTALL_IDENTITY }}"
             export VPK_NOTARY_PROFILE="tendril-notary"
