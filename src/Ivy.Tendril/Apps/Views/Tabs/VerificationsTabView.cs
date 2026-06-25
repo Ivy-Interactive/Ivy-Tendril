@@ -27,7 +27,8 @@ public class VerificationsTabView(
                     ? new Button(name).Inline().OnClick(() => openVerification(name))
                     : (object)Text.Block(name)))
             .Remove(t => t.HasReport)
-            .ColumnWidth(t => t.Name, Size.Grow());
+            .ColumnWidth(t => t.Status, Size.Fit())
+            .ColumnWidth(t => t.Name, Size.Fit());
     }
 
     private record VerificationRow(VerificationStatus Status, string Name, bool HasReport);
