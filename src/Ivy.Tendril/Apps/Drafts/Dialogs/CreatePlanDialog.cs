@@ -9,11 +9,6 @@ using Ivy.Tendril.Apps.Agent;
 
 namespace Ivy.Tendril.Apps.Drafts.Dialogs;
 
-// Disambiguate from Ivy.ContentInput (Framework widget). The alias must live inside this
-// namespace scope: at compilation-unit scope the enclosing Ivy namespace's ContentInput
-// member is resolved first and would win over the alias.
-using ContentInput = Ivy.Tendril.Widgets.ContentInput;
-
 public class CreatePlanDialog(
     List<string> projectNames,
     Action<string, string[], int, string?> onCreatePlan,

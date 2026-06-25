@@ -11,10 +11,6 @@ using Xunit;
 
 namespace Ivy.Tendril.Test.Services;
 
-// Disambiguate from Ivy.ContentInput (Framework widget); the enclosing Ivy namespace would
-// otherwise win over the Ivy.Tendril.Widgets import for the unqualified name.
-using ContentInput = Ivy.Tendril.Widgets.ContentInput;
-
 public class JobCompletionAttachmentTests : IDisposable
 {
     private readonly TempDirectoryFixture _tempDir = new();
