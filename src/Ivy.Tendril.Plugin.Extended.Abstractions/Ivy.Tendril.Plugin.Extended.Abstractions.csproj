@@ -39,7 +39,7 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(IvySource)' != 'true'">
-    <PackageReference Include="Ivy" Version="1.2.67" />
+    <PackageReference Include="Ivy" Version="1.2.68" />
     <PackageReference Include="Ivy.Tendril.Plugin.Abstractions" Version="1.0.53" />
   </ItemGroup>
 
