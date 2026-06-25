@@ -571,6 +571,10 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
         onStatusChange: (status) => setVoiceStatus(status),
         onResult: (transcription) => {
           console.log("[ContentInputView] Transcription result received:", transcription);
+          if (transcription.trim() === "") {
+            setRecordError("The transcription did not contain enough information to generate a prompt. Please try again and speak clearly.");
+            return;
+          }
           setText((prev) => {
             const next = prev ? `${prev} ${transcription}` : transcription;
             console.log("[ContentInputView] Next text state:", next);
