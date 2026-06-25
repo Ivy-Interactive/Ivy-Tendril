@@ -119,7 +119,7 @@ genuine errors (auth, invalid repo, validation).
 For each pushed branch:
 
 ```bash
-gh pr create [--draft] --repo <owner/repo> --base <default-branch> --head <branch> --title "<title>" --body "$(cat <<'EOF'
+gh pr create [--draft] --repo <owner/repo> --base <default-branch> --head <branch> --assignee @me --title "<title>" --body "$(cat <<'EOF'
 <body content>
 EOF
 )"
@@ -152,6 +152,7 @@ EOF
   ```
 - **Draft (custom options):** If custom options exist and `draft` is `true`, add `--draft` to the `gh pr create` command to create the PR in draft mode. If no custom options or `draft` is `false`, create as ready for review (default behavior).
 - **Reviewer (custom options):** If custom options exist and `reviewer` is non-empty, add `--reviewer <reviewer>` to the `gh pr create` command.
+- **Assignee:** Always pass `--assignee @me` so the PR is assigned to the current (gh-authenticated) user. If assignment fails (e.g. the account cannot self-assign on a given repo), this is non-fatal — log a warning and continue; do not fail PR creation.
 
 ### 3.5. Add PR Comment (custom options)
 
