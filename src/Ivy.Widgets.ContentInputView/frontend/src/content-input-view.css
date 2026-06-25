@@ -477,7 +477,7 @@
 
 /* Arrow button on the right */
 .civ-split-btn-arrow {
-  width: 22px;
+  width: 32px;
   height: 100%;
   border-top-right-radius: var(--radius-buttons, 6px);
   border-bottom-right-radius: var(--radius-buttons, 6px);
