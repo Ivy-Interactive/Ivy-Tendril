@@ -55,6 +55,8 @@ public class CreatePlanDialog(
         var configService = UseService<IConfigService>();
         var uploadSessionId = UseState(() => Guid.NewGuid().ToString("N"));
 
+        var (breakpoint, breakpointListener) = Context.UseBreakpoint();
+
         var uploadedFiles = UseState(new List<string>());
 
         var uploadContext = this.UseUpload(async (fileUpload, stream, token) =>
@@ -120,10 +122,7 @@ public class CreatePlanDialog(
             onClose();
         }
 
-        return new Dialog(
-            _ => HandleClose(),
-            new DialogHeader("Create New Plan"),
-            new DialogBody(
+        var bodyContent =
                 Layout.Vertical()
                 | exclusiveProjects.ToSelectInput(options).Variant(SelectInputVariant.Toggle).WithField().Label("Select Project(s)")
                 | selectedPriority.ToSelectInput(PriorityOptions).Variant(SelectInputVariant.Toggle).WithField().Label("Priority")
@@ -196,8 +195,21 @@ public class CreatePlanDialog(
                     .Placeholder("Enter task description...")
                     .WithField()
                     .Label("Describe the task for the new plan")
-                    .Required()
-            )
-        ).Width(Size.Rem(30));
+                    .Required();
+
+        object planSurface = breakpoint.Value == Breakpoint.Mobile
+            ? new Sheet(
+                _ => HandleClose(),
+                bodyContent,
+                title: "Create New Plan")
+                .Side(SheetSide.Bottom)
+                .Height(Size.Fit())
+            : new Dialog(
+                _ => HandleClose(),
+                new DialogHeader("Create New Plan"),
+                new DialogBody(bodyContent))
+                .Width(Size.Rem(30));
+
+        return new Fragment(breakpointListener, planSurface);
     }
 }
