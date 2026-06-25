@@ -38,7 +38,19 @@ public static class PathHelper
 
     public static string GetPwshPath()
     {
-        var bundled = Path.Combine(System.AppContext.BaseDirectory, "PowerShell", OperatingSystem.IsWindows() ? "pwsh.exe" : "pwsh");
+        var baseDir = System.AppContext.BaseDirectory;
+        var bundled = Path.Combine(baseDir, "PowerShell", OperatingSystem.IsWindows() ? "pwsh.exe" : "pwsh");
+
+        // On macOS inside an app bundle, look in Contents/Resources
+        if (OperatingSystem.IsMacOS() && baseDir.Contains(".app/Contents/MacOS"))
+        {
+            var macOsBundled = Path.GetFullPath(Path.Combine(baseDir, "..", "Resources", "PowerShell", "pwsh"));
+            if (File.Exists(macOsBundled))
+            {
+                bundled = macOsBundled;
+            }
+        }
+
         if (File.Exists(bundled))
         {
             if (!OperatingSystem.IsWindows())
@@ -63,7 +75,19 @@ public static class PathHelper
 
     public static string? GetBundledDotnetPath()
     {
-        var dir = Path.Combine(System.AppContext.BaseDirectory, "dotnet");
+        var baseDir = System.AppContext.BaseDirectory;
+        var dir = Path.Combine(baseDir, "dotnet");
+
+        // On macOS inside an app bundle, look in Contents/Resources
+        if (OperatingSystem.IsMacOS() && baseDir.Contains(".app/Contents/MacOS"))
+        {
+            var macOsDir = Path.GetFullPath(Path.Combine(baseDir, "..", "Resources", "dotnet"));
+            if (Directory.Exists(macOsDir))
+            {
+                dir = macOsDir;
+            }
+        }
+
         var exe = Path.Combine(dir, OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet");
         if (File.Exists(exe))
         {
@@ -92,6 +116,27 @@ public static class PathHelper
         return GetBundledDotnetPath() ?? "dotnet";
     }
 
+    /// <summary>
+    /// Gets the resolved path for a configuration or resource file, checking Contents/Resources
+    /// on macOS inside an app bundle first, and falling back to System.AppContext.BaseDirectory.
+    /// </summary>
+    public static string GetResourcePath(string fileName)
+    {
+        var baseDir = System.AppContext.BaseDirectory;
+        var defaultPath = Path.Combine(baseDir, fileName);
+
+        if (OperatingSystem.IsMacOS() && baseDir.Contains(".app/Contents/MacOS"))
+        {
+            var macOsResourcePath = Path.GetFullPath(Path.Combine(baseDir, "..", "Resources", fileName));
+            if (File.Exists(macOsResourcePath))
+            {
+                return macOsResourcePath;
+            }
+        }
+
+        return defaultPath;
+    }
+
     public static void AugmentPath(bool forceShellPath = false)
     {
         Ivy.Helpers.CrashLog.Write($"[PathHelper] AugmentPath starting. forceShellPath={forceShellPath}");
@@ -106,6 +151,19 @@ public static class PathHelper
         // 1. Prepend bundled tools directories to prioritize them
         var baseDir = System.AppContext.BaseDirectory;
         var bundledDotnetDir = Path.Combine(baseDir, "dotnet");
+        var bundledPwshDir = Path.Combine(baseDir, "PowerShell");
+
+        // On macOS inside an app bundle, look in Contents/Resources
+        if (OperatingSystem.IsMacOS() && baseDir.Contains(".app/Contents/MacOS"))
+        {
+            var macOsResourcesDir = Path.GetFullPath(Path.Combine(baseDir, "..", "Resources"));
+            var macOsDotnetDir = Path.Combine(macOsResourcesDir, "dotnet");
+            var macOsPwshDir = Path.Combine(macOsResourcesDir, "PowerShell");
+
+            if (Directory.Exists(macOsDotnetDir)) bundledDotnetDir = macOsDotnetDir;
+            if (Directory.Exists(macOsPwshDir)) bundledPwshDir = macOsPwshDir;
+        }
+
         if (Directory.Exists(bundledDotnetDir))
         {
             // Verify and auto-repair permissions on Unix
@@ -117,7 +175,6 @@ public static class PathHelper
             }
         }
 
-        var bundledPwshDir = Path.Combine(baseDir, "PowerShell");
         if (Directory.Exists(bundledPwshDir))
         {
             // Verify and auto-repair permissions on Unix

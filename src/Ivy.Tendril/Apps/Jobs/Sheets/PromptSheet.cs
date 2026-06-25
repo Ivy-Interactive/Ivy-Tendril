@@ -4,6 +4,6 @@ public class PromptSheet(string promptText) : ViewBase
 {
     public override object Build()
     {
-        return new CodeBlock(promptText, Languages.Text);
+        return new CodeBlock(promptText, Languages.Text).WrapLines();
     }
 }
