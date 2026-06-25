@@ -109,9 +109,7 @@ public class ContentView(
                            GoToNext();
                        });
 
-        var header = Layout.Horizontal().Height(Size.Px(40)).Width(Size.Full()).Gap(2).AlignContent(Align.Left)
-                     | titleArea
-                     | controls;
+        var header = ResponsiveHeader.Build(titleArea, controls);
 
         // Content
         var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200))).Padding(6, 2, 6, 2);

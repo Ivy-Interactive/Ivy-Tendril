@@ -187,9 +187,7 @@ public class ContentView(
                                 ContinueExecute(null, result, pendingWaitJobIds, showDirtyDialog);
                         }));
 
-        var header = Layout.Horizontal().Height(Size.Px(40)).Width(Size.Full()).Gap(2).AlignContent(Align.Left)
-                     | titleArea
-                     | controls;
+        var header = ResponsiveHeader.Build(titleArea, controls);
 
         var content = Layout.Vertical().Height(Size.Full());
 

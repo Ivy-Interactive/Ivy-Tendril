@@ -322,11 +322,7 @@ public class ContentView(
             }).ShortcutKey("m");
         }
 
-        var header = Layout.Horizontal().Height(Size.Px(40)).Width(Size.Full()).Gap(2).AlignContent(Align.Left)
-                     | titleArea
-                     | controls;
-
-        return header;
+        return ResponsiveHeader.Build(titleArea, controls);
     }
 
     private object BuildActionBar(
