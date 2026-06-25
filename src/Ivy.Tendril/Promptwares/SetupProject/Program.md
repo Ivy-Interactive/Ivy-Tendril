@@ -1,4 +1,4 @@
-# UpdateProject
+# SetupProject
 
 Update a project's configuration using the Tendril CLI. Typically used after initial project creation to set up verifications and review actions based on the project's tech stack.
 

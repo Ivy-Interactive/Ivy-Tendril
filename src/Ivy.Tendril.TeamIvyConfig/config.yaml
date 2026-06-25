@@ -1,4 +1,4 @@
-codingAgent: claude
+codingAgent: codex
 jobTimeout: 30
 staleOutputTimeout: 10
 gitTimeout: 10
@@ -365,7 +365,7 @@ promptwares:
     profile: balanced
     allowedTools:
     - Bash(ivy *)
-  UpdateProject:
+  SetupProject:
     profile: deep
     allowedTools:
     - Bash(ivy *)

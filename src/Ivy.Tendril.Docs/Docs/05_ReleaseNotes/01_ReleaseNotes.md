@@ -14,6 +14,67 @@ icon: ScrollText
 Version history, new features, improvements, and bug fixes for each Tendril release.
 </Ingress>
 
+## 1.1.1 (2026-06-25)
+
+### Features
+
+- **Voice & rich plan input** — New ContentInput widget brings voice transcription and file attachments to the Create Plan dialog; files upload over HTTP POST and are stored alongside the plan, with drag-and-drop support.
+- **Chat with Agent** — Beta AgentApp lets you chat directly with the coding agent over a PTY, with a "Chat with Agent" button in the New Plan dialog and the `tendril` CLI exposed to the agent via a shim.
+- **Plan annotations** — Annotate drafts in DraftsApp to drive annotation-based plan updates.
+- **Mobile & tablet support** — Tendril is now responsive across mobile, tablet, and desktop breakpoints, with adaptive headers, sheets, pickers, and process viewer.
+- **DraftMarkdown widget** — Renders Mermaid and Graphviz diagrams, callouts, local-file and clickable images, and inline text annotations.
+- **Velopack auto-updates** — Desktop app self-updates via Velopack, with installer name-collision prevention.
+- **Activity heatmap** — Wallpaper app shows a 90-day completed-PR activity heatmap.
+- **SyncRepo & preflight dirty-repo check** — New SyncRepo promptware plus a preflight check that detects and resolves dirty repository state before Execute and Create Plan.
+- **Job dependencies** — Job-level `WaitForJobs` blocking with cascade failure, periodic re-evaluation of blocked jobs, and a Force Start action for blocked jobs.
+- **Rerun with feedback** — Rerun a job with additional feedback for the agent.
+- **Revert revision** — Revert a specific plan revision directly from the Details tab.
+- **Stale-worktree reaper** — Bounds worktree disk usage by reaping stale worktrees left from prior runs.
+- **HTTP-based CLI/server IPC** — CLI and server communicate over HTTP with master election for reliable single-instance coordination.
+- **Bundled runtimes** — .NET 10 SDK and PowerShell 7 are bundled in installers and resolved dynamically at runtime when present.
+- **Repo guardrails** — Plans are guarded against executing or merging in repositories outside their project, and the repo's default branch is detected instead of assuming `main`.
+- **Plan migration framework** — Added `schemaVersion` to `plan.yaml` with a per-file plan migration framework.
+- **Coding agent environment variables** — Configure per-agent environment variables in Coding Agent settings.
+- **`tendril agent-instructions` command** — Output the agent instructions from the CLI.
+
+### Improvements
+
+- **Tunnel polish** — Connecting state, wallpaper QR code, Open in Browser, routable-before-Connected detection, orphaned `cloudflared` cleanup, and single-click deactivate with optimistic UI.
+- **Verifications as single source of truth** — `plan.yaml` is now the source of truth for verifications, with a dedicated UI card, status enum, and drag-and-drop ordering in the project edit dialog.
+- **Job Debug sheet** — Added working directory and CLI arguments, copy buttons for Plan/Job IDs, a Report Bug button, and promptware learnings (memory/tool writes); hides empty rows and permission denials.
+- **Plan state renames** — `Building → Creating` and `ReadyForReview → Review` for clearer lifecycle naming.
+- **CLI consolidation** — Single-channel logging, unified exception propagation, descriptive job-status output, and added Web API/MCP endpoints for full CLI parity.
+- **Recommendations simplified** — Removed the Risk field from recommendations across the UI and prompts.
+- **macOS standalone app** — Robust login-shell PATH and environment loading, correct packaged-app detection, and automatic global `tendril` symlink creation.
+- **Widget restructure** — Consolidated widgets into a unified `Ivy.Tendril.Widgets` project with per-widget frontend directories.
+- **Auto-merge workflow** — CI workflow automatically merges `main` back into `development` after release.
+- **Dependency security** — Upgraded `SQLitePCLRaw.lib.e_sqlite3` to 3.50.3 and pinned frontend dependencies (dompurify, vite-plus) to address known vulnerabilities.
+
+### Bug Fixes
+
+- Fixed `tendril plan create` dash-value argument parsing.
+- Fixed SQLite "database is locked" errors via a shared connection factory and `busy_timeout`.
+- Fixed cancelled/stopped/failed jobs reverting plans to their previous state.
+- Fixed PR merge depending on a stale `prRule` instead of the `PrMerge` flag.
+- Fixed drafts not refreshing after changes.
+- Fixed intermittent Create PR failures and misleading error messages.
+- Fixed Review and Drafts markdown left padding not rendering.
+- Fixed verification order not persisting in the Edit Project dialog.
+- Fixed job cost calculation to run for all statuses using inline result data.
+- Fixed `plan.yaml` lost-write race condition when accepting a recommendation.
+- Fixed crash when navigating to Drafts/Review with an invalid plan.
+- Fixed race condition in `WaitForJobs` unblocking and duplicate job detection.
+- Fixed IvyFrameworkVerification leaving zombie processes after test runs.
+- Fixed Copilot usage-metric parsing crashes with defensive parsing.
+- Fixed Spectre.Console crash from unescaped markup in doctor output.
+- Fixed onboarding startup crash on macOS and Windows when `TENDRIL_HOME` is empty.
+- Fixed duplicate Default option in coding agent profile model dropdowns.
+- Fixed missing Windows taskbar icon.
+- Fixed plan folder ACL permissions blocking ExecutePlan.
+- Fixed duplicate SyncRepo jobs being queued for the same repository.
+- Fixed ContentInput name collision after the framework added its own widget.
+- Fixed JS `SyntaxError` on older WebKit by targeting es2020.
+
 ## 1.0.39 (2026-05-28)
 
 ### Features

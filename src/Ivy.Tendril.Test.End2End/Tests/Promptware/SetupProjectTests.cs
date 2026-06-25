@@ -4,20 +4,20 @@ using Ivy.Tendril.Test.End2End.Helpers;
 namespace Ivy.Tendril.Test.End2End.Tests.Promptware;
 
 [Collection("E2E-Promptware")]
-public class UpdateProjectTests
+public class SetupProjectTests
 {
     private readonly PromptwareTestFixture _fixture;
 
-    public UpdateProjectTests(PromptwareTestFixture fixture) => _fixture = fixture;
+    public SetupProjectTests(PromptwareTestFixture fixture) => _fixture = fixture;
 
     [Theory]
     [MemberData(nameof(AgentTestData.Agents), MemberType = typeof(AgentTestData))]
-    public async Task UpdateProject_ConfiguresVerifications(string agent)
+    public async Task SetupProject_ConfiguresVerifications(string agent)
     {
-        var cliLog = Path.Combine(_fixture.TendrilHome, $"update-project-{agent}.jsonl");
+        var cliLog = Path.Combine(_fixture.TendrilHome, $"setup-project-{agent}.jsonl");
 
         var result = await _fixture.Runner.RunAsync(
-            "UpdateProject",
+            "SetupProject",
             args: [],
             workingDir: _fixture.TestRepo.LocalClonePath,
             agent: agent,
@@ -28,7 +28,7 @@ public class UpdateProjectTests
                 ["TendrilProject"] = "E2ETest"
             });
 
-        PromptwareAssertions.AssertExitSuccess(result, $"UpdateProject ({agent})");
+        PromptwareAssertions.AssertExitSuccess(result, $"SetupProject ({agent})");
 
         // Assert expected CLI calls — should use project/verification commands
         var entries = CliLogAssertions.ReadLog(cliLog);
@@ -37,7 +37,7 @@ public class UpdateProjectTests
             e.Command.Contains("verification", StringComparison.OrdinalIgnoreCase));
 
         Assert.True(hasProjectOrVerificationCall,
-            $"UpdateProject ({agent}) should call tendril project or verification commands.\n" +
+            $"SetupProject ({agent}) should call tendril project or verification commands.\n" +
             $"Actual calls: [{string.Join(", ", entries.Select(e => $"\"{e.Command}\""))}]");
 
         CliLogAssertions.AssertAllCommandsSucceeded(cliLog);

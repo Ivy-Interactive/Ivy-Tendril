@@ -71,7 +71,7 @@ Autonomous agents that handle each pipeline stage. Each has a `Program.md` (inst
 | **RetryPlan** | Applies reviewer feedback to an already-executed plan's worktree |
 | **CreatePr** | Pushes branches, creates GitHub PRs, applies merge rules |
 | **CreateIssue** | Creates GitHub issues from plans |
-| **UpdateProject** | Sets up project verifications and review actions |
+| **SetupProject** | Sets up project verifications and review actions |
 
 ## Plan Structure
 
