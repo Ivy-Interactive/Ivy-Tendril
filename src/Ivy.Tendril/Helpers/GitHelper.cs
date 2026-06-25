@@ -82,7 +82,7 @@ public static class GitHelper
         return null;
     }
 
-    private static string? RunGitCapture(string? workingDir, string args, int timeoutMs)
+    internal static string? RunGitCapture(string? workingDir, string args, int timeoutMs)
     {
         try
         {

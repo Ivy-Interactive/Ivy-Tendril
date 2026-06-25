@@ -23,6 +23,11 @@ Project and verification configuration is available via `tendril project list` a
 
 ## Available CLI Commands
 
+### Stack analysis
+```bash
+tendril project-analyzer <repo-path>   # prints a trimmed YAML stack report (supports . and relative paths)
+```
+
 ### Verifications (global definitions)
 ```bash
 tendril verification list
@@ -46,15 +51,20 @@ tendril project add-review-action <project-name> <name> --command="<cmd>" --cond
 tendril project remove-review-action <project-name> <name>
 ```
 
+### Stack hash
+```bash
+tendril project set <project-name> stackHash "<hash>"
+```
+
 ## Execution Steps
 
 ### 1. Gather Context
 
 1. Run `tendril verification list` to see existing global verification definitions.
 2. Run `tendril project list` to confirm the project exists.
-3. Read the project's repo(s) to detect the tech stack:
-   - List root files in each repo path to find build/config files
-   - Identify the primary stack(s): .NET, JavaScript/TypeScript, Python, Rust, Go, etc.
+3. Detect the tech stack of each repo. Prefer the analyzer over manual inspection:
+   - Run `tendril project-analyzer <repo-path>` (the path supports `.` and relative paths) for each repo. 
+   - Use this report as the authoritative stack description for both the verifications/review actions below and the stack hash in Step 4.
 
 ### 2. Setup Verifications
 
@@ -65,7 +75,7 @@ For each detected tech stack, ensure the following verification definitions exis
 - Build: `DotnetBuild`, `NpmBuild`, `PythonBuild`, `RustBuild`, `GoBuild`
 - Test: `DotnetTest`, `NpmTest`, `PythonTest`, `RustTest`, `GoTest`
 
-**Standard verification prompts by stack:**
+**Example verification prompts by stack:**
 
 | Stack | Verification | Prompt guidance |
 |-------|-------------|-----------------|
@@ -143,9 +153,58 @@ tendril project add-review-action <project-name> "<name>" \
   --condition="Test-Path \"Worktrees/<RepoName>/<path>\""
 ```
 
-### 4. Summary
+### 4. Set the Stack Hash
+
+Derive a single-line **Stack Descriptor Hash (SDH)** from the `tendril project-analyzer` report(s) you gathered in Step 1 and persist it on the project. The SDH is a canonical, similarity-preserving signature of the project's significant layers, the frameworks that build each layer, and its test technology: same stack → identical hash, similar stacks → similar strings. **The hash contains no spaces anywhere.**
+
+Map the analyzer YAML to the hash: each non-auxiliary, non-workspace-root `component` becomes a layer (use its dominant `language` and its `framework`/`orm`/`database`/`styling`/`testing`-category `technologies`); `infrastructure` feeds the `infra` segment; testing technologies across all components collapse into the trailing `test` segment. Ignore components flagged `isAuxiliary` and pure `isWorkspaceRoot` aggregators. (The analyzer already drops low-confidence and incidental signals, so everything in the report is fair game.)
+
+**Grammar**
+```
+hash    = segment ( "|" segment )*
+segment = role [ "(" lang ")" ] ":" token ( "+" token )*
+role    = "fe" | "mobile" | "desktop" | "be" | "fs" | "lib" | "db" | "infra" | "test"
+lang    = canonical language slug (omit for db/infra/test)
+token   = canonical technology slug
+```
+
+**Rules**
+
+1. **Fixed layer order** (omit absent layers): `fe, mobile, desktop, be, fs, lib, db, infra, test`. Use `fs` only when a single framework genuinely spans client+server (Rails, Laravel, Django MVC, Phoenix, Blazor Server, full-stack Next.js); otherwise split into `fe`+`be`. Use `lib` for a library/SDK/CLI repo with no app layer.
+2. **Defining tech only** — cap each layer to these slots (fewer is fine); slot order = token order:
+   - `fe`: ui-framework, meta-framework/builder, styling-system
+   - `mobile`: framework — `desktop`: framework
+   - `be`: web-framework, orm — `fs`: framework, orm
+   - `lib`: (none — language only)
+   - `db`: engines (most-central first) — `infra`: container/orchestration/iac — `test`: test frameworks
+   Drop icon sets, validation, state, routers, component kits, loggers, monitoring, analytics, CI providers, hosting brands. Include a `db` token only when backed by a real driver dependency (`psycopg`, `pg`, `mongoose`, a redis client), a compose/infra service, or a confident detection — never from an env-var placeholder or a default cache-driver config alone.
+3. **Token order:** by the slot order above (base/primary first), then alphabetical within a slot; `db` and `test` are alphabetical (no primary).
+4. **Base before meta** — a meta-framework implies and is preceded by its base, both included: `react+next`, `react+remix`, `react+gatsby`, `vue+nuxt`, `svelte+sveltekit`, `solid+solidstart`, `reactnative+expo`.
+5. **Normalize to canonical slugs:** lowercase, drop version, remove non-alphanumeric chars, then apply synonyms:
+   - Frameworks: Next.js→`next`, Nuxt→`nuxt`, SvelteKit→`sveltekit`, ASP.NET Core→`aspnetcore`, Entity Framework Core→`efcore`, React Native→`reactnative`, Spring Boot→`spring`, Ruby on Rails→`rails`, Express→`express`, NestJS→`nestjs`, Tailwind CSS→`tailwind`.
+   - Languages: TypeScript→`ts`, JavaScript→`js`, Python→`py`, Ruby→`rb`, Go→`go`, Rust→`rs`, Java→`java`, Kotlin→`kt`, C#→`cs`, PHP→`php`, Swift→`swift`, Dart→`dart`, Elixir→`ex`.
+   - DB: PostgreSQL→`postgres`, MySQL→`mysql`, MongoDB→`mongodb`, SQL Server→`mssql`, Redis→`redis`, SQLite→`sqlite`.
+6. **Test layer:** collect significant test frameworks across all layers into ONE trailing `test:` segment, alphabetical, deduped. Omit if none.
+7. **Multiplicity & determinism:** one segment per role. Multiple frontends/backends → merge significant tokens (deduped, ordered by Rules 3–4). Never emit versions, counts, paths, or spaces. Same input → identical output.
+
+**Reference examples**
+```
+fe(ts):react+next+tailwind|be(py):fastapi+sqlmodel|db:postgres|test:playwright+pytest
+fe(ts):react+vite+tailwind|be(py):fastapi|db:postgres+redis|test:vitest
+fs(py):django|db:postgres|test:pytest
+fe(cs):blazor|be(cs):aspnetcore+efcore|db:mssql|test:xunit
+be(go):gin+gorm|db:postgres
+mobile(dart):flutter|db:firebase
+lib(py)|test:pytest
+```
+
+Self-check before persisting: segments in Rule-1 order; absent layers omitted; only defining tokens, ordered by Rules 3–4 (base before meta); all slugs normalized; one alphabetical `test:` segment or none; **no spaces anywhere**. Then save it:
+```bash
+tendril project set <project-name> stackHash "<hash>"
+```
+
+### 5. Summary
 
 Print a summary of what was configured:
-- Verifications added (new global definitions + project references)
+- Verifications added
 - Review actions added
-- Any issues encountered

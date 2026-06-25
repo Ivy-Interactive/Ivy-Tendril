@@ -338,7 +338,7 @@ public class Program
         {
             "doctor", "db-version", "db-migrate", "db-reset",
             "update-promptwares", "job", "plan", "promptware",
-            "trash", "verification", "project", "models",
+            "trash", "verification", "project", "project-analyzer", "models",
             "version", "--version", "report-bug", "reset", "update",
             "--help", "-h", "run"
         };
@@ -446,6 +446,10 @@ public class Program
             // Doctor command
             config.AddCommand<DoctorCliCommand>("doctor")
                 .WithDescription("System health check");
+
+            // Project analyzer command
+            config.AddCommand<ProjectAnalyzerCommand>("project-analyzer")
+                .WithDescription("Analyze a folder and print a YAML stack report");
 
             // Run command
             config.AddCommand<RunCommand>("run")
