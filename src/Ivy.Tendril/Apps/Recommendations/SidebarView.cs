@@ -9,7 +9,6 @@ public class SidebarView(
     IState<Recommendation?> selectedState,
     IState<string?> projectFilter,
     IState<string?> impactFilter,
-    IState<string?> riskFilter,
     int totalCount,
     bool hasActiveFilters,
     IState<string?> textFilter,
@@ -40,17 +39,12 @@ public class SidebarView(
             var impactLevelOptions = new[] { "Small", "Medium", "High" }
                 .Select(l => new Option<string>(l, l))
                 .ToArray<IAnyOption>();
-            var riskLevelOptions = new[] { "Small", "Medium", "High" }
-                .Select(l => new Option<string>(l, l))
-                .ToArray<IAnyOption>();
 
             header |= Layout.Vertical()
                 | projectFilter.ToSelectInput(projectOptions).Placeholder("All Projects").Nullable()
                     .WithField().Label("Project")
                 | impactFilter.ToSelectInput(impactLevelOptions).Placeholder("All Impacts").Nullable()
-                    .WithField().Label("Impact")
-                | riskFilter.ToSelectInput(riskLevelOptions).Placeholder("All Risk Levels").Nullable()
-                    .WithField().Label("Risk");
+                    .WithField().Label("Impact");
         }
 
         return header;
@@ -61,7 +55,6 @@ public class SidebarView(
         var filtered = recommendations
             .Where(r => projectFilter.Value == null || r.Project == projectFilter.Value)
             .Where(r => impactFilter.Value == null || r.Impact == impactFilter.Value)
-            .Where(r => riskFilter.Value == null || r.Risk == riskFilter.Value)
             .Where(r =>
             {
                 if (string.IsNullOrWhiteSpace(textFilter.Value)) return true;

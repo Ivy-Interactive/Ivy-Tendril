@@ -48,8 +48,18 @@ For each worktree:
 
 1. `git remote get-url origin` (from the worktree) to get the GitHub remote
 2. Extract `owner/repo` from the remote URL
-3. `git rev-parse --abbrev-ref HEAD` to get the branch name
-4. `git push -u origin <branch>`
+3. **!MANDATORY project gate — do not skip.** Verify this worktree's repo is one the project
+   authorizes: its repo path/name must appear in the `RepoConfigs` firmware header (the project's
+   configured repos). If the worktree's repo is **NOT** in `RepoConfigs`, **abort this worktree**:
+   do **not** push, create a PR, or merge. Report the mismatch and fail the job for this repo:
+   ```bash
+   tendril job status TendrilJobId --message="ERROR: worktree repo <owner/repo> is not part of this project's RepoConfigs — refusing to push/merge. The plan was likely created in the wrong project."
+   ```
+   Then skip to the next worktree (or exit if this is the only one). This is the stop that prevents
+   merging a change into a repo outside the plan's project (#1340). Never push to a repo just because
+   a worktree for it exists on disk.
+4. `git rev-parse --abbrev-ref HEAD` to get the branch name
+5. `git push -u origin <branch>`
 
 > **Stale remote tracking refs warning:** A ref appearing in `git branch -a` as `remotes/origin/<branch>` does NOT guarantee the branch exists on GitHub. Always verify with `gh api repos/<owner>/<repo>/branches/<branch>` or `git ls-remote origin <branch>` before assuming the push succeeded.
 >
@@ -68,7 +78,7 @@ Capture the returned markdown. If non-empty, it will be appended to the PR body 
 For each pushed branch:
 
 ```bash
-gh pr create [--draft] --repo <owner/repo> --base <default-branch> --head <branch> --title "<title>" --body "$(cat <<'EOF'
+gh pr create [--draft] --repo <owner/repo> --base <default-branch> --head <branch> --assignee @me --title "<title>" --body "$(cat <<'EOF'
 <body content>
 EOF
 )"
@@ -101,6 +111,7 @@ EOF
   ```
 - **Draft (custom options):** If custom options exist and `draft` is `true`, add `--draft` to the `gh pr create` command to create the PR in draft mode. If no custom options or `draft` is `false`, create as ready for review (default behavior).
 - **Reviewer (custom options):** If custom options exist and `reviewer` is non-empty, add `--reviewer <reviewer>` to the `gh pr create` command.
+- **Assignee:** Always pass `--assignee @me` so the PR is assigned to the current (gh-authenticated) user. If assignment fails (e.g. the account cannot self-assign on a given repo), this is non-fatal — log a warning and continue; do not fail PR creation.
 
 ### 3.5. Add PR Comment (custom options)
 

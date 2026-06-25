@@ -6,20 +6,20 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Ivy.Tendril.Test;
 
 /// <summary>
-/// End-to-end tests for the UpdateProject promptware.
+/// End-to-end tests for the SetupProject promptware.
 /// These tests verify:
 /// 1. The promptware resolves correctly with --dry-run (firmware compilation)
 /// 2. The CLI commands the promptware would execute produce the expected config state
 ///    for various tech stacks (.NET, Node.js, Python, Rust, multi-stack)
 /// </summary>
 [Collection("TendrilHome")]
-public class UpdateProjectPromptwareTests : IDisposable
+public class SetupProjectPromptwareTests : IDisposable
 {
-    private readonly TempDirectoryFixture _tempDir = new("tendril-update-project-e2e");
+    private readonly TempDirectoryFixture _tempDir = new("tendril-setup-project-e2e");
     private readonly string _originalTendrilHome;
     private readonly string? _originalTendrilPlans;
 
-    public UpdateProjectPromptwareTests()
+    public SetupProjectPromptwareTests()
     {
         _originalTendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? "";
         _originalTendrilPlans = Environment.GetEnvironmentVariable("TENDRIL_PLANS");
@@ -82,7 +82,7 @@ public class UpdateProjectPromptwareTests : IDisposable
             - name: CheckResult
               prompt: Verify the implementation matches the plan.
             promptwares:
-              UpdateProject:
+              SetupProject:
                 profile: deep
                 allowedTools:
                 - Read
@@ -98,14 +98,14 @@ public class UpdateProjectPromptwareTests : IDisposable
             codingAgent: claude
             """);
 
-        var promptwarePath = CreatePromptwareDir("UpdateProject");
+        var promptwarePath = CreatePromptwareDir("SetupProject");
 
         var command = new PromptwareRunCommand(CreateRunner(), NullLogger<PromptwareRunCommand>.Instance);
         var output = CaptureConsoleOutput(() =>
         {
             command.Run(new PromptwareRunSettings
             {
-                Promptware = "UpdateProject",
+                Promptware = "SetupProject",
                 DryRun = true,
                 ConfigPath = Path.Combine(_tempDir.Path, "config.yaml"),
                 PromptwarePath = promptwarePath,
@@ -129,7 +129,7 @@ public class UpdateProjectPromptwareTests : IDisposable
               - path: {repoPath}
             verifications: []
             promptwares:
-              UpdateProject:
+              SetupProject:
                 profile: deep
                 allowedTools:
                 - Read
@@ -143,14 +143,14 @@ public class UpdateProjectPromptwareTests : IDisposable
             codingAgent: claude
             """);
 
-        var promptwarePath = CreatePromptwareDir("UpdateProject");
+        var promptwarePath = CreatePromptwareDir("SetupProject");
 
         var command = new PromptwareRunCommand(CreateRunner(), NullLogger<PromptwareRunCommand>.Instance);
         var output = CaptureConsoleOutput(() =>
         {
             command.Run(new PromptwareRunSettings
             {
-                Promptware = "UpdateProject",
+                Promptware = "SetupProject",
                 DryRun = true,
                 ConfigPath = Path.Combine(_tempDir.Path, "config.yaml"),
                 PromptwarePath = promptwarePath,
@@ -425,7 +425,7 @@ public class UpdateProjectPromptwareTests : IDisposable
                 effort: max
             """);
 
-        // Simulate UpdateProject for App2 — should reuse existing verifications
+        // Simulate SetupProject for App2 — should reuse existing verifications
         var config = LoadConfig();
         var app2 = config.Settings.Projects.First(p => p.Name == "App2");
 

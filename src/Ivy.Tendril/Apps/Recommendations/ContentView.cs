@@ -117,7 +117,7 @@ public class ContentView(
         // Content
         var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200))).Padding(6, 2, 6, 2);
 
-        // Source plan info and Impact/Risk badges
+        // Source plan info and Impact badge
         var metaRow = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
                       | Text.Muted($"Plan #{selectedRecommendation.PlanId}: {selectedRecommendation.PlanTitle}");
 
@@ -127,14 +127,6 @@ public class ContentView(
                 "High" => BadgeVariant.Success,
                 "Medium" => BadgeVariant.Warning,
                 _ => BadgeVariant.Outline
-            });
-
-        if (selectedRecommendation.Risk is { } risk)
-            metaRow |= new Badge($"Risk: {risk}").Variant(risk switch
-            {
-                "High" => BadgeVariant.Destructive,
-                "Medium" => BadgeVariant.Warning,
-                _ => BadgeVariant.Success
             });
 
         scrollableContent |= Layout.Vertical().Gap(1)

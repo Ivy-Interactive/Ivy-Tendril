@@ -107,7 +107,7 @@ public class ProjectAgentStepView(
 
                 var handle = runner.Run(new PromptwareRunOptions
                 {
-                    Promptware = "UpdateProject",
+                    Promptware = "SetupProject",
                     Values = new Dictionary<string, string>
                     {
                         ["ProjectName"] = name,
@@ -142,7 +142,7 @@ public class ProjectAgentStepView(
                         session.Running.Set(false);
                         isStepLoading.Set(false);
                     }
-                });
+                }, progressCts.Token);
             }
             catch (Exception ex)
             {

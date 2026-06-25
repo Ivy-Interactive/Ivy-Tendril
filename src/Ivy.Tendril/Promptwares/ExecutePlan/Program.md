@@ -163,19 +163,48 @@ This handles stale directories, locked files, and branch cleanup automatically w
 
 **Note on stale directories:** If a stale worktree directory exists and you run `git -C <stale-dir> status`, git silently walks up the parent chain and reports the state of the main repo — making it look like the "worktree" is simply on `main`. Do not trust that output. Before assuming a prior worktree is intact, verify with `git -C <main-repo> worktree list | grep <path>` or check that `<worktree-path>/.git` exists.
 
-1. Create worktree branching from the remote default branch:
+1. **PR-source check (decide the worktree's base branch).** If the `SourceUrl` firmware header is a
+   GitHub **pull request** URL (`https://github.com/<owner>/<repo>/pull/<number>`) **and** it points
+   at *this* worktree's repo, the worktree should be based on the PR's branch so the fix updates the
+   original PR instead of opening a second one. Otherwise, fall back to the standard base-branch flow.
 
 ```bash
 cd <original-repo-path>
 git fetch origin
+
+# Default: standard plan branch off the base branch.
 PLAN_FOLDER_NAME=$(basename "<TendrilPlanFolder>")
 PLAN_ID=$(echo "$PLAN_FOLDER_NAME" | grep -oP '^\d+')
 SAFE_TITLE=$(echo "$PLAN_FOLDER_NAME" | sed 's/^[0-9]\+-//')
 BRANCH_NAME="tendril/$PLAN_ID-$SAFE_TITLE"
-git worktree add "<TendrilPlanFolder>/Worktrees/<repo-folder-name>" -b "$BRANCH_NAME" "origin/<resolved-base-branch>"
+WORKTREE_REF="origin/<resolved-base-branch>"     # what to base the worktree on
+WORKTREE_NEW_FLAG="-b"                            # create a fresh branch by default
+
+# PR-source override: only when SourceUrl is a PR for THIS repo's owner/repo.
+if [[ -n "$SOURCE_URL" && "$SOURCE_URL" =~ github\.com/([^/]+/[^/]+)/pull/([0-9]+) ]]; then
+  PR_REPO="${BASH_REMATCH[1]}"; PR_NUMBER="${BASH_REMATCH[2]}"
+  ORIGIN_REPO=$(git remote get-url origin | sed -E 's#.*github\.com[:/]([^/]+/[^/]+?)(\.git)?$#\1#')
+  if [[ "$PR_REPO" == "$ORIGIN_REPO" ]]; then
+    PR_JSON=$(gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRefName,state,isCrossRepository 2>/dev/null)
+    PR_STATE=$(echo "$PR_JSON" | jq -r '.state')
+    PR_FORK=$(echo "$PR_JSON" | jq -r '.isCrossRepository')
+    PR_HEAD=$(echo "$PR_JSON" | jq -r '.headRefName')
+    if [[ "$PR_STATE" == "OPEN" && "$PR_FORK" == "false" && -n "$PR_HEAD" && "$PR_HEAD" != "null" ]]; then
+      git fetch origin "$PR_HEAD"
+      BRANCH_NAME="$PR_HEAD"
+      WORKTREE_REF="origin/$PR_HEAD"
+      WORKTREE_NEW_FLAG="-B"                      # check out / reset the existing PR branch
+      tendril job status TendrilJobId --message="Basing worktree on PR #$PR_NUMBER branch '$PR_HEAD' (will update the existing PR)."
+    else
+      tendril job status TendrilJobId --message="PR #$PR_NUMBER is not updatable (state=$PR_STATE, fork=$PR_FORK) — falling back to a new branch + new PR."
+    fi
+  fi
+fi
+
+git worktree add "<TendrilPlanFolder>/Worktrees/<repo-folder-name>" "$WORKTREE_NEW_FLAG" "$BRANCH_NAME" "$WORKTREE_REF"
 ```
 
-Example:
+Example (standard, no PR source):
 
 ```bash
 cd <RepoPath>
@@ -183,7 +212,12 @@ git fetch origin
 git worktree add "<TendrilPlanFolder>/Worktrees/<RepoName>" -b "tendril/<TendrilPlanId>-<SafeTitle>" origin/<resolved-base-branch>
 ```
 
-**Important:** Always branch from `origin/<resolved-base-branch>`, not local HEAD. This ensures the PR only contains the plan's commits, not any unpushed local work. The `<resolved-base-branch>` comes from either the `RepoConfigs` firmware header (if `baseBranch` is configured) or auto-detection.
+**Important:** Unless the PR-source override applied above, always branch from
+`origin/<resolved-base-branch>`, not local HEAD. This ensures the PR only contains the plan's
+commits, not any unpushed local work. The `<resolved-base-branch>` comes from either the
+`RepoConfigs` firmware header (if `baseBranch` is configured) or auto-detection. When the PR-source
+override applies, the worktree is instead based on the PR's head branch so commits land on top of
+the existing PR — never force-cut a new branch over the PR's history.
 
 **Note on `RepoConfigs`:** The firmware header may include a `RepoConfigs` value injected by Tendril. It contains per-repo configuration:
 ```yaml
@@ -417,10 +451,10 @@ After all verifications pass, reflect on what you observed during this plan's ex
 For each item, register it via the CLI:
 
 ```bash
-tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact=Medium --risk=Small
+tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact=Medium
 ```
 
-`--impact` and `--risk` are optional (Small, Medium, or High). Impact indicates the value of implementing it; Risk indicates the potential for complications or bugs.
+`--impact` is optional (Small, Medium, or High) and indicates the value of implementing it.
 
 Do NOT include items that are part of the current plan's scope. Do NOT include recommendations about code formatting, linting, or style issues — those are handled by verifications.
 

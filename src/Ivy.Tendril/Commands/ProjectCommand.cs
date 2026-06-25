@@ -56,13 +56,13 @@ public class ProjectRemoveSettings : CommandSettings
 
 public class ProjectSetSettings : CommandSettings
 {
-    private static readonly string[] ValidFields = ["name", "color", "context"];
+    private static readonly string[] ValidFields = ["name", "color", "context", "stackhash"];
 
     [Description("Project name")]
     [CommandArgument(0, "<name>")]
     public string Name { get; set; } = "";
 
-    [Description("Field name (name, color, context)")]
+    [Description("Field name (name, color, context, stackHash)")]
     [CommandArgument(1, "<field>")]
     public string Field { get; set; } = "";
 
@@ -316,6 +316,8 @@ public class ProjectGetCommand : Command<ProjectGetSettings>
             AnsiConsole.MarkupLine($"  Color: {project.Color.EscapeMarkup()}");
         if (!string.IsNullOrEmpty(project.Context))
             AnsiConsole.MarkupLine($"  Context: {project.Context.EscapeMarkup()}");
+        if (!string.IsNullOrEmpty(project.StackHash))
+            AnsiConsole.MarkupLine($"  StackHash: {project.StackHash.EscapeMarkup()}");
 
         if (project.Repos.Count > 0)
         {
@@ -431,8 +433,11 @@ public class ProjectSetCommand : Command<ProjectSetSettings>
             case "context":
                 match.Context = settings.Value;
                 break;
+            case "stackhash":
+                match.StackHash = settings.Value;
+                break;
             default:
-                throw new ArgumentException($"Unknown field: {settings.Field}. Valid fields: name, color, context");
+                throw new ArgumentException($"Unknown field: {settings.Field}. Valid fields: name, color, context, stackHash");
         }
 
         config.SaveSettings();

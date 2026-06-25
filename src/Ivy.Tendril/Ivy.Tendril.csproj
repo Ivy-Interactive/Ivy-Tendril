@@ -42,6 +42,7 @@
 
   <!-- PackageReferences -->
   <ItemGroup>
+    <PackageReference Include="Ivy.StackAnalyzer" Version="1.0.1" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.4.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.9" />
@@ -54,7 +55,7 @@
     <PackageReference Include="Spectre.Console.Cli" Version="1.0.0-alpha.0.16" />
     <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
     <PackageReference Include="Velopack" Version="0.0.1298" />
-    <PackageReference Include="YamlDotNet" Version="16.3.0" />
+    <PackageReference Include="YamlDotNet" Version="17.0.0" />
   </ItemGroup>
 
   <!-- Ivy Framework (source) -->
@@ -70,14 +71,14 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(IvySource)' != 'true'">
-    <PackageReference Include="Ivy" Version="1.2.67" />
-    <PackageReference Include="Ivy.Desktop" Version="1.2.67" />
-    <PackageReference Include="Ivy.Hooks.Pty" Version="1.2.67" />
-    <PackageReference Include="Ivy.Widgets.ActivityHeatmap" Version="1.2.67" />
-    <PackageReference Include="Ivy.Widgets.AnimatedStatusLabel" Version="1.2.67" />
-    <PackageReference Include="Ivy.Widgets.DiffView" Version="1.2.67" />
-    <PackageReference Include="Ivy.Widgets.QRCode" Version="1.2.67" />
-    <PackageReference Include="Ivy.Widgets.Xterm" Version="1.2.67" />
+    <PackageReference Include="Ivy" Version="1.2.70" />
+    <PackageReference Include="Ivy.Desktop" Version="1.2.70" />
+    <PackageReference Include="Ivy.Hooks.Pty" Version="1.2.70" />
+    <PackageReference Include="Ivy.Widgets.ActivityHeatmap" Version="1.2.70" />
+    <PackageReference Include="Ivy.Widgets.AnimatedStatusLabel" Version="1.2.70" />
+    <PackageReference Include="Ivy.Widgets.DiffView" Version="1.2.70" />
+    <PackageReference Include="Ivy.Widgets.QRCode" Version="1.2.70" />
+    <PackageReference Include="Ivy.Widgets.Xterm" Version="1.2.70" />
   </ItemGroup>
 
   <!-- Ivy Analyser -->
@@ -90,7 +91,7 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup Condition="'$(IvySource)' != 'true'">
-    <PackageReference Include="Ivy.Analyser" Version="1.2.67">
+    <PackageReference Include="Ivy.Analyser" Version="1.2.70">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
@@ -102,7 +103,6 @@
     <ProjectReference Include="../Ivy.Tendril.Plugin.Abstractions/Ivy.Tendril.Plugin.Abstractions.csproj" />
     <ProjectReference Include="../Ivy.Tendril.Plugin.Extended.Abstractions/Ivy.Tendril.Plugin.Extended.Abstractions.csproj" />
     <ProjectReference Include="../Ivy.Tendril.Widgets/Ivy.Tendril.Widgets.csproj" />
-    <ProjectReference Include="../Ivy.Widgets.ContentInputView/Ivy.Widgets.ContentInputView.csproj" />
   </ItemGroup>
 
   <ItemGroup>

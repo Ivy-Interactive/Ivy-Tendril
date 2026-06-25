@@ -138,7 +138,7 @@ GET /api/plans/{planId}/recommendations?state=Pending
 POST /api/plans/{planId}/recommendations
 Content-Type: application/json
 
-{ "title": "Add tests", "description": "Coverage is low", "impact": "Medium", "risk": "Small" }
+{ "title": "Add tests", "description": "Coverage is low", "impact": "Medium" }
 ```
 
 ### Accept Recommendation

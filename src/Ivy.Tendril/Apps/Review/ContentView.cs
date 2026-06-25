@@ -258,7 +258,7 @@ public class ContentView(
                     .BorderThickness(0).Padding(0).Width(Size.Fit().Min(Size.Px(0)));
 
             if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
-                desktopTitleLayout |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
+                desktopTitleLayout |= new Button(selectedPlan.IsPullRequestSource ? "PR" : "Issue")
                     .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
 
             var desktopTitle = new Box(desktopTitleLayout).BorderThickness(0).Padding(0)
@@ -289,9 +289,28 @@ public class ContentView(
                 var allYolo = repoPaths.All(rp =>
                     project?.GetRepoRef(rp)?.PrRule == "yolo");
 
-                var createPrBtn = new Button("Create PR").Icon(Icons.GitPullRequest).Primary().OnClick(() =>
+                // When the plan's source is an existing PR, the CTA updates that PR instead of
+                // opening a second one. There's nothing to configure for an update (no new branch,
+                // no merge/delete choices), so we skip the Custom PR dialog and push directly.
+                var isPrUpdate = selectedPlan.IsPullRequestSource;
+
+                var createPrBtn = new Button(isPrUpdate ? "Update PR" : "Create PR")
+                    .Icon(Icons.GitPullRequest).Primary().OnClick(() =>
                 {
-                    if (allYolo)
+                    if (isPrUpdate)
+                    {
+                        // Push the fix onto the original PR's branch and leave the PR open for
+                        // review. ExecutePlan already based the worktree on the PR's head branch,
+                        // so CreatePr's push updates the existing PR (no new PR is created).
+                        jobService.StartJob(new CreatePrArgs(
+                            selectedPlan.FolderPath,
+                            SolveMergeConflicts: true,
+                            Merge: false,
+                            DeleteBranch: false,
+                            IncludeArtifacts: true));
+                        refreshPlans();
+                    }
+                    else if (allYolo)
                     {
                         // "yolo" is purely a UI setting: skip the dialog and create the PR with the
                         // merge-and-clean-up defaults. The promptware acts only on these explicit flags.
@@ -310,7 +329,7 @@ public class ContentView(
                     }
                 }).ShortcutKey("m");
 
-                controls |= allYolo
+                controls |= (allYolo && !isPrUpdate)
                     ? createPrBtn.WithConfetti(AnimationTrigger.Click)
                     : createPrBtn;
             }
@@ -573,14 +592,6 @@ public class ContentView(
                             _ => BadgeVariant.Outline
                         });
 
-                    if (rec.Risk is { } risk)
-                        titleRow |= new Badge($"Risk: {risk}").Variant(risk switch
-                        {
-                            "High" => BadgeVariant.Destructive,
-                            "Medium" => BadgeVariant.Warning,
-                            _ => BadgeVariant.Success
-                        });
-
                     var card = Layout.Vertical().Gap(1)
                                | titleRow
                                | new Markdown(rec.Description).DangerouslyAllowLocalFiles().Article();
@@ -606,9 +617,9 @@ public class ContentView(
                     recommendationsLayout |= new Separator();
                 }
 
-            var changesTabView = new ChangesTabView(planData.AllChanges, planContentQuery.Loading, planContentQuery.Error);
+            var changesTabView = new ChangesTabView(planData.AllChanges, planContentQuery.Loading, planContentQuery.Error, selectedPlan.Project);
 
-            var tabNamesList = new List<string> { "summary", "plan", "details", "verifications", "git", "changes" };
+            var tabNamesList = new List<string> { "summary", "plan", "details", "verifications", "git" };
             var tabList = new List<Tab>
             {
                 new Tab("Summary", Cap(new SummaryTabView(planData.SummaryMarkdown, planContentQuery.Loading))),
@@ -621,8 +632,17 @@ public class ContentView(
                     selectedPlan.Verifications, planData.VerificationReports,
                     v => openVerification.Set(v)))).Badge(selectedPlan.Verifications.Count.ToString()),
                 new Tab("Git", Cap(gitTabView)).Badge((gitData.WorktreeSections.Count + selectedPlan.Commits.Count + selectedPlan.Prs.Count).ToString()),
-                new Tab("Changes", Layout.Vertical().Width(Size.Full()).Height(Size.Full().Min(Size.Px(0))) | changesTabView).Badge(changesTabView.FileCount > 0 ? changesTabView.FileCount.ToString() : "")
             };
+
+            // Only surface the Changes tab once there are actual file changes — no point showing
+            // an empty "No commits yet." tab before any work has landed.
+            if (changesTabView.FileCount > 0)
+            {
+                tabList.Add(new Tab("Changes",
+                        Layout.Vertical().Width(Size.Full()).Height(Size.Full().Min(Size.Px(0))) | changesTabView)
+                    .Badge(changesTabView.FileCount.ToString()));
+                tabNamesList.Add("changes");
+            }
 
             if (totalArtifacts > 0)
             {

@@ -57,7 +57,7 @@ All tools are prefixed with `tendril_` and provide the same capabilities as the 
 | Tool | Parameters | Description |
 |------|------------|-------------|
 | `tendril_plan_rec_list` | `planId`, `state` (optional) | List recommendations. Filter by state: `Pending`, `Accepted`, `AcceptedWithNotes`, `Declined` |
-| `tendril_plan_rec_add` | `planId`, `title`, `description`, `impact` (optional), `risk` (optional) | Add a recommendation. Impact/risk levels: `Small`, `Medium`, `High` |
+| `tendril_plan_rec_add` | `planId`, `title`, `description`, `impact` (optional) | Add a recommendation. Impact levels: `Small`, `Medium`, `High` |
 | `tendril_plan_rec_accept` | `planId`, `title`, `notes` (optional) | Accept a recommendation. Sets state to `Accepted` or `AcceptedWithNotes` if notes provided |
 | `tendril_plan_rec_decline` | `planId`, `title`, `reason` (optional) | Decline a recommendation with optional reason |
 | `tendril_plan_rec_remove` | `planId`, `title` | Permanently remove a recommendation |

@@ -106,7 +106,7 @@ tendril plan add-related-plan <plan-id> <folder-name>
 tendril plan add-depends-on <plan-id> <folder-name>
 
 # Recommendations
-tendril plan rec add <plan-id> <title> -d <description> [--impact=Small|Medium|High] [--risk=Small|Medium|High]
+tendril plan rec add <plan-id> <title> -d <description> [--impact=Small|Medium|High]
 tendril plan rec accept <plan-id> <title> [--notes=<text>]
 tendril plan rec decline <plan-id> <title> [--reason=<text>]
 tendril plan rec set <plan-id> <title> <field> <value>

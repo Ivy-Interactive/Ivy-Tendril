@@ -10,7 +10,7 @@ namespace Ivy.Tendril.Models;
 [JsonDerivedType(typeof(SplitPlanArgs), "SplitPlan")]
 [JsonDerivedType(typeof(CreatePrArgs), "CreatePr")]
 [JsonDerivedType(typeof(CreateIssueArgs), "CreateIssue")]
-[JsonDerivedType(typeof(UpdateProjectArgs), "UpdateProject")]
+[JsonDerivedType(typeof(SetupProjectArgs), "SetupProject")]
 [JsonDerivedType(typeof(SyncRepoArgs), "SyncRepo")]
 public abstract record JobArgsBase
 {
@@ -97,10 +97,10 @@ public record CreateIssueArgs(
     public override string PlanFolder => FolderPath;
 }
 
-public record UpdateProjectArgs(
+public record SetupProjectArgs(
     string FolderPath) : JobArgsBase
 {
-    public override string Type => Constants.JobTypes.UpdateProject;
+    public override string Type => Constants.JobTypes.SetupProject;
     public override string PlanFolder => FolderPath;
 }
 

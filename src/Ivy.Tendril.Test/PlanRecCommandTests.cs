@@ -99,8 +99,7 @@ public class PlanRecCommandTests : IDisposable
             Title = "New Rec",
             Description = "A new recommendation",
             State = "Pending",
-            Impact = "High",
-            Risk = "Medium"
+            Impact = "High"
         });
         plan.Updated = DateTime.UtcNow;
         PlanCommandHelpers.WritePlan(planFolder, plan);
@@ -112,7 +111,6 @@ public class PlanRecCommandTests : IDisposable
         Assert.Equal("A new recommendation", result.Recommendations[0].Description);
         Assert.Equal("Pending", result.Recommendations[0].State);
         Assert.Equal("High", result.Recommendations[0].Impact);
-        Assert.Equal("Medium", result.Recommendations[0].Risk);
     }
 
     [Fact]
@@ -315,22 +313,6 @@ public class PlanRecCommandTests : IDisposable
         Assert.Equal("High", result.Recommendations![0].Impact);
     }
 
-    [Fact]
-    public void SetRecommendation_UpdateRisk()
-    {
-        CreatePlan("10053", "SetRiskTest", [
-            new RecommendationYaml { Title = "Rec1", Description = "Desc", Risk = "High" }
-        ]);
-
-        var planFolder = PlanCommandHelpers.ResolvePlanFolder("10053");
-        var plan = PlanCommandHelpers.ReadPlan(planFolder);
-        plan.Recommendations![0].Risk = "Small";
-        PlanCommandHelpers.WritePlan(planFolder, plan);
-
-        var result = ReadPlan("10053");
-        Assert.Equal("Small", result.Recommendations![0].Risk);
-    }
-
     // --- Roundtrip/Serialization ---
 
     [Fact]
@@ -343,8 +325,7 @@ public class PlanRecCommandTests : IDisposable
                 Description = "Complete recommendation",
                 State = "Declined",
                 DeclineReason = "Too risky",
-                Impact = "High",
-                Risk = "High"
+                Impact = "High"
             }
         ]);
 
@@ -357,7 +338,6 @@ public class PlanRecCommandTests : IDisposable
         Assert.Equal("Declined", rec.State);
         Assert.Equal("Too risky", rec.DeclineReason);
         Assert.Equal("High", rec.Impact);
-        Assert.Equal("High", rec.Risk);
     }
 
     [Fact]

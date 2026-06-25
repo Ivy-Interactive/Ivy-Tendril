@@ -24,7 +24,7 @@ public sealed class CopilotHealthCheck : IAgentHealthCheck
         var (fileName, prefixArgs) = CopilotBinaryResolver.Resolve();
         var (exitCode, _, stderr) = await HealthCheckRunner.RunAsync(
             fileName,
-            [..prefixArgs, "-p", "ping", "--allow-all-paths", "--allow-all-urls", "--allow-all-tools", "-s"],
+            [.. prefixArgs, "-p", "ping", "--allow-all-paths", "--allow-all-urls", "--allow-all-tools", "-s"],
             TimeSpan.FromSeconds(30),
             ct);
 
@@ -48,7 +48,7 @@ public sealed class CopilotHealthCheck : IAgentHealthCheck
     {
         var (fileName, prefixArgs) = CopilotBinaryResolver.Resolve();
         var (exitCode, stdout, _) = await HealthCheckRunner.RunAsync(
-            fileName, [..prefixArgs, "--version"], TimeSpan.FromSeconds(10), ct);
+            fileName, [.. prefixArgs, "--version"], TimeSpan.FromSeconds(10), ct);
 
         if (exitCode != 0) return null;
         var match = Regex.Match(stdout, @"\d+\.\d+\.\d+");

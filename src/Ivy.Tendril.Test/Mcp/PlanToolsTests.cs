@@ -197,11 +197,28 @@ public class PlanToolsTests : IDisposable
         var newRepo = Path.Combine(_tempDir, "repos", "AnotherRepo");
         Directory.CreateDirectory(newRepo);
 
-        var result = _planTools.AddRepo("00001", newRepo);
+        // The repo must belong to the plan's project for the add to be allowed (#1340 guard).
+        var planTools = NewPlanToolsWithProjectRepos(_repoDir, newRepo);
+        var result = planTools.AddRepo("00001", newRepo);
         Assert.Contains("Added repository", result);
 
-        var repos = _planTools.GetPlan("00001", "repos");
+        var repos = planTools.GetPlan("00001", "repos");
         Assert.Contains("AnotherRepo", repos);
+    }
+
+    [Fact]
+    public void AddRepo_OutsideProject_Refused()
+    {
+        CreateTestPlan();
+        var outsideRepo = Path.Combine(_tempDir, "repos", "OutsideRepo");
+        Directory.CreateDirectory(outsideRepo);
+
+        // The project only knows _repoDir, so OutsideRepo must be refused (#1340 guard).
+        var result = _planTools.AddRepo("00001", outsideRepo);
+        Assert.Contains("not part of project", result);
+
+        var repos = _planTools.GetPlan("00001", "repos");
+        Assert.DoesNotContain("OutsideRepo", repos);
     }
 
     [Fact]
@@ -218,13 +235,34 @@ public class PlanToolsTests : IDisposable
         CreateTestPlan();
         var extraRepo = Path.Combine(_tempDir, "repos", "ExtraRepo");
         Directory.CreateDirectory(extraRepo);
-        _planTools.AddRepo("00001", extraRepo);
 
-        var result = _planTools.RemoveRepo("00001", extraRepo);
+        var planTools = NewPlanToolsWithProjectRepos(_repoDir, extraRepo);
+        planTools.AddRepo("00001", extraRepo);
+
+        var result = planTools.RemoveRepo("00001", extraRepo);
         Assert.Contains("Removed repository", result);
 
-        var repos = _planTools.GetPlan("00001", "repos");
+        var repos = planTools.GetPlan("00001", "repos");
         Assert.DoesNotContain("ExtraRepo", repos);
+    }
+
+    // Builds a PlanTools whose "TestProject" authorizes the given repos, so AddRepo's project guard
+    // (#1340) permits adding them. The default _planTools only knows _repoDir.
+    private static PlanTools NewPlanToolsWithProjectRepos(params string[] repoPaths)
+    {
+        var settings = new TendrilSettings
+        {
+            Projects =
+            [
+                new ProjectConfig
+                {
+                    Name = "TestProject",
+                    Repos = repoPaths.Select(p => new RepoRef { Path = p }).ToList()
+                }
+            ]
+        };
+        var config = new ConfigService(settings);
+        return new PlanTools(new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance), config);
     }
 
     [Fact]
@@ -328,7 +366,7 @@ public class PlanToolsTests : IDisposable
     public void RecAdd_AddsRecommendation()
     {
         CreateTestPlan();
-        var result = _planTools.RecAdd("00001", "Add tests", "Need unit tests", "Medium", "Small");
+        var result = _planTools.RecAdd("00001", "Add tests", "Need unit tests", "Medium");
         Assert.Contains("Added recommendation", result);
 
         var recs = _planTools.RecList("00001");

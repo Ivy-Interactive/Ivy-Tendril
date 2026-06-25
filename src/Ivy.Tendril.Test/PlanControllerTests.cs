@@ -2,8 +2,10 @@ using System.Collections;
 using System.Text.Json;
 using Ivy.Tendril.Controllers;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Git;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test;
 
@@ -61,7 +63,9 @@ public class PlanControllerTests : IDisposable
 
     private PlanController CreateController()
     {
-        var controller = new PlanController(new NullPlanWatcherService(), new TestPlanConfigService(_repoDir));
+        var configService = new TestPlanConfigService(_repoDir);
+        var controller = new PlanController(new NullPlanWatcherService(), configService,
+            new GithubService(configService, NullLogger<GithubService>.Instance));
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()
@@ -448,7 +452,7 @@ public class PlanControllerTests : IDisposable
         var controller = CreateController();
 
         var result = controller.AddRecommendation("00001",
-            new AddRecRequest("Add tests", "Need unit tests", "Medium", "Small"));
+            new AddRecRequest("Add tests", "Need unit tests", "Medium"));
 
         Assert.IsType<OkObjectResult>(result);
 

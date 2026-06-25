@@ -25,9 +25,12 @@ public class DetailsTabView(
             Folder = plan.FolderPath,
             plan.InitialPrompt,
             Revision = plan.RevisionCount,
-            Profile = planYaml?.ExecutionProfile ?? "",
-            RelatedPlans = ParsePlanLinks(plan.RelatedPlans),
-            DependsOn = ParsePlanLinks(plan.DependsOn),
+            Profile = Capitalize(planYaml?.ExecutionProfile),
+            // Null (not an empty list) so Details.RemoveEmpty() drops these rows. Empty-collection
+            // handling in RemoveEmpty needs Ivy >= the release that fixes ValidationHelper.IsEmptyContent;
+            // this keeps the rows hidden with the currently referenced package.
+            RelatedPlans = ParsePlanLinks(plan.RelatedPlans) is { Count: > 0 } related ? related : null,
+            DependsOn = ParsePlanLinks(plan.DependsOn) is { Count: > 0 } dependsOn ? dependsOn : null,
             Issue = plan.SourceUrl ?? "",
             Created = plan.Created.ToString("yyyy-MM-dd"),
             plan.Level,
@@ -65,8 +68,7 @@ public class DetailsTabView(
                         navigateToPlan(planId);
                 })))
             .Builder(x => x.Issue, f => f.Link(target: LinkTarget.Blank))
-            ;
-        //.RemoveEmpty();
+        .RemoveEmpty();
 
         return Layout.Vertical().Gap(4)
                | details
@@ -76,6 +78,10 @@ public class DetailsTabView(
                       | new PlanJobsDataTableView(jobs, showDebug))
                    : null);
     }
+
+    // Execution profiles are stored lowercase (e.g. "balanced"); present them title-cased.
+    private static string Capitalize(string? value) =>
+        string.IsNullOrEmpty(value) ? "" : char.ToUpperInvariant(value[0]) + value[1..];
 
     private static List<Link> ParsePlanLinks(List<string> planFolders)
     {

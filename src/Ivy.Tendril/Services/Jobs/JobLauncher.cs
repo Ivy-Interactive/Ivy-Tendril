@@ -4,6 +4,7 @@ using Ivy.Helpers;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Services.Plans;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services.Jobs;
@@ -62,6 +63,12 @@ internal class JobLauncher
 
     private void LaunchJob(JobLaunchContext ctx)
     {
+        // Defense in depth (#1340): refuse to launch a plan job that references a repo outside its
+        // project, before any state mutation. The creation/add-repo guards should prevent this, but
+        // pre-existing plans may have drifted.
+        if (!ValidateProjectReposOrFail(ctx))
+            return;
+
         PrepareJobForLaunch(ctx);
 
         if (!ValidateJobPrerequisites(ctx, out var psi, out var stdinContent))
@@ -73,6 +80,41 @@ internal class JobLauncher
 
         InitializeJobMonitoring(ctx, process);
         ctx.RaiseStructureChanged();
+    }
+
+    private bool ValidateProjectReposOrFail(JobLaunchContext ctx)
+    {
+        var job = ctx.Job;
+        if (job.TypedArgs is not (ExecutePlanArgs or RetryPlanArgs or CreatePrArgs))
+            return true;
+
+        var projectConfig = _configService?.GetProject(job.Project);
+        if (projectConfig == null)
+            return true; // Unknown project — nothing to validate against.
+
+        var planFolder = job.TypedArgs?.PlanFolder ?? "";
+        if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder))
+            return true;
+
+        var planYaml = PlanYamlHelper.ReadPlanYaml(planFolder);
+        if (planYaml?.Repos == null || planYaml.Repos.Count == 0)
+            return true;
+
+        try
+        {
+            PlanProjectRepoGuard.EnsureReposBelongToProject(planYaml.Repos, projectConfig);
+            return true;
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogError("Job {JobId}: refusing launch — {Message}", job.Id, ex.Message);
+            job.Status = JobStatus.Failed;
+            job.StatusMessage = ex.Message;
+            job.CompletedAt = DateTime.UtcNow;
+            ctx.JobSlotSemaphore.Release();
+            ctx.RaiseStructureChanged();
+            return false;
+        }
     }
 
     private void PrepareJobForLaunch(JobLaunchContext ctx)

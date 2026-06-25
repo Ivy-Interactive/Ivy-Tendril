@@ -20,12 +20,20 @@ public class PlanValidateSettings : CommandSettings
 
 public class PlanValidateCommand : Command<PlanValidateSettings>
 {
+    private readonly IConfigService _configService;
+
+    public PlanValidateCommand(IConfigService configService)
+    {
+        _configService = configService;
+    }
+
     protected override int Execute(CommandContext context, PlanValidateSettings settings, CancellationToken cancellationToken)
     {
         var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
         var plan = PlanCommandHelpers.ReadPlan(planFolder);
 
-        PlanValidationService.Validate(plan);
+        var project = _configService.GetProject(plan.Project);
+        PlanValidationService.Validate(plan, project: project);
 
         Console.WriteLine($"Plan {settings.PlanId} is valid");
         return 0;
