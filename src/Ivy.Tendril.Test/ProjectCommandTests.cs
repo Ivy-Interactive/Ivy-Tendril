@@ -125,6 +125,21 @@ verifications: []
         Assert.Equal("New context", reloaded.Settings.Projects[0].Context);
     }
 
+    [Fact]
+    public void SetProject_UpdatesStackHash()
+    {
+        var config = CreateConfig();
+        config.Settings.Projects.Add(new ProjectConfig { Name = "Test", StackHash = "abc123" });
+        config.SaveSettings();
+
+        var config2 = CreateConfig();
+        config2.Settings.Projects[0].StackHash = "def456";
+        config2.SaveSettings();
+
+        var reloaded = CreateConfig();
+        Assert.Equal("def456", reloaded.Settings.Projects[0].StackHash);
+    }
+
     // --- Add/Remove Repo ---
 
     [Fact]
