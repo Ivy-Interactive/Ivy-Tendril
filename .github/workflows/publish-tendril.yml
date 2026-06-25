@@ -495,14 +495,22 @@ jobs:
               fi
             done
 
-            # Pre-sign native Mach-O binaries in the runner's keychain
+            # Pre-sign native Mach-O binaries in the runner's keychain (inside-out order)
             echo "Pre-signing internal binaries to avoid codesign --deep errors on nested SDK folders..."
-            find "$APP_DIR" -type f | while read -r file; do
+            # 1. Sign all native dynamic libraries/files first (excluding the main executable)
+            find "$APP_DIR" -depth -type f ! -name "Ivy.Tendril" | while read -r file; do
               if file "$file" | grep -q "Mach-O"; then
-                echo "Signing: $file"
+                echo "Signing library: $file"
                 codesign --force --options runtime --timestamp --keychain "$RUNNER_TEMP/app-signing.keychain-db" --sign "$VPK_SIGN_APP_IDENTITY" "$file"
               fi
             done
+
+            # 2. Sign the main executable last
+            MAIN_EXE_PATH="$APP_DIR/Contents/MacOS/Ivy.Tendril"
+            if [ -f "$MAIN_EXE_PATH" ]; then
+              echo "Signing main executable: $MAIN_EXE_PATH"
+              codesign --force --options runtime --timestamp --keychain "$RUNNER_TEMP/app-signing.keychain-db" --sign "$VPK_SIGN_APP_IDENTITY" "$MAIN_EXE_PATH"
+            fi
 
             PACK_DIR="$APP_DIR"
           fi
