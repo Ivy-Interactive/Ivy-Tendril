@@ -184,6 +184,7 @@
   display: list-item;
 }
 .pmv-markdown li > p {
+  display: inline;
   margin: 0;
 }
 
