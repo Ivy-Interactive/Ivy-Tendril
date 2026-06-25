@@ -251,82 +251,86 @@ public class ContentView(
         INavigator nav,
         ReviewAppArgs? args)
     {
-        var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full())
-            | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
-                .BorderThickness(0).Padding(0).Width(Size.Fit().Min(Size.Px(0)));
-
-        if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
-            desktopTitleLayout |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
-                .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
-
-        var desktopTitle = new Box(desktopTitleLayout).BorderThickness(0).Padding(0)
-            .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
-
-        var titleArea = Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
-                        | desktopTitle
-                        | MobileItemPicker.Build(
-                                $"#{selectedPlan.Id} {selectedPlan.Title}",
-                                allPlans,
-                                p => $"#{p.Id} {p.Title}",
-                                p => p.FolderName == selectedPlan.FolderName,
-                                p => selectedPlanState.Set(p))
-                            .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
-
-        var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
-                       | Text.Rich()
-                           .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
-                           .Muted("plans", word: true);
-
-        if (selectedPlan.Commits.Count > 0)
+        object BuildTitleArea()
         {
-            var repoPaths = selectedPlan.GetEffectiveRepoPaths(config);
-            var project = config.GetProject(selectedPlan.Project);
-            var allYolo = repoPaths.All(rp =>
-                project?.GetRepoRef(rp)?.PrRule == "yolo");
+            var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full())
+                | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
+                    .BorderThickness(0).Padding(0).Width(Size.Fit().Min(Size.Px(0)));
 
-            var createPrBtn = new Button("Create PR").Icon(Icons.GitPullRequest).Primary().OnClick(() =>
+            if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
+                desktopTitleLayout |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
+                    .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
+
+            var desktopTitle = new Box(desktopTitleLayout).BorderThickness(0).Padding(0)
+                .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
+
+            return Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
+                   | desktopTitle
+                   | MobileItemPicker.Build(
+                           $"#{selectedPlan.Id} {selectedPlan.Title}",
+                           allPlans,
+                           p => $"#{p.Id} {p.Title}",
+                           p => p.FolderName == selectedPlan.FolderName,
+                           p => selectedPlanState.Set(p))
+                       .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
+        }
+
+        object BuildControls()
+        {
+            var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
+                           | Text.Rich()
+                               .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
+                               .Muted("plans", word: true);
+
+            if (selectedPlan.Commits.Count > 0)
             {
-                if (allYolo)
+                var repoPaths = selectedPlan.GetEffectiveRepoPaths(config);
+                var project = config.GetProject(selectedPlan.Project);
+                var allYolo = repoPaths.All(rp =>
+                    project?.GetRepoRef(rp)?.PrRule == "yolo");
+
+                var createPrBtn = new Button("Create PR").Icon(Icons.GitPullRequest).Primary().OnClick(() =>
                 {
-                    // "yolo" is purely a UI setting: skip the dialog and create the PR with the
-                    // merge-and-clean-up defaults. The promptware acts only on these explicit flags.
-                    jobService.StartJob(new CreatePrArgs(
-                        selectedPlan.FolderPath,
-                        SolveMergeConflicts: true,
-                        Merge: true,
-                        DeleteBranch: true,
-                        IncludeArtifacts: true));
-                    // Plan transition (and pre-state snapshot) handled by JobService.StartJob.
+                    if (allYolo)
+                    {
+                        // "yolo" is purely a UI setting: skip the dialog and create the PR with the
+                        // merge-and-clean-up defaults. The promptware acts only on these explicit flags.
+                        jobService.StartJob(new CreatePrArgs(
+                            selectedPlan.FolderPath,
+                            SolveMergeConflicts: true,
+                            Merge: true,
+                            DeleteBranch: true,
+                            IncludeArtifacts: true));
+                        // Plan transition (and pre-state snapshot) handled by JobService.StartJob.
+                        refreshPlans();
+                    }
+                    else
+                    {
+                        showCustomPrDialog();
+                    }
+                }).ShortcutKey("m");
+
+                controls |= allYolo
+                    ? createPrBtn.WithConfetti(AnimationTrigger.Click)
+                    : createPrBtn;
+            }
+            else
+            {
+                controls |= new Button("Complete Plan").Icon(Icons.CircleCheck).Primary().OnClick(() =>
+                {
+                    // Optimistic UI - update state and refresh immediately
+                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
                     refreshPlans();
-                }
-                else
-                {
-                    showCustomPrDialog();
-                }
-            }).ShortcutKey("m");
 
-            controls |= allYolo
-                ? createPrBtn.WithConfetti(AnimationTrigger.Click)
-                : createPrBtn;
-        }
-        else
-        {
-            controls |= new Button("Complete Plan").Icon(Icons.CircleCheck).Primary().OnClick(() =>
-            {
-                // Optimistic UI - update state and refresh immediately
-                planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
-                refreshPlans();
+                    // Fire and forget - clean up worktrees in the background
+                    WorktreeCleanupService.RemoveWorktreesInBackground(selectedPlan.FolderPath);
+                }).ShortcutKey("m");
+            }
 
-                // Fire and forget - clean up worktrees in the background
-                WorktreeCleanupService.RemoveWorktreesInBackground(selectedPlan.FolderPath);
-            }).ShortcutKey("m");
+            return controls;
         }
 
-        var header = Layout.Horizontal().Height(Size.Px(40)).Width(Size.Full()).Gap(2).AlignContent(Align.Left)
-                     | titleArea
-                     | controls;
-
-        return header;
+        return ResponsiveHeader.Build(BuildTitleArea, BuildControls);
     }
 
     private object BuildActionBar(

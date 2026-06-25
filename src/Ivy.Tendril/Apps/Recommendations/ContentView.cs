@@ -71,26 +71,29 @@ public class ContentView(
         }
         var currentIndex = allRecommendations.FindIndex(r => r.PlanId == selectedRecommendation.PlanId && r.Title == selectedRecommendation.Title);
 
-        var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full())
-            | new Box(Text.Block($"#{selectedRecommendation.PlanId} {selectedRecommendation.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
-                .BorderThickness(0).Padding(0).Width(Size.Fit())
-            | new Badge(selectedRecommendation.Project).Variant(BadgeVariant.Outline)
-                .WithProjectColor(config, selectedRecommendation.Project);
+        object BuildTitleArea()
+        {
+            var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full())
+                | new Box(Text.Block($"#{selectedRecommendation.PlanId} {selectedRecommendation.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
+                    .BorderThickness(0).Padding(0).Width(Size.Fit())
+                | new Badge(selectedRecommendation.Project).Variant(BadgeVariant.Outline)
+                    .WithProjectColor(config, selectedRecommendation.Project);
 
-        var desktopTitle = new Box(desktopTitleLayout).BorderThickness(0).Padding(0)
-            .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
+            var desktopTitle = new Box(desktopTitleLayout).BorderThickness(0).Padding(0)
+                .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
-        var titleArea = Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
-                        | desktopTitle
-                        | MobileItemPicker.Build(
-                                $"#{selectedRecommendation.PlanId} {selectedRecommendation.Title}",
-                                allRecommendations,
-                                r => $"#{r.PlanId} {r.Title}",
-                                r => r.PlanId == selectedRecommendation.PlanId && r.Title == selectedRecommendation.Title,
-                                r => selectedState.Set(r))
-                            .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
+            return Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
+                   | desktopTitle
+                   | MobileItemPicker.Build(
+                           $"#{selectedRecommendation.PlanId} {selectedRecommendation.Title}",
+                           allRecommendations,
+                           r => $"#{r.PlanId} {r.Title}",
+                           r => r.PlanId == selectedRecommendation.PlanId && r.Title == selectedRecommendation.Title,
+                           r => selectedState.Set(r))
+                       .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
+        }
 
-        var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
+        object BuildControls() => Layout.Horizontal().Gap(2).AlignContent(Align.Right)
                        | Text.Rich()
                            .Bold($"{(currentIndex == -1 ? "?" : (currentIndex + 1).ToString())}/{allRecommendations.Count}", word: true)
                            .Muted("recommendations", word: true)
@@ -109,9 +112,7 @@ public class ContentView(
                            GoToNext();
                        });
 
-        var header = Layout.Horizontal().Height(Size.Px(40)).Width(Size.Full()).Gap(2).AlignContent(Align.Left)
-                     | titleArea
-                     | controls;
+        var header = ResponsiveHeader.Build(BuildTitleArea, BuildControls);
 
         // Content
         var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200))).Padding(6, 2, 6, 2);
