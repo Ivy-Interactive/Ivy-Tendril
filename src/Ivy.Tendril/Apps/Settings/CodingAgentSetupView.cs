@@ -57,7 +57,9 @@ public class CodingAgentSetupView : ViewBase
 
         var models = modelsQuery.Value ?? [];
         var modelOptions = new[] { new Option<string>("Default", "default") }
-            .Concat(models.Select(m => new Option<string>(m.DisplayName, m.Id)))
+            .Concat(models
+                .Where(m => m.Id != "default")
+                .Select(m => new Option<string>(m.DisplayName, m.Id)))
             .ToArray<IAnyOption>();
 
         var hasProfileChanges =
