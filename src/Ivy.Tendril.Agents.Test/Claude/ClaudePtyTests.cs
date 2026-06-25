@@ -165,7 +165,7 @@ public class ClaudePtyTests
 
         var spec = _pty.BuildPtySpec(config);
 
-        var idx = IndexOf(spec.CommandLine,"--model");
+        var idx = IndexOf(spec.CommandLine, "--model");
         Assert.NotEqual(-1, idx);
         Assert.Equal("claude-sonnet-4-5-20250514", spec.CommandLine[idx + 1]);
     }
@@ -196,7 +196,7 @@ public class ClaudePtyTests
 
         var spec = _pty.BuildPtySpec(config);
 
-        var idx = IndexOf(spec.CommandLine,"--permission-mode");
+        var idx = IndexOf(spec.CommandLine, "--permission-mode");
         Assert.NotEqual(-1, idx);
         Assert.Equal("acceptEdits", spec.CommandLine[idx + 1]);
     }
@@ -212,7 +212,7 @@ public class ClaudePtyTests
 
         var spec = _pty.BuildPtySpec(config);
 
-        var idx = IndexOf(spec.CommandLine,"--permission-mode");
+        var idx = IndexOf(spec.CommandLine, "--permission-mode");
         Assert.NotEqual(-1, idx);
         Assert.Equal("plan", spec.CommandLine[idx + 1]);
     }
@@ -228,7 +228,7 @@ public class ClaudePtyTests
 
         var spec = _pty.BuildPtySpec(config);
 
-        var idx = IndexOf(spec.CommandLine,"--permission-mode");
+        var idx = IndexOf(spec.CommandLine, "--permission-mode");
         Assert.NotEqual(-1, idx);
         Assert.Equal("default", spec.CommandLine[idx + 1]);
     }
@@ -244,7 +244,7 @@ public class ClaudePtyTests
 
         var spec = _pty.BuildPtySpec(config);
 
-        var idx = IndexOf(spec.CommandLine,"--session-id");
+        var idx = IndexOf(spec.CommandLine, "--session-id");
         Assert.NotEqual(-1, idx);
         Assert.Equal("abc-123", spec.CommandLine[idx + 1]);
     }

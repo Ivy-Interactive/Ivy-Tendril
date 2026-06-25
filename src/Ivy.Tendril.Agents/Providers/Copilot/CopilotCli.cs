@@ -145,7 +145,7 @@ public sealed class CopilotCli : IAgentCli
         return new AgentProcessSpec
         {
             FileName = fileName,
-            Arguments = [..prefixArgs, ..args],
+            Arguments = [.. prefixArgs, .. args],
             WorkingDirectory = config.WorkingDirectory,
             Environment = env,
             StdinContent = config.Prompt,

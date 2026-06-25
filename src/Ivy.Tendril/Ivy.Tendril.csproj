@@ -100,7 +100,6 @@
   <ItemGroup>
     <ProjectReference Include="../Ivy.Tendril.Agents/Ivy.Tendril.Agents.csproj" />
     <ProjectReference Include="../Ivy.Tendril.Widgets/Ivy.Tendril.Widgets.csproj" />
-    <ProjectReference Include="../Ivy.Widgets.ContentInputView/Ivy.Widgets.ContentInputView.csproj" />
   </ItemGroup>
 
   <ItemGroup>

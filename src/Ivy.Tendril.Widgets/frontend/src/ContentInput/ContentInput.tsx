@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { VoiceRecorder, type VoiceStatus } from "./voice-recorder";
-import "./content-input-view.css";
+import "./content-input.css";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
 
@@ -86,7 +86,7 @@ interface AttachedFile {
   size?: string;
 }
 
-interface ContentInputViewProps {
+interface ContentInputProps {
   id: string;
   width?: string;
   height?: string;
@@ -127,7 +127,7 @@ const renderShortcut = (isMac: boolean) => {
   return "Ctrl+Enter";
 };
 
-export const ContentInputView: React.FC<ContentInputViewProps> = ({
+export const ContentInput: React.FC<ContentInputProps> = ({
   id,
   width = "100%",
   height = "auto",
@@ -412,7 +412,7 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
           throw new Error(`Upload failed with status ${response.status}`);
         }
       } catch (err) {
-        console.error("[ContentInputView] File upload failed:", err);
+        console.error("[ContentInput] File upload failed:", err);
         setRecordError(`Failed to upload file: ${err instanceof Error ? err.message : err}`);
         throw err;
       }
@@ -570,14 +570,14 @@ export const ContentInputView: React.FC<ContentInputViewProps> = ({
         endpoint: transcriptionUrl,
         onStatusChange: (status) => setVoiceStatus(status),
         onResult: (transcription) => {
-          console.log("[ContentInputView] Transcription result received:", transcription);
+          console.log("[ContentInput] Transcription result received:", transcription);
           if (transcription.trim() === "") {
             setRecordError("The transcription did not contain enough information to generate a prompt. Please try again and speak clearly.");
             return;
           }
           setText((prev) => {
             const next = prev ? `${prev} ${transcription}` : transcription;
-            console.log("[ContentInputView] Next text state:", next);
+            console.log("[ContentInput] Next text state:", next);
             if (dispatchEvent) {
               const fullText = next + filesRef.current.map((f) => ` [file: ${f}]`).join("");
               dispatchEvent("OnChange", id, [fullText]);

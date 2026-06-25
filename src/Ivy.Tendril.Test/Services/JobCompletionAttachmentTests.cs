@@ -3,7 +3,7 @@ using System.IO;
 using System.Text.RegularExpressions;
 using Ivy;
 using Ivy.Core.Hooks;
-using Ivy.Widgets.ContentInputView;
+using Ivy.Tendril.Widgets;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services.Jobs;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -46,10 +46,10 @@ public class JobCompletionAttachmentTests : IDisposable
 
 
     [Fact]
-    public void ContentInputView_OnUploadFile_IsNotNullAfterInstantiationAndBind()
+    public void ContentInput_OnUploadFile_IsNotNullAfterInstantiationAndBind()
     {
         var textState = new State<string>("");
-        var view = new ContentInputView
+        var view = new ContentInput
         {
             OnUploadFile = async e => { await Task.CompletedTask; }
         }.Bind(textState);
@@ -58,16 +58,16 @@ public class JobCompletionAttachmentTests : IDisposable
     }
 
     [Fact]
-    public void ContentInputView_SubmitLabel_IsSetCorrectly()
+    public void ContentInput_SubmitLabel_IsSetCorrectly()
     {
-        var view = new ContentInputView().SubmitLabel("Submit Label");
+        var view = new ContentInput().SubmitLabel("Submit Label");
         Assert.Equal("Submit Label", view.SubmitLabel);
     }
 
     [Fact]
-    public void ContentInputView_MenuOptions_IsSetCorrectly()
+    public void ContentInput_MenuOptions_IsSetCorrectly()
     {
-        var view = new ContentInputView().MenuOptions("Option 1", "Option 2");
+        var view = new ContentInput().MenuOptions("Option 1", "Option 2");
         Assert.Equal(["Option 1", "Option 2"], view.MenuOptions);
     }
 }

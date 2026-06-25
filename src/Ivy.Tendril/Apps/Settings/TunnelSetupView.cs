@@ -65,7 +65,8 @@ public class TunnelSetupView : ViewBase
                                  //| Text.Block("Scan QR Code").Bold().Small()
                                  | new QRCode
                                  {
-                                     Value = tunnelUrl.Value, PixelSize = 200,
+                                     Value = tunnelUrl.Value,
+                                     PixelSize = 200,
                                      ErrorCorrectionLevel = QrErrorCorrectionLevel.Medium
                                  }
                                  | new Button("Deactivate").Outline()
@@ -79,7 +80,7 @@ public class TunnelSetupView : ViewBase
                                          await tunnelService.DeactivateAsync();
                                      })
                 ;
-            
+
             form |= new Callout(calloutContent, "Tunnel Active", CalloutVariant.Success);
         }
         else
