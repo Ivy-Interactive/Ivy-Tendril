@@ -1,6 +1,7 @@
 using Ivy.Hooks.Pty;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Helpers;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Ivy.Widgets.Xterm;
 using Xterm = Ivy.Widgets.Xterm;
@@ -121,11 +122,20 @@ public class AgentApp : ViewBase
 
     private static Dictionary<string, string>? GetEnvironment(IConfigService config)
     {
+        var env = new Dictionary<string, string>();
+
         var agentId = config.Settings.CodingAgent;
         var agentConfig = config.Settings.CodingAgents.FirstOrDefault(a =>
             AgentProviderFactory.NormalizeAgentName(a.Name).Equals(agentId, StringComparison.OrdinalIgnoreCase));
-        return agentConfig?.EnvironmentVariables is { Count: > 0 } d
-            ? new Dictionary<string, string>(d) : null;
+        if (agentConfig?.EnvironmentVariables is { Count: > 0 } d)
+            foreach (var (key, value) in d)
+                env[key] = value;
+
+        // Expose the `tendril` CLI (via shim) and the active config/plans to the agent running in
+        // the PTY, so it can run `tendril ...` even when no tendril binary is installed (e.g. in dev).
+        AgentProcessHelper.ApplyTendrilEnvironment(env, config);
+
+        return env.Count > 0 ? env : null;
     }
 
     private static string GetDefaultWorkDir(IConfigService config) =>
