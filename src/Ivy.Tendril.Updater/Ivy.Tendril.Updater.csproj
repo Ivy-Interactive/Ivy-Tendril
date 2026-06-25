@@ -27,7 +27,7 @@
     <ProjectReference Include="../../../Ivy-Framework/src/Ivy/Ivy.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(IvySource)' != 'true'">
-    <PackageReference Include="Ivy" Version="1.2.67" />
+    <PackageReference Include="Ivy" Version="1.2.69" />
   </ItemGroup>
   <ItemGroup Condition="'$(IvySource)' == 'true'">
     <ProjectReference Include="../../../Ivy-Framework/src/Ivy.Analyser/Ivy.Analyser.csproj">
@@ -38,7 +38,7 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup Condition="'$(IvySource)' != 'true'">
-    <PackageReference Include="Ivy.Analyser" Version="1.2.67">
+    <PackageReference Include="Ivy.Analyser" Version="1.2.69">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
@@ -48,7 +48,7 @@
     <ProjectReference Include="../../../Ivy-Framework/src/Ivy.Desktop/Ivy.Desktop.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(IvySource)' != 'true'">
-    <PackageReference Include="Ivy.Desktop" Version="1.2.67" />
+    <PackageReference Include="Ivy.Desktop" Version="1.2.69" />
   </ItemGroup>
 
   <ItemGroup>

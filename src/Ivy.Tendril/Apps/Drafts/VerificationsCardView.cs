@@ -30,8 +30,7 @@ public class VerificationsCardView(
         bool IsRequired(string name) => projectVerifications
             .Any(pv => pv.Name.Equals(name, StringComparison.OrdinalIgnoreCase) && pv.Required);
 
-        var inner = Layout.Vertical().Gap(0)
-                    | new Box(Text.Block("Verifications").Bold()).Margin(0, 0, 0, 2);
+        var inner = Layout.Vertical().Gap(0);
 
         if (verifications.Count == 0)
         {
@@ -47,7 +46,7 @@ public class VerificationsCardView(
                     status => planService.SetVerificationStatus(selectedPlan.FolderName, v.Name, status));
         }
 
-        return new Box(inner).BorderThickness(0).Padding(0, 0, 0, 2).Width(Size.Px(280));
+        return new Card(inner).Header("Verifications").Width(Size.Px(280));
     }
 }
 

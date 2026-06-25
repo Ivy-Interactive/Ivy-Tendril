@@ -268,7 +268,7 @@ public class ContentView(
             ? new DirtyRepoDialog(
                 showDirtyDialog,
                 preflightResult,
-                proceedLabel: "Execute Anyway",
+                proceedLabel: "Create Without Syncing",
                 contextMessage: "These changes will NOT be included in this plan. The plan will execute against origin/<baseBranch>. If these changes are meant for this plan, commit and push them first.",
                 onSyncRepos: () =>
                 {
