@@ -417,10 +417,10 @@ After all verifications pass, reflect on what you observed during this plan's ex
 For each item, register it via the CLI:
 
 ```bash
-tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact=Medium --risk=Small
+tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact=Medium
 ```
 
-`--impact` and `--risk` are optional (Small, Medium, or High). Impact indicates the value of implementing it; Risk indicates the potential for complications or bugs.
+`--impact` is optional (Small, Medium, or High) and indicates the value of implementing it.
 
 Do NOT include items that are part of the current plan's scope. Do NOT include recommendations about code formatting, linting, or style issues — those are handled by verifications.
 

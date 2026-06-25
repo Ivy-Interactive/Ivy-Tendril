@@ -427,6 +427,39 @@ public class DatabaseMigratorTests : IDisposable
         Assert.Equal("{\"foo\":\"bar\"}", result);
     }
 
+    [Fact]
+    public void Migration_016_DropRecommendationRisk_DropsColumn()
+    {
+        new Migration_001_InitialSchema().Apply(_connection);
+        new Migration_002_Fts5Search().Apply(_connection);
+        new Migration_003_JobsTable().Apply(_connection);
+        new Migration_004_SourceUrl().Apply(_connection);
+        new Migration_005_CostsLogTimestampIndex().Apply(_connection);
+        new Migration_006_CostsCompositeIndex().Apply(_connection);
+        new Migration_007_FtsSourceUrl().Apply(_connection);
+        new Migration_008_PrStatusTable().Apply(_connection);
+        new Migration_009_JobsArgs().Apply(_connection);
+        new Migration_010_RecommendationImpactRisk().Apply(_connection);
+        new Migration_011_JobsTypedArgs().Apply(_connection);
+        new Migration_012_JobsPlanFileIndex().Apply(_connection);
+        new Migration_013_JobsWorkingDirAndCliCommand().Apply(_connection);
+        new Migration_014_JobsCleared().Apply(_connection);
+        new Migration_015_RenamePlanStates().Apply(_connection);
+        new Migration_016_DropRecommendationRisk().Apply(_connection);
+
+        Assert.Equal(16, GetUserVersion());
+
+        var columns = new List<string>();
+        using var pragmaCmd = _connection.CreateCommand();
+        pragmaCmd.CommandText = "PRAGMA table_info(Recommendations);";
+        using var reader = pragmaCmd.ExecuteReader();
+        while (reader.Read())
+            columns.Add(reader.GetString(reader.GetOrdinal("name")));
+
+        Assert.Contains("Impact", columns);
+        Assert.DoesNotContain("Risk", columns);
+    }
+
     private class FakeMigration : IMigration
     {
         private readonly List<int>? _tracker;

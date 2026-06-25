@@ -178,7 +178,7 @@ After all verifications pass, write down anything you noticed that isn't part of
 For each item, register it via the CLI:
 
 ```bash
-tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact=Medium --risk=Small
+tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact=Medium
 ```
 
 **After registering recommendations**, create `<TendrilPlanFolder>/Artifacts/recommendations.md`:

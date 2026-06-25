@@ -298,7 +298,6 @@ public class PlanController : ControllerBase
                 description = r.Description,
                 state = r.State,
                 impact = r.Impact,
-                risk = r.Risk,
                 declineReason = r.DeclineReason
             }));
         }
@@ -325,8 +324,7 @@ public class PlanController : ControllerBase
                 Title = request.Title,
                 Description = request.Description ?? "",
                 State = RecommendationStatus.Pending,
-                Impact = request.Impact,
-                Risk = request.Risk
+                Impact = request.Impact
             });
 
             return (true, $"Added recommendation '{request.Title}'", 200);
@@ -378,7 +376,7 @@ public class PlanController : ControllerBase
     [HttpPut("{planId}/recommendations/{title}")]
     public IActionResult SetRecField(string planId, string title, [FromBody] SetRecFieldRequest request)
     {
-        var validFields = new[] { "title", "description", "state", "impact", "risk", "declinereason" };
+        var validFields = new[] { "title", "description", "state", "impact", "declinereason" };
         if (!validFields.Contains(request.Field.ToLower()))
             return BadRequest(new { error = $"Unknown field: {request.Field}. Valid: {string.Join(", ", validFields)}" });
 
@@ -395,7 +393,6 @@ public class PlanController : ControllerBase
                 case "description": rec.Description = request.Value; break;
                 case "state": rec.State = request.Value; break;
                 case "impact": rec.Impact = request.Value; break;
-                case "risk": rec.Risk = request.Value; break;
                 case "declinereason": rec.DeclineReason = request.Value; break;
             }
 
@@ -685,8 +682,7 @@ public class PlanController : ControllerBase
                 title = r.Title,
                 description = r.Description,
                 state = r.State,
-                impact = r.Impact,
-                risk = r.Risk
+                impact = r.Impact
             })
         };
     }
@@ -700,7 +696,7 @@ public record AddPrRequest(string PrUrl);
 public record AddCommitRequest(string Sha);
 public record SetVerificationRequest(string Name, string Status);
 public record AddLogRequest(string Action, string? Summary = null);
-public record AddRecRequest(string Title, string? Description = null, string? Impact = null, string? Risk = null);
+public record AddRecRequest(string Title, string? Description = null, string? Impact = null);
 public record AcceptRecRequest(string? Notes = null);
 public record DeclineRecRequest(string? Reason = null);
 public record CreatePlanDirectRequest(

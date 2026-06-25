@@ -1087,8 +1087,7 @@ public class PlanCliCommandTests : IDisposable
                     Title = "Add tests",
                     Description = "Coverage is low",
                     State = "Pending",
-                    Impact = "Medium",
-                    Risk = "Small"
+                    Impact = "Medium"
                 }
             ]
         };

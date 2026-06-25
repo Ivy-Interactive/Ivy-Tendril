@@ -690,8 +690,7 @@ public class PlanReaderService(
                         Description = r.Description,
                         State = r.State,
                         DeclineReason = r.DeclineReason,
-                        Impact = r.Impact,
-                        Risk = r.Risk
+                        Impact = r.Impact
                     })
                     .ToList();
             }
@@ -1034,8 +1033,7 @@ public class PlanReaderService(
                 plan.Updated,
                 status,
                 item.DeclineReason,
-                item.Impact,
-                item.Risk
+                item.Impact
             );
     }
 
@@ -1220,6 +1218,5 @@ public record Recommendation(
     DateTime Date,
     PlanStatus SourcePlanStatus,
     string? DeclineReason = null,
-    string? Impact = null,
-    string? Risk = null
+    string? Impact = null
 );

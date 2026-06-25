@@ -269,8 +269,7 @@ public sealed class PlanTools : AuthenticatedToolBase
         [Description("Plan ID")] string planId,
         [Description("Recommendation title")] string title,
         [Description("Recommendation description")] string description,
-        [Description("Impact level: Small, Medium, High (optional)")] string? impact = null,
-        [Description("Risk level: Small, Medium, High (optional)")] string? risk = null)
+        [Description("Impact level: Small, Medium, High (optional)")] string? impact = null)
     {
         return ExecuteAuthenticated(() =>
         {
@@ -286,8 +285,7 @@ public sealed class PlanTools : AuthenticatedToolBase
                 Title = title,
                 Description = description,
                 State = RecommendationStatus.Pending,
-                Impact = impact,
-                Risk = risk
+                Impact = impact
             });
 
             plan.Updated = DateTime.UtcNow;
@@ -367,7 +365,7 @@ public sealed class PlanTools : AuthenticatedToolBase
             var sb = new StringBuilder();
             sb.AppendLine($"Found {recs.Count} {(recs.Count == 1 ? "recommendation" : "recommendations")}:");
             foreach (var rec in recs)
-                sb.AppendLine($"- {rec.Title} | State: {rec.State} | Impact: {rec.Impact ?? "-"} | Risk: {rec.Risk ?? "-"}");
+                sb.AppendLine($"- {rec.Title} | State: {rec.State} | Impact: {rec.Impact ?? "-"}");
 
             return sb.ToString();
         });
@@ -377,7 +375,7 @@ public sealed class PlanTools : AuthenticatedToolBase
     public string RecSet(
         [Description("Plan ID")] string planId,
         [Description("Recommendation title")] string title,
-        [Description("Field to update: title, description, state, impact, risk, declineReason")] string field,
+        [Description("Field to update: title, description, state, impact, declineReason")] string field,
         [Description("New value")] string value)
     {
         return ExecuteAuthenticated(() =>
@@ -396,10 +394,9 @@ public sealed class PlanTools : AuthenticatedToolBase
                 case "description": rec.Description = value; break;
                 case "state": rec.State = value; break;
                 case "impact": rec.Impact = value; break;
-                case "risk": rec.Risk = value; break;
                 case "declinereason": rec.DeclineReason = value; break;
                 default:
-                    return $"Error: Unknown field '{field}'. Valid: title, description, state, impact, risk, declineReason";
+                    return $"Error: Unknown field '{field}'. Valid: title, description, state, impact, declineReason";
             }
 
             plan.Updated = DateTime.UtcNow;

@@ -242,7 +242,7 @@ public class PlanDatabaseServiceTests : IDisposable
     }
 
     [Fact]
-    public void UpsertRecommendations_WithImpactAndRisk_StoresInDatabase()
+    public void UpsertRecommendations_WithImpact_StoresInDatabase()
     {
         _db.UpsertPlan(CreateTestPlan(1510));
 
@@ -251,7 +251,7 @@ public class PlanDatabaseServiceTests : IDisposable
             new()
             {
                 Title = "Optimize query", Description = "Slow dashboard query", State = "Pending",
-                Impact = "High", Risk = "Small"
+                Impact = "High"
             }
         };
 
@@ -261,17 +261,16 @@ public class PlanDatabaseServiceTests : IDisposable
         var recommendations = _db.GetRecommendations();
         Assert.Single(recommendations);
         Assert.Equal("High", recommendations[0].Impact);
-        Assert.Equal("Small", recommendations[0].Risk);
     }
 
     [Fact]
-    public void UpsertRecommendations_WithoutImpactAndRisk_StoresNulls()
+    public void UpsertRecommendations_WithoutImpact_StoresNull()
     {
         _db.UpsertPlan(CreateTestPlan(1511));
 
         var recs = new List<RecommendationYaml>
         {
-            new() { Title = "Legacy rec", Description = "No impact/risk", State = "Pending" }
+            new() { Title = "Legacy rec", Description = "No impact", State = "Pending" }
         };
 
         _db.UpsertRecommendations(1511, "01511-TestPlan", recs, "Tendril", "Test Plan",
@@ -280,7 +279,6 @@ public class PlanDatabaseServiceTests : IDisposable
         var recommendations = _db.GetRecommendations();
         Assert.Single(recommendations);
         Assert.Null(recommendations[0].Impact);
-        Assert.Null(recommendations[0].Risk);
     }
 
     [Fact]

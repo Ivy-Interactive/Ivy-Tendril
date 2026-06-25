@@ -366,7 +366,7 @@ public class PlanDatabaseService : IPlanDatabaseService
             return ReadList("""
                             SELECT r.Title, r.Description, r.State, r.PlanId, r.PlanTitle,
                                    r.PlanFolderName, r.Project, r.Date, r.SourcePlanStatus, r.DeclineReason,
-                                   r.Impact, r.Risk
+                                   r.Impact
                             FROM Recommendations r
                             ORDER BY r.Date DESC
                             """,
@@ -388,8 +388,7 @@ public class PlanDatabaseService : IPlanDatabaseService
                             DateTimeStyles.AdjustToUniversal),
                         sourceStatus,
                         reader.GetStringOrNull(reader.GetOrdinal("DeclineReason")),
-                        reader.GetStringOrNull(reader.GetOrdinal("Impact")),
-                        reader.GetStringOrNull(reader.GetOrdinal("Risk"))
+                        reader.GetStringOrNull(reader.GetOrdinal("Impact"))
                     );
                 });
         }
@@ -599,10 +598,10 @@ public class PlanDatabaseService : IPlanDatabaseService
             insertCmd.CommandText = """
                                     INSERT INTO Recommendations (PlanId, Title, Description, State, DeclineReason,
                                                                  PlanTitle, PlanFolderName, Project, Date, SourcePlanStatus,
-                                                                 Impact, Risk)
+                                                                 Impact)
                                     VALUES (@planId, @title, @description, @state, @declineReason,
                                             @planTitle, @planFolderName, @project, @date, @sourcePlanStatus,
-                                            @impact, @risk)
+                                            @impact)
                                     """;
             insertCmd.Parameters.AddWithValue("@planId", planId);
             insertCmd.Parameters.AddWithValue("@title", string.Empty);
@@ -615,7 +614,6 @@ public class PlanDatabaseService : IPlanDatabaseService
             insertCmd.Parameters.AddWithValue("@date", string.Empty);
             insertCmd.Parameters.AddWithValue("@sourcePlanStatus", string.Empty);
             insertCmd.Parameters.AddWithValue("@impact", DBNull.Value);
-            insertCmd.Parameters.AddWithValue("@risk", DBNull.Value);
 
             foreach (var rec in recommendations)
             {
@@ -630,7 +628,6 @@ public class PlanDatabaseService : IPlanDatabaseService
                 insertCmd.Parameters["@date"].Value = updated.ToString("O", CultureInfo.InvariantCulture);
                 insertCmd.Parameters["@sourcePlanStatus"].Value = status.ToString();
                 insertCmd.Parameters["@impact"].Value = (object?)rec.Impact ?? DBNull.Value;
-                insertCmd.Parameters["@risk"].Value = (object?)rec.Risk ?? DBNull.Value;
                 insertCmd.ExecuteNonQuery();
             }
         }

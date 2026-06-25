@@ -22,7 +22,7 @@ public static class PlanYamlRepairService
     private static readonly Dictionary<string, (string ItemStartPattern, string SubKeyPattern)> StructuredListKeys = new()
     {
         ["verifications"] = (@"^-\s+name:", "^(name|status):"),
-        ["recommendations"] = (@"^-\s+title:", "^(title|description|state|impact|risk|declineReason):")
+        ["recommendations"] = (@"^-\s+title:", "^(title|description|state|impact|declineReason):")
     };
 
     public static string RepairPlanYaml(string yaml)

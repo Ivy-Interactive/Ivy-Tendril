@@ -573,14 +573,6 @@ public class ContentView(
                             _ => BadgeVariant.Outline
                         });
 
-                    if (rec.Risk is { } risk)
-                        titleRow |= new Badge($"Risk: {risk}").Variant(risk switch
-                        {
-                            "High" => BadgeVariant.Destructive,
-                            "Medium" => BadgeVariant.Warning,
-                            _ => BadgeVariant.Success
-                        });
-
                     var card = Layout.Vertical().Gap(1)
                                | titleRow
                                | new Markdown(rec.Description).DangerouslyAllowLocalFiles().Article();

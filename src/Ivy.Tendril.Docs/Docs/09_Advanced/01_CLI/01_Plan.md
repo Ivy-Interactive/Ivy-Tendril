@@ -180,7 +180,7 @@ Writes a numbered revision file to `Revisions/` (e.g. `002.md`) from stdin or `-
 
 ```terminal
 >tendril plan rec list <plan-id> [--state <state>]
->tendril plan rec add <plan-id> <title> [-d <description>] [--impact <level>] [--risk <level>]
+>tendril plan rec add <plan-id> <title> [-d <description>] [--impact <level>]
 >tendril plan rec set <plan-id> <title> <field> <value>
 >tendril plan rec accept <plan-id> <title> [--notes <text>]
 >tendril plan rec decline <plan-id> <title> [--reason <text>]
@@ -190,8 +190,8 @@ Writes a numbered revision file to `Revisions/` (e.g. `002.md`) from stdin or `-
 Manage recommendations stored in a plan's YAML.
 
 - **list** — filter by state: `Pending`, `Accepted`, `AcceptedWithNotes`, `Declined`
-- **add** — impact/risk levels: `Small`, `Medium`, `High`; reads description from stdin if `-d` is omitted
-- **set** — supported fields: `title`, `description`, `state`, `impact`, `risk`, `declineReason`
+- **add** — impact levels: `Small`, `Medium`, `High`; reads description from stdin if `-d` is omitted
+- **set** — supported fields: `title`, `description`, `state`, `impact`, `declineReason`
 - **accept** — sets state to `Accepted`, or `AcceptedWithNotes` if `--notes` is provided
 - **decline** — sets state to `Declined` with an optional reason
 
