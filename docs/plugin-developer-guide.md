@@ -726,7 +726,7 @@ Additional extended context capabilities:
 
 Plugins can ship custom React-backed widgets using the `[ExternalWidget]` attribute. The host automatically registers widget assemblies on plugin load and unregisters them on unload.
 
-For full documentation on building external widgets (C# backend, React frontend, Vite configuration, project setup, multi-widget bundles, troubleshooting), see the [External Widgets](https://github.com/Ivy-Interactive/Ivy-Framework/blob/development/src/Ivy.Docs.Shared/Docs/02_Widgets/07_Advanced/05_ExternalWidgets.md) documentation in the Ivy Framework. You can also scaffold one with the CLI: `ivy widget`.
+For full documentation on building external widgets (C# backend, React frontend, Vite configuration, project setup, multi-widget bundles, troubleshooting), see the [External Widgets](https://docs.ivy.app/widgets/advanced/external-widgets) documentation in the Ivy Framework. You can also scaffold one with the CLI: `ivy widget`.
 
 **Plugin-specific behavior:** On plugin load, the host automatically calls `ExternalWidgetRegistry.RegisterAssembly()` to discover `[ExternalWidget]` types in your plugin assembly. On unload, they are unregistered. No additional wiring is needed beyond defining the widget and building the frontend.
 
