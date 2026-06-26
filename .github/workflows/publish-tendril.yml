@@ -385,8 +385,9 @@ jobs:
           security set-keychain-settings -t 21600 -u $KEYCHAIN_PATH
 
           # Import p12
-          security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign -T /usr/bin/productsign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign -T /usr/bin/productsign -T /usr/bin/productbuild
+        
+          security set-key-partition-list -S apple-tool:,apple:,codesign:,productbuild:,productsign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
       - name: Store Notary Credentials (macOS)
         if: startsWith(matrix.rid, 'osx-')
