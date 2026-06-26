@@ -6,12 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(IvySource)' == 'true'">
+  <ItemGroup>
     <ProjectReference Include="../../../Ivy.Tendril.Plugin.Extended.Abstractions/Ivy.Tendril.Plugin.Extended.Abstractions.csproj" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(IvySource)' != 'true'">
-    <PackageReference Include="Ivy.Tendril.Plugin.Extended.Abstractions" Version="1.0.53" />
   </ItemGroup>
 
 </Project>

@@ -11,12 +11,8 @@
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(IvySource)' == 'true'">
+  <ItemGroup>
     <ProjectReference Include="../../../Ivy.Tendril.Plugin.Extended.Abstractions/Ivy.Tendril.Plugin.Extended.Abstractions.csproj" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(IvySource)' != 'true'">
-    <PackageReference Include="Ivy.Tendril.Plugin.Extended.Abstractions" Version="1.0.53" />
   </ItemGroup>
 
   <Import Project="../../../../../Ivy-Framework/src/Ivy/Build/Ivy.ExternalWidget.targets" Condition="'$(IvySource)' == 'true'" />
