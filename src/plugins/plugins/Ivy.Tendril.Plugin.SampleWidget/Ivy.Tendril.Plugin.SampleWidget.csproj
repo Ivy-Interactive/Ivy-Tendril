@@ -15,6 +15,13 @@
     <ProjectReference Include="../../../Ivy.Tendril.Plugin.Extended.Abstractions/Ivy.Tendril.Plugin.Extended.Abstractions.csproj" />
   </ItemGroup>
 
-  <Import Project="../../../../../Ivy-Framework/src/Ivy/Build/Ivy.ExternalWidget.targets" Condition="'$(IvySource)' == 'true'" />
+  <ItemGroup>
+    <EmbeddedResource Include="frontend/dist/**/*" />
+  </ItemGroup>
+
+  <Target Name="BuildFrontend" BeforeTargets="Build" Condition="Exists('frontend/package.json')">
+    <Exec Command="vp install" WorkingDirectory="frontend" EnvironmentVariables="CI=true" />
+    <Exec Command="vp run build" WorkingDirectory="frontend" EnvironmentVariables="CI=true" />
+  </Target>
 
 </Project>
