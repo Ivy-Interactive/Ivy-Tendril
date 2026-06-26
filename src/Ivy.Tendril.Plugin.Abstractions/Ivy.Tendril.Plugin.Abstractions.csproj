@@ -13,7 +13,12 @@
     <RepositoryUrl>https://github.com/Ivy-Interactive/Ivy-Tendril</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <PropertyGroup>
     <CI Condition="'$(GITHUB_ACTIONS)' == 'true'">true</CI>
