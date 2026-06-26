@@ -5,7 +5,19 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <PackageId>Ivy.Tendril.Plugin.Linear</PackageId>
+    <Company>Ivy</Company>
+    <Description>Linear integration plugin for Ivy Tendril — import issues from Linear into Tendril plans</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/Ivy-Interactive/Ivy-Tendril</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Ivy-Interactive/Ivy-Tendril</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="StrawberryShake.Transport.Http" Version="16.0.7" />

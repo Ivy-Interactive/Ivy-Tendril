@@ -24,7 +24,7 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
         var isImporting = UseState(false);
         var error = UseState<string?>(null);
 
-        var teamsQuery = UseQuery<IReadOnlyList<LinearTeamInfo>, string?>(
+        var teamsQuery = UseQuery<IReadOnlyList<LinearTeamInfo>, string>(
             dialogOpen.Value ? "linear:teams" : null,
             async (_, ct) =>
             {
@@ -37,7 +37,7 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
             },
             initialValue: []);
 
-        var projectsQuery = UseQuery<IReadOnlyList<LinearProjectInfo>, string?>(
+        var projectsQuery = UseQuery<IReadOnlyList<LinearProjectInfo>, string>(
             dialogOpen.Value ? "linear:projects" : null,
             async (_, ct) =>
             {
@@ -50,7 +50,7 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
             },
             initialValue: []);
 
-        var usersQuery = UseQuery<IReadOnlyList<LinearUserInfo>, string?>(
+        var usersQuery = UseQuery<IReadOnlyList<LinearUserInfo>, string>(
             dialogOpen.Value ? "linear:users" : null,
             async (_, ct) =>
             {
@@ -64,7 +64,7 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
             },
             initialValue: []);
 
-        var labelsQuery = UseQuery<IReadOnlyList<LinearLabelInfo>, string?>(
+        var labelsQuery = UseQuery<IReadOnlyList<LinearLabelInfo>, string>(
             dialogOpen.Value ? "linear:labels" : null,
             async (_, ct) =>
             {
@@ -77,7 +77,7 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
             },
             initialValue: []);
 
-        var statesQuery = UseQuery<IReadOnlyList<LinearStateInfo>, string?>(
+        var statesQuery = UseQuery<IReadOnlyList<LinearStateInfo>, string>(
             dialogOpen.Value ? "linear:states" : null,
             async (_, ct) =>
             {

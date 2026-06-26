@@ -128,6 +128,10 @@ jobs:
             --configuration Release \
             --output ./nupkg \
             /p:Version=${{ needs.version.outputs.version }}
+          dotnet pack src/plugins/plugins/Ivy.Tendril.Plugin.Linear/Ivy.Tendril.Plugin.Linear.csproj \
+            --configuration Release \
+            --output ./nupkg \
+            /p:Version=${{ needs.version.outputs.version }}
           dotnet pack src/Ivy.Tendril/Ivy.Tendril.csproj \
             --configuration Release \
             --output ./nupkg \
@@ -176,6 +180,7 @@ jobs:
           echo "- [Ivy.Tendril](https://www.nuget.org/packages/Ivy.Tendril)" >> $GITHUB_STEP_SUMMARY
           echo "- [Ivy.Tendril.Plugin.Abstractions](https://www.nuget.org/packages/Ivy.Tendril.Plugin.Abstractions)" >> $GITHUB_STEP_SUMMARY
           echo "- [Ivy.Tendril.Plugin.Extended.Abstractions](https://www.nuget.org/packages/Ivy.Tendril.Plugin.Extended.Abstractions)" >> $GITHUB_STEP_SUMMARY
+          echo "- [Ivy.Tendril.Plugin.Linear](https://www.nuget.org/packages/Ivy.Tendril.Plugin.Linear)" >> $GITHUB_STEP_SUMMARY
 
   publish-desktop:
     needs: version
