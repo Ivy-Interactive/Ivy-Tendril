@@ -373,7 +373,7 @@ public static class PathHelper
             {
                 FileName = shell,
                 RedirectStandardOutput = true,
-                RedirectStandardError = false, // Do not redirect to prevent buffer overflow hangs
+                RedirectStandardError = true,
                 RedirectStandardInput = true,  // Redirect to EOF so child processes don't wait for input
                 UseShellExecute = false,
                 CreateNoWindow = true
@@ -386,8 +386,11 @@ public static class PathHelper
                 StartInfo = psi
             };
 
+            process.ErrorDataReceived += (_, _) => { }; // Discard standard error asynchronously
+
             Ivy.Helpers.CrashLog.Write($"[PathHelper] RunShellForEnv: starting process with args: {string.Join(" ", process.StartInfo.ArgumentList)}");
             process.Start();
+            process.BeginErrorReadLine();
 
             if (process.WaitForExit(TimeSpan.FromSeconds(2)))
             {
