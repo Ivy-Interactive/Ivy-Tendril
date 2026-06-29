@@ -150,7 +150,7 @@ public class JobServiceTimeoutTests : IDisposable
     }
 
     [Fact]
-    public void ClearFailedJobs_RemovesFailedAndTimeoutJobs()
+    public void ClearFailedJobs_RemovesOnlyFailedJobs()
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
 
@@ -168,7 +168,7 @@ public class JobServiceTimeoutTests : IDisposable
         Assert.NotNull(service.GetJob(runningId));
         Assert.NotNull(service.GetJob(completedId));
         Assert.Null(service.GetJob(failedId));
-        Assert.Null(service.GetJob(timeoutId));
+        Assert.NotNull(service.GetJob(timeoutId));
     }
 
     [Fact]
