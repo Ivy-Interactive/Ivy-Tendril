@@ -1,4 +1,4 @@
-codingAgent: codex
+codingAgent: gemini
 jobTimeout: 30
 staleOutputTimeout: 10
 gitTimeout: 10

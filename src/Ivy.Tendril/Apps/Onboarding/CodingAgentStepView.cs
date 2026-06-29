@@ -57,12 +57,12 @@ public class CodingAgentStepView(
 
     private static readonly AgentInfo[] Agents =
     [
-        new("claude",   "Claude",   Icons.ClaudeCode),
-        new("copilot",  "Copilot",  Icons.Copilot),
-        new("codex",    "Codex",    Icons.OpenAI),
-        new("gemini",   "Gemini",   Icons.Gemini),
-        new("antigravity", "Antigravity", Icons.Antigravity),
-        new("opencode", "OpenCode", Icons.OpenCode)
+        new("claude",   "Claude",   AgentBranding.IconFor("claude")),
+        new("copilot",  "Copilot",  AgentBranding.IconFor("copilot")),
+        new("codex",    "Codex",    AgentBranding.IconFor("codex")),
+        new("gemini",   "Gemini",   AgentBranding.IconFor("gemini")),
+        new("antigravity", "Antigravity", AgentBranding.IconFor("antigravity")),
+        new("opencode", "OpenCode", AgentBranding.IconFor("opencode"))
     ];
 
     public override object Build()

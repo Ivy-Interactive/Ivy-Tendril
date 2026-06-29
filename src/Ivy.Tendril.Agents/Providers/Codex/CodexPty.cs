@@ -47,8 +47,15 @@ public sealed class CodexPty : IAgentPty
         var args = new List<string> { "codex" };
 
         // FullAuto → run without approval prompts (workspace-write sandbox).
+        // The interactive TUI has no `--full-auto` shorthand (that lived on the
+        // legacy top-level CLI); compose it from the sandbox + approval flags.
         if (config.PermissionMode == PermissionMode.FullAuto)
-            args.Add("--full-auto");
+        {
+            args.Add("--sandbox");
+            args.Add("workspace-write");
+            args.Add("--ask-for-approval");
+            args.Add("never");
+        }
 
         if (!string.IsNullOrEmpty(config.Model))
         {

@@ -5,7 +5,7 @@ namespace Ivy.Tendril.Agents.Providers.Gemini;
 public sealed class GeminiPty : IAgentPty
 {
     public string Id => AgentId.Gemini;
-    public string DisplayName => "Gemini CLI";
+    public string DisplayName => "Gemini";
 
     public AgentCapabilities Capabilities =>
         AgentCapabilities.ModelSelection |
@@ -33,11 +33,11 @@ public sealed class GeminiPty : IAgentPty
     {
         var args = new List<string> { "gemini" };
 
+        // FullAuto → auto-approve every action. The interactive TUI uses the
+        // `--yolo` switch (the granular `--approval-mode` flag exists only on
+        // newer headless builds, so `--yolo` is what works across versions).
         if (config.PermissionMode == PermissionMode.FullAuto)
-        {
-            args.Add("--approval-mode");
-            args.Add("yolo");
-        }
+            args.Add("--yolo");
 
         if (!string.IsNullOrEmpty(config.Model))
         {
