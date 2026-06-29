@@ -217,12 +217,15 @@
 /* Inline code */
 .pmv-markdown code {
   position: relative;
+  display: inline;
   border-radius: 0.25rem;
   background: var(--muted);
   padding: 0.05rem 0.25rem;
   font-family: "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
     Consolas, monospace;
   font-weight: 600;
+  white-space: normal;
+  word-break: break-word;
 }
 
 /* Code blocks */
