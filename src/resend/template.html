@@ -141,12 +141,15 @@
                 <!-- Update Tendril Section -->
                 <h2 class="section-title" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #0D4A2F; font-size: 20px; font-weight: 600; line-height: 1.3; margin: 0 0 8px; padding: 0;">Update Tendril</h2>
 
-                <p class="body-text" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #5A6361; font-size: 16px; line-height: 1.65; margin: 0 0 12px; padding: 0;">Type this in your terminal to update Tendril to the latest version:</p>
+                <p class="body-text" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #5A6361; font-size: 16px; line-height: 1.65; margin: 0 0 12px; padding: 0;">Rerun the installation scripts to update Tendril to the latest version:</p>
 
                 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 0 0 12px;">
                   <tr>
                     <td style="background-color: #1e1e1e; border-radius: 6px; padding: 16px 20px; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 14px; line-height: 1.6; color: #d4d4d4;">
-                      <span style="color: #6A9955;">$</span> dotnet tool update -g Ivy.Tendril
+                      <div style="margin-bottom: 8px;"><span style="color: #6A9955;"># macOS / Linux</span></div>
+                      <div style="margin-bottom: 12px;"><span style="color: #6A9955;">$</span> curl -sSf https://cdn.ivy.app/install-tendril.sh | sh</div>
+                      <div style="margin-bottom: 8px;"><span style="color: #6A9955;"># Windows</span></div>
+                      <div><span style="color: #6A9955;">$</span> irm https://cdn.ivy.app/install-tendril.ps1 | iex</div>
                     </td>
                   </tr>
                 </table>

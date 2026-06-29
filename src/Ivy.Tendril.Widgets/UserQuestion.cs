@@ -17,7 +17,7 @@ public sealed record UserQuestion
     /// </summary>
     public required IReadOnlyList<UserChoice> Options { get; init; }
     
-    public string Answer { get; init; }
+    public string? Answer { get; init; }
 }
 
 /// <summary>A selectable answer for a <see cref="UserQuestion"/>.</summary>

@@ -12,7 +12,7 @@ icon: Download
 # Installation
 
 <Ingress>
-Install Tendril on macOS, Linux, or Windows using one of the methods below.
+Install Tendril on macOS, Linux, or Windows using one of the quick install scripts.
 </Ingress>
 
 ```csharp demo
@@ -23,14 +23,11 @@ public class InstallationTabs : ViewBase
         return Layout.Tabs(
             new Tab("macOS / Linux", Layout.Vertical()
                 | new CodeBlock("curl -sSf https://cdn.ivy.app/install-tendril.sh | sh", Languages.Bash)
+                | new Callout("This script downloads the standalone installer package (pkg) on macOS or the standalone AppImage on Linux and configures the environment.", icon: Icons.Info)
             ),
             new Tab("Windows", Layout.Vertical()
                 | new CodeBlock("irm https://cdn.ivy.app/install-tendril.ps1 | iex", Languages.Powershell)
-            ),
-            new Tab(".NET Tool", Layout.Vertical()
-                | new CodeBlock("dotnet tool install -g Ivy.Tendril", Languages.Bash)
-                | new Callout("Powershell 7, Git and gh CLI need to be present on your machine if you install using `dotnet tool` command", icon: Icons.Info)
-                | new Callout("On macOS/Linux, if you've never used .NET tools before, you may need to add the global tool directory to your PATH. Add `export PATH=\"$PATH:$HOME/.dotnet/tools\"` to your `~/.zshrc` or `~/.bashrc` to run `tendril` directly from your terminal. This is done automatically with the quick install commands above.", icon: Icons.Info)
+                | new Callout("This script downloads and executes the standalone Windows setup installer.", icon: Icons.Info)
             )
         ).Variant(TabsVariant.Content);
     }
@@ -51,11 +48,7 @@ The first time you run Tendril, you'll be guided through an onboarding wizard. D
 
 ## Update
 
-You can update Ivy Tendril at anytime after the initial install using the dotnet tool update command:
-
-```bash
-dotnet tool update -g Ivy.Tendril
-```
+Tendril features automatic background updates on desktop. You can also rerun the installation scripts at any time to update to the latest release version.
 
 <style>
   article h2 {

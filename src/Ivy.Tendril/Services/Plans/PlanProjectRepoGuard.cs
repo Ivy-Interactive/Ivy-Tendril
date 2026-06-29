@@ -50,6 +50,10 @@ public static class PlanProjectRepoGuard
         return new HashSet<string>(names, StringComparer.OrdinalIgnoreCase);
     }
 
-    private static string RepoName(string path) =>
-        Path.GetFileName(Environment.ExpandEnvironmentVariables(path).TrimEnd('/', '\\'));
+    private static string RepoName(string path)
+    {
+        var cleaned = Environment.ExpandEnvironmentVariables(path).TrimEnd('/', '\\');
+        var lastSlash = cleaned.LastIndexOfAny(['/', '\\']);
+        return lastSlash >= 0 ? cleaned[(lastSlash + 1)..] : cleaned;
+    }
 }
