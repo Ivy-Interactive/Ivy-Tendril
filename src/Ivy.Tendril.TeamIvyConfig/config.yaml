@@ -1,4 +1,4 @@
-codingAgent: claude
+codingAgent: opencode
 jobTimeout: 30
 staleOutputTimeout: 10
 gitTimeout: 10
