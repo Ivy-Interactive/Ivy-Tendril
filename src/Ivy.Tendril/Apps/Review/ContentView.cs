@@ -82,10 +82,10 @@ public class ContentView(
             return new SuggestChangesDialog(isOpen, selectedPlanState.Value!, jobService, refreshPlans);
         });
 
-        var (customPrDialog, showCustomPrDialog) = UseTrigger((isOpen) =>
+        var (createPrDialog, showCreatePrDialog) = UseTrigger((isOpen) =>
         {
             if (!isOpen.Value) return null;
-            return new CustomPrDialog(isOpen, selectedPlanState.Value!, jobService, refreshPlans,
+            return new CreatePrDialog(isOpen, selectedPlanState.Value!, jobService, refreshPlans,
                 assigneesQuery, assigneesError);
         });
 
@@ -221,10 +221,10 @@ public class ContentView(
         var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlanState.Value.FolderName);
         var planData = planContentQuery.Value;
 
-        var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, client, showCustomPrDialog, nav, args);
+        var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, client, showCreatePrDialog, nav, args);
         var actionBar = BuildActionBar(
             selectedPlanState.Value, showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog,
-            showCustomPrDialog, copyToClipboard, client, logger, nav, args);
+            showCreatePrDialog, copyToClipboard, client, logger, nav, args);
         var content = BuildContent(
             selectedPlanState.Value, planData, planContentQuery, selectedTabIndex, tabNames, openVerification,
             openCommit, openFile, openArtifact, artifactContentQuery, assigneesQuery,
@@ -239,7 +239,7 @@ public class ContentView(
             ).Scroll(Scroll.None).Size(Size.Full())
         ).Scroll(Scroll.None).Size(Size.Full()).Key(selectedPlanState.Value.Id);
 
-        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, customPrDialog, resetToDraftDialog, debugSheet);
+        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, createPrDialog, resetToDraftDialog, debugSheet);
     }
 
     private object BuildHeader(
@@ -247,7 +247,7 @@ public class ContentView(
         List<PlanFile> allPlans,
         int currentIndex,
         IClientProvider client,
-        Action showCustomPrDialog,
+        Action showCreatePrDialog,
         INavigator nav,
         ReviewAppArgs? args)
     {
@@ -291,7 +291,7 @@ public class ContentView(
 
                 // When the plan's source is an existing PR, the CTA updates that PR instead of
                 // opening a second one. There's nothing to configure for an update (no new branch,
-                // no merge/delete choices), so we skip the Custom PR dialog and push directly.
+                // no merge/delete choices), so we skip the Create PR dialog and push directly.
                 var isPrUpdate = selectedPlan.IsPullRequestSource;
 
                 var createPrBtn = new Button(isPrUpdate ? "Update PR" : "Create PR")
@@ -325,7 +325,7 @@ public class ContentView(
                     }
                     else
                     {
-                        showCustomPrDialog();
+                        showCreatePrDialog();
                     }
                 }).ShortcutKey("m");
 
@@ -357,7 +357,7 @@ public class ContentView(
         Action showResetToDraftDialog,
         Action showSuggestChangesDialog,
         Action showDiscardDialog,
-        Action showCustomPrDialog,
+        Action showCreatePrDialog,
         Action<string> copyToClipboard,
         IClientProvider client,
         ILogger<ContentView> logger,
@@ -367,7 +367,7 @@ public class ContentView(
         // Standard overflow menu items
         var standardOverflowItems = new[]
         {
-            new MenuItem("Custom PR", Icon: Icons.GitPullRequest, Tag: "CustomPR").OnSelect(showCustomPrDialog),
+            new MenuItem("Create PR", Icon: Icons.GitPullRequest, Tag: "CreatePR").OnSelect(showCreatePrDialog),
             new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
             {
                 planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);

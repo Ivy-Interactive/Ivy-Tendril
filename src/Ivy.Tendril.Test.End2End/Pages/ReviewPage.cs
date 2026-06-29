@@ -24,10 +24,10 @@ public class ReviewPage
     {
         await _page.GetByRole(AriaRole.Button, new() { Name = "Create PR" }).First.ClickAsync();
 
-        // With PrRule "default", a Custom PR dialog opens. Click the dialog's Create PR to confirm.
+        // With PrRule "default", a Create PR dialog opens. Click the dialog's Create PR to confirm.
         try
         {
-            await _page.GetByText("Custom PR").First.WaitForAsync(
+            await _page.GetByText("Create PR").First.WaitForAsync(
                 new() { State = WaitForSelectorState.Visible, Timeout = 3_000 });
             // The dialog's Create PR is the last one on the page
             var buttons = _page.GetByRole(AriaRole.Button, new() { Name = "Create PR" });
