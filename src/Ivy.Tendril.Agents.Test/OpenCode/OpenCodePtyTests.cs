@@ -36,4 +36,36 @@ public class OpenCodePtyTests
 
         Assert.DoesNotContain("--dangerously-skip-permissions", spec.CommandLine);
     }
+
+    [Fact]
+    public void BuildPtySpec_InitialPrompt_PassedViaPromptFlag()
+    {
+        var config = new AgentPtyConfig
+        {
+            WorkingDirectory = "/tmp/test",
+            InitialPrompt = "do the thing",
+        };
+
+        var args = _pty.BuildPtySpec(config).CommandLine.ToList();
+
+        var idx = args.IndexOf("--prompt");
+        Assert.True(idx >= 0, "Expected --prompt flag.");
+        Assert.Equal("do the thing", args[idx + 1]);
+    }
+
+    [Fact]
+    public void BuildPtySpec_NoInitialPrompt_OmitsPromptFlag()
+    {
+        var config = new AgentPtyConfig { WorkingDirectory = "/tmp/test" };
+
+        var spec = _pty.BuildPtySpec(config);
+
+        Assert.DoesNotContain("--prompt", spec.CommandLine);
+    }
+
+    [Fact]
+    public void ContextFileName_IsAgentsMd()
+    {
+        Assert.Equal("AGENTS.md", _pty.ContextFileName);
+    }
 }

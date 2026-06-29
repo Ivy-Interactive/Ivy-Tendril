@@ -19,6 +19,8 @@ public sealed class CodexPty : IAgentPty
     public TransportKind SupportedTransports => TransportKind.Pty;
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles => [];
 
+    public string? ContextFileName => "AGENTS.md";
+
     private static readonly FrozenDictionary<string, string> ToolNameMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
         [CanonicalTools.Bash] = "bash",
@@ -66,6 +68,10 @@ public sealed class CodexPty : IAgentPty
         foreach (var arg in config.ExtraArguments)
             args.Add(arg);
 
+        // Initial task as the trailing positional [PROMPT] — must come after all options.
+        if (!string.IsNullOrEmpty(config.InitialPrompt))
+            args.Add(config.InitialPrompt);
+
         var env = new Dictionary<string, string>(GetDefaultEnvironment());
         foreach (var (key, value) in config.EnvironmentVariables)
             env[key] = value;
@@ -83,5 +89,8 @@ public sealed class CodexPty : IAgentPty
         WorkingPattern = @"⠋|⠙|⠹|⠸|⠼|⠴|⠦|⠧|⠇|⠏|●",
         IdlePattern = @">\s*$",
         ErrorPattern = @"Error:|error:|ERR!",
+        // First-run "Do you trust the contents of this directory?" prompt; default "Yes" → Enter.
+        TrustPromptPattern = @"Do you trust|trust the contents",
+        TrustAcceptInput = "\r",
     };
 }

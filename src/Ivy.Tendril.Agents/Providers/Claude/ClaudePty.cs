@@ -24,6 +24,9 @@ public sealed class ClaudePty : IAgentPty
     public TransportKind SupportedTransports => TransportKind.Pty;
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles => [];
 
+    // Claude takes its system prompt via --append-system-prompt-file, not a context file.
+    public string? ContextFileName => null;
+
     private static readonly FrozenDictionary<string, string> ToolNameMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
         [CanonicalTools.Read] = "Read",
@@ -104,6 +107,10 @@ public sealed class ClaudePty : IAgentPty
 
         foreach (var arg in config.ExtraArguments)
             args.Add(arg);
+
+        // Initial task as the final positional arg — Claude auto-submits it on launch.
+        if (!string.IsNullOrEmpty(config.InitialPrompt))
+            args.Add(config.InitialPrompt);
 
         var env = new Dictionary<string, string>(GetDefaultEnvironment());
         foreach (var (key, value) in config.EnvironmentVariables)
