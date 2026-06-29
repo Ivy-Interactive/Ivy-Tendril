@@ -215,6 +215,7 @@ public class ProjectAgentStepView(
                 error.Set($"Failed to set up project: {ex.Message}");
                 isCloning.Set(false);
                 isStepLoading.Set(false);
+                session.Running.Set(false);
             }
         }, setupTrigger != null ? [setupTrigger, EffectTrigger.OnMount()] : [EffectTrigger.OnMount()]);
 
@@ -235,6 +236,21 @@ public class ProjectAgentStepView(
         // that avoided a layout shift when the bordered/padded Box swapped in on first output.
         var showStream = !isCloning.Value && (session.Running.Value || session.HasOutput.Value);
 
+        var viewer = new AgentViewer()
+            .Stream(session.Stream)
+            .AutoScroll(true)
+            .ShowStatusLabel(true)
+            .Width(Size.Full())
+            .Height(Size.Full()) with
+        {
+            OnComplete = _ =>
+            {
+                session.Running.Set(false);
+                isStepLoading.Set(false);
+                return ValueTask.CompletedTask;
+            }
+        };
+
         return Layout.Vertical().Margin(0, 0, 0, 2)
                | (showHeader ? Text.H3("Setting up your project") : null!)
                | Text.Muted(isCloning.Value
@@ -249,14 +265,7 @@ public class ProjectAgentStepView(
                    ? (object)new Progress(progressValue.Value.Value)
                    : null!)
                | (showStream
-                   ? (object)new Box(
-                        new AgentViewer()
-                            .Stream(session.Stream)
-                            .AutoScroll(true)
-                            .ShowStatusLabel(true)
-                            .Width(Size.Full())
-                            .Height(Size.Full())
-                      )
+                   ? (object)new Box(viewer)
                         .Width(Size.Full())
                         .Height(Size.Units(100).Max(Size.Fraction(0.6f)))
                         .Padding(4, 4, 0, 4)

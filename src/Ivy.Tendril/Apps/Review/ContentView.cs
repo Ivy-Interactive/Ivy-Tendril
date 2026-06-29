@@ -253,7 +253,7 @@ public class ContentView(
     {
         object BuildTitleArea()
         {
-            var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full())
+            var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full().Min(Size.Px(0)))
                 | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
                     .BorderThickness(0).Padding(0).Width(Size.Fit().Min(Size.Px(0)));
 
@@ -264,7 +264,7 @@ public class ContentView(
             var desktopTitle = new Box(desktopTitleLayout).BorderThickness(0).Padding(0)
                 .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
-            return Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
+            return Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow().Min(Size.Px(0)))
                    | desktopTitle
                    | MobileItemPicker.Build(
                            $"#{selectedPlan.Id} {selectedPlan.Title}",
