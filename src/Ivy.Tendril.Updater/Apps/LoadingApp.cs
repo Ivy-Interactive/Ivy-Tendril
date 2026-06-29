@@ -133,7 +133,7 @@ public class FailedView : ViewBase
         return new Animation(AnimationType.FadeIn).Repeat(0)
                | (Layout.Vertical().Width(100)
                   | Text.H2("Update Failed")
-                  | Text.Markdown("Please run `dotnet tool update -g Ivy.Tendril` to repair your installation.")
+                  | Text.Markdown("Please rerun the installation script to repair your installation.")
                   | Text.Muted("You can now close this window."));
     }
 }

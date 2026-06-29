@@ -109,7 +109,9 @@ public class WallpaperApp : ViewBase
 
         if (versionInfo.Value?.HasUpdate == true && versionInfo.Value.LatestVersion != dismissedVersion.Value)
         {
-            var updateCommand = "dotnet tool update -g Ivy.Tendril";
+            var updateCommand = OperatingSystem.IsWindows()
+                ? "irm https://cdn.ivy.app/install-tendril.ps1 | iex"
+                : "curl -sSf https://cdn.ivy.app/install-tendril.sh | sh";
             var notification = new FloatingPanel(
                 new Card(
                     Layout.Vertical()
