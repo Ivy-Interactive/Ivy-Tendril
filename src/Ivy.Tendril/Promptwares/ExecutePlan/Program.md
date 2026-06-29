@@ -293,9 +293,10 @@ Report status: `tendril job status TendrilJobId --message="Implementing: <plan t
 
 Work exclusively in the worktree directories. Follow the plan's latest revision:
 
-1. **Problem** — Understand what needs to be done
-2. **Solution** — Execute the implementation steps in the worktree
-3. **Tests** — Write and run all tests specified in the plan
+1. **Problem** - Understand what needs to be done
+2. **Solution** - Execute the implementation steps in the worktree
+3. **Tests** - Write and run all tests specified in the plan
+   - **Loopback only for servers:** When writing tests, demo apps, or mock servers that listen on a port, always bind to loopback (127.0.0.1 or ::1) instead of 0.0.0.0. Binding to all interfaces (0.0.0.0) is blocked and triggers "listen EPERM" errors on some systems.
 
 **Status cadence:** During implementation, if any sub-task takes longer than 90 seconds, issue an intermediate status update describing the current activity (e.g., `"Implementing: writing tests..."`, `"Implementing: fixing lint errors..."`, `"Implementing: reading reference code..."`). The user should never see the same status message for more than ~90 seconds.
 
