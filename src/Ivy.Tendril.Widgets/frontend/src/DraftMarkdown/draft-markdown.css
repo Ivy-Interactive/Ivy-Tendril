@@ -384,6 +384,7 @@
 @media (prefers-color-scheme: dark) {
   .pmv-annotation-highlight {
     background: hsl(48 80% 20% / 0.5);
+    color: hsl(0 0% 95%);
   }
 }
 
