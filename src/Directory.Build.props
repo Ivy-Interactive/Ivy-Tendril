@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <Version>1.1.2</Version>
+    <Version>1.1.3</Version>
     <!-- Use local Ivy source by default for development if it exists, but use NuGet packages in CI, for release builds, or if local source is missing -->
     <IvySource Condition="'$(IvySource)' == '' And Exists('$(MSBuildThisFileDirectory)../../Ivy-Framework/src/Ivy/Ivy.csproj')">true</IvySource>
     <IvySource Condition="'$(IvySource)' == ''">false</IvySource>
