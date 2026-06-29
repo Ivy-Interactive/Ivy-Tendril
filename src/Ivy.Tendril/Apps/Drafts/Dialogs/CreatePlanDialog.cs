@@ -132,6 +132,7 @@ public class CreatePlanDialog(
                 | new Ivy.Tendril.Widgets.ContentInput
                 {
                     UploadUrl = uploadContext.Value.UploadUrl,
+                    AutoFocus = true,
                     OnSubmit = e =>
                     {
                         if (!string.IsNullOrWhiteSpace(createPlanText.Value) && !isCreating.Value)
