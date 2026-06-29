@@ -9,6 +9,7 @@ using Spectre.Console.Cli;
 using Velopack;
 using Velopack.Sources;
 using Velopack.Locators;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Commands;
 
@@ -89,18 +90,46 @@ public class UpdateCliCommand : AsyncCommand<UpdateCliCommand.Settings>
             return 0;
         }
 
-        AnsiConsole.MarkupLine("[grey]Please wait...[/]");
-
-        var executablePath = await Extract();
-
-        var psi = new ProcessStartInfo
+        if (latestVersion == null)
         {
-            FileName = executablePath,
-            UseShellExecute = false,
-        };
-        Process.Start(psi);
+            AnsiConsole.MarkupLine("[red]Could not determine the latest version of Ivy.Tendril.[/]");
+            return 1;
+        }
 
-        return 0;
+        var versionStr = latestVersion.ToString(3);
+        var (filename, downloadUrl) = UpdateHelper.GetInstallerInfo(versionStr);
+        var tempFilePath = Path.Combine(Path.GetTempPath(), filename);
+
+        AnsiConsole.MarkupLine($"[grey]Downloading {filename}...[/]");
+
+        try
+        {
+            await AnsiConsole.Progress()
+                .StartAsync(async ctx =>
+                {
+                    var task = ctx.AddTask("[green]Downloading installer[/]", autoStart: true, maxValue: 100);
+                    
+                    await UpdateHelper.DownloadFileWithProgressAsync(downloadUrl, tempFilePath, (read, total) =>
+                    {
+                        if (total > 0)
+                        {
+                            task.Value = (int)((double)read / total * 100);
+                        }
+                    }, cancellationToken);
+                });
+
+            AnsiConsole.MarkupLine($"[green]Download complete. Launching installer...[/]");
+            UpdateHelper.LaunchInstaller(tempFilePath);
+            
+            AnsiConsole.MarkupLine("[green]Exiting Tendril to allow installation.[/]");
+            Environment.Exit(0);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Failed to update: {ex.Message}[/]");
+            return 1;
+        }
     }
 
     private static Version? GetCurrentVersion()
