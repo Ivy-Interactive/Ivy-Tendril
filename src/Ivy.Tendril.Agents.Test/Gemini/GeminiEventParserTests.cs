@@ -237,4 +237,70 @@ public class GeminiEventParserTests
     {
         _parser.Reset();
     }
+
+    [Fact]
+    public void ParseLine_MessageEvent_HardWrappedProse_UnwrapsToSingleParagraph()
+    {
+        var json = """{"type":"message","role":"assistant","content":"This is a long sentence that has been\nwrapped at column boundaries by the\nterminal output formatter."}""";
+        var events = _parser.ParseLine(json);
+
+        Assert.Single(events);
+        var text = Assert.IsType<TextEvent>(events[0]);
+        Assert.Equal("This is a long sentence that has been wrapped at column boundaries by the terminal output formatter.", text.Text);
+    }
+
+    [Fact]
+    public void ParseLine_MessageEvent_ParagraphBoundary_PreservesDoubleNewline()
+    {
+        var json = """{"type":"message","role":"assistant","content":"First paragraph here.\n\nSecond paragraph here."}""";
+        var events = _parser.ParseLine(json);
+
+        Assert.Single(events);
+        var text = Assert.IsType<TextEvent>(events[0]);
+        Assert.Equal("First paragraph here.\n\nSecond paragraph here.", text.Text);
+    }
+
+    [Fact]
+    public void ParseLine_MessageEvent_CodeBlock_PreservesNewlines()
+    {
+        var json = """{"type":"message","role":"assistant","content":"Here is code:\n```csharp\nvar x = 1;\nvar y = 2;\n```\nDone."}""";
+        var events = _parser.ParseLine(json);
+
+        Assert.Single(events);
+        var text = Assert.IsType<TextEvent>(events[0]);
+        Assert.Equal("Here is code:\n```csharp\nvar x = 1;\nvar y = 2;\n```\nDone.", text.Text);
+    }
+
+    [Fact]
+    public void ParseLine_MessageEvent_ListItems_PreservesNewlines()
+    {
+        var json = """{"type":"message","role":"assistant","content":"Here are items:\n- First item\n- Second item\n* Third item"}""";
+        var events = _parser.ParseLine(json);
+
+        Assert.Single(events);
+        var text = Assert.IsType<TextEvent>(events[0]);
+        Assert.Equal("Here are items:\n- First item\n- Second item\n* Third item", text.Text);
+    }
+
+    [Fact]
+    public void ParseLine_MessageEvent_Headings_PreservesNewlines()
+    {
+        var json = """{"type":"message","role":"assistant","content":"# Main Heading\nSome text here.\n## Subheading\nMore text."}""";
+        var events = _parser.ParseLine(json);
+
+        Assert.Single(events);
+        var text = Assert.IsType<TextEvent>(events[0]);
+        Assert.Equal("# Main Heading\nSome text here.\n## Subheading\nMore text.", text.Text);
+    }
+
+    [Fact]
+    public void ParseLine_MessageEvent_InlineCodeAcrossWrap_Preserved()
+    {
+        var json = """{"type":"message","role":"assistant","content":"Since `PrMerge` is being called\nfrom multiple places, you need to handle it."}""";
+        var events = _parser.ParseLine(json);
+
+        Assert.Single(events);
+        var text = Assert.IsType<TextEvent>(events[0]);
+        Assert.Equal("Since `PrMerge` is being called from multiple places, you need to handle it.", text.Text);
+    }
 }
