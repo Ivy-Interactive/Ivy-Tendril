@@ -30,12 +30,7 @@ public class UpdatePlanDialog(
             j.TypedArgs.PlanFolder.Equals(_selectedPlan.FolderPath, StringComparison.OrdinalIgnoreCase));
 
         return new Dialog(
-            _ =>
-            {
-                updateText.Set("");
-                isCreating.Set(false);
-                _dialogOpen.Set(false);
-            },
+            _ => _dialogOpen.Set(false),
             new DialogHeader($"Update Plan #{_selectedPlan.Id}"),
             new DialogBody(
                 Layout.Vertical()
@@ -44,12 +39,7 @@ public class UpdatePlanDialog(
                 | updateText.ToTextareaInput("Enter update instructions...").Rows(6).AutoFocus()
             ),
             new DialogFooter(
-                new Button("Cancel").Outline().OnClick(() =>
-                {
-                    updateText.Set("");
-                    isCreating.Set(false);
-                    _dialogOpen.Set(false);
-                }),
+                new Button("Cancel").Outline().OnClick(() => _dialogOpen.Set(false)),
                 new Button("Submit Update").Primary().Disabled(hasActiveJob || isCreating.Value || string.IsNullOrWhiteSpace(updateText.Value)).ShortcutKey("Ctrl+Enter").OnClick(() =>
                 {
                     if (!string.IsNullOrWhiteSpace(updateText.Value) && !isCreating.Value)
@@ -66,8 +56,6 @@ public class UpdatePlanDialog(
                         // Plan transition (and pre-state snapshot) handled by JobService.StartJob.
                         _jobService.StartJob(new UpdatePlanArgs(_selectedPlan.FolderPath, updateText.Value));
                         _refreshPlans();
-                        updateText.Set("");
-                        isCreating.Set(false);
                         _dialogOpen.Set(false);
                     }
                 })

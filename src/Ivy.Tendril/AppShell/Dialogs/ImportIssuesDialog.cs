@@ -118,17 +118,6 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
         var hasRepo = !string.IsNullOrEmpty(selectedRepo.Value);
         var filtersLoading = hasRepo && (assigneesQuery.Loading || labelsQuery.Loading);
 
-        void ResetDialogState()
-        {
-            fetchedIssueGroups.Set(null);
-            selectedIssueNumbers.Set([]);
-            errorMessage.Set(null);
-            searchQuery.Set("");
-            selectedAssignees.Set(Array.Empty<string>());
-            selectedLabels.Set(Array.Empty<string>());
-            selectedRepo.Set(null);
-        }
-
         void SelectAllInGroup(IReadOnlyList<GitHubIssue> issues)
         {
             var next = new HashSet<int>(selectedIssueNumbers.Value);
@@ -265,7 +254,6 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
                 }
 
                 client.Toast($"Imported {importedCount} issue{(importedCount == 1 ? "" : "s")} to Inbox", "Import Complete");
-                ResetDialogState();
                 _dialogOpen.Set(false);
             }
             catch (Exception ex)
@@ -347,11 +335,7 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
         var selectedForImport = selectedIssueNumbers.Value.Count;
 
         return new Dialog(
-            _ =>
-            {
-                ResetDialogState();
-                _dialogOpen.Set(false);
-            },
+            _ => _dialogOpen.Set(false),
             new DialogHeader("Import Issues from GitHub"),
             new DialogBody(
                 Layout.Vertical().Gap(3)
@@ -382,11 +366,7 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
                 | issuesPanel
             ),
             new DialogFooter(
-                new Button("Cancel").Outline().OnClick(() =>
-                {
-                    ResetDialogState();
-                    _dialogOpen.Set(false);
-                }),
+                new Button("Cancel").Outline().OnClick(() => _dialogOpen.Set(false)),
                 new Button(selectedForImport > 0
                         ? $"Import Selected ({selectedForImport})"
                         : "Import Selected")
