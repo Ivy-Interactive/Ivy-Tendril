@@ -481,6 +481,11 @@
   margin: 0 !important;
 }
 
+.civ-split-btn-left:hover:not(:disabled) {
+  transform: none;
+  opacity: 1;
+}
+
 /* Arrow button on the right */
 .civ-split-btn-arrow {
   width: 32px;
