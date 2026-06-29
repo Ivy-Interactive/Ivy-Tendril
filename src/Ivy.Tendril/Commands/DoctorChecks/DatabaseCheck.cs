@@ -1,4 +1,5 @@
 using Ivy.Tendril.Database;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Commands.DoctorChecks;
 
@@ -11,12 +12,7 @@ internal class DatabaseCheck : IDoctorCheck
         var statuses = new List<CheckStatus>();
         var hasErrors = false;
 
-        var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
-        if (string.IsNullOrEmpty(tendrilHome))
-        {
-            statuses.Add(new CheckStatus("tendril.db", "TENDRIL_HOME not set", StatusKind.Error));
-            return new CheckResult(true, statuses);
-        }
+        var tendrilHome = PathHelper.GetDefaultTendrilHome();
 
         var dbPath = Path.Combine(tendrilHome, "tendril.db");
         if (!File.Exists(dbPath))

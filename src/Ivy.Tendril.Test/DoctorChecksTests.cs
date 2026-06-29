@@ -45,6 +45,28 @@ public class DoctorChecksTests : IDisposable
     }
 
     [Fact]
+    public async Task EnvironmentCheck_UnsetTendrilHome_ResolvesDefault()
+    {
+        var originalEnv = Environment.GetEnvironmentVariable("TENDRIL_HOME");
+        Environment.SetEnvironmentVariable("TENDRIL_HOME", null);
+
+        try
+        {
+            var check = new EnvironmentCheck();
+            var result = await check.RunAsync();
+
+            var homeStatus = result.Statuses.FirstOrDefault(s => s.Label == "TENDRIL_HOME");
+            Assert.NotNull(homeStatus);
+            Assert.Equal(StatusKind.Ok, homeStatus.Kind);
+            Assert.Contains("Not set (using default)", homeStatus.Value);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("TENDRIL_HOME", originalEnv);
+        }
+    }
+
+    [Fact]
     public void PrintStatus_WithBracketCharacters_DoesNotThrow()
     {
         var exception = Record.Exception(() =>

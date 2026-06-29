@@ -119,7 +119,7 @@ public static class ProcessCheckHelper
         if (pwshSuccess) return (true, null);
         errors.Add($"system pwsh: {pwshErr ?? "unknown error"}");
 
-        var (legacySuccess, legacyErr) = await TryCheckCommand("powershell", "-Version");
+        var (legacySuccess, legacyErr) = await TryCheckCommand("powershell", "-NoProfile -Command 1");
         if (legacySuccess) return (true, null);
         errors.Add($"system powershell: {legacyErr ?? "unknown error"}");
 
