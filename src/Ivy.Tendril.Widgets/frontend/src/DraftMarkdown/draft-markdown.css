@@ -225,6 +225,26 @@
   font-weight: 600;
 }
 
+/* Keyboard shortcuts (KBD) */
+.pmv-markdown kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 20px;
+  min-width: 20px;
+  padding: 0 5px;
+  font-size: 0.75rem;
+  font-weight: 400;
+  font-family: inherit;
+  line-height: 1;
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-radius: 0.25rem;
+  background: var(--muted);
+  color: var(--foreground);
+  vertical-align: baseline;
+}
+
 /* Code blocks */
 .pmv-code-block {
   position: relative;
