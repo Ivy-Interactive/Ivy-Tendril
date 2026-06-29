@@ -329,7 +329,7 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
                                     .Disabled(groupSelectedCount == 0)
                                     .OnClick(() => SelectNoneInGroup(groupIssues)))
                         | (groupIssues.Count > 0
-                            ? new List(issueRows).Width(Size.Full())
+                            ? (Layout.Vertical().Gap(0).Width(Size.Full()) | issueRows)
                             : Text.Muted("No issues for this assignee."));
                 }
 
