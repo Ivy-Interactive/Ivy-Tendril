@@ -15,12 +15,13 @@ public class WallpaperApp : ViewBase
     public override object Build()
     {
         var client = UseService<IClientProvider>();
+        var config = UseService<IConfigService>();
         var versionService = UseService<IVersionCheckService>();
         var planDbService = UseService<IPlanDatabaseService>();
         var tunnelService = UseService<ICloudflaredService>();
         var copyToClipboard = UseClipboard();
         var versionInfo = UseState<VersionInfo?>(null);
-        var dismissedVersion = UseState<string?>(null);
+        var dismissedVersion = UseState<string?>(() => config.Settings.DismissedUpdateVersion);
         var tunnelStatus = UseState(tunnelService.Status);
         var tunnelUrl = UseState<string?>(tunnelService.TunnelUrl);
 
@@ -120,7 +121,13 @@ public class WallpaperApp : ViewBase
                         .Run($" is available (you have v{versionInfo.Value.CurrentVersion})")
                         .Small()
                     | new CodeBlock(updateCommand, Languages.Bash)
-                    | new Button("Dismiss", () => dismissedVersion.Set(versionInfo.Value.LatestVersion))
+                    | new Button("Dismiss", () =>
+                        {
+                            var latest = versionInfo.Value!.LatestVersion;
+                            dismissedVersion.Set(latest);
+                            config.Settings.DismissedUpdateVersion = latest;
+                            config.SaveSettings();
+                        })
                         .Variant(ButtonVariant.Secondary)
                         .Small()
                 ).Header("Update Available", null, Icons.CircleArrowUp)

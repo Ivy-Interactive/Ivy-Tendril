@@ -7,7 +7,7 @@ namespace Ivy.Tendril.Agents.Providers.Copilot;
 public sealed class CopilotPty : IAgentPty
 {
     public string Id => AgentId.Copilot;
-    public string DisplayName => "GitHub Copilot";
+    public string DisplayName => "Copilot";
 
     public AgentCapabilities Capabilities =>
         AgentCapabilities.ArgumentPrompt |

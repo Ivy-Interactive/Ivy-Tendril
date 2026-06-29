@@ -109,7 +109,7 @@ public sealed class CopilotHealthCheck : IAgentHealthCheck
 
     public AgentOnboardingInfo GetOnboardingInfo() => new()
     {
-        DisplayName = "GitHub Copilot",
+        DisplayName = "Copilot",
         InstallCommand = "npm install -g @githubnext/copilot-cli",
         InstallUrl = "https://docs.github.com/en/copilot",
         AuthCommand = "copilot login",
