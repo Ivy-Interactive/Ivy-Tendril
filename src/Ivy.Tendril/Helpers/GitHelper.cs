@@ -180,21 +180,21 @@ public static class GitHelper
                 return false;
             });
         }
-            return await Task.Run(() =>
+        return await Task.Run(() =>
+        {
+            var output = RunGitCapture(null, $"ls-remote --heads \"{expandedPath}\" \"{branchName}\"", 10000);
+            if (output != null)
             {
-                var output = RunGitCapture(null, $"ls-remote --heads \"{expandedPath}\" \"{branchName}\"", 10000);
-                if (output != null)
+                var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var line in lines)
                 {
-                    var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-                    foreach (var line in lines)
-                    {
-                        if (line.Contains($"refs/heads/{branchName}"))
-                            return true;
-                    }
+                    if (line.Contains($"refs/heads/{branchName}"))
+                        return true;
                 }
+            }
 
-                return false;
-            });
+            return false;
+        });
     }
 
     private static bool RunGitShowRef(string repoPath, string refName)
