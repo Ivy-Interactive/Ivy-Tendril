@@ -392,13 +392,9 @@ public static class PathHelper
             process.Start();
             process.BeginErrorReadLine();
 
-            // Read standard error asynchronously to avoid buffer overflow hangs
-            var readErrorTask = process.StandardError.ReadToEndAsync();
-
             if (process.WaitForExit(TimeSpan.FromSeconds(2)))
             {
                 var output = process.StandardOutput.ReadToEnd();
-                try { readErrorTask.Wait(TimeSpan.FromSeconds(1)); } catch { }
                 var match = Regex.Match(output, @"---ENV_START---\r?\n(.*?)\r?\n---ENV_END---", RegexOptions.Singleline);
                 if (match.Success)
                 {

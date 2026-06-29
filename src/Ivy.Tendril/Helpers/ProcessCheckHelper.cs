@@ -151,24 +151,20 @@ public static class ProcessCheckHelper
         {
             if (url.Contains('\'') || url.Contains('"')) return false;
 
-            var cmd = Directory.Exists(destinationPath)
-                ? $"git -C '{destinationPath}' pull"
-                : $"git clone '{url}' '{destinationPath}'";
-
-            var psi = new ProcessStartInfo
-            {
-                FileName = PathHelper.GetPwshPath(),
-                Arguments = $"-NoProfile -Command \"{cmd}\"",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
+            var isPull = Directory.Exists(destinationPath);
+            var psi = MakeStartInfo("git", isPull 
+                ? $"-C \"{destinationPath}\" pull" 
+                : $"clone \"{url}\" \"{destinationPath}\"");
 
             using var process = Process.Start(psi);
             if (process is null) return false;
 
+            var outTask = process.StandardOutput.ReadToEndAsync();
+            var errTask = process.StandardError.ReadToEndAsync();
+
             await process.WaitForExitAsync();
+            await Task.WhenAll(outTask, errTask);
+
             return process.ExitCode == 0;
         }
         catch
