@@ -65,6 +65,9 @@ public static class ContentInputExtensions
     public static ContentInput SubmitLabel(this ContentInput w, string? label) =>
         w with { SubmitLabel = label };
 
+    public static ContentInput AutoFocus(this ContentInput w) =>
+        w with { AutoFocus = true };
+
     public static ContentInput UploadUrl(this ContentInput w, string? url) =>
         w with { UploadUrl = url };
 

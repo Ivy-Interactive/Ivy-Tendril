@@ -99,6 +99,7 @@ interface ContentInputProps {
   attachedFiles?: AttachedFile[];
   submitLabel?: string;
   menuOptions?: string[];
+  autoFocus?: boolean;
   onIvyEvent?: (eventName: string, id: string, argumentsArray: unknown[]) => void;
   eventHandler?: (eventName: string, id: string, argumentsArray: unknown[]) => void;
   events?: string[];
@@ -137,6 +138,7 @@ export const ContentInput: React.FC<ContentInputProps> = ({
   uploadUrl,
   selectedModel = "Build",
   attachedFiles = [],
+  autoFocus = false,
   submitLabel,
   menuOptions = [],
   onIvyEvent,
@@ -167,6 +169,12 @@ export const ContentInput: React.FC<ContentInputProps> = ({
   useEffect(() => {
     filesRef.current = files;
   }, [files]);
+
+  useEffect(() => {
+    if (autoFocus && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [autoFocus]);
 
   const isImageFile = (path: string) => {
     const ext = path.split(".").pop()?.toLowerCase();
