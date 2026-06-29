@@ -136,12 +136,104 @@ public sealed class GeminiEventParser : IEventParser
         if (string.IsNullOrEmpty(content))
             return Empty;
 
+        var unwrapped = UnwrapHardWraps(content);
+
         return [new TextEvent
         {
             Kind = AgentEventKind.Text,
-            Text = content,
+            Text = unwrapped,
             RawLine = rawLine,
         }];
+    }
+
+    private static string UnwrapHardWraps(string content)
+    {
+        if (string.IsNullOrEmpty(content))
+            return content;
+
+        var lines = content.Split('\n');
+        if (lines.Length <= 1)
+            return content;
+
+        var result = new StringBuilder();
+        var inCodeBlock = false;
+        var previousWasProse = false;
+
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            var trimmedLine = line.TrimStart();
+
+            // Track code block boundaries
+            if (trimmedLine.StartsWith("```", StringComparison.Ordinal) ||
+                trimmedLine.StartsWith("~~~", StringComparison.Ordinal))
+            {
+                if (result.Length > 0 && !inCodeBlock)
+                    result.Append('\n');
+                result.Append(line);
+                result.Append('\n');
+                inCodeBlock = !inCodeBlock;
+                previousWasProse = false;
+                continue;
+            }
+
+            // Preserve code block content exactly
+            if (inCodeBlock)
+            {
+                result.Append(line);
+                result.Append('\n');
+                previousWasProse = false;
+                continue;
+            }
+
+            // Track blank lines (paragraph boundaries)
+            var isBlank = string.IsNullOrWhiteSpace(line);
+            if (isBlank)
+            {
+                // Preserve paragraph breaks
+                result.Append('\n');
+                result.Append('\n');
+                previousWasProse = false;
+                continue;
+            }
+
+            // Check if this line is structural
+            var isHeading = trimmedLine.StartsWith('#');
+            var isListItem = trimmedLine.StartsWith("- ", StringComparison.Ordinal) ||
+                             trimmedLine.StartsWith("* ", StringComparison.Ordinal) ||
+                             trimmedLine.StartsWith("+ ", StringComparison.Ordinal) ||
+                             (trimmedLine.Length > 0 && char.IsDigit(trimmedLine[0]) &&
+                              trimmedLine.Contains(". ", StringComparison.Ordinal));
+
+            var isStructural = isHeading || isListItem;
+            var isProse = !isStructural;
+
+            // First line
+            if (result.Length == 0)
+            {
+                result.Append(line);
+                previousWasProse = isProse;
+                continue;
+            }
+
+            // Only join if both previous and current are prose
+            if (previousWasProse && isProse)
+            {
+                result.Append(' ');
+                result.Append(line);
+                previousWasProse = true;
+            }
+            else
+            {
+                // Only add newline if the result doesn't already end with one
+                if (result.Length > 0 && result[result.Length - 1] != '\n')
+                    result.Append('\n');
+                result.Append(line);
+                previousWasProse = isProse;
+            }
+        }
+
+        return result.ToString();
     }
 
     private static IReadOnlyList<AgentEvent> ParseToolUse(JsonElement root, string rawLine)
