@@ -83,12 +83,12 @@ public class JobServiceDeletionTests
         service.ClearFailedJobs();
 
         Assert.Null(service.GetJob("failed-1"));
-        Assert.Null(service.GetJob("timeout-1"));
+        Assert.NotNull(service.GetJob("timeout-1"));
         Assert.NotNull(service.GetJob("blocked-1"));
         Assert.NotNull(service.GetJob("completed-1"));
         Assert.Empty(db.DeletedJobIds);
         Assert.Contains(db.UpsertedJobs, j => j.Id == "failed-1" && j.Cleared);
-        Assert.Contains(db.UpsertedJobs, j => j.Id == "timeout-1" && j.Cleared);
+        Assert.DoesNotContain(db.UpsertedJobs, j => j.Id == "timeout-1" && j.Cleared);
     }
 
     [Fact]
