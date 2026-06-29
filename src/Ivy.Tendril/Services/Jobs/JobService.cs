@@ -326,7 +326,7 @@ public class JobService : IJobService
         => ClearJobsByStatus(j => j.Status == JobStatus.Completed);
 
     public void ClearFailedJobs()
-        => ClearJobsByStatus(j => j.Status == JobStatus.Failed);
+        => ClearJobsByStatus(j => j.Status is JobStatus.Failed or JobStatus.Timeout);
 
     public void ClearAllJobs()
         => ClearJobsByStatus(j => j.Status is not JobStatus.Running and not JobStatus.Queued);
