@@ -3,6 +3,7 @@ using System.Reactive.Disposables;
 using System.Text.Json;
 using Ivy.Core;
 using Ivy.Core.Apps;
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.AppShell.Dialogs;
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Apps.Onboarding;
@@ -74,7 +75,25 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         return item;
     }
 
-    private static MenuItem[] BuildMenuItems(IAppRepository repo, TendrilProcessStatus status)
+    // The Agent app id (and its menu-item Tag) collapses to "agent" via AppHelpers.GetApp.
+    private const string AgentAppId = "agent";
+
+    // Re-brand the generic "Agent" menu item to the configured coding agent (e.g. "Claude Code"
+    // with the Claude icon), so the sidebar matches what actually launches.
+    private static MenuItem BrandAgentItem(MenuItem item, string agentId, IAgentRunner runner)
+    {
+        if (item.Tag is string tag && tag == AgentAppId)
+        {
+            var (label, icon) = AgentBranding.For(agentId, runner);
+            item = item.Label(label).Icon(icon);
+        }
+        if (item.Children is { Length: > 0 })
+            item = item with { Children = item.Children.Select(c => BrandAgentItem(c, agentId, runner)).ToArray() };
+        return item;
+    }
+
+    private static MenuItem[] BuildMenuItems(IAppRepository repo, TendrilProcessStatus status,
+        IConfigService config, IAgentRunner runner)
     {
         var badges = new Dictionary<string, int>
         {
@@ -85,7 +104,11 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             ["recommendations"] = status.RecommendationsCount,
             ["trash"] = status.TrashCount
         };
-        return repo.GetMenuItems().Select(m => AddBadge(m, badges)).ToArray();
+        var agentId = config.Settings.CodingAgent;
+        return repo.GetMenuItems()
+            .Select(m => AddBadge(m, badges))
+            .Select(m => BrandAgentItem(m, agentId, runner))
+            .ToArray();
     }
 
     public override object Build()
@@ -99,7 +122,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var client = UseService<IClientProvider>();
         var currentApp = UseState<AppHost?>();
         var statusService = UseService<ITendrilProcessStatusService>();
-        var menuItems = UseState(() => BuildMenuItems(appRepository, statusService.Current));
+        var agentRunner = UseService<IAgentRunner>();
+        var menuItems = UseState(() => BuildMenuItems(appRepository, statusService.Current, config, agentRunner));
         var status = UseState(() => statusService.Current);
         var sidebarOpen = UseState(settings.SidebarOpen);
         var args = UseService<AppContext>();
@@ -134,8 +158,18 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             });
         });
 
-        UseEffect(() => { menuItems.Set(BuildMenuItems(appRepository, status.Value)); },
+        UseEffect(() => { menuItems.Set(BuildMenuItems(appRepository, status.Value, config, agentRunner)); },
             appRepository.Reloaded.ToTrigger(), status);
+
+        // Rebuild the menu when settings are saved (e.g. the coding agent changes), so the
+        // branded "Agent" item updates immediately without needing a reload.
+        UseEffect(() =>
+        {
+            void OnSettingsReloaded(object? sender, EventArgs e) =>
+                menuItems.Set(BuildMenuItems(appRepository, status.Value, config, agentRunner));
+            config.SettingsReloaded += OnSettingsReloaded;
+            return Disposable.Create(() => config.SettingsReloaded -= OnSettingsReloaded);
+        });
 
         var jobService = UseService<IJobService>();
 
@@ -183,10 +217,23 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 SidebarOpen = false
             };
 
+        // The Agent app's descriptor title/icon are the generic "Agent"/terminal; brand them
+        // to the configured coding agent so tabs and the browser title stay consistent.
+        (string Title, Icons? Icon) BrandedAppDisplay(AppDescriptor app)
+        {
+            if (app.Id == AgentAppId)
+            {
+                var (label, icon) = AgentBranding.For(config.Settings.CodingAgent, agentRunner);
+                return (label, icon);
+            }
+            return (app.Title, app.Icon);
+        }
+
         void SetAppTitle(string appId)
         {
             var app = appRepository.GetAppOrDefault(appId);
-            if (app.Title is { } title) client.SetTitle(title, serverArgs.Metadata.Title);
+            var (title, _) = BrandedAppDisplay(app);
+            if (title is { } t) client.SetTitle(t, serverArgs.Metadata.Title);
         }
 
         bool IsErrorApp(string? appId)
@@ -283,9 +330,10 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             var tabId = Guid.NewGuid().ToString();
             var appHost = navigateArgs.ToAppHost(args.ConnectionId);
             var app = appRepository.GetAppOrDefault(effectiveAppId);
+            var (tabTitle, tabIcon) = BrandedAppDisplay(app);
 
-            var newTabs = tabs.Value.Add(new TabState(tabId, app.Id, app.Title, appHost,
-                app.Icon, Guid.NewGuid().ToString()));
+            var newTabs = tabs.Value.Add(new TabState(tabId, app.Id, tabTitle, appHost,
+                tabIcon, Guid.NewGuid().ToString()));
             tabs.Set(newTabs);
             selectedIndex.Set(newTabs.Length - 1);
             SetAppTitle(app.Id);

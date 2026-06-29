@@ -55,9 +55,11 @@ public sealed class OpenCodePty : IAgentPty
     {
         var args = new List<string> { "opencode" };
 
-        // FullAuto → run without permission prompts.
-        if (config.PermissionMode == PermissionMode.FullAuto)
-            args.Add("--dangerously-skip-permissions");
+        // NOTE: the interactive TUI (the default `opencode` command) has no
+        // permission-bypass flag — `--dangerously-skip-permissions` exists only
+        // on the `run` subcommand. Passing it to the TUI makes opencode reject
+        // the argument and print help, so FullAuto adds no flag here; the user
+        // approves actions in the TUI (or configures a yolo agent).
 
         if (!string.IsNullOrEmpty(config.Model))
         {

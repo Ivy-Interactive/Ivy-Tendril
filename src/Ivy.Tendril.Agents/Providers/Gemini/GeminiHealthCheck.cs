@@ -76,7 +76,7 @@ public sealed class GeminiHealthCheck : IAgentHealthCheck
 
     public AgentOnboardingInfo GetOnboardingInfo() => new()
     {
-        DisplayName = "Gemini CLI",
+        DisplayName = "Gemini",
         InstallCommand = "npm install -g @google/gemini-cli",
         InstallUrl = "https://github.com/google-gemini/gemini-cli",
         AuthCommand = "gemini auth",

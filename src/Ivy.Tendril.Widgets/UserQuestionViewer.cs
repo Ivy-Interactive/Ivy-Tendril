@@ -27,7 +27,7 @@ public class UserQuestionViewer(IState<ImmutableList<UserQuestion>> questions) :
             return Layout.Vertical().Padding(4)
                    | Text.Muted("No questions to answer.");
 
-        var tabs = list.Select((q, i) => BuildTab(q, i)).ToArray();
+        var tabs = list.Select(BuildTab).ToArray();
 
         return Layout.Tabs(tabs)
             .Variant(TabsVariant.Tabs)

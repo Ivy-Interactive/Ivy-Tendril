@@ -24,10 +24,6 @@
     <WidgetsFrontendSourceFiles Include="frontend/tsconfig.json" />
     <WidgetsFrontendSourceFiles Include="frontend/vite.widget.ts" />
   </ItemGroup>
-  
-  <ItemGroup>
-    <Folder Include="Questions\" />
-  </ItemGroup>
 
   <Target Name="WidgetsNpmInstall" BeforeTargets="WidgetsBuildFrontend" Inputs="frontend/package.json;frontend/pnpm-lock.yaml" Outputs="frontend/node_modules/.modules.yaml">
     <Exec Command="npx --prefer-offline -y pnpm@10.33.0 install --config.confirmModulesPurge=false" WorkingDirectory="frontend" />
