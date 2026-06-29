@@ -23,11 +23,7 @@ public class RerunJobDialog(
 
         var supportsFeedback = SupportsFeedback(job.TypedArgs);
 
-        void Close()
-        {
-            feedback.Set("");
-            dialogOpen.Set(false);
-        }
+        void Close() => dialogOpen.Set(false);
 
         var body = supportsFeedback
             ? Layout.Vertical()

@@ -25,11 +25,7 @@ public class ResetToDraftDialog(
         if (!_dialogOpen.Value) return null;
 
         return new Dialog(
-            _ =>
-            {
-                isResetting.Set(false);
-                _dialogOpen.Set(false);
-            },
+            _ => _dialogOpen.Set(false),
             new DialogHeader($"Reset Plan #{_selectedPlan.Id} to Draft"),
             new DialogBody(
                 Text.P("Are you sure you want to reset this plan? Will remove all worktrees and artifacts.")
