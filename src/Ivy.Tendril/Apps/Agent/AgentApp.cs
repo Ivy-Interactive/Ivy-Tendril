@@ -1,3 +1,5 @@
+using System.Text;
+using System.Text.RegularExpressions;
 using Ivy.Hooks.Pty;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Helpers;
@@ -17,43 +19,50 @@ public class AgentApp : ViewBase
         var agentRunner = UseService<IAgentRunner>();
         var args = UseArgs<AgentAppArgs>();
 
+        // The initial task is delivered as a command-line argument (see each provider's
+        // BuildPtySpec) so the agent auto-runs it on launch — no fragile "wait then paste"
+        // and no Windows arg-quoting issues (argv is passed as an array). The only thing we
+        // still drive from here is the first-run "trust this folder?" modal that some agents
+        // (Copilot, Codex) show before they accept the queued prompt.
+        //
+        // Ivy hooks must come first (IVYHOOK005), so the trust regex/keystroke are stashed in a
+        // ref populated after UsePty; OnOutput fires asynchronously, by which point it is set.
+        var trustHandled = UseRef(false);
+        var trustBuffer = UseRef(new StringBuilder());
+        var sendInput = UseRef<Action<string>?>(null);
+        var trust = UseRef<(Regex? Regex, string Accept)>((null, "\r"));
+
         var ptyHandle = Context.UsePty(
-            GetCommandLine(configService, agentRunner),
+            GetCommandLine(configService, agentRunner, args?.Prompt),
             GetWorkDir(configService, agentRunner),
-            new PtyOptions { Environment = GetEnvironment(configService) }
-        );
-
-        var promptSent = UseRef(false);
-
-        // Deliver the prompt once the agent is ready. We type it in (rather than pass it
-        // as a CLI argument) because Windows command-line quoting mangles prompts that
-        // contain quotes or backslash paths. Sending it as a bracketed paste lets the
-        // agent ingest arbitrary content atomically, then Enter submits it. A second
-        // Enter guards against the first being swallowed (a no-op on an empty buffer).
-        Context.UseEffect(async () =>
-        {
-            if (string.IsNullOrEmpty(args?.Prompt) || promptSent.Value)
-                return (IDisposable?)null;
-
-            // Wait for agent to be ready (simple delay approach)
-            await Task.Delay(2000); // 2 second delay
-
-            if (!promptSent.Value)
+            new PtyOptions
             {
-                promptSent.Value = true;
-                ptyHandle.HandleInput("\u001b[200~" + args.Prompt + "\u001b[201~");
-                // The paste takes a moment to settle before the agent accepts an Enter
-                // as "submit" (an Enter sent too early is absorbed). Retry over a longer
-                // window; once submitted, further Enters hit an empty buffer and no-op.
-                for (var i = 0; i < 3; i++)
+                Environment = GetEnvironment(configService),
+                OnOutput = text =>
                 {
-                    await Task.Delay(800);
-                    ptyHandle.HandleInput("\r");
+                    var (regex, accept) = trust.Value;
+                    if (regex == null || trustHandled.Value) return;
+                    // Keep a small rolling window of recent output; accept on first match.
+                    var sb = trustBuffer.Value;
+                    sb.Append(text);
+                    if (sb.Length > 8192) sb.Remove(0, sb.Length - 8192);
+                    if (!regex.IsMatch(sb.ToString())) return;
+                    var send = sendInput.Value;
+                    if (send == null) return; // PTY not wired yet; retry on next chunk
+                    trustHandled.Value = true;
+                    send(accept);
                 }
             }
+        );
 
-            return (IDisposable?)null;
-        }, EffectTrigger.OnMount());
+        // Wire the input sink + trust pattern now that the handle exists (OnOutput is supplied first).
+        sendInput.Value = ptyHandle.HandleInput;
+        var patterns = GetActivityPatterns(configService, agentRunner);
+        trust.Value = (
+            patterns?.TrustPromptPattern is { Length: > 0 } trustPattern
+                ? new Regex(trustPattern, RegexOptions.IgnoreCase)
+                : null,
+            patterns?.TrustAcceptInput is { Length: > 0 } accept ? accept : "\r");
 
         var terminal = new Xterm.Terminal()
             .Stream(ptyHandle.Stream)
@@ -69,7 +78,7 @@ public class AgentApp : ViewBase
             .RemoveParentPadding();
     }
 
-    private static string[] GetCommandLine(IConfigService config, IAgentRunner runner)
+    private static string[] GetCommandLine(IConfigService config, IAgentRunner runner, string? initialPrompt)
     {
         var agentId = config.Settings.CodingAgent;
         var cli = runner.GetCli(agentId);
@@ -89,6 +98,7 @@ public class AgentApp : ViewBase
             SystemPrompt = systemPrompt,
             AppendSystemPrompt = true,
             Model = model,
+            InitialPrompt = initialPrompt,
         });
         return spec?.ResolveCommand().CommandLine.ToArray() ?? [cli.Id];
     }
@@ -98,13 +108,14 @@ public class AgentApp : ViewBase
         if (string.IsNullOrEmpty(systemPrompt) || string.IsNullOrEmpty(workDir))
             return;
 
-        // Claude handles system prompt via --system-prompt / --append-system-prompt flags.
-        // All other agents (OpenCode, Gemini, Codex, Copilot, Antigravity) read AGENTS.md from cwd.
-        if (pty?.Id != AgentId.Claude)
-        {
-            var path = Path.Combine(workDir, "AGENTS.md");
-            File.WriteAllText(path, systemPrompt);
-        }
+        // Each agent declares the file it reads for project/system instructions (AGENTS.md,
+        // GEMINI.md, …). When ContextFileName is null the agent takes its system prompt via a
+        // command-line flag instead (Claude → --append-system-prompt-file) and needs no file.
+        var contextFile = pty?.ContextFileName;
+        if (string.IsNullOrEmpty(contextFile))
+            return;
+
+        File.WriteAllText(Path.Combine(workDir, contextFile), systemPrompt);
     }
 
     private static string GetWorkDir(IConfigService config, IAgentRunner runner)

@@ -16,6 +16,9 @@ public sealed class GeminiPty : IAgentPty
     public TransportKind SupportedTransports => TransportKind.Pty;
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles => [];
 
+    // Gemini reads GEMINI.md (NOT AGENTS.md) for project/system instructions.
+    public string? ContextFileName => "GEMINI.md";
+
     public string? TranslateToolName(string canonicalTool) => null;
 
     public string? ReverseTranslateToolName(string nativeTool) => null;
@@ -39,10 +42,21 @@ public sealed class GeminiPty : IAgentPty
         if (config.PermissionMode == PermissionMode.FullAuto)
             args.Add("--yolo");
 
+        // Trust the workspace for this session so the first-run trust prompt never appears
+        // (more explicit than GEMINI_CLI_TRUST_WORKSPACE; both are harmless together).
+        args.Add("--skip-trust");
+
         if (!string.IsNullOrEmpty(config.Model))
         {
             args.Add("--model");
             args.Add(config.Model);
+        }
+
+        // Initial task: -i (--prompt-interactive) executes the prompt then continues interactively.
+        if (!string.IsNullOrEmpty(config.InitialPrompt))
+        {
+            args.Add("-i");
+            args.Add(config.InitialPrompt);
         }
 
         foreach (var arg in config.ExtraArguments)

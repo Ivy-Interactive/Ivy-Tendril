@@ -37,4 +37,36 @@ public class GeminiPtyTests
 
         Assert.DoesNotContain("--yolo", spec.CommandLine);
     }
+
+    [Fact]
+    public void BuildPtySpec_AlwaysAddsSkipTrust()
+    {
+        var config = new AgentPtyConfig { WorkingDirectory = "/tmp/test" };
+
+        var spec = _pty.BuildPtySpec(config);
+
+        Assert.Contains("--skip-trust", spec.CommandLine);
+    }
+
+    [Fact]
+    public void BuildPtySpec_InitialPrompt_PassedViaInteractiveFlag()
+    {
+        var config = new AgentPtyConfig
+        {
+            WorkingDirectory = "/tmp/test",
+            InitialPrompt = "do the thing",
+        };
+
+        var args = _pty.BuildPtySpec(config).CommandLine.ToList();
+
+        var idx = args.IndexOf("-i");
+        Assert.True(idx >= 0, "Expected -i flag.");
+        Assert.Equal("do the thing", args[idx + 1]);
+    }
+
+    [Fact]
+    public void ContextFileName_IsGeminiMd()
+    {
+        Assert.Equal("GEMINI.md", _pty.ContextFileName);
+    }
 }

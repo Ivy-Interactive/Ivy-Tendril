@@ -21,6 +21,8 @@ public sealed class OpenCodePty : IAgentPty
     public TransportKind SupportedTransports => TransportKind.Pty;
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles => [];
 
+    public string? ContextFileName => "AGENTS.md";
+
     private static readonly FrozenDictionary<string, string> ToolMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
         [CanonicalTools.Read] = "read",
@@ -69,6 +71,13 @@ public sealed class OpenCodePty : IAgentPty
 
         // OpenCode's --session resumes an existing session; it does not accept
         // caller-assigned IDs for new sessions (unlike Claude's --session-id).
+
+        // Initial task: --prompt opens the TUI and auto-submits the message.
+        if (!string.IsNullOrEmpty(config.InitialPrompt))
+        {
+            args.Add("--prompt");
+            args.Add(config.InitialPrompt);
+        }
 
         foreach (var arg in config.ExtraArguments)
             args.Add(arg);
