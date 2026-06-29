@@ -183,7 +183,7 @@ public partial class JobsApp
 
                 if (job?.Status is JobStatus.Running or JobStatus.Queued)
                 {
-                    actions.Add(new MenuItem("Stop", Icon: Icons.Square, Tag: "stop-job")
+                    actions.Add(new MenuItem("Stop", Icon: Icons.Ban, Tag: "stop-job")
                         .Tooltip("Stop this running job"));
                 }
 
