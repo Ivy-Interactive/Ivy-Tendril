@@ -211,7 +211,9 @@ public class WallpaperApp : ViewBase
 
                 await versionService.StartUpdateAsync(progress);
 
-                // Reached only when no restart occurred (already up to date or self-update unavailable).
+                // Reached only when no update was applied (already up to date, or
+                // self-update unavailable for this install type) — otherwise the app
+                // exits to apply and restart.
                 updateProgress.Set(null);
             }
             catch (Exception ex)
