@@ -125,18 +125,25 @@ public class PluginsSetupView : ViewBase
                    | Text.Block("Unloaded Plugins").Bold()
                    | unloadedPlugins.Select(p =>
                    {
-                       var header = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                           | PluginIconHelper.UnloadedIcon()
-                           | Text.Block(p.Id);
+                       var isFailed = p.FailureReason is not null;
+                       var header = Layout.Horizontal().Gap(2).AlignContent(Align.SpaceBetween)
+                           | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
+                               | PluginIconHelper.UnloadedIcon()
+                               | Text.Block(p.Id))
+                           | (isFailed
+                               ? (Layout.Horizontal().Gap(1).AlignContent(Align.Right)
+                                   | Text.Block("Failed").Muted().Small()
+                                   | new Icon(Icons.TriangleAlert, Colors.Destructive))
+                               : null!);
                        var content = Layout.Vertical().Gap(2)
-                           | (p.FailureReason is not null ? (object)Text.Block(p.FailureReason).Muted().Small() : null!)
-                           | new Button(p.FailureReason is not null ? "Retry" : "Load", onClick: _ =>
+                           | (isFailed ? (object)new Callout(p.FailureReason!).Variant(CalloutVariant.Destructive) : null!)
+                           | new Button(isFailed ? "Retry" : "Load", onClick: _ =>
                            {
                                var success = pluginManager.LoadPlugin(p.Directory);
                                client.Toast(success ? $"Loaded '{p.Id}'" : $"Failed to load '{p.Id}'",
                                    success ? "Installed" : "Error");
                                return ValueTask.CompletedTask;
-                           }, variant: ButtonVariant.Outline, icon: p.FailureReason is not null ? Icons.RefreshCw : Icons.Plus);
+                           }, variant: ButtonVariant.Outline, icon: isFailed ? Icons.RefreshCw : Icons.Plus);
                        return (object)new Expandable(header, content).Open();
                    }).ToArray()))
                | new Separator()
