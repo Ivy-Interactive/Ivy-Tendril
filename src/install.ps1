@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-Ivy-Tendril Windows Installer
+Ivy-Tendril Windows Standalone Installer
 
 .DESCRIPTION
-This script installs .NET 10 SDK, Git, GitHub CLI, and Ivy-Tendril.
+This script downloads and runs the standalone installer for Ivy-Tendril on Windows.
 #>
 
 $ErrorActionPreference = "Stop"
@@ -16,147 +16,91 @@ if (-not $isWinOS) {
     exit 1
 }
 
-Write-Host "`nStep 1: Checking for .NET 10 SDK..." -ForegroundColor Blue
-$hasDotNet10 = $false
-if (Get-Command dotnet -ErrorAction SilentlyContinue) {
-    $version = (dotnet --version 2>$null) -join ""
-    if ($version -like "10.*") {
-        $hasDotNet10 = $true
-    }
-}
-
-if ($hasDotNet10) {
-    Write-Host "✓ .NET 10 SDK is already installed." -ForegroundColor Green
-}
-else {
-    Write-Host "Installing .NET 10 SDK..."
-    $installScriptPath = Join-Path $env:TEMP "dotnet-install.ps1"
-    irm -Uri "https://dot.net/v1/dotnet-install.ps1" -OutFile $installScriptPath
-    
-    # By default, dotnet-install.ps1 installs to $env:LOCALAPPDATA\Microsoft\dotnet
-    & $installScriptPath -Channel 10.0
-
-    $dotnetRoot = "$env:LOCALAPPDATA\Microsoft\dotnet"
-    $env:DOTNET_ROOT = $dotnetRoot
-    $env:PATH = "$dotnetRoot;$env:PATH"
-    
-    # Also add to User PATH permanently if not present
-    $userPath = [Environment]::GetEnvironmentVariable("PATH", "User")
-    if ($userPath -notmatch [regex]::Escape($dotnetRoot)) {
-        [Environment]::SetEnvironmentVariable("PATH", "$userPath;$dotnetRoot", "User")
-    }
-
-    Write-Host "✓ .NET 10 SDK installed successfully." -ForegroundColor Green
-}
-
-Write-Host "`nStep 2: Trusting .NET dev certificates..." -ForegroundColor Blue
-$certCheck = dotnet dev-certs https --check --trust 2>&1
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "✓ .NET dev certificate is already trusted." -ForegroundColor Green
-}
-else {
-    Write-Host "Generating and trusting .NET dev certificate..."
-    dotnet dev-certs https --trust
-    Write-Host "✓ .NET dev certificate trusted successfully." -ForegroundColor Green
-}
-
-Write-Host "`nStep 3: Checking for Git..." -ForegroundColor Blue
-if (Get-Command git -ErrorAction SilentlyContinue) {
-    Write-Host "✓ Git is already installed." -ForegroundColor Green
-}
-else {
-    Write-Host "Installing Git..."
-    if (Get-Command winget -ErrorAction SilentlyContinue) {
-        winget install --id Git.Git -e --source winget
-        Write-Host "✓ Git installed." -ForegroundColor Green
-    }
-    else {
-        Write-Host "Error: 'winget' not found. Please install Git manually." -ForegroundColor Red
-        exit 1
-    }
-}
-
-Write-Host "`nStep 4: Checking for GitHub CLI (gh)..." -ForegroundColor Blue
-if (Get-Command gh -ErrorAction SilentlyContinue) {
-    Write-Host "✓ GitHub CLI is already installed." -ForegroundColor Green
-}
-else {
-    Write-Host "Installing GitHub CLI (gh)..."
-    if (Get-Command winget -ErrorAction SilentlyContinue) {
-        winget install --id GitHub.cli -e --source winget
-        Write-Host "✓ GitHub CLI installed." -ForegroundColor Green
-    }
-    else {
-        Write-Host "Error: 'winget' not found. Please install GitHub CLI manually." -ForegroundColor Red
-        exit 1
-    }
-}
-
-Write-Host "`nStep 5: Checking for PowerShell (pwsh)..." -ForegroundColor Blue
-$hasPwsh = $false
-if (Get-Command pwsh -ErrorAction SilentlyContinue) {
-    $hasPwsh = $true
-}
-elseif (Get-Command dotnet -ErrorAction SilentlyContinue) {
-    $toolList = (dotnet tool list -g 2>$null) -join " "
-    if ($toolList -match "powershell") {
-        $hasPwsh = $true
-    }
-}
-
-if ($hasPwsh) {
-    Write-Host "✓ PowerShell (pwsh) is already installed." -ForegroundColor Green
-}
-else {
-    Write-Host "Installing PowerShell (pwsh)..."
-    dotnet tool install --global PowerShell
-    Write-Host "✓ PowerShell installed successfully." -ForegroundColor Green
-}
-
-Write-Host "`nStep 6: Installing Ivy-Tendril..." -ForegroundColor Blue
-$IVY_SOURCE = "https://api.nuget.org/v3/index.json"
-
-$hasTendril = $false
-if (Get-Command dotnet -ErrorAction SilentlyContinue) {
-    $toolList = (dotnet tool list -g 2>$null) -join " "
-    if ($toolList -match "ivy\.tendril") {
-        $hasTendril = $true
-    }
-}
-
-if ($hasTendril) {
-    Write-Host "Updating Ivy-Tendril..."
-    # ignore update errors
-    try {
-        dotnet tool update -g Ivy.Tendril --add-source "$IVY_SOURCE"
-    }
-    catch {
-        Write-Host "Ivy-Tendril updated."
-    }
-}
-else {
-    Write-Host "Installing Ivy-Tendril..."
-    dotnet tool install -g Ivy.Tendril --add-source "$IVY_SOURCE"
-}
-
-# Step 7: Path Configuration Verification
-Write-Host "`nStep 7: Configuring PATH..." -ForegroundColor Blue
-$dotnetToolsPath = "$env:USERPROFILE\.dotnet\tools"
-$env:PATH = "$dotnetToolsPath;$env:PATH"
-
-$userPath = [Environment]::GetEnvironmentVariable("PATH", "User")
-if ($userPath -notmatch [regex]::Escape($dotnetToolsPath)) {
-    Write-Host "Adding .NET tools to User PATH..."
-    [Environment]::SetEnvironmentVariable("PATH", "$userPath;$dotnetToolsPath", "User")
-    Write-Host "✓ PATH updated." -ForegroundColor Green
-}
-else {
-    Write-Host "✓ PATH already configured." -ForegroundColor Green
-}
-
-Write-Host "`n=== Installation Complete! ===" -ForegroundColor Green
-Write-Host "You can now run Ivy-Tendril by typing: tendril" -ForegroundColor Blue
-
+Write-Host "`nChecking if GitHub CLI (gh) is installed..." -ForegroundColor Yellow
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
-    Write-Host "Note: You may need to restart your terminal for 'gh' or 'tendril' to be available." -ForegroundColor Red
+    Write-Host "Error: GitHub CLI (gh) is not installed." -ForegroundColor Red
+    Write-Host "Please install the latest version of gh from https://cli.github.com/ and try again." -ForegroundColor Red
+    exit 1
 }
+
+$latestGhTag = ""
+try {
+    # Resolve redirect to get latest tag
+    $req = [System.Net.WebRequest]::Create("https://github.com/cli/cli/releases/latest")
+    $req.AllowAutoRedirect = $false
+    $resp = $req.GetResponse()
+    $loc = $resp.Headers["Location"]
+    $latestGhTag = $loc.Substring($loc.LastIndexOf('/') + 1)
+} catch {
+    # Fallback to GitHub API
+    try {
+        $apiResult = Invoke-RestMethod -Uri "https://api.github.com/repos/cli/cli/releases/latest"
+        $latestGhTag = $apiResult.tag_name
+    } catch {
+        Write-Host "Error: Failed to fetch the latest GitHub CLI release tag." -ForegroundColor Red
+        exit 1
+    }
+}
+$latestGhVersion = $latestGhTag.TrimStart('v')
+
+$ghVersionInfo = gh --version
+if ($ghVersionInfo[0] -match "gh version (\d+\.\d+\.\d+)") {
+    $ghVersion = $Matches[1]
+} else {
+    Write-Host "Error: Failed to parse GitHub CLI version." -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "Installed gh version: $ghVersion" -ForegroundColor Green
+Write-Host "Latest gh version:    $latestGhVersion" -ForegroundColor Green
+
+if ($ghVersion -ne $latestGhVersion) {
+    Write-Host "Error: You do not have the latest GitHub CLI (gh) version." -ForegroundColor Red
+    Write-Host "Please upgrade gh to version $latestGhVersion and try again." -ForegroundColor Red
+    exit 1
+}
+Write-Host "✓ GitHub CLI (gh) is up to date." -ForegroundColor Green
+
+Write-Host "`nStep 1: Fetching latest release info..." -ForegroundColor Blue
+
+$arch = "x64"
+if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq "Arm64") {
+    $arch = "arm64"
+}
+
+$latestTag = ""
+try {
+    # Resolve redirect to get latest tag
+    $req = [System.Net.WebRequest]::Create("https://github.com/Ivy-Interactive/Ivy-Tendril/releases/latest")
+    $req.AllowAutoRedirect = $false
+    $resp = $req.GetResponse()
+    $loc = $resp.Headers["Location"]
+    $latestTag = $loc.Substring($loc.LastIndexOf('/') + 1)
+} catch {
+    # Fallback to GitHub API
+    try {
+        $apiResult = Invoke-RestMethod -Uri "https://api.github.com/repos/Ivy-Interactive/Ivy-Tendril/releases/latest"
+        $latestTag = $apiResult.tag_name
+    } catch {
+        Write-Host "Error: Failed to fetch the latest release tag." -ForegroundColor Red
+        exit 1
+    }
+}
+
+$version = $latestTag.TrimStart('v')
+Write-Host "Latest version found: $version" -ForegroundColor Green
+
+$fileName = "IvyTendril-$version-win-$arch.exe"
+$downloadUrl = "https://github.com/Ivy-Interactive/Ivy-Tendril/releases/download/$latestTag/$fileName"
+$tempPath = Join-Path $env:TEMP $fileName
+
+Write-Host "`nStep 2: Downloading installer..." -ForegroundColor Blue
+Write-Host "Downloading from: $downloadUrl"
+Invoke-WebRequest -Uri $downloadUrl -OutFile $tempPath
+
+Write-Host "`nStep 3: Running installer..." -ForegroundColor Blue
+Write-Host "Please follow the setup wizard if it appears." -ForegroundColor Yellow
+Start-Process -FilePath $tempPath -Wait
+
+Write-Host "`n=== Installation Started/Complete! ===" -ForegroundColor Green
+Write-Host "If Tendril does not start automatically, search for it in your Start menu." -ForegroundColor Blue

@@ -12,7 +12,6 @@ public class SidebarView(
     IState<string?> levelFilter,
     IState<string?> textFilter,
     IState<bool> filtersOpen,
-    IState<bool> showCompleted,
     IConfigService config) : ViewBase
 {
     private object BuildHeader()
@@ -45,8 +44,7 @@ public class SidebarView(
                 | projectFilter.ToSelectInput(projectCounts).Placeholder("All Projects").Nullable()
                     .WithField().Label("Project")
                 | levelFilter.ToSelectInput(levelOptions.ToOptions()).Placeholder("All Levels").Nullable()
-                    .WithField().Label("Level")
-                | showCompleted.ToBoolInput("Show Completed");
+                    .WithField().Label("Level");
         }
 
         return header;

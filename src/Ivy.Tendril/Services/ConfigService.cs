@@ -178,6 +178,7 @@ public class TendrilSettings
     public Tunnel.TunnelConfig? Tunnel { get; set; }
     public bool Telemetry { get; set; } = true;
     public bool DesktopNotifications { get; set; } = true;
+    public string? DismissedUpdateVersion { get; set; }
 
     public List<LevelConfig> Levels { get; set; } = new()
     {

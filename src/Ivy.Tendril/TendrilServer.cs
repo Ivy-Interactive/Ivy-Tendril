@@ -108,10 +108,20 @@ public static class TendrilServer
                 buildSourcePlugins: true);
         }
 
-        // Eagerly register Ivy.Tendril.Widgets assembly to ensure Tendril widgets are discovered
-        // when running in single-file published mode (where DLLs are not on disk)
+        // Eagerly register Ivy.Tendril.Widgets and framework widgets assemblies to ensure widgets
+        // are discovered when running in single-file published mode (where DLLs are not on disk)
         Ivy.Core.ExternalWidgets.ExternalWidgetRegistry.Instance.RegisterAssembly(
             typeof(TendrilProcessViewer).Assembly);
+        Ivy.Core.ExternalWidgets.ExternalWidgetRegistry.Instance.RegisterAssembly(
+            typeof(Ivy.Widgets.Xterm.Terminal).Assembly);
+        Ivy.Core.ExternalWidgets.ExternalWidgetRegistry.Instance.RegisterAssembly(
+            typeof(Ivy.Widgets.DiffView.DiffView).Assembly);
+        Ivy.Core.ExternalWidgets.ExternalWidgetRegistry.Instance.RegisterAssembly(
+            typeof(Ivy.Widgets.QRCode.QRCode).Assembly);
+        Ivy.Core.ExternalWidgets.ExternalWidgetRegistry.Instance.RegisterAssembly(
+            typeof(Ivy.Widgets.ActivityHeatmap.ActivityHeatmap).Assembly);
+        Ivy.Core.ExternalWidgets.ExternalWidgetRegistry.Instance.RegisterAssembly(
+            typeof(Ivy.Widgets.AnimatedStatusLabel.AnimatedStatusLabel).Assembly);
 
         var version = typeof(TendrilAppShell).Assembly.GetName().Version!;
         var versionString = version.ToString(3);

@@ -5,7 +5,7 @@ namespace Ivy.Tendril.Agents.Providers.Gemini;
 public sealed class GeminiCli : IAgentCli
 {
     public string Id => AgentId.Gemini;
-    public string DisplayName => "Gemini CLI";
+    public string DisplayName => "Gemini";
 
     public AgentCapabilities Capabilities =>
         AgentCapabilities.StdinPrompt |

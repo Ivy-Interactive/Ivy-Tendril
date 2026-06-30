@@ -61,14 +61,14 @@ public class MasterElectionService(
         var bound = GetBoundAddress();
         if (bound == null)
         {
-            logger.LogWarning("Could not determine bound port — .master file not written");
+            logger.LogWarning("Could not determine bound port: .master file not written");
             IsMaster = false;
             return;
         }
 
         WriteMasterFile(bound.Value.Port, bound.Value.Scheme);
         _heartbeatTimer = new Timer(UpdateHeartbeat, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
-        logger.LogInformation("Master election won — listening on port {Port}", bound.Value.Port);
+        logger.LogInformation("Master election won, listening on port {Port}", bound.Value.Port);
     }
 
     private void OnApplicationStopping()
@@ -95,14 +95,14 @@ public class MasterElectionService(
 
             if (!IsProcessAlive(existing.Pid))
             {
-                logger.LogInformation("Stale .master file (PID {Pid} is dead) — claiming master", existing.Pid);
+                logger.LogInformation("Stale .master file (PID {Pid} is dead), claiming master", existing.Pid);
                 File.Delete(_masterFilePath);
                 return true;
             }
 
             if (DateTime.UtcNow - existing.Heartbeat > TimeSpan.FromSeconds(90))
             {
-                logger.LogInformation("Stale .master file (heartbeat expired) — claiming master");
+                logger.LogInformation("Stale .master file (heartbeat expired), claiming master");
                 File.Delete(_masterFilePath);
                 return true;
             }
@@ -111,7 +111,7 @@ public class MasterElectionService(
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to read .master file — deleting and claiming");
+            logger.LogWarning(ex, "Failed to read .master file, deleting and claiming");
             try { File.Delete(_masterFilePath); } catch { }
             return true;
         }

@@ -19,6 +19,8 @@ public sealed class CodexPty : IAgentPty
     public TransportKind SupportedTransports => TransportKind.Pty;
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles => [];
 
+    public string? ContextFileName => "AGENTS.md";
+
     private static readonly FrozenDictionary<string, string> ToolNameMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
         [CanonicalTools.Bash] = "bash",
@@ -47,8 +49,15 @@ public sealed class CodexPty : IAgentPty
         var args = new List<string> { "codex" };
 
         // FullAuto → run without approval prompts (workspace-write sandbox).
+        // The interactive TUI has no `--full-auto` shorthand (that lived on the
+        // legacy top-level CLI); compose it from the sandbox + approval flags.
         if (config.PermissionMode == PermissionMode.FullAuto)
-            args.Add("--full-auto");
+        {
+            args.Add("--sandbox");
+            args.Add("workspace-write");
+            args.Add("--ask-for-approval");
+            args.Add("never");
+        }
 
         if (!string.IsNullOrEmpty(config.Model))
         {
@@ -58,6 +67,10 @@ public sealed class CodexPty : IAgentPty
 
         foreach (var arg in config.ExtraArguments)
             args.Add(arg);
+
+        // Initial task as the trailing positional [PROMPT] — must come after all options.
+        if (!string.IsNullOrEmpty(config.InitialPrompt))
+            args.Add(config.InitialPrompt);
 
         var env = new Dictionary<string, string>(GetDefaultEnvironment());
         foreach (var (key, value) in config.EnvironmentVariables)
@@ -76,5 +89,8 @@ public sealed class CodexPty : IAgentPty
         WorkingPattern = @"⠋|⠙|⠹|⠸|⠼|⠴|⠦|⠧|⠇|⠏|●",
         IdlePattern = @">\s*$",
         ErrorPattern = @"Error:|error:|ERR!",
+        // First-run "Do you trust the contents of this directory?" prompt; default "Yes" → Enter.
+        TrustPromptPattern = @"Do you trust|trust the contents",
+        TrustAcceptInput = "\r",
     };
 }

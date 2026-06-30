@@ -21,7 +21,6 @@ public class ReviewApp : ViewBase
         var projectFilter = UseState<string?>(null);
         var levelFilter = UseState<string?>(null);
         var textFilter = UseState<string?>("");
-        var showCompleted = UseState(false);
         var filtersOpen = UseState(false);
         var refreshToken = UseRefreshToken();
 
@@ -67,9 +66,7 @@ public class ReviewApp : ViewBase
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var plans = planService.GetPlans()
-            .Where(p => showCompleted.Value
-                ? p.Status is PlanStatus.Review or PlanStatus.Failed or PlanStatus.Completed
-                : p.Status is PlanStatus.Review or PlanStatus.Failed)
+            .Where(p => p.Status is PlanStatus.Review or PlanStatus.Failed)
             .Where(p => !activePlanFolders.Contains(p.FolderPath))
             .ToList();
         var filteredPlans = PlanFilters.ApplyFilters(plans, projectFilter.Value, levelFilter.Value, textFilter.Value).ToList();
@@ -98,7 +95,7 @@ public class ReviewApp : ViewBase
 
         previousPlans.Value = filteredPlans;
 
-        var sidebar = new SidebarView(plans, selectedPlanState, projectFilter, levelFilter, textFilter, filtersOpen, showCompleted, configService);
+        var sidebar = new SidebarView(plans, selectedPlanState, projectFilter, levelFilter, textFilter, filtersOpen, configService);
 
         var content = new ContentView(selectedPlanState, filteredPlans, planService, jobService,
             RefreshPlans, configService, gitService);

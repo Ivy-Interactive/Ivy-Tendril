@@ -1,3 +1,7 @@
+using System;
+using System.IO;
+using System.Threading.Tasks;
+using Ivy.Tendril.Helpers;
 using System.Reactive.Disposables;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Hooks;
@@ -15,12 +19,16 @@ public class WallpaperApp : ViewBase
     public override object Build()
     {
         var client = UseService<IClientProvider>();
+        var config = UseService<IConfigService>();
         var versionService = UseService<IVersionCheckService>();
         var planDbService = UseService<IPlanDatabaseService>();
         var tunnelService = UseService<ICloudflaredService>();
         var copyToClipboard = UseClipboard();
         var versionInfo = UseState<VersionInfo?>(null);
-        var dismissedVersion = UseState<string?>(null);
+        var dismissedVersion = UseState<string?>(() => config.Settings.DismissedUpdateVersion);
+        var updateProgress = UseState<int?>(null);
+        var updateStatus = UseState<string?>(null);
+        var updateError = UseState<string?>(null);
         var tunnelStatus = UseState(tunnelService.Status);
         var tunnelUrl = UseState<string?>(tunnelService.TunnelUrl);
 
@@ -107,21 +115,73 @@ public class WallpaperApp : ViewBase
             elements.Add(tunnelQr);
         }
 
-        if (versionInfo.Value?.HasUpdate == true && versionInfo.Value.LatestVersion != dismissedVersion.Value)
+        if ((versionInfo.Value?.HasUpdate == true && versionInfo.Value.LatestVersion != dismissedVersion.Value) || updateProgress.Value != null || updateError.Value != null)
         {
-            var updateCommand = "dotnet tool update -g Ivy.Tendril";
-            var notification = new FloatingPanel(
-                new Card(
-                    Layout.Vertical()
+            object content;
+
+            if (updateError.Value is { } errorMsg)
+            {
+                content = Layout.Vertical()
+                    | Text.Danger("Update Failed").Bold().Small()
+                    | Text.Block(errorMsg).Small()
+                    | Layout.Horizontal().Gap(2)
+                        | new Button("Retry", () =>
+                            {
+                                TriggerUpdate(versionInfo.Value?.LatestVersion, updateProgress, updateStatus, updateError);
+                            })
+                            .Small()
+                        | new Button("Dismiss", () =>
+                            {
+                                updateError.Set(null);
+                                var latest = versionInfo.Value?.LatestVersion ?? "";
+                                if (!string.IsNullOrEmpty(latest))
+                                {
+                                    dismissedVersion.Set(latest);
+                                    config.Settings.DismissedUpdateVersion = latest;
+                                    config.SaveSettings();
+                                }
+                            })
+                            .Variant(ButtonVariant.Secondary)
+                            .Small();
+            }
+            else if (updateProgress.Value is { } progressVal)
+            {
+                content = Layout.Vertical()
+                    | Text.Block(updateStatus.Value ?? "Updating...").Small()
+                    | new Progress(progressVal)
+                    | Text.Muted($"{progressVal}%").Small();
+            }
+            else
+            {
+                var updateCommand = OperatingSystem.IsWindows()
+                    ? "irm https://cdn.ivy.app/install-tendril.ps1 | iex"
+                    : "curl -sSf https://cdn.ivy.app/install-tendril.sh | sh";
+
+                content = Layout.Vertical()
                     | Text.Rich()
-                        .Bold($"v{versionInfo.Value.LatestVersion}")
+                        .Bold($"v{versionInfo.Value!.LatestVersion}")
                         .Run($" is available (you have v{versionInfo.Value.CurrentVersion})")
                         .Small()
                     | new CodeBlock(updateCommand, Languages.Bash)
-                    | new Button("Dismiss", () => dismissedVersion.Set(versionInfo.Value.LatestVersion))
-                        .Variant(ButtonVariant.Secondary)
-                        .Small()
-                ).Header("Update Available", null, Icons.CircleArrowUp)
+                    | Layout.Horizontal().Gap(2)
+                        | new Button("Update Now", () =>
+                            {
+                                TriggerUpdate(versionInfo.Value.LatestVersion, updateProgress, updateStatus, updateError);
+                            })
+                            .Small()
+                        | new Button("Dismiss", () =>
+                            {
+                                var latest = versionInfo.Value!.LatestVersion;
+                                dismissedVersion.Set(latest);
+                                config.Settings.DismissedUpdateVersion = latest;
+                                config.SaveSettings();
+                            })
+                            .Variant(ButtonVariant.Secondary)
+                            .Small();
+            }
+
+            var notification = new FloatingPanel(
+                new Card(content).Header("Update Available", null, Icons.CircleArrowUp)
             ).Offset(new Thickness(0, 0, 8, 8));
 
             elements.Add(notification);
@@ -130,4 +190,78 @@ public class WallpaperApp : ViewBase
         return new Fragment(elements.ToArray());
     }
 
+    private void TriggerUpdate(string? latestVersion, IState<int?> updateProgress, IState<string?> updateStatus, IState<string?> updateError)
+    {
+        updateProgress.Set(0);
+        updateStatus.Set("Starting update...");
+        updateError.Set(null);
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var includeBeta = Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1";
+                var source = new Velopack.Sources.GithubSource("https://github.com/Ivy-Interactive/Ivy-Tendril", null, includeBeta);
+                var mgr = new Velopack.UpdateManager(source);
+
+                if (mgr.IsInstalled)
+                {
+                    updateStatus.Set("Checking for updates...");
+                    var updateInfo = await mgr.CheckForUpdatesAsync();
+                    if (updateInfo == null)
+                    {
+                        updateStatus.Set("No update available.");
+                        updateProgress.Set(null);
+                        return;
+                    }
+
+                    updateStatus.Set("Downloading update package...");
+                    await mgr.DownloadUpdatesAsync(updateInfo, progress =>
+                    {
+                        updateProgress.Set(progress);
+                    });
+
+                    updateStatus.Set("Applying updates and restarting...");
+                    mgr.ApplyUpdatesAndRestart(updateInfo);
+                }
+                else
+                {
+                    updateStatus.Set("Fetching latest version...");
+                    var versionStr = latestVersion;
+                    if (string.IsNullOrEmpty(versionStr))
+                    {
+                        versionStr = await UpdateHelper.GetLatestVersionAsync();
+                    }
+
+                    if (string.IsNullOrEmpty(versionStr))
+                    {
+                        throw new InvalidOperationException("Could not determine the latest version.");
+                    }
+
+                    var (filename, downloadUrl) = UpdateHelper.GetInstallerInfo(versionStr);
+                    var tempFilePath = Path.Combine(Path.GetTempPath(), filename);
+
+                    updateStatus.Set($"Downloading {filename}...");
+                    await UpdateHelper.DownloadFileWithProgressAsync(downloadUrl, tempFilePath, (read, total) =>
+                    {
+                        if (total > 0)
+                        {
+                            updateProgress.Set((int)((double)read / total * 100));
+                        }
+                    });
+
+                    updateStatus.Set("Launching installer...");
+                    UpdateHelper.LaunchInstaller(tempFilePath);
+                    
+                    // Exit the app to let the installer do its work
+                    Environment.Exit(0);
+                }
+            }
+            catch (Exception ex)
+            {
+                updateError.Set(ex.Message);
+                updateProgress.Set(null);
+            }
+        });
+    }
 }

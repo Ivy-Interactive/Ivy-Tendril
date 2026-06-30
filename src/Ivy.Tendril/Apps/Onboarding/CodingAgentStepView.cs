@@ -57,12 +57,12 @@ public class CodingAgentStepView(
 
     private static readonly AgentInfo[] Agents =
     [
-        new("claude",   "Claude",   Icons.ClaudeCode),
-        new("copilot",  "Copilot",  Icons.Copilot),
-        new("codex",    "Codex",    Icons.OpenAI),
-        new("gemini",   "Gemini",   Icons.Gemini),
-        new("antigravity", "Antigravity", Icons.Antigravity),
-        new("opencode", "OpenCode", Icons.OpenCode)
+        new("claude",   "Claude",   AgentBranding.IconFor("claude")),
+        new("copilot",  "Copilot",  AgentBranding.IconFor("copilot")),
+        new("codex",    "Codex",    AgentBranding.IconFor("codex")),
+        new("gemini",   "Gemini",   AgentBranding.IconFor("gemini")),
+        new("antigravity", "Antigravity", AgentBranding.IconFor("antigravity")),
+        new("opencode", "OpenCode", AgentBranding.IconFor("opencode"))
     ];
 
     public override object Build()
@@ -94,7 +94,7 @@ public class CodingAgentStepView(
 
         var selected = Agents.First(a => a.Key == selectedAgent.Value);
 
-        return Layout.Vertical().Margin(0, 0, 0, 20)
+        return Layout.Vertical().Margin(0, 0, 0, 2)
                | Text.Block(progressMessage.Value ?? $"Setting Up {selected.Label}")
                | (progressValue.Value != null
                    ? new Progress(progressValue.Value.Value)
@@ -235,7 +235,7 @@ public class CodingAgentStepView(
 
         grid = agents.Aggregate(grid, (current, a) => current | new Card(Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(0) | a.Logo.ToIcon().Width(Size.Px(32)).Height(Size.Px(32)) | Text.Block(a.Label)).OnClick(() => onSelect(a.Key)));
 
-        return Layout.Vertical().Margin(0, 0, 0, 20)
+        return Layout.Vertical().Margin(0, 0, 0, 2)
                | Text.H3("What is your coding agent?")
                | Text.Muted(
                    "Tendril is a coding orchestrator that runs on top of your own coding agent. Pick the agent you'd like to use:")

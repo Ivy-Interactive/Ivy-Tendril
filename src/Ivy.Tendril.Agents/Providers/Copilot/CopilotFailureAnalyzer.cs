@@ -12,8 +12,8 @@ public sealed class CopilotFailureAnalyzer : IFailureAnalyzer
             {
                 Kind = context.IdleTimeout ? FailureKind.IdleTimeout : FailureKind.Timeout,
                 Reason = context.IdleTimeout
-                    ? "GitHub Copilot went idle beyond the configured threshold"
-                    : "GitHub Copilot exceeded the total timeout",
+                    ? "Copilot went idle beyond the configured threshold"
+                    : "Copilot exceeded the total timeout",
                 IsRetryable = true,
                 Suggestion = "Increase timeout or simplify the prompt",
             };
@@ -74,7 +74,7 @@ public sealed class CopilotFailureAnalyzer : IFailureAnalyzer
             return new FailureAnalysis
             {
                 Kind = FailureKind.ProcessCrash,
-                Reason = $"GitHub Copilot exited with code {context.ExitCode}",
+                Reason = $"Copilot exited with code {context.ExitCode}",
                 ContextLines = context.StderrLines,
                 IsRetryable = true,
             };

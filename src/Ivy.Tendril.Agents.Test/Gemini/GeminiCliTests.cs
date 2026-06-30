@@ -16,7 +16,7 @@ public class GeminiCliTests
     [Fact]
     public void DisplayName_IsGeminiCli()
     {
-        Assert.Equal("Gemini CLI", _cli.DisplayName);
+        Assert.Equal("Gemini", _cli.DisplayName);
     }
 
     [Fact]

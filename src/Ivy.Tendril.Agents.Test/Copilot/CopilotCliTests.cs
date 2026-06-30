@@ -16,7 +16,7 @@ public class CopilotCliTests
     [Fact]
     public void DisplayName_IsGitHubCopilot()
     {
-        Assert.Equal("GitHub Copilot", _cli.DisplayName);
+        Assert.Equal("Copilot", _cli.DisplayName);
     }
 
     [Fact]

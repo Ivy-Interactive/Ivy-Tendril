@@ -386,4 +386,34 @@ public class ClaudePtyTests
 
         Assert.DoesNotContain("--session-id", spec.CommandLine);
     }
+
+    [Fact]
+    public void BuildPtySpec_InitialPrompt_IsTrailingPositionalArg()
+    {
+        var config = new AgentPtyConfig
+        {
+            WorkingDirectory = "/tmp/test",
+            InitialPrompt = "do the thing",
+        };
+
+        var args = _pty.BuildPtySpec(config).CommandLine.ToList();
+
+        Assert.Equal("do the thing", args[^1]);
+    }
+
+    [Fact]
+    public void BuildPtySpec_NoInitialPrompt_HasNoTrailingPrompt()
+    {
+        var config = new AgentPtyConfig { WorkingDirectory = "/tmp/test" };
+
+        var args = _pty.BuildPtySpec(config).CommandLine.ToList();
+
+        Assert.DoesNotContain("do the thing", args);
+    }
+
+    [Fact]
+    public void ContextFileName_IsNull_ClaudeUsesSystemPromptFlag()
+    {
+        Assert.Null(_pty.ContextFileName);
+    }
 }

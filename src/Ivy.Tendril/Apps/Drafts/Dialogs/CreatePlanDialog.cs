@@ -1,5 +1,6 @@
 using Ivy;
 using Ivy.Core.Hooks;
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Widgets;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
@@ -29,7 +30,7 @@ public class CreatePlanDialog(
         _ => 0
     };
 
-    // Builds the seed prompt for the "Continue with Agent" flow. The description is
+    // Builds the seed prompt for the "Continue with <agent>" flow. The description is
     // trimmed, a single project reads "the project X", multiple read "the projects X or Y",
     // and "Auto" lets the agent pick the project itself.
     internal static string BuildAgentPrompt(string[] projects, string description)
@@ -53,11 +54,10 @@ public class CreatePlanDialog(
         var selectedProjects = UseState(_defaultProjects);
         var selectedPriority = UseState("Normal");
         var configService = UseService<IConfigService>();
+        var agentRunner = UseService<IAgentRunner>();
         var tendrilArgs = UseService<TendrilArgs>();
         var uploadSessionId = UseState(() => Guid.NewGuid().ToString("N"));
-
         var (breakpoint, breakpointListener) = Context.UseBreakpoint();
-
         var uploadedFiles = UseState(new List<string>());
 
         var uploadContext = this.UseUpload(async (fileUpload, stream, token) =>
@@ -82,6 +82,9 @@ public class CreatePlanDialog(
             var newList = new List<string>(uploadedFiles.Value) { filePath };
             uploadedFiles.Set(newList);
         });
+
+        // e.g. "Continue with Claude Code" — branded to the configured coding agent.
+        var continueLabel = $"Chat with {AgentBranding.For(configService.Settings.CodingAgent, agentRunner).Label}";
 
         var exclusiveProjects = new ConvertedState<string[], string[]>(
             selectedProjects,
@@ -131,6 +134,7 @@ public class CreatePlanDialog(
                 {
                     TranscriptionUrl = $"{tendrilArgs.ServicesWsUrl}/transcribe/ws",
                     UploadUrl = uploadContext.Value.UploadUrl,
+                    AutoFocus = true,
                     OnSubmit = e =>
                     {
                         if (!string.IsNullOrWhiteSpace(createPlanText.Value) && !isCreating.Value)
@@ -147,7 +151,7 @@ public class CreatePlanDialog(
                     },
                     OnMenuAction = e =>
                     {
-                        if (e.Value == "Continue with Agent")
+                        if (e.Value == continueLabel)
                         {
                             if (string.IsNullOrWhiteSpace(createPlanText.Value)) return ValueTask.CompletedTask;
                             var projects = selectedProjects.Value.Any()
@@ -193,7 +197,7 @@ public class CreatePlanDialog(
                 }
                     .Bind(createPlanText)
                     .SubmitLabel("Create")
-                    .MenuOptions("Continue with Agent")
+                    .MenuOptions(continueLabel)
                     .Placeholder("Enter task description...")
                     .WithField()
                     .Label("Describe the task for the new plan")

@@ -217,12 +217,35 @@
 /* Inline code */
 .pmv-markdown code {
   position: relative;
+  display: inline;
   border-radius: 0.25rem;
   background: var(--muted);
   padding: 0.05rem 0.25rem;
   font-family: "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
     Consolas, monospace;
   font-weight: 600;
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* Keyboard shortcuts (KBD) */
+.pmv-markdown kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 20px;
+  min-width: 20px;
+  padding: 0 5px;
+  font-size: 0.75rem;
+  font-weight: 400;
+  font-family: inherit;
+  line-height: 1;
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-radius: 0.25rem;
+  background: var(--muted);
+  color: var(--foreground);
+  vertical-align: baseline;
 }
 
 /* Code blocks */
@@ -384,6 +407,7 @@
 @media (prefers-color-scheme: dark) {
   .pmv-annotation-highlight {
     background: hsl(48 80% 20% / 0.5);
+    color: hsl(0 0% 95%);
   }
 }
 
@@ -636,11 +660,6 @@
 /* Image viewer */
 .pmv-img-clickable {
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-.pmv-img-clickable:hover {
-  transform: scale(1.02);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .pmv-img-error {

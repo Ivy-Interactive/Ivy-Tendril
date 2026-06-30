@@ -209,7 +209,7 @@ import path from 'path';
 async function findFreePort(): Promise<number> {
   return new Promise((resolve) => {
     const server = net.createServer();
-    server.listen(0, () => {
+    server.listen(0, '127.0.0.1', () => {
       const addr = server.address();
       const port = typeof addr === 'string' ? 0 : addr?.port ?? 0;
       server.close(() => resolve(port));

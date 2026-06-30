@@ -16,6 +16,8 @@ public sealed class AntigravityPty : IAgentPty
     public TransportKind SupportedTransports => TransportKind.Pty;
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles => [];
 
+    public string? ContextFileName => "AGENTS.md";
+
     public string? TranslateToolName(string canonicalTool) => null;
 
     public string? ReverseTranslateToolName(string nativeTool) => null;
@@ -40,6 +42,13 @@ public sealed class AntigravityPty : IAgentPty
 
         if (config.PermissionMode == PermissionMode.FullAuto)
             args.Add("--dangerously-skip-permissions");
+
+        // Initial task: -i (--prompt-interactive) runs the prompt then continues interactively.
+        if (!string.IsNullOrEmpty(config.InitialPrompt))
+        {
+            args.Add("-i");
+            args.Add(config.InitialPrompt);
+        }
 
         foreach (var arg in config.ExtraArguments)
             args.Add(arg);

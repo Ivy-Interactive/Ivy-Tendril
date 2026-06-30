@@ -19,11 +19,7 @@ public class AcceptWithNotesDialog(
         if (!_dialogOpen.Value) return null;
 
         return new Dialog(
-            _ =>
-            {
-                notesText.Set("");
-                _dialogOpen.Set(false);
-            },
+            _ => _dialogOpen.Set(false),
             new DialogHeader("Accept with Notes"),
             new DialogBody(
                 Layout.Vertical().Gap(2)
@@ -32,15 +28,10 @@ public class AcceptWithNotesDialog(
                 | notesText.ToTextareaInput("Enter your notes...").Rows(6).AutoFocus()
             ),
             new DialogFooter(
-                new Button("Cancel").Outline().OnClick(() =>
-                {
-                    notesText.Set("");
-                    _dialogOpen.Set(false);
-                }),
+                new Button("Cancel").Outline().OnClick(() => _dialogOpen.Set(false)),
                 new Button("Accept").Primary().ShortcutKey("Ctrl+Enter").OnClick(() =>
                 {
                     _onAccept(notesText.Value);
-                    notesText.Set("");
                     _dialogOpen.Set(false);
                 })
             )
