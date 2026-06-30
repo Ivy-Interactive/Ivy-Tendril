@@ -10,12 +10,16 @@ namespace Ivy.Tendril.Services;
 public sealed class BugReportService
 {
     private static readonly Regex JobIdFromLogRegex = new(@"^(\d{5})-", RegexOptions.Compiled);
-    private const string BugReportApiUrl = "https://tendril-api.ivy.app/report-bug";
     private const string RedactedPlaceholder = "[REDACTED]";
 
     private readonly IConfigService _config;
+    private readonly string _bugReportApiUrl;
 
-    public BugReportService(IConfigService config) => _config = config;
+    public BugReportService(IConfigService config, TendrilArgs args)
+    {
+        _config = config;
+        _bugReportApiUrl = args.ServicesUrl + "/report-bug";
+    }
 
     /// <summary>
     ///     A file to include in a bug report. When <see cref="Content" /> is set the bytes are zipped directly
@@ -298,7 +302,7 @@ public sealed class BugReportService
         return zipPath;
     }
 
-    private static async Task<BugReportResult?> UploadAsync(string zipPath, string description, string osVersion, string tendrilVersion, string agent, string? commitId, CancellationToken ct)
+    private async Task<BugReportResult?> UploadAsync(string zipPath, string description, string osVersion, string tendrilVersion, string agent, string? commitId, CancellationToken ct)
     {
         using var httpClient = new HttpClient();
         httpClient.Timeout = TimeSpan.FromMinutes(5);
@@ -317,7 +321,7 @@ public sealed class BugReportService
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/zip");
         form.Add(fileContent, "file", "bug-report.zip");
 
-        var response = await httpClient.PostAsync(BugReportApiUrl, form, ct);
+        var response = await httpClient.PostAsync(_bugReportApiUrl, form, ct);
 
         if (!response.IsSuccessStatusCode)
             return null;

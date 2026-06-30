@@ -53,6 +53,7 @@ public class CreatePlanDialog(
         var selectedProjects = UseState(_defaultProjects);
         var selectedPriority = UseState("Normal");
         var configService = UseService<IConfigService>();
+        var tendrilArgs = UseService<TendrilArgs>();
         var uploadSessionId = UseState(() => Guid.NewGuid().ToString("N"));
 
         var (breakpoint, breakpointListener) = Context.UseBreakpoint();
@@ -128,6 +129,7 @@ public class CreatePlanDialog(
                 | selectedPriority.ToSelectInput(PriorityOptions).Variant(SelectInputVariant.Toggle).WithField().Label("Priority")
                 | new Ivy.Tendril.Widgets.ContentInput
                 {
+                    TranscriptionUrl = $"{tendrilArgs.ServicesWsUrl}/transcribe/ws",
                     UploadUrl = uploadContext.Value.UploadUrl,
                     OnSubmit = e =>
                     {
