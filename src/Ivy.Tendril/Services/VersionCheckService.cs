@@ -1,4 +1,7 @@
 using System.Text.Json;
+using Velopack;
+using Velopack.Locators;
+using Velopack.Sources;
 
 namespace Ivy.Tendril.Services;
 
@@ -9,9 +12,11 @@ public class VersionCheckService(IHttpClientFactory httpClientFactory) : IVersio
     private VersionInfo? _cachedResult;
     private DateTime _lastCheckTime = DateTime.MinValue;
 
-    public async Task<VersionInfo> CheckForUpdatesAsync()
+    public bool CanSelfUpdate => VelopackLocator.Current?.CurrentlyInstalledVersion != null;
+
+    public async Task<VersionInfo> CheckForUpdatesAsync(bool forceRefresh = false)
     {
-        if (_cachedResult != null && DateTime.UtcNow - _lastCheckTime < CacheDuration)
+        if (!forceRefresh && _cachedResult != null && DateTime.UtcNow - _lastCheckTime < CacheDuration)
             return _cachedResult;
 
         var currentVersion = GetCurrentVersion();
@@ -75,5 +80,32 @@ public class VersionCheckService(IHttpClientFactory httpClientFactory) : IVersio
         }
 
         return highestString;
+    }
+
+    public async Task StartUpdateAsync(UpdateProgress progress, CancellationToken cancellationToken = default)
+    {
+        if (!CanSelfUpdate)
+        {
+            progress.OnStatus("Automatic update isn't available for this install type. Run the command shown to update, then restart.");
+            return;
+        }
+
+        var includeBeta = Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1";
+        var source = new GithubSource("https://github.com/Ivy-Interactive/Ivy-Tendril", null, includeBeta);
+        var mgr = new UpdateManager(source);
+
+        progress.OnStatus("Checking for updates...");
+        var updateInfo = await mgr.CheckForUpdatesAsync();
+        if (updateInfo == null)
+        {
+            progress.OnStatus("You are already on the latest version.");
+            return;
+        }
+
+        progress.OnStatus("Downloading update package...");
+        await mgr.DownloadUpdatesAsync(updateInfo, p => progress.OnProgress(p), cancellationToken);
+
+        progress.OnStatus("Applying updates and restarting...");
+        mgr.ApplyUpdatesAndRestart(updateInfo);
     }
 }

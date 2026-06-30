@@ -120,6 +120,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var selectedIndex = UseState<int?>();
         var appRepository = UseService<IAppRepository>();
         var client = UseService<IClientProvider>();
+        var versionService = UseService<IVersionCheckService>();
         var currentApp = UseState<AppHost?>();
         var statusService = UseService<ITendrilProcessStatusService>();
         var agentRunner = UseService<IAgentRunner>();
@@ -480,6 +481,40 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .Tag("$import-issues")
                 .Icon(Icons.Download)
                 .OnSelect(showImportIssuesDialog),
+            MenuItem.Default("Check for updates")
+                .Tag("$check-updates")
+                .Icon(Icons.CircleArrowUp)
+                .OnSelect(() =>
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var info = await versionService.CheckForUpdatesAsync(forceRefresh: true);
+                            if (info.HasUpdate)
+                            {
+                                client.Toast(
+                                    $"v{info.LatestVersion} is available (you have v{info.CurrentVersion}).",
+                                    "Update available").Info();
+                            }
+                            else if (info.LatestVersion == null)
+                            {
+                                client.Toast("Couldn't check for updates. Please try again later.", "Update check failed")
+                                    .Destructive();
+                            }
+                            else
+                            {
+                                client.Toast($"You're on the latest version (v{info.CurrentVersion}).", "Up to date")
+                                    .Success();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            client.Toast($"Couldn't check for updates: {ex.Message}", "Update check failed")
+                                .Destructive();
+                        }
+                    });
+                }),
             MenuItem.Default("Theme")
                 .Tag("$theme")
                 .Icon(Icons.SunMoon)
