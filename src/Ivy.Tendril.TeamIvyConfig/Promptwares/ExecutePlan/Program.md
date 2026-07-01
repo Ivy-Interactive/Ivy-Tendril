@@ -300,32 +300,6 @@ git status
 
 If there are uncommitted changes, either commit them or discard them with a clear reason. The worktree must be clean.
 
-### 5.5. Generate Summary
-
-After all implementation commits are made, create `<TendrilPlanFolder>/Artifacts/summary.md` summarizing what was done.
-
-The summary should follow this structure:
-
-~~~markdown
-# Summary
-
-## Changes
-
-<Brief description of what was implemented — 2-3 sentences max>
-
-## API Changes
-
-<List any new/changed/removed public APIs: classes, methods, properties, endpoints, CLI commands, config keys. Use code formatting. If no API changes, write "None.">
-
-## Files Modified
-
-<Bulleted list of key files changed, grouped by category. Don't list every file — focus on the important ones.>
-~~~
-
-Focus on **what changed** (past tense), not what the plan said to do. Emphasize API surface changes — new classes, renamed methods, added properties, changed signatures — since these affect consumers.
-
-Update the summary after verification fixes too — if verifications cause additional commits, append those changes to the summary.
-
 ### 6. Document Commits
 
 Use the CLI to record commits, verifications, and related plans — **never edit plan.yaml directly**.
@@ -390,7 +364,31 @@ attempts: <number>
 
 The `result` field in the frontmatter MUST be one of: `Pass`, `Fail`, or `Skipped`. A verification is not complete without both its report file AND the `tendril plan set-verification` CLI call.
 
-### 7.5. Generate Recommendations
+### 7.5. Generate Summary
+
+After all verifications pass, create `<TendrilPlanFolder>/Artifacts/summary.md` summarizing what was done. Because this runs after verification, the summary reflects the final state of the code — including any fix commits made during Step 7.
+
+The summary should follow this structure:
+
+~~~markdown
+# Summary
+
+## Changes
+
+<Brief description of what was implemented — 2-3 sentences max>
+
+## API Changes
+
+<List any new/changed/removed public APIs: classes, methods, properties, endpoints, CLI commands, config keys. Use code formatting. If no API changes, write "None.">
+
+## Files Modified
+
+<Bulleted list of key files changed, grouped by category. Don't list every file — focus on the important ones.>
+~~~
+
+Focus on **what changed** (past tense), not what the plan said to do. Emphasize API surface changes — new classes, renamed methods, added properties, changed signatures — since these affect consumers.
+
+### 7.6. Generate Recommendations
 
 After all verifications pass, reflect on what you observed during this plan's execution. Write down anything you noticed that isn't part of this plan's scope:
 
@@ -434,9 +432,9 @@ After all verifications pass:
 
 3. Run `git status` in every worktree. If there are any uncommitted files (from verification fixes, generated files, etc.), commit or discard them. The worktrees must be completely clean before finishing.
 
-4. Verify `<TendrilPlanFolder>/Artifacts/recommendations.md` exists. If missing, go back to Step 7.5.
+4. Verify `<TendrilPlanFolder>/Artifacts/recommendations.md` exists. If missing, go back to Step 7.6.
 
-5. Verify `<TendrilPlanFolder>/Artifacts/summary.md` exists. If missing, go back to Step 5.5.
+5. Verify `<TendrilPlanFolder>/Artifacts/summary.md` exists. If missing, go back to Step 7.5.
 
 ### 8.5. Worktree Lifecycle
 

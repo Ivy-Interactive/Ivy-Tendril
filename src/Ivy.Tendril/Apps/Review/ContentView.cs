@@ -490,7 +490,7 @@ public class ContentView(
             return content | Text.Muted("No plan selected");
         }
 
-        var reviewAnnotated = MarkdownHelper.AnnotateAllBrokenLinks(selectedPlan.LatestRevisionContent, planService.PlansDirectory);
+        var reviewAnnotated = MarkdownHelper.PrepareForDisplay(selectedPlan.LatestRevisionContent, config);
         var planTabContent = Layout.Vertical().Height(Size.Full())
             | new Markdown(reviewAnnotated)
                 .DangerouslyAllowLocalFiles()
@@ -594,7 +594,7 @@ public class ContentView(
 
                     var card = Layout.Vertical().Gap(1)
                                | titleRow
-                               | new Markdown(rec.Description).DangerouslyAllowLocalFiles().Article();
+                               | new Markdown(MarkdownHelper.PrepareForDisplay(rec.Description, config)).DangerouslyAllowLocalFiles().Article();
 
                     var recTitle = rec.Title;
                     var buttonRow = Layout.Horizontal().Gap(1).Wrap()
@@ -622,7 +622,7 @@ public class ContentView(
             var tabNamesList = new List<string> { "summary", "plan", "details", "verifications", "git" };
             var tabList = new List<Tab>
             {
-                new Tab("Summary", Cap(new SummaryTabView(planData.SummaryMarkdown, planContentQuery.Loading))),
+                new Tab("Summary", Cap(new SummaryTabView(config, planData.SummaryMarkdown, planContentQuery.Loading))),
                 new Tab("Plan", Cap(planTabContent)),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan,
                     jobService.GetJobsForPlan(selectedPlan.FolderName),
@@ -669,7 +669,7 @@ public class ContentView(
             content |= (Layout.Vertical().Padding(2).Height(Size.Full()) | tabs);
         }
 
-        content |= new VerificationReportSheet(openVerification, selectedPlan);
+        content |= new VerificationReportSheet(openVerification, selectedPlan, config);
         content |= new CommitDetailSheet(openCommit, selectedPlan, config, gitService);
 
         if (openArtifact.Value is { } artifactPath)

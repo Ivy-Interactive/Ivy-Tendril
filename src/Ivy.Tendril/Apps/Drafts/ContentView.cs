@@ -230,7 +230,7 @@ public class ContentView(
             content |= (Layout.Vertical().Padding(2).Height(Size.Full()) | tabs);
         }
 
-        content |= new VerificationReportSheet(openVerification, selectedPlan);
+        content |= new VerificationReportSheet(openVerification, selectedPlan, config);
         content |= new CommitDetailSheet(openCommit, selectedPlan, config, gitService);
 
         var hasActiveExpandJob = HasActiveJob<ExpandPlanArgs>();

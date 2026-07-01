@@ -192,12 +192,10 @@ public class TendrilSettings
 
 public record ConfigParseError(string Message, string FilePath, Exception? InnerException);
 
-public class ConfigService : IConfigService, IDisposable
+public class ConfigService : IConfigService
 {
     private readonly bool _explicitHome;
     private readonly ILogger<ConfigService> _logger;
-    private readonly List<string> _trackedTempFiles = new();
-    private readonly object _tempFileLock = new();
     private string[]? _levelNamesCache;
     private string? _pendingCodingAgent;
     private ProjectConfig? _pendingProject;
@@ -560,48 +558,25 @@ public class ConfigService : IConfigService, IDisposable
 
     public void OpenInEditor(string path)
     {
-        var processedPath = PreprocessForEditing(path);
-
         if (!Editor.IsAvailable)
         {
             throw new EditorNotAvailableException(Editor.Command, Editor.Label);
         }
 
-        PlatformHelper.OpenInEditor(Editor.Command, processedPath);
+        PlatformHelper.OpenInEditor(Editor.Command, path);
     }
 
-    public string PreprocessForEditing(string path)
+    /// <summary>
+    ///     Polishes markdown links (file-link repair, <c>:line</c>/<c>#L</c> anchor stripping,
+    ///     <c>plan://</c> conversion, bare-plan-number linking) against the configured repos and
+    ///     plans directory. Idempotent — safe to run at write time and again at render time.
+    /// </summary>
+    public string PolishMarkdown(string content)
     {
-        if (!path.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
-            return path;
+        if (string.IsNullOrEmpty(content))
+            return content;
 
-        var content = File.ReadAllText(path);
-        var repoPaths = Projects
-            .SelectMany(p => p.Repos.Select(r => r.Path))
-            .Where(p => !string.IsNullOrEmpty(p))
-            .ToList();
-        var polisher = new MarkdownLinkPolisher();
-        var polished = polisher.PolishLinks(content, repoPaths, PlanFolder);
-
-        if (content == polished)
-            return path;
-
-        var tempPath = Path.Combine(Path.GetTempPath(), $"tendril-edit-{Guid.NewGuid()}.md");
-        File.WriteAllText(tempPath, polished);
-        lock (_tempFileLock) { _trackedTempFiles.Add(tempPath); }
-        return tempPath;
-    }
-
-    public void Dispose()
-    {
-        lock (_tempFileLock)
-        {
-            foreach (var path in _trackedTempFiles)
-            {
-                try { if (File.Exists(path)) File.Delete(path); } catch { }
-            }
-            _trackedTempFiles.Clear();
-        }
+        return new MarkdownLinkPolisher().PolishLinks(content, PlanFolder);
     }
 
     public void CompleteOnboarding(string tendrilHome)

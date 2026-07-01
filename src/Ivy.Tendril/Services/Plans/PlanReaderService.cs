@@ -266,6 +266,9 @@ public class PlanReaderService(
     /// <param name="content">Markdown content of the new revision.</param>
     public void SaveRevision(string folderName, string content)
     {
+        // Polish links once up front so the database mirror and the on-disk file agree.
+        content = config.PolishMarkdown(content);
+
         // Update database first for instant UI feedback.
         var planId = ExtractPlanId(folderName);
         if (planId.HasValue && _database != null)
@@ -287,7 +290,7 @@ public class PlanReaderService(
             var revisionsDir = Path.Combine(PlansDirectory, folderName, "Revisions");
             FileHelper.EnsureDirectory(revisionsDir);
 
-            var nextNumber = GetNextRevisionNumber(revisionsDir);
+            var nextNumber = RevisionWriter.NextRevisionNumber(revisionsDir);
             var revisionPath = Path.Combine(revisionsDir, $"{nextNumber:D3}.md");
             FileHelper.WriteAllText(revisionPath, content);
 
@@ -1175,18 +1178,6 @@ public class PlanReaderService(
     private static DateTime? ExtractCompletedTimestamp(string logFilePath)
     {
         return FileHelper.ExtractCompletedTimestamp(logFilePath);
-    }
-
-    private static int GetNextRevisionNumber(string revisionsDir)
-    {
-        var existing = Directory.GetFiles(revisionsDir, "*.md");
-        if (existing.Length == 0) return 1;
-
-        return existing
-            .Select(f => Path.GetFileNameWithoutExtension(f))
-            .Select(n => int.TryParse(n, out var num) ? num : 0)
-            .DefaultIfEmpty(0)
-            .Max() + 1;
     }
 
     public record PlanCountSnapshot(

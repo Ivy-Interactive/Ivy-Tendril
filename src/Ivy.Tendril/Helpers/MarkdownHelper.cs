@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Helpers;
 
@@ -67,30 +68,19 @@ public static partial class MarkdownHelper
     }
 
     /// <summary>
-    ///     Searches for files with the given filename in the specified repo directories.
-    ///     Returns distinct file paths (case-insensitive comparison on Windows).
+    ///     Prepares agent-authored markdown for display: repairs links with
+    ///     <see cref="MarkdownLinkPolisher" /> (via <see cref="IConfigService.PolishMarkdown" />), then
+    ///     annotates any still-broken file:/// and plan:// links with a ⚠️ indicator. This is the
+    ///     safety net for content that never went through <see cref="RevisionWriter" /> — legacy
+    ///     revisions already on disk, and non-revision markdown (recommendation descriptions,
+    ///     summaries, verification reports). Idempotent, so double-polishing persisted content is a no-op.
     /// </summary>
-    public static List<string> FindFilesInRepos(IEnumerable<string> repoPaths, string fileName)
+    public static string PrepareForDisplay(string markdownContent, IConfigService config)
     {
-        var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var repoPath in repoPaths)
-        {
-            if (!Directory.Exists(repoPath))
-                continue;
+        if (string.IsNullOrEmpty(markdownContent))
+            return markdownContent;
 
-            try
-            {
-                var matches = Directory.GetFiles(repoPath, fileName, SearchOption.AllDirectories);
-                foreach (var match in matches)
-                    results.Add(match);
-            }
-            catch (UnauthorizedAccessException)
-            {
-                // Skip directories we can't access
-            }
-        }
-
-        return [.. results];
+        return AnnotateAllBrokenLinks(config.PolishMarkdown(markdownContent), config.PlanFolder);
     }
 
     [GeneratedRegex(@"\[([^\]]*)\]\((file:///[^)]+)\)", RegexOptions.IgnoreCase | RegexOptions.Compiled, "en-US")]
