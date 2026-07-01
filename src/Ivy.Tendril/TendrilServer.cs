@@ -105,7 +105,8 @@ public static class TendrilServer
                     return tendrilPluginContext;
                 },
                 sharedAssemblyNames: ["Ivy.Tendril.Plugin.Abstractions", "Ivy.Tendril.Plugin.Extended.Abstractions"],
-                buildSourcePlugins: true);
+                buildSourcePlugins: true,
+                deferPluginLoads: true);
         }
 
         // Eagerly register Ivy.Tendril.Widgets and framework widgets assemblies to ensure widgets
