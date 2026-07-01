@@ -59,6 +59,7 @@ public class JobDebugSheet(
             .Multiline(x => x.PromptwareLog)
             .Multiline(x => x.PromptwareRawLog)
             .Multiline(x => x.SessionId)
+            .Multiline(x => x.CliCommand)
             .Label(x => x.PromptTitle, "Prompt/Title")
             .Label(x => x.PlanId, "Plan Id")
             .Label(x => x.SessionId, "Session Id")

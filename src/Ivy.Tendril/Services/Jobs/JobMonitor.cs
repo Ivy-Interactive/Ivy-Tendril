@@ -122,6 +122,11 @@ internal class JobMonitor
         ConcurrentDictionary<string, JobItem> jobs,
         TimeSpan staleOutputTimeout)
     {
+        // Baseline for staleness before any output arrives. Captured when monitoring begins — i.e.
+        // after the pre-launch "before" hooks and process start — so slow hook setup does not count
+        // against the no-output window. A job that never emits output is still declared stale
+        // relative to this baseline instead of evading the stale-output timeout forever (#1455).
+        var monitoringStartedAt = DateTime.UtcNow;
         try
         {
             while (!timeoutCts.Token.IsCancellationRequested)
@@ -129,9 +134,8 @@ internal class JobMonitor
                 await Task.Delay(TimeSpan.FromSeconds(1), timeoutCts.Token);
                 if (!jobs.TryGetValue(id, out var job) || job.Status != JobStatus.Running)
                     return;
-                if (!job.LastOutputAt.HasValue)
-                    continue;
-                if (DateTime.UtcNow - job.LastOutputAt.Value < staleOutputTimeout)
+                var anchor = job.LastOutputAt ?? monitoringStartedAt;
+                if (DateTime.UtcNow - anchor < staleOutputTimeout)
                     continue;
 
                 job.StaleOutputDetected = true;

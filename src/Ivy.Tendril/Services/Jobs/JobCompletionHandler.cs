@@ -391,16 +391,50 @@ internal class JobCompletionHandler
             CreateNoWindow = true
         };
         using var condProc = Process.Start(condPsi);
-        var condOutput = condProc?.StandardOutput.ReadToEnd().Trim() ?? "";
-        condProc.WaitForExitOrKill(10000);
+        if (condProc == null)
+        {
+            job.EnqueueSystemOutput($"[hook:{hook.Name}] Could not start condition process, skipping");
+            return false;
+        }
 
-        if (condProc?.ExitCode != 0 || condOutput.Equals("False", StringComparison.OrdinalIgnoreCase))
+        // Read both streams concurrently and start the reads BEFORE waiting: a blocking ReadToEnd()
+        // would never return for a hung hook, making the timeout below dead code, and reading one
+        // stream to EOF before the other can deadlock if the child floods the unread pipe (#1455
+        // class). The reads complete when the pipes close on exit or kill.
+        var condOutTask = condProc.StandardOutput.ReadToEndAsync();
+        var condErrTask = condProc.StandardError.ReadToEndAsync();
+        var condExitedNormally = condProc.WaitForExitOrKill(10000);
+        var condOutput = HarvestHookStream(condOutTask);
+        _ = HarvestHookStream(condErrTask); // drain to prevent a full stderr pipe from wedging the read
+
+        if (!condExitedNormally)
+        {
+            job.EnqueueSystemOutput($"[hook:{hook.Name}] Condition timed out after 10s and was terminated, skipping");
+            return false;
+        }
+
+        if (condProc.ExitCode != 0 || condOutput.Equals("False", StringComparison.OrdinalIgnoreCase))
         {
             job.EnqueueSystemOutput($"[hook:{hook.Name}] Condition not met, skipping");
             return false;
         }
 
         return true;
+    }
+
+    // Harvests a stdout/stderr read that was started before WaitForExitOrKill. The read completes
+    // when the pipe closes (process exit or kill); the bounded wait ensures a wedged pipe cannot
+    // re-introduce the hang the concurrent-reads-plus-timeout pattern is meant to prevent.
+    private static string HarvestHookStream(Task<string> readTask)
+    {
+        try
+        {
+            return readTask.Wait(TimeSpan.FromSeconds(5)) ? readTask.Result.Trim() : "";
+        }
+        catch
+        {
+            return "";
+        }
     }
 
     private void RunHookAction(PromptwareHookConfig hook, string planFolder, JobItem job, string jobType)
@@ -423,17 +457,31 @@ internal class JobCompletionHandler
         actionPsi.Environment["TENDRIL_CONFIG"] = _configService!.ConfigPath;
 
         using var actionProc = Process.Start(actionPsi);
-        var output = actionProc?.StandardOutput.ReadToEnd().Trim() ?? "";
-        var stderr = actionProc?.StandardError.ReadToEnd().Trim() ?? "";
-        actionProc.WaitForExitOrKill(30000);
+        if (actionProc == null)
+        {
+            job.EnqueueSystemOutput($"[hook:{hook.Name}] Could not start hook process");
+            return;
+        }
+
+        // Read both streams concurrently and start the reads BEFORE waiting: a blocking ReadToEnd()
+        // would never return for a hung hook, making the timeout below dead code, and reading one
+        // stream to EOF before the other can deadlock if the child floods the unread pipe (#1455
+        // class). The reads complete when the pipes close on exit or kill.
+        var outTask = actionProc.StandardOutput.ReadToEndAsync();
+        var errTask = actionProc.StandardError.ReadToEndAsync();
+        var exitedNormally = actionProc.WaitForExitOrKill(30000);
+        var output = HarvestHookStream(outTask);
+        var stderr = HarvestHookStream(errTask);
 
         if (!string.IsNullOrEmpty(output))
             job.EnqueueSystemOutput($"[hook:{hook.Name}] {output}");
         if (!string.IsNullOrEmpty(stderr))
             job.EnqueueSystemOutput($"[hook:{hook.Name}] [stderr] {stderr}");
 
-        if (actionProc?.ExitCode != 0)
-            job.EnqueueSystemOutput($"[hook:{hook.Name}] Hook failed with exit code {actionProc?.ExitCode}");
+        if (!exitedNormally)
+            job.EnqueueSystemOutput($"[hook:{hook.Name}] Hook timed out after 30s and was terminated");
+        else if (actionProc.ExitCode != 0)
+            job.EnqueueSystemOutput($"[hook:{hook.Name}] Hook failed with exit code {actionProc.ExitCode}");
     }
 
     private static string EncodeForPowerShell(string command)
