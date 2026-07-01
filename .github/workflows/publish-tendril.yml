@@ -87,37 +87,6 @@ jobs:
       - name: Restore
         run: dotnet restore src/Ivy.Tendril/Ivy.Tendril.csproj
 
-      - name: Restore Updater
-        run: dotnet restore src/Ivy.Tendril.Updater/Ivy.Tendril.Updater.csproj
-
-      - name: Build Updater (all platforms)
-        run: |
-          dotnet publish src/Ivy.Tendril.Updater/Ivy.Tendril.Updater.csproj -c Release -r win-x64 --self-contained false -o ./PublishedBinaries/Ivy.Tendril.Updater/win-x64
-          dotnet publish src/Ivy.Tendril.Updater/Ivy.Tendril.Updater.csproj -c Release -r win-arm64 --self-contained false -o ./PublishedBinaries/Ivy.Tendril.Updater/win-arm64
-          dotnet publish src/Ivy.Tendril.Updater/Ivy.Tendril.Updater.csproj -c Release -r osx-x64 --self-contained false -o ./PublishedBinaries/Ivy.Tendril.Updater/osx-x64
-          dotnet publish src/Ivy.Tendril.Updater/Ivy.Tendril.Updater.csproj -c Release -r osx-arm64 --self-contained false -o ./PublishedBinaries/Ivy.Tendril.Updater/osx-arm64
-
-      - name: Clean Updater binaries
-        run: |
-          for dir in win-x64 win-arm64 osx-x64 osx-arm64; do
-            find ./PublishedBinaries/Ivy.Tendril.Updater/$dir -type f ! \( -name "*.exe" -o -name "*.dll" -o -name "*.dylib" -o -name "Ivy.Tendril.Updater" \) -delete
-          done
-
-      - name: Zip Updater binaries
-        run: |
-          cd PublishedBinaries/Ivy.Tendril.Updater/win-x64 && zip -r ../../../Ivy.Tendril.Updater.win-x64.zip . && cd ../../..
-          cd PublishedBinaries/Ivy.Tendril.Updater/win-arm64 && zip -r ../../../Ivy.Tendril.Updater.win-arm64.zip . && cd ../../..
-          cd PublishedBinaries/Ivy.Tendril.Updater/osx-x64 && zip -r ../../../Ivy.Tendril.Updater.osx-x64.zip . && cd ../../..
-          cd PublishedBinaries/Ivy.Tendril.Updater/osx-arm64 && zip -r ../../../Ivy.Tendril.Updater.osx-arm64.zip . && cd ../../..
-
-      - name: Embed Updater binaries in Ivy.Tendril
-        run: |
-          mkdir -p src/Ivy.Tendril/PublishedBinaries
-          cp Ivy.Tendril.Updater.win-x64.zip src/Ivy.Tendril/PublishedBinaries/
-          cp Ivy.Tendril.Updater.win-arm64.zip src/Ivy.Tendril/PublishedBinaries/
-          cp Ivy.Tendril.Updater.osx-x64.zip src/Ivy.Tendril/PublishedBinaries/
-          cp Ivy.Tendril.Updater.osx-arm64.zip src/Ivy.Tendril/PublishedBinaries/
-
       - name: Pack NuGet
         run: |
           dotnet pack src/Ivy.Tendril/Ivy.Tendril.csproj \
