@@ -230,14 +230,24 @@ internal class JobCompletionHandler
             return;
 
         var inlineCost = ExtractCostFromOutputLines(job.OutputLines.ToArray());
-        if (inlineCost != null)
+
+        // Fast path: only trust the agent-reported inline cost when it is actually positive.
+        // A timed-out/interrupted run emits token usage but no cost, so a zero inline cost must
+        // fall through to the pricing fallback below (which derives cost from tokens × model price).
+        if (inlineCost is { cost: > 0 })
         {
             ApplyCost(job, persistJob, raisePropertyChanged, inlineCost.Value.tokens, inlineCost.Value.cost);
             return;
         }
 
         if (_modelPricingService == null)
+        {
+            // No pricing service to derive cost from: still surface the tokens we have (cost stays
+            // null rather than a misleading $0.0000).
+            if (inlineCost is { tokens: > 0 })
+                ApplyCost(job, persistJob, raisePropertyChanged, inlineCost.Value.tokens, cost: null);
             return;
+        }
 
         var sessionId = job.SessionId;
         var jobPlanFolder = job.TypedArgs?.PlanFolder;
@@ -252,18 +262,19 @@ internal class JobCompletionHandler
             try
             {
                 var costCalc = _modelPricingService.CalculateSessionCost(sessionId, provider);
-                if (costCalc.TotalCost > 0 || costCalc.TotalTokens > 0)
+                var (tokens, cost) = ResolveJobCost(inlineCost, costCalc);
+                if (tokens > 0 || cost is > 0)
                 {
                     if (jobs.TryGetValue(jobId, out var j))
                     {
-                        j.Cost = (decimal)costCalc.TotalCost;
-                        j.Tokens = costCalc.TotalTokens;
+                        j.Cost = cost;
+                        j.Tokens = tokens;
                         persistJob(j);
                         raisePropertyChanged();
                     }
 
                     if (jobPlanFolder != null)
-                        PlanYamlHelper.LogCostToCsv(jobPlanFolder, jobType, costCalc.TotalTokens, costCalc.TotalCost);
+                        PlanYamlHelper.LogCostToCsv(jobPlanFolder, jobType, tokens, (double)(cost ?? 0m));
                 }
             }
             catch (Exception ex)
@@ -273,12 +284,37 @@ internal class JobCompletionHandler
         });
     }
 
+    /// <summary>
+    /// Reconciles the agent-reported inline cost with the pricing-derived session cost.
+    /// Prefers any positive cost (inline first, then priced); carries the best available token
+    /// count; leaves cost null when neither source has a positive cost so the UI shows nothing
+    /// instead of a misleading $0.0000 next to a positive token count.
+    /// </summary>
+    internal static (int tokens, decimal? cost) ResolveJobCost(
+        (int tokens, decimal cost)? inline, CostCalculation? priced)
+    {
+        var inlineTokens = inline?.tokens ?? 0;
+        var inlineCost = inline?.cost ?? 0m;
+        var pricedTokens = priced?.TotalTokens ?? 0;
+        var pricedCost = priced is not null ? (decimal)priced.TotalCost : 0m;
+
+        // The pricing path re-parses the full session (including subagents), so prefer its token
+        // count when present; otherwise fall back to the inline count.
+        var tokens = pricedTokens > 0 ? pricedTokens : inlineTokens;
+
+        decimal? cost = inlineCost > 0 ? inlineCost
+            : pricedCost > 0 ? pricedCost
+            : null;
+
+        return (tokens, cost);
+    }
+
     private void ApplyCost(
         JobItem job,
         Action<JobItem> persistJob,
         Action raisePropertyChanged,
         int tokens,
-        decimal cost)
+        decimal? cost)
     {
         job.Cost = cost;
         job.Tokens = tokens;
@@ -287,7 +323,7 @@ internal class JobCompletionHandler
 
         var jobPlanFolder = job.TypedArgs?.PlanFolder;
         if (jobPlanFolder != null)
-            PlanYamlHelper.LogCostToCsv(jobPlanFolder, job.Type, tokens, (double)cost);
+            PlanYamlHelper.LogCostToCsv(jobPlanFolder, job.Type, tokens, (double)(cost ?? 0m));
     }
 
     private static (int tokens, decimal cost)? ExtractCostFromOutputLines(IReadOnlyList<string> outputLines)
