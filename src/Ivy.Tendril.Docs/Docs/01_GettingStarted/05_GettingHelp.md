@@ -37,7 +37,7 @@ This validates your installation, checks required software, and verifies databas
 
 ## Troubleshooting
 
-For common issues and fixes, see the dedicated [Troubleshooting](05_Troubleshooting.md) page.
+For common issues and fixes, see the dedicated [Troubleshooting](06_Troubleshooting.md) page.
 
 <Callout type="Tip">
 When reporting an issue, include the output of `tendril doctor` and `tendril version` — it helps the team diagnose problems faster.
