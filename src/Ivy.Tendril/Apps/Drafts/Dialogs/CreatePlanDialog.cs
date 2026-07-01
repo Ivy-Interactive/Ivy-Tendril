@@ -7,6 +7,7 @@ using Ivy.Tendril.Helpers;
 using System;
 using System.IO;
 using Ivy.Tendril.Apps.Agent;
+using Ivy.Tendril.Apps.Settings.Dialogs;
 
 namespace Ivy.Tendril.Apps.Drafts.Dialogs;
 
@@ -55,9 +56,12 @@ public class CreatePlanDialog(
         var selectedPriority = UseState("Normal");
         var configService = UseService<IConfigService>();
         var agentRunner = UseService<IAgentRunner>();
+        var client = UseService<IClientProvider>();
+        var refreshToken = UseRefreshToken();
         var uploadSessionId = UseState(() => Guid.NewGuid().ToString("N"));
         var (breakpoint, breakpointListener) = Context.UseBreakpoint();
         var uploadedFiles = UseState(new List<string>());
+        var isAddProjectOpen = UseState(false);
 
         var uploadContext = this.UseUpload(async (fileUpload, stream, token) =>
         {
@@ -99,10 +103,11 @@ public class CreatePlanDialog(
             }
         );
 
+        var currentProjectNames = configService.Projects.Select(p => p.Name).ToList();
         var options = new List<IAnyOption>();
-        if (projectNames.Count > 1)
+        if (currentProjectNames.Count > 1)
             options.Add(new Option<string>("Auto", "Auto", icon: Icons.WandSparkles));
-        options.AddRange(projectNames.Select(p => new Option<string>(p, p)));
+        options.AddRange(currentProjectNames.Select(p => new Option<string>(p, p)));
 
         var planWasCreated = false;
         void HandleClose()
@@ -127,7 +132,14 @@ public class CreatePlanDialog(
 
         var bodyContent =
                 Layout.Vertical()
-                | exclusiveProjects.ToSelectInput(options).Variant(SelectInputVariant.Toggle).WithField().Label("Select Project(s)")
+                | (Layout.Vertical().Gap(0)
+                    | (Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween)
+                        | Text.Block("Select Project(s)").Small().Bold()
+                        | new Button().Icon(Icons.Plus).Ghost().Small().Tooltip("Add Project").OnClick(() =>
+                        {
+                            isAddProjectOpen.Set(true);
+                        }))
+                    | exclusiveProjects.ToSelectInput(options).Variant(SelectInputVariant.Toggle))
                 | selectedPriority.ToSelectInput(PriorityOptions).Variant(SelectInputVariant.Toggle).WithField().Label("Priority")
                 | new Ivy.Tendril.Widgets.ContentInput
                 {
@@ -214,6 +226,6 @@ public class CreatePlanDialog(
                 new DialogBody(bodyContent))
                 .Width(Size.Rem(30));
 
-        return new Fragment(breakpointListener, planSurface);
+        return new Fragment(breakpointListener, planSurface, new AddProjectDialog(isAddProjectOpen, configService, client, refreshToken));
     }
 }
