@@ -30,7 +30,9 @@ export const ResultSummary: React.FC<ResultSummaryProps> = ({ wire }) => {
         </div>
       )}
       <div className="aov-result-stats">
-        {usage?.cost_usd != null && <span>Cost: ${usage.cost_usd.toFixed(4)}</span>}
+        {usage?.cost_usd != null && usage.cost_usd > 0 && (
+          <span>Cost: ${usage.cost_usd.toFixed(4)}</span>
+        )}
         {wire.duration_ms != null && (
           <span>Duration: {(wire.duration_ms / 1000).toFixed(1)}s</span>
         )}
