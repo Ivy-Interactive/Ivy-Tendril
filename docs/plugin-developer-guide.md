@@ -234,10 +234,10 @@ Icon = PluginIcon.Named("Linear")
 Icon = PluginIcon.Url("https://example.com/icon.png")
 
 // Use a file bundled with the plugin (relative to plugin directory)
-Icon = PluginIcon.File("assets/icon.svg")
+Icon = PluginIcon.File("icon.svg")
 ```
 
-For `PluginIcon.File`, the asset is served at runtime via `/ivy/plugins/{pluginId}/assets/{relativePath}`. Supported formats: SVG, PNG, JPG, GIF, WebP, ICO.
+For `PluginIcon.File`, the asset is served automatically by the framework at `/ivy/plugin-icons/{pluginId}/{relativePath}`. This route is framework-managed and separate from any endpoints the plugin registers via `UseEndpoints`. Supported formats: SVG, PNG, JPG, GIF, WebP, ICO.
 
 The plugin loader validates file-based icons at load time and logs a warning if the referenced file doesn't exist.
 
@@ -719,8 +719,61 @@ internal class MyDashboardView : ViewBase
 
 Additional extended context capabilities:
 - `AddBadgeProvider(menuTag, countProvider)` — add notification badges to menu items
-- `UseWebApplication(configure)` — add ASP.NET middleware to the host pipeline
+- `UseEndpoints(slug, configure)` — register HTTP endpoints scoped to the plugin (see below)
 - `UseWebApplicationBuilder(configure)` — configure the host's `WebApplicationBuilder`
+
+### Custom HTTP Endpoints
+
+Plugins can register custom HTTP endpoints that are dynamically added when the plugin loads and automatically removed when the plugin is unloaded. All plugin endpoints are scoped under a URL prefix to prevent collisions.
+
+**Registering endpoints:**
+
+```csharp
+public void Configure(ITendrilExtendedPluginContext context)
+{
+    var assembly = typeof(DoomPlugin).Assembly;
+
+    context.UseEndpoints("doom", endpoints =>
+    {
+        endpoints.MapGet("doom.wasm", () =>
+        {
+            var stream = assembly.GetManifestResourceStream("Ivy.Tendril.Plugin.Doom.doom.wasm");
+            return stream is null ? Results.NotFound() : Results.File(stream, "application/wasm");
+        });
+
+        endpoints.MapGet("config", () => Results.Json(new { difficulty = "hard" }));
+
+        endpoints.MapPost("scores/{id:int}", (int id, ScoreRequest body) =>
+        {
+            SaveScore(id, body);
+            return Results.Ok();
+        });
+    });
+}
+```
+
+Routes are relative to the plugin's slug path (`/ivy/plugins/{slug}/`). In the example above, the actual routes become:
+- `GET /ivy/plugins/doom/doom.wasm`
+- `GET /ivy/plugins/doom/config`
+- `POST /ivy/plugins/doom/scores/{id:int}`
+
+The `endpoints` object supports the full ASP.NET minimal API surface — route parameters, constraints, filters, authorization metadata, etc. all work as expected.
+
+**The slug parameter:**
+
+The first argument to `UseEndpoints` is a URL slug that identifies this plugin's endpoint namespace:
+- Must be unique across all loaded plugins
+- Does not need to match the plugin's `Manifest.Id` (e.g., `"doom"` vs `"Ivy.Tendril.Plugin.Doom"`)
+- Used only for URL routing — has no effect on plugin identity or configuration
+- If two plugins attempt to register the same slug, the second one fails to load with an error
+
+**Lifecycle:**
+
+- Endpoints are available immediately after the plugin loads, even if Tendril was already running (dynamic registration)
+- When a plugin is unloaded or reloaded, all of its endpoints are automatically removed — requests to those paths return 404
+- On reload, the plugin's `Configure` method runs again and re-registers endpoints fresh
+
+**Implementation note:** Under the hood, plugin endpoints use a custom `EndpointDataSource` that signals ASP.NET to rebuild its routing table when plugins are added or removed. This means plugins get full native routing (parameter binding, model binding, filters) rather than a custom dispatch layer.
 
 ### External Widgets
 
@@ -1320,5 +1373,5 @@ A: For referenced plugins, file watchers detect DLL changes in `bin/` directorie
 **Q: What assemblies are shared between host and plugins?**
 A: `Ivy.Plugin.Abstractions`, `Ivy`, `Ivy.Tendril.Plugin.Abstractions`, and `Ivy.Tendril.Plugin.Extended.Abstractions` are loaded from the host. You do not need to bundle these in your plugin output — they'll be skipped during loading anyway.
 
-**Q: Can my plugin serve static files (images, CSS, JS)?**
-A: Yes. Place files in your plugin directory and reference them via `PluginIcon.File("relative/path")` for icons, or use the built-in asset endpoint at `/ivy/plugins/{pluginId}/assets/{filePath}` for other resources.
+**Q: Can my plugin serve static files (images, CSS, JS, WASM)?**
+A: Yes. For plugin icons, use `PluginIcon.File("icon.svg")` — these are served automatically at `/ivy/plugin-icons/{pluginId}/...`. For other static files, call `endpoints.MapStaticAssets("assets")` inside `context.UseEndpoints(slug, ...)` to serve files from your plugin directory at `/ivy/plugins/{slug}/assets/...`. For dynamic content, register custom endpoints with `endpoints.MapGet(...)` inside `UseEndpoints`.
