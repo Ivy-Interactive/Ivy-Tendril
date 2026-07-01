@@ -353,7 +353,7 @@ public class JobServiceCompletionGuardTests : IDisposable
         {
             if (CurrentStatus is not { } status) return null;
             var metadata = new PlanMetadata(0, "", "", "", status, [], [], [], [], [], [],
-                default, default, null, null);
+                default, default, null, null, null);
             return new PlanFile(metadata, "", folderPath, "", 1);
         }
 

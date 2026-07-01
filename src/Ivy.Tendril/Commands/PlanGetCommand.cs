@@ -9,14 +9,14 @@ namespace Ivy.Tendril.Commands;
 public class PlanGetSettings : CommandSettings
 {
     internal static readonly string[] ValidFields =
-        ["state", "project", "level", "title", "created", "updated", "executionprofile", "initialprompt", "sourceurl", "priority",
+        ["state", "project", "level", "title", "created", "updated", "executionprofile", "initialprompt", "sourceurl", "sourceidentifier", "priority",
          "repos", "prs", "commits", "verifications", "dependson", "relatedplans", "recommendations"];
 
     [Description("Plan ID (e.g., 03430)")]
     [CommandArgument(0, "<plan-id>")]
     public string PlanId { get; set; } = "";
 
-    [Description("Optional field name to read (state, project, level, title, created, updated, executionProfile, initialPrompt, sourceUrl, priority, repos, prs, commits, verifications, dependsOn, relatedPlans, recommendations)")]
+    [Description("Optional field name to read (state, project, level, title, created, updated, executionProfile, initialPrompt, sourceUrl, sourceIdentifier, priority, repos, prs, commits, verifications, dependsOn, relatedPlans, recommendations)")]
     [CommandArgument(1, "[field]")]
     public string? Field { get; set; }
 
@@ -29,7 +29,7 @@ public class PlanGetSettings : CommandSettings
         {
             if (!ValidFields.Contains(Field.ToLower(), StringComparer.OrdinalIgnoreCase))
                 return Spectre.Console.ValidationResult.Error(
-                    $"Unknown field '{Field}'. Valid fields: state, project, level, title, created, updated, executionProfile, initialPrompt, sourceUrl, priority, repos, prs, commits, verifications, dependsOn, relatedPlans, recommendations");
+                    $"Unknown field '{Field}'. Valid fields: state, project, level, title, created, updated, executionProfile, initialPrompt, sourceUrl, sourceIdentifier, priority, repos, prs, commits, verifications, dependsOn, relatedPlans, recommendations");
         }
 
         return Spectre.Console.ValidationResult.Success();
@@ -89,8 +89,9 @@ public class PlanGetCommand : Command<PlanGetSettings>
                 "executionprofile" => plan.ExecutionProfile ?? "",
                 "initialprompt" => plan.InitialPrompt ?? "",
                 "sourceurl" => plan.SourceUrl ?? "",
+                "sourceidentifier" => plan.SourceIdentifier ?? "",
                 "priority" => plan.Priority.ToString(),
-                _ => throw new ArgumentException($"Unknown field '{settings.Field}'. Valid fields: state, project, level, title, created, updated, executionProfile, initialPrompt, sourceUrl, priority, repos, prs, commits, verifications, dependsOn, relatedPlans, recommendations")
+                _ => throw new ArgumentException($"Unknown field '{settings.Field}'. Valid fields: state, project, level, title, created, updated, executionProfile, initialPrompt, sourceUrl, sourceIdentifier, priority, repos, prs, commits, verifications, dependsOn, relatedPlans, recommendations")
             };
 
             Console.WriteLine(value);

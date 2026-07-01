@@ -402,6 +402,10 @@ internal class JobLauncher
 
         if (cp?.Force == true)
             values["Force"] = "true";
+        if (!string.IsNullOrEmpty(cp?.SourceUrl))
+            values["SourceUrl"] = cp.SourceUrl;
+        if (!string.IsNullOrEmpty(cp?.SourceIdentifier))
+            values["SourceIdentifier"] = cp.SourceIdentifier;
     }
 
     private (Dictionary<string, string> Values, PlanYaml? PlanYaml, string? ProfileOverride)
@@ -426,9 +430,11 @@ internal class JobLauncher
         if (planYaml == null)
             return (values, null, null);
 
-        // Add sourceUrl to firmware header if present
+        // Add source tracking fields to firmware header if present
         if (!string.IsNullOrEmpty(planYaml.SourceUrl))
             values["SourceUrl"] = planYaml.SourceUrl;
+        if (!string.IsNullOrEmpty(planYaml.SourceIdentifier))
+            values["SourceIdentifier"] = planYaml.SourceIdentifier;
 
         if (job.TypedArgs is UpdatePlanArgs { Instructions: not null } updateArgs)
             values["UpdateInstructions"] = updateArgs.Instructions;

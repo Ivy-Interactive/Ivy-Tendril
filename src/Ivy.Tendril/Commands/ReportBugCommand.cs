@@ -42,7 +42,7 @@ public class ReportBugCommand : Command<ReportBugSettings>
     protected override int Execute(CommandContext context, ReportBugSettings settings, CancellationToken cancellationToken)
     {
         var configService = new ConfigService();
-        var service = new BugReportService(configService);
+        var service = new BugReportService(configService, new TendrilArgs());
 
         var description = settings.Description;
         if (string.IsNullOrEmpty(description))

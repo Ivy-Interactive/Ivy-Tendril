@@ -8,7 +8,7 @@ public class PlanExportHelperTests
     private static PlanFile CreateTestPlan(string yamlRaw, string revisionContent)
     {
         var metadata = new PlanMetadata(1, "Test", "NiceToHave", "Test Plan", PlanStatus.Draft,
-            [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null);
+            [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, null);
         return new PlanFile(metadata, revisionContent, "/tmp/test", yamlRaw);
     }
 

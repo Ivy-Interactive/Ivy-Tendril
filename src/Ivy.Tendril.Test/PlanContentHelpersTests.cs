@@ -59,7 +59,7 @@ public class PlanContentHelpersTests
 
         var metadata = new PlanMetadata(
             1, "Test", "Bug", "Test Plan", PlanStatus.Draft,
-            ["/fake/repo"], ["abcdef1234567890"], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null);
+            ["/fake/repo"], ["abcdef1234567890"], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, null);
         var plan = new PlanFile(metadata, "", Path.GetTempPath(), "");
 
         var rows = PlanContentHelpers.BuildCommitRows(plan, config, gitService);
@@ -79,7 +79,7 @@ public class PlanContentHelpersTests
 
         var metadata = new PlanMetadata(
             1, "Test", "Bug", "Test Plan", PlanStatus.Draft,
-            ["/fake/repo"], ["abcdef1234567890"], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null);
+            ["/fake/repo"], ["abcdef1234567890"], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, null);
         var plan = new PlanFile(metadata, "", Path.GetTempPath(), "");
 
         var rows = PlanContentHelpers.BuildCommitRows(plan, config, gitService);
@@ -97,7 +97,7 @@ public class PlanContentHelpersTests
 
         var metadata = new PlanMetadata(
             1, "Test", "Bug", "Test Plan", PlanStatus.Draft,
-            ["/fake/repo"], ["abcdef1234567890"], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null);
+            ["/fake/repo"], ["abcdef1234567890"], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, null);
         var plan = new PlanFile(metadata, "", Path.GetTempPath(), "");
 
         var rows = PlanContentHelpers.BuildCommitRows(plan, config, gitService);
@@ -175,7 +175,7 @@ public class PlanContentHelpersTests
 
         var metadata = new PlanMetadata(
             1, "Test", "Bug", "Test Plan", PlanStatus.Draft,
-            ["/fake/repo"], ["commit1", "commit2"], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null);
+            ["/fake/repo"], ["commit1", "commit2"], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, null);
         var plan = new PlanFile(metadata, "", Path.GetTempPath(), "");
 
         var result = PlanContentHelpers.GetAllChangesData(plan, config, gitService);
@@ -200,7 +200,7 @@ public class PlanContentHelpersTests
 
         var metadata = new PlanMetadata(
             1, "Test", "Bug", "Test Plan", PlanStatus.Draft,
-            ["/fake/repo"], ["abc123"], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null);
+            ["/fake/repo"], ["abc123"], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, null);
         var plan = new PlanFile(metadata, "", Path.GetTempPath(), "");
 
         var result = PlanContentHelpers.GetAllChangesData(plan, config, gitService);
@@ -219,7 +219,7 @@ public class PlanContentHelpersTests
 
         var metadata = new PlanMetadata(
             1, "Test", "Bug", "Test Plan", PlanStatus.Draft,
-            ["/fake/repo"], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null);
+            ["/fake/repo"], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, null);
         var plan = new PlanFile(metadata, "", Path.GetTempPath(), "");
 
         var result = PlanContentHelpers.GetAllChangesData(plan, config, gitService);
@@ -235,7 +235,7 @@ public class PlanContentHelpersTests
 
         var metadata = new PlanMetadata(
             1, "Test", "Bug", "Test Plan", PlanStatus.Draft,
-            ["/fake/repo"], ["unknown1", "unknown2"], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null);
+            ["/fake/repo"], ["unknown1", "unknown2"], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, null);
         var plan = new PlanFile(metadata, "", Path.GetTempPath(), "");
 
         var result = PlanContentHelpers.GetAllChangesData(plan, config, gitService);
@@ -263,7 +263,7 @@ public class PlanContentHelpersTests
 
             var metadata = new PlanMetadata(
                 1, "Test", "Bug", "Test Plan", PlanStatus.Draft,
-                [], ["abc123"], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null);
+                [], ["abc123"], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, null);
             var plan = new PlanFile(metadata, "", tempDir, "");
 
             var result = PlanContentHelpers.GetAllChangesData(plan, config, gitService);

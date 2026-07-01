@@ -93,7 +93,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     }
 
     private static MenuItem[] BuildMenuItems(IAppRepository repo, TendrilProcessStatus status,
-        IConfigService config, IAgentRunner runner)
+        IConfigService config, IAgentRunner runner,
+        ITendrilPluginContributions? pluginContributions = null)
     {
         var badges = new Dictionary<string, int>
         {
@@ -104,6 +105,16 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             ["recommendations"] = status.RecommendationsCount,
             ["trash"] = status.TrashCount
         };
+
+        if (pluginContributions != null)
+        {
+            foreach (var (tag, provider) in pluginContributions.BadgeProviders)
+            {
+                try { badges[tag] = provider(null!); }
+                catch { /* provider may fail — skip */ }
+            }
+        }
+
         var agentId = config.Settings.CodingAgent;
         return repo.GetMenuItems()
             .Select(m => AddBadge(m, badges))
@@ -123,7 +134,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var currentApp = UseState<AppHost?>();
         var statusService = UseService<ITendrilProcessStatusService>();
         var agentRunner = UseService<IAgentRunner>();
-        var menuItems = UseState(() => BuildMenuItems(appRepository, statusService.Current, config, agentRunner));
+        Context.TryUseService<ITendrilPluginContributions>(out var pluginContext);
+        var menuItems = UseState(() => BuildMenuItems(appRepository, statusService.Current, config, agentRunner, pluginContext));
         var status = UseState(() => statusService.Current);
         var sidebarOpen = UseState(settings.SidebarOpen);
         var args = UseService<AppContext>();
@@ -158,15 +170,25 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             });
         });
 
-        UseEffect(() => { menuItems.Set(BuildMenuItems(appRepository, status.Value, config, agentRunner)); },
-            appRepository.Reloaded.ToTrigger(), status);
+        var menuVersion = UseState(0);
+
+        UseEffect(() =>
+        {
+            if (pluginContext is null) return Disposable.Empty;
+            void OnMenuInvalidated() => menuVersion.Set(menuVersion.Value + 1);
+            pluginContext.MenuInvalidated += OnMenuInvalidated;
+            return Disposable.Create(() => pluginContext.MenuInvalidated -= OnMenuInvalidated);
+        });
+
+        UseEffect(() => { menuItems.Set(BuildMenuItems(appRepository, status.Value, config, agentRunner, pluginContext)); },
+            appRepository.Reloaded.ToTrigger(), status, menuVersion);
 
         // Rebuild the menu when settings are saved (e.g. the coding agent changes), so the
         // branded "Agent" item updates immediately without needing a reload.
         UseEffect(() =>
         {
             void OnSettingsReloaded(object? sender, EventArgs e) =>
-                menuItems.Set(BuildMenuItems(appRepository, status.Value, config, agentRunner));
+                menuItems.Set(BuildMenuItems(appRepository, status.Value, config, agentRunner, pluginContext));
             config.SettingsReloaded += OnSettingsReloaded;
             return Disposable.Create(() => config.SettingsReloaded -= OnSettingsReloaded);
         });
@@ -466,7 +488,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             OnCtrlRightClickSelect = new EventHandler<Event<SidebarMenu, object>>(OnCtrlRightClickSelect)
         };
 
-        var settingsMenuItems = new[]
+        var builtInSettingsMenuItems = new[]
         {
             MenuItem.Default("Configuration")
                 .Tag("$setup")
@@ -501,6 +523,14 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 #endif
         };
 
+        IEnumerable<MenuItem> settingsMenuItems = builtInSettingsMenuItems;
+        if (pluginContext != null)
+        {
+            foreach (var transformer in pluginContext.SettingsMenuTransformers)
+                settingsMenuItems = transformer(settingsMenuItems);
+        }
+        var finalSettingsMenuItems = settingsMenuItems.ToArray();
+
         var settingsTrigger = new Button("Settings")
             .Content(
                 Layout.Horizontal().AlignContent(Align.Left)
@@ -513,7 +543,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 DropDownMenu.DefaultSelectHandler(),
                 settingsTrigger)
             .Top()
-            .Items(settings.FooterMenuItemsTransformer(settingsMenuItems, navigator));
+            .Items(settings.FooterMenuItemsTransformer(finalSettingsMenuItems, navigator));
 
         object? footer = settingsMenu;
 
@@ -546,7 +576,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 ),
                 settings.Width
             ).Open(sidebarOpen.Value).MainAppSidebar(),
-            importIssuesDialog
+            importIssuesDialog,
+            pluginContext != null ? new PluginDialogHost(pluginContext) : null
         );
     }
 

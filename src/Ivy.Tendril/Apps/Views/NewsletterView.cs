@@ -9,6 +9,7 @@ public class NewsletterView : ViewBase
     public override object Build()
     {
         var httpClientFactory = UseService<IHttpClientFactory>();
+        var tendrilArgs = UseService<TendrilArgs>();
         var telemetry = UseService<ITelemetryService>();
 
         var email = UseState("");
@@ -28,7 +29,7 @@ public class NewsletterView : ViewBase
             try
             {
                 using var http = httpClientFactory.CreateClient();
-                var response = await http.PostAsJsonAsync("https://tendril-api.ivy.app/subscribers", new
+                var response = await http.PostAsJsonAsync($"{tendrilArgs.ServicesUrl}/subscribers", new
                 {
                     email = email.Value,
                     anonymousId = telemetry.AnonymousId,

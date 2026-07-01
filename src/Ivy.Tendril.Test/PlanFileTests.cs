@@ -8,7 +8,7 @@ public class PlanFileTests
     {
         var metadata = new PlanMetadata(
             1, "Test", "Bug", "Test Plan", PlanStatus.Review,
-            [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, sourceUrl);
+            [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, sourceUrl, null);
         return new PlanFile(metadata, "", "D:/plans/00001-TestPlan", "");
     }
 

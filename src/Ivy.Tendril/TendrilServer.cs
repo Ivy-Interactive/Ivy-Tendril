@@ -87,6 +87,28 @@ public static class TendrilServer
             .ToArray());
         server.AddConnectionsFromAssembly(typeof(TendrilServer).Assembly);
 
+        // Load plugins from the plugins directory under Tendril root
+        if (!string.IsNullOrEmpty(configService.TendrilHome) && Directory.Exists(configService.TendrilHome))
+        {
+            var pluginsDir = Path.Combine(configService.TendrilHome, "plugins");
+            Directory.CreateDirectory(pluginsDir);
+            TendrilPluginContext? tendrilPluginContext = null;
+            server.UsePlugins(pluginsDir,
+                new TendrilPluginConfigFactory(pluginsDir),
+                contextFactory: (s, builder) =>
+                {
+                    tendrilPluginContext = new TendrilPluginContext(s, builder, configService.TendrilHome,
+                        Microsoft.Extensions.Logging.Abstractions.NullLogger<TendrilPluginContext>.Instance);
+                    builder.Services.AddSingleton<AppShell.ITendrilPluginContributions>(tendrilPluginContext);
+                    builder.Services.AddSingleton(tendrilPluginContext.HookRegistry);
+                    configService.PluginHooks = tendrilPluginContext.HookRegistry;
+                    return tendrilPluginContext;
+                },
+                sharedAssemblyNames: ["Ivy.Tendril.Plugin.Abstractions", "Ivy.Tendril.Plugin.Extended.Abstractions"],
+                buildSourcePlugins: true,
+                deferPluginLoads: true);
+        }
+
         // Eagerly register Ivy.Tendril.Widgets and framework widgets assemblies to ensure widgets
         // are discovered when running in single-file published mode (where DLLs are not on disk)
         Ivy.Core.ExternalWidgets.ExternalWidgetRegistry.Instance.RegisterAssembly(

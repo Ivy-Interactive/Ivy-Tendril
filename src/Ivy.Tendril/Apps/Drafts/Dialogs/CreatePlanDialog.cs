@@ -55,6 +55,7 @@ public class CreatePlanDialog(
         var selectedPriority = UseState("Normal");
         var configService = UseService<IConfigService>();
         var agentRunner = UseService<IAgentRunner>();
+        var tendrilArgs = UseService<TendrilArgs>();
         var uploadSessionId = UseState(() => Guid.NewGuid().ToString("N"));
         var (breakpoint, breakpointListener) = Context.UseBreakpoint();
         var uploadedFiles = UseState(new List<string>());
@@ -131,6 +132,7 @@ public class CreatePlanDialog(
                 | selectedPriority.ToSelectInput(PriorityOptions).Variant(SelectInputVariant.Toggle).WithField().Label("Priority")
                 | new Ivy.Tendril.Widgets.ContentInput
                 {
+                    TranscriptionUrl = $"{tendrilArgs.ServicesWsUrl}/transcribe/ws",
                     UploadUrl = uploadContext.Value.UploadUrl,
                     AutoFocus = true,
                     OnSubmit = e =>

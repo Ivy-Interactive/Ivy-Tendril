@@ -8,6 +8,7 @@ public class ReportBugDialog(IState<bool> isOpen, string jobId) : ViewBase
     {
         var client = UseService<IClientProvider>();
         var config = UseService<IConfigService>();
+        var tendrilArgs = UseService<TendrilArgs>();
         var description = UseState("");
         var isSubmitting = UseState(false);
 
@@ -18,7 +19,7 @@ public class ReportBugDialog(IState<bool> isOpen, string jobId) : ViewBase
             isSubmitting.Set(true);
             try
             {
-                var service = new BugReportService(config);
+                var service = new BugReportService(config, tendrilArgs);
                 var files = service.CollectFilesForJob(jobId);
                 var result = await service.SubmitReportAsync(description.Value, files);
 

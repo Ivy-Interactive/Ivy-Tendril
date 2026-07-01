@@ -73,7 +73,7 @@ public class Program
 
         VelopackApp.Build().Run();
 
-        var (verbose, quiet, forceDesktop, forceWeb, beta, filteredArgs) = ParseGlobalFlags(args);
+        var (verbose, quiet, forceDesktop, forceWeb, beta, apiServer, filteredArgs) = ParseGlobalFlags(args);
 
         bool isTool = IsTendrilToolInvocation();
         bool isPackagedApp = IsPackagedApp();
@@ -95,7 +95,7 @@ public class Program
         bool isServerLaunch = filteredArgs.Length == 0 || !ShouldHandleAsCliCommand(filteredArgs[0]);
         if (isServerLaunch && !isDetachedChild)
         {
-            var checkArgs = new Services.TendrilArgs { Beta = beta, Verbose = verbose, Quiet = quiet };
+            var checkArgs = new Services.TendrilArgs { Beta = beta, Verbose = verbose, Quiet = quiet, ApiServer = apiServer };
             var checkServer = TendrilServer.Create(filteredArgs, checkArgs);
             if (useDesktop)
             {
@@ -230,7 +230,7 @@ public class Program
         ConfigureExceptionHandlers();
         StartMemoryWatchdog();
 
-        var tendrilArgs = new Services.TendrilArgs { Beta = beta, Verbose = verbose, Quiet = quiet };
+        var tendrilArgs = new Services.TendrilArgs { Beta = beta, Verbose = verbose, Quiet = quiet, ApiServer = apiServer };
         var server = TendrilServer.Create(filteredArgs, tendrilArgs);
 
         if (useDesktop)
@@ -306,7 +306,7 @@ public class Program
         }
     }
 
-    private static (bool verbose, bool quiet, bool forceDesktop, bool forceWeb, bool beta, string[] filtered)
+    private static (bool verbose, bool quiet, bool forceDesktop, bool forceWeb, bool beta, string? apiServer, string[] filtered)
         ParseGlobalFlags(string[] args)
     {
         bool verbose = args.Contains("--verbose") || args.Contains("-v");
@@ -315,21 +315,30 @@ public class Program
         bool forceWeb = args.Contains("--web");
         bool beta = args.Contains("--beta");
 
+        string? apiServer = null;
+        var apiServerIndex = Array.IndexOf(args, "--debug-api-server");
+        if (apiServerIndex >= 0 && apiServerIndex + 1 < args.Length)
+            apiServer = args[apiServerIndex + 1];
+
         if (verbose)
             Environment.SetEnvironmentVariable("TENDRIL_VERBOSE", "1");
         if (quiet)
             Environment.SetEnvironmentVariable("TENDRIL_QUIET", "1");
         if (beta)
             Environment.SetEnvironmentVariable("TENDRIL_BETA", "1");
+        if (apiServer != null)
+            Environment.SetEnvironmentVariable("TENDRIL_API_SERVER", apiServer);
 
-        var filtered = args.Where(a =>
+        var filtered = args.Where((a, i) =>
             a != "--desktop" && a != "--web" &&
             a != "--verbose" && a != "-v" &&
             a != "--quiet" && a != "-q" &&
             a != "--beta" &&
+            a != "--debug-api-server" &&
+            !(i > 0 && args[i - 1] == "--debug-api-server") &&
             a != DetachedLaunchMarker).ToArray();
 
-        return (verbose, quiet, forceDesktop, forceWeb, beta, filtered);
+        return (verbose, quiet, forceDesktop, forceWeb, beta, apiServer, filtered);
     }
 
     private static bool ShouldHandleAsCliCommand(string firstArg)
