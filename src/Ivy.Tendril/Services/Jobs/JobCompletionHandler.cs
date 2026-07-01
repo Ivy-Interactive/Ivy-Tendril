@@ -167,6 +167,9 @@ internal class JobCompletionHandler
             case CreatePlanArgs:
                 VerifyCreatePlanResult(job);
                 break;
+            case CreatePrArgs:
+                ReconcileCreatePrResult(job);
+                break;
         }
     }
 
@@ -533,6 +536,98 @@ internal class JobCompletionHandler
             _logger.LogWarning(ex, "Failed to set plan state to {State} for job {JobId}", state, job.Id);
         }
     }
+
+    private static readonly Regex GitHubPrUrlPattern = new(
+        @"https?://github\.com/(?<owner>[^/\s]+)/(?<repo>[^/\s]+)/pull/(?<number>\d+)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>
+    ///     Safety net for CreatePr. The agent is supposed to record each PR URL via
+    ///     `tendril plan add-pr` and set the plan to Completed (Program.md step 6), but a rushed or
+    ///     weak provider can stop after opening the PR and skip that closeout — leaving the PR
+    ///     invisible in the Pull Requests app (which filters on Prs.Count > 0) and the plan stuck in
+    ///     Drafts. Here we parse PR URLs from the job output, record the ones missing from plan.yaml,
+    ///     and mark the plan Completed. A plan that has a PR is Completed regardless of PrMerge; merge
+    ///     is tracked separately as PR status.
+    ///
+    ///     Only PR URLs whose repo matches one of this plan's repos are trusted — a foreign or
+    ///     SourceUrl PR merely echoed in the transcript must not be recorded or force-complete the
+    ///     plan. Plans with no repos (e.g. direct-to-main scaffolding, which opens no PR) are left
+    ///     untouched. No-ops cleanly when the agent already did the closeout.
+    /// </summary>
+    internal void ReconcileCreatePrResult(JobItem job)
+    {
+        try
+        {
+            var planFolder = job.TypedArgs?.PlanFolder ?? "";
+            if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder))
+                return;
+
+            var plan = PlanCommandHelpers.ReadPlan(planFolder);
+
+            // Repos configured for this plan, by folder name — the only repos a PR may target.
+            var planRepoNames = plan.Repos
+                .Select(r => Path.GetFileName(r.TrimEnd('/', '\\')))
+                .Where(n => !string.IsNullOrEmpty(n))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            // Canonical identity (owner/repo#number) of PRs already recorded, so a differently
+            // formatted duplicate (trailing slash, /files suffix, ...) isn't re-added.
+            var recordedKeys = plan.Prs
+                .Select(p => GitHubPrUrlPattern.Match(p))
+                .Where(m => m.Success)
+                .Select(CanonicalPrKey)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            // Scan the output line-by-line (no whole-transcript allocation), keeping the canonical
+            // base URL for each in-scope, not-yet-recorded PR.
+            var added = new List<string>();
+            if (planRepoNames.Count > 0)
+            {
+                var seen = new HashSet<string>(recordedKeys, StringComparer.OrdinalIgnoreCase);
+                foreach (var line in job.OutputLines)
+                foreach (Match m in GitHubPrUrlPattern.Matches(line))
+                {
+                    if (!planRepoNames.Contains(m.Groups["repo"].Value)) continue;
+                    if (!seen.Add(CanonicalPrKey(m))) continue;
+                    added.Add(m.Value);
+                }
+            }
+
+            // Nothing to record and no PR on the plan → leave state to whatever the agent set.
+            if (plan.Prs.Count == 0 && added.Count == 0)
+                return;
+
+            var alreadyCompleted = string.Equals(plan.State, nameof(PlanStatus.Completed),
+                StringComparison.OrdinalIgnoreCase);
+
+            // Agent already recorded every PR and set Completed — no reconciliation needed.
+            if (added.Count == 0 && alreadyCompleted)
+                return;
+
+            if (added.Count > 0)
+            {
+                foreach (var url in added)
+                    plan.Prs.Add(url);
+                plan.Updated = DateTime.UtcNow;
+                PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcherService);
+                job.EnqueueSystemOutput(
+                    $"[Tendril] Recorded {added.Count} PR(s) the agent left unrecorded: {string.Join(", ", added)}");
+            }
+
+            // Route the state change through the shared path so it emits telemetry, updates the DB
+            // for instant UI feedback, and invalidates the counts cache like every other case.
+            if (!alreadyCompleted)
+                SetPlanState(job, nameof(PlanStatus.Completed));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to reconcile CreatePr result for job {JobId}", job.Id);
+        }
+    }
+
+    private static string CanonicalPrKey(Match m) =>
+        $"{m.Groups["owner"].Value}/{m.Groups["repo"].Value}#{m.Groups["number"].Value}".ToLowerInvariant();
 
     private void VerifyCreatePlanResult(JobItem job)
     {
