@@ -15,7 +15,7 @@ public class BugReportServiceConfigTests : IDisposable
     {
         File.WriteAllText(Path.Combine(_tempDir.Path, "config.yaml"), yaml);
         var config = new ConfigService(new TendrilSettings(), _tempDir.Path);
-        return new BugReportService(config);
+        return new BugReportService(config, new TendrilArgs());
     }
 
     private static string ReadContent(BugReportService.BugReportFile file) =>
@@ -84,7 +84,7 @@ projects:
     public void CollectSanitizedConfig_Returns_Null_When_No_Config()
     {
         var config = new ConfigService(new TendrilSettings(), _tempDir.Path);
-        var service = new BugReportService(config);
+        var service = new BugReportService(config, new TendrilArgs());
 
         Assert.Null(service.CollectSanitizedConfig());
     }

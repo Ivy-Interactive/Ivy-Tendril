@@ -263,7 +263,7 @@ public class PlanContentHelpersTests
 
             var metadata = new PlanMetadata(
                 1, "Test", "Bug", "Test Plan", PlanStatus.Draft,
-                [], ["abc123"], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null);
+                [], ["abc123"], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, null);
             var plan = new PlanFile(metadata, "", tempDir, "");
 
             var result = PlanContentHelpers.GetAllChangesData(plan, config, gitService);
