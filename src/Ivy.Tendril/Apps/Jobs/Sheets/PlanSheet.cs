@@ -1,12 +1,14 @@
 using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps.Jobs.Sheets;
 
 public class PlanSheet(
     string planPath,
     IPlanReaderService planService,
-    IState<string?> openFile) : ViewBase
+    IState<string?> openFile,
+    IConfigService config) : ViewBase
 {
     public override object Build()
     {
@@ -15,7 +17,7 @@ public class PlanSheet(
 
         object sheetContent = string.IsNullOrEmpty(content)
             ? Text.P("Plan not found or empty.")
-            : new Markdown(MarkdownHelper.AnnotateAllBrokenLinks(content, planService.PlansDirectory))
+            : new Markdown(MarkdownHelper.PrepareForDisplay(content, config))
                 .Article()
                 .DangerouslyAllowLocalFiles()
                 .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile));

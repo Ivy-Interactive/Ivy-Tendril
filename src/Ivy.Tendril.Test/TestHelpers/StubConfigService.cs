@@ -97,8 +97,8 @@ public class StubConfigService : IConfigService
     {
     }
 
-    public string PreprocessForEditing(string path)
+    public string PolishMarkdown(string content)
     {
-        return path;
+        return content;
     }
 }

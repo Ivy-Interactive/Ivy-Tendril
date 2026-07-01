@@ -37,9 +37,8 @@ public class PlanTabView(
             if (selectedPlan.Status == PlanStatus.Failed)
                 planLayout |= ContentView.BuildFailureCallout(selectedPlan);
 
-            var annotatedContent = MarkdownHelper.AnnotateAllBrokenLinks(
-                selectedPlan.LatestRevisionContent,
-                planService.PlansDirectory);
+            var annotatedContent = MarkdownHelper.PrepareForDisplay(
+                selectedPlan.LatestRevisionContent, config);
 
             var fixedElement = new VerificationsCardView(selectedPlan, planService, config);
 

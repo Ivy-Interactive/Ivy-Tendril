@@ -482,15 +482,8 @@ public sealed class PlanTools : AuthenticatedToolBase
         return ExecuteAuthenticated(() =>
         {
             var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var revisionsDir = Path.Combine(planFolder, "Revisions");
-            Directory.CreateDirectory(revisionsDir);
-
-            var number = ResolveNextRevisionNumber(revisionsDir);
-            var filename = $"{number:D3}.md";
-            var filePath = Path.Combine(revisionsDir, filename);
-
-            File.WriteAllText(filePath, content);
-            return $"Revision written: {filename}";
+            var filePath = RevisionWriter.WriteNext(planFolder, content, _configService);
+            return $"Revision written: {Path.GetFileName(filePath)}";
         });
     }
 
@@ -630,18 +623,6 @@ public sealed class PlanTools : AuthenticatedToolBase
                 throw new InvalidOperationException($"Verification '{name}' not found");
             plan.Verifications.Remove(match);
         }, $"Removed verification '{name}'");
-    }
-
-    private static int ResolveNextRevisionNumber(string revisionsDir)
-    {
-        var max = 0;
-        foreach (var file in Directory.GetFiles(revisionsDir, "*.md"))
-        {
-            var name = Path.GetFileNameWithoutExtension(file);
-            if (int.TryParse(name, out var num) && num > max)
-                max = num;
-        }
-        return max + 1;
     }
 
     private string ModifyPlan(string planId, Action<PlanYaml> modifier, string successMessage)

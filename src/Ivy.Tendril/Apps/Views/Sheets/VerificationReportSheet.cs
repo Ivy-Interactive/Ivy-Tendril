@@ -1,11 +1,13 @@
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps.Views.Sheets;
 
 public class VerificationReportSheet(
     IState<string?> openVerification,
-    PlanFile? selectedPlan) : ViewBase
+    PlanFile? selectedPlan,
+    IConfigService config) : ViewBase
 {
     public override object Build()
     {
@@ -33,7 +35,7 @@ public class VerificationReportSheet(
                 ? Text.Muted("Loading...")
                 : verificationReportQuery.Error is { } err
                     ? Text.Muted($"Failed to load verification report: {err.Message}")
-                    : new Markdown(verificationReportQuery.Value).DangerouslyAllowLocalFiles().Article(),
+                    : new Markdown(MarkdownHelper.PrepareForDisplay(verificationReportQuery.Value, config)).DangerouslyAllowLocalFiles().Article(),
             verName
         ).Width(UxHelper.SheetWidth).Resizable();
     }

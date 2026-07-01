@@ -52,5 +52,5 @@ internal class TestPlanConfigService : IConfigService
     public List<VerificationConfig>? GetPendingVerificationDefinitions() => null;
     public void CompleteOnboarding(string tendrilHome) { }
     public void OpenInEditor(string path) { }
-    public string PreprocessForEditing(string path) => path;
+    public string PolishMarkdown(string content) => content;
 }

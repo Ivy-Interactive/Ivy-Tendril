@@ -25,7 +25,7 @@ public partial class JobsApp : ViewBase
         var (planSheet, showPlan) = UseTrigger<string>((isOpen, planPath) =>
         {
             if (!isOpen.Value) return null;
-            var planSheetView = new PlanSheet(planPath, planService, openFile);
+            var planSheetView = new PlanSheet(planPath, planService, openFile, config);
             var sheet = new Sheet(
                 () => isOpen.Set(false),
                 planSheetView.Build(),
