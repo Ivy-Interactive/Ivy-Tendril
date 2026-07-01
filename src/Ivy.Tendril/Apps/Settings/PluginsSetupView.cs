@@ -213,36 +213,13 @@ public class PluginsSetupView : ViewBase
         using var archive = new ZipArchive(new MemoryStream(nupkgBytes));
         foreach (var entry in archive.Entries)
         {
-            if (string.IsNullOrEmpty(entry.Name)) continue; // skip directories
+            if (string.IsNullOrEmpty(entry.Name)) continue;
 
-            string? relativePath = null;
-
-            if (entry.FullName.StartsWith("lib/", StringComparison.OrdinalIgnoreCase))
-            {
-                // Extract all files from lib/ (DLLs, deps.json, etc.) flattened
-                relativePath = entry.Name;
-            }
-            else if (entry.FullName.StartsWith("content/", StringComparison.OrdinalIgnoreCase))
-            {
-                // Extract content files preserving directory structure
-                relativePath = entry.FullName["content/".Length..];
-            }
-            else if (entry.FullName.StartsWith("contentFiles/", StringComparison.OrdinalIgnoreCase))
-            {
-                // contentFiles/any/any/path/to/file → path/to/file
-                var parts = entry.FullName.Split('/', 4);
-                if (parts.Length >= 4)
-                    relativePath = parts[3];
-            }
-
-            if (relativePath is null) continue;
-
-            var destPath = Path.GetFullPath(Path.Combine(pluginDir, relativePath));
+            var destPath = Path.GetFullPath(Path.Combine(pluginDir, entry.FullName));
             if (!destPath.StartsWith(pluginDir + Path.DirectorySeparatorChar))
-                continue; // prevent path traversal
+                continue;
 
-            var destDir = Path.GetDirectoryName(destPath)!;
-            Directory.CreateDirectory(destDir);
+            Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
 
             await using var entryStream = entry.Open();
             await using var fileStream = File.Create(destPath);
