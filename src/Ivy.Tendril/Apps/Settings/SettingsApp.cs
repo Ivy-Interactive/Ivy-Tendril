@@ -17,7 +17,7 @@ public class SettingsApp : ViewBase
     private const string TagLevels = "levels";
     private const string TagVerifications = "verifications";
     private const string TagPromptwares = "promptwares";
-    private const string TagProjects = "projects";
+    internal const string TagProjects = "projects";
     private const string TagTunnel = "tunnel";
     private const string TagAdvanced = "advanced";
     private const string TagOpenConfig = "open-config";
@@ -28,7 +28,8 @@ public class SettingsApp : ViewBase
         var navigator = UseNavigation();
         var client = UseService<IClientProvider>();
         var httpContextAccessor = UseService<IHttpContextAccessor>();
-        var selected = UseState(TagCodingAgent);
+        var args = UseArgs<SettingsAppArgs>();
+        var selected = UseState(() => args?.Section ?? TagCodingAgent);
         Context.TryUseService<DesktopWindow>(out var desktopWindow);
         var isDesktop = desktopWindow != null;
         var capturedHost = ConfigYamlUiHelper.CaptureHost(httpContextAccessor);

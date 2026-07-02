@@ -97,6 +97,12 @@ public class JobServiceCompletionGuardTests : IDisposable
 
         service.DeleteJob(id);
 
+        // Cleanup + ResetToDraft now run on a background thread (optimistic delete), so the
+        // reset lands after DeleteJob returns rather than synchronously.
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (plan.ResetToDraftCalls.Count == 0 && DateTime.UtcNow < deadline)
+            Thread.Sleep(10);
+
         Assert.Contains("test-plan", plan.ResetToDraftCalls);
     }
 

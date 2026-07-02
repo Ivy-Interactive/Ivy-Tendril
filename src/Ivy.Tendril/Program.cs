@@ -340,7 +340,7 @@ public class Program
             "update-promptwares", "job", "plan", "promptware",
             "trash", "verification", "project", "project-analyzer", "models",
             "version", "--version", "report-bug", "reset", "update",
-            "--help", "-h", "run"
+            "--help", "-h", "run", "generate-certs"
         };
         return cliCommands.Contains(firstArg);
     }
@@ -450,6 +450,11 @@ public class Program
             // Project analyzer command
             config.AddCommand<ProjectAnalyzerCommand>("project-analyzer")
                 .WithDescription("Analyze a folder and print a YAML stack report");
+
+            // Generate certificates command (hidden, for build time)
+            config.AddCommand<GenerateCertsCommand>("generate-certs")
+                .WithDescription("Generate self-signed localhost certificate for desktop HTTPS")
+                .IsHidden();
 
             // Run command
             config.AddCommand<RunCommand>("run")
