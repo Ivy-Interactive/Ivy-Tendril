@@ -164,6 +164,13 @@ public class JobService : IJobService
                     job.StatusMessage = errorMessage;
                 }
             }
+            else if (!string.IsNullOrEmpty(job.ReportedFailureReason))
+            {
+                // A reason explicitly declared by the promptware via `tendril job fail`
+                // wins outright — including over any progress message previously set via
+                // `tendril job status` (which would otherwise leave a stale message shown).
+                job.StatusMessage = job.ReportedFailureReason;
+            }
             else
             {
                 job.StatusMessage ??= ExtractFailureReason(job.OutputLines.ToList(), job.Type);
@@ -369,6 +376,19 @@ public class JobService : IJobService
             job.ReportedPlanId = planId;
         if (!string.IsNullOrEmpty(planTitle))
             job.ReportedPlanTitle = planTitle;
+
+        RaiseJobsPropertyChanged();
+        return true;
+    }
+
+    public bool ReportJobFailure(string id, string message)
+    {
+        if (!_jobs.TryGetValue(id, out var job))
+            return false;
+
+        // Record the reason only; the job process is still running and the terminal
+        // state transition still happens later in CompleteJob/SetCompletionStatus.
+        job.ReportedFailureReason = message;
 
         RaiseJobsPropertyChanged();
         return true;

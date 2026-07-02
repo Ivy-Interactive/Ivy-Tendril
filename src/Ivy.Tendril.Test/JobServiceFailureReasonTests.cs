@@ -197,6 +197,61 @@ public class JobServiceFailureReasonTests : IDisposable
     }
 
     [Fact]
+    public void ReportJobFailure_SetsReportedFailureReason()
+    {
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
+        var id = service.CreateTestJob(new ExecutePlanArgs(Path.GetTempPath()));
+
+        var ok = service.ReportJobFailure(id, "Worktree creation failed");
+
+        Assert.True(ok);
+        Assert.Equal("Worktree creation failed", service.GetJob(id)!.ReportedFailureReason);
+    }
+
+    [Fact]
+    public void ReportJobFailure_UnknownJob_ReturnsFalse()
+    {
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
+
+        Assert.False(service.ReportJobFailure("99999", "nope"));
+    }
+
+    [Fact]
+    public void CompleteJob_NonZeroExit_WithReportedFailureReason_PrefersReportedReason()
+    {
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
+        var id = service.CreateTestJob(new ExecutePlanArgs(Path.GetTempPath()));
+        var job = service.GetJob(id)!;
+        // The promptware first reported progress via `tendril job status`, then declared a
+        // failure via `tendril job fail`. The declared reason must win over both the stale
+        // progress message and the output-scraping heuristic.
+        job.StatusMessage = "Checking dependencies...";
+        job.ReportedFailureReason = "Worktree creation failed: .git missing";
+        job.OutputLines.Enqueue("[stderr] fatal: some unrelated git noise");
+
+        service.CompleteJob(id, 1);
+
+        job = service.GetJob(id)!;
+        Assert.Equal(JobStatus.Failed, job.Status);
+        Assert.Equal("Worktree creation failed: .git missing", job.StatusMessage);
+    }
+
+    [Fact]
+    public void CompleteJob_NonZeroExit_NoReportedReason_FallsBackToScraper()
+    {
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
+        var id = service.CreateTestJob(new ExecutePlanArgs(Path.GetTempPath()));
+        var job = service.GetJob(id)!;
+        job.OutputLines.Enqueue("[stderr] something went wrong");
+
+        service.CompleteJob(id, 1);
+
+        job = service.GetJob(id)!;
+        Assert.Equal(JobStatus.Failed, job.Status);
+        Assert.Contains("something went wrong", job.StatusMessage);
+    }
+
+    [Fact]
     public void CompleteJob_ZeroExitCode_WithoutErrorEvent_RemainsCompleted()
     {
         var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));

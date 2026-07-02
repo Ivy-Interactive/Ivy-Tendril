@@ -100,6 +100,10 @@ public record JobItem
     public string? ReportedPlanId { get; set; }
     public string? ReportedPlanTitle { get; set; }
 
+    // Explicit failure reason declared by the promptware via `tendril job fail`.
+    // When set, this wins over the output-scraping heuristic in SetCompletionStatus.
+    public string? ReportedFailureReason { get; set; }
+
     // Agent launch details (persisted)
     public string? WorkingDirectory { get; set; }
     public string? CliCommand { get; set; }
