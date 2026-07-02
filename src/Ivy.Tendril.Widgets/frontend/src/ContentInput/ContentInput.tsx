@@ -105,6 +105,18 @@ interface ContentInputProps {
   events?: string[];
 }
 
+const findScrollableParent = (el: HTMLElement): HTMLElement | null => {
+  let node: HTMLElement | null = el.parentElement;
+  while (node) {
+    const overflowY = getComputedStyle(node).overflowY;
+    if ((overflowY === "auto" || overflowY === "scroll") && node.scrollHeight > node.clientHeight) {
+      return node;
+    }
+    node = node.parentElement;
+  }
+  return null;
+};
+
 const fileRegExp = /\s?\[file:\s*([^\]]+)\]/g;
 
 const parseValue = (val: string) => {
@@ -248,9 +260,22 @@ export const ContentInput: React.FC<ContentInputProps> = ({
   // Textarea Auto-Growing Height
   useEffect(() => {
     const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = "auto";
-      textarea.style.height = `${textarea.scrollHeight}px`;
+    if (!textarea) return;
+
+    const scrollParent = findScrollableParent(textarea);
+    const savedScrollTop = scrollParent?.scrollTop ?? 0;
+
+    const maxHeight = parseFloat(getComputedStyle(textarea).maxHeight) || Infinity;
+    textarea.style.height = "auto";
+    const next = Math.min(textarea.scrollHeight, maxHeight);
+    textarea.style.height = `${next}px`;
+    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+
+    // Resetting height to "auto" reflows the dialog's scroll container, which can
+    // yank it to the top (tab navigation) or scroll the freshly pasted text out of
+    // view. Restore the position the container had before we touched the height.
+    if (scrollParent && scrollParent.scrollTop !== savedScrollTop) {
+      scrollParent.scrollTop = savedScrollTop;
     }
   }, [text, files]);
 

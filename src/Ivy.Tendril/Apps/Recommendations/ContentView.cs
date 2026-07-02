@@ -30,7 +30,7 @@ public class ContentView(
 
             var sheetContent = string.IsNullOrEmpty(content)
                 ? Text.P("Plan not found or empty.")
-                : (object)new Markdown(MarkdownHelper.AnnotateAllBrokenLinks(content, planService.PlansDirectory))
+                : (object)new Markdown(MarkdownHelper.PrepareForDisplay(content, config))
                     .DangerouslyAllowLocalFiles()
                     .Article()
                     .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile));
@@ -57,7 +57,8 @@ public class ContentView(
                     client.Toast($"Started CreatePlan: {selectedRecommendation.Title}", "Recommendation Accepted with Notes");
                     refresh();
                     GoToNext();
-                });
+                },
+                config);
         });
 
 
@@ -135,7 +136,7 @@ public class ContentView(
 
         // Description
         scrollableContent |= new Separator();
-        scrollableContent |= new Markdown(selectedRecommendation.Description);
+        scrollableContent |= new Markdown(MarkdownHelper.PrepareForDisplay(selectedRecommendation.Description, config));
 
         // Standard overflow menu items
         var standardOverflowItems = new[]

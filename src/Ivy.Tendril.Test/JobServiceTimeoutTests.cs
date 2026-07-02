@@ -301,6 +301,50 @@ codingAgent: claude
     }
 
     [Fact]
+    public async Task RunStaleOutputWatchdog_NoOutputEver_TripsStale()
+    {
+        // A job that never emits any output keeps LastOutputAt null; the watchdog must still declare
+        // it stale relative to when monitoring began so it can't hang "running…" forever (#1455).
+        var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMilliseconds(500));
+
+        var id = service.CreateTestJob(new ExecutePlanArgs(_tempDir.Path));
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+        Assert.Null(job.LastOutputAt);
+
+        var cts = job.TimeoutCts!;
+        var watchdogTask = service.RunStaleOutputWatchdog(id, cts);
+
+        var completed = await Task.WhenAny(watchdogTask, Task.Delay(TimeSpan.FromSeconds(5)));
+        Assert.Equal(watchdogTask, completed);
+        Assert.True(job.StaleOutputDetected);
+        Assert.True(cts.IsCancellationRequested);
+    }
+
+    [Fact]
+    public async Task RunStaleOutputWatchdog_NoOutputWithinWindow_DoesNotTrip()
+    {
+        // A freshly launched job with no output yet must not be killed before the stale window.
+        var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(5));
+
+        var id = service.CreateTestJob(new ExecutePlanArgs(_tempDir.Path));
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+
+        var cts = job.TimeoutCts!;
+        var watchdogTask = service.RunStaleOutputWatchdog(id, cts);
+
+        await Task.Delay(TimeSpan.FromSeconds(2));
+
+        Assert.False(job.StaleOutputDetected);
+        Assert.False(cts.IsCancellationRequested);
+
+        // Stop the watchdog and let it exit gracefully.
+        cts.Cancel();
+        await Task.WhenAny(watchdogTask, Task.Delay(TimeSpan.FromSeconds(5)));
+    }
+
+    [Fact]
     public void ProcessId_CapturedOnJobItem()
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));

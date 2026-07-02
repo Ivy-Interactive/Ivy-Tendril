@@ -28,7 +28,7 @@ public class RerunJobDialog(
         var body = supportsFeedback
             ? Layout.Vertical()
               | Text.P("Optionally tell the agent what went wrong or what to do differently. Leave empty to rerun unchanged.")
-              | feedback.ToTextareaInput("Feedback for the agent (optional)...").Rows(6).AutoFocus()
+              | feedback.ToTextareaInput("Feedback for the agent (Optional)").Rows(6).AutoFocus()
             : Layout.Vertical()
               | Text.P("Rerun this job with its original arguments?");
 

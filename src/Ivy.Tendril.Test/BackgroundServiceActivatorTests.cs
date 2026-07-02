@@ -338,9 +338,9 @@ public class BackgroundServiceActivatorTests : IAsyncLifetime
         {
         }
 
-        public string PreprocessForEditing(string path)
+        public string PolishMarkdown(string content)
         {
-            return path;
+            return content;
         }
     }
 

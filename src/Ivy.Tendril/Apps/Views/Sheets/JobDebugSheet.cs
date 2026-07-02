@@ -59,6 +59,7 @@ public class JobDebugSheet(
             .Multiline(x => x.PromptwareLog)
             .Multiline(x => x.PromptwareRawLog)
             .Multiline(x => x.SessionId)
+            .Multiline(x => x.CliCommand)
             .Label(x => x.PromptTitle, "Prompt/Title")
             .Label(x => x.PlanId, "Plan Id")
             .Label(x => x.SessionId, "Session Id")
@@ -79,7 +80,7 @@ public class JobDebugSheet(
             .Builder(x => x.PromptwareRawLog,
                 f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .Builder(x => x.WorkingDirectory, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
-            .Builder(x => x.CliCommand, f => f.Func((string cmd) => new CodeBlock(cmd)))
+            .Builder(x => x.CliCommand, f => f.Func((string cmd) => new CodeBlock(cmd).WrapLines()))
             .Builder(x => x.JobId, f => f.CopyToClipboard())
             .Builder(x => x.PlanId, f => f.CopyToClipboard());
 

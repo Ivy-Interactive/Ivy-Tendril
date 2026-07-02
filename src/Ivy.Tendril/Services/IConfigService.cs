@@ -32,5 +32,5 @@ public interface IConfigService
     List<VerificationConfig>? GetPendingVerificationDefinitions();
     void CompleteOnboarding(string tendrilHome);
     void OpenInEditor(string path);
-    string PreprocessForEditing(string path);
+    string PolishMarkdown(string content);
 }

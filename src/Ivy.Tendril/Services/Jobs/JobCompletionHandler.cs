@@ -167,6 +167,9 @@ internal class JobCompletionHandler
             case CreatePlanArgs:
                 VerifyCreatePlanResult(job);
                 break;
+            case CreatePrArgs:
+                ReconcileCreatePrResult(job);
+                break;
         }
     }
 
@@ -230,14 +233,24 @@ internal class JobCompletionHandler
             return;
 
         var inlineCost = ExtractCostFromOutputLines(job.OutputLines.ToArray());
-        if (inlineCost != null)
+
+        // Fast path: only trust the agent-reported inline cost when it is actually positive.
+        // A timed-out/interrupted run emits token usage but no cost, so a zero inline cost must
+        // fall through to the pricing fallback below (which derives cost from tokens × model price).
+        if (inlineCost is { cost: > 0 })
         {
             ApplyCost(job, persistJob, raisePropertyChanged, inlineCost.Value.tokens, inlineCost.Value.cost);
             return;
         }
 
         if (_modelPricingService == null)
+        {
+            // No pricing service to derive cost from: still surface the tokens we have (cost stays
+            // null rather than a misleading $0.0000).
+            if (inlineCost is { tokens: > 0 })
+                ApplyCost(job, persistJob, raisePropertyChanged, inlineCost.Value.tokens, cost: null);
             return;
+        }
 
         var sessionId = job.SessionId;
         var jobPlanFolder = job.TypedArgs?.PlanFolder;
@@ -252,18 +265,19 @@ internal class JobCompletionHandler
             try
             {
                 var costCalc = _modelPricingService.CalculateSessionCost(sessionId, provider);
-                if (costCalc.TotalCost > 0 || costCalc.TotalTokens > 0)
+                var (tokens, cost) = ResolveJobCost(inlineCost, costCalc);
+                if (tokens > 0 || cost is > 0)
                 {
                     if (jobs.TryGetValue(jobId, out var j))
                     {
-                        j.Cost = (decimal)costCalc.TotalCost;
-                        j.Tokens = costCalc.TotalTokens;
+                        j.Cost = cost;
+                        j.Tokens = tokens;
                         persistJob(j);
                         raisePropertyChanged();
                     }
 
                     if (jobPlanFolder != null)
-                        PlanYamlHelper.LogCostToCsv(jobPlanFolder, jobType, costCalc.TotalTokens, costCalc.TotalCost);
+                        PlanYamlHelper.LogCostToCsv(jobPlanFolder, jobType, tokens, (double)(cost ?? 0m));
                 }
             }
             catch (Exception ex)
@@ -273,12 +287,37 @@ internal class JobCompletionHandler
         });
     }
 
+    /// <summary>
+    /// Reconciles the agent-reported inline cost with the pricing-derived session cost.
+    /// Prefers any positive cost (inline first, then priced); carries the best available token
+    /// count; leaves cost null when neither source has a positive cost so the UI shows nothing
+    /// instead of a misleading $0.0000 next to a positive token count.
+    /// </summary>
+    internal static (int tokens, decimal? cost) ResolveJobCost(
+        (int tokens, decimal cost)? inline, CostCalculation? priced)
+    {
+        var inlineTokens = inline?.tokens ?? 0;
+        var inlineCost = inline?.cost ?? 0m;
+        var pricedTokens = priced?.TotalTokens ?? 0;
+        var pricedCost = priced is not null ? (decimal)priced.TotalCost : 0m;
+
+        // The pricing path re-parses the full session (including subagents), so prefer its token
+        // count when present; otherwise fall back to the inline count.
+        var tokens = pricedTokens > 0 ? pricedTokens : inlineTokens;
+
+        decimal? cost = inlineCost > 0 ? inlineCost
+            : pricedCost > 0 ? pricedCost
+            : null;
+
+        return (tokens, cost);
+    }
+
     private void ApplyCost(
         JobItem job,
         Action<JobItem> persistJob,
         Action raisePropertyChanged,
         int tokens,
-        decimal cost)
+        decimal? cost)
     {
         job.Cost = cost;
         job.Tokens = tokens;
@@ -287,7 +326,7 @@ internal class JobCompletionHandler
 
         var jobPlanFolder = job.TypedArgs?.PlanFolder;
         if (jobPlanFolder != null)
-            PlanYamlHelper.LogCostToCsv(jobPlanFolder, job.Type, tokens, (double)cost);
+            PlanYamlHelper.LogCostToCsv(jobPlanFolder, job.Type, tokens, (double)(cost ?? 0m));
     }
 
     private static (int tokens, decimal cost)? ExtractCostFromOutputLines(IReadOnlyList<string> outputLines)
@@ -355,16 +394,50 @@ internal class JobCompletionHandler
             CreateNoWindow = true
         };
         using var condProc = Process.Start(condPsi);
-        var condOutput = condProc?.StandardOutput.ReadToEnd().Trim() ?? "";
-        condProc.WaitForExitOrKill(10000);
+        if (condProc == null)
+        {
+            job.EnqueueSystemOutput($"[hook:{hook.Name}] Could not start condition process, skipping");
+            return false;
+        }
 
-        if (condProc?.ExitCode != 0 || condOutput.Equals("False", StringComparison.OrdinalIgnoreCase))
+        // Read both streams concurrently and start the reads BEFORE waiting: a blocking ReadToEnd()
+        // would never return for a hung hook, making the timeout below dead code, and reading one
+        // stream to EOF before the other can deadlock if the child floods the unread pipe (#1455
+        // class). The reads complete when the pipes close on exit or kill.
+        var condOutTask = condProc.StandardOutput.ReadToEndAsync();
+        var condErrTask = condProc.StandardError.ReadToEndAsync();
+        var condExitedNormally = condProc.WaitForExitOrKill(10000);
+        var condOutput = HarvestHookStream(condOutTask);
+        _ = HarvestHookStream(condErrTask); // drain to prevent a full stderr pipe from wedging the read
+
+        if (!condExitedNormally)
+        {
+            job.EnqueueSystemOutput($"[hook:{hook.Name}] Condition timed out after 10s and was terminated, skipping");
+            return false;
+        }
+
+        if (condProc.ExitCode != 0 || condOutput.Equals("False", StringComparison.OrdinalIgnoreCase))
         {
             job.EnqueueSystemOutput($"[hook:{hook.Name}] Condition not met, skipping");
             return false;
         }
 
         return true;
+    }
+
+    // Harvests a stdout/stderr read that was started before WaitForExitOrKill. The read completes
+    // when the pipe closes (process exit or kill); the bounded wait ensures a wedged pipe cannot
+    // re-introduce the hang the concurrent-reads-plus-timeout pattern is meant to prevent.
+    private static string HarvestHookStream(Task<string> readTask)
+    {
+        try
+        {
+            return readTask.Wait(TimeSpan.FromSeconds(5)) ? readTask.Result.Trim() : "";
+        }
+        catch
+        {
+            return "";
+        }
     }
 
     private void RunHookAction(PromptwareHookConfig hook, string planFolder, JobItem job, string jobType)
@@ -387,17 +460,31 @@ internal class JobCompletionHandler
         actionPsi.Environment["TENDRIL_CONFIG"] = _configService!.ConfigPath;
 
         using var actionProc = Process.Start(actionPsi);
-        var output = actionProc?.StandardOutput.ReadToEnd().Trim() ?? "";
-        var stderr = actionProc?.StandardError.ReadToEnd().Trim() ?? "";
-        actionProc.WaitForExitOrKill(30000);
+        if (actionProc == null)
+        {
+            job.EnqueueSystemOutput($"[hook:{hook.Name}] Could not start hook process");
+            return;
+        }
+
+        // Read both streams concurrently and start the reads BEFORE waiting: a blocking ReadToEnd()
+        // would never return for a hung hook, making the timeout below dead code, and reading one
+        // stream to EOF before the other can deadlock if the child floods the unread pipe (#1455
+        // class). The reads complete when the pipes close on exit or kill.
+        var outTask = actionProc.StandardOutput.ReadToEndAsync();
+        var errTask = actionProc.StandardError.ReadToEndAsync();
+        var exitedNormally = actionProc.WaitForExitOrKill(30000);
+        var output = HarvestHookStream(outTask);
+        var stderr = HarvestHookStream(errTask);
 
         if (!string.IsNullOrEmpty(output))
             job.EnqueueSystemOutput($"[hook:{hook.Name}] {output}");
         if (!string.IsNullOrEmpty(stderr))
             job.EnqueueSystemOutput($"[hook:{hook.Name}] [stderr] {stderr}");
 
-        if (actionProc?.ExitCode != 0)
-            job.EnqueueSystemOutput($"[hook:{hook.Name}] Hook failed with exit code {actionProc?.ExitCode}");
+        if (!exitedNormally)
+            job.EnqueueSystemOutput($"[hook:{hook.Name}] Hook timed out after 30s and was terminated");
+        else if (actionProc.ExitCode != 0)
+            job.EnqueueSystemOutput($"[hook:{hook.Name}] Hook failed with exit code {actionProc.ExitCode}");
     }
 
     private static string EncodeForPowerShell(string command)
@@ -449,6 +536,98 @@ internal class JobCompletionHandler
             _logger.LogWarning(ex, "Failed to set plan state to {State} for job {JobId}", state, job.Id);
         }
     }
+
+    private static readonly Regex GitHubPrUrlPattern = new(
+        @"https?://github\.com/(?<owner>[^/\s]+)/(?<repo>[^/\s]+)/pull/(?<number>\d+)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>
+    ///     Safety net for CreatePr. The agent is supposed to record each PR URL via
+    ///     `tendril plan add-pr` and set the plan to Completed (Program.md step 6), but a rushed or
+    ///     weak provider can stop after opening the PR and skip that closeout — leaving the PR
+    ///     invisible in the Pull Requests app (which filters on Prs.Count > 0) and the plan stuck in
+    ///     Drafts. Here we parse PR URLs from the job output, record the ones missing from plan.yaml,
+    ///     and mark the plan Completed. A plan that has a PR is Completed regardless of PrMerge; merge
+    ///     is tracked separately as PR status.
+    ///
+    ///     Only PR URLs whose repo matches one of this plan's repos are trusted — a foreign or
+    ///     SourceUrl PR merely echoed in the transcript must not be recorded or force-complete the
+    ///     plan. Plans with no repos (e.g. direct-to-main scaffolding, which opens no PR) are left
+    ///     untouched. No-ops cleanly when the agent already did the closeout.
+    /// </summary>
+    internal void ReconcileCreatePrResult(JobItem job)
+    {
+        try
+        {
+            var planFolder = job.TypedArgs?.PlanFolder ?? "";
+            if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder))
+                return;
+
+            var plan = PlanCommandHelpers.ReadPlan(planFolder);
+
+            // Repos configured for this plan, by folder name — the only repos a PR may target.
+            var planRepoNames = plan.Repos
+                .Select(r => Path.GetFileName(r.TrimEnd('/', '\\')))
+                .Where(n => !string.IsNullOrEmpty(n))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            // Canonical identity (owner/repo#number) of PRs already recorded, so a differently
+            // formatted duplicate (trailing slash, /files suffix, ...) isn't re-added.
+            var recordedKeys = plan.Prs
+                .Select(p => GitHubPrUrlPattern.Match(p))
+                .Where(m => m.Success)
+                .Select(CanonicalPrKey)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            // Scan the output line-by-line (no whole-transcript allocation), keeping the canonical
+            // base URL for each in-scope, not-yet-recorded PR.
+            var added = new List<string>();
+            if (planRepoNames.Count > 0)
+            {
+                var seen = new HashSet<string>(recordedKeys, StringComparer.OrdinalIgnoreCase);
+                foreach (var line in job.OutputLines)
+                foreach (Match m in GitHubPrUrlPattern.Matches(line))
+                {
+                    if (!planRepoNames.Contains(m.Groups["repo"].Value)) continue;
+                    if (!seen.Add(CanonicalPrKey(m))) continue;
+                    added.Add(m.Value);
+                }
+            }
+
+            // Nothing to record and no PR on the plan → leave state to whatever the agent set.
+            if (plan.Prs.Count == 0 && added.Count == 0)
+                return;
+
+            var alreadyCompleted = string.Equals(plan.State, nameof(PlanStatus.Completed),
+                StringComparison.OrdinalIgnoreCase);
+
+            // Agent already recorded every PR and set Completed — no reconciliation needed.
+            if (added.Count == 0 && alreadyCompleted)
+                return;
+
+            if (added.Count > 0)
+            {
+                foreach (var url in added)
+                    plan.Prs.Add(url);
+                plan.Updated = DateTime.UtcNow;
+                PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcherService);
+                job.EnqueueSystemOutput(
+                    $"[Tendril] Recorded {added.Count} PR(s) the agent left unrecorded: {string.Join(", ", added)}");
+            }
+
+            // Route the state change through the shared path so it emits telemetry, updates the DB
+            // for instant UI feedback, and invalidates the counts cache like every other case.
+            if (!alreadyCompleted)
+                SetPlanState(job, nameof(PlanStatus.Completed));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to reconcile CreatePr result for job {JobId}", job.Id);
+        }
+    }
+
+    private static string CanonicalPrKey(Match m) =>
+        $"{m.Groups["owner"].Value}/{m.Groups["repo"].Value}#{m.Groups["number"].Value}".ToLowerInvariant();
 
     private void VerifyCreatePlanResult(JobItem job)
     {

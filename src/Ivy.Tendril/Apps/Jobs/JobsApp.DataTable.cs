@@ -303,7 +303,7 @@ public partial class JobsApp
                     refreshToken.Refresh();
                 })
             )
-        ).Width(Size.Rem(40)) : null;
+        ) : null;
 
         return new Fragment(dataTable, confirmDialog);
     }

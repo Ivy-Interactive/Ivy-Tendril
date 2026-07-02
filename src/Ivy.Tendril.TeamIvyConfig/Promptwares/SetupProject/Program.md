@@ -53,7 +53,7 @@ tendril project remove-review-action <project-name> <name>
 
 ### Stack hash
 ```bash
-tendril project set <project-name> stackHash "<hash>"
+tendril project set <project-name> stackHash <hash>
 ```
 
 ## Execution Steps
@@ -161,12 +161,18 @@ Map the analyzer YAML to the hash: each non-auxiliary, non-workspace-root `compo
 
 **Grammar**
 ```
-hash    = segment ( "|" segment )*
-segment = role [ "(" lang ")" ] ":" token ( "+" token )*
+hash    = segment ( "/" segment )*
+segment = role [ "." lang ] ":" token ( "+" token )*
 role    = "fe" | "mobile" | "desktop" | "be" | "fs" | "lib" | "db" | "infra" | "test"
 lang    = canonical language slug (omit for db/infra/test)
 token   = canonical technology slug
 ```
+
+**Shell-safety (important):** the hash uses `/` between segments and `.` for the
+language qualifier so it contains only letters, digits, and `+ - _ . : /` — never
+spaces or shell metacharacters. This lets it be passed as a bare CLI argument from
+any shell/agent **without quoting**. Never use `|`, `(`, `)`, `&`, `<`, or `>` in a
+hash; they break command parsing when an agent runs the `tendril` command.
 
 **Rules**
 
@@ -189,18 +195,18 @@ token   = canonical technology slug
 
 **Reference examples**
 ```
-fe(ts):react+next+tailwind|be(py):fastapi+sqlmodel|db:postgres|test:playwright+pytest
-fe(ts):react+vite+tailwind|be(py):fastapi|db:postgres+redis|test:vitest
-fs(py):django|db:postgres|test:pytest
-fe(cs):blazor|be(cs):aspnetcore+efcore|db:mssql|test:xunit
-be(go):gin+gorm|db:postgres
-mobile(dart):flutter|db:firebase
-lib(py)|test:pytest
+fe.ts:react+next+tailwind/be.py:fastapi+sqlmodel/db:postgres/test:playwright+pytest
+fe.ts:react+vite+tailwind/be.py:fastapi/db:postgres+redis/test:vitest
+fs.py:django/db:postgres/test:pytest
+fe.cs:blazor/be.cs:aspnetcore+efcore/db:mssql/test:xunit
+be.go:gin+gorm/db:postgres
+mobile.dart:flutter/db:firebase
+lib.py/test:pytest
 ```
 
 Self-check before persisting: segments in Rule-1 order; absent layers omitted; only defining tokens, ordered by Rules 3–4 (base before meta); all slugs normalized; one alphabetical `test:` segment or none; **no spaces anywhere**. Then save it:
 ```bash
-tendril project set <project-name> stackHash "<hash>"
+tendril project set <project-name> stackHash <hash>
 ```
 
 ### 5. Summary

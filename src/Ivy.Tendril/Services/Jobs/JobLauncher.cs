@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using Ivy.Helpers;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Helpers;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services.Plans;
@@ -199,34 +200,52 @@ internal class JobLauncher
             return null;
         }
 
-        WriteStdinContent(process, psi, stdinContent);
-
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
         job.Process = process;
         job.ProcessId = process.Id;
+
+        // Start draining stdout/stderr BEFORE writing stdin. Writing a large prompt (agents receive
+        // the whole compiled prompt on stdin) while nothing reads the child's output pipes is the
+        // classic three-pipe deadlock, and it happens before the timeout monitor is armed — the job
+        // then hangs "running…" forever with no output and no timeout ever firing (#1455).
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+
+        WriteStdinContentAsync(process, psi, stdinContent, id);
 
         return process;
     }
 
-    private static void WriteStdinContent(Process process, ProcessStartInfo psi, string? stdinContent)
+    // Fire-and-forget so the launch thread returns immediately and the caller can arm the timeout
+    // monitor without waiting for the child to consume stdin.
+    private static void WriteStdinContentAsync(Process process, ProcessStartInfo psi, string? stdinContent, string id)
     {
         if (!psi.RedirectStandardInput)
             return;
 
-        try
+        _ = Task.Run(async () =>
         {
-            if (stdinContent != null)
+            try
             {
-                process.StandardInput.Write(stdinContent);
-                process.StandardInput.Flush();
+                if (stdinContent != null)
+                    await ProcessRunner.WriteStdinAndCloseAsync(process, stdinContent);
+                else
+                    process.StandardInput.Close();
             }
-            process.StandardInput.Close();
-        }
-        catch (IOException)
-        {
-            // Process exited before stdin could be written — safe to ignore.
-        }
+            catch (IOException)
+            {
+                // Process exited before stdin could be written — safe to ignore.
+            }
+            catch (ObjectDisposedException)
+            {
+                // stdin was closed by process disposal — safe to ignore.
+            }
+            catch (Exception ex)
+            {
+                // Any other failure means the agent may have received an empty/partial prompt. Make
+                // it diagnosable instead of silently faulting this detached task with no trace.
+                CrashLog.Write($"[{DateTime.UtcNow:O}] Failed to write stdin for job {id}: {ex}");
+            }
+        });
     }
 
     private void InitializeJobMonitoring(JobLaunchContext ctx, Process process)
