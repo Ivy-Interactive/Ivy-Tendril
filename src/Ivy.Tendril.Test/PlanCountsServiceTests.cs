@@ -256,6 +256,11 @@ public class TendrilProcessStatusServiceTests : IDisposable
             throw new NotImplementedException();
         }
 
+        public bool ReportJobFailure(string id, string message)
+        {
+            throw new NotImplementedException();
+        }
+
         public bool IsInboxFileTracked(string filePath)
         {
             throw new NotImplementedException();

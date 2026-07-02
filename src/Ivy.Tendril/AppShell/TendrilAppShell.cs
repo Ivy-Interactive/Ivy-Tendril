@@ -481,7 +481,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .Tag("$import-issues")
                 .Icon(Icons.Download)
                 .OnSelect(showImportIssuesDialog),
-            MenuItem.Default("Check for updates")
+            MenuItem.Default("Check for Updates")
                 .Tag("$check-updates")
                 .Icon(Icons.CircleArrowUp)
                 .OnSelect(() =>

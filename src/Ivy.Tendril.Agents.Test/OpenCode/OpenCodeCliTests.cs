@@ -145,7 +145,7 @@ public class OpenCodeCliTests
 
         Assert.True(spec.FileName == "opencode" || spec.FileName.EndsWith("/opencode") || spec.FileName.EndsWith("\\opencode"));
         Assert.Contains("run", spec.Arguments);
-        Assert.Contains("--dangerously-skip-permissions", spec.Arguments);
+        Assert.Contains("--auto", spec.Arguments);
         Assert.Contains("--format", spec.Arguments);
         Assert.Contains("json", spec.Arguments);
         Assert.Equal("Hello", spec.StdinContent);

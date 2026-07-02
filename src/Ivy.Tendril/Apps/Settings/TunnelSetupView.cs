@@ -45,8 +45,11 @@ public class TunnelSetupView : ViewBase
 
         if (status.Value == TunnelStatus.Connecting)
         {
-            form |= Callout.Info("Starting tunnel and waiting for it to become routable. This typically takes 15-30 seconds.", "Tunnel Starting");
-            form |= new Loading();
+            var calloutContent = Layout.Vertical()
+                                 | Text.Block(
+                                     "Starting tunnel and waiting for it to become routable. This typically takes 15-30 seconds.")
+                                 | new Loading();
+            form |= Callout.Info(calloutContent, "Tunnel Starting");
         }
         else if (status.Value == TunnelStatus.Connected && tunnelUrl.Value is not null)
         {

@@ -44,9 +44,9 @@ public class JobDebugSheet(
             PlanLog = GetPlanLogPath(job) ?? "",
             PromptwareLog = GetPromptwareLogPath(job) ?? "",
             PromptwareRawLog = GetPromptwareRawLogPath(job) ?? "",
-            ExitCode = job.ExitCode?.ToString() ?? "",
             WorkingDirectory = job.WorkingDirectory ?? "",
-            CliCommand = job.CliCommand ?? ""
+            CliCommand = job.CliCommand ?? "",
+            ExitCode = job.ExitCode?.ToString() ?? "",
         };
 
         var detailsView = data.ToDetails()
@@ -58,7 +58,7 @@ public class JobDebugSheet(
             .Multiline(x => x.PlanLog)
             .Multiline(x => x.PromptwareLog)
             .Multiline(x => x.PromptwareRawLog)
-            .Multiline(x => x.SessionId)
+            .Multiline(x => x.WorkingDirectory)
             .Multiline(x => x.CliCommand)
             .Label(x => x.PromptTitle, "Prompt/Title")
             .Label(x => x.PlanId, "Plan Id")

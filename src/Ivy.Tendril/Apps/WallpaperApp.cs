@@ -108,7 +108,10 @@ public class WallpaperApp : ViewBase
                 new Card(
                     new QRCode { Value = tunnelAddress, PixelSize = 160, ErrorCorrectionLevel = QrErrorCorrectionLevel.Medium }
                 ).Header("Tunnel", null, tunnelMenu)
-            ).AlignSelf(Align.TopRight).Offset(new Thickness(0, 8, 8, 0));
+            )
+            .AlignSelf(Align.TopRight)
+            .Offset(new Thickness(0, 8, 8, 0))
+            .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
             elements.Add(tunnelQr);
         }

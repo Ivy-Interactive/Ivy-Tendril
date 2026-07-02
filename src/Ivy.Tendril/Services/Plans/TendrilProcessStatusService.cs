@@ -39,17 +39,18 @@ public class TendrilProcessStatusService : ITendrilProcessStatusService
 
         if (!string.IsNullOrEmpty(config.TendrilHome))
         {
+            // Create the directory up front — a watcher can only be attached to an existing
+            // directory, and Trash views rely on this signal alone (no polling).
             var trashDir = Path.Combine(config.TendrilHome, "Trash");
-            if (Directory.Exists(trashDir))
+            Directory.CreateDirectory(trashDir);
+            _trashWatcher = new FileSystemWatcher(trashDir, "*.md")
             {
-                _trashWatcher = new FileSystemWatcher(trashDir, "*.md")
-                {
-                    NotifyFilter = NotifyFilters.FileName,
-                    EnableRaisingEvents = true
-                };
-                _trashWatcher.Created += (_, _) => ScheduleRefresh();
-                _trashWatcher.Deleted += (_, _) => ScheduleRefresh();
-            }
+                NotifyFilter = NotifyFilters.FileName,
+                EnableRaisingEvents = true
+            };
+            _trashWatcher.Created += (_, _) => ScheduleRefresh();
+            _trashWatcher.Deleted += (_, _) => ScheduleRefresh();
+            _trashWatcher.Renamed += (_, _) => ScheduleRefresh();
         }
     }
 

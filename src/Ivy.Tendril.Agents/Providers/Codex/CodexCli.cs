@@ -65,6 +65,7 @@ public sealed class CodexCli : IAgentCli
         {
             "exec",
             "--sandbox", "workspace-write",
+            "-c", "sandbox_workspace_write.network_access=true",
             "--json",
             "--skip-git-repo-check",
         };
