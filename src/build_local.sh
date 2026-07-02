@@ -11,26 +11,6 @@ PUBLISH_DIR="./publish/desktop/$RID"
 echo "=== Cleaning previous builds ==="
 rm -rf ./publish
 rm -rf ./releases
-rm -rf ./PublishedBinaries
-rm -rf ./src/Ivy.Tendril/PublishedBinaries
-
-echo "=== Building Updater ==="
-dotnet publish src/Ivy.Tendril.Updater/Ivy.Tendril.Updater.csproj -c Release -r win-x64 --self-contained false -o ./PublishedBinaries/Ivy.Tendril.Updater/win-x64
-dotnet publish src/Ivy.Tendril.Updater/Ivy.Tendril.Updater.csproj -c Release -r win-arm64 --self-contained false -o ./PublishedBinaries/Ivy.Tendril.Updater/win-arm64
-dotnet publish src/Ivy.Tendril.Updater/Ivy.Tendril.Updater.csproj -c Release -r osx-x64 --self-contained false -o ./PublishedBinaries/Ivy.Tendril.Updater/osx-x64
-dotnet publish src/Ivy.Tendril.Updater/Ivy.Tendril.Updater.csproj -c Release -r osx-arm64 --self-contained false -o ./PublishedBinaries/Ivy.Tendril.Updater/osx-arm64
-
-echo "=== Cleaning Updater binaries ==="
-for dir in win-x64 win-arm64 osx-x64 osx-arm64; do
-  find ./PublishedBinaries/Ivy.Tendril.Updater/$dir -type f ! \( -name "*.exe" -o -name "*.dll" -o -name "*.dylib" -o -name "Ivy.Tendril.Updater" \) -delete
-done
-
-echo "=== Zipping Updater binaries ==="
-mkdir -p src/Ivy.Tendril/PublishedBinaries
-(cd PublishedBinaries/Ivy.Tendril.Updater/win-x64 && zip -r ../../../src/Ivy.Tendril/PublishedBinaries/Ivy.Tendril.Updater.win-x64.zip .)
-(cd PublishedBinaries/Ivy.Tendril.Updater/win-arm64 && zip -r ../../../src/Ivy.Tendril/PublishedBinaries/Ivy.Tendril.Updater.win-arm64.zip .)
-(cd PublishedBinaries/Ivy.Tendril.Updater/osx-x64 && zip -r ../../../src/Ivy.Tendril/PublishedBinaries/Ivy.Tendril.Updater.osx-x64.zip .)
-(cd PublishedBinaries/Ivy.Tendril.Updater/osx-arm64 && zip -r ../../../src/Ivy.Tendril/PublishedBinaries/Ivy.Tendril.Updater.osx-arm64.zip .)
 
 echo "=== Publishing Tendril App ==="
 dotnet publish src/Ivy.Tendril/Ivy.Tendril.csproj \
