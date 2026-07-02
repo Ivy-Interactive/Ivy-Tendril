@@ -548,16 +548,14 @@ jobs:
           mkdir -p expanded-pkg/Scripts
           
           # Write the postinstall script
-          cat << 'EOF' > expanded-pkg/Scripts/postinstall
-#!/bin/bash
-# Path to the installed app's certificate
-CERT_PATH="$3/Applications/Ivy Tendril.app/Contents/Resources/certs/localhost.crt"
-if [ -f "$CERT_PATH" ]; then
-  echo "Trusting Ivy Tendril localhost certificate system-wide..."
-  security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$CERT_PATH"
-fi
-exit 0
-EOF
+          echo '#!/bin/bash
+          # Path to the installed app's certificate
+          CERT_PATH="$3/Applications/Ivy Tendril.app/Contents/Resources/certs/localhost.crt"
+          if [ -f "$CERT_PATH" ]; then
+            echo "Trusting Ivy Tendril localhost certificate system-wide..."
+            security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$CERT_PATH"
+          fi
+          exit 0' | sed 's/^          //' > expanded-pkg/Scripts/postinstall
           chmod +x expanded-pkg/Scripts/postinstall
           
           # Repack the package
