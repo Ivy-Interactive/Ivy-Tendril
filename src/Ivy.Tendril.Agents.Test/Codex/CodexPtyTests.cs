@@ -21,6 +21,7 @@ public class CodexPtyTests
         // The interactive TUI has no `--full-auto` shorthand.
         Assert.DoesNotContain("--full-auto", spec.CommandLine);
         AssertFlagValue(spec.CommandLine.ToList(), "--sandbox", "workspace-write");
+        AssertFlagValue(spec.CommandLine.ToList(), "-c", "sandbox_workspace_write.network_access=true");
         AssertFlagValue(spec.CommandLine.ToList(), "--ask-for-approval", "never");
     }
 
@@ -37,6 +38,7 @@ public class CodexPtyTests
 
         Assert.DoesNotContain("--full-auto", spec.CommandLine);
         Assert.DoesNotContain("--sandbox", spec.CommandLine);
+        Assert.DoesNotContain("-c", spec.CommandLine);
         Assert.DoesNotContain("--ask-for-approval", spec.CommandLine);
     }
 
