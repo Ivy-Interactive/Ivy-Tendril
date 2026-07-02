@@ -14,6 +14,40 @@ icon: ScrollText
 Version history, new features, improvements, and bug fixes for each Tendril release.
 </Ingress>
 
+## 1.1.6 (2026-07-02)
+
+### Features
+
+- **First-class failure reporting** — Added the `tendril job fail <job-id> --message` CLI command allowing promptwares to report specific execution failures explicitly instead of relying on exit codes and raw stdout heuristics.
+- **Inbox auto-refresh** — Replaced interval-based polling in Drafts, Review, Icebox, Recommendations, and Trash apps with subscription-based updates using a debounced process status and file system watcher.
+- **Velopack updater consolidation** — Consolidated the desktop self-update flow onto Velopack, enabling check-for-updates in Settings, persisting dismissed updates across restarts, and removed the obsolete `Ivy.Tendril.Updater` project.
+- **UserQuestion widget** — Added a new `UserQuestion` widget and viewer for interactive user prompts.
+- **Onboarding guide** — Added a first-class onboarding guide to the Getting Started documentation.
+- **New plan enhancements** — Added a project select button directly to the Create Plan dialog, and renamed `CustomPrDialog` to `CreatePrDialog`.
+
+### Improvements
+
+- **Windows path and shell safety** — Replaced shell-unsafe characters (pipes and parentheses) in the `stackHash` project configuration with `/` and `.ts` extensions, and implemented Windows CLI argument escaping.
+- **Agent sandbox network access** — Enabled sandboxed network access for Codex via the `sandbox_workspace_write.network_access` setting, fixing PermissionError on socket bind operations.
+- **OpenCode local Ollama support** — Bypassed auth checks and resolved the binary path automatically when running OpenCode with a local Ollama model, and switched to `--auto` execution to prevent PTY hangs.
+- **Markdown link handling** — Centralized plan-revision markdown link polishing and rendering safety checks to strip line-number anchors from file URLs.
+- **Bug report GitHub username** — Added an optional GitHub username field to the Bug Report dialog and `report-bug` CLI command.
+- **UI layout refinements** — Hidden the Tunnel QR panel on mobile/tablet screens, nested the loading spinner within the starting callout, fixed the "Stop" button icon, and restored spacing in the Review actions layout.
+- **Text unwrapping for Gemini** — Added text unwrapping for Gemini's hard line break formatting to improve readability.
+- **Keyboard element styling** — Added styling for `<kbd>` elements in the markdown widget.
+
+### Bug Fixes
+
+- Fixed jobs hanging indefinitely in the pre-launch window due to deadlocks or stale output by arming timeouts immediately and executing before-hooks concurrently.
+- Fixed the Create Plan screen scroll position resetting/twitching to the top when navigating tabs.
+- Fixed job cost calculation for timed-out runs by falling back to pricing-based calculations when inline cost is zero or missing.
+- Fixed CreatePr plans remaining in Drafts when agents skip closeout steps by automatically parsing PR URLs from output on completion.
+- Fixed startup session log spam and em-dash formatting in master election logs.
+- Fixed EPERM listen errors on startup by binding test servers to loopback.
+- Fixed Codex agent output collapsing to zero height during execution.
+- Fixed keyboard focus/blur issues and auto-focused the input when the New Plan dialog opens.
+- Disabled the unused Tunnel feature in default configuration.
+
 ## 1.1.1 (2026-06-25)
 
 ### Features
