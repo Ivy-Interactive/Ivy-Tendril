@@ -129,34 +129,31 @@ public class ProjectAgentStepView(
                         return;
                     }
 
-                    if (agentKey != "opencode")
+                    progressMessage.Set($"Verifying {info.DisplayName} authentication...");
+                    var authStatus = await healthCheck.CheckAuthAsync();
+                    if (authStatus.Status != AuthStatus.Authenticated)
                     {
+                        progressMessage.Set($"Signing In to {info.DisplayName}... (Browser Will Open)");
+                        authCode.Set(null);
+
+                        var callbacks = new AuthFlowCallbacks
+                        {
+                            OnUrl = url => { client.OpenUrl(url); return Task.CompletedTask; },
+                            OnCode = code => authCode.Set(code),
+                        };
+                        await healthCheck.RunAuthFlowAsync(callbacks, CancellationToken.None);
+                        authCode.Set(null);
+
                         progressMessage.Set($"Verifying {info.DisplayName} authentication...");
-                        var authStatus = await healthCheck.CheckAuthAsync();
+                        authStatus = await healthCheck.CheckAuthAsync();
                         if (authStatus.Status != AuthStatus.Authenticated)
                         {
-                            progressMessage.Set($"Signing In to {info.DisplayName}... (Browser Will Open)");
-                            authCode.Set(null);
-
-                            var callbacks = new AuthFlowCallbacks
-                            {
-                                OnUrl = url => { client.OpenUrl(url); return Task.CompletedTask; },
-                                OnCode = code => authCode.Set(code),
-                            };
-                            await healthCheck.RunAuthFlowAsync(callbacks, CancellationToken.None);
-                            authCode.Set(null);
-
-                            progressMessage.Set($"Verifying {info.DisplayName} authentication...");
-                            authStatus = await healthCheck.CheckAuthAsync();
-                            if (authStatus.Status != AuthStatus.Authenticated)
-                            {
-                                await agentCheckCts.CancelAsync();
-                                progressValue.Set(null);
-                                progressMessage.Set(null);
-                                error.Set($"Please make sure your agent ({info.DisplayName}) is present and you are authorized.");
-                                isStepLoading.Set(false);
-                                return;
-                            }
+                            await agentCheckCts.CancelAsync();
+                            progressValue.Set(null);
+                            progressMessage.Set(null);
+                            error.Set($"Please make sure your agent ({info.DisplayName}) is present and you are authorized.");
+                            isStepLoading.Set(false);
+                            return;
                         }
                     }
                 }

@@ -143,7 +143,7 @@ public class OpenCodeCliTests
 
         var spec = _cli.BuildProcessSpec(config);
 
-        Assert.True(spec.FileName == "opencode" || spec.FileName.EndsWith("/opencode") || spec.FileName.EndsWith("\\opencode"));
+        Assert.Equal("opencode", spec.FileName);
         Assert.Contains("run", spec.Arguments);
         Assert.Contains("--dangerously-skip-permissions", spec.Arguments);
         Assert.Contains("--format", spec.Arguments);

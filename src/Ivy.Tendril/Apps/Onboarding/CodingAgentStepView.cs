@@ -295,9 +295,6 @@ public class CodingAgentStepView(
             },
             async () =>
             {
-                if (agentKey == "opencode")
-                    return HealthCheckStatus.Authenticated;
-
                 var result = await healthCheck.CheckAuthAsync();
                 return result.Status == AuthStatus.Authenticated
                     ? HealthCheckStatus.Authenticated
