@@ -10,6 +10,7 @@ searchHints:
   - run
   - doctor
   - version
+  - config
 ---
 
 # CLI Overview
@@ -23,6 +24,7 @@ Tendril CLI gives you complete control over your workflow without touching the U
 - **Plans** — create, list, update, and inspect plans; manage repos, worktrees, verifications, and recommendations
 - **Projects** — configure projects, their repos, build dependencies, and review actions
 - **Verifications** — define and manage reusable verification checks
+- **Config** — read and update top-level settings stored in `config.yaml`
 - **Database** — run migrations, inspect schema versions, or reset the database
 - **Agents** — run and manage promptwares and their memory
 
@@ -159,3 +161,4 @@ Refreshes the embedded promptware templates from the bundled source. Run after u
 - [Verification commands](03_Verification.md) — manage global verification definitions
 - [Database commands](04_Database.md) — migrations, schema version, and reset
 - [Other commands](05_Other.md) — promptware, job, trash, MCP, and utilities
+- [Config commands](06_Config.md) — read and update top-level `config.yaml` settings

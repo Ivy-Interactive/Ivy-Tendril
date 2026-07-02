@@ -311,8 +311,10 @@ internal class JobLauncher
 
         var customInstructions = ResolveCustomInstructions(job.Type);
         var projects = BuildProjectInfos(job);
+        // Expand variables at point of use (Settings holds the raw template). normalizePaths: false —
+        // the template is prose injected into the prompt, so slashes/URLs must be preserved.
         var planTemplate = PlanWritingTypes.Contains(job.Type)
-            ? _configService.Settings.PlanTemplate
+            ? VariableExpansion.ExpandVariables(_configService.Settings.PlanTemplate, _configService.TendrilHome, normalizePaths: false)
             : null;
         var prompt = FirmwareCompiler.Compile(new FirmwareContext(programFolder, values, customInstructions, projects, planTemplate));
         job.CompiledPrompt = prompt;

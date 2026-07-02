@@ -338,7 +338,7 @@ public class Program
         {
             "doctor", "db-version", "db-migrate", "db-reset",
             "update-promptwares", "job", "plan", "promptware",
-            "trash", "verification", "project", "project-analyzer", "models",
+            "trash", "verification", "project", "project-analyzer", "models", "config",
             "version", "--version", "report-bug", "reset", "update",
             "--help", "-h", "run", "generate-certs"
         };
@@ -630,6 +630,14 @@ public class Program
                     .WithDescription("Add a review action to a project");
                 project.AddCommand<ProjectRemoveReviewActionCommand>("remove-review-action")
                     .WithDescription("Remove a review action from a project");
+            });
+
+            config.AddBranch("config", cfg =>
+            {
+                cfg.AddCommand<ConfigGetCommand>("get")
+                    .WithDescription("Get a top-level config value");
+                cfg.AddCommand<ConfigSetCommand>("set")
+                    .WithDescription("Set a top-level config value");
             });
         });
         return app;

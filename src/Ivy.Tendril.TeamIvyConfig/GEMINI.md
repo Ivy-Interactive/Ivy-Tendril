@@ -220,6 +220,17 @@ These commands are for internal use by other promptwares (e.g., a verification s
 | `tendril project add-review-action <name>` | Add review action |
 | `tendril project remove-review-action <name> <action>` | Remove review action |
 
+### Config Commands
+
+Read/write top-level settings in `config.yaml`. Valid keys: `codingAgent`, `jobTimeout`, `staleOutputTimeout`, `gitTimeout`, `maxConcurrentJobs`, `planTemplate`.
+
+| Command | Description |
+|---------|-------------|
+| `tendril config get <key>` | Print a config value (raw, to stdout) |
+| `tendril config set <key> <value>` | Set a config value (validated before saving) |
+| `tendril config set <key> --file <path>` | Set from a file — use for long/multiline `planTemplate` |
+| `tendril config set <key> --stdin` | Set from stdin — use for long/multiline `planTemplate` |
+
 ## Creating Plans Interactively
 
 When the user asks you to create a plan:
