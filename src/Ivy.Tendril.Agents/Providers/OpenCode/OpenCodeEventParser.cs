@@ -13,7 +13,6 @@ public sealed class OpenCodeEventParser : IEventParser
     private static readonly IReadOnlyList<AgentEvent> Empty = Array.Empty<AgentEvent>();
 
     private bool _hasError;
-    private readonly HashSet<string> _seenToolCalls = new(StringComparer.OrdinalIgnoreCase);
 
     public IReadOnlyList<AgentEvent> ParseLine(string rawLine)
     {
@@ -80,7 +79,6 @@ public sealed class OpenCodeEventParser : IEventParser
     public void Reset()
     {
         _hasError = false;
-        _seenToolCalls.Clear();
     }
 
     private static string? PeekType(ref Utf8JsonReader reader)
@@ -137,7 +135,7 @@ public sealed class OpenCodeEventParser : IEventParser
         }];
     }
 
-    private IReadOnlyList<AgentEvent> ParseToolUse(JsonElement root, string rawLine)
+    private static IReadOnlyList<AgentEvent> ParseToolUse(JsonElement root, string rawLine)
     {
         if (!root.TryGetProperty("part", out var part)) return Empty;
 
@@ -154,11 +152,9 @@ public sealed class OpenCodeEventParser : IEventParser
                 description = descProp.GetString();
         }
 
-        var events = new List<AgentEvent>();
-
-        if (!string.IsNullOrEmpty(callId) && _seenToolCalls.Add(callId))
+        var events = new List<AgentEvent>
         {
-            events.Add(new ToolCallEvent
+            new ToolCallEvent
             {
                 Kind = AgentEventKind.ToolCall,
                 ToolUseId = callId,
@@ -166,8 +162,8 @@ public sealed class OpenCodeEventParser : IEventParser
                 InputJson = inputJson,
                 Description = description,
                 RawLine = rawLine,
-            });
-        }
+            }
+        };
 
         // If tool has completed, also emit a result event
         if (part.TryGetProperty("state", out var stateEl) &&

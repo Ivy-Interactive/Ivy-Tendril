@@ -133,24 +133,6 @@ public class OpenCodeEventParserTests
     }
 
     [Fact]
-    public void ParseLine_ToolUse_DuplicateRunningAndCompleted_DeduplicatesToolCallEvent()
-    {
-        var jsonRunning = """{"type":"tool_use","part":{"tool":"bash","callID":"call-003","state":{"input":{"command":"ls"},"status":"running"}}}""";
-        var jsonCompleted = """{"type":"tool_use","part":{"tool":"bash","callID":"call-003","state":{"input":{"command":"ls"},"status":"completed","output":"file1.txt"}}}""";
-
-        var runningEvents = _parser.ParseLine(jsonRunning);
-        Assert.Single(runningEvents);
-        var toolCall = Assert.IsType<ToolCallEvent>(runningEvents[0]);
-        Assert.Equal("call-003", toolCall.ToolUseId);
-
-        var completedEvents = _parser.ParseLine(jsonCompleted);
-        Assert.Single(completedEvents);
-        var toolResult = Assert.IsType<ToolResultEvent>(completedEvents[0]);
-        Assert.Equal("call-003", toolResult.ToolUseId);
-        Assert.Equal("file1.txt", toolResult.Output);
-    }
-
-    [Fact]
     public void ParseLine_ToolUse_WithoutPart_ReturnsEmpty()
     {
         var json = """{"type":"tool_use"}""";
