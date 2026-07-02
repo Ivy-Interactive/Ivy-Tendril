@@ -68,6 +68,7 @@ if [ -f .git ] && grep -q "gitdir:" .git; then
     echo "ERROR: Repository at <repo-path> is itself a worktree."
     echo "ExecutePlan cannot create worktrees inside worktrees."
     echo "Check that project repo paths point to main repositories, not worktrees."
+    tendril job fail TendrilJobId --message="Cannot create worktrees: repository at <repo-path> is itself a git worktree. Update the project's repo path to point at the main repository."
     exit 1
 fi
 
@@ -79,6 +80,7 @@ if git rev-parse --is-inside-work-tree 2>/dev/null && [ -f "$PLANS_DIR_PARENT/.g
         echo "ERROR: TENDRIL_HOME ($TENDRIL_HOME) is inside a git worktree."
         echo "Plans and their worktrees cannot be created inside worktrees."
         echo "Move your Tendril installation outside the worktree or use a different Plans directory."
+        tendril job fail TendrilJobId --message="Cannot create worktrees: TENDRIL_HOME ($TENDRIL_HOME) is inside a git worktree. Move the Tendril installation or Plans directory outside the worktree."
         exit 1
     fi
 fi
@@ -238,6 +240,7 @@ If `baseBranch` is present for a repo, use it instead of auto-detecting. If abse
 if [ ! -f "<TendrilPlanFolder>/Worktrees/<repo-folder-name>/.git" ]; then
     echo "ERROR: Worktree creation failed - .git file missing at <TendrilPlanFolder>/Worktrees/<repo-folder-name>/.git"
     echo "This indicates git worktree add did not fully initialize the worktree."
+    tendril job fail TendrilJobId --message="Worktree creation failed for <repo-folder-name>: .git file missing after 'git worktree add' — the worktree was not fully initialized."
     exit 1
 fi
 cat "<TendrilPlanFolder>/Worktrees/<repo-folder-name>/.git"
