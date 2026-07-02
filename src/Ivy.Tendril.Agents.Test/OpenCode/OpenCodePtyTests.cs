@@ -10,7 +10,7 @@ public class OpenCodePtyTests
     [Fact]
     public void BuildPtySpec_FullAuto_OmitsSkipPermissions()
     {
-        // The interactive TUI rejects --dangerously-skip-permissions (it only
+        // The interactive TUI rejects --auto (it only
         // exists on the `run` subcommand), so FullAuto must not add it.
         var config = new AgentPtyConfig
         {
@@ -20,7 +20,7 @@ public class OpenCodePtyTests
 
         var spec = _pty.BuildPtySpec(config);
 
-        Assert.DoesNotContain("--dangerously-skip-permissions", spec.CommandLine);
+        Assert.DoesNotContain("--auto", spec.CommandLine);
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public class OpenCodePtyTests
 
         var spec = _pty.BuildPtySpec(config);
 
-        Assert.DoesNotContain("--dangerously-skip-permissions", spec.CommandLine);
+        Assert.DoesNotContain("--auto", spec.CommandLine);
     }
 
     [Fact]
