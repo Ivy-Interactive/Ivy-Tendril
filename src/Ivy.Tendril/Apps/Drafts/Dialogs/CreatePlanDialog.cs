@@ -7,7 +7,7 @@ using Ivy.Tendril.Helpers;
 using System;
 using System.IO;
 using Ivy.Tendril.Apps.Agent;
-using Ivy.Tendril.Apps.Settings.Dialogs;
+using Ivy.Tendril.Apps.Settings;
 
 namespace Ivy.Tendril.Apps.Drafts.Dialogs;
 
@@ -56,14 +56,11 @@ public class CreatePlanDialog(
         var selectedPriority = UseState("Normal");
         var configService = UseService<IConfigService>();
         var agentRunner = UseService<IAgentRunner>();
-        var client = UseService<IClientProvider>();
-        var refreshToken = UseRefreshToken();
         var uploadSessionId = UseState(() => Guid.NewGuid().ToString("N"));
         var (breakpoint, breakpointListener) = Context.UseBreakpoint();
         var uploadedFiles = UseState(new List<string>());
-        var isAddProjectOpen = UseState(false);
 
-        var uploadContext = this.UseUpload(async (fileUpload, stream, token) =>
+        var uploadContext = UseUpload(async (fileUpload, stream, token) =>
         {
             var tempDir = Path.Combine(configService.TendrilHome, "Attachments", uploadSessionId.Value);
             Directory.CreateDirectory(tempDir);
@@ -135,9 +132,10 @@ public class CreatePlanDialog(
                 | (Layout.Vertical().Gap(0)
                     | (Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween)
                         | Text.Block("Select Project(s)").Small().Bold()
-                        | new Button().Icon(Icons.Plus).Ghost().Small().Tooltip("Add Project").OnClick(() =>
+                        | new Button("New Project").Ghost().Icon(Icons.Plus).OnClick(() =>
                         {
-                            isAddProjectOpen.Set(true);
+                            HandleClose();
+                            nav.Navigate<SettingsApp>(new SettingsAppArgs(SettingsApp.TagProjects));
                         }))
                     | exclusiveProjects.ToSelectInput(options).Variant(SelectInputVariant.Toggle))
                 | selectedPriority.ToSelectInput(PriorityOptions).Variant(SelectInputVariant.Toggle).WithField().Label("Priority")
@@ -145,7 +143,7 @@ public class CreatePlanDialog(
                 {
                     UploadUrl = uploadContext.Value.UploadUrl,
                     AutoFocus = true,
-                    OnSubmit = e =>
+                    OnSubmit = _ =>
                     {
                         if (!string.IsNullOrWhiteSpace(createPlanText.Value) && !isCreating.Value)
                         {
@@ -226,6 +224,6 @@ public class CreatePlanDialog(
                 new DialogBody(bodyContent))
                 .Width(Size.Rem(30));
 
-        return new Fragment(breakpointListener, planSurface, new AddProjectDialog(isAddProjectOpen, configService, client, refreshToken));
+        return new Fragment(breakpointListener, planSurface);
     }
 }
