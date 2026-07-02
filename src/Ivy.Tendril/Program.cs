@@ -451,6 +451,11 @@ public class Program
             config.AddCommand<ProjectAnalyzerCommand>("project-analyzer")
                 .WithDescription("Analyze a folder and print a YAML stack report");
 
+            // Generate certificates command (hidden, for build time)
+            config.AddCommand<GenerateCertsCommand>("generate-certs")
+                .WithDescription("Generate self-signed localhost certificate for desktop HTTPS")
+                .IsHidden();
+
             // Run command
             config.AddCommand<RunCommand>("run")
                 .WithDescription("Run the Tendril web server in the foreground");
