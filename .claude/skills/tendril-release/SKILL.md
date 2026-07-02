@@ -52,7 +52,6 @@ pwsh src/.releases/UpdateIvyPackages.ps1
 Verify that the package updates do not break compilation. Run builds with `IvySource` set to `false` to verify NuGet package resolution:
 ```bash
 dotnet build src/Ivy.Tendril/Ivy.Tendril.csproj /p:IvySource=false
-dotnet build src/Ivy.Tendril.Updater/Ivy.Tendril.Updater.csproj /p:IvySource=false
 ```
 
 If the build fails, abort the process and notify the developer. Do not proceed to commit.
