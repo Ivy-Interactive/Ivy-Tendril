@@ -109,11 +109,7 @@
   <Target Name="SetCommitId" BeforeTargets="GetAssemblyAttributes">
     <!-- CI passes -p:CommitId=<sha>; locally fall back to git. Embedded as assembly metadata
          and read at runtime by BugReportService to tag bug reports with the source revision. -->
-    <Exec Condition="'$(CommitId)' == ''"
-          Command="git rev-parse HEAD"
-          ConsoleToMSBuild="true"
-          ContinueOnError="true"
-          StandardOutputImportance="low">
+    <Exec Condition="'$(CommitId)' == ''" Command="git rev-parse HEAD" ConsoleToMSBuild="true" ContinueOnError="true" StandardOutputImportance="low">
       <Output TaskParameter="ConsoleOutput" PropertyName="CommitId" />
     </Exec>
     <ItemGroup Condition="'$(CommitId)' != ''">
