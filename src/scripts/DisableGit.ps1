@@ -18,20 +18,20 @@ Instead this script:
 The original 'origin' URL is stored in git config
 (tendril.disable-git.original-url) and everything is restored with -Revert.
 
+.PARAMETER RepoPath
+Target repository (required).
+
 .PARAMETER Revert
 Restore the original 'origin' URL and clear all state this script set.
 
-.PARAMETER RepoPath
-Target repository (default: current directory).
-
 .EXAMPLE
-./DisableGit.ps1                       # break auth in the current repo
-./DisableGit.ps1 -Revert               # restore
-./DisableGit.ps1 -RepoPath D:\Repos\Foo
+./DisableGit.ps1 D:\Repos\Foo          # break auth in that repo
+./DisableGit.ps1 D:\Repos\Foo -Revert  # restore
 #>
 param(
-    [switch]$Revert,
-    [string]$RepoPath = "."
+    [Parameter(Mandatory, Position = 0)]
+    [string]$RepoPath,
+    [switch]$Revert
 )
 
 $ErrorActionPreference = "Stop"
@@ -108,4 +108,4 @@ Write-Host "Disabled git auth for 'origin':" -ForegroundColor Green
 Write-Host "  was: $current"
 Write-Host "  now: $broken"
 Write-Host "`n``git fetch origin`` will now fail with 'Authentication failed' (exit 128)." -ForegroundColor Yellow
-Write-Host "Run './DisableGit.ps1 -Revert' to restore." -ForegroundColor Yellow
+Write-Host "Run './DisableGit.ps1 $RepoPath -Revert' to restore." -ForegroundColor Yellow
