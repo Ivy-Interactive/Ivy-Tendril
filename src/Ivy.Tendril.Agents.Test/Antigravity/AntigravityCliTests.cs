@@ -73,6 +73,10 @@ public class AntigravityCliTests
         Assert.True(spec.RedirectStdin);
         Assert.Contains("--print", spec.Arguments);
         Assert.Contains("--dangerously-skip-permissions", spec.Arguments);
+
+        var printIdx = spec.Arguments.ToList().IndexOf("--print");
+        Assert.True(printIdx >= 0);
+        Assert.Equal("-", spec.Arguments[printIdx + 1]);
     }
 
     [Fact]
