@@ -31,6 +31,15 @@ public sealed class ClaudeModelCatalog : CachedModelCatalogProvider
     [
         new()
         {
+            Id = "claude-fable-5", DisplayName = "Claude Fable",
+            Capabilities = FullCaps,
+            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
+            Provider = "anthropic",
+            InputPerMillion = 10.00m, OutputPerMillion = 50.00m,
+            CacheWritePerMillion = 12.50m, CacheReadPerMillion = 1.00m,
+        },
+        new()
+        {
             Id = "opus", DisplayName = "Claude Opus",
             Capabilities = FullCaps,
             ContextWindow = 200_000, MaxOutputTokens = 32_000,
