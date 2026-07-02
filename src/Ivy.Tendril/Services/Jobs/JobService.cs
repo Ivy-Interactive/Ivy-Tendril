@@ -276,8 +276,35 @@ public class JobService : IJobService
             var isTerminal = current is PlanStatus.Completed or PlanStatus.Skipped;
             if (!isTerminal)
             {
-                _planReaderService.ResetToDraft(Path.GetFileName(planFolder));
-                WorktreeCleanupService.CleanPlanState(planFolder, _logger);
+                // Optimistic delete: the job is already gone from the UI, so reclaim the plan's
+                // worktrees and artifacts on a background thread and return immediately instead of
+                // blocking the UI on git subprocesses and multi-second directory deletes. Order
+                // matters: ResetToDraft (which flips the plan to a runnable Draft) runs only AFTER
+                // cleanup finishes, so an immediate re-execution can't race the still-running
+                // deletes and have its fresh worktree removed out from under it.
+                var planReaderService = _planReaderService;
+                string folderPath = planFolder;
+                var folderName = Path.GetFileName(folderPath);
+                Task.Run(() =>
+                {
+                    try
+                    {
+                        WorktreeCleanupService.CleanPlanState(folderPath, _logger);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Background plan-state cleanup failed for {PlanFolder}", folderName);
+                        RaiseNotification(new JobNotification("Cleanup incomplete",
+                            $"Couldn't fully remove worktrees and artifacts for {folderName}; some disk space may not be reclaimed until it is cleared manually.",
+                            false));
+                    }
+                    finally
+                    {
+                        // Reset to Draft regardless of cleanup success so the plan stays usable;
+                        // done after cleanup so its directories are gone before it becomes runnable.
+                        planReaderService.ResetToDraft(folderName);
+                    }
+                });
                 return;
             }
         }
