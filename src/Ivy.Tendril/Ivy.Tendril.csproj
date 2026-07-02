@@ -36,10 +36,6 @@
     <EmbeddedResource Include="../Tendril.svg" Link="Assets/Tendril.svg" />
   </ItemGroup>
 
-  <ItemGroup Condition="Exists('PublishedBinaries')">
-    <EmbeddedResource Include="PublishedBinaries/**/*.zip" />
-  </ItemGroup>
-
   <!-- PackageReferences -->
   <ItemGroup>
     <PackageReference Include="Ivy.StackAnalyzer" Version="1.0.1" />
