@@ -128,16 +128,16 @@ public class CreatePlanDialog(
         }
 
         var bodyContent =
-                Layout.Vertical()
-                | (Layout.Vertical().Gap(0)
-                    | (Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween)
-                        | Text.Block("Select Project(s)").Small().Bold()
-                        | new Button("New Project").Ghost().Icon(Icons.Plus).OnClick(() =>
-                        {
-                            HandleClose();
-                            nav.Navigate<SettingsApp>(new SettingsAppArgs(SettingsApp.TagProjects));
-                        }))
-                    | exclusiveProjects.ToSelectInput(options).Variant(SelectInputVariant.Toggle))
+                Layout.Vertical().Margin(0,2,0,0)
+                | exclusiveProjects.ToSelectInput(options)
+                    .Variant(SelectInputVariant.Toggle)
+                    .WithField()
+                    .Label("Select Project(s)")
+                    .Tools(new Button("New Project").Icon(Icons.Plus).Small().Ghost().OnClick(() =>
+                    {
+                        HandleClose();
+                        nav.Navigate<SettingsApp>(new SettingsAppArgs(SettingsApp.TagProjects));
+                    }))
                 | selectedPriority.ToSelectInput(PriorityOptions).Variant(SelectInputVariant.Toggle).WithField().Label("Priority")
                 | new Ivy.Tendril.Widgets.ContentInput
                 {

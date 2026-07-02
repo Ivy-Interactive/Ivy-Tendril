@@ -88,7 +88,7 @@ Plans live in `{PLAN_FOLDER}/{ID}-{SafeTitle}/`:
 
 **plan.yaml key fields:** state, project, level, title, repos, verifications, dependsOn, relatedPlans, commits, prs, executionProfile, sourceUrl
 
-**Revision format:**
+**Revision format (illustrative):** a plan revision is markdown that typically looks like this:
 
 ```markdown
 # Title
@@ -103,7 +103,14 @@ Technical approach with file paths and steps
 New tests to write + test scope filter
 ```
 
-Verifications are **not** part of the revision markdown — they live in `plan.yaml` (seeded at creation, toggled in the UI).
+This is only an illustration of what a plan looks like — **do not author a new plan yourself in this shape.** 
+
+New-plan content is written by the `CreatePlan` job using the project's configured **Plan Template** (see "Creating Plans Interactively"). 
+
+Use `tendril plan write-revision` only to edit the content of an **existing** plan.
+
+**Note:** the illustration above may not match the actual template — the user can configure a different **Plan Template** on the Plans settings page. To see the real configured template, run `tendril config get planTemplate`. 
+You normally don't need to: the `CreatePlan` job applies it for you. Only consult it when editing an existing plan's revision and you need to match the project's structure.
 
 ## Tendril CLI Reference
 
@@ -126,7 +133,7 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 | Command | Description |
 |---------|-------------|
 | `tendril plan list` | List plans (supports filters) |
-| `tendril plan create <title>` | Create a new plan |
+| `tendril plan create <title>` | Low-level create of the plan folder/yaml — **edit-only primitive, not for creating a plan from a chat request** (start a `CreatePlan` job instead) |
 | `tendril plan update <plan-id>` | Update plan from stdin |
 | `tendril plan set <plan-id> <field> <value>` | Set a plan field |
 | `tendril plan get <plan-id> [field]` | Get plan data |
@@ -141,7 +148,7 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 | `tendril plan add-depends-on <plan-id> <folder>` | Add dependency |
 | `tendril plan remove-depends-on <plan-id> <folder>` | Remove dependency |
 | `tendril plan add-log <plan-id> <action>` | Add execution log entry |
-| `tendril plan write-revision <plan-id>` | Write revision from stdin |
+| `tendril plan write-revision <plan-id>` | Write revision from stdin — **only to edit an existing plan; never to create a new plan** (start a `CreatePlan` job instead) |
 | `tendril plan cleanup <plan-id>` | Remove worktrees |
 | `tendril plan set-verification <plan-id> <name> <status>` | Set verification status |
 
@@ -220,17 +227,26 @@ These commands are for internal use by other promptwares (e.g., a verification s
 | `tendril project add-review-action <name>` | Add review action |
 | `tendril project remove-review-action <name> <action>` | Remove review action |
 
+### Config Commands
+
+| Command | Description |
+|---------|-------------|
+| `tendril config get <key>` | Print a top-level config value |
+| `tendril config set <key> <value>` | Set a top-level config value (use `--file`/`--stdin` for multiline values) |
+
+Valid keys: `codingAgent`, `jobTimeout`, `staleOutputTimeout`, `gitTimeout`, `maxConcurrentJobs`, `planTemplate`. Example: `tendril config get planTemplate` prints the configured Plan Template.
+
 ## Creating Plans Interactively
 
 When the user asks you to create a plan:
 
 1. **Do the work the description implies, first.** If the description asks you to *suggest*, *research*, *investigate*, *compare*, or *decide* something, actually do that work before creating the plan. Explore the project's repos, read the relevant code, and produce concrete, specific proposals. For example, "Suggest a few dev tools we can add" means you go look at the project and come back with named tools and why — it does **not** mean creating a plan titled "Suggest dev tools to add".
 2. **Confirm scope when it's open-ended.** Briefly share what you found and what you propose, so the user can steer before you commit it to a plan.
-3. **Create the plan by starting a CreatePlan job** — do **not** run `tendril plan create` / `write-revision` yourself. Once the scope is concrete, start the job:
+3. **You MUST create the plan by starting a `CreatePlan` job.** Never create a new plan by writing its content yourself — do **not** run `tendril plan create` / `write-revision`, and do **not** hand-author the plan markdown. Once the scope is concrete, start the job:
    ```bash
    tendril job start CreatePlan --description="<concrete, refined description>" --project="<project>"
    ```
-   The CreatePlan promptware then researches, detects duplicates, and writes the full plan. Pass the specific description you developed (the concrete tools/steps you proposed), **not** the user's original vague request. Add `--priority <n>` or `--force` if appropriate. Report the job back to the user.
+   This is non-negotiable: the `CreatePlan` job applies the project's configured **Plan Template** and runs duplicate detection and research. If you hand-write the plan instead, the configured template and those steps are silently skipped and the plan comes out malformed. The job's promptware then writes the full plan. Pass the specific description you developed (the concrete tools/steps you proposed), **not** the user's original vague request. Add `--priority <n>` or `--force` if appropriate. Report the job back to the user.
 
 ## Important Notes
 

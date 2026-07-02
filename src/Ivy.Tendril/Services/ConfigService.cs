@@ -899,7 +899,9 @@ public class ConfigService : IConfigService
 
         // Scalar expansions
         Settings.CodingAgent = ExpandVar(Settings.CodingAgent);
-        Settings.PlanTemplate = ExpandVar(Settings.PlanTemplate);
+        // PlanTemplate is prose, not a path: it must NOT be path-normalized (that corrupts slashes/URLs)
+        // and must stay raw on disk so get/set round-trips cleanly. It is expanded at point of use in
+        // JobLauncher (with normalizePaths: false) instead.
 
         // Expand nested objects
         ExpandLlmConfig();
