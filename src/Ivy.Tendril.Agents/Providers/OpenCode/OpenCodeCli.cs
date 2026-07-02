@@ -101,7 +101,7 @@ public sealed class OpenCodeCli : IAgentCli
 
         return new AgentProcessSpec
         {
-            FileName = "opencode",
+            FileName = OpenCodeBinaryResolver.Resolve(),
             Arguments = args,
             WorkingDirectory = config.WorkingDirectory,
             Environment = env,
