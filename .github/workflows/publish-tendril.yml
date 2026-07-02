@@ -544,7 +544,7 @@ jobs:
           
           # Write the postinstall script
           echo '#!/bin/bash
-          # Path to the installed app's certificate
+          # Path to the installed app certificate
           CERT_PATH="$3/Applications/Ivy Tendril.app/Contents/Resources/certs/localhost.crt"
           if [ -f "$CERT_PATH" ]; then
             echo "Trusting Ivy Tendril localhost certificate system-wide..."
