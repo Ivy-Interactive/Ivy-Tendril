@@ -14,59 +14,69 @@ public class AntigravityEventParserTests
     }
 
     [Fact]
-    public void ParseLine_BufferLines_ReturnsEmpty()
+    public void ParseLine_FirstLine_ReturnsSessionInitAndTextEvents()
     {
-        var events1 = _parser.ParseLine("Line 1");
-        var events2 = _parser.ParseLine("");
-        var events3 = _parser.ParseLine("Line 2");
+        var events = _parser.ParseLine("Line 1");
 
-        Assert.Empty(events1);
-        Assert.Empty(events2);
-        Assert.Empty(events3);
-    }
-
-    [Fact]
-    public void Flush_EmptyBuffer_ReturnsEmpty()
-    {
-        var events = _parser.Flush();
-        Assert.Empty(events);
-    }
-
-    [Fact]
-    public void Flush_AccumulatedContent_ReturnsSessionInitTextAndResultEvents()
-    {
-        _parser.ParseLine("Hello");
-        _parser.ParseLine("World");
-
-        var events = _parser.Flush();
-
-        Assert.Equal(3, events.Count);
+        Assert.Equal(2, events.Count);
 
         var initEvent = Assert.IsType<SessionInitEvent>(events[0]);
         Assert.Equal(AgentEventKind.SessionInit, initEvent.Kind);
-        Assert.Equal("", initEvent.SessionId);
 
         var textEvent = Assert.IsType<TextEvent>(events[1]);
         Assert.Equal(AgentEventKind.Text, textEvent.Kind);
-        Assert.Equal($"Hello{Environment.NewLine}World", textEvent.Text);
-
-        var resultEvent = Assert.IsType<ResultEvent>(events[2]);
-        Assert.Equal(AgentEventKind.Result, resultEvent.Kind);
-        Assert.True(resultEvent.IsSuccess);
-        Assert.Equal($"Hello{Environment.NewLine}World", resultEvent.Response);
-
-        // Buffer should be cleared after flush
-        Assert.Empty(_parser.Flush());
+        Assert.Equal("Line 1\n", textEvent.Text);
+        Assert.False(textEvent.IsDelta);
     }
 
     [Fact]
-    public void Reset_ClearsBuffer()
+    public void ParseLine_SubsequentLines_ReturnsTextEventOnly()
     {
-        _parser.ParseLine("Some content");
+        _parser.ParseLine("Line 1");
+        var events = _parser.ParseLine("Line 2");
+
+        Assert.Single(events);
+
+        var textEvent = Assert.IsType<TextEvent>(events[0]);
+        Assert.Equal(AgentEventKind.Text, textEvent.Kind);
+        Assert.Equal("Line 2\n", textEvent.Text);
+        Assert.False(textEvent.IsDelta);
+    }
+
+    [Fact]
+    public void Flush_AfterLines_ReturnsResultEventOnly()
+    {
+        _parser.ParseLine("Line 1");
+        var events = _parser.Flush();
+
+        Assert.Single(events);
+        var resultEvent = Assert.IsType<ResultEvent>(events[0]);
+        Assert.Equal(AgentEventKind.Result, resultEvent.Kind);
+        Assert.True(resultEvent.IsSuccess);
+    }
+
+    [Fact]
+    public void Flush_NoLines_ReturnsSessionInitAndResultEvents()
+    {
+        var events = _parser.Flush();
+
+        Assert.Equal(2, events.Count);
+        var initEvent = Assert.IsType<SessionInitEvent>(events[0]);
+        var resultEvent = Assert.IsType<ResultEvent>(events[1]);
+        Assert.True(resultEvent.IsSuccess);
+    }
+
+    [Fact]
+    public void Reset_ResetsInitializedState()
+    {
+        _parser.ParseLine("Line 1");
         _parser.Reset();
 
-        var events = _parser.Flush();
-        Assert.Empty(events);
+        // After reset, the next line should trigger SessionInit again
+        var events = _parser.ParseLine("Line 2");
+        Assert.Equal(2, events.Count);
+        Assert.IsType<SessionInitEvent>(events[0]);
+        Assert.IsType<TextEvent>(events[1]);
     }
 
     [Fact]
