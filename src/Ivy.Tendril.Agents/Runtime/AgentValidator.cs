@@ -46,6 +46,7 @@ public sealed class AgentValidator
             AgentId.Antigravity => "agy",
             AgentId.Claude => "claude",
             AgentId.Copilot => Providers.Copilot.CopilotBinaryResolver.Resolve().FileName,
+            AgentId.OpenCode => Providers.OpenCode.OpenCodeBinaryResolver.Resolve(),
             _ => cli.Id
         };
         if (!BinaryResolver.IsInstalled(binaryName))
