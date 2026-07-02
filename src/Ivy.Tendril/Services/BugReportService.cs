@@ -131,7 +131,7 @@ public sealed class BugReportService
         return files;
     }
 
-    public async Task<BugReportResult?> SubmitReportAsync(string description, IReadOnlyList<BugReportFile> files, CancellationToken ct = default)
+    public async Task<BugReportResult?> SubmitReportAsync(string description, IReadOnlyList<BugReportFile> files, string? githubUser = null, CancellationToken ct = default)
     {
         var zipPath = CreateZip(files);
         try
@@ -141,7 +141,7 @@ public sealed class BugReportService
             var agent = _config.Settings.CodingAgent;
             var commitId = GetCommitId();
 
-            return await UploadAsync(zipPath, description, osVersion, version, agent, commitId, ct);
+            return await UploadAsync(zipPath, description, osVersion, version, agent, commitId, githubUser, ct);
         }
         finally
         {
@@ -298,7 +298,7 @@ public sealed class BugReportService
         return zipPath;
     }
 
-    private static async Task<BugReportResult?> UploadAsync(string zipPath, string description, string osVersion, string tendrilVersion, string agent, string? commitId, CancellationToken ct)
+    private static async Task<BugReportResult?> UploadAsync(string zipPath, string description, string osVersion, string tendrilVersion, string agent, string? commitId, string? githubUser, CancellationToken ct)
     {
         using var httpClient = new HttpClient();
         httpClient.Timeout = TimeSpan.FromMinutes(5);
@@ -311,6 +311,9 @@ public sealed class BugReportService
 
         if (!string.IsNullOrWhiteSpace(commitId))
             form.Add(new StringContent(commitId), "commitId");
+
+        if (!string.IsNullOrWhiteSpace(githubUser))
+            form.Add(new StringContent(githubUser.Trim()), "githubUser");
 
         var fileStream = File.OpenRead(zipPath);
         var fileContent = new StreamContent(fileStream);
