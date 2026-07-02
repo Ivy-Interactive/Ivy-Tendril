@@ -224,12 +224,7 @@ jobs:
         run: |
           PUBLISH_DIR="./publish/desktop/${{ matrix.rid }}"
           mkdir -p "$PUBLISH_DIR/certs"
-          if [[ "${{ matrix.rid }}" == win-* ]]; then
-            "$PUBLISH_DIR/Ivy.Tendril.exe" generate-certs "$PUBLISH_DIR/certs"
-          else
-            chmod +x "$PUBLISH_DIR/Ivy.Tendril"
-            "$PUBLISH_DIR/Ivy.Tendril" generate-certs "$PUBLISH_DIR/certs"
-          fi
+          dotnet run --project src/Ivy.Tendril/Ivy.Tendril.csproj -c Release -- generate-certs "$PUBLISH_DIR/certs"
 
       - name: Bundle PowerShell 7
         shell: bash
