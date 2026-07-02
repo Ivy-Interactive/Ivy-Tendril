@@ -340,7 +340,7 @@ public class Program
             "update-promptwares", "job", "plan", "promptware",
             "trash", "verification", "project", "project-analyzer", "models",
             "version", "--version", "report-bug", "reset", "update",
-            "--help", "-h", "run"
+            "--help", "-h", "run", "generate-certs"
         };
         return cliCommands.Contains(firstArg);
     }
