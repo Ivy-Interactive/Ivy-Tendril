@@ -14,6 +14,18 @@ icon: ScrollText
 Version history, new features, improvements, and bug fixes for each Tendril release.
 </Ingress>
 
+## 1.1.11 (2026-07-03)
+
+### Bug Fixes
+
+- **macOS Installer & Startup Fix** — Fixed a critical issue where the macOS installer (.pkg) completed successfully but failed to install or launch the application due to broken symlinks and codesign signatures during repackaging. Replaced `pkgutil --expand-full` with `pkgutil --expand` to preserve app payload integrity, corrected the target directory to `1.pkg/Scripts/postinstall`, and fixed a path typo in the localhost certificate trusting script.
+
+## 1.1.10 (2026-07-03)
+
+### Bug Fixes
+
+- **macOS Installer Notarization** — Fixed macOS installer notarization by properly submitting and stapling the repacked installer package.
+
 ## 1.1.9 (2026-07-03)
 
 ### Features
