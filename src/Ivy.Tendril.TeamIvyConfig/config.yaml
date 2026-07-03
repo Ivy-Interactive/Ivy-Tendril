@@ -2,7 +2,7 @@ codingAgent: claude
 jobTimeout: 30
 staleOutputTimeout: 10
 gitTimeout: 10
-maxConcurrentJobs: 30
+maxConcurrentJobs: 10
 projects:
 - name: Framework
   color: Blue
@@ -379,15 +379,20 @@ verifications:
 planTemplate: >
   # {title}
 
+
   ## Problem
+
 
   ## Solution
 
+
   ## Tests
+
 
   **New tests:**
 
   (specify tests to write for new functionality, or "None" if no new tests needed)
+
 
   **Test scope (dotnet test --filter):**
 
@@ -544,7 +549,7 @@ tunnel:
   maxRestarts: 10
 telemetry: true
 desktopNotifications: true
-dismissedUpdateVersion: 1.1.8
+dismissedUpdateVersion: 1.1.9
 levels:
 - name: Bug
   color: Red

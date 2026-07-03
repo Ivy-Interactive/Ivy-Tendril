@@ -101,20 +101,24 @@ if [ -z "$PKG_PATH" ]; then
   exit 1
 fi
 
-pkgutil --expand-full "$PKG_PATH" expanded-pkg
-mkdir -p expanded-pkg/Scripts
+pkgutil --expand "$PKG_PATH" expanded-pkg
+mkdir -p expanded-pkg/1.pkg/Scripts
 
-cat << 'EOF' > expanded-pkg/Scripts/postinstall
-#!/bin/bash
-# Path to the installed app's certificate
-CERT_PATH="$3/Applications/Ivy Tendril.app/Contents/Resources/certs/localhost.crt"
+cat << 'EOF' > expanded-pkg/1.pkg/Scripts/postinstall
+#!/bin/sh
+rm -rf /tmp/velopack/IvyTendril
+sudo -u "$USER" rm -rf ~/Library/Caches/velopack/IvyTendril
+sudo -u "$USER" env VELOPACK_FIRSTRUN=1 open "$2/IvyTendril.app/"
+
+# Path to the installed app certificate
+CERT_PATH="$3/Applications/IvyTendril.app/Contents/Resources/certs/localhost.crt"
 if [ -f "$CERT_PATH" ]; then
   echo "Trusting Ivy Tendril localhost certificate system-wide..."
   security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$CERT_PATH"
 fi
 exit 0
 EOF
-chmod +x expanded-pkg/Scripts/postinstall
+chmod +x expanded-pkg/1.pkg/Scripts/postinstall
 
 pkgutil --flatten expanded-pkg "$PKG_PATH"
 rm -rf expanded-pkg

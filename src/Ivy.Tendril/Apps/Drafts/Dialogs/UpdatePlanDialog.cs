@@ -40,7 +40,7 @@ public class UpdatePlanDialog(
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() => _dialogOpen.Set(false)),
-                new Button("Submit Update").Primary().Disabled(hasActiveJob || isCreating.Value || string.IsNullOrWhiteSpace(updateText.Value)).ShortcutKey("Ctrl+Enter").OnClick(() =>
+                new Button("Update Plan").Primary().Disabled(hasActiveJob || isCreating.Value || string.IsNullOrWhiteSpace(updateText.Value)).ShortcutKey("Ctrl+Enter").OnClick(() =>
                 {
                     if (!string.IsNullOrWhiteSpace(updateText.Value) && !isCreating.Value)
                     {
