@@ -265,7 +265,9 @@ public class EditProjectDialog(
                 new Button("Cancel").Outline().OnClick(() => _editIndex.Set(-1)),
                 saveButton
             )
-        ).Width(Size.Rem(40));
+        )
+        .Width(Size.Rem(40))
+        .ClosedBy("Are you sure you want to close? Your progress will be lost.");
 
         return mainDialog;
     }
