@@ -112,8 +112,8 @@ public class PullRequestApp : ViewBase
             .Width(t => t.Status, Size.Px(90))
             .Width(t => t.Pr, Size.Fraction(1 / 3f))
             .Width(t => t.Plan, Size.Fraction(1 / 3f))
-            .Width(t => t.Cost, Size.Px(90))
-            .Width(t => t.Tokens, Size.Px(90))
+            .Width(t => t.Cost, Size.Px(80))
+            .Width(t => t.Tokens, Size.Px(80))
             .Renderer(t => t.Status, new LabelsDisplayRenderer
             {
                 BadgeColorMapping = new Dictionary<string, string>

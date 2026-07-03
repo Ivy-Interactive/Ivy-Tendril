@@ -89,13 +89,7 @@ public sealed class OpenCodeEventParser : IEventParser
         };
     }
 
-    public void Reset()
-    {
-        _hasError = false;
-        _accumulatedInputTokens = 0;
-        _accumulatedOutputTokens = 0;
-        _accumulatedCost = 0;
-    }
+    public IEventParser CreateFresh() => new OpenCodeEventParser();
 
     private static string? PeekType(ref Utf8JsonReader reader)
     {

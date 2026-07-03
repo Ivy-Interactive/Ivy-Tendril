@@ -90,7 +90,7 @@ public sealed class CopilotEventParser : IEventParser
         };
     }
 
-    public void Reset() { }
+    public IEventParser CreateFresh() => new CopilotEventParser();
 
     private static string? PeekType(ref Utf8JsonReader reader)
     {

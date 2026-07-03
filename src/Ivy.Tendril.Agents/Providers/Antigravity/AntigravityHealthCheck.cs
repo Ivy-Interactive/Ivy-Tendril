@@ -17,28 +17,51 @@ public sealed class AntigravityHealthCheck : IAgentHealthCheck
         return new AgentInstallStatus { IsInstalled = true, Version = version, BinaryPath = path };
     }
 
-    public Task<AgentAuthResult> CheckAuthAsync(CancellationToken ct = default)
+    public async Task<AgentAuthResult> CheckAuthAsync(CancellationToken ct = default)
     {
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var credPath = Path.Combine(home, ".gemini", "oauth_creds.json");
+        // 1. Run process check with a short timeout to prevent UI hangs
+        var (exitCode, _, stderr) = await HealthCheckRunner.RunAsync(
+            "agy", ["models"], TimeSpan.FromSeconds(3), ct);
 
-        if (File.Exists(credPath))
+        if (exitCode == 0)
         {
-            var info = new FileInfo(credPath);
-            if (info.Length > 0)
-                return Task.FromResult(new AgentAuthResult
-                {
-                    Status = AuthStatus.Authenticated,
-                    AuthMethod = "oauth",
-                });
+            return new AgentAuthResult
+            {
+                Status = AuthStatus.Authenticated,
+                AuthMethod = "oauth",
+            };
         }
 
-        return Task.FromResult(new AgentAuthResult
+        // 2. Fallback: if process timed out or failed, check state files
+        // (Keychain access can be blocked or prompt in non-interactive/test environments)
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var statePath = Path.Combine(home, ".gemini", "antigravity", "antigravity_state.pbtxt");
+        if (File.Exists(statePath))
+        {
+            try
+            {
+                var content = await File.ReadAllTextAsync(statePath, ct);
+                if (content.Contains("AGENT_ONBOARDING_STATE_COMPLETED", StringComparison.OrdinalIgnoreCase))
+                {
+                    return new AgentAuthResult
+                    {
+                        Status = AuthStatus.Authenticated,
+                        AuthMethod = "oauth",
+                    };
+                }
+            }
+            catch
+            {
+                // Ignore file read issues
+            }
+        }
+
+        return new AgentAuthResult
         {
             Status = AuthStatus.NotAuthenticated,
-            Error = "OAuth credentials file not found",
+            Error = string.IsNullOrWhiteSpace(stderr) ? "Not authenticated" : stderr,
             SignInHint = "Run 'agy' and complete the browser-based auth flow",
-        });
+        };
     }
 
     public async Task<string?> GetVersionAsync(CancellationToken ct = default)

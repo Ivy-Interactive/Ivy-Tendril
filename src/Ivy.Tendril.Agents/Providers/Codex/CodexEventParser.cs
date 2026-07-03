@@ -71,7 +71,7 @@ public sealed class CodexEventParser : IEventParser
         };
     }
 
-    public void Reset() { }
+    public IEventParser CreateFresh() => new CodexEventParser();
 
     private static string? PeekType(ref Utf8JsonReader reader)
     {

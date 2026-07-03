@@ -71,8 +71,5 @@ public sealed class AntigravityEventParser : IEventParser
         };
     }
 
-    public void Reset()
-    {
-        _initialized = false;
-    }
+    public IEventParser CreateFresh() => new AntigravityEventParser();
 }

@@ -350,31 +350,6 @@ public class OpenCodeEventParserTests
     }
 
     [Fact]
-    public void Reset_ClearsHasErrorState()
-    {
-        // Set _hasError
-        _parser.ParseLine("""{"type":"error","error":{"data":{"message":"fail","isRetryable":false,"statusCode":500}}}""");
-
-        // Reset clears it
-        _parser.Reset();
-
-        // Now BuildResult should respect exit code, not _hasError
-        var result = _parser.BuildResult([], 0);
-        Assert.True(result!.IsSuccess);
-    }
-
-    [Fact]
-    public void Reset_ClearsAccumulatedCostAndTokens()
-    {
-        _parser.ParseLine("""{"type":"step_finish","part":{"reason":"tool-calls","cost":0.012,"tokens":{"input":14000,"output":134}}}""");
-
-        _parser.Reset();
-
-        var result = _parser.BuildResult([], 0);
-        Assert.Null(result!.Usage);
-    }
-
-    [Fact]
     public void BuildResult_NoResultEvent_IncludesAccumulatedUsage()
     {
         // Simulate a process killed mid-session: only intermediate step_finish events were seen
@@ -387,5 +362,17 @@ public class OpenCodeEventParserTests
         Assert.Equal(14000, result.Usage.InputTokens);
         Assert.Equal(134, result.Usage.OutputTokens);
         Assert.Equal(0.012m, result.Usage.CostUsd);
+    }
+
+    [Fact]
+    public void CreateFresh_ReturnsIndependentInstance()
+    {
+        _parser.ParseLine("""{"type":"step_finish","part":{"reason":"tool-calls","cost":0.012,"tokens":{"input":14000,"output":134}}}""");
+
+        var fresh = _parser.CreateFresh();
+        var result = fresh.BuildResult([], 0);
+
+        Assert.NotNull(result);
+        Assert.Null(result.Usage);
     }
 }
