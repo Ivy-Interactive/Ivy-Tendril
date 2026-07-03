@@ -93,6 +93,67 @@ Version history, new features, improvements, and bug fixes for each Tendril rele
 - Fixed keyboard focus/blur issues and auto-focused the input when the New Plan dialog opens.
 - Disabled the unused Tunnel feature in default configuration.
 
+## 1.1.5 (2026-06-30)
+
+### Features
+
+- **Triage GitHub Issues via tendrillable skill** — Added a new `tendrillable` skill designed to help triage and analyze GitHub issues suitable for single-shot execution.
+
+### Improvements
+
+- **Make stackHash format shell-safe** — Replaced shell-unsafe characters (pipes and parentheses) in stack hash project configuration with `/` and `.lang` file extensions to avoid execution issues in downstream processes.
+- **Mac Codesigning JIT Entitlements** — Fixed macOS codesigning and runtime execution by adding JIT entitlements for bundled runtimes, resolving app load and sandbox constraints.
+
+## 1.1.4 (2026-06-29)
+
+### Features
+
+- **Auto-Focus New Plan Input** — Automatically focuses the text input field when the New Plan dialog opens, improving keyboard-driven workflows.
+- **Deliver Agent Chat Prompts via CLI** — Enables sending custom prompts to the agent chat via a CLI argument, and handles initial-run trust prompts gracefully.
+
+### Improvements
+
+- **Responsive Header Polish** — Fixed text wrap and overlap issues in the responsive header within the Drafts app view.
+- **UI Spacing Adjustments** — Removed unnecessary gaps between review action buttons and tab panels in the Review app, and removed line separators in the Import Issues dialog.
+- **Create Plan Scroll Fix** — Prevented the Create Plan screen scroll position from resetting or twitching to the top when switching tabs.
+- **EPERM Listen Errors** — Resolved local test environment permission issues by explicitly binding test web servers to the loopback interface (`127.0.0.1`).
+
+### Bug Fixes
+
+- **Clean Dialogue State** — Removed dead state-reset code from UseTrigger-mounted dialogs.
+- **Clean Input Autofocus Extension** — Removed the unused autofocus extension from ContentInput.
+- **Next Button Enablement** — Fixed Next button state disabling after the onboarding setup agent runs.
+
+## 1.1.3 (2026-06-29)
+
+### Features
+
+- **Brand Sidebar with Coding Agent** — Automatically themes and brands the sidebar and application tabs with the identity of the configured coding agent.
+- **Velopack Update Persistence** — Persists user choice to dismiss or skip update notices across restarts.
+
+### Improvements
+
+- **Startup session logs consolidation** — Removed verbose session saving logs during app launch and resolved startup session log spam, replacing em-dash characters in master election logs.
+- **Gemini Text Wrap Formatting** — Resolved text wrapping and hard line break formatting bugs in Gemini text outputs.
+- **New Plan Dialog renaming** — Renamed `CustomPrDialog` to `CreatePrDialog`.
+
+## 1.1.2 (2026-06-29)
+
+### Features
+
+- **Add KBD Styling to Markdown** — Added first-class styling for keyboard `<kbd>` elements in the Markdown viewer.
+
+### Improvements
+
+- **Markdown Code Wrap** — Resolved issues where inline code blocks failed to wrap correctly inside markdown grids.
+- **Annotation Highlight Text Color** — Corrected annotation text highlight contrast and readability when in Dark Mode.
+- **Changes Tab Spacing** — Realigned right padding and column width in the Changes tab.
+- **Review App Simplified Filters** — Removed the obsolete "Show Completed" checkbox from the Review app interface.
+- **Clear Failed Jobs Behavior** — Fixed "Clear Failed" action from accidentally removing timed-out jobs.
+- **Clean Repo Head Files** — Cleaned up old/stale rebase head files from local repository references.
+- **Bamped Ivy package dependencies to 1.3.1** — Updated default Ivy framework dependencies to version `1.3.1`.
+- **UI Polish** — Removed enlarged zoom-on-hover effects on images inside markdown widgets and corrected layout margins for custom buttons.
+
 ## 1.1.1 (2026-06-25)
 
 ### Features
