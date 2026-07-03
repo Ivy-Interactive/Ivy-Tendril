@@ -278,6 +278,7 @@ public class JobServiceFailureReasonTests : IDisposable
 
         var result = JobService.ExtractFailureReason(lines, "test");
 
+        Assert.StartsWith("Claude usage limit reached:", result);
         Assert.Contains("session limit", result);
         Assert.Contains("resets 4pm", result);
         Assert.DoesNotContain("\"kind\"", result);

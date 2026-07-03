@@ -191,7 +191,7 @@ internal static class JobFailureAnalyzer
     }
 
     private static readonly Regex UsageLimitPattern = new(
-        @"hit your (?:session|usage) limit|usage limit reached|limit reached|\bresets\b",
+        @"hit your (?:session|usage) limit|usage limit reached|limit reached",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static string FormatFailedResultMessage(string response)
@@ -199,7 +199,7 @@ internal static class JobFailureAnalyzer
         var firstLine = response
             .Split('\n')
             .Select(l => l.Trim())
-            .FirstOrDefault(l => l.Length > 0) ?? response.Trim();
+            .First(l => l.Length > 0);
 
         var sanitized = SanitizeForDisplay(firstLine);
         if (sanitized.Length > 300)
