@@ -376,6 +376,30 @@ public class WorktreeCleanupService : IStartable, IDisposable
         });
     }
 
+    /// <summary>
+    ///     Fire-and-forget permanent deletion of an entire plan folder (worktrees + all
+    ///     contents) for terminal UI delete actions, so slow disk I/O never blocks the
+    ///     plan-write pipeline.
+    /// </summary>
+    internal static void DeletePlanFolderInBackground(string planFolderPath, ILogger? logger = null,
+        IWorktreeLifecycleLogger? lifecycleLogger = null)
+    {
+        Task.Run(() =>
+        {
+            try
+            {
+                if (!Directory.Exists(planFolderPath)) return;
+                RemoveWorktrees(planFolderPath, logger, lifecycleLogger);
+                ForceDeleteDirectory(planFolderPath, logger);
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Background plan-folder deletion failed for {PlanFolder}",
+                    Path.GetFileName(planFolderPath));
+            }
+        });
+    }
+
     internal static void RemoveWorktrees(string planFolderPath, ILogger? logger = null, IWorktreeLifecycleLogger? lifecycleLogger = null)
     {
         var worktreesDir = Path.Combine(planFolderPath, "Worktrees");

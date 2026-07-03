@@ -425,14 +425,10 @@ public class PlanReaderService(
         _recommendationsCache.Invalidate();
         CountsInvalidated?.Invoke();
 
-        // Delete folder in background (can be slow due to git worktree removal).
+        // Delete folder out-of-band (NOT via _writeQueue) so slow worktree/directory
+        // removal never blocks other plan writes.
         var folderPath = Path.Combine(PlansDirectory, folderName);
-        WriteFileInBackground(() =>
-        {
-            if (!Directory.Exists(folderPath)) return;
-            WorktreeCleanupService.RemoveWorktrees(folderPath, logger, worktreeLifecycleLogger);
-            WorktreeCleanupService.ForceDeleteDirectory(folderPath, logger);
-        });
+        WorktreeCleanupService.DeletePlanFolderInBackground(folderPath, logger, worktreeLifecycleLogger);
     }
 
     /// <summary>
