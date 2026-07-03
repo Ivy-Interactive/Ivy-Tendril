@@ -6,7 +6,7 @@ public interface IEventParser
     IReadOnlyList<AgentEvent> ParseLine(string rawLine);
     IReadOnlyList<AgentEvent> Flush();
     ResultEvent? BuildResult(IReadOnlyList<AgentEvent> events, int exitCode);
-    void Reset();
+    IEventParser CreateFresh();
 }
 
 public interface IFailureAnalyzer
