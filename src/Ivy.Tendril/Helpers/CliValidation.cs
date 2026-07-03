@@ -88,4 +88,12 @@ public static class CliValidation
     /// <summary>Number of value sources supplied (inline arg / --file / --stdin), for the "exactly one" rule.</summary>
     public static int CountSources(bool stdin, string? filePath, string value) =>
         (stdin ? 1 : 0) + (!string.IsNullOrEmpty(filePath) ? 1 : 0) + (!string.IsNullOrEmpty(value) ? 1 : 0);
+
+    // Shared "provide long-form input exactly one way" rule.
+    // inlineSources names the allowed sources, e.g.
+    // "an inline <value>, --file, or --stdin" or "--prompt, --file, or --stdin".
+    public static SpectreValidation ValidateSingleSource(int sourceCount, string inlineSources) =>
+        sourceCount > 1
+            ? SpectreValidation.Error($"Provide the value in exactly one way: {inlineSources}.")
+            : SpectreValidation.Success();
 }
