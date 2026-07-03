@@ -14,4 +14,7 @@ public static class ConsoleHelper
                 "Pipe content to this command or use a file-based alternative.");
         return readTask.Result;
     }
+
+    public static string? ResolveContent(string? filePath, Func<string?> fallback) =>
+        !string.IsNullOrEmpty(filePath) ? File.ReadAllText(filePath) : fallback();
 }

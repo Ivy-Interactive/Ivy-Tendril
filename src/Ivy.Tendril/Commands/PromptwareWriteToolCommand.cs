@@ -14,6 +14,10 @@ public class PromptwareWriteToolSettings : CommandSettings
     [CommandArgument(1, "<filename>")]
     public string Filename { get; set; } = "";
 
+    [Description("Read content from file instead of STDIN")]
+    [CommandOption("--file|-f")]
+    public string? FilePath { get; set; }
+
     public override Spectre.Console.ValidationResult Validate()
     {
         return CliValidation.Combine(
@@ -36,9 +40,9 @@ public class PromptwareWriteToolCommand : Command<PromptwareWriteToolSettings>
         var filename = Path.GetFileName(settings.Filename);
         var filePath = Path.Combine(toolsDir, filename);
 
-        var content = ConsoleHelper.ReadStdinWithTimeout();
+        var content = ConsoleHelper.ResolveContent(settings.FilePath, () => ConsoleHelper.ReadStdinWithTimeout());
         if (string.IsNullOrWhiteSpace(content))
-            throw new ArgumentException("No content provided (pipe to STDIN)");
+            throw new ArgumentException("No content provided (use --file or pipe to STDIN)");
 
         File.WriteAllText(filePath, content);
         Console.Write(filePath);

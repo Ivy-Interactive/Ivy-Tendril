@@ -26,7 +26,7 @@ The launcher sets the working directory to the project's primary repo.
 ### 1. Read Plan
 
 - Read `plan.yaml` from the plan folder (project, repos, title)
-- Read the latest revision from `Revisions/` (highest numbered .md file)
+- Read the latest revision: `tendril plan get-revision <TendrilPlanId>`
 - Extract the plan ID from the folder name (e.g. `01105` from `01105-TestPlan`)
 - Report plan context to Jobs UI: `tendril job status TendrilJobId --message="Reading plan..." --plan-id=<plan-id> --plan-title="<title>"`
 

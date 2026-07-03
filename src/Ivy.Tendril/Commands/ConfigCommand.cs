@@ -41,9 +41,7 @@ public class ConfigSetSettings : CommandSettings
     [Description("Read the value verbatim from standard input")]
     public bool Stdin { get; set; }
 
-    /// <summary>Number of value sources the user supplied (inline arg / --file / --stdin).</summary>
-    public int SourceCount =>
-        (Stdin ? 1 : 0) + (!string.IsNullOrEmpty(FilePath) ? 1 : 0) + (!string.IsNullOrEmpty(Value) ? 1 : 0);
+    public int SourceCount => CliValidation.CountSources(Stdin, FilePath, Value);
 
     public override Spectre.Console.ValidationResult Validate()
     {

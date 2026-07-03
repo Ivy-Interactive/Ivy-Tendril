@@ -538,6 +538,8 @@ public class Program
                     .WithDescription("Write a log entry");
                 plan.AddCommand<PlanWriteRevisionCommand>("write-revision")
                     .WithDescription("Write a revision file from STDIN");
+                plan.AddCommand<PlanGetRevisionCommand>("get-revision")
+                    .WithDescription("Print revision content");
                 plan.AddCommand<PlanValidateCommand>("validate")
                     .WithDescription("Validate plan health");
                 plan.AddCommand<PlanCleanupCommand>("cleanup")

@@ -182,7 +182,7 @@ verifications:
 - name: CheckResult
   prompt: >
     Verify the implementation matches what was requested in the plan.
-    1. Read the plan revision from `<TendrilPlanFolder>/revisions/` (latest numbered .md file)
+    1. Read the plan revision: `tendril plan get-revision <PlanId>`
     2. Review all commits made by this execution
     3. Compare the plan's Problem and Solution sections against the actual changes
     4. Write the verification report to `<TendrilPlanFolder>/verification/CheckResult.md`

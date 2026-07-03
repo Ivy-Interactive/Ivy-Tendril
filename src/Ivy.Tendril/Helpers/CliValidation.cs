@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Ivy.Tendril.Models;
 using SpectreValidation = Spectre.Console.ValidationResult;
 
@@ -77,4 +78,14 @@ public static class CliValidation
                 return r;
         return SpectreValidation.Success();
     }
+
+    [DoesNotReturn]
+    public static void ThrowVerificationNotFound(string name, IEnumerable<string> available)
+    {
+        throw new InvalidOperationException($"Verification not found: '{name}'. Available: {string.Join(", ", available)}");
+    }
+
+    /// <summary>Number of value sources supplied (inline arg / --file / --stdin), for the "exactly one" rule.</summary>
+    public static int CountSources(bool stdin, string? filePath, string value) =>
+        (stdin ? 1 : 0) + (!string.IsNullOrEmpty(filePath) ? 1 : 0) + (!string.IsNullOrEmpty(value) ? 1 : 0);
 }

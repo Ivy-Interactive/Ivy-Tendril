@@ -1,4 +1,6 @@
+using Ivy.Tendril.Commands;
 using Ivy.Tendril.Services;
+using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Test;
 
@@ -154,6 +156,44 @@ verifications: []
             .FirstOrDefault(v => v.Name.Equals("NonExistent", StringComparison.OrdinalIgnoreCase));
 
         Assert.Null(match);
+    }
+
+    // --- Get Verification: Not Found Error Lists Available ---
+
+    private static CommandApp BuildVerificationGetApp()
+    {
+        var app = new CommandApp();
+        app.Configure(config =>
+        {
+            config.PropagateExceptions();
+            config.AddBranch("verification", verification =>
+            {
+                verification.AddCommand<VerificationGetCommand>("get");
+            });
+        });
+        return app;
+    }
+
+    [Fact]
+    public void GetVerification_NotFound_ListsAvailable()
+    {
+        var config = CreateConfig();
+        config.Settings.Verifications.Add(new VerificationConfig { Name = "DotnetBuild", Prompt = "dotnet build" });
+        config.SaveSettings();
+
+        var app = BuildVerificationGetApp();
+        var ex = Assert.Throws<InvalidOperationException>(() => app.Run(["verification", "get", "Build"]));
+
+        Assert.Contains("Available: DotnetBuild", ex.Message);
+    }
+
+    [Fact]
+    public void GetVerification_NotFound_EmptyList_ListsAvailable()
+    {
+        var app = BuildVerificationGetApp();
+        var ex = Assert.Throws<InvalidOperationException>(() => app.Run(["verification", "get", "xyzzy"]));
+
+        Assert.Contains("Available: ", ex.Message);
     }
 
     // --- Roundtrip ---
