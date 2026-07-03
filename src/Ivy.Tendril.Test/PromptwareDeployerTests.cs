@@ -169,4 +169,24 @@ public class PromptwareDeployerTests : IDisposable
         // Assert
         Assert.True(Directory.Exists(normalDir));
     }
+
+    // Regression guard for #1551: concurrent CreatePr jobs share $TMPDIR, so a fixed
+    // body-file name like pr-body.md is a last-writer-wins race that swaps PR bodies
+    // between plans. The fix requires a unique temp file per invocation (mktemp).
+    [Fact]
+    public void CreatePrProgram_UsesUniqueTempFileForPrBody()
+    {
+        var sourcePromptwarePath = Path.GetFullPath(
+            Path.Combine(System.AppContext.BaseDirectory, "..", "..", "..", "..", "Ivy.Tendril", "Promptwares"));
+        var programFile = Path.Combine(sourcePromptwarePath, "CreatePr", "Program.md");
+
+        Assert.True(File.Exists(programFile), $"Expected to find {programFile}");
+        var content = File.ReadAllText(programFile);
+
+        Assert.Contains("mktemp", content);
+        // The fixed literal is still mentioned in prose as a "don't do this" example,
+        // so guard against the actual broken usage rather than the bare substring.
+        Assert.DoesNotContain("> \"$TMPDIR/pr-body.md\"", content);
+        Assert.DoesNotContain("--body-file \"$TMPDIR/pr-body.md\"", content);
+    }
 }
