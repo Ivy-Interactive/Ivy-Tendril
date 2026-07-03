@@ -176,6 +176,12 @@ Appends a numbered log entry to `Logs/` (e.g. `003-ExecutePlan.md`) and prints t
 
 Writes a numbered revision file to `Revisions/` (e.g. `002.md`) from stdin or `--file`. Prints the path to stdout.
 
+```terminal
+>tendril plan get-revision <plan-id> [--latest] [--number <n>]
+```
+
+Prints revision content to stdout — the latest revision by default, or a specific numbered revision with `--number`.
+
 ## Recommendations
 
 ```terminal

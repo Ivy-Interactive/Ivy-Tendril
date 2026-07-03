@@ -149,6 +149,7 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 | `tendril plan remove-depends-on <plan-id> <folder>` | Remove dependency |
 | `tendril plan add-log <plan-id> <action>` | Add execution log entry |
 | `tendril plan write-revision <plan-id>` | Write revision from stdin — **only to edit an existing plan; never to create a new plan** (start a `CreatePlan` job instead) |
+| `tendril plan get-revision <plan-id> [--number <n>]` | Print revision content (latest by default, or a specific numbered revision) |
 | `tendril plan cleanup <plan-id>` | Remove worktrees |
 | `tendril plan set-verification <plan-id> <name> <status>` | Set verification status |
 

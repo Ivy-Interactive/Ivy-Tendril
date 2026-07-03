@@ -16,7 +16,7 @@ Project configuration is available from the firmware header.
 
 ### 1. Read the Plan
 
-- Read the latest revision from `Revisions/` (highest numbered .md file)
+- Read the latest revision: `tendril plan get-revision <TendrilPlanId>`
 - Get the plan title: `tendril plan get <TendrilPlanId> title`
 - Report plan context to Jobs UI: `tendril job status TendrilJobId --message="Updating plan..." --plan-id=<plan-id> --plan-title="<title>"`
 
