@@ -241,14 +241,14 @@ public class PlanCliCommandTests : IDisposable
     // Builds a real Spectre.Console.Cli app exposing `plan create`, wired to a config
     // service that knows <project> (with an existing repo). Mirrors how Program.cs
     // registers the command, so tests exercise the actual argument parser.
-    private CommandApp BuildPlanCreateApp(string project)
+    private CommandApp BuildPlanCreateApp(string project, IReadOnlyList<ProjectVerificationRef>? verifications = null)
     {
         var repoDir = Path.Combine(_tempDir.Path, "repos", project);
         Directory.CreateDirectory(repoDir);
 
         var services = new ServiceCollection();
         services.AddSingleton<IPlanWatcherService, NullPlanWatcherService>();
-        var configService = new TestPlanConfigService(repoDir, project);
+        var configService = new TestPlanConfigService(repoDir, project, verifications);
         services.AddSingleton<IConfigService>(configService);
         // PlanCreateCommand now depends on IGithubService (source-URL ↔ project guard). These tests
         // create plans without a --source-url, so the guard no-ops and git is never invoked.
@@ -392,6 +392,32 @@ public class PlanCliCommandTests : IDisposable
         var plan = PlanCommandHelpers.ReadPlan(planFolder);
         Assert.Equal("Ivy-Framework", plan.Project);
         Assert.Equal(initialPrompt, plan.InitialPrompt);
+    }
+
+    [Fact]
+    public void PlanCreate_CommandApp_PrintsVerifications_AndOmitsPlanCreatedLine()
+    {
+        var app = BuildPlanCreateApp("Ivy-Framework",
+        [
+            new ProjectVerificationRef { Name = "DotnetBuild", Required = true },
+            new ProjectVerificationRef { Name = "DotnetTest", Required = false }
+        ]);
+
+        var exit = 0;
+        var output = CaptureStdout(() => exit = app.Run(new[]
+        {
+            "plan", "create", "Emit Verifications", "Ivy-Framework",
+            $"--plans-dir={_plansDir}", "--level=Feature",
+            "--initial-prompt=Add verifications output", "--execution-profile=balanced"
+        }));
+
+        Assert.Equal(0, exit);
+        Assert.Contains("PlanId:", output);
+        Assert.Contains("Directory:", output);
+        Assert.Contains("Verifications:", output);
+        Assert.Contains("DotnetBuild:Pending", output);   // Required -> Pending
+        Assert.Contains("DotnetTest:Skipped", output);     // Optional -> Skipped
+        Assert.DoesNotContain("Plan created:", output);
     }
 
     // ==================== PlanGet ====================
