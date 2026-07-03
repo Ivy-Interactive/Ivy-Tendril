@@ -145,7 +145,7 @@ projects:
         command: 'dotnet run --browse'
       - name: Open Docs
         condition: ''
-        command: 'start docs/index.html'
+        command: 'open docs/index.html'
 ";
 
         var tempDir = CreateTempConfigFile(yaml);
@@ -165,7 +165,7 @@ projects:
 
             Assert.Equal("Open Docs", project.ReviewActions[1].Name);
             Assert.Empty(project.ReviewActions[1].Condition);
-            Assert.Contains("start docs", project.ReviewActions[1].Command);
+            Assert.Contains("open docs", project.ReviewActions[1].Command);
             Assert.Contains("index.html", project.ReviewActions[1].Command);
         }
         finally
