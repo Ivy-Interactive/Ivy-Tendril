@@ -145,9 +145,7 @@ public class VerificationAddCommand : Command<VerificationAddSettings>
         if (config.Settings.Verifications.Any(v => v.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase)))
             throw new InvalidOperationException($"Verification already exists: {settings.Name}");
 
-        var prompt = !string.IsNullOrEmpty(settings.FilePath)
-            ? File.ReadAllText(settings.FilePath)
-            : settings.Prompt;
+        var prompt = ConsoleHelper.ResolveContent(settings.FilePath, () => settings.Prompt);
 
         if (string.IsNullOrEmpty(prompt))
         {
@@ -197,9 +195,9 @@ public class VerificationSetCommand : Command<VerificationSetSettings>
         if (match == null)
             throw new InvalidOperationException($"Verification not found: {settings.Name}");
 
-        var value = settings.Stdin ? ConsoleHelper.ReadStdinWithTimeout()
-            : !string.IsNullOrEmpty(settings.FilePath) ? File.ReadAllText(settings.FilePath)
-            : settings.Value;
+        var value = settings.Stdin
+            ? ConsoleHelper.ReadStdinWithTimeout()
+            : ConsoleHelper.ResolveContent(settings.FilePath, () => settings.Value);
 
         if (string.IsNullOrEmpty(value))
             throw new ArgumentException("value is required (use an inline <value>, --file, or --stdin)");

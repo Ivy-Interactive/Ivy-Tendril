@@ -34,9 +34,7 @@ public class TrashWriteCommand : Command<TrashWriteSettings>
         var filename = Path.GetFileName(settings.Filename);
         var filePath = Path.Combine(trashDir, filename);
 
-        var content = !string.IsNullOrEmpty(settings.FilePath)
-            ? File.ReadAllText(settings.FilePath)
-            : ConsoleHelper.ReadStdinWithTimeout();
+        var content = ConsoleHelper.ResolveContent(settings.FilePath, () => ConsoleHelper.ReadStdinWithTimeout());
         if (string.IsNullOrWhiteSpace(content))
             throw new ArgumentException("No content provided (use --file or pipe to STDIN)");
 
