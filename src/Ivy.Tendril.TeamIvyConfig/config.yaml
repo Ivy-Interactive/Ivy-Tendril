@@ -66,9 +66,9 @@ projects:
   - name: DotnetFormat
     required: true
   - name: DotnetTest
-    required: false
+    required: true
   - name: CodeReview
-    required: false
+    required: true
   - name: CheckResult
     required: true
   context: >
@@ -158,7 +158,7 @@ projects:
   - name: DotnetFormat
     required: true
   - name: DotnetBuild
-    required: true
+    required: false
   - name: DotnetTest
     required: true
   - name: CheckResult
