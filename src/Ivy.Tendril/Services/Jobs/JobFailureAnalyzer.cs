@@ -7,7 +7,7 @@ namespace Ivy.Tendril.Services.Jobs;
 
 internal static class JobFailureAnalyzer
 {
-    internal static string ExtractFailureReason(List<string> outputLines, string jobType)
+    internal static string ExtractFailureReason(List<string> outputLines, string jobType, int? exitCode = null)
     {
         if (outputLines.Count == 0)
             return "Unknown error (exit code non-zero)";
@@ -100,7 +100,9 @@ internal static class JobFailureAnalyzer
                 return SanitizeForDisplay(trimmed);
         }
 
-        return "Unknown error (exit code non-zero)";
+        return exitCode.HasValue
+            ? $"Process exited with code {exitCode}"
+            : "Unknown error (exit code non-zero)";
     }
 
     internal static string SanitizeForDisplay(string text)
