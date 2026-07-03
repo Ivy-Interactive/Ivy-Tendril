@@ -192,7 +192,7 @@ public class TendrilSettings
 
 public record ConfigParseError(string Message, string FilePath, Exception? InnerException);
 
-public class ConfigService : IConfigService
+public class ConfigService : IConfigService, IDisposable
 {
     private readonly bool _explicitHome;
     private readonly ILogger<ConfigService> _logger;
@@ -201,6 +201,9 @@ public class ConfigService : IConfigService
     private ProjectConfig? _pendingProject;
     private string? _pendingTendrilHome;
     private List<VerificationConfig>? _pendingVerificationDefinitions;
+    private FileSystemWatcher? _configWatcher;
+    private System.Timers.Timer? _reloadDebounceTimer;
+    private volatile bool _suppressNextReload;
 
     internal ConfigService(TendrilSettings settings, string? tendrilHome = null, ILogger<ConfigService>? logger = null)
     {
@@ -233,6 +236,56 @@ public class ConfigService : IConfigService
 
         Settings = loadResult.Config;
         FinalizeConfiguration();
+        InitializeConfigWatcher();
+    }
+
+    /// <summary>
+    ///     Watches <see cref="ConfigPath"/> for external writes (e.g. CLI CRUD commands running as
+    ///     a separate process) and reloads settings so the running TUI reflects them without a
+    ///     restart. Follows the same debounced-FSW pattern as <see cref="Plans.PlanWatcherService"/>.
+    /// </summary>
+    private void InitializeConfigWatcher()
+    {
+        var directory = Path.GetDirectoryName(ConfigPath);
+        if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory))
+            return;
+
+        _reloadDebounceTimer = new System.Timers.Timer(300) { AutoReset = false };
+        _reloadDebounceTimer.Elapsed += (_, _) => OnReloadDebounceElapsed();
+
+        _configWatcher = new FileSystemWatcher(directory, Path.GetFileName(ConfigPath))
+        {
+            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.CreationTime,
+            EnableRaisingEvents = true
+        };
+        _configWatcher.Changed += (_, _) => RestartDebounceTimer();
+        _configWatcher.Created += (_, _) => RestartDebounceTimer();
+    }
+
+    private void RestartDebounceTimer()
+    {
+        if (_reloadDebounceTimer == null) return;
+        _reloadDebounceTimer.Stop();
+        _reloadDebounceTimer.Start();
+    }
+
+    private void OnReloadDebounceElapsed()
+    {
+        // Internal SaveSettings() already reloaded synchronously; skip the redundant reload
+        // triggered by the watcher observing that same write.
+        if (_suppressNextReload)
+        {
+            _suppressNextReload = false;
+            return;
+        }
+
+        ReloadSettings();
+    }
+
+    public void Dispose()
+    {
+        _configWatcher?.Dispose();
+        _reloadDebounceTimer?.Dispose();
     }
 
     private (bool Success, TendrilSettings Config) TryLoadConfig()
@@ -479,6 +532,7 @@ public class ConfigService : IConfigService
                 $"Generated YAML failed validation and was not saved: {ex.Message}", ex);
         }
 
+        _suppressNextReload = true;
         FileHelper.WriteAllText(ConfigPath, yaml);
         CreateConfigBackup();
     }

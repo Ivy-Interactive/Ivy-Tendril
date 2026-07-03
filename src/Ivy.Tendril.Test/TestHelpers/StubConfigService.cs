@@ -101,4 +101,8 @@ public class StubConfigService : IConfigService
     {
         return content;
     }
+
+    public void Dispose()
+    {
+    }
 }
