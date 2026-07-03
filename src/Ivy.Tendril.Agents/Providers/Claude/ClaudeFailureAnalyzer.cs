@@ -96,10 +96,13 @@ public sealed class ClaudeFailureAnalyzer : IFailureAnalyzer
             };
         }
 
+        var lastStderr = context.StderrLines.LastOrDefault(l => !string.IsNullOrWhiteSpace(l));
         return new FailureAnalysis
         {
             Kind = FailureKind.Unknown,
-            Reason = "Unknown failure",
+            Reason = lastStderr != null
+                ? $"Claude Code failed: {lastStderr}"
+                : $"Claude Code failed with an unknown error (exit code {context.ExitCode?.ToString() ?? "unknown"})",
             ContextLines = context.StderrLines,
             IsRetryable = false,
         };
