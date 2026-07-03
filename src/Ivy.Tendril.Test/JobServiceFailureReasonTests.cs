@@ -1,3 +1,5 @@
+using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Providers.Claude;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
@@ -266,5 +268,62 @@ public class JobServiceFailureReasonTests : IDisposable
         job = service.GetJob(id)!;
         Assert.Equal(JobStatus.Completed, job.Status);
         Assert.Null(job.StatusMessage);
+    }
+
+    [Fact]
+    public void ExtractFailureReason_NoMatchingContentWithExitCode_IncludesExitCodeInMessage()
+    {
+        var lines = new List<string> { "", "  ", "" };
+
+        var result = JobService.ExtractFailureReason(lines, "test", 42);
+
+        Assert.Equal("Process exited with code 42", result);
+    }
+
+    [Fact]
+    public void CompleteJob_GenericFallback_ConsultsAgentLevelAnalyzer()
+    {
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), agentRunner: TestAgentRunner.Create());
+        var id = service.CreateTestJob(new ExecutePlanArgs(Path.GetTempPath()));
+
+        service.CompleteJob(id, 1);
+
+        var job = service.GetJob(id)!;
+        Assert.Equal(JobStatus.Failed, job.Status);
+        Assert.Equal("Claude Code exited with code 1", job.StatusMessage);
+    }
+
+    [Fact]
+    public void ClaudeFailureAnalyzer_UnmatchedStderr_IncludesStderrInUnknownFallback()
+    {
+        var analyzer = new ClaudeFailureAnalyzer();
+
+        var analysis = analyzer.Analyze(new FailureContext
+        {
+            Events = [],
+            StderrLines = ["some unrecognized diagnostic output"],
+            ExitCode = null,
+            AgentId = "claude",
+        });
+
+        Assert.Equal(FailureKind.Unknown, analysis.Kind);
+        Assert.Contains("some unrecognized diagnostic output", analysis.Reason);
+    }
+
+    [Fact]
+    public void ClaudeFailureAnalyzer_UnknownFallback_NoStderr_IncludesExitCode()
+    {
+        var analyzer = new ClaudeFailureAnalyzer();
+
+        var analysis = analyzer.Analyze(new FailureContext
+        {
+            Events = [],
+            StderrLines = [],
+            ExitCode = null,
+            AgentId = "claude",
+        });
+
+        Assert.Equal(FailureKind.Unknown, analysis.Kind);
+        Assert.Contains("unknown error", analysis.Reason, StringComparison.OrdinalIgnoreCase);
     }
 }
