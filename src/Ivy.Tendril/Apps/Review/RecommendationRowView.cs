@@ -28,20 +28,21 @@ public class RecommendationRowView(
             selectedTitles.Set(set);
         }, isChecked);
 
-        var titleRow = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
+        var titleRow = Layout.Horizontal().Gap(2).AlignContent(Align.TopLeft)
                        | isChecked.ToBoolInput()
                        | Text.Block(rec.Title).Bold();
 
+        var content = Layout.Vertical().Gap(1) | titleRow;
+
         if (rec.Impact is { } impact)
-            titleRow |= new Badge($"Impact: {impact}").Variant(impact switch
+            content |= new Badge($"Impact: {impact}").Variant(impact switch
             {
                 "High" => BadgeVariant.Success,
                 "Medium" => BadgeVariant.Warning,
                 _ => BadgeVariant.Outline
             });
 
-        return Layout.Vertical().Gap(1)
-               | titleRow
+        return content
                | new Markdown(MarkdownHelper.PrepareForDisplay(rec.Description, config))
                    .DangerouslyAllowLocalFiles().Article();
     }

@@ -292,6 +292,29 @@ public class ContentView(
                                .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
                                .Muted("plans", word: true);
 
+            if (hasSelection)
+            {
+                var count = selectedRecTitles.Value.Count;
+                rightSide |= new Button("Implement Recommendations")
+                    .Icon(Icons.Rocket).Badge(count.ToString()).Primary()
+                    .OnClick(() =>
+                    {
+                        var titles = selectedRecTitles.Value.ToList();
+                        var selected = pendingRecs.Where(r => titles.Contains(r.Title)).ToList();
+                        if (selected.Count == 0) return;
+
+                        // Single job for the whole batch, never one StartJob call per recommendation.
+                        var changeRequest = BuildRecommendationChangeRequest(selected);
+                        planService.AcceptRecommendationsAndRetry(selectedPlan.FolderName, titles);
+                        jobService.StartJob(new RetryPlanArgs(selectedPlan.FolderPath, changeRequest));
+                        client.Toast($"Started RetryPlan for {selected.Count} recommendation(s)", "Implementing Recommendations");
+
+                        selectedRecTitles.Set(new HashSet<string>());
+                        refreshPlans();
+                        revalidate();
+                    });
+            }
+
             if (selectedPlan.Commits.Count > 0)
             {
                 var repoPaths = selectedPlan.GetEffectiveRepoPaths(config);
@@ -356,29 +379,6 @@ public class ContentView(
                     WorktreeCleanupService.RemoveWorktreesInBackground(selectedPlan.FolderPath);
                 }).ShortcutKey("m");
                 rightSide |= hasSelection ? completePlanBtn.Outline() : completePlanBtn.Primary();
-            }
-
-            if (hasSelection)
-            {
-                var count = selectedRecTitles.Value.Count;
-                rightSide |= new Button($"Implement Recommendations ({count})")
-                    .Icon(Icons.Play).Primary()
-                    .OnClick(() =>
-                    {
-                        var titles = selectedRecTitles.Value.ToList();
-                        var selected = pendingRecs.Where(r => titles.Contains(r.Title)).ToList();
-                        if (selected.Count == 0) return;
-
-                        // Single job for the whole batch, never one StartJob call per recommendation.
-                        var changeRequest = BuildRecommendationChangeRequest(selected);
-                        planService.AcceptRecommendationsAndRetry(selectedPlan.FolderName, titles);
-                        jobService.StartJob(new RetryPlanArgs(selectedPlan.FolderPath, changeRequest));
-                        client.Toast($"Started RetryPlan for {selected.Count} recommendation(s)", "Implementing Recommendations");
-
-                        selectedRecTitles.Set(new HashSet<string>());
-                        refreshPlans();
-                        revalidate();
-                    });
             }
 
             if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
@@ -629,10 +629,11 @@ public class ContentView(
             if (pendingRecs.Count == 0)
                 recommendationsLayout |= Text.Muted("No recommendations.");
             else
-                foreach (var rec in pendingRecs)
+                for (var i = 0; i < pendingRecs.Count; i++)
                 {
-                    recommendationsLayout |= new RecommendationRowView(rec, selectedRecTitles, config);
-                    recommendationsLayout |= new Separator();
+                    recommendationsLayout |= new RecommendationRowView(pendingRecs[i], selectedRecTitles, config);
+                    if (i < pendingRecs.Count - 1)
+                        recommendationsLayout |= new Separator();
                 }
 
             var changesTabView = new ChangesTabView(planData.AllChanges, planContentQuery.Loading, planContentQuery.Error, selectedPlan.Project);
