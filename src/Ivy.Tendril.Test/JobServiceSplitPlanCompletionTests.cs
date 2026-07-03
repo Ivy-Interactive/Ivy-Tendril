@@ -97,5 +97,6 @@ public class JobServiceSplitPlanCompletionTests
         public Task FlushPendingWritesAsync() => Task.CompletedTask;
         public List<RecommendationYaml> GetRecommendationsForPlan(string folderName) => [];
         public void AcceptRecommendationAndRetry(string folderName, string recommendationTitle) { }
+        public void AcceptRecommendationsAndRetry(string folderName, IReadOnlyCollection<string> titles) { }
     }
 }
