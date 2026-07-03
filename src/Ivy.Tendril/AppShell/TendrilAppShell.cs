@@ -139,6 +139,12 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             return new ImportIssuesDialog(isOpen, config);
         });
 
+        var (updateDialog, showUpdateDialog) = UseTrigger<VersionInfo>((isOpen, info) =>
+        {
+            if (!isOpen.Value || info == null) return null;
+            return new UpdateTendrilDialog(isOpen, info);
+        });
+
         UseEffect(async () =>
         {
             newsArticles.Set(await FetchNewsAsync());
@@ -493,9 +499,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                             var info = await versionService.CheckForUpdatesAsync(forceRefresh: true);
                             if (info.HasUpdate)
                             {
-                                client.Toast(
-                                    $"v{info.LatestVersion} is available (you have v{info.CurrentVersion}).",
-                                    "Update available").Info();
+                                showUpdateDialog(info);
                             }
                             else if (info.LatestVersion == null)
                             {
@@ -581,7 +585,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 ),
                 settings.Width
             ).Open(sidebarOpen.Value).MainAppSidebar(),
-            importIssuesDialog
+            importIssuesDialog,
+            updateDialog
         );
     }
 
