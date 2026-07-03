@@ -64,22 +64,77 @@ internal class JobLauncher
 
     private void LaunchJob(JobLaunchContext ctx)
     {
-        // Defense in depth (#1340): refuse to launch a plan job that references a repo outside its
-        // project, before any state mutation. The creation/add-repo guards should prevent this, but
-        // pre-existing plans may have drifted.
-        if (!ValidateProjectReposOrFail(ctx))
-            return;
+        try
+        {
+            // Defense in depth (#1340): refuse to launch a plan job that references a repo outside its
+            // project, before any state mutation. The creation/add-repo guards should prevent this, but
+            // pre-existing plans may have drifted.
+            if (!ValidateProjectReposOrFail(ctx))
+                return;
 
-        PrepareJobForLaunch(ctx);
+            PrepareJobForLaunch(ctx);
 
-        if (!ValidateJobPrerequisites(ctx, out var psi, out var stdinContent))
-            return;
+            if (!ValidateJobPrerequisites(ctx, out var psi, out var stdinContent))
+                return;
 
-        var process = StartAgentProcess(ctx, psi, stdinContent);
-        if (process == null)
-            return;
+            var process = StartAgentProcess(ctx, psi, stdinContent);
+            if (process == null)
+                return;
 
-        InitializeJobMonitoring(ctx, process);
+            InitializeJobMonitoring(ctx, process);
+            ctx.RaiseStructureChanged();
+        }
+        catch (Exception ex)
+        {
+            // Catch-all so a launch failure never leaks the concurrency slot (#1564). The three guards
+            // above (ValidateProjectReposOrFail, ValidateJobPrerequisites, StartAgentProcess) already
+            // release the slot and return normally on their anticipated failure modes — they never
+            // throw — so this only fires for genuinely unhandled exceptions where the slot is still held.
+            HandleUnhandledLaunchFailure(ctx, ex);
+        }
+    }
+
+    private void HandleUnhandledLaunchFailure(JobLaunchContext ctx, Exception ex)
+    {
+        var job = ctx.Job;
+        _logger.LogError(ex, "Job {JobId}: Unhandled exception during launch", job.Id);
+        CrashLog.Write($"[{DateTime.UtcNow:O}] Job {job.Id}: Unhandled exception during launch: {ex}");
+
+        if (job.Process is { } process)
+        {
+            try
+            {
+                if (!process.HasExited)
+                    process.Kill(entireProcessTree: true);
+            }
+            catch
+            {
+                // Process may have already exited or never fully started — best-effort cleanup.
+            }
+        }
+
+        // If the job already reached a terminal state (e.g. a downstream handler completed it before
+        // the exception unwound to here), leave it as-is — only the slot still needs releasing.
+        if (job.Status is not (JobStatus.Failed or JobStatus.Completed or JobStatus.Stopped or JobStatus.Timeout))
+        {
+            job.Status = JobStatus.Failed;
+            job.StatusMessage = ex.Message;
+            job.CompletedAt = DateTime.UtcNow;
+        }
+
+        ctx.JobSlotSemaphore.Release();
+        ctx.RaiseStructureChanged();
+    }
+
+    // Shared by every anticipated launch-failure guard: marks the job Failed and releases the slot
+    // exactly once. The catch-all in LaunchJob covers everything this doesn't.
+    private static void FailJobAndReleaseSlot(JobLaunchContext ctx, string message)
+    {
+        var job = ctx.Job;
+        job.Status = JobStatus.Failed;
+        job.StatusMessage = message;
+        job.CompletedAt = DateTime.UtcNow;
+        ctx.JobSlotSemaphore.Release();
         ctx.RaiseStructureChanged();
     }
 
@@ -109,11 +164,7 @@ internal class JobLauncher
         catch (ArgumentException ex)
         {
             _logger.LogError("Job {JobId}: refusing launch — {Message}", job.Id, ex.Message);
-            job.Status = JobStatus.Failed;
-            job.StatusMessage = ex.Message;
-            job.CompletedAt = DateTime.UtcNow;
-            ctx.JobSlotSemaphore.Release();
-            ctx.RaiseStructureChanged();
+            FailJobAndReleaseSlot(ctx, ex.Message);
             return false;
         }
     }
@@ -156,11 +207,7 @@ internal class JobLauncher
         {
             var programFolder = Path.Combine(_promptsRoot, type);
             _logger.LogError("Job {JobId}: No agent program found for '{Type}' in {Folder}", id, type, programFolder);
-            job.Status = JobStatus.Failed;
-            job.StatusMessage = $"No agent program found for '{type}'. Ensure {programFolder}/Program.md exists and config is loaded";
-            job.CompletedAt = DateTime.UtcNow;
-            ctx.JobSlotSemaphore.Release();
-            ctx.RaiseStructureChanged();
+            FailJobAndReleaseSlot(ctx, $"No agent program found for '{type}'. Ensure {programFolder}/Program.md exists and config is loaded");
             return false;
         }
 
@@ -187,16 +234,13 @@ internal class JobLauncher
         catch (System.ComponentModel.Win32Exception ex)
         {
             _logger.LogError(ex, "Job {JobId}: Failed to start process '{FileName}'", id, psi.FileName);
-            job.Status = JobStatus.Failed;
-            job.StatusMessage = ex.NativeErrorCode switch
+            var message = ex.NativeErrorCode switch
             {
                 2 => $"Agent binary not found: {psi.FileName}",
                 206 => $"Command line too long when launching '{psi.FileName}'",
                 _ => $"Failed to start '{psi.FileName}': {ex.Message}"
             };
-            job.CompletedAt = DateTime.UtcNow;
-            ctx.JobSlotSemaphore.Release();
-            ctx.RaiseStructureChanged();
+            FailJobAndReleaseSlot(ctx, message);
             return null;
         }
 
