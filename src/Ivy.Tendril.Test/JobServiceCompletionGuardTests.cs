@@ -486,5 +486,9 @@ public class JobServiceCompletionGuardTests : IDisposable
         public void AcceptRecommendationAndRetry(string folderName, string recommendationTitle)
         {
         }
+
+        public void AcceptRecommendationsAndRetry(string folderName, IReadOnlyCollection<string> titles)
+        {
+        }
     }
 }
