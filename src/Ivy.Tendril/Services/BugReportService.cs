@@ -346,7 +346,13 @@ public sealed class BugReportService
         form.Add(new StringContent(description), "description");
         form.Add(new StringContent(osVersion), "osVersion");
         form.Add(new StringContent(tendrilVersion), "tendrilVersion");
-        form.Add(new StringContent(agent), "agent");
+        var normalizedAgent = (agent ?? string.Empty).ToLowerInvariant() switch
+        {
+            "gemini" => "gemini",
+            "antigravity" => "gemini",
+            _ => "claude"
+        };
+        form.Add(new StringContent(normalizedAgent), "agent");
 
         if (!string.IsNullOrWhiteSpace(commitId))
             form.Add(new StringContent(commitId), "commitId");
@@ -362,7 +368,10 @@ public sealed class BugReportService
         var response = await httpClient.PostAsync(BugReportApiUrl, form, ct);
 
         if (!response.IsSuccessStatusCode)
-            return null;
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(ct);
+            throw new HttpRequestException($"Bug report upload failed with status code {response.StatusCode}. Details: {errorBody}");
+        }
 
         var json = await response.Content.ReadAsStringAsync(ct);
         return JsonSerializer.Deserialize<BugReportResult>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
