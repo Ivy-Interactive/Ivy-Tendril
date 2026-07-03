@@ -130,6 +130,10 @@ tendril project add-verification <project-name> CheckResult --required --after=D
 Review actions make it easy to start the application from a worktree during code review.
 To ensure the setup works out-of-the-box on fresh worktrees, review actions MUST automatically install dependencies before running the application (e.g. using `&&` to chain the installation and start commands).
 
+Review-action commands execute inside `pwsh` on the reviewer's OS, so they MUST use cross-platform PowerShell. 
+
+Never emit the Windows-only `start`; to open a file/URL use `Start-Process` on Windows, `open` on macOS, `xdg-open` on Linux. Avoid unescaped `$` in the command — on macOS the action passes through a bash wrapper that would expand it.
+
 Inspect each repo to determine how to run the application. For website projects, prefer commands that open the browser automatically:
 - **.NET project** with a runnable entry point: `dotnet run --project Worktrees/<RepoName>/<path-to-project> --browse --find-available-port`
 - **Vite+ (`vite-plus`) project**: `cd Worktrees/<RepoName>/<path-to-frontend> && vp install && vp dev`
@@ -140,7 +144,12 @@ Inspect each repo to determine how to run the application. For website projects,
 - **Angular CLI**: `cd Worktrees/<RepoName>/<path> && npm install && ng serve --open` (adapt for `pnpm`/`yarn` if detected)
 - **Other Node.js app** (no open support): `cd Worktrees/<RepoName>/<path> && npm install && npm run dev` (adapt package manager as detected)
 - **Python app**: `cd Worktrees/<RepoName> && python -m pip install -r requirements.txt && python -m <module>` (or `flask run` / `uv run ...` / `poetry run ...` if detected)
-- **Static docs**: `start Worktrees/<RepoName>/docs/index.html`
+- **Static HTML / docs (no dev server)**: open the entry file with the current OS's default handler — the SetupProject agent runs on the machine that will review, so emit the command for the current OS:
+  - **Windows**: `Start-Process "Worktrees/<RepoName>/docs/index.html"`
+  - **macOS**: `open "Worktrees/<RepoName>/docs/index.html"`
+  - **Linux**: `xdg-open "Worktrees/<RepoName>/docs/index.html"`
+
+  (Adjust the `docs/index.html` sub-path to wherever the repo's entry HTML actually lives.)
 
 For each review action:
 - **name**: Short descriptive name (e.g. "App", "Docs", "Frontend", "API")
