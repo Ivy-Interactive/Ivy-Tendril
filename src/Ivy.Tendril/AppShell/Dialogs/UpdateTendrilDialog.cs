@@ -82,8 +82,8 @@ public class UpdateTendrilDialog(IState<bool> isOpen, VersionInfo info) : ViewBa
             else
             {
                 var updateCommand = OperatingSystem.IsWindows()
-                    ? "irm https://cdn.ivy.app/install-tendril.ps1 | iex"
-                    : "curl -sSf https://cdn.ivy.app/install-tendril.sh | sh";
+                    ? Constants.WindowsInstallCommand
+                    : Constants.UnixInstallCommand;
 
                 content = Layout.Vertical().Gap(3)
                     | Text.Rich()

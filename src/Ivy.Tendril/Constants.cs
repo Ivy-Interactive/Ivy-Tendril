@@ -24,6 +24,8 @@ public static class Constants
     public const string DiscordUrl = "https://discord.gg/FHgxkDga3y";
     public const string IssuesUrl = "https://github.com/Ivy-Interactive/Ivy-Tendril/issues/new";
     public const string NewsBaseUrl = "https://cdn.ivy.app/tendril/";
+    public const string WindowsInstallCommand = "irm https://cdn.ivy.app/install-tendril.ps1 | iex";
+    public const string UnixInstallCommand = "curl -sSf https://cdn.ivy.app/install-tendril.sh | sh";
 
     public static readonly Dictionary<PlanStatus, BadgeVariant> PlanStatusBadgeVariants = new()
     {
