@@ -194,7 +194,6 @@ public class AddProjectDialog(
             new DialogHeader(headerTitle),
             new DialogBody(dialogBody)
         )
-        .Width(Size.Rem(40))
-        .ClosedBy("Are you sure you want to close? Your progress will be lost.");
+        .Width(Size.Rem(40));
     }
 }

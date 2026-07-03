@@ -266,8 +266,7 @@ public class EditProjectDialog(
                 saveButton
             )
         )
-        .Width(Size.Rem(40))
-        .ClosedBy("Are you sure you want to close? Your progress will be lost.");
+        .Width(Size.Rem(40));
 
         return mainDialog;
     }
