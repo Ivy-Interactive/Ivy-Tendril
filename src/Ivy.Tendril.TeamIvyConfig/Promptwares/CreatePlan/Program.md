@@ -184,7 +184,10 @@ The command outputs:
 ```
 PlanId: <ID>
 Directory: <TendrilPlansFolder>/<ID>-<SafeTitle>
-Plan created: <ID>-<SafeTitle>
+Verifications:
+<Name>:<Status>
+<Name>:<Status>
+...
 ```
 
 Parse `PlanId` and `Directory` from the output — use these for all subsequent operations.
