@@ -109,6 +109,8 @@ public class CopilotFailureAnalyzerTests
     [InlineData("invalid model specified")]
     [InlineData("model not found")]
     [InlineData("model does not exist")]
+    [InlineData("not available")]
+    [InlineData("Model \"gpt-5.2\" from --model flag is not available.")]
     public void Analyze_InvalidModel_ReturnsInvalidModel(string stderrLine)
     {
         var ctx = new FailureContext
