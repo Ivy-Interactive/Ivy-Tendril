@@ -252,12 +252,51 @@ public sealed class BugReportService
 
     private static void CollectPlanFiles(string planFolder, List<BugReportFile> files)
     {
-        foreach (var file in Directory.EnumerateFiles(planFolder, "*", SearchOption.AllDirectories))
+        if (!Directory.Exists(planFolder))
+            return;
+
+        CollectPlanFilesRecursive(planFolder, planFolder, files);
+    }
+
+    private static void CollectPlanFilesRecursive(string rootFolder, string currentFolder, List<BugReportFile> files)
+    {
+        try
         {
-            var relativePath = Path.GetRelativePath(planFolder, file);
-            if (relativePath.StartsWith("Worktrees", StringComparison.OrdinalIgnoreCase))
-                continue;
-            files.Add(new BugReportFile(file, relativePath));
+            foreach (var file in Directory.EnumerateFiles(currentFolder))
+            {
+                try
+                {
+                    var relativePath = Path.GetRelativePath(rootFolder, file);
+                    if (relativePath.StartsWith("Worktrees", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    files.Add(new BugReportFile(file, relativePath));
+                }
+                catch
+                {
+                    // Skip files that fail relative path resolution or cause minor path errors
+                }
+            }
+
+            foreach (var dir in Directory.EnumerateDirectories(currentFolder))
+            {
+                try
+                {
+                    var dirName = Path.GetFileName(dir);
+                    if (dirName.Equals("Worktrees", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    CollectPlanFilesRecursive(rootFolder, dir, files);
+                }
+                catch
+                {
+                    // Skip unreadable directories gracefully instead of crashing
+                }
+            }
+        }
+        catch
+        {
+            // Skip directory enumeration failures gracefully
         }
     }
 
