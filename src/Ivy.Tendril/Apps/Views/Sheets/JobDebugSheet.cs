@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Jobs.Dialogs;
 using Ivy.Tendril.Helpers;
@@ -176,16 +175,7 @@ public class JobDebugSheet(
         }
     }
 
-    private static string GetPlanId(JobItem job)
-    {
-        if (!string.IsNullOrEmpty(job.PlanFile))
-        {
-            var match = Regex.Match(job.PlanFile, @"^(\d{5})-");
-            if (match.Success) return match.Groups[1].Value;
-        }
-
-        return job.ReportedPlanId ?? job.AllocatedPlanId ?? "";
-    }
+    private static string GetPlanId(JobItem job) => job.ResolvePlanId();
 
     private string? GetPlanFolderPath(JobItem job)
     {
