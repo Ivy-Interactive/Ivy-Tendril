@@ -544,6 +544,8 @@ public class Program
                     .WithDescription("Validate plan health");
                 plan.AddCommand<PlanCleanupCommand>("cleanup")
                     .WithDescription("Remove worktrees from a plan");
+                plan.AddCommand<PlanAddWorktreeCommand>("add-worktree")
+                    .WithDescription("Create a git worktree for a plan");
                 plan.AddCommand<PlanRemoveWorktreeCommand>("remove-worktree")
                     .WithDescription("Remove a single worktree from a plan");
                 plan.AddCommand<PlanDoctorCommand>("doctor")
