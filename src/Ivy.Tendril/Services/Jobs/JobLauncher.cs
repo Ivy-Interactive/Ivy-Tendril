@@ -64,6 +64,7 @@ internal class JobLauncher
 
     private void LaunchJob(JobLaunchContext ctx)
     {
+        Process process;
         try
         {
             // Defense in depth (#1340): refuse to launch a plan job that references a repo outside its
@@ -77,12 +78,10 @@ internal class JobLauncher
             if (!ValidateJobPrerequisites(ctx, out var psi, out var stdinContent))
                 return;
 
-            var process = StartAgentProcess(ctx, psi, stdinContent);
-            if (process == null)
+            var started = StartAgentProcess(ctx, psi, stdinContent);
+            if (started == null)
                 return;
-
-            InitializeJobMonitoring(ctx, process);
-            ctx.RaiseStructureChanged();
+            process = started;
         }
         catch (Exception ex)
         {
@@ -90,8 +89,17 @@ internal class JobLauncher
             // above (ValidateProjectReposOrFail, ValidateJobPrerequisites, StartAgentProcess) already
             // release the slot and return normally on their anticipated failure modes — they never
             // throw — so this only fires for genuinely unhandled exceptions where the slot is still held.
+            //
+            // Deliberately scoped to end here, before InitializeJobMonitoring: once the monitor task is
+            // started it becomes the sole owner of this job's completion (via ctx.CompleteJob, guarded by
+            // JobItem.TryClaimCompletion). Catching exceptions from that point on here too would race the
+            // monitor's independent completion path and risk releasing the slot twice.
             HandleUnhandledLaunchFailure(ctx, ex);
+            return;
         }
+
+        InitializeJobMonitoring(ctx, process);
+        ctx.RaiseStructureChanged();
     }
 
     private void HandleUnhandledLaunchFailure(JobLaunchContext ctx, Exception ex)
