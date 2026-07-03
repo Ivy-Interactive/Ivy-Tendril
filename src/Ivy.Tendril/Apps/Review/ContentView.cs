@@ -251,17 +251,14 @@ public class ContentView(
         INavigator nav,
         ReviewAppArgs? args)
     {
-        object BuildTitleArea()
+        object BuildTitleArea(bool isMobile)
         {
             var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full().Min(Size.Px(0)))
-                | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
-                    .BorderThickness(0).Padding(0).Width(Size.Fit().Min(Size.Px(0)));
-
-            if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
-                desktopTitleLayout |= new Button(selectedPlan.IsPullRequestSource ? "PR" : "Issue")
-                    .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
+                | Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis)
+                    .Width(Size.Grow().Min(Size.Px(0)));
 
             var desktopTitle = new Box(desktopTitleLayout).BorderThickness(0).Padding(0)
+                .Width(Size.Full().Min(Size.Px(0)))
                 .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
             return Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow().Min(Size.Px(0)))
@@ -275,10 +272,11 @@ public class ContentView(
                        .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
         }
 
-        object BuildControls()
+        object BuildControls(bool isMobile)
         {
-            var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
+            var rightSide = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
                            | Text.Rich()
+                               .NoWrap()
                                .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
                                .Muted("plans", word: true);
 
@@ -329,13 +327,13 @@ public class ContentView(
                     }
                 }).ShortcutKey("m");
 
-                controls |= (allYolo && !isPrUpdate)
+                rightSide |= (allYolo && !isPrUpdate)
                     ? createPrBtn.WithConfetti(AnimationTrigger.Click)
                     : createPrBtn;
             }
             else
             {
-                controls |= new Button("Complete Plan").Icon(Icons.CircleCheck).Primary().OnClick(() =>
+                rightSide |= new Button("Complete Plan").Icon(Icons.CircleCheck).Primary().OnClick(() =>
                 {
                     // Optimistic UI - update state and refresh immediately
                     planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
@@ -346,7 +344,21 @@ public class ContentView(
                 }).ShortcutKey("m");
             }
 
-            return controls;
+            if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
+            {
+                var leftSide = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
+                               | new Button(selectedPlan.IsPullRequestSource ? "PR" : "Issue")
+                                   .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
+
+                return Layout.Horizontal()
+                       .Width(isMobile ? Size.Full() : Size.Fit())
+                       .AlignContent(isMobile ? Align.SpaceBetween : Align.Right)
+                       .Gap(2)
+                       | leftSide
+                       | rightSide;
+            }
+
+            return rightSide;
         }
 
         return ResponsiveHeader.Build(BuildTitleArea, BuildControls);
