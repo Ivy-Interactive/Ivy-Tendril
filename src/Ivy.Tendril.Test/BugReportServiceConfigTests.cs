@@ -138,4 +138,42 @@ projects:
         Assert.DoesNotContain(files, f => f.ZipEntryPath == "plan.yaml");
         Assert.DoesNotContain(files, f => f.ZipEntryPath == "worktrees.txt");
     }
+
+    [Fact]
+    public void CollectPlanFiles_Filters_Gitignored_Files()
+    {
+        var service = CreateService("codingAgent: claude\n");
+
+        // Set up a plan folder that is also a git repository
+        var planFolder = Path.Combine(_tempDir.Path, "Plans", "00123-Demo-Git");
+        Directory.CreateDirectory(planFolder);
+
+        // Initialize git repo in the plan folder
+        GitHelper.RunGitCapture(planFolder, "init", 5000);
+
+        // Configure git ignores
+        File.WriteAllText(Path.Combine(planFolder, ".gitignore"), "ignored.txt\n*.log\n");
+
+        // Create some files
+        File.WriteAllText(Path.Combine(planFolder, "keep.txt"), "keep content");
+        File.WriteAllText(Path.Combine(planFolder, "ignored.txt"), "ignored content");
+        File.WriteAllText(Path.Combine(planFolder, "test.log"), "log content");
+
+        // Logs directory so the plan log matches
+        var logsDir = Path.Combine(planFolder, "Logs");
+        Directory.CreateDirectory(logsDir);
+        File.WriteAllText(Path.Combine(logsDir, "00123-ExecutePlan.md"), "# execute log");
+
+        // Collect files for the job
+        var files = service.CollectFilesForJob("123");
+
+        static string Entry(BugReportService.BugReportFile f) => f.ZipEntryPath.Replace('\\', '/');
+
+        // Check that keep.txt and logs are present, but ignored.txt and test.log are excluded
+        Assert.Contains(files, f => Entry(f) == "keep.txt");
+        Assert.Contains(files, f => Entry(f) == "Logs/00123-ExecutePlan.md");
+        Assert.DoesNotContain(files, f => Entry(f) == "ignored.txt");
+        Assert.DoesNotContain(files, f => Entry(f) == "test.log");
+    }
 }
+

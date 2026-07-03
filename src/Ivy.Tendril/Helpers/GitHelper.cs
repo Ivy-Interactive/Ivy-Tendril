@@ -118,6 +118,52 @@ public static class GitHelper
         }
     }
 
+    internal static string? RunGitCaptureWithStdin(string? workingDir, string args, IReadOnlyList<string> stdinLines, int timeoutMs)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo("git", args)
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardInput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            if (!string.IsNullOrEmpty(workingDir))
+                psi.WorkingDirectory = workingDir;
+
+            using var process = Process.Start(psi);
+            if (process == null) return null;
+
+            var outTask = process.StandardOutput.ReadToEndAsync();
+            var errTask = process.StandardError.ReadToEndAsync();
+
+            using (var writer = process.StandardInput)
+            {
+                foreach (var line in stdinLines)
+                    writer.WriteLine(line);
+            }
+
+            if (!process.WaitForExit(timeoutMs))
+            {
+                try { process.Kill(true); } catch { /* best effort */ }
+                return null;
+            }
+
+            var output = outTask.GetAwaiter().GetResult();
+            _ = errTask.GetAwaiter().GetResult();
+
+            // git check-ignore returns exit code 0 when one or more paths are ignored,
+            // and 1 when none of the paths are ignored. We accept both as successful runs.
+            return process.ExitCode == 0 || process.ExitCode == 1 ? output : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public static string? ResolveRepoRootFromWorktree(string wtDir)
     {
         var gitFile = Path.Combine(wtDir, ".git");

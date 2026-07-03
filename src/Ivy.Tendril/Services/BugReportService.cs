@@ -252,13 +252,100 @@ public sealed class BugReportService
 
     private static void CollectPlanFiles(string planFolder, List<BugReportFile> files)
     {
-        foreach (var file in Directory.EnumerateFiles(planFolder, "*", SearchOption.AllDirectories))
+        if (!Directory.Exists(planFolder))
+            return;
+
+        var collected = new List<BugReportFile>();
+        CollectPlanFilesRecursive(planFolder, planFolder, collected);
+
+        if (collected.Count == 0)
+            return;
+
+        // Filter out gitignored files using git check-ignore --stdin
+        var relativePaths = collected.Select(f => f.ZipEntryPath).ToList();
+        var ignoredRelativePaths = GetIgnoredFiles(planFolder, relativePaths);
+
+        foreach (var file in collected)
         {
-            var relativePath = Path.GetRelativePath(planFolder, file);
-            if (relativePath.StartsWith("Worktrees", StringComparison.OrdinalIgnoreCase))
+            if (ignoredRelativePaths.Contains(file.ZipEntryPath))
                 continue;
-            files.Add(new BugReportFile(file, relativePath));
+            files.Add(file);
         }
+    }
+
+    private static void CollectPlanFilesRecursive(string rootFolder, string currentFolder, List<BugReportFile> files)
+    {
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(currentFolder))
+            {
+                try
+                {
+                    var relativePath = Path.GetRelativePath(rootFolder, file);
+                    if (relativePath.StartsWith("Worktrees", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    files.Add(new BugReportFile(file, relativePath));
+                }
+                catch
+                {
+                    // Skip files that fail relative path resolution or cause minor path errors
+                }
+            }
+
+            foreach (var dir in Directory.EnumerateDirectories(currentFolder))
+            {
+                try
+                {
+                    var dirName = Path.GetFileName(dir);
+                    if (dirName.Equals("Worktrees", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    CollectPlanFilesRecursive(rootFolder, dir, files);
+                }
+                catch
+                {
+                    // Skip unreadable directories gracefully instead of crashing
+                }
+            }
+        }
+        catch
+        {
+            // Skip directory enumeration failures gracefully
+        }
+    }
+
+    private static HashSet<string> GetIgnoredFiles(string planFolder, IReadOnlyList<string> relativePaths)
+    {
+        var ignored = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (relativePaths.Count == 0)
+            return ignored;
+
+        try
+        {
+            // Check if we are inside a git repository
+            var isGit = GitHelper.RunGitCapture(planFolder, "rev-parse --is-inside-work-tree", 2000);
+            if (string.IsNullOrWhiteSpace(isGit) || !isGit.Trim().Equals("true", StringComparison.OrdinalIgnoreCase))
+                return ignored;
+
+            var output = GitHelper.RunGitCaptureWithStdin(planFolder, "-c core.quotepath=false check-ignore --stdin", relativePaths, 5000);
+            if (output != null)
+            {
+                var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var line in lines)
+                {
+                    var trimmed = line.Trim();
+                    if (!string.IsNullOrEmpty(trimmed))
+                        ignored.Add(trimmed);
+                }
+            }
+        }
+        catch
+        {
+            // Fail safe: return empty ignored set so we don't break bug reporting
+        }
+
+        return ignored;
     }
 
     private static void ExtractJobIdsFromPlanLogs(string planFolder, HashSet<string> jobIds)
@@ -282,21 +369,29 @@ public sealed class BugReportService
 
         foreach (var file in files)
         {
-            var entryPath = file.ZipEntryPath.Replace('\\', '/');
-            if (file.Content != null)
+            try
             {
-                var entry = zip.CreateEntry(entryPath);
-                using var entryStream = entry.Open();
-                entryStream.Write(file.Content, 0, file.Content.Length);
+                var entryPath = file.ZipEntryPath.Replace('\\', '/');
+                if (file.Content != null)
+                {
+                    var entry = zip.CreateEntry(entryPath);
+                    using var entryStream = entry.Open();
+                    entryStream.Write(file.Content, 0, file.Content.Length);
+                }
+                else if (File.Exists(file.AbsolutePath))
+                {
+                    zip.CreateEntryFromFile(file.AbsolutePath, entryPath);
+                }
             }
-            else
+            catch
             {
-                zip.CreateEntryFromFile(file.AbsolutePath, entryPath);
+                // Skip file zipping failures gracefully so we can still submit the rest of the report
             }
         }
 
         return zipPath;
     }
+
 
     private static async Task<BugReportResult?> UploadAsync(string zipPath, string description, string osVersion, string tendrilVersion, string agent, string? commitId, string? githubUser, CancellationToken ct)
     {
