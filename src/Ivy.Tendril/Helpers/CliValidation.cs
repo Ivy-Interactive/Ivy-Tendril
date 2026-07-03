@@ -104,6 +104,10 @@ public static class CliValidation
     public static void ThrowBuildDependencyNotFound(string name, IEnumerable<string> available) =>
         ThrowNotFound("Build dependency", name, available);
 
+    [DoesNotReturn]
+    public static void ThrowVerificationTargetNotFound(string optionName, string name, IEnumerable<string> available) =>
+        ThrowNotFound($"Target verification for --{optionName}", name, available);
+
     /// <summary>Number of value sources supplied (inline arg / --file / --stdin), for the "exactly one" rule.</summary>
     public static int CountSources(bool stdin, string? filePath, string value) =>
         (stdin ? 1 : 0) + (!string.IsNullOrEmpty(filePath) ? 1 : 0) + (!string.IsNullOrEmpty(value) ? 1 : 0);

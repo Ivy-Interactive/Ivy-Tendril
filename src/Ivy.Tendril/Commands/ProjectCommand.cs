@@ -602,7 +602,7 @@ public class ProjectMoveVerificationCommand : Command<ProjectMoveVerificationSet
             if (targetIndex < 0)
             {
                 project.Verifications.Add(item);
-                throw new InvalidOperationException($"Target verification not found for --before: {settings.Before}");
+                CliValidation.ThrowVerificationTargetNotFound("before", settings.Before, project.Verifications.Select(v => v.Name));
             }
             insertIndex = targetIndex;
         }
@@ -613,7 +613,7 @@ public class ProjectMoveVerificationCommand : Command<ProjectMoveVerificationSet
             if (targetIndex < 0)
             {
                 project.Verifications.Add(item);
-                throw new InvalidOperationException($"Target verification not found for --after: {settings.After}");
+                CliValidation.ThrowVerificationTargetNotFound("after", settings.After, project.Verifications.Select(v => v.Name));
             }
             insertIndex = targetIndex + 1;
         }
