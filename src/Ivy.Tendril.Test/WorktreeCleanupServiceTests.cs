@@ -167,6 +167,23 @@ public class WorktreeCleanupServiceTests : IDisposable
     }
 
     [Fact]
+    public void DeletePlanFolderInBackground_Deletes_Folder_And_Worktrees()
+    {
+        var dir = CreatePlan("08001-DeleteInBackgroundTest", "Draft", DateTime.UtcNow.AddHours(-2));
+        var worktreeDir = Path.Combine(dir, "Worktrees", "TestRepo");
+        Directory.CreateDirectory(worktreeDir);
+        File.WriteAllText(Path.Combine(worktreeDir, "file.txt"), "test");
+
+        WorktreeCleanupService.DeletePlanFolderInBackground(dir);
+
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (Directory.Exists(dir) && DateTime.UtcNow < deadline)
+            Thread.Sleep(50);
+
+        Assert.False(Directory.Exists(dir), "Plan folder should be deleted by background deletion");
+    }
+
+    [Fact]
     public void CleanupPlanWorktrees_ForceDeletes_Orphan_Without_GitFile()
     {
         // Worktree directory with no .git file — RemoveWorktrees skips it,
