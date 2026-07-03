@@ -84,4 +84,8 @@ public static class CliValidation
     {
         throw new InvalidOperationException($"Verification not found: '{name}'. Available: {string.Join(", ", available)}");
     }
+
+    /// <summary>Number of value sources supplied (inline arg / --file / --stdin), for the "exactly one" rule.</summary>
+    public static int CountSources(bool stdin, string? filePath, string value) =>
+        (stdin ? 1 : 0) + (!string.IsNullOrEmpty(filePath) ? 1 : 0) + (!string.IsNullOrEmpty(value) ? 1 : 0);
 }

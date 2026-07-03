@@ -57,6 +57,6 @@ public class ResetToDraftDialog(
                     }
                 })
             )
-        ).Width(Size.Rem(40));
+        );
     }
 }

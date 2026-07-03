@@ -104,9 +104,22 @@ public record SetupProjectArgs(
 
 public record SyncRepoArgs(
     string RepoPath,
-    string BaseBranch = "main",
-    string? PlanFolderPath = null) : JobArgsBase
+    string BaseBranch,
+    string? PlanFolderPath = null,
+    UntrackedChangesPolicy UntrackedChangesPolicy = UntrackedChangesPolicy.Stash) : JobArgsBase
 {
     public override string Type => Constants.JobTypes.SyncRepo;
     public override string? PlanFolder => PlanFolderPath;
+}
+
+// How SyncRepo should treat uncommitted changes and/or untracked files when syncing a repo.
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum UntrackedChangesPolicy
+{
+    // Preserve local work in a named stash (default; never loses work).
+    Stash,
+    // Group changes into logical commits and push them to the base branch.
+    Commit,
+    // Group changes into logical commits on a new branch and open a pull request.
+    PullRequest
 }

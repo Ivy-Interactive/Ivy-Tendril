@@ -36,6 +36,7 @@ public sealed class AntigravityCli : IAgentCli
         var args = new List<string>
         {
             "--print",
+            "-",
             "--dangerously-skip-permissions",
         };
 

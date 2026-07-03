@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Services;
@@ -346,7 +347,7 @@ public sealed class BugReportService
         form.Add(new StringContent(description), "description");
         form.Add(new StringContent(osVersion), "osVersion");
         form.Add(new StringContent(tendrilVersion), "tendrilVersion");
-        form.Add(new StringContent(agent), "agent");
+        form.Add(new StringContent(agent ?? string.Empty), "agent");
 
         if (!string.IsNullOrWhiteSpace(commitId))
             form.Add(new StringContent(commitId), "commitId");
@@ -362,7 +363,10 @@ public sealed class BugReportService
         var response = await httpClient.PostAsync(BugReportApiUrl, form, ct);
 
         if (!response.IsSuccessStatusCode)
-            return null;
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(ct);
+            throw new HttpRequestException($"Bug report upload failed with status code {response.StatusCode}. Details: {errorBody}");
+        }
 
         var json = await response.Content.ReadAsStringAsync(ct);
         return JsonSerializer.Deserialize<BugReportResult>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });

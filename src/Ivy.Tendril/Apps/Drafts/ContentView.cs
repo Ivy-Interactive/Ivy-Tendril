@@ -282,9 +282,9 @@ public class ContentView(
                 preflightResult,
                 proceedLabel: "Create Without Syncing",
                 contextMessage: "These changes will NOT be included in this plan. The plan will execute against origin/<baseBranch>. If these changes are meant for this plan, commit and push them first.",
-                onSyncRepos: () =>
+                onSyncRepos: policy =>
                 {
-                    LaunchWithSync(preflightResult, pendingWaitJobIds.Value);
+                    LaunchWithSync(preflightResult, pendingWaitJobIds.Value, policy);
                     pendingWaitJobIds.Set((List<string>?)null);
                 },
                 onProceed: () =>
@@ -476,7 +476,8 @@ public class ContentView(
         refreshPlans();
     }
 
-    private void LaunchWithSync(PreflightResult preflight, List<string>? waitJobIds = null)
+    private void LaunchWithSync(PreflightResult preflight, List<string>? waitJobIds = null,
+        UntrackedChangesPolicy policy = UntrackedChangesPolicy.Stash)
     {
         if (selectedPlan is null) return;
 
@@ -484,7 +485,7 @@ public class ContentView(
         var allWaitIds = hasWaits ? new List<string>(waitJobIds!) : new List<string>();
         foreach (var (repoPath, baseBranch, _) in preflight.DirtyRepos)
         {
-            var jobId = jobService.StartJob(new SyncRepoArgs(repoPath, baseBranch, selectedPlan.FolderPath));
+            var jobId = jobService.StartJob(new SyncRepoArgs(repoPath, baseBranch, selectedPlan.FolderPath, policy));
             allWaitIds.Add(jobId);
         }
 

@@ -34,6 +34,6 @@ public class DeleteTrashFileDialog(
                     _refreshToken.Refresh();
                 })
             )
-        ).Width(Size.Rem(40));
+        );
     }
 }
