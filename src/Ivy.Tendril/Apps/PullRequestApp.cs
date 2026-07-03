@@ -101,7 +101,7 @@ public class PullRequestApp : ViewBase
             .RefreshToken(refreshToken)
             .Width(Size.Full())
             .Height(Size.Full())
-            .Order(e => e.Repository, e => e.Pr, e => e.Status, e => e.Plan, e => e.Tokens, e => e.Cost)
+            .Order(e => e.Plan, e => e.Status, e => e.Pr, e => e.Tokens, e => e.Cost, e => e.Repository)
             .Header(t => t.Repository, "Repository")
             .Header(t => t.Status, "Status")
             .Header(t => t.Cost, "Cost")
