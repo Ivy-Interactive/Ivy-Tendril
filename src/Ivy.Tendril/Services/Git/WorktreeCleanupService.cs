@@ -389,6 +389,22 @@ public class WorktreeCleanupService : IStartable, IDisposable
             try
             {
                 if (!Directory.Exists(planFolderPath)) return;
+
+                // Briefly acquire+release the per-folder cross-process lock before deleting, so
+                // any plan.yaml write already in flight (or queued) for this folder finishes
+                // first instead of racing the delete. We can't hold the lock for the whole
+                // deletion below — the lock file itself lives inside the folder being deleted,
+                // so Directory.Delete would fail trying to remove a file we still have open.
+                try
+                {
+                    using (PlanFileLock.Acquire(planFolderPath)) { }
+                }
+                catch (TimeoutException ex)
+                {
+                    logger?.LogWarning(ex, "Timed out waiting for plan lock before deleting {PlanFolder}; proceeding anyway",
+                        Path.GetFileName(planFolderPath));
+                }
+
                 RemoveWorktrees(planFolderPath, logger, lifecycleLogger);
                 ForceDeleteDirectory(planFolderPath, logger);
             }
