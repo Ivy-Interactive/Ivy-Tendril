@@ -549,7 +549,7 @@ tunnel:
   maxRestarts: 10
 telemetry: true
 desktopNotifications: true
-dismissedUpdateVersion: 1.1.9
+dismissedUpdateVersion: 1.1.10
 levels:
 - name: Bug
   color: Red
