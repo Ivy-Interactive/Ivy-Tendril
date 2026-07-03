@@ -461,7 +461,7 @@ public class ContentView(
                     .OnClick(showResetToDraftDialog).CompactUp()
                 | new Button("Request Changes").Icon(Icons.MessageSquare).Outline().ShortcutKey("c")
                     .OnClick(showSuggestChangesDialog).CompactUp()
-                | new Button("Discard").Icon(Icons.Trash).Outline().ShortcutKey("Backspace")
+                | new Button("Discard").Icon(Icons.Trash).Outline()
                     .OnClick(showDiscardDialog).FullOnly()
                 | ActionBarResponsive.DropdownAtFull(
                     new Button().Icon(Icons.EllipsisVertical).Ghost(),

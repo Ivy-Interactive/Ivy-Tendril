@@ -99,7 +99,7 @@ public class ContentView(
                        | Text.Rich()
                            .Bold($"{(currentIndex == -1 ? "?" : (currentIndex + 1).ToString())}/{allRecommendations.Count}", word: true)
                            .Muted("recommendations", word: true)
-                       | new Button("Decline").Icon(Icons.X).Outline().ShortcutKey("Backspace").OnClick(() =>
+                       | new Button("Decline").Icon(Icons.X).Outline().OnClick(() =>
                        {
                            planService.UpdateRecommendationState(selectedRecommendation.PlanFolderName, selectedRecommendation.Title, RecommendationStatus.Declined);
                            refresh();
