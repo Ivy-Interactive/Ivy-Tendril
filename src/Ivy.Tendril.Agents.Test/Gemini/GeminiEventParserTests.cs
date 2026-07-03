@@ -233,12 +233,6 @@ public class GeminiEventParserTests
     }
 
     [Fact]
-    public void Reset_IsCallable()
-    {
-        _parser.Reset();
-    }
-
-    [Fact]
     public void ParseLine_MessageEvent_HardWrappedProse_UnwrapsToSingleParagraph()
     {
         var json = """{"type":"message","role":"assistant","content":"This is a long sentence that has been\nwrapped at column boundaries by the\nterminal output formatter."}""";

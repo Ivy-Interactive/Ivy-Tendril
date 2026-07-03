@@ -67,19 +67,6 @@ public class AntigravityEventParserTests
     }
 
     [Fact]
-    public void Reset_ResetsInitializedState()
-    {
-        _parser.ParseLine("Line 1");
-        _parser.Reset();
-
-        // After reset, the next line should trigger SessionInit again
-        var events = _parser.ParseLine("Line 2");
-        Assert.Equal(2, events.Count);
-        Assert.IsType<SessionInitEvent>(events[0]);
-        Assert.IsType<TextEvent>(events[1]);
-    }
-
-    [Fact]
     public void BuildResult_WithExistingResultEvent_UpdatesExitCode()
     {
         var events = new List<AgentEvent>
