@@ -138,21 +138,30 @@ EXISTING=$(gh pr list --repo <owner/repo> --head <branch> --state open --json nu
 **!SHELL SAFETY — use file-based args. Do NOT pipe the body through `--body "$(cat <<'EOF' …)"`
 or interpolate a multi-line body inline.** On some hosts (opencode / Windows) that mangles the
 command and fails with `unknown argument "…"; please quote all values that have spaces`, burning
-retries. Write the body to a temp file and pass `--body-file`:
+retries. Write the body to a **unique** temp file (use `mktemp` — never a fixed/shared name, because
+concurrent CreatePr jobs share `$TMPDIR`) and pass `--body-file`:
 
 ```bash
-# $body is already assembled per the Body rules below
-printf '%s' "$body" > "$TMPDIR/pr-body.md"   # or any writable temp path
+# $body is already assembled per the Body rules below. Write it to a UNIQUE temp
+# file — NEVER a fixed/shared name. Up to MaxConcurrentJobs CreatePr jobs run at
+# once and share $TMPDIR, so a fixed path like $TMPDIR/pr-body.md is a
+# last-writer-wins race that swaps PR bodies between plans (#1551).
+body_file=$(mktemp)
+printf '%s' "$body" > "$body_file"
 gh pr create [--draft] --repo <owner/repo> --base <default-branch> --head <branch> \
-  --assignee @me --title "[<planId>] <plan title>" --body-file "$TMPDIR/pr-body.md"
+  --assignee @me --title "[<planId>] <plan title>" --body-file "$body_file"
+rm -f "$body_file"
 ```
 
 - The **title is a single `--title "…"` value** — never let the shell split it into multiple args.
   If a host still splits it, assign it to a variable first and pass the variable:
   ```bash
   TITLE="[<planId>] <plan title>"
+  body_file=$(mktemp)
+  printf '%s' "$body" > "$body_file"
   gh pr create --repo <owner/repo> --base <default-branch> --head <branch> \
-    --assignee @me --title "$TITLE" --body-file "$TMPDIR/pr-body.md"
+    --assignee @me --title "$TITLE" --body-file "$body_file"
+  rm -f "$body_file"
   ```
 
 - **Base branch:**
