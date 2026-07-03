@@ -60,6 +60,11 @@ public class PlanAddWorktreeCommand : Command<PlanAddWorktreeSettings>
                 AnsiConsole.MarkupLine(removeStdErr.EscapeMarkup());
                 return 1;
             }
+
+            // Re-executing a plan is a normal occurrence (ExecutePlan re-runs after review
+            // comments), so the branch from the prior run must not block a fresh `-b` create.
+            // Best-effort: ignore failure (e.g. branch already gone).
+            RunGit($"branch -D \"{branchName}\"", settings.Repo);
         }
 
         var (fetchExitCode, _, fetchStdErr) = RunGit("fetch origin", settings.Repo);

@@ -7,6 +7,7 @@ using Ivy.Tendril.Services.Git;
 using Ivy.Tendril.Services.Plans;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Spectre.Console;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Test;
@@ -1481,6 +1482,9 @@ public class PlanCliCommandTests : IDisposable
         RunGitFor("commit -m initial", work);
         RunGitFor($"remote add origin \"{remote}\"", work);
         RunGitFor($"push -u origin {defaultBranch}", work);
+        // `git clone` sets refs/remotes/origin/HEAD automatically; a manual init+push does not.
+        // The command under test relies on it to auto-detect the base branch, so replicate it here.
+        RunGitFor($"remote set-head origin {defaultBranch}", work);
 
         return Directory.Exists(Path.Combine(work, ".git")) ? work : null;
     }
@@ -1496,6 +1500,38 @@ public class PlanCliCommandTests : IDisposable
             UseShellExecute = false
         });
         p?.WaitForExit(15000);
+    }
+
+    /// <summary>
+    /// Redirects the static <see cref="AnsiConsole"/> facade (used by commands like
+    /// <see cref="PlanAddWorktreeCommand"/> for markup output) to an in-memory writer for the
+    /// duration of <paramref name="action"/>, then restores the original console. Swapping
+    /// <see cref="AnsiConsole.Console"/> — rather than <see cref="Console.SetOut"/> — avoids
+    /// AnsiConsole's cached-writer-goes-stale issue: AnsiConsole binds to Console.Out once on
+    /// first use and does not observe later Console.SetOut calls, so disposing a StringWriter
+    /// captured via Console.SetOut leaves AnsiConsole holding a closed writer for the rest of
+    /// the test run.
+    /// </summary>
+    private static string CaptureAnsiConsoleOutput(Action action)
+    {
+        var original = AnsiConsole.Console;
+        var writer = new StringWriter();
+        AnsiConsole.Console = AnsiConsole.Create(new AnsiConsoleSettings
+        {
+            Ansi = AnsiSupport.No,
+            ColorSystem = ColorSystemSupport.NoColors,
+            Out = new AnsiConsoleOutput(writer)
+        });
+        try
+        {
+            action();
+        }
+        finally
+        {
+            AnsiConsole.Console = original;
+        }
+
+        return writer.ToString();
     }
 
     [Fact]
@@ -1549,7 +1585,7 @@ public class PlanCliCommandTests : IDisposable
         var app = BuildPlanAddWorktreeApp();
 
         var missingRepo = Path.Combine(_tempDir.Path, "does-not-exist");
-        var output = CaptureStdout(() =>
+        var output = CaptureAnsiConsoleOutput(() =>
         {
             var exit = app.Run(["plan", "add-worktree", "21002", missingRepo]);
             Assert.Equal(1, exit);
@@ -1594,7 +1630,7 @@ public class PlanCliCommandTests : IDisposable
         CreatePlanFolder("21004", "AddWorktreeFetchFail");
         var app = BuildPlanAddWorktreeApp();
 
-        var output = CaptureStdout(() =>
+        var output = CaptureAnsiConsoleOutput(() =>
         {
             var exit = app.Run(["plan", "add-worktree", "21004", repo]);
             Assert.Equal(1, exit);
@@ -1616,7 +1652,7 @@ public class PlanCliCommandTests : IDisposable
 
         var app = BuildPlanAddWorktreeApp();
 
-        var output = CaptureStdout(() =>
+        var output = CaptureAnsiConsoleOutput(() =>
         {
             var exit = app.Run(["plan", "add-worktree", "21005", repo]);
             Assert.Equal(1, exit);
