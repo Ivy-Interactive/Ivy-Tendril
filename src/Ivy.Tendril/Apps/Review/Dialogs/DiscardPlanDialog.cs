@@ -28,7 +28,7 @@ public class DiscardPlanDialog(
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() => _dialogOpen.Set(false)),
-                new Button("Discard").Destructive().ShortcutKey("Enter").AutoFocus().OnClick(() =>
+                new Button("Discard").Destructive().ShortcutKey("Backspace").AutoFocus().OnClick(() =>
                 {
                     _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Skipped);
                     _refreshPlans();

@@ -22,7 +22,7 @@ public class DeletePlanDialog(
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() => dialogOpen.Set(false)),
-                new Button("Delete").Destructive().ShortcutKey("Enter").AutoFocus().OnClick(() =>
+                new Button("Delete").Destructive().ShortcutKey("Backspace").AutoFocus().OnClick(() =>
                 {
                     planService.DeletePlan(selectedPlan.FolderName);
                     refreshPlans();
