@@ -14,6 +14,36 @@ icon: ScrollText
 Version history, new features, improvements, and bug fixes for each Tendril release.
 </Ingress>
 
+## 1.1.8 (2026-07-03)
+
+### Features
+
+- **Desktop Self-Update Capability** — Implemented self-update capability and dialog, allowing the desktop application to check and update itself to the latest version automatically.
+- **Tools Folder Persistence** — Preserves the `Tools/` directory during promptware upgrades and guarantees that promptware runtime folders are correctly structured.
+
+### Improvements
+
+- **Drafts App Shortcut** — Added the `Backspace` keyboard shortcut to trigger the Delete action in the Drafts app (resolving #1507).
+- **Responsive Layout Spacing** — Realigned the issue link button in the responsive header to prevent overlapping and text wrapping.
+
+## 1.1.7 (2026-07-02)
+
+### Features
+
+- **Localhost HTTPS Certificate Generation** — Automatically generate and package secure localhost SSL/TLS certificates for macOS and Windows desktop applications, enabling local HTTPS out-of-the-box.
+- **Create Plan Dialog Enhancement** — Added a direct "New Project" shortcut link to the Create Plan dialog for quicker onboarding.
+- **Claude Fable 5 Selection** — Added `Claude Fable 5` as a selectable model choice in model configurations.
+- **Config CLI & MCP Integration** — Added first-class `config get` and `config set` commands to the Tendril CLI and Model Context Protocol (MCP) server endpoints.
+- **FieldToolsDemo Experiment** — Introduced a new `FieldToolsDemo` experiment for developer testing.
+
+### Improvements
+
+- **Optimistic Job Deletion** — Made job deletion optimistic by delegating git worktree cleanup tasks to background threads, yielding faster UI response.
+
+### Bug Fixes
+
+- **CI Workflows & Scripts** — Fixed a YAML syntax error in the publication workflow, resolved SSL certificate generation crashes in CI pipelines, and corrected a syntax error in the macOS post-installation script.
+
 ## 1.1.6 (2026-07-02)
 
 ### Features
