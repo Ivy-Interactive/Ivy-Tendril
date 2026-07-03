@@ -133,4 +133,29 @@ public class AgentServiceCollectionExtensionsTests
 
         Assert.NotNull(healthCheck);
     }
+
+    [Fact]
+    public void AddAgentInfrastructure_RegistersAntigravity()
+    {
+        var services = new ServiceCollection();
+        services.AddAgentInfrastructure();
+        var sp = services.BuildServiceProvider();
+
+        var runner = sp.GetRequiredService<IAgentRunner>();
+
+        Assert.Contains(AgentId.Antigravity, runner.RegisteredAgents);
+    }
+
+    [Fact]
+    public void AddAgentInfrastructure_RunnerHasAntigravityHealthCheck()
+    {
+        var services = new ServiceCollection();
+        services.AddAgentInfrastructure();
+        var sp = services.BuildServiceProvider();
+
+        var runner = sp.GetRequiredService<IAgentRunner>();
+        var healthCheck = runner.GetHealthCheck(AgentId.Antigravity);
+
+        Assert.NotNull(healthCheck);
+    }
 }

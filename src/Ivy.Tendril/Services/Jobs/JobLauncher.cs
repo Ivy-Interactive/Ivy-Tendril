@@ -407,6 +407,7 @@ internal class JobLauncher
         {
             values["RepoPath"] = syncArgs.RepoPath;
             values["BaseBranch"] = syncArgs.BaseBranch;
+            values["UntrackedChangesPolicy"] = syncArgs.UntrackedChangesPolicy.ToString();
             return (values, null, null);
         }
 
