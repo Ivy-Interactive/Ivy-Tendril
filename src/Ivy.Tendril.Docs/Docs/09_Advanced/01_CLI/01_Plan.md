@@ -152,6 +152,21 @@ Manage verifications on a plan. Valid statuses: `Pending`, `Pass`, `Fail`, `Skip
 
 Removes all git worktrees associated with a plan. By default only runs on plans in a terminal state (`Completed`, `Failed`, `Skipped`, `Icebox`). Use `--force` to skip that check.
 
+#### plan add-worktree
+
+```terminal
+>tendril plan add-worktree <plan-id> <repo> [--base <branch>]
+```
+
+Creates a git worktree for the given plan under `<plan-folder>/Worktrees/<repo-name>`,
+branching from origin/<base> (default: auto-detected default branch). The branch is
+named `tendril/<plan-folder-name>` (e.g. `tendril/00025-AddSymmetricPlanAddWorktreeCLICommand`).
+
+On failure (repo path missing, stale worktree, fetch failure, or git worktree add
+failure), the command prints the specific step that failed along with git's raw
+stderr and exits non-zero, instead of throwing a generic error - this lets an agent
+read the exact git failure and decide how to recover.
+
 #### plan remove-worktree
 
 ```terminal
