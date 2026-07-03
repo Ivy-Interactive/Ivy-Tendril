@@ -96,10 +96,10 @@ Updates a single field and bumps the `updated` timestamp automatically.
 #### plan update
 
 ```terminal
->cat revised.yaml | tendril plan update <plan-id>
+>cat revised.yaml | tendril plan update <plan-id> --stdin
 ```
 
-Replaces the entire `plan.yaml` content from stdin.
+Replaces the entire `plan.yaml` content from `--file` or `--stdin` (required — `--stdin` is not implicit).
 
 #### plan validate
 
@@ -170,7 +170,7 @@ Removes a single worktree from `Worktrees/<repo-name>`. Attempts `git worktree r
 Appends a numbered log entry to `Logs/` (e.g. `003-ExecutePlan.md`) and prints the path to stdout.
 
 ```terminal
->cat revision.md | tendril plan write-revision <plan-id>
+>cat revision.md | tendril plan write-revision <plan-id> --stdin
 >tendril plan write-revision <plan-id> --file revision.md
 ```
 
@@ -196,7 +196,7 @@ Prints revision content to stdout — the latest revision by default, or a speci
 Manage recommendations stored in a plan's YAML.
 
 - **list** — filter by state: `Pending`, `Accepted`, `AcceptedWithNotes`, `Declined`
-- **add** — impact levels: `Small`, `Medium`, `High`; reads description from stdin if `-d` is omitted
+- **add** — impact levels: `Small`, `Medium`, `High`; provide `--description`, `--file`, or `--stdin`
 - **set** — supported fields: `title`, `description`, `state`, `impact`, `declineReason`
 - **accept** — sets state to `Accepted`, or `AcceptedWithNotes` if `--notes` is provided
 - **decline** — sets state to `Declined` with an optional reason

@@ -61,7 +61,7 @@ Do NOT read or modify `.counter` directly — `tendril plan create` handles ID a
 After creating each plan, write the revision via CLI:
 
 ```bash
-tendril plan write-revision <PlanId> <<'EOF'
+tendril plan write-revision <PlanId> --stdin <<'EOF'
 <revision content here>
 EOF
 ```
