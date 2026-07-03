@@ -189,6 +189,36 @@ public class OpenCodeEventParserTests
     }
 
     [Fact]
+    public void ParseLine_MultipleStepFinish_AccumulatesCostAcrossSteps()
+    {
+        _parser.ParseLine("""{"type":"step_finish","part":{"reason":"tool-calls","cost":0.010,"tokens":{"input":1000,"output":100}}}""");
+        _parser.ParseLine("""{"type":"step_finish","part":{"reason":"tool-calls","cost":0.020,"tokens":{"input":2000,"output":200}}}""");
+        var events = _parser.ParseLine("""{"type":"step_finish","part":{"reason":"stop","cost":0.005,"tokens":{"input":500,"output":50}}}""");
+
+        Assert.Single(events);
+        var result = Assert.IsType<ResultEvent>(events[0]);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Usage);
+        Assert.Equal(3500, result.Usage.InputTokens);
+        Assert.Equal(350, result.Usage.OutputTokens);
+        Assert.Equal(0.035m, result.Usage.CostUsd);
+    }
+
+    [Fact]
+    public void ParseLine_StepFinish_ToolCalls_AccumulatesButDoesNotEmit()
+    {
+        var events = _parser.ParseLine("""{"type":"step_finish","part":{"reason":"tool-calls","cost":0.012,"tokens":{"input":14000,"output":134}}}""");
+        Assert.Empty(events);
+
+        var stopEvents = _parser.ParseLine("""{"type":"step_finish","part":{"reason":"stop"}}""");
+        var result = Assert.IsType<ResultEvent>(stopEvents[0]);
+        Assert.NotNull(result.Usage);
+        Assert.Equal(14000, result.Usage.InputTokens);
+        Assert.Equal(134, result.Usage.OutputTokens);
+        Assert.Equal(0.012m, result.Usage.CostUsd);
+    }
+
+    [Fact]
     public void ParseLine_Error_ReturnsErrorEvent()
     {
         var json = """{"type":"error","error":{"data":{"message":"rate limit exceeded","isRetryable":true,"statusCode":429}}}""";
@@ -331,5 +361,31 @@ public class OpenCodeEventParserTests
         // Now BuildResult should respect exit code, not _hasError
         var result = _parser.BuildResult([], 0);
         Assert.True(result!.IsSuccess);
+    }
+
+    [Fact]
+    public void Reset_ClearsAccumulatedCostAndTokens()
+    {
+        _parser.ParseLine("""{"type":"step_finish","part":{"reason":"tool-calls","cost":0.012,"tokens":{"input":14000,"output":134}}}""");
+
+        _parser.Reset();
+
+        var result = _parser.BuildResult([], 0);
+        Assert.Null(result!.Usage);
+    }
+
+    [Fact]
+    public void BuildResult_NoResultEvent_IncludesAccumulatedUsage()
+    {
+        // Simulate a process killed mid-session: only intermediate step_finish events were seen
+        _parser.ParseLine("""{"type":"step_finish","part":{"reason":"tool-calls","cost":0.012,"tokens":{"input":14000,"output":134}}}""");
+
+        var result = _parser.BuildResult([], 1);
+
+        Assert.NotNull(result);
+        Assert.NotNull(result.Usage);
+        Assert.Equal(14000, result.Usage.InputTokens);
+        Assert.Equal(134, result.Usage.OutputTokens);
+        Assert.Equal(0.012m, result.Usage.CostUsd);
     }
 }
