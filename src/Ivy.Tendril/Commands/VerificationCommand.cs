@@ -128,7 +128,7 @@ public class VerificationGetCommand : Command<VerificationGetSettings>
             .FirstOrDefault(v => v.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
 
         if (match == null)
-            throw new InvalidOperationException($"Verification not found: {settings.Name}");
+            CliValidation.ThrowVerificationNotFound(settings.Name, config.Settings.Verifications.Select(v => v.Name));
 
         Console.Write(match.Prompt);
         return 0;
@@ -174,7 +174,7 @@ public class VerificationRemoveCommand : Command<VerificationRemoveSettings>
             .FirstOrDefault(v => v.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
 
         if (match == null)
-            throw new InvalidOperationException($"Verification not found: {settings.Name}");
+            CliValidation.ThrowVerificationNotFound(settings.Name, config.Settings.Verifications.Select(v => v.Name));
 
         config.Settings.Verifications.Remove(match);
         config.SaveSettings();
@@ -192,7 +192,7 @@ public class VerificationSetCommand : Command<VerificationSetSettings>
             .FirstOrDefault(v => v.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
 
         if (match == null)
-            throw new InvalidOperationException($"Verification not found: {settings.Name}");
+            CliValidation.ThrowVerificationNotFound(settings.Name, config.Settings.Verifications.Select(v => v.Name));
 
         var value = settings.Stdin
             ? ConsoleHelper.ReadStdinWithTimeout()
