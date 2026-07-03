@@ -562,6 +562,17 @@ jobs:
           productsign --sign "${{ secrets.MACOS_SIGN_INSTALL_IDENTITY }}" --keychain "$RUNNER_TEMP/app-signing.keychain-db" releases/IvyTendril-${{ matrix.rid }}-Setup-Unsigned.pkg releases/IvyTendril-${{ matrix.rid }}-Setup.pkg
           rm releases/IvyTendril-${{ matrix.rid }}-Setup-Unsigned.pkg
 
+          # Notarize the repacked package
+          echo "Submitting package for notarization..."
+          xcrun notarytool submit releases/IvyTendril-${{ matrix.rid }}-Setup.pkg \
+            --keychain "$RUNNER_TEMP/app-signing.keychain-db" \
+            --keychain-profile "tendril-notary" \
+            --wait
+
+          # Staple the notarization ticket to the package
+          echo "Stapling notarization ticket..."
+          xcrun stapler staple releases/IvyTendril-${{ matrix.rid }}-Setup.pkg
+
       - name: Rename Installer Setup Packages
         run: |
           cd releases
