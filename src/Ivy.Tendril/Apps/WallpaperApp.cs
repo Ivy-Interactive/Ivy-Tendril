@@ -155,8 +155,8 @@ public class WallpaperApp : ViewBase
             else
             {
                 var updateCommand = OperatingSystem.IsWindows()
-                    ? "irm https://cdn.ivy.app/install-tendril.ps1 | iex"
-                    : "curl -sSf https://cdn.ivy.app/install-tendril.sh | sh";
+                    ? Constants.WindowsInstallCommand
+                    : Constants.UnixInstallCommand;
 
                 var dismissButton = new Button("Dismiss", () =>
                     {

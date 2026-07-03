@@ -182,7 +182,7 @@ public class ActionBarView(
                    .OnClick(StartSplit).Disabled(hasActiveSplitJob).FullOnly()
                | new Button("Expand").Icon(Icons.UnfoldVertical).Outline()
                    .OnClick(StartExpand).Disabled(hasActiveExpandJob).FullOnly()
-               | new Button("Delete").Icon(Icons.Trash).Outline()
+               | new Button("Delete").Icon(Icons.Trash).Outline().ShortcutKey("Backspace")
                    .OnClick(showDeleteDialog).FullOnly()
                // Full-tier dropdown: standard overflow items only
                | ActionBarResponsive.DropdownAtFull(

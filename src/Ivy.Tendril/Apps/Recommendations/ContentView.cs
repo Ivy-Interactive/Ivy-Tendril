@@ -72,15 +72,16 @@ public class ContentView(
         }
         var currentIndex = allRecommendations.FindIndex(r => r.PlanId == selectedRecommendation.PlanId && r.Title == selectedRecommendation.Title);
 
-        object BuildTitleArea()
+        object BuildTitleArea(bool isMobile)
         {
             var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full().Min(Size.Px(0)))
-                | new Box(Text.Block($"#{selectedRecommendation.PlanId} {selectedRecommendation.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
-                    .BorderThickness(0).Padding(0).Width(Size.Fit())
+                | Text.Block($"#{selectedRecommendation.PlanId} {selectedRecommendation.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis)
+                    .Width(Size.Grow().Min(Size.Px(0)))
                 | new Badge(selectedRecommendation.Project).Variant(BadgeVariant.Outline)
                     .WithProjectColor(config, selectedRecommendation.Project);
 
             var desktopTitle = new Box(desktopTitleLayout).BorderThickness(0).Padding(0)
+                .Width(Size.Full().Min(Size.Px(0)))
                 .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
             return Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow().Min(Size.Px(0)))
@@ -94,7 +95,7 @@ public class ContentView(
                        .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
         }
 
-        object BuildControls() => Layout.Horizontal().Gap(2).AlignContent(Align.Right)
+        object BuildControls(bool isMobile) => Layout.Horizontal().Gap(2).AlignContent(Align.Right)
                        | Text.Rich()
                            .Bold($"{(currentIndex == -1 ? "?" : (currentIndex + 1).ToString())}/{allRecommendations.Count}", word: true)
                            .Muted("recommendations", word: true)
