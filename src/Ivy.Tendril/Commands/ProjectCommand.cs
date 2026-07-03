@@ -533,7 +533,7 @@ public class ProjectAddVerificationCommand : Command<ProjectAddVerificationSetti
             var afterIndex = project.Verifications
                 .FindIndex(v => v.Name.Equals(settings.After, StringComparison.OrdinalIgnoreCase));
             if (afterIndex < 0)
-                throw new InvalidOperationException($"Verification not found for --after: {settings.After}");
+                CliValidation.ThrowVerificationNotFound(settings.After, project.Verifications.Select(v => v.Name));
             project.Verifications.Insert(afterIndex + 1, newRef);
         }
         else
@@ -562,7 +562,7 @@ public class ProjectRemoveVerificationCommand : Command<ProjectRemoveVerificatio
             .FirstOrDefault(v => v.Name.Equals(settings.VerificationName, StringComparison.OrdinalIgnoreCase));
 
         if (match == null)
-            throw new InvalidOperationException($"Verification not found in project: {settings.VerificationName}");
+            CliValidation.ThrowVerificationNotFound(settings.VerificationName, project.Verifications.Select(v => v.Name));
 
         project.Verifications.Remove(match);
         config.SaveSettings();
@@ -590,7 +590,7 @@ public class ProjectMoveVerificationCommand : Command<ProjectMoveVerificationSet
             .FirstOrDefault(v => v.Name.Equals(settings.VerificationName, StringComparison.OrdinalIgnoreCase));
 
         if (item == null)
-            throw new InvalidOperationException($"Verification not found in project: {settings.VerificationName}");
+            CliValidation.ThrowVerificationNotFound(settings.VerificationName, project.Verifications.Select(v => v.Name));
 
         project.Verifications.Remove(item);
 

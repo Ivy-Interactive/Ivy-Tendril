@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Ivy.Tendril.Models;
 using SpectreValidation = Spectre.Console.ValidationResult;
 
@@ -76,5 +77,11 @@ public static class CliValidation
             if (!r.Successful)
                 return r;
         return SpectreValidation.Success();
+    }
+
+    [DoesNotReturn]
+    public static void ThrowVerificationNotFound(string name, IEnumerable<string> available)
+    {
+        throw new InvalidOperationException($"Verification not found: '{name}'. Available: {string.Join(", ", available)}");
     }
 }
