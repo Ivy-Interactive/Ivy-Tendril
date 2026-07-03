@@ -637,7 +637,7 @@ internal class JobCompletionHandler
             if (plansDir == null || !Directory.Exists(plansDir)) return;
 
             if (TryVerifyByReportedId(job, plansDir) ||
-                TryVerifyByOutputRegex(job) ||
+                TryVerifyByOutputRegex(job, plansDir) ||
                 TryVerifyByFilesystem(job, plansDir))
             {
                 MoveAttachmentsToPlanFolder(job);
@@ -756,16 +756,21 @@ internal class JobCompletionHandler
         return false;
     }
 
-    private static bool TryVerifyByOutputRegex(JobItem job)
+    private static bool TryVerifyByOutputRegex(JobItem job, string plansDir)
     {
+        // `tendril plan create` no longer prints a `Plan created: <folder>` marker (see
+        // PlanCreateCommand.Execute), but it always prints `PlanId: <id>` — resolve that ID to
+        // its folder the same way TryVerifyByReportedId does, so this fallback still works
+        // independently of the agent calling `tendril job status --plan-id`.
         var outputText = string.Join("\n", job.OutputLines);
-        var createdMatch = Regex.Match(outputText, @"Plan created:\s*([\w-]+)");
-        if (createdMatch.Success)
-        {
-            job.PlanFile = createdMatch.Groups[1].Value;
-            return true;
-        }
-        return false;
+        var planIdMatch = Regex.Match(outputText, @"PlanId:\s*([\w-]+)");
+        if (!planIdMatch.Success) return false;
+
+        var folder = PlanYamlHelper.FindPlanFolderById(plansDir, planIdMatch.Groups[1].Value);
+        if (folder == null) return false;
+
+        job.PlanFile = folder;
+        return true;
     }
 
     private static bool IsDuplicatePlan(JobItem job)
