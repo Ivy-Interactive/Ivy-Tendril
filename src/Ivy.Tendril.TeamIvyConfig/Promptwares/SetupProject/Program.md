@@ -130,7 +130,9 @@ tendril project add-verification <project-name> CheckResult --required --after=D
 Review actions make it easy to start the application from a worktree during code review.
 To ensure the setup works out-of-the-box on fresh worktrees, review actions MUST automatically install dependencies before running the application (e.g. using `&&` to chain the installation and start commands).
 
-Review-action commands execute inside `pwsh` on the reviewer's OS (see `PlatformHelper.RunPowerShellAction`), so they MUST use cross-platform PowerShell. Never emit the Windows-only `start`; to open a file/URL use `Start-Process` on Windows, `open` on macOS, `xdg-open` on Linux. Avoid unescaped `$` in the command — on macOS the action passes through a bash wrapper that would expand it.
+Review-action commands execute inside `pwsh` on the reviewer's OS, so they MUST use cross-platform PowerShell. 
+
+Never emit the Windows-only `start`; to open a file/URL use `Start-Process` on Windows, `open` on macOS, `xdg-open` on Linux. Avoid unescaped `$` in the command — on macOS the action passes through a bash wrapper that would expand it.
 
 Inspect each repo to determine how to run the application. For website projects, prefer commands that open the browser automatically:
 - **.NET project** with a runnable entry point: `dotnet run --project Worktrees/<RepoName>/<path-to-project> --browse --find-available-port`
