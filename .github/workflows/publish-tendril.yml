@@ -537,21 +537,25 @@ jobs:
         if: startsWith(matrix.rid, 'osx-')
         run: |
           # Unpack the generated .pkg
-          pkgutil --expand-full releases/IvyTendril-${{ matrix.rid }}-Setup.pkg expanded-pkg
+          pkgutil --expand releases/IvyTendril-${{ matrix.rid }}-Setup.pkg expanded-pkg
           
           # Create Scripts folder if not exists
-          mkdir -p expanded-pkg/Scripts
+          mkdir -p expanded-pkg/1.pkg/Scripts
           
           # Write the postinstall script
-          echo '#!/bin/bash
+          echo '#!/bin/sh
+          rm -rf /tmp/velopack/IvyTendril
+          sudo -u "$USER" rm -rf ~/Library/Caches/velopack/IvyTendril
+          sudo -u "$USER" env VELOPACK_FIRSTRUN=1 open "$2/IvyTendril.app/"
+
           # Path to the installed app certificate
-          CERT_PATH="$3/Applications/Ivy Tendril.app/Contents/Resources/certs/localhost.crt"
+          CERT_PATH="$3/Applications/IvyTendril.app/Contents/Resources/certs/localhost.crt"
           if [ -f "$CERT_PATH" ]; then
             echo "Trusting Ivy Tendril localhost certificate system-wide..."
             security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$CERT_PATH"
           fi
-          exit 0' | sed 's/^          //' > expanded-pkg/Scripts/postinstall
-          chmod +x expanded-pkg/Scripts/postinstall
+          exit 0' | sed 's/^          //' > expanded-pkg/1.pkg/Scripts/postinstall
+          chmod +x expanded-pkg/1.pkg/Scripts/postinstall
           
           # Repack the package
           pkgutil --flatten expanded-pkg releases/IvyTendril-${{ matrix.rid }}-Setup-Unsigned.pkg
