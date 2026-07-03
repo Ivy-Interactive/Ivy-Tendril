@@ -282,6 +282,11 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                             routeResult.TabId!, replaceHistory);
                         break;
 
+                    case AppShellRouter.RouteAction.RefreshExistingTab:
+                        HandleRefreshExistingTab(navigateArgs, routeResult.TabIndex!.Value,
+                            routeResult.TabId!, replaceHistory);
+                        break;
+
                     case AppShellRouter.RouteAction.CreateNewTab:
                         HandleCreateNewTab(navigateArgs, routeResult.EffectiveAppId!, replaceHistory);
                         break;
@@ -326,6 +331,21 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             SetAppTitle(tab.AppId);
 
             if (navigateArgs.HistoryOp is HistoryOp.Push && previousSelectedIndex != tabIndex)
+                RedirectToAppIfNotError(navigateArgs, replaceHistory, tabId);
+        }
+
+        void HandleRefreshExistingTab(NavigateArgs navigateArgs, int tabIndex,
+            string tabId, bool replaceHistory)
+        {
+            var tab = tabs.Value[tabIndex];
+            tabs.Set(tabs.Value.SetItem(tabIndex, tab with
+            {
+                AppHost = navigateArgs.ToAppHost(args.ConnectionId),
+                RefreshToken = Guid.NewGuid().ToString()
+            }));
+            selectedIndex.Set(tabIndex);
+            SetAppTitle(tab.AppId);
+            if (navigateArgs.HistoryOp is HistoryOp.Push)
                 RedirectToAppIfNotError(navigateArgs, replaceHistory, tabId);
         }
 
