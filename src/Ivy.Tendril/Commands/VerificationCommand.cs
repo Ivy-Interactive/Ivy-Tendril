@@ -18,6 +18,10 @@ public class VerificationAddSettings : CommandSettings
     [Description("Verification prompt (reads from stdin if omitted)")]
     public string? Prompt { get; set; }
 
+    [CommandOption("--file|-f")]
+    [Description("Read the prompt verbatim from this file (good for long/multiline prompts)")]
+    public string? FilePath { get; set; }
+
     public override Spectre.Console.ValidationResult Validate()
     {
         return CliValidation.RequireNonEmpty(Name, "name");
@@ -60,16 +64,30 @@ public class VerificationSetSettings : CommandSettings
     [CommandArgument(1, "<field>")]
     public string Field { get; set; } = "";
 
-    [Description("Field value")]
-    [CommandArgument(2, "<value>")]
+    [Description("New value. Omit when using --file or --stdin. Use --file/--stdin for long or multiline prompts.")]
+    [CommandArgument(2, "[value]")]
     public string Value { get; set; } = "";
+
+    [CommandOption("-f|--file")]
+    [Description("Read the value verbatim from this file (good for multiline prompt)")]
+    public string? FilePath { get; set; }
+
+    [CommandOption("--stdin")]
+    [Description("Read the value verbatim from standard input")]
+    public bool Stdin { get; set; }
+
+    public int SourceCount =>
+        (Stdin ? 1 : 0) + (!string.IsNullOrEmpty(FilePath) ? 1 : 0) + (!string.IsNullOrEmpty(Value) ? 1 : 0);
 
     public override Spectre.Console.ValidationResult Validate()
     {
+        if (SourceCount > 1)
+            return Spectre.Console.ValidationResult.Error(
+                "Provide the value in exactly one way: an inline <value>, --file, or --stdin.");
+
         return CliValidation.Combine(
             CliValidation.RequireNonEmpty(Name, "name"),
-            CliValidation.ValidateField(Field, ValidFields),
-            CliValidation.RequireNonEmpty(Value, "value")
+            CliValidation.ValidateField(Field, ValidFields)
         );
     }
 }
@@ -127,12 +145,15 @@ public class VerificationAddCommand : Command<VerificationAddSettings>
         if (config.Settings.Verifications.Any(v => v.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase)))
             throw new InvalidOperationException($"Verification already exists: {settings.Name}");
 
-        var prompt = settings.Prompt;
+        var prompt = !string.IsNullOrEmpty(settings.FilePath)
+            ? File.ReadAllText(settings.FilePath)
+            : settings.Prompt;
+
         if (string.IsNullOrEmpty(prompt))
         {
             if (!Console.IsInputRedirected)
-                throw new ArgumentException("Provide --prompt or pipe content via stdin");
-            prompt = Console.In.ReadToEnd().Trim();
+                throw new ArgumentException("Provide --prompt, --file, or pipe content via stdin");
+            prompt = ConsoleHelper.ReadStdinWithTimeout().Trim();
         }
 
         config.Settings.Verifications.Add(new VerificationConfig
@@ -176,20 +197,28 @@ public class VerificationSetCommand : Command<VerificationSetSettings>
         if (match == null)
             throw new InvalidOperationException($"Verification not found: {settings.Name}");
 
+        var value = settings.Stdin ? ConsoleHelper.ReadStdinWithTimeout()
+            : !string.IsNullOrEmpty(settings.FilePath) ? File.ReadAllText(settings.FilePath)
+            : settings.Value;
+
+        if (string.IsNullOrEmpty(value))
+            throw new ArgumentException("value is required (use an inline <value>, --file, or --stdin)");
+
         switch (settings.Field.ToLower())
         {
             case "name":
-                match.Name = settings.Value;
+                match.Name = value;
                 break;
             case "prompt":
-                match.Prompt = settings.Value;
+                match.Prompt = value;
                 break;
             default:
                 throw new ArgumentException($"Unknown field: {settings.Field}. Valid fields: name, prompt");
         }
 
         config.SaveSettings();
-        Console.WriteLine($"Updated verification {settings.Field} to '{settings.Value}'");
+        var summary = value.Length <= 60 && !value.Contains('\n') ? $"to '{value}'" : $"({value.Length} chars)";
+        Console.WriteLine($"Updated verification {settings.Field} {summary}");
         return 0;
     }
 }
