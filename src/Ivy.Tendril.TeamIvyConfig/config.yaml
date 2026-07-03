@@ -173,6 +173,18 @@ projects:
     command: dotnet run --project Worktrees\Ivy-Tendril-Services\Ivy.Tendril.Services.Admin --browse --find-available-port
   hooks: []
   buildDependencies: []
+- name: BS-Website
+  color: Green
+  meta: {}
+  repos:
+  - path: D:\Tendril\Repos\BS-Website
+    prRule: default
+    baseBranch: main
+  verifications: []
+  context: ''
+  reviewActions: []
+  hooks: []
+  buildDependencies: []
 verifications:
 - name: FrameworkDotnetBuild
   prompt: >
@@ -233,61 +245,116 @@ verifications:
 
     <any gaps between plan and implementation, or "None"> ```
 - name: CodeReview
-  prompt: >
-    Perform a code review of all files changed by this plan's commits.
+  prompt: >-
+    Perform a code review of all changes made by this plan's commits, using Claude Code's built-in `\code-review` skill. Always fix major findings; log minor concerns as plan recommendations.
 
-    **Step 1: Identify changed files** Get the list of changed files from all commits made during this execution: - If there are worktrees in `<TendrilPlanFolder>\Worktrees\`, check each one for commits - Otherwise, check the current working directory - Use `git log --oneline --all --author="<execution-agent>" --since="<plan-execution-start>"` to find commits - Use `git diff --name-only <before>..<after>` to list changed files for each commit range
 
-    **Step 2: CodeScene Analysis (if available)** Check if CodeScene CLI is available using the codescene MCP tools. If available: 1. Run `mcp__codescene__pre_commit_code_health_safeguard` on the git repository to get quality gate results for all staged\modified files 2. For each changed source file (.cs, .ts, .tsx, .js), run `mcp__codescene__code_health_review` to get detailed Code Health scores and code smell findings 3. Document findings with:
-       - File path
-       - Code Health score (1.0-10.0 scale: Red 1.0-3.9, Yellow 4.0-8.9, Green 9.0-9.9, Optimal 10.0)
-       - Specific code smells found
-       - Quality gate pass\fail status
+    **Step 1: Locate the changes**
 
-    **Step 3: Manual Review** For each changed source file (.cs, .ts, .tsx, .js), review for: - Dead code or unused imports - Code duplication (within the file or with nearby files) - Overly complex methods - Poor naming or unclear intent - Missing error handling at system boundaries - Inconsistent patterns vs. the rest of the codebase - Unnecessary abstractions or over-engineering - Backwards-compatibility code that is no longer needed
+    - The plan folder is `<TendrilPlanFolder>`. The plan id is the folder's name (e.g. `03683-Example`).
 
-    **Step 4: Fix Issues** If fixable issues are found (from either CodeScene or manual review), fix them directly in the appropriate worktree or working directory — stage and commit the fixes.
+    - Find the worktree(s) under `<TendrilPlanFolder>\Worktrees\`. The code produced by this plan lives on the plan's branch there. If there are no worktrees, use the current working directory.
 
-    **Step 5: Write Report** Write the verification report to `<TendrilPlanFolder>\Verification\CodeReview.md` with format: ``` # CodeReview
+    - `cd` into the worktree so the review sees this plan's diff (the plan branch against its base branch).
 
-    - **Date:** <timestamp> - **Result:** Pass | Fail - **Attempts:** 1
 
-    ## CodeScene Analysis
+    **Step 2: Run the \code-review skill**
 
-    **CLI Available:** Yes\No
+    - Invoke the `\code-review` skill via the Skill tool at `high` effort: `\code-review high`.
 
-    ### Quality Gates
+    - Do NOT pass `--fix` (that would apply every finding indiscriminately — we want per-severity handling below) and do NOT pass `--comment`.
 
-    | File | Score | Gate | Issues | |------|-------|------|--------| | <path> | <score> | Pass\Fail | <count> |
+    - Let the skill produce its findings (it reports them via ReportFindings, most-severe first). Collect them.
 
-    ### Code Smells by File
 
-    <for each file with Code Health < 9.0, list specific smells found>
+    **Step 3: Classify findings by severity**
 
-    ## Manual Review
+    - **Major** = anything that is or could be wrong: correctness bugs, security issues, crashes, data loss, broken behavior, resource leaks, incorrect logic, missing error handling at a real boundary. When a finding's severity is ambiguous, treat it as major.
 
-    ### Files Reviewed
+    - **Minor** = optional cleanups that don't change behavior: naming, style, simplification, minor duplication, readability, micro-efficiency, nitpicks.
 
-    | File | Issues | Fixed | |------|--------|-------| | <path> | <count> | Yes\No |
 
-    ### Issues Found
+    **Step 4: Always fix major findings**
 
-    <list each issue with file, line, description, and whether it was fixed>
+    - Fix every major finding directly in the worktree.
 
-    ## Fixes Applied
+    - Stage and commit the fixes (`git add` + `git commit`) with a clear message, e.g. `code-review: fix <short description>`. One commit per logical fix, or a single grouped commit — your judgement.
 
-    <list commits created to fix issues, or "None">
+    - Re-run a quick sanity check (build\relevant tests) if a fix is non-trivial and the tooling is readily available.
+
+
+    **Step 5: Log minor concerns as recommendations — do NOT fix them**
+
+    - For each minor concern, add a plan recommendation:
+      `tendril plan rec add "<plan-id>" "<short imperative title>"`
+    - Then attach detail (file:line + what to change) via:
+      `tendril plan rec set "<plan-id>" "<short imperative title>" description "<detail>"`
+    - Use the plan id derived in Step 1 (the plan folder name works as the id).
+
+    - Do not edit code for minor concerns — they are left for the human to accept or decline.
+
+
+    **Step 6: Write the report**
+
+    Write the verification report to `<TendrilPlanFolder>\Verification\CodeReview.md` in this format:
+
+    ```
+
+    # CodeReview
+
+
+    - **Date:** <timestamp>
+
+    - **Result:** Pass | Fail
+
+    - **Attempts:** 1
+
+
+    ## Review Method
+
+
+    Ran Claude Code `\code-review high` in <worktree path>.
+
+
+    ## Major Findings (fixed)
+
+
+    | File:Line | Finding | Fix commit |
+
+    |-----------|---------|------------|
+
+    | <path:line> | <description> | <sha or "—"> |
+
+
+    (or "None")
+
+
+    ## Minor Concerns (logged as recommendations)
+
+
+    | File:Line | Concern | Recommendation title |
+
+    |-----------|---------|----------------------|
+
+    | <path:line> | <description> | <rec title> |
+
+
+    (or "None")
+
 
     ## Summary
 
-    <overall assessment combining CodeScene metrics and manual findings> ```
 
-    **Step 6: Determine Result** - Result is **Pass** if:
-      - All CodeScene quality gates pass (or CodeScene not available)
-      - No unfixable manual review issues remain
-    - Result is **Fail** if:
-      - Any CodeScene quality gate fails with unresolved degradations
-      - Manual review found issues that could not be auto-fixed (e.g. design-level concerns requiring human decision)
+    <overall assessment: what was reviewed, what was fixed, what was deferred to recommendations>
+
+    ```
+
+
+    **Step 7: Determine Result**
+
+    - **Pass** — the review completed and all major findings were fixed and committed (minor concerns logged as recommendations do not fail the verification).
+
+    - **Fail** — a major finding could not be fixed automatically (e.g. it needs a human design decision), or the `\code-review` skill could not run. Describe the blocker in the Summary.
 - name: NewWidgetChecklist
   prompt: >
     Verify all 6 required elements exist for any new widget created by this plan: 1. Backend widget class — src\Ivy\Widgets\<WidgetName>.cs with [Prop]\[Event] attributes, [JsonIgnore] on delegates, Has* booleans 2. Frontend React component — src\frontend\src\widgets\<widgetName>\<WidgetName>Widget.tsx 3. Index export — src\frontend\src\widgets\<widgetName>\index.ts 4. Widget map registration — import + entry in src\frontend\src\widgets\widgetMap.ts 5. Sample app — src\Ivy.Samples.Shared\Apps\Widgets\<WidgetName>App.cs 6. Documentation page — src\Ivy.Docs.Shared\Docs\02_Widgets\<category>\<WidgetName>.md Check each file exists and follows conventions. Report which elements are present vs missing.
@@ -376,8 +443,7 @@ promptwares:
 codingAgents:
 - name: claude
   arguments: ''
-  environmentVariables:
-    CLAUDE_CODE_USE_BEDROCK: 1
+  environmentVariables: {}
   profiles:
   - name: deep
     model: opus
@@ -478,6 +544,7 @@ tunnel:
   maxRestarts: 10
 telemetry: true
 desktopNotifications: true
+dismissedUpdateVersion: 1.1.8
 levels:
 - name: Bug
   color: Red
