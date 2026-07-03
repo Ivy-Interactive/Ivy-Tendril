@@ -1675,4 +1675,114 @@ editor:
         var result = ConfigService.IsCommandAvailable("definitely-not-a-real-command-xyz-999");
         Assert.False(result);
     }
+
+    [Fact]
+    public async Task ConfigService_ReloadsSettings_WhenFileChangedExternally()
+    {
+        var yaml = @"
+verifications:
+  - name: Build
+    prompt: Original prompt
+";
+        var tempDir = CreateTempConfigFile(yaml);
+
+        try
+        {
+            PathHelper.DefaultTendrilHomeOverride = tempDir;
+            using var service = new ConfigService();
+            Assert.Equal("Original prompt", service.Settings.Verifications.Single().Prompt);
+
+            // Simulate an external process (e.g. `tendril verification set`) overwriting config.yaml.
+            File.WriteAllText(Path.Combine(tempDir, "config.yaml"), @"
+verifications:
+  - name: Build
+    prompt: Updated prompt
+");
+
+            var reloaded = await WaitForConditionAsync(
+                () => service.Settings.Verifications.Single().Prompt == "Updated prompt");
+
+            Assert.True(reloaded, "ConfigService did not pick up the external config.yaml change within the timeout.");
+        }
+        finally
+        {
+            PathHelper.DefaultTendrilHomeOverride = null;
+        }
+    }
+
+    [Fact]
+    public async Task ConfigService_DoesNotDoubleReload_OnInternalSave()
+    {
+        var yaml = @"
+jobTimeout: 30
+";
+        var tempDir = CreateTempConfigFile(yaml);
+
+        try
+        {
+            PathHelper.DefaultTendrilHomeOverride = tempDir;
+            using var service = new ConfigService();
+
+            var reloadCount = 0;
+            service.SettingsReloaded += (_, _) => Interlocked.Increment(ref reloadCount);
+
+            service.Settings.JobTimeout = 45;
+            service.SaveSettings();
+
+            // SaveSettings() reloads synchronously once. Give the watcher's debounce window a
+            // chance to fire so a double-reload (if the self-write suppression regressed) would show up.
+            await Task.Delay(600);
+
+            Assert.Equal(1, reloadCount);
+        }
+        finally
+        {
+            PathHelper.DefaultTendrilHomeOverride = null;
+        }
+    }
+
+    [Fact]
+    public async Task ConfigService_Dispose_StopsWatching()
+    {
+        var yaml = @"
+verifications:
+  - name: Build
+    prompt: Original prompt
+";
+        var tempDir = CreateTempConfigFile(yaml);
+
+        try
+        {
+            PathHelper.DefaultTendrilHomeOverride = tempDir;
+            var service = new ConfigService();
+            service.Dispose();
+
+            File.WriteAllText(Path.Combine(tempDir, "config.yaml"), @"
+verifications:
+  - name: Build
+    prompt: Updated prompt
+");
+
+            var reloaded = await WaitForConditionAsync(
+                () => service.Settings.Verifications.Single().Prompt == "Updated prompt",
+                timeout: TimeSpan.FromMilliseconds(800));
+
+            Assert.False(reloaded, "ConfigService kept watching config.yaml after Dispose().");
+        }
+        finally
+        {
+            PathHelper.DefaultTendrilHomeOverride = null;
+        }
+    }
+
+    private static async Task<bool> WaitForConditionAsync(Func<bool> condition, TimeSpan? timeout = null)
+    {
+        var deadline = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(3));
+        while (DateTime.UtcNow < deadline)
+        {
+            if (condition()) return true;
+            await Task.Delay(50);
+        }
+        return condition();
+    }
 }
