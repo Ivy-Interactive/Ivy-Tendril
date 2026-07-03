@@ -64,7 +64,6 @@ internal class JobLauncher
 
     private void LaunchJob(JobLaunchContext ctx)
     {
-        Process process;
         try
         {
             // Defense in depth (#1340): refuse to launch a plan job that references a repo outside its
@@ -78,28 +77,23 @@ internal class JobLauncher
             if (!ValidateJobPrerequisites(ctx, out var psi, out var stdinContent))
                 return;
 
-            var started = StartAgentProcess(ctx, psi, stdinContent);
-            if (started == null)
+            var process = StartAgentProcess(ctx, psi, stdinContent);
+            if (process == null)
                 return;
-            process = started;
+
+            InitializeJobMonitoring(ctx, process);
+            ctx.RaiseStructureChanged();
         }
         catch (Exception ex)
         {
-            // Catch-all so a launch failure never leaks the concurrency slot (#1564). The three guards
-            // above (ValidateProjectReposOrFail, ValidateJobPrerequisites, StartAgentProcess) already
-            // release the slot and return normally on their anticipated failure modes — they never
-            // throw — so this only fires for genuinely unhandled exceptions where the slot is still held.
-            //
-            // Deliberately scoped to end here, before InitializeJobMonitoring: once the monitor task is
-            // started it becomes the sole owner of this job's completion (via ctx.CompleteJob, guarded by
-            // JobItem.TryClaimCompletion). Catching exceptions from that point on here too would race the
-            // monitor's independent completion path and risk releasing the slot twice.
+            // Catch-all so a launch failure never leaks the concurrency slot (#1564) and LaunchJob
+            // never propagates exceptions to its callers (neither StartJobInternal nor ProcessJobQueue
+            // wrap this call). The three guards above already release the slot and return normally on
+            // their anticipated failure modes — they never throw — so this only fires for genuinely
+            // unhandled exceptions, including ones raised after the monitor task was already started
+            // (e.g. by a RaiseStructureChanged subscriber).
             HandleUnhandledLaunchFailure(ctx, ex);
-            return;
         }
-
-        InitializeJobMonitoring(ctx, process);
-        ctx.RaiseStructureChanged();
     }
 
     private void HandleUnhandledLaunchFailure(JobLaunchContext ctx, Exception ex)
@@ -121,15 +115,18 @@ internal class JobLauncher
             }
         }
 
-        // If the job already reached a terminal state (e.g. a downstream handler completed it before
-        // the exception unwound to here), leave it as-is — only the slot still needs releasing.
-        if (job.Status is not (JobStatus.Failed or JobStatus.Completed or JobStatus.Stopped or JobStatus.Timeout))
-        {
-            job.Status = JobStatus.Failed;
-            job.StatusMessage = ex.Message;
-            job.CompletedAt = DateTime.UtcNow;
-        }
+        // TryClaimCompletion is the same interlocked guard JobService.CompleteJob/StopJob use. If the
+        // monitor task was already started before this exception fired (e.g. it threw from the trailing
+        // RaiseStructureChanged call), the monitor may independently detect the kill above and complete
+        // the job through ctx.CompleteJob concurrently. Whichever side claims completion first owns
+        // marking the job terminal and releasing its slot — the loser must not touch either, or the
+        // slot gets released twice.
+        if (!job.TryClaimCompletion())
+            return;
 
+        job.Status = JobStatus.Failed;
+        job.StatusMessage = ex.Message;
+        job.CompletedAt = DateTime.UtcNow;
         ctx.JobSlotSemaphore.Release();
         ctx.RaiseStructureChanged();
     }
@@ -139,6 +136,9 @@ internal class JobLauncher
     private static void FailJobAndReleaseSlot(JobLaunchContext ctx, string message)
     {
         var job = ctx.Job;
+        if (!job.TryClaimCompletion())
+            return;
+
         job.Status = JobStatus.Failed;
         job.StatusMessage = message;
         job.CompletedAt = DateTime.UtcNow;
