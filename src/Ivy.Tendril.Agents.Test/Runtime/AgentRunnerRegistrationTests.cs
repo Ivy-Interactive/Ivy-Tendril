@@ -1,5 +1,6 @@
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Providers.Claude;
+using Ivy.Tendril.Agents.Providers.OpenCode;
 using Ivy.Tendril.Agents.Runtime;
 
 namespace Ivy.Tendril.Agents.Test.Runtime;
@@ -137,5 +138,17 @@ public class AgentRunnerRegistrationTests
 
         Assert.Single(runner.RegisteredAgents);
         Assert.Equal(AgentId.Claude, runner.RegisteredAgents[0]);
+    }
+
+    [Fact]
+    public void GetParser_ReturnsFreshInstancePerCall()
+    {
+        var runner = new AgentRunner();
+        runner.Register(new OpenCodeCli(), new OpenCodeEventParser(), new OpenCodeHealthCheck());
+
+        var first = runner.GetParser(AgentId.OpenCode);
+        var second = runner.GetParser(AgentId.OpenCode);
+
+        Assert.NotSame(first, second);
     }
 }

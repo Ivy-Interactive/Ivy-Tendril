@@ -73,7 +73,7 @@ public sealed class GeminiEventParser : IEventParser
         };
     }
 
-    public void Reset() { }
+    public IEventParser CreateFresh() => new GeminiEventParser();
 
     private static string? PeekType(ref Utf8JsonReader reader)
     {
