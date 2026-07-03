@@ -176,13 +176,19 @@ public class JobService : IJobService
             }
             else
             {
+                // Only fall through to the generic scan (and possibly the agent-level analyzer
+                // below) when nothing has already set a message — an explicitly set StatusMessage
+                // must be preserved verbatim, even if it happens to mention "exit code".
+                var hadExistingMessage = job.StatusMessage != null;
                 job.StatusMessage ??= ExtractFailureReason(job.OutputLines.ToList(), job.Type, exitCode);
 
                 // The text-based scan above only recognizes generic exit-code fallbacks, not
                 // provider-specific errors. When it couldn't pin down a real cause, consult the
                 // agent's own IFailureAnalyzer (rate limits, auth failures, invalid models, etc.)
                 // before giving up.
-                if (job.StatusMessage.Contains("exit code") && _agentRunner != null)
+                var isGenericFallback = job.StatusMessage == "Unknown error (exit code non-zero)"
+                    || job.StatusMessage.StartsWith("Process exited with code ");
+                if (!hadExistingMessage && isGenericFallback && _agentRunner != null)
                 {
                     var analyzer = _agentRunner.GetFailureAnalyzer(job.Provider);
                     if (analyzer != null)

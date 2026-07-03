@@ -183,6 +183,26 @@ public class JobServiceFailureReasonTests : IDisposable
     }
 
     [Fact]
+    public void CompleteJob_WithExistingStatusMessageMentioningExitCode_NotOverriddenByAgentAnalyzer()
+    {
+        // Regression: a pre-set StatusMessage that happens to contain the phrase "exit code"
+        // must not be mistaken for the generic fallback and replaced by the agent-level analyzer,
+        // even when the analyzer would otherwise recognize the stderr content (e.g. rate limit).
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), agentRunner: TestAgentRunner.Create());
+        var planFolder = CreateValidPlanFolder();
+        var id = service.StartJob(new ExecutePlanArgs(planFolder));
+        var job = service.GetJob(id)!;
+        job.StatusMessage = "Execution failed (exit code: 1)";
+        job.OutputLines.Enqueue("[stderr] rate limit exceeded");
+
+        service.CompleteJob(id, 1);
+
+        job = service.GetJob(id)!;
+        Assert.Equal(JobStatus.Failed, job.Status);
+        Assert.Equal("Execution failed (exit code: 1)", job.StatusMessage);
+    }
+
+    [Fact]
     public void CompleteJob_ZeroExitCode_WithErrorEvent_MarksAsFailed()
     {
         var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
