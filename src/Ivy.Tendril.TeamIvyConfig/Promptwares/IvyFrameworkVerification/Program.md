@@ -489,12 +489,14 @@ Confirm all expected files exist before writing the report.
 Write to `<VerificationDir>/IvyFrameworkVerification.md`:
 
 ```markdown
+---
+result: Pass
+date: <CurrentTime>
+---
 # IvyFrameworkVerification
 
-- **Plan:** <planId> — <title>
-- **Date:** <CurrentTime>
-- **Result:** Pass / Fail
-- **Test Project:** <path to temp project>
+**Plan:** <planId> — <title>
+**Test Project:** <path to temp project>
 
 ## What was tested
 
