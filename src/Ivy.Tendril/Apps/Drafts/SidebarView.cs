@@ -78,9 +78,7 @@ public class SidebarView(
             }
             badges |= new Badge(plan.Level).Color(config.GetLevelColor(plan.Level) ?? Colors.Gray).Small();
 
-            return new ListItem($"#{plan.Id} {plan.Title}")
-                .Content(badges)
-                .OnClick(() => selectedPlanState.Set(clickablePlan));
+            return SidebarListRow.Build($"#{plan.Id} {plan.Title}", badges, () => selectedPlanState.Set(clickablePlan));
         }));
 
         return new HeaderLayout(BuildHeader(), content);
