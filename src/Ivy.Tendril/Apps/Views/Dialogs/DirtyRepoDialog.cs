@@ -103,7 +103,7 @@ public class DirtyRepoDialog(
                 | new Button("Cancel").Outline().OnClick(() => dialogOpen.Set(false))
                 | new Button("Stash Changes").Primary().Icon(Icons.Archive)
                     .OnClick(() => SyncWith(UntrackedChangesPolicy.Stash))
-                | new Button("Create Commit").Primary().Icon(Icons.GitCommitHorizontal)
+                | new Button("Commit and Push").Primary().Icon(Icons.GitCommitHorizontal)
                     .OnClick(() => SyncWith(UntrackedChangesPolicy.Commit))
                 | new Button("Create PR").Primary().Icon(Icons.GitPullRequest)
                     .OnClick(() => SyncWith(UntrackedChangesPolicy.PullRequest))
