@@ -228,7 +228,7 @@ public class ContentView(
         var pendingRecs = planData.Recommendations.Where(r => r.State == RecommendationStatus.Pending).ToList();
 
         var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, client, showCreatePrDialog, nav,
-            args, selectedRecTitles, pendingRecs, planContentQuery.Mutator.Revalidate);
+            args, selectedRecTitles);
         var actionBar = BuildActionBar(
             selectedPlanState.Value, showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog,
             showCreatePrDialog, copyToClipboard, client, logger, nav, args);
@@ -257,9 +257,7 @@ public class ContentView(
         Action showCreatePrDialog,
         INavigator nav,
         ReviewAppArgs? args,
-        IState<HashSet<string>> selectedRecTitles,
-        List<RecommendationYaml> pendingRecs,
-        Action revalidate)
+        IState<HashSet<string>> selectedRecTitles)
     {
         object BuildTitleArea(bool isMobile)
         {
@@ -291,29 +289,6 @@ public class ContentView(
                                .NoWrap()
                                .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
                                .Muted("plans", word: true);
-
-            if (hasSelection)
-            {
-                var count = selectedRecTitles.Value.Count;
-                rightSide |= new Button("Implement Recommendations")
-                    .Icon(Icons.Rocket).Badge(count.ToString()).Primary()
-                    .OnClick(() =>
-                    {
-                        var titles = selectedRecTitles.Value.ToList();
-                        var selected = pendingRecs.Where(r => titles.Contains(r.Title)).ToList();
-                        if (selected.Count == 0) return;
-
-                        // Single job for the whole batch, never one StartJob call per recommendation.
-                        var changeRequest = BuildRecommendationChangeRequest(selected);
-                        planService.AcceptRecommendationsAndRetry(selectedPlan.FolderName, titles);
-                        jobService.StartJob(new RetryPlanArgs(selectedPlan.FolderPath, changeRequest));
-                        client.Toast($"Started RetryPlan for {selected.Count} recommendation(s)", "Implementing Recommendations");
-
-                        selectedRecTitles.Set(new HashSet<string>());
-                        refreshPlans();
-                        revalidate();
-                    });
-            }
 
             if (selectedPlan.Commits.Count > 0)
             {
@@ -626,6 +601,15 @@ public class ContentView(
             }
 
             var recommendationsLayout = Layout.Vertical().Padding(2);
+            if (selectedRecTitles.Value.Count > 0)
+            {
+                var count = selectedRecTitles.Value.Count;
+                recommendationsLayout |= Layout.Horizontal().Gap(2).AlignContent(Align.Right)
+                    | new Button("Implement Recommendations")
+                        .Icon(Icons.Rocket).Badge(count.ToString()).Primary()
+                        .OnClick(() => ImplementSelectedRecommendations(
+                            selectedPlan, pendingRecs, selectedRecTitles, client, planContentQuery.Mutator.Revalidate));
+            }
             if (pendingRecs.Count == 0)
                 recommendationsLayout |= Text.Muted("No recommendations.");
             else
@@ -723,6 +707,36 @@ public class ContentView(
                     .Width(Size.Full().Max(Size.Units(200))) | inner);
         }
     }
+
+    private void ImplementSelectedRecommendations(
+        PlanFile selectedPlan,
+        List<RecommendationYaml> pendingRecs,
+        IState<HashSet<string>> selectedRecTitles,
+        IClientProvider client,
+        Action revalidate)
+    {
+        var titles = selectedRecTitles.Value.ToList();
+        var selected = SelectRecommendationsToImplement(pendingRecs, titles);
+        if (selected.Count == 0)
+        {
+            client.Toast("Select at least one recommendation to implement.", "Nothing Selected");
+            return;
+        }
+
+        // Single job for the whole batch, never one StartJob call per recommendation.
+        var changeRequest = BuildRecommendationChangeRequest(selected);
+        planService.AcceptRecommendationsAndRetry(selectedPlan.FolderName, titles);
+        jobService.StartJob(new RetryPlanArgs(selectedPlan.FolderPath, changeRequest));
+        client.Toast($"Started RetryPlan for {selected.Count} recommendation(s)", "Implementing Recommendations");
+
+        selectedRecTitles.Set(new HashSet<string>());
+        refreshPlans();
+        revalidate();
+    }
+
+    internal static List<RecommendationYaml> SelectRecommendationsToImplement(
+        IEnumerable<RecommendationYaml> pendingRecs, IReadOnlyCollection<string> selectedTitles)
+        => pendingRecs.Where(r => selectedTitles.Contains(r.Title)).ToList();
 
     private static string BuildRecommendationChangeRequest(List<RecommendationYaml> recs)
     {
