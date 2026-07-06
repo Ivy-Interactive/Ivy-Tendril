@@ -137,9 +137,17 @@ public class ContentView(
 
         object BuildTitleArea(bool isMobile)
         {
+            object SourceButton() => new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
+                .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
+
+            var hasSourceUrl = !string.IsNullOrEmpty(selectedPlan.SourceUrl);
+
             var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full().Min(Size.Px(0)))
                 | Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis)
-                    .Width(Size.Grow().Min(Size.Px(0)));
+                    .Width(Size.Shrink().Min(Size.Px(0)));
+
+            if (hasSourceUrl)
+                desktopTitleLayout |= SourceButton();
 
             if (selectedPlan.DependsOn.Count > 0)
             {
@@ -157,15 +165,25 @@ public class ContentView(
                 .Width(Size.Full().Min(Size.Px(0)))
                 .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
+            var mobileTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full())
+                | MobileItemPicker.Build(
+                        $"#{selectedPlan.Id} {selectedPlan.Title}",
+                        allPlans,
+                        p => $"#{p.Id} {p.Title}",
+                        p => p.FolderName == selectedPlan.FolderName,
+                        p => selectedPlanState.Set(p))
+                    .Width(Size.Grow().Min(Size.Px(0)));
+
+            if (hasSourceUrl)
+                mobileTitleLayout |= SourceButton();
+
+            var mobileTitle = new Box(mobileTitleLayout).BorderThickness(0).Padding(0)
+                .Width(Size.Full().Min(Size.Px(0)))
+                .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
+
             return Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow().Min(Size.Px(0)))
                    | desktopTitle
-                   | MobileItemPicker.Build(
-                           $"#{selectedPlan.Id} {selectedPlan.Title}",
-                           allPlans,
-                           p => $"#{p.Id} {p.Title}",
-                           p => p.FolderName == selectedPlan.FolderName,
-                           p => selectedPlanState.Set(p))
-                       .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
+                   | mobileTitle;
         }
 
         object BuildControls(bool isMobile)
@@ -190,21 +208,7 @@ public class ContentView(
                                     ContinueExecute(null, result, pendingWaitJobIds, showDirtyDialog);
                             }));
 
-            if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
-            {
-                var leftSide = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                               | new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
-                                   .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
-
-                return Layout.Horizontal()
-                       .Width(isMobile ? Size.Full() : Size.Fit())
-                       .AlignContent(isMobile ? Align.SpaceBetween : Align.Right)
-                       .Gap(2)
-                       | leftSide
-                       | rightSide;
-            }
-
-            return rightSide;
+            return rightSide.Width(isMobile ? Size.Full() : Size.Fit());
         }
 
         var header = ResponsiveHeader.Build(BuildTitleArea, BuildControls);
