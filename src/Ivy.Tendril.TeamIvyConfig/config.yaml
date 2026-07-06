@@ -2,7 +2,7 @@ codingAgent: claude
 jobTimeout: 30
 staleOutputTimeout: 10
 gitTimeout: 10
-maxConcurrentJobs: 30
+maxConcurrentJobs: 10
 projects:
 - name: Framework
   color: Blue
@@ -66,9 +66,9 @@ projects:
   - name: DotnetFormat
     required: true
   - name: DotnetTest
-    required: false
+    required: true
   - name: CodeReview
-    required: false
+    required: true
   - name: CheckResult
     required: true
   context: >
@@ -158,7 +158,7 @@ projects:
   - name: DotnetFormat
     required: true
   - name: DotnetBuild
-    required: true
+    required: false
   - name: DotnetTest
     required: true
   - name: CheckResult
@@ -171,18 +171,6 @@ projects:
   - name: Admin
     condition: Test-Path "Worktrees\Ivy-Tendril-Services\Ivy.Tendril.Services.Admin"
     command: dotnet run --project Worktrees\Ivy-Tendril-Services\Ivy.Tendril.Services.Admin --browse --find-available-port
-  hooks: []
-  buildDependencies: []
-- name: BS-Website
-  color: Green
-  meta: {}
-  repos:
-  - path: D:\Tendril\Repos\BS-Website
-    prRule: default
-    baseBranch: main
-  verifications: []
-  context: ''
-  reviewActions: []
   hooks: []
   buildDependencies: []
 verifications:
@@ -379,15 +367,20 @@ verifications:
 planTemplate: >
   # {title}
 
+
   ## Problem
+
 
   ## Solution
 
+
   ## Tests
+
 
   **New tests:**
 
   (specify tests to write for new functionality, or "None" if no new tests needed)
+
 
   **Test scope (dotnet test --filter):**
 
@@ -544,7 +537,7 @@ tunnel:
   maxRestarts: 10
 telemetry: true
 desktopNotifications: true
-dismissedUpdateVersion: 1.1.8
+dismissedUpdateVersion: 1.1.10
 levels:
 - name: Bug
   color: Red

@@ -1660,4 +1660,190 @@ public class PlanCliCommandTests : IDisposable
 
         Assert.Contains("git worktree add failed", output);
     }
+
+    // ==================== PlanWriteRevision (--file / --stdin) ====================
+
+    private static CommandApp BuildPlanWriteRevisionApp()
+    {
+        var app = new CommandApp();
+        app.Configure(config =>
+        {
+            config.PropagateExceptions();
+            config.AddBranch("plan", plan => plan.AddCommand<PlanWriteRevisionCommand>("write-revision"));
+        });
+        return app;
+    }
+
+    [Fact]
+    public void PlanWriteRevision_File_ReadsFromFile()
+    {
+        CreatePlanFolder("20300", "WriteRevFile");
+        var file = Path.Combine(_tempDir.Path, "revision-file.md");
+        File.WriteAllText(file, "Revision from file");
+
+        var app = BuildPlanWriteRevisionApp();
+        var exit = app.Run(["plan", "write-revision", "20300", "--file", file]);
+
+        Assert.Equal(0, exit);
+        var folder = PlanCommandHelpers.ResolvePlanFolder("20300");
+        var revisionPath = Directory.GetFiles(Path.Combine(folder, "Revisions")).Single();
+        Assert.Contains("Revision from file", File.ReadAllText(revisionPath));
+    }
+
+    [Fact]
+    public void PlanWriteRevision_Stdin_ReadsPipedInput()
+    {
+        CreatePlanFolder("20301", "WriteRevStdin");
+        var app = BuildPlanWriteRevisionApp();
+
+        var originalIn = Console.In;
+        Console.SetIn(new StringReader("Revision from stdin"));
+        try
+        {
+            var exit = app.Run(["plan", "write-revision", "20301", "--stdin"]);
+            Assert.Equal(0, exit);
+        }
+        finally
+        {
+            Console.SetIn(originalIn);
+        }
+
+        var folder = PlanCommandHelpers.ResolvePlanFolder("20301");
+        var revisionPath = Directory.GetFiles(Path.Combine(folder, "Revisions")).Single();
+        Assert.Contains("Revision from stdin", File.ReadAllText(revisionPath));
+    }
+
+    [Fact]
+    public void PlanWriteRevision_MultipleSources_FailsValidation()
+    {
+        Assert.False(new PlanWriteRevisionSettings { PlanId = "1", FilePath = "f.md", Stdin = true }.Validate().Successful);
+
+        var app = BuildPlanWriteRevisionApp();
+        Assert.Throws<CommandRuntimeException>(() =>
+            app.Run(["plan", "write-revision", "1", "--file", "f.md", "--stdin"]));
+    }
+
+    [Fact]
+    public void PlanWriteRevision_NoSource_ThrowsAndNeverReadsStdin()
+    {
+        CreatePlanFolder("20302", "WriteRevNoSource");
+        var app = BuildPlanWriteRevisionApp();
+
+        var originalIn = Console.In;
+        Console.SetIn(new StringReader("SENTINEL-SHOULD-NOT-BE-READ"));
+        try
+        {
+            var ex = Assert.Throws<ArgumentException>(() => app.Run(["plan", "write-revision", "20302"]));
+            Assert.Contains("--file or --stdin", ex.Message);
+        }
+        finally
+        {
+            Console.SetIn(originalIn);
+        }
+
+        var folder = PlanCommandHelpers.ResolvePlanFolder("20302");
+        var revisionsDir = Path.Combine(folder, "Revisions");
+        if (Directory.Exists(revisionsDir))
+            Assert.Empty(Directory.GetFiles(revisionsDir));
+    }
+
+    // ==================== PlanUpdate (--file / --stdin) ====================
+
+    private CommandApp BuildPlanUpdateApp()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IPlanWatcherService, NullPlanWatcherService>();
+
+        var app = new CommandApp(new TypeRegistrar(services));
+        app.Configure(config =>
+        {
+            config.PropagateExceptions();
+            config.AddBranch("plan", plan => plan.AddCommand<PlanUpdateCommand>("update"));
+        });
+        return app;
+    }
+
+    [Fact]
+    public void PlanUpdate_File_ReadsFromFile()
+    {
+        CreatePlanFolder("20310", "UpdateFileTest");
+        var yaml = YamlHelper.Serializer.Serialize(new PlanYaml
+        {
+            State = "Completed",
+            Project = "TestProject",
+            Title = "UpdateFileTest",
+            Repos = [_tempDir.Path],
+            Created = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc),
+            Updated = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc)
+        });
+        var file = Path.Combine(_tempDir.Path, "updated-plan.yaml");
+        File.WriteAllText(file, yaml);
+
+        var app = BuildPlanUpdateApp();
+        var exit = app.Run(["plan", "update", "20310", "--file", file]);
+
+        Assert.Equal(0, exit);
+        Assert.Equal("Completed", ReadPlan("20310").State);
+    }
+
+    [Fact]
+    public void PlanUpdate_Stdin_ReadsPipedInput()
+    {
+        CreatePlanFolder("20311", "UpdateStdinTest");
+        var yaml = YamlHelper.Serializer.Serialize(new PlanYaml
+        {
+            State = "Completed",
+            Project = "TestProject",
+            Title = "UpdateStdinTest",
+            Repos = [_tempDir.Path],
+            Created = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc),
+            Updated = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc)
+        });
+
+        var app = BuildPlanUpdateApp();
+        var originalIn = Console.In;
+        Console.SetIn(new StringReader(yaml));
+        try
+        {
+            var exit = app.Run(["plan", "update", "20311", "--stdin"]);
+            Assert.Equal(0, exit);
+        }
+        finally
+        {
+            Console.SetIn(originalIn);
+        }
+
+        Assert.Equal("Completed", ReadPlan("20311").State);
+    }
+
+    [Fact]
+    public void PlanUpdate_MultipleSources_FailsValidation()
+    {
+        Assert.False(new PlanUpdateSettings { PlanId = "1", FilePath = "f.yaml", Stdin = true }.Validate().Successful);
+
+        var app = BuildPlanUpdateApp();
+        Assert.Throws<CommandRuntimeException>(() =>
+            app.Run(["plan", "update", "1", "--file", "f.yaml", "--stdin"]));
+    }
+
+    [Fact]
+    public void PlanUpdate_NoSource_ThrowsAndNeverReadsStdin()
+    {
+        CreatePlanFolder("20312", "UpdateNoSourceTest");
+        var app = BuildPlanUpdateApp();
+
+        var originalIn = Console.In;
+        Console.SetIn(new StringReader("SENTINEL-SHOULD-NOT-BE-READ"));
+        try
+        {
+            var ex = Assert.Throws<ArgumentException>(() => app.Run(["plan", "update", "20312"]));
+            Assert.Contains("--file or --stdin", ex.Message);
+        }
+        finally
+        {
+            Console.SetIn(originalIn);
+        }
+
+        Assert.Equal("Draft", ReadPlan("20312").State);
+    }
 }

@@ -14,6 +14,33 @@ icon: ScrollText
 Version history, new features, improvements, and bug fixes for each Tendril release.
 </Ingress>
 
+## 1.1.11 (2026-07-03)
+
+### Bug Fixes
+
+- **macOS Installer & Startup Fix** — Fixed a critical issue where the macOS installer (.pkg) completed successfully but failed to install or launch the application due to broken symlinks and codesign signatures during repackaging. Replaced `pkgutil --expand-full` with `pkgutil --expand` to preserve app payload integrity, corrected the target directory to `1.pkg/Scripts/postinstall`, and fixed a path typo in the localhost certificate trusting script.
+
+## 1.1.10 (2026-07-03)
+
+### Bug Fixes
+
+- **macOS Installer Notarization** — Fixed macOS installer notarization by properly submitting and stapling the repacked installer package.
+
+## 1.1.9 (2026-07-03)
+
+### Features
+
+- **Promptware File Input** — Added support for file-based content input to promptware write commands, allowing promptwares to ingest local files during execution.
+- **Plan Revision Recovery CLI** — Added a new `plan get-revision` CLI command to retrieve and inspect historical revisions of a plan.
+- **SyncRepo Untracked-Changes Policy** — Added configurable untracked-changes policy options (Stash/Commit/PullRequest) for SyncRepo execution.
+- **Antigravity CLI Graduation** — Graduated the Antigravity CLI integrations and checks to fully stable status.
+
+### Improvements
+
+- **Universal Bug Reporting** — Enabled bug reporting under all agents by normalizing target models to backend-supported families and appending original agent metadata, and fixed bug reporting on macOS by recursively collecting plan files and ignoring worktree folders early.
+- **Verification CLI Fallbacks** — The `verification` commands now automatically list all available verification scripts if the specified verification name is not found.
+- **DraftMarkdown Widget Styles** — Synchronized the styling of the DraftMarkdown widget with the latest core design system updates.
+
 ## 1.1.8 (2026-07-03)
 
 ### Features

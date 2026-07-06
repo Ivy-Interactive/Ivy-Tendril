@@ -222,5 +222,6 @@ public class JobServiceConcurrencyTests
         public void CompleteOnboarding(string tendrilHome) { }
         public void OpenInEditor(string path) { }
         public string PolishMarkdown(string content) => content;
+        public void Dispose() { }
     }
 }

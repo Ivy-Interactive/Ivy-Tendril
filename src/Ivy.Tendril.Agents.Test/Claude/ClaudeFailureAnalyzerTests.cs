@@ -239,6 +239,29 @@ public class ClaudeFailureAnalyzerTests
     }
 
     [Fact]
+    public void Analyze_SessionLimitInLastResultResponse_ReturnsRateLimit()
+    {
+        var resultEvent = new ResultEvent
+        {
+            Kind = AgentEventKind.Result,
+            Response = "You have hit your session limit, resets 4pm (Europe/Stockholm)",
+            IsSuccess = false,
+        };
+
+        var ctx = new FailureContext
+        {
+            Events = [resultEvent],
+            AgentId = AgentId.Claude,
+            ExitCode = 1,
+        };
+
+        var result = _analyzer.Analyze(ctx);
+
+        Assert.Equal(FailureKind.RateLimit, result.Kind);
+        Assert.True(result.IsRetryable);
+    }
+
+    [Fact]
     public void Analyze_MultiplePermissionDenials_CountsCorrectly()
     {
         var denials = new List<PermissionDenialEvent>

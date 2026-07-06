@@ -45,7 +45,7 @@ public sealed class CopilotFailureAnalyzer : IFailureAnalyzer
             };
         }
 
-        if (ContainsAny(stderr, "model", "invalid model", "not found", "does not exist"))
+        if (ContainsAny(stderr, "model", "invalid model", "not found", "does not exist", "not available"))
         {
             return new FailureAnalysis
             {

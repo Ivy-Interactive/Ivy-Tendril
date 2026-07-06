@@ -24,6 +24,7 @@ public static class HealthCheckRunner
             FileName = resolvedFileName,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            RedirectStandardInput = true,
             UseShellExecute = false,
             CreateNoWindow = true,
             StandardOutputEncoding = Encoding.UTF8,

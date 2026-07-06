@@ -425,14 +425,10 @@ public class PlanReaderService(
         _recommendationsCache.Invalidate();
         CountsInvalidated?.Invoke();
 
-        // Delete folder in background (can be slow due to git worktree removal).
+        // Delete folder out-of-band (NOT via _writeQueue) so slow worktree/directory
+        // removal never blocks other plan writes.
         var folderPath = Path.Combine(PlansDirectory, folderName);
-        WriteFileInBackground(() =>
-        {
-            if (!Directory.Exists(folderPath)) return;
-            WorktreeCleanupService.RemoveWorktrees(folderPath, logger, worktreeLifecycleLogger);
-            WorktreeCleanupService.ForceDeleteDirectory(folderPath, logger);
-        });
+        WorktreeCleanupService.DeletePlanFolderInBackground(folderPath, logger, worktreeLifecycleLogger);
     }
 
     /// <summary>
@@ -757,6 +753,66 @@ public class PlanReaderService(
             {
                 rec.State = RecommendationStatus.Accepted;
                 rec.DeclineReason = null;
+            }
+
+            FileHelper.WriteAllText(planYamlPath, YamlHelper.SerializerCompact.Serialize(planYaml));
+        }, Path.Combine(PlansDirectory, folderName));
+    }
+
+    public void AcceptRecommendationsAndRetry(string folderName, IReadOnlyCollection<string> titles)
+    {
+        var planId = ExtractPlanId(folderName);
+
+        // Track state transition in telemetry.
+        if (planId.HasValue)
+        {
+            var currentPlan = GetPlanByFolder(Path.Combine(PlansDirectory, folderName));
+            var oldState = currentPlan?.Status.ToString() ?? "Unknown";
+            telemetryService?.TrackPlanStateTransition(oldState, PlanStatus.Executing.ToString());
+        }
+
+        // Update database atomically for all mutations.
+        if (planId.HasValue && _database != null)
+        {
+            _database.UpdatePlanState(planId.Value, PlanStatus.Executing);
+            foreach (var title in titles)
+                _database.UpdateRecommendationState(planId.Value, title, RecommendationStatus.Accepted, null);
+        }
+
+        _planCountsCache.Invalidate();
+        _recommendationsCache.Invalidate();
+        CountsInvalidated?.Invoke();
+        planWatcherService?.NotifyChanged(folderName);
+
+        // Single background write that performs all mutations atomically on disk.
+        WriteFileInBackground(() =>
+        {
+            var planYamlPath = Path.Combine(PlansDirectory, folderName, "plan.yaml");
+            if (!File.Exists(planYamlPath)) return;
+
+            var yaml = FileHelper.ReadAllText(planYamlPath);
+            var planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml) ?? new PlanYaml();
+
+            // Reset verifications
+            foreach (var v in planYaml.Verifications)
+            {
+                if (v.Status != VerificationStatus.Skipped)
+                    v.Status = VerificationStatus.Pending;
+            }
+
+            // Transition state
+            planYaml.State = PlanStatus.Executing.ToString();
+            planYaml.Updated = DateTime.UtcNow;
+
+            // Accept recommendations
+            foreach (var title in titles)
+            {
+                var rec = planYaml.Recommendations?.FirstOrDefault(r => r.Title == title);
+                if (rec != null)
+                {
+                    rec.State = RecommendationStatus.Accepted;
+                    rec.DeclineReason = null;
+                }
             }
 
             FileHelper.WriteAllText(planYamlPath, YamlHelper.SerializerCompact.Serialize(planYaml));
@@ -1210,4 +1266,9 @@ public record Recommendation(
     PlanStatus SourcePlanStatus,
     string? DeclineReason = null,
     string? Impact = null
-);
+)
+{
+    /// <summary>Plan id without leading zeros, e.g. "60" for "00060".</summary>
+    public string ShortPlanId =>
+        PlanId.TrimStart('0') is { Length: > 0 } trimmed ? trimmed : PlanId;
+}
