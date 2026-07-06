@@ -103,7 +103,10 @@ public static class GitHelper
         if (!process.WaitForExit(timeoutMs))
         {
             try { process.Kill(true); } catch { /* best effort */ }
-            return (-1, outTask.IsCompletedSuccessfully ? outTask.Result : "", $"git {arguments} timed out after {timeoutMs}ms");
+            var partialErr = errTask.IsCompletedSuccessfully ? errTask.Result : "";
+            var timeoutMessage = $"git {arguments} timed out after {timeoutMs}ms";
+            var combinedErr = string.IsNullOrEmpty(partialErr) ? timeoutMessage : $"{partialErr}\n{timeoutMessage}";
+            return (-1, outTask.IsCompletedSuccessfully ? outTask.Result : "", combinedErr);
         }
 
         return (process.ExitCode, outTask.GetAwaiter().GetResult(), errTask.GetAwaiter().GetResult());
