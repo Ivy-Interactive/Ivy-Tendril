@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Diagnostics;
 using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.Logging;
 using Spectre.Console;
@@ -53,7 +52,7 @@ public class PlanAddWorktreeCommand : Command<PlanAddWorktreeSettings>
 
         if (Directory.Exists(worktreePath))
         {
-            var (removeExitCode, _, removeStdErr) = RunGit($"worktree remove --force \"{worktreePath}\"", settings.Repo);
+            var (removeExitCode, _, removeStdErr) = GitHelper.RunGit($"worktree remove --force \"{worktreePath}\"", settings.Repo);
             if (removeExitCode != 0)
             {
                 AnsiConsole.MarkupLine($"[red]Failed to remove existing worktree at {worktreePath.EscapeMarkup()}:[/]");
@@ -64,10 +63,10 @@ public class PlanAddWorktreeCommand : Command<PlanAddWorktreeSettings>
             // Re-executing a plan is a normal occurrence (ExecutePlan re-runs after review
             // comments), so the branch from the prior run must not block a fresh `-b` create.
             // Best-effort: ignore failure (e.g. branch already gone).
-            RunGit($"branch -D \"{branchName}\"", settings.Repo);
+            GitHelper.RunGit($"branch -D \"{branchName}\"", settings.Repo);
         }
 
-        var (fetchExitCode, _, fetchStdErr) = RunGit("fetch origin", settings.Repo);
+        var (fetchExitCode, _, fetchStdErr) = GitHelper.RunGit("fetch origin", settings.Repo);
         if (fetchExitCode != 0)
         {
             AnsiConsole.MarkupLine($"[red]git fetch origin failed in {settings.Repo.EscapeMarkup()}:[/]");
@@ -82,7 +81,7 @@ public class PlanAddWorktreeCommand : Command<PlanAddWorktreeSettings>
         }
         else
         {
-            var (headExitCode, headStdOut, headStdErr) = RunGit("symbolic-ref refs/remotes/origin/HEAD", settings.Repo);
+            var (headExitCode, headStdOut, headStdErr) = GitHelper.RunGit("symbolic-ref refs/remotes/origin/HEAD", settings.Repo);
             if (headExitCode != 0)
             {
                 AnsiConsole.MarkupLine("[red]Could not auto-detect default branch (pass --base explicitly):[/]");
@@ -93,7 +92,7 @@ public class PlanAddWorktreeCommand : Command<PlanAddWorktreeSettings>
             baseBranch = headStdOut.Trim().Replace("refs/remotes/origin/", "");
         }
 
-        var (addExitCode, _, addStdErr) = RunGit(
+        var (addExitCode, _, addStdErr) = GitHelper.RunGit(
             $"worktree add \"{worktreePath}\" -b \"{branchName}\" \"origin/{baseBranch}\"", settings.Repo);
         if (addExitCode != 0)
         {
@@ -117,22 +116,5 @@ public class PlanAddWorktreeCommand : Command<PlanAddWorktreeSettings>
     {
         var folderName = Path.GetFileName(planFolder.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
         return $"tendril/{folderName}";
-    }
-
-    private static (int ExitCode, string StdOut, string StdErr) RunGit(string arguments, string workingDirectory)
-    {
-        var psi = new ProcessStartInfo("git", arguments)
-        {
-            WorkingDirectory = workingDirectory,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
-        using var process = Process.Start(psi)!;
-        var stdOut = process.StandardOutput.ReadToEnd();
-        var stdErr = process.StandardError.ReadToEnd();
-        process.WaitForExit(60000);
-        return (process.ExitCode, stdOut, stdErr);
     }
 }
