@@ -20,39 +20,40 @@ public class JobDebugSheet(
     {
         var copyToClipboard = UseClipboard();
         var client = UseService<IClientProvider>();
-        var showReportDialog = UseState(false);
         var nav = UseNavigation();
         var agentRunner = UseService<IAgentRunner>();
+
+        var (reportBugDialog, showReportBugDialog) = UseTrigger((isOpen) =>
+            !isOpen.Value ? null : new ReportBugDialog(isOpen, jobId));
+
+        #if DEBUG
+        var (debugAgentDialog, showDebugAgentDialog) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value) return null;
+            var job = jobService.GetJob(jobId);
+            if (job is null) return null;
+            // Snapshot branding + details while the job is live, so confirming always navigates
+            // even if the job is evicted between opening the dialog and clicking the button.
+            var branding = AgentBranding.For(config.Settings.CodingAgent, agentRunner);
+            var details = FormatCopyDetails(BuildData(job));
+            return new DebugWithAgentDialog(isOpen, branding, focus =>
+            {
+                var prompt =
+                    "I want to debug the following job for what might have gone wrong of what we can improve. Use the /tendril-debug-job skill if available. \n\n";
+                if (!string.IsNullOrEmpty(focus))
+                    prompt += $"In particular, focus on: {focus}\n\n";
+                prompt += details;
+                nav.Navigate<AgentApp>(new AgentAppArgs(prompt));
+                closeSheet();
+            });
+        });
+        #endif
 
         var job = jobService.GetJob(jobId);
         if (job is null)
             return Text.P("Job not found.");
 
-        var data = new
-        {
-            JobId = job.Id,
-            PlanId = GetPlanId(job),
-            PromptTitle = JobsApp.GetFullPrompt(job, planService) ?? "",
-            Status = $"{job.Status}{(job.StatusMessage != null ? $": {job.StatusMessage}" : "")}",
-            job.Type,
-            job.Project,
-            job.Provider,
-            Model = job.Model ?? "",
-            SessionId = job.SessionId ?? "",
-            Started = job.StartedAt?.ToString("u") ?? "",
-            Completed = job.CompletedAt?.ToString("u") ?? "",
-            Duration = job.DurationSeconds.HasValue ? $"{job.DurationSeconds}s" : "",
-            Cost = job.Cost.HasValue ? $"${job.Cost:F4}" : "",
-            Tokens = job.Tokens.HasValue ? $"{job.Tokens:N0}" : "",
-            PermissionDenials = FormatPermissionDenials(job),
-            PlanFolder = GetPlanFolderPath(job) ?? "",
-            PlanLog = GetPlanLogPath(job) ?? "",
-            PromptwareLog = GetPromptwareLogPath(job) ?? "",
-            PromptwareRawLog = GetPromptwareRawLogPath(job) ?? "",
-            WorkingDirectory = job.WorkingDirectory ?? "",
-            CliCommand = job.CliCommand ?? "",
-            ExitCode = job.ExitCode?.ToString() ?? "",
-        };
+        var data = BuildData(job);
 
         var detailsView = data.ToDetails()
             .RemoveEmpty()
@@ -89,9 +90,93 @@ public class JobDebugSheet(
             .Builder(x => x.JobId, f => f.CopyToClipboard())
             .Builder(x => x.PlanId, f => f.CopyToClipboard());
 
-        // Shared "Copy Details" text — reused by the Copy Details button and the
-        // "Debug with <agent>" prompt so the two stay identical.
-        var copyDetails = string.Join("\n", new List<(string Label, string Value)>
+        // Copy/debug text is projected from the same `data` model the details view renders,
+        // so the field values stay in sync with the sheet (labels are defined per-view; the
+        // `.Label()` API takes lambda expressions and can't be shared with the copy projection).
+        var copyDetails = FormatCopyDetails(data);
+
+        var agentBranding = AgentBranding.For(config.Settings.CodingAgent, agentRunner);
+
+        var header = Layout.Horizontal().Gap(2)
+                     | new Button("Copy Details").Icon(Icons.ClipboardCopy).Outline().OnClick(() =>
+                     {
+                         copyToClipboard(copyDetails);
+                         client.Toast("Job details copied to clipboard", "Copied");
+                     })
+                     | new Button("Report Bug").Icon(Icons.Bug).OnClick(() => showReportBugDialog());
+
+        #if DEBUG
+        header |= new Button($"Debug with {agentBranding.Label}").Icon(agentBranding.Icon).Outline()
+            .OnClick(() => showDebugAgentDialog());
+        #endif
+
+        return new Fragment(
+            new HeaderLayout(header, detailsView).Size(Size.Full()),
+            reportBugDialog
+            #if DEBUG
+            , debugAgentDialog
+            #endif
+        );
+    }
+
+    // Master model for the sheet: the details view renders it, and FormatCopyDetails projects it
+    // to text. Property order here is the details-view display order.
+    private sealed record JobDebugData
+    {
+        public required string JobId { get; init; }
+        public required string PlanId { get; init; }
+        public required string PromptTitle { get; init; }
+        public required string Status { get; init; }
+        public required string Type { get; init; }
+        public required string Project { get; init; }
+        public required string Provider { get; init; }
+        public required string Model { get; init; }
+        public required string SessionId { get; init; }
+        public required string Started { get; init; }
+        public required string Completed { get; init; }
+        public required string Duration { get; init; }
+        public required string Cost { get; init; }
+        public required string Tokens { get; init; }
+        public required string PermissionDenials { get; init; }
+        public required string PlanFolder { get; init; }
+        public required string PlanLog { get; init; }
+        public required string PromptwareLog { get; init; }
+        public required string PromptwareRawLog { get; init; }
+        public required string WorkingDirectory { get; init; }
+        public required string CliCommand { get; init; }
+        public required string ExitCode { get; init; }
+    }
+
+    private JobDebugData BuildData(JobItem job) => new()
+    {
+        JobId = job.Id,
+        PlanId = GetPlanId(job),
+        PromptTitle = JobsApp.GetFullPrompt(job, planService) ?? "",
+        Status = $"{job.Status}{(job.StatusMessage != null ? $": {job.StatusMessage}" : "")}",
+        Type = job.Type,
+        Project = job.Project,
+        Provider = job.Provider,
+        Model = job.Model ?? "",
+        SessionId = job.SessionId ?? "",
+        Started = job.StartedAt?.ToString("u") ?? "",
+        Completed = job.CompletedAt?.ToString("u") ?? "",
+        Duration = job.DurationSeconds.HasValue ? $"{job.DurationSeconds}s" : "",
+        Cost = job.Cost.HasValue ? $"${job.Cost:F4}" : "",
+        Tokens = job.Tokens.HasValue ? $"{job.Tokens:N0}" : "",
+        PermissionDenials = FormatPermissionDenials(job),
+        PlanFolder = GetPlanFolderPath(job) ?? "",
+        PlanLog = GetPlanLogPath(job) ?? "",
+        PromptwareLog = GetPromptwareLogPath(job) ?? "",
+        PromptwareRawLog = GetPromptwareRawLogPath(job) ?? "",
+        WorkingDirectory = job.WorkingDirectory ?? "",
+        CliCommand = job.CliCommand ?? "",
+        ExitCode = job.ExitCode?.ToString() ?? "",
+    };
+
+    // Projects the master model to the copied/debug text. Labels mirror the details-view labels;
+    // paths and logs are grouped last for a readable paste.
+    private static string FormatCopyDetails(JobDebugData data) =>
+        string.Join("\n", new (string Label, string Value)[]
             {
                 ("Job Id", data.JobId),
                 ("Plan Id", data.PlanId),
@@ -118,33 +203,6 @@ public class JobDebugSheet(
             }
             .Where(l => !string.IsNullOrEmpty(l.Value))
             .Select(l => $"{l.Label}: {l.Value}"));
-
-        var agentBranding = AgentBranding.For(config.Settings.CodingAgent, agentRunner);
-
-        var header = Layout.Horizontal().Gap(2)
-                     | new Button("Copy Details").Icon(Icons.ClipboardCopy).Outline().OnClick(() =>
-                     {
-                         copyToClipboard(copyDetails);
-                         client.Toast("Job details copied to clipboard", "Copied");
-                     })
-                     | new Button("Report Bug").Icon(Icons.Bug).OnClick(() => showReportDialog.Set(true));
-        
-        #if DEBUG
-        header |= new Button($"Debug with {agentBranding.Label}").Icon(agentBranding.Icon).Outline().OnClick(() =>
-        {
-            var prompt =
-                "I want to debug the following job for what might have gone wrong of what we can improve. Use the /tendril-debug-job skill if available. \n\n"
-                + copyDetails;
-            nav.Navigate<AgentApp>(new AgentAppArgs(prompt));
-            closeSheet();
-        });
-        #endif
-
-        return new Fragment(
-            new HeaderLayout(header, detailsView).Size(Size.Full()),
-            showReportDialog.Value ? new ReportBugDialog(showReportDialog, jobId) : null
-        );
-    }
 
     private object PathDropDown(string path, Action<string> copyToClipboard, IClientProvider client)
     {
