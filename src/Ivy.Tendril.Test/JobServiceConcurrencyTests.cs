@@ -103,18 +103,13 @@ public class JobServiceConcurrencyTests
         service.StopJob(job1Id);
         Assert.Equal(JobStatus.Stopped, service.GetJob(job1Id)!.Status);
 
-        // If the slot had leaked, this would queue instead of attempting to launch.
-        try
-        {
-            var job2Id = service.StartJob(new CreatePlanArgs("Test Job 2", "Auto"));
-            var job2 = service.GetJob(job2Id);
-            Assert.NotNull(job2);
-            Assert.NotEqual(JobStatus.Queued, job2.Status);
-        }
-        catch
-        {
-            // Process launch may fail in test — that's OK, we're testing the queue check.
-        }
+        // If the slot had leaked, this would queue instead of attempting to launch. No try/catch
+        // needed: LaunchJob's catch-all (this plan's core fix) guarantees StartJob never throws,
+        // even though the launch itself fails here (no agent program configured in this test).
+        var job2Id = service.StartJob(new CreatePlanArgs("Test Job 2", "Auto"));
+        var job2 = service.GetJob(job2Id);
+        Assert.NotNull(job2);
+        Assert.NotEqual(JobStatus.Queued, job2.Status);
     }
 
     [Fact]
