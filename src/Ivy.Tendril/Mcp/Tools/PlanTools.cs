@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using Ivy.Tendril.Models;
@@ -470,7 +471,10 @@ public sealed class PlanTools : AuthenticatedToolBase
                     plan.DependsOn.Add(PlanCommandHelpers.ResolvePlanFolderName(dep));
 
             PlanCommandHelpers.WritePlan(planFolder, plan);
-            return $"Plan created: {folderName}\nPlanId: {planId}\nDirectory: {planFolder}";
+
+            var lines = new List<string> { $"PlanId: {planId}", $"Directory: {planFolder}", "Verifications:" };
+            lines.AddRange(plan.Verifications.Select(v => $"{v.Name}:{v.Status}"));
+            return string.Join('\n', lines);
         });
     }
 
