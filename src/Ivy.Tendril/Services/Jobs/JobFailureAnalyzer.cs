@@ -10,7 +10,9 @@ internal static class JobFailureAnalyzer
     internal static string ExtractFailureReason(List<string> outputLines, string jobType, int? exitCode = null)
     {
         if (outputLines.Count == 0)
-            return "Unknown error (exit code non-zero)";
+            return exitCode.HasValue
+                ? $"Process exited with code {exitCode}"
+                : "Unknown error (exit code non-zero)";
 
         // 1. Check for PowerShell terminating errors
         var psError = FindPattern(outputLines, [
