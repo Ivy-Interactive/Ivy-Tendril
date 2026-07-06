@@ -179,25 +179,21 @@ public class JobService : IJobService
                 // Only fall through to the generic scan (and possibly the agent-level analyzer
                 // below) when nothing has already set a message — an explicitly set StatusMessage
                 // must be preserved verbatim, even if it happens to mention "exit code".
-                var hadExistingMessage = job.StatusMessage != null;
-                job.StatusMessage ??= ExtractFailureReason(job.OutputLines.ToList(), job.Type, exitCode);
-
-                // The text-based scan above only recognizes generic exit-code fallbacks, not
-                // provider-specific errors. When it couldn't pin down a real cause, consult the
-                // agent's own IFailureAnalyzer (rate limits, auth failures, invalid models, etc.)
-                // before giving up.
-                var isGenericFallback = job.StatusMessage == "Unknown error (exit code non-zero)"
-                    || job.StatusMessage.StartsWith("Process exited with code ");
-                if (!hadExistingMessage && isGenericFallback && _agentRunner != null)
+                if (job.StatusMessage == null)
                 {
-                    var analyzer = _agentRunner.GetFailureAnalyzer(job.Provider);
+                    // Prefer the provider-specific IFailureAnalyzer (recognizes rate limits, auth
+                    // failures, invalid models, etc.) over the generic text scan below — most
+                    // failures have some stderr line, so the text scan would otherwise return that
+                    // raw line directly and the analyzer would never get a chance to improve it.
+                    FailureAnalysis? analysis = null;
+                    var analyzer = _agentRunner?.GetFailureAnalyzer(job.Provider);
                     if (analyzer != null)
                     {
                         var stderrLines = job.OutputLines
                             .Where(l => l.StartsWith("[stderr] "))
                             .Select(l => l["[stderr] ".Length..])
                             .ToList();
-                        var analysis = analyzer.Analyze(new FailureContext
+                        analysis = analyzer.Analyze(new FailureContext
                         {
                             Events = [],
                             StderrLines = stderrLines,
@@ -206,13 +202,11 @@ public class JobService : IJobService
                             IdleTimeout = false,
                             AgentId = job.Provider,
                         });
-                        if (analysis.Kind != FailureKind.Unknown)
-                        {
-                            job.StatusMessage = analysis.Suggestion != null
-                                ? $"{analysis.Reason} ({analysis.Suggestion})"
-                                : analysis.Reason;
-                        }
                     }
+
+                    job.StatusMessage = analysis is { Kind: not FailureKind.Unknown }
+                        ? analysis.Suggestion != null ? $"{analysis.Reason} ({analysis.Suggestion})" : analysis.Reason
+                        : ExtractFailureReason(job.OutputLines.ToList(), job.Type, exitCode);
                 }
             }
             job.Status = success ? JobStatus.Completed : JobStatus.Failed;
