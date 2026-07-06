@@ -154,9 +154,32 @@ For each repo in `RepoConfigs` (this includes both the plan's repos AND any read
    GitHub **pull request** URL (`https://github.com/<owner>/<repo>/pull/<number>`) **and** it points
    at *this* worktree's repo, the worktree should be based on the PR's branch so the fix updates the
    original PR instead of opening a second one — use the **PR-override flow** below. Otherwise, use
-   the **standard flow**.
+   the **standard flow**. Determine this and derive the PR details up front:
 
-2. **Standard flow (default — use the `add-worktree` CLI command, never hand-roll git):**
+```bash
+cd <original-repo-path>
+
+USE_PR_OVERRIDE=false
+if [[ -n "$SOURCE_URL" && "$SOURCE_URL" =~ github\.com/([^/]+/[^/]+)/pull/([0-9]+) ]]; then
+  PR_REPO="${BASH_REMATCH[1]}"; PR_NUMBER="${BASH_REMATCH[2]}"
+  ORIGIN_REPO=$(git remote get-url origin | sed -E 's#.*github\.com[:/]([^/]+/[^/]+?)(\.git)?$#\1#')
+  if [[ "$PR_REPO" == "$ORIGIN_REPO" ]]; then
+    PR_JSON=$(gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRefName,state,isCrossRepository 2>/dev/null)
+    PR_STATE=$(echo "$PR_JSON" | jq -r '.state')
+    PR_FORK=$(echo "$PR_JSON" | jq -r '.isCrossRepository')
+    PR_HEAD=$(echo "$PR_JSON" | jq -r '.headRefName')
+    if [[ "$PR_STATE" == "OPEN" && "$PR_FORK" == "false" && -n "$PR_HEAD" && "$PR_HEAD" != "null" ]]; then
+      USE_PR_OVERRIDE=true
+      tendril job status TendrilJobId --message="Basing worktree on PR #$PR_NUMBER branch '$PR_HEAD' (will update the existing PR)."
+    else
+      tendril job status TendrilJobId --message="PR #$PR_NUMBER is not updatable (state=$PR_STATE, fork=$PR_FORK) — falling back to a new branch + new PR."
+    fi
+  fi
+fi
+```
+
+2. **Standard flow (default, `USE_PR_OVERRIDE=false`) — use the `add-worktree` CLI command, never
+   hand-roll git:**
 
 ```bash
 tendril plan add-worktree <TendrilPlanId> <RepoPath> [--base <resolved-base-branch>]
@@ -169,9 +192,11 @@ to let the command auto-detect the default branch. This single command replaces 
 any stale worktree and branch from a prior execution before creating the new one, fetches `origin`,
 resolves the base branch, and verifies the `.git` file exists afterward. **Do not hand-roll any of
 these git steps yourself** — this is the exact failure class (e.g. a Windows locale bug in
-`grep -P`-based branch-name derivation) this command was built to eliminate.
+`grep -P`-based branch-name derivation) this command was built to eliminate. Always branch from
+`origin/<resolved-base-branch>`, never local HEAD — the command enforces this — so the resulting PR
+only contains the plan's commits, not any unpushed local work.
 
-If the command exits non-zero, its stderr already explains which step failed (missing repo path,
+If the command exits non-zero, its output already explains which step failed (missing repo path,
 stale-worktree removal failure, fetch failure, or worktree-add failure). Print that output and call:
 
 ```bash
@@ -179,28 +204,25 @@ tendril job fail TendrilJobId --message="Worktree creation failed for <repo-fold
 exit 1
 ```
 
-3. **PR-override flow (exception — only when the PR-source check above applies).** `add-worktree`
-   cannot be used here: it always creates a fresh `tendril/<planFolderName>` branch, whereas this
-   case must reuse/reset the PR's own head branch so commits land on the existing PR. Hand-roll it:
+3. **PR-override flow (exception, `USE_PR_OVERRIDE=true`).** `add-worktree` cannot be used here: it
+   always creates a fresh `tendril/<planFolderName>` branch, whereas this case must reuse/reset the
+   PR's own head branch (`$PR_HEAD`, derived in step 1) so commits land on the existing PR instead of
+   force-cutting a new branch over its history. Hand-roll it:
 
 ```bash
-cd <original-repo-path>
-git fetch origin
+# Clean up any stale worktree/branch from a prior execution first (add-worktree does this
+# automatically for the standard flow, but this hand-rolled path must do it explicitly).
+tendril plan remove-worktree <TendrilPlanId> <repo-folder-name>
 
-PR_JSON=$(gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRefName,state,isCrossRepository 2>/dev/null)
-PR_STATE=$(echo "$PR_JSON" | jq -r '.state')
-PR_FORK=$(echo "$PR_JSON" | jq -r '.isCrossRepository')
-PR_HEAD=$(echo "$PR_JSON" | jq -r '.headRefName')
-
-if [[ "$PR_STATE" == "OPEN" && "$PR_FORK" == "false" && -n "$PR_HEAD" && "$PR_HEAD" != "null" ]]; then
-  git fetch origin "$PR_HEAD"
-  tendril job status TendrilJobId --message="Basing worktree on PR #$PR_NUMBER branch '$PR_HEAD' (will update the existing PR)."
-  git worktree add "<TendrilPlanFolder>/Worktrees/<repo-folder-name>" -B "$PR_HEAD" "origin/$PR_HEAD"
-else
-  tendril job status TendrilJobId --message="PR #$PR_NUMBER is not updatable (state=$PR_STATE, fork=$PR_FORK) — falling back to the standard flow."
-  # Fall back to the standard flow (step 2 above) instead.
-fi
+git fetch origin "$PR_HEAD"
+git worktree add "<TendrilPlanFolder>/Worktrees/<repo-folder-name>" -B "$PR_HEAD" "origin/$PR_HEAD"
 ```
+
+**Note on stale directories:** If a stale worktree directory exists and you run `git -C <stale-dir>
+status`, git silently walks up the parent chain and reports the state of the main repo — making it
+look like the "worktree" is simply on `main`. Do not trust that output. Before assuming a prior
+worktree is intact, verify with `git -C <main-repo> worktree list | grep <path>` or check that
+`<worktree-path>/.git` exists.
 
 After creating the worktree this way, **verify the `.git` file exists** and fail fast if it's missing:
 
