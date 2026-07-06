@@ -1,4 +1,5 @@
 using Ivy.Tendril.Apps.Views;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps.Trash;
 
@@ -42,11 +43,11 @@ public class SidebarView(
         var content = new List(filteredList.Select(f =>
         {
             var item = f;
-            return new ListItem(item.FileName.Replace(".md", ""))
-                .Content(Layout.Horizontal().Gap(1)
-                         | new Badge(item.Project).Variant(BadgeVariant.Outline).Small()
-                         | Text.Muted(item.Date.ToString("yyyy-MM-dd")).Small())
-                .OnClick(() => selectedFile.Set(item.FilePath));
+            var badges = Layout.Horizontal().Gap(1)
+                | new Badge(item.Project).Variant(BadgeVariant.Outline).Small()
+                | Text.Muted(item.Date.ToString("yyyy-MM-dd")).Small();
+
+            return SidebarListRow.Build(item.FileName.Replace(".md", ""), badges, () => selectedFile.Set(item.FilePath));
         }));
 
         return new HeaderLayout(BuildHeader(), content);

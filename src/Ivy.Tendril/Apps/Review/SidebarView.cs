@@ -67,15 +67,14 @@ public class SidebarView(
             var verificationsPassed = plan.Verifications.Count > 0
                                       && plan.Verifications.All(v => v.Status is VerificationStatus.Pass or VerificationStatus.Skipped);
 
-            return new ListItem($"#{plan.Id} {plan.Title}")
-                .Content(Layout.Horizontal().Gap(1)
-                         | new Badge(plan.Project).Variant(BadgeVariant.Outline).Small()
-                             .WithProjectColor(config, plan.Project)
-                         | (!verificationsPassed
-                             ? new Badge("Unverified").Variant(BadgeVariant.Warning).Small()
-                             : null)
-                )
-                .OnClick(() => selectedPlanState.Set(clickablePlan));
+            var badges = Layout.Horizontal().Gap(1)
+                | new Badge(plan.Project).Variant(BadgeVariant.Outline).Small()
+                    .WithProjectColor(config, plan.Project)
+                | (!verificationsPassed
+                    ? new Badge("Unverified").Variant(BadgeVariant.Warning).Small()
+                    : null);
+
+            return SidebarListRow.Build($"#{plan.Id} {plan.Title}", badges, () => selectedPlanState.Set(clickablePlan));
         }));
 
         return new HeaderLayout(BuildHeader(), content);

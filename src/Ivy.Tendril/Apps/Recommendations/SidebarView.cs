@@ -79,8 +79,7 @@ public class SidebarView(
                 ? rec.Description[..120] + "..."
                 : rec.Description;
 
-            return new ListItem($"#{rec.PlanId} {rec.Title}", preview)
-                .OnClick(() => selectedState.Set(clickableRec));
+            return SidebarListRow.Build($"#{rec.PlanId} {rec.Title}", Text.Muted(preview).Small(), () => selectedState.Set(clickableRec));
         }));
 
         return new HeaderLayout(BuildHeader(), content);
