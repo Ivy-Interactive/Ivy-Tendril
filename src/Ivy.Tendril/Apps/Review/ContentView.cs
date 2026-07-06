@@ -228,8 +228,12 @@ public class ContentView(
         var planData = planContentQuery.Value;
         var pendingRecs = planData.Recommendations.Where(r => r.State == RecommendationStatus.Pending).ToList();
 
+        void ImplementRecommendations() => ImplementSelectedRecommendations(
+            selectedPlanState.Value!, pendingRecs, selectedRecTitles, client,
+            planContentQuery.Mutator.Revalidate);
+
         var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, client, showCreatePrDialog, nav,
-            args, selectedRecTitles);
+            args, selectedRecTitles, ImplementRecommendations);
         var actionBar = BuildActionBar(
             selectedPlanState.Value, showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog,
             showCreatePrDialog, copyToClipboard, client, logger, nav, args);
@@ -258,7 +262,8 @@ public class ContentView(
         Action showCreatePrDialog,
         INavigator nav,
         ReviewAppArgs? args,
-        IState<HashSet<string>> selectedRecTitles)
+        IState<HashSet<string>> selectedRecTitles,
+        Action onImplementRecommendations)
     {
         object BuildTitleArea(bool isMobile)
         {
@@ -373,6 +378,17 @@ public class ContentView(
                     WorktreeCleanupService.RemoveWorktreesInBackground(selectedPlan.FolderPath);
                 }).ShortcutKey("m");
                 rightSide |= hasSelection ? completePlanBtn.Outline() : completePlanBtn.Primary();
+            }
+
+            if (hasSelection)
+            { 
+                var count = selectedRecTitles.Value.Count;
+                var label = count > 1 ? "Implement Recommendations" : "Implement Recommendation";
+                rightSide |= new Button(label)
+                    .Badge(count.ToString())
+                    .Icon(Icons.Rocket)
+                    .Primary()
+                    .OnClick(onImplementRecommendations);
             }
 
             return rightSide.Width(isMobile ? Size.Full() : Size.Fit());
@@ -558,9 +574,7 @@ public class ContentView(
 
             content |= new ReviewActionsBarView(selectedPlan, planData.ReviewActionStates, config, logger);
 
-            var recommendationsTab = new RecommendationsTabView(pendingRecs, selectedRecTitles, config,
-                onImplement: () => ImplementSelectedRecommendations(
-                    selectedPlan, pendingRecs, selectedRecTitles, client, planContentQuery.Mutator.Revalidate));
+            var recommendationsTab = new RecommendationsTabView(pendingRecs, selectedRecTitles, config);
 
             var changesTabView = new ChangesTabView(planData.AllChanges, planContentQuery.Loading, planContentQuery.Error, selectedPlan.Project);
 
@@ -669,7 +683,11 @@ public class ContentView(
         var changeRequest = BuildRecommendationChangeRequest(selected);
         planService.AcceptRecommendationsAndRetry(selectedPlan.FolderName, titles);
         jobService.StartJob(new RetryPlanArgs(selectedPlan.FolderPath, changeRequest));
-        client.Toast($"Started RetryPlan for {selected.Count} recommendation(s)", "Implementing Recommendations");
+        var message = selected.Count == 1
+            ? "Started RetryPlan for recommendation"
+            : $"Started RetryPlan for {selected.Count} recommendations";
+        var title = selected.Count == 1 ? "Implementing Recommendation" : "Implementing Recommendations";
+        client.Toast(message, title);
 
         selectedRecTitles.Set(new HashSet<string>());
         refreshPlans();

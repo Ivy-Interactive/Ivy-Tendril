@@ -5,30 +5,19 @@ using Ivy.Tendril.Services;
 namespace Ivy.Tendril.Apps.Review.Tabs;
 
 /// <summary>
-///     The "Recommendations" tab in the Review app: an optional "Implement Recommendations"
-///     button (shown once at least one row is checked, badged with the count) over the list of
-///     pending recommendation rows. The button raises <paramref name="onImplement"/>; the actual
-///     job-starting logic stays in ContentView. Each row owns its own checkbox via
+///     The "Recommendations" tab in the Review app: the list of pending recommendation rows.
+///     The "Implement Recommendations" call-to-action lives in the header controls (it acts on
+///     the shared selection set), not here. Each row owns its own checkbox via
 ///     <see cref="RecommendationRowView"/>.
 /// </summary>
 public class RecommendationsTabView(
     List<RecommendationYaml> pendingRecs,
     IState<HashSet<string>> selectedRecTitles,
-    IConfigService config,
-    Action onImplement) : ViewBase
+    IConfigService config) : ViewBase
 {
     public override object Build()
     {
         var layout = Layout.Vertical().Padding(2);
-
-        if (selectedRecTitles.Value.Count > 0)
-        {
-            var count = selectedRecTitles.Value.Count;
-            layout |= Layout.Horizontal().Gap(2).AlignContent(Align.Right)
-                | new Button("Implement Recommendations")
-                    .Icon(Icons.Rocket).Badge(count.ToString()).Primary()
-                    .OnClick(onImplement);
-        }
 
         if (pendingRecs.Count == 0)
         {
