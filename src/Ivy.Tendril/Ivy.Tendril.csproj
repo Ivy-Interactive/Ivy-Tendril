@@ -106,6 +106,10 @@
     <None Include="../../README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Apps\Review\Tabs\" />
+  </ItemGroup>
+
   <Target Name="SetCommitId" BeforeTargets="GetAssemblyAttributes">
     <!-- CI passes -p:CommitId=<sha>; locally fall back to git. Embedded as assembly metadata
          and read at runtime by BugReportService to tag bug reports with the source revision. -->

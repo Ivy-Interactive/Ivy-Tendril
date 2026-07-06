@@ -5,6 +5,7 @@ using Ivy.Core;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Review.Dialogs;
+using Ivy.Tendril.Apps.Review.Tabs;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Apps.Views.Tabs;
@@ -104,7 +105,7 @@ public class ContentView(
             if (!isOpen.Value) return null;
             return new Sheet(
                 () => isOpen.Set(false),
-                new JobDebugSheet(jobId, jobService, planService, config),
+                new JobDebugSheet(jobId, jobService, planService, config, () => isOpen.Set(false)),
                 "Job Debug"
             ).Width(UxHelper.SheetWidth).Resizable();
         });
@@ -210,7 +211,7 @@ public class ContentView(
         UseEffect(() => { selectedRecTitles.Set(new HashSet<string>()); return Disposable.Empty; },
             selectedPlanState);
 
-        var tabNames = new[] { "summary", "plan", "details", "verifications", "git", "changes", "Artifacts", "recommendations" };
+        var tabNames = new[] { "summary", "plan", "details", "git", "changes", "Artifacts", "recommendations" };
         var selectedTabIndex = Array.IndexOf(tabNames, args?.Tab ?? "summary");
         if (selectedTabIndex < 0) selectedTabIndex = 0;
 
@@ -227,8 +228,12 @@ public class ContentView(
         var planData = planContentQuery.Value;
         var pendingRecs = planData.Recommendations.Where(r => r.State == RecommendationStatus.Pending).ToList();
 
+        void ImplementRecommendations() => ImplementSelectedRecommendations(
+            selectedPlanState.Value!, pendingRecs, selectedRecTitles, client,
+            planContentQuery.Mutator.Revalidate);
+
         var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, client, showCreatePrDialog, nav,
-            args, selectedRecTitles, pendingRecs, planContentQuery.Mutator.Revalidate);
+            args, selectedRecTitles, ImplementRecommendations);
         var actionBar = BuildActionBar(
             selectedPlanState.Value, showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog,
             showCreatePrDialog, copyToClipboard, client, logger, nav, args);
@@ -258,28 +263,45 @@ public class ContentView(
         INavigator nav,
         ReviewAppArgs? args,
         IState<HashSet<string>> selectedRecTitles,
-        List<RecommendationYaml> pendingRecs,
-        Action revalidate)
+        Action onImplementRecommendations)
     {
         object BuildTitleArea(bool isMobile)
         {
+            object SourceButton() => new Button(selectedPlan.IsPullRequestSource ? "PR" : "Issue")
+                .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
+
+            var hasSourceUrl = !string.IsNullOrEmpty(selectedPlan.SourceUrl);
+
             var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full().Min(Size.Px(0)))
                 | Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis)
-                    .Width(Size.Grow().Min(Size.Px(0)));
+                    .Width(Size.Shrink().Min(Size.Px(0)));
+
+            if (hasSourceUrl)
+                desktopTitleLayout |= SourceButton();
 
             var desktopTitle = new Box(desktopTitleLayout).BorderThickness(0).Padding(0)
                 .Width(Size.Full().Min(Size.Px(0)))
                 .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
+            var mobileTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full())
+                | MobileItemPicker.Build(
+                        $"#{selectedPlan.Id} {selectedPlan.Title}",
+                        allPlans,
+                        p => $"#{p.Id} {p.Title}",
+                        p => p.FolderName == selectedPlan.FolderName,
+                        p => selectedPlanState.Set(p))
+                    .Width(Size.Grow().Min(Size.Px(0)));
+
+            if (hasSourceUrl)
+                mobileTitleLayout |= SourceButton();
+
+            var mobileTitle = new Box(mobileTitleLayout).BorderThickness(0).Padding(0)
+                .Width(Size.Full().Min(Size.Px(0)))
+                .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
+
             return Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow().Min(Size.Px(0)))
                    | desktopTitle
-                   | MobileItemPicker.Build(
-                           $"#{selectedPlan.Id} {selectedPlan.Title}",
-                           allPlans,
-                           p => $"#{p.Id} {p.Title}",
-                           p => p.FolderName == selectedPlan.FolderName,
-                           p => selectedPlanState.Set(p))
-                       .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
+                   | mobileTitle;
         }
 
         object BuildControls(bool isMobile)
@@ -291,29 +313,6 @@ public class ContentView(
                                .NoWrap()
                                .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
                                .Muted("plans", word: true);
-
-            if (hasSelection)
-            {
-                var count = selectedRecTitles.Value.Count;
-                rightSide |= new Button("Implement Recommendations")
-                    .Icon(Icons.Rocket).Badge(count.ToString()).Primary()
-                    .OnClick(() =>
-                    {
-                        var titles = selectedRecTitles.Value.ToList();
-                        var selected = pendingRecs.Where(r => titles.Contains(r.Title)).ToList();
-                        if (selected.Count == 0) return;
-
-                        // Single job for the whole batch, never one StartJob call per recommendation.
-                        var changeRequest = BuildRecommendationChangeRequest(selected);
-                        planService.AcceptRecommendationsAndRetry(selectedPlan.FolderName, titles);
-                        jobService.StartJob(new RetryPlanArgs(selectedPlan.FolderPath, changeRequest));
-                        client.Toast($"Started RetryPlan for {selected.Count} recommendation(s)", "Implementing Recommendations");
-
-                        selectedRecTitles.Set(new HashSet<string>());
-                        refreshPlans();
-                        revalidate();
-                    });
-            }
 
             if (selectedPlan.Commits.Count > 0)
             {
@@ -381,21 +380,18 @@ public class ContentView(
                 rightSide |= hasSelection ? completePlanBtn.Outline() : completePlanBtn.Primary();
             }
 
-            if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
-            {
-                var leftSide = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                               | new Button(selectedPlan.IsPullRequestSource ? "PR" : "Issue")
-                                   .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
-
-                return Layout.Horizontal()
-                       .Width(isMobile ? Size.Full() : Size.Fit())
-                       .AlignContent(isMobile ? Align.SpaceBetween : Align.Right)
-                       .Gap(2)
-                       | leftSide
-                       | rightSide;
+            if (hasSelection)
+            { 
+                var count = selectedRecTitles.Value.Count;
+                var label = count > 1 ? "Implement Recommendations" : "Implement Recommendation";
+                rightSide |= new Button(label)
+                    .Badge(count.ToString())
+                    .Icon(Icons.Rocket)
+                    .Primary()
+                    .OnClick(onImplementRecommendations);
             }
 
-            return rightSide;
+            return rightSide.Width(isMobile ? Size.Full() : Size.Fit());
         }
 
         return ResponsiveHeader.Build(BuildTitleArea, BuildControls);
@@ -541,22 +537,19 @@ public class ContentView(
             return content | Text.Muted("No plan selected");
         }
 
-        var reviewAnnotated = MarkdownHelper.PrepareForDisplay(selectedPlan.LatestRevisionContent, config);
-        var planTabContent = Layout.Vertical().Height(Size.Full())
-            | new Markdown(reviewAnnotated)
-                .DangerouslyAllowLocalFiles()
-                .Article()
-                .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile, planId =>
-                {
-                    var planFolder = Directory.GetDirectories(planService.PlansDirectory, $"{planId:D5}-*")
-                        .FirstOrDefault();
-                    if (planFolder != null)
-                    {
-                        var plan = planService.GetPlanByFolder(planFolder);
-                        if (plan != null)
-                            selectedPlanState.Set(plan);
-                    }
-                }));
+        var planTabContent = new PlanTabView(selectedPlan, selectedPlanState, openFile, planService, config);
+
+        Action<string> onLinkClick = FileSheet.CreateLinkClickHandler(openFile, planId =>
+        {
+            var planFolder = Directory.GetDirectories(planService.PlansDirectory, $"{planId:D5}-*")
+                .FirstOrDefault();
+            if (planFolder != null)
+            {
+                var plan = planService.GetPlanByFolder(planFolder);
+                if (plan != null)
+                    selectedPlanState.Set(plan);
+            }
+        });
 
         if (planContentQuery.Loading && planData is null)
         {
@@ -591,65 +584,27 @@ public class ContentView(
             var totalArtifacts = (planData.Artifacts.GetValueOrDefault("screenshots")?.Count ?? 0)
                                  + (planData.Artifacts.ContainsKey("sample") ? 1 : 0);
 
-            var reviewActionStates = planData.ReviewActionStates;
-            var projectConfig = config.GetProject(selectedPlan.Project);
-            var reviewActions = projectConfig?.ReviewActions ?? new List<ReviewActionConfig>();
-            if (reviewActions.Count > 0)
-            {
-                var actionsBar = Layout.Horizontal().Gap(2).Padding(2).Height(Size.Fit());
-                for (var i = 0; i < reviewActions.Count; i++)
-                {
-                    var action = reviewActions[i];
-                    var conditionMet = i < reviewActionStates.Count && reviewActionStates[i].ConditionMet;
+            content |= new ReviewActionsBarView(selectedPlan, planData.ReviewActionStates, config, logger);
 
-                    var btn = new Button(action.Name).Icon(Icons.Play).Outline();
-                    if (!conditionMet)
-                    {
-                        btn = btn.Disabled();
-                    }
-                    else
-                    {
-                        var actionCapture = action;
-                        btn = btn.OnClick(() =>
-                        {
-                            if (!PlatformHelper.RunPowerShellAction(actionCapture.Command, selectedPlan.FolderPath, logger))
-                            {
-                                logger.LogWarning("Failed to run review action {ActionName}: pwsh not found", actionCapture.Name);
-                            }
-                        });
-                    }
-
-                    actionsBar |= btn;
-                }
-
-                content |= actionsBar;
-            }
-
-            var recommendationsLayout = Layout.Vertical().Padding(2);
-            if (pendingRecs.Count == 0)
-                recommendationsLayout |= Text.Muted("No recommendations.");
-            else
-                for (var i = 0; i < pendingRecs.Count; i++)
-                {
-                    recommendationsLayout |= new RecommendationRowView(pendingRecs[i], selectedRecTitles, config);
-                    if (i < pendingRecs.Count - 1)
-                        recommendationsLayout |= new Separator();
-                }
+            var recommendationsTab = new RecommendationsTabView(pendingRecs, selectedRecTitles, config);
 
             var changesTabView = new ChangesTabView(planData.AllChanges, planContentQuery.Loading, planContentQuery.Error, selectedPlan.Project);
 
-            var tabNamesList = new List<string> { "summary", "plan", "details", "verifications", "git" };
+            var tabNamesList = new List<string> { "summary", "plan", "details", "git" };
             var tabList = new List<Tab>
             {
-                new Tab("Summary", Cap(new SummaryTabView(config, planData.SummaryMarkdown, planContentQuery.Loading))),
+                // Summary is rendered via DraftMarkdown with a pinned Verifications sidebar, so it is
+                // NOT wrapped in Cap() (whose outer scroll would also scroll the sticky box). The widget
+                // reproduces Cap()'s left inset + max-width.
+                new Tab("Summary", new SummaryTabView(
+                    config, planData.SummaryMarkdown, selectedPlan.Verifications,
+                    planData.VerificationReports, v => openVerification.Set(v), onLinkClick,
+                    planContentQuery.Loading)),
                 new Tab("Plan", Cap(planTabContent)),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan,
                     jobService.GetJobsForPlan(selectedPlan.FolderName),
                     showDebugJob, planService, selectedPlanState, refreshPlans,
                     folderPath => selectedPlanState.Set(planService.GetPlanByFolder(folderPath))))),
-                new Tab("Verifications", Cap(new VerificationsTabView(
-                    selectedPlan.Verifications, planData.VerificationReports,
-                    v => openVerification.Set(v)))).Badge(selectedPlan.Verifications.Count.ToString()),
                 new Tab("Git", Cap(gitTabView)).Badge((gitData.WorktreeSections.Count + selectedPlan.Commits.Count + selectedPlan.Prs.Count).ToString()),
             };
 
@@ -671,7 +626,7 @@ public class ContentView(
 
             if (pendingRecs.Count > 0)
             {
-                tabList.Add(new Tab("Recommendations", Cap(recommendationsLayout)).Badge(pendingRecs.Count.ToString()));
+                tabList.Add(new Tab("Recommendations", Cap(recommendationsTab)).Badge(pendingRecs.Count.ToString()));
                 tabNamesList.Add("recommendations");
             }
 
@@ -723,6 +678,40 @@ public class ContentView(
                     .Width(Size.Full().Max(Size.Units(200))) | inner);
         }
     }
+
+    private void ImplementSelectedRecommendations(
+        PlanFile selectedPlan,
+        List<RecommendationYaml> pendingRecs,
+        IState<HashSet<string>> selectedRecTitles,
+        IClientProvider client,
+        Action revalidate)
+    {
+        var titles = selectedRecTitles.Value.ToList();
+        var selected = SelectRecommendationsToImplement(pendingRecs, titles);
+        if (selected.Count == 0)
+        {
+            client.Toast("Select at least one recommendation to implement.", "Nothing Selected");
+            return;
+        }
+
+        // Single job for the whole batch, never one StartJob call per recommendation.
+        var changeRequest = BuildRecommendationChangeRequest(selected);
+        planService.AcceptRecommendationsAndRetry(selectedPlan.FolderName, titles);
+        jobService.StartJob(new RetryPlanArgs(selectedPlan.FolderPath, changeRequest));
+        var message = selected.Count == 1
+            ? "Started RetryPlan for recommendation"
+            : $"Started RetryPlan for {selected.Count} recommendations";
+        var title = selected.Count == 1 ? "Implementing Recommendation" : "Implementing Recommendations";
+        client.Toast(message, title);
+
+        selectedRecTitles.Set(new HashSet<string>());
+        refreshPlans();
+        revalidate();
+    }
+
+    internal static List<RecommendationYaml> SelectRecommendationsToImplement(
+        IEnumerable<RecommendationYaml> pendingRecs, IReadOnlyCollection<string> selectedTitles)
+        => pendingRecs.Where(r => selectedTitles.Contains(r.Title)).ToList();
 
     private static string BuildRecommendationChangeRequest(List<RecommendationYaml> recs)
     {
