@@ -150,91 +150,59 @@ Report status: `tendril job status TendrilJobId --message="Creating worktrees...
 
 For each repo in `RepoConfigs` (this includes both the plan's repos AND any read-only build dependencies from the project config):
 
-1. Fetch latest from remote: `git fetch origin`
-2. Determine the base branch:
-   - Check the `RepoConfigs` firmware header for this repo's `baseBranch` value
-   - If configured, use that value as the base branch
-   - Otherwise, auto-detect via: `git symbolic-ref refs/remotes/origin/HEAD | sed 's|refs/remotes/origin/||'`
-3. If the worktree or branch already exists from a prior execution, remove it first:
-
-```bash
-tendril plan remove-worktree <TendrilPlanId> <repo-folder-name>
-```
-
-This handles stale directories, locked files, and branch cleanup automatically with fallback strategies.
-
-**Note on stale directories:** If a stale worktree directory exists and you run `git -C <stale-dir> status`, git silently walks up the parent chain and reports the state of the main repo — making it look like the "worktree" is simply on `main`. Do not trust that output. Before assuming a prior worktree is intact, verify with `git -C <main-repo> worktree list | grep <path>` or check that `<worktree-path>/.git` exists.
-
-1. **PR-source check (decide the worktree's base branch).** If the `SourceUrl` firmware header is a
+1. **PR-source check (decide which flow to use).** If the `SourceUrl` firmware header is a
    GitHub **pull request** URL (`https://github.com/<owner>/<repo>/pull/<number>`) **and** it points
    at *this* worktree's repo, the worktree should be based on the PR's branch so the fix updates the
-   original PR instead of opening a second one. Otherwise, fall back to the standard base-branch flow.
+   original PR instead of opening a second one — use the **PR-override flow** below. Otherwise, use
+   the **standard flow**.
+
+2. **Standard flow (default — use the `add-worktree` CLI command, never hand-roll git):**
+
+```bash
+tendril plan add-worktree <TendrilPlanId> <RepoPath> [--base <resolved-base-branch>]
+```
+
+Pass `--base` only if the `RepoConfigs` firmware header sets a `baseBranch` for this repo; omit it
+to let the command auto-detect the default branch. This single command replaces the entire manual
+`git fetch` / stale-worktree-removal / `git worktree add` sequence: it computes the
+`tendril/<planFolderName>` branch name and `Worktrees/<repo-folder-name>` path internally, removes
+any stale worktree and branch from a prior execution before creating the new one, fetches `origin`,
+resolves the base branch, and verifies the `.git` file exists afterward. **Do not hand-roll any of
+these git steps yourself** — this is the exact failure class (e.g. a Windows locale bug in
+`grep -P`-based branch-name derivation) this command was built to eliminate.
+
+If the command exits non-zero, its stderr already explains which step failed (missing repo path,
+stale-worktree removal failure, fetch failure, or worktree-add failure). Print that output and call:
+
+```bash
+tendril job fail TendrilJobId --message="Worktree creation failed for <repo-folder-name>: <captured command output>"
+exit 1
+```
+
+3. **PR-override flow (exception — only when the PR-source check above applies).** `add-worktree`
+   cannot be used here: it always creates a fresh `tendril/<planFolderName>` branch, whereas this
+   case must reuse/reset the PR's own head branch so commits land on the existing PR. Hand-roll it:
 
 ```bash
 cd <original-repo-path>
 git fetch origin
 
-# Default: standard plan branch off the base branch.
-PLAN_FOLDER_NAME=$(basename "<TendrilPlanFolder>")
-PLAN_ID=$(echo "$PLAN_FOLDER_NAME" | grep -oP '^\d+')
-SAFE_TITLE=$(echo "$PLAN_FOLDER_NAME" | sed 's/^[0-9]\+-//')
-BRANCH_NAME="tendril/$PLAN_ID-$SAFE_TITLE"
-WORKTREE_REF="origin/<resolved-base-branch>"     # what to base the worktree on
-WORKTREE_NEW_FLAG="-b"                            # create a fresh branch by default
+PR_JSON=$(gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRefName,state,isCrossRepository 2>/dev/null)
+PR_STATE=$(echo "$PR_JSON" | jq -r '.state')
+PR_FORK=$(echo "$PR_JSON" | jq -r '.isCrossRepository')
+PR_HEAD=$(echo "$PR_JSON" | jq -r '.headRefName')
 
-# PR-source override: only when SourceUrl is a PR for THIS repo's owner/repo.
-if [[ -n "$SOURCE_URL" && "$SOURCE_URL" =~ github\.com/([^/]+/[^/]+)/pull/([0-9]+) ]]; then
-  PR_REPO="${BASH_REMATCH[1]}"; PR_NUMBER="${BASH_REMATCH[2]}"
-  ORIGIN_REPO=$(git remote get-url origin | sed -E 's#.*github\.com[:/]([^/]+/[^/]+?)(\.git)?$#\1#')
-  if [[ "$PR_REPO" == "$ORIGIN_REPO" ]]; then
-    PR_JSON=$(gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRefName,state,isCrossRepository 2>/dev/null)
-    PR_STATE=$(echo "$PR_JSON" | jq -r '.state')
-    PR_FORK=$(echo "$PR_JSON" | jq -r '.isCrossRepository')
-    PR_HEAD=$(echo "$PR_JSON" | jq -r '.headRefName')
-    if [[ "$PR_STATE" == "OPEN" && "$PR_FORK" == "false" && -n "$PR_HEAD" && "$PR_HEAD" != "null" ]]; then
-      git fetch origin "$PR_HEAD"
-      BRANCH_NAME="$PR_HEAD"
-      WORKTREE_REF="origin/$PR_HEAD"
-      WORKTREE_NEW_FLAG="-B"                      # check out / reset the existing PR branch
-      tendril job status TendrilJobId --message="Basing worktree on PR #$PR_NUMBER branch '$PR_HEAD' (will update the existing PR)."
-    else
-      tendril job status TendrilJobId --message="PR #$PR_NUMBER is not updatable (state=$PR_STATE, fork=$PR_FORK) — falling back to a new branch + new PR."
-    fi
-  fi
+if [[ "$PR_STATE" == "OPEN" && "$PR_FORK" == "false" && -n "$PR_HEAD" && "$PR_HEAD" != "null" ]]; then
+  git fetch origin "$PR_HEAD"
+  tendril job status TendrilJobId --message="Basing worktree on PR #$PR_NUMBER branch '$PR_HEAD' (will update the existing PR)."
+  git worktree add "<TendrilPlanFolder>/Worktrees/<repo-folder-name>" -B "$PR_HEAD" "origin/$PR_HEAD"
+else
+  tendril job status TendrilJobId --message="PR #$PR_NUMBER is not updatable (state=$PR_STATE, fork=$PR_FORK) — falling back to the standard flow."
+  # Fall back to the standard flow (step 2 above) instead.
 fi
-
-git worktree add "<TendrilPlanFolder>/Worktrees/<repo-folder-name>" "$WORKTREE_NEW_FLAG" "$BRANCH_NAME" "$WORKTREE_REF"
 ```
 
-Example (standard, no PR source):
-
-```bash
-cd <RepoPath>
-git fetch origin
-git worktree add "<TendrilPlanFolder>/Worktrees/<RepoName>" -b "tendril/<TendrilPlanId>-<SafeTitle>" origin/<resolved-base-branch>
-```
-
-**Important:** Unless the PR-source override applied above, always branch from
-`origin/<resolved-base-branch>`, not local HEAD. This ensures the PR only contains the plan's
-commits, not any unpushed local work. The `<resolved-base-branch>` comes from either the
-`RepoConfigs` firmware header (if `baseBranch` is configured) or auto-detection. When the PR-source
-override applies, the worktree is instead based on the PR's head branch so commits land on top of
-the existing PR — never force-cut a new branch over the PR's history.
-
-**Note on `RepoConfigs`:** The firmware header may include a `RepoConfigs` value injected by Tendril. It contains per-repo configuration:
-```yaml
-RepoConfigs: |
-  - path: /home/user/repos/my-project
-    baseBranch: main
-  - path: /home/user/repos/shared-lib
-    baseBranch: main
-    readOnly: true
-```
-If `baseBranch` is present for a repo, use it instead of auto-detecting. If absent, fall back to `git symbolic-ref refs/remotes/origin/HEAD`.
-
-**Read-only repos** (`readOnly: true`) are build dependencies — they need worktrees so that cross-repo project references resolve, but you must NOT make changes, commits, or PRs in them. Create their worktrees the same way (branching from `origin/<baseBranch>`), but skip them during implementation steps 3-5.
-
-4. After creating the worktree, **verify the `.git` file exists** and fail fast if it's missing:
+After creating the worktree this way, **verify the `.git` file exists** and fail fast if it's missing:
 
 ```bash
 if [ ! -f "<TendrilPlanFolder>/Worktrees/<repo-folder-name>/.git" ]; then
@@ -246,7 +214,21 @@ fi
 cat "<TendrilPlanFolder>/Worktrees/<repo-folder-name>/.git"
 ```
 
-This ensures ExecutePlan fails immediately if worktree creation is incomplete, rather than leaving orphaned directories that trigger warnings during cleanup.
+(The standard flow's `add-worktree` command already performs this check internally — this manual
+check is only needed after the hand-rolled PR-override flow.)
+
+**Note on `RepoConfigs`:** The firmware header may include a `RepoConfigs` value injected by Tendril. It contains per-repo configuration:
+```yaml
+RepoConfigs: |
+  - path: /home/user/repos/my-project
+    baseBranch: main
+  - path: /home/user/repos/shared-lib
+    baseBranch: main
+    readOnly: true
+```
+If `baseBranch` is present for a repo, pass it as `--base` to `add-worktree` (or use it as the base ref in the PR-override flow). If absent, let `add-worktree` auto-detect it.
+
+**Read-only repos** (`readOnly: true`) are build dependencies — they need worktrees so that cross-repo project references resolve, but you must NOT make changes, commits, or PRs in them. Create their worktrees the same way (standard flow above), but skip them during implementation steps 3-5.
 
 ### 2.5. Setup Build Dependencies in Worktrees
 
