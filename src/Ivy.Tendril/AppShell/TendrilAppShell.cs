@@ -444,8 +444,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             if (!CheckTabExists(tabIndex)) return;
 
             var tab = tabs.Value[tabIndex];
-            tabs.Set(tabs.Value.RemoveAt(tabIndex)
-                .Insert(tabIndex, tab with { RefreshToken = Guid.NewGuid().ToString() }));
+            tabs.Set(tabs.Value.SetItem(tabIndex, tab with { RefreshToken = Guid.NewGuid().ToString() }));
             selectedIndex.Set(tabIndex);
         }
 
