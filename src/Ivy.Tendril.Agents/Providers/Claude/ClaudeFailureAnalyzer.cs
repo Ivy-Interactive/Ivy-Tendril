@@ -20,8 +20,10 @@ public sealed class ClaudeFailureAnalyzer : IFailureAnalyzer
         }
 
         var stderr = string.Join("\n", context.StderrLines);
+        var lastResultResponse = context.Events.OfType<ResultEvent>().LastOrDefault()?.Response ?? "";
 
-        if (ContainsAny(stderr, "rate limit", "429", "too many requests"))
+        if (ContainsAny(stderr, "rate limit", "429", "too many requests", "session limit", "usage limit")
+            || ContainsAny(lastResultResponse, "rate limit", "session limit", "usage limit"))
         {
             return new FailureAnalysis
             {

@@ -798,12 +798,15 @@ public class JobService : IJobService
         if (job.WaitForJobIds is not { Count: > 0 })
             return false;
 
-        var pendingIds = job.WaitForJobIds
-            .Where(id => _jobs.TryGetValue(id, out var dep) &&
-                         dep.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked)
-            .ToList();
+        var pending = new List<JobItem>();
+        foreach (var id in job.WaitForJobIds)
+        {
+            if (_jobs.TryGetValue(id, out var dep) &&
+                dep.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked)
+                pending.Add(dep);
+        }
 
-        if (pendingIds.Count == 0)
+        if (pending.Count == 0)
         {
             // Check if any already failed — cascade immediately
             var failedId = job.WaitForJobIds
@@ -825,10 +828,19 @@ public class JobService : IJobService
         }
 
         job.Status = JobStatus.Blocked;
-        job.StatusMessage = $"Waiting for {(pendingIds.Count == 1 ? "job" : "jobs")}: {string.Join(", ", pendingIds)}";
-        RaiseNotification(new JobNotification("Job Blocked", $"{job.PlanFile}: waiting for {string.Join(", ", pendingIds)}", false));
+        var waitingFor = string.Join(", ", pending.Select(DescribeWaitDependency));
+        job.StatusMessage = $"Waiting for {waitingFor}";
+        RaiseNotification(new JobNotification("Job Blocked", $"{job.PlanFile}: waiting for {waitingFor}", false));
         RaiseJobsStructureChanged();
         return true;
+    }
+
+    private static string DescribeWaitDependency(JobItem dep)
+    {
+        var planId = dep.ResolvePlanId();
+        return string.IsNullOrEmpty(planId)
+            ? $"{dep.Type} (job {dep.Id})"
+            : $"{dep.Type} of plan {planId} (job {dep.Id})";
     }
 
     /// <summary>

@@ -38,6 +38,7 @@ public interface IPlanReaderService
 
     List<RecommendationYaml> GetRecommendationsForPlan(string folderName);
     void AcceptRecommendationAndRetry(string folderName, string recommendationTitle);
+    void AcceptRecommendationsAndRetry(string folderName, IReadOnlyCollection<string> titles);
 
     void SyncPlanArtifacts(string planFolder);
     PlanFile? GetPlanByFolderFromDisk(string folderPath) => GetPlanByFolder(folderPath);

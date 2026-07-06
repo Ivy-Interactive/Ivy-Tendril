@@ -396,8 +396,11 @@ export const ContentInput: React.FC<ContentInputProps> = ({
     };
   }, []);
 
+  const canSubmit = (text.trim().length > 0 || files.length > 0) && voiceStatus === "idle";
+
   const handleSubmit = () => {
     if (voiceStatus !== "idle") return;
+    if (!text.trim() && files.length === 0) return;
     const fullText = text + files.map((f) => ` [file: ${f}]`).join("");
     if (dispatchEvent) {
       dispatchEvent("OnSubmit", id, [
@@ -808,13 +811,13 @@ export const ContentInput: React.FC<ContentInputProps> = ({
             {/* Submit Button or Split Button */}
             {menuOptions && menuOptions.length > 0 ? (
               <div
-                className={`civ-split-btn-container ${!text.trim() || voiceStatus !== "idle" ? "disabled" : ""}`}
+                className={`civ-split-btn-container ${!canSubmit ? "disabled" : ""}`}
                 ref={menuRef}
               >
                 <button
                   className="civ-submit-btn civ-submit-btn-labeled civ-split-btn-left"
                   onClick={handleSubmit}
-                  disabled={!text.trim() || voiceStatus !== "idle"}
+                  disabled={!canSubmit}
                   type="button"
                   title={submitLabel || "Send"}
                 >
@@ -824,7 +827,7 @@ export const ContentInput: React.FC<ContentInputProps> = ({
                 <button
                   className="civ-split-btn-arrow"
                   onClick={() => setMenuOpen(!menuOpen)}
-                  disabled={!text.trim() || voiceStatus !== "idle"}
+                  disabled={!canSubmit}
                   type="button"
                   title="More options"
                 >
@@ -856,7 +859,7 @@ export const ContentInput: React.FC<ContentInputProps> = ({
               <button
                 className={`civ-submit-btn ${submitLabel ? "civ-submit-btn-labeled" : ""}`}
                 onClick={handleSubmit}
-                disabled={!text.trim() || voiceStatus !== "idle"}
+                disabled={!canSubmit}
                 type="button"
                 title={submitLabel || "Send"}
               >

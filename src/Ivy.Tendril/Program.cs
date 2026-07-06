@@ -511,7 +511,7 @@ public class Program
                 plan.AddCommand<PlanCreateCommand>("create")
                     .WithDescription("Create a new plan");
                 plan.AddCommand<PlanUpdateCommand>("update")
-                    .WithDescription("Update plan from STDIN");
+                    .WithDescription("Update plan from a file or STDIN");
                 plan.AddCommand<PlanSetCommand>("set")
                     .WithDescription("Set a single field");
                 plan.AddCommand<PlanAddRepoCommand>("add-repo")
@@ -537,13 +537,15 @@ public class Program
                 plan.AddCommand<PlanAddLogCommand>("add-log")
                     .WithDescription("Write a log entry");
                 plan.AddCommand<PlanWriteRevisionCommand>("write-revision")
-                    .WithDescription("Write a revision file from STDIN");
+                    .WithDescription("Write a revision file from a file or STDIN");
                 plan.AddCommand<PlanGetRevisionCommand>("get-revision")
                     .WithDescription("Print revision content");
                 plan.AddCommand<PlanValidateCommand>("validate")
                     .WithDescription("Validate plan health");
                 plan.AddCommand<PlanCleanupCommand>("cleanup")
                     .WithDescription("Remove worktrees from a plan");
+                plan.AddCommand<PlanAddWorktreeCommand>("add-worktree")
+                    .WithDescription("Create a git worktree for a plan");
                 plan.AddCommand<PlanRemoveWorktreeCommand>("remove-worktree")
                     .WithDescription("Remove a single worktree from a plan");
                 plan.AddCommand<PlanDoctorCommand>("doctor")
@@ -599,7 +601,7 @@ public class Program
             config.AddBranch("trash", trash =>
             {
                 trash.AddCommand<TrashWriteCommand>("write")
-                    .WithDescription("Write a file to Trash from STDIN");
+                    .WithDescription("Write a file to Trash from a file or STDIN");
             });
 
             config.AddBranch("project", project =>

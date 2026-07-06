@@ -213,4 +213,95 @@ verifications: []
         Assert.Equal("Build", reloaded.Settings.Verifications[1].Name);
         Assert.Equal("Verify the project builds", reloaded.Settings.Verifications[1].Prompt);
     }
+
+    // --- Add Verification CLI (-p / --file / --stdin) ---
+
+    private static CommandApp BuildVerificationAddApp()
+    {
+        var app = new CommandApp();
+        app.Configure(config =>
+        {
+            config.PropagateExceptions();
+            config.AddBranch("verification", verification => verification.AddCommand<VerificationAddCommand>("add"));
+        });
+        return app;
+    }
+
+    [Fact]
+    public void VerificationAdd_InlinePrompt_AddsDefinition()
+    {
+        var app = BuildVerificationAddApp();
+
+        var exit = app.Run(["verification", "add", "InlinePromptTest", "-p", "Inline prompt text"]);
+
+        Assert.Equal(0, exit);
+        var reloaded = CreateConfig();
+        Assert.Equal("Inline prompt text", reloaded.Settings.Verifications.Single().Prompt);
+    }
+
+    [Fact]
+    public void VerificationAdd_File_ReadsFromFile()
+    {
+        var file = Path.Combine(_tempDir.Path, "prompt.md");
+        File.WriteAllText(file, "Prompt from file");
+        var app = BuildVerificationAddApp();
+
+        var exit = app.Run(["verification", "add", "FilePromptTest", "--file", file]);
+
+        Assert.Equal(0, exit);
+        var reloaded = CreateConfig();
+        Assert.Equal("Prompt from file", reloaded.Settings.Verifications.Single().Prompt);
+    }
+
+    [Fact]
+    public void VerificationAdd_Stdin_ReadsPipedInput()
+    {
+        var app = BuildVerificationAddApp();
+
+        var originalIn = Console.In;
+        Console.SetIn(new StringReader("Prompt from stdin"));
+        try
+        {
+            var exit = app.Run(["verification", "add", "StdinPromptTest", "--stdin"]);
+            Assert.Equal(0, exit);
+        }
+        finally
+        {
+            Console.SetIn(originalIn);
+        }
+
+        var reloaded = CreateConfig();
+        Assert.Equal("Prompt from stdin", reloaded.Settings.Verifications.Single().Prompt);
+    }
+
+    [Fact]
+    public void VerificationAdd_MultipleSources_FailsValidation()
+    {
+        Assert.False(new VerificationAddSettings { Name = "X", Prompt = "inline", FilePath = "f.md" }.Validate().Successful);
+
+        var app = BuildVerificationAddApp();
+        Assert.Throws<CommandRuntimeException>(() =>
+            app.Run(["verification", "add", "MultiSourceTest", "-p", "inline", "--file", "f.md"]));
+    }
+
+    [Fact]
+    public void VerificationAdd_NoSource_ThrowsAndNeverReadsStdin()
+    {
+        var app = BuildVerificationAddApp();
+
+        var originalIn = Console.In;
+        Console.SetIn(new StringReader("SENTINEL-SHOULD-NOT-BE-READ"));
+        try
+        {
+            var ex = Assert.Throws<ArgumentException>(() => app.Run(["verification", "add", "NoSourceTest"]));
+            Assert.Contains("--prompt, --file, or --stdin", ex.Message);
+        }
+        finally
+        {
+            Console.SetIn(originalIn);
+        }
+
+        var reloaded = CreateConfig();
+        Assert.Empty(reloaded.Settings.Verifications);
+    }
 }

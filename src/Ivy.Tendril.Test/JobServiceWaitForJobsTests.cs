@@ -209,4 +209,63 @@ public class JobServiceWaitForJobsTests
         Assert.NotNull(job);
         Assert.NotEqual(JobStatus.Blocked, job.Status);
     }
+
+    [Fact]
+    public void StartJob_WithWaitForJobs_MessageNamesPlanWhenDependencyTiedToPlan()
+    {
+        SynchronizationContext.SetSynchronizationContext(null);
+
+        var service = new JobService(
+            TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
+            maxConcurrentJobs: 5);
+
+        var depId = service.CreateTestJob(new ExecutePlanArgs("00075-DepPlan"));
+
+        var id = service.StartJob(new CreatePlanArgs("Waiting job", "Auto") { WaitForJobs = [depId] });
+        var job = service.GetJob(id);
+
+        Assert.NotNull(job);
+        Assert.Equal(JobStatus.Blocked, job.Status);
+        Assert.Equal($"Waiting for ExecutePlan of plan 00075 (job {depId})", job.StatusMessage);
+    }
+
+    [Fact]
+    public void StartJob_WithWaitForJobs_MessageOmitsPlanWhenDependencyNotTiedToPlan()
+    {
+        SynchronizationContext.SetSynchronizationContext(null);
+
+        var service = new JobService(
+            TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
+            maxConcurrentJobs: 5);
+
+        var depId = service.CreateTestJob(new CreatePlanArgs("Dep job", "Auto"));
+
+        var id = service.StartJob(new CreatePlanArgs("Waiting job", "Auto") { WaitForJobs = [depId] });
+        var job = service.GetJob(id);
+
+        Assert.NotNull(job);
+        Assert.Equal(JobStatus.Blocked, job.Status);
+        Assert.Equal($"Waiting for CreatePlan (job {depId})", job.StatusMessage);
+    }
+
+    [Fact]
+    public void StartJob_WithMultipleWaitForJobs_MessageListsEachDependency()
+    {
+        SynchronizationContext.SetSynchronizationContext(null);
+
+        var service = new JobService(
+            TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
+            maxConcurrentJobs: 5);
+
+        var dep1Id = service.CreateTestJob(new ExecutePlanArgs("00075-DepPlan"));
+        var dep2Id = service.CreateTestJob(new CreatePlanArgs("Dep job", "Auto"));
+
+        var id = service.StartJob(new CreatePlanArgs("Waiting job", "Auto") { WaitForJobs = [dep1Id, dep2Id] });
+        var job = service.GetJob(id);
+
+        Assert.NotNull(job);
+        Assert.Equal(JobStatus.Blocked, job.Status);
+        Assert.Contains($"ExecutePlan of plan 00075 (job {dep1Id})", job.StatusMessage);
+        Assert.Contains($"CreatePlan (job {dep2Id})", job.StatusMessage);
+    }
 }

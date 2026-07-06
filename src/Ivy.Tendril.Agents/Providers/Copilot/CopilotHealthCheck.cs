@@ -76,7 +76,9 @@ public sealed class CopilotHealthCheck : IAgentHealthCheck
 
         if (stderr.Contains("model", StringComparison.OrdinalIgnoreCase) &&
             (stderr.Contains("invalid", StringComparison.OrdinalIgnoreCase) ||
-             stderr.Contains("not found", StringComparison.OrdinalIgnoreCase)))
+             stderr.Contains("not found", StringComparison.OrdinalIgnoreCase) ||
+             stderr.Contains("does not exist", StringComparison.OrdinalIgnoreCase) ||
+             stderr.Contains("not available", StringComparison.OrdinalIgnoreCase)))
             return new ModelValidationResult
             {
                 Status = ModelValidationStatus.InvalidModel,

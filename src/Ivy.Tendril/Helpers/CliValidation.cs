@@ -80,12 +80,43 @@ public static class CliValidation
     }
 
     [DoesNotReturn]
-    public static void ThrowVerificationNotFound(string name, IEnumerable<string> available)
-    {
-        throw new InvalidOperationException($"Verification not found: '{name}'. Available: {string.Join(", ", available)}");
-    }
+    private static void ThrowNotFound(string entity, string name, IEnumerable<string> available) =>
+        throw new InvalidOperationException(
+            $"{entity} not found: '{name}'. Available: {string.Join(", ", available)}");
+
+    [DoesNotReturn]
+    public static void ThrowVerificationNotFound(string name, IEnumerable<string> available) =>
+        ThrowNotFound("Verification", name, available);
+
+    [DoesNotReturn]
+    public static void ThrowProjectNotFound(string name, IEnumerable<string> available) =>
+        ThrowNotFound("Project", name, available);
+
+    [DoesNotReturn]
+    public static void ThrowRepoNotFound(string path, IEnumerable<string> available) =>
+        ThrowNotFound("Repository", path, available);
+
+    [DoesNotReturn]
+    public static void ThrowReviewActionNotFound(string name, IEnumerable<string> available) =>
+        ThrowNotFound("Review action", name, available);
+
+    [DoesNotReturn]
+    public static void ThrowBuildDependencyNotFound(string name, IEnumerable<string> available) =>
+        ThrowNotFound("Build dependency", name, available);
+
+    [DoesNotReturn]
+    public static void ThrowVerificationTargetNotFound(string optionName, string name, IEnumerable<string> available) =>
+        ThrowNotFound($"Target verification for --{optionName}", name, available);
 
     /// <summary>Number of value sources supplied (inline arg / --file / --stdin), for the "exactly one" rule.</summary>
     public static int CountSources(bool stdin, string? filePath, string value) =>
         (stdin ? 1 : 0) + (!string.IsNullOrEmpty(filePath) ? 1 : 0) + (!string.IsNullOrEmpty(value) ? 1 : 0);
+
+    // Shared "provide long-form input exactly one way" rule.
+    // inlineSources names the allowed sources, e.g.
+    // "an inline <value>, --file, or --stdin" or "--prompt, --file, or --stdin".
+    public static SpectreValidation ValidateSingleSource(int sourceCount, string inlineSources) =>
+        sourceCount > 1
+            ? SpectreValidation.Error($"Provide the value in exactly one way: {inlineSources}.")
+            : SpectreValidation.Success();
 }

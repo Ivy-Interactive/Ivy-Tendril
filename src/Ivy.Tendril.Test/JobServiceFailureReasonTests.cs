@@ -335,4 +335,86 @@ public class JobServiceFailureReasonTests : IDisposable
         Assert.Equal(JobStatus.Failed, job.Status);
         Assert.Equal("Rate limited by the API (Wait before retrying or switch to a different model)", job.StatusMessage);
     }
+
+    [Fact]
+    public void ExtractFailureReason_FailedResultEvent_SessionLimit_ReturnsCleanMessage()
+    {
+        var lines = new List<string>
+        {
+            """{"kind":"result","response":"You have hit your session limit, resets 4pm (Europe/Stockholm)","is_success":false,"duration_ms":557}"""
+        };
+
+        var result = JobService.ExtractFailureReason(lines, "test");
+
+        Assert.StartsWith("Claude usage limit reached:", result);
+        Assert.Contains("session limit", result);
+        Assert.Contains("resets 4pm", result);
+        Assert.DoesNotContain("\"kind\"", result);
+        Assert.DoesNotContain("is_success", result);
+    }
+
+    [Fact]
+    public void ExtractFailureReason_FailedResultEvent_Generic_ReturnsSanitizedFirstLine()
+    {
+        var lines = new List<string>
+        {
+            """{"kind":"result","response":"Something went wrong during the run.\nMore details here.","is_success":false}"""
+        };
+
+        var result = JobService.ExtractFailureReason(lines, "test");
+
+        Assert.Equal("Something went wrong during the run.", result);
+    }
+
+    [Fact]
+    public void CompleteJob_NonZeroExit_SessionLimitResult_MarksFailedWithCleanMessage()
+    {
+        // Regression for CreatePlan job 00292, which failed with the raw serialized
+        // ResultEvent JSON blob shown as the job's failure reason instead of Claude's message.
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
+        var id = service.CreateTestJob(new ExecutePlanArgs(Path.GetTempPath()));
+        var job = service.GetJob(id)!;
+        job.OutputLines.Enqueue(
+            """{"kind":"result","response":"You have hit your session limit, resets 4pm (Europe/Stockholm)","is_success":false,"duration_ms":557}""");
+
+        service.CompleteJob(id, 1);
+
+        job = service.GetJob(id)!;
+        Assert.Equal(JobStatus.Failed, job.Status);
+        Assert.Contains("session limit", job.StatusMessage);
+        Assert.Contains("resets 4pm", job.StatusMessage);
+    }
+
+    [Fact]
+    public void CompleteJob_ZeroExitCode_FailedSessionLimitResult_MarksFailedWithCleanMessage()
+    {
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
+        var id = service.CreateTestJob(new ExecutePlanArgs(Path.GetTempPath()));
+        var job = service.GetJob(id)!;
+        job.OutputLines.Enqueue(
+            """{"kind":"result","response":"You have hit your session limit, resets 4pm (Europe/Stockholm)","is_success":false,"duration_ms":557}""");
+
+        service.CompleteJob(id, 0);
+
+        job = service.GetJob(id)!;
+        Assert.Equal(JobStatus.Failed, job.Status);
+        Assert.Contains("session limit", job.StatusMessage);
+    }
+
+    [Fact]
+    public void CompleteJob_ZeroExitCode_SuccessfulResultEvent_RemainsCompleted()
+    {
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
+        var planFolder = CreateValidPlanFolder();
+        var id = service.StartJob(new ExecutePlanArgs(planFolder));
+        var job = service.GetJob(id)!;
+        job.OutputLines.Enqueue(
+            """{"kind":"result","response":"All done","is_success":true,"duration_ms":557}""");
+
+        service.CompleteJob(id, 0);
+
+        job = service.GetJob(id)!;
+        Assert.Equal(JobStatus.Completed, job.Status);
+        Assert.Null(job.StatusMessage);
+    }
 }

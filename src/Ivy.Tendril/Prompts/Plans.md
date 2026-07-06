@@ -147,12 +147,12 @@ Options:
 ### Writing revisions
 
 ```bash
-tendril plan write-revision <plan-id> <<'EOF'
+tendril plan write-revision <plan-id> --stdin <<'EOF'
 <revision content>
 EOF
 ```
 
-Reads content from STDIN and writes it to `revisions/<NNN>.md` in the plan folder. Auto-increments from the highest existing revision. Outputs the file path.
+Reads content from STDIN (when `--stdin` is passed) or `--file`, and writes it to `revisions/<NNN>.md` in the plan folder. Auto-increments from the highest existing revision. Outputs the file path.
 
 ### Writing execution logs
 

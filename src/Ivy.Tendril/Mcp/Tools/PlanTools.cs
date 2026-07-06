@@ -200,7 +200,7 @@ public sealed class PlanTools : AuthenticatedToolBase
         {
             var removed = plan.Repos.RemoveAll(r => r.Equals(repoPath, StringComparison.OrdinalIgnoreCase));
             if (removed == 0)
-                throw new InvalidOperationException($"Repository not found in plan: {repoPath}");
+                CliValidation.ThrowRepoNotFound(repoPath, plan.Repos);
         }, $"Removed repository: {repoPath}");
     }
 

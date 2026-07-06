@@ -134,7 +134,7 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 |---------|-------------|
 | `tendril plan list` | List plans (supports filters) |
 | `tendril plan create <title>` | Low-level create of the plan folder/yaml — **edit-only primitive, not for creating a plan from a chat request** (start a `CreatePlan` job instead) |
-| `tendril plan update <plan-id>` | Update plan from stdin |
+| `tendril plan update <plan-id>` | Update plan from a file or stdin (--file/--stdin) |
 | `tendril plan set <plan-id> <field> <value>` | Set a plan field |
 | `tendril plan get <plan-id> [field]` | Get plan data |
 | `tendril plan validate <plan-id>` | Validate plan health |
@@ -148,7 +148,7 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 | `tendril plan add-depends-on <plan-id> <folder>` | Add dependency |
 | `tendril plan remove-depends-on <plan-id> <folder>` | Remove dependency |
 | `tendril plan add-log <plan-id> <action>` | Add execution log entry |
-| `tendril plan write-revision <plan-id>` | Write revision from stdin — **only to edit an existing plan; never to create a new plan** (start a `CreatePlan` job instead) |
+| `tendril plan write-revision <plan-id>` | Write revision from a file or stdin (--file/--stdin) — **only to edit an existing plan; never to create a new plan** (start a `CreatePlan` job instead) |
 | `tendril plan get-revision <plan-id> [--number <n>]` | Print revision content (latest by default, or a specific numbered revision) |
 | `tendril plan cleanup <plan-id>` | Remove worktrees |
 | `tendril plan set-verification <plan-id> <name> <status>` | Set verification status |
@@ -209,8 +209,8 @@ These commands are for internal use by other promptwares (e.g., a verification s
 |---------|-------------|
 | `tendril promptware run <name>` | Run a promptware directly (bypasses job service) |
 | `tendril promptware read-memory <name> <file>` | Read promptware memory |
-| `tendril promptware write-memory <name> <file>` | Write promptware memory (stdin) |
-| `tendril promptware write-tool <name> <file>` | Write promptware tool (stdin) |
+| `tendril promptware write-memory <name> <file>` | Write promptware memory (--file/--stdin) |
+| `tendril promptware write-tool <name> <file>` | Write promptware tool (--file/--stdin) |
 
 ### Project Commands
 

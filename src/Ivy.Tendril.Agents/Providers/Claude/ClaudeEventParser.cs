@@ -78,7 +78,7 @@ public sealed class ClaudeEventParser : IEventParser
         };
     }
 
-    public void Reset() { }
+    public IEventParser CreateFresh() => new ClaudeEventParser();
 
     private static string? PeekType(ref Utf8JsonReader reader)
     {

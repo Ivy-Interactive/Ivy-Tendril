@@ -342,6 +342,10 @@ public class BackgroundServiceActivatorTests : IAsyncLifetime
         {
             return content;
         }
+
+        public void Dispose()
+        {
+        }
     }
 
     private class MockStartable : IStartable

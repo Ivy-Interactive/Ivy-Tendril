@@ -101,14 +101,14 @@ public class DirtyRepoDialog(
             new DialogFooter(
                 Layout.Horizontal().Gap(2).Right()
                 | new Button("Cancel").Outline().OnClick(() => dialogOpen.Set(false))
-                | new Button("Stash Changes").Outline().Icon(Icons.Archive)
+                | new Button("Stash Changes").Primary().Icon(Icons.Archive)
                     .OnClick(() => SyncWith(UntrackedChangesPolicy.Stash))
-                | new Button("Create Commit").Outline().Icon(Icons.GitCommitHorizontal)
+                | new Button("Commit and Push").Primary().Icon(Icons.GitCommitHorizontal)
                     .OnClick(() => SyncWith(UntrackedChangesPolicy.Commit))
-                | new Button("Create Pull Request").Primary().Icon(Icons.GitPullRequest)
+                | new Button("Create PR").Primary().Icon(Icons.GitPullRequest)
                     .OnClick(() => SyncWith(UntrackedChangesPolicy.PullRequest))
             )
-        );
+        ).Width(Size.Rem(40));
 
         void SyncWith(UntrackedChangesPolicy policy)
         {
