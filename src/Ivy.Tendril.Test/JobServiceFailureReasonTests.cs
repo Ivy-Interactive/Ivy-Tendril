@@ -1,5 +1,3 @@
-using Ivy.Tendril.Agents.Abstractions;
-using Ivy.Tendril.Agents.Providers.Claude;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
@@ -29,6 +27,13 @@ public class JobServiceFailureReasonTests : IDisposable
     {
         var result = JobService.ExtractFailureReason([], "test");
         Assert.Equal("Unknown error (exit code non-zero)", result);
+    }
+
+    [Fact]
+    public void ExtractFailureReason_EmptyOutputWithExitCode_IncludesExitCodeInMessage()
+    {
+        var result = JobService.ExtractFailureReason([], "test", 42);
+        Assert.Equal("Process exited with code 42", result);
     }
 
     [Fact]
@@ -314,36 +319,20 @@ public class JobServiceFailureReasonTests : IDisposable
     }
 
     [Fact]
-    public void ClaudeFailureAnalyzer_UnmatchedStderr_IncludesStderrInUnknownFallback()
+    public void CompleteJob_StderrMatchesAnalyzer_PrefersAnalyzerOverRawStderrText()
     {
-        var analyzer = new ClaudeFailureAnalyzer();
+        // Even though the text-based scan can already extract a specific stderr line here (so it
+        // wouldn't hit the generic fallback), the provider-specific analyzer understands what that
+        // line actually means (a retryable rate limit) and should still be consulted first.
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), agentRunner: TestAgentRunner.Create());
+        var id = service.CreateTestJob(new ExecutePlanArgs(Path.GetTempPath()));
+        var job = service.GetJob(id)!;
+        job.OutputLines.Enqueue("[stderr] rate limit exceeded");
 
-        var analysis = analyzer.Analyze(new FailureContext
-        {
-            Events = [],
-            StderrLines = ["some unrecognized diagnostic output"],
-            ExitCode = null,
-            AgentId = "claude",
-        });
+        service.CompleteJob(id, 1);
 
-        Assert.Equal(FailureKind.Unknown, analysis.Kind);
-        Assert.Contains("some unrecognized diagnostic output", analysis.Reason);
-    }
-
-    [Fact]
-    public void ClaudeFailureAnalyzer_UnknownFallback_NoStderr_IncludesExitCode()
-    {
-        var analyzer = new ClaudeFailureAnalyzer();
-
-        var analysis = analyzer.Analyze(new FailureContext
-        {
-            Events = [],
-            StderrLines = [],
-            ExitCode = null,
-            AgentId = "claude",
-        });
-
-        Assert.Equal(FailureKind.Unknown, analysis.Kind);
-        Assert.Contains("unknown error", analysis.Reason, StringComparison.OrdinalIgnoreCase);
+        job = service.GetJob(id)!;
+        Assert.Equal(JobStatus.Failed, job.Status);
+        Assert.Equal("Rate limited by the API (Wait before retrying or switch to a different model)", job.StatusMessage);
     }
 }
