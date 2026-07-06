@@ -59,6 +59,15 @@ internal class JobMonitor
         catch (ObjectDisposedException)
         {
             _logger.LogDebug("Job {JobId}: Monitor task exiting (CTS disposed, job completed elsewhere)", _id);
+
+            // Normally the CTS is only disposed once the job has already been completed elsewhere.
+            // If it somehow got disposed while the job is still Running, don't return silently — that
+            // would leave the job stranded with no monitor left to ever complete it.
+            if (_ctx.Jobs.TryGetValue(_id, out var job) && job.Status == JobStatus.Running)
+            {
+                _logger.LogWarning("Job {JobId}: CTS disposed but job still Running — completing as timeout", _id);
+                _ctx.CompleteJob(_id, null, true, false);
+            }
         }
         catch (Exception ex)
         {

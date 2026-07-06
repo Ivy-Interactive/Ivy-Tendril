@@ -64,22 +64,60 @@ internal class JobLauncher
 
     private void LaunchJob(JobLaunchContext ctx)
     {
-        // Defense in depth (#1340): refuse to launch a plan job that references a repo outside its
-        // project, before any state mutation. The creation/add-repo guards should prevent this, but
-        // pre-existing plans may have drifted.
-        if (!ValidateProjectReposOrFail(ctx))
-            return;
+        try
+        {
+            // Defense in depth (#1340): refuse to launch a plan job that references a repo outside its
+            // project, before any state mutation. The creation/add-repo guards should prevent this, but
+            // pre-existing plans may have drifted.
+            if (!ValidateProjectReposOrFail(ctx))
+                return;
 
-        PrepareJobForLaunch(ctx);
+            PrepareJobForLaunch(ctx);
 
-        if (!ValidateJobPrerequisites(ctx, out var psi, out var stdinContent))
-            return;
+            if (!ValidateJobPrerequisites(ctx, out var psi, out var stdinContent))
+                return;
 
-        var process = StartAgentProcess(ctx, psi, stdinContent);
-        if (process == null)
-            return;
+            var process = StartAgentProcess(ctx, psi, stdinContent);
+            if (process == null)
+                return;
 
-        InitializeJobMonitoring(ctx, process);
+            // Only now — after the child process genuinely exists — does the plan move to Executing.
+            // Every failure path above (repo guard, hook failures, prompt/process build errors) runs
+            // before this point, so a throw there never strands the plan in Executing in the first
+            // place; the catch below only needs to fail the job, not revert plan state.
+            TransitionPlanToExecuting(ctx);
+
+            InitializeJobMonitoring(ctx, process);
+            ctx.RaiseStructureChanged();
+        }
+        catch (Exception ex)
+        {
+            HandleLaunchFailure(ctx, ex);
+        }
+    }
+
+    // Catches anything unhandled between "job marked Running" and "monitor armed" (e.g. a "before"
+    // hook throwing, or an exception inside TryBuildAgentProcessStart other than the Win32Exception
+    // StartAgentProcess already guards) so the job fails visibly instead of hanging in Starting
+    // forever with no timeout watchdog ever created to rescue it.
+    private void HandleLaunchFailure(JobLaunchContext ctx, Exception ex)
+    {
+        var job = ctx.Job;
+        _logger.LogError(ex, "Job {JobId}: Unhandled exception during launch", job.Id);
+
+        job.Status = JobStatus.Failed;
+        job.StatusMessage = $"Launch failed: {ex.Message}";
+        job.CompletedAt = DateTime.UtcNow;
+
+        try
+        {
+            ctx.JobSlotSemaphore.Release();
+        }
+        catch (SemaphoreFullException)
+        {
+            // Already at max capacity — nothing to release.
+        }
+
         ctx.RaiseStructureChanged();
     }
 
@@ -131,12 +169,19 @@ internal class JobLauncher
         ctx.RunHooks("before", type, planFolderForHooks, job.Project, job);
 
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs && !string.IsNullOrEmpty(job.TypedArgs?.PlanFolder))
-        {
             EnsurePlanFolderWritable(job.TypedArgs!.PlanFolder!);
-            PlanYamlHelper.SetPlanStateByFolder(job.TypedArgs!.PlanFolder!, nameof(PlanStatus.Executing));
-        }
 
         job.SessionId = Guid.NewGuid().ToString();
+    }
+
+    // Deliberately called only after StartAgentProcess succeeds (see LaunchJob) — moved out of
+    // PrepareJobForLaunch so the plan isn't flipped to Executing until an agent process genuinely
+    // exists, shrinking the window in which a launch failure could strand the plan there.
+    private static void TransitionPlanToExecuting(JobLaunchContext ctx)
+    {
+        var job = ctx.Job;
+        if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs && !string.IsNullOrEmpty(job.TypedArgs?.PlanFolder))
+            PlanYamlHelper.SetPlanStateByFolder(job.TypedArgs!.PlanFolder!, nameof(PlanStatus.Executing));
     }
 
     private bool ValidateJobPrerequisites(
