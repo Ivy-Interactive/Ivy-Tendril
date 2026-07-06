@@ -211,7 +211,7 @@ public class ContentView(
         UseEffect(() => { selectedRecTitles.Set(new HashSet<string>()); return Disposable.Empty; },
             selectedPlanState);
 
-        var tabNames = new[] { "summary", "plan", "details", "verifications", "git", "changes", "Artifacts", "recommendations" };
+        var tabNames = new[] { "summary", "plan", "details", "git", "changes", "Artifacts", "recommendations" };
         var selectedTabIndex = Array.IndexOf(tabNames, args?.Tab ?? "summary");
         if (selectedTabIndex < 0) selectedTabIndex = 0;
 
@@ -539,6 +539,18 @@ public class ContentView(
 
         var planTabContent = new PlanTabView(selectedPlan, selectedPlanState, openFile, planService, config);
 
+        Action<string> onLinkClick = FileSheet.CreateLinkClickHandler(openFile, planId =>
+        {
+            var planFolder = Directory.GetDirectories(planService.PlansDirectory, $"{planId:D5}-*")
+                .FirstOrDefault();
+            if (planFolder != null)
+            {
+                var plan = planService.GetPlanByFolder(planFolder);
+                if (plan != null)
+                    selectedPlanState.Set(plan);
+            }
+        });
+
         if (planContentQuery.Loading && planData is null)
         {
             content |= Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
@@ -578,18 +590,21 @@ public class ContentView(
 
             var changesTabView = new ChangesTabView(planData.AllChanges, planContentQuery.Loading, planContentQuery.Error, selectedPlan.Project);
 
-            var tabNamesList = new List<string> { "summary", "plan", "details", "verifications", "git" };
+            var tabNamesList = new List<string> { "summary", "plan", "details", "git" };
             var tabList = new List<Tab>
             {
-                new Tab("Summary", Cap(new SummaryTabView(config, planData.SummaryMarkdown, planContentQuery.Loading))),
+                // Summary is rendered via DraftMarkdown with a pinned Verifications sidebar, so it is
+                // NOT wrapped in Cap() (whose outer scroll would also scroll the sticky box). The widget
+                // reproduces Cap()'s left inset + max-width.
+                new Tab("Summary", new SummaryTabView(
+                    config, planData.SummaryMarkdown, selectedPlan.Verifications,
+                    planData.VerificationReports, v => openVerification.Set(v), onLinkClick,
+                    planContentQuery.Loading)),
                 new Tab("Plan", Cap(planTabContent)),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan,
                     jobService.GetJobsForPlan(selectedPlan.FolderName),
                     showDebugJob, planService, selectedPlanState, refreshPlans,
                     folderPath => selectedPlanState.Set(planService.GetPlanByFolder(folderPath))))),
-                new Tab("Verifications", Cap(new VerificationsTabView(
-                    selectedPlan.Verifications, planData.VerificationReports,
-                    v => openVerification.Set(v)))).Badge(selectedPlan.Verifications.Count.ToString()),
                 new Tab("Git", Cap(gitTabView)).Badge((gitData.WorktreeSections.Count + selectedPlan.Commits.Count + selectedPlan.Prs.Count).ToString()),
             };
 
