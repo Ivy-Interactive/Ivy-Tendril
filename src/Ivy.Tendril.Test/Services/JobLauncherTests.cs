@@ -206,6 +206,63 @@ projects:
         Assert.False(result);
     }
 
+    // Regression for #plan-00053: any unhandled exception during the synchronous launch window
+    // (e.g. a "before" hook throwing) used to leave the job stuck Running in "Starting…" forever
+    // with a leaked concurrency slot and no timeout watchdog ever armed to rescue it. The launch
+    // path must now fail the job cleanly and release its slot — and since the plan-to-Executing
+    // transition happens only after the agent process actually starts, the plan must never have
+    // been touched here at all.
+    [Fact]
+    public void LaunchJob_UnhandledExceptionDuringLaunch_FailsJobAndDoesNotStrandPlanExecuting()
+    {
+        var launcher = CreateLauncher();
+
+        var planFolder = Path.Combine(_tempTendrilHome, "Plans", "00001-TestPlan");
+        Directory.CreateDirectory(planFolder);
+        File.WriteAllText(Path.Combine(planFolder, "plan.yaml"), @"
+schemaVersion: 3
+state: Draft
+project: TestProject
+title: Test Plan
+");
+
+        var jobs = new ConcurrentDictionary<string, JobItem>();
+        var job = new JobItem
+        {
+            Id = "launch-fail-1",
+            Type = "ExecutePlan",
+            TypedArgs = new ExecutePlanArgs(planFolder),
+            Project = "TestProject",
+            Status = JobStatus.Queued
+        };
+        jobs[job.Id] = job;
+
+        using var semaphore = new SemaphoreSlim(1, 1);
+        semaphore.Wait(); // The caller acquires the slot before invoking LaunchJob, as real callers do.
+
+        var structureChangedRaised = false;
+
+        launcher.LaunchJob(
+            job, jobs, semaphore, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
+            runHooks: (_, _, _, _, _) => throw new InvalidOperationException("boom"),
+            completeJob: (_, _, _, _) => { },
+            raiseStructureChanged: () => structureChangedRaised = true);
+
+        Assert.Equal(JobStatus.Failed, job.Status);
+        Assert.NotNull(job.CompletedAt);
+        Assert.Contains("boom", job.StatusMessage);
+        Assert.True(structureChangedRaised);
+
+        // Slot released — not leaked. A subsequent job can still acquire it.
+        Assert.Equal(1, semaphore.CurrentCount);
+        Assert.True(semaphore.Wait(0));
+
+        // The plan must never be left stranded in Executing.
+        var plan = PlanYamlHelper.ReadPlanYaml(planFolder);
+        Assert.NotNull(plan);
+        Assert.NotEqual(nameof(PlanStatus.Executing), plan.State);
+    }
+
     [Fact]
     public async Task RunStaleOutputWatchdog_DoesNotFlagRecentOutput()
     {
