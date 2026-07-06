@@ -39,7 +39,7 @@ public class JobDebugSheet(
             return new DebugWithAgentDialog(isOpen, branding, focus =>
             {
                 var prompt =
-                    "I want to debug the following job for what might have gone wrong of what we can improve. Use the /tendril-debug-job skill if available. \n\n";
+                    "I want to debug the following job for what might have gone wrong of what we can improve. Use the /tendril-debug-promptware skill if available. \n\n";
                 if (!string.IsNullOrEmpty(focus))
                     prompt += $"In particular, focus on: {focus}\n\n";
                 prompt += details;
