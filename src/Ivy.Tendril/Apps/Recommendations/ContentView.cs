@@ -74,22 +74,11 @@ public class ContentView(
 
         object BuildTitleArea(bool isMobile)
         {
-            var badgeRow = Layout.Horizontal().Gap(1).AlignContent(Align.Left)
-                | new Badge(selectedRecommendation.Project).Variant(BadgeVariant.Outline)
-                    .WithProjectColor(config, selectedRecommendation.Project);
-
-            if (selectedRecommendation.Impact is { } impact)
-                badgeRow |= new Badge(impact).Variant(impact switch
-                {
-                    "High" => BadgeVariant.Success,
-                    "Medium" => BadgeVariant.Warning,
-                    _ => BadgeVariant.Outline
-                });
-
+            // Project/Impact badges live on each sidebar row (see SidebarView), so the header
+            // title stays badge-free.
             var desktopTitleLayout = Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Full().Min(Size.Px(0)))
                 | Text.Block($"#{selectedRecommendation.ShortPlanId} {selectedRecommendation.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis)
-                    .Width(Size.Grow().Min(Size.Px(0)))
-                | badgeRow;
+                    .Width(Size.Grow().Min(Size.Px(0)));
 
             var desktopTitle = new Box(desktopTitleLayout).BorderThickness(0).Padding(0)
                 .Width(Size.Full().Min(Size.Px(0)))

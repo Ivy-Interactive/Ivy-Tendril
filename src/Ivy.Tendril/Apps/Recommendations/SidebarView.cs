@@ -52,6 +52,8 @@ public class SidebarView(
 
     public override object Build()
     {
+        var config = UseService<IConfigService>();
+
         var filtered = recommendations
             .Where(r => projectFilter.Value == null || r.Project == projectFilter.Value)
             .Where(r => impactFilter.Value == null || r.Impact == impactFilter.Value)
@@ -75,7 +77,20 @@ public class SidebarView(
         {
             var clickableRec = rec;
 
-            return SidebarListRow.Build($"#{rec.ShortPlanId} {rec.Title}", () => selectedState.Set(clickableRec));
+            // Mirror the detail header's badge row (Project + Impact) so each row is self-describing.
+            var badges = Layout.Horizontal().Gap(1)
+                | new Badge(rec.Project).Variant(BadgeVariant.Outline).Small()
+                    .WithProjectColor(config, rec.Project);
+            if (rec.Impact is { } impact)
+                badges |= new Badge(impact).Variant(impact switch
+                {
+                    "High" => BadgeVariant.Success,
+                    "Medium" => BadgeVariant.Warning,
+                    _ => BadgeVariant.Outline
+                }).Small();
+
+            return SidebarListRow.Build($"#{rec.ShortPlanId} {rec.Title}", badges,
+                () => selectedState.Set(clickableRec));
         }));
 
         return new HeaderLayout(BuildHeader(), content);
