@@ -290,4 +290,38 @@ public class ClaudeFailureAnalyzerTests
         Assert.Contains("3 tool call", result.Reason);
         Assert.Equal(3, result.ContextLines.Count);
     }
+
+    [Fact]
+    public void Analyze_UnmatchedStderr_IncludesStderrInUnknownFallback()
+    {
+        var ctx = new FailureContext
+        {
+            Events = [],
+            StderrLines = ["some unrecognized diagnostic output"],
+            ExitCode = null,
+            AgentId = "claude",
+        };
+
+        var result = _analyzer.Analyze(ctx);
+
+        Assert.Equal(FailureKind.Unknown, result.Kind);
+        Assert.Contains("some unrecognized diagnostic output", result.Reason);
+    }
+
+    [Fact]
+    public void Analyze_UnknownFallback_NoStderr_IncludesExitCode()
+    {
+        var ctx = new FailureContext
+        {
+            Events = [],
+            StderrLines = [],
+            ExitCode = null,
+            AgentId = "claude",
+        };
+
+        var result = _analyzer.Analyze(ctx);
+
+        Assert.Equal(FailureKind.Unknown, result.Kind);
+        Assert.Contains("unknown error", result.Reason, StringComparison.OrdinalIgnoreCase);
+    }
 }

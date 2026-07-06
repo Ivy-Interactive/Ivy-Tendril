@@ -29,6 +29,7 @@ public class JobService : IJobService
     private readonly ILogger<JobService> _logger;
     private readonly JobLauncher _jobLauncher;
     private readonly JobCompletionHandler _completionHandler;
+    private readonly IAgentRunner? _agentRunner;
     private Timer? _blockedJobCheckTimer;
     public JobService(
         IConfigService configService,
@@ -48,6 +49,7 @@ public class JobService : IJobService
         _telemetryService = telemetryService;
         _planWatcherService = planWatcherService;
         _database = database;
+        _agentRunner = agentRunner;
         _jobTimeout = TimeSpan.FromMinutes(configService.Settings.JobTimeout);
         _staleOutputTimeout = TimeSpan.FromMinutes(configService.Settings.StaleOutputTimeout);
         _maxConcurrentJobs = configService.Settings.MaxConcurrentJobs;
@@ -89,6 +91,7 @@ public class JobService : IJobService
         _planReaderService = planReaderService;
         _telemetryService = telemetryService;
         _database = database;
+        _agentRunner = agentRunner;
         var promptsRoot = Ivy.Tendril.Helpers.PromptwareHelper.ResolvePromptsRoot();
         _jobLauncher = new JobLauncher(null, agentRunner!, _logger, promptsRoot);
         _completionHandler = new JobCompletionHandler(
@@ -173,7 +176,38 @@ public class JobService : IJobService
             }
             else
             {
-                job.StatusMessage ??= ExtractFailureReason(job.OutputLines.ToList(), job.Type);
+                // Only fall through to the generic scan (and possibly the agent-level analyzer
+                // below) when nothing has already set a message — an explicitly set StatusMessage
+                // must be preserved verbatim, even if it happens to mention "exit code".
+                if (job.StatusMessage == null)
+                {
+                    // Prefer the provider-specific IFailureAnalyzer (recognizes rate limits, auth
+                    // failures, invalid models, etc.) over the generic text scan below — most
+                    // failures have some stderr line, so the text scan would otherwise return that
+                    // raw line directly and the analyzer would never get a chance to improve it.
+                    FailureAnalysis? analysis = null;
+                    var analyzer = _agentRunner?.GetFailureAnalyzer(job.Provider);
+                    if (analyzer != null)
+                    {
+                        var stderrLines = job.OutputLines
+                            .Where(l => l.StartsWith("[stderr] "))
+                            .Select(l => l["[stderr] ".Length..])
+                            .ToList();
+                        analysis = analyzer.Analyze(new FailureContext
+                        {
+                            Events = [],
+                            StderrLines = stderrLines,
+                            ExitCode = exitCode,
+                            TimedOut = false,
+                            IdleTimeout = false,
+                            AgentId = job.Provider,
+                        });
+                    }
+
+                    job.StatusMessage = analysis is { Kind: not FailureKind.Unknown }
+                        ? analysis.Suggestion != null ? $"{analysis.Reason} ({analysis.Suggestion})" : analysis.Reason
+                        : ExtractFailureReason(job.OutputLines.ToList(), job.Type, exitCode);
+                }
             }
             job.Status = success ? JobStatus.Completed : JobStatus.Failed;
         }
@@ -923,8 +957,8 @@ public class JobService : IJobService
     }
 
 
-    internal static string ExtractFailureReason(List<string> outputLines, string jobType)
-        => JobFailureAnalyzer.ExtractFailureReason(outputLines, jobType);
+    internal static string ExtractFailureReason(List<string> outputLines, string jobType, int? exitCode = null)
+        => JobFailureAnalyzer.ExtractFailureReason(outputLines, jobType, exitCode);
 
     internal static string SanitizeForDisplay(string text)
         => JobFailureAnalyzer.SanitizeForDisplay(text);

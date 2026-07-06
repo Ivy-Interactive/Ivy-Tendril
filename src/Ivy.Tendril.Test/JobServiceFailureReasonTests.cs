@@ -30,6 +30,13 @@ public class JobServiceFailureReasonTests : IDisposable
     }
 
     [Fact]
+    public void ExtractFailureReason_EmptyOutputWithExitCode_IncludesExitCodeInMessage()
+    {
+        var result = JobService.ExtractFailureReason([], "test", 42);
+        Assert.Equal("Process exited with code 42", result);
+    }
+
+    [Fact]
     public void ExtractFailureReason_StderrLines_ReturnsLastStderrContent()
     {
         var lines = new List<string>
@@ -181,6 +188,26 @@ public class JobServiceFailureReasonTests : IDisposable
     }
 
     [Fact]
+    public void CompleteJob_WithExistingStatusMessageMentioningExitCode_NotOverriddenByAgentAnalyzer()
+    {
+        // Regression: a pre-set StatusMessage that happens to contain the phrase "exit code"
+        // must not be mistaken for the generic fallback and replaced by the agent-level analyzer,
+        // even when the analyzer would otherwise recognize the stderr content (e.g. rate limit).
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), agentRunner: TestAgentRunner.Create());
+        var planFolder = CreateValidPlanFolder();
+        var id = service.StartJob(new ExecutePlanArgs(planFolder));
+        var job = service.GetJob(id)!;
+        job.StatusMessage = "Execution failed (exit code: 1)";
+        job.OutputLines.Enqueue("[stderr] rate limit exceeded");
+
+        service.CompleteJob(id, 1);
+
+        job = service.GetJob(id)!;
+        Assert.Equal(JobStatus.Failed, job.Status);
+        Assert.Equal("Execution failed (exit code: 1)", job.StatusMessage);
+    }
+
+    [Fact]
     public void CompleteJob_ZeroExitCode_WithErrorEvent_MarksAsFailed()
     {
         var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
@@ -266,6 +293,47 @@ public class JobServiceFailureReasonTests : IDisposable
         job = service.GetJob(id)!;
         Assert.Equal(JobStatus.Completed, job.Status);
         Assert.Null(job.StatusMessage);
+    }
+
+    [Fact]
+    public void ExtractFailureReason_NoMatchingContentWithExitCode_IncludesExitCodeInMessage()
+    {
+        var lines = new List<string> { "", "  ", "" };
+
+        var result = JobService.ExtractFailureReason(lines, "test", 42);
+
+        Assert.Equal("Process exited with code 42", result);
+    }
+
+    [Fact]
+    public void CompleteJob_GenericFallback_ConsultsAgentLevelAnalyzer()
+    {
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), agentRunner: TestAgentRunner.Create());
+        var id = service.CreateTestJob(new ExecutePlanArgs(Path.GetTempPath()));
+
+        service.CompleteJob(id, 1);
+
+        var job = service.GetJob(id)!;
+        Assert.Equal(JobStatus.Failed, job.Status);
+        Assert.Equal("Claude Code exited with code 1", job.StatusMessage);
+    }
+
+    [Fact]
+    public void CompleteJob_StderrMatchesAnalyzer_PrefersAnalyzerOverRawStderrText()
+    {
+        // Even though the text-based scan can already extract a specific stderr line here (so it
+        // wouldn't hit the generic fallback), the provider-specific analyzer understands what that
+        // line actually means (a retryable rate limit) and should still be consulted first.
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), agentRunner: TestAgentRunner.Create());
+        var id = service.CreateTestJob(new ExecutePlanArgs(Path.GetTempPath()));
+        var job = service.GetJob(id)!;
+        job.OutputLines.Enqueue("[stderr] rate limit exceeded");
+
+        service.CompleteJob(id, 1);
+
+        job = service.GetJob(id)!;
+        Assert.Equal(JobStatus.Failed, job.Status);
+        Assert.Equal("Rate limited by the API (Wait before retrying or switch to a different model)", job.StatusMessage);
     }
 
     [Fact]
