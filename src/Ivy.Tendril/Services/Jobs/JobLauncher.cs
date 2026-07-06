@@ -64,6 +64,7 @@ internal class JobLauncher
 
     private void LaunchJob(JobLaunchContext ctx)
     {
+        Process? process = null;
         try
         {
             // Defense in depth (#1340): refuse to launch a plan job that references a repo outside its
@@ -77,7 +78,7 @@ internal class JobLauncher
             if (!ValidateJobPrerequisites(ctx, out var psi, out var stdinContent))
                 return;
 
-            var process = StartAgentProcess(ctx, psi, stdinContent);
+            process = StartAgentProcess(ctx, psi, stdinContent);
             if (process == null)
                 return;
 
@@ -92,7 +93,7 @@ internal class JobLauncher
         }
         catch (Exception ex)
         {
-            HandleLaunchFailure(ctx, ex);
+            HandleLaunchFailure(ctx, ex, process);
         }
     }
 
@@ -100,10 +101,26 @@ internal class JobLauncher
     // hook throwing, or an exception inside TryBuildAgentProcessStart other than the Win32Exception
     // StartAgentProcess already guards) so the job fails visibly instead of hanging in Starting
     // forever with no timeout watchdog ever created to rescue it.
-    private void HandleLaunchFailure(JobLaunchContext ctx, Exception ex)
+    private void HandleLaunchFailure(JobLaunchContext ctx, Exception ex, Process? process)
     {
         var job = ctx.Job;
         _logger.LogError(ex, "Job {JobId}: Unhandled exception during launch", job.Id);
+
+        // The agent process may have already started (e.g. if the failure is in TransitionPlanToExecuting,
+        // which runs after StartAgentProcess succeeds) — no monitor exists yet to ever reap it, so kill it
+        // here rather than leaking a real OS process.
+        if (process != null)
+        {
+            try
+            {
+                if (!process.HasExited)
+                    process.Kill(entireProcessTree: true);
+            }
+            catch (Exception killEx)
+            {
+                _logger.LogWarning(killEx, "Job {JobId}: Failed to kill orphaned process during launch failure", job.Id);
+            }
+        }
 
         job.Status = JobStatus.Failed;
         job.StatusMessage = $"Launch failed: {ex.Message}";
