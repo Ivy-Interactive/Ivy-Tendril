@@ -1,4 +1,6 @@
 using System.Text.RegularExpressions;
+using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Apps.Agent;
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Jobs.Dialogs;
 using Ivy.Tendril.Helpers;
@@ -11,13 +13,16 @@ public class JobDebugSheet(
     string jobId,
     IJobService jobService,
     IPlanReaderService planService,
-    IConfigService config) : ViewBase
+    IConfigService config,
+    Action closeSheet) : ViewBase
 {
     public override object Build()
     {
         var copyToClipboard = UseClipboard();
         var client = UseService<IClientProvider>();
         var showReportDialog = UseState(false);
+        var nav = UseNavigation();
+        var agentRunner = UseService<IAgentRunner>();
 
         var job = jobService.GetJob(jobId);
         if (job is null)
@@ -84,43 +89,53 @@ public class JobDebugSheet(
             .Builder(x => x.JobId, f => f.CopyToClipboard())
             .Builder(x => x.PlanId, f => f.CopyToClipboard());
 
+        // Shared "Copy Details" text — reused by the Copy Details button and the
+        // "Investigate with <agent>" prompt so the two stay identical.
+        var copyDetails = string.Join("\n", new List<(string Label, string Value)>
+            {
+                ("Job Id", data.JobId),
+                ("Plan Id", data.PlanId),
+                ("Prompt/Title", data.PromptTitle),
+                ("Status", data.Status),
+                ("Type", data.Type),
+                ("Project", data.Project),
+                ("Provider", data.Provider),
+                ("Model", data.Model),
+                ("Session Id", data.SessionId),
+                ("Started", data.Started),
+                ("Completed", data.Completed),
+                ("Duration", data.Duration),
+                ("Cost", data.Cost),
+                ("Tokens", data.Tokens),
+                ("Exit Code", data.ExitCode),
+                ("Working Directory", data.WorkingDirectory),
+                ("Arguments", data.CliCommand),
+                ("Permission Denials", data.PermissionDenials),
+                ("Plan Folder", data.PlanFolder),
+                ("Plan Log", data.PlanLog),
+                ("Promptware Log", data.PromptwareLog),
+                ("Promptware Raw Log", data.PromptwareRawLog),
+            }
+            .Where(l => !string.IsNullOrEmpty(l.Value))
+            .Select(l => $"{l.Label}: {l.Value}"));
+
+        var agentBranding = AgentBranding.For(config.Settings.CodingAgent, agentRunner);
+
         var header = Layout.Horizontal().Gap(2)
             | new Button("Copy Details").Icon(Icons.ClipboardCopy).Outline().OnClick(() =>
             {
-                var lines = new List<(string Label, string Value)>
-                {
-                    ("Job Id", data.JobId),
-                    ("Plan Id", data.PlanId),
-                    ("Prompt/Title", data.PromptTitle),
-                    ("Status", data.Status),
-                    ("Type", data.Type),
-                    ("Project", data.Project),
-                    ("Provider", data.Provider),
-                    ("Model", data.Model),
-                    ("Session Id", data.SessionId),
-                    ("Started", data.Started),
-                    ("Completed", data.Completed),
-                    ("Duration", data.Duration),
-                    ("Cost", data.Cost),
-                    ("Tokens", data.Tokens),
-                    ("Exit Code", data.ExitCode),
-                    ("Working Directory", data.WorkingDirectory),
-                    ("Arguments", data.CliCommand),
-                    ("Permission Denials", data.PermissionDenials),
-                    ("Plan Folder", data.PlanFolder),
-                    ("Plan Log", data.PlanLog),
-                    ("Promptware Log", data.PromptwareLog),
-                    ("Promptware Raw Log", data.PromptwareRawLog),
-                };
-
-                var formatted = string.Join("\n", lines
-                    .Where(l => !string.IsNullOrEmpty(l.Value))
-                    .Select(l => $"{l.Label}: {l.Value}"));
-
-                copyToClipboard(formatted);
+                copyToClipboard(copyDetails);
                 client.Toast("Job details copied to clipboard", "Copied");
             })
-            | new Button("Report Bug").Icon(Icons.Bug).OnClick(() => showReportDialog.Set(true));
+            | new Button("Report Bug").Icon(Icons.Bug).OnClick(() => showReportDialog.Set(true))
+            | new Button($"Investigate with {agentBranding.Label}").Icon(agentBranding.Icon).Outline().OnClick(() =>
+            {
+                var prompt =
+                    "I want to investigate the following job for what might have gone wrong of what we can improve.\n\n"
+                    + copyDetails;
+                nav.Navigate<AgentApp>(new AgentAppArgs(prompt));
+                closeSheet();
+            });
 
         return new Fragment(
             new HeaderLayout(header, detailsView).Size(Size.Full()),
