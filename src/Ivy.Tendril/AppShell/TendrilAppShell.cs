@@ -334,27 +334,25 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 RedirectToAppIfNotError(navigateArgs, replaceHistory, tabId);
         }
 
-        AppHost BuildAppHostAndRedirect(NavigateArgs navigateArgs, string appId, string tabId,
+        void SetAppTitleAndRedirect(NavigateArgs navigateArgs, string appId, string tabId,
             bool replaceHistory)
         {
-            var appHost = navigateArgs.ToAppHost(args.ConnectionId);
             SetAppTitle(appId);
             if (navigateArgs.HistoryOp is HistoryOp.Push)
                 RedirectToAppIfNotError(navigateArgs, replaceHistory, tabId);
-            return appHost;
         }
 
         void HandleRefreshExistingTab(NavigateArgs navigateArgs, int tabIndex,
             string tabId, bool replaceHistory)
         {
             var tab = tabs.Value[tabIndex];
-            var appHost = BuildAppHostAndRedirect(navigateArgs, tab.AppId, tabId, replaceHistory);
             tabs.Set(tabs.Value.SetItem(tabIndex, tab with
             {
-                AppHost = appHost,
+                AppHost = navigateArgs.ToAppHost(args.ConnectionId),
                 RefreshToken = Guid.NewGuid().ToString()
             }));
             selectedIndex.Set(tabIndex);
+            SetAppTitleAndRedirect(navigateArgs, tab.AppId, tabId, replaceHistory);
         }
 
         void HandleCreateNewTab(NavigateArgs navigateArgs, string effectiveAppId,
@@ -363,14 +361,15 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             if (navigateArgs.HistoryOp is not HistoryOp.Push) return;
 
             var tabId = Guid.NewGuid().ToString();
+            var appHost = navigateArgs.ToAppHost(args.ConnectionId);
             var app = appRepository.GetAppOrDefault(effectiveAppId);
-            var appHost = BuildAppHostAndRedirect(navigateArgs, app.Id, tabId, replaceHistory);
             var (tabTitle, tabIcon) = BrandedAppDisplay(app);
 
             var newTabs = tabs.Value.Add(new TabState(tabId, app.Id, tabTitle, appHost,
                 tabIcon, Guid.NewGuid().ToString()));
             tabs.Set(newTabs);
             selectedIndex.Set(newTabs.Length - 1);
+            SetAppTitleAndRedirect(navigateArgs, app.Id, tabId, replaceHistory);
         }
 
         bool CheckTabExists(int tabId)
