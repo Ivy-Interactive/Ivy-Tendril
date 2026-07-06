@@ -185,8 +185,8 @@ Jobs flow through: `Pending → Queued → Running → Completed/Failed/Timeout/
 
 **CreatePlan verification** (`VerifyCreatePlanResult` in `JobService.cs`) runs after the agent exits with code 0 and can **change Completed → Failed** if:
 
-1. Agent output doesn't contain `"Plan created: <folder>"` marker
-2. No plan folder matching `AllocatedPlanId` exists on disk (`FindPlanFolderById`)
+1. Agent output doesn't contain a `"PlanId: <id>"` line resolving to a folder on disk (`FindPlanFolderById`)
+2. No plan folder matching `AllocatedPlanId` exists on disk either (`FindPlanFolderById`)
 3. No trash entry for that ID exists either (`FindTrashEntryById`)
 
 When debugging a failed CreatePlan, check in order:

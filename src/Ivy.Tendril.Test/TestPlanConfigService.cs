@@ -6,14 +6,16 @@ internal class TestPlanConfigService : IConfigService
 {
     private readonly List<ProjectConfig> _projects;
 
-    public TestPlanConfigService(string repoDir, string projectName = "TestProject")
+    public TestPlanConfigService(string repoDir, string projectName = "TestProject",
+        IReadOnlyList<ProjectVerificationRef>? verifications = null)
     {
         _projects =
         [
             new ProjectConfig
             {
                 Name = projectName,
-                Repos = [new RepoRef { Path = repoDir }]
+                Repos = [new RepoRef { Path = repoDir }],
+                Verifications = verifications?.ToList() ?? []
             }
         ];
     }

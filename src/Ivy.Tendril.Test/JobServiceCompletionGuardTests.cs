@@ -290,15 +290,16 @@ public class JobServiceCompletionGuardTests : IDisposable
     }
 
     [Fact]
-    public void CompleteJob_CreatePlan_UpdatesPlanFileWhenOutputContainsPlanCreated()
+    public void CompleteJob_CreatePlan_UpdatesPlanFileWhenOutputContainsPlanId()
     {
         var service = CreateServiceWithPlanReader(_tempDir.Path);
         var id = service.CreateTestJob(new CreatePlanArgs("Fix login bug", "Tendril"));
+        Directory.CreateDirectory(Path.Combine(_tempDir.Path, "02353-FixLoginBug"));
 
         var job = service.GetJob(id);
         Assert.NotNull(job);
         job.EnqueueOutput("{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Processing...\"}]}}");
-        job.EnqueueOutput("{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Plan created: 02353-FixLoginBug\"}]}}");
+        job.EnqueueOutput("{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"PlanId: 02353\"}]}}");
 
         service.CompleteJob(id, 0);
 

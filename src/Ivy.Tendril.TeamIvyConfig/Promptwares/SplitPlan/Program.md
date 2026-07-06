@@ -41,7 +41,7 @@ tendril plan create "<Title>" "<TendrilProject>" \
 
 **IMPORTANT:** Always pass `--plans-dir` with the plans directory (derive from the plan folder's parent). This ensures child plans are created in the correct directory regardless of environment variable inheritance. Repos are derived automatically from the project configuration.
 
-The command outputs `PlanId`, `Directory`, and `Plan created` lines. Parse the `Directory` to write the revision file.
+The command outputs `PlanId`, `Directory`, and a `Verifications` section. Parse the `Directory` to write the revision file.
 
 Include optional flags as needed (always use the `--option=value` form):
 - `--source-url="<url>"` — if the original plan had a sourceUrl

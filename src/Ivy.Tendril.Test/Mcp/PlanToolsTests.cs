@@ -538,9 +538,33 @@ public class PlanToolsTests : IDisposable
 
         var result = _planTools.PlanCreate("Direct Plan Test", project: "TestProject");
 
-        Assert.Contains("Plan created:", result);
         Assert.Contains("PlanId:", result);
         Assert.Contains("Directory:", result);
+        Assert.Contains("Verifications:", result);
+        Assert.DoesNotContain("Plan created:", result);
+    }
+
+    [Fact]
+    public void PlanCreate_PrintsVerifications_AndOmitsPlanCreatedLine()
+    {
+        var plansDir = Path.Combine(_tempDir, "Plans");
+        Directory.CreateDirectory(plansDir);
+
+        var configService = new TestPlanConfigService(_repoDir, "TestProject",
+        [
+            new ProjectVerificationRef { Name = "DotnetBuild", Required = true },
+            new ProjectVerificationRef { Name = "DotnetTest", Required = false }
+        ]);
+        var planTools = new PlanTools(new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance), configService);
+
+        var result = planTools.PlanCreate("Verify Plan Test", project: "TestProject");
+
+        Assert.Contains("PlanId:", result);
+        Assert.Contains("Directory:", result);
+        Assert.Contains("Verifications:", result);
+        Assert.Contains("DotnetBuild:Pending", result);
+        Assert.Contains("DotnetTest:Skipped", result);
+        Assert.DoesNotContain("Plan created:", result);
     }
 
     [Fact]
@@ -557,8 +581,6 @@ public class PlanToolsTests : IDisposable
             executionProfile: "deep",
             sourceUrl: "https://github.com/org/repo/issues/1",
             verifications: "DotnetBuild,DotnetTest");
-
-        Assert.Contains("Plan created:", result);
 
         var planId = result.Split('\n')
             .First(l => l.StartsWith("PlanId:"))

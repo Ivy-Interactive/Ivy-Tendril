@@ -131,7 +131,10 @@ Outputs:
 ```
 PlanId: <ID>
 Directory: <TendrilPlansFolder>/<ID>-<SafeTitle>
-Plan created: <ID>-<SafeTitle>
+Verifications:
+<Name>:<Status>
+<Name>:<Status>
+...
 ```
 
 Options:
