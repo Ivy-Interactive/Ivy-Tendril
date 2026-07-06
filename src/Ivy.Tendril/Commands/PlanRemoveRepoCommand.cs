@@ -40,7 +40,7 @@ public class PlanRemoveRepoCommand : Command<PlanRemoveRepoSettings>
 
         var removed = plan.Repos.RemoveAll(r => r.Equals(settings.RepoPath, StringComparison.OrdinalIgnoreCase));
         if (removed == 0)
-            throw new InvalidOperationException($"Repository not found in plan: {settings.RepoPath}");
+            CliValidation.ThrowRepoNotFound(settings.RepoPath, plan.Repos);
 
         plan.Updated = DateTime.UtcNow;
 

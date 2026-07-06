@@ -282,6 +282,7 @@ public class PlanCliCommandTests : IDisposable
             config.AddBranch("plan", plan =>
             {
                 plan.AddCommand<PlanAddRepoCommand>("add-repo");
+                plan.AddCommand<PlanRemoveRepoCommand>("remove-repo");
                 plan.AddCommand<PlanValidateCommand>("validate");
             });
         });
@@ -310,6 +311,28 @@ public class PlanCliCommandTests : IDisposable
 
         Assert.Equal(1, exit);
         Assert.DoesNotContain(outsideRepo, ReadPlan("00001").Repos);
+    }
+
+    // `plan remove-repo` must list the plan's actual repos when the given path isn't one of them.
+    [Fact]
+    public void PlanRemoveRepo_NotFound_ListsAvailable()
+    {
+        var app = BuildPlanGuardApp("TestProject", out var inProjectRepo);
+        var missingRepo = Path.Combine(_tempDir.Path, "repos", "Missing");
+
+        CreatePlanFolder("00003", "Test", new PlanYaml
+        {
+            State = "Draft",
+            Project = "TestProject",
+            Title = "Test",
+            Repos = [inProjectRepo],
+            Created = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc),
+            Updated = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc)
+        });
+
+        var ex = Assert.Throws<InvalidOperationException>(() => app.Run(["plan", "remove-repo", "00003", missingRepo]));
+
+        Assert.Contains($"Available: {inProjectRepo}", ex.Message);
     }
 
     // #1340: `plan validate` must fail a plan whose repo isn't part of its project.

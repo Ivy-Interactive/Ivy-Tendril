@@ -271,6 +271,7 @@ public class PlanToolsTests : IDisposable
         CreateTestPlan();
         var result = _planTools.RemoveRepo("00001", @"D:\Repos\NonExistent");
         Assert.Contains("Error:", result);
+        Assert.Contains($"Available: {_repoDir}", result);
     }
 
     // --- AddPr ---
