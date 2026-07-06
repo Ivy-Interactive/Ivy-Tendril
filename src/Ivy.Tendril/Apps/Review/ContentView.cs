@@ -2,7 +2,9 @@ using System.Diagnostics;
 using System.Reactive.Disposables;
 using System.Text;
 using Ivy.Core;
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Apps.Agent;
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Review.Dialogs;
 using Ivy.Tendril.Apps.Review.Tabs;
@@ -43,6 +45,7 @@ public class ContentView(
         var processView = Context.UseTendrilProcess();
 
         var githubService = UseService<IGithubService>();
+        var agentRunner = UseService<IAgentRunner>();
         var assigneesError = UseState<string?>(null);
         var assigneesQuery = UseQuery<string[], string>(
             selectedPlanState.Value?.Project ?? "",
@@ -236,7 +239,7 @@ public class ContentView(
             args, selectedRecTitles, ImplementRecommendations);
         var actionBar = BuildActionBar(
             selectedPlanState.Value, showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog,
-            showCreatePrDialog, copyToClipboard, client, logger, nav, args);
+            showCreatePrDialog, copyToClipboard, client, logger, nav, args, agentRunner);
         var content = BuildContent(
             selectedPlanState.Value, planData, planContentQuery, selectedTabIndex, tabNames, openVerification,
             openCommit, openFile, openArtifact, artifactContentQuery, assigneesQuery,
@@ -381,7 +384,7 @@ public class ContentView(
             }
 
             if (hasSelection)
-            { 
+            {
                 var count = selectedRecTitles.Value.Count;
                 var label = count > 1 ? "Implement Recommendations" : "Implement Recommendation";
                 rightSide |= new Button(label)
@@ -407,11 +410,17 @@ public class ContentView(
         IClientProvider client,
         ILogger<ContentView> logger,
         INavigator nav,
-        ReviewAppArgs? args)
+        ReviewAppArgs? args,
+        IAgentRunner agentRunner)
     {
+        var (agentLabel, agentIcon) = AgentBranding.For(config.Settings.CodingAgent, agentRunner);
+
         // Standard overflow menu items
         var standardOverflowItems = new[]
         {
+            new MenuItem($"Discuss with {agentLabel}", Icon: agentIcon, Tag: "DiscussWithAgent")
+                .OnSelect(() => nav.Navigate<AgentApp>(new AgentAppArgs(
+                    $"User wants to discuss the plan {selectedPlan.FolderPath} currently in Review mode."))),
             new MenuItem("Create PR", Icon: Icons.GitPullRequest, Tag: "CreatePR").OnSelect(showCreatePrDialog),
             new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
             {
