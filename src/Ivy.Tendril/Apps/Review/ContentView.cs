@@ -5,6 +5,7 @@ using Ivy.Core;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Review.Dialogs;
+using Ivy.Tendril.Apps.Review.Tabs;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Apps.Views.Tabs;
@@ -520,22 +521,7 @@ public class ContentView(
             return content | Text.Muted("No plan selected");
         }
 
-        var reviewAnnotated = MarkdownHelper.PrepareForDisplay(selectedPlan.LatestRevisionContent, config);
-        var planTabContent = Layout.Vertical().Height(Size.Full())
-            | new Markdown(reviewAnnotated)
-                .DangerouslyAllowLocalFiles()
-                .Article()
-                .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile, planId =>
-                {
-                    var planFolder = Directory.GetDirectories(planService.PlansDirectory, $"{planId:D5}-*")
-                        .FirstOrDefault();
-                    if (planFolder != null)
-                    {
-                        var plan = planService.GetPlanByFolder(planFolder);
-                        if (plan != null)
-                            selectedPlanState.Set(plan);
-                    }
-                }));
+        var planTabContent = new PlanTabView(selectedPlan, selectedPlanState, openFile, planService, config);
 
         if (planContentQuery.Loading && planData is null)
         {
@@ -570,59 +556,11 @@ public class ContentView(
             var totalArtifacts = (planData.Artifacts.GetValueOrDefault("screenshots")?.Count ?? 0)
                                  + (planData.Artifacts.ContainsKey("sample") ? 1 : 0);
 
-            var reviewActionStates = planData.ReviewActionStates;
-            var projectConfig = config.GetProject(selectedPlan.Project);
-            var reviewActions = projectConfig?.ReviewActions ?? new List<ReviewActionConfig>();
-            if (reviewActions.Count > 0)
-            {
-                var actionsBar = Layout.Horizontal().Gap(2).Padding(2).Height(Size.Fit());
-                for (var i = 0; i < reviewActions.Count; i++)
-                {
-                    var action = reviewActions[i];
-                    var conditionMet = i < reviewActionStates.Count && reviewActionStates[i].ConditionMet;
+            content |= new ReviewActionsBarView(selectedPlan, planData.ReviewActionStates, config, logger);
 
-                    var btn = new Button(action.Name).Icon(Icons.Play).Outline();
-                    if (!conditionMet)
-                    {
-                        btn = btn.Disabled();
-                    }
-                    else
-                    {
-                        var actionCapture = action;
-                        btn = btn.OnClick(() =>
-                        {
-                            if (!PlatformHelper.RunPowerShellAction(actionCapture.Command, selectedPlan.FolderPath, logger))
-                            {
-                                logger.LogWarning("Failed to run review action {ActionName}: pwsh not found", actionCapture.Name);
-                            }
-                        });
-                    }
-
-                    actionsBar |= btn;
-                }
-
-                content |= actionsBar;
-            }
-
-            var recommendationsLayout = Layout.Vertical().Padding(2);
-            if (selectedRecTitles.Value.Count > 0)
-            {
-                var count = selectedRecTitles.Value.Count;
-                recommendationsLayout |= Layout.Horizontal().Gap(2).AlignContent(Align.Right)
-                    | new Button("Implement Recommendations")
-                        .Icon(Icons.Rocket).Badge(count.ToString()).Primary()
-                        .OnClick(() => ImplementSelectedRecommendations(
-                            selectedPlan, pendingRecs, selectedRecTitles, client, planContentQuery.Mutator.Revalidate));
-            }
-            if (pendingRecs.Count == 0)
-                recommendationsLayout |= Text.Muted("No recommendations.");
-            else
-                for (var i = 0; i < pendingRecs.Count; i++)
-                {
-                    recommendationsLayout |= new RecommendationRowView(pendingRecs[i], selectedRecTitles, config);
-                    if (i < pendingRecs.Count - 1)
-                        recommendationsLayout |= new Separator();
-                }
+            var recommendationsTab = new RecommendationsTabView(pendingRecs, selectedRecTitles, config,
+                onImplement: () => ImplementSelectedRecommendations(
+                    selectedPlan, pendingRecs, selectedRecTitles, client, planContentQuery.Mutator.Revalidate));
 
             var changesTabView = new ChangesTabView(planData.AllChanges, planContentQuery.Loading, planContentQuery.Error, selectedPlan.Project);
 
@@ -659,7 +597,7 @@ public class ContentView(
 
             if (pendingRecs.Count > 0)
             {
-                tabList.Add(new Tab("Recommendations", Cap(recommendationsLayout)).Badge(pendingRecs.Count.ToString()));
+                tabList.Add(new Tab("Recommendations", Cap(recommendationsTab)).Badge(pendingRecs.Count.ToString()));
                 tabNamesList.Add("recommendations");
             }
 
