@@ -90,7 +90,7 @@ public class JobDebugSheet(
             .Builder(x => x.PlanId, f => f.CopyToClipboard());
 
         // Shared "Copy Details" text — reused by the Copy Details button and the
-        // "Investigate with <agent>" prompt so the two stay identical.
+        // "Debug with <agent>" prompt so the two stay identical.
         var copyDetails = string.Join("\n", new List<(string Label, string Value)>
             {
                 ("Job Id", data.JobId),
@@ -122,20 +122,23 @@ public class JobDebugSheet(
         var agentBranding = AgentBranding.For(config.Settings.CodingAgent, agentRunner);
 
         var header = Layout.Horizontal().Gap(2)
-            | new Button("Copy Details").Icon(Icons.ClipboardCopy).Outline().OnClick(() =>
-            {
-                copyToClipboard(copyDetails);
-                client.Toast("Job details copied to clipboard", "Copied");
-            })
-            | new Button("Report Bug").Icon(Icons.Bug).OnClick(() => showReportDialog.Set(true))
-            | new Button($"Investigate with {agentBranding.Label}").Icon(agentBranding.Icon).Outline().OnClick(() =>
-            {
-                var prompt =
-                    "I want to investigate the following job for what might have gone wrong of what we can improve.\n\n"
-                    + copyDetails;
-                nav.Navigate<AgentApp>(new AgentAppArgs(prompt));
-                closeSheet();
-            });
+                     | new Button("Copy Details").Icon(Icons.ClipboardCopy).Outline().OnClick(() =>
+                     {
+                         copyToClipboard(copyDetails);
+                         client.Toast("Job details copied to clipboard", "Copied");
+                     })
+                     | new Button("Report Bug").Icon(Icons.Bug).OnClick(() => showReportDialog.Set(true));
+        
+        #if DEBUG
+        header |= new Button($"Debug with {agentBranding.Label}").Icon(agentBranding.Icon).Outline().OnClick(() =>
+        {
+            var prompt =
+                "I want to debug the following job for what might have gone wrong of what we can improve. Use the /tendril-debug-job skill if available. \n\n"
+                + copyDetails;
+            nav.Navigate<AgentApp>(new AgentAppArgs(prompt));
+            closeSheet();
+        });
+        #endif
 
         return new Fragment(
             new HeaderLayout(header, detailsView).Size(Size.Full()),

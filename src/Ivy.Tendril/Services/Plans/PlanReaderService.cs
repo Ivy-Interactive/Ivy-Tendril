@@ -1266,4 +1266,9 @@ public record Recommendation(
     PlanStatus SourcePlanStatus,
     string? DeclineReason = null,
     string? Impact = null
-);
+)
+{
+    /// <summary>Plan id without leading zeros, e.g. "60" for "00060".</summary>
+    public string ShortPlanId =>
+        PlanId.TrimStart('0') is { Length: > 0 } trimmed ? trimmed : PlanId;
+}

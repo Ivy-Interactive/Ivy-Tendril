@@ -10,4 +10,9 @@ public static class SidebarListRow
 
         return new Button().Ghost().Width(Size.Full()).Content(row).OnClick(onClick);
     }
+
+    public static object Build(string title, Action onClick)
+    {
+        return new Button().Ghost().Width(Size.Full()).Content(Text.Literal(title)).OnClick(onClick);
+    }
 }
