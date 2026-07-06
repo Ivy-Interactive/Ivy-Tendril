@@ -7,6 +7,7 @@ using Ivy.Tendril.Services.Git;
 using Ivy.Tendril.Services.Plans;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Spectre.Console;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Test;
@@ -1441,6 +1442,223 @@ public class PlanCliCommandTests : IDisposable
         }
 
         return writer.ToString();
+    }
+
+    // ==================== PlanAddWorktreeCommand ====================
+
+    private CommandApp BuildPlanAddWorktreeApp()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        var app = new CommandApp(new TypeRegistrar(services));
+        app.Configure(config =>
+        {
+            config.PropagateExceptions();
+            config.AddBranch("plan", plan => plan.AddCommand<PlanAddWorktreeCommand>("add-worktree"));
+        });
+        return app;
+    }
+
+    /// <summary>
+    /// Builds a bare remote whose default branch is <paramref name="defaultBranch"/>, plus a
+    /// working repo with `origin` pointing at it and the branch pushed. Returns the working repo
+    /// path (which is usable as the `<repo>` argument to add-worktree), or null if git operations
+    /// did not succeed (e.g. git unavailable in the test environment).
+    /// </summary>
+    private string? SetUpRemoteAndWorkRepo(string defaultBranch = "main")
+    {
+        var remote = Path.Combine(_tempDir.Path, $"remote-{Guid.NewGuid():N}.git");
+        Directory.CreateDirectory(remote);
+        RunGitFor($"init --bare -b {defaultBranch}", remote);
+
+        var work = Path.Combine(_tempDir.Path, $"work-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(work);
+        RunGitFor($"init -b {defaultBranch}", work);
+        RunGitFor("config user.email \"test@example.com\"", work);
+        RunGitFor("config user.name \"Test User\"", work);
+        File.WriteAllText(Path.Combine(work, "a.txt"), "x");
+        RunGitFor("add -A", work);
+        RunGitFor("commit -m initial", work);
+        RunGitFor($"remote add origin \"{remote}\"", work);
+        RunGitFor($"push -u origin {defaultBranch}", work);
+        // `git clone` sets refs/remotes/origin/HEAD automatically; a manual init+push does not.
+        // The command under test relies on it to auto-detect the base branch, so replicate it here.
+        RunGitFor($"remote set-head origin {defaultBranch}", work);
+
+        return Directory.Exists(Path.Combine(work, ".git")) ? work : null;
+    }
+
+    private static void RunGitFor(string args, string workingDir)
+    {
+        using var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("git", args)
+        {
+            WorkingDirectory = workingDir,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        });
+        p?.WaitForExit(15000);
+    }
+
+    /// <summary>
+    /// Redirects the static <see cref="AnsiConsole"/> facade (used by commands like
+    /// <see cref="PlanAddWorktreeCommand"/> for markup output) to an in-memory writer for the
+    /// duration of <paramref name="action"/>, then restores the original console. Swapping
+    /// <see cref="AnsiConsole.Console"/> — rather than <see cref="Console.SetOut"/> — avoids
+    /// AnsiConsole's cached-writer-goes-stale issue: AnsiConsole binds to Console.Out once on
+    /// first use and does not observe later Console.SetOut calls, so disposing a StringWriter
+    /// captured via Console.SetOut leaves AnsiConsole holding a closed writer for the rest of
+    /// the test run.
+    /// </summary>
+    private static string CaptureAnsiConsoleOutput(Action action)
+    {
+        var original = AnsiConsole.Console;
+        var writer = new StringWriter();
+        AnsiConsole.Console = AnsiConsole.Create(new AnsiConsoleSettings
+        {
+            Ansi = AnsiSupport.No,
+            ColorSystem = ColorSystemSupport.NoColors,
+            Out = new AnsiConsoleOutput(writer)
+        });
+        try
+        {
+            action();
+        }
+        finally
+        {
+            AnsiConsole.Console = original;
+        }
+
+        return writer.ToString();
+    }
+
+    [Fact]
+    public void PlanAddWorktreeCommand_CreatesWorktreeDirectory()
+    {
+        var repo = SetUpRemoteAndWorkRepo();
+        if (repo == null) return; // git unavailable — skip
+
+        CreatePlanFolder("21000", "AddWorktreeCreate");
+        var app = BuildPlanAddWorktreeApp();
+
+        var exit = app.Run(["plan", "add-worktree", "21000", repo]);
+
+        Assert.Equal(0, exit);
+        var planFolder = PlanCommandHelpers.ResolvePlanFolder("21000");
+        var repoName = Path.GetFileName(repo);
+        var worktreePath = Path.Combine(planFolder, "Worktrees", repoName);
+        Assert.True(Directory.Exists(worktreePath));
+        Assert.True(File.Exists(Path.Combine(worktreePath, ".git")));
+    }
+
+    [Fact]
+    public void PlanAddWorktreeCommand_DerivesBranchNameFromPlanFolder()
+    {
+        var repo = SetUpRemoteAndWorkRepo();
+        if (repo == null) return; // git unavailable — skip
+
+        CreatePlanFolder("21001", "AddWorktreeBranch");
+        var app = BuildPlanAddWorktreeApp();
+
+        var exit = app.Run(["plan", "add-worktree", "21001", repo]);
+        Assert.Equal(0, exit);
+
+        var branchCheck = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+            "git", "branch --list \"tendril/21001-AddWorktreeBranch\"")
+        {
+            WorkingDirectory = repo,
+            RedirectStandardOutput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        });
+        var output = branchCheck!.StandardOutput.ReadToEnd();
+        branchCheck.WaitForExit(10000);
+        Assert.Contains("tendril/21001-AddWorktreeBranch", output);
+    }
+
+    [Fact]
+    public void PlanAddWorktreeCommand_FailsIfRepoPathDoesNotExist()
+    {
+        CreatePlanFolder("21002", "AddWorktreeMissingRepo");
+        var app = BuildPlanAddWorktreeApp();
+
+        var missingRepo = Path.Combine(_tempDir.Path, "does-not-exist");
+        var output = CaptureAnsiConsoleOutput(() =>
+        {
+            var exit = app.Run(["plan", "add-worktree", "21002", missingRepo]);
+            Assert.Equal(1, exit);
+        });
+
+        Assert.Contains("Repo path does not exist", output);
+    }
+
+    [Fact]
+    public void PlanAddWorktreeCommand_RemovesExistingWorktreeBeforeCreating()
+    {
+        var repo = SetUpRemoteAndWorkRepo();
+        if (repo == null) return; // git unavailable — skip
+
+        CreatePlanFolder("21003", "AddWorktreeIdempotent");
+        var app = BuildPlanAddWorktreeApp();
+
+        var firstExit = app.Run(["plan", "add-worktree", "21003", repo]);
+        Assert.Equal(0, firstExit);
+
+        var planFolder = PlanCommandHelpers.ResolvePlanFolder("21003");
+        var repoName = Path.GetFileName(repo);
+        var worktreePath = Path.Combine(planFolder, "Worktrees", repoName);
+        Assert.True(Directory.Exists(worktreePath));
+
+        var secondExit = app.Run(["plan", "add-worktree", "21003", repo]);
+
+        Assert.Equal(0, secondExit);
+        Assert.True(Directory.Exists(worktreePath));
+        Assert.True(File.Exists(Path.Combine(worktreePath, ".git")));
+    }
+
+    [Fact]
+    public void PlanAddWorktreeCommand_FailsWithGitStdErrOnFetchFailure()
+    {
+        var repo = SetUpRemoteAndWorkRepo();
+        if (repo == null) return; // git unavailable — skip
+
+        // Point origin at a nonexistent path so `git fetch origin` fails with a captured stderr.
+        RunGitFor("remote set-url origin \"" + Path.Combine(_tempDir.Path, "nonexistent-remote.git") + "\"", repo);
+
+        CreatePlanFolder("21004", "AddWorktreeFetchFail");
+        var app = BuildPlanAddWorktreeApp();
+
+        var output = CaptureAnsiConsoleOutput(() =>
+        {
+            var exit = app.Run(["plan", "add-worktree", "21004", repo]);
+            Assert.Equal(1, exit);
+        });
+
+        Assert.Contains("git fetch origin failed", output);
+    }
+
+    [Fact]
+    public void PlanAddWorktreeCommand_FailsWithGitStdErrOnWorktreeAddFailure()
+    {
+        var repo = SetUpRemoteAndWorkRepo();
+        if (repo == null) return; // git unavailable — skip
+
+        CreatePlanFolder("21005", "AddWorktreeAddFail");
+
+        // Pre-create the branch `git worktree add -b` would try to create, so the add step fails.
+        RunGitFor("branch \"tendril/21005-AddWorktreeAddFail\"", repo);
+
+        var app = BuildPlanAddWorktreeApp();
+
+        var output = CaptureAnsiConsoleOutput(() =>
+        {
+            var exit = app.Run(["plan", "add-worktree", "21005", repo]);
+            Assert.Equal(1, exit);
+        });
+
+        Assert.Contains("git worktree add failed", output);
     }
 
     // ==================== PlanWriteRevision (--file / --stdin) ====================
