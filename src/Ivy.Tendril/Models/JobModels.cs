@@ -54,6 +54,15 @@ public record JobItem
     public bool CancellationRequested { get; set; }
 
     /// <summary>
+    /// True once this launch attempt has acquired a permit from the job-slot semaphore. Distinct
+    /// from <c>Status == Running</c>: the pre-Running launch guard (repo-ownership check, #1340)
+    /// can run — and release the slot via <c>FailJobAndReleaseSlot</c> — before <c>Status</c> ever
+    /// flips to <see cref="JobStatus.Running"/>, so a concurrent <c>StopJob</c> keyed off
+    /// <c>Status == Running</c> would wrongly skip releasing a slot it doesn't realize is held.
+    /// </summary>
+    public bool SlotReserved { get; set; }
+
+    /// <summary>
     /// Plan state captured at job start, before the start transition. On Stop/Delete/
     /// Failed the plan is reverted to this "came-from" state. In-memory only (not
     /// persisted); after an app restart the fallback mapping in
