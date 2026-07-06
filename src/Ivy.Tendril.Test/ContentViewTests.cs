@@ -195,7 +195,7 @@ public class ContentViewTests
     }
 
     [Fact]
-    public void SelectRecommendationsToImplement_WithMatchingTitles_ReturnsSelectedRecs()
+    public void ResolvePendingSelection_WithPendingMatchingTitles_ReturnsThem()
     {
         var recs = new List<RecommendationYaml>
         {
@@ -204,13 +204,27 @@ public class ContentViewTests
             new() { Title = "R3" },
         };
 
-        var selected = ReviewContentView.SelectRecommendationsToImplement(recs, ["R1", "R3"]);
+        var selected = ReviewContentView.ResolvePendingSelection(recs, ["R1", "R3"]);
 
         Assert.Equal(["R1", "R3"], selected.Select(r => r.Title));
     }
 
     [Fact]
-    public void SelectRecommendationsToImplement_WithNoMatchingTitles_ReturnsEmpty()
+    public void ResolvePendingSelection_ExcludesNonPending()
+    {
+        var recs = new List<RecommendationYaml>
+        {
+            new() { Title = "R1", State = RecommendationStatus.Pending },
+            new() { Title = "R2", State = RecommendationStatus.Accepted },
+        };
+
+        var selected = ReviewContentView.ResolvePendingSelection(recs, ["R1", "R2"]);
+
+        Assert.Equal(["R1"], selected.Select(r => r.Title));
+    }
+
+    [Fact]
+    public void ResolvePendingSelection_WithNoMatchingTitles_ReturnsEmpty()
     {
         var recs = new List<RecommendationYaml>
         {
@@ -218,7 +232,7 @@ public class ContentViewTests
             new() { Title = "R2" },
         };
 
-        var selected = ReviewContentView.SelectRecommendationsToImplement(recs, ["Unknown"]);
+        var selected = ReviewContentView.ResolvePendingSelection(recs, ["Unknown"]);
 
         Assert.Empty(selected);
     }
