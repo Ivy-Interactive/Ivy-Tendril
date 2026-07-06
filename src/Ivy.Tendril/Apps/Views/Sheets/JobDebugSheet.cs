@@ -272,9 +272,7 @@ public class JobDebugSheet(
         return !string.IsNullOrEmpty(fallback) && Directory.Exists(fallback) ? fallback : null;
     }
 
-    private string? GetPlanLogPath(JobItem job) => FindInLogsDir(job, "*.md");
-
-    private string? FindInLogsDir(JobItem job, string pattern, bool orderByLatest = true)
+    private string? GetPlanLogPath(JobItem job)
     {
         var folder = GetPlanFolderPath(job);
         if (string.IsNullOrEmpty(folder)) return null;
@@ -282,11 +280,26 @@ public class JobDebugSheet(
         var logsDir = Path.Combine(folder, "Logs");
         if (!Directory.Exists(logsDir)) return null;
 
-        var files = Directory.GetFiles(logsDir, pattern);
-        return orderByLatest
-            ? files.OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault()
-            : files.FirstOrDefault();
+        // Plan-folder logs are named "{jobId}-{action}.md" (PlanReaderService.AddLog), so tie the
+        // Plan Log to THIS job instead of guessing the newest file — a RetryPlan job must not show
+        // an earlier ExecutePlan job's log.
+        if (!string.IsNullOrEmpty(job.Id))
+        {
+            var own = Directory.GetFiles(logsDir, $"{job.Id}-*.md")
+                .OrderByDescending(File.GetLastWriteTimeUtc)
+                .FirstOrDefault();
+            if (own != null) return own;
+        }
+
+        // Fallback for legacy logs written without a job-id prefix (just "{action}.md"). Ignore
+        // other jobs' id-prefixed logs so we show nothing rather than a wrong job's log.
+        return Directory.GetFiles(logsDir, "*.md")
+            .Where(f => !JobIdPrefixedLogRegex.IsMatch(Path.GetFileName(f)))
+            .OrderByDescending(File.GetLastWriteTimeUtc)
+            .FirstOrDefault();
     }
+
+    private static readonly Regex JobIdPrefixedLogRegex = new(@"^\d{5}-", RegexOptions.Compiled);
 
     private string? GetPromptwareLogPath(JobItem job)
     {
