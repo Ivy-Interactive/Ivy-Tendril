@@ -586,12 +586,12 @@ internal class JobCompletionHandler
             {
                 var seen = new HashSet<string>(recordedKeys, StringComparer.OrdinalIgnoreCase);
                 foreach (var line in job.OutputLines)
-                foreach (Match m in GitHubPrUrlPattern.Matches(line))
-                {
-                    if (!planRepoNames.Contains(m.Groups["repo"].Value)) continue;
-                    if (!seen.Add(CanonicalPrKey(m))) continue;
-                    added.Add(m.Value);
-                }
+                    foreach (Match m in GitHubPrUrlPattern.Matches(line))
+                    {
+                        if (!planRepoNames.Contains(m.Groups["repo"].Value)) continue;
+                        if (!seen.Add(CanonicalPrKey(m))) continue;
+                        added.Add(m.Value);
+                    }
             }
 
             // Nothing to record and no PR on the plan → leave state to whatever the agent set.
