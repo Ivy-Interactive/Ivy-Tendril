@@ -195,7 +195,10 @@ public class JobService : IJobService
         if (!job.TryClaimCompletion()) return;
 
         job.FlushParser();
-        var wasRunning = job.Status == JobStatus.Running;
+        // Keyed off SlotReserved rather than Status == Running: the pre-Running launch guard
+        // (ValidateProjectReposOrFail, #1340) can hold the slot before Status ever flips to
+        // Running, so gating release on Status here would leak it if this races that guard.
+        var heldSlot = job.SlotReserved;
         try
         {
             job.TimeoutCts?.Cancel();
@@ -223,8 +226,8 @@ public class JobService : IJobService
 
         _completionHandler.WriteJobLog(job);
 
-        // Release job slot if the job was running
-        if (wasRunning)
+        // Release job slot if this launch attempt held one
+        if (heldSlot)
             _jobSlotSemaphore.Release();
 
         JobCompletionHandler.CleanupInboxFile(job);
@@ -238,7 +241,7 @@ public class JobService : IJobService
         RaiseJobsStructureChanged();
 
         // Try to start queued jobs now that a slot is free
-        if (wasRunning)
+        if (heldSlot)
             ProcessJobQueue();
     }
 
@@ -593,6 +596,7 @@ public class JobService : IJobService
             return id;
         }
 
+        job.SlotReserved = true;
         LaunchJob(job);
         return id;
     }
@@ -818,6 +822,7 @@ public class JobService : IJobService
         };
         _jobs[id] = job;
         _jobSlotSemaphore.Wait(0); // Acquire slot so CompleteJob can release it
+        job.SlotReserved = true;
         return id;
     }
 
@@ -904,6 +909,8 @@ public class JobService : IJobService
                     continue;
                 }
             }
+
+            queuedJob.SlotReserved = true;
 
             // Launch outside the lock (launching is expensive)
             LaunchJob(queuedJob);

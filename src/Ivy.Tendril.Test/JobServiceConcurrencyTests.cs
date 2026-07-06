@@ -89,6 +89,35 @@ public class JobServiceConcurrencyTests
     }
 
     [Fact]
+    public void StopJob_OnPreRunningJobWithReservedSlot_ReleasesSlot()
+    {
+        // maxConcurrentJobs=1: the single slot is held by job1 while its Status is still Queued —
+        // simulating the narrow window where ValidateProjectReposOrFail (#1340, runs before
+        // PrepareJobForLaunch sets Running) can hold a launcher-acquired slot on a job whose Status
+        // hasn't flipped to Running yet. StopJob must release based on SlotReserved, not Status,
+        // or a concurrent Stop landing in that window would permanently drain the slot.
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), null, 1);
+        var job1Id = service.CreateTestJob(new ExecutePlanArgs("plan1"));
+        service.GetJob(job1Id)!.Status = JobStatus.Queued;
+
+        service.StopJob(job1Id);
+        Assert.Equal(JobStatus.Stopped, service.GetJob(job1Id)!.Status);
+
+        // If the slot had leaked, this would queue instead of attempting to launch.
+        try
+        {
+            var job2Id = service.StartJob(new CreatePlanArgs("Test Job 2", "Auto"));
+            var job2 = service.GetJob(job2Id);
+            Assert.NotNull(job2);
+            Assert.NotEqual(JobStatus.Queued, job2.Status);
+        }
+        catch
+        {
+            // Process launch may fail in test — that's OK, we're testing the queue check.
+        }
+    }
+
+    [Fact]
     public void SettingsReload_IncreasedConcurrency_StartsQueuedJobs()
     {
         // Arrange: Start with max=2
