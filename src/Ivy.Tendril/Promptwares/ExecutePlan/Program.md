@@ -116,11 +116,13 @@ After reading the plan revision, scan it for code validation markers to detect s
 4. **Write validation report** — Create `<TendrilPlanFolder>/Verification/PreExecution.md`:
 
 ```markdown
+---
+result: Pass
+date: <CurrentTime>
+---
 # PreExecution
 
-- **Date:** <CurrentTime>
-- **Result:** Pass / Fail / Skipped
-- **Blocks Found:** <number>
+**Blocks Found:** <number>
 
 ## Validation Blocks
 
