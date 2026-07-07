@@ -21,7 +21,7 @@ internal static class PluginIconHelper
                 : null,
             PluginIconKind.Url => new Image(icon.Value).Width(IconSize).Height(IconSize),
             PluginIconKind.File when pluginId is not null =>
-                new Image($"/ivy/plugins/{pluginId}/assets/{icon.Value}").Width(IconSize).Height(IconSize),
+                new Image($"/ivy/plugin-icons/{pluginId}/{icon.Value}").Width(IconSize).Height(IconSize),
             _ => null
         };
     }
