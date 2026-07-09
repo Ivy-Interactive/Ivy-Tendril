@@ -46,8 +46,19 @@ public class JobController(IJobService jobService) : ControllerBase
         return Ok(new { status = "Updated" });
     }
 
+    [HttpPut("{jobId}/fail")]
+    public IActionResult ReportJobFailure(string jobId, [FromBody] ReportJobFailureRequest request)
+    {
+        if (!jobService.ReportJobFailure(NormalizeJobId(jobId), request.Message))
+            return NotFound(new { error = "Job not found" });
+
+        return Ok(new { status = "Failure reported" });
+    }
+
     [HttpGet("health")]
     public IActionResult Health() => Ok(new { status = "ok", pid = Environment.ProcessId });
 }
 
 public record UpdateJobStatusRequest(string Message, string? PlanId = null, string? PlanTitle = null);
+
+public record ReportJobFailureRequest(string Message);

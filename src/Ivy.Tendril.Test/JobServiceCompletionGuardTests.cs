@@ -97,6 +97,12 @@ public class JobServiceCompletionGuardTests : IDisposable
 
         service.DeleteJob(id);
 
+        // Cleanup + ResetToDraft now run on a background thread (optimistic delete), so the
+        // reset lands after DeleteJob returns rather than synchronously.
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (plan.ResetToDraftCalls.Count == 0 && DateTime.UtcNow < deadline)
+            Thread.Sleep(10);
+
         Assert.Contains("test-plan", plan.ResetToDraftCalls);
     }
 
@@ -284,15 +290,16 @@ public class JobServiceCompletionGuardTests : IDisposable
     }
 
     [Fact]
-    public void CompleteJob_CreatePlan_UpdatesPlanFileWhenOutputContainsPlanCreated()
+    public void CompleteJob_CreatePlan_UpdatesPlanFileWhenOutputContainsPlanId()
     {
         var service = CreateServiceWithPlanReader(_tempDir.Path);
         var id = service.CreateTestJob(new CreatePlanArgs("Fix login bug", "Tendril"));
+        Directory.CreateDirectory(Path.Combine(_tempDir.Path, "02353-FixLoginBug"));
 
         var job = service.GetJob(id);
         Assert.NotNull(job);
         job.EnqueueOutput("{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Processing...\"}]}}");
-        job.EnqueueOutput("{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Plan created: 02353-FixLoginBug\"}]}}");
+        job.EnqueueOutput("{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"PlanId: 02353\"}]}}");
 
         service.CompleteJob(id, 0);
 
@@ -478,6 +485,10 @@ public class JobServiceCompletionGuardTests : IDisposable
         }
 
         public void AcceptRecommendationAndRetry(string folderName, string recommendationTitle)
+        {
+        }
+
+        public void AcceptRecommendationsAndRetry(string folderName, IReadOnlyCollection<string> titles)
         {
         }
     }

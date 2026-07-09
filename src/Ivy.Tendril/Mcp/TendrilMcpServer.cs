@@ -1,3 +1,4 @@
+using Ivy.Tendril.Agents;
 using Ivy.Tendril.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -18,6 +19,10 @@ public class TendrilMcpServer
             // Register authentication service
             builder.Services.AddSingleton<McpAuthenticationService>();
             builder.Services.AddSingleton<IConfigService>(new ConfigService());
+
+            // Agent infrastructure supplies IAgentRunner (registered agents) for config validation.
+            // Include beta providers so config validation accepts every real agent id.
+            builder.Services.AddAgentInfrastructure(opts => opts.IncludeBetaProviders = true);
 
             builder.Services
                 .AddMcpServer(options =>

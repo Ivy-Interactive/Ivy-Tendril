@@ -161,7 +161,9 @@ public class PlanCreateCommand : Command<PlanCreateSettings>
 
         Console.WriteLine($"PlanId: {planId}");
         Console.WriteLine($"Directory: {planFolder}");
-        Console.WriteLine($"Plan created: {folderName}");
+        Console.WriteLine("Verifications:");
+        foreach (var v in plan.Verifications)
+            Console.WriteLine($"{v.Name}:{v.Status}");
         return 0;
     }
 }

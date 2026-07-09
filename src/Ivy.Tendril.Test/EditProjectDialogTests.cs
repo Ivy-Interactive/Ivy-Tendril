@@ -122,4 +122,49 @@ public class EditProjectDialogTests
         var displayedOnReopen = EditProjectDialog.OrderForDisplay(afterReorder, all);
         Assert.Equal(new[] { "Lint", "Build", "Test" }, displayedOnReopen.Select(v => v.Name));
     }
+
+    [Fact]
+    public void ApplyVerificationChange_TogglingRequired_SetsRequiredFlag()
+    {
+        var current = new List<ProjectVerificationRef>
+        {
+            new() { Name = "DotnetTest", Required = false }
+        };
+
+        var result = EditProjectDialog.ApplyVerificationChange(
+            """{"name":"DotnetTest","enabled":true,"required":true}""", current);
+
+        Assert.True(result.Single(v => v.Name == "DotnetTest").Required);
+    }
+
+    [Fact]
+    public void ApplyVerificationChange_EnablingVerification_AddsToProject()
+    {
+        var result = EditProjectDialog.ApplyVerificationChange(
+            """{"name":"Build","enabled":true,"required":false}""", new List<ProjectVerificationRef>());
+
+        Assert.Contains(result, v => v.Name == "Build");
+    }
+
+    [Fact]
+    public void ApplyVerificationChange_DisablingVerification_RemovesFromProject()
+    {
+        var current = Project("Build");
+
+        var result = EditProjectDialog.ApplyVerificationChange(
+            """{"name":"Build","enabled":false,"required":false}""", current);
+
+        Assert.DoesNotContain(result, v => v.Name == "Build");
+    }
+
+    [Fact]
+    public void ApplyVerificationChange_CamelCaseJson_BindsRequiredTrue()
+    {
+        var current = Project("Build");
+
+        var result = EditProjectDialog.ApplyVerificationChange(
+            """{"name":"Build","enabled":true,"required":true}""", current);
+
+        Assert.True(result.Single(v => v.Name == "Build").Required);
+    }
 }

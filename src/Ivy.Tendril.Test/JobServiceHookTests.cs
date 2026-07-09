@@ -328,6 +328,46 @@ public class JobServiceHookTests : IDisposable
         }
     }
 
+    // Regression for the #1455 class: a before-hook runs synchronously in the un-monitored pre-launch
+    // window (before JobMonitor/TimeoutCts exist), so a hook that never returns would wedge the launch
+    // forever with no timeout able to fire. The hook process must be force-killed at its guard
+    // (10s for conditions, 30s for actions) rather than blocking on a ReadToEnd that never completes.
+    [Fact]
+    public async Task RunHooks_HangingBeforeHook_IsKilledAndDoesNotWedgeLaunch()
+    {
+        var hooks = new List<PromptwareHookConfig>
+        {
+            new()
+            {
+                Name = "Hanging Hook",
+                When = "before",
+                Condition = "Start-Sleep -Seconds 120; $true", // never returns within the 10s guard
+                Action = "Write-Host should-not-run"
+            }
+        };
+        var (service, _) = CreateServiceWithHooks(hooks);
+        var planFolder = CreateTempPlanFolder();
+
+        try
+        {
+            // StartJob runs before-hooks synchronously; if the hang regressed it would not return.
+            var startTask = Task.Run(() => service.StartJob(new ExecutePlanArgs(planFolder)));
+            var completed = await Task.WhenAny(startTask, Task.Delay(TimeSpan.FromSeconds(30)));
+            Assert.Equal(startTask, completed);
+
+            var job = service.GetJob(await startTask)!;
+            Assert.Contains(job.OutputLines,
+                l => l.Contains("[hook:Hanging Hook]") && l.Contains("timed out"));
+            Assert.DoesNotContain(job.OutputLines, l => l.Contains("should-not-run"));
+
+            service.CompleteJob(job.Id, 0);
+        }
+        finally
+        {
+            Directory.Delete(planFolder, true);
+        }
+    }
+
     [Fact]
     public void RunHooks_NoConfigService_DoesNothing()
     {

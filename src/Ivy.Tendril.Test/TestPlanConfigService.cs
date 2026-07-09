@@ -6,14 +6,16 @@ internal class TestPlanConfigService : IConfigService
 {
     private readonly List<ProjectConfig> _projects;
 
-    public TestPlanConfigService(string repoDir, string projectName = "TestProject")
+    public TestPlanConfigService(string repoDir, string projectName = "TestProject",
+        IReadOnlyList<ProjectVerificationRef>? verifications = null)
     {
         _projects =
         [
             new ProjectConfig
             {
                 Name = projectName,
-                Repos = [new RepoRef { Path = repoDir }]
+                Repos = [new RepoRef { Path = repoDir }],
+                Verifications = verifications?.ToList() ?? []
             }
         ];
     }
@@ -52,5 +54,6 @@ internal class TestPlanConfigService : IConfigService
     public List<VerificationConfig>? GetPendingVerificationDefinitions() => null;
     public void CompleteOnboarding(string tendrilHome) { }
     public void OpenInEditor(string path) { }
-    public string PreprocessForEditing(string path) => path;
+    public string PolishMarkdown(string content) => content;
+    public void Dispose() { }
 }

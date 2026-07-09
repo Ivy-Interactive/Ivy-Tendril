@@ -1,7 +1,5 @@
 using System;
-using System.IO;
 using System.Threading.Tasks;
-using Ivy.Tendril.Helpers;
 using System.Reactive.Disposables;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Hooks;
@@ -110,7 +108,10 @@ public class WallpaperApp : ViewBase
                 new Card(
                     new QRCode { Value = tunnelAddress, PixelSize = 160, ErrorCorrectionLevel = QrErrorCorrectionLevel.Medium }
                 ).Header("Tunnel", null, tunnelMenu)
-            ).AlignSelf(Align.TopRight).Offset(new Thickness(0, 8, 8, 0));
+            )
+            .AlignSelf(Align.TopRight)
+            .Offset(new Thickness(0, 8, 8, 0))
+            .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
             elements.Add(tunnelQr);
         }
@@ -127,7 +128,7 @@ public class WallpaperApp : ViewBase
                     | Layout.Horizontal().Gap(2)
                         | new Button("Retry", () =>
                             {
-                                TriggerUpdate(versionInfo.Value?.LatestVersion, updateProgress, updateStatus, updateError);
+                                TriggerUpdate(versionService, updateProgress, updateStatus, updateError);
                             })
                             .Small()
                         | new Button("Dismiss", () =>
@@ -154,8 +155,29 @@ public class WallpaperApp : ViewBase
             else
             {
                 var updateCommand = OperatingSystem.IsWindows()
-                    ? "irm https://cdn.ivy.app/install-tendril.ps1 | iex"
-                    : "curl -sSf https://cdn.ivy.app/install-tendril.sh | sh";
+                    ? Constants.WindowsInstallCommand
+                    : Constants.UnixInstallCommand;
+
+                var dismissButton = new Button("Dismiss", () =>
+                    {
+                        var latest = versionInfo.Value!.LatestVersion;
+                        dismissedVersion.Set(latest);
+                        config.Settings.DismissedUpdateVersion = latest;
+                        config.SaveSettings();
+                    })
+                    .Variant(ButtonVariant.Secondary)
+                    .Small();
+
+                var actions = Layout.Horizontal().Gap(2);
+                if (versionService.CanSelfUpdate)
+                {
+                    actions |= new Button("Update Now", () =>
+                        {
+                            TriggerUpdate(versionService, updateProgress, updateStatus, updateError);
+                        })
+                        .Small();
+                }
+                actions |= dismissButton;
 
                 content = Layout.Vertical()
                     | Text.Rich()
@@ -163,21 +185,7 @@ public class WallpaperApp : ViewBase
                         .Run($" is available (you have v{versionInfo.Value.CurrentVersion})")
                         .Small()
                     | new CodeBlock(updateCommand, Languages.Bash)
-                    | Layout.Horizontal().Gap(2)
-                        | new Button("Update Now", () =>
-                            {
-                                TriggerUpdate(versionInfo.Value.LatestVersion, updateProgress, updateStatus, updateError);
-                            })
-                            .Small()
-                        | new Button("Dismiss", () =>
-                            {
-                                var latest = versionInfo.Value!.LatestVersion;
-                                dismissedVersion.Set(latest);
-                                config.Settings.DismissedUpdateVersion = latest;
-                                config.SaveSettings();
-                            })
-                            .Variant(ButtonVariant.Secondary)
-                            .Small();
+                    | actions;
             }
 
             var notification = new FloatingPanel(
@@ -190,7 +198,7 @@ public class WallpaperApp : ViewBase
         return new Fragment(elements.ToArray());
     }
 
-    private void TriggerUpdate(string? latestVersion, IState<int?> updateProgress, IState<string?> updateStatus, IState<string?> updateError)
+    private void TriggerUpdate(IVersionCheckService versionService, IState<int?> updateProgress, IState<string?> updateStatus, IState<string?> updateError)
     {
         updateProgress.Set(0);
         updateStatus.Set("Starting update...");
@@ -200,62 +208,16 @@ public class WallpaperApp : ViewBase
         {
             try
             {
-                var includeBeta = Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1";
-                var source = new Velopack.Sources.GithubSource("https://github.com/Ivy-Interactive/Ivy-Tendril", null, includeBeta);
-                var mgr = new Velopack.UpdateManager(source);
+                var progress = new UpdateProgress(
+                    p => updateProgress.Set(p),
+                    s => updateStatus.Set(s));
 
-                if (mgr.IsInstalled)
-                {
-                    updateStatus.Set("Checking for updates...");
-                    var updateInfo = await mgr.CheckForUpdatesAsync();
-                    if (updateInfo == null)
-                    {
-                        updateStatus.Set("No update available.");
-                        updateProgress.Set(null);
-                        return;
-                    }
+                await versionService.StartUpdateAsync(progress);
 
-                    updateStatus.Set("Downloading update package...");
-                    await mgr.DownloadUpdatesAsync(updateInfo, progress =>
-                    {
-                        updateProgress.Set(progress);
-                    });
-
-                    updateStatus.Set("Applying updates and restarting...");
-                    mgr.ApplyUpdatesAndRestart(updateInfo);
-                }
-                else
-                {
-                    updateStatus.Set("Fetching latest version...");
-                    var versionStr = latestVersion;
-                    if (string.IsNullOrEmpty(versionStr))
-                    {
-                        versionStr = await UpdateHelper.GetLatestVersionAsync();
-                    }
-
-                    if (string.IsNullOrEmpty(versionStr))
-                    {
-                        throw new InvalidOperationException("Could not determine the latest version.");
-                    }
-
-                    var (filename, downloadUrl) = UpdateHelper.GetInstallerInfo(versionStr);
-                    var tempFilePath = Path.Combine(Path.GetTempPath(), filename);
-
-                    updateStatus.Set($"Downloading {filename}...");
-                    await UpdateHelper.DownloadFileWithProgressAsync(downloadUrl, tempFilePath, (read, total) =>
-                    {
-                        if (total > 0)
-                        {
-                            updateProgress.Set((int)((double)read / total * 100));
-                        }
-                    });
-
-                    updateStatus.Set("Launching installer...");
-                    UpdateHelper.LaunchInstaller(tempFilePath);
-                    
-                    // Exit the app to let the installer do its work
-                    Environment.Exit(0);
-                }
+                // Reached only when no update was applied (already up to date, or
+                // self-update unavailable for this install type) — otherwise the app
+                // exits to apply and restart.
+                updateProgress.Set(null);
             }
             catch (Exception ex)
             {

@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Reactive.Subjects;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Providers.Claude;
 using Ivy.Tendril.Agents.Runtime;
@@ -53,6 +54,15 @@ public record JobItem
     public bool CancellationRequested { get; set; }
 
     /// <summary>
+    /// True once this launch attempt has acquired a permit from the job-slot semaphore. Distinct
+    /// from <c>Status == Running</c>: the pre-Running launch guard (repo-ownership check, #1340)
+    /// can run — and release the slot via <c>FailJobAndReleaseSlot</c> — before <c>Status</c> ever
+    /// flips to <see cref="JobStatus.Running"/>, so a concurrent <c>StopJob</c> keyed off
+    /// <c>Status == Running</c> would wrongly skip releasing a slot it doesn't realize is held.
+    /// </summary>
+    public bool SlotReserved { get; set; }
+
+    /// <summary>
     /// Plan state captured at job start, before the start transition. On Stop/Delete/
     /// Failed the plan is reverted to this "came-from" state. In-memory only (not
     /// persisted); after an app restart the fallback mapping in
@@ -99,6 +109,25 @@ public record JobItem
     // Reported by the agent via HTTP during execution
     public string? ReportedPlanId { get; set; }
     public string? ReportedPlanTitle { get; set; }
+
+    /// <summary>
+    /// Plan id this job relates to: the 5-digit prefix of <see cref="PlanFile"/>,
+    /// falling back to the reported/allocated id (CreatePlan jobs hold a description
+    /// in PlanFile, not a folder name). "" when the job is not tied to any plan.
+    /// </summary>
+    public string ResolvePlanId()
+    {
+        if (!string.IsNullOrEmpty(PlanFile))
+        {
+            var match = Regex.Match(PlanFile, @"^(\d{5})-");
+            if (match.Success) return match.Groups[1].Value;
+        }
+        return ReportedPlanId ?? AllocatedPlanId ?? "";
+    }
+
+    // Explicit failure reason declared by the promptware via `tendril job fail`.
+    // When set, this wins over the output-scraping heuristic in SetCompletionStatus.
+    public string? ReportedFailureReason { get; set; }
 
     // Agent launch details (persisted)
     public string? WorkingDirectory { get; set; }

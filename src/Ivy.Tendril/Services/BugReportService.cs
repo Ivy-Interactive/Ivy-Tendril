@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Services;
@@ -135,7 +136,7 @@ public sealed class BugReportService
         return files;
     }
 
-    public async Task<BugReportResult?> SubmitReportAsync(string description, IReadOnlyList<BugReportFile> files, CancellationToken ct = default)
+    public async Task<BugReportResult?> SubmitReportAsync(string description, IReadOnlyList<BugReportFile> files, string? githubUser = null, CancellationToken ct = default)
     {
         var zipPath = CreateZip(files);
         try
@@ -145,7 +146,7 @@ public sealed class BugReportService
             var agent = _config.Settings.CodingAgent;
             var commitId = GetCommitId();
 
-            return await UploadAsync(zipPath, description, osVersion, version, agent, commitId, ct);
+            return await UploadAsync(zipPath, description, osVersion, version, agent, commitId, githubUser, ct);
         }
         finally
         {
@@ -256,12 +257,51 @@ public sealed class BugReportService
 
     private static void CollectPlanFiles(string planFolder, List<BugReportFile> files)
     {
-        foreach (var file in Directory.EnumerateFiles(planFolder, "*", SearchOption.AllDirectories))
+        if (!Directory.Exists(planFolder))
+            return;
+
+        CollectPlanFilesRecursive(planFolder, planFolder, files);
+    }
+
+    private static void CollectPlanFilesRecursive(string rootFolder, string currentFolder, List<BugReportFile> files)
+    {
+        try
         {
-            var relativePath = Path.GetRelativePath(planFolder, file);
-            if (relativePath.StartsWith("Worktrees", StringComparison.OrdinalIgnoreCase))
-                continue;
-            files.Add(new BugReportFile(file, relativePath));
+            foreach (var file in Directory.EnumerateFiles(currentFolder))
+            {
+                try
+                {
+                    var relativePath = Path.GetRelativePath(rootFolder, file);
+                    if (relativePath.StartsWith("Worktrees", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    files.Add(new BugReportFile(file, relativePath));
+                }
+                catch
+                {
+                    // Skip files that fail relative path resolution or cause minor path errors
+                }
+            }
+
+            foreach (var dir in Directory.EnumerateDirectories(currentFolder))
+            {
+                try
+                {
+                    var dirName = Path.GetFileName(dir);
+                    if (dirName.Equals("Worktrees", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    CollectPlanFilesRecursive(rootFolder, dir, files);
+                }
+                catch
+                {
+                    // Skip unreadable directories gracefully instead of crashing
+                }
+            }
+        }
+        catch
+        {
+            // Skip directory enumeration failures gracefully
         }
     }
 
@@ -302,7 +342,7 @@ public sealed class BugReportService
         return zipPath;
     }
 
-    private async Task<BugReportResult?> UploadAsync(string zipPath, string description, string osVersion, string tendrilVersion, string agent, string? commitId, CancellationToken ct)
+    private async Task<BugReportResult?> UploadAsync(string zipPath, string description, string osVersion, string tendrilVersion, string agent, string? commitId, string? githubUser, CancellationToken ct)
     {
         using var httpClient = new HttpClient();
         httpClient.Timeout = TimeSpan.FromMinutes(5);
@@ -311,10 +351,13 @@ public sealed class BugReportService
         form.Add(new StringContent(description), "description");
         form.Add(new StringContent(osVersion), "osVersion");
         form.Add(new StringContent(tendrilVersion), "tendrilVersion");
-        form.Add(new StringContent(agent), "agent");
+        form.Add(new StringContent(agent ?? string.Empty), "agent");
 
         if (!string.IsNullOrWhiteSpace(commitId))
             form.Add(new StringContent(commitId), "commitId");
+
+        if (!string.IsNullOrWhiteSpace(githubUser))
+            form.Add(new StringContent(githubUser.Trim()), "githubUser");
 
         var fileStream = File.OpenRead(zipPath);
         var fileContent = new StreamContent(fileStream);
@@ -324,7 +367,10 @@ public sealed class BugReportService
         var response = await httpClient.PostAsync(_bugReportApiUrl, form, ct);
 
         if (!response.IsSuccessStatusCode)
-            return null;
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(ct);
+            throw new HttpRequestException($"Bug report upload failed with status code {response.StatusCode}. Details: {errorBody}");
+        }
 
         var json = await response.Content.ReadAsStringAsync(ct);
         return JsonSerializer.Deserialize<BugReportResult>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });

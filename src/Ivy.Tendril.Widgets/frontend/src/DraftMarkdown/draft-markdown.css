@@ -83,15 +83,13 @@
   font-size: 2.25rem;
   line-height: 2.5rem;
   font-weight: 600;
-  margin: 2rem 0 0;
+  margin: 2rem 0 0.75rem; /* bottom margin 0.75rem matches mb-3 */
 }
 .pmv-markdown h2 {
   font-size: 1.875rem;
   line-height: 2.25rem;
   font-weight: 500;
   margin: 0;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--border);
 }
 .pmv-markdown h3 {
   font-size: 1.5rem;
@@ -167,18 +165,19 @@
 }
 
 /* Lists */
-.pmv-markdown ul,
-.pmv-markdown ol {
-  padding-inline-start: 2rem;
-  display: flex;
-  flex-direction: column;
-  row-gap: 0.5rem;
-}
 .pmv-markdown ul {
   list-style: disc outside;
+  padding-inline-start: 1.25rem;
 }
 .pmv-markdown ol {
   list-style: decimal outside;
+  padding-inline-start: 1.5rem;
+}
+.pmv-markdown ul,
+.pmv-markdown ol {
+  display: flex;
+  flex-direction: column;
+  row-gap: 0.25rem;
 }
 .pmv-markdown li {
   display: list-item;
@@ -187,19 +186,32 @@
   display: inline;
   margin: 0;
 }
+.pmv-markdown li > * + * {
+  margin-top: 0.25rem;
+}
 
 /* Task list (GFM checkboxes) */
-.pmv-markdown ul.contains-task-list {
-  list-style: none;
-  padding-inline-start: 0.25rem;
+.pmv-markdown ul:has(> .task-list-item) {
+  padding-inline-start: 1.25rem !important;
+  list-style-type: none !important;
+}
+.pmv-markdown li.task-list-item ul:has(> .task-list-item) {
+  padding-inline-start: 1.25rem !important;
 }
 .pmv-markdown li.task-list-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
+  position: relative !important;
+  list-style-type: none !important;
+  padding-inline-start: 0.25rem !important;
+  display: block !important;
 }
 .pmv-markdown li.task-list-item > input[type="checkbox"] {
-  margin-top: 0.3rem;
+  position: absolute !important;
+  left: -1rem !important;
+  top: 0.35rem !important;
+  margin: 0 !important;
+  width: 0.875rem !important;
+  height: 0.875rem !important;
+  flex-shrink: 0 !important;
   accent-color: var(--primary);
 }
 
@@ -295,6 +307,13 @@
   background: transparent;
   color: var(--muted-foreground);
   cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+}
+.pmv-code-block:hover .pmv-code-copy,
+.pmv-code-copy:focus-visible,
+.pmv-code-copy:focus-within {
+  opacity: 1;
 }
 .pmv-code-copy:hover {
   background: var(--accent);
@@ -303,6 +322,7 @@
 .pmv-code-copy--copied {
   background: var(--primary);
   color: var(--primary-foreground);
+  opacity: 1;
 }
 .pmv-code-copy--copied:hover {
   background: var(--primary);
@@ -389,10 +409,6 @@
 .pmv-article li,
 .pmv-article blockquote {
   line-height: 1.625;
-}
-.pmv-article ul,
-.pmv-article ol {
-  padding-inline-start: 2.25rem;
 }
 
 /* ─── Annotation highlights ────────────────────────────────────────────── */

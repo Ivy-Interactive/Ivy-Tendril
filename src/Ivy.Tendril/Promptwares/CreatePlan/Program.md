@@ -81,7 +81,7 @@ The **Projects** section of your firmware lists all available projects with thei
 **If `TendrilProject: Auto`**:
 - Analyze the task description to infer the correct project from the **Projects** section
 - Match based on keywords, repo paths, or component names in the description
-- **If no project matches**: Report final status via `tendril job status TendrilJobId --message="Could not determine project from task description. Available projects: <list>"`, write trash file via `tendril trash write <SafeTitle>.md <<'EOF'...EOF` explaining that the project could not be determined, list the available project names, then exit without creating a plan
+- **If no project matches**: Report final status via `tendril job status TendrilJobId --message="Could not determine project from task description. Available projects: <list>"`, write trash file via `tendril trash write <SafeTitle>.md --stdin <<'EOF'...EOF` explaining that the project could not be determined, list the available project names, then exit without creating a plan
 - Use the matched project's context to scope your research
 
 ### 2. Plan ID
@@ -139,7 +139,7 @@ Report status: `tendril job status TendrilJobId --message="Researching codebase.
   Then write a trash file using the CLI (where `<SafeTitle>` is the title with spaces replaced by hyphens and special characters removed), then exit without creating a plan folder:
 
   ```bash
-  tendril trash write <SafeTitle>.md <<'EOF'
+  tendril trash write <SafeTitle>.md --stdin <<'EOF'
   ---
   date: <CurrentTime>
   originalRequest: "<the task description text>"
@@ -200,7 +200,7 @@ For each assertion found:
 
 **Decision:**
 - **All validations pass** → Proceed to Step 4, include validated code blocks in plan with `**Current implementation**` headers
-- **Any validation fails** → Report final status via `tendril job status TendrilJobId --message="Code state validation failed: <brief description of what changed>"`, write trash file via `tendril trash write <SafeTitle>.md <<'EOF'...EOF` explaining the validation failure, then exit without creating a plan
+- **Any validation fails** → Report final status via `tendril job status TendrilJobId --message="Code state validation failed: <brief description of what changed>"`, write trash file via `tendril trash write <SafeTitle>.md --stdin <<'EOF'...EOF` explaining the validation failure, then exit without creating a plan
 
 This catches stale plans before they enter the review queue, reducing wasted review time.
 
@@ -234,7 +234,10 @@ The command outputs:
 ```
 PlanId: <ID>
 Directory: <TendrilPlansFolder>/<ID>-<SafeTitle>
-Plan created: <ID>-<SafeTitle>
+Verifications:
+<Name>:<Status>
+<Name>:<Status>
+...
 ```
 
 Parse `PlanId` and `Directory` from the output — use these for all subsequent operations.
@@ -257,7 +260,7 @@ Adjust them as the task warrants (the user can also toggle them later in the UI;
 Write the revision content via CLI:
 
 ```bash
-tendril plan write-revision <PlanId> <<'EOF'
+tendril plan write-revision <PlanId> --stdin <<'EOF'
 <revision content here>
 EOF
 ```
@@ -419,6 +422,6 @@ The `## Tests` section MUST include two parts:
 - **!CRITICAL: Every CreatePlan execution MUST produce at least one plan folder. Even if the task is an analysis, review, or investigation — always create a plan with actionable steps. Never just analyze and report back without a plan.**
 - The plan must include all paths and information for an LLM coding agent to execute end-to-end without human intervention
 - **!IMPORTANT: Validate all file paths before writing `file:///` links in plans.** Use glob/search to confirm the actual path exists. Do NOT guess paths based on naming conventions — hallucinated paths cause "File not found" errors in the UI.
-- When referencing local files, use markdown links: `[filename:line](file:///path/to/filename)` for source files with line numbers, or `[filename](file:///path/to/filename)` without. Never use backticks in link text or `#L123` fragments in URLs. Use `![alt](path)` for images.
+- When referencing local files, use markdown links: `[filename:line](file:///path/to/filename)` for source files with line numbers, or `[filename](file:///path/to/filename)` without. Never use backticks in link text, and never append a line number to the URL itself — no `:348` suffix and no `#L123` fragment; the line number belongs only in the display text. Only use `file:///` links for files that already exist; for a file the plan will create, write its path in inline code (`` `path/to/new/file` ``) instead of a link. Use `![alt](path)` for images.
 - Keep the plan short and concise - the limiting factor of this system is a human that will have to read this.
 - **🚫 ABSOLUTE PROHIBITION: You are NEVER allowed to fix code directly in the source repository. Under NO circumstances may you Write, Edit, or create files in the source repos. Not "just this once", not "to save time", not "it's a one-liner". Your ONLY job is to produce plans via `tendril` CLI commands. If you feel tempted to "just fix it quickly" — STOP. Write a plan instead. Violations waste the entire execution and break the workflow.**

@@ -30,7 +30,7 @@ public class ContentView(
 
             var sheetContent = string.IsNullOrEmpty(content)
                 ? Text.P("Plan not found or empty.")
-                : (object)new Markdown(MarkdownHelper.AnnotateAllBrokenLinks(content, planService.PlansDirectory))
+                : (object)new Markdown(MarkdownHelper.PrepareForDisplay(content, config))
                     .DangerouslyAllowLocalFiles()
                     .Article()
                     .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile));
@@ -57,7 +57,8 @@ public class ContentView(
                     client.Toast($"Started CreatePlan: {selectedRecommendation.Title}", "Recommendation Accepted with Notes");
                     refresh();
                     GoToNext();
-                });
+                },
+                config);
         });
 
 
@@ -71,29 +72,30 @@ public class ContentView(
         }
         var currentIndex = allRecommendations.FindIndex(r => r.PlanId == selectedRecommendation.PlanId && r.Title == selectedRecommendation.Title);
 
-        object BuildTitleArea()
+        object BuildTitleArea(bool isMobile)
         {
-            var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full().Min(Size.Px(0)))
-                | new Box(Text.Block($"#{selectedRecommendation.PlanId} {selectedRecommendation.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
-                    .BorderThickness(0).Padding(0).Width(Size.Fit())
-                | new Badge(selectedRecommendation.Project).Variant(BadgeVariant.Outline)
-                    .WithProjectColor(config, selectedRecommendation.Project);
+            // Project/Impact badges live on each sidebar row (see SidebarView), so the header
+            // title stays badge-free.
+            var desktopTitleLayout = Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Full().Min(Size.Px(0)))
+                | Text.Block($"#{selectedRecommendation.ShortPlanId} {selectedRecommendation.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis)
+                    .Width(Size.Grow().Min(Size.Px(0)));
 
             var desktopTitle = new Box(desktopTitleLayout).BorderThickness(0).Padding(0)
+                .Width(Size.Full().Min(Size.Px(0)))
                 .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
             return Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow().Min(Size.Px(0)))
                    | desktopTitle
                    | MobileItemPicker.Build(
-                           $"#{selectedRecommendation.PlanId} {selectedRecommendation.Title}",
+                           $"#{selectedRecommendation.ShortPlanId} {selectedRecommendation.Title}",
                            allRecommendations,
-                           r => $"#{r.PlanId} {r.Title}",
+                           r => $"#{r.ShortPlanId} {r.Title}",
                            r => r.PlanId == selectedRecommendation.PlanId && r.Title == selectedRecommendation.Title,
                            r => selectedState.Set(r))
                        .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
         }
 
-        object BuildControls() => Layout.Horizontal().Gap(2).AlignContent(Align.Right)
+        object BuildControls(bool isMobile) => Layout.Horizontal().Gap(2).AlignContent(Align.Right)
                        | Text.Rich()
                            .Bold($"{(currentIndex == -1 ? "?" : (currentIndex + 1).ToString())}/{allRecommendations.Count}", word: true)
                            .Muted("recommendations", word: true)
@@ -117,17 +119,9 @@ public class ContentView(
         // Content
         var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200))).Padding(6, 2, 6, 2);
 
-        // Source plan info and Impact badge
+        // Source plan info
         var metaRow = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                      | Text.Muted($"Plan #{selectedRecommendation.PlanId}: {selectedRecommendation.PlanTitle}");
-
-        if (selectedRecommendation.Impact is { } impact)
-            metaRow |= new Badge($"Impact: {impact}").Variant(impact switch
-            {
-                "High" => BadgeVariant.Success,
-                "Medium" => BadgeVariant.Warning,
-                _ => BadgeVariant.Outline
-            });
+                      | Text.Muted($"Plan #{selectedRecommendation.ShortPlanId}: {selectedRecommendation.PlanTitle}");
 
         scrollableContent |= Layout.Vertical().Gap(1)
                              | Text.Block("Source Plan").Bold()
@@ -135,7 +129,7 @@ public class ContentView(
 
         // Description
         scrollableContent |= new Separator();
-        scrollableContent |= new Markdown(selectedRecommendation.Description);
+        scrollableContent |= new Markdown(MarkdownHelper.PrepareForDisplay(selectedRecommendation.Description, config));
 
         // Standard overflow menu items
         var standardOverflowItems = new[]

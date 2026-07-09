@@ -187,7 +187,7 @@ public class DirtyRepoDialogDebugView : ViewBase
                 scenario.Preflight,
                 scenario.ProceedLabel,
                 scenario.ContextMessage,
-                onSyncRepos: () => { },
+                onSyncRepos: _ => { },
                 onProceed: () => { });
         }
 

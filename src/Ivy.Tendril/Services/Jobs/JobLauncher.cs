@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using Ivy.Helpers;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Helpers;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services.Plans;
@@ -63,22 +64,85 @@ internal class JobLauncher
 
     private void LaunchJob(JobLaunchContext ctx)
     {
-        // Defense in depth (#1340): refuse to launch a plan job that references a repo outside its
-        // project, before any state mutation. The creation/add-repo guards should prevent this, but
-        // pre-existing plans may have drifted.
-        if (!ValidateProjectReposOrFail(ctx))
+        try
+        {
+            // Defense in depth (#1340): refuse to launch a plan job that references a repo outside its
+            // project, before any state mutation. The creation/add-repo guards should prevent this, but
+            // pre-existing plans may have drifted.
+            if (!ValidateProjectReposOrFail(ctx))
+                return;
+
+            PrepareJobForLaunch(ctx);
+
+            if (!ValidateJobPrerequisites(ctx, out var psi, out var stdinContent))
+                return;
+
+            var process = StartAgentProcess(ctx, psi, stdinContent);
+            if (process == null)
+                return;
+
+            InitializeJobMonitoring(ctx, process);
+            ctx.RaiseStructureChanged();
+        }
+        catch (Exception ex)
+        {
+            // Catch-all so a launch failure never leaks the concurrency slot (#1564) and LaunchJob
+            // never propagates exceptions to its callers (neither StartJobInternal nor ProcessJobQueue
+            // wrap this call). The three guards above already release the slot and return normally on
+            // their anticipated failure modes — they never throw — so this only fires for genuinely
+            // unhandled exceptions, including ones raised after the monitor task was already started
+            // (e.g. by a RaiseStructureChanged subscriber).
+            HandleUnhandledLaunchFailure(ctx, ex);
+        }
+    }
+
+    private void HandleUnhandledLaunchFailure(JobLaunchContext ctx, Exception ex)
+    {
+        var job = ctx.Job;
+        _logger.LogError(ex, "Job {JobId}: Unhandled exception during launch", job.Id);
+        CrashLog.Write($"[{DateTime.UtcNow:O}] Job {job.Id}: Unhandled exception during launch: {ex}");
+
+        if (job.Process is { } process)
+        {
+            try
+            {
+                if (!process.HasExited)
+                    process.Kill(entireProcessTree: true);
+            }
+            catch
+            {
+                // Process may have already exited or never fully started — best-effort cleanup.
+            }
+        }
+
+        // TryClaimCompletion is the same interlocked guard JobService.CompleteJob/StopJob use. If the
+        // monitor task was already started before this exception fired (e.g. it threw from the trailing
+        // RaiseStructureChanged call), the monitor may independently detect the kill above and complete
+        // the job through ctx.CompleteJob concurrently. Whichever side claims completion first owns
+        // marking the job terminal and releasing its slot — the loser must not touch either, or the
+        // slot gets released twice.
+        if (!job.TryClaimCompletion())
             return;
 
-        PrepareJobForLaunch(ctx);
+        job.Status = JobStatus.Failed;
+        job.StatusMessage = ex.Message;
+        job.CompletedAt = DateTime.UtcNow;
+        ctx.JobSlotSemaphore.Release();
+        ctx.RaiseStructureChanged();
+    }
 
-        if (!ValidateJobPrerequisites(ctx, out var psi, out var stdinContent))
+    // Shared by every anticipated launch-failure guard: marks the job Failed and releases the slot
+    // exactly once. The catch-all in LaunchJob covers everything this doesn't.
+    private static void FailJobAndReleaseSlot(JobLaunchContext ctx, string message)
+    {
+        var job = ctx.Job;
+        if (!job.TryClaimCompletion())
             return;
 
-        var process = StartAgentProcess(ctx, psi, stdinContent);
-        if (process == null)
-            return;
-
-        InitializeJobMonitoring(ctx, process);
+        job.Status = JobStatus.Failed;
+        job.StatusMessage = message;
+        job.CompletedAt = DateTime.UtcNow;
+        ctx.JobSlotSemaphore.Release();
         ctx.RaiseStructureChanged();
     }
 
@@ -108,11 +172,7 @@ internal class JobLauncher
         catch (ArgumentException ex)
         {
             _logger.LogError("Job {JobId}: refusing launch — {Message}", job.Id, ex.Message);
-            job.Status = JobStatus.Failed;
-            job.StatusMessage = ex.Message;
-            job.CompletedAt = DateTime.UtcNow;
-            ctx.JobSlotSemaphore.Release();
-            ctx.RaiseStructureChanged();
+            FailJobAndReleaseSlot(ctx, ex.Message);
             return false;
         }
     }
@@ -155,11 +215,7 @@ internal class JobLauncher
         {
             var programFolder = Path.Combine(_promptsRoot, type);
             _logger.LogError("Job {JobId}: No agent program found for '{Type}' in {Folder}", id, type, programFolder);
-            job.Status = JobStatus.Failed;
-            job.StatusMessage = $"No agent program found for '{type}'. Ensure {programFolder}/Program.md exists and config is loaded";
-            job.CompletedAt = DateTime.UtcNow;
-            ctx.JobSlotSemaphore.Release();
-            ctx.RaiseStructureChanged();
+            FailJobAndReleaseSlot(ctx, $"No agent program found for '{type}'. Ensure {programFolder}/Program.md exists and config is loaded");
             return false;
         }
 
@@ -186,47 +242,62 @@ internal class JobLauncher
         catch (System.ComponentModel.Win32Exception ex)
         {
             _logger.LogError(ex, "Job {JobId}: Failed to start process '{FileName}'", id, psi.FileName);
-            job.Status = JobStatus.Failed;
-            job.StatusMessage = ex.NativeErrorCode switch
+            var message = ex.NativeErrorCode switch
             {
                 2 => $"Agent binary not found: {psi.FileName}",
                 206 => $"Command line too long when launching '{psi.FileName}'",
                 _ => $"Failed to start '{psi.FileName}': {ex.Message}"
             };
-            job.CompletedAt = DateTime.UtcNow;
-            ctx.JobSlotSemaphore.Release();
-            ctx.RaiseStructureChanged();
+            FailJobAndReleaseSlot(ctx, message);
             return null;
         }
 
-        WriteStdinContent(process, psi, stdinContent);
-
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
         job.Process = process;
         job.ProcessId = process.Id;
+
+        // Start draining stdout/stderr BEFORE writing stdin. Writing a large prompt (agents receive
+        // the whole compiled prompt on stdin) while nothing reads the child's output pipes is the
+        // classic three-pipe deadlock, and it happens before the timeout monitor is armed — the job
+        // then hangs "running…" forever with no output and no timeout ever firing (#1455).
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+
+        WriteStdinContentAsync(process, psi, stdinContent, id);
 
         return process;
     }
 
-    private static void WriteStdinContent(Process process, ProcessStartInfo psi, string? stdinContent)
+    // Fire-and-forget so the launch thread returns immediately and the caller can arm the timeout
+    // monitor without waiting for the child to consume stdin.
+    private static void WriteStdinContentAsync(Process process, ProcessStartInfo psi, string? stdinContent, string id)
     {
         if (!psi.RedirectStandardInput)
             return;
 
-        try
+        _ = Task.Run(async () =>
         {
-            if (stdinContent != null)
+            try
             {
-                process.StandardInput.Write(stdinContent);
-                process.StandardInput.Flush();
+                if (stdinContent != null)
+                    await ProcessRunner.WriteStdinAndCloseAsync(process, stdinContent);
+                else
+                    process.StandardInput.Close();
             }
-            process.StandardInput.Close();
-        }
-        catch (IOException)
-        {
-            // Process exited before stdin could be written — safe to ignore.
-        }
+            catch (IOException)
+            {
+                // Process exited before stdin could be written — safe to ignore.
+            }
+            catch (ObjectDisposedException)
+            {
+                // stdin was closed by process disposal — safe to ignore.
+            }
+            catch (Exception ex)
+            {
+                // Any other failure means the agent may have received an empty/partial prompt. Make
+                // it diagnosable instead of silently faulting this detached task with no trace.
+                CrashLog.Write($"[{DateTime.UtcNow:O}] Failed to write stdin for job {id}: {ex}");
+            }
+        });
     }
 
     private void InitializeJobMonitoring(JobLaunchContext ctx, Process process)
@@ -292,8 +363,10 @@ internal class JobLauncher
 
         var customInstructions = ResolveCustomInstructions(job.Type);
         var projects = BuildProjectInfos(job);
+        // Expand variables at point of use (Settings holds the raw template). normalizePaths: false —
+        // the template is prose injected into the prompt, so slashes/URLs must be preserved.
         var planTemplate = PlanWritingTypes.Contains(job.Type)
-            ? _configService.Settings.PlanTemplate
+            ? VariableExpansion.ExpandVariables(_configService.Settings.PlanTemplate, _configService.TendrilHome, normalizePaths: false)
             : null;
         var prompt = FirmwareCompiler.Compile(new FirmwareContext(programFolder, values, customInstructions, projects, planTemplate));
         job.CompiledPrompt = prompt;
@@ -386,6 +459,7 @@ internal class JobLauncher
         {
             values["RepoPath"] = syncArgs.RepoPath;
             values["BaseBranch"] = syncArgs.BaseBranch;
+            values["UntrackedChangesPolicy"] = syncArgs.UntrackedChangesPolicy.ToString();
             return (values, null, null);
         }
 

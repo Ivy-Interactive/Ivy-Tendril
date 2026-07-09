@@ -9,7 +9,7 @@ public class MarkdownLinkPolisher
         RegexOptions.Compiled);
 
     private static readonly Regex FileLinkRegex = new(
-        @"^file:///(.+?)(?:#L?(\d+))?$",
+        @"^file:///(.+?)(?:(?:#L?|:)(\d+(?:-\d+)?))?$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex PlanRevisionLinkRegex = new(
@@ -28,17 +28,16 @@ public class MarkdownLinkPolisher
         @"\[`([^`\]]+)`\]\((file:///[^)]+)\)",
         RegexOptions.Compiled);
 
-    public string PolishLinks(string markdownContent, IEnumerable<string> repoPaths, string planFolder)
+    public string PolishLinks(string markdownContent, string plansDirectory)
     {
         if (string.IsNullOrEmpty(markdownContent))
             return markdownContent;
 
-        var repoPathsList = repoPaths.ToList();
         var result = markdownContent;
 
         result = RemoveBackticksFromFileLinkText(result);
-        result = PolishMarkdownLinks(result, repoPathsList, planFolder);
-        result = ConvertBarePlanNumbers(result, planFolder);
+        result = PolishMarkdownLinks(result);
+        result = ConvertBarePlanNumbers(result, plansDirectory);
 
         return result;
     }
@@ -53,7 +52,7 @@ public class MarkdownLinkPolisher
         });
     }
 
-    private string PolishMarkdownLinks(string content, List<string> repoPaths, string planFolder)
+    private string PolishMarkdownLinks(string content)
     {
         return MarkdownLinkRegex.Replace(content, match =>
         {
@@ -79,19 +78,10 @@ public class MarkdownLinkPolisher
 
             filePath = NormalizePath(filePath);
 
-            if (!File.Exists(filePath))
-            {
-                var fileName = Path.GetFileName(filePath);
-                var found = MarkdownHelper.FindFilesInRepos(repoPaths, fileName);
-                if (found.Count == 1)
-                    filePath = found[0].Replace('\\', '/');
-                else
-                    return anchor != null
-                        ? $"[{linkText}](file:///{filePath})"
-                        : match.Value;
-            }
-
-            // Simplify verbose link text
+            // Normalize the path and strip the line anchor, but never repo-scan to redirect a
+            // missing path onto a same-basename file: that silently points at the wrong file and
+            // is expensive on the render thread. Links to files that don't exist are left as
+            // authored and surfaced by AnnotateBrokenFileLinks (a ⚠️) at display time.
             var simplifiedText = SimplifyLinkText(linkText, filePath, anchor);
             return $"[{simplifiedText}](file:///{filePath})";
         });
@@ -124,9 +114,8 @@ public class MarkdownLinkPolisher
         return linkText;
     }
 
-    private string ConvertBarePlanNumbers(string content, string planFolder)
+    private string ConvertBarePlanNumbers(string content, string plansDirectory)
     {
-        var plansDirectory = Path.GetDirectoryName(planFolder);
         if (string.IsNullOrEmpty(plansDirectory) || !Directory.Exists(plansDirectory))
             return content;
 

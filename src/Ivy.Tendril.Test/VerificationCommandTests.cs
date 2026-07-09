@@ -1,4 +1,6 @@
+using Ivy.Tendril.Commands;
 using Ivy.Tendril.Services;
+using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Test;
 
@@ -156,6 +158,44 @@ verifications: []
         Assert.Null(match);
     }
 
+    // --- Get Verification: Not Found Error Lists Available ---
+
+    private static CommandApp BuildVerificationGetApp()
+    {
+        var app = new CommandApp();
+        app.Configure(config =>
+        {
+            config.PropagateExceptions();
+            config.AddBranch("verification", verification =>
+            {
+                verification.AddCommand<VerificationGetCommand>("get");
+            });
+        });
+        return app;
+    }
+
+    [Fact]
+    public void GetVerification_NotFound_ListsAvailable()
+    {
+        var config = CreateConfig();
+        config.Settings.Verifications.Add(new VerificationConfig { Name = "DotnetBuild", Prompt = "dotnet build" });
+        config.SaveSettings();
+
+        var app = BuildVerificationGetApp();
+        var ex = Assert.Throws<InvalidOperationException>(() => app.Run(["verification", "get", "Build"]));
+
+        Assert.Contains("Available: DotnetBuild", ex.Message);
+    }
+
+    [Fact]
+    public void GetVerification_NotFound_EmptyList_ListsAvailable()
+    {
+        var app = BuildVerificationGetApp();
+        var ex = Assert.Throws<InvalidOperationException>(() => app.Run(["verification", "get", "xyzzy"]));
+
+        Assert.Contains("Available: ", ex.Message);
+    }
+
     // --- Roundtrip ---
 
     [Fact]
@@ -172,5 +212,96 @@ verifications: []
         Assert.Equal("Run all unit tests and report", reloaded.Settings.Verifications[0].Prompt);
         Assert.Equal("Build", reloaded.Settings.Verifications[1].Name);
         Assert.Equal("Verify the project builds", reloaded.Settings.Verifications[1].Prompt);
+    }
+
+    // --- Add Verification CLI (-p / --file / --stdin) ---
+
+    private static CommandApp BuildVerificationAddApp()
+    {
+        var app = new CommandApp();
+        app.Configure(config =>
+        {
+            config.PropagateExceptions();
+            config.AddBranch("verification", verification => verification.AddCommand<VerificationAddCommand>("add"));
+        });
+        return app;
+    }
+
+    [Fact]
+    public void VerificationAdd_InlinePrompt_AddsDefinition()
+    {
+        var app = BuildVerificationAddApp();
+
+        var exit = app.Run(["verification", "add", "InlinePromptTest", "-p", "Inline prompt text"]);
+
+        Assert.Equal(0, exit);
+        var reloaded = CreateConfig();
+        Assert.Equal("Inline prompt text", reloaded.Settings.Verifications.Single().Prompt);
+    }
+
+    [Fact]
+    public void VerificationAdd_File_ReadsFromFile()
+    {
+        var file = Path.Combine(_tempDir.Path, "prompt.md");
+        File.WriteAllText(file, "Prompt from file");
+        var app = BuildVerificationAddApp();
+
+        var exit = app.Run(["verification", "add", "FilePromptTest", "--file", file]);
+
+        Assert.Equal(0, exit);
+        var reloaded = CreateConfig();
+        Assert.Equal("Prompt from file", reloaded.Settings.Verifications.Single().Prompt);
+    }
+
+    [Fact]
+    public void VerificationAdd_Stdin_ReadsPipedInput()
+    {
+        var app = BuildVerificationAddApp();
+
+        var originalIn = Console.In;
+        Console.SetIn(new StringReader("Prompt from stdin"));
+        try
+        {
+            var exit = app.Run(["verification", "add", "StdinPromptTest", "--stdin"]);
+            Assert.Equal(0, exit);
+        }
+        finally
+        {
+            Console.SetIn(originalIn);
+        }
+
+        var reloaded = CreateConfig();
+        Assert.Equal("Prompt from stdin", reloaded.Settings.Verifications.Single().Prompt);
+    }
+
+    [Fact]
+    public void VerificationAdd_MultipleSources_FailsValidation()
+    {
+        Assert.False(new VerificationAddSettings { Name = "X", Prompt = "inline", FilePath = "f.md" }.Validate().Successful);
+
+        var app = BuildVerificationAddApp();
+        Assert.Throws<CommandRuntimeException>(() =>
+            app.Run(["verification", "add", "MultiSourceTest", "-p", "inline", "--file", "f.md"]));
+    }
+
+    [Fact]
+    public void VerificationAdd_NoSource_ThrowsAndNeverReadsStdin()
+    {
+        var app = BuildVerificationAddApp();
+
+        var originalIn = Console.In;
+        Console.SetIn(new StringReader("SENTINEL-SHOULD-NOT-BE-READ"));
+        try
+        {
+            var ex = Assert.Throws<ArgumentException>(() => app.Run(["verification", "add", "NoSourceTest"]));
+            Assert.Contains("--prompt, --file, or --stdin", ex.Message);
+        }
+        finally
+        {
+            Console.SetIn(originalIn);
+        }
+
+        var reloaded = CreateConfig();
+        Assert.Empty(reloaded.Settings.Verifications);
     }
 }

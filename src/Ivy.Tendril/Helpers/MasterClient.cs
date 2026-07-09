@@ -41,6 +41,24 @@ public static class MasterClient
         return client;
     }
 
+    /// <summary>
+    /// Discovers the running Tendril server and issues a JSON PUT to the given relative path
+    /// (e.g. "api/jobs/00001/status"), throwing on a non-success status. Shared by the CLI
+    /// commands that report job state so the discover/serialize/PUT convention lives in one place.
+    /// </summary>
+    public static void PutJson(string relativePath, object payload, CancellationToken cancellationToken = default)
+    {
+        var discovery = Discover();
+        using var client = CreateHttpClient(discovery);
+
+        var json = JsonSerializer.Serialize(payload, JsonOptions);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        var response = client.PutAsync($"{discovery.BaseUrl}/{relativePath.TrimStart('/')}", content, cancellationToken)
+            .GetAwaiter().GetResult();
+        response.EnsureSuccessStatusCode();
+    }
+
     public static DiscoveryResult Discover(string? tendrilHome = null)
     {
         tendrilHome ??= Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();

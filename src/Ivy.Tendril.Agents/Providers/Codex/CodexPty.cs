@@ -55,6 +55,8 @@ public sealed class CodexPty : IAgentPty
         {
             args.Add("--sandbox");
             args.Add("workspace-write");
+            args.Add("-c");
+            args.Add("sandbox_workspace_write.network_access=true");
             args.Add("--ask-for-approval");
             args.Add("never");
         }

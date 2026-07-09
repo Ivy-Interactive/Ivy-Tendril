@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <NoWarn>CS8618;CS8603;CS8602;CS8604;CS8625;CS9113</NoWarn>
+    <GenerateProgramFile>false</GenerateProgramFile>
+    <RootNamespace>FieldToolsDemo</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\Ivy-Framework\src\Ivy\Ivy.csproj" />
+  </ItemGroup>
+
+</Project>

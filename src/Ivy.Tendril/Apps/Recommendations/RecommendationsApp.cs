@@ -1,3 +1,4 @@
+using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Models;
 
 namespace Ivy.Tendril.Apps.Recommendations;
@@ -16,7 +17,7 @@ public class RecommendationsApp : ViewBase
         var textFilter = UseState<string?>("");
         var filtersOpen = UseState(false);
 
-        UseInterval(() => refreshToken.Refresh(), TimeSpan.FromMinutes(1));
+        Context.UseInboxAutoRefresh(refreshToken);
 
         var recommendations = planService.GetRecommendations();
 

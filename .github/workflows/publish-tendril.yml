@@ -87,37 +87,6 @@ jobs:
       - name: Restore
         run: dotnet restore src/Ivy.Tendril/Ivy.Tendril.csproj
 
-      - name: Restore Updater
-        run: dotnet restore src/Ivy.Tendril.Updater/Ivy.Tendril.Updater.csproj
-
-      - name: Build Updater (all platforms)
-        run: |
-          dotnet publish src/Ivy.Tendril.Updater/Ivy.Tendril.Updater.csproj -c Release -r win-x64 --self-contained false -o ./PublishedBinaries/Ivy.Tendril.Updater/win-x64
-          dotnet publish src/Ivy.Tendril.Updater/Ivy.Tendril.Updater.csproj -c Release -r win-arm64 --self-contained false -o ./PublishedBinaries/Ivy.Tendril.Updater/win-arm64
-          dotnet publish src/Ivy.Tendril.Updater/Ivy.Tendril.Updater.csproj -c Release -r osx-x64 --self-contained false -o ./PublishedBinaries/Ivy.Tendril.Updater/osx-x64
-          dotnet publish src/Ivy.Tendril.Updater/Ivy.Tendril.Updater.csproj -c Release -r osx-arm64 --self-contained false -o ./PublishedBinaries/Ivy.Tendril.Updater/osx-arm64
-
-      - name: Clean Updater binaries
-        run: |
-          for dir in win-x64 win-arm64 osx-x64 osx-arm64; do
-            find ./PublishedBinaries/Ivy.Tendril.Updater/$dir -type f ! \( -name "*.exe" -o -name "*.dll" -o -name "*.dylib" -o -name "Ivy.Tendril.Updater" \) -delete
-          done
-
-      - name: Zip Updater binaries
-        run: |
-          cd PublishedBinaries/Ivy.Tendril.Updater/win-x64 && zip -r ../../../Ivy.Tendril.Updater.win-x64.zip . && cd ../../..
-          cd PublishedBinaries/Ivy.Tendril.Updater/win-arm64 && zip -r ../../../Ivy.Tendril.Updater.win-arm64.zip . && cd ../../..
-          cd PublishedBinaries/Ivy.Tendril.Updater/osx-x64 && zip -r ../../../Ivy.Tendril.Updater.osx-x64.zip . && cd ../../..
-          cd PublishedBinaries/Ivy.Tendril.Updater/osx-arm64 && zip -r ../../../Ivy.Tendril.Updater.osx-arm64.zip . && cd ../../..
-
-      - name: Embed Updater binaries in Ivy.Tendril
-        run: |
-          mkdir -p src/Ivy.Tendril/PublishedBinaries
-          cp Ivy.Tendril.Updater.win-x64.zip src/Ivy.Tendril/PublishedBinaries/
-          cp Ivy.Tendril.Updater.win-arm64.zip src/Ivy.Tendril/PublishedBinaries/
-          cp Ivy.Tendril.Updater.osx-x64.zip src/Ivy.Tendril/PublishedBinaries/
-          cp Ivy.Tendril.Updater.osx-arm64.zip src/Ivy.Tendril/PublishedBinaries/
-
       - name: Pack NuGet
         run: |
           dotnet pack src/Ivy.Tendril.Plugin.Abstractions/Ivy.Tendril.Plugin.Abstractions.csproj \
@@ -265,6 +234,13 @@ jobs:
             -p:Version=${{ needs.version.outputs.version }} \
             -p:CommitId=${{ github.sha }} \
             --self-contained true
+
+      - name: Generate HTTPS Certificates
+        shell: bash
+        run: |
+          PUBLISH_DIR="./publish/desktop/${{ matrix.rid }}"
+          mkdir -p "$PUBLISH_DIR/certs"
+          dotnet run --project src/Ivy.Tendril/Ivy.Tendril.csproj -c Release -- generate-certs "$PUBLISH_DIR/certs"
 
       - name: Bundle PowerShell 7
         shell: bash
@@ -459,6 +435,9 @@ jobs:
             if [ -f "$APP_DIR/Contents/MacOS/config.yaml" ]; then
               mv "$APP_DIR/Contents/MacOS/config.yaml" "$APP_DIR/Contents/Resources/"
             fi
+            if [ -d "$APP_DIR/Contents/MacOS/certs" ]; then
+              mv "$APP_DIR/Contents/MacOS/certs" "$APP_DIR/Contents/Resources/"
+            fi
 
             # Copy icon
             cp "$ICON_PATH" "$APP_DIR/Contents/Resources/icon.icns"
@@ -569,6 +548,50 @@ jobs:
             --delta None \
             $( [[ "${{ matrix.rid }}" == osx-* ]] && echo "--bundleId com.ivy.tendril" ) \
             --channel ${{ matrix.rid }}
+
+      - name: Inject Postinstall Script into macOS Package
+        if: startsWith(matrix.rid, 'osx-')
+        run: |
+          # Unpack the generated .pkg
+          pkgutil --expand releases/IvyTendril-${{ matrix.rid }}-Setup.pkg expanded-pkg
+          
+          # Create Scripts folder if not exists
+          mkdir -p expanded-pkg/1.pkg/Scripts
+          
+          # Write the postinstall script
+          echo '#!/bin/sh
+          rm -rf /tmp/velopack/IvyTendril
+          sudo -u "$USER" rm -rf ~/Library/Caches/velopack/IvyTendril
+          sudo -u "$USER" env VELOPACK_FIRSTRUN=1 open "$2/IvyTendril.app/"
+
+          # Path to the installed app certificate
+          CERT_PATH="$3/Applications/IvyTendril.app/Contents/Resources/certs/localhost.crt"
+          if [ -f "$CERT_PATH" ]; then
+            echo "Trusting Ivy Tendril localhost certificate system-wide..."
+            security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$CERT_PATH"
+          fi
+          exit 0' | sed 's/^          //' > expanded-pkg/1.pkg/Scripts/postinstall
+          chmod +x expanded-pkg/1.pkg/Scripts/postinstall
+          
+          # Repack the package
+          pkgutil --flatten expanded-pkg releases/IvyTendril-${{ matrix.rid }}-Setup-Unsigned.pkg
+          rm -rf expanded-pkg
+
+          # Re-sign the repacked package
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/app-signing.keychain-db"
+          productsign --sign "${{ secrets.MACOS_SIGN_INSTALL_IDENTITY }}" --keychain "$RUNNER_TEMP/app-signing.keychain-db" releases/IvyTendril-${{ matrix.rid }}-Setup-Unsigned.pkg releases/IvyTendril-${{ matrix.rid }}-Setup.pkg
+          rm releases/IvyTendril-${{ matrix.rid }}-Setup-Unsigned.pkg
+
+          # Notarize the repacked package
+          echo "Submitting package for notarization..."
+          xcrun notarytool submit releases/IvyTendril-${{ matrix.rid }}-Setup.pkg \
+            --keychain "$RUNNER_TEMP/app-signing.keychain-db" \
+            --keychain-profile "tendril-notary" \
+            --wait
+
+          # Staple the notarization ticket to the package
+          echo "Stapling notarization ticket..."
+          xcrun stapler staple releases/IvyTendril-${{ matrix.rid }}-Setup.pkg
 
       - name: Rename Installer Setup Packages
         run: |

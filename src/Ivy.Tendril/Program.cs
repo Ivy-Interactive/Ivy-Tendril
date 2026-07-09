@@ -347,9 +347,9 @@ public class Program
         {
             "doctor", "db-version", "db-migrate", "db-reset",
             "update-promptwares", "job", "plan", "promptware",
-            "trash", "verification", "project", "project-analyzer", "models",
+            "trash", "verification", "project", "project-analyzer", "models", "config",
             "version", "--version", "report-bug", "reset", "update",
-            "--help", "-h", "run"
+            "--help", "-h", "run", "generate-certs"
         };
         return cliCommands.Contains(firstArg);
     }
@@ -460,6 +460,11 @@ public class Program
             config.AddCommand<ProjectAnalyzerCommand>("project-analyzer")
                 .WithDescription("Analyze a folder and print a YAML stack report");
 
+            // Generate certificates command (hidden, for build time)
+            config.AddCommand<GenerateCertsCommand>("generate-certs")
+                .WithDescription("Generate self-signed localhost certificate for desktop HTTPS")
+                .IsHidden();
+
             // Run command
             config.AddCommand<RunCommand>("run")
                 .WithDescription("Run the Tendril web server in the foreground");
@@ -501,6 +506,8 @@ public class Program
             {
                 job.AddCommand<JobStatusCommand>("status")
                     .WithDescription("Report job status (message, planId, planTitle)");
+                job.AddCommand<JobFailCommand>("fail")
+                    .WithDescription("Report a job failure with a descriptive message");
                 job.AddCommand<JobStartCommand>("start")
                     .WithDescription("Start a job via the running Tendril server");
             });
@@ -513,7 +520,7 @@ public class Program
                 plan.AddCommand<PlanCreateCommand>("create")
                     .WithDescription("Create a new plan");
                 plan.AddCommand<PlanUpdateCommand>("update")
-                    .WithDescription("Update plan from STDIN");
+                    .WithDescription("Update plan from a file or STDIN");
                 plan.AddCommand<PlanSetCommand>("set")
                     .WithDescription("Set a single field");
                 plan.AddCommand<PlanAddRepoCommand>("add-repo")
@@ -539,11 +546,15 @@ public class Program
                 plan.AddCommand<PlanAddLogCommand>("add-log")
                     .WithDescription("Write a log entry");
                 plan.AddCommand<PlanWriteRevisionCommand>("write-revision")
-                    .WithDescription("Write a revision file from STDIN");
+                    .WithDescription("Write a revision file from a file or STDIN");
+                plan.AddCommand<PlanGetRevisionCommand>("get-revision")
+                    .WithDescription("Print revision content");
                 plan.AddCommand<PlanValidateCommand>("validate")
                     .WithDescription("Validate plan health");
                 plan.AddCommand<PlanCleanupCommand>("cleanup")
                     .WithDescription("Remove worktrees from a plan");
+                plan.AddCommand<PlanAddWorktreeCommand>("add-worktree")
+                    .WithDescription("Create a git worktree for a plan");
                 plan.AddCommand<PlanRemoveWorktreeCommand>("remove-worktree")
                     .WithDescription("Remove a single worktree from a plan");
                 plan.AddCommand<PlanDoctorCommand>("doctor")
@@ -599,7 +610,7 @@ public class Program
             config.AddBranch("trash", trash =>
             {
                 trash.AddCommand<TrashWriteCommand>("write")
-                    .WithDescription("Write a file to Trash from STDIN");
+                    .WithDescription("Write a file to Trash from a file or STDIN");
             });
 
             config.AddBranch("project", project =>
@@ -632,6 +643,14 @@ public class Program
                     .WithDescription("Add a review action to a project");
                 project.AddCommand<ProjectRemoveReviewActionCommand>("remove-review-action")
                     .WithDescription("Remove a review action from a project");
+            });
+
+            config.AddBranch("config", cfg =>
+            {
+                cfg.AddCommand<ConfigGetCommand>("get")
+                    .WithDescription("Get a top-level config value");
+                cfg.AddCommand<ConfigSetCommand>("set")
+                    .WithDescription("Set a top-level config value");
             });
         });
         return app;

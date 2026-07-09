@@ -58,7 +58,7 @@ public sealed class OpenCodeCli : IAgentCli
         var args = new List<string>
         {
             "run",
-            "--dangerously-skip-permissions",
+            "--auto",
             "--format", "json"
         };
 
@@ -101,7 +101,7 @@ public sealed class OpenCodeCli : IAgentCli
 
         return new AgentProcessSpec
         {
-            FileName = "opencode",
+            FileName = OpenCodeBinaryResolver.Resolve(),
             Arguments = args,
             WorkingDirectory = config.WorkingDirectory,
             Environment = env,

@@ -43,17 +43,14 @@ public static class AgentServiceCollectionExtensions
         {
             var logger = sp.GetService<ILogger<AgentRunner>>() ?? NullLogger<AgentRunner>.Instance;
             var runner = new AgentRunner(logger, options.Concurrency);
-            if (options.IncludeBetaProviders)
-            {
-                runner.Register(
-                    new AntigravityCli(),
-                    new AntigravityEventParser(),
-                    new AntigravityHealthCheck(),
-                    new AntigravityFailureAnalyzer(),
-                    new AntigravitySessionCostParser(),
-                    new AntigravityPty(),
-                    new AntigravityModelCatalog());
-            }
+            runner.Register(
+                new AntigravityCli(),
+                new AntigravityEventParser(),
+                new AntigravityHealthCheck(),
+                new AntigravityFailureAnalyzer(),
+                new AntigravitySessionCostParser(),
+                new AntigravityPty(),
+                new AntigravityModelCatalog());
             runner.Register(
                 new ClaudeCli(),
                 new ClaudeEventParser(),

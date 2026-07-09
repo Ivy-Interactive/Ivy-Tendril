@@ -14,6 +14,97 @@ icon: ScrollText
 Version history, new features, improvements, and bug fixes for each Tendril release.
 </Ingress>
 
+## 1.1.11 (2026-07-03)
+
+### Bug Fixes
+
+- **macOS Installer & Startup Fix** — Fixed a critical issue where the macOS installer (.pkg) completed successfully but failed to install or launch the application due to broken symlinks and codesign signatures during repackaging. Replaced `pkgutil --expand-full` with `pkgutil --expand` to preserve app payload integrity, corrected the target directory to `1.pkg/Scripts/postinstall`, and fixed a path typo in the localhost certificate trusting script.
+
+## 1.1.10 (2026-07-03)
+
+### Bug Fixes
+
+- **macOS Installer Notarization** — Fixed macOS installer notarization by properly submitting and stapling the repacked installer package.
+
+## 1.1.9 (2026-07-03)
+
+### Features
+
+- **Promptware File Input** — Added support for file-based content input to promptware write commands, allowing promptwares to ingest local files during execution.
+- **Plan Revision Recovery CLI** — Added a new `plan get-revision` CLI command to retrieve and inspect historical revisions of a plan.
+- **SyncRepo Untracked-Changes Policy** — Added configurable untracked-changes policy options (Stash/Commit/PullRequest) for SyncRepo execution.
+- **Antigravity CLI Graduation** — Graduated the Antigravity CLI integrations and checks to fully stable status.
+
+### Improvements
+
+- **Universal Bug Reporting** — Enabled bug reporting under all agents by normalizing target models to backend-supported families and appending original agent metadata, and fixed bug reporting on macOS by recursively collecting plan files and ignoring worktree folders early.
+- **Verification CLI Fallbacks** — The `verification` commands now automatically list all available verification scripts if the specified verification name is not found.
+- **DraftMarkdown Widget Styles** — Synchronized the styling of the DraftMarkdown widget with the latest core design system updates.
+
+## 1.1.8 (2026-07-03)
+
+### Features
+
+- **Desktop Self-Update Capability** — Implemented self-update capability and dialog, allowing the desktop application to check and update itself to the latest version automatically.
+- **Tools Folder Persistence** — Preserves the `Tools/` directory during promptware upgrades and guarantees that promptware runtime folders are correctly structured.
+
+### Improvements
+
+- **Drafts App Shortcut** — Added the `Backspace` keyboard shortcut to trigger the Delete action in the Drafts app (resolving #1507).
+- **Responsive Layout Spacing** — Realigned the issue link button in the responsive header to prevent overlapping and text wrapping.
+
+## 1.1.7 (2026-07-02)
+
+### Features
+
+- **Localhost HTTPS Certificate Generation** — Automatically generate and package secure localhost SSL/TLS certificates for macOS and Windows desktop applications, enabling local HTTPS out-of-the-box.
+- **Create Plan Dialog Enhancement** — Added a direct "New Project" shortcut link to the Create Plan dialog for quicker onboarding.
+- **Claude Fable 5 Selection** — Added `Claude Fable 5` as a selectable model choice in model configurations.
+- **Config CLI & MCP Integration** — Added first-class `config get` and `config set` commands to the Tendril CLI and Model Context Protocol (MCP) server endpoints.
+- **FieldToolsDemo Experiment** — Introduced a new `FieldToolsDemo` experiment for developer testing.
+
+### Improvements
+
+- **Optimistic Job Deletion** — Made job deletion optimistic by delegating git worktree cleanup tasks to background threads, yielding faster UI response.
+
+### Bug Fixes
+
+- **CI Workflows & Scripts** — Fixed a YAML syntax error in the publication workflow, resolved SSL certificate generation crashes in CI pipelines, and corrected a syntax error in the macOS post-installation script.
+
+## 1.1.6 (2026-07-02)
+
+### Features
+
+- **First-class failure reporting** — Added the `tendril job fail <job-id> --message` CLI command allowing promptwares to report specific execution failures explicitly instead of relying on exit codes and raw stdout heuristics.
+- **Inbox auto-refresh** — Replaced interval-based polling in Drafts, Review, Icebox, Recommendations, and Trash apps with subscription-based updates using a debounced process status and file system watcher.
+- **Velopack updater consolidation** — Consolidated the desktop self-update flow onto Velopack, enabling check-for-updates in Settings, persisting dismissed updates across restarts, and removed the obsolete `Ivy.Tendril.Updater` project.
+- **UserQuestion widget** — Added a new `UserQuestion` widget and viewer for interactive user prompts.
+- **Onboarding guide** — Added a first-class onboarding guide to the Getting Started documentation.
+- **New plan enhancements** — Added a project select button directly to the Create Plan dialog, and renamed `CustomPrDialog` to `CreatePrDialog`.
+
+### Improvements
+
+- **Windows path and shell safety** — Replaced shell-unsafe characters (pipes and parentheses) in the `stackHash` project configuration with `/` and `.ts` extensions, and implemented Windows CLI argument escaping.
+- **Agent sandbox network access** — Enabled sandboxed network access for Codex via the `sandbox_workspace_write.network_access` setting, fixing PermissionError on socket bind operations.
+- **OpenCode local Ollama support** — Bypassed auth checks and resolved the binary path automatically when running OpenCode with a local Ollama model, and switched to `--auto` execution to prevent PTY hangs.
+- **Markdown link handling** — Centralized plan-revision markdown link polishing and rendering safety checks to strip line-number anchors from file URLs.
+- **Bug report GitHub username** — Added an optional GitHub username field to the Bug Report dialog and `report-bug` CLI command.
+- **UI layout refinements** — Hidden the Tunnel QR panel on mobile/tablet screens, nested the loading spinner within the starting callout, fixed the "Stop" button icon, and restored spacing in the Review actions layout.
+- **Text unwrapping for Gemini** — Added text unwrapping for Gemini's hard line break formatting to improve readability.
+- **Keyboard element styling** — Added styling for `<kbd>` elements in the markdown widget.
+
+### Bug Fixes
+
+- Fixed jobs hanging indefinitely in the pre-launch window due to deadlocks or stale output by arming timeouts immediately and executing before-hooks concurrently.
+- Fixed the Create Plan screen scroll position resetting/twitching to the top when navigating tabs.
+- Fixed job cost calculation for timed-out runs by falling back to pricing-based calculations when inline cost is zero or missing.
+- Fixed CreatePr plans remaining in Drafts when agents skip closeout steps by automatically parsing PR URLs from output on completion.
+- Fixed startup session log spam and em-dash formatting in master election logs.
+- Fixed EPERM listen errors on startup by binding test servers to loopback.
+- Fixed Codex agent output collapsing to zero height during execution.
+- Fixed keyboard focus/blur issues and auto-focused the input when the New Plan dialog opens.
+- Disabled the unused Tunnel feature in default configuration.
+
 ## 1.1.1 (2026-06-25)
 
 ### Features

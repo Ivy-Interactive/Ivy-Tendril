@@ -69,6 +69,8 @@ The server runs over stdio and exposes these tools:
 - **`tendril_list_plans`** — Query plans by state, project, or date range (returns up to 50 results)
 - **`tendril_inbox`** — Create a new plan by writing to the Tendril inbox (picked up by InboxWatcherService)
 - **`tendril_transition_plan`** — Change a plan's state (e.g., Draft → Executing)
+- **`tendril_get_config`** — Get a top-level config value (`codingAgent`, `jobTimeout`, `staleOutputTimeout`, `gitTimeout`, `maxConcurrentJobs`, `planTemplate`)
+- **`tendril_set_config`** — Set a top-level config value (integer fields are bounds-checked)
 
 ### Authentication
 
@@ -123,6 +125,7 @@ Add to `~/.claude/mcp.json`:
 - `Commands/McpCommand.cs` — Command handler that intercepts `tendril mcp` args
 - `Mcp/TendrilMcpServer.cs` — Configures and runs the MCP server using the `ModelContextProtocol` SDK
 - `Mcp/Tools/PlanTools.cs` — Tool definitions for plan queries and inbox creation
+- `Mcp/Tools/ConfigTools.cs` — Tool definitions for reading/writing top-level config (shares the CLI's field switch)
 
 The MCP server reads plans directly from the filesystem via `TENDRIL_HOME/Plans/` and writes inbox items to `TENDRIL_HOME/Inbox/`. It does not require the Tendril web server to be running.
 
@@ -182,8 +185,8 @@ Jobs flow through: `Pending → Queued → Running → Completed/Failed/Timeout/
 
 **CreatePlan verification** (`VerifyCreatePlanResult` in `JobService.cs`) runs after the agent exits with code 0 and can **change Completed → Failed** if:
 
-1. Agent output doesn't contain `"Plan created: <folder>"` marker
-2. No plan folder matching `AllocatedPlanId` exists on disk (`FindPlanFolderById`)
+1. Agent output doesn't contain a `"PlanId: <id>"` line resolving to a folder on disk (`FindPlanFolderById`)
+2. No plan folder matching `AllocatedPlanId` exists on disk either (`FindPlanFolderById`)
 3. No trash entry for that ID exists either (`FindTrashEntryById`)
 
 When debugging a failed CreatePlan, check in order:

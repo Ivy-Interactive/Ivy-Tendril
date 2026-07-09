@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
@@ -236,6 +237,55 @@ projects:
         await watchdogTask;
 
         Assert.False(job.StaleOutputDetected);
+    }
+
+    // Regression for #1455: the launcher must deliver the (potentially large) prompt to the child's
+    // stdin without blocking the launch thread — otherwise the timeout monitor is never armed and the
+    // job hangs "running…" forever. This exercises the production WriteStdinContentAsync against a
+    // real echo child whose output is drained first (mirroring StartAgentProcess's fixed ordering);
+    // a > 128KB payload would deadlock against the child's output pipe if the write were synchronous.
+    [Fact]
+    public async Task WriteStdinContentAsync_LargePrompt_DeliversStdinWithoutBlocking()
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = OperatingSystem.IsWindows() ? "cmd.exe" : "/bin/cat",
+            Arguments = OperatingSystem.IsWindows() ? "/c more" : "",
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        using var process = Process.Start(psi)!;
+
+        // Drain output first, exactly as StartAgentProcess does, so a large stdin write can't
+        // deadlock against the child's output pipe.
+        process.OutputDataReceived += (_, _) => { };
+        process.ErrorDataReceived += (_, _) => { };
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+
+        var largePrompt = new string('x', 200_000); // > 128KB (exceeds combined pipe buffers)
+
+        var method = typeof(JobLauncher).GetMethod("WriteStdinContentAsync",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var sw = Stopwatch.StartNew();
+        method!.Invoke(null, new object?[] { process, psi, largePrompt, "test-stdin" });
+        sw.Stop();
+
+        // Fire-and-forget: the call returns immediately, regardless of how long the child drains stdin.
+        Assert.True(sw.Elapsed < TimeSpan.FromSeconds(2),
+            $"stdin write must not block the launch thread, took {sw.Elapsed}");
+
+        // The prompt is fully written and stdin closed, so the child receives EOF and exits.
+        var exitTask = process.WaitForExitAsync();
+        var completed = await Task.WhenAny(exitTask, Task.Delay(TimeSpan.FromSeconds(20)));
+        Assert.Equal(exitTask, completed);
+        Assert.True(process.HasExited,
+            "Child should exit after stdin EOF — a hang indicates stdin was not delivered/closed");
     }
 
 }

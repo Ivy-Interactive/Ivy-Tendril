@@ -11,6 +11,9 @@ public static class BinaryResolver
 
     public static string? FindOnPath(string commandName)
     {
+        if (Path.IsPathRooted(commandName) && File.Exists(commandName))
+            return commandName;
+
         var pathVar = Environment.GetEnvironmentVariable("PATH");
         if (string.IsNullOrEmpty(pathVar)) return null;
 

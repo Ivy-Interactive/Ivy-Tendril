@@ -193,4 +193,47 @@ public class ContentViewTests
         Assert.False(ReviewContentView.ValidateVerificationPath(
             "../secrets/key", "D:/plans/001"));
     }
+
+    [Fact]
+    public void ResolvePendingSelection_WithPendingMatchingTitles_ReturnsThem()
+    {
+        var recs = new List<RecommendationYaml>
+        {
+            new() { Title = "R1" },
+            new() { Title = "R2" },
+            new() { Title = "R3" },
+        };
+
+        var selected = ReviewContentView.ResolvePendingSelection(recs, ["R1", "R3"]);
+
+        Assert.Equal(["R1", "R3"], selected.Select(r => r.Title));
+    }
+
+    [Fact]
+    public void ResolvePendingSelection_ExcludesNonPending()
+    {
+        var recs = new List<RecommendationYaml>
+        {
+            new() { Title = "R1", State = RecommendationStatus.Pending },
+            new() { Title = "R2", State = RecommendationStatus.Accepted },
+        };
+
+        var selected = ReviewContentView.ResolvePendingSelection(recs, ["R1", "R2"]);
+
+        Assert.Equal(["R1"], selected.Select(r => r.Title));
+    }
+
+    [Fact]
+    public void ResolvePendingSelection_WithNoMatchingTitles_ReturnsEmpty()
+    {
+        var recs = new List<RecommendationYaml>
+        {
+            new() { Title = "R1" },
+            new() { Title = "R2" },
+        };
+
+        var selected = ReviewContentView.ResolvePendingSelection(recs, ["Unknown"]);
+
+        Assert.Empty(selected);
+    }
 }

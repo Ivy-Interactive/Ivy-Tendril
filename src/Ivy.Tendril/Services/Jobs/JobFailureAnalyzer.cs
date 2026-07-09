@@ -7,10 +7,18 @@ namespace Ivy.Tendril.Services.Jobs;
 
 internal static class JobFailureAnalyzer
 {
-    internal static string ExtractFailureReason(List<string> outputLines, string jobType)
+    internal static string ExtractFailureReason(List<string> outputLines, string jobType, int? exitCode = null)
     {
         if (outputLines.Count == 0)
-            return "Unknown error (exit code non-zero)";
+            return exitCode.HasValue
+                ? $"Process exited with code {exitCode}"
+                : "Unknown error (exit code non-zero)";
+
+        // 0. Check for a terminal event in the agent's JSON stream (ErrorEvent, or a
+        //    ResultEvent with IsSuccess:false). This is a structured, authoritative signal
+        //    straight from the agent, so it wins over the text-scraping heuristics below.
+        var terminalEventMessage = TryExtractErrorEvent(outputLines);
+        if (terminalEventMessage != null) return terminalEventMessage;
 
         // 1. Check for PowerShell terminating errors
         var psError = FindPattern(outputLines, [
@@ -100,7 +108,9 @@ internal static class JobFailureAnalyzer
                 return SanitizeForDisplay(trimmed);
         }
 
-        return "Unknown error (exit code non-zero)";
+        return exitCode.HasValue
+            ? $"Process exited with code {exitCode}"
+            : "Unknown error (exit code non-zero)";
     }
 
     internal static string SanitizeForDisplay(string text)
@@ -175,10 +185,33 @@ internal static class JobFailureAnalyzer
         var serializer = new JsonEventSerializer();
         foreach (var line in outputLines.Reverse())
         {
-            if (serializer.Deserialize(line) is ErrorEvent { Message.Length: > 0 } e)
+            var evt = serializer.Deserialize(line);
+            if (evt is ErrorEvent { Message.Length: > 0 } e)
                 return SanitizeForDisplay(e.Message);
+            if (evt is ResultEvent { IsSuccess: false } r && !string.IsNullOrWhiteSpace(r.Response))
+                return FormatFailedResultMessage(r.Response);
         }
         return null;
+    }
+
+    private static readonly Regex UsageLimitPattern = new(
+        @"hit your (?:session|usage) limit|usage limit reached|limit reached",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static string FormatFailedResultMessage(string response)
+    {
+        var firstLine = response
+            .Split('\n')
+            .Select(l => l.Trim())
+            .First(l => l.Length > 0);
+
+        var sanitized = SanitizeForDisplay(firstLine);
+        if (sanitized.Length > 300)
+            sanitized = sanitized[..300];
+
+        return UsageLimitPattern.IsMatch(sanitized)
+            ? $"Claude usage limit reached: {sanitized}"
+            : sanitized;
     }
 
     internal static string? TryReadFailureArtifact(List<string> outputLines)

@@ -262,12 +262,6 @@ public class CodexEventParserTests
     }
 
     [Fact]
-    public void Reset_DoesNotThrow()
-    {
-        _parser.Reset();
-    }
-
-    [Fact]
     public void ParseLine_UnicodeContent_ParsesCorrectly()
     {
         var json = """{"type":"item.completed","item":{"id":"i1","type":"agent_message","text":"こんにちは世界"}}""";

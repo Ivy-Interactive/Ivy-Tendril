@@ -131,6 +131,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var selectedIndex = UseState<int?>();
         var appRepository = UseService<IAppRepository>();
         var client = UseService<IClientProvider>();
+        var versionService = UseService<IVersionCheckService>();
         var currentApp = UseState<AppHost?>();
         var statusService = UseService<ITendrilProcessStatusService>();
         var agentRunner = UseService<IAgentRunner>();
@@ -148,6 +149,12 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         {
             if (!isOpen.Value) return null;
             return new ImportIssuesDialog(isOpen, config);
+        });
+
+        var (updateDialog, showUpdateDialog) = UseTrigger<VersionInfo>((isOpen, info) =>
+        {
+            if (!isOpen.Value || info == null) return null;
+            return new UpdateTendrilDialog(isOpen, info);
         });
 
         UseEffect(async () =>
@@ -297,6 +304,11 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                             routeResult.TabId!, replaceHistory);
                         break;
 
+                    case AppShellRouter.RouteAction.RefreshExistingTab:
+                        HandleRefreshExistingTab(navigateArgs, routeResult.TabIndex!.Value,
+                            routeResult.TabId!, replaceHistory);
+                        break;
+
                     case AppShellRouter.RouteAction.CreateNewTab:
                         HandleCreateNewTab(navigateArgs, routeResult.EffectiveAppId!, replaceHistory);
                         break;
@@ -344,6 +356,27 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 RedirectToAppIfNotError(navigateArgs, replaceHistory, tabId);
         }
 
+        void SetAppTitleAndRedirect(NavigateArgs navigateArgs, string appId, string tabId,
+            bool replaceHistory)
+        {
+            SetAppTitle(appId);
+            if (navigateArgs.HistoryOp is HistoryOp.Push)
+                RedirectToAppIfNotError(navigateArgs, replaceHistory, tabId);
+        }
+
+        void HandleRefreshExistingTab(NavigateArgs navigateArgs, int tabIndex,
+            string tabId, bool replaceHistory)
+        {
+            var tab = tabs.Value[tabIndex];
+            tabs.Set(tabs.Value.SetItem(tabIndex, tab with
+            {
+                AppHost = navigateArgs.ToAppHost(args.ConnectionId),
+                RefreshToken = Guid.NewGuid().ToString()
+            }));
+            selectedIndex.Set(tabIndex);
+            SetAppTitleAndRedirect(navigateArgs, tab.AppId, tabId, replaceHistory);
+        }
+
         void HandleCreateNewTab(NavigateArgs navigateArgs, string effectiveAppId,
             bool replaceHistory)
         {
@@ -358,8 +391,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 tabIcon, Guid.NewGuid().ToString()));
             tabs.Set(newTabs);
             selectedIndex.Set(newTabs.Length - 1);
-            SetAppTitle(app.Id);
-            RedirectToAppIfNotError(navigateArgs, replaceHistory, tabId);
+            SetAppTitleAndRedirect(navigateArgs, app.Id, tabId, replaceHistory);
         }
 
         bool CheckTabExists(int tabId)
@@ -434,8 +466,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             if (!CheckTabExists(tabIndex)) return;
 
             var tab = tabs.Value[tabIndex];
-            tabs.Set(tabs.Value.RemoveAt(tabIndex)
-                .Insert(tabIndex, tab with { RefreshToken = Guid.NewGuid().ToString() }));
+            tabs.Set(tabs.Value.SetItem(tabIndex, tab with { RefreshToken = Guid.NewGuid().ToString() }));
             selectedIndex.Set(tabIndex);
         }
 
@@ -502,6 +533,38 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .Tag("$import-issues")
                 .Icon(Icons.Download)
                 .OnSelect(showImportIssuesDialog),
+            MenuItem.Default("Check for Updates")
+                .Tag("$check-updates")
+                .Icon(Icons.CircleArrowUp)
+                .OnSelect(() =>
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var info = await versionService.CheckForUpdatesAsync(forceRefresh: true);
+                            if (info.HasUpdate)
+                            {
+                                showUpdateDialog(info);
+                            }
+                            else if (info.LatestVersion == null)
+                            {
+                                client.Toast("Couldn't check for updates. Please try again later.", "Update check failed")
+                                    .Destructive();
+                            }
+                            else
+                            {
+                                client.Toast($"You're on the latest version (v{info.CurrentVersion}).", "Up to date")
+                                    .Success();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            client.Toast($"Couldn't check for updates: {ex.Message}", "Update check failed")
+                                .Destructive();
+                        }
+                    });
+                }),
             MenuItem.Default("Theme")
                 .Tag("$theme")
                 .Icon(Icons.SunMoon)
@@ -577,6 +640,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 settings.Width
             ).Open(sidebarOpen.Value).MainAppSidebar(),
             importIssuesDialog,
+            updateDialog,
             pluginContext != null ? new PluginDialogHost(pluginContext) : null
         );
     }

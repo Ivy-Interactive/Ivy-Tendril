@@ -29,6 +29,7 @@ public class JobService : IJobService
     private readonly ILogger<JobService> _logger;
     private readonly JobLauncher _jobLauncher;
     private readonly JobCompletionHandler _completionHandler;
+    private readonly IAgentRunner? _agentRunner;
     private Timer? _blockedJobCheckTimer;
     private readonly PluginHookRegistry? _pluginHooks;
 
@@ -51,6 +52,7 @@ public class JobService : IJobService
         _telemetryService = telemetryService;
         _planWatcherService = planWatcherService;
         _database = database;
+        _agentRunner = agentRunner;
         _jobTimeout = TimeSpan.FromMinutes(configService.Settings.JobTimeout);
         _staleOutputTimeout = TimeSpan.FromMinutes(configService.Settings.StaleOutputTimeout);
         _maxConcurrentJobs = configService.Settings.MaxConcurrentJobs;
@@ -93,6 +95,7 @@ public class JobService : IJobService
         _planReaderService = planReaderService;
         _telemetryService = telemetryService;
         _database = database;
+        _agentRunner = agentRunner;
         var promptsRoot = Ivy.Tendril.Helpers.PromptwareHelper.ResolvePromptsRoot();
         _jobLauncher = new JobLauncher(null, agentRunner!, _logger, promptsRoot);
         _completionHandler = new JobCompletionHandler(
@@ -168,9 +171,47 @@ public class JobService : IJobService
                     job.StatusMessage = errorMessage;
                 }
             }
+            else if (!string.IsNullOrEmpty(job.ReportedFailureReason))
+            {
+                // A reason explicitly declared by the promptware via `tendril job fail`
+                // wins outright — including over any progress message previously set via
+                // `tendril job status` (which would otherwise leave a stale message shown).
+                job.StatusMessage = job.ReportedFailureReason;
+            }
             else
             {
-                job.StatusMessage ??= ExtractFailureReason(job.OutputLines.ToList(), job.Type);
+                // Only fall through to the generic scan (and possibly the agent-level analyzer
+                // below) when nothing has already set a message — an explicitly set StatusMessage
+                // must be preserved verbatim, even if it happens to mention "exit code".
+                if (job.StatusMessage == null)
+                {
+                    // Prefer the provider-specific IFailureAnalyzer (recognizes rate limits, auth
+                    // failures, invalid models, etc.) over the generic text scan below — most
+                    // failures have some stderr line, so the text scan would otherwise return that
+                    // raw line directly and the analyzer would never get a chance to improve it.
+                    FailureAnalysis? analysis = null;
+                    var analyzer = _agentRunner?.GetFailureAnalyzer(job.Provider);
+                    if (analyzer != null)
+                    {
+                        var stderrLines = job.OutputLines
+                            .Where(l => l.StartsWith("[stderr] "))
+                            .Select(l => l["[stderr] ".Length..])
+                            .ToList();
+                        analysis = analyzer.Analyze(new FailureContext
+                        {
+                            Events = [],
+                            StderrLines = stderrLines,
+                            ExitCode = exitCode,
+                            TimedOut = false,
+                            IdleTimeout = false,
+                            AgentId = job.Provider,
+                        });
+                    }
+
+                    job.StatusMessage = analysis is { Kind: not FailureKind.Unknown }
+                        ? analysis.Suggestion != null ? $"{analysis.Reason} ({analysis.Suggestion})" : analysis.Reason
+                        : ExtractFailureReason(job.OutputLines.ToList(), job.Type, exitCode);
+                }
             }
             job.Status = success ? JobStatus.Completed : JobStatus.Failed;
         }
@@ -192,7 +233,10 @@ public class JobService : IJobService
         if (!job.TryClaimCompletion()) return;
 
         job.FlushParser();
-        var wasRunning = job.Status == JobStatus.Running;
+        // Keyed off SlotReserved rather than Status == Running: the pre-Running launch guard
+        // (ValidateProjectReposOrFail, #1340) can hold the slot before Status ever flips to
+        // Running, so gating release on Status here would leak it if this races that guard.
+        var heldSlot = job.SlotReserved;
         try
         {
             job.TimeoutCts?.Cancel();
@@ -220,8 +264,8 @@ public class JobService : IJobService
 
         _completionHandler.WriteJobLog(job);
 
-        // Release job slot if the job was running
-        if (wasRunning)
+        // Release job slot if this launch attempt held one
+        if (heldSlot)
             _jobSlotSemaphore.Release();
 
         JobCompletionHandler.CleanupInboxFile(job);
@@ -235,7 +279,7 @@ public class JobService : IJobService
         RaiseJobsStructureChanged();
 
         // Try to start queued jobs now that a slot is free
-        if (wasRunning)
+        if (heldSlot)
             ProcessJobQueue();
     }
 
@@ -273,8 +317,35 @@ public class JobService : IJobService
             var isTerminal = current is PlanStatus.Completed or PlanStatus.Skipped;
             if (!isTerminal)
             {
-                _planReaderService.ResetToDraft(Path.GetFileName(planFolder));
-                WorktreeCleanupService.CleanPlanState(planFolder, _logger);
+                // Optimistic delete: the job is already gone from the UI, so reclaim the plan's
+                // worktrees and artifacts on a background thread and return immediately instead of
+                // blocking the UI on git subprocesses and multi-second directory deletes. Order
+                // matters: ResetToDraft (which flips the plan to a runnable Draft) runs only AFTER
+                // cleanup finishes, so an immediate re-execution can't race the still-running
+                // deletes and have its fresh worktree removed out from under it.
+                var planReaderService = _planReaderService;
+                string folderPath = planFolder;
+                var folderName = Path.GetFileName(folderPath);
+                Task.Run(() =>
+                {
+                    try
+                    {
+                        WorktreeCleanupService.CleanPlanState(folderPath, _logger);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Background plan-state cleanup failed for {PlanFolder}", folderName);
+                        RaiseNotification(new JobNotification("Cleanup incomplete",
+                            $"Couldn't fully remove worktrees and artifacts for {folderName}; some disk space may not be reclaimed until it is cleared manually.",
+                            false));
+                    }
+                    finally
+                    {
+                        // Reset to Draft regardless of cleanup success so the plan stays usable;
+                        // done after cleanup so its directories are gone before it becomes runnable.
+                        planReaderService.ResetToDraft(folderName);
+                    }
+                });
                 return;
             }
         }
@@ -373,6 +444,19 @@ public class JobService : IJobService
             job.ReportedPlanId = planId;
         if (!string.IsNullOrEmpty(planTitle))
             job.ReportedPlanTitle = planTitle;
+
+        RaiseJobsPropertyChanged();
+        return true;
+    }
+
+    public bool ReportJobFailure(string id, string message)
+    {
+        if (!_jobs.TryGetValue(id, out var job))
+            return false;
+
+        // Record the reason only; the job process is still running and the terminal
+        // state transition still happens later in CompleteJob/SetCompletionStatus.
+        job.ReportedFailureReason = message;
 
         RaiseJobsPropertyChanged();
         return true;
@@ -550,6 +634,7 @@ public class JobService : IJobService
             return id;
         }
 
+        job.SlotReserved = true;
         LaunchJob(job);
         return id;
     }
@@ -721,12 +806,15 @@ public class JobService : IJobService
         if (job.WaitForJobIds is not { Count: > 0 })
             return false;
 
-        var pendingIds = job.WaitForJobIds
-            .Where(id => _jobs.TryGetValue(id, out var dep) &&
-                         dep.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked)
-            .ToList();
+        var pending = new List<JobItem>();
+        foreach (var id in job.WaitForJobIds)
+        {
+            if (_jobs.TryGetValue(id, out var dep) &&
+                dep.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked)
+                pending.Add(dep);
+        }
 
-        if (pendingIds.Count == 0)
+        if (pending.Count == 0)
         {
             // Check if any already failed — cascade immediately
             var failedId = job.WaitForJobIds
@@ -748,10 +836,19 @@ public class JobService : IJobService
         }
 
         job.Status = JobStatus.Blocked;
-        job.StatusMessage = $"Waiting for {(pendingIds.Count == 1 ? "job" : "jobs")}: {string.Join(", ", pendingIds)}";
-        RaiseNotification(new JobNotification("Job Blocked", $"{job.PlanFile}: waiting for {string.Join(", ", pendingIds)}", false));
+        var waitingFor = string.Join(", ", pending.Select(DescribeWaitDependency));
+        job.StatusMessage = $"Waiting for {waitingFor}";
+        RaiseNotification(new JobNotification("Job Blocked", $"{job.PlanFile}: waiting for {waitingFor}", false));
         RaiseJobsStructureChanged();
         return true;
+    }
+
+    private static string DescribeWaitDependency(JobItem dep)
+    {
+        var planId = dep.ResolvePlanId();
+        return string.IsNullOrEmpty(planId)
+            ? $"{dep.Type} (job {dep.Id})"
+            : $"{dep.Type} of plan {planId} (job {dep.Id})";
     }
 
     /// <summary>
@@ -775,6 +872,7 @@ public class JobService : IJobService
         };
         _jobs[id] = job;
         _jobSlotSemaphore.Wait(0); // Acquire slot so CompleteJob can release it
+        job.SlotReserved = true;
         return id;
     }
 
@@ -912,14 +1010,16 @@ public class JobService : IJobService
                 }
             }
 
+            queuedJob.SlotReserved = true;
+
             // Launch outside the lock (launching is expensive)
             LaunchJob(queuedJob);
         }
     }
 
 
-    internal static string ExtractFailureReason(List<string> outputLines, string jobType)
-        => JobFailureAnalyzer.ExtractFailureReason(outputLines, jobType);
+    internal static string ExtractFailureReason(List<string> outputLines, string jobType, int? exitCode = null)
+        => JobFailureAnalyzer.ExtractFailureReason(outputLines, jobType, exitCode);
 
     internal static string SanitizeForDisplay(string text)
         => JobFailureAnalyzer.SanitizeForDisplay(text);

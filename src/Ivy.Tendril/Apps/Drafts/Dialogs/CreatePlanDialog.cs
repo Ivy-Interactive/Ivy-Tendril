@@ -7,6 +7,7 @@ using Ivy.Tendril.Helpers;
 using System;
 using System.IO;
 using Ivy.Tendril.Apps.Agent;
+using Ivy.Tendril.Apps.Settings;
 
 namespace Ivy.Tendril.Apps.Drafts.Dialogs;
 
@@ -60,7 +61,7 @@ public class CreatePlanDialog(
         var (breakpoint, breakpointListener) = Context.UseBreakpoint();
         var uploadedFiles = UseState(new List<string>());
 
-        var uploadContext = this.UseUpload(async (fileUpload, stream, token) =>
+        var uploadContext = UseUpload(async (fileUpload, stream, token) =>
         {
             var tempDir = Path.Combine(configService.TendrilHome, "Attachments", uploadSessionId.Value);
             Directory.CreateDirectory(tempDir);
@@ -100,10 +101,11 @@ public class CreatePlanDialog(
             }
         );
 
+        var currentProjectNames = configService.Projects.Select(p => p.Name).ToList();
         var options = new List<IAnyOption>();
-        if (projectNames.Count > 1)
+        if (currentProjectNames.Count > 1)
             options.Add(new Option<string>("Auto", "Auto", icon: Icons.WandSparkles));
-        options.AddRange(projectNames.Select(p => new Option<string>(p, p)));
+        options.AddRange(currentProjectNames.Select(p => new Option<string>(p, p)));
 
         var planWasCreated = false;
         void HandleClose()
@@ -127,15 +129,23 @@ public class CreatePlanDialog(
         }
 
         var bodyContent =
-                Layout.Vertical()
-                | exclusiveProjects.ToSelectInput(options).Variant(SelectInputVariant.Toggle).WithField().Label("Select Project(s)")
+                Layout.Vertical().Margin(0,2,0,0)
+                | exclusiveProjects.ToSelectInput(options)
+                    .Variant(SelectInputVariant.Toggle)
+                    .WithField()
+                    .Label("Select Project(s)")
+                    .Tools(new Button("New Project").Icon(Icons.Plus).Small().Ghost().OnClick(() =>
+                    {
+                        HandleClose();
+                        nav.Navigate<SettingsApp>(new SettingsAppArgs(SettingsApp.TagProjects));
+                    }))
                 | selectedPriority.ToSelectInput(PriorityOptions).Variant(SelectInputVariant.Toggle).WithField().Label("Priority")
                 | new Ivy.Tendril.Widgets.ContentInput
                 {
                     TranscriptionUrl = $"{tendrilArgs.ServicesWsUrl}/transcribe/ws",
                     UploadUrl = uploadContext.Value.UploadUrl,
                     AutoFocus = true,
-                    OnSubmit = e =>
+                    OnSubmit = _ =>
                     {
                         if (!string.IsNullOrWhiteSpace(createPlanText.Value) && !isCreating.Value)
                         {

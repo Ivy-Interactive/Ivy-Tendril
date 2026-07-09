@@ -30,18 +30,9 @@ public class PlanWatcherService : IPlanWatcherService
         _debounceTimer.AutoReset = false;
         _debounceTimer.Elapsed += (_, _) =>
         {
-            try
-            {
-                var folder = _pendingPlanFolder;
-                _pendingPlanFolder = null;
-                PlansChanged?.Invoke(folder);
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogWarning(ex, "Failed to invoke PlansChanged event");
-                // Swallow to prevent unhandled exceptions on the timer's thread-pool
-                // thread from terminating the process.
-            }
+            var folder = _pendingPlanFolder;
+            _pendingPlanFolder = null;
+            RaisePlansChanged(folder);
         };
 
         var planFolder = config.PlanFolder;
@@ -137,19 +128,8 @@ public class PlanWatcherService : IPlanWatcherService
             // Fire an independent full rescan at each delay rather than routing through the
             // debounce (which would coalesce the staggered timers into a single fire). Each
             // rescan is a fresh chance to pick up content that landed after the last one.
-            var timer = new System.Threading.Timer(_ =>
-            {
-                try
-                {
-                    PlansChanged?.Invoke(null);
-                }
-                catch (Exception ex)
-                {
-                    _logger?.LogWarning(ex, "Failed to invoke PlansChanged during self-heal");
-                    // Swallow to prevent unhandled exceptions on the timer's thread-pool
-                    // thread from terminating the process.
-                }
-            }, null, delayMs, Timeout.Infinite);
+            var timer = new System.Threading.Timer(_ => RaisePlansChanged(null),
+                null, delayMs, Timeout.Infinite);
             newTimers.Add(timer);
         }
 
@@ -159,6 +139,30 @@ public class PlanWatcherService : IPlanWatcherService
                 timer.Dispose();
             _selfHealTimers = newTimers;
         }
+    }
+
+    /// <summary>
+    ///     Invokes each PlansChanged subscriber in isolation. A multicast Invoke stops at the
+    ///     first throwing handler (e.g. one left behind by a disposed view), which would silently
+    ///     starve every subscriber added after it — typically the most recently opened tabs.
+    ///     Catching per handler also keeps unhandled exceptions off the timers' thread-pool
+    ///     threads, which would otherwise terminate the process.
+    /// </summary>
+    private void RaisePlansChanged(string? planFolder)
+    {
+        var handlers = PlansChanged;
+        if (handlers == null)
+            return;
+
+        foreach (var handler in handlers.GetInvocationList().Cast<Action<string?>>())
+            try
+            {
+                handler(planFolder);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "PlansChanged subscriber threw");
+            }
     }
 
     private void ScheduleDebounce(string? planFolder)

@@ -236,6 +236,7 @@ public class InboxWatcherServiceTests : IDisposable
         public List<JobItem> GetJobsForPlan(string planFile) => new();
         public JobItem? GetJob(string id) => null;
         public bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null) => false;
+        public bool ReportJobFailure(string id, string message) => false;
         public void Dispose() { }
 
 #pragma warning disable CS0067
@@ -386,6 +387,7 @@ public class InboxWatcherServiceTests : IDisposable
         public List<JobItem> GetJobsForPlan(string planFile) => new();
         public JobItem? GetJob(string id) => null;
         public bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null) => false;
+        public bool ReportJobFailure(string id, string message) => false;
         public void Dispose() { }
 
 #pragma warning disable CS0067
@@ -422,6 +424,7 @@ public class InboxWatcherServiceTests : IDisposable
         public List<JobItem> GetJobsForPlan(string planFile) => new();
         public JobItem? GetJob(string id) => null;
         public bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null) => false;
+        public bool ReportJobFailure(string id, string message) => false;
         public void Dispose() { }
 
 #pragma warning disable CS0067

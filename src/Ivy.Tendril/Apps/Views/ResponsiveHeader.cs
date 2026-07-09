@@ -25,19 +25,19 @@ public static class ResponsiveHeader
     /// factories and built once per layout — the same approach the title area itself already uses
     /// to render a desktop title and a mobile picker side by side.
     /// </remarks>
-    public static object Build(Func<object> titleArea, Func<object> controls)
+    public static object Build(Func<bool, object> titleArea, Func<bool, object> controls)
     {
         var desktop = new Box(
                 Layout.Horizontal().Height(Size.Px(40)).Width(Size.Full()).Gap(2).AlignContent(Align.Left)
-                | titleArea()
-                | controls())
+                | titleArea(false)
+                | controls(false))
             .BorderThickness(0).Padding(0).Width(Size.Full())
             .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
         var mobile = new Box(
                 Layout.Vertical().Width(Size.Full()).Gap(2).AlignContent(Align.Left)
-                | titleArea()
-                | controls())
+                | titleArea(true)
+                | controls(true))
             .BorderThickness(0).Padding(0).Width(Size.Full())
             .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
