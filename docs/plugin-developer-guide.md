@@ -720,7 +720,6 @@ internal class MyDashboardView : ViewBase
 Additional extended context capabilities:
 - `AddBadgeProvider(menuTag, countProvider)` — add notification badges to menu items
 - `UseEndpoints(slug, configure)` — register HTTP endpoints scoped to the plugin (see below)
-- `UseWebApplicationBuilder(configure)` — configure the host's `WebApplicationBuilder`
 
 ### Custom HTTP Endpoints
 
