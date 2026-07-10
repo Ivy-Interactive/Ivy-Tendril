@@ -366,13 +366,65 @@ public class JobService : IJobService
         try
         {
             var hasBlocked = _jobs.Values.Any(j => j.Status == JobStatus.Blocked);
-            if (!hasBlocked) return;
-
-            _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);
+            if (hasBlocked)
+                _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);
         }
         catch
         {
             // Best-effort — don't crash on timer callback
+        }
+
+        try
+        {
+            RunStuckJobCheck();
+        }
+        catch
+        {
+            // Best-effort — don't crash on timer callback
+        }
+    }
+
+    // Extra margin on top of the configured timeouts before a job is reaped, so a legitimately
+    // slow-but-progressing job isn't killed the instant it crosses the nominal threshold.
+    private static readonly TimeSpan StuckJobReapGrace = TimeSpan.FromMinutes(2);
+
+    /// <summary>
+    ///     Global safety net for jobs stranded Running with no path to completion — e.g. a launch
+    ///     that hung before <see cref="JobMonitor" /> ever armed its watchdogs (the "Starting…"
+    ///     forever bug). Unlike the per-job stale-output/hard-timeout watchdogs (armed only once
+    ///     <see cref="JobMonitor.Start" /> runs), this scans every Running job independent of whether
+    ///     its monitor ever started, using <see cref="JobItem.StartedAt" /> as the baseline. Runs on
+    ///     the existing 60s timer; exposed internally so tests can drive it deterministically.
+    /// </summary>
+    internal void RunStuckJobCheck()
+    {
+        var now = DateTime.UtcNow;
+
+        foreach (var job in _jobs.Values.Where(j => j.Status == JobStatus.Running).ToArray())
+        {
+            if (!job.StartedAt.HasValue) continue;
+
+            var staleAnchor = job.LastOutputAt ?? job.StartedAt.Value;
+            var isStale = _staleOutputTimeout > TimeSpan.Zero
+                          && now - staleAnchor > _staleOutputTimeout + StuckJobReapGrace;
+            var isHardCapped = now - job.StartedAt.Value > _jobTimeout + TimeSpan.FromMinutes(5) + StuckJobReapGrace;
+
+            if (!isStale && !isHardCapped) continue;
+
+            _logger.LogWarning(
+                "Job {JobId}: Reaped by stuck-job check ({Reason})", job.Id, isStale ? "stale output" : "hard cap");
+
+            try
+            {
+                if (job.Process is { HasExited: false })
+                    job.Process.Kill(entireProcessTree: true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Job {JobId}: Failed to kill process during stuck-job reap", job.Id);
+            }
+
+            CompleteJob(job.Id, null, timedOut: true, staleOutput: isStale);
         }
     }
 
