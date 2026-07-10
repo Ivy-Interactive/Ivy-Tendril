@@ -137,7 +137,12 @@ const renderShortcut = (isMac: boolean) => {
       </>
     );
   }
-  return "Ctrl+Enter";
+  return (
+    <>
+      <span>Ctrl</span>
+      <span className="civ-shortcut-enter">↵</span>
+    </>
+  );
 };
 
 export const ContentInput: React.FC<ContentInputProps> = ({

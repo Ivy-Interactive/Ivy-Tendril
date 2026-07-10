@@ -37,4 +37,11 @@ describe("ContentInput", () => {
     const submitButton = screen.getByTitle("Send");
     expect(submitButton).toBeDisabled();
   });
+
+  it("renders the enter symbol (↵) in the shortcut label on non-Mac platforms", () => {
+    render(<ContentInput id="civ-1" value="test" submitLabel="Send" />);
+    const shortcut = document.querySelector(".civ-submit-shortcut");
+    expect(shortcut).toBeTruthy();
+    expect(shortcut?.textContent).toContain("↵");
+  });
 });
