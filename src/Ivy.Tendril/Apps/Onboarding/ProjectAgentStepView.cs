@@ -33,7 +33,7 @@ public class ProjectAgentStepView(
         var progressValue = UseState<int?>(null);
         var error = UseState<string?>(null);
         var authCode = UseState<string?>(null);
-        var isCloning = UseState(false);
+        var isCloning = UseState(!session.Started.Value);
 
         UseEffect(async () =>
         {
@@ -254,7 +254,7 @@ public class ProjectAgentStepView(
             }
         };
 
-        return Layout.Vertical().Margin(0, 0, 0, 2)
+        return Layout.Vertical().Margin(0, 0, 0, 2).Height(Size.Fit().Min(Size.Units(60)))
                | (showHeader ? Text.H3("Setting up your project") : null!)
                | Text.Muted(isCloning.Value
                    ? (progressMessage.Value ?? "Setting up your project...")
@@ -264,8 +264,10 @@ public class ProjectAgentStepView(
                | (authCode.Value != null
                    ? (object)Text.Markdown($"**Device code:** `{authCode.Value}` — enter this in your browser if prompted.")
                    : null!)
-               | (isCloning.Value && progressValue.Value != null
-                   ? (object)new Progress(progressValue.Value.Value)
+               | (isCloning.Value
+                   ? (progressValue.Value != null
+                       ? (object)new Progress(progressValue.Value.Value)
+                       : (object)new Loading())
                    : null!)
                | (showStream
                    ? (object)new Box(viewer)
