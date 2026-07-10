@@ -40,7 +40,7 @@ describe("ContentInput", () => {
 
   it("renders the enter symbol (↵) in the shortcut label on non-Mac platforms", () => {
     render(<ContentInput id="civ-1" value="test" />);
-    const shortcut = screen.getByText((content, element) => {
+    const shortcut = screen.getByText((_content, element) => {
       return element?.classList.contains("civ-submit-shortcut") ?? false;
     });
     expect(shortcut.textContent).toContain("↵");
