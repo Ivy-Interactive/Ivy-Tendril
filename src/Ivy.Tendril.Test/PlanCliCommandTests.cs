@@ -1256,56 +1256,6 @@ public class PlanCliCommandTests : IDisposable
         Assert.Equal("Fix: \"quotes\" & <angle> brackets", result.Title);
     }
 
-    // --- PlanAddLog Tests ---
-
-    [Fact]
-    public void PlanAddLog_CreatesFirstLog()
-    {
-        CreatePlanFolder("30001", "TestLog");
-        var planDir = Path.Combine(_plansDir, "30001-TestLog");
-
-        _ = PlanAddLogCommand.WriteLog(planDir, "CreatePlan");
-
-        var logsDir = Path.Combine(planDir, "Logs");
-        Assert.True(Directory.Exists(logsDir));
-        var logFiles = Directory.GetFiles(logsDir, "*.md");
-        Assert.Single(logFiles);
-        Assert.Contains("001-CreatePlan.md", logFiles[0]);
-
-        var content = File.ReadAllText(logFiles[0]);
-        Assert.Contains("# CreatePlan", content);
-        Assert.Contains("Completed", content);
-    }
-
-    [Fact]
-    public void PlanAddLog_IncrementsLogNumber()
-    {
-        CreatePlanFolder("30002", "TestLogIncr");
-        var planDir = Path.Combine(_plansDir, "30002-TestLogIncr");
-        var logsDir = Path.Combine(planDir, "Logs");
-        Directory.CreateDirectory(logsDir);
-        File.WriteAllText(Path.Combine(logsDir, "001-ExpandPlan.md"), "first");
-        File.WriteAllText(Path.Combine(logsDir, "002-ExecutePlan.md"), "second");
-
-        PlanAddLogCommand.WriteLog(planDir, "CreatePr");
-
-        Assert.True(File.Exists(Path.Combine(logsDir, "003-CreatePr.md")));
-    }
-
-    [Fact]
-    public void PlanAddLog_IncludesSummary()
-    {
-        CreatePlanFolder("30003", "TestLogSummary");
-        var planDir = Path.Combine(_plansDir, "30003-TestLogSummary");
-
-        PlanAddLogCommand.WriteLog(planDir, "ExecutePlan", "Completed all verifications successfully");
-
-        var logsDir = Path.Combine(planDir, "Logs");
-        var logFile = Directory.GetFiles(logsDir, "*.md").Single();
-        var content = File.ReadAllText(logFile);
-        Assert.Contains("Completed all verifications successfully", content);
-    }
-
     // ==================== PlanCreate with optional flags ====================
 
     [Fact]

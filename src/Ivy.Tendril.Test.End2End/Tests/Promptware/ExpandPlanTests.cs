@@ -14,7 +14,7 @@ public class ExpandPlanTests
     [MemberData(nameof(AgentTestData.Agents), MemberType = typeof(AgentTestData))]
     public async Task ExpandPlan_AddsDetailedSubSteps(string agent)
     {
-        var cliLog = Path.Combine(_fixture.TendrilHome, $"expand-plan-{agent}.jsonl");
+        var cliLog = _fixture.CliLogPath($"expand-plan-{agent}");
 
         var planFolder = PlanSetupHelper.CreateDraftPlan(
             _fixture.PlansDir,

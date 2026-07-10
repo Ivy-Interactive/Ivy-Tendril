@@ -35,7 +35,7 @@ public class PlanTabView(
         {
             var planLayout = Layout.Vertical().Height(Size.Full());
             if (selectedPlan.Status == PlanStatus.Failed)
-                planLayout |= ContentView.BuildFailureCallout(selectedPlan);
+                planLayout |= ContentView.BuildFailureCallout(selectedPlan, config.TendrilHome);
 
             var annotatedContent = MarkdownHelper.PrepareForDisplay(
                 selectedPlan.LatestRevisionContent, config);

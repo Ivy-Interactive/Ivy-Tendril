@@ -63,7 +63,7 @@ public class JobService : IJobService
             configService, _logger, modelPricingService, planReaderService,
             telemetryService, planWatcherService, promptsRoot);
         configService.SettingsReloaded += OnSettingsReloaded;
-        JobIdAllocator.SeedIfNeeded(configService.TendrilHome, promptsRoot);
+        JobIdAllocator.SeedIfNeeded(configService.TendrilHome);
         LoadHistoricalJobs();
         _blockedJobCheckTimer = new Timer(OnBlockedJobCheckTimer, null, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60));
     }
@@ -132,6 +132,9 @@ public class JobService : IJobService
             }
         }
 
+        // Close only the raw CLI transcript here: the agent has exited, but HandleCompletion still enqueues
+        // the completion summary, permission denials and hook output. Those must reach the eventwire file,
+        // so its appender stays open until DisposeResources below.
         job.CloseRawLog();
         _completionHandler.HandleCompletion(
             job, _jobs, PersistJob, RaiseNotification, RaiseJobsPropertyChanged, StartJobSkipDepCheck);
@@ -285,7 +288,8 @@ public class JobService : IJobService
         {
             removed.DisposeResources(_logger);
             try { _database?.DeleteJob(id); } catch { /* Best-effort */ }
-            if (_configService != null) JobEventWireStore.Delete(_configService.TendrilHome, id);
+            // The job's four artifacts in <TendrilHome>/Jobs/ are deliberately kept: deleting a job removes
+            // it from the UI and the database, not the forensic record of what it did.
 
             ApplyDeletePlanState(removed);
 
@@ -490,7 +494,7 @@ public class JobService : IJobService
         if (job is { OutputHydrated: false } && job.Status != JobStatus.Running
             && job.OutputLines.IsEmpty && _configService != null)
         {
-            job.OutputLines = JobEventWireStore.Read(_configService.TendrilHome, id) ?? job.OutputLines;
+            job.OutputLines = JobEventWireStore.Read(_configService.TendrilHome, job) ?? job.OutputLines;
             job.OutputHydrated = true;
         }
         return job;
@@ -568,13 +572,12 @@ public class JobService : IJobService
         }
     }
 
+    // The eventwire file is streamed by JobItem as events arrive, so there is nothing to persist here.
     private void PersistJob(JobItem job)
     {
         try
         {
             _database?.UpsertJob(job);
-            if (_configService != null)
-                JobEventWireStore.Write(_configService.TendrilHome, job);
         }
         catch
         {
@@ -919,21 +922,32 @@ public class JobService : IJobService
     ///     Creates a job in "Running" state without launching a real process.
     ///     Used by tests to exercise CompleteJob without background monitor races.
     /// </summary>
-    internal string CreateTestJob(JobArgsBase args)
+    internal string CreateTestJob(JobArgsBase args, string? inboxFilePath = null)
     {
         var id = _configService != null
             ? JobIdAllocator.AllocateJobId(_configService.TendrilHome)
             : $"test-{Guid.NewGuid().ToString("N")[..5]}";
+
+        // Derive Project/Priority exactly as StartJob does. Project is not cosmetic: RunHooks resolves a
+        // job's hooks through GetProject(job.Project), so a job without it silently runs no hooks at all.
+        var (planFile, project, priority) = ExtractJobMetadata(args);
+
         var job = new JobItem
         {
             Id = id,
             Type = args.Type,
-            PlanFile = args.PlanFolder ?? args.Type,
+            PlanFile = string.IsNullOrEmpty(planFile) ? args.Type : planFile,
+            Project = project,
+            Priority = priority,
             Status = JobStatus.Running,
             StartedAt = DateTime.UtcNow,
             TypedArgs = args,
             TimeoutCts = new CancellationTokenSource()
         };
+        // Mirror StartJob (including its CreatePlanArgs guard) so inbox-recovery behaviour can be
+        // exercised without a launchable agent.
+        if (args is CreatePlanArgs)
+            SetupInboxTracking(job, id, args, inboxFilePath);
         _jobs[id] = job;
         _jobSlotSemaphore.Wait(0); // Acquire slot so CompleteJob can release it
         job.SlotReserved = true;

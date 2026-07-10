@@ -52,7 +52,12 @@ All tools are prefixed with `tendril_` and provide the same capabilities as the 
 | `tendril_plan_add_pr` | `planId`, `prUrl` | Add a PR URL to a plan |
 | `tendril_plan_add_commit` | `planId`, `sha` | Add a commit SHA to a plan |
 | `tendril_plan_set_verification` | `planId`, `name`, `status` | Set verification status. Valid statuses: `Pending`, `Pass`, `Fail`, `Skipped` |
-| `tendril_plan_add_log` | `planId`, `action`, `summary` (optional) | Write an execution log entry |
+
+### Jobs
+
+| Tool | Parameters | Description |
+|------|------------|-------------|
+| `tendril_job_add_log` | `jobId`, `action`, `summary` (optional) | Append an `## Agent Log` section to the job's log in `<TendrilHome>/Jobs/` |
 
 ### Recommendations
 
@@ -104,4 +109,4 @@ With authentication:
 
 ## Parity
 
-The MCP tools, REST API, and CLI all operate on the same plan data and share the same validation logic. Changes made through any interface are immediately visible to the others.
+The MCP tools, REST API, and CLI all operate on the same plan and job data and share the same validation logic. Changes made through any interface are immediately visible to the others.

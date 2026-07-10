@@ -135,7 +135,9 @@ public class JobServiceFailureReasonTests : IDisposable
     {
         var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
         var planFolder = CreateValidPlanFolder();
-        var id = service.StartJob(new ExecutePlanArgs(planFolder));
+        // CreateTestJob, not StartJob: this ctor has no IConfigService, so a real launch would fail the
+        // job before CompleteJob ever ran ("No agent program found").
+        var id = service.CreateTestJob(new ExecutePlanArgs(planFolder));
 
         service.CompleteJob(id, 0);
 
@@ -175,7 +177,9 @@ public class JobServiceFailureReasonTests : IDisposable
     {
         var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
         var planFolder = CreateValidPlanFolder();
-        var id = service.StartJob(new ExecutePlanArgs(planFolder));
+        // CreateTestJob, not StartJob: this ctor has no IConfigService, so a real launch would fail the
+        // job before CompleteJob ever ran ("No agent program found").
+        var id = service.CreateTestJob(new ExecutePlanArgs(planFolder));
         var job = service.GetJob(id)!;
         job.StatusMessage = "Execution failed (exit code: 1)";
         job.OutputLines.Enqueue("[stderr] some raw stderr output");
@@ -195,7 +199,9 @@ public class JobServiceFailureReasonTests : IDisposable
         // even when the analyzer would otherwise recognize the stderr content (e.g. rate limit).
         var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), agentRunner: TestAgentRunner.Create());
         var planFolder = CreateValidPlanFolder();
-        var id = service.StartJob(new ExecutePlanArgs(planFolder));
+        // CreateTestJob, not StartJob: this ctor has no IConfigService, so a real launch would fail the
+        // job before CompleteJob ever ran ("No agent program found").
+        var id = service.CreateTestJob(new ExecutePlanArgs(planFolder));
         var job = service.GetJob(id)!;
         job.StatusMessage = "Execution failed (exit code: 1)";
         job.OutputLines.Enqueue("[stderr] rate limit exceeded");
@@ -283,7 +289,9 @@ public class JobServiceFailureReasonTests : IDisposable
     {
         var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
         var planFolder = CreateValidPlanFolder();
-        var id = service.StartJob(new ExecutePlanArgs(planFolder));
+        // CreateTestJob, not StartJob: this ctor has no IConfigService, so a real launch would fail the
+        // job before CompleteJob ever ran ("No agent program found").
+        var id = service.CreateTestJob(new ExecutePlanArgs(planFolder));
         var job = service.GetJob(id)!;
         job.OutputLines.Enqueue(
             """{"kind":"text","timestamp":"2026-05-26T12:18:29Z","text":"All done"}""");
@@ -406,7 +414,9 @@ public class JobServiceFailureReasonTests : IDisposable
     {
         var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
         var planFolder = CreateValidPlanFolder();
-        var id = service.StartJob(new ExecutePlanArgs(planFolder));
+        // CreateTestJob, not StartJob: this ctor has no IConfigService, so a real launch would fail the
+        // job before CompleteJob ever ran ("No agent program found").
+        var id = service.CreateTestJob(new ExecutePlanArgs(planFolder));
         var job = service.GetJob(id)!;
         job.OutputLines.Enqueue(
             """{"kind":"result","response":"All done","is_success":true,"duration_ms":557}""");

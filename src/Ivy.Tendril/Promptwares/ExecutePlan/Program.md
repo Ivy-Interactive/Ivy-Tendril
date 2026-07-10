@@ -2,7 +2,7 @@
 
 **Note:** This promptware is stack-agnostic. Stack-specific operations (build, format, test) are defined as verifications in the project configuration. Examples in this document use multiple tech stacks for illustration.
 
-Execute an approved plan in isolated git worktrees.
+Purpose: Execute an approved plan in isolated git worktrees.
 
 ## Context
 

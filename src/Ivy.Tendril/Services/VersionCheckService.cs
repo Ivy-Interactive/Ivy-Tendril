@@ -12,7 +12,26 @@ public class VersionCheckService(IHttpClientFactory httpClientFactory) : IVersio
     private VersionInfo? _cachedResult;
     private DateTime _lastCheckTime = DateTime.MinValue;
 
-    public bool CanSelfUpdate => VelopackLocator.Current?.CurrentlyInstalledVersion != null;
+    /// <summary>
+    /// True only for Velopack-installed builds. <see cref="VelopackLocator.Current"/> throws — it does not
+    /// return null — when <c>VelopackApp.Build()</c> has not run (any host that isn't the Tendril app:
+    /// tests, tooling). Swallowing that is what lets every other install type fall back to the NuGet feed
+    /// instead of silently reporting "couldn't check for updates".
+    /// </summary>
+    public bool CanSelfUpdate
+    {
+        get
+        {
+            try
+            {
+                return VelopackLocator.Current?.CurrentlyInstalledVersion != null;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
 
     public async Task<VersionInfo> CheckForUpdatesAsync(bool forceRefresh = false)
     {

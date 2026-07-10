@@ -114,15 +114,6 @@ Content-Type: application/json
 
 Valid statuses: `Pending`, `Pass`, `Fail`, `Skipped`.
 
-### Add Log
-
-```
-POST /api/plans/{planId}/logs
-Content-Type: application/json
-
-{ "action": "ExecutePlan", "summary": "Completed successfully" }
-```
-
 ## Recommendations
 
 ### List Recommendations
@@ -205,6 +196,17 @@ GET /api/jobs/{jobId}
 ```
 
 Returns the current status of a job.
+
+### Add Log
+
+Appends an `## Agent Log` section to the job's log in `<TendrilHome>/Jobs/`.
+
+```
+POST /api/jobs/{jobId}/logs
+Content-Type: application/json
+
+{ "action": "ExecutePlan", "summary": "Completed successfully" }
+```
 
 ### Update Job Status
 

@@ -160,8 +160,11 @@ Reads content from STDIN (when `--stdin` is passed) or `--file`, and writes it t
 ### Writing execution logs
 
 ```bash
-tendril plan add-log <plan-id> <action> [--summary=<text>]
+tendril job add-log <job-id> <action> [--summary=<text>]
 ```
+
+Appends an `## Agent Log` section to your own job's log in `<TendrilHome>/Jobs/`. Pass the
+`TendrilJobId` value from your firmware header as `<job-id>`.
 
 ### Cleaning up worktrees
 

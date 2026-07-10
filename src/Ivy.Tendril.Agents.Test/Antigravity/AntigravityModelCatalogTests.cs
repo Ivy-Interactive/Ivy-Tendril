@@ -14,9 +14,30 @@ public class AntigravityModelCatalogTests
     }
 
     [Fact]
-    public void GetStaticModels_ReturnsEmpty()
+    public void GetStaticModels_ReturnsNonEmpty()
     {
         var models = _catalog.GetStaticModels();
-        Assert.Empty(models);
+        Assert.NotEmpty(models);
+    }
+
+    [Fact]
+    public void GetStaticModels_HasExactlyOneDefault()
+    {
+        var models = _catalog.GetStaticModels();
+        Assert.Single(models, m => m.IsDefault);
+    }
+
+    [Fact]
+    public void GetStaticModels_AllHaveProvider()
+    {
+        var models = _catalog.GetStaticModels();
+        Assert.All(models, m => Assert.False(string.IsNullOrEmpty(m.Provider)));
+    }
+
+    [Fact]
+    public void GetStaticModels_IdsAreUnique()
+    {
+        var ids = _catalog.GetStaticModels().Select(m => m.Id).ToList();
+        Assert.Equal(ids.Count, ids.Distinct().Count());
     }
 }

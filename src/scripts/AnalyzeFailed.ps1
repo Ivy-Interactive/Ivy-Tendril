@@ -1,10 +1,10 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Finds every failed Bash / PowerShell command across all promptware raw.jsonl logs and dumps them.
+    Finds every failed Bash / PowerShell command across all job raw.jsonl logs and dumps them.
 
 .DESCRIPTION
-    Each promptware run records a raw stream-json transcript at *.raw.jsonl (one JSON object per line).
+    Each job records a raw stream-json transcript at *.raw.jsonl (one JSON object per line).
     A shell invocation is an assistant "tool_use" block (name Bash/PowerShell/Shell) carrying the command;
     its result comes back later as a user "tool_result" block referencing the same tool_use_id.
 
@@ -13,30 +13,41 @@
     command via tool_use_id, so non-shell errors (a failed Read, Grep, etc.) are never misreported.
 
 .PARAMETER Path
-    Root to search. Defaults to the script's own directory (the Promptwares folder).
+    Root to search. Defaults to <TENDRIL_HOME>/Jobs, where every job's raw log lives.
 
 .PARAMETER FullOutput
     Print the complete error output for each failure instead of a trimmed preview.
 
 .EXAMPLE
-    ./AnalyzeFailed.ps1
-    ./AnalyzeFailed.ps1 -Path ./ExecutePlan -FullOutput
+    ./src/scripts/AnalyzeFailed.ps1
+    ./src/scripts/AnalyzeFailed.ps1 -Path D:/Tendril/Jobs -FullOutput
 #>
 [CmdletBinding()]
 param(
-    [string] $Path = $PSScriptRoot,
+    [string] $Path,
     [switch] $FullOutput
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+if (-not $Path) {
+    if (-not $env:TENDRIL_HOME) {
+        throw "TENDRIL_HOME is not set. Pass -Path <TendrilHome>/Jobs explicitly."
+    }
+    $Path = Join-Path $env:TENDRIL_HOME 'Jobs'
+}
+
 # Tool names that represent a shell command invocation.
 $shellTools = @('Bash', 'PowerShell', 'Shell')
 # Non-zero exit code reported inside the output text (covers "Exit code 1" and "Exit code: 1").
-$exitCodeRegex = 'Exit code:?\s+[1-9]'
+# Anchored to the start of a line: the tool emits this as its own status line. Unanchored, any command
+# whose stdout merely *mentions* the phrase (a grep hit, an echoed error, this script's own output)
+# would be reported as a failure.
+$exitCodeRegex = '(?m)^\s*Exit code:?\s+[1-9]'
 
-$logFiles = Get-ChildItem -Path $Path -Recurse -Filter '*.raw.jsonl' -File | Sort-Object FullName
+# @() keeps a single match an array: a bare FileInfo has no .Count, which Set-StrictMode turns into a throw.
+$logFiles = @(Get-ChildItem -Path $Path -Recurse -Filter '*.raw.jsonl' -File | Sort-Object FullName)
 if (-not $logFiles) {
     Write-Host "No raw.jsonl files found under $Path"
     return
@@ -140,7 +151,9 @@ foreach ($group in $allFailures | Group-Object File) {
 # Summary.
 Write-Host ''
 Write-Host ('-' * 100) -ForegroundColor DarkGray
-Write-Host "Total: $($allFailures.Count) failed command(s) across $(($allFailures | Group-Object File).Count) file(s) (scanned $($logFiles.Count) log file(s))." -ForegroundColor Green
+# @() again: with one group, Group-Object returns a GroupInfo whose .Count is its item count, not 1.
+$fileCount = @($allFailures | Group-Object File).Count
+Write-Host "Total: $($allFailures.Count) failed command(s) across $fileCount file(s) (scanned $($logFiles.Count) log file(s))." -ForegroundColor Green
 
 Write-Host ''
 Write-Host "By tool:" -ForegroundColor Green
