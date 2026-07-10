@@ -1,3 +1,4 @@
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
@@ -68,6 +69,120 @@ public class JobServiceStartupTests
             database: db));
 
         Assert.Null(exception);
+    }
+
+    [Fact]
+    public void GetJob_AfterRestart_RehydratesOutputFromEventWireFile()
+    {
+        var tendrilHome = Path.Combine(Path.GetTempPath(), $"tendril-restart-test-{Guid.NewGuid()}");
+        Directory.CreateDirectory(tendrilHome);
+        try
+        {
+            // The EventWire file is what PersistJob would have written during the original run.
+            var originalJob = new JobItem { Id = "job-restart" };
+            originalJob.OutputLines.Enqueue("hello");
+            originalJob.OutputLines.Enqueue("world");
+            JobEventWireStore.Write(tendrilHome, originalJob);
+
+            // The SQLite row as it comes back on reload: metadata only, no output (matches production —
+            // OutputLines is never a database column).
+            var db = new FakeDatabaseService
+            {
+                Jobs = { new JobItem { Id = "job-restart", Status = JobStatus.Completed, Type = "ExecutePlan" } }
+            };
+
+            // Act: construct a fresh JobService over the same TendrilHome (simulating restart).
+            var config = new FakeConfigService(tendrilHome);
+            var service = new JobService(config, database: db);
+            var reloaded = service.GetJob("job-restart");
+
+            Assert.NotNull(reloaded);
+            Assert.Equal(new[] { "hello", "world" }, reloaded!.OutputLines.ToArray());
+        }
+        finally
+        {
+            try { Directory.Delete(tendrilHome, true); } catch { /* best-effort cleanup */ }
+        }
+    }
+
+    [Fact]
+    public void GetJob_HydratesOutputAtMostOnce()
+    {
+        var tendrilHome = Path.Combine(Path.GetTempPath(), $"tendril-hydrate-test-{Guid.NewGuid()}");
+        Directory.CreateDirectory(tendrilHome);
+        try
+        {
+            var originalJob = new JobItem { Id = "job-hydrate" };
+            originalJob.OutputLines.Enqueue("only-line");
+            JobEventWireStore.Write(tendrilHome, originalJob);
+
+            var db = new FakeDatabaseService
+            {
+                Jobs = { new JobItem { Id = "job-hydrate", Status = JobStatus.Completed, Type = "ExecutePlan" } }
+            };
+
+            var config = new FakeConfigService(tendrilHome);
+            var service = new JobService(config, database: db);
+
+            var first = service.GetJob("job-hydrate");
+            Assert.NotNull(first);
+            Assert.Single(first!.OutputLines);
+
+            // Delete the backing file — if GetJob re-read from disk on every call, the
+            // second call would come back empty instead of using the cached, hydrated lines.
+            JobEventWireStore.Delete(tendrilHome, "job-hydrate");
+
+            var second = service.GetJob("job-hydrate");
+            Assert.NotNull(second);
+            Assert.Single(second!.OutputLines);
+        }
+        finally
+        {
+            try { Directory.Delete(tendrilHome, true); } catch { /* best-effort cleanup */ }
+        }
+    }
+
+    private class FakeConfigService : IConfigService
+    {
+        public FakeConfigService(string tendrilHome)
+        {
+            TendrilHome = tendrilHome;
+        }
+
+        public TendrilSettings Settings => new();
+        public string TendrilHome { get; }
+        public string ConfigPath => "";
+        public string PlanFolder => "";
+        public List<ProjectConfig> Projects => [];
+        public List<LevelConfig> Levels => [];
+        public string[] LevelNames => [];
+        public EditorConfig Editor => new() { Command = "code", Label = "VS Code" };
+        public bool NeedsOnboarding => false;
+        public ConfigParseError? ParseError => null;
+
+        public ProjectConfig? GetProject(string name) => null;
+        public Colors? GetLevelColor(string level) => null;
+        public Colors? GetProjectColor(string projectName) => null;
+        public void SaveSettings() { }
+        public void ReloadSettings() { }
+        public bool TryAutoHeal() => false;
+        public void ResetToDefaults() { }
+        public void RetryLoadConfig() { }
+#pragma warning disable CS0067
+        public event EventHandler? SettingsReloaded;
+#pragma warning restore CS0067
+        public void SetPendingCodingAgent(string name) { }
+        public string? GetPendingCodingAgent() => null;
+        public void SetPendingTendrilHome(string path) { }
+        public string? GetPendingTendrilHome() => null;
+        public void SetPendingProject(ProjectConfig project) { }
+        public ProjectConfig? GetPendingProject() => null;
+        public void SetPendingVerificationDefinitions(List<VerificationConfig> definitions) { }
+        public List<VerificationConfig>? GetPendingVerificationDefinitions() => null;
+        public void CompleteOnboarding(string tendrilHome) { }
+        public void OpenInEditor(string path) { }
+        public string PolishMarkdown(string content) => content;
+        public void Dispose() { }
     }
 
     private class FakeDatabaseService : IPlanDatabaseService
@@ -205,8 +320,9 @@ public class JobServiceStartupTests
         {
         }
 
-        public void PurgeOldJobs(int keepCount = 500)
+        public List<string> PurgeOldJobs(int keepCount = 500)
         {
+            return new List<string>();
         }
 
         public Dictionary<string, string> GetAllPrStatuses()

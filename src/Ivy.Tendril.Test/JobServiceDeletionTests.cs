@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Reflection;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
@@ -101,6 +102,77 @@ public class JobServiceDeletionTests
         service.DeleteJob("job-1");
 
         Assert.Null(service.GetJob("job-1"));
+    }
+
+    [Fact]
+    public void DeleteJob_RemovesEventWireFileFromDisk()
+    {
+        var tendrilHome = Path.Combine(Path.GetTempPath(), $"tendril-delete-test-{Guid.NewGuid()}");
+        Directory.CreateDirectory(tendrilHome);
+        try
+        {
+            var db = new FakeDatabaseService();
+            var config = new FakeConfigService(tendrilHome);
+            var service = new JobService(config, database: db);
+
+            var job = new JobItem { Id = "job-with-output", Status = JobStatus.Completed };
+            job.OutputLines.Enqueue("some output");
+            JobEventWireStore.Write(tendrilHome, job);
+            AddJobDirectly(service, job);
+
+            Assert.True(File.Exists(JobEventWireStore.GetFilePath(tendrilHome, "job-with-output")));
+
+            service.DeleteJob("job-with-output");
+
+            Assert.False(File.Exists(JobEventWireStore.GetFilePath(tendrilHome, "job-with-output")));
+        }
+        finally
+        {
+            try { Directory.Delete(tendrilHome, true); } catch { /* best-effort cleanup */ }
+        }
+    }
+
+    private class FakeConfigService : IConfigService
+    {
+        public FakeConfigService(string tendrilHome)
+        {
+            TendrilHome = tendrilHome;
+        }
+
+        public TendrilSettings Settings => new();
+        public string TendrilHome { get; }
+        public string ConfigPath => "";
+        public string PlanFolder => "";
+        public List<ProjectConfig> Projects => [];
+        public List<LevelConfig> Levels => [];
+        public string[] LevelNames => [];
+        public EditorConfig Editor => new() { Command = "code", Label = "VS Code" };
+        public bool NeedsOnboarding => false;
+        public ConfigParseError? ParseError => null;
+
+        public ProjectConfig? GetProject(string name) => null;
+        public Colors? GetLevelColor(string level) => null;
+        public Colors? GetProjectColor(string projectName) => null;
+        public void SaveSettings() { }
+        public void ReloadSettings() { }
+        public bool TryAutoHeal() => false;
+        public void ResetToDefaults() { }
+        public void RetryLoadConfig() { }
+#pragma warning disable CS0067
+        public event EventHandler? SettingsReloaded;
+#pragma warning restore CS0067
+        public void SetPendingCodingAgent(string name) { }
+        public string? GetPendingCodingAgent() => null;
+        public void SetPendingTendrilHome(string path) { }
+        public string? GetPendingTendrilHome() => null;
+        public void SetPendingProject(ProjectConfig project) { }
+        public ProjectConfig? GetPendingProject() => null;
+        public void SetPendingVerificationDefinitions(List<VerificationConfig> definitions) { }
+        public List<VerificationConfig>? GetPendingVerificationDefinitions() => null;
+        public void CompleteOnboarding(string tendrilHome) { }
+        public void OpenInEditor(string path) { }
+        public string PolishMarkdown(string content) => content;
+        public void Dispose() { }
     }
 
     private class FakeDatabaseService : IPlanDatabaseService
@@ -242,8 +314,9 @@ public class JobServiceDeletionTests
             return new List<JobItem>();
         }
 
-        public void PurgeOldJobs(int keepCount = 500)
+        public List<string> PurgeOldJobs(int keepCount = 500)
         {
+            return new List<string>();
         }
 
         public Dictionary<string, string> GetAllPrStatuses()
