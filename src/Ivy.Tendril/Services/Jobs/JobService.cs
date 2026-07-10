@@ -297,21 +297,27 @@ public class JobService : IJobService
     }
 
     /// <summary>
-    ///     Deleting a job reverts its plan to where it came from. For an ExecutePlan job
-    ///     (and only when the plan isn't already shipped) deleting discards the execution's
-    ///     work product entirely: the plan is reset to a clean Draft and worktrees/artifacts
-    ///     are removed.
+    ///     Deleting a job reverts its plan to where it came from. Terminal plans (Completed
+    ///     or Skipped — already shipped) are immutable: only the job history entry is removed,
+    ///     state and records are left untouched. For a non-terminal ExecutePlan job, deleting
+    ///     discards the execution's work product entirely: the plan is reset to a clean Draft
+    ///     and worktrees/artifacts are removed.
     /// </summary>
     private void ApplyDeletePlanState(JobItem removed)
     {
         var planFolder = removed.TypedArgs?.PlanFolder;
 
-        if (removed.TypedArgs is ExecutePlanArgs && _planReaderService != null
-            && !string.IsNullOrEmpty(planFolder))
+        if (_planReaderService != null && !string.IsNullOrEmpty(planFolder))
         {
             var current = _planReaderService.GetPlanByFolder(planFolder)?.Status;
-            var isTerminal = current is PlanStatus.Completed or PlanStatus.Skipped;
-            if (!isTerminal)
+
+            // Terminal plans (PR created, or manually Skipped) are immutable: deleting a
+            // finished history job must not move them backward. Remove the job only; leave
+            // state and records untouched.
+            if (current is PlanStatus.Completed or PlanStatus.Skipped)
+                return;
+
+            if (removed.TypedArgs is ExecutePlanArgs)
             {
                 // Optimistic delete: the job is already gone from the UI, so reclaim the plan's
                 // worktrees and artifacts on a background thread and return immediately instead of
