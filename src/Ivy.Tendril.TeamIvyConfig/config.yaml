@@ -211,9 +211,19 @@ verifications:
        - Are all described changes present?
        - Are there unexpected\unrelated changes?
        - Do the changes solve the stated problem?
-    5. If the plan has a **Tests** section, verify those tests were actually written 6. Write the verification report to `<TendrilPlanFolder>\verification\CheckResult.md` Report format: ``` # CheckResult
+    5. If the plan has a **Tests** section, verify those tests were actually written 6. Write the verification report to `<TendrilPlanFolder>\verification\CheckResult.md` Report format: ```
 
-    - **Date:** <CurrentTime> - **Result:** Pass \ Fail - **Attempts:** 1
+    ---
+
+    result: Pass
+
+    date: <CurrentTime>
+
+    attempts: 1
+
+    ---
+
+    # CheckResult
 
     ## Requested vs Delivered | Requirement | Status | Notes | |-------------|--------|-------| | <from plan> | Done \ Missing \ Partial | <details> |
 
@@ -288,14 +298,17 @@ verifications:
 
     ```
 
+    ---
+
+    result: Pass
+
+    date: <timestamp>
+
+    attempts: 1
+
+    ---
+
     # CodeReview
-
-
-    - **Date:** <timestamp>
-
-    - **Result:** Pass | Fail
-
-    - **Attempts:** 1
 
 
     ## Review Method

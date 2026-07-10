@@ -232,7 +232,7 @@ public class ContentView(
         var pendingRecs = planData.Recommendations.Where(r => r.State == RecommendationStatus.Pending).ToList();
 
         void ImplementRecommendations() => ImplementSelectedRecommendations(
-            selectedPlanState.Value!, pendingRecs, selectedRecTitles, client,
+            selectedPlanState.Value!, selectedRecTitles, client,
             planContentQuery.Mutator.Revalidate);
 
         var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, client, showCreatePrDialog, nav,
@@ -690,16 +690,24 @@ public class ContentView(
 
     private void ImplementSelectedRecommendations(
         PlanFile selectedPlan,
-        List<RecommendationYaml> pendingRecs,
         IState<HashSet<string>> selectedRecTitles,
         IClientProvider client,
         Action revalidate)
     {
         var titles = selectedRecTitles.Value.ToList();
-        var selected = SelectRecommendationsToImplement(pendingRecs, titles);
-        if (selected.Count == 0)
+        if (titles.Count == 0)
         {
             client.Toast("Select at least one recommendation to implement.", "Nothing Selected");
+            return;
+        }
+
+        var selected = ResolvePendingSelection(
+            planService.GetRecommendationsForPlan(selectedPlan.FolderName), titles);
+        if (selected.Count == 0)
+        {
+            client.Toast(
+                "Selected recommendations are no longer pending. Refresh and try again.",
+                "Nothing to Implement");
             return;
         }
 
@@ -718,9 +726,10 @@ public class ContentView(
         revalidate();
     }
 
-    internal static List<RecommendationYaml> SelectRecommendationsToImplement(
-        IEnumerable<RecommendationYaml> pendingRecs, IReadOnlyCollection<string> selectedTitles)
-        => pendingRecs.Where(r => selectedTitles.Contains(r.Title)).ToList();
+    internal static List<RecommendationYaml> ResolvePendingSelection(
+        IEnumerable<RecommendationYaml> allRecs, IReadOnlyCollection<string> selectedTitles)
+        => allRecs.Where(r => r.State == RecommendationStatus.Pending
+                              && selectedTitles.Contains(r.Title)).ToList();
 
     private static string BuildRecommendationChangeRequest(List<RecommendationYaml> recs)
     {
