@@ -1,3 +1,4 @@
+using Ivy.Helpers;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Git;
@@ -29,32 +30,42 @@ public static class UsePreflightCheckExtensions
 
             Task.Run(() =>
             {
-                var projectNames = ProjectHelper.ParseProjects(projectValue);
-                var dirtyRepos = new List<(string, string, DirtyRepoResult)>();
-                var checkedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                foreach (var projectName in projectNames)
+                try
                 {
-                    var project = configService.GetProject(projectName);
-                    if (project is null) continue;
+                    var projectNames = ProjectHelper.ParseProjects(projectValue);
+                    var dirtyRepos = new List<(string, string, DirtyRepoResult)>();
+                    var checkedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-                    foreach (var repo in project.Repos)
+                    foreach (var projectName in projectNames)
                     {
-                        var expanded = Environment.ExpandEnvironmentVariables(repo.Path);
-                        if (!checkedPaths.Add(expanded)) continue;
+                        var project = configService.GetProject(projectName);
+                        if (project is null) continue;
 
-                        var baseBranch = repo.BaseBranch ?? GitHelper.ResolveDefaultBranch(expanded, configService.TendrilHome);
+                        foreach (var repo in project.Repos)
+                        {
+                            var expanded = Environment.ExpandEnvironmentVariables(repo.Path);
+                            if (!checkedPaths.Add(expanded)) continue;
 
-                        var checkResult = gitService.GetRepoDirtyState(expanded, baseBranch);
-                        if (checkResult.IsSuccess && checkResult.Value!.IsDirty)
-                            dirtyRepos.Add((expanded, baseBranch, checkResult.Value));
+                            var baseBranch = repo.BaseBranch ?? GitHelper.ResolveDefaultBranch(expanded, configService.TendrilHome);
+
+                            var checkResult = gitService.GetRepoDirtyState(expanded, baseBranch);
+                            if (checkResult.IsSuccess && checkResult.Value!.IsDirty)
+                                dirtyRepos.Add((expanded, baseBranch, checkResult.Value));
+                        }
                     }
-                }
 
-                var preflightResult = new PreflightResult(dirtyRepos);
-                result.Set(preflightResult);
-                isChecking.Set(false);
-                onComplete(preflightResult);
+                    var preflightResult = new PreflightResult(dirtyRepos);
+                    result.Set(preflightResult);
+                    onComplete(preflightResult);
+                }
+                catch (Exception ex)
+                {
+                    CrashLog.Write($"[{DateTime.UtcNow:O}] Preflight check failed: {ex}");
+                }
+                finally
+                {
+                    isChecking.Set(false);
+                }
             });
         }
     }
