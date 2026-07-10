@@ -397,9 +397,9 @@ public class ContentView(
         }
     }
 
-    internal static object BuildFailureCallout(PlanFile plan)
+    internal static object BuildFailureCallout(PlanFile plan, string tendrilHome)
     {
-        return BuildVerificationFailureCallout(plan) ?? BuildLogFailureCallout(plan);
+        return BuildVerificationFailureCallout(plan) ?? BuildLogFailureCallout(plan, tendrilHome);
     }
 
     private static object? BuildVerificationFailureCallout(PlanFile plan)
@@ -432,25 +432,25 @@ public class ContentView(
         return Callout.Destructive(string.Join("\n\n", parts), "Execution Failed");
     }
 
-    private static object BuildLogFailureCallout(PlanFile plan)
+    private static object BuildLogFailureCallout(PlanFile plan, string tendrilHome)
     {
-        var logsDir = Path.Combine(plan.FolderPath, "Logs");
-        if (!Directory.Exists(logsDir))
-            return Callout.Destructive("No details available. Check the logs folder.", "Execution Failed");
-        var lastLog = Directory.GetFiles(logsDir, "*.md")
-            .OrderByDescending(f => f)
-            .FirstOrDefault();
+        var planId = JobLogPaths.PlanIdFromFolderName(Path.GetFileName(plan.FolderPath));
+        var lastLog = planId == null
+            ? null
+            : JobLogPaths.LogsForPlanId(tendrilHome, planId).LastOrDefault();
         if (lastLog == null)
-            return Callout.Destructive("No details available. Check the logs folder.", "Execution Failed");
+            return Callout.Destructive("No details available. Check the job logs.", "Execution Failed");
 
         var logContent = FileHelper.ReadAllText(lastLog);
-        var summary = MatchSection(logContent, "Summary");
+        // "Final Output" is the heading JobLogWriter actually emits — the agent's last response, which is
+        // the most useful thing to surface on a failed plan.
+        var summary = MatchSection(logContent, "Final Output");
         if (summary != null)
             return Callout.Destructive(summary, "Execution Failed");
 
         var statusMatch = Regex.Match(logContent, @"\*\*Status:\*\*\s*(.+)");
         if (!statusMatch.Success)
-            return Callout.Destructive("No details available. Check the logs folder.", "Execution Failed");
+            return Callout.Destructive("No details available. Check the job logs.", "Execution Failed");
         var status = statusMatch.Groups[1].Value.Trim();
         if (status == nameof(PlanStatus.Completed))
             return Callout.Warning(

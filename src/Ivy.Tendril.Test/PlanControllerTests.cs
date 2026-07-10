@@ -63,7 +63,7 @@ public class PlanControllerTests : IDisposable
 
     private PlanController CreateController()
     {
-        var configService = new TestPlanConfigService(_repoDir);
+        var configService = new TestPlanConfigService(_repoDir, tendrilHome: _tempDir.Path);
         var controller = new PlanController(new NullPlanWatcherService(), configService,
             new GithubService(configService, NullLogger<GithubService>.Instance));
         controller.ControllerContext = new ControllerContext
@@ -426,22 +426,7 @@ public class PlanControllerTests : IDisposable
         Assert.IsType<OkObjectResult>(result);
     }
 
-    // --- AddLog ---
-
-    [Fact]
-    public void AddLog_WritesLogFile()
-    {
-        var planFolder = CreateTestPlan();
-        var controller = CreateController();
-
-        var result = controller.AddLog("00001", new AddLogRequest("ExecutePlan", "Test summary"));
-
-        Assert.IsType<OkObjectResult>(result);
-        var logsDir = Path.Combine(planFolder, "Logs");
-        Assert.True(Directory.Exists(logsDir));
-        var logFiles = Directory.GetFiles(logsDir, "*.md");
-        Assert.Single(logFiles);
-    }
+    // add-log moved to POST api/jobs/{jobId}/logs — see JobAddLogTests.
 
     // --- Recommendations ---
 

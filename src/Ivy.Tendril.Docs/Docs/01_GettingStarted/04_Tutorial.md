@@ -119,7 +119,7 @@ Open the plan in the dashboard. From the review screen you can:
 
 - **Browse the diff:** see exactly what the agent changed
 - **Check verifications:** build, test, and format results
-- **Read the execution log:** full agent output for transparency
+- **Read the execution log:** full agent output for transparency — the **Debug** action on any job opens its Job Log, the exact prompt the agent received, and the raw agent transcript
 - **View recommendations:** suggestions the agent flagged during execution
 
 If the changes look good, **approve** the plan. Tendril can then open a pull request via the `CreatePr` promptware, moving the plan to **Completed**.

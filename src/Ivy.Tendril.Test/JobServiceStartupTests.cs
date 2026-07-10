@@ -6,6 +6,13 @@ namespace Ivy.Tendril.Test;
 
 public class JobServiceStartupTests
 {
+    /// <summary>Lays down the eventwire file a previous run would have streamed to disk.</summary>
+    private static void WriteEventWire(string tendrilHome, JobItem job, params string[] lines)
+    {
+        JobLogPaths.EnsureJobsDir(tendrilHome);
+        File.WriteAllLines(JobLogPaths.EventWire(tendrilHome, job), lines);
+    }
+
     [Fact]
     public void LoadHistoricalJobs_LoadsAllRecentJobs()
     {
@@ -78,11 +85,10 @@ public class JobServiceStartupTests
         Directory.CreateDirectory(tendrilHome);
         try
         {
-            // The EventWire file is what PersistJob would have written during the original run.
-            var originalJob = new JobItem { Id = "job-restart" };
-            originalJob.OutputLines.Enqueue("hello");
-            originalJob.OutputLines.Enqueue("world");
-            JobEventWireStore.Write(tendrilHome, originalJob);
+            // The EventWire file the original run streamed to disk. Its name is derived from
+            // Id/Type/PlanFile, so those must match the row that comes back from the DB.
+            var originalJob = new JobItem { Id = "job-restart", Type = "ExecutePlan" };
+            WriteEventWire(tendrilHome, originalJob, "hello", "world");
 
             // The SQLite row as it comes back on reload: metadata only, no output (matches production —
             // OutputLines is never a database column).
@@ -112,9 +118,8 @@ public class JobServiceStartupTests
         Directory.CreateDirectory(tendrilHome);
         try
         {
-            var originalJob = new JobItem { Id = "job-hydrate" };
-            originalJob.OutputLines.Enqueue("only-line");
-            JobEventWireStore.Write(tendrilHome, originalJob);
+            var originalJob = new JobItem { Id = "job-hydrate", Type = "ExecutePlan" };
+            WriteEventWire(tendrilHome, originalJob, "only-line");
 
             var db = new FakeDatabaseService
             {
@@ -130,7 +135,7 @@ public class JobServiceStartupTests
 
             // Delete the backing file — if GetJob re-read from disk on every call, the
             // second call would come back empty instead of using the cached, hydrated lines.
-            JobEventWireStore.Delete(tendrilHome, "job-hydrate");
+            File.Delete(JobLogPaths.EventWire(tendrilHome, originalJob));
 
             var second = service.GetJob("job-hydrate");
             Assert.NotNull(second);

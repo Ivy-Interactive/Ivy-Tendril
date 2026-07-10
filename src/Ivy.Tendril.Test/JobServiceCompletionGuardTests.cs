@@ -430,10 +430,6 @@ public class JobServiceCompletionGuardTests : IDisposable
             return [];
         }
 
-        public void AddLog(string folderName, string action, string content, string? jobId = null)
-        {
-        }
-
         public void DeletePlan(string folderName)
         {
         }

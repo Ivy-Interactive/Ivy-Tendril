@@ -85,7 +85,7 @@ codingAgents:
 # Only specify allowedTools if you need ADDITIONAL tools beyond the defaults.
 # Tool format uses Claude Code syntax: Tool, Tool(path-glob).
 # Job context variables are expanded at launch time:
-#   %PROMPTWARE_DIR% — the promptware's own directory (Program.md, Logs/, Tools/, Memory/)
+#   %PROMPTWARE_DIR% — the promptware's own directory (Program.md, Tools/, Memory/)
 #   %PLANS_DIR%      — the plans directory (e.g., /home/user/tendril/Plans)
 #   %PLAN_DIR%       — the specific plan folder (e.g., /home/user/tendril/Plans/01234-MyPlan)
 #   %TENDRIL_HOME%   — the TENDRIL_HOME environment variable

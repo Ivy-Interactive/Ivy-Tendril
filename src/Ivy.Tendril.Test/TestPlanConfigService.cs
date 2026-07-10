@@ -7,8 +7,9 @@ internal class TestPlanConfigService : IConfigService
     private readonly List<ProjectConfig> _projects;
 
     public TestPlanConfigService(string repoDir, string projectName = "TestProject",
-        IReadOnlyList<ProjectVerificationRef>? verifications = null)
+        IReadOnlyList<ProjectVerificationRef>? verifications = null, string? tendrilHome = null)
     {
+        TendrilHome = tendrilHome ?? "";
         _projects =
         [
             new ProjectConfig
@@ -21,9 +22,9 @@ internal class TestPlanConfigService : IConfigService
     }
 
     public TendrilSettings Settings => new() { Projects = _projects };
-    public string TendrilHome => "";
+    public string TendrilHome { get; }
     public string ConfigPath => "";
-    public string PlanFolder => "";
+    public string PlanFolder => string.IsNullOrEmpty(TendrilHome) ? "" : Path.Combine(TendrilHome, "Plans");
     public List<ProjectConfig> Projects => _projects;
     public List<LevelConfig> Levels => [];
     public string[] LevelNames => [];

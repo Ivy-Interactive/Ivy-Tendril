@@ -14,7 +14,7 @@ public class CreateIssueTests
     [MemberData(nameof(AgentTestData.Agents), MemberType = typeof(AgentTestData))]
     public async Task CreateIssue_CreatesGitHubIssue(string agent)
     {
-        var cliLog = Path.Combine(_fixture.TendrilHome, $"create-issue-{agent}.jsonl");
+        var cliLog = _fixture.CliLogPath($"create-issue-{agent}");
 
         var planFolder = PlanSetupHelper.CreateDraftPlan(
             _fixture.PlansDir,

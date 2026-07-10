@@ -168,7 +168,7 @@ public class Program
                         var sw = Stopwatch.StartNew();
                         var exitCode = app.Run(filteredArgs);
                         sw.Stop();
-                        JobStatusFile.AppendCliInvocationDirect(cliLog, commandLine, exitCode, sw.Elapsed.TotalMilliseconds);
+                        CliInvocationLog.Append(cliLog, commandLine, exitCode, sw.Elapsed.TotalMilliseconds);
                         return exitCode;
                     }
                     return app.Run(filteredArgs);
@@ -501,6 +501,8 @@ public class Program
                     .WithDescription("Report a job failure with a descriptive message");
                 job.AddCommand<JobStartCommand>("start")
                     .WithDescription("Start a job via the running Tendril server");
+                job.AddCommand<JobAddLogCommand>("add-log")
+                    .WithDescription("Append a log entry to the job's log");
             });
 
             // Plan management commands
@@ -534,8 +536,6 @@ public class Program
                     .WithDescription("Update verification status");
                 plan.AddCommand<PlanGetCommand>("get")
                     .WithDescription("Read plan or field");
-                plan.AddCommand<PlanAddLogCommand>("add-log")
-                    .WithDescription("Write a log entry");
                 plan.AddCommand<PlanWriteRevisionCommand>("write-revision")
                     .WithDescription("Write a revision file from a file or STDIN");
                 plan.AddCommand<PlanGetRevisionCommand>("get-revision")

@@ -105,7 +105,7 @@ public class JobServiceDeletionTests
     }
 
     [Fact]
-    public void DeleteJob_RemovesEventWireFileFromDisk()
+    public void DeleteJob_KeepsTheJobArtifactsOnDisk()
     {
         var tendrilHome = Path.Combine(Path.GetTempPath(), $"tendril-delete-test-{Guid.NewGuid()}");
         Directory.CreateDirectory(tendrilHome);
@@ -115,16 +115,23 @@ public class JobServiceDeletionTests
             var config = new FakeConfigService(tendrilHome);
             var service = new JobService(config, database: db);
 
-            var job = new JobItem { Id = "job-with-output", Status = JobStatus.Completed };
-            job.OutputLines.Enqueue("some output");
-            JobEventWireStore.Write(tendrilHome, job);
+            var job = new JobItem
+            {
+                Id = "job-with-output", Type = "ExecutePlan", Status = JobStatus.Completed
+            };
+            JobLogPaths.EnsureJobsDir(tendrilHome);
+            job.LogFilePath = JobLogPaths.Log(tendrilHome, job);
+            job.EnqueueSystemOutput("some output");
             AddJobDirectly(service, job);
 
-            Assert.True(File.Exists(JobEventWireStore.GetFilePath(tendrilHome, "job-with-output")));
+            Assert.True(File.Exists(JobLogPaths.EventWire(tendrilHome, job)));
 
             service.DeleteJob("job-with-output");
 
-            Assert.False(File.Exists(JobEventWireStore.GetFilePath(tendrilHome, "job-with-output")));
+            // Deleting a job removes it from the UI and the database, never its forensic record.
+            Assert.Null(service.GetJob("job-with-output"));
+            Assert.Contains("job-with-output", db.DeletedJobIds);
+            Assert.True(File.Exists(JobLogPaths.EventWire(tendrilHome, job)));
         }
         finally
         {

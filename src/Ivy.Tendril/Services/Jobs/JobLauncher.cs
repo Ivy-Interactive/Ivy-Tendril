@@ -6,6 +6,7 @@ using Ivy.Tendril.Agents.Helpers;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services.Plans;
+using Ivy.Tendril.Services.Promptware;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services.Jobs;
@@ -374,8 +375,7 @@ internal class JobLauncher
         var workDir = ResolveWorkingDirectory(job, programFolder);
         job.WorkingDirectory = workDir;
 
-        var logFile = FirmwareCompiler.GetLogFile(programFolder, job.Id);
-        job.LogFilePath = logFile;
+        job.LogFilePath = JobLogWriter.SeedLog(_configService.TendrilHome, job);
 
         var customInstructions = ResolveCustomInstructions(job.Type);
         var projects = BuildProjectInfos(job);
@@ -387,7 +387,10 @@ internal class JobLauncher
         var prompt = FirmwareCompiler.Compile(new FirmwareContext(programFolder, values, customInstructions, projects, planTemplate));
         job.CompiledPrompt = prompt;
 
-        var promptFilePath = WritePromptFileIfNeeded(resolution, prompt, job.Id, values);
+        // Written now, not at completion, so the prompt survives a crashed or killed job. Agents that
+        // cannot take the prompt on stdin are pointed at this same file.
+        var promptPath = JobLogWriter.WritePrompt(_configService.TendrilHome, job);
+        var promptFilePath = resolution.UsesStdinPrompt ? null : promptPath;
 
         var launchConfig = new AgentLaunchConfig
         {
@@ -428,21 +431,6 @@ internal class JobLauncher
             && !string.IsNullOrWhiteSpace(specificCfg.CustomInstructions))
             instructions = specificCfg.CustomInstructions;
         return instructions;
-    }
-
-    private static string? WritePromptFileIfNeeded(
-        AgentResolution resolution, string prompt, string jobId, Dictionary<string, string> values)
-    {
-        if (resolution.UsesStdinPrompt)
-            return null;
-
-        var tempDir = values.TryGetValue("TendrilPlanFolder", out var pf)
-            ? Path.Combine(pf, "temp")
-            : Path.GetTempPath();
-        Directory.CreateDirectory(tempDir);
-        var path = Path.Combine(tempDir, $"prompt-{jobId}.md");
-        File.WriteAllText(path, prompt);
-        return path;
     }
 
     private static bool HasAgentDirectProgram(string programFolder, string jobType)
@@ -690,6 +678,8 @@ internal class JobLauncher
         if (!string.IsNullOrEmpty(tendrilHome))
             psi.Environment["TENDRIL_HOME"] = tendrilHome;
         psi.Environment["TENDRIL_PLANS"] = _configService.PlanFolder;
+        // Deliberately no TENDRIL_JOB_ID: process env does not reach the agent's nested `tendril` calls
+        // (see AGENTS.md). The job id travels as the TendrilJobId firmware header and is passed as an argument.
 
         EnsureTendrilOnPath(psi);
     }

@@ -64,10 +64,10 @@ public static class JobIdAllocator
     }
 
     /// <summary>
-    /// Seeds the counter from existing promptware logs so new IDs don't collide with old ones.
+    /// Seeds the counter from existing job logs so new IDs don't collide with old ones.
     /// Call once at startup if the counter file doesn't exist yet.
     /// </summary>
-    public static void SeedIfNeeded(string tendrilHome, string promptwaresRoot)
+    public static void SeedIfNeeded(string tendrilHome)
     {
         var jobsDir = Path.Combine(tendrilHome, "Jobs");
         Directory.CreateDirectory(jobsDir);
@@ -75,7 +75,7 @@ public static class JobIdAllocator
 
         if (File.Exists(counterFile)) return;
 
-        var max = ScanMaxLogNumber(promptwaresRoot);
+        var max = ScanMaxLogNumber(jobsDir);
         if (max <= 0) return;
 
         lock (CounterLock)
@@ -99,21 +99,24 @@ public static class JobIdAllocator
         }
     }
 
-    internal static int ScanMaxLogNumber(string promptwaresRoot)
+    /// <summary>
+    /// Highest job id among the job logs in <paramref name="jobsDir"/>. Job log names are stems of the
+    /// form <c>{jobId}-{planId}-{type}</c> or <c>{jobId}-{type}</c>, so only the leading segment counts.
+    /// </summary>
+    internal static int ScanMaxLogNumber(string jobsDir)
     {
         var max = 0;
         try
         {
-            if (Directory.Exists(promptwaresRoot))
+            if (Directory.Exists(jobsDir))
             {
-                foreach (var logsDir in Directory.GetDirectories(promptwaresRoot, "Logs", SearchOption.AllDirectories))
+                foreach (var file in Directory.GetFiles(jobsDir, "*.md"))
                 {
-                    foreach (var file in Directory.GetFiles(logsDir, "*.md"))
-                    {
-                        var baseName = Path.GetFileNameWithoutExtension(file);
-                        if (int.TryParse(baseName, out var num) && num > max)
-                            max = num;
-                    }
+                    var name = Path.GetFileName(file);
+                    var dash = name.IndexOf('-');
+                    if (dash <= 0) continue;
+                    if (int.TryParse(name[..dash], out var num) && num > max)
+                        max = num;
                 }
             }
         }

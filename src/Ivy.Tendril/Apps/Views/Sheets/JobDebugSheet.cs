@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Apps.Agent;
 using Ivy.Tendril.Apps.Jobs;
@@ -39,7 +38,7 @@ public class JobDebugSheet(
             return new DebugWithAgentDialog(isOpen, branding, focus =>
             {
                 var prompt =
-                    "I want to debug the following job for what might have gone wrong of what we can improve. Use the /tendril-debug-promptware skill if available. \n\n";
+                    $"I want to debug job {jobId} for what might have gone wrong of what we can improve. Use the /tendril-debug-job skill if available. \n\n";
                 if (!string.IsNullOrEmpty(focus))
                     prompt += $"In particular, focus on: {focus}\n\n";
                 prompt += details;
@@ -61,18 +60,20 @@ public class JobDebugSheet(
             .Multiline(x => x.PermissionDenials)
             .Multiline(x => x.Status)
             .Multiline(x => x.PlanFolder)
-            .Multiline(x => x.PlanLog)
-            .Multiline(x => x.PromptwareLog)
-            .Multiline(x => x.PromptwareRawLog)
+            .Multiline(x => x.JobLog)
+            .Multiline(x => x.JobPrompt)
+            .Multiline(x => x.JobRawLog)
+            .Multiline(x => x.JobEventWireLog)
             .Multiline(x => x.WorkingDirectory)
             .Multiline(x => x.CliCommand)
             .Label(x => x.PromptTitle, "Prompt/Title")
             .Label(x => x.PlanId, "Plan Id")
             .Label(x => x.SessionId, "Session Id")
             .Label(x => x.PlanFolder, "Plan Folder")
-            .Label(x => x.PlanLog, "Plan Log")
-            .Label(x => x.PromptwareLog, "Promptware Log")
-            .Label(x => x.PromptwareRawLog, "Promptware Raw Log")
+            .Label(x => x.JobLog, "Job Log")
+            .Label(x => x.JobPrompt, "Job Prompt")
+            .Label(x => x.JobRawLog, "Job Raw Log")
+            .Label(x => x.JobEventWireLog, "Job Eventwire Log")
             .Label(x => x.PermissionDenials, "Permission Denials")
             .Label(x => x.ExitCode, "Exit Code")
             .Label(x => x.WorkingDirectory, "Working Directory")
@@ -81,9 +82,10 @@ public class JobDebugSheet(
             .Builder(x => x.PermissionDenials, f => f.Func((string denials) =>
                 string.IsNullOrEmpty(denials) ? null : new CodeBlock(denials)))
             .Builder(x => x.PlanFolder, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
-            .Builder(x => x.PlanLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
-            .Builder(x => x.PromptwareLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
-            .Builder(x => x.PromptwareRawLog,
+            .Builder(x => x.JobLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
+            .Builder(x => x.JobPrompt, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
+            .Builder(x => x.JobRawLog, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
+            .Builder(x => x.JobEventWireLog,
                 f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .Builder(x => x.WorkingDirectory, f => f.Func((string path) => PathDropDown(path, copyToClipboard, client)))
             .Builder(x => x.CliCommand, f => f.Func((string cmd) => new CodeBlock(cmd).WrapLines()))
@@ -139,9 +141,10 @@ public class JobDebugSheet(
         public required string Tokens { get; init; }
         public required string PermissionDenials { get; init; }
         public required string PlanFolder { get; init; }
-        public required string PlanLog { get; init; }
-        public required string PromptwareLog { get; init; }
-        public required string PromptwareRawLog { get; init; }
+        public required string JobLog { get; init; }
+        public required string JobPrompt { get; init; }
+        public required string JobRawLog { get; init; }
+        public required string JobEventWireLog { get; init; }
         public required string WorkingDirectory { get; init; }
         public required string CliCommand { get; init; }
         public required string ExitCode { get; init; }
@@ -165,9 +168,10 @@ public class JobDebugSheet(
         Tokens = job.Tokens.HasValue ? $"{job.Tokens:N0}" : "",
         PermissionDenials = FormatPermissionDenials(job),
         PlanFolder = GetPlanFolderPath(job) ?? "",
-        PlanLog = GetPlanLogPath(job) ?? "",
-        PromptwareLog = GetPromptwareLogPath(job) ?? "",
-        PromptwareRawLog = GetPromptwareRawLogPath(job) ?? "",
+        JobLog = GetJobLogPath(job) ?? "",
+        JobPrompt = GetJobPromptPath(job) ?? "",
+        JobRawLog = GetJobRawLogPath(job) ?? "",
+        JobEventWireLog = GetJobEventWireLogPath(job) ?? "",
         WorkingDirectory = job.WorkingDirectory ?? "",
         CliCommand = job.CliCommand ?? "",
         ExitCode = job.ExitCode?.ToString() ?? "",
@@ -197,9 +201,10 @@ public class JobDebugSheet(
                 ("Arguments", data.CliCommand),
                 ("Permission Denials", data.PermissionDenials),
                 ("Plan Folder", data.PlanFolder),
-                ("Plan Log", data.PlanLog),
-                ("Promptware Log", data.PromptwareLog),
-                ("Promptware Raw Log", data.PromptwareRawLog),
+                ("Job Log", data.JobLog),
+                ("Job Prompt", data.JobPrompt),
+                ("Job Raw Log", data.JobRawLog),
+                ("Job Eventwire Log", data.JobEventWireLog),
             }
             .Where(l => !string.IsNullOrEmpty(l.Value))
             .Select(l => $"{l.Label}: {l.Value}"));
@@ -263,54 +268,20 @@ public class JobDebugSheet(
         return !string.IsNullOrEmpty(fallback) && Directory.Exists(fallback) ? fallback : null;
     }
 
-    private string? GetPlanLogPath(JobItem job)
+    /// <summary>
+    /// Resolves one of the job's artifacts, or <c>null</c> when it does not exist. Guards an unset
+    /// TendrilHome: <see cref="JobLogPaths.JobsDir"/> throws there, and a debug sheet must render blank
+    /// path rows rather than take down the app.
+    /// </summary>
+    private string? ArtifactPath(Func<string, JobItem, string> resolve, JobItem job)
     {
-        var folder = GetPlanFolderPath(job);
-        if (string.IsNullOrEmpty(folder)) return null;
-
-        var logsDir = Path.Combine(folder, "Logs");
-        if (!Directory.Exists(logsDir)) return null;
-
-        // Plan-folder logs are named "{jobId}-{action}.md" (PlanReaderService.AddLog), so tie the
-        // Plan Log to THIS job instead of guessing the newest file — a RetryPlan job must not show
-        // an earlier ExecutePlan job's log.
-        if (!string.IsNullOrEmpty(job.Id))
-        {
-            var own = Directory.GetFiles(logsDir, $"{job.Id}-*.md")
-                .OrderByDescending(File.GetLastWriteTimeUtc)
-                .FirstOrDefault();
-            if (own != null) return own;
-        }
-
-        // Fallback for legacy logs written without a job-id prefix (just "{action}.md"). Ignore
-        // other jobs' id-prefixed logs so we show nothing rather than a wrong job's log.
-        return Directory.GetFiles(logsDir, "*.md")
-            .Where(f => !JobIdPrefixedLogRegex.IsMatch(Path.GetFileName(f)))
-            .OrderByDescending(File.GetLastWriteTimeUtc)
-            .FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(config.TendrilHome)) return null;
+        var path = resolve(config.TendrilHome, job);
+        return File.Exists(path) ? path : null;
     }
 
-    private static readonly Regex JobIdPrefixedLogRegex = new(@"^\d{5}-", RegexOptions.Compiled);
-
-    private string? GetPromptwareLogPath(JobItem job)
-    {
-        var logFile = job.LogFilePath;
-        if (!string.IsNullOrEmpty(logFile) && File.Exists(logFile)) return logFile;
-
-        var promptsRoot = PromptwareHelper.ResolvePromptsRoot(config.TendrilHome);
-        var logsFolder = Path.Combine(promptsRoot, job.Type, "Logs");
-        if (!Directory.Exists(logsFolder)) return null;
-
-        return Directory.GetFiles(logsFolder, "*.md")
-            .OrderByDescending(File.GetLastWriteTimeUtc)
-            .FirstOrDefault();
-    }
-
-    private string? GetPromptwareRawLogPath(JobItem job)
-    {
-        var logPath = GetPromptwareLogPath(job);
-        if (logPath == null) return null;
-        var rawPath = Path.ChangeExtension(logPath, ".raw.jsonl");
-        return File.Exists(rawPath) ? rawPath : null;
-    }
+    private string? GetJobLogPath(JobItem job) => ArtifactPath(JobLogPaths.Log, job);
+    private string? GetJobPromptPath(JobItem job) => ArtifactPath(JobLogPaths.Prompt, job);
+    private string? GetJobRawLogPath(JobItem job) => ArtifactPath(JobLogPaths.Raw, job);
+    private string? GetJobEventWireLogPath(JobItem job) => ArtifactPath(JobLogPaths.EventWire, job);
 }

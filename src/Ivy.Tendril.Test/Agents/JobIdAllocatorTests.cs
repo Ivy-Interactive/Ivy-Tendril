@@ -58,19 +58,24 @@ public class JobIdAllocatorTests : IDisposable
         Assert.Equal("3", content);
     }
 
+    /// <summary>Writes job logs into &lt;TendrilHome&gt;/Jobs/ using the real stem format.</summary>
+    private void WriteJobLogs(params string[] stems)
+    {
+        var jobsDir = Path.Combine(_tempDir, "Jobs");
+        Directory.CreateDirectory(jobsDir);
+        foreach (var stem in stems)
+            File.WriteAllText(Path.Combine(jobsDir, $"{stem}.md"), "log");
+    }
+
     [Fact]
     public void SeedIfNeeded_DoesNothingWhenCounterExists()
     {
         var jobsDir = Path.Combine(_tempDir, "Jobs");
         Directory.CreateDirectory(jobsDir);
         File.WriteAllText(Path.Combine(jobsDir, ".counter"), "50");
+        WriteJobLogs("00100-00007-ExecutePlan");
 
-        var promptwaresRoot = Path.Combine(_tempDir, "Promptwares");
-        var logsDir = Path.Combine(promptwaresRoot, "ExecutePlan", "Logs");
-        Directory.CreateDirectory(logsDir);
-        File.WriteAllText(Path.Combine(logsDir, "00100.md"), "log");
-
-        JobIdAllocator.SeedIfNeeded(_tempDir, promptwaresRoot);
+        JobIdAllocator.SeedIfNeeded(_tempDir);
 
         var content = File.ReadAllText(Path.Combine(jobsDir, ".counter")).Trim();
         Assert.Equal("50", content);
@@ -79,13 +84,9 @@ public class JobIdAllocatorTests : IDisposable
     [Fact]
     public void SeedIfNeeded_SeedsFromExistingLogs()
     {
-        var promptwaresRoot = Path.Combine(_tempDir, "Promptwares");
-        var logsDir = Path.Combine(promptwaresRoot, "ExecutePlan", "Logs");
-        Directory.CreateDirectory(logsDir);
-        File.WriteAllText(Path.Combine(logsDir, "00042.md"), "log");
-        File.WriteAllText(Path.Combine(logsDir, "00010.md"), "log");
+        WriteJobLogs("00042-00007-ExecutePlan", "00010-00003-ExecutePlan");
 
-        JobIdAllocator.SeedIfNeeded(_tempDir, promptwaresRoot);
+        JobIdAllocator.SeedIfNeeded(_tempDir);
 
         var counterFile = Path.Combine(_tempDir, "Jobs", ".counter");
         var content = File.ReadAllText(counterFile).Trim();
@@ -93,17 +94,11 @@ public class JobIdAllocatorTests : IDisposable
     }
 
     [Fact]
-    public void SeedIfNeeded_ScansMultiplePromptwareFolders()
+    public void SeedIfNeeded_ScansAcrossPromptwaresAndPlanlessJobs()
     {
-        var promptwaresRoot = Path.Combine(_tempDir, "Promptwares");
-        var logs1 = Path.Combine(promptwaresRoot, "ExecutePlan", "Logs");
-        var logs2 = Path.Combine(promptwaresRoot, "CreatePlan", "Logs");
-        Directory.CreateDirectory(logs1);
-        Directory.CreateDirectory(logs2);
-        File.WriteAllText(Path.Combine(logs1, "00020.md"), "log");
-        File.WriteAllText(Path.Combine(logs2, "00055.md"), "log");
+        WriteJobLogs("00020-00007-ExecutePlan", "00055-CreatePlan");
 
-        JobIdAllocator.SeedIfNeeded(_tempDir, promptwaresRoot);
+        JobIdAllocator.SeedIfNeeded(_tempDir);
 
         var counterFile = Path.Combine(_tempDir, "Jobs", ".counter");
         var content = File.ReadAllText(counterFile).Trim();
@@ -113,13 +108,9 @@ public class JobIdAllocatorTests : IDisposable
     [Fact]
     public void SeedIfNeeded_IgnoresNonNumericFiles()
     {
-        var promptwaresRoot = Path.Combine(_tempDir, "Promptwares");
-        var logsDir = Path.Combine(promptwaresRoot, "ExecutePlan", "Logs");
-        Directory.CreateDirectory(logsDir);
-        File.WriteAllText(Path.Combine(logsDir, "readme.md"), "not a log");
-        File.WriteAllText(Path.Combine(logsDir, "00005.md"), "log");
+        WriteJobLogs("readme", "not-a-job-log", "00005-CreatePlan");
 
-        JobIdAllocator.SeedIfNeeded(_tempDir, promptwaresRoot);
+        JobIdAllocator.SeedIfNeeded(_tempDir);
 
         var counterFile = Path.Combine(_tempDir, "Jobs", ".counter");
         var content = File.ReadAllText(counterFile).Trim();
@@ -129,10 +120,7 @@ public class JobIdAllocatorTests : IDisposable
     [Fact]
     public void SeedIfNeeded_NoOpWhenNoLogs()
     {
-        var promptwaresRoot = Path.Combine(_tempDir, "Promptwares");
-        Directory.CreateDirectory(promptwaresRoot);
-
-        JobIdAllocator.SeedIfNeeded(_tempDir, promptwaresRoot);
+        JobIdAllocator.SeedIfNeeded(_tempDir);
 
         var counterFile = Path.Combine(_tempDir, "Jobs", ".counter");
         Assert.False(File.Exists(counterFile));
@@ -141,12 +129,9 @@ public class JobIdAllocatorTests : IDisposable
     [Fact]
     public void AllocateJobId_StartsAfterSeed()
     {
-        var promptwaresRoot = Path.Combine(_tempDir, "Promptwares");
-        var logsDir = Path.Combine(promptwaresRoot, "ExecutePlan", "Logs");
-        Directory.CreateDirectory(logsDir);
-        File.WriteAllText(Path.Combine(logsDir, "00090.md"), "log");
+        WriteJobLogs("00090-00007-ExecutePlan");
 
-        JobIdAllocator.SeedIfNeeded(_tempDir, promptwaresRoot);
+        JobIdAllocator.SeedIfNeeded(_tempDir);
         var id = JobIdAllocator.AllocateJobId(_tempDir);
 
         Assert.Equal("00091", id);

@@ -10,7 +10,6 @@ namespace Ivy.Tendril.Services;
 
 public sealed class BugReportService
 {
-    private static readonly Regex JobIdFromLogRegex = new(@"^(\d{5})-", RegexOptions.Compiled);
     private const string BugReportApiUrl = "https://tendril-api.ivy.app/report-bug";
     private const string RedactedPlaceholder = "[REDACTED]";
 
@@ -25,23 +24,17 @@ public sealed class BugReportService
     public record BugReportFile(string AbsolutePath, string ZipEntryPath, byte[]? Content = null);
     public record BugReportResult(string ReportId, string IssueUrl);
 
-    public static string NormalizeJobId(string input)
-    {
-        input = input.Trim();
-        if (int.TryParse(input, out var num))
-            return num.ToString("D5");
-        return input;
-    }
+    public static string NormalizeJobId(string input) => JobId.Normalize(input);
 
     public List<BugReportFile> CollectFilesForJob(string jobId)
     {
         var files = new List<BugReportFile>();
         var normalized = NormalizeJobId(jobId);
-        CollectPromptwareLogFiles([normalized], files);
+        CollectJobFiles([normalized], files);
 
         // Make the job report self-sufficient for plan-context debugging: include the parent plan's
-        // plan.yaml and Logs/* (the ExecutePlan log records which worktree the job operated on) plus a
-        // synthesized identity for each worktree. Worktree trees themselves stay excluded for size.
+        // plan.yaml and revisions plus a synthesized identity for each worktree. Worktree trees
+        // themselves stay excluded for size.
         var planFolder = ResolvePlanFolderForJob(normalized);
         if (planFolder != null)
         {
@@ -56,9 +49,10 @@ public sealed class BugReportService
     }
 
     /// <summary>
-    ///     Finds the plan folder that owns <paramref name="normalizedJobId" /> by scanning each plan's
-    ///     <c>Logs/</c> directory for a <c>&lt;jobId&gt;-&lt;action&gt;.md</c> log (the naming used by
-    ///     <c>PlanReaderService.AddLog</c>). Returns <c>null</c> when the job has no plan or none can be located.
+    ///     Finds the plan folder that owns <paramref name="normalizedJobId" />. Plan-connected jobs are named
+    ///     <c>&lt;jobId&gt;-&lt;planId&gt;-&lt;type&gt;</c>, so the plan id is read straight off the filename.
+    ///     A CreatePlan job's stem has no plan id, so fall back to the <c>PlanId</c> line its log records.
+    ///     Returns <c>null</c> when the job produced no plan or none can be located.
     /// </summary>
     private string? ResolvePlanFolderForJob(string normalizedJobId)
     {
@@ -66,17 +60,52 @@ public sealed class BugReportService
         if (string.IsNullOrEmpty(plansRoot) || !Directory.Exists(plansRoot))
             return null;
 
-        foreach (var planDir in Directory.GetDirectories(plansRoot))
-        {
-            var logsDir = Path.Combine(planDir, "Logs");
-            if (!Directory.Exists(logsDir)) continue;
+        var artifacts = JobLogPaths.AllForJobId(_config.TendrilHome, normalizedJobId);
 
-            if (Directory.EnumerateFiles(logsDir, $"{normalizedJobId}-*.md").Any())
-                return planDir;
-        }
+        var planId = artifacts
+                         .Select(f => PlanIdFromStem(Path.GetFileName(f)))
+                         .FirstOrDefault(id => id != null)
+                     ?? artifacts
+                         .Where(IsJobLog)
+                         .Select(PlanIdFromJobLog)
+                         .FirstOrDefault(id => id != null);
+        if (planId == null) return null;
 
-        return null;
+        return Directory.GetDirectories(plansRoot, $"{planId}-*").FirstOrDefault();
     }
+
+    private static bool IsJobLog(string path) =>
+        path.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
+        && !path.EndsWith(".prompt.md", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    ///     The plan id in a <c>&lt;jobId&gt;-&lt;planId&gt;-&lt;type&gt;.*</c> artifact name, or <c>null</c>
+    ///     for the plan-less <c>&lt;jobId&gt;-&lt;type&gt;.*</c> form.
+    /// </summary>
+    private static string? PlanIdFromStem(string fileName)
+    {
+        var parts = fileName.Split('-');
+        return parts.Length >= 3 && parts[1].Length == 5 && parts[1].All(char.IsDigit)
+            ? parts[1]
+            : null;
+    }
+
+    /// <summary>The <c>- **PlanId:** 00075</c> line written into every Job Log by <c>JobLogWriter</c>.</summary>
+    private static string? PlanIdFromJobLog(string jobLogPath)
+    {
+        try
+        {
+            var match = PlanIdLineRegex.Match(File.ReadAllText(jobLogPath));
+            return match.Success ? match.Groups[1].Value : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static readonly Regex PlanIdLineRegex =
+        new(@"^-\s*\*\*PlanId:\*\*\s*(\d{5})\s*$", RegexOptions.Compiled | RegexOptions.Multiline);
 
     /// <summary>
     ///     Builds <c>worktrees.txt</c>: for each <c>Worktrees/&lt;dir&gt;</c> under the plan, the git remote
@@ -119,17 +148,65 @@ public sealed class BugReportService
     public List<BugReportFile> CollectFilesForPlan(string planFolder)
     {
         var files = new List<BugReportFile>();
-        var jobIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         CollectPlanFiles(planFolder, files);
-        ExtractJobIdsFromPlanLogs(planFolder, jobIds);
 
+        var jobIds = JobIdsForPlan(planFolder);
         if (jobIds.Count > 0)
-            CollectPromptwareLogFiles(jobIds, files);
+            CollectJobFiles(jobIds, files);
 
         AddSanitizedConfig(files);
 
         return files;
+    }
+
+    /// <summary>
+    ///     Every job that touched <paramref name="planFolder" />. Plan-connected jobs carry the plan id in
+    ///     their filename. The CreatePlan job that produced the plan does not — its stem is
+    ///     <c>&lt;jobId&gt;-CreatePlan</c> — so it is recovered from the <c>PlanId</c> line in its log.
+    ///     Without that second pass a plan's bug report would omit the job that authored the plan.
+    /// </summary>
+    private List<string> JobIdsForPlan(string planFolder)
+    {
+        var planId = JobLogPaths.PlanIdFromFolderName(Path.GetFileName(planFolder.TrimEnd(
+            Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)));
+        if (planId == null) return [];
+
+        var jobIds = JobLogPaths.LogsForPlanId(_config.TendrilHome, planId)
+            .Select(f => Path.GetFileName(f).Split('-')[0])
+            .ToList();
+
+        jobIds.AddRange(JobIdsOfPlanlessJobsNaming(planId));
+
+        return jobIds.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>Job ids whose stem has no plan id but whose log names <paramref name="planId" />.</summary>
+    private IEnumerable<string> JobIdsOfPlanlessJobsNaming(string planId)
+    {
+        var jobsDir = JobLogPaths.JobsDir(_config.TendrilHome);
+        if (!Directory.Exists(jobsDir)) yield break;
+
+        string[] candidates;
+        try
+        {
+            candidates = Directory.GetFiles(jobsDir, "*.md");
+        }
+        catch
+        {
+            yield break;
+        }
+
+        foreach (var file in candidates)
+        {
+            if (!IsJobLog(file)) continue;
+            var name = Path.GetFileName(file);
+            if (PlanIdFromStem(name) != null) continue;   // already covered by the filename glob
+            if (PlanIdFromJobLog(file) != planId) continue;
+
+            var dash = name.IndexOf('-');
+            if (dash > 0) yield return name[..dash];
+        }
     }
 
     public async Task<BugReportResult?> SubmitReportAsync(string description, IReadOnlyList<BugReportFile> files, string? githubUser = null, CancellationToken ct = default)
@@ -226,29 +303,14 @@ public sealed class BugReportService
         return yaml;
     }
 
-    private void CollectPromptwareLogFiles(IReadOnlyCollection<string> jobIds, List<BugReportFile> files)
+    /// <summary>
+    ///     Collects every artifact each job produced — log, prompt, raw CLI output and eventwire stream.
+    /// </summary>
+    private void CollectJobFiles(IReadOnlyCollection<string> jobIds, List<BugReportFile> files)
     {
-        var promptsRoot = PromptwareHelper.ResolvePromptsRoot(_config.TendrilHome);
-        if (!Directory.Exists(promptsRoot)) return;
-
-        foreach (var pwDir in Directory.GetDirectories(promptsRoot))
-        {
-            var logsDir = Path.Combine(pwDir, "Logs");
-            if (!Directory.Exists(logsDir)) continue;
-
-            var pwName = Path.GetFileName(pwDir);
-
-            foreach (var jobId in jobIds)
-            {
-                var mdFile = Path.Combine(logsDir, $"{jobId}.md");
-                if (File.Exists(mdFile))
-                    files.Add(new BugReportFile(mdFile, Path.Combine("Jobs", pwName, $"{jobId}.md")));
-
-                var jsonlFile = Path.Combine(logsDir, $"{jobId}.raw.jsonl");
-                if (File.Exists(jsonlFile))
-                    files.Add(new BugReportFile(jsonlFile, Path.Combine("Jobs", pwName, $"{jobId}.raw.jsonl")));
-            }
-        }
+        foreach (var jobId in jobIds)
+        foreach (var file in JobLogPaths.AllForJobId(_config.TendrilHome, jobId))
+            files.Add(new BugReportFile(file, Path.Combine("Jobs", Path.GetFileName(file))));
     }
 
     private static void CollectPlanFiles(string planFolder, List<BugReportFile> files)
@@ -298,20 +360,6 @@ public sealed class BugReportService
         catch
         {
             // Skip directory enumeration failures gracefully
-        }
-    }
-
-    private static void ExtractJobIdsFromPlanLogs(string planFolder, HashSet<string> jobIds)
-    {
-        var logsDir = Path.Combine(planFolder, "Logs");
-        if (!Directory.Exists(logsDir)) return;
-
-        foreach (var logFile in Directory.GetFiles(logsDir, "*.md"))
-        {
-            var fileName = Path.GetFileNameWithoutExtension(logFile);
-            var match = JobIdFromLogRegex.Match(fileName);
-            if (match.Success)
-                jobIds.Add(match.Groups[1].Value);
         }
     }
 
