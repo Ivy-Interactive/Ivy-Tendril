@@ -277,7 +277,7 @@ public class Program
                 .AboutWebsite("https://github.com/Ivy-Interactive/Ivy-Tendril")
                 .AboutLicense("Apache-2.0")
                 .AboutAuthor("Ivy Interactive")
-                .AboutComments("Tendril is the developer desktop shell for the Ivy agent framework.")
+                .AboutComments("Tendril is an end-to-end AI coding agent orchestrator built on the Ivy Framework that manages AI coding plans, tracks costs, and automates pull request generation.")
                 .OnReady(w =>
                 {
                     if (server.ServiceProvider is { } sp)
