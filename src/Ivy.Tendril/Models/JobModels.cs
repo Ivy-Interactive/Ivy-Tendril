@@ -28,7 +28,9 @@ public record JobItem
     /// Maximum number of output lines retained per job during execution.
     /// Lines beyond this limit are discarded (not just hidden from display).
     /// Memory is freed when EvictStaleJobs() removes completed jobs after 1 hour.
-    /// Output is not persisted to SQLite—this in-memory queue is the only retention.
+    /// Completed-job output is persisted as a per-job EventWire file under
+    /// &lt;TendrilHome&gt;/Jobs/ (see JobEventWireStore) and rehydrated on demand;
+    /// this in-memory queue remains the fast path during a live run.
     /// </summary>
     private const int MaxOutputLines = 10_000;
     private int _completionGuard;
@@ -91,6 +93,12 @@ public record JobItem
     public int? ProcessId { get; set; }
     public string? StatusMessage { get; set; }
     public ConcurrentQueue<string> OutputLines { get; set; } = new();
+
+    /// <summary>
+    /// Guards against re-reading the EventWire file from disk on every GetJob call
+    /// once this job's output has been hydrated (or confirmed to have none).
+    /// </summary>
+    [JsonIgnore] public bool OutputHydrated { get; set; }
     public DateTime? LastOutputAt { get; set; }
     public CancellationTokenSource? TimeoutCts { get; set; }
     private volatile bool _staleOutputDetected;
