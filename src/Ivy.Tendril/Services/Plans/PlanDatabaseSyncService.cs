@@ -9,6 +9,7 @@ namespace Ivy.Tendril.Services.Plans;
 public class PlanDatabaseSyncService : IDisposable
 {
     private readonly IPlanDatabaseService _database;
+    private readonly IConfigService _configService;
     private readonly ILogger<PlanDatabaseSyncService> _logger;
     private readonly PlanReaderService _planReader;
     private readonly IPlanWatcherService _watcher;
@@ -19,11 +20,13 @@ public class PlanDatabaseSyncService : IDisposable
         PlanReaderService planReader,
         IPlanDatabaseService database,
         IPlanWatcherService watcher,
+        IConfigService configService,
         ILogger<PlanDatabaseSyncService> logger)
     {
         _planReader = planReader;
         _database = database;
         _watcher = watcher;
+        _configService = configService;
         _logger = logger;
 
         _watcher.PlansChanged += OnPlansChanged;
@@ -62,7 +65,9 @@ public class PlanDatabaseSyncService : IDisposable
                 SyncPlanRecommendations(plan);
             }
 
-            _database.PurgeOldJobs();
+            var purgedJobIds = _database.PurgeOldJobs();
+            foreach (var jobId in purgedJobIds)
+                JobEventWireStore.Delete(_configService.TendrilHome, jobId);
             _database.SetLastSyncTime(DateTime.UtcNow);
             _isInitialSyncComplete = true;
 

@@ -95,8 +95,9 @@ internal static class ServiceRegistration
             var planReader = sp.GetRequiredService<PlanReaderService>();
             var database = sp.GetRequiredService<IPlanDatabaseService>();
             var watcher = sp.GetRequiredService<IPlanWatcherService>();
+            var configService = sp.GetRequiredService<IConfigService>();
             var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
-            return new PlanDatabaseSyncService(planReader, database, watcher,
+            return new PlanDatabaseSyncService(planReader, database, watcher, configService,
                 loggerFactory.CreateLogger<PlanDatabaseSyncService>());
         });
         server.Services.AddSingleton<ITelemetryService>(sp =>
