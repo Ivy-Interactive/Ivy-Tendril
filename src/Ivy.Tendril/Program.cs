@@ -274,7 +274,7 @@ public class Program
                 .AboutName("Ivy Tendril")
                 .AboutVersion(versionString)
                 .AboutCopyright("© 2026 Ivy Interactive")
-                .AboutWebsite("https://github.com/Ivy-Interactive/Ivy-Tendril")
+                .AboutWebsite("https://ivy.app")
                 .AboutLicense("Apache-2.0")
                 .AboutAuthor("Ivy Interactive")
                 .AboutComments("Tendril is an end-to-end AI coding agent orchestrator built on the Ivy Framework that manages AI coding plans, tracks costs, and automates pull request generation.")
