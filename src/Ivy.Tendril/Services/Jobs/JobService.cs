@@ -285,6 +285,7 @@ public class JobService : IJobService
         {
             removed.DisposeResources(_logger);
             try { _database?.DeleteJob(id); } catch { /* Best-effort */ }
+            if (_configService != null) JobEventWireStore.Delete(_configService.TendrilHome, id);
 
             ApplyDeletePlanState(removed);
 
@@ -485,7 +486,14 @@ public class JobService : IJobService
 
     public JobItem? GetJob(string id)
     {
-        return _jobs.GetValueOrDefault(id) ?? _database?.GetJobById(id);
+        var job = _jobs.GetValueOrDefault(id) ?? _database?.GetJobById(id);
+        if (job is { OutputHydrated: false } && job.Status != JobStatus.Running
+            && job.OutputLines.IsEmpty && _configService != null)
+        {
+            job.OutputLines = JobEventWireStore.Read(_configService.TendrilHome, id) ?? job.OutputLines;
+            job.OutputHydrated = true;
+        }
+        return job;
     }
 
     public bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null)
@@ -565,6 +573,8 @@ public class JobService : IJobService
         try
         {
             _database?.UpsertJob(job);
+            if (_configService != null)
+                JobEventWireStore.Write(_configService.TendrilHome, job);
         }
         catch
         {
