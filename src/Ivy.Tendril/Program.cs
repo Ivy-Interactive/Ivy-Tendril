@@ -262,12 +262,22 @@ public class Program
                 : OperatingSystem.IsMacOS() ? "Ivy.Tendril.Assets.icon.icns"
                 : "Ivy.Tendril.Assets.icon.png";
 
+            var version = typeof(Program).Assembly.GetName().Version;
+            var versionString = version?.ToString(3) ?? "1.1.12";
+
             var window = new DesktopWindow(server)
                 .Title("Ivy Tendril")
                 .AppId("Ivy Tendril")
                 .Size(1800, 1200)
                 .UseDpiScaling(false)
                 .Icon(typeof(Program), iconResource)
+                .AboutName("Ivy Tendril")
+                .AboutVersion(versionString)
+                .AboutCopyright("© 2026 Ivy Interactive")
+                .AboutWebsite("https://github.com/Ivy-Interactive/Ivy-Tendril")
+                .AboutLicense("Apache-2.0")
+                .AboutAuthor("Ivy Interactive")
+                .AboutComments("Tendril is the developer desktop shell for the Ivy agent framework.")
                 .OnReady(w =>
                 {
                     if (server.ServiceProvider is { } sp)
