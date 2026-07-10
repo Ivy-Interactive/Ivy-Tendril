@@ -1,5 +1,5 @@
 codingAgent: claude
-jobTimeout: 30
+jobTimeout: 60
 staleOutputTimeout: 10
 gitTimeout: 10
 maxConcurrentJobs: 10
