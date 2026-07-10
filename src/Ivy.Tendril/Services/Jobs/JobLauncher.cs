@@ -81,6 +81,12 @@ internal class JobLauncher
             if (process == null)
                 return;
 
+            // Only now — after the child process genuinely exists — does the plan move to Executing.
+            // Every failure path above (repo guard, hook failures, prompt/process build errors) runs
+            // before this point, so a throw there never strands the plan in Executing in the first
+            // place; the catch below only needs to fail the job, not revert plan state.
+            TransitionPlanToExecuting(ctx);
+
             InitializeJobMonitoring(ctx, process);
             ctx.RaiseStructureChanged();
         }
@@ -102,6 +108,9 @@ internal class JobLauncher
         _logger.LogError(ex, "Job {JobId}: Unhandled exception during launch", job.Id);
         CrashLog.Write($"[{DateTime.UtcNow:O}] Job {job.Id}: Unhandled exception during launch: {ex}");
 
+        // The agent process may have already started (e.g. if the failure is in TransitionPlanToExecuting,
+        // which runs after StartAgentProcess succeeds) — no monitor exists yet to ever reap it, so kill it
+        // here rather than leaking a real OS process.
         if (job.Process is { } process)
         {
             try
@@ -190,12 +199,19 @@ internal class JobLauncher
         ctx.RunHooks("before", type, planFolderForHooks, job.Project, job);
 
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs && !string.IsNullOrEmpty(job.TypedArgs?.PlanFolder))
-        {
             EnsurePlanFolderWritable(job.TypedArgs!.PlanFolder!);
-            PlanYamlHelper.SetPlanStateByFolder(job.TypedArgs!.PlanFolder!, nameof(PlanStatus.Executing));
-        }
 
         job.SessionId = Guid.NewGuid().ToString();
+    }
+
+    // Deliberately called only after StartAgentProcess succeeds (see LaunchJob) — moved out of
+    // PrepareJobForLaunch so the plan isn't flipped to Executing until an agent process genuinely
+    // exists, shrinking the window in which a launch failure could strand the plan there.
+    private static void TransitionPlanToExecuting(JobLaunchContext ctx)
+    {
+        var job = ctx.Job;
+        if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs && !string.IsNullOrEmpty(job.TypedArgs?.PlanFolder))
+            PlanYamlHelper.SetPlanStateByFolder(job.TypedArgs!.PlanFolder!, nameof(PlanStatus.Executing));
     }
 
     private bool ValidateJobPrerequisites(
