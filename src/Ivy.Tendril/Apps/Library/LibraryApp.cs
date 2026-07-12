@@ -35,6 +35,7 @@ public class LibraryApp : ViewBase
         var jobService = UseService<IJobService>();
         var vaultStatus = UseState<VaultStatusInfo?>(null);
         var isLoading = UseState(true);
+        var isGraphView = UseState(false);
 
         // Sidebar and search states
         var selectedNote = UseState<string?>(null);
@@ -360,7 +361,9 @@ public class LibraryApp : ViewBase
             header,
             workingDir,
             isUpdateMemoriesOpen,
-            LoadProjectFiles
+            LoadProjectFiles,
+            isGraphView,
+            files
         );
 
         var sidebarView = new SidebarView(

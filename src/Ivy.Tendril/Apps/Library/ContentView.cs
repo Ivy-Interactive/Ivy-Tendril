@@ -2,9 +2,11 @@ using System;
 using System.IO;
 using System.Diagnostics;
 using System.Linq;
+using System.Collections.Generic;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Widgets;
 
 namespace Ivy.Tendril.Apps.Library;
 
@@ -28,7 +30,9 @@ public class ContentView(
     object headerView,
     string workingDir,
     IState<bool> isUpdateMemoriesOpen,
-    Action onLoadFiles) : ViewBase
+    Action onLoadFiles,
+    IState<bool> isGraphView,
+    List<string> files) : ViewBase
 {
     public override object Build()
     {
@@ -138,6 +142,150 @@ public class ContentView(
             ).Scroll(Scroll.None).Size(Size.Full());
         }
 
+        // Build Graph Data for ECharts BrainMap
+        var graphNodes = new List<BrainNode>();
+        var graphEdges = new List<BrainEdge>();
+        var noteIds = new HashSet<string>(files, StringComparer.OrdinalIgnoreCase);
+
+        if (memoriesDir != null && Directory.Exists(memoriesDir) && status != null)
+        {
+            // Parse outdated/missing files from raw status output
+            var outdatedFiles = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            var missingFiles = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            var currentNote = "";
+
+            var rawLines = status.RawOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            foreach (var line in rawLines)
+            {
+                if (line.StartsWith("Memory:"))
+                {
+                    currentNote = line.Substring("Memory:".Length).Trim();
+                }
+                else if (line.Contains("[OUTDATED CODE]"))
+                {
+                    var file = line.Substring(line.IndexOf("] ") + 2).Trim();
+                    if (file.Contains(" (stored: "))
+                    {
+                        file = file.Substring(0, file.IndexOf(" (stored: ")).Trim();
+                    }
+                    if (!string.IsNullOrEmpty(currentNote))
+                    {
+                        if (!outdatedFiles.TryGetValue(currentNote, out var set))
+                        {
+                            set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            outdatedFiles[currentNote] = set;
+                        }
+                        set.Add(file);
+                    }
+                }
+                else if (line.Contains("[MISSING CODE]"))
+                {
+                    var file = line.Substring(line.IndexOf("] ") + 2).Trim();
+                    if (!string.IsNullOrEmpty(currentNote))
+                    {
+                        if (!missingFiles.TryGetValue(currentNote, out var set))
+                        {
+                            set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            missingFiles[currentNote] = set;
+                        }
+                        set.Add(file);
+                    }
+                }
+            }
+
+            foreach (var noteName in files)
+            {
+                var noteFile = Path.Combine(memoriesDir, noteName + ".md");
+                if (!File.Exists(noteFile)) continue;
+
+                var text = File.ReadAllText(noteFile);
+                var title = noteName;
+                var lines = text.Split('\n');
+                var inFrontmatter = false;
+                var references = new List<string>();
+
+                for (int i = 0; i < Math.Min(lines.Length, 30); i++)
+                {
+                    var line = lines[i].Trim();
+                    if (line == "---")
+                    {
+                        inFrontmatter = !inFrontmatter;
+                        continue;
+                    }
+                    if (inFrontmatter)
+                    {
+                        if (line.StartsWith("title:", StringComparison.OrdinalIgnoreCase))
+                        {
+                            title = line.Substring("title:".Length).Trim(' ', '"', '\'');
+                        }
+                        else if (line.StartsWith("references:", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var refVal = line.Substring("references:".Length).Trim();
+                            if (refVal.StartsWith('[') && refVal.EndsWith(']'))
+                            {
+                                var parts = refVal.Trim('[', ']').Split(',', StringSplitOptions.RemoveEmptyEntries);
+                                foreach (var part in parts)
+                                {
+                                    references.Add(part.Trim(' ', '"', '\''));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                var noteStatus = "ok";
+                if (status.OutdatedNoteNames.Contains(noteName))
+                {
+                    noteStatus = "outdated";
+                }
+
+                graphNodes.Add(new BrainNode(noteName, title, "memory", noteStatus));
+
+                foreach (var r in references)
+                {
+                    if (string.IsNullOrEmpty(r)) continue;
+                    var fileId = "file:" + r;
+                    var fileName = Path.GetFileName(r);
+
+                    var fileStatus = "ok";
+                    if (outdatedFiles.TryGetValue(noteName, out var outSet) && outSet.Contains(r))
+                    {
+                        fileStatus = "outdated";
+                    }
+                    else if (missingFiles.TryGetValue(noteName, out var missSet) && missSet.Contains(r))
+                    {
+                        fileStatus = "broken";
+                    }
+
+                    if (!graphNodes.Any(n => n.Id == fileId))
+                    {
+                        graphNodes.Add(new BrainNode(fileId, fileName, "code", fileStatus));
+                    }
+
+                    graphEdges.Add(new BrainEdge(noteName, fileId));
+                }
+
+                var matches = System.Text.RegularExpressions.Regex.Matches(text, @"\[\[([^\]|]+)(?:\|[^\]]+)?\]\]");
+                foreach (System.Text.RegularExpressions.Match m in matches)
+                {
+                    var target = m.Groups[1].Value.Trim();
+                    if (noteIds.Contains(target))
+                    {
+                        graphEdges.Add(new BrainEdge(noteName, target));
+                    }
+                    else
+                    {
+                        var brokenId = "broken:" + target;
+                        if (!graphNodes.Any(n => n.Id == brokenId))
+                        {
+                            graphNodes.Add(new BrainNode(brokenId, target, "memory", "broken"));
+                        }
+                        graphEdges.Add(new BrainEdge(noteName, brokenId));
+                    }
+                }
+            }
+        }
+
         // Stats grid
         object statsGrid;
         if (isLoading.Value)
@@ -175,19 +323,29 @@ public class ContentView(
                   ).Width(Size.Units(40));
         }
 
-        var actionsToolbar = Layout.Horizontal().Wrap(true)
-            | new Button("Refresh Status").Outline().Icon(Icons.RefreshCw).OnClick(onLoadStatus)
-            | new Button("Clean Vault").Outline().Icon(Icons.Trash2).OnClick(() => onRunCommand("shake", "shake"))
-            | new Button("Run Diagnostics").Outline().Icon(Icons.CircleCheck).OnClick(() => onRunCommand("doctor", "doctor"))
-            | new Button("Bootstrap Index").Outline().Icon(Icons.FolderSync).OnClick(() => onRunCommand("index", "index"))
+        // Unified Actions Toolbar in Header
+        var actionsToolbar = Layout.Horizontal().Wrap(true).Gap(2)
+            | new Button("Refresh").Outline().Icon(Icons.RefreshCw).OnClick(onLoadStatus)
+            | new Button("Clean").Outline().Icon(Icons.Trash2).OnClick(() => onRunCommand("shake", "shake"))
+            | new Button("Diagnostics").Outline().Icon(Icons.CircleCheck).OnClick(() => onRunCommand("doctor", "doctor"))
+            | new Button("Bootstrap").Outline().Icon(Icons.FolderSync).OnClick(() => onRunCommand("index", "index"))
             | new Button("Agentic Update").Outline().Icon(Icons.Sparkles).OnClick(() =>
               {
                   onLoadFiles();
                   isUpdateMemoriesOpen.Set(true);
               })
             | (status != null && status.OutdatedMemories > 0
-               ? (object)new Button("Sync All Hashes").Primary().Icon(Icons.RefreshCw).OnClick(onSyncAllHashes)
+               ? (object)new Button("Sync Hashes").Primary().Icon(Icons.RefreshCw).OnClick(onSyncAllHashes)
                : new Fragment());
+
+        // Header with switch toggle and actions toolbar
+        var headerRow = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween)
+            | (Layout.Vertical().Gap(1)
+               | Text.H1("Library").Bold()
+               | Text.Muted("Obsidian-style codebase memory index and verification stats"))
+            | Layout.Horizontal().Gap(4).AlignContent(Align.Center)
+               | isGraphView.ToSwitchInput(label: "Brain Map")
+               | actionsToolbar;
 
         var configContent = Layout.Vertical()
             | Text.H2("Configuration").Bold()
@@ -205,17 +363,43 @@ public class ContentView(
                       | new Fragment(ignorePatterns.Select(p => new Badge(p).Variant(BadgeVariant.Secondary).Small() as object).ToArray())
                   : new Fragment()));
 
-        return Layout.Vertical()
-            | headerView
-            | new Separator()
-            | Layout.Vertical()
+        if (isGraphView.Value)
+        {
+            var brainMapWidget = new BrainMap()
+                .Nodes(graphNodes)
+                .Edges(graphEdges)
+                .SelectedNodeId(null)
+                .OnNodeClick(nodeId =>
+                {
+                    if (noteIds.Contains(nodeId))
+                    {
+                        selectedNote.Set(nodeId);
+                    }
+                    else if (nodeId.StartsWith("broken:"))
+                    {
+                        var cleanTargetName = nodeId.Substring("broken:".Length);
+                        client.Toast($"Broken wiki-link: [[{cleanTargetName}]] does not exist.", "Broken Link");
+                    }
+                    else
+                    {
+                        client.Toast($"Selected node: {nodeId}", "Graph Node");
+                    }
+                });
+
+            return new HeaderLayout(
+                headerRow,
+                Layout.Vertical().Size(Size.Full()).Height(Size.Units(120)) | brainMapWidget
+            ).Scroll(Scroll.None).Size(Size.Full());
+        }
+
+        var mainBody = Layout.Vertical()
+            | (Layout.Vertical()
                 | (Layout.Horizontal().AlignContent(Align.Center)
                    | Text.H2("Vault Status").Bold()
                    | (isClean
                       ? new Badge("Vault Verified").Variant(BadgeVariant.Success).Small()
                       : new Badge("Attention Required").Variant(BadgeVariant.Destructive).Small()))
-                | statsGrid
-            | actionsToolbar
+                | statsGrid)
             | (isOperationRunning.Value 
                ? (object)(Layout.Horizontal().AlignContent(Align.Center)
                  | Icons.LoaderCircle.ToIcon().Color(Colors.Primary).WithAnimation(AnimationType.Rotate)
@@ -229,5 +413,10 @@ public class ContentView(
               )
             | new Separator()
             | configContent;
-       }
+
+        return new HeaderLayout(
+            headerRow,
+            Layout.Vertical().Scroll(Scroll.Auto).Size(Size.Full()) | mainBody
+        ).Scroll(Scroll.None).Size(Size.Full());
+    }
 }

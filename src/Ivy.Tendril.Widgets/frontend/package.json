@@ -18,7 +18,8 @@
     "pdfjs-dist": "6.0.227",
     "react-markdown": "9.1.0",
     "react-syntax-highlighter": "16.1.1",
-    "remark-gfm": "4.0.1"
+    "remark-gfm": "4.0.1",
+    "echarts": "^5.6.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
