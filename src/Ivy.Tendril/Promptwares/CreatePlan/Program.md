@@ -419,11 +419,10 @@ The `## Tests` section MUST include two parts:
    
    Never leave test scope unspecified — this causes the full suite to run unnecessarily.
 
-### 4.8. Document Design Decisions in Memories
-
 If the plan introduces new architectural decisions, design patterns, or major new components:
 1. Run `bw --project <TendrilProject> add design-<plan-id> --title "Design: <plan title>" --tags "design, architecture, <project>"` to create a new design memory note.
 2. Write a comprehensive description of the planned components, data structures, or patterns to the newly created memory note.
+3. **Cross-reference relevant codebase notes**: Embed Obsidian-style wiki-links `[[note-name]]` pointing to the memories of files that are referenced, impacted, or created by this design (e.g. `[[keyboard-manager]]`).
 
 ### Rules
 

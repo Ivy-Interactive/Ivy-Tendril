@@ -497,7 +497,8 @@ After implementing changes and running verifications, keep the Promptwares memor
 3. If you created any new source files, configuration files, or components:
    - Proactively document them in a memory note (creating a new one if necessary: `bw --project <TendrilProject> add <note_name>`).
    - Run `bw --project <TendrilProject> link <note_name> <file_path>` to link and track their initial hashes.
-4. Keep the vault verified and clean.
+4. **Cross-reference related notes**: Always embed Obsidian-style wiki-links `[[note-name]]` referencing related component memories, imports, and test files inside your note documentation.
+5. Keep the vault verified and clean.
 
 ### 8. Final Clean Check
 

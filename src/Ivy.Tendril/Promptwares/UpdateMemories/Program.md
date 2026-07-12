@@ -13,6 +13,7 @@ The firmware header contains:
 - **Vault alignment.** All memories must be stored and maintained under the Promptwares vault.
 - **Reference maintenance.** You must link files to memory notes via `bw link` and update reference hashes via `bw update` after modifying documentation.
 - **Clear structure.** Document each file's purpose, key exported classes/types, architecture, dependencies, and code comments cleanly.
+- **Cross-referencing (wiki-links).** You MUST link related memory pages together by using Obsidian-style wiki-links `[[note-name]]` in the markdown body. For example, if documenting `day-cycle.md`, link to its tests `[[day-cycle-test]]` and any imported components (e.g. `[[keyboard-manager]]`).
 
 ## Available CLI Commands
 
@@ -49,6 +50,7 @@ For each file in the `FilesToUpdate` list, perform the following steps:
    - Read the full content of the source file.
    - Analyze its purpose, public API surface, classes, functions, structure, and dependencies.
    - Write a complete, comprehensive markdown documentation of the file to the memory note. You can edit the memory file under `memories/` directly or use `bw --project <TendrilProject> write <name>`.
+   - **Link to dependencies and tests**: Scan the file's imports and related files. You MUST embed Obsidian-style wiki-links `[[note-name]]` referencing the memory notes of imported dependencies, sibling modules, and corresponding test files (e.g. `[[keyboard-manager-test]]` or `[[day-cycle]]`).
    
 4. **Synchronize hashes**:
    - Run `bw --project <TendrilProject> update <name>` to compute and store the current hash of the source file, marking the memory page as up to date.

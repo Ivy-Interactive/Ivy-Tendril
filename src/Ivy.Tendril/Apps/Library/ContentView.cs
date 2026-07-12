@@ -269,9 +269,15 @@ public class ContentView(
                 foreach (System.Text.RegularExpressions.Match m in matches)
                 {
                     var target = m.Groups[1].Value.Trim();
-                    if (noteIds.Contains(target))
+                    var matchedNoteId = noteIds.FirstOrDefault(id => 
+                        id.Equals(target, StringComparison.OrdinalIgnoreCase) ||
+                        id.EndsWith("/" + target, StringComparison.OrdinalIgnoreCase) ||
+                        id.EndsWith("\\" + target, StringComparison.OrdinalIgnoreCase)
+                    );
+
+                    if (matchedNoteId != null)
                     {
-                        graphEdges.Add(new BrainEdge(noteName, target));
+                        graphEdges.Add(new BrainEdge(noteName, matchedNoteId));
                     }
                     else
                     {
