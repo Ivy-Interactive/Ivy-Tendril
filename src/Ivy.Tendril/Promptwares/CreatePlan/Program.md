@@ -178,6 +178,13 @@ gh search issues "<keyword>" --repo <owner>/<repo> --json title,url,number,state
 
 Derive the repo owner/name from the **Projects** section repos. If an open issue already covers the task, reference it in the plan's revision and avoid creating workaround plans.
 
+### 3.2. Retrieve Relevant Memories
+
+Read and search the Promptwares memory vault to gain full codebase context before planning:
+1. Run `bw status` to inspect the available memories.
+2. Search for existing memory notes relevant to the task (e.g. using `bw query` or reading `index.md`).
+3. If relevant memories are found (e.g. `project-stack`, architecture notes, or design guidelines), read them to align the proposed plan with established codebase patterns and choices.
+
 ### 3.5. Validate Code State
 
 Before creating the plan, scan the task description for code state assertions — statements about what the code currently does or how it currently looks.
@@ -411,6 +418,12 @@ The `## Tests` section MUST include two parts:
    - If the change is so broad that all tests are genuinely needed, explicitly state: "Run all tests (broad cross-cutting change)." and justify why.
    
    Never leave test scope unspecified — this causes the full suite to run unnecessarily.
+
+### 4.8. Document Design Decisions in Memories
+
+If the plan introduces new architectural decisions, design patterns, or major new components:
+1. Run `bw add design-<plan-id> --title "Design: <plan title>" --tags "design, architecture, <project>"` to create a new design memory note.
+2. Write a comprehensive description of the planned components, data structures, or patterns to the newly created memory note.
 
 ### Rules
 

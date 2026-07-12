@@ -146,6 +146,12 @@ date: <CurrentTime>
 
    If any marker is found, verify the claim: run `gh pr view <cited PR> --json state,mergeCommit` (must be `MERGED`), confirm the cited commit is in `git log origin/<default-branch>`, and byte-compare the plan's proposed code against the current file contents. If all three checks pass, write `Verification/PreExecution.md` with `Result: Fail`, write `Artifacts/summary.md` documenting the no-op, set every verification to `Skipped` via `tendril plan set-verification <plan-id> <name> Skipped`, and fail the plan **without creating a worktree** — running verifications on unchanged code wastes the time budget and produces a 0-commit PR that CreatePr cannot process.
 
+### 1.8. Check Vault Status
+
+Before creating worktrees, verify the Promptwares memory vault status:
+1. Run `bw status` to inspect the available memories, outdated references, or technical debt notes.
+2. Read any relevant memories (such as the project's stack or design notes) to align your execution steps with established conventions.
+
 ### 2. Create Worktrees
 
 Report status: `tendril job status TendrilJobId --message="Creating worktrees..."`
@@ -480,6 +486,18 @@ Do NOT include items that are part of the current plan's scope. Do NOT include r
 ~~~
 
 **This file is mandatory.** Step 8 will verify it exists and fail the plan if it is missing.
+
+### 7.7. Update and Maintain Memory Vault
+
+Report status: `tendril job status TendrilJobId --message="Updating memory vault..."`
+
+After implementing changes and running verifications, keep the Promptwares memory vault synchronized:
+1. Run `bw status` to identify any memory notes that have become outdated due to your changes.
+2. For each outdated memory note, inspect its markdown file in the vault, update its contents to reflect the new codebase state (e.g., modified API surfaces, renamed variables/methods, new components), and run `bw update <note_name>` to synchronize the hashes.
+3. If you created any new source files, configuration files, or components:
+   - Proactively document them in a memory note (creating a new one if necessary under the project's subfolder: `bw add <note_name>`).
+   - Run `bw link <note_name> <file_path>` to link and track their initial hashes.
+4. Keep the vault verified and clean.
 
 ### 8. Final Clean Check
 
