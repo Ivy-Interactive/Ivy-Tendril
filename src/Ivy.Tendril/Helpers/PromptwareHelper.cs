@@ -74,36 +74,22 @@ public static class PromptwareHelper
         }
 
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
-
-        // 1. Try to find the project name in config.yaml mapping
-        var projectName = FindProjectNameForPath(dir, tendrilHome);
-        if (string.IsNullOrEmpty(projectName))
-        {
-            // 2. Fall back to git repo directory name
-            var gitRepoRoot = FindGitRepositoryRoot(dir);
-            if (gitRepoRoot != null)
-            {
-                projectName = Path.GetFileName(gitRepoRoot);
-            }
-        }
-
-        if (!string.IsNullOrEmpty(projectName))
-        {
-            var vaultPath = Path.Combine(tendrilHome, "Promptwares", "Brainwares", projectName);
-            if (Directory.Exists(vaultPath))
-                return vaultPath;
-        }
-
-        // 3. Fallback: walk up looking for a local Promptwares vault folder (excluding templates)
         var excludedTemplatePath = Path.Combine(tendrilHome, "Promptwares");
-        while (dir != null)
-        {
-            var vaultPath = Path.Combine(dir, "Promptwares");
-            if (Directory.Exists(vaultPath) && !vaultPath.Equals(excludedTemplatePath, StringComparison.OrdinalIgnoreCase))
-                return vaultPath;
 
-            dir = Path.GetDirectoryName(dir);
+        // 1. Walk up looking for a local Promptwares vault folder (excluding the global templates folder)
+        var checkDir = dir;
+        while (checkDir != null)
+        {
+            var localVault = Path.Combine(checkDir, "Promptwares");
+            if (Directory.Exists(localVault) && !localVault.Equals(excludedTemplatePath, StringComparison.OrdinalIgnoreCase))
+                return localVault;
+
+            checkDir = Path.GetDirectoryName(checkDir);
         }
+
+        // 2. Fall back to the unified global Promptwares vault (~/.tendril/Promptwares)
+        if (Directory.Exists(excludedTemplatePath))
+            return excludedTemplatePath;
 
         return null;
     }
@@ -196,16 +182,7 @@ public static class PromptwareHelper
         try
         {
             var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
-            var projectName = FindProjectNameForPath(workspaceDir, tendrilHome);
-            if (string.IsNullOrEmpty(projectName))
-            {
-                var gitRepoRoot = FindGitRepositoryRoot(workspaceDir);
-                projectName = gitRepoRoot != null ? Path.GetFileName(gitRepoRoot) : Path.GetFileName(workspaceDir);
-            }
-
-            if (string.IsNullOrEmpty(projectName)) return;
-
-            var vaultPath = Path.Combine(tendrilHome, "Promptwares", "Brainwares", projectName);
+            var vaultPath = Path.Combine(tendrilHome, "Promptwares");
             if (!Directory.Exists(vaultPath))
             {
                 Directory.CreateDirectory(vaultPath);
