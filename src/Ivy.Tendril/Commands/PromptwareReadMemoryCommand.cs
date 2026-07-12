@@ -74,6 +74,10 @@ public class PromptwareReadMemoryCommand : Command<PromptwareReadMemorySettings>
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         var memoryDir = PromptwareHelper.ResolveMemoryDirectory(settings.Name, tendrilHome);
         var filename = Path.GetFileName(settings.Filename);
+        if (!filename.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+        {
+            filename += ".md";
+        }
         var filePath = Path.Combine(memoryDir, filename);
 
         if (!File.Exists(filePath))

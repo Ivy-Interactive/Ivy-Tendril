@@ -209,6 +209,14 @@ public class PromptwareRunner : IPromptwareRunner
                 dirs.Add(vaultPath);
         }
 
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var globalMemoriesDir = Path.Combine(userProfile, ".config", "brainwares", "memories");
+        if (!globalMemoriesDir.StartsWith(homePrefix, StringComparison.OrdinalIgnoreCase))
+            dirs.Add(globalMemoriesDir);
+        var globalConfigDir = Path.Combine(userProfile, ".config", "brainwares");
+        if (!globalConfigDir.StartsWith(homePrefix, StringComparison.OrdinalIgnoreCase))
+            dirs.Add(globalConfigDir);
+
         return [.. dirs];
     }
 

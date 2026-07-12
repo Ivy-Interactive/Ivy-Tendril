@@ -46,6 +46,10 @@ public class PromptwareWriteMemoryCommand : Command<PromptwareWriteMemorySetting
         Directory.CreateDirectory(memoryDir);
 
         var filename = Path.GetFileName(settings.Filename);
+        if (!filename.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+        {
+            filename += ".md";
+        }
         var filePath = Path.Combine(memoryDir, filename);
 
         var content = ConsoleHelper.ResolveInput(settings.Stdin, settings.FilePath, null);
@@ -55,31 +59,29 @@ public class PromptwareWriteMemoryCommand : Command<PromptwareWriteMemorySetting
         var workspaceDir = Directory.GetCurrentDirectory();
         var vaultPath = PromptwareHelper.ResolveBrainwaresVaultDir(workspaceDir);
 
-        if (vaultPath != null)
-        {
-            var noteName = Path.GetFileNameWithoutExtension(settings.Filename);
-            var noteFile = Path.Combine(memoryDir, noteName + ".md");
+        var noteName = Path.GetFileNameWithoutExtension(filename);
+        var noteFile = Path.Combine(memoryDir, noteName + ".md");
 
-            if (!File.Exists(noteFile))
+        if (!File.Exists(noteFile))
+        {
+            try
             {
-                try
+                var bwPath = PromptwareHelper.GetBwPath();
+                var arguments = vaultPath != null ? $"add {noteName}" : $"add {noteName} --global";
+                var psi = new System.Diagnostics.ProcessStartInfo
                 {
-                    var bwPath = PromptwareHelper.GetBwPath();
-                    var psi = new System.Diagnostics.ProcessStartInfo
-                    {
-                        FileName = bwPath,
-                        Arguments = $"add {noteName}",
-                        WorkingDirectory = Directory.GetCurrentDirectory(),
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    };
-                    using var proc = System.Diagnostics.Process.Start(psi);
-                    proc?.WaitForExit();
-                }
-                catch { /* fallback if CLI execution fails */ }
+                    FileName = bwPath,
+                    Arguments = arguments,
+                    WorkingDirectory = Directory.GetCurrentDirectory(),
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var proc = System.Diagnostics.Process.Start(psi);
+                proc?.WaitForExit();
             }
+            catch { /* fallback if CLI execution fails */ }
         }
 
         File.WriteAllText(filePath, content);

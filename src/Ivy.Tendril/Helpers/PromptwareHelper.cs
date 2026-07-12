@@ -86,6 +86,7 @@ public static class PromptwareHelper
 
     public static string ResolveMemoryDirectory(string promptwareName, string? tendrilHome, string? planFolder = null)
     {
+        // 1. Resolve local .brainwares vault memories first
         var vaultPath = ResolveBrainwaresVaultDir(planFolder);
         if (vaultPath != null)
         {
@@ -94,8 +95,20 @@ public static class PromptwareHelper
                 return memoriesDir;
         }
 
+        // 2. Fall back to user-wide global brainwares memories (~/.config/brainwares/memories)
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var globalMemoriesDir = Path.Combine(userProfile, ".config", "brainwares", "memories");
+        if (Directory.Exists(globalMemoriesDir))
+            return globalMemoriesDir;
+
+        // 3. Fall back to promptware folder's local Memory folder (development/packaging fallback)
         var promptwareFolder = ResolvePromptwareFolder(promptwareName, tendrilHome);
-        return Path.Combine(promptwareFolder, "Memory");
+        var localProjMemory = Path.Combine(promptwareFolder, "Memory");
+        if (Directory.Exists(localProjMemory))
+            return localProjMemory;
+
+        // Default to globalMemoriesDir so we always have a valid write target
+        return globalMemoriesDir;
     }
 
     public static string GetBwPath()
