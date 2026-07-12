@@ -35,16 +35,16 @@ public class ContentView(
         // 1. Vault not initialized
         if (vaultPath == null)
         {
-            var initContent = Layout.Vertical().Padding(new Responsive<Thickness?> { Mobile = new Thickness(6, 0, 6, 0) }).Gap(6)
+            var initContent = Layout.Vertical()
                    | headerView
                    | new Spacer().Height(Size.Units(5))
                    | new Card(
-                       Layout.Vertical().AlignContent(Align.Center).Gap(4).Padding(6)
+                       Layout.Vertical().AlignContent(Align.Center)
                        | Icons.Folder.ToIcon().Size(Size.Units(12)).Color(Colors.Warning)
                        | Text.H3("No Knowledge Vault Initialized").Bold()
                        | Text.Muted("An Obsidian-style vault (.brainwares) is required to track codebase memory notes and code/variant reference hashes in this project.")
                        | (isOperationRunning.Value
-                          ? (object)(Layout.Vertical().AlignContent(Align.Center).Gap(2)
+                          ? (object)(Layout.Vertical().AlignContent(Align.Center)
                             | Icons.LoaderCircle.ToIcon().Color(Colors.Primary).WithAnimation(AnimationType.Rotate)
                             | Text.Muted("Initializing vault..."))
                           : new Button("Initialize Vault")
@@ -57,7 +57,7 @@ public class ContentView(
             {
                 initContent = initContent
                     | new Card(
-                        Layout.Vertical().Padding(4).Gap(2)
+                        Layout.Vertical()
                         | Text.H3("Initialization Output").Bold()
                         | Layout.Vertical().Scroll(Scroll.Auto).Height(Size.Px(150))
                             | Text.Block(operationLogs.Value).Small()
@@ -77,12 +77,12 @@ public class ContentView(
             var noteFile = Path.Combine(memoriesDir!, noteName + ".md");
             var isOutdated = status != null && status.OutdatedNoteNames.Contains(noteName);
 
-            var noteHeader = Layout.Horizontal().Width(Size.Full()).Gap(2).AlignContent(Align.Center)
+            var noteHeader = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.Center)
                 | new Button("Back").Icon(Icons.ArrowLeft).Outline().OnClick(() => selectedNote.Set(null))
                 | Text.H2(noteName).Bold()
                 | (isOutdated ? (object)new Badge("Hashes Outdated").Variant(BadgeVariant.Warning).Small() : new Fragment());
 
-            var noteActionBar = Layout.Horizontal().AlignContent(Align.Center).Gap(2).Padding(1)
+            var noteActionBar = Layout.Horizontal().AlignContent(Align.Center)
                 | (isEditing.Value
                    ? new Fragment(
                        new Button("Save").Icon(Icons.Save).Primary().OnClick(() =>
@@ -125,7 +125,7 @@ public class ContentView(
             else
             {
                 var markdownText = File.Exists(noteFile) ? File.ReadAllText(noteFile) : "";
-                noteBody = Layout.Vertical().Width(Size.Full()).Padding(4, 2, 4, 2)
+                noteBody = Layout.Vertical().Width(Size.Full())
                            | new Markdown(markdownText).Article();
             }
 
@@ -142,7 +142,7 @@ public class ContentView(
         object statsGrid;
         if (isLoading.Value)
         {
-            statsGrid = Layout.Center().Margin(0, 10)
+            statsGrid = Layout.Center()
                         | Icons.LoaderCircle.ToIcon().Color(Colors.Primary).WithAnimation(AnimationType.Rotate)
                         | Text.Muted("Scanning vault status...");
         }
@@ -152,7 +152,7 @@ public class ContentView(
         }
         else
         {
-            statsGrid = Layout.Horizontal().Gap(4).Wrap(true)
+            statsGrid = Layout.Horizontal().Wrap(true)
                 | new Card(
                       Layout.Vertical().AlignContent(Align.Center)
                       | Text.H2(status.TotalMemories.ToString()).Bold()
@@ -175,7 +175,7 @@ public class ContentView(
                   ).Width(Size.Units(40));
         }
 
-        var actionsToolbar = Layout.Horizontal().Gap(2).Wrap(true)
+        var actionsToolbar = Layout.Horizontal().Wrap(true)
             | new Button("Refresh Status").Outline().Icon(Icons.RefreshCw).OnClick(onLoadStatus)
             | (uiProcess.Value == null
                ? new Button("Launch Web UI").Primary().Icon(Icons.ExternalLink).OnClick(() =>
@@ -218,27 +218,27 @@ public class ContentView(
                ? (object)new Button("Sync All Hashes").Primary().Icon(Icons.RefreshCw).OnClick(onSyncAllHashes)
                : new Fragment());
 
-        var configContent = Layout.Vertical().Gap(2)
+        var configContent = Layout.Vertical()
             | Text.H2("Configuration").Bold()
-            | (Layout.Vertical().Gap(1)
-               | (Layout.Horizontal().Gap(2)
+            | (Layout.Vertical()
+               | (Layout.Horizontal()
                   | Text.Bold("Vault Directory:")
                   | Text.Muted(vaultPath))
-               | (Layout.Horizontal().Gap(2)
+               | (Layout.Horizontal()
                   | Text.Bold("Default Directory Key:")
                   | Text.Muted(defaultVaultDir ?? ".brainwares"))
                | (ignorePatterns != null && ignorePatterns.Length > 0
-                  ? Layout.Vertical().Gap(1)
+                  ? Layout.Vertical()
                     | Text.Bold("Ignore Patterns:")
-                    | Layout.Horizontal().Gap(2).Wrap(true)
+                    | Layout.Horizontal().Wrap(true)
                       | new Fragment(ignorePatterns.Select(p => new Badge(p).Variant(BadgeVariant.Secondary).Small() as object).ToArray())
                   : new Fragment()));
 
-        return Layout.Vertical().Padding(6).Gap(6)
+        return Layout.Vertical()
             | headerView
             | new Separator()
-            | Layout.Vertical().Gap(4)
-                | (Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+            | Layout.Vertical()
+                | (Layout.Horizontal().AlignContent(Align.Center)
                    | Text.H2("Vault Status").Bold()
                    | (isClean
                       ? new Badge("Vault Verified").Variant(BadgeVariant.Success).Small()
@@ -246,12 +246,12 @@ public class ContentView(
                 | statsGrid
             | actionsToolbar
             | (isOperationRunning.Value 
-               ? (object)(Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+               ? (object)(Layout.Horizontal().AlignContent(Align.Center)
                  | Icons.LoaderCircle.ToIcon().Color(Colors.Primary).WithAnimation(AnimationType.Rotate)
                  | Text.Muted("Running operation in background..."))
                : new Fragment())
             | new Card(
-                  Layout.Vertical().Gap(2).Padding(4)
+                  Layout.Vertical()
                   | Text.H3("Command Output / Console Log").Bold()
                   | Layout.Vertical().Scroll(Scroll.Auto).Height(Size.Px(200))
                       | Text.Block(string.IsNullOrEmpty(operationLogs.Value) ? "No logs yet. Run an action to see terminal output." : operationLogs.Value).Small()

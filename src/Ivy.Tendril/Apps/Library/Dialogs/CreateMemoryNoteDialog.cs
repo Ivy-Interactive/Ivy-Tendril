@@ -21,7 +21,7 @@ public class CreateMemoryNoteDialog(
             _ => isOpen.Set(false),
             new DialogHeader("Create Memory Note"),
             new DialogBody(
-                Layout.Vertical().Gap(2)
+                Layout.Vertical()
                 | newNoteName.ToTextInput("e.g. authentication-flow")
                     .WithField()
                     .Label("Note Name")

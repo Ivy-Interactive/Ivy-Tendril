@@ -21,15 +21,15 @@ public class SidebarView(
             filteredList = files.Where(f => f.ToLowerInvariant().Contains(q)).ToList();
         }
 
-        var sidebarHeader = Layout.Vertical().Gap(2).Padding(2)
-            | Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+        var sidebarHeader = Layout.Vertical()
+            | Layout.Horizontal().AlignContent(Align.Center)
                 | searchQuery.ToSearchInput().Placeholder("Search memories...").Width(Size.Full())
                 | new Button().Icon(Icons.Plus).Primary().OnClick(() => isNewNoteOpen.Set(true));
 
         object sidebarContent;
         if (filteredList.Count == 0)
         {
-            sidebarContent = Layout.Center().Margin(0, 10) | Text.Muted("No memories found");
+            sidebarContent = Layout.Center() | Text.Muted("No memories found");
         }
         else
         {
@@ -37,7 +37,7 @@ public class SidebarView(
             {
                 var item = f;
                 var noteIsOutdated = status != null && status.OutdatedNoteNames.Contains(item);
-                var rowBadges = Layout.Horizontal().Gap(1)
+                var rowBadges = Layout.Horizontal()
                     | (noteIsOutdated ? (object)new Badge("Outdated").Variant(BadgeVariant.Warning).Small() : new Fragment());
 
                 return SidebarListRow.Build(
