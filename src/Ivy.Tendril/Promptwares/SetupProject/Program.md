@@ -218,8 +218,21 @@ Self-check before persisting: segments in Rule-1 order; absent layers omitted; o
 tendril project set <project-name> stackHash <hash>
 ```
 
-### 5. Summary
+### 5. Document the Tech Stack in the Memory Vault
+
+If a `.brainwares` vault directory exists in the workspace:
+1. Check if a memory note named `project-stack` or `tech-stack` exists. If not, run `bw add project-stack --title "Project Tech Stack" --tags "stack, framework, setup"` to create it.
+2. Write a comprehensive description of the detected tech stack to the corresponding memory file (typically `.brainwares/memories/project-stack.md`). The note should contain:
+   - A summary of the primary language(s) and framework(s) for the frontend, backend, or library.
+   - Database engine(s) used.
+   - Tools used for building, formatting/linting, and testing.
+   - Any external service dependencies.
+   - The generated Stack Descriptor Hash (SDH).
+3. Run `bw update project-stack` to update and synchronize the tracked code references.
+
+### 6. Summary
 
 Print a summary of what was configured:
 - Verifications added
 - Review actions added
+- Stack documented in memory vault
