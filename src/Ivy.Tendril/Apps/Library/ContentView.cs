@@ -12,8 +12,6 @@ public class ContentView(
     IState<string?> selectedNote,
     VaultStatusInfo? status,
     IState<bool> isLoading,
-    IState<Process?> uiProcess,
-    IState<string?> uiUrl,
     IState<bool> isEditing,
     IState<string> editContent,
     IState<bool> isOperationRunning,
@@ -177,40 +175,6 @@ public class ContentView(
 
         var actionsToolbar = Layout.Horizontal().Wrap(true)
             | new Button("Refresh Status").Outline().Icon(Icons.RefreshCw).OnClick(onLoadStatus)
-            | (uiProcess.Value == null
-               ? new Button("Launch Web UI").Primary().Icon(Icons.ExternalLink).OnClick(() =>
-                 {
-                     try
-                     {
-                         var bwPath = PromptwareHelper.GetBwPath();
-                         var proc = Process.Start(new ProcessStartInfo
-                         {
-                             FileName = bwPath,
-                             Arguments = "ui",
-                             WorkingDirectory = workingDir,
-                             UseShellExecute = false,
-                             CreateNoWindow = true
-                         });
-                         uiProcess.Set(proc);
-                         uiUrl.Set("http://localhost:5173");
-                         client.OpenUrl("http://localhost:5173");
-                         client.Toast("Memories UI launched on http://localhost:5173", "UI Started");
-                     }
-                     catch (Exception ex)
-                     {
-                         client.Toast($"Failed to launch Web UI: {ex.Message}", "Error");
-                     }
-                 })
-               : new Button("Stop Web UI").Variant(ButtonVariant.Destructive).Icon(Icons.Square).OnClick(() =>
-                 {
-                     if (uiProcess.Value != null)
-                     {
-                         try { uiProcess.Value.Kill(true); } catch { }
-                         uiProcess.Set(null);
-                         uiUrl.Set(null);
-                         client.Toast("Memories UI stopped", "UI Deactivated");
-                     }
-                 }))
             | new Button("Clean Vault").Outline().Icon(Icons.Trash2).OnClick(() => onRunCommand("shake", "shake"))
             | new Button("Run Diagnostics").Outline().Icon(Icons.CircleCheck).OnClick(() => onRunCommand("doctor", "doctor"))
             | new Button("Bootstrap Index").Outline().Icon(Icons.FolderSync).OnClick(() => onRunCommand("index", "index"))

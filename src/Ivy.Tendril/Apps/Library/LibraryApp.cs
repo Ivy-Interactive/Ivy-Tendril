@@ -33,8 +33,6 @@ public class LibraryApp : ViewBase
         var client = UseService<IClientProvider>();
         var vaultStatus = UseState<VaultStatusInfo?>(null);
         var isLoading = UseState(true);
-        var uiProcess = UseState<Process?>(null);
-        var uiUrl = UseState<string?>(null);
 
         // Sidebar and search states
         var selectedNote = UseState<string?>(null);
@@ -196,25 +194,6 @@ public class LibraryApp : ViewBase
             return Disposable.Empty;
         }, EffectTrigger.OnMount());
 
-        // Dispose of UI process on unmount
-        UseEffect(() =>
-        {
-            return Disposable.Create(() =>
-            {
-                if (uiProcess.Value != null)
-                {
-                    try
-                    {
-                        uiProcess.Value.Kill(true);
-                    }
-                    catch
-                    {
-                        // Best effort
-                    }
-                }
-            });
-        });
-
         // Load content on note change
         UseEffect(() =>
         {
@@ -288,8 +267,6 @@ public class LibraryApp : ViewBase
             selectedNote,
             vaultStatus.Value,
             isLoading,
-            uiProcess,
-            uiUrl,
             isEditing,
             editContent,
             isOperationRunning,
