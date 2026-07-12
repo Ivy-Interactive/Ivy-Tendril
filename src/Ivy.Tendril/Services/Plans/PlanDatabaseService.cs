@@ -971,6 +971,7 @@ public class PlanDatabaseService : IPlanDatabaseService
                 args[0],
                 GetLegacyArg(args, "-Repo") ?? ""),
             Constants.JobTypes.SetupProject => new SetupProjectArgs(args[0]),
+            Constants.JobTypes.UpdateMemories => new UpdateMemoriesArgs("Auto", new List<string>()),
             _ => null
         };
 

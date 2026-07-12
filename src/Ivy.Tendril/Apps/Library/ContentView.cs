@@ -26,7 +26,9 @@ public class ContentView(
     IClientProvider client,
     IState<bool> isDeleteOpen,
     object headerView,
-    string workingDir) : ViewBase
+    string workingDir,
+    IState<bool> isUpdateMemoriesOpen,
+    Action onLoadFiles) : ViewBase
 {
     public override object Build()
     {
@@ -178,6 +180,11 @@ public class ContentView(
             | new Button("Clean Vault").Outline().Icon(Icons.Trash2).OnClick(() => onRunCommand("shake", "shake"))
             | new Button("Run Diagnostics").Outline().Icon(Icons.CircleCheck).OnClick(() => onRunCommand("doctor", "doctor"))
             | new Button("Bootstrap Index").Outline().Icon(Icons.FolderSync).OnClick(() => onRunCommand("index", "index"))
+            | new Button("Agentic Update").Outline().Icon(Icons.Sparkles).OnClick(() =>
+              {
+                  onLoadFiles();
+                  isUpdateMemoriesOpen.Set(true);
+              })
             | (status != null && status.OutdatedMemories > 0
                ? (object)new Button("Sync All Hashes").Primary().Icon(Icons.RefreshCw).OnClick(onSyncAllHashes)
                : new Fragment());

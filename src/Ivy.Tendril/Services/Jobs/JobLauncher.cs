@@ -467,6 +467,12 @@ internal class JobLauncher
             return (values, null, null);
         }
 
+        if (job.TypedArgs is UpdateMemoriesArgs updateMemoriesArgs)
+        {
+            values["FilesToUpdate"] = string.Join(",", updateMemoriesArgs.Files);
+            return (values, null, null);
+        }
+
         return BuildNonCreatePlanFirmware(job, values);
     }
 
@@ -608,6 +614,19 @@ internal class JobLauncher
         var toolsDir = Path.Combine(promptwareFolder, "Tools");
         if (!toolsDir.StartsWith(homePrefix, StringComparison.OrdinalIgnoreCase))
             dirs.Add(toolsDir);
+
+        if (promptwareType == Constants.JobTypes.UpdateMemories)
+        {
+            foreach (var proj in _configService.Settings.Projects)
+            {
+                foreach (var repo in proj.Repos)
+                {
+                    var repoPath = Environment.ExpandEnvironmentVariables(repo.Path);
+                    if (Directory.Exists(repoPath))
+                        dirs.Add(repoPath);
+                }
+            }
+        }
 
         return [.. dirs];
     }

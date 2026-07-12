@@ -10,6 +10,7 @@ using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Apps.Library.Dialogs;
+using Ivy.Tendril.Models;
 
 namespace Ivy.Tendril.Apps.Library;
 
@@ -31,6 +32,7 @@ public class LibraryApp : ViewBase
     {
         var config = UseService<IConfigService>();
         var client = UseService<IClientProvider>();
+        var jobService = UseService<IJobService>();
         var vaultStatus = UseState<VaultStatusInfo?>(null);
         var isLoading = UseState(true);
 
@@ -47,12 +49,77 @@ public class LibraryApp : ViewBase
         // Dialog states
         var isNewNoteOpen = UseState(false);
         var isDeleteOpen = UseState(false);
+        var isUpdateMemoriesOpen = UseState(false);
+        var projectFiles = UseState<List<string>>(new List<string>());
+        var isFilesLoading = UseState(false);
 
         // Find the vault directory
         var workspaceDir = config.Projects.FirstOrDefault()?.RepoPaths.FirstOrDefault();
         var workingDir = string.IsNullOrEmpty(workspaceDir) ? Directory.GetCurrentDirectory() : workspaceDir;
         var vaultPath = PromptwareHelper.ResolveBrainwaresVaultDir(workingDir);
         var memoriesDir = vaultPath != null ? Path.Combine(vaultPath, "memories") : null;
+
+        void LoadProjectFiles()
+        {
+            isFilesLoading.Set(true);
+            _ = Task.Run(async () =>
+            {
+                var list = new List<string>();
+                try
+                {
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = "git",
+                        Arguments = "ls-files",
+                        WorkingDirectory = workingDir,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+                    using var proc = Process.Start(psi);
+                    if (proc != null)
+                    {
+                        var stdout = await proc.StandardOutput.ReadToEndAsync();
+                        await proc.WaitForExitAsync();
+                        if (proc.ExitCode == 0)
+                        {
+                            list = stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                                .Select(line => line.Trim())
+                                .Where(line => !string.IsNullOrEmpty(line))
+                                .OrderBy(line => line)
+                                .ToList();
+                        }
+                    }
+                }
+                catch { }
+
+                if (list.Count == 0 && Directory.Exists(workingDir))
+                {
+                    try
+                    {
+                        list = Directory.GetFiles(workingDir, "*", SearchOption.AllDirectories)
+                            .Select(p => Path.GetRelativePath(workingDir, p).Replace('\\', '/'))
+                            .Where(p => !p.StartsWith('.') && !p.Contains("/.") && !p.Contains("node_modules/") && !p.Contains("bin/") && !p.Contains("obj/") && !p.Contains("target/"))
+                            .OrderBy(p => p)
+                            .ToList();
+                    }
+                    catch { }
+                }
+
+                projectFiles.Set(list);
+                isFilesLoading.Set(false);
+            });
+        }
+
+        void StartMemoryUpdateJob(List<string> selectedFiles)
+        {
+            if (selectedFiles == null || selectedFiles.Count == 0) return;
+            var project = config.Projects.FirstOrDefault()?.Name ?? "Auto";
+            var jobArgs = new UpdateMemoriesArgs(project, selectedFiles);
+            jobService.StartJob(jobArgs);
+            client.Toast($"Started agentic memory update job for {selectedFiles.Count} files.", "Job Started");
+        }
 
         void LoadStatus()
         {
@@ -291,7 +358,9 @@ public class LibraryApp : ViewBase
             client,
             isDeleteOpen,
             header,
-            workingDir
+            workingDir,
+            isUpdateMemoriesOpen,
+            LoadProjectFiles
         );
 
         var sidebarView = new SidebarView(
@@ -317,6 +386,18 @@ public class LibraryApp : ViewBase
         if (isDeleteOpen.Value && memoriesDir != null)
         {
             elements.Add(new DeleteMemoryNoteDialog(isDeleteOpen, selectedNote, memoriesDir, LoadStatus, client));
+        }
+
+        if (isUpdateMemoriesOpen.Value)
+        {
+            elements.Add(new UpdateMemoriesDialog(
+                isUpdateMemoriesOpen,
+                projectFiles,
+                isFilesLoading,
+                LoadProjectFiles,
+                StartMemoryUpdateJob,
+                client
+            ));
         }
 
         return new Fragment(elements.ToArray());

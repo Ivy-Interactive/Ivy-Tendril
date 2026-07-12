@@ -149,6 +149,14 @@ public class JobStartCommand : Command<JobStartSettings>
                 settings.SourcePath);
         }
 
+        if (string.Equals(jobType, Constants.JobTypes.UpdateMemories, StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrEmpty(settings.Project))
+                throw new ArgumentException("--project is required for UpdateMemories");
+            var files = (settings.Instructions ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).Select(f => f.Trim()).ToList();
+            return new UpdateMemoriesArgs(settings.Project, files);
+        }
+
         if (string.Equals(jobType, Constants.JobTypes.SyncRepo, StringComparison.OrdinalIgnoreCase))
         {
             if (string.IsNullOrEmpty(settings.RepoPath))
