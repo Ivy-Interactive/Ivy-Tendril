@@ -74,8 +74,28 @@ public static class PromptwareHelper
         }
 
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
-        var excludedTemplatePath = Path.Combine(tendrilHome, "Promptwares");
 
+        // 1. Try to find the project name in config.yaml mapping
+        var projectName = FindProjectNameForPath(dir, tendrilHome);
+        if (string.IsNullOrEmpty(projectName))
+        {
+            // 2. Fall back to git repo directory name
+            var gitRepoRoot = FindGitRepositoryRoot(dir);
+            if (gitRepoRoot != null)
+            {
+                projectName = Path.GetFileName(gitRepoRoot);
+            }
+        }
+
+        if (!string.IsNullOrEmpty(projectName))
+        {
+            var vaultPath = Path.Combine(tendrilHome, "Promptwares", "Brainwares", projectName);
+            if (Directory.Exists(vaultPath))
+                return vaultPath;
+        }
+
+        // 3. Fallback: walk up looking for a local Promptwares vault folder (excluding templates)
+        var excludedTemplatePath = Path.Combine(tendrilHome, "Promptwares");
         while (dir != null)
         {
             var vaultPath = Path.Combine(dir, "Promptwares");
@@ -84,6 +104,7 @@ public static class PromptwareHelper
 
             dir = Path.GetDirectoryName(dir);
         }
+
         return null;
     }
 
@@ -174,7 +195,17 @@ public static class PromptwareHelper
     {
         try
         {
-            var vaultPath = Path.Combine(workspaceDir, "Promptwares");
+            var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
+            var projectName = FindProjectNameForPath(workspaceDir, tendrilHome);
+            if (string.IsNullOrEmpty(projectName))
+            {
+                var gitRepoRoot = FindGitRepositoryRoot(workspaceDir);
+                projectName = gitRepoRoot != null ? Path.GetFileName(gitRepoRoot) : Path.GetFileName(workspaceDir);
+            }
+
+            if (string.IsNullOrEmpty(projectName)) return;
+
+            var vaultPath = Path.Combine(tendrilHome, "Promptwares", "Brainwares", projectName);
             if (!Directory.Exists(vaultPath))
             {
                 Directory.CreateDirectory(vaultPath);
@@ -182,7 +213,7 @@ public static class PromptwareHelper
                 var psi = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = bwPath,
-                    Arguments = "init",
+                    Arguments = $"--vault \"{vaultPath}\" init",
                     WorkingDirectory = workspaceDir,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -194,5 +225,60 @@ public static class PromptwareHelper
             }
         }
         catch { /* best effort */ }
+    }
+
+    public static string? FindProjectNameForPath(string path, string tendrilHome)
+    {
+        try
+        {
+            var configPath = Path.Combine(tendrilHome, "config.yaml");
+            if (!File.Exists(configPath)) return null;
+
+            var lines = File.ReadAllLines(configPath);
+            string? currentProjectName = null;
+            var targetPath = Path.GetFullPath(path).Replace('\\', '/').TrimEnd('/');
+
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                if (trimmed.StartsWith("- name:") || trimmed.StartsWith("name:"))
+                {
+                    var idx = trimmed.IndexOf(':');
+                    currentProjectName = trimmed.Substring(idx + 1).Trim();
+                }
+                else if (trimmed.StartsWith("path:") && currentProjectName != null)
+                {
+                    var idx = trimmed.IndexOf(':');
+                    var repoPath = trimmed.Substring(idx + 1).Trim();
+                    try
+                    {
+                        var fullRepoPath = Path.GetFullPath(repoPath).Replace('\\', '/').TrimEnd('/');
+                        if (targetPath.StartsWith(fullRepoPath, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return currentProjectName;
+                        }
+                    }
+                    catch { }
+                }
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    public static string? FindGitRepositoryRoot(string startDir)
+    {
+        try
+        {
+            var dir = startDir;
+            while (dir != null)
+            {
+                if (Directory.Exists(Path.Combine(dir, ".git")))
+                    return dir;
+                dir = Path.GetDirectoryName(dir);
+            }
+        }
+        catch { }
+        return null;
     }
 }

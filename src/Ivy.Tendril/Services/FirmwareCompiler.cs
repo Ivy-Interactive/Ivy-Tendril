@@ -98,10 +98,11 @@ public static class FirmwareCompiler
             try
             {
                 var bwPath = PromptwareHelper.GetBwPath();
+                var arguments = vaultPath != null ? $"--vault \"{vaultPath}\" compile {programName}" : $"compile {programName}";
                 var psi = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = bwPath,
-                    Arguments = $"compile {programName}",
+                    Arguments = arguments,
                     WorkingDirectory = Directory.GetCurrentDirectory(),
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,

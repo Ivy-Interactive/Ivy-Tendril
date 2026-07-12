@@ -67,7 +67,7 @@ public class PromptwareWriteMemoryCommand : Command<PromptwareWriteMemorySetting
             try
             {
                 var bwPath = PromptwareHelper.GetBwPath();
-                var arguments = vaultPath != null ? $"add {noteName}" : $"add {noteName} --global";
+                var arguments = vaultPath != null ? $"--vault \"{vaultPath}\" add {noteName}" : $"add {noteName} --global";
                 var psi = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = bwPath,

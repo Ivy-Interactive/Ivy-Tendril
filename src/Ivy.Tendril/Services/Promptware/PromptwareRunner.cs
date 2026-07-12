@@ -78,7 +78,7 @@ public class PromptwareRunner : IPromptwareRunner
         var programMd = Path.Combine(programFolder, "Program.md");
 
         var workspaceDir = _configService.Projects.FirstOrDefault()?.RepoPaths.FirstOrDefault();
-        var workingDir = string.IsNullOrEmpty(workspaceDir) ? Directory.GetCurrentDirectory() : Path.GetDirectoryName(workspaceDir) ?? Directory.GetCurrentDirectory();
+        var workingDir = string.IsNullOrEmpty(workspaceDir) ? Directory.GetCurrentDirectory() : workspaceDir;
         var vaultPath = PromptwareHelper.ResolveBrainwaresVaultDir(workingDir);
 
         if (vaultPath == null && !File.Exists(programMd))

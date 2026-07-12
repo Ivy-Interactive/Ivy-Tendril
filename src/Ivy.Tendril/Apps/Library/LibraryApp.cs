@@ -59,7 +59,7 @@ public class LibraryApp : ViewBase
             isLoading.Set(true);
             _ = Task.Run(async () =>
             {
-                var status = await RunBwStatusAsync(workingDir);
+                var status = await RunBwStatusAsync(workingDir, vaultPath);
                 vaultStatus.Set(status);
                 isLoading.Set(false);
             });
@@ -68,7 +68,8 @@ public class LibraryApp : ViewBase
         void RunCommand(string name, string args)
         {
             isOperationRunning.Set(true);
-            operationLogs.Set($"Running command: bw {name} {args}...\n");
+            var vaultArg = vaultPath != null ? $"--vault \"{vaultPath}\" " : "";
+            operationLogs.Set($"Running command: bw {vaultArg}{args}...\n");
             _ = Task.Run(async () =>
             {
                 try
@@ -77,7 +78,7 @@ public class LibraryApp : ViewBase
                     var psi = new ProcessStartInfo
                     {
                         FileName = bwPath,
-                        Arguments = args,
+                        Arguments = $"{vaultArg}{args}",
                         WorkingDirectory = workingDir,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
@@ -312,15 +313,16 @@ public class LibraryApp : ViewBase
         return new Fragment(elements.ToArray());
     }
 
-    private static async Task<VaultStatusInfo?> RunBwStatusAsync(string workingDirectory)
+    private static async Task<VaultStatusInfo?> RunBwStatusAsync(string workingDirectory, string? vaultPath)
     {
         try
         {
             var bwPath = PromptwareHelper.GetBwPath();
+            var args = vaultPath != null ? $"--vault \"{vaultPath}\" status" : "status";
             var psi = new ProcessStartInfo
             {
                 FileName = bwPath,
-                Arguments = "status",
+                Arguments = args,
                 WorkingDirectory = workingDirectory,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -347,7 +349,7 @@ public class LibraryApp : ViewBase
                 return new VaultStatusInfo("", 0, 0, 0, 0, 0, outdatedNoteNames, $"Error: {stderr}\n{stdout}");
             }
 
-            var vaultPath = "";
+            var statusVaultPath = "";
             var totalMemories = 0;
             var outdated = 0;
             var broken = 0;
@@ -370,7 +372,7 @@ public class LibraryApp : ViewBase
                 }
                 else if (line.StartsWith("Vault path:"))
                 {
-                    vaultPath = line.Substring("Vault path:".Length).Trim(' ', '"');
+                    statusVaultPath = line.Substring("Vault path:".Length).Trim(' ', '"');
                 }
                 else if (line.StartsWith("Total memories:"))
                 {
@@ -394,7 +396,7 @@ public class LibraryApp : ViewBase
                 }
             }
 
-            return new VaultStatusInfo(vaultPath, totalMemories, outdated, broken, orphan, incomplete, outdatedNoteNames, stdout);
+            return new VaultStatusInfo(statusVaultPath, totalMemories, outdated, broken, orphan, incomplete, outdatedNoteNames, stdout);
         }
         catch (Exception ex)
         {

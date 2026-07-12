@@ -36,10 +36,11 @@ public class PromptwareReadMemoryCommand : Command<PromptwareReadMemorySettings>
             try
             {
                 var bwPath = PromptwareHelper.GetBwPath();
+                var arguments = vaultPath != null ? $"--vault \"{vaultPath}\" read {noteName}" : $"read {noteName}";
                 var psi = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = bwPath,
-                    Arguments = $"read {noteName}",
+                    Arguments = arguments,
                     WorkingDirectory = Directory.GetCurrentDirectory(),
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
