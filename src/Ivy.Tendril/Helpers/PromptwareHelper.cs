@@ -52,4 +52,49 @@ public static class PromptwareHelper
 
         return sourceRoot;
     }
+
+    public static string? ResolveBrainwaresVaultDir(string? startDirectory = null)
+    {
+        // Prevent unit/integration tests from detecting the real vault
+        if (AppDomain.CurrentDomain.GetAssemblies().Any(a => 
+            a.FullName!.Contains("Test", StringComparison.OrdinalIgnoreCase) || 
+            a.FullName!.Contains("xunit", StringComparison.OrdinalIgnoreCase)))
+        {
+            return null;
+        }
+
+        var dir = startDirectory ?? Directory.GetCurrentDirectory();
+        try
+        {
+            dir = Path.GetFullPath(dir);
+        }
+        catch
+        {
+            return null;
+        }
+
+        while (dir != null)
+        {
+            var vaultPath = Path.Combine(dir, ".brainwares");
+            if (Directory.Exists(vaultPath))
+                return vaultPath;
+
+            dir = Path.GetDirectoryName(dir);
+        }
+        return null;
+    }
+
+    public static string ResolveMemoryDirectory(string promptwareName, string? tendrilHome, string? planFolder = null)
+    {
+        var vaultPath = ResolveBrainwaresVaultDir(planFolder);
+        if (vaultPath != null)
+        {
+            var memoriesDir = Path.Combine(vaultPath, "memories");
+            if (Directory.Exists(memoriesDir))
+                return memoriesDir;
+        }
+
+        var promptwareFolder = ResolvePromptwareFolder(promptwareName, tendrilHome);
+        return Path.Combine(promptwareFolder, "Memory");
+    }
 }

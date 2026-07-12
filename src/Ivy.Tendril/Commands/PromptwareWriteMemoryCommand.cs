@@ -42,9 +42,7 @@ public class PromptwareWriteMemoryCommand : Command<PromptwareWriteMemorySetting
     protected override int Execute(CommandContext context, PromptwareWriteMemorySettings settings, CancellationToken cancellationToken)
     {
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
-        var programFolder = PromptwareHelper.ResolvePromptwareFolder(settings.Name, tendrilHome);
-
-        var memoryDir = Path.Combine(programFolder, "Memory");
+        var memoryDir = PromptwareHelper.ResolveMemoryDirectory(settings.Name, tendrilHome);
         Directory.CreateDirectory(memoryDir);
 
         var filename = Path.GetFileName(settings.Filename);

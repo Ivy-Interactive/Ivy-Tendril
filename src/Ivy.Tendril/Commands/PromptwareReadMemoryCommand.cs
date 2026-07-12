@@ -28,9 +28,7 @@ public class PromptwareReadMemoryCommand : Command<PromptwareReadMemorySettings>
     protected override int Execute(CommandContext context, PromptwareReadMemorySettings settings, CancellationToken cancellationToken)
     {
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
-        var programFolder = PromptwareHelper.ResolvePromptwareFolder(settings.Name, tendrilHome);
-
-        var memoryDir = Path.Combine(programFolder, "Memory");
+        var memoryDir = PromptwareHelper.ResolveMemoryDirectory(settings.Name, tendrilHome);
         var filename = Path.GetFileName(settings.Filename);
         var filePath = Path.Combine(memoryDir, filename);
 

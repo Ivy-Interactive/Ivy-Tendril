@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text;
+using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Services;
 
@@ -82,9 +83,11 @@ public static class FirmwareCompiler
             .Select(kv => $"{kv.Key}: {NormalizeHeaderValue(kv.Key, kv.Value)}"));
 
         var toolsListing = ListDirectoryFiles(Path.Combine(context.ProgramFolder, "Tools"), "(no tools yet)");
-        var memoryListing = ListDirectoryFiles(Path.Combine(context.ProgramFolder, "Memory"), "(no memory yet)");
-
+        
         var promptwareName = Path.GetFileName(context.ProgramFolder);
+        var tendrilHome = headerValues.TryGetValue("TendrilHome", out var home) ? home : null;
+        var memoryDir = PromptwareHelper.ResolveMemoryDirectory(promptwareName, tendrilHome);
+        var memoryListing = ListDirectoryFiles(memoryDir, "(no memory yet)");
 
         var firmware = FirmwareTemplate
             .Replace("{HEADER}", header)

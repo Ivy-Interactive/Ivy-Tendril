@@ -125,9 +125,63 @@
   </Target>
 
   <Target Name="PackPromptwaresZip" BeforeTargets="PrepareForBuild" Condition="'$(Configuration)' == 'Release'">
-    <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildThisFileDirectory)pack-promptwares.ps1&quot; -IntermediateOutputPath &quot;$(IntermediateOutputPath).&quot;" />
+    <PackPromptwares SourcePath="$(MSBuildThisFileDirectory)Promptwares" IntermediatePath="$(IntermediateOutputPath)" />
     <ItemGroup>
       <EmbeddedResource Include="$(IntermediateOutputPath)promptwares.zip" LogicalName="Ivy.Tendril.promptwares.zip" />
     </ItemGroup>
   </Target>
+
+  <UsingTask TaskName="PackPromptwares" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <SourcePath ParameterType="System.String" Required="true" />
+      <IntermediatePath ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System" />
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.IO.Compression" />
+      <Code Type="Fragment" Language="cs">
+        <![CDATA[
+        var staging = Path.Combine(IntermediatePath, "promptwares-staging");
+        var zip = Path.Combine(IntermediatePath, "promptwares.zip");
+
+        if (Directory.Exists(staging)) Directory.Delete(staging, true);
+        if (File.Exists(zip)) File.Delete(zip);
+
+        Directory.CreateDirectory(staging);
+        
+        Action<string, string> copyDir = null;
+        copyDir = (src, dest) =>
+        {
+            Directory.CreateDirectory(dest);
+            foreach (var file in Directory.GetFiles(src))
+            {
+                var destFile = Path.Combine(dest, Path.GetFileName(file));
+                File.Copy(file, destFile, true);
+            }
+            foreach (var subDir in Directory.GetDirectories(src))
+            {
+                var destSubDir = Path.Combine(dest, Path.GetFileName(subDir));
+                copyDir(subDir, destSubDir);
+            }
+        };
+
+        copyDir(SourcePath, staging);
+
+        foreach (var dir in Directory.GetDirectories(staging, "Memory", SearchOption.AllDirectories))
+        {
+            Directory.Delete(dir, true);
+        }
+
+        foreach (var dir in Directory.GetDirectories(staging, "Tools", SearchOption.AllDirectories))
+        {
+            Directory.Delete(dir, true);
+        }
+
+        ZipFile.CreateFromDirectory(staging, zip);
+        Directory.Delete(staging, true);
+        ]]>
+      </Code>
+    </Task>
+  </UsingTask>
 </Project>
