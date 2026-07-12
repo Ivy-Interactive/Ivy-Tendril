@@ -220,9 +220,9 @@ tendril project set <project-name> stackHash <hash>
 
 ### 5. Document the Tech Stack in the Memory Vault
 
-If a `Promptwares` vault directory exists in the workspace:
-1. Check if a memory note named `project-stack` or `tech-stack` exists. If not, run `bw add project-stack --title "Project Tech Stack" --tags "stack, framework, setup"` to create it.
-2. Write a comprehensive description of the detected tech stack to the corresponding memory file (typically `Promptwares/memories/project-stack.md`). The note should contain:
+If the `Promptwares` memory vault is available (run `bw status` to check):
+1. Check if a memory note named `project-stack` exists (the vault resolves this to `memories/<project_name>/project-stack.md` automatically). If not, run `bw add project-stack --title "Project Tech Stack" --tags "stack, framework, setup"` to create it.
+2. Write a comprehensive description of the detected tech stack to the created memory note (typically `memories/<project_name>/project-stack.md` inside the vault directory). The note should contain:
    - A summary of the primary language(s) and framework(s) for the frontend, backend, or library.
    - Database engine(s) used.
    - Tools used for building, formatting/linting, and testing.
