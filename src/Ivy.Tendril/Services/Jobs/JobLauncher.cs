@@ -697,6 +697,10 @@ internal class JobLauncher
         if (!string.IsNullOrEmpty(tendrilHome))
             psi.Environment["TENDRIL_HOME"] = tendrilHome;
         psi.Environment["TENDRIL_PLANS"] = _configService.PlanFolder;
+        
+        if (!string.IsNullOrEmpty(job.Project))
+            psi.Environment["BW_PROJECT"] = job.Project;
+
         // Deliberately no TENDRIL_JOB_ID: process env does not reach the agent's nested `tendril` calls
         // (see AGENTS.md). The job id travels as the TendrilJobId firmware header and is passed as an argument.
 
