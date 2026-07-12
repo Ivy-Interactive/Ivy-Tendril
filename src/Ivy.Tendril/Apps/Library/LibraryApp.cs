@@ -254,9 +254,18 @@ public class LibraryApp : ViewBase
         {
             try
             {
-                files = Directory.GetFiles(memoriesDir, "*.md")
-                    .Select(Path.GetFileNameWithoutExtension)
-                    .Where(f => f != null && !f.StartsWith('.'))
+                var allMdFiles = Directory.GetFiles(memoriesDir, "*.md", SearchOption.AllDirectories);
+                files = allMdFiles
+                    .Select(p => {
+                        var rel = Path.GetRelativePath(memoriesDir, p);
+                        rel = rel.Replace('\\', '/');
+                        if (rel.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+                        {
+                            rel = rel.Substring(0, rel.Length - 3);
+                        }
+                        return rel;
+                    })
+                    .Where(f => f != null && !f.StartsWith('.') && !f.Contains("/."))
                     .OrderBy(f => f)
                     .ToList()!;
             }
