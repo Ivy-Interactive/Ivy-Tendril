@@ -22,9 +22,14 @@ public class SidebarView(
         }
 
         var sidebarHeader = Layout.Vertical()
-            | Layout.Horizontal().AlignContent(Align.Center)
-                | searchQuery.ToSearchInput().Placeholder("Search memories...").Width(Size.Full())
-                | new Button().Icon(Icons.Plus).Primary().OnClick(() => isNewNoteOpen.Set(true));
+            | searchQuery.ToSearchInput()
+                .Placeholder("Search memories...")
+                .Suffix(
+                    new Button()
+                        .Icon(Icons.Plus)
+                        .Ghost()
+                        .OnClick(() => isNewNoteOpen.Set(true))
+                );
 
         object sidebarContent;
         if (filteredList.Count == 0)
