@@ -73,73 +73,195 @@ public static class FirmwareCompiler
 
     public static string Compile(FirmwareContext context)
     {
-        var headerValues = new Dictionary<string, string>(context.Values);
+        // Check if we are running in a unit/integration test environment
+        var isTest = Environment.CommandLine.Contains("testhost", StringComparison.OrdinalIgnoreCase) ||
+                     Environment.CommandLine.Contains("vstest", StringComparison.OrdinalIgnoreCase) ||
+                     Environment.CommandLine.Contains("xunit", StringComparison.OrdinalIgnoreCase);
 
-        if (!headerValues.ContainsKey("CurrentTime"))
-            headerValues["CurrentTime"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
-
-        var header = string.Join("\n", headerValues
-            .OrderBy(kv => kv.Key)
-            .Select(kv => $"{kv.Key}: {NormalizeHeaderValue(kv.Key, kv.Value)}"));
-
-        var toolsListing = ListDirectoryFiles(Path.Combine(context.ProgramFolder, "Tools"), "(no tools yet)");
-        
-        var promptwareName = Path.GetFileName(context.ProgramFolder);
-        var tendrilHome = headerValues.TryGetValue("TendrilHome", out var home) ? home : null;
-        var memoryDir = PromptwareHelper.ResolveMemoryDirectory(promptwareName, tendrilHome);
-        var memoryListing = ListDirectoryFiles(memoryDir, "(no memory yet)");
-
-        var firmware = FirmwareTemplate
-            .Replace("{HEADER}", header)
-            .Replace("{PROGRAMFOLDER}", context.ProgramFolder)
-            .Replace("{PROMPTWARE_NAME}", promptwareName)
-            .Replace("{TOOLS}", toolsListing)
-            .Replace("{MEMORY}", memoryListing);
-
-        if (headerValues.TryGetValue("TendrilJobId", out var tendrilJobId) && !string.IsNullOrEmpty(tendrilJobId))
+        string? vaultPath = null;
+        if (!isTest)
         {
-            firmware += $"\n\n**Status Reporting:** Use `tendril job status {tendrilJobId} --message \"your status\"` to report progress. " +
-                        "You can also pass `--plan-id` and `--plan-title` to associate the job with a plan.\n";
-            firmware += $"\n**Failure Reporting:** On any unrecoverable failure, call `tendril job fail {tendrilJobId} --message \"<what failed and why>\"` before you `exit 1`, " +
-                        "so the failure reason is reported cleanly instead of being guessed from your output.\n";
+            var workspaceDir = context.Values.TryGetValue("TendrilProject", out var proj) ? proj : null;
+            if (string.IsNullOrEmpty(workspaceDir))
+            {
+                var projectDir = context.Values.TryGetValue("TendrilPlansFolder", out var plans) ? plans : null;
+                workspaceDir = string.IsNullOrEmpty(projectDir) ? Directory.GetCurrentDirectory() : Path.GetDirectoryName(projectDir);
+            }
+            vaultPath = PromptwareHelper.ResolveBrainwaresVaultDir(workspaceDir);
         }
 
-        // Include Program.md inline
-        var programFile = Path.Combine(context.ProgramFolder, "Program.md");
-        if (File.Exists(programFile))
+        if (vaultPath != null)
         {
-            firmware += "\n\n## Program\n\n";
-            firmware += File.ReadAllText(programFile) + "\n";
+            var programName = Path.GetFileName(context.ProgramFolder).ToLowerInvariant();
+            var basePrompt = "";
+            
+            try
+            {
+                var bwPath = PromptwareHelper.GetBwPath();
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = bwPath,
+                    Arguments = $"compile {programName}",
+                    WorkingDirectory = Directory.GetCurrentDirectory(),
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using var proc = System.Diagnostics.Process.Start(psi);
+                if (proc != null)
+                {
+                    var stdout = proc.StandardOutput.ReadToEnd();
+                    proc.WaitForExit();
+                    if (proc.ExitCode == 0)
+                    {
+                        basePrompt = stdout;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                basePrompt = $"Error compiling program via brainwares CLI: {ex.Message}";
+            }
+
+            if (!string.IsNullOrEmpty(basePrompt))
+            {
+                var firmware = basePrompt;
+                var headerValues = new Dictionary<string, string>(context.Values);
+
+                if (!headerValues.ContainsKey("CurrentTime"))
+                    headerValues["CurrentTime"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
+
+                var header = string.Join("\n", headerValues
+                    .OrderBy(kv => kv.Key)
+                    .Select(kv => $"{kv.Key}: {NormalizeHeaderValue(kv.Key, kv.Value)}"));
+
+                firmware = $"## System Headers\n{header}\n\n" + firmware;
+
+                if (headerValues.TryGetValue("TendrilJobId", out var tendrilJobId) && !string.IsNullOrEmpty(tendrilJobId))
+                {
+                    firmware += $"\n\n**Status Reporting:** Use `tendril job status {tendrilJobId} --message \"your status\"` to report progress. " +
+                                "You can also pass `--plan-id` and `--plan-title` to associate the job with a plan.\n";
+                    firmware += $"\n**Failure Reporting:** On any unrecoverable failure, call `tendril job fail {tendrilJobId} --message \"<what failed and why>\"` before you `exit 1`, " +
+                                "so the failure reason is reported cleanly instead of being guessed from your output.\n";
+                }
+
+                if (context.Projects is { Length: > 0 })
+                {
+                    firmware += "\n\n## Projects\n\n";
+                    firmware += RenderProjects(context.Projects);
+                }
+
+                var plansContent = PlansReference.Value;
+                if (plansContent != null)
+                {
+                    firmware += "\n\n## Reference Documents\n";
+                    firmware += $"\n### Plans\n\n{plansContent}\n";
+                }
+
+                if (!string.IsNullOrWhiteSpace(context.PlanTemplate))
+                {
+                    firmware += "\n\n## Plan Template\n\n";
+                    firmware += "Use this template structure when writing plan revisions:\n\n";
+                    firmware += "```markdown\n" + context.PlanTemplate + "\n```\n";
+                }
+
+                if (!string.IsNullOrWhiteSpace(context.CustomInstructions))
+                {
+                    firmware += "\n\n## Custom Instructions\n\n";
+                    firmware += "IMPORTANT: The following instructions are provided by the user and take precedence over other instructions. Follow them even if they conflict.\n\n";
+                    firmware += context.CustomInstructions + "\n";
+                }
+
+                return firmware;
+            }
         }
 
-        if (context.Projects is { Length: > 0 })
+        // C# Fallback logic
         {
-            firmware += "\n\n## Projects\n\n";
-            firmware += RenderProjects(context.Projects);
-        }
+            var headerValues = new Dictionary<string, string>(context.Values);
 
-        var plansContent = PlansReference.Value;
-        if (plansContent != null)
-        {
-            firmware += "\n\n## Reference Documents\n";
-            firmware += $"\n### Plans\n\n{plansContent}\n";
-        }
+            if (!headerValues.ContainsKey("CurrentTime"))
+                headerValues["CurrentTime"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
 
-        if (!string.IsNullOrWhiteSpace(context.PlanTemplate))
-        {
-            firmware += "\n\n## Plan Template\n\n";
-            firmware += "Use this template structure when writing plan revisions:\n\n";
-            firmware += "```markdown\n" + context.PlanTemplate + "\n```\n";
-        }
+            var header = string.Join("\n", headerValues
+                .OrderBy(kv => kv.Key)
+                .Select(kv => $"{kv.Key}: {NormalizeHeaderValue(kv.Key, kv.Value)}"));
 
-        if (!string.IsNullOrWhiteSpace(context.CustomInstructions))
-        {
-            firmware += "\n\n## Custom Instructions\n\n";
-            firmware += "IMPORTANT: The following instructions are provided by the user and take precedence over the Firmware template and Program.md instructions. Follow them even if they conflict with other instructions.\n\n";
-            firmware += context.CustomInstructions + "\n";
-        }
+            var toolsListing = ListDirectoryFiles(Path.Combine(context.ProgramFolder, "Tools"), "(no tools yet)");
+            
+            var promptwareName = Path.GetFileName(context.ProgramFolder);
+            var tendrilHome = headerValues.TryGetValue("TendrilHome", out var home) ? home : null;
+            var memoryDir = PromptwareHelper.ResolveMemoryDirectory(promptwareName, tendrilHome);
+            var memoryListing = ListDirectoryFiles(memoryDir, "(no memory yet)");
 
-        return firmware;
+            var firmware = FirmwareTemplate
+                .Replace("{HEADER}", header)
+                .Replace("{PROGRAMFOLDER}", context.ProgramFolder)
+                .Replace("{PROMPTWARE_NAME}", promptwareName)
+                .Replace("{TOOLS}", toolsListing)
+                .Replace("{MEMORY}", memoryListing);
+
+            if (headerValues.TryGetValue("TendrilJobId", out var tendrilJobId) && !string.IsNullOrEmpty(tendrilJobId))
+            {
+                firmware += $"\n\n**Status Reporting:** Use `tendril job status {tendrilJobId} --message \"your status\"` to report progress. " +
+                            "You can also pass `--plan-id` and `--plan-title` to associate the job with a plan.\n";
+                firmware += $"\n**Failure Reporting:** On any unrecoverable failure, call `tendril job fail {tendrilJobId} --message \"<what failed and why>\"` before you `exit 1`, " +
+                            "so the failure reason is reported cleanly instead of being guessed from your output.\n";
+            }
+
+            var programFile = Path.Combine(context.ProgramFolder, "Program.md");
+            if (File.Exists(programFile))
+            {
+                firmware += "\n\n## Program\n\n";
+                firmware += File.ReadAllText(programFile) + "\n";
+            }
+
+            if (context.Projects is { Length: > 0 })
+            {
+                firmware += "\n\n## Projects\n\n";
+                firmware += RenderProjects(context.Projects);
+            }
+
+            var plansContent = PlansReference.Value;
+            if (plansContent != null)
+            {
+                firmware += "\n\n## Reference Documents\n";
+                firmware += $"\n### Plans\n\n{plansContent}\n";
+            }
+
+            if (!string.IsNullOrWhiteSpace(context.PlanTemplate))
+            {
+                firmware += "\n\n## Plan Template\n\n";
+                firmware += "Use this template structure when writing plan revisions:\n\n";
+                firmware += "```markdown\n" + context.PlanTemplate + "\n```\n";
+            }
+
+            if (!string.IsNullOrWhiteSpace(context.CustomInstructions))
+            {
+                firmware += "\n\n## Custom Instructions\n\n";
+                firmware += "IMPORTANT: The following instructions are provided by the user and take precedence over the Firmware template and Program.md instructions. Follow them even if they conflict with other instructions.\n\n";
+                firmware += context.CustomInstructions + "\n";
+            }
+
+            return firmware;
+        }
+    }
+
+
+    private static string ListDirectoryFiles(string directory, string emptyLabel = "(none)")
+    {
+        if (!Directory.Exists(directory))
+            return emptyLabel;
+
+        var files = Directory.GetFiles(directory)
+            .Select(Path.GetFileName)
+            .Where(f => f != null && !f.StartsWith('.'))
+            .OrderBy(f => f)
+            .ToList();
+
+        return files.Count == 0 ? emptyLabel : string.Join(", ", files);
     }
 
     private static string RenderProjects(ProjectInfo[] projects)
@@ -189,20 +311,6 @@ public static class FirmwareCompiler
 
     private static string NormalizeHeaderValue(string key, string value) =>
         PathKeys.Contains(key) ? value.Replace('\\', '/') : value;
-
-    private static string ListDirectoryFiles(string directory, string emptyLabel = "(none)")
-    {
-        if (!Directory.Exists(directory))
-            return emptyLabel;
-
-        var files = Directory.GetFiles(directory)
-            .Select(Path.GetFileName)
-            .Where(f => f != null && !f.StartsWith('.'))
-            .OrderBy(f => f)
-            .ToList();
-
-        return files.Count == 0 ? emptyLabel : string.Join(", ", files);
-    }
 }
 
 public record FirmwareContext(

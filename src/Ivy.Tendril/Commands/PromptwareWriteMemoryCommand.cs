@@ -52,6 +52,36 @@ public class PromptwareWriteMemoryCommand : Command<PromptwareWriteMemorySetting
         if (string.IsNullOrWhiteSpace(content))
             throw new ArgumentException("No content provided (use --file or --stdin)");
 
+        var workspaceDir = Directory.GetCurrentDirectory();
+        var vaultPath = PromptwareHelper.ResolveBrainwaresVaultDir(workspaceDir);
+
+        if (vaultPath != null)
+        {
+            var noteName = Path.GetFileNameWithoutExtension(settings.Filename);
+            var noteFile = Path.Combine(memoryDir, noteName + ".md");
+
+            if (!File.Exists(noteFile))
+            {
+                try
+                {
+                    var bwPath = PromptwareHelper.GetBwPath();
+                    var psi = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = bwPath,
+                        Arguments = $"add {noteName}",
+                        WorkingDirectory = Directory.GetCurrentDirectory(),
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+                    using var proc = System.Diagnostics.Process.Start(psi);
+                    proc?.WaitForExit();
+                }
+                catch { /* fallback if CLI execution fails */ }
+            }
+        }
+
         File.WriteAllText(filePath, content);
         Console.Write(filePath);
         return 0;

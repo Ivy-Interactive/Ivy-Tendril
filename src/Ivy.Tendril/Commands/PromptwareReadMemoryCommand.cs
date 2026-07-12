@@ -27,6 +27,50 @@ public class PromptwareReadMemoryCommand : Command<PromptwareReadMemorySettings>
 {
     protected override int Execute(CommandContext context, PromptwareReadMemorySettings settings, CancellationToken cancellationToken)
     {
+        var workspaceDir = Directory.GetCurrentDirectory();
+        var vaultPath = PromptwareHelper.ResolveBrainwaresVaultDir(workspaceDir);
+
+        if (vaultPath != null)
+        {
+            var noteName = Path.GetFileNameWithoutExtension(settings.Filename);
+            try
+            {
+                var bwPath = PromptwareHelper.GetBwPath();
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = bwPath,
+                    Arguments = $"read {noteName}",
+                    WorkingDirectory = Directory.GetCurrentDirectory(),
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using var proc = System.Diagnostics.Process.Start(psi);
+                if (proc != null)
+                {
+                    var stdout = proc.StandardOutput.ReadToEnd();
+                    var stderr = proc.StandardError.ReadToEnd();
+                    proc.WaitForExit();
+                    if (proc.ExitCode == 0)
+                    {
+                        Console.Write(stdout);
+                        return 0;
+                    }
+                    else if (stderr.Contains("not found", StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new FileNotFoundException($"Memory note '{noteName}' not found in vault.", noteName);
+                    }
+                }
+            }
+            catch (FileNotFoundException)
+            {
+                throw;
+            }
+            catch { /* fallback to file-based read if CLI fails */ }
+        }
+
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         var memoryDir = PromptwareHelper.ResolveMemoryDirectory(settings.Name, tendrilHome);
         var filename = Path.GetFileName(settings.Filename);

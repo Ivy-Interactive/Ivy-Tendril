@@ -77,7 +77,11 @@ public class PromptwareRunner : IPromptwareRunner
         var programFolder = PromptwareHelper.ResolvePromptwareFolder(options.Promptware, _configService.TendrilHome, options.PromptwarePath);
         var programMd = Path.Combine(programFolder, "Program.md");
 
-        if (!File.Exists(programMd))
+        var workspaceDir = _configService.Projects.FirstOrDefault()?.RepoPaths.FirstOrDefault();
+        var workingDir = string.IsNullOrEmpty(workspaceDir) ? Directory.GetCurrentDirectory() : Path.GetDirectoryName(workspaceDir) ?? Directory.GetCurrentDirectory();
+        var vaultPath = PromptwareHelper.ResolveBrainwaresVaultDir(workingDir);
+
+        if (vaultPath == null && !File.Exists(programMd))
             throw new FileNotFoundException($"Program.md not found at {programMd}", programMd);
 
         var values = new Dictionary<string, string>(options.Values);
@@ -192,6 +196,18 @@ public class PromptwareRunner : IPromptwareRunner
         var toolsDir = Path.Combine(promptwareFolder, "Tools");
         if (!toolsDir.StartsWith(homePrefix, StringComparison.OrdinalIgnoreCase))
             dirs.Add(toolsDir);
+
+        var workspaceDir = _configService.Projects.FirstOrDefault()?.RepoPaths.FirstOrDefault();
+        var workingDir = string.IsNullOrEmpty(workspaceDir) ? Directory.GetCurrentDirectory() : Path.GetDirectoryName(workspaceDir) ?? Directory.GetCurrentDirectory();
+        var vaultPath = PromptwareHelper.ResolveBrainwaresVaultDir(workingDir);
+        if (vaultPath != null)
+        {
+            var memoriesDir = Path.Combine(vaultPath, "memories");
+            if (!memoriesDir.StartsWith(homePrefix, StringComparison.OrdinalIgnoreCase))
+                dirs.Add(memoriesDir);
+            if (!vaultPath.StartsWith(homePrefix, StringComparison.OrdinalIgnoreCase))
+                dirs.Add(vaultPath);
+        }
 
         return [.. dirs];
     }

@@ -56,9 +56,9 @@ public static class PromptwareHelper
     public static string? ResolveBrainwaresVaultDir(string? startDirectory = null)
     {
         // Prevent unit/integration tests from detecting the real vault
-        if (AppDomain.CurrentDomain.GetAssemblies().Any(a => 
-            a.FullName!.Contains("Test", StringComparison.OrdinalIgnoreCase) || 
-            a.FullName!.Contains("xunit", StringComparison.OrdinalIgnoreCase)))
+        if (Environment.CommandLine.Contains("testhost", StringComparison.OrdinalIgnoreCase) ||
+            Environment.CommandLine.Contains("vstest", StringComparison.OrdinalIgnoreCase) ||
+            Environment.CommandLine.Contains("xunit", StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
@@ -96,5 +96,42 @@ public static class PromptwareHelper
 
         var promptwareFolder = ResolvePromptwareFolder(promptwareName, tendrilHome);
         return Path.Combine(promptwareFolder, "Memory");
+    }
+
+    public static string GetBwPath()
+    {
+        var paths = new[]
+        {
+            "bw",
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cargo", "bin", "bw"),
+            "/usr/local/bin/bw",
+            "/usr/bin/bw",
+            "/opt/homebrew/bin/bw"
+        };
+
+        foreach (var p in paths)
+        {
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = p,
+                    Arguments = "--version",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var proc = System.Diagnostics.Process.Start(psi);
+                if (proc != null)
+                {
+                    proc.WaitForExit(1000);
+                    if (proc.ExitCode == 0) return p;
+                }
+            }
+            catch { /* skip */ }
+        }
+
+        return "bw";
     }
 }

@@ -170,7 +170,7 @@ public class KnowledgeLibraryApp : ViewBase
                           {
                               try
                               {
-                                  var bwPath = GetBwPath();
+                                  var bwPath = PromptwareHelper.GetBwPath();
                                   var proc = Process.Start(new ProcessStartInfo
                                   {
                                       FileName = bwPath,
@@ -228,48 +228,12 @@ public class KnowledgeLibraryApp : ViewBase
                | configContent;
     }
 
-    private static string GetBwPath()
-    {
-        var paths = new[]
-        {
-            "bw",
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cargo", "bin", "bw"),
-            "/usr/local/bin/bw",
-            "/usr/bin/bw",
-            "/opt/homebrew/bin/bw"
-        };
-
-        foreach (var p in paths)
-        {
-            try
-            {
-                var psi = new ProcessStartInfo
-                {
-                    FileName = p,
-                    Arguments = "--version",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                using var proc = Process.Start(psi);
-                if (proc != null)
-                {
-                    proc.WaitForExit(1000);
-                    if (proc.ExitCode == 0) return p;
-                }
-            }
-            catch { /* skip */ }
-        }
-
-        return "bw";
-    }
 
     private static async Task<VaultStatusInfo?> RunBwStatusAsync(string workingDirectory)
     {
         try
         {
-            var bwPath = GetBwPath();
+            var bwPath = PromptwareHelper.GetBwPath();
             var psi = new ProcessStartInfo
             {
                 FileName = bwPath,
