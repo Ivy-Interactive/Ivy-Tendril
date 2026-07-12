@@ -1,0 +1,3 @@
+# Ignore temporary runtime logs and visualizer files
+logs/
+ui/

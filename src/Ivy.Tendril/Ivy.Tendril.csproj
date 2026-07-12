@@ -124,7 +124,7 @@
     </ItemGroup>
   </Target>
 
-  <Target Name="PackPromptwaresZip" BeforeTargets="PrepareForBuild" Condition="'$(Configuration)' == 'Release'">
+  <Target Name="PackPromptwaresZip" BeforeTargets="PrepareForBuild">
     <PackPromptwares SourcePath="$(MSBuildThisFileDirectory)Promptwares" IntermediatePath="$(IntermediateOutputPath)" />
     <ItemGroup>
       <EmbeddedResource Include="$(IntermediateOutputPath)promptwares.zip" LogicalName="Ivy.Tendril.promptwares.zip" />

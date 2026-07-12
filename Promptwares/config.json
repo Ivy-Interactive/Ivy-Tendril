@@ -1,0 +1,15 @@
+{
+  "default_vault_dir": ".brainwares",
+  "ignore_patterns": [
+    ".git",
+    "target",
+    ".brainwares",
+    "node_modules",
+    "bin",
+    "obj",
+    "dist",
+    "build",
+    "out",
+    ".DS_Store"
+  ]
+}
