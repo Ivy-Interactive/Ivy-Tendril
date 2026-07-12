@@ -149,7 +149,7 @@ date: <CurrentTime>
 ### 1.8. Check Vault Status
 
 Before creating worktrees, verify the Promptwares memory vault status:
-1. Run `bw status` to inspect the available memories, outdated references, or technical debt notes.
+1. Run `bw --project <TendrilProject> status` to inspect the available memories, outdated references, or technical debt notes.
 2. Read any relevant memories (such as the project's stack or design notes) to align your execution steps with established conventions.
 
 ### 2. Create Worktrees
@@ -492,11 +492,11 @@ Do NOT include items that are part of the current plan's scope. Do NOT include r
 Report status: `tendril job status TendrilJobId --message="Updating memory vault..."`
 
 After implementing changes and running verifications, keep the Promptwares memory vault synchronized:
-1. Run `bw status` to identify any memory notes that have become outdated due to your changes.
-2. For each outdated memory note, inspect its markdown file in the vault, update its contents to reflect the new codebase state (e.g., modified API surfaces, renamed variables/methods, new components), and run `bw update <note_name>` to synchronize the hashes.
+1. Run `bw --project <TendrilProject> status` to identify any memory notes that have become outdated due to your changes.
+2. For each outdated memory note, inspect its markdown file in the vault, update its contents to reflect the new codebase state (e.g., modified API surfaces, renamed variables/methods, new components), and run `bw --project <TendrilProject> update <note_name>` to synchronize the hashes.
 3. If you created any new source files, configuration files, or components:
-   - Proactively document them in a memory note (creating a new one if necessary under the project's subfolder: `bw add <note_name>`).
-   - Run `bw link <note_name> <file_path>` to link and track their initial hashes.
+   - Proactively document them in a memory note (creating a new one if necessary: `bw --project <TendrilProject> add <note_name>`).
+   - Run `bw --project <TendrilProject> link <note_name> <file_path>` to link and track their initial hashes.
 4. Keep the vault verified and clean.
 
 ### 8. Final Clean Check
