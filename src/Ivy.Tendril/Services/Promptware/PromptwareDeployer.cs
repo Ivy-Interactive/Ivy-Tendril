@@ -52,7 +52,7 @@ internal static class PromptwareDeployer
                 // Move aside existing Memory/ and Tools/ if they exist.
                 // Tools/ holds agent/user-authored tools (written via `tendril promptware write-tool`)
                 // and must survive upgrades just like Memory/. No promptware currently *ships* Tools/
-                // (all $shippedTools allowlists in pack-promptwares.ps1 are empty), so a straight
+                // (all shippedTools allowlists in the C# pack task are empty), so a straight
                 // preserve is correct; if shipped tools are ever added this must become a merge
                 // (overlay shipped files onto preserved runtime files) instead of a wholesale preserve.
                 var preservedDirs = new List<(string original, string aside)>();

@@ -79,10 +79,6 @@ jobs:
           distribution: microsoft
           java-version: 17
 
-      - name: Install PowerShell
-        run: |
-          dotnet tool install --global PowerShell
-          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
       - name: Restore
         run: dotnet restore src/Ivy.Tendril/Ivy.Tendril.csproj
@@ -182,10 +178,6 @@ jobs:
       - name: Install vite-plus (vp)
         run: npm install -g vite-plus@0.1.22
 
-      - name: Install PowerShell
-        run: |
-          dotnet tool install --global PowerShell
-          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
       - name: Restore
         run: dotnet restore src/Ivy.Tendril/Ivy.Tendril.csproj
@@ -226,63 +218,6 @@ jobs:
           mkdir -p "$PUBLISH_DIR/certs"
           dotnet run --project src/Ivy.Tendril/Ivy.Tendril.csproj -c Release -- generate-certs "$PUBLISH_DIR/certs"
 
-      - name: Bundle PowerShell 7
-        shell: bash
-        run: |
-          PWSH_VERSION="7.4.2"
-          RID="${{ matrix.rid }}"
-          PUBLISH_DIR="./publish/desktop/$RID"
-          TARGET_DIR="$PUBLISH_DIR/PowerShell"
-          mkdir -p "$TARGET_DIR"
-          
-          echo "Bundling PowerShell $PWSH_VERSION for $RID into $TARGET_DIR..."
-          
-          if [[ "$RID" == win-x64 ]]; then
-            URL="https://github.com/PowerShell/PowerShell/releases/download/v$PWSH_VERSION/PowerShell-$PWSH_VERSION-win-x64.zip"
-            curl -L -o pwsh.zip "$URL"
-            unzip -q pwsh.zip -d "$TARGET_DIR"
-            rm pwsh.zip
-          elif [[ "$RID" == win-arm64 ]]; then
-            URL="https://github.com/PowerShell/PowerShell/releases/download/v$PWSH_VERSION/PowerShell-$PWSH_VERSION-win-arm64.zip"
-            curl -L -o pwsh.zip "$URL"
-            unzip -q pwsh.zip -d "$TARGET_DIR"
-            rm pwsh.zip
-          elif [[ "$RID" == osx-x64 ]]; then
-            URL="https://github.com/PowerShell/PowerShell/releases/download/v$PWSH_VERSION/powershell-$PWSH_VERSION-osx-x64.tar.gz"
-            curl -L -o pwsh.tar.gz "$URL"
-            tar -xzf pwsh.tar.gz -C "$TARGET_DIR"
-            rm pwsh.tar.gz
-          elif [[ "$RID" == osx-arm64 ]]; then
-            URL="https://github.com/PowerShell/PowerShell/releases/download/v$PWSH_VERSION/powershell-$PWSH_VERSION-osx-arm64.tar.gz"
-            curl -L -o pwsh.tar.gz "$URL"
-            tar -xzf pwsh.tar.gz -C "$TARGET_DIR"
-            rm pwsh.tar.gz
-          elif [[ "$RID" == linux-x64 ]]; then
-            URL="https://github.com/PowerShell/PowerShell/releases/download/v$PWSH_VERSION/powershell-$PWSH_VERSION-linux-x64.tar.gz"
-            curl -L -o pwsh.tar.gz "$URL"
-            tar -xzf pwsh.tar.gz -C "$TARGET_DIR"
-            rm pwsh.tar.gz
-          elif [[ "$RID" == linux-arm64 ]]; then
-            URL="https://github.com/PowerShell/PowerShell/releases/download/v$PWSH_VERSION/powershell-$PWSH_VERSION-linux-arm64.tar.gz"
-            curl -L -o pwsh.tar.gz "$URL"
-            tar -xzf pwsh.tar.gz -C "$TARGET_DIR"
-            rm pwsh.tar.gz
-          fi
-          
-          # Verify pwsh executable exists and is executable
-          if [[ "$RID" == win-* ]]; then
-            if [[ ! -f "$TARGET_DIR/pwsh.exe" ]]; then
-              echo "Error: pwsh.exe not found after extraction!"
-              exit 1
-            fi
-          else
-            if [[ ! -f "$TARGET_DIR/pwsh" ]]; then
-              echo "Error: pwsh not found after extraction!"
-              exit 1
-            fi
-            chmod +x "$TARGET_DIR/pwsh"
-          fi
-          echo "PowerShell bundled successfully!"
 
       - name: Bundle .NET 10 SDK
         shell: bash
@@ -409,9 +344,6 @@ jobs:
             # Move nested runtime folders and config files to Contents/Resources
             if [ -d "$APP_DIR/Contents/MacOS/dotnet" ]; then
               mv "$APP_DIR/Contents/MacOS/dotnet" "$APP_DIR/Contents/Resources/"
-            fi
-            if [ -d "$APP_DIR/Contents/MacOS/PowerShell" ]; then
-              mv "$APP_DIR/Contents/MacOS/PowerShell" "$APP_DIR/Contents/Resources/"
             fi
             if [ -f "$APP_DIR/Contents/MacOS/example.config.yaml" ]; then
               mv "$APP_DIR/Contents/MacOS/example.config.yaml" "$APP_DIR/Contents/Resources/"
