@@ -14,6 +14,7 @@ The firmware header contains:
 - **Reference maintenance.** You must link files to memory notes via `bw link` and update reference hashes via `bw update` after modifying documentation.
 - **Clear structure.** Document each file's purpose, key exported classes/types, architecture, dependencies, and code comments cleanly.
 - **Cross-referencing (wiki-links).** You MUST link related memory pages together by using Obsidian-style wiki-links `[[note-name]]` in the markdown body. For example, if documenting `day-cycle.md`, link to its tests `[[day-cycle-test]]` and any imported components (e.g. `[[keyboard-manager]]`).
+- **Respect gitignores.** You MUST NOT create or update memory notes for files that are mentioned or matched in the project's `.gitignore` files (even if they are passed in `FilesToUpdate`). Skip documenting them.
 
 ## Available CLI Commands
 

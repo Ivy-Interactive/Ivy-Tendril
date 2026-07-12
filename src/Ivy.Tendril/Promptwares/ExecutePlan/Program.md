@@ -495,7 +495,7 @@ After implementing changes and running verifications, keep the Promptwares memor
 1. Run `bw --project <TendrilProject> status` to identify any memory notes that have become outdated due to your changes.
 2. For each outdated memory note, inspect its markdown file in the vault, update its contents to reflect the new codebase state (e.g., modified API surfaces, renamed variables/methods, new components), and run `bw --project <TendrilProject> update <note_name>` to synchronize the hashes.
 3. If you created any new source files, configuration files, or components:
-   - Proactively document them in a memory note (creating a new one if necessary: `bw --project <TendrilProject> add <note_name>`).
+   - Proactively document them in a memory note (creating a new one if necessary: `bw --project <TendrilProject> add <note_name>`). **Do not create memories for files that are mentioned or matched in `.gitignore`.**
    - Run `bw --project <TendrilProject> link <note_name> <file_path>` to link and track their initial hashes.
 4. **Cross-reference related notes**: Always embed Obsidian-style wiki-links `[[note-name]]` referencing related component memories, imports, and test files inside your note documentation.
 5. Keep the vault verified and clean.
