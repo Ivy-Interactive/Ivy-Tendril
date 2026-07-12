@@ -129,6 +129,14 @@ public class PromptwareRunner : IPromptwareRunner
         psi.Environment["TENDRIL_CONFIG"] = _configService.ConfigPath;
         psi.Environment["TENDRIL_PLANS"] = _configService.PlanFolder;
 
+        if (options.Values.TryGetValue("ProjectName", out var projectName) && !string.IsNullOrEmpty(projectName))
+            psi.Environment["BW_PROJECT"] = projectName;
+        else if (options.Values.TryGetValue("TendrilProject", out var tendrilProject) && !string.IsNullOrEmpty(tendrilProject))
+            psi.Environment["BW_PROJECT"] = tendrilProject;
+
+        if (!string.IsNullOrEmpty(vaultPath))
+            psi.Environment["BW_VAULT"] = vaultPath;
+
         AgentProcessHelper.EnsureTendrilOnPath(psi);
         AgentProcessHelper.ResolveCommandShim(psi);
 
