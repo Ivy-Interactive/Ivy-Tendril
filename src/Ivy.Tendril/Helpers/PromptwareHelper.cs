@@ -96,13 +96,37 @@ public static class PromptwareHelper
 
     public static string ResolveMemoryDirectory(string promptwareName, string? tendrilHome, string? planFolder = null)
     {
+        var home = tendrilHome ?? Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
+
         // 1. Resolve local Promptwares vault memories first
         var vaultPath = ResolveBrainwaresVaultDir(planFolder);
         if (vaultPath != null)
         {
-            var memoriesDir = Path.Combine(vaultPath, "memories");
-            if (Directory.Exists(memoriesDir))
-                return memoriesDir;
+            var workspaceDir = planFolder ?? Directory.GetCurrentDirectory();
+            var projectName = FindProjectNameForPath(workspaceDir, home) ?? "global";
+            var memoriesDir = Path.Combine(vaultPath, "memories", projectName, "promptware");
+            Directory.CreateDirectory(memoriesDir);
+
+            // Copy default memories if missing on-demand
+            try
+            {
+                var promptwareFolder = ResolvePromptwareFolder(promptwareName, home);
+                var localProjMemory = Path.Combine(promptwareFolder, "Memory");
+                if (Directory.Exists(localProjMemory))
+                {
+                    foreach (var file in Directory.GetFiles(localProjMemory, "*.md"))
+                    {
+                        var targetFile = Path.Combine(memoriesDir, Path.GetFileName(file));
+                        if (!File.Exists(targetFile))
+                        {
+                            File.Copy(file, targetFile);
+                        }
+                    }
+                }
+            }
+            catch { /* best effort */ }
+
+            return memoriesDir;
         }
 
         // 2. Fall back to user-wide global brainwares memories (~/.config/brainwares/memories)
@@ -112,10 +136,10 @@ public static class PromptwareHelper
             return globalMemoriesDir;
 
         // 3. Fall back to promptware folder's local Memory folder (development/packaging fallback)
-        var promptwareFolder = ResolvePromptwareFolder(promptwareName, tendrilHome);
-        var localProjMemory = Path.Combine(promptwareFolder, "Memory");
-        if (Directory.Exists(localProjMemory))
-            return localProjMemory;
+        var promptwareFolderFallback = ResolvePromptwareFolder(promptwareName, home);
+        var localProjMemoryFallback = Path.Combine(promptwareFolderFallback, "Memory");
+        if (Directory.Exists(localProjMemoryFallback))
+            return localProjMemoryFallback;
 
         // Default to globalMemoriesDir so we always have a valid write target
         return globalMemoriesDir;
@@ -199,6 +223,63 @@ public static class PromptwareHelper
                 };
                 using var proc = System.Diagnostics.Process.Start(psi);
                 proc?.WaitForExit();
+            }
+
+            SyncPromptwareMemoriesToCentralVault(workspaceDir);
+        }
+        catch { /* best effort */ }
+    }
+
+    public static void SyncPromptwareMemoriesToCentralVault(string? workspaceDir = null)
+    {
+        try
+        {
+            var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
+            var vaultPath = Path.Combine(tendrilHome, "Promptwares");
+            if (!Directory.Exists(vaultPath)) return;
+
+            var memoriesPath = Path.Combine(vaultPath, "memories");
+            if (!Directory.Exists(memoriesPath)) return;
+
+            var projectDirs = new List<string> { Path.Combine(memoriesPath, "global") };
+            foreach (var subDir in Directory.GetDirectories(memoriesPath))
+            {
+                var dirName = Path.GetFileName(subDir);
+                if (!dirName.Equals("promptwares", StringComparison.OrdinalIgnoreCase) && !dirName.StartsWith('.'))
+                {
+                    projectDirs.Add(subDir);
+                }
+            }
+
+            foreach (var projDir in projectDirs)
+            {
+                var targetDir = Path.Combine(projDir, "promptware");
+                Directory.CreateDirectory(targetDir);
+
+                foreach (var promptwareDir in Directory.GetDirectories(vaultPath))
+                {
+                    var promptwareName = Path.GetFileName(promptwareDir);
+                    if (promptwareName.Equals("memories", StringComparison.OrdinalIgnoreCase) ||
+                        promptwareName.Equals("programs", StringComparison.OrdinalIgnoreCase) ||
+                        promptwareName.Equals("logs", StringComparison.OrdinalIgnoreCase) ||
+                        promptwareName.StartsWith("."))
+                    {
+                        continue;
+                    }
+
+                    var sourceMemoryDir = Path.Combine(promptwareDir, "Memory");
+                    if (Directory.Exists(sourceMemoryDir))
+                    {
+                        foreach (var file in Directory.GetFiles(sourceMemoryDir, "*.md"))
+                        {
+                            var targetFile = Path.Combine(targetDir, Path.GetFileName(file));
+                            if (!File.Exists(targetFile))
+                            {
+                                File.Copy(file, targetFile);
+                            }
+                        }
+                    }
+                }
             }
         }
         catch { /* best effort */ }
