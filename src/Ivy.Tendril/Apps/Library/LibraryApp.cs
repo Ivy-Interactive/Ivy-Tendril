@@ -50,7 +50,7 @@ public class LibraryApp : ViewBase
 
         // Find the vault directory
         var workspaceDir = config.Projects.FirstOrDefault()?.RepoPaths.FirstOrDefault();
-        var workingDir = string.IsNullOrEmpty(workspaceDir) ? Directory.GetCurrentDirectory() : Path.GetDirectoryName(workspaceDir) ?? Directory.GetCurrentDirectory();
+        var workingDir = string.IsNullOrEmpty(workspaceDir) ? Directory.GetCurrentDirectory() : workspaceDir;
         var vaultPath = PromptwareHelper.ResolveBrainwaresVaultDir(workingDir);
         var memoriesDir = vaultPath != null ? Path.Combine(vaultPath, "memories") : null;
 

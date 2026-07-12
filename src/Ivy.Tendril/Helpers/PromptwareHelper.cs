@@ -73,10 +73,13 @@ public static class PromptwareHelper
             return null;
         }
 
+        var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
+        var excludedTemplatePath = Path.Combine(tendrilHome, "Promptwares");
+
         while (dir != null)
         {
             var vaultPath = Path.Combine(dir, "Promptwares");
-            if (Directory.Exists(vaultPath))
+            if (Directory.Exists(vaultPath) && !vaultPath.Equals(excludedTemplatePath, StringComparison.OrdinalIgnoreCase))
                 return vaultPath;
 
             dir = Path.GetDirectoryName(dir);
