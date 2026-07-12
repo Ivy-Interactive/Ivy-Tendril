@@ -516,6 +516,10 @@ After all verifications pass:
 
 5. Verify `<TendrilPlanFolder>/Artifacts/summary.md` exists. If missing, go back to Step 7.5.
 
+6. **Verify Brainwares Vault Status (MANDATORY)**:
+   - Run `bw --project <TendrilProject> status`
+   - The command MUST return a clean state (no outdated references, no missing files). If there are any outdated or missing memory references reported, you MUST go back to Step 7.7, update the memory notes, run `bw --project <TendrilProject> update <note_name>`, and loop until `bw status` is completely clean. Do not finish the job with an unsynced vault.
+
 ### 8.5. Worktree Lifecycle
 
 Do **not** clean up worktrees in ExecutePlan. Leave them on disk so that CreatePr can push branches and create PRs directly from the worktree.

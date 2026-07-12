@@ -615,7 +615,9 @@ internal class JobLauncher
         if (!toolsDir.StartsWith(homePrefix, StringComparison.OrdinalIgnoreCase))
             dirs.Add(toolsDir);
 
-        if (promptwareType == Constants.JobTypes.UpdateMemories)
+        if (promptwareType == Constants.JobTypes.UpdateMemories ||
+            promptwareType == Constants.JobTypes.ExecutePlan ||
+            promptwareType == Constants.JobTypes.RetryPlan)
         {
             foreach (var proj in _configService.Settings.Projects)
             {
