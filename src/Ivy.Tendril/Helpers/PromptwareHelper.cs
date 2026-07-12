@@ -75,7 +75,7 @@ public static class PromptwareHelper
 
         while (dir != null)
         {
-            var vaultPath = Path.Combine(dir, ".brainwares");
+            var vaultPath = Path.Combine(dir, "Promptwares");
             if (Directory.Exists(vaultPath))
                 return vaultPath;
 
@@ -86,7 +86,7 @@ public static class PromptwareHelper
 
     public static string ResolveMemoryDirectory(string promptwareName, string? tendrilHome, string? planFolder = null)
     {
-        // 1. Resolve local .brainwares vault memories first
+        // 1. Resolve local Promptwares vault memories first
         var vaultPath = ResolveBrainwaresVaultDir(planFolder);
         if (vaultPath != null)
         {
@@ -146,5 +146,50 @@ public static class PromptwareHelper
         }
 
         return "bw";
+    }
+
+    public static void EnsureGlobalBrainwaresConfig()
+    {
+        try
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var configDir = Path.Combine(home, ".config", "brainwares");
+            var configPath = Path.Combine(configDir, "config.json");
+
+            if (!Directory.Exists(configDir))
+            {
+                Directory.CreateDirectory(configDir);
+            }
+
+            var configJson = "{\n  \"default_vault_dir\": \"Promptwares\",\n  \"ignore_patterns\": [\n    \"node_modules\",\n    \"target\",\n    \"bin\",\n    \"obj\",\n    \".git\"\n  ]\n}";
+            File.WriteAllText(configPath, configJson);
+        }
+        catch { /* best effort */ }
+    }
+
+    public static void EnsureLocalVault(string workspaceDir)
+    {
+        try
+        {
+            var vaultPath = Path.Combine(workspaceDir, "Promptwares");
+            if (!Directory.Exists(vaultPath))
+            {
+                Directory.CreateDirectory(vaultPath);
+                var bwPath = GetBwPath();
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = bwPath,
+                    Arguments = "init",
+                    WorkingDirectory = workspaceDir,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var proc = System.Diagnostics.Process.Start(psi);
+                proc?.WaitForExit();
+            }
+        }
+        catch { /* best effort */ }
     }
 }

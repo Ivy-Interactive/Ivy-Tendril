@@ -58,6 +58,8 @@ public class Program
         }
         PathHelper.AugmentPath(forceShellPath: false);
         PathHelper.EnsureCliSymlink();
+        PromptwareHelper.EnsureGlobalBrainwaresConfig();
+        PromptwareHelper.EnsureLocalVault(Directory.GetCurrentDirectory());
 
         if (OperatingSystem.IsWindows())
         {

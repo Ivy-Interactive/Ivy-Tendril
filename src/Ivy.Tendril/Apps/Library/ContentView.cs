@@ -40,7 +40,7 @@ public class ContentView(
                        Layout.Vertical().AlignContent(Align.Center)
                        | Icons.Folder.ToIcon().Size(Size.Units(12)).Color(Colors.Warning)
                        | Text.H3("No Knowledge Vault Initialized").Bold()
-                       | Text.Muted("An Obsidian-style vault (.brainwares) is required to track codebase memory notes and code/variant reference hashes in this project.")
+                       | Text.Muted("An Obsidian-style vault (Promptwares) is required to track codebase memory notes and code/variant reference hashes in this project.")
                        | (isOperationRunning.Value
                           ? (object)(Layout.Vertical().AlignContent(Align.Center)
                             | Icons.LoaderCircle.ToIcon().Color(Colors.Primary).WithAnimation(AnimationType.Rotate)
@@ -190,7 +190,7 @@ public class ContentView(
                   | Text.Muted(vaultPath))
                | (Layout.Horizontal()
                   | Text.Bold("Default Directory Key:")
-                  | Text.Muted(defaultVaultDir ?? ".brainwares"))
+                  | Text.Muted(defaultVaultDir ?? "Promptwares"))
                | (ignorePatterns != null && ignorePatterns.Length > 0
                   ? Layout.Vertical()
                     | Text.Bold("Ignore Patterns:")

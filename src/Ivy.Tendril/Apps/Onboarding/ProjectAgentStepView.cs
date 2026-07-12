@@ -96,6 +96,21 @@ public class ProjectAgentStepView(
 
                 await setupService.CommitPendingProjectAsync();
 
+                // Auto-initialize Promptwares vault in project repository folder(s)
+                var proj = config.Settings.Projects
+                    .FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+                if (proj != null)
+                {
+                    foreach (var repo in proj.Repos)
+                    {
+                        var repoPath = repo.Path;
+                        if (!string.IsNullOrEmpty(repoPath) && Directory.Exists(repoPath))
+                        {
+                            PromptwareHelper.EnsureLocalVault(repoPath);
+                        }
+                    }
+                }
+
                 isCloning.Set(false);
                 progressValue.Set(null);
                 progressMessage.Set(null);
