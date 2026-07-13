@@ -81,6 +81,25 @@ export const CodeBlock: React.FC<React.HTMLAttributes<HTMLElement>> = ({ classNa
       </div>
     );
   }
+
+  // No language match - check if block-level (multi-line) or inline
+  const isBlock = String(children).includes("\n");
+  if (isBlock) {
+    return (
+      <div className="pmv-code-block">
+        <button
+          className={`pmv-code-copy${copied ? " pmv-code-copy--copied" : ""}`}
+          onClick={handleCopy}
+          aria-label="Copy to clipboard"
+        >
+          {copied ? <CheckIcon /> : <CopyIcon />}
+        </button>
+        <pre style={codeBlockPreStyle}>
+          <code>{children}</code>
+        </pre>
+      </div>
+    );
+  }
   return (
     <code className={className} {...rest}>
       {children}
