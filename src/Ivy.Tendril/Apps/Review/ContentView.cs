@@ -240,7 +240,7 @@ public class ContentView(
             selectedPlanState.Value, showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog,
             showCreatePrDialog, copyToClipboard, client, logger, nav, args, agentRunner);
         var content = BuildContent(
-            selectedPlanState.Value, planData, planContentQuery, selectedTabIndex, tabNames, openVerification,
+            selectedPlanState.Value, planData, planContentQuery, selectedTab, openVerification,
             openCommit, openFile, openArtifact, artifactContentQuery, assigneesQuery,
             assigneesError, syncingWorktrees, selectedRecTitles, pendingRecs,
             client, copyToClipboard, logger, nav, args, showDebugJob);
@@ -519,8 +519,7 @@ public class ContentView(
         PlanFile selectedPlan,
         PlanContentData planData,
         QueryResult<PlanContentData> planContentQuery,
-        int selectedTabIndex,
-        string[] tabNames,
+        IState<int> selectedTab,
         IState<string?> openVerification,
         IState<string?> openCommit,
         IState<string?> openFile,
