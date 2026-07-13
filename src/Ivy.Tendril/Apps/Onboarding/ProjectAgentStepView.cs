@@ -129,11 +129,14 @@ public class ProjectAgentStepView(
                         progressMessage.Set(null);
 
                         var agentCheck = new SoftwareCheck(
-                            agentKey,
                             info.DisplayName,
-                            () => Task.FromResult(installStatus.IsInstalled),
-                            installStatus.Message ?? $"{info.DisplayName} is not installed.",
-                            info.InstallUrl);
+                            agentKey,
+                            info.InstallUrl ?? "",
+                            true,
+                            () => Task.FromResult(installStatus.IsInstalled))
+                        {
+                            LastError = installStatus.Error
+                        };
 
                         var tcs = new TaskCompletionSource<bool>();
                         showInstallDialog(new InstallDialogArgs(agentCheck, tcs));
