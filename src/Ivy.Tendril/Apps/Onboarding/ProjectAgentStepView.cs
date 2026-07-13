@@ -35,6 +35,9 @@ public class ProjectAgentStepView(
         var authCode = UseState<string?>(null);
         var isCloning = UseState(false);
 
+        var (installDialog, showInstallDialog) = UseTrigger<InstallDialogArgs>((isOpen, args) =>
+            new InstallMissingDialog(isOpen, args));
+
         UseEffect(async () =>
         {
             if (session.Started.Value) return;
@@ -124,9 +127,39 @@ public class ProjectAgentStepView(
                         await agentCheckCts.CancelAsync();
                         progressValue.Set(null);
                         progressMessage.Set(null);
-                        error.Set($"Please make sure your agent ({info.DisplayName}) is present and you are authorized.");
-                        isStepLoading.Set(false);
-                        return;
+
+                        var agentCheck = new SoftwareCheck(
+                            agentKey,
+                            info.DisplayName,
+                            () => Task.FromResult(installStatus.IsInstalled),
+                            installStatus.Message ?? $"{info.DisplayName} is not installed.",
+                            info.InstallUrl);
+
+                        var tcs = new TaskCompletionSource<bool>();
+                        showInstallDialog(new InstallDialogArgs(agentCheck, tcs));
+                        var resumed = await tcs.Task;
+
+                        if (!resumed)
+                        {
+                            isStepLoading.Set(false);
+                            return;
+                        }
+
+                        // Re-check installation after user dismisses dialog
+                        progressMessage.Set($"Checking {info.DisplayName} installation...");
+                        agentCheckCts = new CancellationTokenSource();
+                        _ = UxHelper.AnimateProgressAsync(progressValue, agentCheckCts.Token);
+
+                        installStatus = await healthCheck.CheckInstallAsync();
+                        if (!installStatus.IsInstalled)
+                        {
+                            await agentCheckCts.CancelAsync();
+                            progressValue.Set(null);
+                            progressMessage.Set(null);
+                            error.Set($"Please make sure your agent ({info.DisplayName}) is present and you are authorized.");
+                            isStepLoading.Set(false);
+                            return;
+                        }
                     }
 
                     if (agentKey != "opencode")
@@ -274,6 +307,7 @@ public class ProjectAgentStepView(
                         .Padding(4, 4, 0, 4)
                    : null!)
                | buttonArea
-               | (showHeader ? (object)new Spacer().Height(Size.Units(4)) : null!);
+               | (showHeader ? (object)new Spacer().Height(Size.Units(4)) : null!)
+               | installDialog;
     }
 }
