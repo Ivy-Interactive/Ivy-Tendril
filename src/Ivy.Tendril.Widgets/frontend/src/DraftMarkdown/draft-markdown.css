@@ -235,7 +235,8 @@
   padding: 0.05rem 0.25rem;
   font-family: "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
     Consolas, monospace;
-  font-weight: 600;
+  font-size: 0.9em;
+  font-weight: 500;
   white-space: normal;
   word-break: break-word;
 }
