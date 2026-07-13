@@ -174,7 +174,8 @@
   border: 1px solid var(--aov-border);
   border-radius: 4px;
   padding: 1px 5px;
-  font-size: 14px;
+  font-size: 0.9em;
+  font-weight: 500;
 }
 
 .aov-markdown pre {
