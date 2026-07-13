@@ -145,14 +145,6 @@ public class CodingAgentStepView(
                     progressValue.Set(null);
                     progressMessage.Set(null);
 
-                    if (missing.Key == agentKey)
-                    {
-                        isStepLoading.Set(false);
-                        error.Set("Please make sure your agent is present and you are authorized.");
-                        selectedAgent.Set(null);
-                        return;
-                    }
-
                     var tcs = new TaskCompletionSource<bool>();
                     showInstallDialog(new InstallDialogArgs(missing, tcs));
                     var resumed = await tcs.Task;
