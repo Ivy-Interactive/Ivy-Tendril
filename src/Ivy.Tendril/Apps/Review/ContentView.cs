@@ -39,6 +39,7 @@ public class ContentView(
         var openCommit = UseState<string?>(null);
         var syncingWorktrees = UseState(new HashSet<string>());
         var selectedRecTitles = UseState(() => new HashSet<string>());
+        var selectedTab = UseState(0);
         var args = UseArgs<ReviewAppArgs>();
         var nav = UseNavigation();
 
@@ -211,12 +212,10 @@ public class ContentView(
             return Disposable.Empty;
         }, [localRefresh]);
 
+        UseEffect(() => { selectedTab.Set(0); return Disposable.Empty; }, selectedPlanState);
+
         UseEffect(() => { selectedRecTitles.Set(new HashSet<string>()); return Disposable.Empty; },
             selectedPlanState);
-
-        var tabNames = new[] { "summary", "plan", "details", "git", "changes", "Artifacts", "recommendations" };
-        var selectedTabIndex = Array.IndexOf(tabNames, args?.Tab ?? "summary");
-        if (selectedTabIndex < 0) selectedTabIndex = 0;
 
         if (selectedPlanState.Value is null)
         {
@@ -640,14 +639,20 @@ public class ContentView(
             }
 
             var actualTabNames = tabNamesList.ToArray();
-            var actualSelectedTabIndex = Array.IndexOf(actualTabNames, args?.Tab ?? "summary");
-            if (actualSelectedTabIndex < 0) actualSelectedTabIndex = 0;
 
-            var tabs = Layout.Tabs(tabList.ToArray()).OnSelect(v =>
+            // Honor deep-linked tab from URL on initial load
+            if (args?.Tab is { } requestedTab && selectedTab.Value == 0)
             {
-                if (v >= 0 && v < actualTabNames.Length && selectedPlanState.Value != null)
-                    nav.Navigate<ReviewApp>(new ReviewAppArgs(selectedPlanState.Value.FolderName, actualTabNames[v]));
-            }).SelectedIndex(actualSelectedTabIndex).Variant(TabsVariant.Content).RemoveParentPadding();
+                var deepLinkIndex = Array.IndexOf(actualTabNames, requestedTab);
+                if (deepLinkIndex >= 0)
+                    selectedTab.Set(deepLinkIndex);
+            }
+
+            var tabs = Layout.Tabs(tabList.ToArray())
+                .OnSelect(v => selectedTab.Set(v))
+                .SelectedIndex(selectedTab.Value)
+                .Variant(TabsVariant.Content)
+                .RemoveParentPadding();
 
             content |= (Layout.Vertical().Padding(2).Height(Size.Full()) | tabs);
         }
