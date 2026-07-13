@@ -415,17 +415,15 @@
 /* ─── Annotation highlights ────────────────────────────────────────────── */
 .pmv-annotation-highlight {
   background: hsl(48 96% 76% / 0.7);
+  color: var(--foreground);
   border-radius: 0.125rem;
   cursor: pointer;
   padding: 0 0 0.125rem;
   display: inline;
 }
 
-@media (prefers-color-scheme: dark) {
-  .pmv-annotation-highlight {
-    background: hsl(48 80% 20% / 0.5);
-    color: hsl(0 0% 95%);
-  }
+:root.dark .pmv-annotation-highlight {
+  background: hsl(48 80% 20% / 0.5);
 }
 
 /* ─── Annotation popovers ─────────────────────────────────────────────── */
