@@ -200,8 +200,8 @@ public class WallpaperApp : ViewBase
                 }
                 else
                 {
-                    verticalContent |= Text.Block("Run this command in your terminal to update:").Small()
-                        | new CodeBlock(updateCommand, Languages.Bash);
+                    verticalContent |= Text.Block("Run this command in your terminal to update:").Small();
+                    verticalContent |= new CodeBlock(updateCommand, Languages.Bash);
                 }
 
                 verticalContent |= actions;
