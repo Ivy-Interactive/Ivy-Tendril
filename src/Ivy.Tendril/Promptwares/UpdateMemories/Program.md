@@ -50,7 +50,7 @@ For each file in the `FilesToUpdate` list, perform the following steps:
 3. **Analyze and document the source file**:
    - Read the full content of the source file.
    - Analyze its purpose, public API surface, classes, functions, structure, and dependencies.
-   - Write a complete, comprehensive markdown documentation of the file to the memory note. You can edit the memory file under `memories/` directly or use `bw --project <TendrilProject> write <name>`.
+   - Write a complete, comprehensive markdown documentation of the file to the memory note using `bw --project <TendrilProject> write <name>` (e.g. `echo "..." | bw --project <TendrilProject> write <name>`). Do NOT edit the memory markdown file under `memories/` directly.
    - **Link to dependencies and tests**: Scan the file's imports and related files. You MUST embed Obsidian-style wiki-links `[[note-name]]` referencing the memory notes of imported dependencies, sibling modules, and corresponding test files (e.g. `[[keyboard-manager-test]]` or `[[day-cycle]]`).
    
 4. **Synchronize hashes**:
