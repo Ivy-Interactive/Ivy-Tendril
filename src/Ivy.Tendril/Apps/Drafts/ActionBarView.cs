@@ -147,15 +147,9 @@ public class ActionBarView(
             refreshPlans();
         }
 
-        // Pane-Compact-tier dropdown items: buttons that never get an inline slot in the
-        // content pane (Split/Expand/Delete) + standard overflow. See the pane-width note
-        // on ActionBarResponsive: the Draft footer's content pane is narrower than the
-        // viewport by the sidebar + drafts-list pane to its left, so even at the Wide
-        // viewport tier only Previous/Next/Edit/Update fit inline at typical Wide widths
-        // (verified at the #1433 repro's ~1456px); Breakpoint.Wide is unbounded below
-        // 1024px, so a pane at the narrow end of that band (roughly 1024–1300px viewport)
-        // can still clip this set — there is no tier gate below Wide to fall back to.
-        var paneCompactDropdownItems = new List<MenuItem>
+        // Compact-tier dropdown items: buttons hidden at the Compact tier (Split/Expand/Delete)
+        // + standard overflow
+        var compactDropdownItems = new List<MenuItem>
         {
             new MenuItem("Split", Icon: Icons.Scissors, Tag: "Split")
                 .OnSelect(StartSplit).Disabled(hasActiveSplitJob),
@@ -163,10 +157,10 @@ public class ActionBarView(
                 .OnSelect(StartExpand).Disabled(hasActiveExpandJob),
             new MenuItem("Delete", Icon: Icons.Trash, Tag: "Delete").OnSelect(showDeleteDialog)
         };
-        paneCompactDropdownItems.AddRange(standardOverflowItems);
+        compactDropdownItems.AddRange(standardOverflowItems);
 
-        // Pane-Minimal-tier dropdown items: all action buttons + standard overflow
-        var paneMinimalDropdownItems = new List<MenuItem>
+        // Minimal-tier dropdown items: all action buttons + standard overflow
+        var minimalDropdownItems = new List<MenuItem>
         {
             new MenuItem("Edit", Icon: Icons.Pencil, Tag: "Edit")
                 .OnSelect(() => isEditingState.Set(true)),
@@ -178,48 +172,42 @@ public class ActionBarView(
                 .OnSelect(StartExpand).Disabled(hasActiveExpandJob),
             new MenuItem("Delete", Icon: Icons.Trash, Tag: "Delete").OnSelect(showDeleteDialog)
         };
-        paneMinimalDropdownItems.AddRange(standardOverflowItems);
+        minimalDropdownItems.AddRange(standardOverflowItems);
 
-        // Action bar without .Wrap() - the footer slot is fixed-height, so wrapping could
-        // push content out; a single row with progressive collapse is required instead.
+        // Full tier (container ≥1024px): all buttons inline; Compact (768–1023): Edit/Update
+        // inline, rest in dropdown; Minimal (<768): Previous/Next + dropdown. Wrap() is the
+        // clipping guard: the drafts-list pane and resizable sidebars can squeeze the footer
+        // below what a tier's inline set needs, in which case the row wraps instead of
+        // clipping (#1433) — the footer slot grows with its content.
         //
-        // These tiers are keyed to the CONTENT PANE, not the raw viewport — see the
-        // pane-width note on ActionBarResponsive. The pane is narrower than the viewport
-        // by the app sidebar + drafts-list pane to its left, so the budget for each tier
-        // is shifted down by one viewport step from what a full-width bar would use:
-        // Pane-Compact tier (viewport >=1024px / Wide): Previous, Next, Edit, Update inline; Split/Expand/Delete in dropdown.
-        // Pane-Minimal tier (viewport <1024px): Previous, Next inline; everything else in dropdown.
-        // Split/Expand/Delete never get an inline slot at any viewport width — the pane is
-        // never wide enough to guarantee they fit, so they're always dropdown-only.
-        //
-        // The framework only registers a Button's ShortcutKey while that Button is mounted
-        // (useShortcut's cleanup runs on unmount), and ShowOn/HideOn/PaneCompactUp/etc. truly
-        // unmount the widget rather than just hiding it with CSS (see MemoizedWidget in
-        // widgetRenderer.tsx: `if (visible === false) return null`). Since Delete never gets
-        // an inline slot at any tier, its Backspace shortcut has to live on an icon-only Button
-        // that stays mounted at every tier instead — MenuItem.Shortcut is display-only (just a
-        // Kbd hint) and never registers a keyboard handler.
-        return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
+        // The Backspace shortcut needs a mounted Button at every tier (ShowOn/HideOn truly
+        // unmount, which deregisters ShortcutKey; MenuItem shortcuts are display-only), so
+        // below Full an icon-only stand-in carries it while the labeled Delete is unmounted.
+        return Layout.Horizontal().AlignContent(Align.Left).Gap(2).Wrap()
                | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(goToPrevious)
                    .ShortcutKey("p").AlwaysVisible()
                | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().OnClick(goToNext)
                    .ShortcutKey("n").AlwaysVisible()
                | new Button("Edit").Icon(Icons.Pencil).Outline().ShortcutKey("E")
-                   .OnClick(() => isEditingState.Set(true)).PaneCompactUp()
+                   .OnClick(() => isEditingState.Set(true)).CompactUp()
                | new Button("Update").Icon(Icons.WandSparkles).Outline().ShortcutKey("u")
-                   .OnClick(showUpdateDialog).PaneCompactUp()
-               // Icon-only, always-mounted carrier for the Backspace shortcut — Delete itself
-               // is dropdown-only at every tier (see note above), so this keeps the keyboard
-               // shortcut alive without reintroducing a labeled inline button that can clip.
+                   .OnClick(showUpdateDialog).CompactUp()
+               | new Button("Split").Icon(Icons.Scissors).Outline()
+                   .OnClick(StartSplit).Disabled(hasActiveSplitJob).FullOnly()
+               | new Button("Expand").Icon(Icons.UnfoldVertical).Outline()
+                   .OnClick(StartExpand).Disabled(hasActiveExpandJob).FullOnly()
+               | new Button("Delete").Icon(Icons.Trash).Outline().ShortcutKey("Backspace")
+                   .OnClick(showDeleteDialog).FullOnly()
                | new Button().Icon(Icons.Trash).Ghost().ShortcutKey("Backspace")
-                   .Tooltip("Delete").OnClick(showDeleteDialog).AlwaysVisible()
-               // Pane-Compact-tier dropdown: Split, Expand, Delete + standard overflow
-               | ActionBarResponsive.DropdownAtPaneCompact(
+                   .Tooltip("Delete").OnClick(showDeleteDialog).BelowFull()
+               | ActionBarResponsive.DropdownAtFull(
                    new Button().Icon(Icons.EllipsisVertical).Ghost(),
-                   paneCompactDropdownItems.ToArray())
-               // Pane-Minimal-tier dropdown: all action buttons + standard overflow
-               | ActionBarResponsive.DropdownAtPaneMinimal(
+                   standardOverflowItems)
+               | ActionBarResponsive.DropdownAtCompact(
                    new Button().Icon(Icons.EllipsisVertical).Ghost(),
-                   paneMinimalDropdownItems.ToArray());
+                   compactDropdownItems.ToArray())
+               | ActionBarResponsive.DropdownAtMinimal(
+                   new Button().Icon(Icons.EllipsisVertical).Ghost(),
+                   minimalDropdownItems.ToArray());
     }
 }

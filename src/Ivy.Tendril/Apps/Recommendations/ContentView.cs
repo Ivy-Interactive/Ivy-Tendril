@@ -173,55 +173,49 @@ public class ContentView(
                 showPlan(fullPath);
         }
 
-        // Pane-Compact-tier dropdown: View Plan + standard overflow. See the pane-width note
-        // on ActionBarResponsive: the Recommendations footer's content pane is narrower than
-        // the viewport by the app sidebar + recommendations-list pane to its left, so even at
-        // the Wide viewport tier only Previous/Next/Accept with Notes fit inline.
-        var paneCompactDropdownItems = new List<MenuItem>
+        // Compact-tier dropdown: View Plan + standard overflow
+        var compactDropdownItems = new List<MenuItem>
         {
             new MenuItem("View Plan", Icon: Icons.ExternalLink, Tag: "ViewPlan").OnSelect(ViewPlan)
         };
-        paneCompactDropdownItems.AddRange(standardOverflowItems);
+        compactDropdownItems.AddRange(standardOverflowItems);
 
-        // Pane-Minimal-tier dropdown: all action buttons + standard overflow
-        var paneMinimalDropdownItems = new List<MenuItem>
+        // Minimal-tier dropdown: all action buttons + standard overflow
+        var minimalDropdownItems = new List<MenuItem>
         {
             new MenuItem("Accept with Notes", Icon: Icons.CircleCheck, Tag: "AcceptWithNotes")
                 .OnSelect(() => showNotesDialog()),
             new MenuItem("View Plan", Icon: Icons.ExternalLink, Tag: "ViewPlan").OnSelect(ViewPlan)
         };
-        paneMinimalDropdownItems.AddRange(standardOverflowItems);
+        minimalDropdownItems.AddRange(standardOverflowItems);
 
-        // Action bar without .Wrap() - the footer slot is fixed-height, so wrapping could
-        // push content out; a single row with progressive collapse is required instead.
+        // Full tier (container ≥1024px): all buttons inline; Compact (768–1023): Accept with
+        // Notes inline, View Plan in dropdown; Minimal (<768): Previous/Next + dropdown.
+        // Wrap() is the clipping guard: the recommendations-list pane and resizable sidebars
+        // can squeeze the footer below what a tier's inline set needs, in which case the row
+        // wraps instead of clipping (#1433) — the footer slot grows with its content.
         //
-        // These tiers are keyed to the CONTENT PANE, not the raw viewport — see the
-        // pane-width note on ActionBarResponsive. The pane is narrower than the viewport
-        // by the app sidebar + recommendations-list pane to its left, so the budget for
-        // each tier is shifted down by one viewport step from what a full-width bar would use:
-        // Pane-Compact tier (viewport >=1024px / Wide): Previous, Next, Accept with Notes inline; View Plan in dropdown.
-        // Pane-Minimal tier (viewport <1024px): Previous, Next inline; everything else in dropdown.
-        // View Plan never gets an inline slot at any viewport width — the pane is never wide
-        // enough to guarantee it fits, so it's always dropdown-only.
-        //
-        // Accept with Notes carries its ShortcutKey directly and is dropdown-only below the
-        // Pane-Compact tier, so "w" stops working below that tier — the same tradeoff Draft
-        // makes for Edit("E")/Update("u") and Review makes for Reset("r")/Request Changes("c").
-        var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(2)
+        // Accept with Notes carries its ShortcutKey directly and is dropdown-only at the
+        // Minimal tier, so "w" stops working there — the same tradeoff Draft makes for
+        // Edit("E")/Update("u") and Review makes for Reset("r")/Request Changes("c").
+        var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(2).Wrap()
                         | new Button("Previous").Icon(Icons.ChevronLeft).Outline().ShortcutKey("p")
                             .OnClick(GoToPrevious).AlwaysVisible()
                         | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().ShortcutKey("n")
                             .OnClick(GoToNext).AlwaysVisible()
                         | new Button("Accept with Notes").Icon(Icons.CircleCheck).Outline().ShortcutKey("w")
-                            .OnClick(() => showNotesDialog()).PaneCompactUp()
-                        // Pane-Compact-tier dropdown: View Plan + standard overflow
-                        | ActionBarResponsive.DropdownAtPaneCompact(
+                            .OnClick(() => showNotesDialog()).CompactUp()
+                        | new Button("View Plan").Icon(Icons.ExternalLink).Outline()
+                            .OnClick(ViewPlan).FullOnly()
+                        | ActionBarResponsive.DropdownAtFull(
                             new Button().Icon(Icons.EllipsisVertical).Ghost(),
-                            paneCompactDropdownItems.ToArray())
-                        // Pane-Minimal-tier dropdown: all action buttons + standard overflow
-                        | ActionBarResponsive.DropdownAtPaneMinimal(
+                            standardOverflowItems)
+                        | ActionBarResponsive.DropdownAtCompact(
                             new Button().Icon(Icons.EllipsisVertical).Ghost(),
-                            paneMinimalDropdownItems.ToArray());
+                            compactDropdownItems.ToArray())
+                        | ActionBarResponsive.DropdownAtMinimal(
+                            new Button().Icon(Icons.EllipsisVertical).Ghost(),
+                            minimalDropdownItems.ToArray());
 
         var mainLayout = new HeaderLayout(
             header,
