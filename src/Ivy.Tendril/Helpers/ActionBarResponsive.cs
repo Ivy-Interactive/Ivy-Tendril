@@ -78,4 +78,26 @@ public static class ActionBarResponsive
     {
         return trigger.WithDropDown(items).ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
     }
+
+    /// <summary>
+    /// Shows button only at the Wide tier (width ≥1024px). Hidden at every other
+    /// breakpoint, where the button collapses into a dropdown. Used for rows built from an
+    /// arbitrary, unbounded item count (e.g. project-configured actions), where fixed
+    /// button-count tiers can't safely guarantee everything fits below Wide.
+    /// </summary>
+    public static Button WideOnly(this Button btn)
+    {
+        return btn.ShowOn(Breakpoint.Wide);
+    }
+
+    /// <summary>
+    /// Creates a dropdown menu visible at every breakpoint except Wide (i.e. <c>Mobile</c> +
+    /// <c>Tablet</c> + <c>Desktop</c>, width &lt;1024px). Pairs with <see cref="WideOnly"/> for
+    /// rows with an arbitrary, unbounded item count: buttons are shown inline only on a wide
+    /// desktop monitor, everything else collapses into this single dropdown.
+    /// </summary>
+    public static DropDownMenu DropdownBelowWide(Button trigger, params MenuItem[] items)
+    {
+        return trigger.WithDropDown(items).ShowOn(Breakpoint.Mobile, Breakpoint.Tablet, Breakpoint.Desktop);
+    }
 }
