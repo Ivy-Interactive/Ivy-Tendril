@@ -177,15 +177,35 @@ public class WallpaperApp : ViewBase
                         })
                         .Small();
                 }
+                else
+                {
+                    actions |= new Button("Copy Command", () =>
+                        {
+                            copyToClipboard(updateCommand);
+                            client.Toast("Update command copied to clipboard", "Copied");
+                        })
+                        .Small();
+                }
                 actions |= dismissButton;
 
-                content = Layout.Vertical()
+                var verticalContent = Layout.Vertical()
                     | Text.Rich()
                         .Bold($"v{versionInfo.Value!.LatestVersion}")
                         .Run($" is available (you have v{versionInfo.Value.CurrentVersion})")
-                        .Small()
-                    | new CodeBlock(updateCommand, Languages.Bash)
-                    | actions;
+                        .Small();
+
+                if (versionService.CanSelfUpdate)
+                {
+                    verticalContent |= Text.Block("Click Update Now to download and install automatically. Tendril will restart.").Small();
+                }
+                else
+                {
+                    verticalContent |= Text.Block("Run this command in your terminal to update:").Small();
+                    verticalContent |= new CodeBlock(updateCommand, Languages.Bash);
+                }
+
+                verticalContent |= actions;
+                content = verticalContent;
             }
 
             var notification = new FloatingPanel(
