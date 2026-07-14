@@ -10,12 +10,10 @@ namespace Ivy.Tendril.Apps.Review;
 ///     <see cref="ReviewActionConfig"/>, disabled when its precomputed condition isn't met,
 ///     otherwise running the action's PowerShell command in the plan folder. Renders nothing
 ///     (returns null) when the project defines no review actions, so callers can compose it
-///     unconditionally. The action list is unbounded, so only the first
-///     <see cref="MaxInlineAtWide"/> actions are ever shown inline, and only at the Wide
-///     breakpoint (see <see cref="ActionBarResponsive"/>); every other action — and
-///     everything at every narrower breakpoint — collapses into a single overflow dropdown
-///     that stays visible at Wide too, so an arbitrarily long or long-labeled action list
-///     can never clip the bar.
+///     unconditionally. All actions render inline at the Wide breakpoint on a wrapping row
+///     (an arbitrarily long list flows onto extra rows instead of clipping); at narrower
+///     breakpoints everything collapses into a single dropdown
+///     (see <see cref="ActionBarResponsive"/>).
 /// </summary>
 public class ReviewActionsBarView(
     PlanFile selectedPlan,
@@ -23,8 +21,6 @@ public class ReviewActionsBarView(
     IConfigService config,
     ILogger logger) : ViewBase
 {
-    private const int MaxInlineAtWide = 4;
-
     public override object? Build()
     {
         var projectConfig = config.GetProject(selectedPlan.Project);
@@ -40,25 +36,16 @@ public class ReviewActionsBarView(
             }
         }
 
-        // The action list is project-configured and unbounded (arbitrary count, arbitrary
-        // label length), so a fixed number of inline buttons can never be guaranteed to fit
-        // even at the Wide breakpoint: cap the inline set at MaxInlineAtWide and always keep
-        // every action reachable via the dropdown, which stays visible at Wide too whenever
-        // there's overflow. Below Wide, no actions are shown inline at all.
-        var actionsBar = Layout.Horizontal().Gap(2).Padding(2, 2, 2, 0).Height(Size.Fit());
+        var actionsBar = Layout.Horizontal().Gap(2).Padding(2, 2, 2, 0).Height(Size.Fit()).Wrap();
         var dropdownItems = new List<MenuItem>();
-        var hasOverflowAtWide = reviewActions.Count > MaxInlineAtWide;
         for (var i = 0; i < reviewActions.Count; i++)
         {
             var action = reviewActions[i];
             var conditionMet = i < reviewActionStates.Count && reviewActionStates[i].ConditionMet;
 
-            if (i < MaxInlineAtWide)
-            {
-                var btn = new Button(action.Name).Icon(Icons.Play).Outline();
-                btn = conditionMet ? btn.OnClick(() => Run(action)) : btn.Disabled();
-                actionsBar |= btn.FullOnly();
-            }
+            var btn = new Button(action.Name).Icon(Icons.Play).Outline();
+            btn = conditionMet ? btn.OnClick(() => Run(action)) : btn.Disabled();
+            actionsBar |= btn.FullOnly();
 
             // Tag carries the loop index so duplicate action names don't misroute clicks or
             // collide as React keys (MenuItem.GetSelectHandler dispatches on the first Tag match).
@@ -71,10 +58,9 @@ public class ReviewActionsBarView(
             dropdownItems.Add(menuItem);
         }
 
-        var dropdownTrigger = new Button().Icon(Icons.EllipsisVertical).Ghost();
-        actionsBar |= hasOverflowAtWide
-            ? dropdownTrigger.WithDropDown(dropdownItems.ToArray())
-            : ActionBarResponsive.DropdownBelowWide(dropdownTrigger, dropdownItems.ToArray());
+        actionsBar |= ActionBarResponsive.DropdownBelowWide(
+            new Button().Icon(Icons.EllipsisVertical).Ghost(),
+            dropdownItems.ToArray());
 
         return actionsBar;
     }

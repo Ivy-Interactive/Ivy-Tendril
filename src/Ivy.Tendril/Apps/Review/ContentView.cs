@@ -470,66 +470,53 @@ public class ContentView(
             })
         };
 
-        // Pane-Compact-tier dropdown: Discard + standard overflow. See the pane-width note
-        // on ActionBarResponsive: the Review footer's content pane is narrower than the
-        // viewport by the sidebar + drafts-list pane to its left, so Discard never gets a
-        // safe inline slot at any viewport width.
-        var paneCompactDropdownItems = new List<MenuItem>
+        // Compact-tier dropdown: Discard + standard overflow
+        var compactDropdownItems = new List<MenuItem>
         {
             new MenuItem("Discard", Icon: Icons.Trash, Tag: "Discard").OnSelect(showDiscardDialog)
         };
-        paneCompactDropdownItems.AddRange(standardOverflowItems);
+        compactDropdownItems.AddRange(standardOverflowItems);
 
-        // Pane-Minimal-tier dropdown: all action buttons + standard overflow
-        var paneMinimalDropdownItems = new List<MenuItem>
+        // Minimal-tier dropdown: all action buttons + standard overflow
+        var minimalDropdownItems = new List<MenuItem>
         {
             new MenuItem("Reset to Draft", Icon: Icons.RotateCcw, Tag: "ResetToDraft").OnSelect(showResetToDraftDialog),
             new MenuItem("Request Changes", Icon: Icons.MessageSquare, Tag: "RequestChanges").OnSelect(showSuggestChangesDialog),
             new MenuItem("Discard", Icon: Icons.Trash, Tag: "Discard").OnSelect(showDiscardDialog)
         };
-        paneMinimalDropdownItems.AddRange(standardOverflowItems);
+        minimalDropdownItems.AddRange(standardOverflowItems);
 
-        // Action bar without .Wrap() - the footer slot is fixed-height, so wrapping could
-        // push content out; a single row with progressive collapse is required instead.
+        // Full tier (container ≥1024px): all buttons inline; Compact (768–1023): Reset to
+        // Draft/Request Changes inline, Discard in dropdown; Minimal (<768): Previous/Next +
+        // dropdown. Wrap() is the clipping guard: the plans-list pane and resizable sidebars
+        // can squeeze the footer below what a tier's inline set needs, in which case the row
+        // wraps instead of clipping (#1433) — the footer slot grows with its content.
         //
-        // These tiers are keyed to the CONTENT PANE, not the raw viewport — see the
-        // pane-width note on ActionBarResponsive. The pane is narrower than the viewport
-        // by the app sidebar + drafts-list pane to its left, so the budget for each tier
-        // is shifted down by one viewport step from what a full-width bar would use:
-        // Pane-Compact tier (viewport >=1024px / Wide): Previous, Next, Reset to Draft, Request Changes inline; Discard in dropdown.
-        // Pane-Minimal tier (viewport <1024px): Previous, Next inline; everything else in dropdown.
-        // Discard never gets an inline slot at any viewport width — the pane is never wide
-        // enough to guarantee it fits, so it's always dropdown-only.
-        //
-        // The framework only registers a Button's ShortcutKey while that Button is mounted
-        // (useShortcut's cleanup runs on unmount), and ShowOn/HideOn/PaneCompactUp/etc. truly
-        // unmount the widget rather than just hiding it with CSS (see MemoizedWidget in
-        // widgetRenderer.tsx: `if (visible === false) return null`). Since Discard never gets
-        // an inline slot at any tier, its Backspace shortcut has to live on an icon-only Button
-        // that stays mounted at every tier instead — MenuItem.Shortcut is display-only (just a
-        // Kbd hint) and never registers a keyboard handler.
-        return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
+        // The Backspace shortcut needs a mounted Button at every tier (ShowOn/HideOn truly
+        // unmount, which deregisters ShortcutKey; MenuItem shortcuts are display-only), so
+        // below Full an icon-only stand-in carries it while the labeled Discard is unmounted.
+        return Layout.Horizontal().AlignContent(Align.Left).Gap(2).Wrap()
                 | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(() => GoToPrevious(nav, args))
                     .ShortcutKey("p").AlwaysVisible()
                 | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().OnClick(() => GoToNext(nav, args))
                     .ShortcutKey("n").AlwaysVisible()
                 | new Button("Reset to Draft").Icon(Icons.RotateCcw).Outline().ShortcutKey("r")
-                    .OnClick(showResetToDraftDialog).PaneCompactUp()
+                    .OnClick(showResetToDraftDialog).CompactUp()
                 | new Button("Request Changes").Icon(Icons.MessageSquare).Outline().ShortcutKey("c")
-                    .OnClick(showSuggestChangesDialog).PaneCompactUp()
-                // Icon-only, always-mounted carrier for the Backspace shortcut — Discard itself
-                // is dropdown-only at every tier (see note above), so this keeps the keyboard
-                // shortcut alive without reintroducing a labeled inline button that can clip.
+                    .OnClick(showSuggestChangesDialog).CompactUp()
+                | new Button("Discard").Icon(Icons.Trash).Outline().ShortcutKey("Backspace")
+                    .OnClick(showDiscardDialog).FullOnly()
                 | new Button().Icon(Icons.Trash).Ghost().ShortcutKey("Backspace")
-                    .Tooltip("Discard").OnClick(showDiscardDialog).AlwaysVisible()
-                // Pane-Compact-tier dropdown: Discard + standard overflow
-                | ActionBarResponsive.DropdownAtPaneCompact(
+                    .Tooltip("Discard").OnClick(showDiscardDialog).BelowFull()
+                | ActionBarResponsive.DropdownAtFull(
                     new Button().Icon(Icons.EllipsisVertical).Ghost(),
-                    paneCompactDropdownItems.ToArray())
-                // Pane-Minimal-tier dropdown: all action buttons + standard overflow
-                | ActionBarResponsive.DropdownAtPaneMinimal(
+                    standardOverflowItems)
+                | ActionBarResponsive.DropdownAtCompact(
                     new Button().Icon(Icons.EllipsisVertical).Ghost(),
-                    paneMinimalDropdownItems.ToArray());
+                    compactDropdownItems.ToArray())
+                | ActionBarResponsive.DropdownAtMinimal(
+                    new Button().Icon(Icons.EllipsisVertical).Ghost(),
+                    minimalDropdownItems.ToArray());
     }
 
     private object BuildContent(
