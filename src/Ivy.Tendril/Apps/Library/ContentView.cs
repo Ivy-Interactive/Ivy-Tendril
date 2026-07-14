@@ -200,34 +200,94 @@ public class ContentView(
 
                 var text = File.ReadAllText(noteFile);
                 var title = noteName;
-                var lines = text.Split('\n');
-                var inFrontmatter = false;
                 var references = new List<string>();
+                var relations = new List<string>();
 
-                for (int i = 0; i < Math.Min(lines.Length, 30); i++)
+                var frontmatterYaml = "";
+                var firstDash = text.IndexOf("---");
+                if (firstDash == 0 || (firstDash > 0 && string.IsNullOrWhiteSpace(text[..firstDash])))
                 {
-                    var line = lines[i].Trim();
-                    if (line == "---")
+                    var secondDash = text.IndexOf("---", firstDash + 3);
+                    if (secondDash > 0)
                     {
-                        inFrontmatter = !inFrontmatter;
-                        continue;
+                        frontmatterYaml = text.Substring(firstDash + 3, secondDash - (firstDash + 3));
                     }
-                    if (inFrontmatter)
+                }
+
+                if (!string.IsNullOrEmpty(frontmatterYaml))
+                {
+                    try
                     {
-                        if (line.StartsWith("title:", StringComparison.OrdinalIgnoreCase))
+                        var fm = YamlHelper.Deserializer.Deserialize<MemoryFrontmatterDto>(frontmatterYaml);
+                        if (fm != null)
                         {
-                            title = line.Substring("title:".Length).Trim(' ', '"', '\'');
-                        }
-                        else if (line.StartsWith("references:", StringComparison.OrdinalIgnoreCase))
-                        {
-                            var refVal = line.Substring("references:".Length).Trim();
-                            if (refVal.StartsWith('[') && refVal.EndsWith(']'))
+                            if (!string.IsNullOrEmpty(fm.Title))
                             {
-                                var parts = refVal.Trim('[', ']').Split(',', StringSplitOptions.RemoveEmptyEntries);
-                                foreach (var part in parts)
+                                title = fm.Title;
+                            }
+                            if (fm.References != null)
+                            {
+                                foreach (var r in fm.References)
                                 {
-                                    references.Add(part.Trim(' ', '"', '\''));
+                                    if (!string.IsNullOrEmpty(r.Path))
+                                    {
+                                        references.Add(r.Path);
+                                    }
                                 }
+                            }
+                            if (fm.Relations != null)
+                            {
+                                foreach (var rel in fm.Relations)
+                                {
+                                    if (!string.IsNullOrEmpty(rel))
+                                    {
+                                        relations.Add(rel);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Fallback: parse lines manually if YAML deserialization fails
+                        var lines = text.Split('\n');
+                        var inFrontmatter = false;
+                        for (int i = 0; i < Math.Min(lines.Length, 30); i++)
+                        {
+                            var line = lines[i].Trim();
+                            if (line == "---")
+                            {
+                                inFrontmatter = !inFrontmatter;
+                                continue;
+                            }
+                            if (inFrontmatter)
+                            {
+                                if (line.StartsWith("title:", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    title = line.Substring("title:".Length).Trim(' ', '"', '\'');
+                                }
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    // Fallback: parse lines manually if no frontmatter delimiters found
+                    var lines = text.Split('\n');
+                    var inFrontmatter = false;
+                    for (int i = 0; i < Math.Min(lines.Length, 30); i++)
+                    {
+                        var line = lines[i].Trim();
+                        if (line == "---")
+                        {
+                            inFrontmatter = !inFrontmatter;
+                            continue;
+                        }
+                        if (inFrontmatter)
+                        {
+                            if (line.StartsWith("title:", StringComparison.OrdinalIgnoreCase))
+                            {
+                                title = line.Substring("title:".Length).Trim(' ', '"', '\'');
                             }
                         }
                     }
@@ -262,7 +322,42 @@ public class ContentView(
                         graphNodes.Add(new BrainNode(fileId, fileName, "code", fileStatus));
                     }
 
-                    graphEdges.Add(new BrainEdge(noteName, fileId));
+                    if (!graphEdges.Any(e => e.Source == noteName && e.Target == fileId))
+                    {
+                        graphEdges.Add(new BrainEdge(noteName, fileId));
+                    }
+                }
+
+                foreach (var rel in relations)
+                {
+                    var target = rel.Trim();
+                    if (string.IsNullOrEmpty(target)) continue;
+
+                    var matchedNoteId = noteIds.FirstOrDefault(id => 
+                        id.Equals(target, StringComparison.OrdinalIgnoreCase) ||
+                        id.EndsWith("/" + target, StringComparison.OrdinalIgnoreCase) ||
+                        id.EndsWith("\\" + target, StringComparison.OrdinalIgnoreCase)
+                    );
+
+                    if (matchedNoteId != null)
+                    {
+                        if (!graphEdges.Any(e => e.Source == noteName && e.Target == matchedNoteId))
+                        {
+                            graphEdges.Add(new BrainEdge(noteName, matchedNoteId));
+                        }
+                    }
+                    else
+                    {
+                        var brokenId = "broken:" + target;
+                        if (!graphNodes.Any(n => n.Id == brokenId))
+                        {
+                            graphNodes.Add(new BrainNode(brokenId, target, "memory", "broken"));
+                        }
+                        if (!graphEdges.Any(e => e.Source == noteName && e.Target == brokenId))
+                        {
+                            graphEdges.Add(new BrainEdge(noteName, brokenId));
+                        }
+                    }
                 }
 
                 var matches = System.Text.RegularExpressions.Regex.Matches(text, @"\[\[([^\]|]+)(?:\|[^\]]+)?\]\]");
@@ -277,7 +372,10 @@ public class ContentView(
 
                     if (matchedNoteId != null)
                     {
-                        graphEdges.Add(new BrainEdge(noteName, matchedNoteId));
+                        if (!graphEdges.Any(e => e.Source == noteName && e.Target == matchedNoteId))
+                        {
+                            graphEdges.Add(new BrainEdge(noteName, matchedNoteId));
+                        }
                     }
                     else
                     {
@@ -286,7 +384,10 @@ public class ContentView(
                         {
                             graphNodes.Add(new BrainNode(brokenId, target, "memory", "broken"));
                         }
-                        graphEdges.Add(new BrainEdge(noteName, brokenId));
+                        if (!graphEdges.Any(e => e.Source == noteName && e.Target == brokenId))
+                        {
+                            graphEdges.Add(new BrainEdge(noteName, brokenId));
+                        }
                     }
                 }
             }
@@ -425,4 +526,19 @@ public class ContentView(
             Layout.Vertical().Scroll(Scroll.Auto).Size(Size.Full()) | mainBody
         ).Scroll(Scroll.None).Size(Size.Full());
     }
+}
+
+public class CodeReferenceDto
+{
+    public string Path { get; set; } = "";
+    public string Hash { get; set; } = "";
+}
+
+public class MemoryFrontmatterDto
+{
+    public string Title { get; set; } = "";
+    public List<CodeReferenceDto>? References { get; set; }
+    public List<string>? Tags { get; set; }
+    public List<string>? Relations { get; set; }
+    public string? Type { get; set; }
 }

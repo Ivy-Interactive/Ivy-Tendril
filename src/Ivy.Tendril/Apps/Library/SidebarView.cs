@@ -1,5 +1,6 @@
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Services;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -9,11 +10,17 @@ public class SidebarView(
     List<string> files,
     IState<string?> selectedNote,
     IState<string?> searchQuery,
+    IState<string?> projectFilter,
     IState<bool> isNewNoteOpen,
     VaultStatusInfo? status) : ViewBase
 {
     public override object Build()
     {
+        var config = UseService<IConfigService>();
+        var projectOptions = config?.Projects
+            .Select(p => new Option<string>(p.Name, p.Name))
+            .ToArray<IAnyOption>() ?? System.Array.Empty<IAnyOption>();
+
         var filteredList = files;
         if (!string.IsNullOrWhiteSpace(searchQuery.Value))
         {
@@ -21,7 +28,7 @@ public class SidebarView(
             filteredList = files.Where(f => f.ToLowerInvariant().Contains(q)).ToList();
         }
 
-        var sidebarHeader = Layout.Vertical()
+        var sidebarHeader = Layout.Vertical().Gap(2)
             | searchQuery.ToSearchInput()
                 .Placeholder("Search memories...")
                 .Suffix(
@@ -29,7 +36,11 @@ public class SidebarView(
                         .Icon(Icons.Plus)
                         .Ghost()
                         .OnClick(() => isNewNoteOpen.Set(true))
-                );
+                )
+            | projectFilter.ToSelectInput(projectOptions)
+                .Placeholder("All Projects")
+                .Nullable()
+                .WithField().Label("Project");
 
         object sidebarContent;
         if (filteredList.Count == 0)

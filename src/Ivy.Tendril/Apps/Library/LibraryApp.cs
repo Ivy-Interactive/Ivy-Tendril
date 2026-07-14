@@ -40,6 +40,7 @@ public class LibraryApp : ViewBase
         // Sidebar and search states
         var selectedNote = UseState<string?>(null);
         var searchQuery = UseState<string?>("");
+        var projectFilter = UseState<string?>(null);
         var editContent = UseState("");
         var isEditing = UseState(false);
 
@@ -342,6 +343,12 @@ public class LibraryApp : ViewBase
                     .Where(f => f != null && !f.StartsWith('.') && !f.Contains("/."))
                     .OrderBy(f => f)
                     .ToList()!;
+
+                if (projectFilter.Value != null)
+                {
+                    var prefix = projectFilter.Value + "/";
+                    files = files.Where(f => f.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).ToList();
+                }
             }
             catch { }
         }
@@ -376,6 +383,7 @@ public class LibraryApp : ViewBase
             files,
             selectedNote,
             searchQuery,
+            projectFilter,
             isNewNoteOpen,
             vaultStatus.Value
         );
