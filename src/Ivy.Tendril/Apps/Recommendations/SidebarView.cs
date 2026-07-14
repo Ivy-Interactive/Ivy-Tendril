@@ -90,7 +90,7 @@ public class SidebarView(
                 }).Small();
 
             return SidebarListRow.Build($"#{rec.ShortPlanId} {rec.Title}", badges,
-                () => selectedState.Set(clickableRec));
+                () => selectedState.Set(clickableRec), Equals(rec, selectedState.Value));
         }));
 
         return new HeaderLayout(BuildHeader(), content);

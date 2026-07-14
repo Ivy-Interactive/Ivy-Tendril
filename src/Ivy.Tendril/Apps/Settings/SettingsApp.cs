@@ -20,7 +20,6 @@ public class SettingsApp : ViewBase
     internal const string TagProjects = "projects";
     private const string TagTunnel = "tunnel";
     private const string TagAdvanced = "advanced";
-    private const string TagOpenConfig = "open-config";
 
     public override object Build()
     {
@@ -34,46 +33,31 @@ public class SettingsApp : ViewBase
         var isDesktop = desktopWindow != null;
         var capturedHost = ConfigYamlUiHelper.CaptureHost(httpContextAccessor);
 
-        var children = new List<MenuItem>
+        var sections = new List<(string Label, string Tag, Icons Icon)>
         {
-            MenuItem.Default("Coding Agent", TagCodingAgent).Icon(Icons.Bot),
-            MenuItem.Default("Plans", TagPlans).Icon(Icons.Feather),
-            MenuItem.Default("Appearance", TagAppearance).Icon(Icons.Sun),
-            MenuItem.Default("Projects", TagProjects).Icon(Icons.Folder),
-            MenuItem.Default("Verifications", TagVerifications).Icon(Icons.CircleCheck),
-            MenuItem.Default("Promptwares", TagPromptwares).Icon(Icons.Wand),
-            MenuItem.Default("Levels", TagLevels).Icon(Icons.ListOrdered),
-            MenuItem.Default("Notifications", TagNotifications).Icon(Icons.Bell),
-            MenuItem.Default("Security", TagSecurity).Icon(Icons.Lock),
+            ("Coding Agent", TagCodingAgent, Icons.Bot),
+            ("Plans", TagPlans, Icons.Feather),
+            ("Appearance", TagAppearance, Icons.Sun),
+            ("Projects", TagProjects, Icons.Folder),
+            ("Verifications", TagVerifications, Icons.CircleCheck),
+            ("Promptwares", TagPromptwares, Icons.Wand),
+            ("Levels", TagLevels, Icons.ListOrdered),
+            ("Notifications", TagNotifications, Icons.Bell),
+            ("Security", TagSecurity, Icons.Lock),
+            ("Tunnel", TagTunnel, Icons.Globe),
+            ("Advanced", TagAdvanced, Icons.Cog),
         };
 
-        children.Add(MenuItem.Default("Tunnel", TagTunnel).Icon(Icons.Globe));
-        children.Add(MenuItem.Default("Advanced", TagAdvanced).Icon(Icons.Cog));
-        children.Add(MenuItem.Default("Open config.yaml", TagOpenConfig).Icon(Icons.FileText));
+        var rows = sections
+            .Select(s => SidebarListRow.Build(s.Label, s.Icon, () => selected.Set(s.Tag), selected.Value == s.Tag))
+            .Append(SidebarListRow.Build("Open config.yaml", Icons.FileText,
+                () => ConfigYamlUiHelper.OpenOrNavigate(config, navigator, client, isDesktop, capturedHost)));
 
-        var menuItems = new[]
-        {
-            MenuItem.Default("Configuration")
-                .Icon(Icons.Settings2)
-                .Expanded()
-                .Children(children.ToArray())
-        };
+        var sidebarHeader = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Height(Size.Px(40))
+            | Icons.Settings2.ToIcon()
+            | Text.Literal("Configuration");
 
-        void OnSelect(Event<SidebarMenu, object> @event)
-        {
-            if (@event.Value is not string tag) return;
-            switch (tag)
-            {
-                case TagOpenConfig:
-                    ConfigYamlUiHelper.OpenOrNavigate(config, navigator, client, isDesktop, capturedHost);
-                    break;
-                default:
-                    selected.Set(tag);
-                    break;
-            }
-        }
-
-        var sidebar = new SidebarMenu(OnSelect, menuItems);
+        var sidebar = new HeaderLayout(sidebarHeader, new List(rows));
 
         object content = selected.Value switch
         {
@@ -91,10 +75,6 @@ public class SettingsApp : ViewBase
             _ => new CodingAgentSetupView()
         };
 
-        var sections = children
-            .Where(m => m.Tag is string t && t != TagOpenConfig)
-            .Select(m => (Tag: (string)m.Tag!, Label: m.Label ?? ""))
-            .ToList();
         var currentLabel = sections.FirstOrDefault(s => s.Tag == selected.Value).Label ?? "Configuration";
 
         var mobileHeader = MobileItemPicker.Build(
