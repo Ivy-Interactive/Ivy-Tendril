@@ -500,6 +500,14 @@ public class ContentView(
         // Pane-Minimal tier (viewport <1024px): Previous, Next inline; everything else in dropdown.
         // Discard never gets an inline slot at any viewport width — the pane is never wide
         // enough to guarantee it fits, so it's always dropdown-only.
+        //
+        // The framework only registers a Button's ShortcutKey while that Button is mounted
+        // (useShortcut's cleanup runs on unmount), and ShowOn/HideOn/PaneCompactUp/etc. truly
+        // unmount the widget rather than just hiding it with CSS (see MemoizedWidget in
+        // widgetRenderer.tsx: `if (visible === false) return null`). Since Discard never gets
+        // an inline slot at any tier, its Backspace shortcut has to live on an icon-only Button
+        // that stays mounted at every tier instead — MenuItem.Shortcut is display-only (just a
+        // Kbd hint) and never registers a keyboard handler.
         return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
                 | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(() => GoToPrevious(nav, args))
                     .ShortcutKey("p").AlwaysVisible()
@@ -509,6 +517,11 @@ public class ContentView(
                     .OnClick(showResetToDraftDialog).PaneCompactUp()
                 | new Button("Request Changes").Icon(Icons.MessageSquare).Outline().ShortcutKey("c")
                     .OnClick(showSuggestChangesDialog).PaneCompactUp()
+                // Icon-only, always-mounted carrier for the Backspace shortcut — Discard itself
+                // is dropdown-only at every tier (see note above), so this keeps the keyboard
+                // shortcut alive without reintroducing a labeled inline button that can clip.
+                | new Button().Icon(Icons.Trash).Ghost().ShortcutKey("Backspace")
+                    .Tooltip("Discard").OnClick(showDiscardDialog).AlwaysVisible()
                 // Pane-Compact-tier dropdown: Discard + standard overflow
                 | ActionBarResponsive.DropdownAtPaneCompact(
                     new Button().Icon(Icons.EllipsisVertical).Ghost(),

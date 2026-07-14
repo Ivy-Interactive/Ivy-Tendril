@@ -22,12 +22,16 @@ namespace Ivy.Tendril.Helpers;
 /// everything at Wide" tier still clips (see issue #1433).
 ///
 /// To account for this, the footer helpers below shift the button budget down by one
-/// viewport tier from what the numbers alone would suggest: a set that would safely
-/// fit a full-width element at <c>Desktop</c> is only shown inline once the viewport
-/// reaches <c>Wide</c>, and there is no viewport tier at which the widest, Full-tier-only
-/// button set is safe — those items are always reachable via the dropdown instead of
-/// ever being guaranteed inline. Do not "simplify" this back to the naive
-/// viewport-only mapping; it will reproduce the clipping bug.
+/// viewport tier from what the numbers alone would suggest: a set that would fit a
+/// full-width element at <c>Desktop</c> is only shown inline once the viewport reaches
+/// <c>Wide</c>, and there is no viewport tier at which the widest, Full-tier-only button
+/// set is safe — those items are always reachable via the dropdown instead of ever being
+/// guaranteed inline. This still isn't watertight: <c>Wide</c> is unbounded above, so a
+/// pane at the narrow end of that band (roughly a 1024–1300px viewport, well short of the
+/// #1433 repro's ~1456px) can still clip the Pane-Compact-tier inline set — there's no
+/// lower tier to fall back to once <c>Wide</c> is reached. Do not "simplify" this back to
+/// the naive viewport-only mapping; it will reproduce the clipping bug, and don't read the
+/// Wide tier as a guarantee either.
 /// <list type="bullet">
 ///   <item><b>Pane-Compact</b> tier (Previous/Next + a couple of primary actions inline) → <c>Wide</c> only</item>
 ///   <item><b>Pane-Minimal</b> tier (only Previous/Next inline) → <c>Mobile</c> + <c>Tablet</c> + <c>Desktop</c></item>

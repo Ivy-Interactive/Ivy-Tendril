@@ -151,7 +151,10 @@ public class ActionBarView(
         // content pane (Split/Expand/Delete) + standard overflow. See the pane-width note
         // on ActionBarResponsive: the Draft footer's content pane is narrower than the
         // viewport by the sidebar + drafts-list pane to its left, so even at the Wide
-        // viewport tier only Previous/Next/Edit/Update safely fit inline.
+        // viewport tier only Previous/Next/Edit/Update fit inline at typical Wide widths
+        // (verified at the #1433 repro's ~1456px); Breakpoint.Wide is unbounded below
+        // 1024px, so a pane at the narrow end of that band (roughly 1024–1300px viewport)
+        // can still clip this set — there is no tier gate below Wide to fall back to.
         var paneCompactDropdownItems = new List<MenuItem>
         {
             new MenuItem("Split", Icon: Icons.Scissors, Tag: "Split")
@@ -188,6 +191,14 @@ public class ActionBarView(
         // Pane-Minimal tier (viewport <1024px): Previous, Next inline; everything else in dropdown.
         // Split/Expand/Delete never get an inline slot at any viewport width — the pane is
         // never wide enough to guarantee they fit, so they're always dropdown-only.
+        //
+        // The framework only registers a Button's ShortcutKey while that Button is mounted
+        // (useShortcut's cleanup runs on unmount), and ShowOn/HideOn/PaneCompactUp/etc. truly
+        // unmount the widget rather than just hiding it with CSS (see MemoizedWidget in
+        // widgetRenderer.tsx: `if (visible === false) return null`). Since Delete never gets
+        // an inline slot at any tier, its Backspace shortcut has to live on an icon-only Button
+        // that stays mounted at every tier instead — MenuItem.Shortcut is display-only (just a
+        // Kbd hint) and never registers a keyboard handler.
         return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
                | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(goToPrevious)
                    .ShortcutKey("p").AlwaysVisible()
@@ -197,6 +208,11 @@ public class ActionBarView(
                    .OnClick(() => isEditingState.Set(true)).PaneCompactUp()
                | new Button("Update").Icon(Icons.WandSparkles).Outline().ShortcutKey("u")
                    .OnClick(showUpdateDialog).PaneCompactUp()
+               // Icon-only, always-mounted carrier for the Backspace shortcut — Delete itself
+               // is dropdown-only at every tier (see note above), so this keeps the keyboard
+               // shortcut alive without reintroducing a labeled inline button that can clip.
+               | new Button().Icon(Icons.Trash).Ghost().ShortcutKey("Backspace")
+                   .Tooltip("Delete").OnClick(showDeleteDialog).AlwaysVisible()
                // Pane-Compact-tier dropdown: Split, Expand, Delete + standard overflow
                | ActionBarResponsive.DropdownAtPaneCompact(
                    new Button().Icon(Icons.EllipsisVertical).Ghost(),
