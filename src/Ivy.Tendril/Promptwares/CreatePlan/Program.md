@@ -90,7 +90,17 @@ Do NOT read or modify `.counter` directly. Plan IDs are allocated by the `tendri
 
 Report status: `tendril job status TendrilJobId --message="Researching codebase..."`
 
-- **Check for duplicate plans** first — **unless `Force: true` is set in the firmware header**, in which case skip duplicate detection entirely. However, if you discover related existing plans during research (e.g., from grep results or memory), still link them via `--related-plan` on `tendril plan create`. `Force` means "create the plan regardless" — not "ignore prior work." Check the `DuplicateCandidates` firmware value. If present, it contains pre-computed matches (format: `folderName|title|state` per line). For each match, perform **state-aware duplicate detection** on those specific plans only. If `DuplicateCandidates` is absent, no potential duplicates were found — skip duplicate detection. When matches are found, decide as follows:
+#### 3.1. Retrieve Relevant Memories (CRITICAL FIRST STEP)
+
+Before you read any source files, run grep, check GitHub, or outline a plan, you MUST read and search the Promptwares memory vault to establish full codebase context:
+1. Run `bw --project <TendrilProject> status` to inspect all available memory notes in the vault.
+2. Query/search for memories relevant to the task (e.g. using `bw --project <TendrilProject> query <keyword>` or reading `index.md`).
+3. If relevant memories are found (e.g. `project-stack`, architecture notes, design guidelines), you MUST run `bw --project <TendrilProject> read <name>` to read them.
+4. **DO NOT REDISCOVER OR RE-DOCUMENT:** If a memory note (such as `project-stack` or technology stack details) already exists in the vault, you MUST reuse it. Do not attempt to summarize the architecture or stack yourself from scratch — rely on the existing memory.
+5. In your plan's `## Problem` or `## Background` section, explicitly reference and cite these memory notes if they are relevant.
+
+#### 3.2. Check for Duplicate Plans
+- Check for duplicate plans first — **unless `Force: true` is set in the firmware header**, in which case skip duplicate detection entirely. However, if you discover related existing plans during research (e.g., from grep results or memory), still link them via `--related-plan` on `tendril plan create`. `Force` means "create the plan regardless" — not "ignore prior work." Check the `DuplicateCandidates` firmware value. If present, it contains pre-computed matches (format: `folderName|title|state` per line). For each match, perform **state-aware duplicate detection** on those specific plans only. If `DuplicateCandidates` is absent, no potential duplicates were found — skip duplicate detection. When matches are found, decide as follows:
 
   #### Step 1: Read existing plan state
   
@@ -178,12 +188,7 @@ gh search issues "<keyword>" --repo <owner>/<repo> --json title,url,number,state
 
 Derive the repo owner/name from the **Projects** section repos. If an open issue already covers the task, reference it in the plan's revision and avoid creating workaround plans.
 
-### 3.2. Retrieve Relevant Memories
 
-Read and search the Promptwares memory vault to gain full codebase context before planning:
-1. Run `bw --project <TendrilProject> status` to inspect the available memories.
-2. Search for existing memory notes relevant to the task (e.g. using `bw --project <TendrilProject> query` or reading `index.md`).
-3. If relevant memories are found (e.g. `project-stack`, architecture notes, or design guidelines), read them to align the proposed plan with established codebase patterns and choices.
 
 ### 3.5. Validate Code State
 
