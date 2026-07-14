@@ -54,8 +54,14 @@ public class LibraryApp : ViewBase
         var projectFiles = UseState<List<string>>(new List<string>());
         var isFilesLoading = UseState(false);
 
+        // Find the active project matching current directory or fallback to first
+        var activeProject = config.Projects.FirstOrDefault(p =>
+            p.RepoPaths.Any(rp => Directory.GetCurrentDirectory().StartsWith(rp, StringComparison.OrdinalIgnoreCase) ||
+                                  rp.StartsWith(Directory.GetCurrentDirectory(), StringComparison.OrdinalIgnoreCase)))
+            ?? config.Projects.FirstOrDefault();
+
         // Find the vault directory
-        var workspaceDir = config.Projects.FirstOrDefault()?.RepoPaths.FirstOrDefault();
+        var workspaceDir = activeProject?.RepoPaths.FirstOrDefault();
         var workingDir = string.IsNullOrEmpty(workspaceDir) ? Directory.GetCurrentDirectory() : workspaceDir;
         var vaultPath = PromptwareHelper.ResolveBrainwaresVaultDir(workingDir);
         var memoriesDir = vaultPath != null ? Path.Combine(vaultPath, "memories") : null;
@@ -116,7 +122,7 @@ public class LibraryApp : ViewBase
         void StartMemoryUpdateJob(List<string> selectedFiles)
         {
             if (selectedFiles == null || selectedFiles.Count == 0) return;
-            var project = config.Projects.FirstOrDefault()?.Name ?? "Auto";
+            var project = activeProject?.Name ?? "Auto";
             var jobArgs = new UpdateMemoriesArgs(project, selectedFiles);
             jobService.StartJob(jobArgs);
             client.Toast($"Started agentic memory update job for {selectedFiles.Count} files.", "Job Started");

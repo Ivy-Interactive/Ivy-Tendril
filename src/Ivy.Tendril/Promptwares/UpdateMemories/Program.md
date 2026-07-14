@@ -13,16 +13,17 @@ The firmware header contains:
 - **Vault alignment.** All memories must be stored and maintained under the Promptwares vault.
 - **Reference maintenance.** You must link files to memory notes via `bw link` and update reference hashes via `bw update` after modifying documentation.
 - **Clear structure.** Document each file's purpose, key exported classes/types, architecture, dependencies, and code comments cleanly.
-- **Cross-referencing (wiki-links).** You MUST link related memory pages together by using Obsidian-style wiki-links `[[note-name]]` in the markdown body. For example, if documenting `day-cycle.md`, link to its tests `[[day-cycle-test]]` and any imported components (e.g. `[[keyboard-manager]]`).
+- **Memory Relations.** You MUST relate memory pages (such as dependencies and test files) ONLY by running `bw --project <TendrilProject> relate <memory> <target>`. Do NOT write or embed Obsidian-style wiki-links `[[note-name]]` in the markdown body of the memory note.
 - **Respect gitignores.** You MUST NOT create or update memory notes for files that are mentioned or matched in the project's `.gitignore` files (even if they are passed in `FilesToUpdate`). Skip documenting them.
 
 ## Available CLI Commands
 
 ### Memory Vault Commands
 ```bash
-bw --project <TendrilProject> status                 # Scan memory notes, reference hashes, and wiki-links
+bw --project <TendrilProject> status                 # Scan memory notes, reference hashes, and relations
 bw --project <TendrilProject> add <name>             # Add a new memory note
 bw --project <TendrilProject> link <name> <file>     # Link a code file reference to a memory note
+bw --project <TendrilProject> relate <note> <target> # Relate two memory notes together (stores in frontmatter)
 bw --project <TendrilProject> update <name>          # Synchronize reference hashes for a memory note
 bw --project <TendrilProject> write <name>           # Write content directly to a memory note
 bw --project <TendrilProject> query <keyword>        # Search memories by keyword
@@ -51,7 +52,7 @@ For each file in the `FilesToUpdate` list, perform the following steps:
    - Read the full content of the source file.
    - Analyze its purpose, public API surface, classes, functions, structure, and dependencies.
    - Write a complete, comprehensive markdown documentation of the file to the memory note using `bw --project <TendrilProject> write <name>` (e.g. `echo "..." | bw --project <TendrilProject> write <name>`). Do NOT edit the memory markdown file under `memories/` directly.
-   - **Link to dependencies and tests**: Scan the file's imports and related files. You MUST embed Obsidian-style wiki-links `[[note-name]]` referencing the memory notes of imported dependencies, sibling modules, and corresponding test files (e.g. `[[keyboard-manager-test]]` or `[[day-cycle]]`).
+   - **Declare relations to dependencies and tests**: Scan the file's imports and related files. Run `bw --project <TendrilProject> relate <name> <dependency-note-name>` for each imported module, sibling component, or test file to connect them together. Do NOT write inline wiki-links in the body.
    
 4. **Synchronize hashes**:
    - Run `bw --project <TendrilProject> update <name>` to compute and store the current hash of the source file, marking the memory page as up to date.
