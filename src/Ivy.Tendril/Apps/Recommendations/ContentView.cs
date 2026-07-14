@@ -173,47 +173,66 @@ public class ContentView(
                 showPlan(fullPath);
         }
 
-        // Full-tier dropdown: standard overflow items only (all buttons shown inline)
-        var fullDropdownItems = standardOverflowItems;
-
-        // Compact-tier dropdown: View Plan + standard overflow
-        var compactDropdownItems = new List<MenuItem>
+        // Pane-Compact-tier dropdown: View Plan + standard overflow. See the pane-width note
+        // on ActionBarResponsive: the Recommendations footer's content pane is narrower than
+        // the viewport by the app sidebar + recommendations-list pane to its left, so even at
+        // the Wide viewport tier only Previous/Next/Accept with Notes fit inline.
+        var paneCompactDropdownItems = new List<MenuItem>
         {
             new MenuItem("View Plan", Icon: Icons.ExternalLink, Tag: "ViewPlan").OnSelect(ViewPlan)
         };
-        compactDropdownItems.AddRange(standardOverflowItems);
+        paneCompactDropdownItems.AddRange(standardOverflowItems);
 
-        // Minimal-tier dropdown: Accept with Notes, View Plan + standard overflow
-        var minimalDropdownItems = new List<MenuItem>
+        // Pane-Minimal-tier dropdown: all action buttons + standard overflow
+        var paneMinimalDropdownItems = new List<MenuItem>
         {
             new MenuItem("Accept with Notes", Icon: Icons.CircleCheck, Tag: "AcceptWithNotes")
                 .OnSelect(() => showNotesDialog()),
             new MenuItem("View Plan", Icon: Icons.ExternalLink, Tag: "ViewPlan").OnSelect(ViewPlan)
         };
-        minimalDropdownItems.AddRange(standardOverflowItems);
+        paneMinimalDropdownItems.AddRange(standardOverflowItems);
 
-        // Action bar without .Wrap() - single row with progressive collapse.
-        // Full (>=1024px): Previous, Next, Accept with Notes, View Plan inline + overflow dropdown.
-        // Compact (768-1023px): Previous, Next, Accept with Notes inline; View Plan in dropdown.
-        // Minimal (<768px): Previous, Next inline; everything else in dropdown.
+        // Action bar without .Wrap() - the footer slot is fixed-height, so wrapping could
+        // push content out; a single row with progressive collapse is required instead.
+        //
+        // These tiers are keyed to the CONTENT PANE, not the raw viewport — see the
+        // pane-width note on ActionBarResponsive. The pane is narrower than the viewport
+        // by the app sidebar + recommendations-list pane to its left, so the budget for
+        // each tier is shifted down by one viewport step from what a full-width bar would use:
+        // Pane-Compact tier (viewport >=1024px / Wide): Previous, Next, Accept with Notes inline; View Plan in dropdown.
+        // Pane-Minimal tier (viewport <1024px): Previous, Next inline; everything else in dropdown.
+        // View Plan never gets an inline slot at any viewport width — the pane is never wide
+        // enough to guarantee it fits, so it's always dropdown-only.
+        //
+        // The framework only registers a Button's ShortcutKey while that Button is mounted
+        // (useShortcut's cleanup runs on unmount), and ShowOn/HideOn/PaneCompactUp/etc. truly
+        // unmount the widget rather than just hiding it with CSS (see MemoizedWidget in
+        // widgetRenderer.tsx: `if (visible === false) return null`). Accept with Notes carries
+        // a ShortcutKey and is dropdown-only below the Pane-Compact tier, so its shortcut has
+        // to live on an icon-only Button that stays mounted at every tier instead —
+        // MenuItem.Shortcut is display-only (just a Kbd hint) and never registers a keyboard
+        // handler.
         var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(2)
                         | new Button("Previous").Icon(Icons.ChevronLeft).Outline().ShortcutKey("p")
                             .OnClick(GoToPrevious).AlwaysVisible()
                         | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().ShortcutKey("n")
                             .OnClick(GoToNext).AlwaysVisible()
-                        | new Button("Accept with Notes").Icon(Icons.CircleCheck).Outline().ShortcutKey("w")
-                            .OnClick(() => showNotesDialog()).CompactUp()
-                        | new Button("View Plan").Icon(Icons.ExternalLink).Outline()
-                            .OnClick(ViewPlan).FullOnly()
-                        | ActionBarResponsive.DropdownAtFull(
+                        | new Button("Accept with Notes").Icon(Icons.CircleCheck).Outline()
+                            .OnClick(() => showNotesDialog()).PaneCompactUp()
+                        // Icon-only, always-mounted carrier for the "w" shortcut — Accept with
+                        // Notes itself is dropdown-only below the Pane-Compact tier (see note
+                        // above), so this keeps the keyboard shortcut alive without
+                        // reintroducing a labeled inline button that can clip.
+                        | new Button().Icon(Icons.CircleCheck).Ghost().ShortcutKey("w")
+                            .Tooltip("Accept with Notes").OnClick(() => showNotesDialog()).AlwaysVisible()
+                        // Pane-Compact-tier dropdown: View Plan + standard overflow
+                        | ActionBarResponsive.DropdownAtPaneCompact(
                             new Button().Icon(Icons.EllipsisVertical).Ghost(),
-                            fullDropdownItems)
-                        | ActionBarResponsive.DropdownAtCompact(
+                            paneCompactDropdownItems.ToArray())
+                        // Pane-Minimal-tier dropdown: all action buttons + standard overflow
+                        | ActionBarResponsive.DropdownAtPaneMinimal(
                             new Button().Icon(Icons.EllipsisVertical).Ghost(),
-                            compactDropdownItems.ToArray())
-                        | ActionBarResponsive.DropdownAtMinimal(
-                            new Button().Icon(Icons.EllipsisVertical).Ghost(),
-                            minimalDropdownItems.ToArray());
+                            paneMinimalDropdownItems.ToArray());
 
         var mainLayout = new HeaderLayout(
             header,
