@@ -264,12 +264,22 @@ public class Program
                 : OperatingSystem.IsMacOS() ? "Ivy.Tendril.Assets.icon.icns"
                 : "Ivy.Tendril.Assets.icon.png";
 
+            var version = typeof(Program).Assembly.GetName().Version;
+            var versionString = version?.ToString(3) ?? "1.1.12";
+
             var window = new DesktopWindow(server)
                 .Title("Ivy Tendril")
                 .AppId("Ivy Tendril")
                 .Size(1800, 1200)
                 .UseDpiScaling(false)
                 .Icon(typeof(Program), iconResource)
+                .AboutName("Ivy Tendril")
+                .AboutVersion(versionString)
+                .AboutCopyright("© 2026 Ivy Interactive")
+                .AboutWebsite("https://ivy.app")
+                .AboutLicense("Apache-2.0")
+                .AboutAuthor("Ivy Interactive")
+                .AboutComments("Tendril is an end-to-end AI coding agent orchestrator built on the Ivy Framework that manages AI coding plans, tracks costs, and automates pull request generation.")
                 .OnReady(w =>
                 {
                     if (server.ServiceProvider is { } sp)

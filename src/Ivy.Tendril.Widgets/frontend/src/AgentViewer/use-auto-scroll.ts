@@ -18,11 +18,15 @@ export function useAutoScroll(options: UseAutoScrollOptions = {}) {
   const lastContentHeight = useRef(0);
   const userHasScrolled = useRef(false);
   const prevEnabledRef = useRef(enabled);
+  const isProgrammaticScroll = useRef(false);
+  const autoScrollRef = useRef(true);
 
   const [scrollState, setScrollState] = useState<ScrollState>({
     isAtBottom: true,
     autoScrollEnabled: true,
   });
+
+  autoScrollRef.current = scrollState.autoScrollEnabled;
 
   const checkIsAtBottom = useCallback(
     (element: HTMLElement) => {
@@ -37,6 +41,8 @@ export function useAutoScroll(options: UseAutoScrollOptions = {}) {
     (instant?: boolean) => {
       if (!scrollRef.current) return;
 
+      isProgrammaticScroll.current = true;
+
       const targetScrollTop = scrollRef.current.scrollHeight - scrollRef.current.clientHeight;
 
       if (instant) {
@@ -47,6 +53,10 @@ export function useAutoScroll(options: UseAutoScrollOptions = {}) {
           behavior: smooth ? "smooth" : "auto",
         });
       }
+
+      requestAnimationFrame(() => {
+        isProgrammaticScroll.current = false;
+      });
 
       setScrollState({
         isAtBottom: true,
@@ -59,6 +69,10 @@ export function useAutoScroll(options: UseAutoScrollOptions = {}) {
 
   const handleScroll = useCallback(() => {
     if (!scrollRef.current) return;
+
+    if (isProgrammaticScroll.current) {
+      return;
+    }
 
     const atBottom = checkIsAtBottom(scrollRef.current);
 
@@ -84,21 +98,21 @@ export function useAutoScroll(options: UseAutoScrollOptions = {}) {
     const hasNewContent = currentHeight !== lastContentHeight.current;
 
     if (hasNewContent) {
-      if (enabled && scrollState.autoScrollEnabled) {
+      if (enabled && autoScrollRef.current) {
         requestAnimationFrame(() => {
           scrollToBottom(lastContentHeight.current === 0);
         });
       }
       lastContentHeight.current = currentHeight;
     }
-  }, [content, scrollState.autoScrollEnabled, scrollToBottom, enabled]);
+  }, [content, scrollToBottom, enabled]);
 
   useEffect(() => {
     const element = scrollRef.current;
     if (!element) return;
 
     const resizeObserver = new ResizeObserver(() => {
-      if (enabled && scrollState.autoScrollEnabled) {
+      if (enabled && autoScrollRef.current) {
         scrollToBottom(true);
       }
     });
@@ -130,7 +144,7 @@ export function useAutoScroll(options: UseAutoScrollOptions = {}) {
       resizeObserver.disconnect();
       mutationObserver.disconnect();
     };
-  }, [scrollState.autoScrollEnabled, scrollToBottom, enabled]);
+  }, [scrollToBottom, enabled]);
 
   useEffect(() => {
     if (enabled && !prevEnabledRef.current) {

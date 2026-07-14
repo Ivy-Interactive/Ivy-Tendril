@@ -4,7 +4,7 @@ set -e
 # Directories
 REPO_DIR="/Users/rorychatt/git/ivy/Ivy-Tendril"
 PUBLISH_DIR="$REPO_DIR/src/publish/desktop/osx-arm64"
-APP_DIR="$REPO_DIR/src/publish/desktop/IvyTendril.app"
+APP_DIR="$REPO_DIR/src/publish/desktop/Ivy Tendril.app"
 RELEASES_DIR="$REPO_DIR/src/releases"
 
 echo "=== 1. Publishing Ivy.Tendril for osx-arm64 ==="
@@ -84,6 +84,7 @@ mkdir -p "$RELEASES_DIR"
 
 vpk pack \
   --packId IvyTendril \
+  --packTitle "Ivy Tendril" \
   --packVersion 1.0.99 \
   --packDir "$APP_DIR" \
   --mainExe Ivy.Tendril \
@@ -108,10 +109,10 @@ cat << 'EOF' > expanded-pkg/1.pkg/Scripts/postinstall
 #!/bin/sh
 rm -rf /tmp/velopack/IvyTendril
 sudo -u "$USER" rm -rf ~/Library/Caches/velopack/IvyTendril
-sudo -u "$USER" env VELOPACK_FIRSTRUN=1 open "$2/IvyTendril.app/"
+sudo -u "$USER" env VELOPACK_FIRSTRUN=1 open "$2/Ivy Tendril.app/"
 
 # Path to the installed app certificate
-CERT_PATH="$3/Applications/IvyTendril.app/Contents/Resources/certs/localhost.crt"
+CERT_PATH="$3/Applications/Ivy Tendril.app/Contents/Resources/certs/localhost.crt"
 if [ -f "$CERT_PATH" ]; then
   echo "Trusting Ivy Tendril localhost certificate system-wide..."
   security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$CERT_PATH"
