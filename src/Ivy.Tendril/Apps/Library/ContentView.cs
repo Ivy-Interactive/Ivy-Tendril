@@ -7,6 +7,7 @@ using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Widgets;
+using Ivy.Tendril.Apps.Library.Dialogs;
 
 namespace Ivy.Tendril.Apps.Library;
 
@@ -32,10 +33,13 @@ public class ContentView(
     IState<bool> isUpdateMemoriesOpen,
     Action onLoadFiles,
     IState<bool> isGraphView,
-    List<string> files) : ViewBase
+    List<string> files,
+    Action<string, string> onStartAiEditJob) : ViewBase
 {
     public override object Build()
     {
+        var isAiEditOpen = UseState(false);
+
         // 1. Vault not initialized
         if (vaultPath == null)
         {
@@ -111,6 +115,7 @@ public class ContentView(
                        })
                      )
                    : new Fragment(
+                       new Button("AI Edit").Icon(Icons.Sparkles).Outline().OnClick(() => isAiEditOpen.Set(true)),
                        new Button("Edit").Icon(Icons.Pencil).Outline().OnClick(() => isEditing.Set(true)),
                        isOutdated
                          ? (object)new Button("Sync Hashes").Icon(Icons.RefreshCw).Primary().OnClick(() => onRunCommand("update", $"update {noteName}"))
@@ -133,13 +138,23 @@ public class ContentView(
                            | new Markdown(markdownText).Article();
             }
 
-            return new HeaderLayout(
+            var detailLayout = new HeaderLayout(
                 noteHeader,
                 new FooterLayout(
                     noteActionBar,
                     Layout.Vertical().Scroll(Scroll.Auto).Width(Size.Full()) | noteBody
                 ).Size(Size.Full())
             ).Scroll(Scroll.None).Size(Size.Full());
+
+            if (isAiEditOpen.Value)
+            {
+                return new Fragment(
+                    detailLayout,
+                    new AiEditMemoryDialog(isAiEditOpen, noteName, onStartAiEditJob, client)
+                );
+            }
+
+            return detailLayout;
         }
 
         // Build Graph Data for ECharts BrainMap

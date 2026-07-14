@@ -128,6 +128,14 @@ public class LibraryApp : ViewBase
             jobService.StartJob(jobArgs);
             client.Toast($"Started agentic memory update job for {selectedFiles.Count} files.", "Job Started");
         }
+        void StartMemoryEditJob(string memory, string instructions)
+        {
+            if (string.IsNullOrEmpty(memory) || string.IsNullOrEmpty(instructions)) return;
+            var project = activeProject?.Name ?? "Auto";
+            var jobArgs = new EditMemoryArgs(project, memory, instructions);
+            jobService.StartJob(jobArgs);
+            client.Toast($"Started AI edit job for memory: {memory}.", "Job Started");
+        }
 
         void LoadStatus()
         {
@@ -376,7 +384,8 @@ public class LibraryApp : ViewBase
             isUpdateMemoriesOpen,
             LoadProjectFiles,
             isGraphView,
-            files
+            files,
+            StartMemoryEditJob
         );
 
         var sidebarView = new SidebarView(

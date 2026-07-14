@@ -157,6 +157,17 @@ public class JobStartCommand : Command<JobStartSettings>
             return new UpdateMemoriesArgs(settings.Project, files);
         }
 
+        if (string.Equals(jobType, Constants.JobTypes.EditMemory, StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrEmpty(settings.Project))
+                throw new ArgumentException("--project is required for EditMemory");
+            if (string.IsNullOrEmpty(settings.Note))
+                throw new ArgumentException("--note is required for EditMemory (specify the memory name/path)");
+            if (string.IsNullOrEmpty(settings.Instructions))
+                throw new ArgumentException("--instructions is required for EditMemory (specify the prompt/text for the AI edit)");
+            return new EditMemoryArgs(settings.Project, settings.Note, settings.Instructions);
+        }
+
         if (string.Equals(jobType, Constants.JobTypes.SyncRepo, StringComparison.OrdinalIgnoreCase))
         {
             if (string.IsNullOrEmpty(settings.RepoPath))

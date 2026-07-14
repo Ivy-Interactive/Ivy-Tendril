@@ -18,6 +18,11 @@ public partial class JobsApp
             return $"Update memories for: {filesStr}";
         }
 
+        if (job.TypedArgs is EditMemoryArgs em)
+        {
+            return $"AI Edit memory note: {em.Memory}\nInstructions: {em.Instructions}";
+        }
+
         if (planService != null && !string.IsNullOrEmpty(job.PlanFile))
         {
             var fullPath = Path.Combine(planService.PlansDirectory, job.PlanFile);
@@ -120,6 +125,10 @@ public partial class JobsApp
         // Try UpdateMemories files
         if (j.TypedArgs is UpdateMemoriesArgs um)
             return TruncatePrompt($"Update memories for: {string.Join(", ", um.Files)}");
+
+        // Try EditMemory
+        if (j.TypedArgs is EditMemoryArgs em)
+            return TruncatePrompt($"AI Edit memory note: {em.Memory}");
 
         // Try SyncRepo path
         if (j.TypedArgs is SyncRepoArgs syncArgs)

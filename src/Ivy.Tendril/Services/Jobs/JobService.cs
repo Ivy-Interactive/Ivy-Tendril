@@ -716,6 +716,58 @@ public class JobService : IJobService
             }
         }
 
+        if (args is EditMemoryArgs em && string.IsNullOrEmpty(em.PlanFolderPath) && _configService != null)
+        {
+            var projectName = em.Project;
+            if (string.IsNullOrEmpty(projectName) || projectName.Equals("Auto", StringComparison.OrdinalIgnoreCase))
+            {
+                projectName = _configService.Projects.FirstOrDefault()?.Name ?? "Auto";
+            }
+
+            var resolvedProject = _configService.Projects.FirstOrDefault(p =>
+                p.Name.Equals(projectName, StringComparison.OrdinalIgnoreCase));
+
+            if (resolvedProject != null && resolvedProject.Repos.Count > 0)
+            {
+                try
+                {
+                    var plansDir = PlanCommandHelpers.GetPlansDirectory();
+                    var planId = PlanYamlHelper.AllocatePlanId(plansDir);
+                    var safeTitle = PlanYamlHelper.ToSafeTitle($"AIEditMemory{Path.GetFileName(em.Memory)}");
+                    var folderName = $"{planId}-{safeTitle}";
+                    var planFolder = Path.Combine(plansDir, folderName);
+
+                    Directory.CreateDirectory(planFolder);
+                    FileHelper.GrantBroadWriteAccess(planFolder);
+
+                    var plan = new PlanYaml
+                    {
+                        State = nameof(PlanStatus.Executing),
+                        Project = resolvedProject.Name,
+                        Level = "Feature",
+                        Title = $"AI Edit memory note: {em.Memory}",
+                        Created = DateTime.UtcNow,
+                        Updated = DateTime.UtcNow,
+                        InitialPrompt = $"Edit memory note: {em.Memory}. Instructions:\n{em.Instructions}",
+                        Priority = 0
+                    };
+
+                    foreach (var repoPath in resolvedProject.RepoPaths)
+                        plan.Repos.Add(repoPath);
+
+                    PlanCommandHelpers.ApplyProjectVerifications(plan, resolvedProject, new Dictionary<string, VerificationStatus>());
+
+                    PlanCommandHelpers.WritePlan(planFolder, plan);
+
+                    args = em with { Project = resolvedProject.Name, PlanFolderPath = planFolder };
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to allocate plan for EditMemory job");
+                }
+            }
+        }
+
         if (args is SyncRepoArgs syncRepoArgs)
         {
             var existingId = TryFindExistingSyncRepoJob(syncRepoArgs);

@@ -478,6 +478,18 @@ internal class JobLauncher
             return (values, null, null);
         }
 
+        if (job.TypedArgs is EditMemoryArgs editMemoryArgs)
+        {
+            values["MemoryToEdit"] = editMemoryArgs.Memory;
+            values["EditInstructions"] = editMemoryArgs.Instructions;
+            if (!string.IsNullOrEmpty(editMemoryArgs.PlanFolderPath))
+            {
+                var (nonPlanValues, planYaml, profileOverride) = BuildNonCreatePlanFirmware(job, values);
+                return (nonPlanValues, planYaml, profileOverride);
+            }
+            return (values, null, null);
+        }
+
         return BuildNonCreatePlanFirmware(job, values);
     }
 
@@ -621,6 +633,7 @@ internal class JobLauncher
             dirs.Add(toolsDir);
 
         if (promptwareType == Constants.JobTypes.UpdateMemories ||
+            promptwareType == Constants.JobTypes.EditMemory ||
             promptwareType == Constants.JobTypes.ExecutePlan ||
             promptwareType == Constants.JobTypes.RetryPlan)
         {

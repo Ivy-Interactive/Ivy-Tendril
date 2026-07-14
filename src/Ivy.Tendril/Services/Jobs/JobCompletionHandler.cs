@@ -157,6 +157,7 @@ internal class JobCompletionHandler
                 break;
             case CreateIssueArgs:
             case UpdateMemoriesArgs:
+            case EditMemoryArgs:
                 SetPlanState(job, nameof(PlanStatus.Completed));
                 break;
             case UpdatePlanArgs or ExpandPlanArgs:

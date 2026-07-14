@@ -13,6 +13,7 @@ namespace Ivy.Tendril.Models;
 [JsonDerivedType(typeof(SetupProjectArgs), "SetupProject")]
 [JsonDerivedType(typeof(SyncRepoArgs), "SyncRepo")]
 [JsonDerivedType(typeof(UpdateMemoriesArgs), "UpdateMemories")]
+[JsonDerivedType(typeof(EditMemoryArgs), "EditMemory")]
 public abstract record JobArgsBase
 {
     [JsonIgnore]
@@ -119,6 +120,16 @@ public record UpdateMemoriesArgs(
     string? PlanFolderPath = null) : JobArgsBase
 {
     public override string Type => Constants.JobTypes.UpdateMemories;
+    public override string? PlanFolder => PlanFolderPath;
+}
+
+public record EditMemoryArgs(
+    string Project,
+    string Memory,
+    string Instructions,
+    string? PlanFolderPath = null) : JobArgsBase
+{
+    public override string Type => Constants.JobTypes.EditMemory;
     public override string? PlanFolder => PlanFolderPath;
 }
 
