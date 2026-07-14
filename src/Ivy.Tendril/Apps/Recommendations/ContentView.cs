@@ -204,27 +204,16 @@ public class ContentView(
         // View Plan never gets an inline slot at any viewport width — the pane is never wide
         // enough to guarantee it fits, so it's always dropdown-only.
         //
-        // The framework only registers a Button's ShortcutKey while that Button is mounted
-        // (useShortcut's cleanup runs on unmount), and ShowOn/HideOn/PaneCompactUp/etc. truly
-        // unmount the widget rather than just hiding it with CSS (see MemoizedWidget in
-        // widgetRenderer.tsx: `if (visible === false) return null`). Accept with Notes carries
-        // a ShortcutKey and is dropdown-only below the Pane-Compact tier, so its shortcut has
-        // to live on an icon-only Button that stays mounted at every tier instead —
-        // MenuItem.Shortcut is display-only (just a Kbd hint) and never registers a keyboard
-        // handler.
+        // Accept with Notes carries its ShortcutKey directly and is dropdown-only below the
+        // Pane-Compact tier, so "w" stops working below that tier — the same tradeoff Draft
+        // makes for Edit("E")/Update("u") and Review makes for Reset("r")/Request Changes("c").
         var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(2)
                         | new Button("Previous").Icon(Icons.ChevronLeft).Outline().ShortcutKey("p")
                             .OnClick(GoToPrevious).AlwaysVisible()
                         | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().ShortcutKey("n")
                             .OnClick(GoToNext).AlwaysVisible()
-                        | new Button("Accept with Notes").Icon(Icons.CircleCheck).Outline()
+                        | new Button("Accept with Notes").Icon(Icons.CircleCheck).Outline().ShortcutKey("w")
                             .OnClick(() => showNotesDialog()).PaneCompactUp()
-                        // Icon-only, always-mounted carrier for the "w" shortcut — Accept with
-                        // Notes itself is dropdown-only below the Pane-Compact tier (see note
-                        // above), so this keeps the keyboard shortcut alive without
-                        // reintroducing a labeled inline button that can clip.
-                        | new Button().Icon(Icons.CircleCheck).Ghost().ShortcutKey("w")
-                            .Tooltip("Accept with Notes").OnClick(() => showNotesDialog()).AlwaysVisible()
                         // Pane-Compact-tier dropdown: View Plan + standard overflow
                         | ActionBarResponsive.DropdownAtPaneCompact(
                             new Button().Icon(Icons.EllipsisVertical).Ghost(),
