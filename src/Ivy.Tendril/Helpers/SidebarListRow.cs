@@ -2,17 +2,23 @@ namespace Ivy.Tendril.Helpers;
 
 public static class SidebarListRow
 {
-    public static object Build(string title, object content, Action onClick)
+    public static object Build(string title, object content, Action onClick, bool isSelected = false)
     {
         var row = Layout.Vertical().Gap(1)
             | Text.Literal(title)
             | content;
 
-        return new Button().Ghost().Width(Size.Full()).Content(row).OnClick(onClick);
+        return BuildButton(row, onClick, isSelected);
     }
 
-    public static object Build(string title, Action onClick)
+    public static object Build(string title, Action onClick, bool isSelected = false)
     {
-        return new Button().Ghost().Width(Size.Full()).Content(Text.Literal(title)).OnClick(onClick);
+        return BuildButton(Text.Literal(title), onClick, isSelected);
+    }
+
+    private static Button BuildButton(object content, Action onClick, bool isSelected)
+    {
+        var button = new Button().Width(Size.Full()).Content(content).OnClick(onClick);
+        return isSelected ? button.Secondary() : button.Ghost();
     }
 }

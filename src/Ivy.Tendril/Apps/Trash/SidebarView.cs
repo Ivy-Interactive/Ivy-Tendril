@@ -47,7 +47,8 @@ public class SidebarView(
                 | new Badge(item.Project).Variant(BadgeVariant.Outline).Small()
                 | Text.Muted(item.Date.ToString("yyyy-MM-dd")).Small();
 
-            return SidebarListRow.Build(item.FileName.Replace(".md", ""), badges, () => selectedFile.Set(item.FilePath));
+            return SidebarListRow.Build(item.FileName.Replace(".md", ""), badges, () => selectedFile.Set(item.FilePath),
+                item.FilePath == selectedFile.Value);
         }));
 
         return new HeaderLayout(BuildHeader(), content);
