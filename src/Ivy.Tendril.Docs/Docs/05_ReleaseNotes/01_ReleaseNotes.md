@@ -14,6 +14,18 @@ icon: ScrollText
 Version history, new features, improvements, and bug fixes for each Tendril release.
 </Ingress>
 
+## 1.1.12 (2026-07-03)
+
+### Improvements
+
+- **Dotnet Verification Solvers** — Updated the `DotnetBuild`, `DotnetFormat`, `DotnetTest`, and `FrameworkDotnetBuild` verification prompts to locate the solution file explicitly. Added scoping notes for multi-repository configurations, ensuring reliable builds and tests.
+- **Pull Request UI Layout** — Reordered the PullRequest app columns to show Plan first and Repository last, and narrowed the Cost and Tokens columns to 80px for a more compact and readable table layout.
+
+### Bug Fixes
+
+- **Concurrent CreatePr Body Swap** — Fixed a race condition where concurrent `CreatePr` jobs could swap or overwrite each other's pull request descriptions due to non-unique body text files. Switched to `mktemp` for unique body-file creation and added regression tests.
+- **Shared Event Parser Race** — Resolved an event-parsing race condition by isolating parsers per session rather than sharing parser instances. Added regression tests to prevent future multi-session race conditions.
+
 ## 1.1.11 (2026-07-03)
 
 ### Bug Fixes
