@@ -1,3 +1,5 @@
+using Ivy.Tendril.Models;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test.Services;
@@ -108,6 +110,63 @@ maxConcurrentJobs: 5
         }
         finally
         {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void StartJob_UpdateMemories_AllocatesPlanFolder()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"ivy-jobservice-test-{Guid.NewGuid()}");
+        Directory.CreateDirectory(tempDir);
+        Directory.CreateDirectory(Path.Combine(tempDir, "Inbox"));
+        Directory.CreateDirectory(Path.Combine(tempDir, "Plans"));
+        var testRepoDir = Path.Combine(tempDir, "test-repo");
+        Directory.CreateDirectory(testRepoDir);
+
+        var yaml = $"""
+                   jobTimeout: 30
+                   staleOutputTimeout: 10
+                   maxConcurrentJobs: 5
+                   projects:
+                   - name: TestProject
+                     repos:
+                     - path: {testRepoDir.Replace("\\", "/")}
+                   """;
+        File.WriteAllText(Path.Combine(tempDir, "config.yaml"), yaml);
+
+        var config = new ConfigService(new TendrilSettings());
+        config.SetTendrilHome(tempDir);
+        Environment.SetEnvironmentVariable("TENDRIL_HOME", tempDir);
+
+        try
+        {
+            Assert.NotEmpty(config.Projects);
+            var project = config.Projects[0];
+            Assert.Equal("TestProject", project.Name);
+            Assert.NotEmpty(project.Repos);
+
+            using var jobService = new JobService(config);
+            var args = new UpdateMemoriesArgs("TestProject", new List<string> { "file1.txt", "file2.txt" });
+
+            var jobId = jobService.StartJob(args);
+            var job = jobService.GetJob(jobId);
+
+            Assert.NotNull(job);
+            var updatedArgs = Assert.IsType<UpdateMemoriesArgs>(job.TypedArgs);
+            Assert.NotNull(updatedArgs.PlanFolderPath);
+            Assert.True(Directory.Exists(updatedArgs.PlanFolderPath), $"Directory does not exist: {updatedArgs.PlanFolderPath}");
+            Assert.True(File.Exists(Path.Combine(updatedArgs.PlanFolderPath, "plan.yaml")));
+
+            var planYaml = PlanYamlHelper.ReadPlanYaml(updatedArgs.PlanFolderPath);
+            Assert.NotNull(planYaml);
+            Assert.Equal("Executing", planYaml.State);
+            Assert.Equal("TestProject", planYaml.Project);
+            Assert.Contains("Update memories for file1.txt", planYaml.Title);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("TENDRIL_HOME", null);
             Directory.Delete(tempDir, true);
         }
     }

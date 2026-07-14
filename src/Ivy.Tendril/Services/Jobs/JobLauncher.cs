@@ -470,6 +470,11 @@ internal class JobLauncher
         if (job.TypedArgs is UpdateMemoriesArgs updateMemoriesArgs)
         {
             values["FilesToUpdate"] = string.Join(",", updateMemoriesArgs.Files);
+            if (!string.IsNullOrEmpty(updateMemoriesArgs.PlanFolderPath))
+            {
+                var (nonPlanValues, planYaml, profileOverride) = BuildNonCreatePlanFirmware(job, values);
+                return (nonPlanValues, planYaml, profileOverride);
+            }
             return (values, null, null);
         }
 

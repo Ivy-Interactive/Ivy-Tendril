@@ -12,6 +12,12 @@ public partial class JobsApp
         if (job.TypedArgs is CreatePlanArgs cp)
             return cp.Description;
 
+        if (job.TypedArgs is UpdateMemoriesArgs um)
+        {
+            var filesStr = string.Join(", ", um.Files);
+            return $"Update memories for: {filesStr}";
+        }
+
         if (planService != null && !string.IsNullOrEmpty(job.PlanFile))
         {
             var fullPath = Path.Combine(planService.PlansDirectory, job.PlanFile);
@@ -110,6 +116,10 @@ public partial class JobsApp
         // Try CreatePlan description
         if (j.TypedArgs is CreatePlanArgs)
             return TruncatePrompt(GetFullPrompt(j) ?? j.PlanFile);
+
+        // Try UpdateMemories files
+        if (j.TypedArgs is UpdateMemoriesArgs um)
+            return TruncatePrompt($"Update memories for: {string.Join(", ", um.Files)}");
 
         // Try SyncRepo path
         if (j.TypedArgs is SyncRepoArgs syncArgs)

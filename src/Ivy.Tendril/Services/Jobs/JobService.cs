@@ -661,6 +661,61 @@ public class JobService : IJobService
 
     private string StartJobInternal(JobArgsBase args, string? inboxFilePath, bool skipDependencyCheck = false, bool skipWaitForCheck = false)
     {
+        if (args is UpdateMemoriesArgs um && string.IsNullOrEmpty(um.PlanFolderPath) && _configService != null)
+        {
+            var projectName = um.Project;
+            if (string.IsNullOrEmpty(projectName) || projectName.Equals("Auto", StringComparison.OrdinalIgnoreCase))
+            {
+                projectName = _configService.Projects.FirstOrDefault()?.Name ?? "Auto";
+            }
+
+            var resolvedProject = _configService.Projects.FirstOrDefault(p =>
+                p.Name.Equals(projectName, StringComparison.OrdinalIgnoreCase));
+
+            if (resolvedProject != null && resolvedProject.Repos.Count > 0)
+            {
+                try
+                {
+                    var plansDir = PlanCommandHelpers.GetPlansDirectory();
+                    var planId = PlanYamlHelper.AllocatePlanId(plansDir);
+                    var filesDesc = um.Files.Count > 3
+                        ? $"{string.Join(", ", um.Files.Take(3))} and {um.Files.Count - 3} more"
+                        : string.Join(", ", um.Files);
+                    var safeTitle = PlanYamlHelper.ToSafeTitle($"Update memories for {filesDesc}");
+                    var folderName = $"{planId}-{safeTitle}";
+                    var planFolder = Path.Combine(plansDir, folderName);
+
+                    Directory.CreateDirectory(planFolder);
+                    FileHelper.GrantBroadWriteAccess(planFolder);
+
+                    var plan = new PlanYaml
+                    {
+                        State = nameof(PlanStatus.Executing),
+                        Project = resolvedProject.Name,
+                        Level = "Feature",
+                        Title = $"Update memories for {filesDesc}",
+                        Created = DateTime.UtcNow,
+                        Updated = DateTime.UtcNow,
+                        InitialPrompt = $"Update memories for: {string.Join(", ", um.Files)}",
+                        Priority = 0
+                    };
+
+                    foreach (var repoPath in resolvedProject.RepoPaths)
+                        plan.Repos.Add(repoPath);
+
+                    PlanCommandHelpers.ApplyProjectVerifications(plan, resolvedProject, new Dictionary<string, VerificationStatus>());
+
+                    PlanCommandHelpers.WritePlan(planFolder, plan);
+
+                    args = um with { Project = resolvedProject.Name, PlanFolderPath = planFolder };
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to allocate plan for UpdateMemories job");
+                }
+            }
+        }
+
         if (args is SyncRepoArgs syncRepoArgs)
         {
             var existingId = TryFindExistingSyncRepoJob(syncRepoArgs);

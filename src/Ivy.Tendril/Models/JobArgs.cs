@@ -115,9 +115,11 @@ public record SyncRepoArgs(
 
 public record UpdateMemoriesArgs(
     string Project,
-    List<string> Files) : JobArgsBase
+    List<string> Files,
+    string? PlanFolderPath = null) : JobArgsBase
 {
     public override string Type => Constants.JobTypes.UpdateMemories;
+    public override string? PlanFolder => PlanFolderPath;
 }
 
 // How SyncRepo should treat uncommitted changes and/or untracked files when syncing a repo.
