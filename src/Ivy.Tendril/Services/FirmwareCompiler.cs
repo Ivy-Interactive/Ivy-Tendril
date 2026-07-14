@@ -175,6 +175,12 @@ public static class FirmwareCompiler
                     firmware += context.CustomInstructions + "\n";
                 }
 
+                var rules = GetBrainwaresRules();
+                if (!string.IsNullOrEmpty(rules))
+                {
+                    firmware += "\n\n" + rules;
+                }
+
                 return firmware;
             }
         }
@@ -246,6 +252,12 @@ public static class FirmwareCompiler
                 firmware += context.CustomInstructions + "\n";
             }
 
+            var rules = GetBrainwaresRules();
+            if (!string.IsNullOrEmpty(rules))
+            {
+                firmware += "\n\n" + rules;
+            }
+
             return firmware;
         }
     }
@@ -312,6 +324,36 @@ public static class FirmwareCompiler
 
     private static string NormalizeHeaderValue(string key, string value) =>
         PathKeys.Contains(key) ? value.Replace('\\', '/') : value;
+
+    private static string GetBrainwaresRules()
+    {
+        try
+        {
+            var bwPath = PromptwareHelper.GetBwPath();
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = bwPath,
+                Arguments = "rules",
+                WorkingDirectory = Directory.GetCurrentDirectory(),
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using var proc = System.Diagnostics.Process.Start(psi);
+            if (proc != null)
+            {
+                var stdout = proc.StandardOutput.ReadToEnd();
+                proc.WaitForExit();
+                if (proc.ExitCode == 0)
+                {
+                    return stdout;
+                }
+            }
+        }
+        catch { }
+        return "";
+    }
 }
 
 public record FirmwareContext(
