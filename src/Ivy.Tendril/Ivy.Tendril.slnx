@@ -5,6 +5,8 @@
     <Platform Name="x86" />
   </Configurations>
   <Project Path="Ivy.Tendril.csproj" />
+  <Project Path="../Ivy.Tendril.Plugin.Abstractions/Ivy.Tendril.Plugin.Abstractions.csproj" />
+  <Project Path="../Ivy.Tendril.Plugin.Slack/Ivy.Tendril.Plugin.Slack.csproj" />
   <Project Path="../Ivy.Tendril.Widgets/.samples/Ivy.Tendril.Widgets.Samples.csproj" />
   <Project Path="../Ivy.Tendril.Widgets/Ivy.Tendril.Widgets.csproj" />
   <Project Path="../Ivy.Tendril.Test/Ivy.Tendril.Test.csproj" />

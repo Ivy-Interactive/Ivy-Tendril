@@ -30,6 +30,22 @@ public static class TendrilServer
         server.Services.AddSingleton(tendrilArgs);
         server.AddTendrilServices(configService, tendrilArgs);
 
+        if (!string.IsNullOrEmpty(configService.TendrilHome))
+        {
+            var pluginsDirectory = Path.Combine(configService.TendrilHome, "plugins");
+            Directory.CreateDirectory(pluginsDirectory);
+            Plugins.BundledPluginDeployer.Deploy(pluginsDirectory);
+            var pluginConfigFactory = new Plugins.TendrilPluginConfigFactory(configService.TendrilHome);
+            server.Services.AddSingleton(pluginConfigFactory);
+            server.Services.AddSingleton<Plugins.MessagingChannelService>();
+            server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<Plugins.MessagingChannelService>());
+            server.UsePlugins(
+                pluginsDirectory,
+                pluginConfigFactory,
+                hostVersion: typeof(TendrilServer).Assembly.GetName().Version,
+                sharedAssemblyNames: ["Ivy.Tendril.Plugin.Abstractions"]);
+        }
+
         var logLevel = tendrilArgs.Verbose ? "Debug"
             : tendrilArgs.Quiet ? "Warning"
             : "Error";

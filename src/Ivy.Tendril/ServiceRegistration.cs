@@ -51,6 +51,7 @@ internal static class ServiceRegistration
         server.Services.AddSingleton<VersionCheckService>();
         server.Services.AddSingleton<IVersionCheckService>(sp => sp.GetRequiredService<VersionCheckService>());
         server.Services.AddSingleton<IPromptwareRunner, PromptwareRunner>();
+        server.Services.AddSingleton<Plugins.ITendrilApi, Plugins.TendrilApi>();
 
         server.Services.AddSingleton<OnboardingSetupService>();
         server.Services.AddSingleton<IOnboardingSetupService>(sp => sp.GetRequiredService<OnboardingSetupService>());
