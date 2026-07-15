@@ -9,9 +9,11 @@ public record TendrilCardMenuItem(string Tag, string Label, string? Icon = null,
 
 /// <summary>
 /// A footer metadata item: a small Lucide icon followed by a short label
-/// (e.g. FileText + "01515", Timer + "5m 20s", Coins + "14K").
+/// (e.g. FileText + "01515", Timer + "5m 20s", Coins + "14K"). When
+/// <paramref name="Tag"/> is set the item renders as a clickable button that
+/// fires OnMetaClick with the tag.
 /// </summary>
-public record TendrilCardMeta(string Icon, string Label);
+public record TendrilCardMeta(string Icon, string Label, string? Tag = null);
 
 /// <summary>
 /// A task card matching the Tendril Kanban board design: a status icon tile and a
@@ -80,6 +82,9 @@ public record TendrilCard : WidgetBase<TendrilCard>
 
     /// <summary>Fired when a dropdown action is selected. Payload is the item's Tag.</summary>
     [Event] public Func<Event<TendrilCard, string>, ValueTask>? OnMenuSelect { get; init; }
+
+    /// <summary>Fired when a clickable meta item is clicked. Payload is the meta item's Tag.</summary>
+    [Event] public Func<Event<TendrilCard, string>, ValueTask>? OnMetaClick { get; init; }
 }
 
 public static class TendrilCardExtensions
@@ -149,6 +154,21 @@ public static class TendrilCardExtensions
         w with
         {
             OnMenuSelect = e =>
+            {
+                handler(e.Value);
+                return ValueTask.CompletedTask;
+            },
+        };
+
+    public static TendrilCard WithOnMetaClick(
+        this TendrilCard w,
+        Func<Event<TendrilCard, string>, ValueTask> handler
+    ) => w with { OnMetaClick = handler };
+
+    public static TendrilCard WithOnMetaClick(this TendrilCard w, Action<string> handler) =>
+        w with
+        {
+            OnMetaClick = e =>
             {
                 handler(e.Value);
                 return ValueTask.CompletedTask;

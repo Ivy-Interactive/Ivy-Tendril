@@ -27,21 +27,21 @@ class DemoApp : ViewBase
 
         var items = UseState(() => new[]
         {
-            new CardItem("1", "Draft", 0, "Showcase team member contributions",
-                "Loader", true, "Ivy-Tendril", "#6366f1", "Tracking roles...", "CornerDownRight",
-                [new("FileText", "01515"), new("Timer", "5m 20s"), new("Coins", "14K")]),
-            new CardItem("2", "Draft", 1, "Develop a communication plan",
-                "Eye", false, "MyCRMDashboard", "#22a06b", "Awaiting approval", "Eye",
-                [new("FileText", "01518"), new("Timer", "4m 30s"), new("Coins", "17K")]),
-            new CardItem("3", "Draft", 2, "Include a timeline for project phases",
+            new CardItem("1", "Planning", 0, "Refactor the authentication middleware to support token rotation and refresh",
+                "Loader", true, "Ivy-Tendril", "#6366f1", "Analyzing repositories...", "CornerDownRight",
+                [new("FileText", "01520", "OpenPlan"), new("Timer", "1m 12s"), new("Coins", "6K")]),
+            new CardItem("2", "Draft", 0, "Showcase team member contributions",
                 "Eye", false, "Ivy-Tendril", "#6366f1", "Awaiting approval", "Eye",
-                [new("FileText", "01513"), new("Timer", "4m 45s"), new("Coins", "15K")]),
-            new CardItem("4", "Review", 0, "Sign engagement letter for Strömberg Industri",
+                [new("FileText", "01515", "OpenPlan"), new("Timer", "5m 20s"), new("Coins", "14K")]),
+            new CardItem("3", "Draft", 1, "Develop a communication plan",
+                "Eye", false, "MyCRMDashboard", "#22a06b", "Awaiting approval", "Eye",
+                [new("FileText", "01518", "OpenPlan"), new("Timer", "4m 30s"), new("Coins", "17K")]),
+            new CardItem("4", "Implementing", 0, "Include a timeline for project phases",
+                "Loader", true, "Ivy-Tendril", "#6366f1", "Editing files...", "CornerDownRight",
+                [new("FileText", "01513", "OpenPlan"), new("Timer", "4m 45s"), new("Coins", "15K")]),
+            new CardItem("5", "Review", 0, "Sign engagement letter for Strömberg Industri",
                 "Eye", false, "MyCRMDashboard", "#22a06b", "Ready for review", "Eye",
-                [new("FileText", "01509"), new("Timer", "12m 02s"), new("Coins", "88K")]),
-            new CardItem("5", "PR", 0, "Cash-handling SOP v3.2 published",
-                "GitPullRequest", false, "Ivy-Tendril", "#6366f1", "PR #1686", "GitPullRequest",
-                [new("FileText", "01502"), new("Timer", "22m 10s"), new("Coins", "131K")]),
+                [new("FileText", "01509", "OpenPlan"), new("Timer", "12m 02s"), new("Coins", "88K")]),
         });
 
         var board = items.Value
@@ -49,12 +49,13 @@ class DemoApp : ViewBase
                 x => x.Column,
                 x => x.Id,
                 x => x.Order)
-            .Columns("Draft", "Review", "PR")
+            .Columns("Planning", "Draft", "Implementing", "Review")
             .ColumnIcon(c => c switch
             {
+                "Planning" => "ScanLine",
                 "Draft" => "Feather",
+                "Implementing" => "Hammer",
                 "Review" => "ThumbsUp",
-                "PR" => "GitPullRequest",
                 _ => "ScanLine"
             })
             .ColumnWidth(Size.Units(80))
@@ -67,6 +68,7 @@ class DemoApp : ViewBase
                     new TendrilCardMenuItem("Update", "Update", "WandSparkles"),
                     new TendrilCardMenuItem("Delete", "Delete", "Trash", Destructive: true))
                 .WithOnMenuSelect(tag => client.Toast(tag, "Menu action").Info())
+                .WithOnMetaClick(tag => client.Toast(tag, "Meta clicked").Info())
                 .WithOnClick(() => client.Toast(item.Title, "Card clicked").Info()))
             .OnMove(e =>
             {

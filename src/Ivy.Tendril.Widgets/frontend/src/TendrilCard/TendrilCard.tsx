@@ -146,14 +146,39 @@ const CardMenu: React.FC<CardMenuProps> = ({ widgetId, items, eventHandler }) =>
   );
 };
 
-const MetaItem: React.FC<{ meta: TendrilCardMeta }> = ({ meta }) => {
+interface MetaItemProps {
+  meta: TendrilCardMeta;
+  onClick?: (tag: string) => void;
+}
+
+const MetaItem: React.FC<MetaItemProps> = ({ meta, onClick }) => {
   const Icon = resolveIcon(meta.icon);
-  return (
-    <span className="tc-meta-item">
+  const clickable = !!meta.tag && !!onClick;
+
+  const body = (
+    <>
       <Icon className="tc-meta-icon" size={14} />
       <span className="tc-meta-label">{meta.label}</span>
-    </span>
+    </>
   );
+
+  if (clickable) {
+    return (
+      <button
+        type="button"
+        className="tc-meta-item tc-meta-item-clickable"
+        onClick={(e) => {
+          e.stopPropagation();
+          onClick!(meta.tag!);
+        }}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
+        {body}
+      </button>
+    );
+  }
+
+  return <span className="tc-meta-item">{body}</span>;
 };
 
 export const TendrilCard: React.FC<TendrilCardProps> = ({
@@ -188,6 +213,14 @@ export const TendrilCard: React.FC<TendrilCardProps> = ({
   const StatusIcon = statusIcon ? resolveIcon(statusIcon) : null;
   const pillColor = project ? projectColor || colorForProject(project) : undefined;
   const hasMenu = (menuItems?.length ?? 0) > 0 && events.includes("OnMenuSelect");
+
+  const onMetaClick = events.includes("OnMetaClick")
+    ? (tag: string) => eventHandler("OnMetaClick", id, [tag])
+    : undefined;
+
+  // First meta item sits on the left (typically the plan id); the rest are
+  // grouped on the right (time, tokens), matching the reference footer layout.
+  const [leadMeta, ...trailMeta] = meta ?? [];
 
   return (
     <div
@@ -236,9 +269,14 @@ export const TendrilCard: React.FC<TendrilCardProps> = ({
 
       {meta && meta.length > 0 && (
         <div className="tc-meta">
-          {meta.map((m, i) => (
-            <MetaItem key={`${m.icon}-${i}`} meta={m} />
-          ))}
+          {leadMeta && <MetaItem meta={leadMeta} onClick={onMetaClick} />}
+          {trailMeta.length > 0 && (
+            <div className="tc-meta-trail">
+              {trailMeta.map((m, i) => (
+                <MetaItem key={`${m.icon}-${i}`} meta={m} onClick={onMetaClick} />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -14,6 +14,7 @@ export interface TendrilCardMenuItem {
 export interface TendrilCardMeta {
   icon: string;
   label: string;
+  tag?: string;
 }
 
 export interface TendrilCardProps {

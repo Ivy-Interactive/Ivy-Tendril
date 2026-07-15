@@ -11,21 +11,22 @@ namespace Ivy.Tendril.Apps.Jobs;
 public partial class JobsApp
 {
     /// <summary>
-    /// Pipeline stage of the Jobs board. All four columns always render, in this order.
+    /// Pipeline stage of the Jobs board. All columns always render, in this order.
     /// </summary>
     internal enum BoardColumn
     {
-        InProgress,
+        Planning,
         Draft,
-        Review,
-        Pr
+        Implementing,
+        Review
     }
 
     /// <summary>
     /// Builds the Kanban board as a plan pipeline with four fixed columns:
-    /// In Progress (jobs creating or revising a draft), Draft (ready drafts with an
-    /// actions dropdown), Review (plans being implemented or awaiting review) and
-    /// PR (plans with open pull requests).
+    /// Planning (jobs creating or revising a draft), Draft (ready drafts with an
+    /// actions dropdown), Implementing (plans an ExecutePlan job is working on) and
+    /// Review (plans awaiting review, including those with open pull requests).
+    /// Dragging a Draft card into Implementing starts execution of that plan.
     /// </summary>
     private object BuildBoard(
         List<JobItem> jobs,
@@ -68,6 +69,9 @@ public partial class JobsApp
 
         var cards = new List<BoardCard>();
 
+        // Standalone Planning cards for jobs that create/revise a draft. Execute jobs
+        // are intentionally excluded here: their plan already renders as an
+        // Implementing card below, so listing the job too would duplicate it.
         foreach (var job in activeJobs)
         {
             if (job.TypedArgs is not (CreatePlanArgs or UpdatePlanArgs or SplitPlanArgs or ExpandPlanArgs))
@@ -76,7 +80,7 @@ public partial class JobsApp
             var jobId = job.Id;
             cards.Add(new BoardCard(
                 Id: jobId,
-                Column: BoardColumn.InProgress,
+                Column: BoardColumn.Planning,
                 Order: ExtractJobNumber(jobId),
                 Title: GetPromptDisplay(job, planService),
                 Icon: "Loader",
@@ -87,6 +91,7 @@ public partial class JobsApp
                 StatusIcon: "CornerDownRight",
                 Meta: BuildCardMeta(job.ResolvePlanId(), job),
                 OnClick: () => onJobClick(jobId),
+                PlanFolder: null,
                 DraftPlan: null));
         }
 
@@ -94,42 +99,45 @@ public partial class JobsApp
         {
             activeJobByPlanFolder.TryGetValue(plan.FolderPath, out var activeJob);
 
-            if (activeJob?.TypedArgs is UpdatePlanArgs or SplitPlanArgs or ExpandPlanArgs)
+            // A create/update/split/expand job already rendered its own Planning card above.
+            if (activeJob?.TypedArgs is CreatePlanArgs or UpdatePlanArgs or SplitPlanArgs or ExpandPlanArgs)
                 continue;
 
             if (activeCreatePlanIds.Any(id =>
                     plan.FolderName.StartsWith(id + "-", StringComparison.OrdinalIgnoreCase)))
                 continue;
 
-            var card = plan.Status switch
+            var executing = activeJob?.TypedArgs is ExecutePlanArgs or RetryPlanArgs
+                || plan.Status == PlanStatus.Executing;
+
+            var column = plan.Status switch
             {
-                PlanStatus.Creating or PlanStatus.Updating =>
-                    BuildPlanCard(plan, BoardColumn.InProgress, projectColors, activeJob, latestJobByPlanId,
-                        () => showPlanSheet(plan.FolderPath)),
-
-                PlanStatus.Draft or PlanStatus.Blocked =>
-                    BuildPlanCard(plan, BoardColumn.Draft, projectColors, activeJob, latestJobByPlanId,
-                        () => nav.Navigate<DraftsApp>(new DraftsAppArgs(plan.FolderName))),
-
-                PlanStatus.Executing =>
-                    BuildPlanCard(plan, BoardColumn.Review, projectColors, activeJob, latestJobByPlanId,
-                        activeJob != null
-                            ? () => onJobClick(activeJob.Id)
-                            : () => showPlanSheet(plan.FolderPath)),
-
-                PlanStatus.Review or PlanStatus.Failed when plan.Prs.Count > 0 =>
-                    BuildPlanCard(plan, BoardColumn.Pr, projectColors, activeJob, latestJobByPlanId,
-                        () => nav.Navigate<PullRequestApp>()),
-
-                PlanStatus.Review or PlanStatus.Failed =>
-                    BuildPlanCard(plan, BoardColumn.Review, projectColors, activeJob, latestJobByPlanId,
-                        () => nav.Navigate<ReviewApp>(new ReviewAppArgs(plan.FolderName))),
-
-                _ => null
+                // A plan an ExecutePlan job is working on is briefly Creating before it
+                // flips to Executing; keep it in Implementing the whole time so the card
+                // doesn't jump to Planning and then vanish.
+                _ when executing => BoardColumn.Implementing,
+                PlanStatus.Creating or PlanStatus.Updating => BoardColumn.Planning,
+                PlanStatus.Draft or PlanStatus.Blocked => BoardColumn.Draft,
+                PlanStatus.Review or PlanStatus.Failed => BoardColumn.Review,
+                _ => (BoardColumn?)null
             };
 
-            if (card != null)
-                cards.Add(card);
+            if (column == null)
+                continue;
+
+            Action onClick = column switch
+            {
+                BoardColumn.Planning => () => showPlanSheet(plan.FolderPath),
+                BoardColumn.Draft => () => nav.Navigate<DraftsApp>(new DraftsAppArgs(plan.FolderName)),
+                BoardColumn.Implementing => activeJob != null
+                    ? () => onJobClick(activeJob.Id)
+                    : () => showPlanSheet(plan.FolderPath),
+                BoardColumn.Review when plan.Prs.Count > 0 => () => nav.Navigate<PullRequestApp>(),
+                BoardColumn.Review => () => nav.Navigate<ReviewApp>(new ReviewAppArgs(plan.FolderName)),
+                _ => () => showPlanSheet(plan.FolderPath)
+            };
+
+            cards.Add(BuildPlanCard(plan, column.Value, projectColors, activeJob, latestJobByPlanId, onClick));
         }
 
         return cards
@@ -137,29 +145,56 @@ public partial class JobsApp
                 c => c.Column,
                 c => c.Id,
                 c => c.Order)
-            .Columns(BoardColumn.InProgress, BoardColumn.Draft, BoardColumn.Review, BoardColumn.Pr)
+            .Columns(BoardColumn.Planning, BoardColumn.Draft, BoardColumn.Implementing, BoardColumn.Review)
             .ColumnHeader(GetColumnHeader)
             .ColumnIcon(GetColumnIcon)
             .ColumnWidth(Size.Units(80))
             .CardOrder(c => c.Order, descending: true)
-            .CardBuilder((BoardCard c) => BuildCardWidget(c, jobService, planService, showUpdatePlan, showDeletePlan, refresh));
+            .CardBuilder((BoardCard c) =>
+                BuildCardWidget(c, jobService, planService, showPlanSheet, showUpdatePlan, showDeletePlan, refresh))
+            .OnMove(e => HandleCardMove(e.Value, jobService, planService, refresh));
+    }
+
+    /// <summary>
+    /// Starts execution when a Draft card is dropped into the Implementing column.
+    /// Any other move is a no-op: the board rebuilds from plan/job state, so the card
+    /// snaps back to where its state dictates.
+    /// </summary>
+    private static void HandleCardMove(
+        (object? CardId, BoardColumn ToColumn, int? TargetIndex) move,
+        IJobService jobService,
+        IPlanReaderService planService,
+        Action refresh)
+    {
+        if (move.ToColumn != BoardColumn.Implementing) return;
+
+        var folderName = move.CardId?.ToString();
+        if (string.IsNullOrEmpty(folderName)) return;
+
+        var plan = planService.GetPlans().FirstOrDefault(p => p.FolderName == folderName);
+        if (plan is null || plan.Status is not (PlanStatus.Draft or PlanStatus.Blocked)) return;
+
+        // JobService.StartJob captures the pre-state and transitions the plan to
+        // Creating, then Executing once the job launches.
+        jobService.StartJob(new ExecutePlanArgs(plan.FolderPath));
+        refresh();
     }
 
     private static string GetColumnHeader(BoardColumn column) => column switch
     {
-        BoardColumn.InProgress => "In Progress",
+        BoardColumn.Planning => "Planning",
         BoardColumn.Draft => "Draft",
+        BoardColumn.Implementing => "Implementing",
         BoardColumn.Review => "Review",
-        BoardColumn.Pr => "PR",
         _ => column.ToString()
     };
 
     private static string GetColumnIcon(BoardColumn column) => column switch
     {
-        BoardColumn.InProgress => "ScanLine",
+        BoardColumn.Planning => "ScanLine",
         BoardColumn.Draft => "Feather",
+        BoardColumn.Implementing => "Hammer",
         BoardColumn.Review => "ThumbsUp",
-        BoardColumn.Pr => "GitPullRequest",
         _ => "ScanLine"
     };
 
@@ -172,7 +207,7 @@ public partial class JobsApp
         Action onClick)
     {
         var (icon, iconSpin) = GetPlanCardIcon(plan, column, activeJob);
-        var (status, statusIcon) = GetPlanCardStatus(plan, activeJob);
+        var (status, statusIcon) = GetPlanCardStatus(plan, column, activeJob);
 
         latestJobByPlanId.TryGetValue(plan.Id.ToString("D5"), out var latestJob);
 
@@ -189,6 +224,7 @@ public partial class JobsApp
             StatusIcon: statusIcon,
             Meta: BuildCardMeta(plan.Id.ToString("D5"), activeJob ?? latestJob),
             OnClick: onClick,
+            PlanFolder: plan.FolderPath,
             DraftPlan: column == BoardColumn.Draft ? plan : null);
     }
 
@@ -198,21 +234,25 @@ public partial class JobsApp
     /// </summary>
     private static (string Icon, bool Spin) GetPlanCardIcon(PlanFile plan, BoardColumn column, JobItem? activeJob)
     {
-        if (activeJob != null || column == BoardColumn.InProgress)
+        if (column is BoardColumn.Planning or BoardColumn.Implementing)
             return ("Loader", activeJob?.Status == JobStatus.Running);
 
         return plan.Status switch
         {
             PlanStatus.Blocked => ("Hourglass", false),
             PlanStatus.Failed => ("TriangleAlert", false),
-            _ => column == BoardColumn.Pr ? ("GitPullRequest", false) : ("Eye", false)
+            _ when plan.Prs.Count > 0 => ("GitPullRequest", false),
+            _ => ("Eye", false)
         };
     }
 
-    private static (string Status, string StatusIcon) GetPlanCardStatus(PlanFile plan, JobItem? activeJob)
+    private static (string Status, string StatusIcon) GetPlanCardStatus(PlanFile plan, BoardColumn column, JobItem? activeJob)
     {
         if (activeJob != null)
             return (BuildJobStatusLine(activeJob), "CornerDownRight");
+
+        if (column == BoardColumn.Implementing)
+            return ("Implementing", "Hammer");
 
         if (plan.Prs.Count > 0)
             return (plan.Prs.Count == 1
@@ -230,15 +270,15 @@ public partial class JobsApp
     }
 
     /// <summary>
-    /// Footer metadata: plan id, elapsed/total job time and token spend — omitting
-    /// whichever values are unknown for the card.
+    /// Footer metadata: a clickable plan id (opens the plan sheet), plus elapsed/total
+    /// job time and token spend — omitting whichever values are unknown for the card.
     /// </summary>
     private static TendrilCardMeta[] BuildCardMeta(string planId, JobItem? job)
     {
         var meta = new List<TendrilCardMeta>();
 
         if (!string.IsNullOrEmpty(planId))
-            meta.Add(new TendrilCardMeta("FileText", planId));
+            meta.Add(new TendrilCardMeta("FileText", planId, Tag: MetaOpenPlanTag));
 
         if (job != null)
         {
@@ -252,6 +292,8 @@ public partial class JobsApp
 
         return meta.ToArray();
     }
+
+    private const string MetaOpenPlanTag = "OpenPlan";
 
     private static string FormatPrReference(string prUrl)
     {
@@ -272,6 +314,7 @@ public partial class JobsApp
         BoardCard c,
         IJobService jobService,
         IPlanReaderService planService,
+        Action<string> showPlanSheet,
         Action<string> showUpdatePlan,
         Action<string> showDeletePlan,
         Action refresh)
@@ -284,6 +327,16 @@ public partial class JobsApp
 
         if (!string.IsNullOrEmpty(c.Project))
             widget = widget.WithProject(c.Project, c.ProjectColor ?? "#6366f1");
+
+        if (!string.IsNullOrEmpty(c.PlanFolder))
+        {
+            var folder = c.PlanFolder;
+            widget = widget.WithOnMetaClick(tag =>
+            {
+                if (tag == MetaOpenPlanTag)
+                    showPlanSheet(folder);
+            });
+        }
 
         if (c.DraftPlan is { } plan)
         {
@@ -299,7 +352,7 @@ public partial class JobsApp
     /// <summary>
     /// Executes a Draft-column dropdown action. Update opens the instructions dialog;
     /// Split and Expand start their jobs directly, which transitions the plan to
-    /// Updating/Creating and moves the card back to In Progress on the next refresh.
+    /// Updating/Creating and moves the card back to Planning on the next refresh.
     /// </summary>
     private static void HandleDraftAction(
         string tag,
@@ -346,6 +399,7 @@ public partial class JobsApp
         string StatusIcon,
         TendrilCardMeta[] Meta,
         Action OnClick,
+        string? PlanFolder,
         PlanFile? DraftPlan);
 
     private static string? BuildProjectLabel(string project)

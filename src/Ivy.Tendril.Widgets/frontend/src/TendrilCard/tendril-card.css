@@ -4,15 +4,13 @@
   flex-direction: column;
   padding: 0.875rem;
   background: var(--card, #ffffff);
-  border: 1px solid var(--border, rgba(0, 0, 0, 0.06));
+  border: none;
   border-radius: 0.875rem;
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.03),
-    0 1px 3px rgba(0, 0, 0, 0.05);
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 2px 6px rgba(0, 0, 0, 0.06);
   font-family: system-ui, -apple-system, sans-serif;
-  transition:
-    box-shadow 0.15s ease,
-    border-color 0.15s ease;
+  transition: box-shadow 0.15s ease;
 }
 
 .tc-card-clickable {
@@ -20,10 +18,9 @@
 }
 
 .tc-card-clickable:hover {
-  border-color: var(--border, rgba(0, 0, 0, 0.14));
   box-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.05),
-    0 4px 10px rgba(0, 0, 0, 0.07);
+    0 2px 4px rgba(0, 0, 0, 0.06),
+    0 6px 16px rgba(0, 0, 0, 0.1);
 }
 
 .tc-card-clickable:focus-visible {
@@ -155,12 +152,20 @@
 }
 
 .tc-title {
+  --tc-title-line-height: 1.35;
   margin: 0.625rem 0 0;
   color: var(--card-foreground, #18181b);
   font-size: 0.9375rem;
   font-weight: 650;
-  line-height: 1.35;
+  line-height: var(--tc-title-line-height);
   overflow-wrap: anywhere;
+  /* Fixed two-line title: always reserves two lines, truncates with an ellipsis */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: calc(2 * var(--tc-title-line-height) * 0.9375rem);
 }
 
 /* Muted status line under the title, with a small leading icon */
@@ -185,7 +190,8 @@
   white-space: nowrap;
 }
 
-/* Footer metadata row: icon + label items spread across the card */
+/* Footer metadata row: lead item (plan id) on the left, trailing items
+   (time, tokens) grouped on the right. */
 .tc-meta {
   display: flex;
   align-items: center;
@@ -195,11 +201,43 @@
   color: var(--foreground, #3f3f46);
 }
 
+.tc-meta-trail {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.875rem;
+  min-width: 0;
+}
+
 .tc-meta-item {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
   min-width: 0;
+  /* reset for the <button> variant */
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+}
+
+.tc-meta-item-clickable {
+  cursor: pointer;
+  border-radius: 0.3rem;
+}
+
+.tc-meta-item-clickable:hover {
+  color: var(--ring, #6366f1);
+}
+
+.tc-meta-item-clickable:hover .tc-meta-icon {
+  color: var(--ring, #6366f1);
+}
+
+.tc-meta-item-clickable:focus-visible {
+  outline: 2px solid var(--ring, #6366f1);
+  outline-offset: 2px;
 }
 
 .tc-meta-icon {
