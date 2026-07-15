@@ -75,8 +75,7 @@ internal static class ServiceRegistration
                 sp.GetRequiredService<ILogger<PlanReaderService>>(),
                 sp.GetRequiredService<ITelemetryService>(),
                 sp.GetRequiredService<IWorktreeLifecycleLogger>());
-            planService.MigratePlanSubfolderCasing();
-            planService.RepairPlans();
+            planService.MigratePlans();
             planService.RecoverStuckPlans();
             return planService;
         });
@@ -96,8 +95,9 @@ internal static class ServiceRegistration
             var planReader = sp.GetRequiredService<PlanReaderService>();
             var database = sp.GetRequiredService<IPlanDatabaseService>();
             var watcher = sp.GetRequiredService<IPlanWatcherService>();
+            var configService = sp.GetRequiredService<IConfigService>();
             var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
-            return new PlanDatabaseSyncService(planReader, database, watcher,
+            return new PlanDatabaseSyncService(planReader, database, watcher, configService,
                 loggerFactory.CreateLogger<PlanDatabaseSyncService>());
         });
         server.Services.AddSingleton<ITelemetryService>(sp =>
@@ -151,10 +151,7 @@ internal static class ServiceRegistration
             var config = sp.GetRequiredService<IConfigService>();
             var logger = sp.GetRequiredService<ILogger<WorktreeCleanupService>>();
             var lifecycleLogger = sp.GetRequiredService<IWorktreeLifecycleLogger>();
-            return new WorktreeCleanupService(config.PlanFolder, logger, lifecycleLogger,
-                terminalGrace: TimeSpan.FromMinutes(config.Settings.WorktreeTerminalGraceMinutes),
-                staleReaperPeriod: TimeSpan.FromDays(config.Settings.WorktreeStaleReaperDays),
-                timerInterval: TimeSpan.FromMinutes(config.Settings.WorktreeCleanupIntervalMinutes));
+            return new WorktreeCleanupService(config.PlanFolder, logger, lifecycleLogger);
         });
         server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<WorktreeCleanupService>());
         server.Services.AddSingleton<PrStatusSyncService>(sp =>

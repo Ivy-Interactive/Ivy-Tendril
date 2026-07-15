@@ -148,14 +148,14 @@ public class PlanDatabaseServiceTests : IDisposable
     {
         _db.UpsertPlan(CreateTestPlan(1500, "Draft1"));
         _db.UpsertPlan(CreateTestPlan(1501, "Draft2"));
-        _db.UpsertPlan(CreateTestPlan(1502, "Review", PlanStatus.ReadyForReview));
+        _db.UpsertPlan(CreateTestPlan(1502, "Review", PlanStatus.Review));
         _db.UpsertPlan(CreateTestPlan(1503, "Failed", PlanStatus.Failed));
         _db.UpsertPlan(CreateTestPlan(1504, "Icebox", PlanStatus.Icebox));
         _db.UpsertPlan(CreateTestPlan(1505, "Completed", PlanStatus.Completed));
 
         var counts = _db.ComputePlanCounts();
         Assert.Equal(2, counts.Drafts);
-        Assert.Equal(1, counts.ReadyForReview);
+        Assert.Equal(1, counts.Review);
         Assert.Equal(1, counts.Failed);
         Assert.Equal(1, counts.Icebox);
     }
@@ -242,7 +242,7 @@ public class PlanDatabaseServiceTests : IDisposable
     }
 
     [Fact]
-    public void UpsertRecommendations_WithImpactAndRisk_StoresInDatabase()
+    public void UpsertRecommendations_WithImpact_StoresInDatabase()
     {
         _db.UpsertPlan(CreateTestPlan(1510));
 
@@ -251,7 +251,7 @@ public class PlanDatabaseServiceTests : IDisposable
             new()
             {
                 Title = "Optimize query", Description = "Slow dashboard query", State = "Pending",
-                Impact = "High", Risk = "Small"
+                Impact = "High"
             }
         };
 
@@ -261,17 +261,16 @@ public class PlanDatabaseServiceTests : IDisposable
         var recommendations = _db.GetRecommendations();
         Assert.Single(recommendations);
         Assert.Equal("High", recommendations[0].Impact);
-        Assert.Equal("Small", recommendations[0].Risk);
     }
 
     [Fact]
-    public void UpsertRecommendations_WithoutImpactAndRisk_StoresNulls()
+    public void UpsertRecommendations_WithoutImpact_StoresNull()
     {
         _db.UpsertPlan(CreateTestPlan(1511));
 
         var recs = new List<RecommendationYaml>
         {
-            new() { Title = "Legacy rec", Description = "No impact/risk", State = "Pending" }
+            new() { Title = "Legacy rec", Description = "No impact", State = "Pending" }
         };
 
         _db.UpsertRecommendations(1511, "01511-TestPlan", recs, "Tendril", "Test Plan",
@@ -280,7 +279,6 @@ public class PlanDatabaseServiceTests : IDisposable
         var recommendations = _db.GetRecommendations();
         Assert.Single(recommendations);
         Assert.Null(recommendations[0].Impact);
-        Assert.Null(recommendations[0].Risk);
     }
 
     [Fact]
@@ -519,7 +517,7 @@ public class PlanDatabaseServiceTests : IDisposable
         _db.UpsertPlan(CreateTestPlan(1900, "Draft Tendril"));
         _db.UpsertPlan(CreateTestPlan(1901, "Completed Tendril", PlanStatus.Completed));
         _db.UpsertPlan(CreateTestPlan(1902, "Failed Tendril", PlanStatus.Failed));
-        _db.UpsertPlan(CreateTestPlan(1903, "Review Framework", PlanStatus.ReadyForReview,
+        _db.UpsertPlan(CreateTestPlan(1903, "Review Framework", PlanStatus.Review,
             "Framework"));
         _db.UpsertPlan(CreateTestPlan(1904, "InProgress Tendril", PlanStatus.Executing));
 
@@ -934,7 +932,7 @@ public class PlanDatabaseServiceTests : IDisposable
 
         Assert.Equal(600, _db.GetRecentJobs(1000).Count);
 
-        _db.PurgeOldJobs();
+        var purgedIds = _db.PurgeOldJobs();
 
         var remaining = _db.GetRecentJobs(1000);
         Assert.Equal(500, remaining.Count);
@@ -945,6 +943,13 @@ public class PlanDatabaseServiceTests : IDisposable
         // The newest jobs should remain
         Assert.Contains(remaining, j => j.Id == "job-0599");
         Assert.Contains(remaining, j => j.Id == "job-0100");
+
+        // The returned id list matches the removed rows, not the retained ones
+        Assert.Equal(100, purgedIds.Count);
+        Assert.Contains("job-0000", purgedIds);
+        Assert.Contains("job-0099", purgedIds);
+        Assert.DoesNotContain("job-0599", purgedIds);
+        Assert.DoesNotContain("job-0100", purgedIds);
     }
 
     [Fact]
@@ -962,10 +967,11 @@ public class PlanDatabaseServiceTests : IDisposable
                 CompletedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMinutes(i)
             });
 
-        _db.PurgeOldJobs();
+        var purgedIds = _db.PurgeOldJobs();
 
         var remaining = _db.GetRecentJobs(1000);
         Assert.Equal(10, remaining.Count);
+        Assert.Empty(purgedIds);
     }
 
     [Fact]
@@ -1216,7 +1222,7 @@ public class PlanDatabaseServiceTests : IDisposable
         for (int i = 0; i < 50; i++)
         {
             tasks.Add(Task.Run(() => _db.GetPlans()));
-            tasks.Add(Task.Run(() => _db.UpdatePlanState(1500, PlanStatus.Building)));
+            tasks.Add(Task.Run(() => _db.UpdatePlanState(1500, PlanStatus.Creating)));
         }
 
         // Verify: All operations complete without deadlock (5 second timeout)

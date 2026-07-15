@@ -89,6 +89,23 @@ public class PlanWatcherServiceTests : IDisposable
     }
 
     [Fact]
+    public void PlansChanged_ThrowingSubscriber_DoesNotStarveLaterSubscribers()
+    {
+        using var watcher = new PlanWatcherService(_configService, null, Array.Empty<int>());
+
+        var laterSubscriberInvoked = new ManualResetEventSlim(false);
+        watcher.PlansChanged += _ => throw new InvalidOperationException("stale handler");
+        watcher.PlansChanged += _ => laterSubscriberInvoked.Set();
+
+        watcher.NotifyChanged("01602-IsolationPlan");
+
+        // A multicast Invoke stops at the first throwing handler; RaisePlansChanged must
+        // isolate each subscriber so handlers added later (recently opened tabs) still fire.
+        Assert.True(laterSubscriberInvoked.Wait(TimeSpan.FromMilliseconds(WatchTimeoutMs)),
+            "Expected the subscriber added after a throwing handler to still receive PlansChanged");
+    }
+
+    [Fact]
     public void OutOfBandPlan_AppearsInDatabase_WithoutRestart()
     {
         var dbPath = Path.Combine(_tempDir.Path, "tendril.db");
@@ -100,7 +117,7 @@ public class PlanWatcherServiceTests : IDisposable
         // genuine regression guard for #1257 rather than something the plain debounce would pass.
         using var watcher = new PlanWatcherService(_configService, null, new[] { 800, 2500 });
         using var syncService = new PlanDatabaseSyncService(
-            planReader, database, watcher, NullLogger<PlanDatabaseSyncService>.Instance);
+            planReader, database, watcher, _configService, NullLogger<PlanDatabaseSyncService>.Instance);
 
         // Initial sync with no plans → enables database-backed reads.
         syncService.PerformInitialSync();

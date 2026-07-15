@@ -46,7 +46,7 @@ public class CompleteStepView(
                           | Text.Muted("Be the first to know when we have a new release!")
                           | new NewsletterView());
 
-        return Layout.Vertical().Margin(0, 0, 0, 20)
+        return Layout.Vertical().Margin(0, 0, 0, 2)
                | Text.H3("Ready to Go!")
                | Text.Muted("Your project is configured. Click Finish to start using Tendril.")
                | (error.Value != null ? Text.Danger(error.Value) : null!)

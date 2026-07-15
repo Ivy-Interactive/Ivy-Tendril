@@ -19,10 +19,10 @@ public class WorktreeCleanupService : IStartable, IDisposable
         { nameof(PlanStatus.Completed), nameof(PlanStatus.Skipped), nameof(PlanStatus.Icebox) };
 
     // Non-terminal states that keep their worktree for recovery/resume (Failed = verifications
-    // failed; Draft/ReadyForReview = a stopped or reverted execution). The worktree is reaped
+    // failed; Draft/Review = a stopped or reverted execution). The worktree is reaped
     // only once the plan has been idle past the stale-reaper window. Re-executing recreates it.
     private static readonly HashSet<string> StaleReapStates = new(StringComparer.OrdinalIgnoreCase)
-        { nameof(PlanStatus.Failed), nameof(PlanStatus.Draft), nameof(PlanStatus.ReadyForReview) };
+        { nameof(PlanStatus.Failed), nameof(PlanStatus.Draft), nameof(PlanStatus.Review) };
 
     private static readonly TimeSpan DefaultTerminalGrace = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan DefaultStaleReaperPeriod = TimeSpan.FromDays(7);
@@ -55,7 +55,7 @@ public class WorktreeCleanupService : IStartable, IDisposable
 
     /// <summary>
     ///     Resolves how long a plan in the given state must be idle before its worktree is reaped,
-    ///     or <c>null</c> for active/transient states (Building/Executing/Updating/Blocked) whose
+    ///     or <c>null</c> for active/transient states (Creating/Executing/Updating/Blocked) whose
     ///     worktrees are never reaped.
     /// </summary>
     internal static TimeSpan? ResolveGrace(string state, TimeSpan terminalGrace, TimeSpan staleReaperPeriod)
@@ -180,9 +180,10 @@ public class WorktreeCleanupService : IStartable, IDisposable
     ///     kill locking processes) before throwing.
     /// </remarks>
     /// <summary>
-    ///     Removes a plan's execution work product: the Artifacts, Logs and Verification
-    ///     directories plus all git worktrees. Used when resetting a plan to a clean Draft
-    ///     (Reset to Draft, or deleting an ExecutePlan job).
+    ///     Removes a plan's execution work product: the Artifacts and Verification directories plus all
+    ///     git worktrees. Used when resetting a plan to a clean Draft (Reset to Draft, or deleting an
+    ///     ExecutePlan job). Job logs are NOT touched — they live in <c>&lt;TendrilHome&gt;/Jobs/</c> and
+    ///     are the forensic record of runs that happened, which a reset must not erase.
     /// </summary>
     public static void CleanPlanState(string planFolderPath, ILogger? logger = null)
     {
@@ -193,10 +194,12 @@ public class WorktreeCleanupService : IStartable, IDisposable
             ForceDeleteDirectory(artifactsDir, logger);
         }
 
+        // Legacy: plans written before job logs moved to <TendrilHome>/Jobs/ may still carry a Logs/
+        // folder. Nothing writes it any more; sweep it away when the plan is reset.
         var logsDir = Path.Combine(planFolderPath, "Logs");
         if (Directory.Exists(logsDir))
         {
-            logger?.LogInformation("Cleaning logs directory: {Path}", logsDir);
+            logger?.LogInformation("Cleaning legacy plan logs directory: {Path}", logsDir);
             ForceDeleteDirectory(logsDir, logger);
         }
 
@@ -372,6 +375,46 @@ public class WorktreeCleanupService : IStartable, IDisposable
             catch (Exception ex)
             {
                 logger?.LogWarning(ex, "Background worktree cleanup failed for {PlanFolder}", Path.GetFileName(planFolderPath));
+            }
+        });
+    }
+
+    /// <summary>
+    ///     Fire-and-forget permanent deletion of an entire plan folder (worktrees + all
+    ///     contents) for terminal UI delete actions, so slow disk I/O never blocks the
+    ///     plan-write pipeline.
+    /// </summary>
+    internal static void DeletePlanFolderInBackground(string planFolderPath, ILogger? logger = null,
+        IWorktreeLifecycleLogger? lifecycleLogger = null)
+    {
+        Task.Run(() =>
+        {
+            try
+            {
+                if (!Directory.Exists(planFolderPath)) return;
+
+                // Briefly acquire+release the per-folder cross-process lock before deleting, so
+                // any plan.yaml write already in flight (or queued) for this folder finishes
+                // first instead of racing the delete. We can't hold the lock for the whole
+                // deletion below — the lock file itself lives inside the folder being deleted,
+                // so Directory.Delete would fail trying to remove a file we still have open.
+                try
+                {
+                    using (PlanFileLock.Acquire(planFolderPath)) { }
+                }
+                catch (TimeoutException ex)
+                {
+                    logger?.LogWarning(ex, "Timed out waiting for plan lock before deleting {PlanFolder}; proceeding anyway",
+                        Path.GetFileName(planFolderPath));
+                }
+
+                RemoveWorktrees(planFolderPath, logger, lifecycleLogger);
+                ForceDeleteDirectory(planFolderPath, logger);
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Background plan-folder deletion failed for {PlanFolder}",
+                    Path.GetFileName(planFolderPath));
             }
         });
     }

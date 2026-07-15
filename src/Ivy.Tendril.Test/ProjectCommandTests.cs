@@ -1,4 +1,6 @@
+using Ivy.Tendril.Commands;
 using Ivy.Tendril.Services;
+using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Test;
 
@@ -123,6 +125,21 @@ verifications: []
 
         var reloaded = CreateConfig();
         Assert.Equal("New context", reloaded.Settings.Projects[0].Context);
+    }
+
+    [Fact]
+    public void SetProject_UpdatesStackHash()
+    {
+        var config = CreateConfig();
+        config.Settings.Projects.Add(new ProjectConfig { Name = "Test", StackHash = "abc123" });
+        config.SaveSettings();
+
+        var config2 = CreateConfig();
+        config2.Settings.Projects[0].StackHash = "def456";
+        config2.SaveSettings();
+
+        var reloaded = CreateConfig();
+        Assert.Equal("def456", reloaded.Settings.Projects[0].StackHash);
     }
 
     // --- Add/Remove Repo ---
@@ -408,5 +425,141 @@ verifications: []
         var reloaded = CreateConfig();
         Assert.Single(reloaded.Settings.Projects[0].BuildDependencies);
         Assert.Equal("Keep", reloaded.Settings.Projects[0].BuildDependencies[0]);
+    }
+
+    // --- Not Found Errors List Available Options ---
+
+    private static CommandApp BuildProjectApp()
+    {
+        var app = new CommandApp();
+        app.Configure(config =>
+        {
+            config.PropagateExceptions();
+            config.AddBranch("project", project =>
+            {
+                project.AddCommand<ProjectGetCommand>("get");
+                project.AddCommand<ProjectRemoveRepoCommand>("remove-repo");
+                project.AddCommand<ProjectRemoveBuildDepCommand>("remove-build-dep");
+                project.AddCommand<ProjectRemoveReviewActionCommand>("remove-review-action");
+                project.AddCommand<ProjectMoveVerificationCommand>("move-verification");
+            });
+        });
+        return app;
+    }
+
+    [Fact]
+    public void GetProject_NotFound_ListsAvailable()
+    {
+        var config = CreateConfig();
+        config.Settings.Projects.Add(new ProjectConfig { Name = "Tendril" });
+        config.SaveSettings();
+
+        var app = BuildProjectApp();
+        var ex = Assert.Throws<InvalidOperationException>(() => app.Run(["project", "get", "Missing"]));
+
+        Assert.Contains("Available: Tendril", ex.Message);
+    }
+
+    [Fact]
+    public void RemoveRepo_NotFound_ListsAvailable()
+    {
+        var seededPath = Path.Combine(_tempDir.Path, "SeededRepo");
+        var config = CreateConfig();
+        config.Settings.Projects.Add(new ProjectConfig
+        {
+            Name = "Test",
+            Repos = [new RepoRef { Path = seededPath }]
+        });
+        config.SaveSettings();
+
+        var app = BuildProjectApp();
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => app.Run(["project", "remove-repo", "Test", Path.Combine(_tempDir.Path, "OtherRepo")]));
+
+        Assert.Contains($"Available: {seededPath}", ex.Message);
+    }
+
+    [Fact]
+    public void RemoveReviewAction_NotFound_ListsAvailable()
+    {
+        var config = CreateConfig();
+        config.Settings.Projects.Add(new ProjectConfig
+        {
+            Name = "Test",
+            ReviewActions = [new ReviewActionConfig { Name = "Deploy" }]
+        });
+        config.SaveSettings();
+
+        var app = BuildProjectApp();
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => app.Run(["project", "remove-review-action", "Test", "Missing"]));
+
+        Assert.Contains("Available: Deploy", ex.Message);
+    }
+
+    [Fact]
+    public void RemoveBuildDep_NotFound_ListsAvailable()
+    {
+        var config = CreateConfig();
+        config.Settings.Projects.Add(new ProjectConfig
+        {
+            Name = "Test",
+            BuildDependencies = ["Framework"]
+        });
+        config.SaveSettings();
+
+        var app = BuildProjectApp();
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => app.Run(["project", "remove-build-dep", "Test", "Missing"]));
+
+        Assert.Contains("Available: Framework", ex.Message);
+    }
+
+    [Fact]
+    public void MoveVerification_BeforeTargetNotFound_ListsAvailable()
+    {
+        var config = CreateConfig();
+        config.Settings.Projects.Add(new ProjectConfig
+        {
+            Name = "Test",
+            Verifications = [
+                new ProjectVerificationRef { Name = "Lint" },
+                new ProjectVerificationRef { Name = "Build" }
+            ]
+        });
+        config.SaveSettings();
+
+        var app = BuildProjectApp();
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => app.Run(["project", "move-verification", "Test", "Lint", "--before", "Missing"]));
+
+        Assert.Contains("Available: Build, Lint", ex.Message);
+
+        var reloaded = CreateConfig();
+        Assert.Equal(2, reloaded.Settings.Projects[0].Verifications.Count);
+    }
+
+    [Fact]
+    public void MoveVerification_AfterTargetNotFound_ListsAvailable()
+    {
+        var config = CreateConfig();
+        config.Settings.Projects.Add(new ProjectConfig
+        {
+            Name = "Test",
+            Verifications = [
+                new ProjectVerificationRef { Name = "Lint" },
+                new ProjectVerificationRef { Name = "Build" }
+            ]
+        });
+        config.SaveSettings();
+
+        var app = BuildProjectApp();
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => app.Run(["project", "move-verification", "Test", "Lint", "--after", "Missing"]));
+
+        Assert.Contains("Available: Build, Lint", ex.Message);
+
+        var reloaded = CreateConfig();
+        Assert.Equal(2, reloaded.Settings.Projects[0].Verifications.Count);
     }
 }

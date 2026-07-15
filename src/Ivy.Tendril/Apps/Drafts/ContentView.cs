@@ -59,7 +59,7 @@ public class ContentView(
             if (!isOpen.Value) return null;
             return new Sheet(
                 () => isOpen.Set(false),
-                new JobDebugSheet(jobId, jobService, planService, config),
+                new JobDebugSheet(jobId, jobService, planService, config, () => isOpen.Set(false)),
                 "Job Debug"
             ).Width(UxHelper.SheetWidth).Resizable();
         });
@@ -135,61 +135,83 @@ public class ContentView(
 
         var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan.FolderName);
 
-        var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full())
-            | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
-                .BorderThickness(0).Padding(0).Width(Size.Fit());
-
-        if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
-            desktopTitleLayout |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
+        object BuildTitleArea(bool isMobile)
+        {
+            object SourceButton() => new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
                 .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
 
-        if (selectedPlan.DependsOn.Count > 0)
-        {
-            var depIds = string.Join(", ", selectedPlan.DependsOn.Select(d =>
+            var hasSourceUrl = !string.IsNullOrEmpty(selectedPlan.SourceUrl);
+
+            var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full().Min(Size.Px(0)))
+                | Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis)
+                    .Width(Size.Shrink().Min(Size.Px(0)));
+
+            if (hasSourceUrl)
+                desktopTitleLayout |= SourceButton();
+
+            if (selectedPlan.DependsOn.Count > 0)
             {
-                var name = Path.GetFileName(d);
-                var dashIdx = name.IndexOf('-');
-                var idStr = dashIdx > 0 ? name[..dashIdx] : name;
-                return int.TryParse(idStr, out var id) ? $"#{id}" : idStr;
-            }));
-            desktopTitleLayout |= new Badge($"Depends on: {depIds}").Variant(BadgeVariant.Secondary);
+                var depIds = string.Join(", ", selectedPlan.DependsOn.Select(d =>
+                {
+                    var name = Path.GetFileName(d);
+                    var dashIdx = name.IndexOf('-');
+                    var idStr = dashIdx > 0 ? name[..dashIdx] : name;
+                    return int.TryParse(idStr, out var id) ? $"#{id}" : idStr;
+                }));
+                desktopTitleLayout |= new Badge($"Depends on: {depIds}").Variant(BadgeVariant.Secondary);
+            }
+
+            var desktopTitle = new Box(desktopTitleLayout).BorderThickness(0).Padding(0)
+                .Width(Size.Full().Min(Size.Px(0)))
+                .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
+
+            var mobileTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full())
+                | MobileItemPicker.Build(
+                        $"#{selectedPlan.Id} {selectedPlan.Title}",
+                        allPlans,
+                        p => $"#{p.Id} {p.Title}",
+                        p => p.FolderName == selectedPlan.FolderName,
+                        p => selectedPlanState.Set(p))
+                    .Width(Size.Grow().Min(Size.Px(0)));
+
+            if (hasSourceUrl)
+                mobileTitleLayout |= SourceButton();
+
+            var mobileTitle = new Box(mobileTitleLayout).BorderThickness(0).Padding(0)
+                .Width(Size.Full().Min(Size.Px(0)))
+                .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
+
+            return Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow().Min(Size.Px(0)))
+                   | desktopTitle
+                   | mobileTitle;
         }
 
-        var desktopTitle = new Box(desktopTitleLayout).BorderThickness(0).Padding(0)
-            .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
+        object BuildControls(bool isMobile)
+        {
+            var rightSide = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
+                           | Text.Rich()
+                               .NoWrap()
+                               .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
+                               .Muted("plans", word: true);
 
-        var titleArea = Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
-                        | desktopTitle
-                        | MobileItemPicker.Build(
-                                $"#{selectedPlan.Id} {selectedPlan.Title}",
-                                allPlans,
-                                p => $"#{p.Id} {p.Title}",
-                                p => p.FolderName == selectedPlan.FolderName,
-                                p => selectedPlanState.Set(p))
-                            .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
+            if (annotations.Value.Count > 0)
+                rightSide |= BuildAnnotationsUpdateButton(annotations);
 
-        var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
-                       | Text.Rich()
-                           .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
-                           .Muted("plans", word: true);
+            rightSide |= new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("x")
+                            .Loading(isCheckingPreflight)
+                            .Disabled(isCheckingPreflight)
+                            .OnClick(() => runPreflight(selectedPlan.Project, result =>
+                            {
+                                if (annotations.Value.Count > 0)
+                                    showAnnotationsDialog.Set(true);
+                                else
+                                    ContinueExecute(null, result, pendingWaitJobIds, showDirtyDialog);
+                            }));
 
-        if (annotations.Value.Count > 0)
-            controls |= BuildAnnotationsUpdateButton(annotations);
+            return rightSide.Width(isMobile ? Size.Full() : Size.Fit());
+        }
 
-        controls |= new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("x")
-                        .Loading(isCheckingPreflight)
-                        .Disabled(isCheckingPreflight)
-                        .OnClick(() => runPreflight(selectedPlan.Project, result =>
-                        {
-                            if (annotations.Value.Count > 0)
-                                showAnnotationsDialog.Set(true);
-                            else
-                                ContinueExecute(null, result, pendingWaitJobIds, showDirtyDialog);
-                        }));
-
-        var header = Layout.Horizontal().Height(Size.Px(40)).Width(Size.Full()).Gap(2).AlignContent(Align.Left)
-                     | titleArea
-                     | controls;
+        var header = ResponsiveHeader.Build(BuildTitleArea, BuildControls);
 
         var content = Layout.Vertical().Height(Size.Full());
 
@@ -224,7 +246,7 @@ public class ContentView(
             content |= (Layout.Vertical().Padding(2).Height(Size.Full()) | tabs);
         }
 
-        content |= new VerificationReportSheet(openVerification, selectedPlan);
+        content |= new VerificationReportSheet(openVerification, selectedPlan, config);
         content |= new CommitDetailSheet(openCommit, selectedPlan, config, gitService);
 
         var hasActiveExpandJob = HasActiveJob<ExpandPlanArgs>();
@@ -262,11 +284,11 @@ public class ContentView(
             ? new DirtyRepoDialog(
                 showDirtyDialog,
                 preflightResult,
-                proceedLabel: "Execute Anyway",
+                proceedLabel: "Create Without Syncing",
                 contextMessage: "These changes will NOT be included in this plan. The plan will execute against origin/<baseBranch>. If these changes are meant for this plan, commit and push them first.",
-                onSyncRepos: () =>
+                onSyncRepos: policy =>
                 {
-                    LaunchWithSync(preflightResult, pendingWaitJobIds.Value);
+                    LaunchWithSync(preflightResult, pendingWaitJobIds.Value, policy);
                     pendingWaitJobIds.Set((List<string>?)null);
                 },
                 onProceed: () =>
@@ -300,7 +322,7 @@ public class ContentView(
 
         object Cap(object inner) => Layout.Vertical().Scroll().HideScrollbar().Width(Size.Full()).Height(Size.Full())
             | (Layout.Vertical()
-                .Padding(new Responsive<Thickness?> { Default = new Thickness(6, 0, 0, 4), Mobile = new Thickness(6, 4, 0, 4) })
+                .Padding(6, 0, 0, 4)
                 .Width(Size.Full().Max(Size.Units(200))) | inner);
     }
 
@@ -375,9 +397,9 @@ public class ContentView(
         }
     }
 
-    internal static object BuildFailureCallout(PlanFile plan)
+    internal static object BuildFailureCallout(PlanFile plan, string tendrilHome)
     {
-        return BuildVerificationFailureCallout(plan) ?? BuildLogFailureCallout(plan);
+        return BuildVerificationFailureCallout(plan) ?? BuildLogFailureCallout(plan, tendrilHome);
     }
 
     private static object? BuildVerificationFailureCallout(PlanFile plan)
@@ -410,25 +432,25 @@ public class ContentView(
         return Callout.Destructive(string.Join("\n\n", parts), "Execution Failed");
     }
 
-    private static object BuildLogFailureCallout(PlanFile plan)
+    private static object BuildLogFailureCallout(PlanFile plan, string tendrilHome)
     {
-        var logsDir = Path.Combine(plan.FolderPath, "Logs");
-        if (!Directory.Exists(logsDir))
-            return Callout.Destructive("No details available. Check the logs folder.", "Execution Failed");
-        var lastLog = Directory.GetFiles(logsDir, "*.md")
-            .OrderByDescending(f => f)
-            .FirstOrDefault();
+        var planId = JobLogPaths.PlanIdFromFolderName(Path.GetFileName(plan.FolderPath));
+        var lastLog = planId == null
+            ? null
+            : JobLogPaths.LogsForPlanId(tendrilHome, planId).LastOrDefault();
         if (lastLog == null)
-            return Callout.Destructive("No details available. Check the logs folder.", "Execution Failed");
+            return Callout.Destructive("No details available. Check the job logs.", "Execution Failed");
 
         var logContent = FileHelper.ReadAllText(lastLog);
-        var summary = MatchSection(logContent, "Summary");
+        // "Final Output" is the heading JobLogWriter actually emits — the agent's last response, which is
+        // the most useful thing to surface on a failed plan.
+        var summary = MatchSection(logContent, "Final Output");
         if (summary != null)
             return Callout.Destructive(summary, "Execution Failed");
 
         var statusMatch = Regex.Match(logContent, @"\*\*Status:\*\*\s*(.+)");
         if (!statusMatch.Success)
-            return Callout.Destructive("No details available. Check the logs folder.", "Execution Failed");
+            return Callout.Destructive("No details available. Check the job logs.", "Execution Failed");
         var status = statusMatch.Groups[1].Value.Trim();
         if (status == nameof(PlanStatus.Completed))
             return Callout.Warning(
@@ -452,13 +474,14 @@ public class ContentView(
         // When chained behind an UpdatePlan job the plan is already Updating;
         // JobLauncher sets Executing once the blocked ExecutePlan launches.
         if (!hasWaits)
-            TransitionPlanOptimistically(PlanStatus.Building);
+            TransitionPlanOptimistically(PlanStatus.Creating);
 
         jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath) { WaitForJobs = hasWaits ? waitJobIds : null });
         refreshPlans();
     }
 
-    private void LaunchWithSync(PreflightResult preflight, List<string>? waitJobIds = null)
+    private void LaunchWithSync(PreflightResult preflight, List<string>? waitJobIds = null,
+        UntrackedChangesPolicy policy = UntrackedChangesPolicy.Stash)
     {
         if (selectedPlan is null) return;
 
@@ -466,14 +489,14 @@ public class ContentView(
         var allWaitIds = hasWaits ? new List<string>(waitJobIds!) : new List<string>();
         foreach (var (repoPath, baseBranch, _) in preflight.DirtyRepos)
         {
-            var jobId = jobService.StartJob(new SyncRepoArgs(repoPath, baseBranch, selectedPlan.FolderPath));
+            var jobId = jobService.StartJob(new SyncRepoArgs(repoPath, baseBranch, selectedPlan.FolderPath, policy));
             allWaitIds.Add(jobId);
         }
 
         // When chained behind an UpdatePlan job the plan is already Updating;
         // JobLauncher sets Executing once the blocked ExecutePlan launches.
         if (!hasWaits)
-            TransitionPlanOptimistically(PlanStatus.Building);
+            TransitionPlanOptimistically(PlanStatus.Creating);
 
         jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath) { WaitForJobs = allWaitIds });
         refreshPlans();

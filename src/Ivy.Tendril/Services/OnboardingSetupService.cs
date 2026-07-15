@@ -36,7 +36,7 @@ public class OnboardingSetupService(IConfigService config, IAgentRunner agentRun
 
         var exampleConfigPath = projectDir != null
             ? Path.Combine(projectDir, "example.config.yaml")
-            : Path.Combine(System.AppContext.BaseDirectory, "example.config.yaml");
+            : PathHelper.GetResourcePath("example.config.yaml");
 
         var configPath = Path.Combine(tendrilHome, "config.yaml");
 

@@ -41,7 +41,7 @@ public sealed class PlanTools : AuthenticatedToolBase
 
     [McpServerTool(Name = "tendril_list_plans"), Description("Query plans by state, project, or date range")]
     public string ListPlans(
-        [Description("Filter by plan state (e.g., Draft, Executing, ReadyForReview, Failed, Completed)")] string? state = null,
+        [Description("Filter by plan state (e.g., Draft, Executing, Review, Failed, Completed)")] string? state = null,
         [Description("Filter by project name")] string? project = null,
         [Description("Filter plans created after this date (ISO 8601, e.g., 2026-04-01)")] string? since = null)
     {
@@ -181,6 +181,12 @@ public sealed class PlanTools : AuthenticatedToolBase
         {
             if (plan.Repos.Contains(repoPath, StringComparer.OrdinalIgnoreCase))
                 throw new InvalidOperationException($"Repository already in plan: {repoPath}");
+
+            // Refuse repos outside the plan's project (issue #1340).
+            var project = _configService.GetProject(plan.Project);
+            if (project != null)
+                PlanProjectRepoGuard.EnsureReposBelongToProject([repoPath], project);
+
             plan.Repos.Add(repoPath);
         }, $"Added repository: {repoPath}");
     }
@@ -194,7 +200,7 @@ public sealed class PlanTools : AuthenticatedToolBase
         {
             var removed = plan.Repos.RemoveAll(r => r.Equals(repoPath, StringComparison.OrdinalIgnoreCase));
             if (removed == 0)
-                throw new InvalidOperationException($"Repository not found in plan: {repoPath}");
+                CliValidation.ThrowRepoNotFound(repoPath, plan.Repos);
         }, $"Removed repository: {repoPath}");
     }
 
@@ -250,27 +256,12 @@ public sealed class PlanTools : AuthenticatedToolBase
         });
     }
 
-    [McpServerTool(Name = "tendril_plan_add_log"), Description("Write an execution log entry to a plan")]
-    public string AddLog(
-        [Description("Plan ID")] string planId,
-        [Description("Action name (e.g., CreatePlan, ExecutePlan)")] string action,
-        [Description("Optional summary text")] string? summary = null)
-    {
-        return ExecuteAuthenticated(() =>
-        {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var logPath = PlanAddLogCommand.WriteLog(planFolder, action, summary);
-            return $"Log written: {Path.GetFileName(logPath)}";
-        });
-    }
-
     [McpServerTool(Name = "tendril_plan_rec_add"), Description("Add a recommendation to a plan")]
     public string RecAdd(
         [Description("Plan ID")] string planId,
         [Description("Recommendation title")] string title,
         [Description("Recommendation description")] string description,
-        [Description("Impact level: Small, Medium, High (optional)")] string? impact = null,
-        [Description("Risk level: Small, Medium, High (optional)")] string? risk = null)
+        [Description("Impact level: Small, Medium, High (optional)")] string? impact = null)
     {
         return ExecuteAuthenticated(() =>
         {
@@ -286,8 +277,7 @@ public sealed class PlanTools : AuthenticatedToolBase
                 Title = title,
                 Description = description,
                 State = RecommendationStatus.Pending,
-                Impact = impact,
-                Risk = risk
+                Impact = impact
             });
 
             plan.Updated = DateTime.UtcNow;
@@ -367,7 +357,7 @@ public sealed class PlanTools : AuthenticatedToolBase
             var sb = new StringBuilder();
             sb.AppendLine($"Found {recs.Count} {(recs.Count == 1 ? "recommendation" : "recommendations")}:");
             foreach (var rec in recs)
-                sb.AppendLine($"- {rec.Title} | State: {rec.State} | Impact: {rec.Impact ?? "-"} | Risk: {rec.Risk ?? "-"}");
+                sb.AppendLine($"- {rec.Title} | State: {rec.State} | Impact: {rec.Impact ?? "-"}");
 
             return sb.ToString();
         });
@@ -377,7 +367,7 @@ public sealed class PlanTools : AuthenticatedToolBase
     public string RecSet(
         [Description("Plan ID")] string planId,
         [Description("Recommendation title")] string title,
-        [Description("Field to update: title, description, state, impact, risk, declineReason")] string field,
+        [Description("Field to update: title, description, state, impact, declineReason")] string field,
         [Description("New value")] string value)
     {
         return ExecuteAuthenticated(() =>
@@ -396,10 +386,9 @@ public sealed class PlanTools : AuthenticatedToolBase
                 case "description": rec.Description = value; break;
                 case "state": rec.State = value; break;
                 case "impact": rec.Impact = value; break;
-                case "risk": rec.Risk = value; break;
                 case "declinereason": rec.DeclineReason = value; break;
                 default:
-                    return $"Error: Unknown field '{field}'. Valid: title, description, state, impact, risk, declineReason";
+                    return $"Error: Unknown field '{field}'. Valid: title, description, state, impact, declineReason";
             }
 
             plan.Updated = DateTime.UtcNow;
@@ -467,7 +456,10 @@ public sealed class PlanTools : AuthenticatedToolBase
                     plan.DependsOn.Add(PlanCommandHelpers.ResolvePlanFolderName(dep));
 
             PlanCommandHelpers.WritePlan(planFolder, plan);
-            return $"Plan created: {folderName}\nPlanId: {planId}\nDirectory: {planFolder}";
+
+            var lines = new List<string> { $"PlanId: {planId}", $"Directory: {planFolder}", "Verifications:" };
+            lines.AddRange(plan.Verifications.Select(v => $"{v.Name}:{v.Status}"));
+            return string.Join('\n', lines);
         });
     }
 
@@ -479,15 +471,8 @@ public sealed class PlanTools : AuthenticatedToolBase
         return ExecuteAuthenticated(() =>
         {
             var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var revisionsDir = Path.Combine(planFolder, "Revisions");
-            Directory.CreateDirectory(revisionsDir);
-
-            var number = ResolveNextRevisionNumber(revisionsDir);
-            var filename = $"{number:D3}.md";
-            var filePath = Path.Combine(revisionsDir, filename);
-
-            File.WriteAllText(filePath, content);
-            return $"Revision written: {filename}";
+            var filePath = RevisionWriter.WriteNext(planFolder, content, _configService);
+            return $"Revision written: {Path.GetFileName(filePath)}";
         });
     }
 
@@ -627,18 +612,6 @@ public sealed class PlanTools : AuthenticatedToolBase
                 throw new InvalidOperationException($"Verification '{name}' not found");
             plan.Verifications.Remove(match);
         }, $"Removed verification '{name}'");
-    }
-
-    private static int ResolveNextRevisionNumber(string revisionsDir)
-    {
-        var max = 0;
-        foreach (var file in Directory.GetFiles(revisionsDir, "*.md"))
-        {
-            var name = Path.GetFileNameWithoutExtension(file);
-            if (int.TryParse(name, out var num) && num > max)
-                max = num;
-        }
-        return max + 1;
     }
 
     private string ModifyPlan(string planId, Action<PlanYaml> modifier, string successMessage)

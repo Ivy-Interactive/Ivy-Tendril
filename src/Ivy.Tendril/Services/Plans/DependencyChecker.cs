@@ -100,13 +100,19 @@ internal class DependencyChecker
             var planFolder = blockedJob.TypedArgs?.PlanFolder ?? "";
             if (string.IsNullOrEmpty(planFolder)) continue;
 
+            // A job blocked on sibling jobs (WaitForJobs) is retried by
+            // JobCompletionHandler.HandleWaitForJobsDependents when those jobs finish — not here.
+            // Restarting it while its WaitForJobs are still pending would immediately re-block it,
+            // producing a spurious "Job Unblocked" + "Job Blocked" notification pair (issue #1538).
+            if (HasPendingWaitForJobs(blockedJob, jobs)) continue;
+
             var (ok, _) = CheckDependencies(planFolder);
             if (!ok) continue;
 
             if (HasActiveJobForPlan(planFolder, jobs)) continue;
             if (!jobs.TryRemove(blockedJob.Id, out _)) continue;
 
-            PlanYamlHelper.SetPlanStateByFolder(planFolder, nameof(PlanStatus.Building));
+            PlanYamlHelper.SetPlanStateByFolder(planFolder, nameof(PlanStatus.Creating));
             startJobSkipDepCheck(blockedJob.TypedArgs!);
 
             raiseNotification(new JobNotification(
@@ -135,7 +141,7 @@ internal class DependencyChecker
                 var (allMet, _) = CheckDependencies(dir);
                 if (allMet)
                 {
-                    PlanYamlHelper.SetPlanStateByFolder(dir, nameof(PlanStatus.Building));
+                    PlanYamlHelper.SetPlanStateByFolder(dir, nameof(PlanStatus.Creating));
                     startJobSkipDepCheck(new ExecutePlanArgs(dir));
                 }
             }
@@ -161,6 +167,16 @@ internal class DependencyChecker
             j.Status is JobStatus.Blocked or JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
             j.TypedArgs?.PlanFolder != null &&
             j.TypedArgs.PlanFolder.Equals(dir, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool HasPendingWaitForJobs(JobItem job, ConcurrentDictionary<string, JobItem> jobs)
+    {
+        if (job.WaitForJobIds is not { Count: > 0 })
+            return false;
+
+        return job.WaitForJobIds.Any(id =>
+            jobs.TryGetValue(id, out var dep) &&
+            dep.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked);
     }
 
     private static bool HasActiveJobForPlan(string planFolder, ConcurrentDictionary<string, JobItem> jobs)

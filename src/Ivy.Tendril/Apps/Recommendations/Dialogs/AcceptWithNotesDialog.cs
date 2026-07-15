@@ -6,7 +6,8 @@ namespace Ivy.Tendril.Apps.Recommendations.Dialogs;
 public class AcceptWithNotesDialog(
     IState<bool> dialogOpen,
     Recommendation recommendation,
-    Action<string> onAccept) : ViewBase
+    Action<string> onAccept,
+    IConfigService config) : ViewBase
 {
     private readonly IState<bool> _dialogOpen = dialogOpen;
     private readonly Action<string> _onAccept = onAccept;
@@ -19,28 +20,19 @@ public class AcceptWithNotesDialog(
         if (!_dialogOpen.Value) return null;
 
         return new Dialog(
-            _ =>
-            {
-                notesText.Set("");
-                _dialogOpen.Set(false);
-            },
+            _ => _dialogOpen.Set(false),
             new DialogHeader("Accept with Notes"),
             new DialogBody(
                 Layout.Vertical().Gap(2)
                 | Text.Block("Add notes to include with this recommendation:").Muted()
-                | new Markdown(_recommendation.Description)
+                | new Markdown(MarkdownHelper.PrepareForDisplay(_recommendation.Description, config))
                 | notesText.ToTextareaInput("Enter your notes...").Rows(6).AutoFocus()
             ),
             new DialogFooter(
-                new Button("Cancel").Outline().OnClick(() =>
-                {
-                    notesText.Set("");
-                    _dialogOpen.Set(false);
-                }),
+                new Button("Cancel").Outline().OnClick(() => _dialogOpen.Set(false)),
                 new Button("Accept").Primary().ShortcutKey("Ctrl+Enter").OnClick(() =>
                 {
                     _onAccept(notesText.Value);
-                    notesText.Set("");
                     _dialogOpen.Set(false);
                 })
             )

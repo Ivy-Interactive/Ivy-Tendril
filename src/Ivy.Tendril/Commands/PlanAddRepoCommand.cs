@@ -1,6 +1,7 @@
 using Ivy.Tendril.Models;
 using System.ComponentModel;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Plans;
 using Ivy.Tendril.Helpers;
 using Spectre.Console.Cli;
 
@@ -27,10 +28,12 @@ public class PlanAddRepoSettings : CommandSettings
 public class PlanAddRepoCommand : Command<PlanAddRepoSettings>
 {
     private readonly IPlanWatcherService _planWatcher;
+    private readonly IConfigService _configService;
 
-    public PlanAddRepoCommand(IPlanWatcherService planWatcher)
+    public PlanAddRepoCommand(IPlanWatcherService planWatcher, IConfigService configService)
     {
         _planWatcher = planWatcher;
+        _configService = configService;
     }
 
     protected override int Execute(CommandContext context, PlanAddRepoSettings settings, CancellationToken cancellationToken)
@@ -42,6 +45,22 @@ public class PlanAddRepoCommand : Command<PlanAddRepoSettings>
         {
             Console.WriteLine($"Repository already in plan: {settings.RepoPath}");
             return 0;
+        }
+
+        // Refuse repos that don't belong to the plan's project (issue #1340). Skip when the
+        // project is unknown to config — there's nothing to validate against.
+        var project = _configService.GetProject(plan.Project);
+        if (project != null)
+        {
+            try
+            {
+                PlanProjectRepoGuard.EnsureReposBelongToProject([settings.RepoPath], project);
+            }
+            catch (ArgumentException ex)
+            {
+                Console.Error.WriteLine($"Error: {ex.Message}");
+                return 1;
+            }
         }
 
         plan.Repos.Add(settings.RepoPath);

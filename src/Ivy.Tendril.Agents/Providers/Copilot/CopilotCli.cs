@@ -9,7 +9,7 @@ namespace Ivy.Tendril.Agents.Providers.Copilot;
 public sealed class CopilotCli : IAgentCli
 {
     public string Id => AgentId.Copilot;
-    public string DisplayName => "GitHub Copilot";
+    public string DisplayName => "Copilot";
 
     public AgentCapabilities Capabilities =>
         AgentCapabilities.StreamJsonOutput |
@@ -145,7 +145,7 @@ public sealed class CopilotCli : IAgentCli
         return new AgentProcessSpec
         {
             FileName = fileName,
-            Arguments = [..prefixArgs, ..args],
+            Arguments = [.. prefixArgs, .. args],
             WorkingDirectory = config.WorkingDirectory,
             Environment = env,
             StdinContent = config.Prompt,

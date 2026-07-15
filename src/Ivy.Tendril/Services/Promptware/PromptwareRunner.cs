@@ -3,6 +3,7 @@ using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Runtime;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Services.Jobs;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services.Promptware;
@@ -25,6 +26,10 @@ public record PromptwareRunHandle : IDisposable
     internal string? CliCommand { get; set; }
     internal string Provider { get; init; } = "claude";
     internal IEventParser? EventParser { get; init; }
+
+    /// <summary>Carries the job's identity (Id/Type/PlanFile) through to the completion log write.</summary>
+    internal JobItem? LogJob { get; init; }
+    internal DateTime StartedAt { get; init; }
 
     public bool IsRunning => Process is { HasExited: false };
     public int? ExitCode => Process is { HasExited: true } ? Process.ExitCode : null;
@@ -87,17 +92,16 @@ public class PromptwareRunner : IPromptwareRunner
         var workDir = options.WorkingDir ?? programFolder;
 
         var jobId = JobIdAllocator.AllocateJobId(_configService.TendrilHome);
-        var logFile = FirmwareCompiler.GetLogFile(programFolder, jobId);
+        // Agents pass this to `tendril job add-log` to target their own job log.
+        values["TendrilJobId"] = jobId;
+        var logJob = JobLogWriter.BuildCliRunJob(jobId, options.Promptware, values);
+        var logFile = JobLogWriter.SeedLog(_configService.TendrilHome, logJob);
         var firmwareContext = new FirmwareContext(programFolder, values);
         var prompt = FirmwareCompiler.Compile(firmwareContext);
 
-        string? promptFilePath = null;
-        if (!resolution.UsesStdinPrompt)
-        {
-            var tempDir = Path.GetTempPath();
-            promptFilePath = Path.Combine(tempDir, $"prompt-{Guid.NewGuid():N}.md");
-            File.WriteAllText(promptFilePath, prompt);
-        }
+        logJob.CompiledPrompt = prompt;
+        var promptPath = JobLogWriter.WritePrompt(_configService.TendrilHome, logJob);
+        var promptFilePath = resolution.UsesStdinPrompt ? null : promptPath;
 
         var launchConfig = new AgentLaunchConfig
         {
@@ -127,6 +131,17 @@ public class PromptwareRunner : IPromptwareRunner
         _logger.LogInformation("PromptwareRunner: launching {Promptware} via {Provider} (model={Model}, effort={Effort})",
             options.Promptware, resolution.AgentId, resolution.Model, resolution.Effort);
 
+        var cliCommand = AgentProcessHelper.FormatCliCommand(psi);
+        var startedAt = DateTime.UtcNow;
+
+        // Open the raw and eventwire appenders before the process starts, so a killed run still leaves a
+        // complete record. Assigning LogFilePath is what opens them.
+        logJob.Provider = resolution.AgentId;
+        logJob.EventParser = _agentRunner.GetParser(resolution.AgentId);
+        logJob.StartedAt = startedAt;
+        logJob.CliCommand = cliCommand;
+        logJob.LogFilePath = logFile;
+
         var process = Process.Start(psi);
         if (process == null)
             throw new InvalidOperationException("Failed to start agent process");
@@ -138,8 +153,6 @@ public class PromptwareRunner : IPromptwareRunner
             process.StandardInput.Close();
         }
 
-        var cliCommand = AgentProcessHelper.FormatCliCommand(psi);
-
         var cts = new CancellationTokenSource();
         var handle = new PromptwareRunHandle
         {
@@ -149,7 +162,9 @@ public class PromptwareRunner : IPromptwareRunner
             CompiledPrompt = prompt,
             CliCommand = cliCommand,
             Provider = resolution.AgentId,
-            EventParser = _agentRunner.GetParser(resolution.AgentId)
+            EventParser = logJob.EventParser,
+            LogJob = logJob,
+            StartedAt = startedAt
         };
 
         handle = handle with
@@ -183,47 +198,20 @@ public class PromptwareRunner : IPromptwareRunner
 
     private static async Task PipeOutputAndLog(Process process, IWriteStream<string> stream, PromptwareRunHandle handle, CancellationToken ct)
     {
-        var outputLines = new List<string>();
-        var serializer = new JsonEventSerializer();
-        var parser = handle.EventParser;
+        // The job owns the parser and the raw/eventwire appenders (opened when Run assigned LogFilePath),
+        // so output is recorded as it arrives rather than buffered until completion — a killed run keeps
+        // everything it produced. The UI stream is fed from the job's event observable so the line is
+        // parsed exactly once.
+        var job = handle.LogJob!;
+        using var subscription = job.OutputObservable.Subscribe(stream.Write);
 
         process.OutputDataReceived += (_, e) =>
         {
-            if (e.Data != null)
-            {
-                outputLines.Add(e.Data);
-                if (parser != null)
-                {
-                    foreach (var evt in parser.ParseLine(e.Data))
-                    {
-                        if (evt is SystemEvent or UnknownEvent or StderrEvent)
-                            continue;
-                        var serialized = serializer.Serialize(evt);
-                        stream.Write(serialized);
-                    }
-                }
-                else
-                {
-                    stream.Write(e.Data);
-                }
-            }
+            if (e.Data != null) job.EnqueueOutput(e.Data);
         };
         process.ErrorDataReceived += (_, e) =>
         {
-            if (e.Data != null)
-            {
-                var stderrLine = $"[stderr] {e.Data}";
-                outputLines.Add(stderrLine);
-                if (parser != null)
-                {
-                    foreach (var evt in parser.ParseLine(stderrLine))
-                        stream.Write(serializer.Serialize(evt));
-                }
-                else
-                {
-                    stream.Write(stderrLine);
-                }
-            }
+            if (e.Data != null) job.EnqueueOutput($"[stderr] {e.Data}");
         };
         process.EnableRaisingEvents = true;
 
@@ -237,37 +225,25 @@ public class PromptwareRunner : IPromptwareRunner
         }
         catch (OperationCanceledException) { }
 
-        if (parser != null)
-        {
-            foreach (var evt in parser.Flush())
-            {
-                stream.Write(serializer.Serialize(evt));
-            }
-        }
+        job.FlushParser();
 
         if (!string.IsNullOrEmpty(handle.LogFilePath))
         {
             try
             {
-                var job = new JobItem
-                {
-                    Provider = handle.Provider,
-                    EventParser = handle.EventParser,
-                    Status = process.HasExited && process.ExitCode == 0 ? JobStatus.Completed : JobStatus.Failed,
-                    StartedAt = null,
-                    CompletedAt = DateTime.UtcNow,
-                    ExitCode = process.HasExited ? process.ExitCode : null,
-                    LogFilePath = handle.LogFilePath,
-                    CompiledPrompt = handle.CompiledPrompt,
-                    CliCommand = handle.CliCommand
-                };
-                foreach (var line in outputLines)
-                    job.EnqueueOutput(line);
+                var completedAt = DateTime.UtcNow;
+                job.Status = process.HasExited && process.ExitCode == 0 ? JobStatus.Completed : JobStatus.Failed;
+                job.CompletedAt = completedAt;
+                job.DurationSeconds = (int)(completedAt - handle.StartedAt).TotalSeconds;
+                job.ExitCode = process.HasExited ? process.ExitCode : null;
 
-                PromptwareLogWriter.WriteLog(job);
-                PromptwareLogWriter.WriteRawLog(handle.LogFilePath, outputLines);
+                JobLogWriter.WriteLog(job);
             }
             catch { }
+            finally
+            {
+                job.CloseLogWriters();
+            }
 
             handle.CompiledPrompt = null;
             handle.CliCommand = null;

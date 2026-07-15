@@ -120,7 +120,7 @@ public partial class JobsApp
                                     {
                                         nav.Navigate<DraftsApp>(new DraftsAppArgs(plan.FolderName));
                                     }
-                                    else if (plan.Status is PlanStatus.ReadyForReview or PlanStatus.Failed)
+                                    else if (plan.Status is PlanStatus.Review or PlanStatus.Failed)
                                     {
                                         nav.Navigate<ReviewApp>(new ReviewAppArgs(plan.FolderName));
                                     }
@@ -183,7 +183,7 @@ public partial class JobsApp
 
                 if (job?.Status is JobStatus.Running or JobStatus.Queued)
                 {
-                    actions.Add(new MenuItem("Stop", Icon: Icons.Square, Tag: "stop-job")
+                    actions.Add(new MenuItem("Stop", Icon: Icons.Pause, Tag: "stop-job")
                         .Tooltip("Stop this running job"));
                 }
 
@@ -303,7 +303,7 @@ public partial class JobsApp
                     refreshToken.Refresh();
                 })
             )
-        ).Width(Size.Rem(40)) : null;
+        ) : null;
 
         return new Fragment(dataTable, confirmDialog);
     }

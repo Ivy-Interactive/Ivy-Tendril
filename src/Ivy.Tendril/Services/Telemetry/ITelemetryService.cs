@@ -23,7 +23,8 @@ public record AppStartContext(
 public record PlanCreatedContext(
     string Level,
     int? DurationSeconds,
-    string? Agent = null);
+    string? Agent = null,
+    string? StackHash = null);
 
 public record PrCreatedContext(
     int? DurationSeconds,

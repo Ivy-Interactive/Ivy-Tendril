@@ -121,7 +121,9 @@ public class ClaudeIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task RunToCompletion_WithPathContainingSpaces_Works()
     {
-        var dirWithSpaces = Path.Combine(Path.GetTempPath(), "tendril test dir");
+        // Unique per run: a fixed name collides with a concurrent run (or an agent process still holding
+        // the directory), and the teardown then throws a sharing violation that fails the test.
+        var dirWithSpaces = Path.Combine(Path.GetTempPath(), $"tendril test dir {Guid.NewGuid():N}");
         Directory.CreateDirectory(dirWithSpaces);
 
         try
@@ -138,7 +140,8 @@ public class ClaudeIntegrationTests : IAsyncLifetime
         }
         finally
         {
-            Directory.Delete(dirWithSpaces, recursive: true);
+            // Teardown must not mask the assertion above: the agent may still hold a handle briefly.
+            try { Directory.Delete(dirWithSpaces, recursive: true); } catch (IOException) { }
         }
     }
 

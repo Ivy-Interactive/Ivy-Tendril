@@ -327,6 +327,77 @@ public class GithubServiceTests
         Assert.Null(result);
     }
 
+    [Theory]
+    [InlineData("https://github.com/Owner/Repo/issues/22", "Owner", "Repo")]
+    [InlineData("https://github.com/Owner/Repo/pull/7", "Owner", "Repo")]
+    [InlineData("https://github.com/nielsbosma/lots-of-dev-tools/issues/22", "nielsbosma", "lots-of-dev-tools")]
+    [InlineData("git@github.com:Owner/Repo/issues/3", "Owner", "Repo")]
+    public void ParseRepoConfigFromIssueOrPrUrl_Parses_Owner_Repo(string url, string owner, string name)
+    {
+        var repo = GithubService.ParseRepoConfigFromIssueOrPrUrl(url);
+        Assert.NotNull(repo);
+        Assert.Equal(owner, repo.Owner);
+        Assert.Equal(name, repo.Name);
+    }
+
+    [Theory]
+    [InlineData("https://github.com/Owner/Repo")]       // remote URL, not an issue/PR
+    [InlineData("https://github.com/Owner/Repo.git")]
+    [InlineData("https://example.com/Owner/Repo/issues/1")] // not github.com
+    [InlineData("not-a-url")]
+    [InlineData("")]
+    public void ParseRepoConfigFromIssueOrPrUrl_Returns_Null_For_NonIssueUrl(string url)
+    {
+        Assert.Null(GithubService.ParseRepoConfigFromIssueOrPrUrl(url));
+    }
+
+    [Fact]
+    public void FindProjectForGithubRepo_Returns_Owning_Project()
+    {
+        var tempDir = CreateTempGitRepo("https://github.com/Test-Owner/Test-Repo.git");
+        try
+        {
+            var settings = new TendrilSettings
+            {
+                Projects = [new ProjectConfig { Name = "P", Repos = [new RepoRef { Path = tempDir }] }]
+            };
+            var svc = new GithubService(new ConfigService(settings), NullLogger<GithubService>.Instance);
+
+            Assert.Equal("P", svc.FindProjectForGithubRepo("Test-Owner/Test-Repo")?.Name);
+            Assert.Null(svc.FindProjectForGithubRepo("Other-Owner/Other-Repo"));
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void FindProjectForGithubRepo_Returns_Null_When_Ambiguous()
+    {
+        var temp1 = CreateTempGitRepo("https://github.com/Test-Owner/Test-Repo.git");
+        var temp2 = CreateTempGitRepo("https://github.com/Test-Owner/Test-Repo.git");
+        try
+        {
+            var settings = new TendrilSettings
+            {
+                Projects =
+                [
+                    new ProjectConfig { Name = "P1", Repos = [new RepoRef { Path = temp1 }] },
+                    new ProjectConfig { Name = "P2", Repos = [new RepoRef { Path = temp2 }] }
+                ]
+            };
+            var svc = new GithubService(new ConfigService(settings), NullLogger<GithubService>.Instance);
+
+            Assert.Null(svc.FindProjectForGithubRepo("Test-Owner/Test-Repo"));
+        }
+        finally
+        {
+            Directory.Delete(temp1, true);
+            Directory.Delete(temp2, true);
+        }
+    }
+
     private static string CreateTempGitRepo(string remoteUrl)
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"ivy-github-test-{Guid.NewGuid()}");

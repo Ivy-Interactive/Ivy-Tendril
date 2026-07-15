@@ -259,6 +259,38 @@ public class DatabaseMigratorTests : IDisposable
     }
 
     [Fact]
+    public void Migration015_RewritesLegacyPlanStates_AndLeavesOthers()
+    {
+        new Migration_001_InitialSchema().Apply(_connection);
+
+        using var insertCmd = _connection.CreateCommand();
+        insertCmd.CommandText = """
+                                INSERT INTO Plans (Id, Title, Project, Level, State, FolderPath, FolderName,
+                                                   YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated)
+                                VALUES
+                                    (1, 'A', 'Tendril', 'NiceToHave', 'Building',        '/a', 'a', 'y', 1, 'c', '2026-01-01', '2026-01-01'),
+                                    (2, 'B', 'Tendril', 'NiceToHave', 'ReadyForReview',  '/b', 'b', 'y', 1, 'c', '2026-01-01', '2026-01-01'),
+                                    (3, 'C', 'Tendril', 'NiceToHave', 'Completed',       '/c', 'c', 'y', 1, 'c', '2026-01-01', '2026-01-01')
+                                """;
+        insertCmd.ExecuteNonQuery();
+
+        new Migration_015_RenamePlanStates().Apply(_connection);
+
+        Assert.Equal("Creating", GetState(1));
+        Assert.Equal("Review", GetState(2));
+        Assert.Equal("Completed", GetState(3));
+        Assert.Equal(15, GetUserVersion());
+    }
+
+    private string GetState(int planId)
+    {
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = "SELECT State FROM Plans WHERE Id = @id;";
+        cmd.Parameters.AddWithValue("@id", planId);
+        return (string)cmd.ExecuteScalar()!;
+    }
+
+    [Fact]
     public void Migration006_CreatesCompositeIndex_AndDropsSingleColumnIndexes()
     {
         // Apply migrations 1 through 5 first to set up schema and individual indexes
@@ -393,6 +425,39 @@ public class DatabaseMigratorTests : IDisposable
         selectCmd.CommandText = "SELECT TypedArgs FROM Jobs WHERE Id = 'job-1';";
         var result = selectCmd.ExecuteScalar()?.ToString();
         Assert.Equal("{\"foo\":\"bar\"}", result);
+    }
+
+    [Fact]
+    public void Migration_016_DropRecommendationRisk_DropsColumn()
+    {
+        new Migration_001_InitialSchema().Apply(_connection);
+        new Migration_002_Fts5Search().Apply(_connection);
+        new Migration_003_JobsTable().Apply(_connection);
+        new Migration_004_SourceUrl().Apply(_connection);
+        new Migration_005_CostsLogTimestampIndex().Apply(_connection);
+        new Migration_006_CostsCompositeIndex().Apply(_connection);
+        new Migration_007_FtsSourceUrl().Apply(_connection);
+        new Migration_008_PrStatusTable().Apply(_connection);
+        new Migration_009_JobsArgs().Apply(_connection);
+        new Migration_010_RecommendationImpactRisk().Apply(_connection);
+        new Migration_011_JobsTypedArgs().Apply(_connection);
+        new Migration_012_JobsPlanFileIndex().Apply(_connection);
+        new Migration_013_JobsWorkingDirAndCliCommand().Apply(_connection);
+        new Migration_014_JobsCleared().Apply(_connection);
+        new Migration_015_RenamePlanStates().Apply(_connection);
+        new Migration_016_DropRecommendationRisk().Apply(_connection);
+
+        Assert.Equal(16, GetUserVersion());
+
+        var columns = new List<string>();
+        using var pragmaCmd = _connection.CreateCommand();
+        pragmaCmd.CommandText = "PRAGMA table_info(Recommendations);";
+        using var reader = pragmaCmd.ExecuteReader();
+        while (reader.Read())
+            columns.Add(reader.GetString(reader.GetOrdinal("name")));
+
+        Assert.Contains("Impact", columns);
+        Assert.DoesNotContain("Risk", columns);
     }
 
     private class FakeMigration : IMigration

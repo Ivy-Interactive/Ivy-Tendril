@@ -165,7 +165,7 @@ public class ClaudePtyTests
 
         var spec = _pty.BuildPtySpec(config);
 
-        var idx = IndexOf(spec.CommandLine,"--model");
+        var idx = IndexOf(spec.CommandLine, "--model");
         Assert.NotEqual(-1, idx);
         Assert.Equal("claude-sonnet-4-5-20250514", spec.CommandLine[idx + 1]);
     }
@@ -196,7 +196,7 @@ public class ClaudePtyTests
 
         var spec = _pty.BuildPtySpec(config);
 
-        var idx = IndexOf(spec.CommandLine,"--permission-mode");
+        var idx = IndexOf(spec.CommandLine, "--permission-mode");
         Assert.NotEqual(-1, idx);
         Assert.Equal("acceptEdits", spec.CommandLine[idx + 1]);
     }
@@ -212,7 +212,7 @@ public class ClaudePtyTests
 
         var spec = _pty.BuildPtySpec(config);
 
-        var idx = IndexOf(spec.CommandLine,"--permission-mode");
+        var idx = IndexOf(spec.CommandLine, "--permission-mode");
         Assert.NotEqual(-1, idx);
         Assert.Equal("plan", spec.CommandLine[idx + 1]);
     }
@@ -228,7 +228,7 @@ public class ClaudePtyTests
 
         var spec = _pty.BuildPtySpec(config);
 
-        var idx = IndexOf(spec.CommandLine,"--permission-mode");
+        var idx = IndexOf(spec.CommandLine, "--permission-mode");
         Assert.NotEqual(-1, idx);
         Assert.Equal("default", spec.CommandLine[idx + 1]);
     }
@@ -244,7 +244,7 @@ public class ClaudePtyTests
 
         var spec = _pty.BuildPtySpec(config);
 
-        var idx = IndexOf(spec.CommandLine,"--session-id");
+        var idx = IndexOf(spec.CommandLine, "--session-id");
         Assert.NotEqual(-1, idx);
         Assert.Equal("abc-123", spec.CommandLine[idx + 1]);
     }
@@ -385,5 +385,35 @@ public class ClaudePtyTests
         var spec = _pty.BuildPtySpec(config);
 
         Assert.DoesNotContain("--session-id", spec.CommandLine);
+    }
+
+    [Fact]
+    public void BuildPtySpec_InitialPrompt_IsTrailingPositionalArg()
+    {
+        var config = new AgentPtyConfig
+        {
+            WorkingDirectory = "/tmp/test",
+            InitialPrompt = "do the thing",
+        };
+
+        var args = _pty.BuildPtySpec(config).CommandLine.ToList();
+
+        Assert.Equal("do the thing", args[^1]);
+    }
+
+    [Fact]
+    public void BuildPtySpec_NoInitialPrompt_HasNoTrailingPrompt()
+    {
+        var config = new AgentPtyConfig { WorkingDirectory = "/tmp/test" };
+
+        var args = _pty.BuildPtySpec(config).CommandLine.ToList();
+
+        Assert.DoesNotContain("do the thing", args);
+    }
+
+    [Fact]
+    public void ContextFileName_IsNull_ClaudeUsesSystemPromptFlag()
+    {
+        Assert.Null(_pty.ContextFileName);
     }
 }

@@ -51,9 +51,9 @@ public class PromptwareHelperTests : IDisposable
         // Arrange
         var tempHome = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var tempPromptwares = Path.Combine(tempHome, "Promptwares");
-        var tempUpdateProject = Path.Combine(tempPromptwares, "UpdateProject");
-        Directory.CreateDirectory(tempUpdateProject);
-        var programFile = Path.Combine(tempUpdateProject, "Program.md");
+        var tempSetupProject = Path.Combine(tempPromptwares, "SetupProject");
+        Directory.CreateDirectory(tempSetupProject);
+        var programFile = Path.Combine(tempSetupProject, "Program.md");
         File.WriteAllText(programFile, "# Program");
 
         Environment.SetEnvironmentVariable("TENDRIL_HOME", tempHome);
@@ -61,10 +61,10 @@ public class PromptwareHelperTests : IDisposable
         try
         {
             // Act
-            var result = PromptwareHelper.ResolvePromptwareFolder("UpdateProject", "");
+            var result = PromptwareHelper.ResolvePromptwareFolder("SetupProject", "");
 
             // Assert
-            Assert.Equal(tempUpdateProject, result);
+            Assert.Equal(tempSetupProject, result);
         }
         finally
         {

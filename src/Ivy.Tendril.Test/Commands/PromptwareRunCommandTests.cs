@@ -27,11 +27,11 @@ public class PromptwareRunCommandTests : IDisposable
     {
         var settings = new PromptwareRunSettings
         {
-            Promptware = "UpdateProject",
+            Promptware = "SetupProject",
             Args = ["Setup verifications"]
         };
 
-        Assert.Equal("UpdateProject", settings.Promptware);
+        Assert.Equal("SetupProject", settings.Promptware);
         Assert.Single(settings.Args);
         Assert.Equal("Setup verifications", settings.Args[0]);
     }
@@ -119,7 +119,6 @@ public class PromptwareRunCommandTests : IDisposable
             ["ArtifactsDir"] = "/plans/00123-Test/artifacts"
         };
 
-        FirmwareCompiler.GetLogFile(promptwareDir, "test");
         var context = new FirmwareContext(promptwareDir, values);
         var prompt = FirmwareCompiler.Compile(context);
 
@@ -143,7 +142,6 @@ public class PromptwareRunCommandTests : IDisposable
             ["Instructions"] = "Setup verifications"
         };
 
-        FirmwareCompiler.GetLogFile(promptwareDir, "test");
         var context = new FirmwareContext(promptwareDir, values);
         var prompt = FirmwareCompiler.Compile(context);
 
@@ -163,7 +161,6 @@ public class PromptwareRunCommandTests : IDisposable
             ["TaskDescription"] = "Setup verifications and review actions for this project."
         };
 
-        FirmwareCompiler.GetLogFile(promptwareDir, "test");
         var context = new FirmwareContext(promptwareDir, values);
         var prompt = FirmwareCompiler.Compile(context);
 

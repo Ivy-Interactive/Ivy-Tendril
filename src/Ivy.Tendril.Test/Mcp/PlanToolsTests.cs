@@ -28,7 +28,7 @@ public class PlanToolsTests : IDisposable
         Environment.SetEnvironmentVariable("TENDRIL_HOME", _tempDir);
         Environment.SetEnvironmentVariable("TENDRIL_PLANS", null);
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", null);
-        _configService = new TestPlanConfigService(_repoDir);
+        _configService = new TestPlanConfigService(_repoDir, tendrilHome: _tempDir);
         _planTools = new PlanTools(new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance), _configService);
     }
 
@@ -197,11 +197,28 @@ public class PlanToolsTests : IDisposable
         var newRepo = Path.Combine(_tempDir, "repos", "AnotherRepo");
         Directory.CreateDirectory(newRepo);
 
-        var result = _planTools.AddRepo("00001", newRepo);
+        // The repo must belong to the plan's project for the add to be allowed (#1340 guard).
+        var planTools = NewPlanToolsWithProjectRepos(_repoDir, newRepo);
+        var result = planTools.AddRepo("00001", newRepo);
         Assert.Contains("Added repository", result);
 
-        var repos = _planTools.GetPlan("00001", "repos");
+        var repos = planTools.GetPlan("00001", "repos");
         Assert.Contains("AnotherRepo", repos);
+    }
+
+    [Fact]
+    public void AddRepo_OutsideProject_Refused()
+    {
+        CreateTestPlan();
+        var outsideRepo = Path.Combine(_tempDir, "repos", "OutsideRepo");
+        Directory.CreateDirectory(outsideRepo);
+
+        // The project only knows _repoDir, so OutsideRepo must be refused (#1340 guard).
+        var result = _planTools.AddRepo("00001", outsideRepo);
+        Assert.Contains("not part of project", result);
+
+        var repos = _planTools.GetPlan("00001", "repos");
+        Assert.DoesNotContain("OutsideRepo", repos);
     }
 
     [Fact]
@@ -218,13 +235,34 @@ public class PlanToolsTests : IDisposable
         CreateTestPlan();
         var extraRepo = Path.Combine(_tempDir, "repos", "ExtraRepo");
         Directory.CreateDirectory(extraRepo);
-        _planTools.AddRepo("00001", extraRepo);
 
-        var result = _planTools.RemoveRepo("00001", extraRepo);
+        var planTools = NewPlanToolsWithProjectRepos(_repoDir, extraRepo);
+        planTools.AddRepo("00001", extraRepo);
+
+        var result = planTools.RemoveRepo("00001", extraRepo);
         Assert.Contains("Removed repository", result);
 
-        var repos = _planTools.GetPlan("00001", "repos");
+        var repos = planTools.GetPlan("00001", "repos");
         Assert.DoesNotContain("ExtraRepo", repos);
+    }
+
+    // Builds a PlanTools whose "TestProject" authorizes the given repos, so AddRepo's project guard
+    // (#1340) permits adding them. The default _planTools only knows _repoDir.
+    private static PlanTools NewPlanToolsWithProjectRepos(params string[] repoPaths)
+    {
+        var settings = new TendrilSettings
+        {
+            Projects =
+            [
+                new ProjectConfig
+                {
+                    Name = "TestProject",
+                    Repos = repoPaths.Select(p => new RepoRef { Path = p }).ToList()
+                }
+            ]
+        };
+        var config = new ConfigService(settings);
+        return new PlanTools(new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance), config);
     }
 
     [Fact]
@@ -233,6 +271,7 @@ public class PlanToolsTests : IDisposable
         CreateTestPlan();
         var result = _planTools.RemoveRepo("00001", @"D:\Repos\NonExistent");
         Assert.Contains("Error:", result);
+        Assert.Contains($"Available: {_repoDir}", result);
     }
 
     // --- AddPr ---
@@ -303,24 +342,7 @@ public class PlanToolsTests : IDisposable
         Assert.Contains("DotnetBuild=Pass", verifications);
     }
 
-    // --- AddLog ---
-
-    [Fact]
-    public void AddLog_WritesLogFile()
-    {
-        var planFolder = CreateTestPlan();
-        var result = _planTools.AddLog("00001", "ExecutePlan", "Test summary");
-        Assert.Contains("Log written", result);
-
-        var logsDir = Path.Combine(planFolder, "Logs");
-        Assert.True(Directory.Exists(logsDir));
-        var logFiles = Directory.GetFiles(logsDir, "*.md");
-        Assert.Single(logFiles);
-        Assert.Contains("001-ExecutePlan.md", Path.GetFileName(logFiles[0]));
-
-        var content = File.ReadAllText(logFiles[0]);
-        Assert.Contains("Test summary", content);
-    }
+    // add-log moved to the job namespace — see JobAddLogTests.
 
     // --- Recommendations ---
 
@@ -328,7 +350,7 @@ public class PlanToolsTests : IDisposable
     public void RecAdd_AddsRecommendation()
     {
         CreateTestPlan();
-        var result = _planTools.RecAdd("00001", "Add tests", "Need unit tests", "Medium", "Small");
+        var result = _planTools.RecAdd("00001", "Add tests", "Need unit tests", "Medium");
         Assert.Contains("Added recommendation", result);
 
         var recs = _planTools.RecList("00001");
@@ -453,7 +475,6 @@ public class PlanToolsTests : IDisposable
         Assert.Contains("Error: Authentication failed", authedTools.AddPr("00001", "https://github.com/test/pr/1"));
         Assert.Contains("Error: Authentication failed", authedTools.AddCommit("00001", "abc123"));
         Assert.Contains("Error: Authentication failed", authedTools.SetVerification("00001", "Build", "Pass"));
-        Assert.Contains("Error: Authentication failed", authedTools.AddLog("00001", "Test"));
         Assert.Contains("Error: Authentication failed", authedTools.RecAdd("00001", "Title", "Desc"));
         Assert.Contains("Error: Authentication failed", authedTools.RecAccept("00001", "Title"));
         Assert.Contains("Error: Authentication failed", authedTools.RecDecline("00001", "Title"));
@@ -499,9 +520,33 @@ public class PlanToolsTests : IDisposable
 
         var result = _planTools.PlanCreate("Direct Plan Test", project: "TestProject");
 
-        Assert.Contains("Plan created:", result);
         Assert.Contains("PlanId:", result);
         Assert.Contains("Directory:", result);
+        Assert.Contains("Verifications:", result);
+        Assert.DoesNotContain("Plan created:", result);
+    }
+
+    [Fact]
+    public void PlanCreate_PrintsVerifications_AndOmitsPlanCreatedLine()
+    {
+        var plansDir = Path.Combine(_tempDir, "Plans");
+        Directory.CreateDirectory(plansDir);
+
+        var configService = new TestPlanConfigService(_repoDir, "TestProject",
+        [
+            new ProjectVerificationRef { Name = "DotnetBuild", Required = true },
+            new ProjectVerificationRef { Name = "DotnetTest", Required = false }
+        ]);
+        var planTools = new PlanTools(new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance), configService);
+
+        var result = planTools.PlanCreate("Verify Plan Test", project: "TestProject");
+
+        Assert.Contains("PlanId:", result);
+        Assert.Contains("Directory:", result);
+        Assert.Contains("Verifications:", result);
+        Assert.Contains("DotnetBuild:Pending", result);
+        Assert.Contains("DotnetTest:Skipped", result);
+        Assert.DoesNotContain("Plan created:", result);
     }
 
     [Fact]
@@ -518,8 +563,6 @@ public class PlanToolsTests : IDisposable
             executionProfile: "deep",
             sourceUrl: "https://github.com/org/repo/issues/1",
             verifications: "DotnetBuild,DotnetTest");
-
-        Assert.Contains("Plan created:", result);
 
         var planId = result.Split('\n')
             .First(l => l.StartsWith("PlanId:"))

@@ -57,12 +57,12 @@ public class CodingAgentStepView(
 
     private static readonly AgentInfo[] Agents =
     [
-        new("claude",   "Claude",   Icons.ClaudeCode),
-        new("copilot",  "Copilot",  Icons.Copilot),
-        new("codex",    "Codex",    Icons.OpenAI),
-        new("gemini",   "Gemini",   Icons.Gemini),
-        new("antigravity", "Antigravity", Icons.Antigravity),
-        new("opencode", "OpenCode", Icons.OpenCode)
+        new("claude",   "Claude",   AgentBranding.IconFor("claude")),
+        new("copilot",  "Copilot",  AgentBranding.IconFor("copilot")),
+        new("codex",    "Codex",    AgentBranding.IconFor("codex")),
+        new("gemini",   "Gemini",   AgentBranding.IconFor("gemini")),
+        new("antigravity", "Antigravity", AgentBranding.IconFor("antigravity")),
+        new("opencode", "OpenCode", AgentBranding.IconFor("opencode"))
     ];
 
     public override object Build()
@@ -80,9 +80,12 @@ public class CodingAgentStepView(
         var (installDialog, showInstallDialog) = UseTrigger<InstallDialogArgs>((isOpen, args) =>
             new InstallMissingDialog(isOpen, args));
 
+        var registeredAgents = agentRunner.RegisteredAgents;
+        var visibleAgents = Agents.Where(a => registeredAgents.Contains(a.Key)).ToArray();
+
         if (selectedAgent.Value is null)
         {
-            return BuildPicker(agentKey =>
+            return BuildPicker(visibleAgents, agentKey =>
             {
                 selectedAgent.Set(agentKey);
                 _ = RunFlowAsync(agentKey);
@@ -91,7 +94,7 @@ public class CodingAgentStepView(
 
         var selected = Agents.First(a => a.Key == selectedAgent.Value);
 
-        return Layout.Vertical().Margin(0, 0, 0, 20)
+        return Layout.Vertical().Margin(0, 0, 0, 2)
                | Text.Block(progressMessage.Value ?? $"Setting Up {selected.Label}")
                | (progressValue.Value != null
                    ? new Progress(progressValue.Value.Value)
@@ -141,14 +144,6 @@ public class CodingAgentStepView(
                     await progressCts.CancelAsync();
                     progressValue.Set(null);
                     progressMessage.Set(null);
-
-                    if (missing.Key == agentKey)
-                    {
-                        isStepLoading.Set(false);
-                        error.Set("Please make sure your agent is present and you are authorized.");
-                        selectedAgent.Set(null);
-                        return;
-                    }
 
                     var tcs = new TaskCompletionSource<bool>();
                     showInstallDialog(new InstallDialogArgs(missing, tcs));
@@ -226,13 +221,13 @@ public class CodingAgentStepView(
         }
     }
 
-    private static object BuildPicker(Action<string> onSelect, string? errorMessage)
+    private static object BuildPicker(AgentInfo[] agents, Action<string> onSelect, string? errorMessage)
     {
         var grid = Layout.Grid().Columns(3).Gap(2);
 
-        grid = Agents.Aggregate(grid, (current, a) => current | new Card(Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(0) | a.Logo.ToIcon().Width(Size.Px(32)).Height(Size.Px(32)) | Text.Block(a.Label)).OnClick(() => onSelect(a.Key)));
+        grid = agents.Aggregate(grid, (current, a) => current | new Card(Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(0) | a.Logo.ToIcon().Width(Size.Px(32)).Height(Size.Px(32)) | Text.Block(a.Label)).OnClick(() => onSelect(a.Key)));
 
-        return Layout.Vertical().Margin(0, 0, 0, 20)
+        return Layout.Vertical().Margin(0, 0, 0, 2)
                | Text.H3("What is your coding agent?")
                | Text.Muted(
                    "Tendril is a coding orchestrator that runs on top of your own coding agent. Pick the agent you'd like to use:")
@@ -292,6 +287,9 @@ public class CodingAgentStepView(
             },
             async () =>
             {
+                if (agentKey == "opencode")
+                    return HealthCheckStatus.Authenticated;
+
                 var result = await healthCheck.CheckAuthAsync();
                 return result.Status == AuthStatus.Authenticated
                     ? HealthCheckStatus.Authenticated

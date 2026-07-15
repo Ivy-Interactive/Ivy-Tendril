@@ -13,7 +13,8 @@ internal static class PromptwareDeployer
     private const string VersionFileName = ".version";
 
     /// <summary>
-    ///     Extracts embedded promptwares.zip to targetDir, preserving existing Logs/ and Memory/ directories.
+    ///     Extracts embedded promptwares.zip to targetDir, preserving existing Memory/ and Tools/
+    ///     directories, and ensuring both exist for every deployed promptware.
     /// </summary>
     public static void Deploy(string targetDir)
     {
@@ -22,33 +23,50 @@ internal static class PromptwareDeployer
         if (stream == null)
             throw new InvalidOperationException("Embedded promptwares.zip resource not found.");
 
+        DeployFromZip(stream, targetDir);
+    }
+
+    /// <summary>
+    ///     Core deploy logic: extracts <paramref name="zipStream" /> into targetDir, preserving existing
+    ///     Memory/ and Tools/ directories and ensuring both exist for every deployed promptware.
+    ///     Exposed as internal so tests exercise the real algorithm rather than a copy.
+    /// </summary>
+    internal static void DeployFromZip(Stream zipStream, string targetDir)
+    {
         var tempDir = targetDir + "-deploying-" + Guid.NewGuid().ToString("N")[..8];
 
         try
         {
             // Extract to temp directory
-            ZipFile.ExtractToDirectory(stream, tempDir);
+            ZipFile.ExtractToDirectory(zipStream, tempDir);
 
             // Ensure target exists
             Directory.CreateDirectory(targetDir);
 
-            // For each promptware subfolder, preserve Logs/ and Memory/
+            // For each promptware subfolder, preserve Memory/ and Tools/
             foreach (var sourceSubDir in Directory.GetDirectories(tempDir))
             {
                 var subDirName = Path.GetFileName(sourceSubDir);
                 var targetSubDir = Path.Combine(targetDir, subDirName);
 
-                // Move aside existing Logs/ and Memory/ if they exist
+                // Move aside existing Memory/ and Tools/ if they exist.
+                // Tools/ holds agent/user-authored tools (written via `tendril promptware write-tool`)
+                // and must survive upgrades just like Memory/. No promptware currently *ships* Tools/
+                // (all $shippedTools allowlists in pack-promptwares.ps1 are empty), so a straight
+                // preserve is correct; if shipped tools are ever added this must become a merge
+                // (overlay shipped files onto preserved runtime files) instead of a wholesale preserve.
                 var preservedDirs = new List<(string original, string aside)>();
-                foreach (var preserve in new[] { "Logs", "Memory" })
+                foreach (var preserve in new[] { "Memory", "Tools" })
                 {
                     var existingDir = Path.Combine(targetSubDir, preserve);
                     if (Directory.Exists(existingDir))
                     {
-                        // IMPORTANT: Move preserved dirs to temp directory (not as subdirs of targetSubDir)
-                        // so they aren't deleted when we recursively delete targetSubDir
-                        var asideDir = Path.Combine(Path.GetTempPath(),
-                            $"{subDirName}-{preserve}-preserved-" + Guid.NewGuid().ToString("N")[..8]);
+                        // Move preserved dirs into tempDir (not as subdirs of targetSubDir) so they aren't
+                        // deleted when we recursively delete targetSubDir. tempDir is a sibling of targetDir
+                        // and therefore on the SAME volume as targetSubDir — Directory.Move cannot move
+                        // across volumes, so Path.GetTempPath() (often a different drive) must NOT be used.
+                        var asideDir = Path.Combine(tempDir,
+                            $".preserved-{subDirName}-{preserve}-" + Guid.NewGuid().ToString("N")[..8]);
                         Directory.Move(existingDir, asideDir);
                         preservedDirs.Add((existingDir, asideDir));
                     }
@@ -72,6 +90,10 @@ internal static class PromptwareDeployer
 
                         Directory.Move(aside, original);
                     }
+
+                    // Guarantee every promptware has Memory/ and Tools/ (idempotent).
+                    foreach (var folder in new[] { "Memory", "Tools" })
+                        Directory.CreateDirectory(Path.Combine(targetSubDir, folder));
                 }
                 catch
                 {

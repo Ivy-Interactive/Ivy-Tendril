@@ -97,6 +97,8 @@ public static class FirmwareCompiler
         {
             firmware += $"\n\n**Status Reporting:** Use `tendril job status {tendrilJobId} --message \"your status\"` to report progress. " +
                         "You can also pass `--plan-id` and `--plan-title` to associate the job with a plan.\n";
+            firmware += $"\n**Failure Reporting:** On any unrecoverable failure, call `tendril job fail {tendrilJobId} --message \"<what failed and why>\"` before you `exit 1`, " +
+                        "so the failure reason is reported cleanly instead of being guessed from your output.\n";
         }
 
         // Include Program.md inline
@@ -197,15 +199,6 @@ public static class FirmwareCompiler
             .ToList();
 
         return files.Count == 0 ? emptyLabel : string.Join(", ", files);
-    }
-
-    public static string GetLogFile(string programFolder, string jobId)
-    {
-        var logsFolder = Path.Combine(programFolder, "Logs");
-        Directory.CreateDirectory(logsFolder);
-        var logFile = Path.Combine(logsFolder, $"{jobId}.md");
-        File.WriteAllText(logFile, "*Execution in progress...*\n");
-        return logFile;
     }
 }
 

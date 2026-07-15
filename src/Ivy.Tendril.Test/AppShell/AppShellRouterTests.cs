@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Ivy.Core.Apps;
 using Ivy.Tendril.AppShell;
+using Ivy.Tendril.Apps.Review;
 using static Ivy.Tendril.AppShell.TendrilAppShell;
 
 namespace Ivy.Tendril.Test.AppShell;
@@ -92,6 +93,91 @@ public class AppShellRouterTests
 
         var result = router.Route(
             new NavigateArgs("plans"),
+            AppShellNavigation.Tabs,
+            null,
+            tabs,
+            appDescriptor,
+            true);
+
+        Assert.Equal(AppShellRouter.RouteAction.SwitchToExistingTab, result.Action);
+        Assert.Equal(0, result.TabIndex);
+    }
+
+    [Fact]
+    public void RouteForTabs_DuplicateAppId_DifferentArgs_ReturnsRefreshExistingTab()
+    {
+        var existingAppHost = new NavigateArgs("review", new ReviewAppArgs("00010-A")).ToAppHost();
+        var tabs = ImmutableArray.Create(
+            new TabState("tab1", "review", "Review", existingAppHost, null, "key1"));
+        var appDescriptor = new AppDescriptor
+        {
+            Id = "review",
+            Title = "Review",
+            Group = [],
+            IsVisible = true,
+            AllowDuplicateTabs = false
+        };
+        var router = new AppShellRouter();
+
+        var result = router.Route(
+            new NavigateArgs("review", new ReviewAppArgs("00020-B")),
+            AppShellNavigation.Tabs,
+            null,
+            tabs,
+            appDescriptor,
+            true);
+
+        Assert.Equal(AppShellRouter.RouteAction.RefreshExistingTab, result.Action);
+        Assert.Equal(0, result.TabIndex);
+        Assert.Equal("tab1", result.TabId);
+    }
+
+    [Fact]
+    public void RouteForTabs_DuplicateAppId_SameArgs_ReturnsSwitchToExistingTab()
+    {
+        var existingAppHost = new NavigateArgs("review", new ReviewAppArgs("00010-A")).ToAppHost();
+        var tabs = ImmutableArray.Create(
+            new TabState("tab1", "review", "Review", existingAppHost, null, "key1"));
+        var appDescriptor = new AppDescriptor
+        {
+            Id = "review",
+            Title = "Review",
+            Group = [],
+            IsVisible = true,
+            AllowDuplicateTabs = false
+        };
+        var router = new AppShellRouter();
+
+        var result = router.Route(
+            new NavigateArgs("review", new ReviewAppArgs("00010-A")),
+            AppShellNavigation.Tabs,
+            null,
+            tabs,
+            appDescriptor,
+            true);
+
+        Assert.Equal(AppShellRouter.RouteAction.SwitchToExistingTab, result.Action);
+        Assert.Equal(0, result.TabIndex);
+    }
+
+    [Fact]
+    public void RouteForTabs_DuplicateAppId_NullArgs_ReturnsSwitchToExistingTab()
+    {
+        var existingAppHost = new NavigateArgs("review", new ReviewAppArgs("00010-A")).ToAppHost();
+        var tabs = ImmutableArray.Create(
+            new TabState("tab1", "review", "Review", existingAppHost, null, "key1"));
+        var appDescriptor = new AppDescriptor
+        {
+            Id = "review",
+            Title = "Review",
+            Group = [],
+            IsVisible = true,
+            AllowDuplicateTabs = false
+        };
+        var router = new AppShellRouter();
+
+        var result = router.Route(
+            new NavigateArgs("review"),
             AppShellNavigation.Tabs,
             null,
             tabs,

@@ -2,7 +2,7 @@
 
 **Note:** This promptware is stack-agnostic. Stack-specific operations (build, format, test) are defined as verifications in the project configuration. Examples in this document use multiple tech stacks for illustration.
 
-Execute an approved plan in isolated git worktrees.
+Purpose: Execute an approved plan in isolated git worktrees.
 
 ## Context
 
@@ -26,13 +26,13 @@ The launcher sets the working directory to the project's primary repo.
 ### 1. Read Plan
 
 - Read `plan.yaml` from the plan folder (project, repos, title)
-- Read the latest revision from `Revisions/` (highest numbered .md file)
+- Read the latest revision: `tendril plan get-revision <TendrilPlanId>`
 - Extract the plan ID from the folder name (e.g. `01105` from `01105-TestPlan`)
-- Report plan context to Jobs UI: `tendril job status TendrilJobId --message "Reading plan..." --plan-id <plan-id> --plan-title "<title>"`
+- Report plan context to Jobs UI: `tendril job status TendrilJobId --message="Reading plan..." --plan-id=<plan-id> --plan-title="<title>"`
 
 ### 1.5. Verify Dependencies
 
-Report status: `tendril job status TendrilJobId --message "Checking dependencies..."`
+Report status: `tendril job status TendrilJobId --message="Checking dependencies..."`
 
 If `plan.yaml` has a `dependsOn` list, for each entry:
 
@@ -68,6 +68,7 @@ if [ -f .git ] && grep -q "gitdir:" .git; then
     echo "ERROR: Repository at <repo-path> is itself a worktree."
     echo "ExecutePlan cannot create worktrees inside worktrees."
     echo "Check that project repo paths point to main repositories, not worktrees."
+    tendril job fail TendrilJobId --message="Cannot create worktrees: repository at <repo-path> is itself a git worktree. Update the project's repo path to point at the main repository."
     exit 1
 fi
 
@@ -79,6 +80,7 @@ if git rev-parse --is-inside-work-tree 2>/dev/null && [ -f "$PLANS_DIR_PARENT/.g
         echo "ERROR: TENDRIL_HOME ($TENDRIL_HOME) is inside a git worktree."
         echo "Plans and their worktrees cannot be created inside worktrees."
         echo "Move your Tendril installation outside the worktree or use a different Plans directory."
+        tendril job fail TendrilJobId --message="Cannot create worktrees: TENDRIL_HOME ($TENDRIL_HOME) is inside a git worktree. Move the Tendril installation or Plans directory outside the worktree."
         exit 1
     fi
 fi
@@ -88,7 +90,7 @@ This prevents recursive worktree scenarios that would corrupt git state and caus
 
 ### 1.7. Validate Code State
 
-Report status: `tendril job status TendrilJobId --message "Validating code state..."`
+Report status: `tendril job status TendrilJobId --message="Validating code state..."`
 
 After reading the plan revision, scan it for code validation markers to detect stale plans (where the described code has already been changed by another plan).
 
@@ -114,11 +116,13 @@ After reading the plan revision, scan it for code validation markers to detect s
 4. **Write validation report** — Create `<TendrilPlanFolder>/Verification/PreExecution.md`:
 
 ```markdown
+---
+result: Pass
+date: <CurrentTime>
+---
 # PreExecution
 
-- **Date:** <CurrentTime>
-- **Result:** Pass / Fail / Skipped
-- **Blocks Found:** <number>
+**Blocks Found:** <number>
 
 ## Validation Blocks
 
@@ -144,46 +148,98 @@ After reading the plan revision, scan it for code validation markers to detect s
 
 ### 2. Create Worktrees
 
-Report status: `tendril job status TendrilJobId --message "Creating worktrees..."`
+Report status: `tendril job status TendrilJobId --message="Creating worktrees..."`
 
 For each repo in `RepoConfigs` (this includes both the plan's repos AND any read-only build dependencies from the project config):
 
-1. Fetch latest from remote: `git fetch origin`
-2. Determine the base branch:
-   - Check the `RepoConfigs` firmware header for this repo's `baseBranch` value
-   - If configured, use that value as the base branch
-   - Otherwise, auto-detect via: `git symbolic-ref refs/remotes/origin/HEAD | sed 's|refs/remotes/origin/||'`
-3. If the worktree or branch already exists from a prior execution, remove it first:
-
-```bash
-tendril plan remove-worktree <TendrilPlanId> <repo-folder-name>
-```
-
-This handles stale directories, locked files, and branch cleanup automatically with fallback strategies.
-
-**Note on stale directories:** If a stale worktree directory exists and you run `git -C <stale-dir> status`, git silently walks up the parent chain and reports the state of the main repo — making it look like the "worktree" is simply on `main`. Do not trust that output. Before assuming a prior worktree is intact, verify with `git -C <main-repo> worktree list | grep <path>` or check that `<worktree-path>/.git` exists.
-
-1. Create worktree branching from the remote default branch:
+1. **PR-source check (decide which flow to use).** If the `SourceUrl` firmware header is a
+   GitHub **pull request** URL (`https://github.com/<owner>/<repo>/pull/<number>`) **and** it points
+   at *this* worktree's repo, the worktree should be based on the PR's branch so the fix updates the
+   original PR instead of opening a second one — use the **PR-override flow** below. Otherwise, use
+   the **standard flow**. Determine this and derive the PR details up front:
 
 ```bash
 cd <original-repo-path>
-git fetch origin
-PLAN_FOLDER_NAME=$(basename "<TendrilPlanFolder>")
-PLAN_ID=$(echo "$PLAN_FOLDER_NAME" | grep -oP '^\d+')
-SAFE_TITLE=$(echo "$PLAN_FOLDER_NAME" | sed 's/^[0-9]\+-//')
-BRANCH_NAME="tendril/$PLAN_ID-$SAFE_TITLE"
-git worktree add "<TendrilPlanFolder>/Worktrees/<repo-folder-name>" -b "$BRANCH_NAME" "origin/<resolved-base-branch>"
+
+USE_PR_OVERRIDE=false
+if [[ -n "$SOURCE_URL" && "$SOURCE_URL" =~ github\.com/([^/]+/[^/]+)/pull/([0-9]+) ]]; then
+  PR_REPO="${BASH_REMATCH[1]}"; PR_NUMBER="${BASH_REMATCH[2]}"
+  ORIGIN_REPO=$(git remote get-url origin | sed -E 's#.*github\.com[:/]([^/]+/[^/]+?)(\.git)?$#\1#')
+  if [[ "$PR_REPO" == "$ORIGIN_REPO" ]]; then
+    PR_JSON=$(gh pr view "$PR_NUMBER" --repo "$PR_REPO" --json headRefName,state,isCrossRepository 2>/dev/null)
+    PR_STATE=$(echo "$PR_JSON" | jq -r '.state')
+    PR_FORK=$(echo "$PR_JSON" | jq -r '.isCrossRepository')
+    PR_HEAD=$(echo "$PR_JSON" | jq -r '.headRefName')
+    if [[ "$PR_STATE" == "OPEN" && "$PR_FORK" == "false" && -n "$PR_HEAD" && "$PR_HEAD" != "null" ]]; then
+      USE_PR_OVERRIDE=true
+      tendril job status TendrilJobId --message="Basing worktree on PR #$PR_NUMBER branch '$PR_HEAD' (will update the existing PR)."
+    else
+      tendril job status TendrilJobId --message="PR #$PR_NUMBER is not updatable (state=$PR_STATE, fork=$PR_FORK) — falling back to a new branch + new PR."
+    fi
+  fi
+fi
 ```
 
-Example:
+2. **Standard flow (default, `USE_PR_OVERRIDE=false`) — use the `add-worktree` CLI command, never
+   hand-roll git:**
 
 ```bash
-cd <RepoPath>
-git fetch origin
-git worktree add "<TendrilPlanFolder>/Worktrees/<RepoName>" -b "tendril/<TendrilPlanId>-<SafeTitle>" origin/<resolved-base-branch>
+tendril plan add-worktree <TendrilPlanId> <RepoPath> [--base <resolved-base-branch>]
 ```
 
-**Important:** Always branch from `origin/<resolved-base-branch>`, not local HEAD. This ensures the PR only contains the plan's commits, not any unpushed local work. The `<resolved-base-branch>` comes from either the `RepoConfigs` firmware header (if `baseBranch` is configured) or auto-detection.
+Pass `--base` only if the `RepoConfigs` firmware header sets a `baseBranch` for this repo; omit it
+to let the command auto-detect the default branch. This single command replaces the entire manual
+`git fetch` / stale-worktree-removal / `git worktree add` sequence: it computes the
+`tendril/<planFolderName>` branch name and `Worktrees/<repo-folder-name>` path internally, removes
+any stale worktree and branch from a prior execution before creating the new one, fetches `origin`,
+resolves the base branch, and verifies the `.git` file exists afterward. **Do not hand-roll any of
+these git steps yourself** — this is the exact failure class (e.g. a Windows locale bug in
+`grep -P`-based branch-name derivation) this command was built to eliminate. Always branch from
+`origin/<resolved-base-branch>`, never local HEAD — the command enforces this — so the resulting PR
+only contains the plan's commits, not any unpushed local work.
+
+If the command exits non-zero, its output already explains which step failed (missing repo path,
+stale-worktree removal failure, fetch failure, or worktree-add failure). Print that output and call:
+
+```bash
+tendril job fail TendrilJobId --message="Worktree creation failed for <repo-folder-name>: <captured command output>"
+exit 1
+```
+
+3. **PR-override flow (exception, `USE_PR_OVERRIDE=true`).** `add-worktree` cannot be used here: it
+   always creates a fresh `tendril/<planFolderName>` branch, whereas this case must reuse/reset the
+   PR's own head branch (`$PR_HEAD`, derived in step 1) so commits land on the existing PR instead of
+   force-cutting a new branch over its history. Hand-roll it:
+
+```bash
+# Clean up any stale worktree/branch from a prior execution first (add-worktree does this
+# automatically for the standard flow, but this hand-rolled path must do it explicitly).
+tendril plan remove-worktree <TendrilPlanId> <repo-folder-name>
+
+git fetch origin "$PR_HEAD"
+git worktree add "<TendrilPlanFolder>/Worktrees/<repo-folder-name>" -B "$PR_HEAD" "origin/$PR_HEAD"
+```
+
+**Note on stale directories:** If a stale worktree directory exists and you run `git -C <stale-dir>
+status`, git silently walks up the parent chain and reports the state of the main repo — making it
+look like the "worktree" is simply on `main`. Do not trust that output. Before assuming a prior
+worktree is intact, verify with `git -C <main-repo> worktree list | grep <path>` or check that
+`<worktree-path>/.git` exists.
+
+After creating the worktree this way, **verify the `.git` file exists** and fail fast if it's missing:
+
+```bash
+if [ ! -f "<TendrilPlanFolder>/Worktrees/<repo-folder-name>/.git" ]; then
+    echo "ERROR: Worktree creation failed - .git file missing at <TendrilPlanFolder>/Worktrees/<repo-folder-name>/.git"
+    echo "This indicates git worktree add did not fully initialize the worktree."
+    tendril job fail TendrilJobId --message="Worktree creation failed for <repo-folder-name>: .git file missing after 'git worktree add' — the worktree was not fully initialized."
+    exit 1
+fi
+cat "<TendrilPlanFolder>/Worktrees/<repo-folder-name>/.git"
+```
+
+(The standard flow's `add-worktree` command already performs this check internally — this manual
+check is only needed after the hand-rolled PR-override flow.)
 
 **Note on `RepoConfigs`:** The firmware header may include a `RepoConfigs` value injected by Tendril. It contains per-repo configuration:
 ```yaml
@@ -194,28 +250,15 @@ RepoConfigs: |
     baseBranch: main
     readOnly: true
 ```
-If `baseBranch` is present for a repo, use it instead of auto-detecting. If absent, fall back to `git symbolic-ref refs/remotes/origin/HEAD`.
+If `baseBranch` is present for a repo, pass it as `--base` to `add-worktree` (or use it as the base ref in the PR-override flow). If absent, let `add-worktree` auto-detect it.
 
-**Read-only repos** (`readOnly: true`) are build dependencies — they need worktrees so that cross-repo project references resolve, but you must NOT make changes, commits, or PRs in them. Create their worktrees the same way (branching from `origin/<baseBranch>`), but skip them during implementation steps 3-5.
-
-4. After creating the worktree, **verify the `.git` file exists** and fail fast if it's missing:
-
-```bash
-if [ ! -f "<TendrilPlanFolder>/Worktrees/<repo-folder-name>/.git" ]; then
-    echo "ERROR: Worktree creation failed - .git file missing at <TendrilPlanFolder>/Worktrees/<repo-folder-name>/.git"
-    echo "This indicates git worktree add did not fully initialize the worktree."
-    exit 1
-fi
-cat "<TendrilPlanFolder>/Worktrees/<repo-folder-name>/.git"
-```
-
-This ensures ExecutePlan fails immediately if worktree creation is incomplete, rather than leaving orphaned directories that trigger warnings during cleanup.
+**Read-only repos** (`readOnly: true`) are build dependencies — they need worktrees so that cross-repo project references resolve, but you must NOT make changes, commits, or PRs in them. Create their worktrees the same way (standard flow above), but skip them during implementation steps 3-5.
 
 ### 2.5. Setup Build Dependencies in Worktrees
 
 **Note:** This section applies only when the project has build-time dependencies (e.g. frontend packages, generated code, pre-built artifacts) that need special handling in worktrees. Skip if not applicable.
 
-If this step applies, report status: `tendril job status TendrilJobId --message "Setting up build dependencies..."`
+If this step applies, report status: `tendril job status TendrilJobId --message="Setting up build dependencies..."`
 
 Worktrees start with a clean checkout and may be missing build artifacts (e.g. `dist/`, `node_modules/`, generated files) that exist in the original repo. Determine whether the plan modifies these areas:
 
@@ -255,19 +298,20 @@ These paths point to the original repos, not the worktree copies. Since we only 
 
 ### 4. Implement
 
-Report status: `tendril job status TendrilJobId --message "Implementing: <plan title>"`
+Report status: `tendril job status TendrilJobId --message="Implementing: <plan title>"`
 
 Work exclusively in the worktree directories. Follow the plan's latest revision:
 
-1. **Problem** — Understand what needs to be done
-2. **Solution** — Execute the implementation steps in the worktree
-3. **Tests** — Write and run all tests specified in the plan
+1. **Problem** - Understand what needs to be done
+2. **Solution** - Execute the implementation steps in the worktree
+3. **Tests** - Write and run all tests specified in the plan
+   - **Loopback only for servers:** When writing tests, demo apps, or mock servers that listen on a port, always bind to loopback (127.0.0.1 or ::1) instead of 0.0.0.0. Binding to all interfaces (0.0.0.0) is blocked and triggers "listen EPERM" errors on some systems.
 
 **Status cadence:** During implementation, if any sub-task takes longer than 90 seconds, issue an intermediate status update describing the current activity (e.g., `"Implementing: writing tests..."`, `"Implementing: fixing lint errors..."`, `"Implementing: reading reference code..."`). The user should never see the same status message for more than ~90 seconds.
 
 ### 5. Commit
 
-Report status: `tendril job status TendrilJobId --message "Committing changes..."`
+Report status: `tendril job status TendrilJobId --message="Committing changes..."`
 
 Make logically grouped commits in the worktree(s). Each commit should be a coherent unit of work.
 
@@ -302,43 +346,6 @@ git status
 
 If there are uncommitted changes, either commit them or discard them with a clear reason. The worktree must be clean.
 
-### 5.5. Generate Summary
-
-Report status: `tendril job status TendrilJobId --message "Generating summary..."`
-
-After all implementation commits are made, create `<TendrilPlanFolder>/Artifacts/summary.md` summarizing what was done.
-
-The summary should follow this structure:
-
-~~~markdown
-# Summary
-
-## Changes
-
-<Brief description of what was implemented — 2-3 sentences max>
-
-## API Changes
-
-<List any new/changed/removed public APIs: classes, methods, properties, endpoints, CLI commands, config keys. Use code formatting. If no API changes, write "None.">
-
-## Files Modified
-
-<Bulleted list of key files changed, grouped by category. Don't list every file — focus on the important ones.>
-
-## Manual Testing
-
-<Step-by-step instructions for a human reviewer to verify this change works correctly. Include:
-- What to launch/open (e.g., "Run the app", "Open the Plans view")
-- What action to perform (e.g., "Click the Execute button on a plan with dependencies")
-- What to observe (e.g., "The plan should show 'Blocked' status instead of executing")
-
-If the change has no observable user-facing behavior (e.g., internal refactor, dependency update, code cleanup), write "N/A — internal change with no user-facing behavior.">
-~~~
-
-Focus on **what changed** (past tense), not what the plan said to do. Emphasize API surface changes — new classes, renamed methods, added properties, changed signatures — since these affect consumers.
-
-Update the summary after verification fixes too — if verifications cause additional commits, append those changes to the summary.
-
 ### 6. Document Commits
 
 Use the CLI to record commits, verifications, and related plans — **never edit plan.yaml directly**.
@@ -368,7 +375,7 @@ Get the run-set via `tendril plan verification list <plan-id> --json` — it emi
 
 For each `Pending` verification (in listed order):
 
-1. Send a status message: `tendril job status TendrilJobId --message "Verifying: <Name>"`
+1. Send a status message: `tendril job status TendrilJobId --message="Verifying: <Name>"`
 2. Fetch its full prompt: `tendril verification get <Name>`
 3. **Check if delegated:** The **Projects** section indicates which verifications are delegated — follow the prompt's instructions to invoke it as an external process. If the external process cannot be invoked (CLI broken, file lock, etc.), set the verification to `Fail` immediately. Do NOT attempt to do the verification inline or write the report yourself.
 4. Execute the prompt in the worktree directory
@@ -403,9 +410,44 @@ attempts: <number>
 
 The `result` field in the frontmatter MUST be one of: `Pass`, `Fail`, or `Skipped`. A verification is not complete without both its report file AND the `tendril plan set-verification` CLI call.
 
-### 7.5. Generate Recommendations
+### 7.5. Generate Summary
 
-Report status: `tendril job status TendrilJobId --message "Generating recommendations..."`
+Report status: `tendril job status TendrilJobId --message="Generating summary..."`
+
+After all verifications pass, create `<TendrilPlanFolder>/Artifacts/summary.md` summarizing what was done. Because this runs after verification, the summary reflects the final state of the code — including any fix commits made during Step 7.
+
+The summary should follow this structure:
+
+~~~markdown
+# Summary
+
+## Changes
+
+<Brief description of what was implemented — 2-3 sentences max>
+
+## API Changes
+
+<List any new/changed/removed public APIs: classes, methods, properties, endpoints, CLI commands, config keys. Use code formatting. If no API changes, write "None.">
+
+## Files Modified
+
+<Bulleted list of key files changed, grouped by category. Don't list every file — focus on the important ones.>
+
+## Manual Testing
+
+<Step-by-step instructions for a human reviewer to verify this change works correctly. Include:
+- What to launch/open (e.g., "Run the app", "Open the Plans view")
+- What action to perform (e.g., "Click the Execute button on a plan with dependencies")
+- What to observe (e.g., "The plan should show 'Blocked' status instead of executing")
+
+If the change has no observable user-facing behavior (e.g., internal refactor, dependency update, code cleanup), write "N/A — internal change with no user-facing behavior.">
+~~~
+
+Focus on **what changed** (past tense), not what the plan said to do. Emphasize API surface changes — new classes, renamed methods, added properties, changed signatures — since these affect consumers.
+
+### 7.6. Generate Recommendations
+
+Report status: `tendril job status TendrilJobId --message="Generating recommendations..."`
 
 After all verifications pass, reflect on what you observed during this plan's execution. Write down anything you noticed that isn't part of this plan's scope:
 
@@ -417,10 +459,10 @@ After all verifications pass, reflect on what you observed during this plan's ex
 For each item, register it via the CLI:
 
 ```bash
-tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact Medium --risk Small
+tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact=Medium
 ```
 
-`--impact` and `--risk` are optional (Small, Medium, or High). Impact indicates the value of implementing it; Risk indicates the potential for complications or bugs.
+`--impact` is optional (Small, Medium, or High) and indicates the value of implementing it.
 
 Do NOT include items that are part of the current plan's scope. Do NOT include recommendations about code formatting, linting, or style issues — those are handled by verifications.
 
@@ -441,7 +483,7 @@ Do NOT include items that are part of the current plan's scope. Do NOT include r
 
 ### 8. Final Clean Check
 
-Report status: `tendril job status TendrilJobId --message "Running final checks..."`
+Report status: `tendril job status TendrilJobId --message="Running final checks..."`
 
 After all verifications pass:
 
@@ -451,9 +493,9 @@ After all verifications pass:
 
 3. Run `git status` in every worktree. If there are any uncommitted files (from verification fixes, generated files, etc.), commit or discard them. The worktrees must be completely clean before finishing.
 
-4. Verify `<TendrilPlanFolder>/Artifacts/recommendations.md` exists. If missing, go back to Step 7.5.
+4. Verify `<TendrilPlanFolder>/Artifacts/recommendations.md` exists. If missing, go back to Step 7.6.
 
-5. Verify `<TendrilPlanFolder>/Artifacts/summary.md` exists. If missing, go back to Step 5.5.
+5. Verify `<TendrilPlanFolder>/Artifacts/summary.md` exists. If missing, go back to Step 7.5.
 
 ### 8.5. Worktree Lifecycle
 

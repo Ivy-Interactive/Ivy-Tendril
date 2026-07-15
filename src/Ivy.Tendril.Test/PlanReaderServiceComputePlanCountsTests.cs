@@ -53,7 +53,7 @@ public class PlanReaderServiceComputePlanCountsTests : IDisposable
         var snapshot = _service.ComputePlanCounts();
 
         Assert.Equal(0, snapshot.Drafts);
-        Assert.Equal(0, snapshot.ReadyForReview);
+        Assert.Equal(0, snapshot.Review);
         Assert.Equal(0, snapshot.Failed);
         Assert.Equal(0, snapshot.Icebox);
         Assert.Equal(0, snapshot.PendingRecommendations);
@@ -64,7 +64,7 @@ public class PlanReaderServiceComputePlanCountsTests : IDisposable
     {
         CreatePlan("01001-Draft1", "Draft");
         CreatePlan("01002-Draft2", "Draft");
-        CreatePlan("01003-Review1", "ReadyForReview");
+        CreatePlan("01003-Review1", "Review");
         CreatePlan("01004-Failed1", "Failed");
         CreatePlan("01005-Icebox1", "Icebox");
         CreatePlan("01006-Icebox2", "Icebox");
@@ -73,7 +73,7 @@ public class PlanReaderServiceComputePlanCountsTests : IDisposable
         var snapshot = _service.ComputePlanCounts();
 
         Assert.Equal(2, snapshot.Drafts);
-        Assert.Equal(1, snapshot.ReadyForReview);
+        Assert.Equal(1, snapshot.Review);
         Assert.Equal(1, snapshot.Failed);
         Assert.Equal(2, snapshot.Icebox);
         Assert.Equal(0, snapshot.PendingRecommendations);
@@ -108,7 +108,7 @@ public class PlanReaderServiceComputePlanCountsTests : IDisposable
     public void ComputePlanCounts_MatchesIndividualMethods()
     {
         CreatePlan("01020-Draft", "Draft");
-        CreatePlan("01021-Review", "ReadyForReview");
+        CreatePlan("01021-Review", "Review");
         CreatePlan("01022-Failed", "Failed");
         CreatePlan("01023-Icebox", "Icebox");
         CreatePlan("01024-Completed", "Completed");
@@ -121,7 +121,7 @@ public class PlanReaderServiceComputePlanCountsTests : IDisposable
         var pendingRecs = _service.GetPendingRecommendationsCount();
 
         Assert.Equal(plans.Count(p => p.Status is PlanStatus.Draft or PlanStatus.Blocked), snapshot.Drafts);
-        Assert.Equal(plans.Count(p => p.Status == PlanStatus.ReadyForReview), snapshot.ReadyForReview);
+        Assert.Equal(plans.Count(p => p.Status == PlanStatus.Review), snapshot.Review);
         Assert.Equal(plans.Count(p => p.Status == PlanStatus.Failed), snapshot.Failed);
         Assert.Equal(plans.Count(p => p.Status == PlanStatus.Icebox), snapshot.Icebox);
         Assert.Equal(pendingRecs, snapshot.PendingRecommendations);

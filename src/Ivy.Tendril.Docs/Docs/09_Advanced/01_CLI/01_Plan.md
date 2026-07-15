@@ -96,10 +96,10 @@ Updates a single field and bumps the `updated` timestamp automatically.
 #### plan update
 
 ```terminal
->cat revised.yaml | tendril plan update <plan-id>
+>cat revised.yaml | tendril plan update <plan-id> --stdin
 ```
 
-Replaces the entire `plan.yaml` content from stdin.
+Replaces the entire `plan.yaml` content from `--file` or `--stdin` (required — `--stdin` is not implicit).
 
 #### plan validate
 
@@ -152,6 +152,21 @@ Manage verifications on a plan. Valid statuses: `Pending`, `Pass`, `Fail`, `Skip
 
 Removes all git worktrees associated with a plan. By default only runs on plans in a terminal state (`Completed`, `Failed`, `Skipped`, `Icebox`). Use `--force` to skip that check.
 
+#### plan add-worktree
+
+```terminal
+>tendril plan add-worktree <plan-id> <repo> [--base <branch>]
+```
+
+Creates a git worktree for the given plan under `<plan-folder>/Worktrees/<repo-name>`,
+branching from origin/<base> (default: auto-detected default branch). The branch is
+named `tendril/<plan-folder-name>` (e.g. `tendril/00025-AddSymmetricPlanAddWorktreeCLICommand`).
+
+On failure (repo path missing, stale worktree, fetch failure, or git worktree add
+failure), the command prints the specific step that failed along with git's raw
+stderr and exits non-zero, instead of throwing a generic error - this lets an agent
+read the exact git failure and decide how to recover.
+
 #### plan remove-worktree
 
 ```terminal
@@ -161,26 +176,28 @@ Removes all git worktrees associated with a plan. By default only runs on plans 
 Removes a single worktree from `Worktrees/<repo-name>`. Attempts `git worktree remove --force` first; falls back to a force-delete. Also deletes the associated branch (`tendril/<plan-folder>` by default).
 
 
-## Logs & Revisions
+## Revisions
+
+Execution logs are written per job, not per plan — see `tendril job add-log`.
 
 ```terminal
->tendril plan add-log <plan-id> <action> [--summary <text>]
-```
-
-Appends a numbered log entry to `Logs/` (e.g. `003-ExecutePlan.md`) and prints the path to stdout.
-
-```terminal
->cat revision.md | tendril plan write-revision <plan-id>
+>cat revision.md | tendril plan write-revision <plan-id> --stdin
 >tendril plan write-revision <plan-id> --file revision.md
 ```
 
 Writes a numbered revision file to `Revisions/` (e.g. `002.md`) from stdin or `--file`. Prints the path to stdout.
 
+```terminal
+>tendril plan get-revision <plan-id> [--latest] [--number <n>]
+```
+
+Prints revision content to stdout — the latest revision by default, or a specific numbered revision with `--number`.
+
 ## Recommendations
 
 ```terminal
 >tendril plan rec list <plan-id> [--state <state>]
->tendril plan rec add <plan-id> <title> [-d <description>] [--impact <level>] [--risk <level>]
+>tendril plan rec add <plan-id> <title> [-d <description>] [--impact <level>]
 >tendril plan rec set <plan-id> <title> <field> <value>
 >tendril plan rec accept <plan-id> <title> [--notes <text>]
 >tendril plan rec decline <plan-id> <title> [--reason <text>]
@@ -190,8 +207,8 @@ Writes a numbered revision file to `Revisions/` (e.g. `002.md`) from stdin or `-
 Manage recommendations stored in a plan's YAML.
 
 - **list** — filter by state: `Pending`, `Accepted`, `AcceptedWithNotes`, `Declined`
-- **add** — impact/risk levels: `Small`, `Medium`, `High`; reads description from stdin if `-d` is omitted
-- **set** — supported fields: `title`, `description`, `state`, `impact`, `risk`, `declineReason`
+- **add** — impact levels: `Small`, `Medium`, `High`; provide `--description`, `--file`, or `--stdin`
+- **set** — supported fields: `title`, `description`, `state`, `impact`, `declineReason`
 - **accept** — sets state to `Accepted`, or `AcceptedWithNotes` if `--notes` is provided
 - **decline** — sets state to `Declined` with an optional reason
 

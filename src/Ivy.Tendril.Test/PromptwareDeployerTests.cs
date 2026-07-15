@@ -1,5 +1,4 @@
 using System.IO.Compression;
-using System.Reflection;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
@@ -51,146 +50,96 @@ public class PromptwareDeployerTests : IDisposable
     }
 
     [Fact]
-    public void Deploy_ExtractsZipAndPreservesLogsMemory()
+    public void Deploy_ExtractsZipAndPreservesMemory()
     {
-        // Arrange: Create target directory with existing Logs and Memory
+        // Arrange: Create target directory with existing Memory
         var targetDir = Path.Combine(_tempDir, "Promptwares");
         var promptwareADir = Path.Combine(targetDir, "PromptwareA");
-        var logsDir = Path.Combine(promptwareADir, "Logs");
         var memoryDir = Path.Combine(promptwareADir, "Memory");
 
-        Directory.CreateDirectory(logsDir);
         Directory.CreateDirectory(memoryDir);
 
-        var existingLog = Path.Combine(logsDir, "00001.md");
         var existingMemory = Path.Combine(memoryDir, "test.md");
-        File.WriteAllText(existingLog, "# Existing Log");
         File.WriteAllText(existingMemory, "# Existing Memory");
 
         // Create mock zip with new promptware content
         var mockZip = CreateMockZip();
 
-        // Act: Deploy using reflection to access the internal Deploy method
-        DeployFromStream(mockZip, targetDir);
+        // Act: run the real deploy algorithm against the mock zip stream
+        PromptwareDeployer.DeployFromZip(mockZip, targetDir);
 
         // Assert: New files were deployed
         var programFile = Path.Combine(promptwareADir, "Program.md");
         Assert.True(File.Exists(programFile), "Program.md should be deployed");
         Assert.Contains("# PromptwareA Program", File.ReadAllText(programFile));
 
-        // Assert: Existing Logs and Memory were preserved
-        Assert.True(File.Exists(existingLog), "Existing log file should be preserved");
-        Assert.Equal("# Existing Log", File.ReadAllText(existingLog));
+        // Assert: Existing Memory was preserved
         Assert.True(File.Exists(existingMemory), "Existing memory file should be preserved");
         Assert.Equal("# Existing Memory", File.ReadAllText(existingMemory));
     }
 
+    [Fact]
+    public void Deploy_DoesNotCreateALogsDirectory()
+    {
+        // Job artifacts live in <TendrilHome>/Jobs/, never under a promptware.
+        var targetDir = Path.Combine(_tempDir, "Promptwares");
+
+        PromptwareDeployer.DeployFromZip(CreateMockZip(), targetDir);
+
+        Assert.False(Directory.Exists(Path.Combine(targetDir, "PromptwareA", "Logs")));
+    }
+
+    [Fact]
+    public void Deploy_PreservesRuntimeAuthoredTools()
+    {
+        // Arrange: target has a Tools/ file written at runtime (e.g. via `tendril promptware write-tool`).
+        // The shipped zip carries no Tools/, so an upgrade must not delete it.
+        var targetDir = Path.Combine(_tempDir, "Promptwares");
+        var toolsDir = Path.Combine(targetDir, "PromptwareA", "Tools");
+        Directory.CreateDirectory(toolsDir);
+        var customTool = Path.Combine(toolsDir, "custom.md");
+        File.WriteAllText(customTool, "# Custom Tool");
+
+        // Act
+        PromptwareDeployer.DeployFromZip(CreateMockZip(), targetDir);
+
+        // Assert: runtime-authored tool survived the upgrade
+        Assert.True(File.Exists(customTool), "Runtime-authored Tools/ file should be preserved");
+        Assert.Equal("# Custom Tool", File.ReadAllText(customTool));
+    }
+
+    [Fact]
+    public void Deploy_EnsuresMemoryAndToolsExist()
+    {
+        // Arrange: fresh install — target has no promptware folders yet.
+        var targetDir = Path.Combine(_tempDir, "Promptwares");
+
+        // Act
+        PromptwareDeployer.DeployFromZip(CreateMockZip(), targetDir);
+
+        // Assert: both runtime folders exist even though the zip ships neither
+        //         (CreateMockZip mirrors the real stripped zip — Program.md only)
+        var promptwareADir = Path.Combine(targetDir, "PromptwareA");
+        foreach (var folder in new[] { "Memory", "Tools" })
+            Assert.True(Directory.Exists(Path.Combine(promptwareADir, folder)),
+                $"{folder}/ should exist after deploy");
+    }
+
+    // Mirrors the real shipped zip, which strips Memory/ and Tools/
+    // (pack-promptwares.ps1): a promptware ships as Program.md only.
     private static MemoryStream CreateMockZip()
     {
         var stream = new MemoryStream();
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
         {
-            // Add PromptwareA/Program.md
             var programEntry = archive.CreateEntry("PromptwareA/Program.md");
-            using (var writer = new StreamWriter(programEntry.Open()))
-            {
-                writer.WriteLine("# PromptwareA Program");
-                writer.WriteLine("This is the program content.");
-            }
-
-            // Add PromptwareA/Logs/.gitkeep (placeholder)
-            var logsEntry = archive.CreateEntry("PromptwareA/Logs/.gitkeep");
-            using (var writer = new StreamWriter(logsEntry.Open()))
-            {
-                writer.WriteLine("");
-            }
-
-            // Add PromptwareA/Memory/.gitkeep (placeholder)
-            var memoryEntry = archive.CreateEntry("PromptwareA/Memory/.gitkeep");
-            using (var writer = new StreamWriter(memoryEntry.Open()))
-            {
-                writer.WriteLine("");
-            }
+            using var writer = new StreamWriter(programEntry.Open());
+            writer.WriteLine("# PromptwareA Program");
+            writer.WriteLine("This is the program content.");
         }
 
         stream.Position = 0;
         return stream;
-    }
-
-    private static void DeployFromStream(MemoryStream zipStream, string targetDir)
-    {
-        // Use reflection to access the internal Deploy logic
-        // We need to replicate the Deploy method's logic using the stream directly
-        var tempDir = targetDir + "-deploying-" + Guid.NewGuid().ToString("N")[..8];
-
-        try
-        {
-            // Extract to temp directory
-            ZipFile.ExtractToDirectory(zipStream, tempDir);
-
-            // Ensure target exists
-            Directory.CreateDirectory(targetDir);
-
-            // For each promptware subfolder, preserve Logs/ and Memory/
-            foreach (var sourceSubDir in Directory.GetDirectories(tempDir))
-            {
-                var subDirName = Path.GetFileName(sourceSubDir);
-                var targetSubDir = Path.Combine(targetDir, subDirName);
-
-                // Move aside existing Logs/ and Memory/ if they exist
-                // IMPORTANT: Move preserved dirs to temp directory (not as subdirs of targetSubDir)
-                // so they aren't deleted when we recursively delete targetSubDir
-                var preservedDirs = new List<(string original, string aside)>();
-                foreach (var preserve in new[] { "Logs", "Memory" })
-                {
-                    var existingDir = Path.Combine(targetSubDir, preserve);
-                    if (Directory.Exists(existingDir))
-                    {
-                        var asideDir = Path.Combine(Path.GetTempPath(), $"{subDirName}-{preserve}-preserved-" + Guid.NewGuid().ToString("N")[..8]);
-                        Directory.Move(existingDir, asideDir);
-                        preservedDirs.Add((existingDir, asideDir));
-                    }
-                }
-
-                // Delete old promptware files (if target exists)
-                if (Directory.Exists(targetSubDir))
-                    Directory.Delete(targetSubDir, true);
-
-                // Move new files from temp
-                Directory.Move(sourceSubDir, targetSubDir);
-
-                // Restore preserved directories
-                foreach (var (original, aside) in preservedDirs)
-                {
-                    // Remove empty placeholder if it was created by the zip
-                    if (Directory.Exists(original))
-                        Directory.Delete(original, true);
-
-                    Directory.Move(aside, original);
-                }
-            }
-
-            // Copy any root-level files
-            foreach (var sourceFile in Directory.GetFiles(tempDir))
-            {
-                var targetFile = Path.Combine(targetDir, Path.GetFileName(sourceFile));
-                File.Copy(sourceFile, targetFile, true);
-            }
-
-            // Stamp the deployed version
-            var versionFileName = ".version";
-            var version = typeof(PromptwareDeployer).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
-            File.WriteAllText(Path.Combine(targetDir, versionFileName), version);
-        }
-        finally
-        {
-            // Clean up temp directory
-            if (Directory.Exists(tempDir))
-            {
-                try { Directory.Delete(tempDir, true); }
-                catch { /* Best effort */ }
-            }
-        }
     }
 
     [Fact]
@@ -224,5 +173,25 @@ public class PromptwareDeployerTests : IDisposable
 
         // Assert
         Assert.True(Directory.Exists(normalDir));
+    }
+
+    // Regression guard for #1551: concurrent CreatePr jobs share $TMPDIR, so a fixed
+    // body-file name like pr-body.md is a last-writer-wins race that swaps PR bodies
+    // between plans. The fix requires a unique temp file per invocation (mktemp).
+    [Fact]
+    public void CreatePrProgram_UsesUniqueTempFileForPrBody()
+    {
+        var sourcePromptwarePath = Path.GetFullPath(
+            Path.Combine(System.AppContext.BaseDirectory, "..", "..", "..", "..", "Ivy.Tendril", "Promptwares"));
+        var programFile = Path.Combine(sourcePromptwarePath, "CreatePr", "Program.md");
+
+        Assert.True(File.Exists(programFile), $"Expected to find {programFile}");
+        var content = File.ReadAllText(programFile);
+
+        Assert.Contains("mktemp", content);
+        // The fixed literal is still mentioned in prose as a "don't do this" example,
+        // so guard against the actual broken usage rather than the bare substring.
+        Assert.DoesNotContain("> \"$TMPDIR/pr-body.md\"", content);
+        Assert.DoesNotContain("--body-file \"$TMPDIR/pr-body.md\"", content);
     }
 }

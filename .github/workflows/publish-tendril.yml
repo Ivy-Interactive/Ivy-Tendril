@@ -87,37 +87,6 @@ jobs:
       - name: Restore
         run: dotnet restore src/Ivy.Tendril/Ivy.Tendril.csproj
 
-      - name: Restore Updater
-        run: dotnet restore src/Ivy.Tendril.Updater/Ivy.Tendril.Updater.csproj
-
-      - name: Build Updater (all platforms)
-        run: |
-          dotnet publish src/Ivy.Tendril.Updater/Ivy.Tendril.Updater.csproj -c Release -r win-x64 --self-contained false -o ./PublishedBinaries/Ivy.Tendril.Updater/win-x64
-          dotnet publish src/Ivy.Tendril.Updater/Ivy.Tendril.Updater.csproj -c Release -r win-arm64 --self-contained false -o ./PublishedBinaries/Ivy.Tendril.Updater/win-arm64
-          dotnet publish src/Ivy.Tendril.Updater/Ivy.Tendril.Updater.csproj -c Release -r osx-x64 --self-contained false -o ./PublishedBinaries/Ivy.Tendril.Updater/osx-x64
-          dotnet publish src/Ivy.Tendril.Updater/Ivy.Tendril.Updater.csproj -c Release -r osx-arm64 --self-contained false -o ./PublishedBinaries/Ivy.Tendril.Updater/osx-arm64
-
-      - name: Clean Updater binaries
-        run: |
-          for dir in win-x64 win-arm64 osx-x64 osx-arm64; do
-            find ./PublishedBinaries/Ivy.Tendril.Updater/$dir -type f ! \( -name "*.exe" -o -name "*.dll" -o -name "*.dylib" -o -name "Ivy.Tendril.Updater" \) -delete
-          done
-
-      - name: Zip Updater binaries
-        run: |
-          cd PublishedBinaries/Ivy.Tendril.Updater/win-x64 && zip -r ../../../Ivy.Tendril.Updater.win-x64.zip . && cd ../../..
-          cd PublishedBinaries/Ivy.Tendril.Updater/win-arm64 && zip -r ../../../Ivy.Tendril.Updater.win-arm64.zip . && cd ../../..
-          cd PublishedBinaries/Ivy.Tendril.Updater/osx-x64 && zip -r ../../../Ivy.Tendril.Updater.osx-x64.zip . && cd ../../..
-          cd PublishedBinaries/Ivy.Tendril.Updater/osx-arm64 && zip -r ../../../Ivy.Tendril.Updater.osx-arm64.zip . && cd ../../..
-
-      - name: Embed Updater binaries in Ivy.Tendril
-        run: |
-          mkdir -p src/Ivy.Tendril/PublishedBinaries
-          cp Ivy.Tendril.Updater.win-x64.zip src/Ivy.Tendril/PublishedBinaries/
-          cp Ivy.Tendril.Updater.win-arm64.zip src/Ivy.Tendril/PublishedBinaries/
-          cp Ivy.Tendril.Updater.osx-x64.zip src/Ivy.Tendril/PublishedBinaries/
-          cp Ivy.Tendril.Updater.osx-arm64.zip src/Ivy.Tendril/PublishedBinaries/
-
       - name: Pack NuGet
         run: |
           dotnet pack src/Ivy.Tendril/Ivy.Tendril.csproj \
@@ -169,7 +138,9 @@ jobs:
   publish-desktop:
     needs: version
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 120
+    env:
+      KEYCHAIN_PASSWORD: "temporary-keychain-pwd"
     strategy:
       fail-fast: false
       matrix:
@@ -247,6 +218,13 @@ jobs:
             -p:Version=${{ needs.version.outputs.version }} \
             -p:CommitId=${{ github.sha }} \
             --self-contained true
+
+      - name: Generate HTTPS Certificates
+        shell: bash
+        run: |
+          PUBLISH_DIR="./publish/desktop/${{ matrix.rid }}"
+          mkdir -p "$PUBLISH_DIR/certs"
+          dotnet run --project src/Ivy.Tendril/Ivy.Tendril.csproj -c Release -- generate-certs "$PUBLISH_DIR/certs"
 
       - name: Bundle PowerShell 7
         shell: bash
@@ -364,6 +342,43 @@ jobs:
           fi
           echo ".NET SDK bundled successfully!"
 
+      - name: Import Apple Certificates (macOS)
+        if: startsWith(matrix.rid, 'osx-')
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+        run: |
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+          # Decode the certificate p12
+          echo -n "$MACOS_CERTIFICATE" | base64 --decode --output $CERTIFICATE_PATH
+
+          # Create and configure temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security default-keychain -s $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -t 21600 -u $KEYCHAIN_PATH
+
+          # Import p12
+          security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign -T /usr/bin/productsign -T /usr/bin/productbuild
+        
+          security set-key-partition-list -S apple-tool:,apple:,codesign:,productbuild:,productsign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+      - name: Store Notary Credentials (macOS)
+        if: startsWith(matrix.rid, 'osx-')
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/app-signing.keychain-db"
+          xcrun notarytool store-credentials "tendril-notary" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_ID_PASSWORD" \
+            --keychain "$RUNNER_TEMP/app-signing.keychain-db"
+
       - name: Pack Installer (Velopack)
         run: |
           export PATH="$PATH:$HOME/.dotnet/tools"
@@ -372,10 +387,145 @@ jobs:
             EXE_NAME="Ivy.Tendril.exe"
           fi
 
+          PACK_DIR="./publish/desktop/${{ matrix.rid }}"
+
+          # Export macOS environment variables for signing & notarization
+          if [[ "${{ matrix.rid }}" == osx-* ]]; then
+            security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/app-signing.keychain-db"
+            export VPK_SIGN_APP_IDENTITY="${{ secrets.MACOS_SIGN_APP_IDENTITY }}"
+            export VPK_SIGN_INSTALL_IDENTITY="${{ secrets.MACOS_SIGN_INSTALL_IDENTITY }}"
+            export VPK_NOTARY_PROFILE="tendril-notary"
+            export VPK_KEYCHAIN="$RUNNER_TEMP/app-signing.keychain-db"
+            export VPK_SIGN_DISABLE_DEEP="true"
+
+            APP_DIR="./publish/desktop/Ivy Tendril.app"
+            rm -rf "$APP_DIR"
+            mkdir -p "$APP_DIR/Contents/MacOS"
+            mkdir -p "$APP_DIR/Contents/Resources"
+
+            # Copy published outputs to Contents/MacOS
+            cp -R ./publish/desktop/${{ matrix.rid }}/* "$APP_DIR/Contents/MacOS/"
+
+            # Move nested runtime folders and config files to Contents/Resources
+            if [ -d "$APP_DIR/Contents/MacOS/dotnet" ]; then
+              mv "$APP_DIR/Contents/MacOS/dotnet" "$APP_DIR/Contents/Resources/"
+            fi
+            if [ -d "$APP_DIR/Contents/MacOS/PowerShell" ]; then
+              mv "$APP_DIR/Contents/MacOS/PowerShell" "$APP_DIR/Contents/Resources/"
+            fi
+            if [ -f "$APP_DIR/Contents/MacOS/example.config.yaml" ]; then
+              mv "$APP_DIR/Contents/MacOS/example.config.yaml" "$APP_DIR/Contents/Resources/"
+            fi
+            if [ -f "$APP_DIR/Contents/MacOS/config.yaml" ]; then
+              mv "$APP_DIR/Contents/MacOS/config.yaml" "$APP_DIR/Contents/Resources/"
+            fi
+            if [ -d "$APP_DIR/Contents/MacOS/certs" ]; then
+              mv "$APP_DIR/Contents/MacOS/certs" "$APP_DIR/Contents/Resources/"
+            fi
+
+            # Copy icon
+            cp "$ICON_PATH" "$APP_DIR/Contents/Resources/icon.icns"
+
+            # Create Info.plist
+            echo '<?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0">
+            <dict>
+                <key>CFBundleDevelopmentRegion</key>
+                <string>en</string>
+                <key>CFBundleDisplayName</key>
+                <string>Ivy Tendril</string>
+                <key>CFBundleExecutable</key>
+                <string>Ivy.Tendril</string>
+                <key>CFBundleIdentifier</key>
+                <string>com.ivy.tendril</string>
+                <key>CFBundleInfoDictionaryVersion</key>
+                <string>6.0</string>
+                <key>CFBundleName</key>
+                <string>Ivy Tendril</string>
+                <key>CFBundlePackageType</key>
+                <string>APPL</string>
+                <key>CFBundleShortVersionString</key>
+                <string>${{ needs.version.outputs.version }}</string>
+                <key>CFBundleVersion</key>
+                <string>${{ needs.version.outputs.version }}</string>
+                <key>CFBundleIconFile</key>
+                <string>icon.icns</string>
+                <key>LSMinimumSystemVersion</key>
+                <string>10.15</string>
+                <key>NSHighResolutionCapable</key>
+                <true/>
+            </dict>
+            </plist>' | sed 's/^            //' > "$APP_DIR/Contents/Info.plist"
+
+            # Delete all PDB (debug symbol) files as they cannot be code-signed and are not needed in production
+            find "$APP_DIR" -name "*.pdb" -delete
+            # Delete all XML documentation files in MacOS folder as they cause codesign issues
+            find "$APP_DIR/Contents/MacOS" -name "*.xml" -delete
+            # Delete Linux and Windows native libraries as they are not used on macOS and cause codesign issues
+            find "$APP_DIR/Contents/MacOS" -name "*.so" -delete
+            find "$APP_DIR/Contents/MacOS" -name "rustino_native.dll" -delete
+
+            # Clean up obsolete dnx
+            if [ -f "$APP_DIR/Contents/Resources/dotnet/dnx" ]; then
+              rm "$APP_DIR/Contents/Resources/dotnet/dnx"
+            fi
+
+            # Remove executable permission on non-binary files
+            find "$APP_DIR" -type f | while read -r file; do
+              if [ -x "$file" ]; then
+                if ! file "$file" | grep -q "Mach-O"; then
+                  chmod -x "$file"
+                fi
+              fi
+            done
+
+            # Create a temporary entitlements file for JIT support in bundled runtimes
+            echo '<?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0">
+            <dict>
+                <key>com.apple.security.cs.allow-jit</key>
+                <true/>
+                <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+                <true/>
+                <key>com.apple.security.cs.disable-library-validation</key>
+                <true/>
+            </dict>
+            </plist>' | sed 's/^            //' > "$RUNNER_TEMP/entitlements.plist"
+
+            # Pre-sign native Mach-O binaries in the runner's keychain (inside-out order)
+            echo "Pre-signing internal binaries to avoid codesign --deep errors on nested SDK folders..."
+            # 1. Sign all native dynamic libraries/files first (excluding the main executable)
+            find "$APP_DIR" -depth -type f ! -name "Ivy.Tendril" | while read -r file; do
+              if file "$file" | grep -q "Mach-O"; then
+                if file -b "$file" | grep -q "executable"; then
+                  echo "Signing internal executable: $file"
+                  codesign --force --options runtime --entitlements "$RUNNER_TEMP/entitlements.plist" --timestamp --keychain "$RUNNER_TEMP/app-signing.keychain-db" --sign "$VPK_SIGN_APP_IDENTITY" "$file"
+                else
+                  echo "Signing library: $file"
+                  codesign --force --options runtime --timestamp --keychain "$RUNNER_TEMP/app-signing.keychain-db" --sign "$VPK_SIGN_APP_IDENTITY" "$file"
+                fi
+              fi
+            done
+
+            # 2. Sign the main executable last
+            MAIN_EXE_PATH="$APP_DIR/Contents/MacOS/Ivy.Tendril"
+            if [ -f "$MAIN_EXE_PATH" ]; then
+              echo "Signing main executable with entitlements: $MAIN_EXE_PATH"
+              codesign --force --options runtime --entitlements "$RUNNER_TEMP/entitlements.plist" --timestamp --keychain "$RUNNER_TEMP/app-signing.keychain-db" --sign "$VPK_SIGN_APP_IDENTITY" "$MAIN_EXE_PATH"
+            fi
+
+            rm -f "$RUNNER_TEMP/entitlements.plist"
+
+            PACK_DIR="$APP_DIR"
+          fi
+
           vpk pack \
             --packId IvyTendril \
+            --packTitle "Ivy Tendril" \
             --packVersion ${{ needs.version.outputs.version }} \
-            --packDir ./publish/desktop/${{ matrix.rid }} \
+            --packDir "$PACK_DIR" \
             --mainExe $EXE_NAME \
             --outputDir ./releases \
             --icon "$ICON_PATH" \
@@ -383,6 +533,50 @@ jobs:
             --delta None \
             $( [[ "${{ matrix.rid }}" == osx-* ]] && echo "--bundleId com.ivy.tendril" ) \
             --channel ${{ matrix.rid }}
+
+      - name: Inject Postinstall Script into macOS Package
+        if: startsWith(matrix.rid, 'osx-')
+        run: |
+          # Unpack the generated .pkg
+          pkgutil --expand releases/IvyTendril-${{ matrix.rid }}-Setup.pkg expanded-pkg
+          
+          # Create Scripts folder if not exists
+          mkdir -p expanded-pkg/1.pkg/Scripts
+          
+          # Write the postinstall script
+          echo '#!/bin/sh
+          rm -rf /tmp/velopack/IvyTendril
+          sudo -u "$USER" rm -rf ~/Library/Caches/velopack/IvyTendril
+          sudo -u "$USER" env VELOPACK_FIRSTRUN=1 open "$2/Ivy Tendril.app/"
+
+          # Path to the installed app certificate
+          CERT_PATH="$3/Applications/Ivy Tendril.app/Contents/Resources/certs/localhost.crt"
+          if [ -f "$CERT_PATH" ]; then
+            echo "Trusting Ivy Tendril localhost certificate system-wide..."
+            security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$CERT_PATH"
+          fi
+          exit 0' | sed 's/^          //' > expanded-pkg/1.pkg/Scripts/postinstall
+          chmod +x expanded-pkg/1.pkg/Scripts/postinstall
+          
+          # Repack the package
+          pkgutil --flatten expanded-pkg releases/IvyTendril-${{ matrix.rid }}-Setup-Unsigned.pkg
+          rm -rf expanded-pkg
+
+          # Re-sign the repacked package
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/app-signing.keychain-db"
+          productsign --sign "${{ secrets.MACOS_SIGN_INSTALL_IDENTITY }}" --keychain "$RUNNER_TEMP/app-signing.keychain-db" releases/IvyTendril-${{ matrix.rid }}-Setup-Unsigned.pkg releases/IvyTendril-${{ matrix.rid }}-Setup.pkg
+          rm releases/IvyTendril-${{ matrix.rid }}-Setup-Unsigned.pkg
+
+          # Notarize the repacked package
+          echo "Submitting package for notarization..."
+          xcrun notarytool submit releases/IvyTendril-${{ matrix.rid }}-Setup.pkg \
+            --keychain "$RUNNER_TEMP/app-signing.keychain-db" \
+            --keychain-profile "tendril-notary" \
+            --wait
+
+          # Staple the notarization ticket to the package
+          echo "Stapling notarization ticket..."
+          xcrun stapler staple releases/IvyTendril-${{ matrix.rid }}-Setup.pkg
 
       - name: Rename Installer Setup Packages
         run: |

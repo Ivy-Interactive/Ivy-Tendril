@@ -14,7 +14,7 @@ public class CreatePrTests
     [MemberData(nameof(AgentTestData.Agents), MemberType = typeof(AgentTestData))]
     public async Task CreatePr_CreatesGitHubPR_AddsPrUrlToPlanYaml(string agent)
     {
-        var cliLog = Path.Combine(_fixture.TendrilHome, $"create-pr-{agent}.jsonl");
+        var cliLog = _fixture.CliLogPath($"create-pr-{agent}");
 
         var planFolder = PlanSetupHelper.CreateDraftPlan(
             _fixture.PlansDir,
@@ -33,7 +33,7 @@ public class CreatePrTests
             agent: agent);
 
         PromptwareAssertions.AssertExitSuccess(execResult, $"ExecutePlan ({agent})");
-        PromptwareAssertions.AssertPlanState(planFolder, "ReadyForReview");
+        PromptwareAssertions.AssertPlanState(planFolder, "Review");
 
         // Now create the PR
         var result = await _fixture.Runner.RunAsync(

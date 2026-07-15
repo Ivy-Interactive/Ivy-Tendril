@@ -8,6 +8,9 @@ x86/
 [Oo]ut/
 [Bb]uild[Ll]og.*
 
+# Source folder literally named "Debug" — not build output; keep it tracked.
+!src/Ivy.Tendril/Apps/Debug/
+
 ## NuGet
 *.nupkg
 **/[Pp]ackages/*

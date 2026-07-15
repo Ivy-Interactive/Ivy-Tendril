@@ -82,7 +82,37 @@ public static class GitHelper
         return null;
     }
 
-    private static string? RunGitCapture(string? workingDir, string args, int timeoutMs)
+    /// <summary>
+    /// Runs a git command and captures stdout/stderr without risking a pipe-buffer deadlock:
+    /// both streams are drained asynchronously while waiting for exit, rather than reading
+    /// one to completion before starting the other.
+    /// </summary>
+    public static (int ExitCode, string StdOut, string StdErr) RunGit(string arguments, string workingDirectory, int timeoutMs = 60000)
+    {
+        var psi = new ProcessStartInfo("git", arguments)
+        {
+            WorkingDirectory = workingDirectory,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        using var process = Process.Start(psi)!;
+        var outTask = process.StandardOutput.ReadToEndAsync();
+        var errTask = process.StandardError.ReadToEndAsync();
+        if (!process.WaitForExit(timeoutMs))
+        {
+            try { process.Kill(true); } catch { /* best effort */ }
+            var partialErr = errTask.IsCompletedSuccessfully ? errTask.Result : "";
+            var timeoutMessage = $"git {arguments} timed out after {timeoutMs}ms";
+            var combinedErr = string.IsNullOrEmpty(partialErr) ? timeoutMessage : $"{partialErr}\n{timeoutMessage}";
+            return (-1, outTask.IsCompletedSuccessfully ? outTask.Result : "", combinedErr);
+        }
+
+        return (process.ExitCode, outTask.GetAwaiter().GetResult(), errTask.GetAwaiter().GetResult());
+    }
+
+    internal static string? RunGitCapture(string? workingDir, string args, int timeoutMs)
     {
         try
         {
@@ -158,125 +188,47 @@ public static class GitHelper
                     return true;
 
                 // Check other remotes
-                try
+                var output = RunGitCapture(expandedPath, "show-ref", 5000);
+                if (output != null)
                 {
-                    var psi = new ProcessStartInfo("git", "show-ref")
+                    var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var line in lines)
                     {
-                        WorkingDirectory = expandedPath,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    };
-
-                    using var process = Process.Start(psi);
-                    if (process == null) return false;
-
-                    var outTask = process.StandardOutput.ReadToEndAsync();
-                    var errTask = process.StandardError.ReadToEndAsync();
-                    process.WaitForExit(5000);
-
-                    var output = outTask.GetAwaiter().GetResult();
-                    _ = errTask.GetAwaiter().GetResult();
-
-                    if (process.ExitCode == 0)
-                    {
-                        var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-                        foreach (var line in lines)
+                        var parts = line.Split(' ', 2);
+                        if (parts.Length == 2)
                         {
-                            var parts = line.Split(' ', 2);
-                            if (parts.Length == 2)
+                            var refName = parts[1].Trim();
+                            if (refName.Equals($"refs/heads/{branchName}", StringComparison.OrdinalIgnoreCase) ||
+                                (refName.StartsWith("refs/remotes/", StringComparison.OrdinalIgnoreCase) && refName.EndsWith($"/{branchName}", StringComparison.OrdinalIgnoreCase)))
                             {
-                                var refName = parts[1].Trim();
-                                if (refName.Equals($"refs/heads/{branchName}", StringComparison.OrdinalIgnoreCase) ||
-                                    (refName.StartsWith("refs/remotes/", StringComparison.OrdinalIgnoreCase) && refName.EndsWith($"/{branchName}", StringComparison.OrdinalIgnoreCase)))
-                                {
-                                    return true;
-                                }
+                                return true;
                             }
                         }
                     }
                 }
-                catch
-                {
-                    // Ignore process execution errors
-                }
 
                 return false;
             });
         }
-        else // Remote URL: HttpUrl or SshUrl
+        return await Task.Run(() =>
         {
-            return await Task.Run(() =>
+            var output = RunGitCapture(null, $"ls-remote --heads \"{expandedPath}\" \"{branchName}\"", 10000);
+            if (output != null)
             {
-                try
+                var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var line in lines)
                 {
-                    var psi = new ProcessStartInfo("git", $"ls-remote --heads \"{expandedPath}\" \"{branchName}\"")
-                    {
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    };
-
-                    using var process = Process.Start(psi);
-                    if (process == null) return false;
-
-                    var outTask = process.StandardOutput.ReadToEndAsync();
-                    var errTask = process.StandardError.ReadToEndAsync();
-                    process.WaitForExit(10000);
-
-                    var output = outTask.GetAwaiter().GetResult();
-                    _ = errTask.GetAwaiter().GetResult();
-
-                    if (process.ExitCode == 0)
-                    {
-                        var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-                        foreach (var line in lines)
-                        {
-                            if (line.Contains($"refs/heads/{branchName}"))
-                                return true;
-                        }
-                    }
+                    if (line.Contains($"refs/heads/{branchName}"))
+                        return true;
                 }
-                catch
-                {
-                    // Ignore process execution errors
-                }
+            }
 
-                return false;
-            });
-        }
+            return false;
+        });
     }
 
     private static bool RunGitShowRef(string repoPath, string refName)
     {
-        try
-        {
-            var psi = new ProcessStartInfo("git", $"show-ref --verify \"{refName}\"")
-            {
-                WorkingDirectory = repoPath,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using var process = Process.Start(psi);
-            if (process == null) return false;
-
-            var outTask = process.StandardOutput.ReadToEndAsync();
-            var errTask = process.StandardError.ReadToEndAsync();
-            process.WaitForExit(5000);
-
-            _ = outTask.GetAwaiter().GetResult();
-            _ = errTask.GetAwaiter().GetResult();
-
-            return process.ExitCode == 0;
-        }
-        catch
-        {
-            return false;
-        }
+        return RunGitCapture(repoPath, $"show-ref --verify \"{refName}\"", 5000) != null;
     }
 }

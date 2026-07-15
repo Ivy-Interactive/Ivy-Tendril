@@ -54,10 +54,9 @@ export function transformLocalFileUrl(url: string, key: string): string {
 
   if (isLocalFilesEnabled()) {
     let filePath: string;
-    if (url.startsWith("file:///")) {
-      filePath = decodeURIComponent(url.slice(8));
-    } else if (url.startsWith("file://")) {
-      filePath = decodeURIComponent(url.slice(7));
+    if (url.startsWith("file://")) {
+      const pathname = decodeURIComponent(new URL(url).pathname);
+      filePath = /^\/[a-zA-Z]:/.test(pathname) ? pathname.slice(1) : pathname;
     } else {
       filePath = url.replace(/\\/g, "/");
     }

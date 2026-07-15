@@ -3,6 +3,7 @@ import { AgentViewer } from "./AgentViewer";
 import { DraftMarkdown } from "./DraftMarkdown";
 import { SortableVerificationList } from "./SortableVerificationList";
 import { TendrilCard } from "./TendrilCard";
+import { ContentInput } from "./ContentInput/ContentInput";
 
 if (typeof window !== "undefined") {
   (window as unknown as Record<string, unknown>).IvyTendrilWidgets = {
@@ -11,6 +12,7 @@ if (typeof window !== "undefined") {
     DraftMarkdown,
     SortableVerificationList,
     TendrilCard,
+    ContentInput,
   };
 }
 
@@ -20,4 +22,5 @@ export {
   DraftMarkdown,
   SortableVerificationList,
   TendrilCard,
+  ContentInput,
 };

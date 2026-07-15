@@ -56,13 +56,13 @@ public class ProjectRemoveSettings : CommandSettings
 
 public class ProjectSetSettings : CommandSettings
 {
-    private static readonly string[] ValidFields = ["name", "color", "context"];
+    private static readonly string[] ValidFields = ["name", "color", "context", "stackhash"];
 
     [Description("Project name")]
     [CommandArgument(0, "<name>")]
     public string Name { get; set; } = "";
 
-    [Description("Field name (name, color, context)")]
+    [Description("Field name (name, color, context, stackHash)")]
     [CommandArgument(1, "<field>")]
     public string Field { get; set; } = "";
 
@@ -309,13 +309,15 @@ public class ProjectGetCommand : Command<ProjectGetSettings>
             .FirstOrDefault(p => p.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
 
         if (project == null)
-            throw new InvalidOperationException($"Project not found: {settings.Name}");
+            CliValidation.ThrowProjectNotFound(settings.Name, config.Settings.Projects.Select(p => p.Name));
 
         AnsiConsole.MarkupLine($"[bold]{project.Name.EscapeMarkup()}[/]");
         if (!string.IsNullOrEmpty(project.Color))
             AnsiConsole.MarkupLine($"  Color: {project.Color.EscapeMarkup()}");
         if (!string.IsNullOrEmpty(project.Context))
             AnsiConsole.MarkupLine($"  Context: {project.Context.EscapeMarkup()}");
+        if (!string.IsNullOrEmpty(project.StackHash))
+            AnsiConsole.MarkupLine($"  StackHash: {project.StackHash.EscapeMarkup()}");
 
         if (project.Repos.Count > 0)
         {
@@ -400,7 +402,7 @@ public class ProjectRemoveCommand : Command<ProjectRemoveSettings>
             .FirstOrDefault(p => p.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
 
         if (match == null)
-            throw new InvalidOperationException($"Project not found: {settings.Name}");
+            CliValidation.ThrowProjectNotFound(settings.Name, config.Settings.Projects.Select(p => p.Name));
 
         config.Settings.Projects.Remove(match);
         config.SaveSettings();
@@ -418,7 +420,7 @@ public class ProjectSetCommand : Command<ProjectSetSettings>
             .FirstOrDefault(p => p.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
 
         if (match == null)
-            throw new InvalidOperationException($"Project not found: {settings.Name}");
+            CliValidation.ThrowProjectNotFound(settings.Name, config.Settings.Projects.Select(p => p.Name));
 
         switch (settings.Field.ToLower())
         {
@@ -431,8 +433,11 @@ public class ProjectSetCommand : Command<ProjectSetSettings>
             case "context":
                 match.Context = settings.Value;
                 break;
+            case "stackhash":
+                match.StackHash = settings.Value;
+                break;
             default:
-                throw new ArgumentException($"Unknown field: {settings.Field}. Valid fields: name, color, context");
+                throw new ArgumentException($"Unknown field: {settings.Field}. Valid fields: name, color, context, stackHash");
         }
 
         config.SaveSettings();
@@ -450,7 +455,7 @@ public class ProjectAddRepoCommand : Command<ProjectAddRepoSettings>
             .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
         if (project == null)
-            throw new InvalidOperationException($"Project not found: {settings.ProjectName}");
+            CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
 
         if (project.GetRepoRef(settings.RepoPath) != null)
             throw new InvalidOperationException($"Repository already exists in project: {settings.RepoPath}");
@@ -490,11 +495,11 @@ public class ProjectRemoveRepoCommand : Command<ProjectRemoveRepoSettings>
             .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
         if (project == null)
-            throw new InvalidOperationException($"Project not found: {settings.ProjectName}");
+            CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
 
         var match = project.GetRepoRef(settings.RepoPath);
         if (match == null)
-            throw new InvalidOperationException($"Repository not found in project: {settings.RepoPath}");
+            CliValidation.ThrowRepoNotFound(settings.RepoPath, project.Repos.Select(r => r.Path));
 
         project.Repos.Remove(match);
         config.SaveSettings();
@@ -512,7 +517,7 @@ public class ProjectAddVerificationCommand : Command<ProjectAddVerificationSetti
             .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
         if (project == null)
-            throw new InvalidOperationException($"Project not found: {settings.ProjectName}");
+            CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
 
         if (project.Verifications.Any(v => v.Name.Equals(settings.VerificationName, StringComparison.OrdinalIgnoreCase)))
             throw new InvalidOperationException($"Verification already exists in project: {settings.VerificationName}");
@@ -528,7 +533,7 @@ public class ProjectAddVerificationCommand : Command<ProjectAddVerificationSetti
             var afterIndex = project.Verifications
                 .FindIndex(v => v.Name.Equals(settings.After, StringComparison.OrdinalIgnoreCase));
             if (afterIndex < 0)
-                throw new InvalidOperationException($"Verification not found for --after: {settings.After}");
+                CliValidation.ThrowVerificationNotFound(settings.After, project.Verifications.Select(v => v.Name));
             project.Verifications.Insert(afterIndex + 1, newRef);
         }
         else
@@ -551,13 +556,13 @@ public class ProjectRemoveVerificationCommand : Command<ProjectRemoveVerificatio
             .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
         if (project == null)
-            throw new InvalidOperationException($"Project not found: {settings.ProjectName}");
+            CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
 
         var match = project.Verifications
             .FirstOrDefault(v => v.Name.Equals(settings.VerificationName, StringComparison.OrdinalIgnoreCase));
 
         if (match == null)
-            throw new InvalidOperationException($"Verification not found in project: {settings.VerificationName}");
+            CliValidation.ThrowVerificationNotFound(settings.VerificationName, project.Verifications.Select(v => v.Name));
 
         project.Verifications.Remove(match);
         config.SaveSettings();
@@ -579,13 +584,13 @@ public class ProjectMoveVerificationCommand : Command<ProjectMoveVerificationSet
             .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
         if (project == null)
-            throw new InvalidOperationException($"Project not found: {settings.ProjectName}");
+            CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
 
         var item = project.Verifications
             .FirstOrDefault(v => v.Name.Equals(settings.VerificationName, StringComparison.OrdinalIgnoreCase));
 
         if (item == null)
-            throw new InvalidOperationException($"Verification not found in project: {settings.VerificationName}");
+            CliValidation.ThrowVerificationNotFound(settings.VerificationName, project.Verifications.Select(v => v.Name));
 
         project.Verifications.Remove(item);
 
@@ -597,7 +602,7 @@ public class ProjectMoveVerificationCommand : Command<ProjectMoveVerificationSet
             if (targetIndex < 0)
             {
                 project.Verifications.Add(item);
-                throw new InvalidOperationException($"Target verification not found for --before: {settings.Before}");
+                CliValidation.ThrowVerificationTargetNotFound("before", settings.Before, project.Verifications.Select(v => v.Name));
             }
             insertIndex = targetIndex;
         }
@@ -608,7 +613,7 @@ public class ProjectMoveVerificationCommand : Command<ProjectMoveVerificationSet
             if (targetIndex < 0)
             {
                 project.Verifications.Add(item);
-                throw new InvalidOperationException($"Target verification not found for --after: {settings.After}");
+                CliValidation.ThrowVerificationTargetNotFound("after", settings.After, project.Verifications.Select(v => v.Name));
             }
             insertIndex = targetIndex + 1;
         }
@@ -633,7 +638,7 @@ public class ProjectAddBuildDepCommand : Command<ProjectAddBuildDepSettings>
             .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
         if (project == null)
-            throw new InvalidOperationException($"Project not found: {settings.ProjectName}");
+            CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
 
         if (project.BuildDependencies.Contains(settings.Dependency, StringComparer.OrdinalIgnoreCase))
             throw new InvalidOperationException($"Build dependency already exists: {settings.Dependency}");
@@ -654,11 +659,11 @@ public class ProjectRemoveBuildDepCommand : Command<ProjectRemoveBuildDepSetting
             .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
         if (project == null)
-            throw new InvalidOperationException($"Project not found: {settings.ProjectName}");
+            CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
 
         var removed = project.BuildDependencies.RemoveAll(d => d.Equals(settings.Dependency, StringComparison.OrdinalIgnoreCase));
         if (removed == 0)
-            throw new InvalidOperationException($"Build dependency not found: {settings.Dependency}");
+            CliValidation.ThrowBuildDependencyNotFound(settings.Dependency, project.BuildDependencies);
 
         config.SaveSettings();
         Console.WriteLine($"Removed build dependency: {settings.Dependency}");
@@ -675,7 +680,7 @@ public class ProjectAddReviewActionCommand : Command<ProjectAddReviewActionSetti
             .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
         if (project == null)
-            throw new InvalidOperationException($"Project not found: {settings.ProjectName}");
+            CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
 
         if (project.ReviewActions.Any(r => r.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase)))
             throw new InvalidOperationException($"Review action already exists: {settings.Name}");
@@ -702,13 +707,13 @@ public class ProjectRemoveReviewActionCommand : Command<ProjectRemoveReviewActio
             .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
         if (project == null)
-            throw new InvalidOperationException($"Project not found: {settings.ProjectName}");
+            CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
 
         var match = project.ReviewActions
             .FirstOrDefault(r => r.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
 
         if (match == null)
-            throw new InvalidOperationException($"Review action not found: {settings.Name}");
+            CliValidation.ThrowReviewActionNotFound(settings.Name, project.ReviewActions.Select(r => r.Name));
 
         project.ReviewActions.Remove(match);
         config.SaveSettings();

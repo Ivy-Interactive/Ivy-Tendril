@@ -10,6 +10,7 @@ searchHints:
   - run
   - doctor
   - version
+  - config
 ---
 
 # CLI Overview
@@ -23,6 +24,7 @@ Tendril CLI gives you complete control over your workflow without touching the U
 - **Plans** — create, list, update, and inspect plans; manage repos, worktrees, verifications, and recommendations
 - **Projects** — configure projects, their repos, build dependencies, and review actions
 - **Verifications** — define and manage reusable verification checks
+- **Config** — read and update top-level settings stored in `config.yaml`
 - **Database** — run migrations, inspect schema versions, or reset the database
 - **Agents** — run and manage promptwares and their memory
 
@@ -121,12 +123,12 @@ This permanently deletes all data. There is no undo.
 >tendril report-bug --plan 03430 --dry-run
 ```
 
-Collects plan files and agent logs into a zip archive and submits them to the Tendril bug report API, which opens a GitHub issue automatically.
+Collects plan files and every job artifact — the Job Log, Job Prompt, Job Raw Log and Job Eventwire Log from `<TendrilHome>/Jobs/` — into a zip archive and submits them to the Tendril bug report API, which opens a GitHub issue automatically.
 
 | Option | Effect |
 |--------|--------|
-| `--plan <plan-id>` | Include files from this plan folder |
-| `--job <job-id>` | Include log files for this job ID |
+| `--plan <plan-id>` | Include this plan folder plus every job that ran against it, including the `CreatePlan` job that authored it |
+| `--job <job-id>` | Include this job's four artifacts plus its plan's context (`plan.yaml`, revisions, worktree manifest) |
 | `--description` / `-d` | Bug description (prompted interactively if omitted) |
 | `--yes` / `-y` | Skip the confirmation prompt |
 | `--dry-run` | Show what would be sent without uploading |
@@ -159,3 +161,4 @@ Refreshes the embedded promptware templates from the bundled source. Run after u
 - [Verification commands](03_Verification.md) — manage global verification definitions
 - [Database commands](04_Database.md) — migrations, schema version, and reset
 - [Other commands](05_Other.md) — promptware, job, trash, MCP, and utilities
+- [Config commands](06_Config.md) — read and update top-level `config.yaml` settings

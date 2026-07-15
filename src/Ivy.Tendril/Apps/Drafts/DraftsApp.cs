@@ -1,4 +1,5 @@
 using System.Reactive.Disposables;
+using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
@@ -13,7 +14,6 @@ public class DraftsApp : ViewBase
         var jobService = UseService<IJobService>();
         var configService = UseService<IConfigService>();
         var gitService = UseService<IGitService>();
-        var planWatcher = UseService<IPlanWatcherService>();
         var args = UseArgs<DraftsAppArgs>();
         var nav = UseNavigation();
         var selectedPlanState = UseState<PlanFile?>(null);
@@ -23,16 +23,7 @@ public class DraftsApp : ViewBase
         var filtersOpen = UseState(false);
         var refreshToken = UseRefreshToken();
 
-        UseEffect(() =>
-        {
-            void OnChanged(string? _)
-            {
-                refreshToken.Refresh();
-            }
-
-            planWatcher.PlansChanged += OnChanged;
-            return Disposable.Create(() => planWatcher.PlansChanged -= OnChanged);
-        });
+        Context.UseInboxAutoRefresh(refreshToken);
 
         UseEffect(() =>
         {

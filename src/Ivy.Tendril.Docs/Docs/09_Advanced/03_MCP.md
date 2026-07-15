@@ -8,6 +8,8 @@ searchHints:
   - tendril_get_plan
   - tendril_list_plans
   - tendril_plan_set
+  - tendril_get_config
+  - tendril_set_config
 ---
 
 # MCP Server
@@ -50,17 +52,29 @@ All tools are prefixed with `tendril_` and provide the same capabilities as the 
 | `tendril_plan_add_pr` | `planId`, `prUrl` | Add a PR URL to a plan |
 | `tendril_plan_add_commit` | `planId`, `sha` | Add a commit SHA to a plan |
 | `tendril_plan_set_verification` | `planId`, `name`, `status` | Set verification status. Valid statuses: `Pending`, `Pass`, `Fail`, `Skipped` |
-| `tendril_plan_add_log` | `planId`, `action`, `summary` (optional) | Write an execution log entry |
+
+### Jobs
+
+| Tool | Parameters | Description |
+|------|------------|-------------|
+| `tendril_job_add_log` | `jobId`, `action`, `summary` (optional) | Append an `## Agent Log` section to the job's log in `<TendrilHome>/Jobs/` |
 
 ### Recommendations
 
 | Tool | Parameters | Description |
 |------|------------|-------------|
 | `tendril_plan_rec_list` | `planId`, `state` (optional) | List recommendations. Filter by state: `Pending`, `Accepted`, `AcceptedWithNotes`, `Declined` |
-| `tendril_plan_rec_add` | `planId`, `title`, `description`, `impact` (optional), `risk` (optional) | Add a recommendation. Impact/risk levels: `Small`, `Medium`, `High` |
+| `tendril_plan_rec_add` | `planId`, `title`, `description`, `impact` (optional) | Add a recommendation. Impact levels: `Small`, `Medium`, `High` |
 | `tendril_plan_rec_accept` | `planId`, `title`, `notes` (optional) | Accept a recommendation. Sets state to `Accepted` or `AcceptedWithNotes` if notes provided |
 | `tendril_plan_rec_decline` | `planId`, `title`, `reason` (optional) | Decline a recommendation with optional reason |
 | `tendril_plan_rec_remove` | `planId`, `title` | Permanently remove a recommendation |
+
+### Configuration
+
+| Tool | Parameters | Description |
+|------|------------|-------------|
+| `tendril_get_config` | `key` | Get a top-level config value. Supported keys: `codingAgent`, `jobTimeout`, `staleOutputTimeout`, `gitTimeout`, `maxConcurrentJobs`, `planTemplate` |
+| `tendril_set_config` | `key`, `value` | Set a top-level config value. Integer fields are bounds-checked; `planTemplate` may be long or multiline. Same keys as `tendril_get_config` |
 
 ## Claude Code Configuration
 
@@ -95,4 +109,4 @@ With authentication:
 
 ## Parity
 
-The MCP tools, REST API, and CLI all operate on the same plan data and share the same validation logic. Changes made through any interface are immediately visible to the others.
+The MCP tools, REST API, and CLI all operate on the same plan and job data and share the same validation logic. Changes made through any interface are immediately visible to the others.

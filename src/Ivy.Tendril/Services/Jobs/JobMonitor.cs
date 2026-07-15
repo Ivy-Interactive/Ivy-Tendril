@@ -59,6 +59,26 @@ internal class JobMonitor
         catch (ObjectDisposedException)
         {
             _logger.LogDebug("Job {JobId}: Monitor task exiting (CTS disposed, job completed elsewhere)", _id);
+
+            // Normally the CTS is only disposed once the job has already been completed elsewhere.
+            // If it somehow got disposed while the job is still Running, don't return silently — that
+            // would leave the job stranded with no monitor left to ever complete it.
+            if (_ctx.Jobs.TryGetValue(_id, out var job) && job.Status == JobStatus.Running)
+            {
+                _logger.LogWarning("Job {JobId}: CTS disposed but job still Running — completing as timeout", _id);
+
+                try
+                {
+                    if (!_process.HasExited)
+                        _process.Kill(entireProcessTree: true);
+                }
+                catch (Exception killEx)
+                {
+                    _logger.LogWarning(killEx, "Job {JobId}: Failed to kill process during CTS-disposed recovery", _id);
+                }
+
+                _ctx.CompleteJob(_id, null, true, false);
+            }
         }
         catch (Exception ex)
         {
@@ -122,6 +142,11 @@ internal class JobMonitor
         ConcurrentDictionary<string, JobItem> jobs,
         TimeSpan staleOutputTimeout)
     {
+        // Baseline for staleness before any output arrives. Captured when monitoring begins — i.e.
+        // after the pre-launch "before" hooks and process start — so slow hook setup does not count
+        // against the no-output window. A job that never emits output is still declared stale
+        // relative to this baseline instead of evading the stale-output timeout forever (#1455).
+        var monitoringStartedAt = DateTime.UtcNow;
         try
         {
             while (!timeoutCts.Token.IsCancellationRequested)
@@ -129,9 +154,8 @@ internal class JobMonitor
                 await Task.Delay(TimeSpan.FromSeconds(1), timeoutCts.Token);
                 if (!jobs.TryGetValue(id, out var job) || job.Status != JobStatus.Running)
                     return;
-                if (!job.LastOutputAt.HasValue)
-                    continue;
-                if (DateTime.UtcNow - job.LastOutputAt.Value < staleOutputTimeout)
+                var anchor = job.LastOutputAt ?? monitoringStartedAt;
+                if (DateTime.UtcNow - anchor < staleOutputTimeout)
                     continue;
 
                 job.StaleOutputDetected = true;

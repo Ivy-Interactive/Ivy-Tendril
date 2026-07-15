@@ -209,7 +209,7 @@ import path from 'path';
 async function findFreePort(): Promise<number> {
   return new Promise((resolve) => {
     const server = net.createServer();
-    server.listen(0, () => {
+    server.listen(0, '127.0.0.1', () => {
       const addr = server.address();
       const port = typeof addr === 'string' ? 0 : addr?.port ?? 0;
       server.close(() => resolve(port));
@@ -489,12 +489,14 @@ Confirm all expected files exist before writing the report.
 Write to `<VerificationDir>/IvyFrameworkVerification.md`:
 
 ```markdown
+---
+result: Pass
+date: <CurrentTime>
+---
 # IvyFrameworkVerification
 
-- **Plan:** <planId> — <title>
-- **Date:** <CurrentTime>
-- **Result:** Pass / Fail
-- **Test Project:** <path to temp project>
+**Plan:** <planId> — <title>
+**Test Project:** <path to temp project>
 
 ## What was tested
 

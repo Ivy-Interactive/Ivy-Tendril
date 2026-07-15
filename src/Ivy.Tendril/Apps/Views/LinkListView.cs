@@ -10,12 +10,12 @@ public class LinkListView(List<Link> links, Action<string> onLinkClick) : ViewBa
             return Text.Block("");
 
         var builder = Text.Rich().OnLinkClick(onLinkClick);
-        
+
         for (var i = 0; i < links.Count; i++)
         {
             var link = links[i];
             builder = builder.Link($"#{link.Title}", link.Href);
-            
+
             if (i < links.Count - 1)
                 builder = builder.Run(", ");
         }

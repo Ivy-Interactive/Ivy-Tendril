@@ -13,6 +13,9 @@ public sealed class OpenCodeEventParser : IEventParser
     private static readonly IReadOnlyList<AgentEvent> Empty = Array.Empty<AgentEvent>();
 
     private bool _hasError;
+    private int _accumulatedInputTokens;
+    private int _accumulatedOutputTokens;
+    private decimal _accumulatedCost;
 
     public IReadOnlyList<AgentEvent> ParseLine(string rawLine)
     {
@@ -68,18 +71,25 @@ public sealed class OpenCodeEventParser : IEventParser
             }
         }
 
+        AgentUsage? usage = (_accumulatedInputTokens > 0 || _accumulatedOutputTokens > 0 || _accumulatedCost > 0)
+            ? new AgentUsage
+            {
+                InputTokens = _accumulatedInputTokens,
+                OutputTokens = _accumulatedOutputTokens,
+                CostUsd = _accumulatedCost,
+            }
+            : null;
+
         return new ResultEvent
         {
             Kind = AgentEventKind.Result,
             IsSuccess = !_hasError && exitCode == 0,
             ExitCode = exitCode,
+            Usage = usage,
         };
     }
 
-    public void Reset()
-    {
-        _hasError = false;
-    }
+    public IEventParser CreateFresh() => new OpenCodeEventParser();
 
     private static string? PeekType(ref Utf8JsonReader reader)
     {
@@ -185,9 +195,19 @@ public sealed class OpenCodeEventParser : IEventParser
         return events;
     }
 
-    private static IReadOnlyList<AgentEvent> ParseStepFinish(JsonElement root, string rawLine)
+    private IReadOnlyList<AgentEvent> ParseStepFinish(JsonElement root, string rawLine)
     {
         if (!root.TryGetProperty("part", out var part)) return Empty;
+
+        // Accumulate cost/tokens from every step_finish, regardless of reason
+        if (part.TryGetProperty("cost", out var cProp))
+            _accumulatedCost += cProp.GetDecimal();
+
+        if (part.TryGetProperty("tokens", out var tokens))
+        {
+            _accumulatedInputTokens += tokens.TryGetProperty("input", out var it) ? it.GetInt32() : 0;
+            _accumulatedOutputTokens += tokens.TryGetProperty("output", out var ot) ? ot.GetInt32() : 0;
+        }
 
         var reason = part.TryGetProperty("reason", out var rProp) ? rProp.GetString() : null;
 
@@ -196,22 +216,12 @@ public sealed class OpenCodeEventParser : IEventParser
         if (reason is not ("stop" or "error"))
             return Empty;
 
-        var cost = part.TryGetProperty("cost", out var cProp) ? cProp.GetDecimal() : (decimal?)null;
-
-        int inputTokens = 0;
-        int outputTokens = 0;
-        if (part.TryGetProperty("tokens", out var tokens))
-        {
-            inputTokens = tokens.TryGetProperty("input", out var it) ? it.GetInt32() : 0;
-            outputTokens = tokens.TryGetProperty("output", out var ot) ? ot.GetInt32() : 0;
-        }
-
-        AgentUsage? usage = (inputTokens > 0 || outputTokens > 0 || cost > 0)
+        AgentUsage? usage = (_accumulatedInputTokens > 0 || _accumulatedOutputTokens > 0 || _accumulatedCost > 0)
             ? new AgentUsage
             {
-                InputTokens = inputTokens,
-                OutputTokens = outputTokens,
-                CostUsd = cost,
+                InputTokens = _accumulatedInputTokens,
+                OutputTokens = _accumulatedOutputTokens,
+                CostUsd = _accumulatedCost,
             }
             : null;
 

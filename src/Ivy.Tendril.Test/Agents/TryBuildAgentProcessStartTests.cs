@@ -117,15 +117,4 @@ public class TryBuildAgentProcessStartTests : IDisposable
         Assert.Equal("haiku", resolution.Model);
     }
 
-    [Fact]
-    public void FirmwareCompiler_GetLogFile_CreatesNamedLogFile()
-    {
-        var programFolder = Path.Combine(_tempDir, "TestProgram");
-        Directory.CreateDirectory(programFolder);
-
-        var logFile = FirmwareCompiler.GetLogFile(programFolder, "00099");
-        Assert.EndsWith("00099.md", logFile);
-        Assert.True(File.Exists(logFile));
-    }
-
 }

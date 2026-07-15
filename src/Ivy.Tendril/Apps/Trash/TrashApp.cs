@@ -1,5 +1,6 @@
 using Ivy.Tendril.Apps.Trash.Dialogs;
 using Ivy.Tendril.Apps.Views;
+using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
@@ -38,7 +39,7 @@ public class TrashApp : ViewBase
             return new DeleteTrashFileDialog(isOpen, selected, selectedFile, refreshToken);
         });
 
-        UseInterval(() => refreshToken.Refresh(), TimeSpan.FromSeconds(10));
+        Context.UseInboxAutoRefresh(refreshToken);
 
         var trashDir = Path.Combine(configService.TendrilHome, "Trash");
         var files = LoadTrashFiles(trashDir);
@@ -107,7 +108,7 @@ public class TrashApp : ViewBase
                                 }
                             });
 
-            var annotatedContent = MarkdownHelper.AnnotateAllBrokenLinks(selected.Content, planService.PlansDirectory);
+            var annotatedContent = MarkdownHelper.PrepareForDisplay(selected.Content, configService);
             var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200))).Padding(6, 2, 6, 2)
                                     | new Markdown(annotatedContent)
                                         .DangerouslyAllowLocalFiles()

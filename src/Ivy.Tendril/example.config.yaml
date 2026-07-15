@@ -85,7 +85,7 @@ codingAgents:
 # Only specify allowedTools if you need ADDITIONAL tools beyond the defaults.
 # Tool format uses Claude Code syntax: Tool, Tool(path-glob).
 # Job context variables are expanded at launch time:
-#   %PROMPTWARE_DIR% — the promptware's own directory (Program.md, Logs/, Tools/, Memory/)
+#   %PROMPTWARE_DIR% — the promptware's own directory (Program.md, Tools/, Memory/)
 #   %PLANS_DIR%      — the plans directory (e.g., /home/user/tendril/Plans)
 #   %PLAN_DIR%       — the specific plan folder (e.g., /home/user/tendril/Plans/01234-MyPlan)
 #   %TENDRIL_HOME%   — the TENDRIL_HOME environment variable
@@ -109,7 +109,7 @@ promptwares:
     profile: balanced
   CreateIssue:
     profile: balanced
-  UpdateProject:
+  SetupProject:
     profile: deep
 
 # Projects — add your projects here. Each project groups repos, verifications, and context.
@@ -182,7 +182,7 @@ verifications:
 - name: CheckResult
   prompt: >
     Verify the implementation matches what was requested in the plan.
-    1. Read the plan revision from `<TendrilPlanFolder>/revisions/` (latest numbered .md file)
+    1. Read the plan revision: `tendril plan get-revision <PlanId>`
     2. Review all commits made by this execution
     3. Compare the plan's Problem and Solution sections against the actual changes
     4. Write the verification report to `<TendrilPlanFolder>/verification/CheckResult.md`
@@ -191,15 +191,21 @@ verifications:
 
 # .NET:
 # - name: DotnetBuild
-#   prompt: Run `dotnet build --warnaserror` in the plan's worktree directory and verify it succeeds.
+#   prompt: >
+#     Locate the target before running dotnet — never rely on the current working directory: search
+#     the worktree for `*.slnx`, then `*.sln` (prefer a solution over a bare project; fall back to
+#     the single `*.csproj` if none exists). Run `dotnet build "<resolved path>" --warnaserror` and
+#     verify it succeeds with zero errors and zero warnings.
 # - name: DotnetFormat
 #   prompt: >
 #     Run `dotnet format` on changed .cs files. Get changed files with
-#     `git diff --name-only --diff-filter=ACM HEAD~<N> -- '*.cs'`, then run `dotnet format --include <files>`.
+#     `git diff --name-only --diff-filter=ACM HEAD~<N> -- '*.cs'`. Locate the target the same way as
+#     DotnetBuild, then run `dotnet format "<resolved path>" --include <files>`.
 # - name: DotnetTest
 #   prompt: >
-#     Run dotnet tests using the filter from the plan's **## Tests** section.
-#     If plan specifies `dotnet test --filter <expression>`, run it. Verify all tests pass.
+#     Run dotnet tests using the filter from the plan's **## Tests** section. Locate the target the
+#     same way as DotnetBuild. If plan specifies `dotnet test --filter <expression>`, run
+#     `dotnet test "<resolved path>" --filter <expression>`. Verify all tests pass.
 
 # JavaScript/TypeScript:
 # - name: NpmBuild

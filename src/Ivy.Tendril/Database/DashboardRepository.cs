@@ -35,14 +35,14 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
                     SELECT
                         COUNT(*) AS TotalCount,
                         COALESCE(SUM(CASE WHEN State IN ('Draft', 'Blocked') THEN 1 ELSE 0 END), 0),
-                        COALESCE(SUM(CASE WHEN State IN ('Building', 'Executing', 'Updating') THEN 1 ELSE 0 END), 0),
-                        COALESCE(SUM(CASE WHEN State = 'ReadyForReview' THEN 1 ELSE 0 END), 0),
+                        COALESCE(SUM(CASE WHEN State IN ('Creating', 'Executing', 'Updating') THEN 1 ELSE 0 END), 0),
+                        COALESCE(SUM(CASE WHEN State = 'Review' THEN 1 ELSE 0 END), 0),
                         COALESCE(SUM(CASE WHEN State = 'Completed' THEN 1 ELSE 0 END), 0),
                         COALESCE(SUM(CASE WHEN State = 'Failed' THEN 1 ELSE 0 END), 0),
                         (SELECT CASE WHEN COUNT(DISTINCT p2.Id) > 0
                             THEN COALESCE(SUM(c2.Cost), 0) / COUNT(DISTINCT p2.Id) ELSE 0 END
                          FROM Costs c2 JOIN Plans p2 ON p2.Id = c2.PlanId
-                         WHERE p2.Created >= @cutoff AND p2.State IN ('Completed', 'Failed', 'ReadyForReview') {pfAlias2}
+                         WHERE p2.Created >= @cutoff AND p2.State IN ('Completed', 'Failed', 'Review') {pfAlias2}
                         ) AS AvgCost
                     FROM Plans WHERE Created >= @cutoff {pf}
                     """;
@@ -98,7 +98,7 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
                     cte_costs AS (
                         SELECT DATE(p.Updated) AS d, SUM(c.Cost) AS cost, SUM(c.Tokens) AS tokens
                         FROM Costs c JOIN Plans p ON p.Id = c.PlanId
-                        WHERE p.Updated >= @cutoff AND p.State IN ('Completed', 'Failed', 'ReadyForReview') {pfAlias}
+                        WHERE p.Updated >= @cutoff AND p.State IN ('Completed', 'Failed', 'Review') {pfAlias}
                         GROUP BY DATE(p.Updated)
                     ),
                     cte_days(day) AS (

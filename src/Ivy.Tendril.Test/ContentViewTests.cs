@@ -15,21 +15,34 @@ public class ContentViewTests
         return new PlanFile(metadata, "", folderPath, "");
     }
 
+    /// <summary>
+    /// Lays out a TendrilHome with plan 00001 and, optionally, one Job Log for it in Jobs/.
+    /// Returns (tendrilHome, planFolder).
+    /// </summary>
+    private static (string TendrilHome, string PlanFolder) CreateHome(string? jobLogContent)
+    {
+        var tendrilHome = Path.Combine(Path.GetTempPath(), $"ivy-test-{Guid.NewGuid()}");
+        var planDir = Path.Combine(tendrilHome, "Plans", "00001-TestPlan");
+        Directory.CreateDirectory(planDir);
+
+        if (jobLogContent != null)
+        {
+            var jobsDir = Path.Combine(tendrilHome, "Jobs");
+            Directory.CreateDirectory(jobsDir);
+            File.WriteAllText(Path.Combine(jobsDir, "00007-00001-ExecutePlan.md"), jobLogContent);
+        }
+
+        return (tendrilHome, planDir);
+    }
+
     [Fact]
     public void BuildFailureCallout_WithCompletedStatusLog_ShowsStateMismatch()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"ivy-test-{Guid.NewGuid()}");
+        var (tendrilHome, planDir) = CreateHome(
+            "# Job Log 00007-00001-ExecutePlan\n\n- **Status:** Completed\n- **Started:** 2026-03-30 10:00:00Z\n- **Completed:** 2026-03-30 10:05:00Z\n- **Duration:** 300s\n");
         try
         {
-            var planDir = Path.Combine(tempDir, "00001-TestPlan");
-            var logsDir = Path.Combine(planDir, "Logs");
-            Directory.CreateDirectory(logsDir);
-
-            File.WriteAllText(Path.Combine(logsDir, "001-ExecutePlan.md"),
-                "# ExecutePlan\n\n- **Status:** Completed\n- **Started:** 2026-03-30 10:00:00Z\n- **Completed:** 2026-03-30 10:05:00Z\n- **Duration:** 300s\n");
-
-            var plan = CreateFailedPlan(planDir);
-            var result = ContentView.BuildFailureCallout(plan);
+            var result = ContentView.BuildFailureCallout(CreateFailedPlan(planDir), tendrilHome);
 
             var callout = Assert.IsType<Callout>(result);
             Assert.Equal(CalloutVariant.Warning, callout.Variant);
@@ -37,26 +50,19 @@ public class ContentViewTests
         }
         finally
         {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
+            if (Directory.Exists(tendrilHome))
+                Directory.Delete(tendrilHome, true);
         }
     }
 
     [Fact]
     public void BuildFailureCallout_WithFailedStatusLog_ShowsDestructiveCallout()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"ivy-test-{Guid.NewGuid()}");
+        var (tendrilHome, planDir) = CreateHome(
+            "# Job Log 00007-00001-ExecutePlan\n\n- **Status:** Failed\n- **Started:** 2026-03-30 10:00:00Z\n");
         try
         {
-            var planDir = Path.Combine(tempDir, "00001-TestPlan");
-            var logsDir = Path.Combine(planDir, "Logs");
-            Directory.CreateDirectory(logsDir);
-
-            File.WriteAllText(Path.Combine(logsDir, "001-ExecutePlan.md"),
-                "# ExecutePlan\n\n- **Status:** Failed\n- **Started:** 2026-03-30 10:00:00Z\n");
-
-            var plan = CreateFailedPlan(planDir);
-            var result = ContentView.BuildFailureCallout(plan);
+            var result = ContentView.BuildFailureCallout(CreateFailedPlan(planDir), tendrilHome);
 
             var callout = Assert.IsType<Callout>(result);
             Assert.Equal(CalloutVariant.Destructive, callout.Variant);
@@ -64,48 +70,42 @@ public class ContentViewTests
         }
         finally
         {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
+            if (Directory.Exists(tendrilHome))
+                Directory.Delete(tendrilHome, true);
         }
     }
 
     [Fact]
     public void BuildFailureCallout_WithNoLogs_ShowsNoDetailsAvailable()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"ivy-test-{Guid.NewGuid()}");
+        var (tendrilHome, planDir) = CreateHome(null);
         try
         {
-            var planDir = Path.Combine(tempDir, "00001-TestPlan");
-            Directory.CreateDirectory(planDir);
-
-            var plan = CreateFailedPlan(planDir);
-            var result = ContentView.BuildFailureCallout(plan);
+            var result = ContentView.BuildFailureCallout(CreateFailedPlan(planDir), tendrilHome);
 
             var callout = Assert.IsType<Callout>(result);
             Assert.Equal(CalloutVariant.Destructive, callout.Variant);
         }
         finally
         {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
+            if (Directory.Exists(tendrilHome))
+                Directory.Delete(tendrilHome, true);
         }
     }
 
     [Fact]
-    public void BuildFailureCallout_WithSummaryLog_ShowsSummary()
+    public void BuildFailureCallout_IgnoresPromptFileWhenLocatingTheJobLog()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"ivy-test-{Guid.NewGuid()}");
+        var (tendrilHome, planDir) = CreateHome(
+            "# Job Log 00007-00001-ExecutePlan\n\n- **Status:** Failed\n");
         try
         {
-            var planDir = Path.Combine(tempDir, "00001-TestPlan");
-            var logsDir = Path.Combine(planDir, "Logs");
-            Directory.CreateDirectory(logsDir);
+            // The Job Prompt shares the plan-id segment and also ends in .md — it must not be picked up.
+            File.WriteAllText(
+                Path.Combine(tendrilHome, "Jobs", "00007-00001-ExecutePlan.prompt.md"),
+                "## Summary\n\nthis is the agent prompt, not a log\n");
 
-            File.WriteAllText(Path.Combine(logsDir, "001-ExecutePlan.md"),
-                "# ExecutePlan\n\n## Summary\n\nBuild failed due to missing dependency.\n");
-
-            var plan = CreateFailedPlan(planDir);
-            var result = ContentView.BuildFailureCallout(plan);
+            var result = ContentView.BuildFailureCallout(CreateFailedPlan(planDir), tendrilHome);
 
             var callout = Assert.IsType<Callout>(result);
             Assert.Equal(CalloutVariant.Destructive, callout.Variant);
@@ -113,8 +113,28 @@ public class ContentViewTests
         }
         finally
         {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
+            if (Directory.Exists(tendrilHome))
+                Directory.Delete(tendrilHome, true);
+        }
+    }
+
+    [Fact]
+    public void BuildFailureCallout_WithSummaryLog_ShowsSummary()
+    {
+        var (tendrilHome, planDir) = CreateHome(
+            "# Job Log 00007-00001-ExecutePlan\n\n## Summary\n\nBuild failed due to missing dependency.\n");
+        try
+        {
+            var result = ContentView.BuildFailureCallout(CreateFailedPlan(planDir), tendrilHome);
+
+            var callout = Assert.IsType<Callout>(result);
+            Assert.Equal(CalloutVariant.Destructive, callout.Variant);
+            Assert.Equal("Execution Failed", callout.Title);
+        }
+        finally
+        {
+            if (Directory.Exists(tendrilHome))
+                Directory.Delete(tendrilHome, true);
         }
     }
 
@@ -192,5 +212,48 @@ public class ContentViewTests
     {
         Assert.False(ReviewContentView.ValidateVerificationPath(
             "../secrets/key", "D:/plans/001"));
+    }
+
+    [Fact]
+    public void ResolvePendingSelection_WithPendingMatchingTitles_ReturnsThem()
+    {
+        var recs = new List<RecommendationYaml>
+        {
+            new() { Title = "R1" },
+            new() { Title = "R2" },
+            new() { Title = "R3" },
+        };
+
+        var selected = ReviewContentView.ResolvePendingSelection(recs, ["R1", "R3"]);
+
+        Assert.Equal(["R1", "R3"], selected.Select(r => r.Title));
+    }
+
+    [Fact]
+    public void ResolvePendingSelection_ExcludesNonPending()
+    {
+        var recs = new List<RecommendationYaml>
+        {
+            new() { Title = "R1", State = RecommendationStatus.Pending },
+            new() { Title = "R2", State = RecommendationStatus.Accepted },
+        };
+
+        var selected = ReviewContentView.ResolvePendingSelection(recs, ["R1", "R2"]);
+
+        Assert.Equal(["R1"], selected.Select(r => r.Title));
+    }
+
+    [Fact]
+    public void ResolvePendingSelection_WithNoMatchingTitles_ReturnsEmpty()
+    {
+        var recs = new List<RecommendationYaml>
+        {
+            new() { Title = "R1" },
+            new() { Title = "R2" },
+        };
+
+        var selected = ReviewContentView.ResolvePendingSelection(recs, ["Unknown"]);
+
+        Assert.Empty(selected);
     }
 }

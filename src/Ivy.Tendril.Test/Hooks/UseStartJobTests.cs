@@ -147,6 +147,11 @@ public class UseStartJobTests
             return false;
         }
 
+        public bool ReportJobFailure(string id, string message)
+        {
+            return false;
+        }
+
         public bool IsInboxFileTracked(string filePath)
         {
             return false;

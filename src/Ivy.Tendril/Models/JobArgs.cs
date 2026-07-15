@@ -10,7 +10,7 @@ namespace Ivy.Tendril.Models;
 [JsonDerivedType(typeof(SplitPlanArgs), "SplitPlan")]
 [JsonDerivedType(typeof(CreatePrArgs), "CreatePr")]
 [JsonDerivedType(typeof(CreateIssueArgs), "CreateIssue")]
-[JsonDerivedType(typeof(UpdateProjectArgs), "UpdateProject")]
+[JsonDerivedType(typeof(SetupProjectArgs), "SetupProject")]
 [JsonDerivedType(typeof(SyncRepoArgs), "SyncRepo")]
 public abstract record JobArgsBase
 {
@@ -76,7 +76,7 @@ public record CreatePrArgs(
     bool Merge = true,
     bool DeleteBranch = true,
     bool IncludeArtifacts = true,
-    string? Assignee = null,
+    string? Reviewer = null,
     string? Comment = null,
     bool Draft = false) : JobArgsBase
 {
@@ -95,18 +95,31 @@ public record CreateIssueArgs(
     public override string PlanFolder => FolderPath;
 }
 
-public record UpdateProjectArgs(
+public record SetupProjectArgs(
     string FolderPath) : JobArgsBase
 {
-    public override string Type => Constants.JobTypes.UpdateProject;
+    public override string Type => Constants.JobTypes.SetupProject;
     public override string PlanFolder => FolderPath;
 }
 
 public record SyncRepoArgs(
     string RepoPath,
-    string BaseBranch = "main",
-    string? PlanFolderPath = null) : JobArgsBase
+    string BaseBranch,
+    string? PlanFolderPath = null,
+    UntrackedChangesPolicy UntrackedChangesPolicy = UntrackedChangesPolicy.Stash) : JobArgsBase
 {
     public override string Type => Constants.JobTypes.SyncRepo;
     public override string? PlanFolder => PlanFolderPath;
+}
+
+// How SyncRepo should treat uncommitted changes and/or untracked files when syncing a repo.
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum UntrackedChangesPolicy
+{
+    // Preserve local work in a named stash (default; never loses work).
+    Stash,
+    // Group changes into logical commits and push them to the base branch.
+    Commit,
+    // Group changes into logical commits on a new branch and open a pull request.
+    PullRequest
 }

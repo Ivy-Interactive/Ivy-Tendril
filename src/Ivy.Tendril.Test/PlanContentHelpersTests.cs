@@ -244,6 +244,43 @@ public class PlanContentHelpersTests
     }
 
     [Fact]
+    public void GetAllChangesData_FallsBackToWorktree_AndFlagsUnlisted()
+    {
+        // Commit isn't in any configured repo (plan has none; StubConfigService returns no project),
+        // but a worktree under the plan folder contains it — the diff should come from there and be
+        // flagged as an unlisted worktree (#1340).
+        var tempDir = Path.Combine(Path.GetTempPath(), $"ivy-test-{Guid.NewGuid()}");
+        try
+        {
+            var worktree = Path.Combine(tempDir, "Worktrees", "Ivy-Framework");
+            Directory.CreateDirectory(worktree);
+
+            var gitService = new StubGitService(
+                "Worktree commit",
+                [("A", "file.cs")],
+                "diff --git a/file.cs b/file.cs\n+added");
+            var config = new StubConfigService();
+
+            var metadata = new PlanMetadata(
+                1, "Test", "Bug", "Test Plan", PlanStatus.Draft,
+                [], ["abc123"], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null);
+            var plan = new PlanFile(metadata, "", tempDir, "");
+
+            var result = PlanContentHelpers.GetAllChangesData(plan, config, gitService);
+
+            Assert.NotNull(result);
+            Assert.True(result.FromUnlistedWorktree);
+            Assert.EndsWith("Ivy-Framework", result.SourceRepoPath!);
+            Assert.Single(result.Files);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
     public void SplitDiffByFile_MultiFileDiff_SplitsCorrectly()
     {
         var diff = "diff --git a/src/Foo.cs b/src/Foo.cs\n"

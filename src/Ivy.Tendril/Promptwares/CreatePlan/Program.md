@@ -26,7 +26,7 @@ Project information (repos, verifications, context) is in the **Projects** secti
 
 ### 1. Parse Task Description
 
-Report status: `tendril job status TendrilJobId --message "Parsing task..."`
+Report status: `tendril job status TendrilJobId --message="Parsing task..."`
 
 The `TaskDescription` header value contains the user's task description. 
 
@@ -43,7 +43,7 @@ C) Unrelated tickets (→ delegate steps below)
 2. **Identify the first ticket** — This is the one we continue planning for in this session.
 3. **Delegate the rest** — For each additional unrelated ticket, spawn a separate CreatePlan jobs:
    ```bash
-   tendril job start CreatePlan --description "<ticket description/url>" --project "<TendrilProject>" --force
+   tendril job start CreatePlan --description="<ticket description/url>" --project="<TendrilProject>" --force
    ```
 4. **Plan for the first ticket** — Continue with the rest of the steps in this document for the first identified ticket. The other tickets will be handled by their respective CreatePlan jobs.
 
@@ -51,7 +51,17 @@ C) Unrelated tickets (→ delegate steps below)
 
 If it references related plans with `[number]` syntax (e.g. `[01205]`), find and read those plan files from `TendrilPlansFolder` for context.
 
-**Extract Source URL**: Check if the task description contains a GitHub PR URL (`https://github.com/{owner}/{repo}/pull/{number}`) or issue URL (`https://github.com/{owner}/{repo}/issues/{number}`). If found, store it as `sourceUrl` in plan.yaml. Use `gh pr view <url> --json title,body` or `gh issue view <url> --json title,body` to fetch the title and body for additional context when writing the plan.
+**Extract Source URL**: Check if the task description contains a GitHub PR URL (`https://github.com/{owner}/{repo}/pull/{number}`) or issue URL (`https://github.com/{owner}/{repo}/issues/{number}`). If found, store it as `sourceUrl` in plan.yaml.
+
+- **Issue URL**: `gh issue view <url> --json title,body,comments` — fetch the title, body, and comments for context when writing the plan.
+- **PR URL**: the plan must be based on the **review feedback on the PR**, not just its description. Fetch the full conversation:
+  ```bash
+  # Title, body, top-level conversation comments, and review summaries (with their state: APPROVED / CHANGES_REQUESTED / COMMENTED)
+  gh pr view <url> --json title,body,comments,reviews
+  # Inline (line-level) review comments — the specific code feedback. These are the most important.
+  gh api "repos/{owner}/{repo}/pulls/{number}/comments" --paginate
+  ```
+  Treat every **unresolved review comment** and every **"changes requested"** point as a requirement the plan MUST address. In the plan revision, incorporate this feedback explicitly: in `## Problem`, summarize what the reviewers asked for (quote/attribute the key comments); in `## Solution`, map each comment to a concrete change, referencing the exact files and lines the inline comments point at (`path` + `line` from the API response). Do not silently drop a reviewer comment — if one is out of scope or already resolved, say so. This plan will update the **same PR** (ExecutePlan bases the worktree on the PR's branch), so it is iterating on that PR, not opening a new one.
 
 **Format screenshot paths**: If the task description contains file paths to images (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`), include them in the plan revision as markdown images using `file:///` URLs. Convert backslashes to forward slashes. Example: a path like `D:\Screenshots\2026-05-07_17-16.png` in the description becomes `![screenshot](file:///D:/Screenshots/2026-05-07_17-16.png)` in the revision.
 
@@ -69,7 +79,7 @@ The **Projects** section of your firmware lists all available projects with thei
 **If `TendrilProject: Auto`**:
 - Analyze the task description to infer the correct project from the **Projects** section
 - Match based on keywords, repo paths, or component names in the description
-- **If no project matches**: Report final status via `tendril job status TendrilJobId --message "Could not determine project from task description. Available projects: <list>"`, write trash file via `tendril trash write <SafeTitle>.md <<'EOF'...EOF` explaining that the project could not be determined, list the available project names, then exit without creating a plan
+- **If no project matches**: Report final status via `tendril job status TendrilJobId --message="Could not determine project from task description. Available projects: <list>"`, write trash file via `tendril trash write <SafeTitle>.md --stdin <<'EOF'...EOF` explaining that the project could not be determined, list the available project names, then exit without creating a plan
 - Use the matched project's context to scope your research
 
 ### 2. Plan ID
@@ -78,7 +88,7 @@ Do NOT read or modify `.counter` directly. Plan IDs are allocated by the `tendri
 
 ### 3. Research
 
-Report status: `tendril job status TendrilJobId --message "Researching codebase..."`
+Report status: `tendril job status TendrilJobId --message="Researching codebase..."`
 
 - **Check for duplicate plans** first — **unless `Force: true` is set in the firmware header**, in which case skip duplicate detection entirely. However, if you discover related existing plans during research (e.g., from grep results or memory), still link them via `--related-plan` on `tendril plan create`. `Force` means "create the plan regardless" — not "ignore prior work." Check the `DuplicateCandidates` firmware value. If present, it contains pre-computed matches (format: `folderName|title|state` per line). For each match, perform **state-aware duplicate detection** on those specific plans only. If `DuplicateCandidates` is absent, no potential duplicates were found — skip duplicate detection. When matches are found, decide as follows:
 
@@ -92,8 +102,8 @@ Report status: `tendril job status TendrilJobId --message "Researching codebase.
   |---|---|
   | `Completed` (with merged PR) | Check for regression (Step 4), otherwise trash |
   | `Completed` (no PR, but commits exist) | Check for regression (Step 4), trash with note "no PR found" |
-  | `Draft` / `Building` / `Executing` | Trash, but note "plan in progress (state: X)" |
-  | `ReadyForReview` | Trash, note "awaiting review" |
+  | `Draft` / `Creating` / `Executing` | Trash, but note "plan in progress (state: X)" |
+  | `Review` | Trash, note "awaiting review" |
   | `Failed` | **Do NOT trash** — create the plan (the previous attempt failed) |
   | `Icebox` / `Skipped` | Trash with note "existing plan state: X" (issue is already covered) |
 
@@ -121,13 +131,13 @@ Report status: `tendril job status TendrilJobId --message "Researching codebase.
   First, report a final status describing why no plan is being created:
 
   ```bash
-  tendril job status TendrilJobId --message "Duplicate of <existing plan folder name> (<state>): <brief reason>"
+  tendril job status TendrilJobId --message="Duplicate of <existing plan folder name> (<state>): <brief reason>"
   ```
 
   Then write a trash file using the CLI (where `<SafeTitle>` is the title with spaces replaced by hyphens and special characters removed), then exit without creating a plan folder:
 
   ```bash
-  tendril trash write <SafeTitle>.md <<'EOF'
+  tendril trash write <SafeTitle>.md --stdin <<'EOF'
   ---
   date: <CurrentTime>
   originalRequest: "<the task description text>"
@@ -188,13 +198,13 @@ For each assertion found:
 
 **Decision:**
 - **All validations pass** → Proceed to Step 4, include validated code blocks in plan with `**Current implementation**` headers
-- **Any validation fails** → Report final status via `tendril job status TendrilJobId --message "Code state validation failed: <brief description of what changed>"`, write trash file via `tendril trash write <SafeTitle>.md <<'EOF'...EOF` explaining the validation failure, then exit without creating a plan
+- **Any validation fails** → Report final status via `tendril job status TendrilJobId --message="Code state validation failed: <brief description of what changed>"`, write trash file via `tendril trash write <SafeTitle>.md --stdin <<'EOF'...EOF` explaining the validation failure, then exit without creating a plan
 
 This catches stale plans before they enter the review queue, reducing wasted review time.
 
 ### 4. Create Plan
 
-Report status: `tendril job status TendrilJobId --message "Creating plan..."`
+Report status: `tendril job status TendrilJobId --message="Creating plan..."`
 
 Create the plan using CLI commands according to the plan structure in the **Reference Documents** section. **Never write `plan.yaml` directly** — use `tendril plan` commands for all plan metadata.
 
@@ -208,11 +218,13 @@ Use `tendril plan create` to allocate a plan ID, create the folder, and write `p
 
 ```bash
 tendril plan create "<Title>" "<Project>" \
-  --plans-dir "<TendrilPlansFolder>" \
-  --level "Feature" \
-  --initial-prompt "<cleaned task description>" \
-  --execution-profile "balanced"
+  --plans-dir="<TendrilPlansFolder>" \
+  --level="Feature" \
+  --initial-prompt="<cleaned task description>" \
+  --execution-profile="balanced"
 ```
+
+**CRITICAL — use the `--option=value` (equals) form for every option, exactly as shown above.** The CLI reads any token that begins with `-` as an option name, so the space-separated form (`--initial-prompt "..."`) fails whenever a value starts with a dash — e.g. a cleaned task description that opens with a bullet (`- ...`) or a flag-like word (`--watch ...`). Writing `--initial-prompt="- ..."` keeps the value glued to its option as a single token and parses correctly (shell quoting alone does not help — the value is still a separate `-`-prefixed token). Also ensure `<Title>` does **not** begin with a `-` (it is a positional argument and would be misread as an option).
 
 **IMPORTANT:** Always pass `--plans-dir` with the `TendrilPlansFolder` firmware value. This ensures the plan is created in the correct directory regardless of environment variable inheritance. The `<Project>` must be the exact project name from the **Projects** section — repos are derived automatically from the project configuration.
 
@@ -220,16 +232,19 @@ The command outputs:
 ```
 PlanId: <ID>
 Directory: <TendrilPlansFolder>/<ID>-<SafeTitle>
-Plan created: <ID>-<SafeTitle>
+Verifications:
+<Name>:<Status>
+<Name>:<Status>
+...
 ```
 
 Parse `PlanId` and `Directory` from the output — use these for all subsequent operations.
 
-Include optional flags as needed:
-- `--source-url "<url>"` — if a source URL was extracted in Step 1
-- `--related-plan "<folder-name>"` — for each plan referenced via `[number]` syntax in the task description
-- `--depends-on "<folder-name>"` — for blocking dependencies (see Section 4.4)
-- `--priority <number>` — if non-default priority
+Include optional flags as needed (always use the `--option=value` form):
+- `--source-url="<url>"` — if a source URL was extracted in Step 1
+- `--related-plan="<folder-name>"` — for each plan referenced via `[number]` syntax in the task description
+- `--depends-on="<folder-name>"` — for blocking dependencies (see Section 4.4)
+- `--priority=<number>` — if non-default priority
 
 **Verifications are seeded automatically.** `tendril plan create` adds **every** verification of the project (in the **Projects** section), in their configured order, defaulting **Required → `Pending`** and **Optional → `Skipped`**. You do **not** need to pass `--verification` or ensure they are present.
 
@@ -242,7 +257,7 @@ Adjust them as the task warrants (the user can also toggle them later in the UI;
 Write the revision content via CLI:
 
 ```bash
-tendril plan write-revision <PlanId> <<'EOF'
+tendril plan write-revision <PlanId> --stdin <<'EOF'
 <revision content here>
 EOF
 ```
@@ -254,7 +269,7 @@ This reads from STDIN and auto-creates `Revisions/001.md` (or the next sequentia
 After creating the plan, report the plan ID and title to the Jobs UI so it can display progress:
 
 ```bash
-tendril job status <TendrilJobId> --message "Creating plan..." --plan-id <PlanId> --plan-title "<Title>"
+tendril job status <TendrilJobId> --message="Creating plan..." --plan-id=<PlanId> --plan-title="<Title>"
 ```
 
 **CRITICAL: Never call `tendril job status --plan-id` with a value you did not receive from `tendril plan create` stdout. Never use example IDs from documentation. If you have not successfully created a plan, do NOT report any plan-id.**
@@ -404,6 +419,6 @@ The `## Tests` section MUST include two parts:
 - **!CRITICAL: Every CreatePlan execution MUST produce at least one plan folder. Even if the task is an analysis, review, or investigation — always create a plan with actionable steps. Never just analyze and report back without a plan.**
 - The plan must include all paths and information for an LLM coding agent to execute end-to-end without human intervention
 - **!IMPORTANT: Validate all file paths before writing `file:///` links in plans.** Use glob/search to confirm the actual path exists. Do NOT guess paths based on naming conventions — hallucinated paths cause "File not found" errors in the UI.
-- When referencing local files, use markdown links: `[filename:line](file:///path/to/filename)` for source files with line numbers, or `[filename](file:///path/to/filename)` without. Never use backticks in link text or `#L123` fragments in URLs. Use `![alt](path)` for images.
+- When referencing local files, use markdown links: `[filename:line](file:///path/to/filename)` for source files with line numbers, or `[filename](file:///path/to/filename)` without. Never use backticks in link text, and never append a line number to the URL itself — no `:348` suffix and no `#L123` fragment; the line number belongs only in the display text. Only use `file:///` links for files that already exist; for a file the plan will create, write its path in inline code (`` `path/to/new/file` ``) instead of a link. Use `![alt](path)` for images.
 - Keep the plan short and concise - the limiting factor of this system is a human that will have to read this.
 - **🚫 ABSOLUTE PROHIBITION: You are NEVER allowed to fix code directly in the source repository. Under NO circumstances may you Write, Edit, or create files in the source repos. Not "just this once", not "to save time", not "it's a one-liner". Your ONLY job is to produce plans via `tendril` CLI commands. If you feel tempted to "just fix it quickly" — STOP. Write a plan instead. Violations waste the entire execution and break the workflow.**

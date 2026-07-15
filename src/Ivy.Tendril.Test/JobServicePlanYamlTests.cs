@@ -207,7 +207,7 @@ public class JobServicePlanYamlTests : IDisposable
             var yamlContent = $"state: Draft\nproject: TestProject\nlevel: NiceToHave\ntitle: Test Plan\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nrepos:\n- {repoDir}\nprs: []\ncommits: []\nverifications: []\nrelatedPlans: []\ndependsOn: []\n";
             File.WriteAllText(Path.Combine(tempDir, "plan.yaml"), yamlContent);
 
-            JobService.SetPlanStateByFolder(tempDir, "ReadyForReview");
+            JobService.SetPlanStateByFolder(tempDir, "Review");
 
             var result = File.ReadAllText(Path.Combine(tempDir, "plan.yaml"));
             // Verify ISO 8601 format: yyyy-MM-ddTHH:mm:ss (with optional fractional seconds and Z)

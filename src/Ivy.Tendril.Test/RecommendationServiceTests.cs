@@ -314,47 +314,44 @@ public class RecommendationServiceTests : IDisposable
     }
 
     [Fact]
-    public void GetRecommendations_WithImpactAndRisk_DeserializesCorrectly()
+    public void GetRecommendations_WithImpact_DeserializesCorrectly()
     {
         var yaml =
-            "- title: Optimize query\n  description: Slow query in dashboard\n  state: Pending\n  impact: High\n  risk: Small\n";
-        CreatePlanWithRecommendations("01660-ImpactRisk", yaml);
+            "- title: Optimize query\n  description: Slow query in dashboard\n  state: Pending\n  impact: High\n";
+        CreatePlanWithRecommendations("01660-Impact", yaml);
 
         var recommendations = _service.GetRecommendations();
 
         Assert.Single(recommendations);
         Assert.Equal("High", recommendations[0].Impact);
-        Assert.Equal("Small", recommendations[0].Risk);
     }
 
     [Fact]
-    public void GetRecommendations_WithoutImpactAndRisk_ReturnsNull()
+    public void GetRecommendations_WithoutImpact_ReturnsNull()
     {
         var yaml = "- title: Legacy item\n  description: Old recommendation\n  state: Pending\n";
-        CreatePlanWithRecommendations("01661-NoImpactRisk", yaml);
+        CreatePlanWithRecommendations("01661-NoImpact", yaml);
 
         var recommendations = _service.GetRecommendations();
 
         Assert.Single(recommendations);
         Assert.Null(recommendations[0].Impact);
-        Assert.Null(recommendations[0].Risk);
     }
 
     [Fact]
-    public async Task UpdateRecommendationState_PreservesImpactAndRisk()
+    public async Task UpdateRecommendationState_PreservesImpact()
     {
         var yaml =
-            "- title: Fix bug\n  description: Found a bug\n  state: Pending\n  impact: Medium\n  risk: High\n";
-        CreatePlanWithRecommendations("01662-PreserveImpactRisk", yaml);
+            "- title: Fix bug\n  description: Found a bug\n  state: Pending\n  impact: Medium\n";
+        CreatePlanWithRecommendations("01662-PreserveImpact", yaml);
 
-        _service.UpdateRecommendationState("01662-PreserveImpactRisk", "Fix bug", "Accepted");
+        _service.UpdateRecommendationState("01662-PreserveImpact", "Fix bug", "Accepted");
         await _service.FlushPendingWritesAsync();
 
         var recommendations = _service.GetRecommendations();
         Assert.Single(recommendations);
         Assert.Equal("Accepted", recommendations[0].State);
         Assert.Equal("Medium", recommendations[0].Impact);
-        Assert.Equal("High", recommendations[0].Risk);
     }
 
     [Fact]
@@ -410,5 +407,74 @@ public class RecommendationServiceTests : IDisposable
         Assert.Single(result2);
         Assert.Equal("Accepted", result2[0].State);
         Assert.NotSame(result1, result2);
+    }
+
+    private string CreatePlanWithRecommendationsAndVerifications(string folderName, string recommendationsYaml,
+        string verificationsYaml, string state = "Completed")
+    {
+        var dir = Path.Combine(_plansDir, folderName);
+        Directory.CreateDirectory(dir);
+
+        string Indent(string yaml) => string.Join("\n",
+            yaml.Split('\n').Select(l => string.IsNullOrWhiteSpace(l) ? l : "  " + l));
+
+        var planYaml =
+            $"state: {state}\nproject: Tendril\ntitle: Test Plan\nrepos: []\ncommits: []\nprs: []\n" +
+            $"verifications:\n{Indent(verificationsYaml)}\nrelatedPlans: []\ndependsOn: []\n" +
+            $"created: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nrecommendations:\n{Indent(recommendationsYaml)}\n";
+        File.WriteAllText(Path.Combine(dir, "plan.yaml"), planYaml);
+
+        var revisionsDir = Path.Combine(dir, "Revisions");
+        Directory.CreateDirectory(revisionsDir);
+        File.WriteAllText(Path.Combine(revisionsDir, "001.md"), "# Test");
+
+        return dir;
+    }
+
+    [Fact]
+    public async Task AcceptRecommendationsAndRetry_AcceptsAllAndTransitions()
+    {
+        var recsYaml = "- title: Rec1\n  description: First\n  state: Pending\n" +
+                        "- title: Rec2\n  description: Second\n  state: Pending\n" +
+                        "- title: Rec3\n  description: Third\n  state: Pending\n";
+        var verificationsYaml = "- name: DotnetBuild\n  status: Pass\n" +
+                                 "- name: DotnetFormat\n  status: Skipped\n";
+        var folderPath = CreatePlanWithRecommendationsAndVerifications(
+            "01670-BatchAccept", recsYaml, verificationsYaml);
+
+        _service.AcceptRecommendationsAndRetry("01670-BatchAccept", new[] { "Rec1", "Rec2" });
+        await _service.FlushPendingWritesAsync();
+
+        var plan = _service.GetPlanByFolder(folderPath);
+        Assert.NotNull(plan);
+        Assert.Equal(PlanStatus.Executing, plan!.Status);
+
+        var recs = _service.GetRecommendationsForPlan("01670-BatchAccept");
+        Assert.Equal("Accepted", recs.First(r => r.Title == "Rec1").State);
+        Assert.Equal("Accepted", recs.First(r => r.Title == "Rec2").State);
+        Assert.Equal("Pending", recs.First(r => r.Title == "Rec3").State);
+
+        var build = plan.Verifications.First(v => v.Name == "DotnetBuild");
+        var format = plan.Verifications.First(v => v.Name == "DotnetFormat");
+        Assert.Equal(VerificationStatus.Pending, build.Status);
+        Assert.Equal(VerificationStatus.Skipped, format.Status);
+    }
+
+    [Fact]
+    public async Task AcceptRecommendationsAndRetry_SingleTitle_MatchesSingleRecMethod()
+    {
+        var recsYaml = "- title: Rec1\n  description: First\n  state: Pending\n";
+        var verificationsYaml = "- name: DotnetBuild\n  status: Pass\n";
+        var folderPath = CreatePlanWithRecommendationsAndVerifications(
+            "01671-BatchAcceptSingle", recsYaml, verificationsYaml);
+
+        _service.AcceptRecommendationsAndRetry("01671-BatchAcceptSingle", new[] { "Rec1" });
+        await _service.FlushPendingWritesAsync();
+
+        var plan = _service.GetPlanByFolder(folderPath);
+        Assert.NotNull(plan);
+        Assert.Equal(PlanStatus.Executing, plan!.Status);
+        var recs = _service.GetRecommendationsForPlan("01671-BatchAcceptSingle");
+        Assert.Equal("Accepted", recs.First(r => r.Title == "Rec1").State);
     }
 }

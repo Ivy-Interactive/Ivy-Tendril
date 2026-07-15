@@ -104,7 +104,7 @@ public class PlanValidationServiceTests : IDisposable
     [Fact]
     public void Validate_AcceptsAllValidStates()
     {
-        var validStates = new[] { "Draft", "Building", "Updating", "Executing", "ReadyForReview", "Failed", "Completed", "Skipped", "Blocked", "Icebox" };
+        var validStates = new[] { "Draft", "Creating", "Updating", "Executing", "Review", "Failed", "Completed", "Skipped", "Blocked", "Icebox" };
 
         foreach (var state in validStates)
         {

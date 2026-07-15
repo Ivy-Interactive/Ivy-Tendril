@@ -1,4 +1,5 @@
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Apps.Views;
 using Ivy.Widgets.DiffView;
 
 namespace Ivy.Tendril.Apps.Views.Tabs;
@@ -6,7 +7,8 @@ namespace Ivy.Tendril.Apps.Views.Tabs;
 public class ChangesTabView(
     PlanContentHelpers.AllChangesData? changesData,
     bool loading,
-    Exception? error) : ViewBase
+    Exception? error,
+    string? projectName = null) : ViewBase
 {
     public int FileCount => changesData?.Files.Count ?? 0;
 
@@ -24,6 +26,20 @@ public class ChangesTabView(
                 ? $"Failed to load changes: {err.Message}"
                 : "No commits yet.";
             return Text.Muted(errorMsg);
+        }
+
+        // The diff was read from a worktree whose repo isn't part of the plan's project (#1340).
+        // Warn so the reviewer doesn't merge blind.
+        object? mismatchBanner = null;
+        if (changesData.FromUnlistedWorktree)
+        {
+            var repoLabel = string.IsNullOrEmpty(changesData.SourceRepoPath)
+                ? "a different repository"
+                : Path.GetFileName(changesData.SourceRepoPath!.TrimEnd('/', '\\'));
+            var projectLabel = string.IsNullOrEmpty(projectName) ? "this plan's project" : $"project '{projectName}'";
+            mismatchBanner = Callout.Warning(
+                $"These changes are in {repoLabel}, which is not part of {projectLabel}. " +
+                "The plan may have been created in the wrong project.", "Wrong project?");
         }
 
         var allFileDiffs = PlanContentHelpers.SplitDiffByFile(changesData);
@@ -67,23 +83,40 @@ public class ChangesTabView(
                 .Width(Size.Full());
         }
 
-        var treePanel = Layout.Vertical().Gap(2).Padding(1)
-            .Width(Size.Rem(12).Min(Size.Rem(12))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)))
-            | tree;
+        // Desktop/laptop: the file tree sits in a fixed-width sidebar beside the diffs.
+        var treePanel = new Box(Layout.Vertical().Gap(2).Padding(1)
+                .Width(Size.Rem(14).Min(Size.Rem(14))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)))
+                | tree)
+            .BorderThickness(0).Padding(0).Width(Size.Auto()).Height(Size.Full().Min(Size.Px(0)))
+            .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
-        var toolbar = Layout.Horizontal().Gap(2).Padding(1).AlignContent(Align.Center).Height(Size.Auto())
+        // Mobile/tablet: the tree has no room, so collapse it into a dropdown list of
+        // files that jumps to the corresponding diff (same anchor as the tree select).
+        var mobileFilePicker = MobileItemPicker.Build(
+                $"Jump to file ({sortedFileDiffs.Count})",
+                sortedFileDiffs,
+                fd => fd.FilePath,
+                _ => false,
+                fd => client.Redirect($"#{fd.FilePath}"))
+            .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
+
+        var toolbar = Layout.Horizontal().Gap(2).Padding(1).AlignContent(Align.Left).Height(Size.Auto())
             | hideFormatting.ToSwitchInput(label: "Hide formatting changes");
 
         if (hideFormatting.Value && hiddenCount > 0)
             toolbar |= Text.Muted($"{fileDiffs.Count} of {allFileDiffs.Count} files (hiding {hiddenCount} formatting-only)").Small();
 
-        var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0))).Padding(0, 0, 0, 2)
+        var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0))).Padding(0, 0, 2, 2)
             | treePanel
             | diffsLayout;
 
-        return Layout.Vertical().Height(Size.Full().Min(Size.Px(0)))
-            | toolbar
-            | mainLayout;
+        var outer = Layout.Vertical().Height(Size.Full().Min(Size.Px(0)));
+        if (mismatchBanner != null)
+            outer |= mismatchBanner;
+        outer |= toolbar;
+        outer |= mobileFilePicker;
+        outer |= mainLayout;
+        return outer;
     }
 
     private static TreeNode BuildFileTree(IReadOnlyList<PlanContentHelpers.FileDiff> fileDiffs)

@@ -46,7 +46,7 @@ public class JobServiceCompletionGuardTests : IDisposable
 
         Assert.Equal(JobStatus.Stopped, service.GetJob(id)!.Status);
         Assert.Contains(("test-plan", PlanStatus.Draft), plan.Transitions);
-        Assert.DoesNotContain(plan.Transitions, t => t.State == PlanStatus.ReadyForReview);
+        Assert.DoesNotContain(plan.Transitions, t => t.State == PlanStatus.Review);
         Assert.Empty(plan.ResetToDraftCalls);
     }
 
@@ -55,11 +55,11 @@ public class JobServiceCompletionGuardTests : IDisposable
     {
         var (service, plan) = CreateServiceWithStub();
         var id = service.CreateTestJob(new RetryPlanArgs("test-plan", "fix it"));
-        service.GetJob(id)!.PreviousPlanState = PlanStatus.ReadyForReview;
+        service.GetJob(id)!.PreviousPlanState = PlanStatus.Review;
 
         service.StopJob(id);
 
-        Assert.Contains(("test-plan", PlanStatus.ReadyForReview), plan.Transitions);
+        Assert.Contains(("test-plan", PlanStatus.Review), plan.Transitions);
         Assert.Empty(plan.ResetToDraftCalls);
     }
 
@@ -69,12 +69,12 @@ public class JobServiceCompletionGuardTests : IDisposable
         var (service, plan) = CreateServiceWithStub();
         var id = service.CreateTestJob(new CreatePrArgs("test-plan"));
         // CreatePr starts from Review; snapshot lets it revert there (no fallback covers CreatePr).
-        service.GetJob(id)!.PreviousPlanState = PlanStatus.ReadyForReview;
+        service.GetJob(id)!.PreviousPlanState = PlanStatus.Review;
 
         service.StopJob(id);
 
-        Assert.Contains(("test-plan", PlanStatus.ReadyForReview), plan.Transitions);
-        Assert.DoesNotContain(plan.Transitions, t => t.State == PlanStatus.Building);
+        Assert.Contains(("test-plan", PlanStatus.Review), plan.Transitions);
+        Assert.DoesNotContain(plan.Transitions, t => t.State == PlanStatus.Creating);
     }
 
     [Fact]
@@ -92,10 +92,16 @@ public class JobServiceCompletionGuardTests : IDisposable
     [Fact]
     public void DeleteJob_ExecutePlan_NonTerminal_ResetsToDraft()
     {
-        var (service, plan) = CreateServiceWithStub(currentStatus: PlanStatus.ReadyForReview);
+        var (service, plan) = CreateServiceWithStub(currentStatus: PlanStatus.Review);
         var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
 
         service.DeleteJob(id);
+
+        // Cleanup + ResetToDraft now run on a background thread (optimistic delete), so the
+        // reset lands after DeleteJob returns rather than synchronously.
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (plan.ResetToDraftCalls.Count == 0 && DateTime.UtcNow < deadline)
+            Thread.Sleep(10);
 
         Assert.Contains("test-plan", plan.ResetToDraftCalls);
     }
@@ -110,19 +116,44 @@ public class JobServiceCompletionGuardTests : IDisposable
         service.DeleteJob(id);
 
         Assert.Empty(plan.ResetToDraftCalls);
+        Assert.Empty(plan.Transitions);
+    }
+
+    [Fact]
+    public void DeleteJob_CompletedPlan_NonExecuteJob_DoesNotRevertState()
+    {
+        var (service, plan) = CreateServiceWithStub(currentStatus: PlanStatus.Completed);
+        var id = service.CreateTestJob(new CreatePrArgs("test-plan"));
+        service.GetJob(id)!.PreviousPlanState = PlanStatus.Review;
+
+        service.DeleteJob(id);
+
+        Assert.Empty(plan.Transitions);
+    }
+
+    [Fact]
+    public void DeleteJob_SkippedPlan_DoesNotRevertState()
+    {
+        var (service, plan) = CreateServiceWithStub(currentStatus: PlanStatus.Skipped);
+        var id = service.CreateTestJob(new CreatePrArgs("test-plan"));
+        service.GetJob(id)!.PreviousPlanState = PlanStatus.Review;
+
+        service.DeleteJob(id);
+
+        Assert.Empty(plan.Transitions);
     }
 
     [Fact]
     public void DeleteJob_RetryPlan_RevertsToReviewWithoutReset()
     {
-        var (service, plan) = CreateServiceWithStub(currentStatus: PlanStatus.ReadyForReview);
+        var (service, plan) = CreateServiceWithStub(currentStatus: PlanStatus.Review);
         var id = service.CreateTestJob(new RetryPlanArgs("test-plan", "again"));
-        service.GetJob(id)!.PreviousPlanState = PlanStatus.ReadyForReview;
+        service.GetJob(id)!.PreviousPlanState = PlanStatus.Review;
 
         service.DeleteJob(id);
 
         Assert.Empty(plan.ResetToDraftCalls);
-        Assert.Contains(("test-plan", PlanStatus.ReadyForReview), plan.Transitions);
+        Assert.Contains(("test-plan", PlanStatus.Review), plan.Transitions);
     }
 
     [Fact]
@@ -138,7 +169,7 @@ public class JobServiceCompletionGuardTests : IDisposable
         service.CompleteJob(id, 0);
 
         Assert.Contains(("test-plan", PlanStatus.Draft), plan.Transitions);
-        Assert.DoesNotContain(plan.Transitions, t => t.State == PlanStatus.ReadyForReview);
+        Assert.DoesNotContain(plan.Transitions, t => t.State == PlanStatus.Review);
     }
 
     [Fact]
@@ -152,7 +183,7 @@ public class JobServiceCompletionGuardTests : IDisposable
 
         Assert.Equal(JobStatus.Failed, service.GetJob(id)!.Status);
         Assert.Contains(("test-plan", PlanStatus.Draft), plan.Transitions);
-        Assert.DoesNotContain(plan.Transitions, t => t.State is PlanStatus.Failed or PlanStatus.ReadyForReview);
+        Assert.DoesNotContain(plan.Transitions, t => t.State is PlanStatus.Failed or PlanStatus.Review);
     }
 
     [Fact]
@@ -171,7 +202,7 @@ public class JobServiceCompletionGuardTests : IDisposable
         service.CompleteJob(id, 0);
 
         Assert.Contains(("00777-VerFail", PlanStatus.Failed), plan.Transitions);
-        Assert.DoesNotContain(plan.Transitions, t => t.State == PlanStatus.ReadyForReview);
+        Assert.DoesNotContain(plan.Transitions, t => t.State == PlanStatus.Review);
     }
 
     [Fact]
@@ -284,15 +315,16 @@ public class JobServiceCompletionGuardTests : IDisposable
     }
 
     [Fact]
-    public void CompleteJob_CreatePlan_UpdatesPlanFileWhenOutputContainsPlanCreated()
+    public void CompleteJob_CreatePlan_UpdatesPlanFileWhenOutputContainsPlanId()
     {
         var service = CreateServiceWithPlanReader(_tempDir.Path);
         var id = service.CreateTestJob(new CreatePlanArgs("Fix login bug", "Tendril"));
+        Directory.CreateDirectory(Path.Combine(_tempDir.Path, "02353-FixLoginBug"));
 
         var job = service.GetJob(id);
         Assert.NotNull(job);
         job.EnqueueOutput("{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Processing...\"}]}}");
-        job.EnqueueOutput("{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Plan created: 02353-FixLoginBug\"}]}}");
+        job.EnqueueOutput("{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"PlanId: 02353\"}]}}");
 
         service.CompleteJob(id, 0);
 
@@ -336,11 +368,11 @@ public class JobServiceCompletionGuardTests : IDisposable
         // Status returned by GetPlanByFolder (simulates the plan's current state).
         public PlanStatus? CurrentStatus { get; set; }
 
-        public void RecoverStuckPlans()
+        public void MigratePlans()
         {
         }
 
-        public void RepairPlans()
+        public void RecoverStuckPlans()
         {
         }
 
@@ -396,10 +428,6 @@ public class JobServiceCompletionGuardTests : IDisposable
         public List<(int Number, string Content, DateTime Modified)> GetRevisions(string folderName)
         {
             return [];
-        }
-
-        public void AddLog(string folderName, string action, string content, string? jobId = null)
-        {
         }
 
         public void DeletePlan(string folderName)
@@ -478,6 +506,10 @@ public class JobServiceCompletionGuardTests : IDisposable
         }
 
         public void AcceptRecommendationAndRetry(string folderName, string recommendationTitle)
+        {
+        }
+
+        public void AcceptRecommendationsAndRetry(string folderName, IReadOnlyCollection<string> titles)
         {
         }
     }

@@ -1,4 +1,5 @@
 using System.Reactive.Disposables;
+using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
@@ -14,27 +15,16 @@ public class ReviewApp : ViewBase
         var jobService = UseService<IJobService>();
         var configService = UseService<IConfigService>();
         var gitService = UseService<IGitService>();
-        var planWatcher = UseService<IPlanWatcherService>();
         var args = UseArgs<ReviewAppArgs>();
         var nav = UseNavigation();
         var selectedPlanState = UseState<PlanFile?>(null);
         var projectFilter = UseState<string?>(null);
         var levelFilter = UseState<string?>(null);
         var textFilter = UseState<string?>("");
-        var showCompleted = UseState(false);
         var filtersOpen = UseState(false);
         var refreshToken = UseRefreshToken();
 
-        UseEffect(() =>
-        {
-            void OnChanged(string? _)
-            {
-                refreshToken.Refresh();
-            }
-
-            planWatcher.PlansChanged += OnChanged;
-            return Disposable.Create(() => planWatcher.PlansChanged -= OnChanged);
-        });
+        Context.UseInboxAutoRefresh(refreshToken);
 
         UseEffect(() =>
         {
@@ -67,9 +57,7 @@ public class ReviewApp : ViewBase
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var plans = planService.GetPlans()
-            .Where(p => showCompleted.Value
-                ? p.Status is PlanStatus.ReadyForReview or PlanStatus.Failed or PlanStatus.Completed
-                : p.Status is PlanStatus.ReadyForReview or PlanStatus.Failed)
+            .Where(p => p.Status is PlanStatus.Review or PlanStatus.Failed)
             .Where(p => !activePlanFolders.Contains(p.FolderPath))
             .ToList();
         var filteredPlans = PlanFilters.ApplyFilters(plans, projectFilter.Value, levelFilter.Value, textFilter.Value).ToList();
@@ -98,7 +86,7 @@ public class ReviewApp : ViewBase
 
         previousPlans.Value = filteredPlans;
 
-        var sidebar = new SidebarView(plans, selectedPlanState, projectFilter, levelFilter, textFilter, filtersOpen, showCompleted, configService);
+        var sidebar = new SidebarView(plans, selectedPlanState, projectFilter, levelFilter, textFilter, filtersOpen, configService);
 
         var content = new ContentView(selectedPlanState, filteredPlans, planService, jobService,
             RefreshPlans, configService, gitService);

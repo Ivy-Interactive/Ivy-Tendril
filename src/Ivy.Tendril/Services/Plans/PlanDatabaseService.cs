@@ -51,6 +51,8 @@ public class PlanDatabaseService : IPlanDatabaseService
         var directory = Path.GetDirectoryName(databasePath);
         if (!string.IsNullOrEmpty(directory))
             Directory.CreateDirectory(directory);
+        // Open raw (no PRAGMAs yet) so the integrity check below runs before WAL is enabled — a
+        // corrupt DB must be detected and recreated before journal_mode=WAL is applied.
         _connection = new SqliteConnection($"Data Source={databasePath};Mode=ReadWriteCreate");
         _connection.Open();
 
@@ -84,9 +86,11 @@ public class PlanDatabaseService : IPlanDatabaseService
             _connection.Open();
         }
 
-        using var pragmaCmd = _connection.CreateCommand();
-        pragmaCmd.CommandText = "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;";
-        pragmaCmd.ExecuteNonQuery();
+        // Enable WAL + busy_timeout + foreign_keys. busy_timeout makes this connection's SQLite busy
+        // handler wait for the write lock — including during transactional lock escalation, which the
+        // ADO-layer SQLITE_BUSY retry does not cover — instead of surfacing "database is locked" when
+        // another process (e.g. a CLI command) contends for the same database file.
+        SqliteConnectionFactory.ApplyPragmas(_connection);
 
         var migrator = new DatabaseMigrator(_connection);
         migrator.ApplyMigrations();
@@ -210,7 +214,7 @@ public class PlanDatabaseService : IPlanDatabaseService
             cmd.CommandText = """
                               SELECT
                                   COALESCE(SUM(CASE WHEN State IN ('Draft', 'Blocked') THEN 1 ELSE 0 END), 0) AS DraftCount,
-                                  COALESCE(SUM(CASE WHEN State = 'ReadyForReview' THEN 1 ELSE 0 END), 0) AS ReadyForReviewCount,
+                                  COALESCE(SUM(CASE WHEN State = 'Review' THEN 1 ELSE 0 END), 0) AS ReviewCount,
                                   COALESCE(SUM(CASE WHEN State = 'Failed' THEN 1 ELSE 0 END), 0) AS FailedCount,
                                   COALESCE(SUM(CASE WHEN State = 'Icebox' THEN 1 ELSE 0 END), 0) AS IceboxCount,
                                   (SELECT COUNT(*) FROM Recommendations WHERE State = 'Pending' AND SourcePlanStatus = 'Completed') AS PendingRecommendationsCount,
@@ -222,7 +226,7 @@ public class PlanDatabaseService : IPlanDatabaseService
             if (reader.Read())
             {
                 var draftOrdinal = reader.GetOrdinal("DraftCount");
-                var readyForReviewOrdinal = reader.GetOrdinal("ReadyForReviewCount");
+                var reviewOrdinal = reader.GetOrdinal("ReviewCount");
                 var failedOrdinal = reader.GetOrdinal("FailedCount");
                 var iceboxOrdinal = reader.GetOrdinal("IceboxCount");
                 var pendingRecsOrdinal = reader.GetOrdinal("PendingRecommendationsCount");
@@ -230,7 +234,7 @@ public class PlanDatabaseService : IPlanDatabaseService
 
                 return new PlanReaderService.PlanCountSnapshot(
                     reader.GetInt32(draftOrdinal),
-                    reader.GetInt32(readyForReviewOrdinal),
+                    reader.GetInt32(reviewOrdinal),
                     reader.GetInt32(failedOrdinal),
                     reader.GetInt32(iceboxOrdinal),
                     reader.GetInt32(pendingRecsOrdinal),
@@ -362,7 +366,7 @@ public class PlanDatabaseService : IPlanDatabaseService
             return ReadList("""
                             SELECT r.Title, r.Description, r.State, r.PlanId, r.PlanTitle,
                                    r.PlanFolderName, r.Project, r.Date, r.SourcePlanStatus, r.DeclineReason,
-                                   r.Impact, r.Risk
+                                   r.Impact
                             FROM Recommendations r
                             ORDER BY r.Date DESC
                             """,
@@ -384,8 +388,7 @@ public class PlanDatabaseService : IPlanDatabaseService
                             DateTimeStyles.AdjustToUniversal),
                         sourceStatus,
                         reader.GetStringOrNull(reader.GetOrdinal("DeclineReason")),
-                        reader.GetStringOrNull(reader.GetOrdinal("Impact")),
-                        reader.GetStringOrNull(reader.GetOrdinal("Risk"))
+                        reader.GetStringOrNull(reader.GetOrdinal("Impact"))
                     );
                 });
         }
@@ -595,10 +598,10 @@ public class PlanDatabaseService : IPlanDatabaseService
             insertCmd.CommandText = """
                                     INSERT INTO Recommendations (PlanId, Title, Description, State, DeclineReason,
                                                                  PlanTitle, PlanFolderName, Project, Date, SourcePlanStatus,
-                                                                 Impact, Risk)
+                                                                 Impact)
                                     VALUES (@planId, @title, @description, @state, @declineReason,
                                             @planTitle, @planFolderName, @project, @date, @sourcePlanStatus,
-                                            @impact, @risk)
+                                            @impact)
                                     """;
             insertCmd.Parameters.AddWithValue("@planId", planId);
             insertCmd.Parameters.AddWithValue("@title", string.Empty);
@@ -611,7 +614,6 @@ public class PlanDatabaseService : IPlanDatabaseService
             insertCmd.Parameters.AddWithValue("@date", string.Empty);
             insertCmd.Parameters.AddWithValue("@sourcePlanStatus", string.Empty);
             insertCmd.Parameters.AddWithValue("@impact", DBNull.Value);
-            insertCmd.Parameters.AddWithValue("@risk", DBNull.Value);
 
             foreach (var rec in recommendations)
             {
@@ -626,7 +628,6 @@ public class PlanDatabaseService : IPlanDatabaseService
                 insertCmd.Parameters["@date"].Value = updated.ToString("O", CultureInfo.InvariantCulture);
                 insertCmd.Parameters["@sourcePlanStatus"].Value = status.ToString();
                 insertCmd.Parameters["@impact"].Value = (object?)rec.Impact ?? DBNull.Value;
-                insertCmd.Parameters["@risk"].Value = (object?)rec.Risk ?? DBNull.Value;
                 insertCmd.ExecuteNonQuery();
             }
         }
@@ -777,21 +778,42 @@ public class PlanDatabaseService : IPlanDatabaseService
         };
     }
 
-    public void PurgeOldJobs(int keepCount = 500)
+    public List<string> PurgeOldJobs(int keepCount = 500)
     {
         using (new WriteLockHandle(_lock))
         {
-            using var cmd = _connection.CreateCommand();
-            cmd.CommandText = """
-                              DELETE FROM Jobs
-                              WHERE Id NOT IN (
-                                  SELECT Id FROM Jobs
-                                  ORDER BY CompletedAt DESC
-                                  LIMIT @keepCount
-                              )
-                              """;
-            cmd.Parameters.AddWithValue("@keepCount", keepCount);
-            cmd.ExecuteNonQuery();
+            var purgedIds = new List<string>();
+            using (var selectCmd = _connection.CreateCommand())
+            {
+                selectCmd.CommandText = """
+                                        SELECT Id FROM Jobs
+                                        WHERE Id NOT IN (
+                                            SELECT Id FROM Jobs
+                                            ORDER BY CompletedAt DESC
+                                            LIMIT @keepCount
+                                        )
+                                        """;
+                selectCmd.Parameters.AddWithValue("@keepCount", keepCount);
+                using var reader = selectCmd.ExecuteReader();
+                while (reader.Read())
+                    purgedIds.Add(reader.GetString(0));
+            }
+
+            using (var deleteCmd = _connection.CreateCommand())
+            {
+                deleteCmd.CommandText = """
+                                        DELETE FROM Jobs
+                                        WHERE Id NOT IN (
+                                            SELECT Id FROM Jobs
+                                            ORDER BY CompletedAt DESC
+                                            LIMIT @keepCount
+                                        )
+                                        """;
+                deleteCmd.Parameters.AddWithValue("@keepCount", keepCount);
+                deleteCmd.ExecuteNonQuery();
+            }
+
+            return purgedIds;
         }
     }
 
@@ -948,7 +970,7 @@ public class PlanDatabaseService : IPlanDatabaseService
             Constants.JobTypes.CreateIssue => new CreateIssueArgs(
                 args[0],
                 GetLegacyArg(args, "-Repo") ?? ""),
-            Constants.JobTypes.UpdateProject => new UpdateProjectArgs(args[0]),
+            Constants.JobTypes.SetupProject => new SetupProjectArgs(args[0]),
             _ => null
         };
 

@@ -5,11 +5,11 @@
 When changing the `plan.yaml` structure (adding/removing/renaming fields, changing field types):
 
 1. **Update `Plans.md`** (`Prompts/Plans.md`) — this is the source of truth for the plan schema (embedded as an assembly resource)
-2. **Add a repair step** in `PlanReaderService.RepairPlans()` — this runs on every Tendril startup and must migrate all existing plans to the new format
+2. **Add a migration** — create a new `PlanMigration_NNN_*` class in `Services/Plans/Migrations/` implementing `IPlanMigration`, and bump `PlanYaml.CurrentSchemaVersion` to match. Migrations are auto-discovered and run by `PlanMigrator` on every startup; each non-terminal plan is brought up to the latest version, then stamped with its `schemaVersion` so it is skipped on later startups. Bumping the version forces a one-time re-sweep of all non-terminal plans.
 3. **Keep `PlanYaml.cs` in sync** — the deserialization model must match what `Plans.md` documents
 4. **Update promptware instructions** — any promptware that writes `plan.yaml` (CreatePlan, ExecutePlan, UpdatePlan, SplitPlan, ExpandPlan) must produce the new format
 
-Existing plans on disk are never recreated — they must be repaired in place. If `RepairPlans()` can't fix a plan, it will silently fail and that plan won't appear in the UI. Always test your repair logic against real plan files.
+Existing plans on disk are never recreated — they must be migrated in place. If a migration can't fix a plan it is logged and skipped, and that plan won't appear in the UI. Always test your migration against real plan files. Terminal plans (Completed/Skipped) are treated as immutable and are not migrated.
 
 ## Project Structure
 
@@ -69,6 +69,8 @@ The server runs over stdio and exposes these tools:
 - **`tendril_list_plans`** — Query plans by state, project, or date range (returns up to 50 results)
 - **`tendril_inbox`** — Create a new plan by writing to the Tendril inbox (picked up by InboxWatcherService)
 - **`tendril_transition_plan`** — Change a plan's state (e.g., Draft → Executing)
+- **`tendril_get_config`** — Get a top-level config value (`codingAgent`, `jobTimeout`, `staleOutputTimeout`, `gitTimeout`, `maxConcurrentJobs`, `planTemplate`)
+- **`tendril_set_config`** — Set a top-level config value (integer fields are bounds-checked)
 
 ### Authentication
 
@@ -123,6 +125,7 @@ Add to `~/.claude/mcp.json`:
 - `Commands/McpCommand.cs` — Command handler that intercepts `tendril mcp` args
 - `Mcp/TendrilMcpServer.cs` — Configures and runs the MCP server using the `ModelContextProtocol` SDK
 - `Mcp/Tools/PlanTools.cs` — Tool definitions for plan queries and inbox creation
+- `Mcp/Tools/ConfigTools.cs` — Tool definitions for reading/writing top-level config (shares the CLI's field switch)
 
 The MCP server reads plans directly from the filesystem via `TENDRIL_HOME/Plans/` and writes inbox items to `TENDRIL_HOME/Inbox/`. It does not require the Tendril web server to be running.
 
@@ -149,24 +152,30 @@ $TENDRIL_HOME/
     03450-SomePlan/
       plan.yaml        # Plan metadata (state, repos, commits, PRs)
       revisions/       # 001.md, 002.md — plan revision history
-      logs/            # Per-plan execution logs
       verification/    # Verification reports
       artifacts/       # Build artifacts, screenshots
       worktrees/       # Git worktree paths used during execution
   Trash/               # Deleted/duplicate plans (PlanId-Title.md)
   Inbox/               # Incoming plan requests (.md files, picked up by InboxWatcherService)
-  Logs/Jobs/           # Raw output for failed/timed-out jobs without a plan folder
+  Jobs/                # Every job artifact (see below) plus .counter, the job-ID counter
+  Logs/worktrees.log   # Worktree create/remove lifecycle trail (not a job log)
   Hooks/               # After-hooks (e.g., SlackNotify)
 ```
 
-### Promptware Logs
+### Job Logs
 
-Each promptware keeps its own logs in `Promptwares/<Type>/Logs/`:
+All job artifacts live flat in `$TENDRIL_HOME/Jobs/`, four per job, sharing one stem
+(`{jobId}-{planId}-{promptware}`, or `{jobId}-{promptware}` when the job has no plan). The stem is
+built by `JobLogPaths.Stem` from `JobItem.PlanFile` alone, so it never changes mid-run.
 
-- `{PlanId}.md` — Agent's execution summary (outcome, analysis, tools/memory changed)
-- `{PlanId}.raw.jsonl` — Full stream-json output from the Claude session
+- `{stem}.md` — **Job Log**: status, timings, cost, CLI command, final output, plus any `## Agent Log` sections the agent appended via `tendril job add-log`. Its `**PlanId:**` header line is the only record of which plan a `CreatePlan` job produced, since that job's stem has no plan-id segment
+- `{stem}.prompt.md` — **Job Prompt**: the exact prompt handed to the agent, written at launch
+- `{stem}.raw.jsonl` — **Job Raw Log**: full stream-json output from the agent session
+- `{stem}.eventwire.jsonl` — **Job Eventwire Log**: Tendril's parsed event stream
 
-These are the primary debugging artifacts. The `.md` log tells you what the agent decided; the `.raw.jsonl` has every tool call, thinking block, and API response.
+These are the primary debugging artifacts. The `.md` log tells you what the agent decided; the
+`.raw.jsonl` has every tool call, thinking block, and API response. Neither plan folders nor
+promptware folders contain a `Logs/` directory.
 
 ### Jobs UI — Live Cell Updates
 
@@ -182,16 +191,15 @@ Jobs flow through: `Pending → Queued → Running → Completed/Failed/Timeout/
 
 **CreatePlan verification** (`VerifyCreatePlanResult` in `JobService.cs`) runs after the agent exits with code 0 and can **change Completed → Failed** if:
 
-1. Agent output doesn't contain `"Plan created: <folder>"` marker
-2. No plan folder matching `AllocatedPlanId` exists on disk (`FindPlanFolderById`)
+1. Agent output doesn't contain a `"PlanId: <id>"` line resolving to a folder on disk (`FindPlanFolderById`)
+2. No plan folder matching `AllocatedPlanId` exists on disk either (`FindPlanFolderById`)
 3. No trash entry for that ID exists either (`FindTrashEntryById`)
 
 When debugging a failed CreatePlan, check in order:
 1. Does the plan folder exist in `$TENDRIL_PLANS/{PlanId}-*`?
 2. Does a trash entry exist in `$TENDRIL_HOME/Trash/{PlanId}-*.md`?
-3. Read the promptware log `Promptwares/CreatePlan/Logs/{PlanId}.md`
-4. Read the raw output `Promptwares/CreatePlan/Logs/{PlanId}.raw.jsonl`
-5. Check `$TENDRIL_HOME/Logs/Jobs/logs/` for failed job output dumps
+3. Read the Job Log `$TENDRIL_HOME/Jobs/{JobId}-CreatePlan.md`
+4. Read the raw output `$TENDRIL_HOME/Jobs/{JobId}-CreatePlan.raw.jsonl`
 
 ### CLI Commands
 
@@ -210,6 +218,6 @@ tendril plan get <id>       # Show plan details
 ### Common Issues
 
 - **Plan counter collisions**: `$TENDRIL_PLANS/.counter` is protected by file-based locking in `tendril plan create`. If plans get duplicate IDs, check for concurrent access issues.
-- **Plans not appearing in UI**: Run `tendril doctor plans` to check for malformed `plan.yaml` files. `PlanReaderService.RepairPlans()` runs on startup but silently skips plans it can't fix.
+- **Plans not appearing in UI**: Run `tendril doctor plans` to check for malformed `plan.yaml` files. `PlanMigrator` (driven by `PlanReaderService.MigratePlans()`) runs on startup but logs and skips plans it can't fix.
 - **Build errors from locked files**: Tendril locks its own exe while running. Use `--no-dependencies` or stop the running instance before building.
-- **Missing `.raw.jsonl` logs**: These are written by `PromptwareLogWriter.WriteRawLog` on job completion. The Logs directory is created automatically by `FirmwareCompiler.GetLogFile`.
+- **Missing `.raw.jsonl` logs**: The raw writer is opened when `JobItem.LogFilePath` is set at launch and streams for the life of the job; `JobLogWriter.WriteRawLog` backfills it for the standalone CLI runners. `$TENDRIL_HOME/Jobs/` is created by `JobLogPaths.JobsDir`.

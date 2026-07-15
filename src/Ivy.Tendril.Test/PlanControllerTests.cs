@@ -2,8 +2,10 @@ using System.Collections;
 using System.Text.Json;
 using Ivy.Tendril.Controllers;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Git;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test;
 
@@ -61,7 +63,9 @@ public class PlanControllerTests : IDisposable
 
     private PlanController CreateController()
     {
-        var controller = new PlanController(new NullPlanWatcherService(), new TestPlanConfigService(_repoDir));
+        var configService = new TestPlanConfigService(_repoDir, tendrilHome: _tempDir.Path);
+        var controller = new PlanController(new NullPlanWatcherService(), configService,
+            new GithubService(configService, NullLogger<GithubService>.Instance));
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()
@@ -422,22 +426,7 @@ public class PlanControllerTests : IDisposable
         Assert.IsType<OkObjectResult>(result);
     }
 
-    // --- AddLog ---
-
-    [Fact]
-    public void AddLog_WritesLogFile()
-    {
-        var planFolder = CreateTestPlan();
-        var controller = CreateController();
-
-        var result = controller.AddLog("00001", new AddLogRequest("ExecutePlan", "Test summary"));
-
-        Assert.IsType<OkObjectResult>(result);
-        var logsDir = Path.Combine(planFolder, "Logs");
-        Assert.True(Directory.Exists(logsDir));
-        var logFiles = Directory.GetFiles(logsDir, "*.md");
-        Assert.Single(logFiles);
-    }
+    // add-log moved to POST api/jobs/{jobId}/logs — see JobAddLogTests.
 
     // --- Recommendations ---
 
@@ -448,7 +437,7 @@ public class PlanControllerTests : IDisposable
         var controller = CreateController();
 
         var result = controller.AddRecommendation("00001",
-            new AddRecRequest("Add tests", "Need unit tests", "Medium", "Small"));
+            new AddRecRequest("Add tests", "Need unit tests", "Medium"));
 
         Assert.IsType<OkObjectResult>(result);
 

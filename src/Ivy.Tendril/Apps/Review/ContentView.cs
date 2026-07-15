@@ -1,9 +1,13 @@
 using System.Diagnostics;
 using System.Reactive.Disposables;
+using System.Text;
 using Ivy.Core;
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Apps.Agent;
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Review.Dialogs;
+using Ivy.Tendril.Apps.Review.Tabs;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Apps.Views.Tabs;
@@ -34,12 +38,15 @@ public class ContentView(
         var openFile = UseState<string?>(null);
         var openCommit = UseState<string?>(null);
         var syncingWorktrees = UseState(new HashSet<string>());
+        var selectedRecTitles = UseState(() => new HashSet<string>());
+        var selectedTab = UseState(0);
         var args = UseArgs<ReviewAppArgs>();
         var nav = UseNavigation();
 
         var processView = Context.UseTendrilProcess();
 
         var githubService = UseService<IGithubService>();
+        var agentRunner = UseService<IAgentRunner>();
         var assigneesError = UseState<string?>(null);
         var assigneesQuery = UseQuery<string[], string>(
             selectedPlanState.Value?.Project ?? "",
@@ -82,10 +89,10 @@ public class ContentView(
             return new SuggestChangesDialog(isOpen, selectedPlanState.Value!, jobService, refreshPlans);
         });
 
-        var (customPrDialog, showCustomPrDialog) = UseTrigger((isOpen) =>
+        var (createPrDialog, showCreatePrDialog) = UseTrigger((isOpen) =>
         {
             if (!isOpen.Value) return null;
-            return new CustomPrDialog(isOpen, selectedPlanState.Value!, jobService, refreshPlans,
+            return new CreatePrDialog(isOpen, selectedPlanState.Value!, jobService, refreshPlans,
                 assigneesQuery, assigneesError);
         });
 
@@ -102,7 +109,7 @@ public class ContentView(
             if (!isOpen.Value) return null;
             return new Sheet(
                 () => isOpen.Set(false),
-                new JobDebugSheet(jobId, jobService, planService, config),
+                new JobDebugSheet(jobId, jobService, planService, config, () => isOpen.Set(false)),
                 "Job Debug"
             ).Width(UxHelper.SheetWidth).Resizable();
         });
@@ -205,9 +212,10 @@ public class ContentView(
             return Disposable.Empty;
         }, [localRefresh]);
 
-        var tabNames = new[] { "summary", "plan", "details", "verifications", "git", "changes", "Artifacts", "recommendations" };
-        var selectedTabIndex = Array.IndexOf(tabNames, args?.Tab ?? "summary");
-        if (selectedTabIndex < 0) selectedTabIndex = 0;
+        UseEffect(() => { selectedTab.Set(0); return Disposable.Empty; }, selectedPlanState);
+
+        UseEffect(() => { selectedRecTitles.Set(new HashSet<string>()); return Disposable.Empty; },
+            selectedPlanState);
 
         if (selectedPlanState.Value is null)
         {
@@ -220,15 +228,21 @@ public class ContentView(
 
         var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlanState.Value.FolderName);
         var planData = planContentQuery.Value;
+        var pendingRecs = planData.Recommendations.Where(r => r.State == RecommendationStatus.Pending).ToList();
 
-        var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, client, showCustomPrDialog, nav, args);
+        void ImplementRecommendations() => ImplementSelectedRecommendations(
+            selectedPlanState.Value!, selectedRecTitles, client,
+            planContentQuery.Mutator.Revalidate);
+
+        var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, client, showCreatePrDialog, nav,
+            args, selectedRecTitles, ImplementRecommendations);
         var actionBar = BuildActionBar(
             selectedPlanState.Value, showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog,
-            showCustomPrDialog, copyToClipboard, client, logger, nav, args);
+            showCreatePrDialog, copyToClipboard, client, logger, nav, args, agentRunner);
         var content = BuildContent(
-            selectedPlanState.Value, planData, planContentQuery, selectedTabIndex, tabNames, openVerification,
+            selectedPlanState.Value, planData, planContentQuery, selectedTab, openVerification,
             openCommit, openFile, openArtifact, artifactContentQuery, assigneesQuery,
-            assigneesError, syncingWorktrees,
+            assigneesError, syncingWorktrees, selectedRecTitles, pendingRecs,
             client, copyToClipboard, logger, nav, args, showDebugJob);
 
         var mainLayout = new HeaderLayout(
@@ -239,7 +253,7 @@ public class ContentView(
             ).Scroll(Scroll.None).Size(Size.Full())
         ).Scroll(Scroll.None).Size(Size.Full()).Key(selectedPlanState.Value.Id);
 
-        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, customPrDialog, resetToDraftDialog, debugSheet);
+        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, createPrDialog, resetToDraftDialog, debugSheet);
     }
 
     private object BuildHeader(
@@ -247,86 +261,142 @@ public class ContentView(
         List<PlanFile> allPlans,
         int currentIndex,
         IClientProvider client,
-        Action showCustomPrDialog,
+        Action showCreatePrDialog,
         INavigator nav,
-        ReviewAppArgs? args)
+        ReviewAppArgs? args,
+        IState<HashSet<string>> selectedRecTitles,
+        Action onImplementRecommendations)
     {
-        var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full())
-            | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
-                .BorderThickness(0).Padding(0).Width(Size.Fit());
-
-        if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
-            desktopTitleLayout |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
+        object BuildTitleArea(bool isMobile)
+        {
+            object SourceButton() => new Button(selectedPlan.IsPullRequestSource ? "PR" : "Issue")
                 .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
 
-        var desktopTitle = new Box(desktopTitleLayout).BorderThickness(0).Padding(0)
-            .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
+            var hasSourceUrl = !string.IsNullOrEmpty(selectedPlan.SourceUrl);
 
-        var titleArea = Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
-                        | desktopTitle
-                        | MobileItemPicker.Build(
-                                $"#{selectedPlan.Id} {selectedPlan.Title}",
-                                allPlans,
-                                p => $"#{p.Id} {p.Title}",
-                                p => p.FolderName == selectedPlan.FolderName,
-                                p => selectedPlanState.Set(p))
-                            .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
+            var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full().Min(Size.Px(0)))
+                | Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis)
+                    .Width(Size.Shrink().Min(Size.Px(0)));
 
-        var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
-                       | Text.Rich()
-                           .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
-                           .Muted("plans", word: true);
+            if (hasSourceUrl)
+                desktopTitleLayout |= SourceButton();
 
-        if (selectedPlan.Commits.Count > 0)
+            var desktopTitle = new Box(desktopTitleLayout).BorderThickness(0).Padding(0)
+                .Width(Size.Full().Min(Size.Px(0)))
+                .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
+
+            var mobileTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full())
+                | MobileItemPicker.Build(
+                        $"#{selectedPlan.Id} {selectedPlan.Title}",
+                        allPlans,
+                        p => $"#{p.Id} {p.Title}",
+                        p => p.FolderName == selectedPlan.FolderName,
+                        p => selectedPlanState.Set(p))
+                    .Width(Size.Grow().Min(Size.Px(0)));
+
+            if (hasSourceUrl)
+                mobileTitleLayout |= SourceButton();
+
+            var mobileTitle = new Box(mobileTitleLayout).BorderThickness(0).Padding(0)
+                .Width(Size.Full().Min(Size.Px(0)))
+                .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
+
+            return Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow().Min(Size.Px(0)))
+                   | desktopTitle
+                   | mobileTitle;
+        }
+
+        object BuildControls(bool isMobile)
         {
-            var repoPaths = selectedPlan.GetEffectiveRepoPaths(config);
-            var project = config.GetProject(selectedPlan.Project);
-            var allYolo = repoPaths.All(rp =>
-                project?.GetRepoRef(rp)?.PrRule == "yolo");
+            var hasSelection = selectedRecTitles.Value.Count > 0;
 
-            var createPrBtn = new Button("Create PR").Icon(Icons.GitPullRequest).Primary().OnClick(() =>
+            var rightSide = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
+                           | Text.Rich()
+                               .NoWrap()
+                               .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
+                               .Muted("plans", word: true);
+
+            if (selectedPlan.Commits.Count > 0)
             {
-                if (allYolo)
+                var repoPaths = selectedPlan.GetEffectiveRepoPaths(config);
+                var project = config.GetProject(selectedPlan.Project);
+                var allYolo = repoPaths.All(rp =>
+                    project?.GetRepoRef(rp)?.PrRule == "yolo");
+
+                // When the plan's source is an existing PR, the CTA updates that PR instead of
+                // opening a second one. There's nothing to configure for an update (no new branch,
+                // no merge/delete choices), so we skip the Create PR dialog and push directly.
+                var isPrUpdate = selectedPlan.IsPullRequestSource;
+
+                var createPrBtn = new Button(isPrUpdate ? "Update PR" : "Create PR")
+                    .Icon(Icons.GitPullRequest).OnClick(() =>
                 {
-                    // "yolo" is purely a UI setting: skip the dialog and create the PR with the
-                    // merge-and-clean-up defaults. The promptware acts only on these explicit flags.
-                    jobService.StartJob(new CreatePrArgs(
-                        selectedPlan.FolderPath,
-                        SolveMergeConflicts: true,
-                        Merge: true,
-                        DeleteBranch: true,
-                        IncludeArtifacts: true));
-                    // Plan transition (and pre-state snapshot) handled by JobService.StartJob.
+                    if (isPrUpdate)
+                    {
+                        // Push the fix onto the original PR's branch and leave the PR open for
+                        // review. ExecutePlan already based the worktree on the PR's head branch,
+                        // so CreatePr's push updates the existing PR (no new PR is created).
+                        jobService.StartJob(new CreatePrArgs(
+                            selectedPlan.FolderPath,
+                            SolveMergeConflicts: true,
+                            Merge: false,
+                            DeleteBranch: false,
+                            IncludeArtifacts: true));
+                        refreshPlans();
+                    }
+                    else if (allYolo)
+                    {
+                        // "yolo" is purely a UI setting: skip the dialog and create the PR with the
+                        // merge-and-clean-up defaults. The promptware acts only on these explicit flags.
+                        jobService.StartJob(new CreatePrArgs(
+                            selectedPlan.FolderPath,
+                            SolveMergeConflicts: true,
+                            Merge: true,
+                            DeleteBranch: true,
+                            IncludeArtifacts: true));
+                        // Plan transition (and pre-state snapshot) handled by JobService.StartJob.
+                        refreshPlans();
+                    }
+                    else
+                    {
+                        showCreatePrDialog();
+                    }
+                }).ShortcutKey("m");
+                createPrBtn = hasSelection ? createPrBtn.Outline() : createPrBtn.Primary();
+
+                rightSide |= (allYolo && !isPrUpdate && !hasSelection)
+                    ? createPrBtn.WithConfetti(AnimationTrigger.Click)
+                    : createPrBtn;
+            }
+            else
+            {
+                var completePlanBtn = new Button("Complete Plan").Icon(Icons.CircleCheck).OnClick(() =>
+                {
+                    // Optimistic UI - update state and refresh immediately
+                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
                     refreshPlans();
-                }
-                else
-                {
-                    showCustomPrDialog();
-                }
-            }).ShortcutKey("m");
 
-            controls |= allYolo
-                ? createPrBtn.WithConfetti(AnimationTrigger.Click)
-                : createPrBtn;
-        }
-        else
-        {
-            controls |= new Button("Complete Plan").Icon(Icons.CircleCheck).Primary().OnClick(() =>
+                    // Fire and forget - clean up worktrees in the background
+                    WorktreeCleanupService.RemoveWorktreesInBackground(selectedPlan.FolderPath);
+                }).ShortcutKey("m");
+                rightSide |= hasSelection ? completePlanBtn.Outline() : completePlanBtn.Primary();
+            }
+
+            if (hasSelection)
             {
-                // Optimistic UI - update state and refresh immediately
-                planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
-                refreshPlans();
+                var count = selectedRecTitles.Value.Count;
+                var label = count > 1 ? "Implement Recommendations" : "Implement Recommendation";
+                rightSide |= new Button(label)
+                    .Badge(count.ToString())
+                    .Icon(Icons.Rocket)
+                    .Primary()
+                    .OnClick(onImplementRecommendations);
+            }
 
-                // Fire and forget - clean up worktrees in the background
-                WorktreeCleanupService.RemoveWorktreesInBackground(selectedPlan.FolderPath);
-            }).ShortcutKey("m");
+            return rightSide.Width(isMobile ? Size.Full() : Size.Fit());
         }
 
-        var header = Layout.Horizontal().Height(Size.Px(40)).Width(Size.Full()).Gap(2).AlignContent(Align.Left)
-                     | titleArea
-                     | controls;
-
-        return header;
+        return ResponsiveHeader.Build(BuildTitleArea, BuildControls);
     }
 
     private object BuildActionBar(
@@ -334,17 +404,23 @@ public class ContentView(
         Action showResetToDraftDialog,
         Action showSuggestChangesDialog,
         Action showDiscardDialog,
-        Action showCustomPrDialog,
+        Action showCreatePrDialog,
         Action<string> copyToClipboard,
         IClientProvider client,
         ILogger<ContentView> logger,
         INavigator nav,
-        ReviewAppArgs? args)
+        ReviewAppArgs? args,
+        IAgentRunner agentRunner)
     {
+        var (agentLabel, agentIcon) = AgentBranding.For(config.Settings.CodingAgent, agentRunner);
+
         // Standard overflow menu items
         var standardOverflowItems = new[]
         {
-            new MenuItem("Custom PR", Icon: Icons.GitPullRequest, Tag: "CustomPR").OnSelect(showCustomPrDialog),
+            new MenuItem($"Discuss with {agentLabel}", Icon: agentIcon, Tag: "DiscussWithAgent")
+                .OnSelect(() => nav.Navigate<AgentApp>(new AgentAppArgs(
+                    $"User wants to discuss the plan {selectedPlan.FolderPath} currently in Review mode."))),
+            new MenuItem("Create PR", Icon: Icons.GitPullRequest, Tag: "CreatePR").OnSelect(showCreatePrDialog),
             new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
             {
                 planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
@@ -426,7 +502,7 @@ public class ContentView(
                     .OnClick(showResetToDraftDialog).CompactUp()
                 | new Button("Request Changes").Icon(Icons.MessageSquare).Outline().ShortcutKey("c")
                     .OnClick(showSuggestChangesDialog).CompactUp()
-                | new Button("Discard").Icon(Icons.Trash).Outline()
+                | new Button("Discard").Icon(Icons.Trash).Outline().ShortcutKey("Backspace")
                     .OnClick(showDiscardDialog).FullOnly()
                 | ActionBarResponsive.DropdownAtFull(
                     new Button().Icon(Icons.EllipsisVertical).Ghost(),
@@ -443,8 +519,7 @@ public class ContentView(
         PlanFile selectedPlan,
         PlanContentData planData,
         QueryResult<PlanContentData> planContentQuery,
-        int selectedTabIndex,
-        string[] tabNames,
+        IState<int> selectedTab,
         IState<string?> openVerification,
         IState<string?> openCommit,
         IState<string?> openFile,
@@ -453,6 +528,8 @@ public class ContentView(
         QueryResult<string[]> assigneesQuery,
         IState<string?> assigneesError,
         IState<HashSet<string>> syncingWorktrees,
+        IState<HashSet<string>> selectedRecTitles,
+        List<RecommendationYaml> pendingRecs,
         IClientProvider client,
         Action<string> copyToClipboard,
         ILogger<ContentView> logger,
@@ -467,22 +544,19 @@ public class ContentView(
             return content | Text.Muted("No plan selected");
         }
 
-        var reviewAnnotated = MarkdownHelper.AnnotateAllBrokenLinks(selectedPlan.LatestRevisionContent, planService.PlansDirectory);
-        var planTabContent = Layout.Vertical().Height(Size.Full())
-            | new Markdown(reviewAnnotated)
-                .DangerouslyAllowLocalFiles()
-                .Article()
-                .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile, planId =>
-                {
-                    var planFolder = Directory.GetDirectories(planService.PlansDirectory, $"{planId:D5}-*")
-                        .FirstOrDefault();
-                    if (planFolder != null)
-                    {
-                        var plan = planService.GetPlanByFolder(planFolder);
-                        if (plan != null)
-                            selectedPlanState.Set(plan);
-                    }
-                }));
+        var planTabContent = new PlanTabView(selectedPlan, selectedPlanState, openFile, planService, config);
+
+        Action<string> onLinkClick = FileSheet.CreateLinkClickHandler(openFile, planId =>
+        {
+            var planFolder = Directory.GetDirectories(planService.PlansDirectory, $"{planId:D5}-*")
+                .FirstOrDefault();
+            if (planFolder != null)
+            {
+                var plan = planService.GetPlanByFolder(planFolder);
+                if (plan != null)
+                    selectedPlanState.Set(plan);
+            }
+        });
 
         if (planContentQuery.Loading && planData is null)
         {
@@ -517,108 +591,39 @@ public class ContentView(
             var totalArtifacts = (planData.Artifacts.GetValueOrDefault("screenshots")?.Count ?? 0)
                                  + (planData.Artifacts.ContainsKey("sample") ? 1 : 0);
 
-            var reviewActionStates = planData.ReviewActionStates;
-            var projectConfig = config.GetProject(selectedPlan.Project);
-            var reviewActions = projectConfig?.ReviewActions ?? new List<ReviewActionConfig>();
-            if (reviewActions.Count > 0)
-            {
-                var actionsBar = Layout.Horizontal().Gap(2).Padding(2).Height(Size.Fit());
-                for (var i = 0; i < reviewActions.Count; i++)
-                {
-                    var action = reviewActions[i];
-                    var conditionMet = i < reviewActionStates.Count && reviewActionStates[i].ConditionMet;
+            content |= new ReviewActionsBarView(selectedPlan, planData.ReviewActionStates, config, logger);
 
-                    var btn = new Button(action.Name).Icon(Icons.Play).Outline();
-                    if (!conditionMet)
-                    {
-                        btn = btn.Disabled();
-                    }
-                    else
-                    {
-                        var actionCapture = action;
-                        btn = btn.OnClick(() =>
-                        {
-                            if (!PlatformHelper.RunPowerShellAction(actionCapture.Command, selectedPlan.FolderPath, logger))
-                            {
-                                logger.LogWarning("Failed to run review action {ActionName}: pwsh not found", actionCapture.Name);
-                            }
-                        });
-                    }
+            var recommendationsTab = new RecommendationsTabView(pendingRecs, selectedRecTitles, config);
 
-                    actionsBar |= btn;
-                }
+            var changesTabView = new ChangesTabView(planData.AllChanges, planContentQuery.Loading, planContentQuery.Error, selectedPlan.Project);
 
-                content |= actionsBar;
-            }
-
-            var pendingRecs = planData.Recommendations.Where(r => r.State == RecommendationStatus.Pending).ToList();
-            var recommendationsLayout = Layout.Vertical().Padding(2);
-            if (pendingRecs.Count == 0)
-                recommendationsLayout |= Text.Muted("No recommendations.");
-            else
-                foreach (var rec in pendingRecs)
-                {
-                    var titleRow = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                                   | Text.Block(rec.Title).Bold();
-
-                    if (rec.Impact is { } impact)
-                        titleRow |= new Badge($"Impact: {impact}").Variant(impact switch
-                        {
-                            "High" => BadgeVariant.Success,
-                            "Medium" => BadgeVariant.Warning,
-                            _ => BadgeVariant.Outline
-                        });
-
-                    if (rec.Risk is { } risk)
-                        titleRow |= new Badge($"Risk: {risk}").Variant(risk switch
-                        {
-                            "High" => BadgeVariant.Destructive,
-                            "Medium" => BadgeVariant.Warning,
-                            _ => BadgeVariant.Success
-                        });
-
-                    var card = Layout.Vertical().Gap(1)
-                               | titleRow
-                               | new Markdown(rec.Description).DangerouslyAllowLocalFiles().Article();
-
-                    var recTitle = rec.Title;
-                    var buttonRow = Layout.Horizontal().Gap(1).Wrap()
-                                    | new Button("Accept").Icon(Icons.Check).Primary().OnClick(() =>
-                                    {
-                                        planService.AcceptRecommendationAndRetry(selectedPlan.FolderName, recTitle);
-                                        jobService.StartJob(new RetryPlanArgs(selectedPlan.FolderPath, rec.Description));
-                                        refreshPlans();
-                                        planContentQuery.Mutator.Revalidate();
-                                    })
-                                    | new Button("Decline").Icon(Icons.X).Outline().OnClick(() =>
-                                    {
-                                        planService.UpdateRecommendationState(selectedPlan.FolderName, recTitle, RecommendationStatus.Declined);
-                                        refreshPlans();
-                                        planContentQuery.Mutator.Revalidate();
-                                    });
-
-                    recommendationsLayout |= card;
-                    recommendationsLayout |= buttonRow;
-                    recommendationsLayout |= new Separator();
-                }
-
-            var changesTabView = new ChangesTabView(planData.AllChanges, planContentQuery.Loading, planContentQuery.Error);
-
-            var tabNamesList = new List<string> { "summary", "plan", "details", "verifications", "git", "changes" };
+            var tabNamesList = new List<string> { "summary", "plan", "details", "git" };
             var tabList = new List<Tab>
             {
-                new Tab("Summary", Cap(new SummaryTabView(planData.SummaryMarkdown, planContentQuery.Loading))),
+                // Summary is rendered via DraftMarkdown with a pinned Verifications sidebar, so it is
+                // NOT wrapped in Cap() (whose outer scroll would also scroll the sticky box). The widget
+                // reproduces Cap()'s left inset + max-width.
+                new Tab("Summary", new SummaryTabView(
+                    config, planData.SummaryMarkdown, selectedPlan.Verifications,
+                    planData.VerificationReports, v => openVerification.Set(v), onLinkClick,
+                    planContentQuery.Loading)),
                 new Tab("Plan", Cap(planTabContent)),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan,
                     jobService.GetJobsForPlan(selectedPlan.FolderName),
                     showDebugJob, planService, selectedPlanState, refreshPlans,
                     folderPath => selectedPlanState.Set(planService.GetPlanByFolder(folderPath))))),
-                new Tab("Verifications", Cap(new VerificationsTabView(
-                    selectedPlan.Verifications, planData.VerificationReports,
-                    v => openVerification.Set(v)))).Badge(selectedPlan.Verifications.Count.ToString()),
                 new Tab("Git", Cap(gitTabView)).Badge((gitData.WorktreeSections.Count + selectedPlan.Commits.Count + selectedPlan.Prs.Count).ToString()),
-                new Tab("Changes", Layout.Vertical().Width(Size.Full()).Height(Size.Full().Min(Size.Px(0))) | changesTabView).Badge(changesTabView.FileCount > 0 ? changesTabView.FileCount.ToString() : "")
             };
+
+            // Only surface the Changes tab once there are actual file changes — no point showing
+            // an empty "No commits yet." tab before any work has landed.
+            if (changesTabView.FileCount > 0)
+            {
+                tabList.Add(new Tab("Changes",
+                        Layout.Vertical().Width(Size.Full()).Height(Size.Full().Min(Size.Px(0))) | changesTabView)
+                    .Badge(changesTabView.FileCount.ToString()));
+                tabNamesList.Add("changes");
+            }
 
             if (totalArtifacts > 0)
             {
@@ -628,24 +633,30 @@ public class ContentView(
 
             if (pendingRecs.Count > 0)
             {
-                tabList.Add(new Tab("Recommendations", Cap(recommendationsLayout)).Badge(pendingRecs.Count.ToString()));
+                tabList.Add(new Tab("Recommendations", Cap(recommendationsTab)).Badge(pendingRecs.Count.ToString()));
                 tabNamesList.Add("recommendations");
             }
 
             var actualTabNames = tabNamesList.ToArray();
-            var actualSelectedTabIndex = Array.IndexOf(actualTabNames, args?.Tab ?? "summary");
-            if (actualSelectedTabIndex < 0) actualSelectedTabIndex = 0;
 
-            var tabs = Layout.Tabs(tabList.ToArray()).OnSelect(v =>
+            // Honor deep-linked tab from URL on initial load
+            if (args?.Tab is { } requestedTab && selectedTab.Value == 0)
             {
-                if (v >= 0 && v < actualTabNames.Length && selectedPlanState.Value != null)
-                    nav.Navigate<ReviewApp>(new ReviewAppArgs(selectedPlanState.Value.FolderName, actualTabNames[v]));
-            }).SelectedIndex(actualSelectedTabIndex).Variant(TabsVariant.Content).RemoveParentPadding();
+                var deepLinkIndex = Array.IndexOf(actualTabNames, requestedTab);
+                if (deepLinkIndex >= 0)
+                    selectedTab.Set(deepLinkIndex);
+            }
+
+            var tabs = Layout.Tabs(tabList.ToArray())
+                .OnSelect(v => selectedTab.Set(v))
+                .SelectedIndex(selectedTab.Value)
+                .Variant(TabsVariant.Content)
+                .RemoveParentPadding();
 
             content |= (Layout.Vertical().Padding(2).Height(Size.Full()) | tabs);
         }
 
-        content |= new VerificationReportSheet(openVerification, selectedPlan);
+        content |= new VerificationReportSheet(openVerification, selectedPlan, config);
         content |= new CommitDetailSheet(openCommit, selectedPlan, config, gitService);
 
         if (openArtifact.Value is { } artifactPath)
@@ -679,6 +690,64 @@ public class ContentView(
                     .Padding(8, 2, 0, 4)
                     .Width(Size.Full().Max(Size.Units(200))) | inner);
         }
+    }
+
+    private void ImplementSelectedRecommendations(
+        PlanFile selectedPlan,
+        IState<HashSet<string>> selectedRecTitles,
+        IClientProvider client,
+        Action revalidate)
+    {
+        var titles = selectedRecTitles.Value.ToList();
+        if (titles.Count == 0)
+        {
+            client.Toast("Select at least one recommendation to implement.", "Nothing Selected");
+            return;
+        }
+
+        var selected = ResolvePendingSelection(
+            planService.GetRecommendationsForPlan(selectedPlan.FolderName), titles);
+        if (selected.Count == 0)
+        {
+            client.Toast(
+                "Selected recommendations are no longer pending. Refresh and try again.",
+                "Nothing to Implement");
+            return;
+        }
+
+        // Single job for the whole batch, never one StartJob call per recommendation.
+        var changeRequest = BuildRecommendationChangeRequest(selected);
+        planService.AcceptRecommendationsAndRetry(selectedPlan.FolderName, titles);
+        jobService.StartJob(new RetryPlanArgs(selectedPlan.FolderPath, changeRequest));
+        var message = selected.Count == 1
+            ? "Started RetryPlan for recommendation"
+            : $"Started RetryPlan for {selected.Count} recommendations";
+        var title = selected.Count == 1 ? "Implementing Recommendation" : "Implementing Recommendations";
+        client.Toast(message, title);
+
+        selectedRecTitles.Set(new HashSet<string>());
+        refreshPlans();
+        revalidate();
+    }
+
+    internal static List<RecommendationYaml> ResolvePendingSelection(
+        IEnumerable<RecommendationYaml> allRecs, IReadOnlyCollection<string> selectedTitles)
+        => allRecs.Where(r => r.State == RecommendationStatus.Pending
+                              && selectedTitles.Contains(r.Title)).ToList();
+
+    private static string BuildRecommendationChangeRequest(List<RecommendationYaml> recs)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"Implement the following {recs.Count} recommendation(s) from the review:");
+        sb.AppendLine();
+        for (var i = 0; i < recs.Count; i++)
+        {
+            sb.AppendLine($"## {i + 1}. {recs[i].Title}");
+            sb.AppendLine();
+            sb.AppendLine(recs[i].Description);
+            sb.AppendLine();
+        }
+        return sb.ToString().TrimEnd();
     }
 
     internal static bool ValidateArtifactPath(string filePath, string planFolderPath)

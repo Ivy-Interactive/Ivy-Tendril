@@ -25,7 +25,7 @@ public class PlanTabView(
             // full height, and 1.5rem left inset (Padding(6,…)) here.
             return Layout.Vertical().Scroll(Scroll.Vertical).Width(Size.Full()).Height(Size.Full())
                 | (Layout.Vertical()
-                    .Padding(new Responsive<Thickness?> { Default = new Thickness(6, 0, 0, 4), Mobile = new Thickness(6, 4, 0, 4) })
+                    .Padding(6, 0, 0, 4)
                     .Width(Size.Full().Max(Size.Units(200)))
                     | editContentState.ToCodeInput()
                         .Language(Languages.Markdown)
@@ -35,12 +35,11 @@ public class PlanTabView(
         {
             var planLayout = Layout.Vertical().Height(Size.Full());
             if (selectedPlan.Status == PlanStatus.Failed)
-                planLayout |= ContentView.BuildFailureCallout(selectedPlan);
+                planLayout |= ContentView.BuildFailureCallout(selectedPlan, config.TendrilHome);
 
-            var annotatedContent = MarkdownHelper.AnnotateAllBrokenLinks(
-                selectedPlan.LatestRevisionContent,
-                planService.PlansDirectory);
-            
+            var annotatedContent = MarkdownHelper.PrepareForDisplay(
+                selectedPlan.LatestRevisionContent, config);
+
             var fixedElement = new VerificationsCardView(selectedPlan, planService, config);
 
             Action<string> onLinkClick = FileSheet.CreateLinkClickHandler(openFileState, planId =>

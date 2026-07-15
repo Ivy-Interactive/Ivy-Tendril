@@ -1,7 +1,6 @@
 using Ivy.Tendril.Database;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
-using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -44,8 +43,7 @@ public class RunCommand : AsyncCommand<RunCommand.Settings>
 
         try
         {
-            using var connection = new SqliteConnection($"Data Source={dbPath}");
-            connection.Open();
+            using var connection = SqliteConnectionFactory.OpenConfigured(dbPath);
 
             var migrator = new DatabaseMigrator(connection);
             var current = migrator.GetCurrentVersion();

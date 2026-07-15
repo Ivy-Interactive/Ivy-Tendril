@@ -202,6 +202,58 @@ public class GithubService(IConfigService config, ILogger<GithubService> logger)
         };
     }
 
+    /// <summary>
+    ///     Parses the <c>owner/name</c> from a GitHub issue or PR URL such as
+    ///     <c>https://github.com/{owner}/{repo}/issues/{n}</c> or <c>.../pull/{n}</c>.
+    ///     Returns null when the URL is not a recognizable GitHub issue/PR URL.
+    ///     Note this is distinct from <see cref="ParseRepoConfigFromUrl" />, which parses
+    ///     git remote URLs (ending in <c>owner/repo(.git)</c>) — that regex would mis-read
+    ///     an issue URL's trailing <c>issues/{n}</c> segments as the owner/repo.
+    /// </summary>
+    internal static RepoConfig? ParseRepoConfigFromIssueOrPrUrl(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return null;
+
+        var match = Regex.Match(url,
+            @"github\.com[/:](?<owner>[^/]+)/(?<name>[^/]+)/(?:issues|pull)/\d+",
+            RegexOptions.IgnoreCase);
+        if (!match.Success) return null;
+
+        return new RepoConfig
+        {
+            Owner = match.Groups["owner"].Value,
+            Name = match.Groups["name"].Value
+        };
+    }
+
+    public ProjectConfig? FindProjectForGithubRepo(string ownerRepo)
+    {
+        if (string.IsNullOrWhiteSpace(ownerRepo)) return null;
+
+        var matches = _config.Settings.Projects
+            .Where(p => p.RepoPaths.Any(path =>
+                GetRepoConfigFromPathCached(path)?.FullName
+                    .Equals(ownerRepo, StringComparison.OrdinalIgnoreCase) ?? false))
+            .ToList();
+
+        // Exactly one project must own the repo; zero (unconfigured) or many (ambiguous) → no match.
+        return matches.Count == 1 ? matches[0] : null;
+    }
+
+    /// <summary>
+    ///     Resolves the <c>owner/name</c> of each of the project's configured repos (via their git
+    ///     remotes). Entries whose remote can't be resolved (no <c>origin</c>, offline) are omitted,
+    ///     so an empty result means "could not determine any" — callers should fail open in that case.
+    /// </summary>
+    public IReadOnlyList<string> GetResolvedGithubRepos(ProjectConfig project)
+    {
+        return project.RepoPaths
+            .Select(p => GetRepoConfigFromPathCached(p)?.FullName)
+            .Where(n => n is not null)
+            .Select(n => n!)
+            .ToList();
+    }
+
     private async Task<(T result, string? error)> ExecuteGhCliAsync<T>(
         string args,
         Func<string, T> parseOutput,

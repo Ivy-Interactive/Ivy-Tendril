@@ -40,7 +40,7 @@ Focus on making progress, not achieving perfect understanding. A working impleme
 - Read `plan.yaml` from the plan folder (project, repos, title)
 - Read the latest revision from `Revisions/` (highest numbered .md file)
 - Extract the plan ID from the folder name (e.g. `01105` from `01105-TestPlan`)
-- Report plan context to Jobs UI: `tendril job status TendrilJobId --message "Reading plan..." --plan-id <plan-id> --plan-title "<title>"`
+- Report plan context to Jobs UI: `tendril job status TendrilJobId --message="Reading plan..." --plan-id=<plan-id> --plan-title="<title>"`
 
 ### 1.5. Verify Dependencies
 
@@ -78,6 +78,7 @@ if [ -f .git ] && grep -q "gitdir:" .git; then
     echo "ERROR: Repository at <repo-path> is itself a worktree."
     echo "ExecutePlan cannot create worktrees inside worktrees."
     echo "Check that project repo paths point to main repositories, not worktrees."
+    tendril job fail TendrilJobId --message="Cannot create worktrees: repository at <repo-path> is itself a git worktree. Update the project's repo path to point at the main repository."
     exit 1
 fi
 
@@ -89,6 +90,7 @@ if git rev-parse --is-inside-work-tree 2>/dev/null && [ -f "$PLANS_DIR_PARENT/.g
         echo "ERROR: TENDRIL_HOME ($TENDRIL_HOME) is inside a git worktree."
         echo "Plans and their worktrees cannot be created inside worktrees."
         echo "Move your Tendril installation outside the worktree or use a different Plans directory."
+        tendril job fail TendrilJobId --message="Cannot create worktrees: TENDRIL_HOME ($TENDRIL_HOME) is inside a git worktree. Move the Tendril installation or Plans directory outside the worktree."
         exit 1
     fi
 fi
@@ -122,11 +124,13 @@ After reading the plan revision, scan it for code validation markers to detect s
 4. **Write validation report** — Create `<TendrilPlanFolder>/Verification/PreExecution.md`:
 
 ```markdown
+---
+result: Pass
+date: <CurrentTime>
+---
 # PreExecution
 
-- **Date:** <CurrentTime>
-- **Result:** Pass / Fail / Skipped
-- **Blocks Found:** <number>
+**Blocks Found:** <number>
 
 ## Validation Blocks
 
@@ -210,6 +214,7 @@ If `baseBranch` is present for a repo, use it instead of auto-detecting. If abse
 if [ ! -f "<TendrilPlanFolder>/Worktrees/<repo-folder-name>/.git" ]; then
     echo "ERROR: Worktree creation failed - .git file missing at <TendrilPlanFolder>/Worktrees/<repo-folder-name>/.git"
     echo "This indicates git worktree add did not fully initialize the worktree."
+    tendril job fail TendrilJobId --message="Worktree creation failed for <repo-folder-name>: .git file missing after 'git worktree add' — the worktree was not fully initialized."
     exit 1
 fi
 cat "<TendrilPlanFolder>/Worktrees/<repo-folder-name>/.git"
@@ -300,32 +305,6 @@ git status
 
 If there are uncommitted changes, either commit them or discard them with a clear reason. The worktree must be clean.
 
-### 5.5. Generate Summary
-
-After all implementation commits are made, create `<TendrilPlanFolder>/Artifacts/summary.md` summarizing what was done.
-
-The summary should follow this structure:
-
-~~~markdown
-# Summary
-
-## Changes
-
-<Brief description of what was implemented — 2-3 sentences max>
-
-## API Changes
-
-<List any new/changed/removed public APIs: classes, methods, properties, endpoints, CLI commands, config keys. Use code formatting. If no API changes, write "None.">
-
-## Files Modified
-
-<Bulleted list of key files changed, grouped by category. Don't list every file — focus on the important ones.>
-~~~
-
-Focus on **what changed** (past tense), not what the plan said to do. Emphasize API surface changes — new classes, renamed methods, added properties, changed signatures — since these affect consumers.
-
-Update the summary after verification fixes too — if verifications cause additional commits, append those changes to the summary.
-
 ### 6. Document Commits
 
 Use the CLI to record commits, verifications, and related plans — **never edit plan.yaml directly**.
@@ -355,7 +334,7 @@ Get the run-set via `tendril plan verification list <plan-id> --json` — it emi
 
 For each `Pending` verification (in listed order):
 
-1. Send a status message: `tendril job status TendrilJobId --message "Verifying: <Name>"`
+1. Send a status message: `tendril job status TendrilJobId --message="Verifying: <Name>"`
 2. Fetch its full prompt: `tendril verification get <Name>`
 3. **Check if delegated:** The **Projects** section indicates which verifications are delegated — follow the prompt's instructions to invoke it as an external process. If the external process cannot be invoked (CLI broken, file lock, etc.), set the verification to `Fail` immediately. Do NOT attempt to do the verification inline or write the report yourself.
 4. Execute the prompt in the worktree directory
@@ -390,7 +369,31 @@ attempts: <number>
 
 The `result` field in the frontmatter MUST be one of: `Pass`, `Fail`, or `Skipped`. A verification is not complete without both its report file AND the `tendril plan set-verification` CLI call.
 
-### 7.5. Generate Recommendations
+### 7.5. Generate Summary
+
+After all verifications pass, create `<TendrilPlanFolder>/Artifacts/summary.md` summarizing what was done. Because this runs after verification, the summary reflects the final state of the code — including any fix commits made during Step 7.
+
+The summary should follow this structure:
+
+~~~markdown
+# Summary
+
+## Changes
+
+<Brief description of what was implemented — 2-3 sentences max>
+
+## API Changes
+
+<List any new/changed/removed public APIs: classes, methods, properties, endpoints, CLI commands, config keys. Use code formatting. If no API changes, write "None.">
+
+## Files Modified
+
+<Bulleted list of key files changed, grouped by category. Don't list every file — focus on the important ones.>
+~~~
+
+Focus on **what changed** (past tense), not what the plan said to do. Emphasize API surface changes — new classes, renamed methods, added properties, changed signatures — since these affect consumers.
+
+### 7.6. Generate Recommendations
 
 After all verifications pass, reflect on what you observed during this plan's execution. Write down anything you noticed that isn't part of this plan's scope:
 
@@ -402,10 +405,10 @@ After all verifications pass, reflect on what you observed during this plan's ex
 For each item, register it via the CLI:
 
 ```bash
-tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact Medium --risk Small
+tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown description with context and location." --impact=Medium
 ```
 
-`--impact` and `--risk` are optional (Small, Medium, or High). Impact indicates the value of implementing it; Risk indicates the potential for complications or bugs.
+`--impact` is optional (Small, Medium, or High) and indicates the value of implementing it.
 
 Do NOT include items that are part of the current plan's scope. Do NOT include recommendations about code formatting, linting, or style issues — those are handled by verifications.
 
@@ -434,9 +437,9 @@ After all verifications pass:
 
 3. Run `git status` in every worktree. If there are any uncommitted files (from verification fixes, generated files, etc.), commit or discard them. The worktrees must be completely clean before finishing.
 
-4. Verify `<TendrilPlanFolder>/Artifacts/recommendations.md` exists. If missing, go back to Step 7.5.
+4. Verify `<TendrilPlanFolder>/Artifacts/recommendations.md` exists. If missing, go back to Step 7.6.
 
-5. Verify `<TendrilPlanFolder>/Artifacts/summary.md` exists. If missing, go back to Step 5.5.
+5. Verify `<TendrilPlanFolder>/Artifacts/summary.md` exists. If missing, go back to Step 7.5.
 
 ### 8.5. Worktree Lifecycle
 

@@ -1,7 +1,7 @@
 #!/bin/sh
 
-# Ivy-Tendril macOS & Linux Installer
-# This script installs .NET 10 SDK, GitHub CLI, and Ivy-Tendril.
+# Ivy-Tendril macOS & Linux Standalone Installer
+# This script downloads and installs the standalone version of Ivy-Tendril.
 
 set -e
 
@@ -26,157 +26,90 @@ fi
 ARCH=$(uname -m)
 if [ "$ARCH" = "arm64" ] || [ "$ARCH" = "aarch64" ]; then
     printf "%b\\n" "Detected Architecture: ARM64"
-    GH_ARCH="arm64"
+    ARCH_TYPE="arm64"
 elif [ "$ARCH" = "x86_64" ] || [ "$ARCH" = "amd64" ]; then
     printf "%b\\n" "Detected Architecture: x64"
-    GH_ARCH="amd64"
+    ARCH_TYPE="x64"
 else
     printf "%b\\n" "${RED}Error: Unsupported architecture: $ARCH${NC}"
     exit 1
 fi
 
-printf "%b\\n" "\n${BLUE}Step 1: Checking for .NET 10 SDK...${NC}"
-if command -v dotnet > /dev/null 2>&1 && dotnet --version | grep -q "^10\."; then
-    printf "%b\\n" "${GREEN}✓ .NET 10 SDK is already installed.${NC}"
-else
-    printf "%b\\n" "Installing .NET 10 SDK..."
-    curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 10.0
-    
-    # Export for current session
-    export DOTNET_ROOT="$HOME/.dotnet"
-    export PATH="$DOTNET_ROOT:$DOTNET_ROOT/tools:$PATH"
-    printf "%b\\n" "${GREEN}✓ .NET 10 SDK installed successfully.${NC}"
+printf "%b\\n" "\n${BLUE}Checking GitHub CLI (gh)...${NC}"
+if ! command -v gh >/dev/null 2>&1; then
+    printf "%b\\n" "${RED}Error: GitHub CLI (gh) is not installed.${NC}"
+    printf "%b\\n" "Please install the latest version of gh from https://cli.github.com/ and try again.${NC}"
+    exit 1
 fi
 
-printf "%b\n" "\n${BLUE}Step 2: Trusting .NET dev certificates...${NC}"
+LATEST_GH_URL=$(curl -sSf -L -o /dev/null -w %{url_effective} https://github.com/cli/cli/releases/latest)
+LATEST_GH_TAG=${LATEST_GH_URL##*/}
+LATEST_GH_VERSION=${LATEST_GH_TAG#v}
+
+if [ -z "$LATEST_GH_VERSION" ] || [ "$LATEST_GH_VERSION" = "latest" ]; then
+    LATEST_GH_VERSION=$(curl -sSf https://api.github.com/repos/cli/cli/releases/latest | grep tag_name | cut -d'"' -f4 | sed 's/^v//')
+fi
+
+if [ -z "$LATEST_GH_VERSION" ]; then
+    printf "%b\\n" "${RED}Error: Failed to fetch the latest gh CLI version from GitHub.${NC}"
+    exit 1
+fi
+
+GH_VERSION=$(gh --version | head -n 1 | awk '{print $3}')
+printf "%b\\n" "Installed gh version: ${GREEN}${GH_VERSION}${NC}"
+printf "%b\\n" "Latest gh version:    ${GREEN}${LATEST_GH_VERSION}${NC}"
+
+if [ "$GH_VERSION" != "$LATEST_GH_VERSION" ]; then
+    printf "%b\\n" "${RED}Error: You do not have the latest GitHub CLI (gh) version.${NC}"
+    printf "%b\\n" "Please upgrade gh to version ${LATEST_GH_VERSION} and try again.${NC}"
+    exit 1
+fi
+printf "%b\\n" "${GREEN}✓ GitHub CLI (gh) is up to date.${NC}"
+
+printf "%b\\n" "\n${BLUE}Step 1: Fetching latest release info...${NC}"
+LATEST_RELEASE_URL=$(curl -sSf -L -o /dev/null -w %{url_effective} https://github.com/Ivy-Interactive/Ivy-Tendril/releases/latest)
+LATEST_TAG=${LATEST_RELEASE_URL##*/}
+VERSION=${LATEST_TAG#v}
+
+if [ -z "$VERSION" ]; then
+    printf "%b\\n" "${RED}Error: Failed to fetch the latest release version.${NC}"
+    exit 1
+fi
+
+printf "%b\\n" "Latest version found: ${GREEN}${VERSION}${NC}"
+
+TEMP_DIR=$(mktemp -d)
+cd "$TEMP_DIR"
+
 if [ "$OS_TYPE" = "macos" ]; then
-    if dotnet dev-certs https --check --trust > /dev/null 2>&1; then
-        printf "%b\n" "${GREEN}✓ .NET dev certificate is already trusted.${NC}"
-    else
-        printf "%b\n" "Generating and trusting .NET dev certificate..."
-        dotnet dev-certs https --trust
-        printf "%b\n" "${GREEN}✓ .NET dev certificate trusted successfully.${NC}"
-    fi
-else
-    if dotnet dev-certs https --check > /dev/null 2>&1; then
-        printf "%b\n" "${GREEN}✓ .NET dev certificate is already generated.${NC}"
-    else
-        printf "%b\n" "Generating .NET dev certificate..."
-        dotnet dev-certs https
-        printf "%b\n" "${GREEN}✓ .NET dev certificate generated successfully.${NC}"
-        printf "%b\n" "${BLUE}Note: On Linux, automatic certificate trusting is not supported by .NET CLI.${NC}"
-        printf "%b\n" "${BLUE}You may need to manually add it to your trust store if accessing via HTTPS.${NC}"
-    fi
-fi
-
-printf "%b\\n" "\n${BLUE}Step 3: Checking for Git...${NC}"
-if command -v git > /dev/null 2>&1 && git --version > /dev/null 2>&1; then
-    printf "%b\\n" "${GREEN}✓ Git is already installed.${NC}"
-else
-    if [ "$OS_TYPE" = "macos" ]; then
-        printf "%b\\n" "Installing Git (via Xcode Command Line Tools)..."
-        xcode-select --install
-        printf "%b\\n" "${RED}Please complete the GUI installation prompt, then run this script again.${NC}"
-        exit 1
-    else
-        printf "%b\\n" "${RED}Error: Git is not installed. Please install Git using your package manager (e.g., apt, dnf, pacman) and run this script again.${NC}"
-        exit 1
-    fi
-fi
-
-printf "%b\\n" "\n${BLUE}Step 4: Checking for GitHub CLI (gh)...${NC}"
-if command -v gh > /dev/null 2>&1; then
-    printf "%b\\n" "${GREEN}✓ GitHub CLI is already installed.${NC}"
-else
-    printf "%b\\n" "Installing GitHub CLI (gh)..."
-    # Get latest version from GitHub
-    LATEST_GH=$(curl -sL -o /dev/null -w %{url_effective} https://github.com/cli/cli/releases/latest | grep -oE "[^/]+$")
-    GH_VERSION=${LATEST_GH#v}
+    FILE_NAME="IvyTendril-${VERSION}-osx-${ARCH_TYPE}.pkg"
+    DOWNLOAD_URL="https://github.com/Ivy-Interactive/Ivy-Tendril/releases/download/${LATEST_TAG}/${FILE_NAME}"
     
-    GH_TEMP=$(mktemp -d)
+    printf "%b\\n" "\n${BLUE}Step 2: Downloading macOS Installer Package...${NC}"
+    printf "%b\\n" "Downloading from: ${DOWNLOAD_URL}"
+    curl -sSL -o "$FILE_NAME" "$DOWNLOAD_URL"
     
-    if [ "$OS_TYPE" = "macos" ]; then
-        GH_FILE="gh_${GH_VERSION}_macOS_${GH_ARCH}.zip"
-        printf "%b\\n" "Downloading gh ${GH_VERSION}..."
-        curl -sSL -o "$GH_TEMP/$GH_FILE" "https://github.com/cli/cli/releases/download/${LATEST_GH}/${GH_FILE}"
-        cd "$GH_TEMP"
-        unzip -q "$GH_FILE"
-        sudo mkdir -p /usr/local/bin
-        sudo mv gh_${GH_VERSION}_macOS_${GH_ARCH}/bin/gh /usr/local/bin/
-    else
-        GH_FILE="gh_${GH_VERSION}_linux_${GH_ARCH}.tar.gz"
-        printf "%b\\n" "Downloading gh ${GH_VERSION}..."
-        curl -sSL -o "$GH_TEMP/$GH_FILE" "https://github.com/cli/cli/releases/download/${LATEST_GH}/${GH_FILE}"
-        cd "$GH_TEMP"
-        tar -xzf "$GH_FILE"
-        sudo mkdir -p /usr/local/bin
-        sudo mv gh_${GH_VERSION}_linux_${GH_ARCH}/bin/gh /usr/local/bin/
-    fi
+    printf "%b\\n" "\n${BLUE}Step 3: Installing Ivy-Tendril (requires sudo)...${NC}"
+    sudo installer -pkg "$FILE_NAME" -target /
     
-    cd - > /dev/null
-    rm -rf "$GH_TEMP"
-    printf "%b\\n" "${GREEN}✓ GitHub CLI installed to /usr/local/bin/gh.${NC}"
-fi
-
-printf "%b\\n" "\n${BLUE}Step 5: Checking for PowerShell (pwsh)...${NC}"
-if command -v pwsh > /dev/null 2>&1 || dotnet tool list -g | grep -qi "powershell"; then
-    printf "%b\\n" "${GREEN}✓ PowerShell is already installed.${NC}"
+    printf "%b\\n" "\n${GREEN}✓ Ivy-Tendril installed successfully!${NC}"
 else
-    printf "%b\\n" "Installing PowerShell (pwsh)..."
-    dotnet tool install --global PowerShell
-    printf "%b\\n" "${GREEN}✓ PowerShell installed successfully.${NC}"
+    FILE_NAME="IvyTendril-${VERSION}-linux-${ARCH_TYPE}.AppImage"
+    DOWNLOAD_URL="https://github.com/Ivy-Interactive/Ivy-Tendril/releases/download/${LATEST_TAG}/${FILE_NAME}"
+    
+    printf "%b\\n" "\n${BLUE}Step 2: Downloading Linux AppImage...${NC}"
+    printf "%b\\n" "Downloading from: ${DOWNLOAD_URL}"
+    curl -sSL -o "$FILE_NAME" "$DOWNLOAD_URL"
+    
+    printf "%b\\n" "\n${BLUE}Step 3: Installing to /usr/local/bin/tendril (requires sudo)...${NC}"
+    sudo mv "$FILE_NAME" /usr/local/bin/tendril
+    sudo chmod +x /usr/local/bin/tendril
+    
+    printf "%b\\n" "\n${GREEN}✓ Ivy-Tendril installed successfully to /usr/local/bin/tendril${NC}"
 fi
 
-printf "%b\\n" "\n${BLUE}Step 6: Installing Ivy-Tendril...${NC}"
-# Use the internal source if provided, otherwise secondary
-# We'll try official NuGet first, then fallback to Ivy feed if requested
-IVY_SOURCE="https://api.nuget.org/v3/index.json"
+# Clean up
+rm -rf "$TEMP_DIR"
 
-if dotnet tool list -g | grep -q "ivy.tendril"; then
-    printf "%b\\n" "Updating Ivy-Tendril..."
-    dotnet tool update -g Ivy.Tendril --add-source "$IVY_SOURCE" || true
-else
-    printf "%b\\n" "Installing Ivy-Tendril..."
-    dotnet tool install -g Ivy.Tendril --add-source "$IVY_SOURCE"
-fi
-
-# 7. PATH Configuration
-printf "%b\\n" "\n${BLUE}Step 7: Configuring PATH...${NC}"
-DOTNET_TOOLS_PATH="$HOME/.dotnet/tools"
-SHELL_PROFILE=""
-
-case "$SHELL" in
-    *zsh*)
-        SHELL_PROFILE="$HOME/.zshrc"
-        ;;
-    *bash*)
-        if [ -f "$HOME/.bash_profile" ]; then
-            SHELL_PROFILE="$HOME/.bash_profile"
-        else
-            SHELL_PROFILE="$HOME/.bashrc"
-        fi
-        ;;
-esac
-
-if [ -n "$SHELL_PROFILE" ]; then
-    if ! grep -q -E "(\.dotnet/tools|DOTNET_ROOT/tools)" "$SHELL_PROFILE"; then
-        printf "%b\\n" "Adding .NET environment variables to $SHELL_PROFILE"
-        if [ -f "$HOME/.dotnet/dotnet" ]; then
-            printf "%b\n" "\n# .NET SDK & Tools\nexport DOTNET_ROOT=\"\$HOME/.dotnet\"\nexport PATH=\"\$DOTNET_ROOT:\$HOME/.dotnet/tools:\$PATH\"" >> "$SHELL_PROFILE"
-        else
-            printf "%b\n" "\n# .NET Tools\nexport PATH=\"\$HOME/.dotnet/tools:\$PATH\"" >> "$SHELL_PROFILE"
-        fi
-        printf "%b\\n" "${GREEN}✓ PATH updated. Please restart your terminal or run: source $SHELL_PROFILE${NC}"
-    else
-        printf "%b\\n" "${GREEN}✓ PATH already configured in $SHELL_PROFILE.${NC}"
-    fi
-else
-    printf "%b\\n" "${RED}Warning: Could not detect shell profile. Manually add $DOTNET_TOOLS_PATH to your PATH.${NC}"
-fi
-
-printf "%b\\n" "\n${GREEN}=== Installation Complete! ===${NC}"
+printf "%b\\n" "\n${GREEN}=== Talk to you soon! ===${NC}"
 printf "%b\\n" "You can now run Ivy-Tendril by typing: ${BLUE}tendril${NC}"
-
-if ! command -v gh > /dev/null 2>&1 && ! /usr/local/bin/gh --version > /dev/null 2>&1; then
-    printf "%b\\n" "${RED}Note: You may need to restart your terminal for 'gh' to be available.${NC}"
-fi

@@ -37,24 +37,33 @@ public class PlanRecAddSettings : CommandSettings
     public string Title { get; set; } = "";
 
     [CommandOption("-d|--description")]
-    [Description("Recommendation description (reads from stdin if omitted)")]
+    [Description("Recommendation description (inline; use --file/--stdin for long text)")]
     public string? Description { get; set; }
+
+    [CommandOption("-f|--file")]
+    [Description("Read the description verbatim from this file (good for long/multiline text)")]
+    public string? FilePath { get; set; }
+
+    [CommandOption("--stdin")]
+    [Description("Read the description verbatim from standard input")]
+    public bool Stdin { get; set; }
 
     [CommandOption("--impact")]
     [Description("Impact level (Small, Medium, High)")]
     public string? Impact { get; set; }
 
-    [CommandOption("--risk")]
-    [Description("Risk level (Small, Medium, High)")]
-    public string? Risk { get; set; }
+    public int SourceCount => CliValidation.CountSources(Stdin, FilePath, Description ?? "");
 
     public override Spectre.Console.ValidationResult Validate()
     {
+        var sourceValidation = CliValidation.ValidateSingleSource(SourceCount, "--description, --file, or --stdin");
+        if (!sourceValidation.Successful)
+            return sourceValidation;
+
         return CliValidation.Combine(
             CliValidation.RequireNonEmpty(PlanId, "plan-id"),
             CliValidation.RequireNonEmpty(Title, "title"),
-            CliValidation.ValidateOneOf(Impact, "--impact", CliValidation.ValidImpactLevels),
-            CliValidation.ValidateOneOf(Risk, "--risk", CliValidation.ValidImpactLevels)
+            CliValidation.ValidateOneOf(Impact, "--impact", CliValidation.ValidImpactLevels)
         );
     }
 }
@@ -126,7 +135,7 @@ public class PlanRecDeclineSettings : CommandSettings
 
 public class PlanRecSetSettings : CommandSettings
 {
-    private static readonly string[] ValidFields = ["title", "description", "state", "impact", "risk", "declinereason"];
+    private static readonly string[] ValidFields = ["title", "description", "state", "impact", "declinereason"];
 
     [Description("Plan ID (e.g., 03430)")]
     [CommandArgument(0, "<plan-id>")]
@@ -136,7 +145,7 @@ public class PlanRecSetSettings : CommandSettings
     [CommandArgument(1, "<title>")]
     public string Title { get; set; } = "";
 
-    [Description("Field name (title, description, state, impact, risk, declineReason)")]
+    [Description("Field name (title, description, state, impact, declineReason)")]
     [CommandArgument(2, "<field>")]
     public string Field { get; set; } = "";
 
@@ -156,7 +165,7 @@ public class PlanRecSetSettings : CommandSettings
         var field = Field.ToLower();
         if (field == "state")
             return CliValidation.ValidateOneOf(Value, "<value> for field 'state'", CliValidation.ValidRecommendationStates);
-        if (field == "impact" || field == "risk")
+        if (field == "impact")
             return CliValidation.ValidateOneOf(Value, $"<value> for field '{field}'", CliValidation.ValidImpactLevels);
 
         return Spectre.Console.ValidationResult.Success();
@@ -184,14 +193,12 @@ public class PlanRecListCommand : Command<PlanRecListSettings>
         table.AddColumn("Title");
         table.AddColumn("State");
         table.AddColumn("Impact");
-        table.AddColumn("Risk");
 
         foreach (var rec in recs)
             table.AddRow(
                 rec.Title.EscapeMarkup(),
                 rec.State.EscapeMarkup(),
-                (rec.Impact ?? "-").EscapeMarkup(),
-                (rec.Risk ?? "-").EscapeMarkup());
+                (rec.Impact ?? "-").EscapeMarkup());
 
         AnsiConsole.Write(table);
         return 0;
@@ -217,21 +224,16 @@ public class PlanRecAddCommand : Command<PlanRecAddSettings>
         if (plan.Recommendations.Any(r => r.Title.Equals(settings.Title, StringComparison.OrdinalIgnoreCase)))
             throw new InvalidOperationException($"Recommendation already exists: {settings.Title}");
 
-        var description = settings.Description;
-        if (string.IsNullOrEmpty(description))
-        {
-            if (!Console.IsInputRedirected)
-                throw new ArgumentException("Provide --description or pipe content via stdin");
-            description = Console.In.ReadToEnd().Trim();
-        }
+        var description = ConsoleHelper.ResolveInput(settings.Stdin, settings.FilePath, settings.Description);
+        if (string.IsNullOrWhiteSpace(description))
+            throw new ArgumentException("Provide --description, --file, or --stdin");
 
         plan.Recommendations.Add(new RecommendationYaml
         {
             Title = settings.Title,
             Description = description,
             State = RecommendationStatus.Pending,
-            Impact = settings.Impact,
-            Risk = settings.Risk
+            Impact = settings.Impact
         });
 
         plan.Updated = DateTime.UtcNow;
@@ -367,14 +369,11 @@ public class PlanRecSetCommand : Command<PlanRecSetSettings>
             case "impact":
                 rec.Impact = settings.Value;
                 break;
-            case "risk":
-                rec.Risk = settings.Value;
-                break;
             case "declinereason":
                 rec.DeclineReason = settings.Value;
                 break;
             default:
-                throw new ArgumentException($"Unknown field '{settings.Field}'. Valid fields: title, description, state, impact, risk, declineReason");
+                throw new ArgumentException($"Unknown field '{settings.Field}'. Valid fields: title, description, state, impact, declineReason");
         }
 
         plan.Updated = DateTime.UtcNow;

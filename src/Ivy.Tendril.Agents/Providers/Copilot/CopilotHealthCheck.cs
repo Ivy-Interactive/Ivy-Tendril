@@ -24,7 +24,7 @@ public sealed class CopilotHealthCheck : IAgentHealthCheck
         var (fileName, prefixArgs) = CopilotBinaryResolver.Resolve();
         var (exitCode, _, stderr) = await HealthCheckRunner.RunAsync(
             fileName,
-            [..prefixArgs, "-p", "ping", "--allow-all-paths", "--allow-all-urls", "--allow-all-tools", "-s"],
+            [.. prefixArgs, "-p", "ping", "--allow-all-paths", "--allow-all-urls", "--allow-all-tools", "-s"],
             TimeSpan.FromSeconds(30),
             ct);
 
@@ -48,7 +48,7 @@ public sealed class CopilotHealthCheck : IAgentHealthCheck
     {
         var (fileName, prefixArgs) = CopilotBinaryResolver.Resolve();
         var (exitCode, stdout, _) = await HealthCheckRunner.RunAsync(
-            fileName, [..prefixArgs, "--version"], TimeSpan.FromSeconds(10), ct);
+            fileName, [.. prefixArgs, "--version"], TimeSpan.FromSeconds(10), ct);
 
         if (exitCode != 0) return null;
         var match = Regex.Match(stdout, @"\d+\.\d+\.\d+");
@@ -76,7 +76,9 @@ public sealed class CopilotHealthCheck : IAgentHealthCheck
 
         if (stderr.Contains("model", StringComparison.OrdinalIgnoreCase) &&
             (stderr.Contains("invalid", StringComparison.OrdinalIgnoreCase) ||
-             stderr.Contains("not found", StringComparison.OrdinalIgnoreCase)))
+             stderr.Contains("not found", StringComparison.OrdinalIgnoreCase) ||
+             stderr.Contains("does not exist", StringComparison.OrdinalIgnoreCase) ||
+             stderr.Contains("not available", StringComparison.OrdinalIgnoreCase)))
             return new ModelValidationResult
             {
                 Status = ModelValidationStatus.InvalidModel,
@@ -109,7 +111,7 @@ public sealed class CopilotHealthCheck : IAgentHealthCheck
 
     public AgentOnboardingInfo GetOnboardingInfo() => new()
     {
-        DisplayName = "GitHub Copilot",
+        DisplayName = "Copilot",
         InstallCommand = "npm install -g @githubnext/copilot-cli",
         InstallUrl = "https://docs.github.com/en/copilot",
         AuthCommand = "copilot login",

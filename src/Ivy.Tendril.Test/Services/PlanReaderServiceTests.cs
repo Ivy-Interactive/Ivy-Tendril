@@ -32,7 +32,7 @@ public class PlanReaderServiceTests
         try
         {
             // Act
-            service.TransitionState(folderName, PlanStatus.ReadyForReview);
+            service.TransitionState(folderName, PlanStatus.Review);
 
             // Wait for the background plan.yaml write so the finally-block cleanup doesn't race it.
             await service.FlushPendingWritesAsync();
@@ -109,7 +109,7 @@ public class PlanReaderServiceTests
         var planFolder = Path.Combine(tempDir, folderName);
         Directory.CreateDirectory(planFolder);
 
-        var planYaml = "state: ReadyForReview\nproject: TestProject\ncommits:\n- abc1234\n- def5678\nverifications:\n- name: Build\n  status: Pass\n- name: Test\n  status: Fail\n- name: Lint\n  status: Skipped\n- name: Format\n  status: Pending\n";
+        var planYaml = "state: Review\nproject: TestProject\ncommits:\n- abc1234\n- def5678\nverifications:\n- name: Build\n  status: Pass\n- name: Test\n  status: Fail\n- name: Lint\n  status: Skipped\n- name: Format\n  status: Pending\n";
         File.WriteAllText(Path.Combine(planFolder, "plan.yaml"), planYaml);
 
         try

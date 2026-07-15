@@ -7,7 +7,7 @@ namespace Ivy.Tendril.Agents.Providers.Copilot;
 public sealed class CopilotPty : IAgentPty
 {
     public string Id => AgentId.Copilot;
-    public string DisplayName => "GitHub Copilot";
+    public string DisplayName => "Copilot";
 
     public AgentCapabilities Capabilities =>
         AgentCapabilities.ArgumentPrompt |
@@ -20,6 +20,8 @@ public sealed class CopilotPty : IAgentPty
 
     public TransportKind SupportedTransports => TransportKind.Pty;
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles => [];
+
+    public string? ContextFileName => "AGENTS.md";
 
     private static readonly string ShellToolName =
         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "powershell" : "bash";
@@ -76,6 +78,14 @@ public sealed class CopilotPty : IAgentPty
             args.Add(config.Model);
         }
 
+        // Initial task: -i starts interactive mode AND auto-executes the prompt
+        // (the first-run trust modal, if any, is handled by the host before it runs).
+        if (!string.IsNullOrEmpty(config.InitialPrompt))
+        {
+            args.Add("-i");
+            args.Add(config.InitialPrompt);
+        }
+
         foreach (var arg in config.ExtraArguments)
             args.Add(arg);
 
@@ -97,5 +107,8 @@ public sealed class CopilotPty : IAgentPty
         IdlePattern = @">\s*$",
         ErrorPattern = @"Error:|error:|ERR!",
         PermissionPromptPattern = @"Allow|Deny|approve|reject",
+        // First-run "Confirm folder trust" modal; default selection is "Yes" → Enter.
+        TrustPromptPattern = @"trust the files|Do you trust|Confirm folder trust",
+        TrustAcceptInput = "\r",
     };
 }

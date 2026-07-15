@@ -54,9 +54,9 @@ public class CreatePlanDialogLauncher(Func<Action, object> renderTrigger) : View
             ? new DirtyRepoDialog(
                 showDirtyDialog,
                 preflightResult,
-                proceedLabel: "Create Anyway",
+                proceedLabel: "Create Without Syncing",
                 contextMessage: "The plan will be based on this state, but ExecutePlan will branch from origin/<baseBranch>. Commit and push first if these changes should be included in the plan.",
-                onSyncRepos: () => LaunchWithSync(pendingJobArgs.Value, preflightResult),
+                onSyncRepos: policy => LaunchWithSync(pendingJobArgs.Value, preflightResult, policy),
                 onProceed: () => LaunchCreatePlan(pendingJobArgs.Value))
             : null;
 
@@ -72,12 +72,12 @@ public class CreatePlanDialogLauncher(Func<Action, object> renderTrigger) : View
             pendingJobArgs.Set(null);
         }
 
-        void LaunchWithSync(CreatePlanArgs args, PreflightResult preflight)
+        void LaunchWithSync(CreatePlanArgs args, PreflightResult preflight, UntrackedChangesPolicy policy)
         {
             var syncJobIds = new List<string>();
             foreach (var (repoPath, baseBranch, _) in preflight.DirtyRepos)
             {
-                var jobId = jobService.StartJob(new SyncRepoArgs(repoPath, baseBranch));
+                var jobId = jobService.StartJob(new SyncRepoArgs(repoPath, baseBranch, UntrackedChangesPolicy: policy));
                 syncJobIds.Add(jobId);
             }
 

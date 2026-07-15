@@ -10,7 +10,7 @@ $zip = Join-Path $IntermediateOutputPath "promptwares.zip"
 if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
 Copy-Item $src $staging -Recurse -Force
 
-Get-ChildItem $staging -Recurse -Directory | Where-Object { $_.Name -in 'Logs','Memory' } | Remove-Item -Recurse -Force
+Get-ChildItem $staging -Recurse -Directory | Where-Object { $_.Name -eq 'Memory' } | Remove-Item -Recurse -Force
 
 # Remove tools that are NOT explicitly shipped.
 # Only tools listed in $shippedTools are included in the package.
@@ -24,7 +24,7 @@ $shippedTools = @{
     'SplitPlan'   = @()
     'UpdatePlan'  = @()
     'CreateIssue' = @()
-    'UpdateProject' = @()
+    'SetupProject' = @()
 }
 
 foreach ($pw in $shippedTools.Keys) {

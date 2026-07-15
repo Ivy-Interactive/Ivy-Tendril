@@ -16,9 +16,9 @@ Project configuration is available from the firmware header.
 
 ### 1. Read the Plan
 
-- Read the latest revision from `Revisions/` (highest numbered .md file)
+- Read the latest revision: `tendril plan get-revision <TendrilPlanId>`
 - Get the plan title: `tendril plan get <TendrilPlanId> title`
-- Report plan context to Jobs UI: `tendril job status TendrilJobId --message "Updating plan..." --plan-id <plan-id> --plan-title "<title>"`
+- Report plan context to Jobs UI: `tendril job status TendrilJobId --message="Updating plan..." --plan-id=<plan-id> --plan-title="<title>"`
 
 ### 2. Parse Instructions
 
@@ -28,7 +28,7 @@ Read the `UpdateInstructions` value from the firmware header. Instructions are e
 
 ### 3. Research and Answer Questions
 
-Report status: `tendril job status TendrilJobId --message "Researching questions..."`
+Report status: `tendril job status TendrilJobId --message="Researching questions..."`
 
 For each question in the instructions:
 1. Read relevant source files to find the answer
@@ -48,11 +48,11 @@ If all questions are resolved and no new questions arose, omit the `## Questions
 
 ### 4. Apply Changes
 
-Report status: `tendril job status TendrilJobId --message "Applying changes..."`
+Report status: `tendril job status TendrilJobId --message="Applying changes..."`
 
 - Write the new revision via CLI (number auto-incremented):
   ```bash
-  tendril plan write-revision <plan-id> <<'EOF'
+  tendril plan write-revision <plan-id> --stdin <<'EOF'
   <updated revision content here>
   EOF
   ```
@@ -76,4 +76,4 @@ Report status: `tendril job status TendrilJobId --message "Applying changes..."`
 - Do NOT modify `plan.yaml` — the launcher script handles state and timestamps
 - The plan must remain self-contained with all paths and information for an LLM coding agent
 - Keep the plan short and concise — the limiting factor is a human reading it
-- When referencing local files, use markdown links: `[filename:line](file:///path/to/filename)` for source files with line numbers, or `[filename](file:///path/to/filename)` without. Never use backticks in link text or `#L123` fragments in URLs. Use `![alt](path)` for images.
+- When referencing local files, use markdown links: `[filename:line](file:///path/to/filename)` for source files with line numbers, or `[filename](file:///path/to/filename)` without. Never use backticks in link text, and never append a line number to the URL itself — no `:348` suffix and no `#L123` fragment; the line number belongs only in the display text. Only use `file:///` links for files that already exist; for a file the plan will create, write its path in inline code (`` `path/to/new/file` ``) instead of a link. Use `![alt](path)` for images.

@@ -50,7 +50,7 @@ public static class PlanSetupHelper
         return planFolder;
     }
 
-    public static string CreateReadyForReviewPlan(
+    public static string CreateReviewPlan(
         string plansDir,
         string title,
         string project = "E2ETest")
@@ -66,7 +66,7 @@ public static class PlanSetupHelper
         var planYaml = $"""
             title: "{title}"
             description: "Test plan for PR creation"
-            state: ReadyForReview
+            state: Review
             project: {project}
             priority: 0
             created: {DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ}

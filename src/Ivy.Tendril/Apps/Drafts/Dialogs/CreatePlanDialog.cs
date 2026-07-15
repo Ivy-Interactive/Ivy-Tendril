@@ -1,11 +1,13 @@
 using Ivy;
 using Ivy.Core.Hooks;
-using Ivy.Widgets.ContentInputView;
+using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Widgets;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using System;
 using System.IO;
 using Ivy.Tendril.Apps.Agent;
+using Ivy.Tendril.Apps.Settings;
 
 namespace Ivy.Tendril.Apps.Drafts.Dialogs;
 
@@ -29,7 +31,7 @@ public class CreatePlanDialog(
         _ => 0
     };
 
-    // Builds the seed prompt for the "Continue with Agent" flow. The description is
+    // Builds the seed prompt for the "Continue with <agent>" flow. The description is
     // trimmed, a single project reads "the project X", multiple read "the projects X or Y",
     // and "Auto" lets the agent pick the project itself.
     internal static string BuildAgentPrompt(string[] projects, string description)
@@ -53,11 +55,12 @@ public class CreatePlanDialog(
         var selectedProjects = UseState(_defaultProjects);
         var selectedPriority = UseState("Normal");
         var configService = UseService<IConfigService>();
+        var agentRunner = UseService<IAgentRunner>();
         var uploadSessionId = UseState(() => Guid.NewGuid().ToString("N"));
-
+        var (breakpoint, breakpointListener) = Context.UseBreakpoint();
         var uploadedFiles = UseState(new List<string>());
 
-        var uploadContext = this.UseUpload(async (fileUpload, stream, token) =>
+        var uploadContext = UseUpload(async (fileUpload, stream, token) =>
         {
             var tempDir = Path.Combine(configService.TendrilHome, "Attachments", uploadSessionId.Value);
             Directory.CreateDirectory(tempDir);
@@ -80,6 +83,9 @@ public class CreatePlanDialog(
             uploadedFiles.Set(newList);
         });
 
+        // e.g. "Continue with Claude Code" — branded to the configured coding agent.
+        var continueLabel = $"Chat with {AgentBranding.For(configService.Settings.CodingAgent, agentRunner).Label}";
+
         var exclusiveProjects = new ConvertedState<string[], string[]>(
             selectedProjects,
             forward: v => v,
@@ -94,10 +100,11 @@ public class CreatePlanDialog(
             }
         );
 
+        var currentProjectNames = configService.Projects.Select(p => p.Name).ToList();
         var options = new List<IAnyOption>();
-        if (projectNames.Count > 1)
+        if (currentProjectNames.Count > 1)
             options.Add(new Option<string>("Auto", "Auto", icon: Icons.WandSparkles));
-        options.AddRange(projectNames.Select(p => new Option<string>(p, p)));
+        options.AddRange(currentProjectNames.Select(p => new Option<string>(p, p)));
 
         var planWasCreated = false;
         void HandleClose()
@@ -120,17 +127,23 @@ public class CreatePlanDialog(
             onClose();
         }
 
-        return new Dialog(
-            _ => HandleClose(),
-            new DialogHeader("Create New Plan"),
-            new DialogBody(
-                Layout.Vertical()
-                | exclusiveProjects.ToSelectInput(options).Variant(SelectInputVariant.Toggle).WithField().Label("Select Project(s)")
+        var bodyContent =
+                Layout.Vertical().Margin(0,2,0,0)
+                | exclusiveProjects.ToSelectInput(options)
+                    .Variant(SelectInputVariant.Toggle)
+                    .WithField()
+                    .Label("Select Project(s)")
+                    .Tools(new Button("New Project").Icon(Icons.Plus).Small().Ghost().OnClick(() =>
+                    {
+                        HandleClose();
+                        nav.Navigate<SettingsApp>(new SettingsAppArgs(SettingsApp.TagProjects));
+                    }))
                 | selectedPriority.ToSelectInput(PriorityOptions).Variant(SelectInputVariant.Toggle).WithField().Label("Priority")
-                | new ContentInputView
+                | new Ivy.Tendril.Widgets.ContentInput
                 {
                     UploadUrl = uploadContext.Value.UploadUrl,
-                    OnSubmit = e =>
+                    AutoFocus = true,
+                    OnSubmit = _ =>
                     {
                         if (!string.IsNullOrWhiteSpace(createPlanText.Value) && !isCreating.Value)
                         {
@@ -146,7 +159,7 @@ public class CreatePlanDialog(
                     },
                     OnMenuAction = e =>
                     {
-                        if (e.Value == "Continue with Agent")
+                        if (e.Value == continueLabel)
                         {
                             if (string.IsNullOrWhiteSpace(createPlanText.Value)) return ValueTask.CompletedTask;
                             var projects = selectedProjects.Value.Any()
@@ -158,16 +171,59 @@ public class CreatePlanDialog(
                             onClose();
                         }
                         return ValueTask.CompletedTask;
+                    },
+                    OnRemoveAttachment = e =>
+                    {
+                        var filePath = e.Value;
+                        try
+                        {
+                            if (File.Exists(filePath))
+                            {
+                                File.Delete(filePath);
+                            }
+                        }
+                        catch
+                        {
+                            // ignore
+                        }
+                        var newList = new List<string>(uploadedFiles.Value);
+                        newList.Remove(filePath);
+                        uploadedFiles.Set(newList);
+
+                        var fileRef = $" [file: {filePath}]";
+                        var currentText = createPlanText.Value;
+                        if (currentText.Contains(fileRef))
+                        {
+                            createPlanText.Set(currentText.Replace(fileRef, ""));
+                        }
+                        else if (currentText.Contains(fileRef.Trim()))
+                        {
+                            createPlanText.Set(currentText.Replace(fileRef.Trim(), ""));
+                        }
+                        return ValueTask.CompletedTask;
                     }
                 }
                     .Bind(createPlanText)
                     .SubmitLabel("Create")
-                    .MenuOptions("Continue with Agent")
+                    .MenuOptions(continueLabel)
                     .Placeholder("Enter task description...")
                     .WithField()
                     .Label("Describe the task for the new plan")
-                    .Required()
-            )
-        ).Width(Size.Rem(30));
+                    .Required();
+
+        object planSurface = breakpoint.Value == Breakpoint.Mobile
+            ? new Sheet(
+                _ => HandleClose(),
+                bodyContent,
+                title: "Create New Plan")
+                .Side(SheetSide.Bottom)
+                .Height(Size.Fit())
+            : new Dialog(
+                _ => HandleClose(),
+                new DialogHeader("Create New Plan"),
+                new DialogBody(bodyContent))
+                .Width(Size.Rem(30));
+
+        return new Fragment(breakpointListener, planSurface);
     }
 }

@@ -16,6 +16,7 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
     private Task? _supervisorTask;
     private TunnelSession? _currentSession;
     private bool _isInstalled;
+    private TunnelStatus _status = TunnelStatus.Disabled;
 
     public CloudflaredService(
         IConfigService config,
@@ -32,11 +33,18 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
     }
 
     public string? TunnelUrl => _currentSession?.TunnelUrl;
-    public bool IsConnected => _currentSession?.IsRunning == true && TunnelUrl is not null;
+    public TunnelStatus Status => _status;
+    public bool IsConnected => _status == TunnelStatus.Connected;
     public bool IsInstalled => _isInstalled;
 
-    public event Action<string>? TunnelConnected;
-    public event Action? TunnelDisconnected;
+    public event Action<TunnelStatus>? StatusChanged;
+
+    private void SetStatus(TunnelStatus status)
+    {
+        if (_status == status) return;
+        _status = status;
+        StatusChanged?.Invoke(status);
+    }
 
     public void Start()
     {
@@ -78,16 +86,24 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
         StartSupervisor();
     }
 
-    public void Deactivate()
+    public async Task DeactivateAsync()
     {
         _cts?.Cancel();
         _currentSession?.Stop();
+
+        var supervisorTask = _supervisorTask;
+        if (supervisorTask is not null)
+        {
+            // Never block the calling (UI dispatcher) thread: the supervisor's
+            // own event callbacks marshal back to it, so a synchronous .Wait()
+            // here deadlocks until it times out.
+            try { await supervisorTask.WaitAsync(TimeSpan.FromSeconds(5)); }
+            catch (TimeoutException) { }
+            catch (OperationCanceledException) { }
+        }
+
         _currentSession?.Dispose();
         _currentSession = null;
-
-        try { _supervisorTask?.Wait(TimeSpan.FromSeconds(5)); }
-        catch (AggregateException) { }
-
         _cts?.Dispose();
         _cts = null;
         _supervisorTask = null;
@@ -96,7 +112,7 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
         _config.Settings.Tunnel.Enabled = false;
         _config.SaveSettings();
 
-        TunnelDisconnected?.Invoke();
+        SetStatus(TunnelStatus.Disabled);
     }
 
     private void StartSupervisor()
@@ -104,27 +120,45 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
         _cts?.Cancel();
         _cts?.Dispose();
         _cts = new CancellationTokenSource();
+        SetStatus(TunnelStatus.Connecting);
         _supervisorTask = Task.Run(() => SupervisorLoopAsync(_cts.Token));
     }
+
+    private static readonly TimeSpan HealthCheckTimeout = TimeSpan.FromSeconds(180);
+    private static readonly TimeSpan HealthCheckInterval = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan HealthCheckInitialDelay = TimeSpan.FromSeconds(3);
 
     private async Task WaitForTunnelHealthyAsync(string tunnelUrl, CancellationToken ct)
     {
         using var http = _httpClientFactory.CreateClient("TunnelHealthCheck");
         http.Timeout = TimeSpan.FromSeconds(10);
 
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(60);
+        // Give cloudflare a moment to publish DNS for the freshly created hostname before
+        // the first probe. Probing too early returns NXDOMAIN, which the OS resolver caches
+        // negatively and then keeps returning for the negative-TTL window even after the
+        // record goes live — making the tunnel look broken far longer than it actually is.
+        try { await Task.Delay(HealthCheckInitialDelay, ct); }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+
+        var deadline = DateTime.UtcNow + HealthCheckTimeout;
         _logger.LogInformation("Waiting for tunnel to become routable: {Url}", tunnelUrl);
 
-        while (DateTime.UtcNow < deadline && !ct.IsCancellationRequested)
+        var attempt = 0;
+        while (!ct.IsCancellationRequested)
         {
+            attempt++;
             try
             {
-                var response = await http.GetAsync(tunnelUrl, ct);
-                if (response.StatusCode != System.Net.HttpStatusCode.BadGateway)
+                using var response = await http.GetAsync(tunnelUrl, HttpCompletionOption.ResponseHeadersRead, ct);
+                if (!IsTunnelNotReady(response.StatusCode))
                 {
-                    _logger.LogInformation("Tunnel is routable (HTTP {Status})", (int)response.StatusCode);
+                    _logger.LogInformation("Tunnel is routable after {Attempts} attempt(s) (HTTP {Status})",
+                        attempt, (int)response.StatusCode);
                     return;
                 }
+
+                _logger.LogDebug("Tunnel not ready yet (HTTP {Status}), attempt {Attempt}",
+                    (int)response.StatusCode, attempt);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -132,14 +166,31 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
             }
             catch (Exception ex)
             {
-                _logger.LogDebug("Tunnel health check attempt failed: {Error}", ex.Message);
+                // Expected early on: DNS for the new hostname has not propagated yet, or the
+                // edge connections are still being established. Keep polling.
+                _logger.LogDebug("Tunnel health check attempt {Attempt} failed: {Error}", attempt, ex.Message);
             }
 
-            await Task.Delay(2000, ct);
-        }
+            if (DateTime.UtcNow >= deadline)
+            {
+                // Never report a tunnel as connected when it isn't actually routable. Throwing
+                // lets the supervisor tear this session down and try a fresh one (new hostname,
+                // no poisoned negative-DNS cache) instead of leaving a dead "Connected" tunnel.
+                throw new TimeoutException(
+                    $"Tunnel did not become routable within {HealthCheckTimeout.TotalSeconds:0}s ({tunnelUrl})");
+            }
 
-        _logger.LogWarning("Tunnel health check timed out after 60s, proceeding anyway");
+            await Task.Delay(HealthCheckInterval, ct);
+        }
     }
+
+    // Status codes cloudflare returns while a tunnel exists but is not yet routable end to end:
+    // 502 Bad Gateway, 504 Gateway Timeout, and 530 (Argo/Cloudflare Tunnel error, e.g. 1033).
+    // Any other completed response means the request reached our origin through the tunnel.
+    private static bool IsTunnelNotReady(System.Net.HttpStatusCode status) =>
+        status is System.Net.HttpStatusCode.BadGateway
+            or System.Net.HttpStatusCode.GatewayTimeout
+            or (System.Net.HttpStatusCode)530;
 
     private async Task SupervisorLoopAsync(CancellationToken ct)
     {
@@ -176,17 +227,21 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
 
         while (!ct.IsCancellationRequested && consecutiveFailures < maxRestarts)
         {
+            TunnelSession? session = null;
             try
             {
-                _currentSession = new TunnelSession(binaryPath, originUrl, _logger);
-                var url = await _currentSession.StartAsync(ct);
+                SetStatus(TunnelStatus.Connecting);
+                session = new TunnelSession(binaryPath, originUrl, _logger);
+                _currentSession = session;
+                var url = await session.StartAsync(ct);
                 await WaitForTunnelHealthyAsync(url, ct);
                 consecutiveFailures = 0;
-                TunnelConnected?.Invoke(url);
+                SetStatus(TunnelStatus.Connected);
 
-                await _currentSession.WaitForExitAsync(ct);
+                await session.WaitForExitAsync(ct);
+                if (ct.IsCancellationRequested) break;
                 _logger.LogWarning("Tunnel process exited unexpectedly");
-                TunnelDisconnected?.Invoke();
+                SetStatus(TunnelStatus.Connecting);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -195,13 +250,18 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
             catch (Exception ex)
             {
                 consecutiveFailures++;
+                SetStatus(TunnelStatus.Connecting);
                 _logger.LogWarning(ex, "Tunnel session failed (attempt {Count}/{Max})",
                     consecutiveFailures, maxRestarts);
             }
             finally
             {
-                _currentSession?.Dispose();
-                _currentSession = null;
+                // Tear down only our own session. Guard the shared field so a
+                // superseded supervisor can never dispose or null a newer
+                // generation's session (which would kill a freshly started tunnel).
+                session?.Dispose();
+                if (ReferenceEquals(_currentSession, session))
+                    _currentSession = null;
             }
 
             if (ct.IsCancellationRequested) break;
@@ -212,7 +272,10 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
         }
 
         if (consecutiveFailures >= maxRestarts)
+        {
             _logger.LogError("Tunnel exceeded max restarts ({Max}), giving up", maxRestarts);
+            SetStatus(TunnelStatus.Disabled);
+        }
     }
 
     public void Dispose()

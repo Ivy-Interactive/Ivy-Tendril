@@ -7,6 +7,7 @@ using Ivy.Tendril.Commands;
 using Ivy.Tendril.Database;
 using Ivy.Tendril.Infrastructure;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Git;
 using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -32,6 +33,9 @@ public class Program
     [DllImport("shell32.dll", SetLastError = true)]
     private static extern void SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string appId);
 
+    [DllImport("libc", SetLastError = true)]
+    private static extern int setsid();
+
     // Must be a static field to prevent GC from collecting the delegate
     private static ConsoleCtrlHandlerDelegate? _consoleCtrlHandler;
 
@@ -41,6 +45,17 @@ public class Program
     [STAThread]
     public static async Task<int> Main(string[] args)
     {
+        if (args.Contains(DetachedLaunchMarker))
+        {
+            try
+            {
+                if (!OperatingSystem.IsWindows())
+                {
+                    setsid();
+                }
+            }
+            catch { }
+        }
         PathHelper.AugmentPath(forceShellPath: false);
         PathHelper.EnsureCliSymlink();
 
@@ -72,8 +87,7 @@ public class Program
             }
         }
 
-        if (useDesktop && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("IVY_TLS")))
-            Environment.SetEnvironmentVariable("IVY_TLS", "0");
+
 
         bool isDetachedChild = args.Contains(DetachedLaunchMarker);
 
@@ -131,6 +145,11 @@ public class Program
             cliServices.AddSingleton<IConfigService>(configService);
             cliServices.AddSingleton<ConfigService>(configService);
 
+            // Needed by `plan create` to validate that a source issue/PR URL belongs to the
+            // chosen project (PlanSourceProjectGuard). Resolves git remotes of project repos.
+            cliServices.AddSingleton<GithubService>();
+            cliServices.AddSingleton<IGithubService>(sp => sp.GetRequiredService<GithubService>());
+
             var app = ConfigureCliCommands(cliServices);
             var firstArg = filteredArgs[0];
 
@@ -149,7 +168,7 @@ public class Program
                         var sw = Stopwatch.StartNew();
                         var exitCode = app.Run(filteredArgs);
                         sw.Stop();
-                        JobStatusFile.AppendCliInvocationDirect(cliLog, commandLine, exitCode, sw.Elapsed.TotalMilliseconds);
+                        CliInvocationLog.Append(cliLog, commandLine, exitCode, sw.Elapsed.TotalMilliseconds);
                         return exitCode;
                     }
                     return app.Run(filteredArgs);
@@ -243,12 +262,22 @@ public class Program
                 : OperatingSystem.IsMacOS() ? "Ivy.Tendril.Assets.icon.icns"
                 : "Ivy.Tendril.Assets.icon.png";
 
+            var version = typeof(Program).Assembly.GetName().Version;
+            var versionString = version?.ToString(3) ?? "1.1.12";
+
             var window = new DesktopWindow(server)
                 .Title("Ivy Tendril")
                 .AppId("Ivy Tendril")
                 .Size(1800, 1200)
                 .UseDpiScaling(false)
                 .Icon(typeof(Program), iconResource)
+                .AboutName("Ivy Tendril")
+                .AboutVersion(versionString)
+                .AboutCopyright("© 2026 Ivy Interactive")
+                .AboutWebsite("https://ivy.app")
+                .AboutLicense("Apache-2.0")
+                .AboutAuthor("Ivy Interactive")
+                .AboutComments("Tendril is an end-to-end AI coding agent orchestrator built on the Ivy Framework that manages AI coding plans, tracks costs, and automates pull request generation.")
                 .OnReady(w =>
                 {
                     if (server.ServiceProvider is { } sp)
@@ -319,9 +348,9 @@ public class Program
         {
             "doctor", "db-version", "db-migrate", "db-reset",
             "update-promptwares", "job", "plan", "promptware",
-            "trash", "verification", "project", "models",
+            "trash", "verification", "project", "project-analyzer", "models", "config",
             "version", "--version", "report-bug", "reset", "update",
-            "--help", "-h", "run"
+            "--help", "-h", "run", "generate-certs"
         };
         return cliCommands.Contains(firstArg);
     }
@@ -375,18 +404,38 @@ public class Program
             DetachedLaunchMarker
         };
 
-        var startInfo = new ProcessStartInfo(processPath)
-        {
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
-
-        foreach (var arg in childArgs)
-            startInfo.ArgumentList.Add(arg);
-
         try
         {
-            Process.Start(startInfo);
+            if (OperatingSystem.IsWindows())
+            {
+                var startInfo = new ProcessStartInfo(processPath)
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                foreach (var arg in childArgs)
+                    startInfo.ArgumentList.Add(arg);
+                Process.Start(startInfo);
+            }
+            else
+            {
+                // On macOS/Linux, run via shell with nohup and redirect streams to /dev/null
+                // to completely detach the shim wrapper and grandchild processes from the TTY.
+                var escapedPath = processPath.Replace("\"", "\\\"");
+                var escapedArgs = string.Join(" ", childArgs.Select(a => $"\"{a.Replace("\"", "\\\"")}\""));
+                var shellCmd = $"nohup \"{escapedPath}\" {escapedArgs} >/dev/null 2>&1 &";
+
+                var startInfo = new ProcessStartInfo("/bin/sh")
+                {
+                    ArgumentList = { "-c", shellCmd },
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardInput = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+                Process.Start(startInfo);
+            }
             return 0;
         }
         catch (Exception ex)
@@ -407,6 +456,15 @@ public class Program
             // Doctor command
             config.AddCommand<DoctorCliCommand>("doctor")
                 .WithDescription("System health check");
+
+            // Project analyzer command
+            config.AddCommand<ProjectAnalyzerCommand>("project-analyzer")
+                .WithDescription("Analyze a folder and print a YAML stack report");
+
+            // Generate certificates command (hidden, for build time)
+            config.AddCommand<GenerateCertsCommand>("generate-certs")
+                .WithDescription("Generate self-signed localhost certificate for desktop HTTPS")
+                .IsHidden();
 
             // Run command
             config.AddCommand<RunCommand>("run")
@@ -449,8 +507,12 @@ public class Program
             {
                 job.AddCommand<JobStatusCommand>("status")
                     .WithDescription("Report job status (message, planId, planTitle)");
+                job.AddCommand<JobFailCommand>("fail")
+                    .WithDescription("Report a job failure with a descriptive message");
                 job.AddCommand<JobStartCommand>("start")
                     .WithDescription("Start a job via the running Tendril server");
+                job.AddCommand<JobAddLogCommand>("add-log")
+                    .WithDescription("Append a log entry to the job's log");
             });
 
             // Plan management commands
@@ -461,7 +523,7 @@ public class Program
                 plan.AddCommand<PlanCreateCommand>("create")
                     .WithDescription("Create a new plan");
                 plan.AddCommand<PlanUpdateCommand>("update")
-                    .WithDescription("Update plan from STDIN");
+                    .WithDescription("Update plan from a file or STDIN");
                 plan.AddCommand<PlanSetCommand>("set")
                     .WithDescription("Set a single field");
                 plan.AddCommand<PlanAddRepoCommand>("add-repo")
@@ -484,14 +546,16 @@ public class Program
                     .WithDescription("Update verification status");
                 plan.AddCommand<PlanGetCommand>("get")
                     .WithDescription("Read plan or field");
-                plan.AddCommand<PlanAddLogCommand>("add-log")
-                    .WithDescription("Write a log entry");
                 plan.AddCommand<PlanWriteRevisionCommand>("write-revision")
-                    .WithDescription("Write a revision file from STDIN");
+                    .WithDescription("Write a revision file from a file or STDIN");
+                plan.AddCommand<PlanGetRevisionCommand>("get-revision")
+                    .WithDescription("Print revision content");
                 plan.AddCommand<PlanValidateCommand>("validate")
                     .WithDescription("Validate plan health");
                 plan.AddCommand<PlanCleanupCommand>("cleanup")
                     .WithDescription("Remove worktrees from a plan");
+                plan.AddCommand<PlanAddWorktreeCommand>("add-worktree")
+                    .WithDescription("Create a git worktree for a plan");
                 plan.AddCommand<PlanRemoveWorktreeCommand>("remove-worktree")
                     .WithDescription("Remove a single worktree from a plan");
                 plan.AddCommand<PlanDoctorCommand>("doctor")
@@ -547,7 +611,7 @@ public class Program
             config.AddBranch("trash", trash =>
             {
                 trash.AddCommand<TrashWriteCommand>("write")
-                    .WithDescription("Write a file to Trash from STDIN");
+                    .WithDescription("Write a file to Trash from a file or STDIN");
             });
 
             config.AddBranch("project", project =>
@@ -580,6 +644,14 @@ public class Program
                     .WithDescription("Add a review action to a project");
                 project.AddCommand<ProjectRemoveReviewActionCommand>("remove-review-action")
                     .WithDescription("Remove a review action from a project");
+            });
+
+            config.AddBranch("config", cfg =>
+            {
+                cfg.AddCommand<ConfigGetCommand>("get")
+                    .WithDescription("Get a top-level config value");
+                cfg.AddCommand<ConfigSetCommand>("set")
+                    .WithDescription("Set a top-level config value");
             });
         });
         return app;

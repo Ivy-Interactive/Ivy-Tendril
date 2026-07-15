@@ -22,5 +22,6 @@ public interface IJobService : IDisposable
     List<JobItem> GetJobsForPlan(string planFile);
     JobItem? GetJob(string id);
     bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null);
+    bool ReportJobFailure(string id, string message);
     bool IsInboxFileTracked(string filePath);
 }

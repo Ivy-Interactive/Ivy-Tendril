@@ -75,7 +75,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         };
 
         // Simulate CreateIssue completing for PlanB
-        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
+        var id = service.CreateTestJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         // PlanA should have been auto-queued
@@ -92,7 +92,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
 
         var service = CreateService();
 
-        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
+        var id = service.CreateTestJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         var jobs = service.GetJobs();
@@ -108,7 +108,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
 
         var service = CreateService();
 
-        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
+        var id = service.CreateTestJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         var jobs = service.GetJobs();
@@ -116,19 +116,23 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
     }
 
     [Fact]
-    public void RetryBlockedDependents_TransitionsBlockedToBuilding_WhenUnblocked()
+    public void RetryBlockedDependents_LeavesBlocked_WhenUnblocked()
     {
         var planB = CreatePlanFolder("02600-PlanB", "Completed");
         var planA = CreatePlanFolder("02601-PlanA", "Blocked", ["02600-PlanB"]);
 
         var service = CreateService();
 
-        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
+        var id = service.CreateTestJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
-        // Verify plan.yaml was updated — Building then immediately Executing when job launches
+        // Unblocking is all this path owns: the dependent plan leaves Blocked and its job is created.
+        // The subsequent Creating -> Executing transition belongs to JobLauncher and happens only once a
+        // real agent process exists (TransitionPlanToExecuting), which no unit test can produce — it is
+        // covered end-to-end instead.
         var planYamlContent = File.ReadAllText(Path.Combine(planA, "plan.yaml"));
-        Assert.Contains("state: Executing", planYamlContent);
+        Assert.Contains("state: Creating", planYamlContent);
+        Assert.DoesNotContain("state: Blocked", planYamlContent);
     }
 
     [Fact]
@@ -152,11 +156,11 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
     public void RetryBlockedDependents_WhenPlanNotInDraftState_DoesNotRequeue()
     {
         var planB = CreatePlanFolder("02300-PlanB", "Completed");
-        var planA = CreatePlanFolder("02301-PlanA", "Building", ["02300-PlanB"]);
+        var planA = CreatePlanFolder("02301-PlanA", "Creating", ["02300-PlanB"]);
 
         var service = CreateService();
 
-        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
+        var id = service.CreateTestJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         var jobs = service.GetJobs();
@@ -171,7 +175,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
 
         var service = CreateService();
 
-        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
+        var id = service.CreateTestJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         var jobs = service.GetJobs();
@@ -186,7 +190,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
 
         var service = CreateService();
 
-        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
+        var id = service.CreateTestJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         var jobs = service.GetJobs();
@@ -216,7 +220,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         // Complete a CreateIssue job for PlanB — triggers RetryBlockedDependents
         // planC depends on both DepPlan (not met) and PlanB (met), so it stays blocked
         // But the duplicate-job guard should prevent creating another blocked job entry
-        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
+        var id = service.CreateTestJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         // Should still have exactly one blocked job for planC (not two)
@@ -260,7 +264,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         Assert.Equal(JobStatus.Running, service.GetJob(activeId)!.Status);
 
         // Trigger RetryBlockedDependents by completing a job for PlanB
-        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
+        var id = service.CreateTestJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         // Should NOT create a duplicate ExecutePlan job for planA
@@ -286,7 +290,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         service.GetJob(blockedId)!.Status = JobStatus.Blocked;
 
         // Trigger RetryBlockedDependents by completing a CreateIssue job for PlanB
-        var id = service.StartJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
+        var id = service.CreateTestJob(new CreateIssueArgs(planB, "owner/repo", "", "", ""));
         service.CompleteJob(id, 0);
 
         // Should have at most one ExecutePlan job for planA (not two)
@@ -310,11 +314,11 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         public event Action? CountsInvalidated;
 #pragma warning restore CS0067
 
-        public void RecoverStuckPlans()
+        public void MigratePlans()
         {
         }
 
-        public void RepairPlans()
+        public void RecoverStuckPlans()
         {
         }
 
@@ -365,10 +369,6 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         public List<(int Number, string Content, DateTime Modified)> GetRevisions(string folderName)
         {
             return [];
-        }
-
-        public void AddLog(string folderName, string action, string content, string? jobId = null)
-        {
         }
 
         public void DeletePlan(string folderName)
@@ -447,6 +447,10 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         }
 
         public void AcceptRecommendationAndRetry(string folderName, string recommendationTitle)
+        {
+        }
+
+        public void AcceptRecommendationsAndRetry(string folderName, IReadOnlyCollection<string> titles)
         {
         }
     }

@@ -45,6 +45,12 @@ public sealed partial class TunnelSession : IDisposable
         _process = Process.Start(psi)
             ?? throw new InvalidOperationException("Failed to start cloudflared process");
 
+        // Tie the process lifetime to ours: if Tendril dies without a graceful shutdown
+        // (crash, console close, forced kill), the OS still terminates cloudflared instead
+        // of leaving it orphaned across sessions.
+        if (!ChildProcessTracker.AddProcess(_process) && OperatingSystem.IsWindows())
+            _logger.LogDebug("cloudflared process not tracked by job object (PID {Pid})", _process.Id);
+
         _process.ErrorDataReceived += OnStderrLine;
         _process.BeginErrorReadLine();
         _process.BeginOutputReadLine();

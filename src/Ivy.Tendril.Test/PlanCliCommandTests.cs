@@ -1,7 +1,14 @@
 using Ivy.Tendril.Commands;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Infrastructure;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Git;
+using Ivy.Tendril.Services.Plans;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Spectre.Console;
+using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Test;
 
@@ -230,6 +237,211 @@ public class PlanCliCommandTests : IDisposable
         var result = PlanCommandHelpers.ReadPlan(planDir);
         Assert.Equal("Failed", result.State);
         Assert.Equal("NewProject", result.Project);
+    }
+
+    // Builds a real Spectre.Console.Cli app exposing `plan create`, wired to a config
+    // service that knows <project> (with an existing repo). Mirrors how Program.cs
+    // registers the command, so tests exercise the actual argument parser.
+    private CommandApp BuildPlanCreateApp(string project, IReadOnlyList<ProjectVerificationRef>? verifications = null)
+    {
+        var repoDir = Path.Combine(_tempDir.Path, "repos", project);
+        Directory.CreateDirectory(repoDir);
+
+        var services = new ServiceCollection();
+        services.AddSingleton<IPlanWatcherService, NullPlanWatcherService>();
+        var configService = new TestPlanConfigService(repoDir, project, verifications);
+        services.AddSingleton<IConfigService>(configService);
+        // PlanCreateCommand now depends on IGithubService (source-URL ↔ project guard). These tests
+        // create plans without a --source-url, so the guard no-ops and git is never invoked.
+        services.AddSingleton<IGithubService>(new GithubService(configService, NullLogger<GithubService>.Instance));
+
+        var app = new CommandApp(new TypeRegistrar(services));
+        app.Configure(config =>
+        {
+            config.PropagateExceptions();
+            config.AddBranch("plan", plan => plan.AddCommand<PlanCreateCommand>("create"));
+        });
+        return app;
+    }
+
+    // Builds an app exposing `plan add-repo` and `plan validate`, wired to a config whose <project>
+    // authorizes only the repo at repos/<project>. Used to drive the #1340 project/repo guard.
+    private CommandApp BuildPlanGuardApp(string project, out string inProjectRepo)
+    {
+        inProjectRepo = Path.Combine(_tempDir.Path, "repos", project);
+        Directory.CreateDirectory(inProjectRepo);
+
+        var services = new ServiceCollection();
+        services.AddSingleton<IPlanWatcherService, NullPlanWatcherService>();
+        services.AddSingleton<IConfigService>(new TestPlanConfigService(inProjectRepo, project));
+
+        var app = new CommandApp(new TypeRegistrar(services));
+        app.Configure(config =>
+        {
+            config.PropagateExceptions();
+            config.AddBranch("plan", plan =>
+            {
+                plan.AddCommand<PlanAddRepoCommand>("add-repo");
+                plan.AddCommand<PlanRemoveRepoCommand>("remove-repo");
+                plan.AddCommand<PlanValidateCommand>("validate");
+            });
+        });
+        return app;
+    }
+
+    // #1340: `plan add-repo` must refuse a repo that isn't part of the plan's project.
+    [Fact]
+    public void PlanAddRepo_RepoOutsideProject_RefusedWithExitCode1()
+    {
+        var app = BuildPlanGuardApp("TestProject", out var inProjectRepo);
+        var outsideRepo = Path.Combine(_tempDir.Path, "repos", "Ivy-Framework");
+        Directory.CreateDirectory(outsideRepo);
+
+        CreatePlanFolder("00001", "Test", new PlanYaml
+        {
+            State = "Draft",
+            Project = "TestProject",
+            Title = "Test",
+            Repos = [inProjectRepo],
+            Created = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc),
+            Updated = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc)
+        });
+
+        var exit = app.Run(["plan", "add-repo", "00001", outsideRepo]);
+
+        Assert.Equal(1, exit);
+        Assert.DoesNotContain(outsideRepo, ReadPlan("00001").Repos);
+    }
+
+    // `plan remove-repo` must list the plan's actual repos when the given path isn't one of them.
+    [Fact]
+    public void PlanRemoveRepo_NotFound_ListsAvailable()
+    {
+        var app = BuildPlanGuardApp("TestProject", out var inProjectRepo);
+        var missingRepo = Path.Combine(_tempDir.Path, "repos", "Missing");
+
+        CreatePlanFolder("00003", "Test", new PlanYaml
+        {
+            State = "Draft",
+            Project = "TestProject",
+            Title = "Test",
+            Repos = [inProjectRepo],
+            Created = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc),
+            Updated = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc)
+        });
+
+        var ex = Assert.Throws<InvalidOperationException>(() => app.Run(["plan", "remove-repo", "00003", missingRepo]));
+
+        Assert.Contains($"Available: {inProjectRepo}", ex.Message);
+    }
+
+    // #1340: `plan validate` must fail a plan whose repo isn't part of its project.
+    [Fact]
+    public void PlanValidate_RepoOutsideProject_Throws()
+    {
+        var app = BuildPlanGuardApp("TestProject", out _);
+        var outsideRepo = Path.Combine(_tempDir.Path, "repos", "Ivy-Framework");
+        Directory.CreateDirectory(outsideRepo);
+
+        CreatePlanFolder("00002", "Test", new PlanYaml
+        {
+            State = "Draft",
+            Project = "TestProject",
+            Title = "Test",
+            Repos = [outsideRepo],
+            Created = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc),
+            Updated = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc)
+        });
+
+        var ex = Assert.Throws<ArgumentException>(() => app.Run(["plan", "validate", "00002"]));
+        Assert.Contains("not part of project", ex.Message);
+    }
+
+    // Regression for #1297 / #1303: `tendril plan create <title> <project>` must bind a
+    // hyphenated project name to the positional <project> argument. Drives the real
+    // Spectre.Console.Cli parser (the layer that threw "Could not match 'Ivy-Framework'
+    // with an argument") end-to-end through PlanCreateCommand.
+    [Fact]
+    public void PlanCreate_CommandApp_HyphenatedProjectName_BindsPositionalAndCreatesPlan()
+    {
+        var app = BuildPlanCreateApp("Ivy-Framework");
+
+        var exit = app.Run(new[]
+        {
+            "plan", "create",
+            "Fix Pagination Density Not Applied to Items", "Ivy-Framework",
+            "--plans-dir", _plansDir,
+            "--level", "Feature",
+            "--initial-prompt",
+            "Fix that density is not properly applied in the Pagination widget - all three density sizes (Small, Medium, Large) render identically",
+            "--execution-profile", "balanced"
+        });
+
+        Assert.Equal(0, exit);
+
+        var planFolder = Directory.GetDirectories(_plansDir).Single();
+        var plan = PlanCommandHelpers.ReadPlan(planFolder);
+        Assert.Equal("Ivy-Framework", plan.Project);
+        Assert.Equal("Fix Pagination Density Not Applied to Items", plan.Title);
+    }
+
+    // Regression for #1303: a CreatePlan/SplitPlan task description can begin with a dash
+    // (e.g. a markdown bullet "- ..." or a flag-like word "--watch ..."). Spectre.Console.Cli
+    // treats any token starting with '-' as an option name, so the space-separated form
+    // `--initial-prompt "- ..."` fails to parse. The promptware now emits the equals form
+    // `--initial-prompt=<value>` (a single argv token), which binds correctly. This test
+    // locks that contract in for leading-dash prompt values.
+    [Theory]
+    [InlineData("- Fix density rendering")]                       // value starts with '-'
+    [InlineData("--force a rebuild of the widget")]               // value starts with '--'
+    [InlineData("Fix that density - all sizes (Small, Medium, Large) render identically")] // dash mid-string
+    [InlineData("Normal prompt with : colon and = equals")]      // special chars
+    public void PlanCreate_CommandApp_EqualsForm_BindsLeadingDashInitialPrompt(string initialPrompt)
+    {
+        var app = BuildPlanCreateApp("Ivy-Framework");
+
+        // Equals form: each option value is glued to its option as a single argv token,
+        // exactly as the CreatePlan/SplitPlan promptware now generates it.
+        var exit = app.Run(new[]
+        {
+            "plan", "create", "Fix Pagination Density", "Ivy-Framework",
+            $"--plans-dir={_plansDir}",
+            "--level=Feature",
+            $"--initial-prompt={initialPrompt}",
+            "--execution-profile=balanced"
+        });
+
+        Assert.Equal(0, exit);
+        var planFolder = Directory.GetDirectories(_plansDir).Single();
+        var plan = PlanCommandHelpers.ReadPlan(planFolder);
+        Assert.Equal("Ivy-Framework", plan.Project);
+        Assert.Equal(initialPrompt, plan.InitialPrompt);
+    }
+
+    [Fact]
+    public void PlanCreate_CommandApp_PrintsVerifications_AndOmitsPlanCreatedLine()
+    {
+        var app = BuildPlanCreateApp("Ivy-Framework",
+        [
+            new ProjectVerificationRef { Name = "DotnetBuild", Required = true },
+            new ProjectVerificationRef { Name = "DotnetTest", Required = false }
+        ]);
+
+        var exit = 0;
+        var output = CaptureStdout(() => exit = app.Run(new[]
+        {
+            "plan", "create", "Emit Verifications", "Ivy-Framework",
+            $"--plans-dir={_plansDir}", "--level=Feature",
+            "--initial-prompt=Add verifications output", "--execution-profile=balanced"
+        }));
+
+        Assert.Equal(0, exit);
+        Assert.Contains("PlanId:", output);
+        Assert.Contains("Directory:", output);
+        Assert.Contains("Verifications:", output);
+        Assert.Contains("DotnetBuild:Pending", output);   // Required -> Pending
+        Assert.Contains("DotnetTest:Skipped", output);     // Optional -> Skipped
+        Assert.DoesNotContain("Plan created:", output);
     }
 
     // ==================== PlanGet ====================
@@ -978,7 +1190,7 @@ public class PlanCliCommandTests : IDisposable
     {
         var plan = new PlanYaml
         {
-            State = "ReadyForReview",
+            State = "Review",
             Project = "MyProject",
             Level = "Bug",
             Title = "Full Plan",
@@ -1001,8 +1213,7 @@ public class PlanCliCommandTests : IDisposable
                     Title = "Add tests",
                     Description = "Coverage is low",
                     State = "Pending",
-                    Impact = "Medium",
-                    Risk = "Small"
+                    Impact = "Medium"
                 }
             ]
         };
@@ -1010,7 +1221,7 @@ public class PlanCliCommandTests : IDisposable
         CreatePlanFolder("20110", "FullRoundtrip", plan);
 
         var result = ReadPlan("20110");
-        Assert.Equal("ReadyForReview", result.State);
+        Assert.Equal("Review", result.State);
         Assert.Equal("MyProject", result.Project);
         Assert.Equal("Bug", result.Level);
         Assert.Equal("Full Plan", result.Title);
@@ -1043,56 +1254,6 @@ public class PlanCliCommandTests : IDisposable
 
         var result = ReadPlan("20111");
         Assert.Equal("Fix: \"quotes\" & <angle> brackets", result.Title);
-    }
-
-    // --- PlanAddLog Tests ---
-
-    [Fact]
-    public void PlanAddLog_CreatesFirstLog()
-    {
-        CreatePlanFolder("30001", "TestLog");
-        var planDir = Path.Combine(_plansDir, "30001-TestLog");
-
-        _ = PlanAddLogCommand.WriteLog(planDir, "CreatePlan");
-
-        var logsDir = Path.Combine(planDir, "Logs");
-        Assert.True(Directory.Exists(logsDir));
-        var logFiles = Directory.GetFiles(logsDir, "*.md");
-        Assert.Single(logFiles);
-        Assert.Contains("001-CreatePlan.md", logFiles[0]);
-
-        var content = File.ReadAllText(logFiles[0]);
-        Assert.Contains("# CreatePlan", content);
-        Assert.Contains("Completed", content);
-    }
-
-    [Fact]
-    public void PlanAddLog_IncrementsLogNumber()
-    {
-        CreatePlanFolder("30002", "TestLogIncr");
-        var planDir = Path.Combine(_plansDir, "30002-TestLogIncr");
-        var logsDir = Path.Combine(planDir, "Logs");
-        Directory.CreateDirectory(logsDir);
-        File.WriteAllText(Path.Combine(logsDir, "001-ExpandPlan.md"), "first");
-        File.WriteAllText(Path.Combine(logsDir, "002-ExecutePlan.md"), "second");
-
-        PlanAddLogCommand.WriteLog(planDir, "CreatePr");
-
-        Assert.True(File.Exists(Path.Combine(logsDir, "003-CreatePr.md")));
-    }
-
-    [Fact]
-    public void PlanAddLog_IncludesSummary()
-    {
-        CreatePlanFolder("30003", "TestLogSummary");
-        var planDir = Path.Combine(_plansDir, "30003-TestLogSummary");
-
-        PlanAddLogCommand.WriteLog(planDir, "ExecutePlan", "Completed all verifications successfully");
-
-        var logsDir = Path.Combine(planDir, "Logs");
-        var logFile = Directory.GetFiles(logsDir, "*.md").Single();
-        var content = File.ReadAllText(logFile);
-        Assert.Contains("Completed all verifications successfully", content);
     }
 
     // ==================== PlanCreate with optional flags ====================
@@ -1280,5 +1441,408 @@ public class PlanCliCommandTests : IDisposable
         }
 
         return writer.ToString();
+    }
+
+    // ==================== PlanAddWorktreeCommand ====================
+
+    private CommandApp BuildPlanAddWorktreeApp()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        var app = new CommandApp(new TypeRegistrar(services));
+        app.Configure(config =>
+        {
+            config.PropagateExceptions();
+            config.AddBranch("plan", plan => plan.AddCommand<PlanAddWorktreeCommand>("add-worktree"));
+        });
+        return app;
+    }
+
+    /// <summary>
+    /// Builds a bare remote whose default branch is <paramref name="defaultBranch"/>, plus a
+    /// working repo with `origin` pointing at it and the branch pushed. Returns the working repo
+    /// path (which is usable as the `<repo>` argument to add-worktree), or null if git operations
+    /// did not succeed (e.g. git unavailable in the test environment).
+    /// </summary>
+    private string? SetUpRemoteAndWorkRepo(string defaultBranch = "main")
+    {
+        var remote = Path.Combine(_tempDir.Path, $"remote-{Guid.NewGuid():N}.git");
+        Directory.CreateDirectory(remote);
+        RunGitFor($"init --bare -b {defaultBranch}", remote);
+
+        var work = Path.Combine(_tempDir.Path, $"work-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(work);
+        RunGitFor($"init -b {defaultBranch}", work);
+        RunGitFor("config user.email \"test@example.com\"", work);
+        RunGitFor("config user.name \"Test User\"", work);
+        File.WriteAllText(Path.Combine(work, "a.txt"), "x");
+        RunGitFor("add -A", work);
+        RunGitFor("commit -m initial", work);
+        RunGitFor($"remote add origin \"{remote}\"", work);
+        RunGitFor($"push -u origin {defaultBranch}", work);
+        // `git clone` sets refs/remotes/origin/HEAD automatically; a manual init+push does not.
+        // The command under test relies on it to auto-detect the base branch, so replicate it here.
+        RunGitFor($"remote set-head origin {defaultBranch}", work);
+
+        return Directory.Exists(Path.Combine(work, ".git")) ? work : null;
+    }
+
+    private static void RunGitFor(string args, string workingDir)
+    {
+        using var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("git", args)
+        {
+            WorkingDirectory = workingDir,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        });
+        p?.WaitForExit(15000);
+    }
+
+    /// <summary>
+    /// Redirects the static <see cref="AnsiConsole"/> facade (used by commands like
+    /// <see cref="PlanAddWorktreeCommand"/> for markup output) to an in-memory writer for the
+    /// duration of <paramref name="action"/>, then restores the original console. Swapping
+    /// <see cref="AnsiConsole.Console"/> — rather than <see cref="Console.SetOut"/> — avoids
+    /// AnsiConsole's cached-writer-goes-stale issue: AnsiConsole binds to Console.Out once on
+    /// first use and does not observe later Console.SetOut calls, so disposing a StringWriter
+    /// captured via Console.SetOut leaves AnsiConsole holding a closed writer for the rest of
+    /// the test run.
+    /// </summary>
+    private static string CaptureAnsiConsoleOutput(Action action)
+    {
+        var original = AnsiConsole.Console;
+        var writer = new StringWriter();
+        AnsiConsole.Console = AnsiConsole.Create(new AnsiConsoleSettings
+        {
+            Ansi = AnsiSupport.No,
+            ColorSystem = ColorSystemSupport.NoColors,
+            Out = new AnsiConsoleOutput(writer)
+        });
+        try
+        {
+            action();
+        }
+        finally
+        {
+            AnsiConsole.Console = original;
+        }
+
+        return writer.ToString();
+    }
+
+    [Fact]
+    public void PlanAddWorktreeCommand_CreatesWorktreeDirectory()
+    {
+        var repo = SetUpRemoteAndWorkRepo();
+        if (repo == null) return; // git unavailable — skip
+
+        CreatePlanFolder("21000", "AddWorktreeCreate");
+        var app = BuildPlanAddWorktreeApp();
+
+        var exit = app.Run(["plan", "add-worktree", "21000", repo]);
+
+        Assert.Equal(0, exit);
+        var planFolder = PlanCommandHelpers.ResolvePlanFolder("21000");
+        var repoName = Path.GetFileName(repo);
+        var worktreePath = Path.Combine(planFolder, "Worktrees", repoName);
+        Assert.True(Directory.Exists(worktreePath));
+        Assert.True(File.Exists(Path.Combine(worktreePath, ".git")));
+    }
+
+    [Fact]
+    public void PlanAddWorktreeCommand_DerivesBranchNameFromPlanFolder()
+    {
+        var repo = SetUpRemoteAndWorkRepo();
+        if (repo == null) return; // git unavailable — skip
+
+        CreatePlanFolder("21001", "AddWorktreeBranch");
+        var app = BuildPlanAddWorktreeApp();
+
+        var exit = app.Run(["plan", "add-worktree", "21001", repo]);
+        Assert.Equal(0, exit);
+
+        var branchCheck = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+            "git", "branch --list \"tendril/21001-AddWorktreeBranch\"")
+        {
+            WorkingDirectory = repo,
+            RedirectStandardOutput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        });
+        var output = branchCheck!.StandardOutput.ReadToEnd();
+        branchCheck.WaitForExit(10000);
+        Assert.Contains("tendril/21001-AddWorktreeBranch", output);
+    }
+
+    [Fact]
+    public void PlanAddWorktreeCommand_FailsIfRepoPathDoesNotExist()
+    {
+        CreatePlanFolder("21002", "AddWorktreeMissingRepo");
+        var app = BuildPlanAddWorktreeApp();
+
+        var missingRepo = Path.Combine(_tempDir.Path, "does-not-exist");
+        var output = CaptureAnsiConsoleOutput(() =>
+        {
+            var exit = app.Run(["plan", "add-worktree", "21002", missingRepo]);
+            Assert.Equal(1, exit);
+        });
+
+        Assert.Contains("Repo path does not exist", output);
+    }
+
+    [Fact]
+    public void PlanAddWorktreeCommand_RemovesExistingWorktreeBeforeCreating()
+    {
+        var repo = SetUpRemoteAndWorkRepo();
+        if (repo == null) return; // git unavailable — skip
+
+        CreatePlanFolder("21003", "AddWorktreeIdempotent");
+        var app = BuildPlanAddWorktreeApp();
+
+        var firstExit = app.Run(["plan", "add-worktree", "21003", repo]);
+        Assert.Equal(0, firstExit);
+
+        var planFolder = PlanCommandHelpers.ResolvePlanFolder("21003");
+        var repoName = Path.GetFileName(repo);
+        var worktreePath = Path.Combine(planFolder, "Worktrees", repoName);
+        Assert.True(Directory.Exists(worktreePath));
+
+        var secondExit = app.Run(["plan", "add-worktree", "21003", repo]);
+
+        Assert.Equal(0, secondExit);
+        Assert.True(Directory.Exists(worktreePath));
+        Assert.True(File.Exists(Path.Combine(worktreePath, ".git")));
+    }
+
+    [Fact]
+    public void PlanAddWorktreeCommand_FailsWithGitStdErrOnFetchFailure()
+    {
+        var repo = SetUpRemoteAndWorkRepo();
+        if (repo == null) return; // git unavailable — skip
+
+        // Point origin at a nonexistent path so `git fetch origin` fails with a captured stderr.
+        RunGitFor("remote set-url origin \"" + Path.Combine(_tempDir.Path, "nonexistent-remote.git") + "\"", repo);
+
+        CreatePlanFolder("21004", "AddWorktreeFetchFail");
+        var app = BuildPlanAddWorktreeApp();
+
+        var output = CaptureAnsiConsoleOutput(() =>
+        {
+            var exit = app.Run(["plan", "add-worktree", "21004", repo]);
+            Assert.Equal(1, exit);
+        });
+
+        Assert.Contains("git fetch origin failed", output);
+    }
+
+    [Fact]
+    public void PlanAddWorktreeCommand_FailsWithGitStdErrOnWorktreeAddFailure()
+    {
+        var repo = SetUpRemoteAndWorkRepo();
+        if (repo == null) return; // git unavailable — skip
+
+        CreatePlanFolder("21005", "AddWorktreeAddFail");
+
+        // Pre-create the branch `git worktree add -b` would try to create, so the add step fails.
+        RunGitFor("branch \"tendril/21005-AddWorktreeAddFail\"", repo);
+
+        var app = BuildPlanAddWorktreeApp();
+
+        var output = CaptureAnsiConsoleOutput(() =>
+        {
+            var exit = app.Run(["plan", "add-worktree", "21005", repo]);
+            Assert.Equal(1, exit);
+        });
+
+        Assert.Contains("git worktree add failed", output);
+    }
+
+    // ==================== PlanWriteRevision (--file / --stdin) ====================
+
+    private static CommandApp BuildPlanWriteRevisionApp()
+    {
+        var app = new CommandApp();
+        app.Configure(config =>
+        {
+            config.PropagateExceptions();
+            config.AddBranch("plan", plan => plan.AddCommand<PlanWriteRevisionCommand>("write-revision"));
+        });
+        return app;
+    }
+
+    [Fact]
+    public void PlanWriteRevision_File_ReadsFromFile()
+    {
+        CreatePlanFolder("20300", "WriteRevFile");
+        var file = Path.Combine(_tempDir.Path, "revision-file.md");
+        File.WriteAllText(file, "Revision from file");
+
+        var app = BuildPlanWriteRevisionApp();
+        var exit = app.Run(["plan", "write-revision", "20300", "--file", file]);
+
+        Assert.Equal(0, exit);
+        var folder = PlanCommandHelpers.ResolvePlanFolder("20300");
+        var revisionPath = Directory.GetFiles(Path.Combine(folder, "Revisions")).Single();
+        Assert.Contains("Revision from file", File.ReadAllText(revisionPath));
+    }
+
+    [Fact]
+    public void PlanWriteRevision_Stdin_ReadsPipedInput()
+    {
+        CreatePlanFolder("20301", "WriteRevStdin");
+        var app = BuildPlanWriteRevisionApp();
+
+        var originalIn = Console.In;
+        Console.SetIn(new StringReader("Revision from stdin"));
+        try
+        {
+            var exit = app.Run(["plan", "write-revision", "20301", "--stdin"]);
+            Assert.Equal(0, exit);
+        }
+        finally
+        {
+            Console.SetIn(originalIn);
+        }
+
+        var folder = PlanCommandHelpers.ResolvePlanFolder("20301");
+        var revisionPath = Directory.GetFiles(Path.Combine(folder, "Revisions")).Single();
+        Assert.Contains("Revision from stdin", File.ReadAllText(revisionPath));
+    }
+
+    [Fact]
+    public void PlanWriteRevision_MultipleSources_FailsValidation()
+    {
+        Assert.False(new PlanWriteRevisionSettings { PlanId = "1", FilePath = "f.md", Stdin = true }.Validate().Successful);
+
+        var app = BuildPlanWriteRevisionApp();
+        Assert.Throws<CommandRuntimeException>(() =>
+            app.Run(["plan", "write-revision", "1", "--file", "f.md", "--stdin"]));
+    }
+
+    [Fact]
+    public void PlanWriteRevision_NoSource_ThrowsAndNeverReadsStdin()
+    {
+        CreatePlanFolder("20302", "WriteRevNoSource");
+        var app = BuildPlanWriteRevisionApp();
+
+        var originalIn = Console.In;
+        Console.SetIn(new StringReader("SENTINEL-SHOULD-NOT-BE-READ"));
+        try
+        {
+            var ex = Assert.Throws<ArgumentException>(() => app.Run(["plan", "write-revision", "20302"]));
+            Assert.Contains("--file or --stdin", ex.Message);
+        }
+        finally
+        {
+            Console.SetIn(originalIn);
+        }
+
+        var folder = PlanCommandHelpers.ResolvePlanFolder("20302");
+        var revisionsDir = Path.Combine(folder, "Revisions");
+        if (Directory.Exists(revisionsDir))
+            Assert.Empty(Directory.GetFiles(revisionsDir));
+    }
+
+    // ==================== PlanUpdate (--file / --stdin) ====================
+
+    private CommandApp BuildPlanUpdateApp()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IPlanWatcherService, NullPlanWatcherService>();
+
+        var app = new CommandApp(new TypeRegistrar(services));
+        app.Configure(config =>
+        {
+            config.PropagateExceptions();
+            config.AddBranch("plan", plan => plan.AddCommand<PlanUpdateCommand>("update"));
+        });
+        return app;
+    }
+
+    [Fact]
+    public void PlanUpdate_File_ReadsFromFile()
+    {
+        CreatePlanFolder("20310", "UpdateFileTest");
+        var yaml = YamlHelper.Serializer.Serialize(new PlanYaml
+        {
+            State = "Completed",
+            Project = "TestProject",
+            Title = "UpdateFileTest",
+            Repos = [_tempDir.Path],
+            Created = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc),
+            Updated = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc)
+        });
+        var file = Path.Combine(_tempDir.Path, "updated-plan.yaml");
+        File.WriteAllText(file, yaml);
+
+        var app = BuildPlanUpdateApp();
+        var exit = app.Run(["plan", "update", "20310", "--file", file]);
+
+        Assert.Equal(0, exit);
+        Assert.Equal("Completed", ReadPlan("20310").State);
+    }
+
+    [Fact]
+    public void PlanUpdate_Stdin_ReadsPipedInput()
+    {
+        CreatePlanFolder("20311", "UpdateStdinTest");
+        var yaml = YamlHelper.Serializer.Serialize(new PlanYaml
+        {
+            State = "Completed",
+            Project = "TestProject",
+            Title = "UpdateStdinTest",
+            Repos = [_tempDir.Path],
+            Created = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc),
+            Updated = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc)
+        });
+
+        var app = BuildPlanUpdateApp();
+        var originalIn = Console.In;
+        Console.SetIn(new StringReader(yaml));
+        try
+        {
+            var exit = app.Run(["plan", "update", "20311", "--stdin"]);
+            Assert.Equal(0, exit);
+        }
+        finally
+        {
+            Console.SetIn(originalIn);
+        }
+
+        Assert.Equal("Completed", ReadPlan("20311").State);
+    }
+
+    [Fact]
+    public void PlanUpdate_MultipleSources_FailsValidation()
+    {
+        Assert.False(new PlanUpdateSettings { PlanId = "1", FilePath = "f.yaml", Stdin = true }.Validate().Successful);
+
+        var app = BuildPlanUpdateApp();
+        Assert.Throws<CommandRuntimeException>(() =>
+            app.Run(["plan", "update", "1", "--file", "f.yaml", "--stdin"]));
+    }
+
+    [Fact]
+    public void PlanUpdate_NoSource_ThrowsAndNeverReadsStdin()
+    {
+        CreatePlanFolder("20312", "UpdateNoSourceTest");
+        var app = BuildPlanUpdateApp();
+
+        var originalIn = Console.In;
+        Console.SetIn(new StringReader("SENTINEL-SHOULD-NOT-BE-READ"));
+        try
+        {
+            var ex = Assert.Throws<ArgumentException>(() => app.Run(["plan", "update", "20312"]));
+            Assert.Contains("--file or --stdin", ex.Message);
+        }
+        finally
+        {
+            Console.SetIn(originalIn);
+        }
+
+        Assert.Equal("Draft", ReadPlan("20312").State);
     }
 }

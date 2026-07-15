@@ -1,5 +1,9 @@
+using Ivy.Tendril.Commands;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Infrastructure;
 using Ivy.Tendril.Models;
+using Microsoft.Extensions.DependencyInjection;
+using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Test;
 
@@ -99,8 +103,7 @@ public class PlanRecCommandTests : IDisposable
             Title = "New Rec",
             Description = "A new recommendation",
             State = "Pending",
-            Impact = "High",
-            Risk = "Medium"
+            Impact = "High"
         });
         plan.Updated = DateTime.UtcNow;
         PlanCommandHelpers.WritePlan(planFolder, plan);
@@ -112,7 +115,6 @@ public class PlanRecCommandTests : IDisposable
         Assert.Equal("A new recommendation", result.Recommendations[0].Description);
         Assert.Equal("Pending", result.Recommendations[0].State);
         Assert.Equal("High", result.Recommendations[0].Impact);
-        Assert.Equal("Medium", result.Recommendations[0].Risk);
     }
 
     [Fact]
@@ -315,22 +317,6 @@ public class PlanRecCommandTests : IDisposable
         Assert.Equal("High", result.Recommendations![0].Impact);
     }
 
-    [Fact]
-    public void SetRecommendation_UpdateRisk()
-    {
-        CreatePlan("10053", "SetRiskTest", [
-            new RecommendationYaml { Title = "Rec1", Description = "Desc", Risk = "High" }
-        ]);
-
-        var planFolder = PlanCommandHelpers.ResolvePlanFolder("10053");
-        var plan = PlanCommandHelpers.ReadPlan(planFolder);
-        plan.Recommendations![0].Risk = "Small";
-        PlanCommandHelpers.WritePlan(planFolder, plan);
-
-        var result = ReadPlan("10053");
-        Assert.Equal("Small", result.Recommendations![0].Risk);
-    }
-
     // --- Roundtrip/Serialization ---
 
     [Fact]
@@ -343,8 +329,7 @@ public class PlanRecCommandTests : IDisposable
                 Description = "Complete recommendation",
                 State = "Declined",
                 DeclineReason = "Too risky",
-                Impact = "High",
-                Risk = "High"
+                Impact = "High"
             }
         ]);
 
@@ -357,7 +342,6 @@ public class PlanRecCommandTests : IDisposable
         Assert.Equal("Declined", rec.State);
         Assert.Equal("Too risky", rec.DeclineReason);
         Assert.Equal("High", rec.Impact);
-        Assert.Equal("High", rec.Risk);
     }
 
     [Fact]
@@ -429,5 +413,109 @@ public class PlanRecCommandTests : IDisposable
         var result = ReadPlan("10080");
         Assert.Equal("Fix: \"quotes\" & <brackets>", result.Recommendations![0].Title);
         Assert.Contains("Line1", result.Recommendations[0].Description);
+    }
+
+    // ==================== PlanRecAdd CLI (-d / --file / --stdin) ====================
+
+    private CommandApp BuildPlanRecAddApp()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IPlanWatcherService, NullPlanWatcherService>();
+
+        var app = new CommandApp(new TypeRegistrar(services));
+        app.Configure(config =>
+        {
+            config.PropagateExceptions();
+            config.AddBranch("plan", plan => plan.AddBranch("rec", rec => rec.AddCommand<PlanRecAddCommand>("add")));
+        });
+        return app;
+    }
+
+    [Fact]
+    public void PlanRecAdd_InlineDescription_AddsRecommendation()
+    {
+        CreatePlan("10090", "InlineDescTest");
+        var app = BuildPlanRecAddApp();
+
+        var exit = app.Run(["plan", "rec", "add", "10090", "Inline Rec", "-d", "Inline description text"]);
+
+        Assert.Equal(0, exit);
+        var result = ReadPlan("10090");
+        Assert.Equal("Inline description text", result.Recommendations!.Single().Description);
+    }
+
+    [Fact]
+    public void PlanRecAdd_File_ReadsFromFile()
+    {
+        CreatePlan("10091", "FileDescTest");
+        var file = Path.Combine(_tempDir, "rec-description.md");
+        File.WriteAllText(file, "Description from file");
+        var app = BuildPlanRecAddApp();
+
+        var exit = app.Run(["plan", "rec", "add", "10091", "File Rec", "--file", file]);
+
+        Assert.Equal(0, exit);
+        var result = ReadPlan("10091");
+        Assert.Equal("Description from file", result.Recommendations!.Single().Description);
+    }
+
+    [Fact]
+    public void PlanRecAdd_Stdin_ReadsPipedInput()
+    {
+        CreatePlan("10092", "StdinDescTest");
+        var app = BuildPlanRecAddApp();
+
+        var originalIn = Console.In;
+        Console.SetIn(new StringReader("Description from stdin"));
+        try
+        {
+            var exit = app.Run(["plan", "rec", "add", "10092", "Stdin Rec", "--stdin"]);
+            Assert.Equal(0, exit);
+        }
+        finally
+        {
+            Console.SetIn(originalIn);
+        }
+
+        var result = ReadPlan("10092");
+        Assert.Equal("Description from stdin", result.Recommendations!.Single().Description);
+    }
+
+    [Fact]
+    public void PlanRecAdd_MultipleSources_FailsValidation()
+    {
+        Assert.False(new PlanRecAddSettings
+        {
+            PlanId = "1",
+            Title = "T",
+            Description = "inline",
+            Stdin = true
+        }.Validate().Successful);
+
+        var app = BuildPlanRecAddApp();
+        Assert.Throws<CommandRuntimeException>(() =>
+            app.Run(["plan", "rec", "add", "1", "T", "-d", "inline", "--stdin"]));
+    }
+
+    [Fact]
+    public void PlanRecAdd_NoSource_ThrowsAndNeverReadsStdin()
+    {
+        CreatePlan("10093", "NoSourceTest");
+        var app = BuildPlanRecAddApp();
+
+        var originalIn = Console.In;
+        Console.SetIn(new StringReader("SENTINEL-SHOULD-NOT-BE-READ"));
+        try
+        {
+            var ex = Assert.Throws<ArgumentException>(() => app.Run(["plan", "rec", "add", "10093", "No Source Rec"]));
+            Assert.Contains("--description, --file, or --stdin", ex.Message);
+        }
+        finally
+        {
+            Console.SetIn(originalIn);
+        }
+
+        var result = ReadPlan("10093");
+        Assert.Empty(result.Recommendations!);
     }
 }

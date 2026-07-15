@@ -65,12 +65,13 @@ public class SidebarView(
         var content = new List(filteredList.Select(plan =>
         {
             var clickablePlan = plan;
-            return new ListItem($"#{plan.Id} {plan.Title}")
-                .Content(Layout.Horizontal().Gap(1)
-                         | new Badge(plan.Project).Variant(BadgeVariant.Outline).Small()
-                             .WithProjectColor(config, plan.Project)
-                         | new Badge(plan.Level).Color(config.GetLevelColor(plan.Level) ?? Colors.Gray).Small())
-                .OnClick(() => selectedPlanState.Set(clickablePlan));
+            var badges = Layout.Horizontal().Gap(1)
+                | new Badge(plan.Project).Variant(BadgeVariant.Outline).Small()
+                    .WithProjectColor(config, plan.Project)
+                | new Badge(plan.Level).Color(config.GetLevelColor(plan.Level) ?? Colors.Gray).Small();
+
+            return SidebarListRow.Build($"#{plan.Id} {plan.Title}", badges, () => selectedPlanState.Set(clickablePlan),
+                plan.FolderName == selectedPlanState.Value?.FolderName);
         }));
 
         return new HeaderLayout(BuildHeader(), content);

@@ -8,6 +8,7 @@ import type { MarkdownAnnotation } from "./annotationUtils";
 import { applyAnnotationHighlights, getPlainTextOffset } from "./annotationUtils";
 import { AddAnnotationPopover, EditAnnotationPopover, SelectionToolbar } from "./AnnotationPopover";
 import { AlertBlockquote } from "./AlertBlockquote";
+import { ImageRenderer } from "./ImageRenderer";
 import { isLocalFileUrl, transformLocalFileUrl } from "./localFiles";
 
 type IvyEventHandler = (eventName: string, widgetId: string, args: unknown[]) => void;
@@ -272,7 +273,7 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
           <Markdown
             remarkPlugins={[remarkGfm]}
             urlTransform={urlTransform}
-            components={{ a: anchor, code: CodeBlock, blockquote: AlertBlockquote }}
+            components={{ a: anchor, code: CodeBlock, blockquote: AlertBlockquote, img: ImageRenderer }}
           >
             {content}
           </Markdown>

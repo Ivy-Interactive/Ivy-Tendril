@@ -9,7 +9,6 @@ public class SidebarView(
     IState<Recommendation?> selectedState,
     IState<string?> projectFilter,
     IState<string?> impactFilter,
-    IState<string?> riskFilter,
     int totalCount,
     bool hasActiveFilters,
     IState<string?> textFilter,
@@ -40,17 +39,12 @@ public class SidebarView(
             var impactLevelOptions = new[] { "Small", "Medium", "High" }
                 .Select(l => new Option<string>(l, l))
                 .ToArray<IAnyOption>();
-            var riskLevelOptions = new[] { "Small", "Medium", "High" }
-                .Select(l => new Option<string>(l, l))
-                .ToArray<IAnyOption>();
 
             header |= Layout.Vertical()
                 | projectFilter.ToSelectInput(projectOptions).Placeholder("All Projects").Nullable()
                     .WithField().Label("Project")
                 | impactFilter.ToSelectInput(impactLevelOptions).Placeholder("All Impacts").Nullable()
-                    .WithField().Label("Impact")
-                | riskFilter.ToSelectInput(riskLevelOptions).Placeholder("All Risk Levels").Nullable()
-                    .WithField().Label("Risk");
+                    .WithField().Label("Impact");
         }
 
         return header;
@@ -58,10 +52,11 @@ public class SidebarView(
 
     public override object Build()
     {
+        var config = UseService<IConfigService>();
+
         var filtered = recommendations
             .Where(r => projectFilter.Value == null || r.Project == projectFilter.Value)
             .Where(r => impactFilter.Value == null || r.Impact == impactFilter.Value)
-            .Where(r => riskFilter.Value == null || r.Risk == riskFilter.Value)
             .Where(r =>
             {
                 if (string.IsNullOrWhiteSpace(textFilter.Value)) return true;
@@ -82,12 +77,20 @@ public class SidebarView(
         {
             var clickableRec = rec;
 
-            var preview = rec.Description.Length > 120
-                ? rec.Description[..120] + "..."
-                : rec.Description;
+            // Mirror the detail header's badge row (Project + Impact) so each row is self-describing.
+            var badges = Layout.Horizontal().Gap(1)
+                | new Badge(rec.Project).Variant(BadgeVariant.Outline).Small()
+                    .WithProjectColor(config, rec.Project);
+            if (rec.Impact is { } impact)
+                badges |= new Badge(impact).Variant(impact switch
+                {
+                    "High" => BadgeVariant.Success,
+                    "Medium" => BadgeVariant.Warning,
+                    _ => BadgeVariant.Outline
+                }).Small();
 
-            return new ListItem($"#{rec.PlanId} {rec.Title}", preview)
-                .OnClick(() => selectedState.Set(clickableRec));
+            return SidebarListRow.Build($"#{rec.ShortPlanId} {rec.Title}", badges,
+                () => selectedState.Set(clickableRec), Equals(rec, selectedState.Value));
         }));
 
         return new HeaderLayout(BuildHeader(), content);

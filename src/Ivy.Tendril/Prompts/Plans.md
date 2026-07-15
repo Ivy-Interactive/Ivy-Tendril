@@ -106,12 +106,12 @@ tendril plan add-related-plan <plan-id> <folder-name>
 tendril plan add-depends-on <plan-id> <folder-name>
 
 # Recommendations
-tendril plan rec add <plan-id> <title> -d <description> [--impact Small|Medium|High] [--risk Small|Medium|High]
-tendril plan rec accept <plan-id> <title> [--notes <text>]
-tendril plan rec decline <plan-id> <title> [--reason <text>]
+tendril plan rec add <plan-id> <title> -d <description> [--impact=Small|Medium|High]
+tendril plan rec accept <plan-id> <title> [--notes=<text>]
+tendril plan rec decline <plan-id> <title> [--reason=<text>]
 tendril plan rec set <plan-id> <title> <field> <value>
 tendril plan rec remove <plan-id> <title>
-tendril plan rec list <plan-id> [--state Pending|Accepted|Declined]
+tendril plan rec list <plan-id> [--state=Pending|Accepted|Declined]
 
 # Validate plan health
 tendril plan validate <plan-id>
@@ -125,11 +125,16 @@ tendril plan create <title> <project> [options]
 
 Auto-allocates a plan ID, creates the folder, and writes `plan.yaml`. Repos are derived from the project configuration.
 
+Pass options in the `--option=value` (equals) form, e.g. `--initial-prompt="..."`. The parser reads any token starting with `-` as an option name, so the space-separated form breaks when a value itself begins with a dash (e.g. a prompt opening with a `-` bullet). Likewise, `<title>` must not begin with a `-`.
+
 Outputs:
 ```
 PlanId: <ID>
 Directory: <TendrilPlansFolder>/<ID>-<SafeTitle>
-Plan created: <ID>-<SafeTitle>
+Verifications:
+<Name>:<Status>
+<Name>:<Status>
+...
 ```
 
 Options:
@@ -145,18 +150,21 @@ Options:
 ### Writing revisions
 
 ```bash
-tendril plan write-revision <plan-id> <<'EOF'
+tendril plan write-revision <plan-id> --stdin <<'EOF'
 <revision content>
 EOF
 ```
 
-Reads content from STDIN and writes it to `revisions/<NNN>.md` in the plan folder. Auto-increments from the highest existing revision. Outputs the file path.
+Reads content from STDIN (when `--stdin` is passed) or `--file`, and writes it to `revisions/<NNN>.md` in the plan folder. Auto-increments from the highest existing revision. Outputs the file path.
 
 ### Writing execution logs
 
 ```bash
-tendril plan add-log <plan-id> <action> [--summary <text>]
+tendril job add-log <job-id> <action> [--summary=<text>]
 ```
+
+Appends an `## Agent Log` section to your own job's log in `<TendrilHome>/Jobs/`. Pass the
+`TendrilJobId` value from your firmware header as `<job-id>`.
 
 ### Cleaning up worktrees
 
@@ -219,19 +227,19 @@ priority: 0
 ```
 CreatePlan ──► Draft
                │
-               ├─ ExpandPlan ──► Building ──► Draft
+               ├─ ExpandPlan ──► Creating ──► Draft
                ├─ UpdatePlan ──► Updating ──► Draft
                ├─ SplitPlan  ──► Updating ──► Skipped
                │
                ├─ ExecutePlan (dependencies unmet)
-               │    Draft ──► Blocked ──► Draft (when unblocked) ──► Building ──► ...
+               │    Draft ──► Blocked ──► Draft (when unblocked) ──► Creating ──► ...
                │
                ├─ ExecutePlan (Execute button)
-               │    Draft ──► Building ──► Executing ──► ReadyForReview
+               │    Draft ──► Creating ──► Executing ──► Review
                │                                    └──► Failed
                │
                ├─ CreatePr (from Review app)
-               │    ReadyForReview ──► Completed
+               │    Review ──► Completed
                │
                ├─ (manual) ──► Skipped
                └─ (manual) ──► Icebox
@@ -240,10 +248,10 @@ CreatePlan ──► Draft
 | State            | Meaning                                    | Visible in      |
 |------------------|--------------------------------------------|-----------------|
 | `Draft`          | Ready for review/action                    | Plans           |
-| `Building`       | ExpandPlan or ExecutePlan in progress       | Jobs            |
+| `Creating`       | ExpandPlan or ExecutePlan in progress       | Jobs            |
 | `Updating`       | UpdatePlan or SplitPlan in progress         | Jobs            |
 | `Executing`      | ExecutePlan agent running                   | Jobs            |
-| `ReadyForReview` | ExecutePlan finished, awaiting human review | Review          |
+| `Review` | ExecutePlan finished, awaiting human review | Review          |
 | `Failed`         | ExecutePlan errored                         | Review          |
 | `Completed`      | PR created, plan done                       | —               |
 | `Skipped`        | Manually dismissed or split                 | —               |
@@ -272,7 +280,7 @@ Verifications live in `plan.yaml` (not in the revision markdown), each with a `N
 
 ## Notes
 
-- **Local file links in plans:** `[Button.cs](file:///path/to/...)` so VS Code opens the path; keep the path as link text.
+- **Local file links in plans:** `[filename:line](file:///path/to/filename)` for source files with a line number, or `[filename](file:///path/to/filename)` without. The line number belongs only in the display text — never append it to the URL itself (no `:348` suffix and no `#L123` fragment), or VS Code can't open the path. Never use backticks in link text. **Only link files that already exist** — for a file the plan will create, write its path in inline code (e.g. `` `src/New/Thing.cs` ``), not as a link; links to non-existent paths render broken.
 - **Plan references:** `[Plan 03156](plan://03156)` to link to other plans. The link handler will navigate to that plan in the Plans app. The plan ID can be 5 digits (e.g., `plan://03156`) or without leading zeros (e.g., `plan://3156`).
 - Images: normal markdown `![alt](url)`.
 - **Diagrams:** Graphviz/DOT (```dot / ```graphviz) or Mermaid (```mermaid). **Prefer DOT** for layout. Use only when a diagram really helps.

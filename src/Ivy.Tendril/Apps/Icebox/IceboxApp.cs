@@ -1,4 +1,4 @@
-using System.Reactive.Disposables;
+using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
@@ -12,7 +12,6 @@ public class IceboxApp : ViewBase
         var planService = UseService<IPlanReaderService>();
         var jobService = UseService<IJobService>();
         var configService = UseService<IConfigService>();
-        var planWatcher = UseService<IPlanWatcherService>();
         var selectedPlanState = UseState<PlanFile?>(null);
         var projectFilter = UseState<string?>(null);
         var levelFilter = UseState<string?>(null);
@@ -20,16 +19,7 @@ public class IceboxApp : ViewBase
         var filtersOpen = UseState(false);
         var refreshToken = UseRefreshToken();
 
-        UseEffect(() =>
-        {
-            void OnChanged(string? _)
-            {
-                refreshToken.Refresh();
-            }
-
-            planWatcher.PlansChanged += OnChanged;
-            return Disposable.Create(() => planWatcher.PlansChanged -= OnChanged);
-        });
+        Context.UseInboxAutoRefresh(refreshToken);
 
         var previousPlans = UseRef(new List<PlanFile>());
         var plans = planService.GetPlans(PlanStatus.Icebox);

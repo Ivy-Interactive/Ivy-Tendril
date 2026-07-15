@@ -71,15 +71,14 @@ public class JobServiceSplitPlanCompletionTests
         public void SetVerificationStatus(string folderName, string name, VerificationStatus status) { }
         public void RevertRevision(string folderName) { }
 
+        public void MigratePlans() { }
         public void RecoverStuckPlans() { }
-        public void RepairPlans() { }
         public List<PlanFile> GetPlans(PlanStatus? statusFilter = null) => [];
         public PlanFile? GetPlanByFolder(string folderPath) => null;
         public List<PlanFile> GetIceboxPlans() => [];
         public void SaveRevision(string folderName, string content) { }
         public string ReadLatestRevision(string folderName) => "";
         public List<(int Number, string Content, DateTime Modified)> GetRevisions(string folderName) => [];
-        public void AddLog(string folderName, string action, string content, string? jobId = null) { }
         public void DeletePlan(string folderName) { }
         public string ReadRawPlan(string folderName) => "";
         public void SavePlan(string folderName, string fullContent) { }
@@ -97,5 +96,6 @@ public class JobServiceSplitPlanCompletionTests
         public Task FlushPendingWritesAsync() => Task.CompletedTask;
         public List<RecommendationYaml> GetRecommendationsForPlan(string folderName) => [];
         public void AcceptRecommendationAndRetry(string folderName, string recommendationTitle) { }
+        public void AcceptRecommendationsAndRetry(string folderName, IReadOnlyCollection<string> titles) { }
     }
 }

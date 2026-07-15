@@ -111,35 +111,6 @@ public class MarkdownHelperTests : IDisposable
     }
 
     [Fact]
-    public void FindFilesInRepos_FindsMatchingFiles()
-    {
-        var tempTestDir = Path.Combine(_tempDir.Path, $"test-{Guid.NewGuid()}");
-        var subDir = Path.Combine(tempTestDir, "sub");
-        Directory.CreateDirectory(subDir);
-        File.WriteAllText(Path.Combine(subDir, "Target.cs"), "// test");
-
-        var results = MarkdownHelper.FindFilesInRepos([tempTestDir], "Target.cs");
-        Assert.Single(results);
-        Assert.EndsWith("Target.cs", results[0]);
-    }
-
-    [Fact]
-    public void FindFilesInRepos_NoMatch_ReturnsEmpty()
-    {
-        var tempTestDir = Path.Combine(_tempDir.Path, $"test-{Guid.NewGuid()}");
-        Directory.CreateDirectory(tempTestDir);
-        var results = MarkdownHelper.FindFilesInRepos([tempTestDir], "NonExistent.cs");
-        Assert.Empty(results);
-    }
-
-    [Fact]
-    public void FindFilesInRepos_NonExistentRepo_ReturnsEmpty()
-    {
-        var results = MarkdownHelper.FindFilesInRepos(["C:\\nonexistent\\repo"], "Target.cs");
-        Assert.Empty(results);
-    }
-
-    [Fact]
     public void AnnotateAllBrokenLinks_ValidFileLink_BrokenPlanLink()
     {
         var tempFile = Path.GetTempFileName();

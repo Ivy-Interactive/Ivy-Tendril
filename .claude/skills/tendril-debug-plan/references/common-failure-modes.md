@@ -56,9 +56,9 @@ Patterns observed from past PlanEvaluator runs and debugging sessions.
 - **Root cause**: Multiple Tendril instances running simultaneously
 
 ### Missing Logs
-- **Symptom**: No `.raw.jsonl` for a promptware execution
-- **Where to look**: Check if `Logs/` directory exists under the promptware folder
-- **Root cause**: `WriteRawOutputLog` in `JobCompletionHandler.cs` only writes if the directory exists
+- **Symptom**: No `.raw.jsonl` for a job
+- **Where to look**: `$TENDRIL_HOME/Jobs/{jobId}-*` — all four artifacts share one stem
+- **Root cause**: the raw writer is opened from `JobItem.LogFilePath`; if the job never launched, only the seeded `.md` exists
 
 ## CLI / Shim Failures
 
@@ -91,14 +91,17 @@ Patterns observed from past PlanEvaluator runs and debugging sessions.
 
 ## Log / Output Failures
 
+> Logs moved: every job artifact now lives flat in `$TENDRIL_HOME/Jobs/` keyed by job id
+> (`{jobId}-{planId}-{promptware}.{md,prompt.md,raw.jsonl,eventwire.jsonl}`). There is no `Logs/`
+> folder under promptwares or plans. The two historical failures below are structurally impossible now
+> — each job owns a unique stem — but the symptoms are worth recognizing in old reports.
+
 ### Log File Race Condition (Fixed 2026-04-26)
-- **Symptom**: A plan's execution log in `Promptwares/{Type}/Logs/` is overwritten by another concurrent execution. The original session's log is permanently lost.
-- **Where to look**: Compare the firmware header's log file path (visible in the session JSONL) against what actually exists at that path. If the content is for a different plan, it was overwritten.
+- **Symptom**: A plan's execution log is overwritten by another concurrent execution. The original session's log is permanently lost.
 - **Root cause**: `FirmwareCompiler.GetNextLogFile` assigned the next number but didn't create the file, so concurrent calls got the same number.
-- **Fix area**: `Services/Agents/FirmwareCompiler.cs` — now reserves the file on disk immediately.
+- **Fix area**: log names are now derived from the globally-allocated job id, not a per-folder sequence.
 
 ### Raw JSONL Keyed by Wrong ID (Fixed 2026-04-26)
 - **Symptom**: No `{PlanId}.raw.jsonl` exists, but a `job-{N}.raw.jsonl` does contain the session data.
-- **Where to look**: `Promptwares/{Type}/Logs/` — check for files with job IDs instead of plan IDs.
-- **Root cause**: `job.AllocatedPlanId` was only set for CreatePlan jobs. Other job types (ExecutePlan, etc.) left it null, so `WriteRawOutputLog` used the ephemeral job ID as filename.
-- **Fix area**: `Services/JobLauncher.cs` — now sets `AllocatedPlanId` for all jobs that operate on a plan folder.
+- **Root cause**: `job.AllocatedPlanId` was only set for CreatePlan jobs, so other job types fell back to the ephemeral job ID as filename.
+- **Fix area**: artifacts are now *always* keyed by job id, with the plan id as an optional middle segment.

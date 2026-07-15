@@ -18,8 +18,8 @@ public static class AgentPromptCompiler
         var template = Template.Value;
         if (template == null) return null;
 
-        var tendrilHome = config.TendrilHome.Replace('\\', '/');
-        var planFolder = config.PlanFolder.Replace('\\', '/');
+        var tendrilHome = config.TendrilHome.Replace('\\', '/').TrimEnd('/');
+        var planFolder = config.PlanFolder.Replace('\\', '/').TrimEnd('/');
 
         return template
             .Replace("{TENDRIL_HOME}", tendrilHome)

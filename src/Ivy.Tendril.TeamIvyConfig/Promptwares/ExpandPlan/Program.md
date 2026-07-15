@@ -18,7 +18,7 @@ Project configuration is available from the firmware header.
 - Read `plan.yaml` from the plan folder
 - Read the latest revision from `Revisions/` (highest numbered .md file)
 - Identify sections with investigative/exploratory language ("Investigate...", "Check if...", "Research...", "Explore...")
-- Report plan context to Jobs UI: `tendril job status TendrilJobId --message "Expanding plan..." --plan-id <plan-id> --plan-title "<title>"`
+- Report plan context to Jobs UI: `tendril job status TendrilJobId --message="Expanding plan..." --plan-id=<plan-id> --plan-title="<title>"`
 
 ### 2. Research and Resolve
 
@@ -69,4 +69,4 @@ Example:
 - Do NOT modify any source code — only read files and update the plan
 - Do NOT modify `plan.yaml` — the launcher script handles state and timestamps
 - Keep the plan short and concise — the limiting factor is a human reading it
-- When referencing local files, use markdown links: `[filename:line](file:///path/to/filename)` for source files with line numbers, or `[filename](file:///path/to/filename)` without. Never use backticks in link text or `#L123` fragments in URLs. Use `![alt](path)` for images.
+- When referencing local files, use markdown links: `[filename:line](file:///path/to/filename)` for source files with line numbers, or `[filename](file:///path/to/filename)` without. Never use backticks in link text, and never append a line number to the URL itself — no `:348` suffix and no `#L123` fragment; the line number belongs only in the display text. Only use `file:///` links for files that already exist; for a file the plan will create, write its path in inline code (`` `path/to/new/file` ``) instead of a link. Use `![alt](path)` for images.

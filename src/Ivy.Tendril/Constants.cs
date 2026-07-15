@@ -24,13 +24,15 @@ public static class Constants
     public const string DiscordUrl = "https://discord.gg/FHgxkDga3y";
     public const string IssuesUrl = "https://github.com/Ivy-Interactive/Ivy-Tendril/issues/new";
     public const string NewsBaseUrl = "https://cdn.ivy.app/tendril/";
+    public const string WindowsInstallCommand = "irm https://cdn.ivy.app/install-tendril.ps1 | iex";
+    public const string UnixInstallCommand = "curl -sSf https://cdn.ivy.app/install-tendril.sh | sh";
 
     public static readonly Dictionary<PlanStatus, BadgeVariant> PlanStatusBadgeVariants = new()
     {
-        [PlanStatus.Building] = BadgeVariant.Info,
+        [PlanStatus.Creating] = BadgeVariant.Info,
         [PlanStatus.Updating] = BadgeVariant.Info,
         [PlanStatus.Executing] = BadgeVariant.Info,
-        [PlanStatus.ReadyForReview] = BadgeVariant.Success,
+        [PlanStatus.Review] = BadgeVariant.Success,
         [PlanStatus.Failed] = BadgeVariant.Destructive,
         [PlanStatus.Draft] = BadgeVariant.Outline,
         [PlanStatus.Completed] = BadgeVariant.Success,
@@ -69,7 +71,7 @@ public static class Constants
         [JobTypes.CreatePr] = Colors.Green,
         [JobTypes.CreateIssue] = Colors.Rose,
         [JobTypes.RetryPlan] = Colors.Orange,
-        [JobTypes.UpdateProject] = Colors.Slate,
+        [JobTypes.SetupProject] = Colors.Slate,
         [JobTypes.SyncRepo] = Colors.Amber
     };
 
@@ -86,12 +88,12 @@ public static class Constants
         public const string SplitPlan = "SplitPlan";
         public const string CreatePr = "CreatePr";
         public const string CreateIssue = "CreateIssue";
-        public const string UpdateProject = "UpdateProject";
+        public const string SetupProject = "SetupProject";
         public const string SyncRepo = "SyncRepo";
 
         public static readonly HashSet<string> BuiltIn = new(StringComparer.OrdinalIgnoreCase)
         {
-            CreatePlan, ExecutePlan, RetryPlan, ExpandPlan, UpdatePlan, SplitPlan, CreatePr, CreateIssue, UpdateProject, SyncRepo
+            CreatePlan, ExecutePlan, RetryPlan, ExpandPlan, UpdatePlan, SplitPlan, CreatePr, CreateIssue, SetupProject, SyncRepo
         };
     }
 }

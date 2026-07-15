@@ -58,7 +58,12 @@ public static class VariableExpansion
     /// <summary>
     ///     Expand variables in a string value.
     /// </summary>
-    public static string ExpandVariables(string value, string? tendrilHome)
+    /// <param name="normalizePaths">
+    ///     When true (default), path separators are normalized (forward slashes → backslashes on Windows,
+    ///     double separators collapsed). Pass false for prose values (e.g. plan templates, prompts) where
+    ///     slash normalization would corrupt the text — those should expand variables only.
+    /// </param>
+    public static string ExpandVariables(string value, string? tendrilHome, bool normalizePaths = true)
     {
         if (string.IsNullOrEmpty(value)) return value;
 
@@ -74,7 +79,8 @@ public static class VariableExpansion
 
         // Normalize path separators: convert forward slashes to backslashes on Windows,
         // and remove any double slashes that might have been created during expansion
-        value = NormalizePath(value);
+        if (normalizePaths)
+            value = NormalizePath(value);
 
         return value;
     }

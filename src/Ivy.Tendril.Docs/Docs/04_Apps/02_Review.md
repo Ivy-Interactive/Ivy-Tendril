@@ -11,7 +11,7 @@ icon: ThumbsUp
 # Review
 
 <Ingress>
-Queue of finished work: **ReadyForReview** or **Failed** plans. Nothing merges without you.
+Queue of finished work: **Review** or **Failed** plans. Nothing merges without you.
 </Ingress>
 
 ## What shows up

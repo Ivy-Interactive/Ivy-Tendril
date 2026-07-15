@@ -1,6 +1,7 @@
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Commands;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Git;
 using Ivy.Tendril.Services.Plans;
 using Ivy.Tendril.Helpers;
 using Microsoft.AspNetCore.Mvc;
@@ -68,11 +69,13 @@ public class PlanController : ControllerBase
 {
     private readonly IPlanWatcherService _planWatcher;
     private readonly IConfigService _configService;
+    private readonly IGithubService _githubService;
 
-    public PlanController(IPlanWatcherService planWatcher, IConfigService configService)
+    public PlanController(IPlanWatcherService planWatcher, IConfigService configService, IGithubService githubService)
     {
         _planWatcher = planWatcher;
         _configService = configService;
+        _githubService = githubService;
     }
 
     private IActionResult ModifyPlanEndpoint(
@@ -261,25 +264,6 @@ public class PlanController : ControllerBase
             return (true, $"Set verification '{request.Name}' to '{status}'", 200);
         });
 
-    [HttpPost("{planId}/logs")]
-    public IActionResult AddLog(string planId, [FromBody] AddLogRequest request)
-    {
-        try
-        {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var logPath = PlanAddLogCommand.WriteLog(planFolder, request.Action, request.Summary);
-            return Ok(new { message = $"Log written: {Path.GetFileName(logPath)}" });
-        }
-        catch (DirectoryNotFoundException)
-        {
-            return NotFound(new { error = $"Plan '{planId}' not found" });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
-    }
-
     [HttpGet("{planId}/recommendations")]
     public IActionResult ListRecommendations(string planId, [FromQuery] string? state = null)
     {
@@ -298,7 +282,6 @@ public class PlanController : ControllerBase
                 description = r.Description,
                 state = r.State,
                 impact = r.Impact,
-                risk = r.Risk,
                 declineReason = r.DeclineReason
             }));
         }
@@ -325,8 +308,7 @@ public class PlanController : ControllerBase
                 Title = request.Title,
                 Description = request.Description ?? "",
                 State = RecommendationStatus.Pending,
-                Impact = request.Impact,
-                Risk = request.Risk
+                Impact = request.Impact
             });
 
             return (true, $"Added recommendation '{request.Title}'", 200);
@@ -378,7 +360,7 @@ public class PlanController : ControllerBase
     [HttpPut("{planId}/recommendations/{title}")]
     public IActionResult SetRecField(string planId, string title, [FromBody] SetRecFieldRequest request)
     {
-        var validFields = new[] { "title", "description", "state", "impact", "risk", "declinereason" };
+        var validFields = new[] { "title", "description", "state", "impact", "declinereason" };
         if (!validFields.Contains(request.Field.ToLower()))
             return BadRequest(new { error = $"Unknown field: {request.Field}. Valid: {string.Join(", ", validFields)}" });
 
@@ -395,7 +377,6 @@ public class PlanController : ControllerBase
                 case "description": rec.Description = request.Value; break;
                 case "state": rec.State = request.Value; break;
                 case "impact": rec.Impact = request.Value; break;
-                case "risk": rec.Risk = request.Value; break;
                 case "declinereason": rec.DeclineReason = request.Value; break;
             }
 
@@ -409,6 +390,7 @@ public class PlanController : ControllerBase
         try
         {
             var resolvedProject = PlanProjectResolver.ResolveProject(request.Project, _configService.Projects);
+            PlanSourceProjectGuard.EnsureSourceUrlMatchesProject(request.SourceUrl, resolvedProject, _githubService);
 
             var plansDir = PlanCommandHelpers.GetPlansDirectory();
             var planId = PlanYamlHelper.AllocatePlanId(plansDir);
@@ -468,15 +450,8 @@ public class PlanController : ControllerBase
         try
         {
             var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var revisionsDir = Path.Combine(planFolder, "Revisions");
-            Directory.CreateDirectory(revisionsDir);
-
-            var number = ResolveNextRevisionNumber(revisionsDir);
-            var filename = $"{number:D3}.md";
-            var filePath = Path.Combine(revisionsDir, filename);
-
-            System.IO.File.WriteAllText(filePath, request.Content);
-            return Ok(new { file = filename, path = filePath });
+            var filePath = RevisionWriter.WriteNext(planFolder, request.Content, _configService);
+            return Ok(new { file = Path.GetFileName(filePath), path = filePath });
         }
         catch (DirectoryNotFoundException)
         {
@@ -632,18 +607,6 @@ public class PlanController : ControllerBase
             return (true, $"Removed verification '{name}'", 200);
         });
 
-    private static int ResolveNextRevisionNumber(string revisionsDir)
-    {
-        var max = 0;
-        foreach (var file in Directory.GetFiles(revisionsDir, "*.md"))
-        {
-            var name = Path.GetFileNameWithoutExtension(file);
-            if (int.TryParse(name, out var num) && num > max)
-                max = num;
-        }
-        return max + 1;
-    }
-
     private static bool ExtractPlanId(string folderName, out string id)
     {
         id = "";
@@ -685,8 +648,7 @@ public class PlanController : ControllerBase
                 title = r.Title,
                 description = r.Description,
                 state = r.State,
-                impact = r.Impact,
-                risk = r.Risk
+                impact = r.Impact
             })
         };
     }
@@ -699,8 +661,7 @@ public record RemoveRepoRequest(string RepoPath);
 public record AddPrRequest(string PrUrl);
 public record AddCommitRequest(string Sha);
 public record SetVerificationRequest(string Name, string Status);
-public record AddLogRequest(string Action, string? Summary = null);
-public record AddRecRequest(string Title, string? Description = null, string? Impact = null, string? Risk = null);
+public record AddRecRequest(string Title, string? Description = null, string? Impact = null);
 public record AcceptRecRequest(string? Notes = null);
 public record DeclineRecRequest(string? Reason = null);
 public record CreatePlanDirectRequest(

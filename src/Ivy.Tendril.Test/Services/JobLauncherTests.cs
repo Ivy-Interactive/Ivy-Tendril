@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
@@ -82,6 +83,51 @@ projects:
         Assert.Contains("baseBranch: development", yaml);
     }
 
+    private static Dictionary<string, string> InvokeAddCreatePrOptions(JobItem job)
+    {
+        var values = new Dictionary<string, string>();
+        var method = typeof(JobLauncher).GetMethod("AddCreatePrOptions",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        method?.Invoke(null, new object[] { job, values });
+        return values;
+    }
+
+    // The PR dialog's "Reviewer" field flows into CreatePrArgs.Reviewer and must reach the
+    // CreatePr promptware as the PrReviewer firmware value (issue #1311). It used to be the
+    // PrAssignee value, which emitted a GitHub assignee instead of a requested reviewer.
+    [Fact]
+    public void AddCreatePrOptions_EmitsPrReviewer_WhenReviewerSet()
+    {
+        var job = new JobItem
+        {
+            Id = "pr-1",
+            Type = "CreatePr",
+            TypedArgs = new CreatePrArgs(@"D:\Plans\01234-TestPlan", Reviewer: "octocat"),
+            Project = "TestProject"
+        };
+
+        var values = InvokeAddCreatePrOptions(job);
+
+        Assert.Equal("octocat", values["PrReviewer"]);
+        Assert.False(values.ContainsKey("PrAssignee"));
+    }
+
+    [Fact]
+    public void AddCreatePrOptions_OmitsPrReviewer_WhenReviewerNull()
+    {
+        var job = new JobItem
+        {
+            Id = "pr-2",
+            Type = "CreatePr",
+            TypedArgs = new CreatePrArgs(@"D:\Plans\01234-TestPlan"),
+            Project = "TestProject"
+        };
+
+        var values = InvokeAddCreatePrOptions(job);
+
+        Assert.False(values.ContainsKey("PrReviewer"));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempTendrilHome))
@@ -160,6 +206,63 @@ projects:
         Assert.False(result);
     }
 
+    // Regression for #plan-00053: any unhandled exception during the synchronous launch window
+    // (e.g. a "before" hook throwing) used to leave the job stuck Running in "Starting…" forever
+    // with a leaked concurrency slot and no timeout watchdog ever armed to rescue it. The launch
+    // path must now fail the job cleanly and release its slot — and since the plan-to-Executing
+    // transition happens only after the agent process actually starts, the plan must never have
+    // been touched here at all.
+    [Fact]
+    public void LaunchJob_UnhandledExceptionDuringLaunch_FailsJobAndDoesNotStrandPlanExecuting()
+    {
+        var launcher = CreateLauncher();
+
+        var planFolder = Path.Combine(_tempTendrilHome, "Plans", "00001-TestPlan");
+        Directory.CreateDirectory(planFolder);
+        File.WriteAllText(Path.Combine(planFolder, "plan.yaml"), @"
+schemaVersion: 3
+state: Draft
+project: TestProject
+title: Test Plan
+");
+
+        var jobs = new ConcurrentDictionary<string, JobItem>();
+        var job = new JobItem
+        {
+            Id = "launch-fail-1",
+            Type = "ExecutePlan",
+            TypedArgs = new ExecutePlanArgs(planFolder),
+            Project = "TestProject",
+            Status = JobStatus.Queued
+        };
+        jobs[job.Id] = job;
+
+        using var semaphore = new SemaphoreSlim(1, 1);
+        semaphore.Wait(); // The caller acquires the slot before invoking LaunchJob, as real callers do.
+
+        var structureChangedRaised = false;
+
+        launcher.LaunchJob(
+            job, jobs, semaphore, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
+            runHooks: (_, _, _, _, _) => throw new InvalidOperationException("boom"),
+            completeJob: (_, _, _, _) => { },
+            raiseStructureChanged: () => structureChangedRaised = true);
+
+        Assert.Equal(JobStatus.Failed, job.Status);
+        Assert.NotNull(job.CompletedAt);
+        Assert.Contains("boom", job.StatusMessage);
+        Assert.True(structureChangedRaised);
+
+        // Slot released — not leaked. A subsequent job can still acquire it.
+        Assert.Equal(1, semaphore.CurrentCount);
+        Assert.True(semaphore.Wait(0));
+
+        // The plan must never be left stranded in Executing.
+        var plan = PlanYamlHelper.ReadPlanYaml(planFolder);
+        Assert.NotNull(plan);
+        Assert.NotEqual(nameof(PlanStatus.Executing), plan.State);
+    }
+
     [Fact]
     public async Task RunStaleOutputWatchdog_DoesNotFlagRecentOutput()
     {
@@ -191,6 +294,55 @@ projects:
         await watchdogTask;
 
         Assert.False(job.StaleOutputDetected);
+    }
+
+    // Regression for #1455: the launcher must deliver the (potentially large) prompt to the child's
+    // stdin without blocking the launch thread — otherwise the timeout monitor is never armed and the
+    // job hangs "running…" forever. This exercises the production WriteStdinContentAsync against a
+    // real echo child whose output is drained first (mirroring StartAgentProcess's fixed ordering);
+    // a > 128KB payload would deadlock against the child's output pipe if the write were synchronous.
+    [Fact]
+    public async Task WriteStdinContentAsync_LargePrompt_DeliversStdinWithoutBlocking()
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = OperatingSystem.IsWindows() ? "cmd.exe" : "/bin/cat",
+            Arguments = OperatingSystem.IsWindows() ? "/c more" : "",
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        using var process = Process.Start(psi)!;
+
+        // Drain output first, exactly as StartAgentProcess does, so a large stdin write can't
+        // deadlock against the child's output pipe.
+        process.OutputDataReceived += (_, _) => { };
+        process.ErrorDataReceived += (_, _) => { };
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+
+        var largePrompt = new string('x', 200_000); // > 128KB (exceeds combined pipe buffers)
+
+        var method = typeof(JobLauncher).GetMethod("WriteStdinContentAsync",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var sw = Stopwatch.StartNew();
+        method!.Invoke(null, new object?[] { process, psi, largePrompt, "test-stdin" });
+        sw.Stop();
+
+        // Fire-and-forget: the call returns immediately, regardless of how long the child drains stdin.
+        Assert.True(sw.Elapsed < TimeSpan.FromSeconds(2),
+            $"stdin write must not block the launch thread, took {sw.Elapsed}");
+
+        // The prompt is fully written and stdin closed, so the child receives EOF and exits.
+        var exitTask = process.WaitForExitAsync();
+        var completed = await Task.WhenAny(exitTask, Task.Delay(TimeSpan.FromSeconds(20)));
+        Assert.Equal(exitTask, completed);
+        Assert.True(process.HasExited,
+            "Child should exit after stdin EOF — a hang indicates stdin was not delivered/closed");
     }
 
 }

@@ -32,7 +32,7 @@ The plan structure and CLI commands are in the **Reference Documents** section o
 
 ### 0. Check Plan State
 
-Before processing, read `plan.yaml` and check the `state` field. After reading, report plan context: `tendril job status TendrilJobId --message "Creating PR..." --plan-id <plan-id> --plan-title "<title>"`
+Before processing, read `plan.yaml` and check the `state` field. After reading, report plan context: `tendril job status TendrilJobId --message="Creating PR..." --plan-id=<plan-id> --plan-title="<title>"`
 - If `state: Completed`, the plan was already processed. Exit early with a message indicating the plan is already completed and showing the existing PR URLs from the `prs` list.
 - Otherwise, proceed with step 1.
 
@@ -45,17 +45,17 @@ Before processing, read `plan.yaml` and check the `state` field. After reading, 
   - `PrMerge` — `true`/`false` (default: `true`) — **whether to merge the PR after creating it**
   - `PrDeleteBranch` — `true`/`false` (default: `true`)
   - `PrIncludeArtifacts` — `true`/`false` (default: `true`)
-  - `PrAssignee` — GitHub username (default: none)
+  - `PrReviewer` — GitHub username to request as reviewer (default: none)
   - `PrComment` — Review comment text (default: none)
   - `PrDraft` — `true`/`false` (default: `false`)
 
 ### 2. For Each Worktree
 
-Report status: `tendril job status TendrilJobId --message "Pushing branches..."`
+Report status: `tendril job status TendrilJobId --message="Pushing branches..."`
 
 Check `<TendrilPlanFolder>/Worktrees/` for each repo worktree.
 
-> **Worktree already removed:** If the Worktrees/ directory is empty (worktree was already cleaned up), fall back to `plan.yaml` to get the repo path and branch name (format: `tendril/<planId>-<SafeTitle>`, where SafeTitle is extracted from the plan folder name: e.g. `03158-ChangeBranchNaming` → `ChangeBranchNaming`). The commit objects may still exist in the original repo's object store. Use `git cat-file -t <sha>` to verify, then create or force-update the local branch: `git branch -f <branch-name> <sha>` (use `-f` because the branch may already exist from a WIP auto-commit) and push from the original repo path.
+> **Worktree already removed:** If the Worktrees/ directory is empty (worktree was already cleaned up), fall back to `plan.yaml` to get the repo path and branch name. The branch is normally `tendril/<planId>-<SafeTitle>` (SafeTitle extracted from the plan folder name: e.g. `03158-ChangeBranchNaming` → `ChangeBranchNaming`). **Exception — PR-source plans:** if `SourceUrl` is an open same-repo pull request, ExecutePlan based the worktree on the PR's head branch, so the branch is the PR's `headRefName`, not the `tendril/…` pattern — resolve it via `gh pr view <number> --repo <owner/repo> --json headRefName`. The commit objects may still exist in the original repo's object store. Use `git cat-file -t <sha>` to verify, then create or force-update the local branch: `git branch -f <branch-name> <sha>` (use `-f` because the branch may already exist from a WIP auto-commit) and push from the original repo path.
 >
 > **Commit lost (object GC'd):** If `git cat-file -t <sha>` fails, the commit was garbage-collected after worktree removal. In this case: (1) check if the change is already on main, (2) if not, recreate the change from the plan revision — create a new branch from main, apply the changes as described in the revision, commit with a descriptive message matching the plan title, and push. Update commits via CLI: `tendril plan add-commit <plan-id> <new-sha>`.
 
@@ -63,8 +63,18 @@ For each worktree:
 
 1. `git remote get-url origin` (from the worktree) to get the GitHub remote
 2. Extract `owner/repo` from the remote URL
-3. `git rev-parse --abbrev-ref HEAD` to get the branch name
-4. `git push -u origin <branch>` — apply the **transient-error retry convention** above (a
+3. **!MANDATORY project gate — do not skip.** Verify this worktree's repo is one the project
+   authorizes: its repo path/name must appear in the `RepoConfigs` firmware header (the project's
+   configured repos). If the worktree's repo is **NOT** in `RepoConfigs`, **abort this worktree**:
+   do **not** push, create a PR, or merge. Report the mismatch and fail the job for this repo:
+   ```bash
+   tendril job status TendrilJobId --message="ERROR: worktree repo <owner/repo> is not part of this project's RepoConfigs — refusing to push/merge. The plan was likely created in the wrong project."
+   ```
+   Then skip to the next worktree (or exit if this is the only one). This is the stop that prevents
+   merging a change into a repo outside the plan's project (#1340). Never push to a repo just because
+   a worktree for it exists on disk.
+4. `git rev-parse --abbrev-ref HEAD` to get the branch name
+5. `git push -u origin <branch>` — apply the **transient-error retry convention** above (a
    first-attempt `git push` commonly fails transiently and succeeds on retry)
 
 > **Stale remote tracking refs warning:** A ref appearing in `git branch -a` as `remotes/origin/<branch>` does NOT guarantee the branch exists on GitHub. Always verify with `gh api repos/<owner>/<repo>/branches/<branch>` or `git ls-remote origin <branch>` before assuming the push succeeded.
@@ -100,20 +110,59 @@ applying the transient-error retry convention) and poll once more before proceed
 
 ### 3. Create PR
 
-Report status: `tendril job status TendrilJobId --message "Creating pull request..."`
+Report status: `tendril job status TendrilJobId --message="Creating pull request..."`
 
 Apply the **transient-error retry convention** to every `gh` command in this step (and steps
 3.5–6): retry transient/network/`5xx`/`429` failures up to 3 times with backoff; fail fast on
 genuine errors (auth, invalid repo, validation).
 
-For each pushed branch:
+**!CRITICAL — create is idempotent. Never open a second PR for a branch that already has one.**
+For each pushed branch, first check whether an open PR already targets it:
 
 ```bash
-gh pr create [--draft] --repo <owner/repo> --base <default-branch> --head <branch> --title "<title>" --body "$(cat <<'EOF'
-<body content>
-EOF
-)"
+EXISTING=$(gh pr list --repo <owner/repo> --head <branch> --state open --json number,url -q '.[0]')
 ```
+
+- **If `EXISTING` is non-empty → UPDATE path (do NOT run `gh pr create`).** The `git push` in step 2
+  already pushed the new commits onto the PR's branch, which updates the existing PR. Capture its
+  `number` and `url`. Do **not** overwrite the PR title/body. Report
+  `tendril job status TendrilJobId --message="Updated existing PR #<number>"`. If `PrComment` is set,
+  add it via step 3.5. Then continue to step 3.7 (conflict resolution) and step 4 (merge gate) as
+  normal — they apply to updated PRs too.
+  > This is the case for plans whose `SourceUrl` is a PR: ExecutePlan based the worktree on the PR's
+  > head branch, so the branch already has an open PR and we update it in place instead of opening a
+  > second one.
+
+- **If `EXISTING` is empty → CREATE path (default).** For each pushed branch:
+
+**!SHELL SAFETY — use file-based args. Do NOT pipe the body through `--body "$(cat <<'EOF' …)"`
+or interpolate a multi-line body inline.** On some hosts (opencode / Windows) that mangles the
+command and fails with `unknown argument "…"; please quote all values that have spaces`, burning
+retries. Write the body to a **unique** temp file (use `mktemp` — never a fixed/shared name, because
+concurrent CreatePr jobs share `$TMPDIR`) and pass `--body-file`:
+
+```bash
+# $body is already assembled per the Body rules below. Write it to a UNIQUE temp
+# file — NEVER a fixed/shared name. Up to MaxConcurrentJobs CreatePr jobs run at
+# once and share $TMPDIR, so a fixed path like $TMPDIR/pr-body.md is a
+# last-writer-wins race that swaps PR bodies between plans (#1551).
+body_file=$(mktemp)
+printf '%s' "$body" > "$body_file"
+gh pr create [--draft] --repo <owner/repo> --base <default-branch> --head <branch> \
+  --assignee @me --title "[<planId>] <plan title>" --body-file "$body_file"
+rm -f "$body_file"
+```
+
+- The **title is a single `--title "…"` value** — never let the shell split it into multiple args.
+  If a host still splits it, assign it to a variable first and pass the variable:
+  ```bash
+  TITLE="[<planId>] <plan title>"
+  body_file=$(mktemp)
+  printf '%s' "$body" > "$body_file"
+  gh pr create --repo <owner/repo> --base <default-branch> --head <branch> \
+    --assignee @me --title "$TITLE" --body-file "$body_file"
+  rm -f "$body_file"
+  ```
 
 - **Base branch:**
   1. Read plan.yaml and get the project name
@@ -141,7 +190,8 @@ EOF
   body="${issueLink}${summaryContent}\n\n---\n${commitsList}${artifactMarkdown}\n\n---\nCreated using [Ivy Tendril](https://ivy.app)."
   ```
 - **Draft (custom options):** If custom options exist and `draft` is `true`, add `--draft` to the `gh pr create` command to create the PR in draft mode. If no custom options or `draft` is `false`, create as ready for review (default behavior).
-- **Assignee (custom options):** If custom options exist and `assignee` is non-empty, add `--assignee <assignee>` to the `gh pr create` command.
+- **Reviewer (custom options):** If custom options exist and `reviewer` is non-empty, add `--reviewer <reviewer>` to the `gh pr create` command. **Never pass a bare `--reviewer` with no value** — that fails with `flag needs an argument: --reviewer`. Omit the flag entirely when `PrReviewer` is empty.
+- **Assignee:** Always pass `--assignee @me` so the PR is assigned to the current (gh-authenticated) user. If assignment fails (e.g. the account cannot self-assign on a given repo), this is non-fatal — log a warning and continue; do not fail PR creation.
 
 ### 3.5. Add PR Comment (custom options)
 
@@ -157,7 +207,7 @@ If no custom options or `comment` is empty, skip this step.
 
 If `PrSolveMergeConflicts` is `true` (default), check each PR for merge conflicts and resolve them proactively:
 
-Report status: `tendril job status TendrilJobId --message "Checking for merge conflicts..."`
+Report status: `tendril job status TendrilJobId --message="Checking for merge conflicts..."`
 
 For each PR created in step 3:
 
@@ -223,7 +273,7 @@ If `PrSolveMergeConflicts` is `false`, skip this step entirely — the PR may be
 
 ### 4. Merge (only if `PrMerge` is `true`)
 
-Report status: `tendril job status TendrilJobId --message "Applying merge options..."`
+Report status: `tendril job status TendrilJobId --message="Applying merge options..."`
 
 **!STOP — MERGE GATE. The single deciding factor is the `PrMerge` firmware header value. Nothing else.**
 
@@ -249,7 +299,7 @@ fi
 
 ### 5. Clean Up Worktrees
 
-Report status: `tendril job status TendrilJobId --message "Cleaning up worktrees..."`
+Report status: `tendril job status TendrilJobId --message="Cleaning up worktrees..."`
 
 After a successful merge (`PrMerge: true`), clean up the worktrees to reclaim disk space:
 
@@ -263,7 +313,12 @@ tendril plan remove-worktree <TendrilPlanId> <repo-folder-name>
 
 If cleanup fails, log a warning but do not fail the overall CreatePr execution.
 
-### 6. Update Plan via CLI
+### 6. Update Plan via CLI — MANDATORY CLOSEOUT
+
+**!STOP — YOU ARE NOT DONE until this step is complete.** Creating the PR is not the finish line.
+Whether or not earlier steps were messy, retried, or partially failed, you MUST finish by:
+(1) recording every created/updated PR URL, and (2) setting the plan state to `Completed`. A run
+that stops before this leaves the PR invisible in Tendril and the plan stuck in Drafts.
 
 Use the CLI to update the plan — **never edit plan.yaml directly**.
 
@@ -273,13 +328,17 @@ Add each PR URL:
 tendril plan add-pr <plan-id> <pr-url>
 ```
 
-**Update state to Completed:** If `PrMerge` is `true` and ALL PRs were successfully merged, update the state:
+> **Idempotent:** on the UPDATE path the PR URL is usually already in the plan's `prs` list (and may
+> equal `SourceUrl`). Read `plan.yaml` first and only run `add-pr` if the URL is not already present —
+> do not add a duplicate.
+
+**Set state to Completed:** Once a PR exists (created **or** updated) for the plan, set the state to
+`Completed` — **regardless of `PrMerge`**. A plan that has a PR is done; merge status is tracked
+separately as PR status and does not affect plan state.
 
 ```bash
 tendril plan set <plan-id> state Completed
 ```
-
-If `PrMerge` is `false`, do NOT update the state — the plan remains open for manual review and potential revisions.
 
 ### Edge Case: Direct-to-Main (No PR Needed)
 
@@ -291,7 +350,12 @@ Some plans create new repos and push directly to main (e.g., repo scaffolding). 
 
 ### Rules
 
-- **ALL 7 steps are mandatory** (including 2.5) — do not stop after creating the PR
+- **ALL 7 steps are mandatory** (including 2.5) — do not stop after creating the PR. In
+  particular, **step 6 is a required closeout**: record every PR URL via `tendril plan add-pr` and
+  set the plan state to `Completed`. A run that creates a PR but skips step 6 is a **failed** run.
+- **Final summary must be verifiable:** end by echoing each recorded PR URL and the final plan
+  state (e.g. `Recorded PR: <url> — plan 00015 state: Completed`) so an incomplete closeout is
+  self-evident.
 - One PR per repo worktree that has commits
 - Skip worktrees with no commits ahead of the base branch
 - Use `gh` CLI for all GitHub operations
