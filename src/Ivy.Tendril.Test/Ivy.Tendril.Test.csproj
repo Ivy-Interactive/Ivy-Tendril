@@ -35,6 +35,7 @@
   <ItemGroup>
     <ProjectReference Include="../Ivy.Tendril/Ivy.Tendril.csproj" />
     <ProjectReference Include="../Ivy.Tendril.Agents/Ivy.Tendril.Agents.csproj" />
+    <ProjectReference Include="../Ivy.Tendril.Plugin.Slack/Ivy.Tendril.Plugin.Slack.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(IvySource)' == 'true'">
     <ProjectReference Include="../../../Ivy-Framework/src/Ivy/Ivy.csproj" />

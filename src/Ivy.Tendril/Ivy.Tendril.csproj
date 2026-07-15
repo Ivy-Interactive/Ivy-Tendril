@@ -36,6 +36,20 @@
     <EmbeddedResource Include="../Tendril.svg" Link="Assets/Tendril.svg" />
   </ItemGroup>
 
+  <!-- Bundled plugins: built first (ProjectReference below), then embedded so
+       BundledPluginDeployer can install them into TENDRIL_HOME/plugins at startup -->
+  <ItemGroup>
+    <ProjectReference Include="../Ivy.Tendril.Plugin.Slack/Ivy.Tendril.Plugin.Slack.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <Private>false</Private>
+      <PrivateAssets>all</PrivateAssets>
+    </ProjectReference>
+    <EmbeddedResource Include="../Ivy.Tendril.Plugin.Slack/bin/$(Configuration)/net10.0/Ivy.Tendril.Plugin.Slack.dll"
+                      LogicalName="Ivy.Tendril.BundledPlugins.Ivy.Tendril.Plugin.Slack.Ivy.Tendril.Plugin.Slack.dll" />
+    <EmbeddedResource Include="../Ivy.Tendril.Plugin.Slack/bin/$(Configuration)/net10.0/Ivy.Tendril.Plugin.Slack.deps.json"
+                      LogicalName="Ivy.Tendril.BundledPlugins.Ivy.Tendril.Plugin.Slack.Ivy.Tendril.Plugin.Slack.deps.json" />
+  </ItemGroup>
+
   <!-- PackageReferences -->
   <ItemGroup>
     <PackageReference Include="Ivy.StackAnalyzer" Version="1.0.1" />
@@ -96,6 +110,7 @@
   <!-- Tendril ProjectReferences -->
   <ItemGroup>
     <ProjectReference Include="../Ivy.Tendril.Agents/Ivy.Tendril.Agents.csproj" />
+    <ProjectReference Include="../Ivy.Tendril.Plugin.Abstractions/Ivy.Tendril.Plugin.Abstractions.csproj" />
     <ProjectReference Include="../Ivy.Tendril.Widgets/Ivy.Tendril.Widgets.csproj" />
   </ItemGroup>
 
