@@ -11,6 +11,11 @@ export interface TendrilCardMenuItem {
   destructive?: boolean;
 }
 
+export interface TendrilCardMeta {
+  icon: string;
+  label: string;
+}
+
 export interface TendrilCardProps {
   id: string;
   width?: string;
@@ -18,10 +23,12 @@ export interface TendrilCardProps {
   events?: string[];
   eventHandler: IvyEventHandler;
   title: string;
-  badge?: string;
-  badgeIcon?: string;
-  assignee?: string;
-  assigneeColor?: string;
-  footer?: string;
+  icon?: string;
+  iconSpin?: boolean;
+  project?: string;
+  projectColor?: string;
+  status?: string;
+  statusIcon?: string;
+  meta?: TendrilCardMeta[];
   menuItems?: TendrilCardMenuItem[];
 }

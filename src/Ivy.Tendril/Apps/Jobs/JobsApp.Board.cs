@@ -54,6 +54,18 @@ public partial class JobsApp
             .Where(id => id != null)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+        // Most recent finished job per plan id, used to show how much time/tokens a
+        // draft cost after its job completed (mirrors the card's meta row design).
+        var latestJobByPlanId = jobs
+            .Where(j => j.Status is JobStatus.Completed or JobStatus.Failed or JobStatus.Timeout or JobStatus.Stopped)
+            .Select(j => (PlanId: j.ResolvePlanId(), Job: j))
+            .Where(x => x.PlanId.Length > 0)
+            .GroupBy(x => x.PlanId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderByDescending(x => x.Job.CompletedAt ?? x.Job.StartedAt ?? DateTime.MinValue).First().Job,
+                StringComparer.OrdinalIgnoreCase);
+
         var cards = new List<BoardCard>();
 
         foreach (var job in activeJobs)
@@ -67,11 +79,13 @@ public partial class JobsApp
                 Column: BoardColumn.InProgress,
                 Order: ExtractJobNumber(jobId),
                 Title: GetPromptDisplay(job, planService),
-                Badge: string.IsNullOrEmpty(job.Type) ? "Job" : job.Type,
-                BadgeIcon: "ScanLine",
-                Assignee: BuildAssigneeInitials(job.Project),
-                AssigneeColor: BuildAssigneeColor(job.Project, projectColors),
-                Footer: BuildBoardFooter(job),
+                Icon: "Loader",
+                IconSpin: job.Status == JobStatus.Running,
+                Project: BuildProjectLabel(job.Project),
+                ProjectColor: BuildProjectColor(job.Project, projectColors),
+                Status: BuildJobStatusLine(job),
+                StatusIcon: "CornerDownRight",
+                Meta: BuildCardMeta(job.ResolvePlanId(), job),
                 OnClick: () => onJobClick(jobId),
                 DraftPlan: null));
         }
@@ -90,25 +104,25 @@ public partial class JobsApp
             var card = plan.Status switch
             {
                 PlanStatus.Creating or PlanStatus.Updating =>
-                    BuildPlanCard(plan, BoardColumn.InProgress, projectColors, activeJob,
+                    BuildPlanCard(plan, BoardColumn.InProgress, projectColors, activeJob, latestJobByPlanId,
                         () => showPlanSheet(plan.FolderPath)),
 
                 PlanStatus.Draft or PlanStatus.Blocked =>
-                    BuildPlanCard(plan, BoardColumn.Draft, projectColors, activeJob,
+                    BuildPlanCard(plan, BoardColumn.Draft, projectColors, activeJob, latestJobByPlanId,
                         () => nav.Navigate<DraftsApp>(new DraftsAppArgs(plan.FolderName))),
 
                 PlanStatus.Executing =>
-                    BuildPlanCard(plan, BoardColumn.Review, projectColors, activeJob,
+                    BuildPlanCard(plan, BoardColumn.Review, projectColors, activeJob, latestJobByPlanId,
                         activeJob != null
                             ? () => onJobClick(activeJob.Id)
                             : () => showPlanSheet(plan.FolderPath)),
 
                 PlanStatus.Review or PlanStatus.Failed when plan.Prs.Count > 0 =>
-                    BuildPlanCard(plan, BoardColumn.Pr, projectColors, activeJob,
+                    BuildPlanCard(plan, BoardColumn.Pr, projectColors, activeJob, latestJobByPlanId,
                         () => nav.Navigate<PullRequestApp>()),
 
                 PlanStatus.Review or PlanStatus.Failed =>
-                    BuildPlanCard(plan, BoardColumn.Review, projectColors, activeJob,
+                    BuildPlanCard(plan, BoardColumn.Review, projectColors, activeJob, latestJobByPlanId,
                         () => nav.Navigate<ReviewApp>(new ReviewAppArgs(plan.FolderName))),
 
                 _ => null
@@ -125,6 +139,7 @@ public partial class JobsApp
                 c => c.Order)
             .Columns(BoardColumn.InProgress, BoardColumn.Draft, BoardColumn.Review, BoardColumn.Pr)
             .ColumnHeader(GetColumnHeader)
+            .ColumnIcon(GetColumnIcon)
             .ColumnWidth(Size.Units(80))
             .CardOrder(c => c.Order, descending: true)
             .CardBuilder((BoardCard c) => BuildCardWidget(c, jobService, planService, showUpdatePlan, showDeletePlan, refresh));
@@ -139,28 +154,7 @@ public partial class JobsApp
         _ => column.ToString()
     };
 
-    private static BoardCard BuildPlanCard(
-        PlanFile plan,
-        BoardColumn column,
-        Dictionary<string, string> projectColors,
-        JobItem? activeJob,
-        Action onClick)
-    {
-        return new BoardCard(
-            Id: plan.FolderName,
-            Column: column,
-            Order: plan.Id,
-            Title: string.IsNullOrWhiteSpace(plan.Title) ? plan.FolderName : plan.Title,
-            Badge: $"#{plan.Id}",
-            BadgeIcon: GetColumnBadgeIcon(column),
-            Assignee: BuildAssigneeInitials(plan.Project),
-            AssigneeColor: BuildAssigneeColor(plan.Project, projectColors),
-            Footer: BuildPlanFooter(plan, activeJob),
-            OnClick: onClick,
-            DraftPlan: column == BoardColumn.Draft ? plan : null);
-    }
-
-    private static string GetColumnBadgeIcon(BoardColumn column) => column switch
+    private static string GetColumnIcon(BoardColumn column) => column switch
     {
         BoardColumn.InProgress => "ScanLine",
         BoardColumn.Draft => "Feather",
@@ -169,27 +163,94 @@ public partial class JobsApp
         _ => "ScanLine"
     };
 
-    private static string BuildPlanFooter(PlanFile plan, JobItem? activeJob)
+    private static BoardCard BuildPlanCard(
+        PlanFile plan,
+        BoardColumn column,
+        Dictionary<string, string> projectColors,
+        JobItem? activeJob,
+        Dictionary<string, JobItem> latestJobByPlanId,
+        Action onClick)
     {
-        if (activeJob != null)
-        {
-            var jobFooter = BuildBoardFooter(activeJob);
-            return string.IsNullOrWhiteSpace(jobFooter) ? activeJob.Type : jobFooter;
-        }
+        var (icon, iconSpin) = GetPlanCardIcon(plan, column, activeJob);
+        var (status, statusIcon) = GetPlanCardStatus(plan, activeJob);
 
-        if (plan.Prs.Count > 0)
-            return plan.Prs.Count == 1
-                ? $"PR · {FormatPrReference(plan.Prs[0])}"
-                : $"{plan.Prs.Count} pull requests";
+        latestJobByPlanId.TryGetValue(plan.Id.ToString("D5"), out var latestJob);
+
+        return new BoardCard(
+            Id: plan.FolderName,
+            Column: column,
+            Order: plan.Id,
+            Title: string.IsNullOrWhiteSpace(plan.Title) ? plan.FolderName : plan.Title,
+            Icon: icon,
+            IconSpin: iconSpin,
+            Project: BuildProjectLabel(plan.Project),
+            ProjectColor: BuildProjectColor(plan.Project, projectColors),
+            Status: status,
+            StatusIcon: statusIcon,
+            Meta: BuildCardMeta(plan.Id.ToString("D5"), activeJob ?? latestJob),
+            OnClick: onClick,
+            DraftPlan: column == BoardColumn.Draft ? plan : null);
+    }
+
+    /// <summary>
+    /// Icon shown in the card's top-left status tile: a spinner while a job is
+    /// working on the plan, otherwise a state glyph matching the pipeline stage.
+    /// </summary>
+    private static (string Icon, bool Spin) GetPlanCardIcon(PlanFile plan, BoardColumn column, JobItem? activeJob)
+    {
+        if (activeJob != null || column == BoardColumn.InProgress)
+            return ("Loader", activeJob?.Status == JobStatus.Running);
 
         return plan.Status switch
         {
-            PlanStatus.Review => "Ready for review",
-            PlanStatus.Failed => "Failed",
-            PlanStatus.Blocked => "Blocked · waiting for dependencies",
-            PlanStatus.Draft => string.IsNullOrWhiteSpace(plan.Level) ? "Draft" : $"Draft · {plan.Level}",
-            _ => plan.Status.ToString()
+            PlanStatus.Blocked => ("Hourglass", false),
+            PlanStatus.Failed => ("TriangleAlert", false),
+            _ => column == BoardColumn.Pr ? ("GitPullRequest", false) : ("Eye", false)
         };
+    }
+
+    private static (string Status, string StatusIcon) GetPlanCardStatus(PlanFile plan, JobItem? activeJob)
+    {
+        if (activeJob != null)
+            return (BuildJobStatusLine(activeJob), "CornerDownRight");
+
+        if (plan.Prs.Count > 0)
+            return (plan.Prs.Count == 1
+                ? $"PR {FormatPrReference(plan.Prs[0])}"
+                : $"{plan.Prs.Count} pull requests", "GitPullRequest");
+
+        return plan.Status switch
+        {
+            PlanStatus.Review => ("Ready for review", "Eye"),
+            PlanStatus.Failed => ("Failed", "TriangleAlert"),
+            PlanStatus.Blocked => ("Blocked · waiting for dependencies", "Hourglass"),
+            PlanStatus.Draft => ("Awaiting approval", "Eye"),
+            _ => (plan.Status.ToString(), "CornerDownRight")
+        };
+    }
+
+    /// <summary>
+    /// Footer metadata: plan id, elapsed/total job time and token spend — omitting
+    /// whichever values are unknown for the card.
+    /// </summary>
+    private static TendrilCardMeta[] BuildCardMeta(string planId, JobItem? job)
+    {
+        var meta = new List<TendrilCardMeta>();
+
+        if (!string.IsNullOrEmpty(planId))
+            meta.Add(new TendrilCardMeta("FileText", planId));
+
+        if (job != null)
+        {
+            var timer = FormatTimer(job);
+            if (timer != "-")
+                meta.Add(new TendrilCardMeta("Timer", timer));
+
+            if (job.Tokens is > 0)
+                meta.Add(new TendrilCardMeta("Coins", FormatHelper.FormatTokens(job.Tokens.Value)));
+        }
+
+        return meta.ToArray();
     }
 
     private static string FormatPrReference(string prUrl)
@@ -216,12 +277,13 @@ public partial class JobsApp
         Action refresh)
     {
         var widget = new TendrilCardWidget(c.Title)
-            .WithBadge(c.Badge, c.BadgeIcon)
-            .WithFooter(c.Footer)
+            .WithIcon(c.Icon, c.IconSpin)
+            .WithStatus(c.Status, c.StatusIcon)
+            .WithMeta(c.Meta)
             .WithOnClick(c.OnClick);
 
-        if (!string.IsNullOrEmpty(c.Assignee))
-            widget = widget.WithAssignee(c.Assignee, c.AssigneeColor ?? "#6b7280");
+        if (!string.IsNullOrEmpty(c.Project))
+            widget = widget.WithProject(c.Project, c.ProjectColor ?? "#6366f1");
 
         if (c.DraftPlan is { } plan)
         {
@@ -276,43 +338,38 @@ public partial class JobsApp
         BoardColumn Column,
         int Order,
         string Title,
-        string Badge,
-        string BadgeIcon,
-        string? Assignee,
-        string? AssigneeColor,
-        string Footer,
+        string Icon,
+        bool IconSpin,
+        string? Project,
+        string? ProjectColor,
+        string Status,
+        string StatusIcon,
+        TendrilCardMeta[] Meta,
         Action OnClick,
         PlanFile? DraftPlan);
 
-    private static string BuildAssigneeInitials(string project)
+    private static string? BuildProjectLabel(string project)
     {
-        var names = ProjectHelper.ParseProjects(project);
-        var first = names.FirstOrDefault();
-        if (string.IsNullOrWhiteSpace(first))
-            return "—";
-
-        var letters = first
-            .Where(char.IsLetterOrDigit)
-            .Take(2)
-            .ToArray();
-        return letters.Length > 0 ? new string(letters).ToUpperInvariant() : "—";
+        var first = ProjectHelper.ParseProjects(project).FirstOrDefault();
+        return string.IsNullOrWhiteSpace(first) ? null : first;
     }
 
-    private static string BuildAssigneeColor(string project, Dictionary<string, string> projectColors)
+    private static string BuildProjectColor(string project, Dictionary<string, string> projectColors)
     {
         var first = ProjectHelper.ParseProjects(project).FirstOrDefault();
         if (!string.IsNullOrEmpty(first) && projectColors.TryGetValue(first, out var color))
             return color;
-        return "#6b7280";
+        return "#6366f1";
     }
 
-    private static string BuildBoardFooter(JobItem job)
+    /// <summary>
+    /// The card's muted status line for an active job: the live status message when
+    /// the job reports one, otherwise the job status name. Time and tokens live in
+    /// the card's meta row, not here.
+    /// </summary>
+    private static string BuildJobStatusLine(JobItem job)
     {
         var message = GetStatusMessage(job);
-        if (!string.IsNullOrWhiteSpace(message))
-            return message;
-
-        var timer = FormatTimer(job);
-        return timer == "-" ? job.Status.ToString() : $"{job.Status} · {timer}";
+        return string.IsNullOrWhiteSpace(message) ? job.Status.ToString() : message;
     }
 }

@@ -1,28 +1,33 @@
 import React from "react";
 import { createPortal } from "react-dom";
-import { icons, ChevronDown, ScanLine, type LucideProps } from "lucide-react";
-import { TendrilCardProps, TendrilCardMenuItem, IvyEventHandler } from "./types";
+import { icons, MoreHorizontal, ScanLine, type LucideProps } from "lucide-react";
+import {
+  TendrilCardProps,
+  TendrilCardMenuItem,
+  TendrilCardMeta,
+  IvyEventHandler,
+} from "./types";
 import { getWidth, getHeight } from "../styles";
 import "./tendril-card.css";
 
-const AVATAR_PALETTE = [
-  "#e11d8f",
-  "#f97316",
-  "#14b8a6",
+const PROJECT_PALETTE = [
+  "#6366f1",
   "#0ea5e9",
+  "#14b8a6",
+  "#22a06b",
+  "#f97316",
+  "#e11d8f",
   "#8b5cf6",
-  "#ec4899",
-  "#22c55e",
-  "#eab308",
+  "#ca8a04",
 ];
 
-/** Deterministically pick an avatar background color from the initials. */
-function colorForInitials(initials: string): string {
+/** Deterministically pick a project pill color from the project name. */
+function colorForProject(project: string): string {
   let hash = 0;
-  for (let i = 0; i < initials.length; i++) {
-    hash = (hash * 31 + initials.charCodeAt(i)) | 0;
+  for (let i = 0; i < project.length; i++) {
+    hash = (hash * 31 + project.charCodeAt(i)) | 0;
   }
-  return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
+  return PROJECT_PALETTE[Math.abs(hash) % PROJECT_PALETTE.length];
 }
 
 /** Resolve a Lucide icon component by its PascalCase name, falling back to ScanLine. */
@@ -36,22 +41,14 @@ interface CardMenuProps {
   widgetId: string;
   items: TendrilCardMenuItem[];
   eventHandler: IvyEventHandler;
-  assignee?: string;
-  avatarColor?: string;
 }
 
 /**
- * Dropdown menu shown in the card's top-right corner (in place of the plain
- * assignee avatar). The menu list is rendered in a document.body portal with a
- * fixed position so it isn't clipped by scroll containers around the card.
+ * "…" dropdown menu in the card's top-right corner. The menu list is rendered
+ * in a document.body portal with a fixed position so it isn't clipped by
+ * scroll containers around the card.
  */
-const CardMenu: React.FC<CardMenuProps> = ({
-  widgetId,
-  items,
-  eventHandler,
-  assignee,
-  avatarColor,
-}) => {
+const CardMenu: React.FC<CardMenuProps> = ({ widgetId, items, eventHandler }) => {
   const [open, setOpen] = React.useState(false);
   const [position, setPosition] = React.useState({ top: 0, right: 0 });
   const triggerRef = React.useRef<HTMLButtonElement>(null);
@@ -116,16 +113,7 @@ const CardMenu: React.FC<CardMenuProps> = ({
         onClick={toggle}
         onKeyDown={(e) => e.stopPropagation()}
       >
-        {assignee ? (
-          <span
-            className="tc-avatar"
-            style={{ backgroundColor: avatarColor }}
-            title={assignee}
-          >
-            {assignee}
-          </span>
-        ) : null}
-        <ChevronDown className="tc-menu-chevron" size={14} />
+        <MoreHorizontal size={18} />
       </button>
       {open &&
         createPortal(
@@ -158,6 +146,16 @@ const CardMenu: React.FC<CardMenuProps> = ({
   );
 };
 
+const MetaItem: React.FC<{ meta: TendrilCardMeta }> = ({ meta }) => {
+  const Icon = resolveIcon(meta.icon);
+  return (
+    <span className="tc-meta-item">
+      <Icon className="tc-meta-icon" size={14} />
+      <span className="tc-meta-label">{meta.label}</span>
+    </span>
+  );
+};
+
 export const TendrilCard: React.FC<TendrilCardProps> = ({
   id,
   width = "full",
@@ -165,11 +163,13 @@ export const TendrilCard: React.FC<TendrilCardProps> = ({
   events = [],
   eventHandler,
   title,
-  badge,
-  badgeIcon = "ScanLine",
-  assignee,
-  assigneeColor,
-  footer,
+  icon,
+  iconSpin = false,
+  project,
+  projectColor,
+  status,
+  statusIcon,
+  meta,
   menuItems,
 }) => {
   const style: React.CSSProperties = {
@@ -184,10 +184,9 @@ export const TendrilCard: React.FC<TendrilCardProps> = ({
     }
   };
 
-  const BadgeIcon = resolveIcon(badgeIcon);
-  const avatarColor = assignee
-    ? assigneeColor || colorForInitials(assignee)
-    : undefined;
+  const TileIcon = resolveIcon(icon);
+  const StatusIcon = statusIcon ? resolveIcon(statusIcon) : null;
+  const pillColor = project ? projectColor || colorForProject(project) : undefined;
   const hasMenu = (menuItems?.length ?? 0) > 0 && events.includes("OnMenuSelect");
 
   return (
@@ -209,39 +208,37 @@ export const TendrilCard: React.FC<TendrilCardProps> = ({
       }
     >
       <div className="tc-top">
-        {badge && (
-          <span className="tc-badge">
-            {badgeIcon && <BadgeIcon className="tc-badge-icon" size={13} />}
-            <span className="tc-badge-label">{badge}</span>
+        {icon && (
+          <span className="tc-icon-tile">
+            <TileIcon className={iconSpin ? "tc-icon-spin" : undefined} size={15} />
           </span>
         )}
-        {hasMenu ? (
-          <CardMenu
-            widgetId={id}
-            items={menuItems!}
-            eventHandler={eventHandler}
-            assignee={assignee}
-            avatarColor={avatarColor}
-          />
-        ) : (
-          assignee && (
-            <span
-              className="tc-avatar"
-              style={{ backgroundColor: avatarColor }}
-              title={assignee}
-            >
-              {assignee}
-            </span>
-          )
+        {project && (
+          <span
+            className="tc-pill"
+            style={{ "--tc-pill-color": pillColor } as React.CSSProperties}
+          >
+            {project}
+          </span>
         )}
+        <span className="tc-top-spacer" />
+        {hasMenu && <CardMenu widgetId={id} items={menuItems!} eventHandler={eventHandler} />}
       </div>
 
       <p className="tc-title">{title}</p>
 
-      {footer && (
-        <div className="tc-footer">
-          <span className="tc-footer-dot" />
-          <span className="tc-footer-text">{footer}</span>
+      {status && (
+        <div className="tc-status">
+          {StatusIcon && <StatusIcon className="tc-status-icon" size={14} />}
+          <span className="tc-status-text">{status}</span>
+        </div>
+      )}
+
+      {meta && meta.length > 0 && (
+        <div className="tc-meta">
+          {meta.map((m, i) => (
+            <MetaItem key={`${m.icon}-${i}`} meta={m} />
+          ))}
         </div>
       )}
     </div>

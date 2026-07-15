@@ -12,11 +12,13 @@ class DemoApp : ViewBase
         string Column,
         int Order,
         string Title,
-        string Badge,
-        string BadgeIcon,
-        string Assignee,
-        string AssigneeColor,
-        string Footer
+        string Icon,
+        bool IconSpin,
+        string Project,
+        string ProjectColor,
+        string Status,
+        string StatusIcon,
+        TendrilCardMeta[] Meta
     );
 
     public override object Build()
@@ -25,18 +27,21 @@ class DemoApp : ViewBase
 
         var items = UseState(() => new[]
         {
-            new CardItem("1", "Partner sign-off", 0, "Sign engagement letter for Strömberg Industri",
-                "Engagement", "ScanLine", "JP", "#e11d8f", "Awaiting approval"),
-            new CardItem("2", "Partner sign-off", 1, "Sign Q4 compliance report — advisory",
-                "Compliance", "ScanLine", "JP", "#e11d8f", "Awaiting approval"),
-            new CardItem("3", "Filed", 0, "FY25 audit-prep binder filed with regulator",
-                "Audit", "ScanLine", "SA", "#f97316", "Exported and submitted 2026-04-28"),
-            new CardItem("4", "Filed", 1, "Cash-handling SOP v3.2 published",
-                "SOP", "ScanLine", "MH", "#14b8a6", "Partner-approved, dependent flows repointed"),
-            new CardItem("5", "Filed", 2, "Fortnox accounting renewal signed",
-                "Renewal", "ScanLine", "AK", "#0ea5e9", "1-year renewal at flat rate, archived"),
-            new CardItem("6", "Filed", 3, "Lindgren & Co onboarding live",
-                "Onboarding", "ScanLine", "JP", "#e11d8f", "KYC cleared, engagement signed 2026-04"),
+            new CardItem("1", "Draft", 0, "Showcase team member contributions",
+                "Loader", true, "Ivy-Tendril", "#6366f1", "Tracking roles...", "CornerDownRight",
+                [new("FileText", "01515"), new("Timer", "5m 20s"), new("Coins", "14K")]),
+            new CardItem("2", "Draft", 1, "Develop a communication plan",
+                "Eye", false, "MyCRMDashboard", "#22a06b", "Awaiting approval", "Eye",
+                [new("FileText", "01518"), new("Timer", "4m 30s"), new("Coins", "17K")]),
+            new CardItem("3", "Draft", 2, "Include a timeline for project phases",
+                "Eye", false, "Ivy-Tendril", "#6366f1", "Awaiting approval", "Eye",
+                [new("FileText", "01513"), new("Timer", "4m 45s"), new("Coins", "15K")]),
+            new CardItem("4", "Review", 0, "Sign engagement letter for Strömberg Industri",
+                "Eye", false, "MyCRMDashboard", "#22a06b", "Ready for review", "Eye",
+                [new("FileText", "01509"), new("Timer", "12m 02s"), new("Coins", "88K")]),
+            new CardItem("5", "PR", 0, "Cash-handling SOP v3.2 published",
+                "GitPullRequest", false, "Ivy-Tendril", "#6366f1", "PR #1686", "GitPullRequest",
+                [new("FileText", "01502"), new("Timer", "22m 10s"), new("Coins", "131K")]),
         });
 
         var board = items.Value
@@ -44,11 +49,24 @@ class DemoApp : ViewBase
                 x => x.Column,
                 x => x.Id,
                 x => x.Order)
+            .Columns("Draft", "Review", "PR")
+            .ColumnIcon(c => c switch
+            {
+                "Draft" => "Feather",
+                "Review" => "ThumbsUp",
+                "PR" => "GitPullRequest",
+                _ => "ScanLine"
+            })
             .ColumnWidth(Size.Units(80))
             .CardBuilder((CardItem item) => (object)new TendrilCardWidget(item.Title)
-                .WithBadge(item.Badge, item.BadgeIcon)
-                .WithAssignee(item.Assignee, item.AssigneeColor)
-                .WithFooter(item.Footer)
+                .WithIcon(item.Icon, item.IconSpin)
+                .WithProject(item.Project, item.ProjectColor)
+                .WithStatus(item.Status, item.StatusIcon)
+                .WithMeta(item.Meta)
+                .WithMenu(
+                    new TendrilCardMenuItem("Update", "Update", "WandSparkles"),
+                    new TendrilCardMenuItem("Delete", "Delete", "Trash", Destructive: true))
+                .WithOnMenuSelect(tag => client.Toast(tag, "Menu action").Info())
                 .WithOnClick(() => client.Toast(item.Title, "Card clicked").Info()))
             .OnMove(e =>
             {
