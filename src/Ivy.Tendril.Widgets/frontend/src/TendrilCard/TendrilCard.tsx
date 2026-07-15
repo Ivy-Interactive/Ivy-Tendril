@@ -1,6 +1,7 @@
 import React from "react";
-import { icons, ScanLine, type LucideProps } from "lucide-react";
-import { TendrilCardProps } from "./types";
+import { createPortal } from "react-dom";
+import { icons, ChevronDown, ScanLine, type LucideProps } from "lucide-react";
+import { TendrilCardProps, TendrilCardMenuItem, IvyEventHandler } from "./types";
 import { getWidth, getHeight } from "../styles";
 import "./tendril-card.css";
 
@@ -31,6 +32,132 @@ function resolveIcon(name?: string): React.ComponentType<LucideProps> {
   return lookup[name] ?? ScanLine;
 }
 
+interface CardMenuProps {
+  widgetId: string;
+  items: TendrilCardMenuItem[];
+  eventHandler: IvyEventHandler;
+  assignee?: string;
+  avatarColor?: string;
+}
+
+/**
+ * Dropdown menu shown in the card's top-right corner (in place of the plain
+ * assignee avatar). The menu list is rendered in a document.body portal with a
+ * fixed position so it isn't clipped by scroll containers around the card.
+ */
+const CardMenu: React.FC<CardMenuProps> = ({
+  widgetId,
+  items,
+  eventHandler,
+  assignee,
+  avatarColor,
+}) => {
+  const [open, setOpen] = React.useState(false);
+  const [position, setPosition] = React.useState({ top: 0, right: 0 });
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
+  const menuRef = React.useRef<HTMLDivElement>(null);
+
+  const close = React.useCallback(() => setOpen(false), []);
+
+  const toggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPosition({
+        top: rect.bottom + 4,
+        right: window.innerWidth - rect.right,
+      });
+    }
+    setOpen((v) => !v);
+  };
+
+  React.useEffect(() => {
+    if (!open) return;
+
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (menuRef.current?.contains(target) || triggerRef.current?.contains(target)) {
+        return;
+      }
+      close();
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    const onScrollOrResize = () => close();
+
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
+    };
+  }, [open, close]);
+
+  const select = (e: React.MouseEvent, item: TendrilCardMenuItem) => {
+    e.stopPropagation();
+    close();
+    eventHandler("OnMenuSelect", widgetId, [item.tag]);
+  };
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="tc-menu-trigger"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Card actions"
+        onClick={toggle}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
+        {assignee ? (
+          <span
+            className="tc-avatar"
+            style={{ backgroundColor: avatarColor }}
+            title={assignee}
+          >
+            {assignee}
+          </span>
+        ) : null}
+        <ChevronDown className="tc-menu-chevron" size={14} />
+      </button>
+      {open &&
+        createPortal(
+          <div
+            ref={menuRef}
+            role="menu"
+            className="tc-menu"
+            style={{ top: position.top, right: position.right }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {items.map((item) => {
+              const ItemIcon = item.icon ? resolveIcon(item.icon) : null;
+              return (
+                <button
+                  key={item.tag}
+                  type="button"
+                  role="menuitem"
+                  className={`tc-menu-item${item.destructive ? " tc-menu-item-destructive" : ""}`}
+                  onClick={(e) => select(e, item)}
+                >
+                  {ItemIcon && <ItemIcon className="tc-menu-item-icon" size={14} />}
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </div>,
+          document.body
+        )}
+    </>
+  );
+};
+
 export const TendrilCard: React.FC<TendrilCardProps> = ({
   id,
   width = "full",
@@ -43,6 +170,7 @@ export const TendrilCard: React.FC<TendrilCardProps> = ({
   assignee,
   assigneeColor,
   footer,
+  menuItems,
 }) => {
   const style: React.CSSProperties = {
     ...getWidth(width),
@@ -60,6 +188,7 @@ export const TendrilCard: React.FC<TendrilCardProps> = ({
   const avatarColor = assignee
     ? assigneeColor || colorForInitials(assignee)
     : undefined;
+  const hasMenu = (menuItems?.length ?? 0) > 0 && events.includes("OnMenuSelect");
 
   return (
     <div
@@ -86,14 +215,24 @@ export const TendrilCard: React.FC<TendrilCardProps> = ({
             <span className="tc-badge-label">{badge}</span>
           </span>
         )}
-        {assignee && (
-          <span
-            className="tc-avatar"
-            style={{ backgroundColor: avatarColor }}
-            title={assignee}
-          >
-            {assignee}
-          </span>
+        {hasMenu ? (
+          <CardMenu
+            widgetId={id}
+            items={menuItems!}
+            eventHandler={eventHandler}
+            assignee={assignee}
+            avatarColor={avatarColor}
+          />
+        ) : (
+          assignee && (
+            <span
+              className="tc-avatar"
+              style={{ backgroundColor: avatarColor }}
+              title={assignee}
+            >
+              {assignee}
+            </span>
+          )
         )}
       </div>
 

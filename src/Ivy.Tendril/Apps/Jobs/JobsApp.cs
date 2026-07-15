@@ -1,8 +1,10 @@
 using System.Reactive.Linq;
+using Ivy.Tendril.Apps.Drafts.Dialogs;
 using Ivy.Tendril.Apps.Jobs.Dialogs;
 using Ivy.Tendril.Apps.Jobs.Sheets;
 using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps.Jobs;
@@ -76,6 +78,24 @@ public partial class JobsApp : ViewBase
             return new RerunJobDialog(isOpen, job, jobService, () => refreshToken.Refresh());
         });
 
+        var boardPlanState = UseState<PlanFile?>(null);
+
+        var (updatePlanDialog, showUpdatePlan) = UseTrigger<string>((isOpen, folderName) =>
+        {
+            if (!isOpen.Value) return null;
+            var plan = planService.GetPlans().FirstOrDefault(p => p.FolderName == folderName);
+            if (plan == null) return null;
+            return new UpdatePlanDialog(isOpen, plan, boardPlanState, jobService, () => refreshToken.Refresh());
+        });
+
+        var (deletePlanDialog, showDeletePlan) = UseTrigger<string>((isOpen, folderName) =>
+        {
+            if (!isOpen.Value) return null;
+            var plan = planService.GetPlans().FirstOrDefault(p => p.FolderName == folderName);
+            if (plan == null) return null;
+            return new DeletePlanDialog(isOpen, plan, boardPlanState, planService, () => refreshToken.Refresh());
+        });
+
         UseEffect(() => JobsApp.JobChangeHookDisposable(jobService, refreshToken));
         UseInterval(() => JobsApp.AutoRefreshCheck(jobService, refreshToken), TimeSpan.FromSeconds(5));
 
@@ -92,7 +112,17 @@ public partial class JobsApp : ViewBase
             jobService, client, showPlan, showOutput, showPrompt, showDebug, showRerun, jobs, projectColors, jobsProgress,
             confirmDeleteOpen, deleteJobId);
 
-        var board = BuildBoard(jobs, planService, projectColors, jobId => showOutput(jobId));
+        var board = BuildBoard(
+            jobs,
+            planService,
+            jobService,
+            projectColors,
+            nav,
+            jobId => showOutput(jobId),
+            planPath => showPlan(planPath),
+            showUpdatePlan,
+            showDeletePlan,
+            () => refreshToken.Refresh());
 
         var content = Layout.Tabs(
                 new Tab("Table", dataTable),
@@ -105,6 +135,7 @@ public partial class JobsApp : ViewBase
 
         var layout = Layout.Vertical().Height(Size.Full());
 
-        return layout | new Fragment(content, planSheet, outputSheet, promptSheet, debugSheet, rerunDialog);
+        return layout | new Fragment(content, planSheet, outputSheet, promptSheet, debugSheet, rerunDialog,
+            updatePlanDialog, deletePlanDialog);
     }
 }

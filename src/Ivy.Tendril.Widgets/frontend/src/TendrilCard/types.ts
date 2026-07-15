@@ -4,6 +4,13 @@ export type IvyEventHandler = (
   args: unknown[]
 ) => void;
 
+export interface TendrilCardMenuItem {
+  tag: string;
+  label: string;
+  icon?: string;
+  destructive?: boolean;
+}
+
 export interface TendrilCardProps {
   id: string;
   width?: string;
@@ -16,4 +23,5 @@ export interface TendrilCardProps {
   assignee?: string;
   assigneeColor?: string;
   footer?: string;
+  menuItems?: TendrilCardMenuItem[];
 }

@@ -1,6 +1,13 @@
 namespace Ivy.Tendril.Widgets;
 
 /// <summary>
+/// A single entry in the <see cref="TendrilCard"/> actions dropdown.
+/// <paramref name="Tag"/> identifies the selected action in the OnMenuSelect event payload;
+/// <paramref name="Icon"/> is an optional Lucide icon name (e.g. "Scissors").
+/// </summary>
+public record TendrilCardMenuItem(string Tag, string Label, string? Icon = null, bool Destructive = false);
+
+/// <summary>
 /// A compact task card matching the Tendril Kanban board design: a type badge with
 /// a leading icon, an assignee avatar (initials on a colored circle), a bold title,
 /// and a single footer description line. Intended to be used as the content of an
@@ -45,8 +52,17 @@ public record TendrilCard : WidgetBase<TendrilCard>
     /// <summary>The muted footer description line shown at the bottom of the card.</summary>
     [Prop] public string? Footer { get; init; }
 
+    /// <summary>
+    /// Actions shown in a dropdown menu in the card's top-right corner. When set (together
+    /// with <see cref="OnMenuSelect"/>), the dropdown trigger replaces the plain assignee avatar.
+    /// </summary>
+    [Prop] public TendrilCardMenuItem[]? MenuItems { get; init; }
+
     /// <summary>Fired when the card body is clicked. Payload is the card title.</summary>
     [Event] public Func<Event<TendrilCard, string>, ValueTask>? OnClick { get; init; }
+
+    /// <summary>Fired when a dropdown action is selected. Payload is the item's Tag.</summary>
+    [Event] public Func<Event<TendrilCard, string>, ValueTask>? OnMenuSelect { get; init; }
 }
 
 public static class TendrilCardExtensions
@@ -79,6 +95,9 @@ public static class TendrilCardExtensions
     public static TendrilCard WithFooter(this TendrilCard w, string? footer) =>
         w with { Footer = footer };
 
+    public static TendrilCard WithMenu(this TendrilCard w, params TendrilCardMenuItem[] items) =>
+        w with { MenuItems = items };
+
     // NOTE: These fluent methods are intentionally NOT named OnClick. The widget
     // exposes an invocable delegate property of the same name (OnClick). A method
     // whose name matches a delegate-typed property is shadowed by delegate-invocation
@@ -106,6 +125,21 @@ public static class TendrilCardExtensions
             OnClick = _ =>
             {
                 handler();
+                return ValueTask.CompletedTask;
+            },
+        };
+
+    public static TendrilCard WithOnMenuSelect(
+        this TendrilCard w,
+        Func<Event<TendrilCard, string>, ValueTask> handler
+    ) => w with { OnMenuSelect = handler };
+
+    public static TendrilCard WithOnMenuSelect(this TendrilCard w, Action<string> handler) =>
+        w with
+        {
+            OnMenuSelect = e =>
+            {
+                handler(e.Value);
                 return ValueTask.CompletedTask;
             },
         };

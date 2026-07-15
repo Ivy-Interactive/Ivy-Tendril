@@ -83,6 +83,81 @@
   user-select: none;
 }
 
+/* Actions dropdown replacing the plain assignee avatar */
+.tc-menu-trigger {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.2rem;
+  margin: -0.2rem;
+  background: transparent;
+  border: none;
+  border-radius: 0.5rem;
+  color: var(--muted-foreground, #6b7280);
+  cursor: pointer;
+}
+
+.tc-menu-trigger:hover {
+  background: var(--muted, #f3f4f6);
+  color: var(--foreground, #374151);
+}
+
+.tc-menu-trigger:focus-visible {
+  outline: 2px solid var(--ring, #0ea5e9);
+  outline-offset: 1px;
+}
+
+.tc-menu-chevron {
+  flex: none;
+}
+
+.tc-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 11rem;
+  padding: 0.25rem;
+  background: var(--popover, #ffffff);
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+  border-radius: 0.625rem;
+  box-shadow:
+    0 4px 6px rgba(0, 0, 0, 0.05),
+    0 10px 24px rgba(0, 0, 0, 0.12);
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.tc-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  background: transparent;
+  border: none;
+  border-radius: 0.4rem;
+  color: var(--popover-foreground, #111827);
+  font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tc-menu-item:hover {
+  background: var(--muted, #f3f4f6);
+}
+
+.tc-menu-item-icon {
+  flex: none;
+  color: var(--muted-foreground, #6b7280);
+}
+
+.tc-menu-item-destructive {
+  color: var(--destructive, #dc2626);
+}
+
+.tc-menu-item-destructive .tc-menu-item-icon {
+  color: var(--destructive, #dc2626);
+}
+
 .tc-title {
   margin: 0;
   color: var(--card-foreground, #111827);
@@ -110,6 +185,8 @@
 }
 
 .tc-footer-text {
+  flex: 1;
+  min-width: 0;
   color: var(--muted-foreground, #6b7280);
   font-size: 0.8125rem;
   line-height: 1.3;
