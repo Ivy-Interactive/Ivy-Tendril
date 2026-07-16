@@ -970,7 +970,9 @@ public class PlanDatabaseService : IPlanDatabaseService
             Constants.JobTypes.CreateIssue => new CreateIssueArgs(
                 args[0],
                 GetLegacyArg(args, "-Repo") ?? ""),
-            Constants.JobTypes.SetupProject => new SetupProjectArgs(args[0]),
+            Constants.JobTypes.SetupProject => new SetupProjectArgs(
+                args[0],
+                GetLegacyArg(args, "-Project") ?? GetLegacyArg(args, "-ProjectName") ?? Path.GetFileName(args[0])),
             Constants.JobTypes.UpdateMemories => new UpdateMemoriesArgs("Auto", new List<string>()),
             _ => null
         };
@@ -1431,4 +1433,162 @@ public class PlanDatabaseService : IPlanDatabaseService
         int InitialPrompt,
         int SourceUrl);
 
+    public void UpsertConnection(ConnectionItem connection)
+    {
+        using (new WriteLockHandle(_lock))
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = """
+                              INSERT OR REPLACE INTO Connections (Name, Provider, ConnectionString, Permissions, Created, Updated)
+                              VALUES (@name, @provider, @connectionString, @permissions, @created, @updated)
+                              """;
+            cmd.Parameters.AddWithValue("@name", connection.Name);
+            cmd.Parameters.AddWithValue("@provider", connection.Provider);
+            cmd.Parameters.AddWithValue("@connectionString", connection.ConnectionString);
+            cmd.Parameters.AddWithValue("@permissions", connection.Permissions);
+            cmd.Parameters.AddWithValue("@created", connection.Created.ToString("O", CultureInfo.InvariantCulture));
+            cmd.Parameters.AddWithValue("@updated", connection.Updated.ToString("O", CultureInfo.InvariantCulture));
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    public List<ConnectionItem> GetConnections()
+    {
+        using (new ReadLockHandle(_lock))
+        {
+            return ReadList("SELECT * FROM Connections ORDER BY Name ASC", MapConnectionRow);
+        }
+    }
+
+    public ConnectionItem? GetConnectionByName(string name)
+    {
+        using (new ReadLockHandle(_lock))
+        {
+            return ReadList("SELECT * FROM Connections WHERE Name = @name LIMIT 1",
+                MapConnectionRow,
+                new SqliteParameter("@name", name)).FirstOrDefault();
+        }
+    }
+
+    public void DeleteConnection(string name)
+    {
+        using (new WriteLockHandle(_lock))
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = "DELETE FROM Connections WHERE Name = @name";
+            cmd.Parameters.AddWithValue("@name", name);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    private static ConnectionItem MapConnectionRow(SqliteDataReader reader)
+    {
+        return new ConnectionItem
+        {
+            Id = reader.GetInt32(reader.GetOrdinal("Id")),
+            Name = reader.GetString(reader.GetOrdinal("Name")),
+            Provider = reader.GetString(reader.GetOrdinal("Provider")),
+            ConnectionString = reader.GetString(reader.GetOrdinal("ConnectionString")),
+            Permissions = reader.GetString(reader.GetOrdinal("Permissions")),
+            Created = DateTime.Parse(reader.GetString(reader.GetOrdinal("Created")), null, DateTimeStyles.RoundtripKind),
+            Updated = DateTime.Parse(reader.GetString(reader.GetOrdinal("Updated")), null, DateTimeStyles.RoundtripKind)
+        };
+    }
+
+    public void UpsertWorkflow(WorkflowItem workflow)
+    {
+        using (new WriteLockHandle(_lock))
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = """
+                              INSERT OR REPLACE INTO Workflows (Id, Name, Description, Project, Definition, IsActive, Created, Updated)
+                              VALUES (
+                                  CASE WHEN @id = 0 THEN NULL ELSE @id END, 
+                                  @name, @description, @project, @definition, @isActive, @created, @updated
+                              )
+                              """;
+            cmd.Parameters.AddWithValue("@id", workflow.Id);
+            cmd.Parameters.AddWithValue("@name", workflow.Name);
+            cmd.Parameters.AddWithValue("@description", workflow.Description ?? "");
+            cmd.Parameters.AddWithValue("@project", workflow.Project);
+            cmd.Parameters.AddWithValue("@definition", workflow.Definition);
+            cmd.Parameters.AddWithValue("@isActive", workflow.IsActive ? 1 : 0);
+            cmd.Parameters.AddWithValue("@created", workflow.Created.ToString("O", CultureInfo.InvariantCulture));
+            cmd.Parameters.AddWithValue("@updated", workflow.Updated.ToString("O", CultureInfo.InvariantCulture));
+            cmd.ExecuteNonQuery();
+        }
+     }
+ 
+     public List<WorkflowItem> GetWorkflows(string? project = null)
+     {
+         using (new ReadLockHandle(_lock))
+         {
+             if (string.IsNullOrEmpty(project))
+             {
+                 return ReadList("SELECT * FROM Workflows ORDER BY Name ASC", MapWorkflowRow);
+             }
+             else
+             {
+                 return ReadList("SELECT * FROM Workflows WHERE Project = @project ORDER BY Name ASC", 
+                     MapWorkflowRow, 
+                     new SqliteParameter("@project", project));
+             }
+         }
+     }
+ 
+     public WorkflowItem? GetWorkflowById(int id)
+     {
+         using (new ReadLockHandle(_lock))
+         {
+             return ReadList("SELECT * FROM Workflows WHERE Id = @id LIMIT 1",
+                 MapWorkflowRow,
+                 new SqliteParameter("@id", id)).FirstOrDefault();
+         }
+     }
+ 
+     public WorkflowItem? GetWorkflowByName(string name, string? project = null)
+     {
+         using (new ReadLockHandle(_lock))
+         {
+             if (string.IsNullOrEmpty(project))
+             {
+                 return ReadList("SELECT * FROM Workflows WHERE Name = @name LIMIT 1",
+                     MapWorkflowRow,
+                     new SqliteParameter("@name", name)).FirstOrDefault();
+             }
+             else
+             {
+                 return ReadList("SELECT * FROM Workflows WHERE Name = @name AND Project = @project LIMIT 1",
+                     MapWorkflowRow,
+                     new SqliteParameter("@name", name),
+                     new SqliteParameter("@project", project)).FirstOrDefault();
+             }
+         }
+     }
+ 
+     public void DeleteWorkflow(int id)
+     {
+         using (new WriteLockHandle(_lock))
+         {
+             using var cmd = _connection.CreateCommand();
+             cmd.CommandText = "DELETE FROM Workflows WHERE Id = @id";
+             cmd.Parameters.AddWithValue("@id", id);
+             cmd.ExecuteNonQuery();
+         }
+     }
+ 
+     private static WorkflowItem MapWorkflowRow(SqliteDataReader reader)
+     {
+         return new WorkflowItem
+         {
+             Id = reader.GetInt32(reader.GetOrdinal("Id")),
+             Name = reader.GetString(reader.GetOrdinal("Name")),
+             Description = reader.IsDBNull(reader.GetOrdinal("Description")) ? "" : reader.GetString(reader.GetOrdinal("Description")),
+             Project = reader.GetString(reader.GetOrdinal("Project")),
+             Definition = reader.GetString(reader.GetOrdinal("Definition")),
+             IsActive = reader.GetInt32(reader.GetOrdinal("IsActive")) == 1,
+             Created = DateTime.Parse(reader.GetString(reader.GetOrdinal("Created")), null, DateTimeStyles.RoundtripKind),
+             Updated = DateTime.Parse(reader.GetString(reader.GetOrdinal("Updated")), null, DateTimeStyles.RoundtripKind)
+         };
+     }
 }
