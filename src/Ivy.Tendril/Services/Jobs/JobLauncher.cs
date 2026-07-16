@@ -1,8 +1,12 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Text.Json;
+using System.Threading.Tasks;
+using System.Globalization;
 using Ivy.Helpers;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Helpers;
+using Ivy.Tendril.Agents.Runtime;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services.Plans;
@@ -35,13 +39,26 @@ internal class JobLauncher
 
     private readonly IConfigService? _configService;
     private readonly IAgentRunner? _agentRunner;
+    private readonly IPlanDatabaseService? _database;
+    private readonly IConnectionExecutorService? _connectionExecutor;
+    private readonly IJobService? _jobService;
     private readonly ILogger _logger;
     private readonly string _promptsRoot;
 
-    internal JobLauncher(IConfigService? configService, IAgentRunner? agentRunner, ILogger logger, string promptsRoot)
+    internal JobLauncher(
+        IConfigService? configService,
+        IAgentRunner? agentRunner,
+        IPlanDatabaseService? database,
+        IConnectionExecutorService? connectionExecutor,
+        IJobService? jobService,
+        ILogger logger,
+        string promptsRoot)
     {
         _configService = configService;
         _agentRunner = agentRunner;
+        _database = database;
+        _connectionExecutor = connectionExecutor;
+        _jobService = jobService;
         _logger = logger;
         _promptsRoot = promptsRoot;
     }
@@ -65,6 +82,12 @@ internal class JobLauncher
 
     private void LaunchJob(JobLaunchContext ctx)
     {
+        if (ctx.Job.Type == "WorkflowRun")
+        {
+            LaunchWorkflowRun(ctx);
+            return;
+        }
+
         try
         {
             // Defense in depth (#1340): refuse to launch a plan job that references a repo outside its
@@ -405,6 +428,18 @@ internal class JobLauncher
             ExtraArguments = resolution.ExtraArgs,
             PromptFilePath = promptFilePath,
             EnvironmentVariables = resolution.EnvironmentVariables,
+            McpServers =
+            [
+                new McpServerConfig(
+                    "tendril",
+                    Environment.ProcessPath ?? "tendril",
+                    ["mcp"],
+                    new Dictionary<string, string>
+                    {
+                        ["TENDRIL_HOME"] = _configService.TendrilHome,
+                        ["TENDRIL_CONFIG"] = _configService.ConfigPath
+                    })
+            ]
         };
 
         job.Model = launchConfig.Model;
@@ -456,6 +491,13 @@ internal class JobLauncher
         if (job.TypedArgs is CreatePlanArgs)
         {
             BuildCreatePlanFirmware(ctx, values);
+            return (values, null, null);
+        }
+
+        if (job.TypedArgs is SetupProjectArgs setupArgs)
+        {
+            values["ProjectName"] = setupArgs.ProjectName;
+            values["Instructions"] = "Setup verifications and review actions";
             return (values, null, null);
         }
 
@@ -868,5 +910,248 @@ internal class JobLauncher
         }).ToList();
 
         return new ProjectInfo(config.Name, config.Context, repos, verifications);
+    }
+
+    private void LaunchWorkflowRun(JobLaunchContext ctx)
+    {
+        ctx.Job.LogFilePath = JobLogWriter.SeedLog(_configService?.TendrilHome ?? "", ctx.Job);
+        ctx.Job.Status = JobStatus.Running;
+        ctx.Job.StartedAt = DateTime.UtcNow;
+        ctx.RaiseStructureChanged();
+
+        Task.Run(async () =>
+        {
+            try
+            {
+                await ExecuteWorkflowAsync(ctx);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Workflow Run {JobId} failed", ctx.Job.Id);
+                ctx.Job.EnqueueSystemOutput($"[Workflow Engine Error] Unhandled exception: {ex.Message}");
+                ctx.CompleteJob(ctx.Job.Id, 1, false, false);
+            }
+        });
+    }
+
+    private async Task ExecuteWorkflowAsync(JobLaunchContext ctx)
+    {
+        var args = ctx.Job.TypedArgs as WorkflowRunArgs;
+        if (args == null || _database == null || _connectionExecutor == null || _jobService == null)
+        {
+            ctx.Job.EnqueueSystemOutput("Workflow Execution Engine Error: Missing database, connection executor, or job service dependencies.");
+            ctx.CompleteJob(ctx.Job.Id, 1, false, false);
+            return;
+        }
+
+        var workflow = _database.GetWorkflowById(args.WorkflowId);
+        if (workflow == null)
+        {
+            ctx.Job.EnqueueSystemOutput($"Error: Workflow with ID {args.WorkflowId} not found in database.");
+            ctx.CompleteJob(ctx.Job.Id, 1, false, false);
+            return;
+        }
+
+        ctx.Job.EnqueueSystemOutput($"[Workflow Engine] Starting Workflow '{workflow.Name}'...");
+        
+        WorkflowDefinition def;
+        try
+        {
+            def = JsonSerializer.Deserialize<WorkflowDefinition>(workflow.Definition, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                  ?? new WorkflowDefinition();
+        }
+        catch (Exception ex)
+        {
+            ctx.Job.EnqueueSystemOutput($"Error: Failed to parse workflow definition JSON: {ex.Message}");
+            ctx.CompleteJob(ctx.Job.Id, 1, false, false);
+            return;
+        }
+
+        if (def.Steps.Count == 0)
+        {
+            ctx.Job.EnqueueSystemOutput("[Workflow Engine] Workflow has no steps.");
+            ctx.CompleteJob(ctx.Job.Id, 0, false, false);
+            return;
+        }
+
+        var stepsMap = def.Steps.ToDictionary(s => s.Id);
+        
+        var incomingCount = def.Steps.ToDictionary(s => s.Id, s => 0);
+        foreach (var s in def.Steps)
+        {
+            foreach (var nextId in s.Next)
+            {
+                if (incomingCount.ContainsKey(nextId))
+                    incomingCount[nextId]++;
+            }
+        }
+
+        var currentSteps = def.Steps.Where(s => s.Type.Equals("Trigger", StringComparison.OrdinalIgnoreCase) || incomingCount[s.Id] == 0).ToList();
+        if (currentSteps.Count == 0 && def.Steps.Count > 0)
+        {
+            currentSteps.Add(def.Steps[0]);
+        }
+
+        var contextOutputs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var queue = new Queue<WorkflowStep>(currentSteps);
+        var visited = new HashSet<string>();
+
+        while (queue.Count > 0)
+        {
+            var step = queue.Dequeue();
+            if (visited.Contains(step.Id)) continue;
+            visited.Add(step.Id);
+
+            ctx.Job.EnqueueSystemOutput($"\n--- [Step: {step.Name}] Running ---");
+
+            var expandedArgs = step.Args ?? "";
+            foreach (var kvp in contextOutputs)
+            {
+                var placeholder = $"{{{{steps.{kvp.Key}.output}}}}";
+                expandedArgs = expandedArgs.Replace(placeholder, kvp.Value);
+            }
+
+            if (step.Type.Equals("Trigger", StringComparison.OrdinalIgnoreCase))
+            {
+                ctx.Job.EnqueueSystemOutput($"[Step: {step.Name}] Triggered manually.");
+                contextOutputs[step.Name] = args.TriggerPayload ?? "{}";
+            }
+            else if (step.Type.Equals("Connection", StringComparison.OrdinalIgnoreCase))
+            {
+                ctx.Job.EnqueueSystemOutput($"[Step: {step.Name}] Executing action '{step.Action}' on connection '{step.ConnectionName}'...");
+                
+                var connection = _database.GetConnectionByName(step.ConnectionName);
+                if (connection == null)
+                {
+                    ctx.Job.EnqueueSystemOutput($"Error: Connection '{step.ConnectionName}' not found in database.");
+                    ctx.CompleteJob(ctx.Job.Id, 1, false, false);
+                    return;
+                }
+
+                var isAllowed = false;
+                var perms = connection.Permissions.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                foreach (var p in perms)
+                {
+                    if (p == "*" || string.Equals(p, step.Action, StringComparison.OrdinalIgnoreCase))
+                    {
+                        isAllowed = true;
+                        break;
+                    }
+                }
+
+                if (!isAllowed)
+                {
+                    ctx.Job.EnqueueSystemOutput($"Permission Denied: Connection '{step.ConnectionName}' does not allow action '{step.Action}'. Allowed: {connection.Permissions}");
+                    ctx.CompleteJob(ctx.Job.Id, 1, false, false);
+                    return;
+                }
+
+                try
+                {
+                    var (success, result) = await _connectionExecutor.ExecuteActionAsync(connection, step.Action, expandedArgs);
+                    if (!success)
+                    {
+                        ctx.Job.EnqueueSystemOutput($"Error executing action: {result}");
+                        ctx.CompleteJob(ctx.Job.Id, 1, false, false);
+                        return;
+                    }
+
+                    ctx.Job.EnqueueSystemOutput($"[Step: {step.Name}] Output: {result}");
+                    contextOutputs[step.Name] = result;
+                }
+                catch (Exception ex)
+                {
+                    ctx.Job.EnqueueSystemOutput($"Exception executing connection: {ex.Message}");
+                    ctx.CompleteJob(ctx.Job.Id, 1, false, false);
+                    return;
+                }
+            }
+            else if (step.Type.Equals("Prompt", StringComparison.OrdinalIgnoreCase))
+            {
+                ctx.Job.EnqueueSystemOutput($"[Step: {step.Name}] Dispatching agent run using provider '{step.Provider}' (model={step.Model ?? "default"})...");
+                
+                var project = workflow.Project;
+                var agentJobArgs = new CustomAgentArgs(
+                    AgentName: step.Provider,
+                    Project: project,
+                    PlanFolderPath: null,
+                    PromptText: expandedArgs
+                );
+
+                string agentJobId;
+                try
+                {
+                    agentJobId = _jobService.StartJob(agentJobArgs);
+                }
+                catch (Exception ex)
+                {
+                    ctx.Job.EnqueueSystemOutput($"Error launching agent job: {ex.Message}");
+                    ctx.CompleteJob(ctx.Job.Id, 1, false, false);
+                    return;
+                }
+
+                ctx.Job.EnqueueSystemOutput($"[Step: {step.Name}] Agent Job started: {agentJobId}. Waiting for completion...");
+
+                while (true)
+                {
+                    await Task.Delay(1500);
+                    var agentJob = _jobService.GetJob(agentJobId);
+                    if (agentJob == null)
+                    {
+                        ctx.Job.EnqueueSystemOutput($"Error: Agent Job {agentJobId} disappeared.");
+                        ctx.CompleteJob(ctx.Job.Id, 1, false, false);
+                        return;
+                    }
+
+                    if (agentJob.Status == JobStatus.Completed)
+                    {
+                        var outputText = GetTextOutput(agentJob);
+                        ctx.Job.EnqueueSystemOutput($"[Step: {step.Name}] Agent Completed successfully. Output length: {outputText.Length}");
+                        contextOutputs[step.Name] = outputText;
+                        break;
+                    }
+                    if (agentJob.Status is JobStatus.Failed or JobStatus.Timeout or JobStatus.Stopped)
+                    {
+                        ctx.Job.EnqueueSystemOutput($"Error: Agent Job {agentJobId} finished with status: {agentJob.Status}. Message: {agentJob.StatusMessage}");
+                        ctx.CompleteJob(ctx.Job.Id, 1, false, false);
+                        return;
+                    }
+                }
+            }
+            else
+            {
+                ctx.Job.EnqueueSystemOutput($"[Step: {step.Name}] Warning: Unknown step type '{step.Type}'. Skipping.");
+            }
+
+            foreach (var nextId in step.Next)
+            {
+                if (stepsMap.TryGetValue(nextId, out var nextStep))
+                {
+                    queue.Enqueue(nextStep);
+                }
+            }
+        }
+
+        ctx.Job.EnqueueSystemOutput($"\n[Workflow Engine] Workflow '{workflow.Name}' finished successfully.");
+        ctx.CompleteJob(ctx.Job.Id, 0, false, false);
+    }
+
+    private static string GetTextOutput(JobItem job)
+    {
+        var sb = new System.Text.StringBuilder();
+        var serializer = new JsonEventSerializer();
+        foreach (var line in job.OutputLines)
+        {
+            try
+            {
+                var evt = serializer.Deserialize(line);
+                if (evt is TextEvent te && !string.IsNullOrEmpty(te.Text))
+                {
+                    sb.Append(te.Text);
+                }
+            }
+            catch { }
+        }
+        return sb.ToString();
     }
 }

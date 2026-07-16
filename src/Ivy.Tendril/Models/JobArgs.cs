@@ -14,6 +14,11 @@ namespace Ivy.Tendril.Models;
 [JsonDerivedType(typeof(SyncRepoArgs), "SyncRepo")]
 [JsonDerivedType(typeof(UpdateMemoriesArgs), "UpdateMemories")]
 [JsonDerivedType(typeof(EditMemoryArgs), "EditMemory")]
+[JsonDerivedType(typeof(CodeQualityArgs), "CodeQuality")]
+[JsonDerivedType(typeof(CodeSecurityArgs), "CodeSecurity")]
+[JsonDerivedType(typeof(DocumentationArgs), "Documentation")]
+[JsonDerivedType(typeof(CustomAgentArgs), "CustomAgent")]
+[JsonDerivedType(typeof(WorkflowRunArgs), "WorkflowRun")]
 public abstract record JobArgsBase
 {
     [JsonIgnore]
@@ -29,7 +34,8 @@ public record CreatePlanArgs(
     int Priority = 0,
     bool Force = false,
     string? SourcePath = null,
-    string? UploadSessionId = null) : JobArgsBase
+    string? UploadSessionId = null,
+    bool Express = false) : JobArgsBase
 {
     public override string Type => Constants.JobTypes.CreatePlan;
 }
@@ -98,7 +104,8 @@ public record CreateIssueArgs(
 }
 
 public record SetupProjectArgs(
-    string FolderPath) : JobArgsBase
+    string FolderPath,
+    string ProjectName) : JobArgsBase
 {
     public override string Type => Constants.JobTypes.SetupProject;
     public override string PlanFolder => FolderPath;
@@ -131,6 +138,47 @@ public record EditMemoryArgs(
 {
     public override string Type => Constants.JobTypes.EditMemory;
     public override string? PlanFolder => PlanFolderPath;
+}
+
+public record CodeQualityArgs(
+    string Project,
+    string? PlanFolderPath = null) : JobArgsBase
+{
+    public override string Type => Constants.JobTypes.CodeQuality;
+    public override string? PlanFolder => PlanFolderPath;
+}
+
+public record CodeSecurityArgs(
+    string Project,
+    string? PlanFolderPath = null) : JobArgsBase
+{
+    public override string Type => Constants.JobTypes.CodeSecurity;
+    public override string? PlanFolder => PlanFolderPath;
+}
+
+public record DocumentationArgs(
+    string Project,
+    string? PlanFolderPath = null) : JobArgsBase
+{
+    public override string Type => Constants.JobTypes.Documentation;
+    public override string? PlanFolder => PlanFolderPath;
+}
+
+public record CustomAgentArgs(
+    string AgentName,
+    string Project,
+    string? PlanFolderPath = null,
+    string? PromptText = null) : JobArgsBase
+{
+    public override string Type => AgentName;
+    public override string? PlanFolder => PlanFolderPath;
+}
+
+public record WorkflowRunArgs(
+    int WorkflowId,
+    string? TriggerPayload = null) : JobArgsBase
+{
+    public override string Type => "WorkflowRun";
 }
 
 // How SyncRepo should treat uncommitted changes and/or untracked files when syncing a repo.
