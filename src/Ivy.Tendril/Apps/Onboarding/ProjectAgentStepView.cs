@@ -141,7 +141,11 @@ public class ProjectAgentStepView(
             }
         }, setupTrigger != null ? [setupTrigger, EffectTrigger.OnMount()] : [EffectTrigger.OnMount()]);
 
-        var running = session.Running.Value || isCloning.Value || (setupTrigger != null && setupTrigger.Value && !session.Started.Value);
+        // With no setupTrigger the run starts on mount, so the step counts as
+        // about-to-start from the moment it renders until the session has started.
+        var aboutToStart = (setupTrigger == null || setupTrigger.Value) && !session.Started.Value;
+
+        var running = session.Running.Value || isCloning.Value || aboutToStart;
 
         var buttonArea = Layout.Horizontal().Width(Size.Full())
             | new Button("Back").Outline().Large().Icon(Icons.ArrowLeft)
@@ -156,7 +160,6 @@ public class ProjectAgentStepView(
         // output arrives, the AgentViewer's own status label (below the stream) shows the
         // "Starting…" loading indicator, so we don't render a separate Loading() above it —
         // that avoided a layout shift when the bordered/padded Box swapped in on first output.
-        var aboutToStart = setupTrigger != null && setupTrigger.Value && !session.Started.Value;
         var showStream = !isCloning.Value && (session.Running.Value || session.HasOutput.Value || aboutToStart);
 
         var viewer = new AgentViewer()

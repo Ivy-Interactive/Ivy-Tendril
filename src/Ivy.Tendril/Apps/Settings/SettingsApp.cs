@@ -20,7 +20,6 @@ public class SettingsApp : ViewBase
     internal const string TagProjects = "projects";
     private const string TagTunnel = "tunnel";
     private const string TagAdvanced = "advanced";
-    private const string TagOpenConfig = "open-config";
 
     public override object Build()
     {
