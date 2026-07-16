@@ -8,6 +8,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OpenAI;
 
+using Ivy.Tendril.Services.Connections;
+
 namespace Ivy.Tendril;
 
 internal static class ServiceRegistration
@@ -56,6 +58,10 @@ internal static class ServiceRegistration
         server.Services.AddSingleton<IOnboardingSetupService>(sp => sp.GetRequiredService<OnboardingSetupService>());
         server.Services.AddSingleton<GithubService>();
         server.Services.AddSingleton<IGithubService>(sp => sp.GetRequiredService<GithubService>());
+        server.Services.AddSingleton<IConnectionProvider, SlackConnection>();
+        server.Services.AddSingleton<IConnectionProvider, DiscordConnection>();
+        server.Services.AddSingleton<IConnectionProvider, GitHubConnection>();
+        server.Services.AddSingleton<IConnectionExecutorService, ConnectionExecutorService>();
         server.Services.AddSingleton<IGitService>(sp =>
             new GitService(
                 sp.GetRequiredService<IConfigService>(),
@@ -119,7 +125,8 @@ internal static class ServiceRegistration
                 sp.GetRequiredService<ITelemetryService>(),
                 sp.GetRequiredService<IPlanWatcherService>(),
                 string.IsNullOrEmpty(cfg.TendrilHome) ? null : sp.GetRequiredService<IPlanDatabaseService>(),
-                sp.GetRequiredService<IAgentRunner>());
+                sp.GetRequiredService<IAgentRunner>(),
+                sp.GetRequiredService<IConnectionExecutorService>());
         });
         server.Services.AddSingleton<IJobService>(sp => sp.GetRequiredService<JobService>());
         server.Services.AddSingleton<PlanWatcherService>(sp =>
@@ -129,14 +136,16 @@ internal static class ServiceRegistration
             return new PlanWatcherService(config, logger);
         });
         server.Services.AddSingleton<IPlanWatcherService>(sp => sp.GetRequiredService<PlanWatcherService>());
+        server.Services.AddSingleton<IAgentChatManager, AgentChatManager>();
         server.Services.AddSingleton<TendrilProcessStatusService>(sp =>
         {
             var planReader = sp.GetRequiredService<IPlanReaderService>();
             var jobService = sp.GetRequiredService<IJobService>();
             var planWatcher = sp.GetRequiredService<IPlanWatcherService>();
             var config = sp.GetRequiredService<IConfigService>();
+            var chatManager = sp.GetRequiredService<IAgentChatManager>();
             var logger = sp.GetRequiredService<ILogger<TendrilProcessStatusService>>();
-            return new TendrilProcessStatusService(planReader, jobService, planWatcher, config, logger);
+            return new TendrilProcessStatusService(planReader, jobService, planWatcher, config, chatManager, logger);
         });
         server.Services.AddSingleton<ITendrilProcessStatusService>(sp => sp.GetRequiredService<TendrilProcessStatusService>());
         server.Services.AddSingleton<InboxWatcherService>(sp =>

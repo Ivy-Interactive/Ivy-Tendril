@@ -1,4 +1,6 @@
 using System.Collections.Frozen;
+using System.IO;
+using System.Text.Json;
 using Ivy.Tendril.Agents.Abstractions;
 
 namespace Ivy.Tendril.Agents.Providers.Claude;
@@ -99,18 +101,35 @@ public sealed class ClaudePty : IAgentPty
             args.Add(tempFile);
         }
 
-        foreach (var mcp in config.McpServers)
-        {
-            args.Add("--mcp-server");
-            args.Add(mcp.Name);
-        }
-
         foreach (var arg in config.ExtraArguments)
             args.Add(arg);
 
         // Initial task as the final positional arg — Claude auto-submits it on launch.
         if (!string.IsNullOrEmpty(config.InitialPrompt))
             args.Add(config.InitialPrompt);
+
+        if (config.McpServers.Count > 0)
+        {
+            var mcpConfig = new Dictionary<string, object>();
+            var servers = new Dictionary<string, object>();
+            foreach (var mcp in config.McpServers)
+            {
+                servers[mcp.Name] = new
+                {
+                    command = mcp.Command,
+                    args = mcp.Arguments,
+                    env = mcp.Environment
+                };
+            }
+            mcpConfig["mcpServers"] = servers;
+
+            var tempFile = Path.Combine(Path.GetTempPath(), $"tendril-mcp-{Guid.NewGuid():N}.json");
+            var json = JsonSerializer.Serialize(mcpConfig);
+            File.WriteAllText(tempFile, json);
+
+            args.Add("--mcp-config");
+            args.Add(tempFile);
+        }
 
         var env = new Dictionary<string, string>(GetDefaultEnvironment());
         foreach (var (key, value) in config.EnvironmentVariables)

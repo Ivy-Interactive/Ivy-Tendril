@@ -293,9 +293,13 @@ public class ClaudeCliTests
 
         var spec = _cli.BuildProcessSpec(config);
 
-        var idx = spec.Arguments.ToList().IndexOf("--mcp-server");
+        var idx = spec.Arguments.ToList().IndexOf("--mcp-config");
         Assert.True(idx >= 0);
-        Assert.Equal("github", spec.Arguments[idx + 1]);
+        var configPath = spec.Arguments[idx + 1];
+        Assert.True(File.Exists(configPath));
+        var content = File.ReadAllText(configPath);
+        Assert.Contains("\"github\"", content);
+        File.Delete(configPath);
     }
 
     [Fact]

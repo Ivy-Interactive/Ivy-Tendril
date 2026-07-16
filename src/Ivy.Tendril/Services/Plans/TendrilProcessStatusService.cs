@@ -11,6 +11,7 @@ public class TendrilProcessStatusService : ITendrilProcessStatusService
     private readonly IJobService _jobService;
     private readonly IPlanWatcherService _planWatcher;
     private readonly IConfigService _config;
+    private readonly IAgentChatManager _chatManager;
     private readonly ILogger<TendrilProcessStatusService> _logger;
     private readonly FileSystemWatcher? _trashWatcher;
     private readonly System.Timers.Timer _debounceTimer;
@@ -20,12 +21,14 @@ public class TendrilProcessStatusService : ITendrilProcessStatusService
         IJobService jobService,
         IPlanWatcherService planWatcher,
         IConfigService config,
+        IAgentChatManager chatManager,
         ILogger<TendrilProcessStatusService> logger)
     {
         _planReaderService = planReaderService;
         _jobService = jobService;
         _planWatcher = planWatcher;
         _config = config;
+        _chatManager = chatManager;
         _logger = logger;
 
         _subject = new BehaviorSubject<TendrilProcessStatus>(Compute());
@@ -36,6 +39,7 @@ public class TendrilProcessStatusService : ITendrilProcessStatusService
         _planWatcher.PlansChanged += OnPlansChanged;
         _jobService.JobsStructureChanged += OnSourceChanged;
         _planReaderService.CountsInvalidated += OnCountsInvalidated;
+        _chatManager.ActiveChatsChanged += OnSourceChanged;
 
         if (!string.IsNullOrEmpty(config.TendrilHome))
         {
@@ -159,7 +163,8 @@ public class TendrilProcessStatusService : ITendrilProcessStatusService
             ExecutingPlansCount = executingCount,
             RetryingPlansCount = retryingCount,
             CreatingPrCount = creatingPrCount,
-            RecommendationsCount = snapshot.PendingRecommendations
+            RecommendationsCount = snapshot.PendingRecommendations,
+            ActiveAgentChatsCount = _chatManager.ActiveChatsCount
         };
     }
 
@@ -168,6 +173,7 @@ public class TendrilProcessStatusService : ITendrilProcessStatusService
         _planWatcher.PlansChanged -= OnPlansChanged;
         _jobService.JobsStructureChanged -= OnSourceChanged;
         _planReaderService.CountsInvalidated -= OnCountsInvalidated;
+        _chatManager.ActiveChatsChanged -= OnSourceChanged;
         _trashWatcher?.Dispose();
         _debounceTimer.Dispose();
         _subject.Dispose();
