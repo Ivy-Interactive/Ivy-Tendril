@@ -4,11 +4,18 @@
   flex-direction: column;
   padding: 0.875rem;
   background: var(--card, #ffffff);
-  border: none;
+  /* Transparent border reserves space so the selected state's 1px border
+     doesn't shift the card's layout. */
+  border: 1px solid transparent;
   border-radius: 0.75rem;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 2px 6px rgba(0, 0, 0, 0.08);
   font-family: system-ui, -apple-system, sans-serif;
-  transition: box-shadow 0.15s ease;
+  transition:
+    box-shadow 0.15s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .tc-card-clickable {
@@ -16,14 +23,23 @@
 }
 
 .tc-card-clickable:hover {
+  background: color-mix(in srgb, var(--info, #3b82f6) 4%, var(--card, #ffffff));
   box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.05),
-    0 3px 8px rgba(0, 0, 0, 0.06);
+    0 1px 3px rgba(0, 0, 0, 0.07),
+    0 4px 10px rgba(0, 0, 0, 0.09);
 }
 
 .tc-card-clickable:focus-visible {
   outline: 2px solid var(--ring, #0ea5e9);
   outline-offset: 2px;
+}
+
+/* Selected card (its detail sheet is open): 5% info-tinted fill and a full
+   info-colored border. Wins over the hover background. */
+.tc-card-selected,
+.tc-card-selected.tc-card-clickable:hover {
+  background: color-mix(in srgb, var(--info, #3b82f6) 5%, var(--card, #ffffff));
+  border-color: var(--info, #3b82f6);
 }
 
 /* Top row: status icon tile + project pill on the left, "…" menu on the right */

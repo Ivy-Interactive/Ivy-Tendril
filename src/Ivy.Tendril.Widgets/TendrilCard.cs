@@ -41,6 +41,12 @@ public record TendrilCard : WidgetBase<TendrilCard>
     [Prop] public string Title { get; init; } = string.Empty;
 
     /// <summary>
+    /// Highlights the card as selected (info-tinted background and a full info
+    /// border). Used to mark the card whose detail sheet is currently open.
+    /// </summary>
+    [Prop] public bool Selected { get; init; }
+
+    /// <summary>
     /// Lucide icon rendered inside the top-left status tile (e.g. "Loader" for a
     /// running job, "Eye" for awaiting approval). Null hides the tile.
     /// </summary>
@@ -121,6 +127,9 @@ public static class TendrilCardExtensions
 
     public static TendrilCard WithTimerStartedAt(this TendrilCard w, DateTime? startedAt) =>
         w with { TimerStartedAt = startedAt };
+
+    public static TendrilCard WithSelected(this TendrilCard w, bool selected) =>
+        w with { Selected = selected };
 
     public static TendrilCard WithMenu(this TendrilCard w, params TendrilCardMenuItem[] items) =>
         w with { MenuItems = items };

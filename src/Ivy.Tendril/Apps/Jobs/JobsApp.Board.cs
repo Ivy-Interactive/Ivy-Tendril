@@ -37,6 +37,7 @@ public partial class JobsApp
         Action<string> ShowCreatePr,
         Action<string> ShowResetToDraft,
         Action<string> ShowDiscardPlan,
+        Action<string?> SetSelected,
         Action Refresh);
 
     /// <summary>
@@ -55,6 +56,7 @@ public partial class JobsApp
         IJobService jobService,
         Dictionary<string, string> projectColors,
         INavigator nav,
+        string? selectedCardId,
         BoardActions actions)
     {
         var activeJobs = jobs
@@ -169,7 +171,8 @@ public partial class JobsApp
             .ColumnHeader(GetColumnHeader)
             .ColumnIcon(GetColumnIcon)
             .CardOrder(c => c.Order, descending: true)
-            .CardBuilder((BoardCard c) => BuildCardWidget(c, jobService, planService, actions))
+            .CardBuilder((BoardCard c) =>
+                BuildCardWidget(c, jobService, planService, selectedCardId, actions))
             .OnMove(e => HandleCardMove(e.Value, jobService, planService, actions));
     }
 
@@ -399,6 +402,11 @@ public partial class JobsApp
         new("Delete", "Delete", "Trash", Destructive: true)
     ];
 
+    private static readonly TendrilCardMenuItem[] DeleteOnlyMenuItems =
+    [
+        new("Delete", "Delete", "Trash", Destructive: true)
+    ];
+
     // Mirrors the plan actions ReviewApp offers (see ContentView.BuildActionBar).
     private static readonly TendrilCardMenuItem[] ReviewMenuItems =
     [
@@ -413,14 +421,23 @@ public partial class JobsApp
         BoardCard c,
         IJobService jobService,
         IPlanReaderService planService,
+        string? selectedCardId,
         BoardActions actions)
     {
+        // Wrap the card's click so opening its sheet also marks it selected.
+        Action onClick = () =>
+        {
+            actions.SetSelected(c.Id);
+            c.OnClick();
+        };
+
         var widget = new TendrilCardWidget(c.Title)
             .WithIcon(c.Icon, c.IconSpin)
             .WithStatus(c.Status, c.StatusIcon)
             .WithMeta(c.Meta)
             .WithTimerStartedAt(c.TimerStartedAt)
-            .WithOnClick(c.OnClick);
+            .WithSelected(c.Id == selectedCardId)
+            .WithOnClick(onClick);
 
         if (!string.IsNullOrEmpty(c.Project))
             widget = widget.WithProject(c.Project, c.ProjectColor ?? "#6366f1");
@@ -428,10 +445,14 @@ public partial class JobsApp
         if (!string.IsNullOrEmpty(c.PlanFolder))
         {
             var folder = c.PlanFolder;
+            var cardId = c.Id;
             widget = widget.WithOnMetaClick(tag =>
             {
                 if (tag == MetaOpenPlanTag)
+                {
+                    actions.SetSelected(cardId);
                     actions.ShowPlanSheet(folder);
+                }
             });
         }
 
@@ -448,6 +469,14 @@ public partial class JobsApp
                 widget = widget
                     .WithMenu(JobMenuItems)
                     .WithOnMenuSelect(tag => HandleJobAction(tag, job, jobService, actions));
+                break;
+
+            // A Planning plan card with no backing job (e.g. a plan stuck Creating)
+            // still needs to be deletable.
+            case BoardColumn.Planning when c.Plan is { } planningPlan:
+                widget = widget
+                    .WithMenu(DeleteOnlyMenuItems)
+                    .WithOnMenuSelect(_ => actions.ShowDeletePlan(planningPlan.FolderName));
                 break;
 
             case BoardColumn.Review or BoardColumn.Pr when c.Plan is { } reviewPlan:

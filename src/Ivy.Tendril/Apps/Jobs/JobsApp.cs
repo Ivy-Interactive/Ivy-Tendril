@@ -27,12 +27,25 @@ public partial class JobsApp : ViewBase
         var deleteJobId = UseState<string?>(null);
         var selectedView = UseState(0);
 
+        // Board card id (plan folder name or job id) whose detail sheet is open, so
+        // the matching card renders in its selected state. Cleared when the sheet closes.
+        var selectedCardId = UseState<string?>(null);
+
+        // Closing a board card's detail sheet also clears the selected-card highlight.
+        // selectedCardId lives in this (parent) scope, so setting it here re-renders
+        // the board.
+        void CloseCardSheet(IState<bool> isOpen)
+        {
+            isOpen.Set(false);
+            selectedCardId.Set((string?)null);
+        }
+
         var (planSheet, showPlan) = UseTrigger<string>((isOpen, planPath) =>
         {
             if (!isOpen.Value) return null;
             var planSheetView = new PlanSheet(planPath, planService, openFile, config);
             var sheet = new Sheet(
-                () => isOpen.Set(false),
+                () => CloseCardSheet(isOpen),
                 planSheetView.Build(),
                 planSheetView.GetSheetTitle()
             ).Width(UxHelper.SheetWidth).Resizable();
@@ -45,7 +58,7 @@ public partial class JobsApp : ViewBase
             var job = jobService.GetJob(jobId);
             var title = job is not null ? $"{job.Type} {JobsApp.ExtractPlanId(job.PlanFile)}" : "Job Output";
             return new Sheet(
-                () => isOpen.Set(false),
+                () => CloseCardSheet(isOpen),
                 new OutputSheet(jobId, jobService),
                 title
             ).Width(UxHelper.SheetWidth).Resizable();
@@ -176,6 +189,7 @@ public partial class JobsApp : ViewBase
             jobService,
             projectColors,
             nav,
+            selectedCardId.Value,
             new BoardActions(
                 OnJobClick: jobId => showOutput(jobId),
                 ShowPlanSheet: planPath => showPlan(planPath),
@@ -188,6 +202,7 @@ public partial class JobsApp : ViewBase
                 ShowCreatePr: showCreatePr,
                 ShowResetToDraft: showResetToDraft,
                 ShowDiscardPlan: showDiscardPlan,
+                SetSelected: id => selectedCardId.Set(id),
                 Refresh: () => refreshToken.Refresh()));
 
         var content = Layout.Tabs(

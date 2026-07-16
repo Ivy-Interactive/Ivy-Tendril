@@ -24,6 +24,8 @@ export interface TendrilCardProps {
   events?: string[];
   eventHandler: IvyEventHandler;
   title: string;
+  /** Highlights the card as selected (info-tinted bg + info border). */
+  selected?: boolean;
   icon?: string;
   iconSpin?: boolean;
   project?: string;

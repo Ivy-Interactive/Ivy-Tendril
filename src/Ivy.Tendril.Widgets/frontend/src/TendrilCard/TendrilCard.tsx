@@ -222,6 +222,7 @@ export const TendrilCard: React.FC<TendrilCardProps> = ({
   events = [],
   eventHandler,
   title,
+  selected = false,
   icon,
   iconSpin = false,
   project,
@@ -259,7 +260,7 @@ export const TendrilCard: React.FC<TendrilCardProps> = ({
 
   return (
     <div
-      className={`tc-card${clickable ? " tc-card-clickable" : ""}`}
+      className={`tc-card${clickable ? " tc-card-clickable" : ""}${selected ? " tc-card-selected" : ""}`}
       style={style}
       onClick={clickable ? handleClick : undefined}
       role={clickable ? "button" : undefined}
