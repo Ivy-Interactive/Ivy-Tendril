@@ -1,6 +1,6 @@
 import React from "react";
 import { createPortal } from "react-dom";
-import { icons, MoreHorizontal, ScanLine, type LucideProps } from "lucide-react";
+import { icons, MoreHorizontal, ScanLine, Timer, type LucideProps } from "lucide-react";
 import {
   TendrilCardProps,
   TendrilCardMenuItem,
@@ -181,6 +181,40 @@ const MetaItem: React.FC<MetaItemProps> = ({ meta, onClick }) => {
   return <span className="tc-meta-item">{body}</span>;
 };
 
+/** Mirrors JobsApp.FormatTimeSpan: "2h 05m", "5m 20s" or "45s". */
+function formatElapsed(totalSeconds: number): string {
+  const clamped = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(clamped / 3600);
+  const minutes = Math.floor((clamped % 3600) / 60);
+  const seconds = clamped % 60;
+  if (hours >= 1) return `${hours}h ${String(minutes).padStart(2, "0")}m`;
+  if (minutes === 0) return `${seconds}s`;
+  return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+}
+
+/**
+ * Elapsed-time meta item that ticks locally every second, so running jobs show
+ * a live timer without waiting for a server refresh.
+ */
+const LiveTimer: React.FC<{ startedAt: string }> = ({ startedAt }) => {
+  const startMs = React.useMemo(() => Date.parse(startedAt), [startedAt]);
+  const [now, setNow] = React.useState(() => Date.now());
+
+  React.useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  if (Number.isNaN(startMs)) return null;
+
+  return (
+    <span className="tc-meta-item">
+      <Timer className="tc-meta-icon" size={14} />
+      <span className="tc-meta-label">{formatElapsed((now - startMs) / 1000)}</span>
+    </span>
+  );
+};
+
 export const TendrilCard: React.FC<TendrilCardProps> = ({
   id,
   width = "full",
@@ -195,6 +229,7 @@ export const TendrilCard: React.FC<TendrilCardProps> = ({
   status,
   statusIcon,
   meta,
+  timerStartedAt,
   menuItems,
 }) => {
   const style: React.CSSProperties = {
@@ -267,11 +302,12 @@ export const TendrilCard: React.FC<TendrilCardProps> = ({
         </div>
       )}
 
-      {meta && meta.length > 0 && (
+      {((meta && meta.length > 0) || timerStartedAt) && (
         <div className="tc-meta">
           {leadMeta && <MetaItem meta={leadMeta} onClick={onMetaClick} />}
-          {trailMeta.length > 0 && (
+          {(timerStartedAt || trailMeta.length > 0) && (
             <div className="tc-meta-trail">
+              {timerStartedAt && <LiveTimer startedAt={timerStartedAt} />}
               {trailMeta.map((m, i) => (
                 <MetaItem key={`${m.icon}-${i}`} meta={m} onClick={onMetaClick} />
               ))}

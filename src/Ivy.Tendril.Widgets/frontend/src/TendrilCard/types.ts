@@ -31,5 +31,11 @@ export interface TendrilCardProps {
   status?: string;
   statusIcon?: string;
   meta?: TendrilCardMeta[];
+  /**
+   * UTC ISO timestamp of when the card's job started. When set, a live
+   * elapsed-time meta item ticks every second on the client (rendered before
+   * the other trailing meta items).
+   */
+  timerStartedAt?: string;
   menuItems?: TendrilCardMenuItem[];
 }

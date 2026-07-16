@@ -72,6 +72,14 @@ public record TendrilCard : WidgetBase<TendrilCard>
     [Prop] public TendrilCardMeta[]? Meta { get; init; }
 
     /// <summary>
+    /// UTC start time of the card's running job. When set the card renders a live
+    /// elapsed-time meta item that ticks every second on the client, ahead of the
+    /// trailing <see cref="Meta"/> items. Use this instead of a preformatted timer
+    /// meta item for running jobs.
+    /// </summary>
+    [Prop] public DateTime? TimerStartedAt { get; init; }
+
+    /// <summary>
     /// Actions shown in a dropdown opened from the "…" button in the card's top-right
     /// corner. The button only renders when this is set together with <see cref="OnMenuSelect"/>.
     /// </summary>
@@ -110,6 +118,9 @@ public static class TendrilCardExtensions
 
     public static TendrilCard WithMeta(this TendrilCard w, params TendrilCardMeta[] meta) =>
         w with { Meta = meta };
+
+    public static TendrilCard WithTimerStartedAt(this TendrilCard w, DateTime? startedAt) =>
+        w with { TimerStartedAt = startedAt };
 
     public static TendrilCard WithMenu(this TendrilCard w, params TendrilCardMenuItem[] items) =>
         w with { MenuItems = items };

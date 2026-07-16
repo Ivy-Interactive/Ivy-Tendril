@@ -5,10 +5,8 @@
   padding: 0.875rem;
   background: var(--card, #ffffff);
   border: none;
-  border-radius: 0.875rem;
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.04),
-    0 2px 6px rgba(0, 0, 0, 0.06);
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   font-family: system-ui, -apple-system, sans-serif;
   transition: box-shadow 0.15s ease;
 }
@@ -19,8 +17,8 @@
 
 .tc-card-clickable:hover {
   box-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.06),
-    0 6px 16px rgba(0, 0, 0, 0.1);
+    0 1px 3px rgba(0, 0, 0, 0.05),
+    0 3px 8px rgba(0, 0, 0, 0.06);
 }
 
 .tc-card-clickable:focus-visible {
@@ -156,7 +154,7 @@
   margin: 0.625rem 0 0;
   color: var(--card-foreground, #18181b);
   font-size: 0.9375rem;
-  font-weight: 650;
+  font-weight: 500;
   line-height: var(--tc-title-line-height);
   overflow-wrap: anywhere;
   /* Fixed two-line title: always reserves two lines, truncates with an ellipsis */
