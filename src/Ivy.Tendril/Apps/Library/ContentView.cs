@@ -462,12 +462,8 @@ public class ContentView(
 
         // Header with switch toggle and actions toolbar
         var headerRow = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween)
-            | (Layout.Vertical().Gap(1)
-               | Text.H1("Library").Bold()
-               | Text.Muted("Obsidian-style codebase memory index and verification stats"))
-            | Layout.Horizontal().Gap(4).AlignContent(Align.Center)
-               | isGraphView.ToSwitchInput(label: "Brain Map")
-               | actionsToolbar;
+            | (Layout.Horizontal().AlignContent(Align.Center) | isGraphView.ToSwitchInput(label: "Brain Map"))
+            | actionsToolbar;
 
         var configContent = Layout.Vertical()
             | Text.H2("Configuration").Bold()
@@ -510,7 +506,7 @@ public class ContentView(
 
             return new HeaderLayout(
                 headerRow,
-                Layout.Vertical().Size(Size.Full()).Height(Size.Units(120)) | brainMapWidget
+                Layout.Vertical().Size(Size.Full()) | brainMapWidget
             ).Scroll(Scroll.None).Size(Size.Full());
         }
 

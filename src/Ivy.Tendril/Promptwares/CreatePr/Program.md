@@ -350,6 +350,7 @@ Some plans create new repos and push directly to main (e.g., repo scaffolding). 
 
 ### Rules
 
+- **⚡ MCP Latency Optimization:** If the `tendril` MCP server is registered in your environment (providing tools like `tendril_job_status`, `tendril_plan_add_pr`, etc.), you **MUST** call these native tools instead of their corresponding bash CLI commands (e.g. `tendril job status`, `tendril plan add-pr`). Native MCP tools bypass process startup overhead and execute near-instantly.
 - **ALL 7 steps are mandatory** (including 2.5) — do not stop after creating the PR. In
   particular, **step 6 is a required closeout**: record every PR URL via `tendril plan add-pr` and
   set the plan state to `Completed`. A run that creates a PR but skips step 6 is a **failed** run.

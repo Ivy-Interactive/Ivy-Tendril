@@ -432,6 +432,7 @@ If the plan introduces new architectural decisions, design patterns, or major ne
 
 ### Rules
 
+- **⚡ MCP Latency Optimization:** If the `tendril` MCP server is registered in your environment (providing tools like `tendril_job_status`, `tendril_plan_create`, `tendril_plan_write_revision`), you **MUST** call these native tools instead of their corresponding bash CLI commands (e.g. `tendril job status`, `tendril plan create`, `tendril plan write-revision`). Native MCP tools bypass process startup overhead and execute near-instantly.
 - **Diagrams**: Markdown supports Graphviz/DOT (```dot or ```graphviz code blocks) and Mermaid (```mermaid code blocks). **Prefer Graphviz/DOT over Mermaid** — it produces cleaner layouts for architecture and flow diagrams. Use diagrams sparingly — only when a visual genuinely clarifies the concept. Most plans don't need diagrams.
 - **🚫 NEVER modify source code. NEVER implement changes. You READ source code for research, you WRITE only via `tendril` CLI commands (plan commands, `tendril trash write`). Any direct file write is a critical violation that wastes the entire session. The permission system WILL block you and you WILL fail.**
 - **!CRITICAL: Every CreatePlan execution MUST produce at least one plan folder. Even if the task is an analysis, review, or investigation — always create a plan with actionable steps. Never just analyze and report back without a plan.**

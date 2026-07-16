@@ -536,6 +536,7 @@ You are running in non-interactive mode and CANNOT ask questions. If you are uns
 
 ### Rules
 
+- **⚡ MCP Latency Optimization:** If the `tendril` MCP server is registered in your environment (providing tools like `tendril_job_status`, `tendril_plan_add_commit`, etc.), you **MUST** call these native tools instead of their corresponding bash CLI commands (e.g. `tendril job status`, `tendril plan add-commit`). Native MCP tools bypass process startup overhead and execute near-instantly.
 - All work happens in worktree directories, never in the original repos
 - Make logically grouped commits — not one giant commit
 - Worktrees must be clean (no uncommitted files) when finished
