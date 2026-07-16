@@ -57,7 +57,7 @@ public class SettingsApp : ViewBase
             | Icons.Settings2.ToIcon()
             | Text.Literal("Configuration");
 
-        var sidebar = new HeaderLayout(sidebarHeader, new List(rows));
+        var sidebar = new HeaderLayout(sidebarHeader, Layout.Vertical(rows).Gap(1));
 
         object content = selected.Value switch
         {

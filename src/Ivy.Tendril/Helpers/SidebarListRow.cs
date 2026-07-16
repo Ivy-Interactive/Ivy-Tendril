@@ -8,12 +8,12 @@ public static class SidebarListRow
             | Text.Literal(title)
             | content;
 
-        return BuildButton(row, onClick, isSelected);
+        return BuildButton(row, onClick, isSelected, BorderRadius.None);
     }
 
     public static object Build(string title, Action onClick, bool isSelected = false)
     {
-        return BuildButton(Text.Literal(title), onClick, isSelected);
+        return BuildButton(Text.Literal(title), onClick, isSelected, BorderRadius.None);
     }
 
     public static object Build(string title, Icons icon, Action onClick, bool isSelected = false)
@@ -22,12 +22,14 @@ public static class SidebarListRow
             | icon.ToIcon()
             | Text.Literal(title);
 
-        return BuildButton(row, onClick, isSelected);
+        return BuildButton(row, onClick, isSelected, BorderRadius.Rounded);
     }
 
-    private static Button BuildButton(object content, Action onClick, bool isSelected)
+    // Rows hosted in a List widget sit between its straight separator lines, so they
+    // stay square; the icon overload lives in gap-spaced menus and keeps rounding.
+    private static Button BuildButton(object content, Action onClick, bool isSelected, BorderRadius radius)
     {
-        var button = new Button().Width(Size.Full()).Content(content).OnClick(onClick);
+        var button = new Button().Width(Size.Full()).Content(content).OnClick(onClick).BorderRadius(radius);
         return isSelected ? button.Secondary() : button.Ghost();
     }
 }
