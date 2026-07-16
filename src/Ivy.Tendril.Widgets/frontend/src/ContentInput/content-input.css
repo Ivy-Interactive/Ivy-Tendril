@@ -363,7 +363,7 @@
 .civ-submit-btn.civ-submit-btn-labeled:hover:not(:disabled) {
   background: var(--civ-primary);
   opacity: 0.9;
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .civ-submit-text {
