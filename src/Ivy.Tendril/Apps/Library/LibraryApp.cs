@@ -25,7 +25,7 @@ public record VaultStatusInfo(
     string RawOutput
 );
 
-[App(title: "Library", icon: Icons.Library, group: ["Apps"], order: Constants.Library)]
+[App(title: "Library", icon: Icons.Library, group: ["Memory"], order: Constants.Library)]
 public class LibraryApp : ViewBase
 {
     public override object Build()

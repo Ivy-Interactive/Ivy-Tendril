@@ -28,6 +28,7 @@ public class ProjectAgentStepView(
         var runner = UseService<IPromptwareRunner>();
         var agentRunner = UseService<IAgentRunner>();
         var client = UseService<IClientProvider>();
+        var jobService = UseService<IJobService>();
 
         var progressMessage = UseState<string?>(null);
         var progressValue = UseState<int?>(null);
@@ -118,148 +119,15 @@ public class ProjectAgentStepView(
                 progressValue.Set(null);
                 progressMessage.Set(null);
 
-                if (skipAgent)
+                if (proj != null && proj.Repos.Count > 0)
                 {
-                    isStepLoading.Set(false);
-                    onNext();
-                    return;
+                    progressMessage.Set("Starting setup job in background...");
+                    var mainRepo = Environment.ExpandEnvironmentVariables(proj.Repos[0].Path);
+                    jobService.StartJob(new SetupProjectArgs(mainRepo, name));
                 }
 
-                // Check active coding agent installation and authentication status before agentic run
-                var agentKey = config.Settings.CodingAgent ?? "claude";
-                var healthCheck = agentRunner.GetHealthCheck(agentKey);
-                var info = healthCheck.GetOnboardingInfo();
-
-                var agentCheckCts = new CancellationTokenSource();
-                _ = UxHelper.AnimateProgressAsync(progressValue, agentCheckCts.Token);
-
-                try
-                {
-                    progressMessage.Set($"Checking {info.DisplayName} installation...");
-                    var installStatus = await healthCheck.CheckInstallAsync();
-                    if (!installStatus.IsInstalled)
-                    {
-                        await agentCheckCts.CancelAsync();
-                        progressValue.Set(null);
-                        progressMessage.Set(null);
-
-                        var agentCheck = new SoftwareCheck(
-                            info.DisplayName,
-                            agentKey,
-                            info.InstallUrl ?? "",
-                            true,
-                            () => Task.FromResult(installStatus.IsInstalled))
-                        {
-                            LastError = installStatus.Error
-                        };
-
-                        var tcs = new TaskCompletionSource<bool>();
-                        showInstallDialog(new InstallDialogArgs(agentCheck, tcs));
-                        var resumed = await tcs.Task;
-
-                        if (!resumed)
-                        {
-                            isStepLoading.Set(false);
-                            return;
-                        }
-
-                        // Re-check installation after user dismisses dialog
-                        progressMessage.Set($"Checking {info.DisplayName} installation...");
-                        agentCheckCts = new CancellationTokenSource();
-                        _ = UxHelper.AnimateProgressAsync(progressValue, agentCheckCts.Token);
-
-                        installStatus = await healthCheck.CheckInstallAsync();
-                        if (!installStatus.IsInstalled)
-                        {
-                            await agentCheckCts.CancelAsync();
-                            progressValue.Set(null);
-                            progressMessage.Set(null);
-                            error.Set($"Please make sure your agent ({info.DisplayName}) is present and you are authorized.");
-                            isStepLoading.Set(false);
-                            return;
-                        }
-                    }
-
-                    if (agentKey != "opencode")
-                    {
-                        progressMessage.Set($"Verifying {info.DisplayName} authentication...");
-                        var authStatus = await healthCheck.CheckAuthAsync();
-                        if (authStatus.Status != AuthStatus.Authenticated)
-                        {
-                            progressMessage.Set($"Signing In to {info.DisplayName}... (Browser Will Open)");
-                            authCode.Set(null);
-
-                            var callbacks = new AuthFlowCallbacks
-                            {
-                                OnUrl = url => { client.OpenUrl(url); return Task.CompletedTask; },
-                                OnCode = code => authCode.Set(code),
-                            };
-                            await healthCheck.RunAuthFlowAsync(callbacks, CancellationToken.None);
-                            authCode.Set(null);
-
-                            progressMessage.Set($"Verifying {info.DisplayName} authentication...");
-                            authStatus = await healthCheck.CheckAuthAsync();
-                            if (authStatus.Status != AuthStatus.Authenticated)
-                            {
-                                await agentCheckCts.CancelAsync();
-                                progressValue.Set(null);
-                                progressMessage.Set(null);
-                                error.Set($"Please make sure your agent ({info.DisplayName}) is present and you are authorized.");
-                                isStepLoading.Set(false);
-                                return;
-                            }
-                        }
-                    }
-                }
-                finally
-                {
-                    await agentCheckCts.CancelAsync();
-                    progressValue.Set(null);
-                    progressMessage.Set(null);
-                }
-
-                var notifyingStream = new NotifyingStream<string>(
-                    session.Stream,
-                    () => session.HasOutput.Set(true));
-
-                var handle = runner.Run(new PromptwareRunOptions
-                {
-                    Promptware = "SetupProject",
-                    Values = new Dictionary<string, string>
-                    {
-                        ["ProjectName"] = name,
-                        ["Instructions"] = "Setup verifications and review actions"
-                    }
-                }, notifyingStream);
-
-                session.Handle.Set(handle);
-                session.Running.Set(true);
-                session.Started.Set(true);
-
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await handle.Completion;
-                    }
-                    catch (OperationCanceledException) { }
-                    catch (Exception ex)
-                    {
-                        if (!session.Cancelled.Value)
-                            session.Error.Set($"Setup failed: {ex.Message}");
-                    }
-                    finally
-                    {
-                        if (!session.Cancelled.Value)
-                        {
-                            config.ReloadSettings();
-                            session.RefreshToken.Set(session.RefreshToken.Value + 1);
-                        }
-                        session.Handle.Set(null);
-                        session.Running.Set(false);
-                        isStepLoading.Set(false);
-                    }
-                }, CancellationToken.None);
+                isStepLoading.Set(false);
+                onNext();
             }
             catch (Exception ex)
             {

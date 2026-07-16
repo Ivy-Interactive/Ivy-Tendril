@@ -5,7 +5,7 @@ using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps.Drafts;
 
-[App(title: "Drafts", icon: Icons.Feather, group: ["Apps"], order: Constants.Drafts)]
+[App(title: "Drafts", icon: Icons.Feather, group: ["Orchestration"], order: Constants.Drafts)]
 public class DraftsApp : ViewBase
 {
     public override object Build()

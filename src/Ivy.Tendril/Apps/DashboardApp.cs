@@ -18,7 +18,7 @@ public class DashboardDayRow
 }
 
 
-[App(title: "Dashboard", icon: Icons.ChartBar, group: ["Apps"], order: Constants.Dashboard)]
+[App(title: "Dashboard", icon: Icons.ChartBar, group: ["Overview"], order: Constants.Dashboard)]
 public class DashboardApp : ViewBase
 {
     public override object Build()

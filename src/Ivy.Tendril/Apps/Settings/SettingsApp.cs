@@ -53,10 +53,33 @@ public class SettingsApp : ViewBase
 
         var menuItems = new[]
         {
-            MenuItem.Default("Configuration")
+            MenuItem.Default("Orchestration")
+                .Icon(Icons.FolderDot)
+                .Expanded()
+                .Children(
+                    MenuItem.Default("Coding Agent", TagCodingAgent).Icon(Icons.Bot),
+                    MenuItem.Default("Plans", TagPlans).Icon(Icons.Feather),
+                    MenuItem.Default("Verifications", TagVerifications).Icon(Icons.CircleCheck),
+                    MenuItem.Default("Levels", TagLevels).Icon(Icons.ListOrdered)
+                ),
+            MenuItem.Default("Automations")
+                .Icon(Icons.Cpu)
+                .Expanded()
+                .Children(
+                    MenuItem.Default("Promptwares", TagPromptwares).Icon(Icons.Wand)
+                ),
+            MenuItem.Default("Overview")
                 .Icon(Icons.Settings2)
                 .Expanded()
-                .Children(children.ToArray())
+                .Children(
+                    MenuItem.Default("Appearance", TagAppearance).Icon(Icons.Sun),
+                    MenuItem.Default("Projects", TagProjects).Icon(Icons.Folder),
+                    MenuItem.Default("Notifications", TagNotifications).Icon(Icons.Bell),
+                    MenuItem.Default("Security", TagSecurity).Icon(Icons.Lock),
+                    MenuItem.Default("Tunnel", TagTunnel).Icon(Icons.Globe),
+                    MenuItem.Default("Advanced", TagAdvanced).Icon(Icons.Cog),
+                    MenuItem.Default("Open config.yaml", TagOpenConfig).Icon(Icons.FileText)
+                )
         };
 
         void OnSelect(Event<SidebarMenu, object> @event)
@@ -105,7 +128,7 @@ public class SettingsApp : ViewBase
                 s => selected.Set(s.Tag))
             .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
-        var contentWithMobileHeader = Layout.Vertical().Height(Size.Full()).Gap(2)
+        var contentWithMobileHeader = Layout.Vertical().Height(Size.Full())
                                       | mobileHeader
                                       | (Layout.Vertical().Height(Size.Grow()) | content);
 
