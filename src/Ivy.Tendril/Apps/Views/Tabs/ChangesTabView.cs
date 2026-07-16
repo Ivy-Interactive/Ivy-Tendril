@@ -1,6 +1,10 @@
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Apps.Views;
-using Ivy.Widgets.DiffView;
+using Ivy.Tendril.Widgets;
+using Ivy.Tendril.Models;
+using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Plans;
+using Ivy.Tendril.Apps.Review.Dialogs;
 
 namespace Ivy.Tendril.Apps.Views.Tabs;
 
@@ -8,6 +12,10 @@ public class ChangesTabView(
     PlanContentHelpers.AllChangesData? changesData,
     bool loading,
     Exception? error,
+    IState<List<DraftComment>> draftComments,
+    PlanFile selectedPlan,
+    IJobService jobService,
+    Action refreshPlans,
     string? projectName = null) : ViewBase
 {
     public int FileCount => changesData?.Files.Count ?? 0;
@@ -15,7 +23,22 @@ public class ChangesTabView(
     public override object Build()
     {
         var client = UseService<IClientProvider>();
+        var planService = UseService<IPlanReaderService>();
         var hideFormatting = UseState(true);
+
+        var (submitReviewDialog, showSubmitReviewDialog) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value) return null;
+            return new SubmitReviewDialog(
+                isOpen,
+                selectedPlan,
+                draftComments.Value,
+                draftComments,
+                jobService,
+                planService,
+                refreshPlans
+            );
+        });
 
         if (loading && changesData is null)
             return Text.Muted("Loading...");
@@ -28,8 +51,6 @@ public class ChangesTabView(
             return Text.Muted(errorMsg);
         }
 
-        // The diff was read from a worktree whose repo isn't part of the plan's project (#1340).
-        // Warn so the reviewer doesn't merge blind.
         object? mismatchBanner = null;
         if (changesData.FromUnlistedWorktree)
         {
@@ -67,31 +88,48 @@ public class ChangesTabView(
                 client.Redirect($"#{path}");
             });
 
-        // var statsText =
-        //     $"{changesData.Files.Count} files changed ({changesData.AddedCount} added, {changesData.ModifiedCount} modified, {changesData.DeletedCount} deleted)";
-
-        var diffsLayout = Layout.Vertical().Gap(2).Width(Size.Grow().Min(Size.Px(0))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)));
-        //diffsLayout |= Text.Block(statsText).Bold();
+        var diffsLayout = Layout.Vertical().Width(Size.Grow().Min(Size.Px(0))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)));
 
         foreach (var fileDiff in sortedFileDiffs)
         {
             var path = fileDiff.FilePath;
             diffsLayout |= Text.Block("").Anchor(path);
-            diffsLayout |= new DiffView()
-                .Diff(fileDiff.Diff)
-                .Collapsible()
-                .Width(Size.Full());
+            diffsLayout |= new PlanDiffView
+            {
+                Diff = fileDiff.Diff,
+                FilePath = path,
+                Comments = draftComments.Value.Where(c => c.FilePath == path).ToList(),
+                OnAddComment = e => {
+                    var list = new List<DraftComment>(draftComments.Value);
+                    list.Add(e.Value);
+                    draftComments.Set(list);
+                    return ValueTask.CompletedTask;
+                },
+                OnUpdateComment = e => {
+                    var c = e.Value;
+                    var list = new List<DraftComment>(draftComments.Value);
+                    var idx = list.FindIndex(dc => dc.FilePath == c.FilePath && dc.ChangeKey == c.ChangeKey);
+                    if (idx >= 0) {
+                        list[idx] = c;
+                        draftComments.Set(list);
+                    }
+                    return ValueTask.CompletedTask;
+                },
+                OnDeleteComment = e => {
+                    var c = e.Value;
+                    var list = new List<DraftComment>(draftComments.Value);
+                    list.RemoveAll(dc => dc.FilePath == c.FilePath && dc.ChangeKey == c.ChangeKey);
+                    draftComments.Set(list);
+                    return ValueTask.CompletedTask;
+                },
+                Collapsible = true
+            }.Width(Size.Full());
         }
 
-        // Desktop/laptop: the file tree sits in a fixed-width sidebar beside the diffs.
-        var treePanel = new Box(Layout.Vertical().Gap(2).Padding(1)
-                .Width(Size.Rem(14).Min(Size.Rem(14))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)))
-                | tree)
-            .BorderThickness(0).Padding(0).Width(Size.Auto()).Height(Size.Full().Min(Size.Px(0)))
+        var treePanel = new Box(Layout.Vertical().Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0))) | tree)
+            .Width(Size.Auto()).Height(Size.Full().Min(Size.Px(0)))
             .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
-        // Mobile/tablet: the tree has no room, so collapse it into a dropdown list of
-        // files that jumps to the corresponding diff (same anchor as the tree select).
         var mobileFilePicker = MobileItemPicker.Build(
                 $"Jump to file ({sortedFileDiffs.Count})",
                 sortedFileDiffs,
@@ -100,13 +138,22 @@ public class ChangesTabView(
                 fd => client.Redirect($"#{fd.FilePath}"))
             .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
-        var toolbar = Layout.Horizontal().Gap(2).Padding(1).AlignContent(Align.Left).Height(Size.Auto())
+        var toolbar = Layout.Horizontal().AlignContent(Align.Left).Height(Size.Auto())
             | hideFormatting.ToSwitchInput(label: "Hide formatting changes");
 
         if (hideFormatting.Value && hiddenCount > 0)
             toolbar |= Text.Muted($"{fileDiffs.Count} of {allFileDiffs.Count} files (hiding {hiddenCount} formatting-only)").Small();
 
-        var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0))).Padding(0, 0, 2, 2)
+        var draftCount = draftComments.Value.Count;
+        var submitBtn = new Button(draftCount > 0 ? $"Submit review ({draftCount})" : "Submit review")
+            .Icon(Icons.GitPullRequest)
+            .OnClick(() => showSubmitReviewDialog());
+
+        submitBtn = draftCount > 0 ? submitBtn.Primary() : submitBtn.Outline();
+
+        toolbar |= submitBtn;
+
+        var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0)))
             | treePanel
             | diffsLayout;
 
@@ -116,6 +163,7 @@ public class ChangesTabView(
         outer |= toolbar;
         outer |= mobileFilePicker;
         outer |= mainLayout;
+        outer |= submitReviewDialog;
         return outer;
     }
 
@@ -186,8 +234,6 @@ public class ChangesTabView(
             .ToList();
     }
 
-    // Collapse single-child folder chains (e.g. "src/components" if src has only the components folder)
-    // for a more compact GitHub-style tree.
     private static MenuItem FolderItem(TreeNode node)
     {
         var label = node.Name;

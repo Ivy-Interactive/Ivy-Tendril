@@ -93,7 +93,8 @@ public sealed class PlanTools : AuthenticatedToolBase
         [Description("Plan title/description")] string title,
         [Description("Project name (optional)")] string? project = null,
         [Description("Priority level: Bug, Feature, Epic, Chore, Nitpick (optional)")] string? level = null,
-        [Description("Detailed prompt/description for plan creation (optional)")] string? prompt = null)
+        [Description("Detailed prompt/description for plan creation (optional)")] string? prompt = null,
+        [Description("Whether to run this as an express job, skipping draft creation and immediately executing (optional)")] bool? express = null)
     {
         return ExecuteAuthenticated(() =>
         {
@@ -111,13 +112,15 @@ public sealed class PlanTools : AuthenticatedToolBase
             var fileName = $"{safeName}-{DateTime.UtcNow:yyyyMMddHHmmss}.md";
 
             var sb = new StringBuilder();
-            if (!string.IsNullOrEmpty(project) || !string.IsNullOrEmpty(level))
+            if (!string.IsNullOrEmpty(project) || !string.IsNullOrEmpty(level) || express == true)
             {
                 sb.AppendLine("---");
                 if (!string.IsNullOrEmpty(project))
                     sb.AppendLine($"project: {project}");
                 if (!string.IsNullOrEmpty(level))
                     sb.AppendLine($"level: {level}");
+                if (express == true)
+                    sb.AppendLine("express: true");
                 sb.AppendLine("---");
             }
 

@@ -1,7 +1,8 @@
 import type { EventWire, PresentationEvent, ToolUsePresentation } from "./types";
 
 export function parseEventWireStream(jsonStream: string): PresentationEvent[] {
-  const lines = jsonStream.split("\n");
+  const normalized = jsonStream.replace(/\}\s*\{/g, "}\n{");
+  const lines = normalized.split("\n");
   const events: EventWire[] = [];
 
   for (const line of lines) {

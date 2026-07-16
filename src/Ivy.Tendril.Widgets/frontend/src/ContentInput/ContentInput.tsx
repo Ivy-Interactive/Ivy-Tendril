@@ -96,6 +96,7 @@ interface ContentInputProps {
   uploadUrl?: string;
   models?: string[];
   selectedModel?: string;
+  selectedMode?: string;
   attachedFiles?: AttachedFile[];
   submitLabel?: string;
   menuOptions?: string[];
@@ -154,6 +155,7 @@ export const ContentInput: React.FC<ContentInputProps> = ({
   transcriptionUrl = "wss://tendril-api.ivy.app/transcribe/ws",
   uploadUrl,
   selectedModel = "Build",
+  selectedMode = "default",
   attachedFiles = [],
   autoFocus = false,
   submitLabel,
@@ -172,6 +174,8 @@ export const ContentInput: React.FC<ContentInputProps> = ({
   const [recordError, setRecordError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [currentMode, setCurrentMode] = useState(selectedMode);
+  const [modeMenuOpen, setModeMenuOpen] = useState(false);
 
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [fileMeta, setFileMeta] = useState<Record<string, { lineCount?: number; size: string }>>({});
@@ -181,6 +185,7 @@ export const ContentInput: React.FC<ContentInputProps> = ({
   const timerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const modeMenuRef = useRef<HTMLDivElement>(null);
   const filesRef = useRef(files);
 
   useEffect(() => {
@@ -254,6 +259,33 @@ export const ContentInput: React.FC<ContentInputProps> = ({
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [menuOpen]);
+
+  // Sync selectedMode prop
+  useEffect(() => {
+    setCurrentMode(selectedMode);
+  }, [selectedMode]);
+
+  // Close mode menu when clicking outside
+  useEffect(() => {
+    if (!modeMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (modeMenuRef.current && !modeMenuRef.current.contains(e.target as Node)) {
+        setModeMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [modeMenuOpen]);
+
+  const handleModeSelect = (newMode: string) => {
+    setCurrentMode(newMode);
+    setModeMenuOpen(false);
+    if (dispatchEvent) {
+      dispatchEvent("OnModeChanged", id, [newMode]);
+    }
+  };
 
   // Sync value prop to text and files state
   useEffect(() => {
@@ -767,6 +799,35 @@ export const ContentInput: React.FC<ContentInputProps> = ({
                   <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
                 </svg>
               </button>
+            </div>
+
+            <div className="civ-mode-selector-container" ref={modeMenuRef}>
+              <button
+                type="button"
+                className="civ-mode-value-btn"
+                onClick={() => setModeMenuOpen(!modeMenuOpen)}
+                title="Select job execution mode"
+              >
+                {currentMode}
+              </button>
+              {modeMenuOpen && (
+                <div className="civ-mode-dropdown">
+                  <button
+                    type="button"
+                    onClick={() => handleModeSelect("default")}
+                    className={`civ-mode-dropdown-item ${currentMode === "default" ? "active" : ""}`}
+                  >
+                    default
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleModeSelect("express")}
+                    className={`civ-mode-dropdown-item ${currentMode === "express" ? "active" : ""}`}
+                  >
+                    express
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 

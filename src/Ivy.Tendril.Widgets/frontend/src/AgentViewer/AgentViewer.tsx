@@ -115,7 +115,8 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
     }
   }, [parsedEvents, handleComplete]);
 
-  const shellStyle: React.CSSProperties = {
+  const isConstrained = !!height;
+  const shellStyle: React.CSSProperties = isConstrained ? {
     boxSizing: "border-box",
     minWidth: 0,
     display: "flex",
@@ -123,6 +124,10 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
     overflow: "hidden",
     ...getWidth(width),
     ...getHeight(height),
+  } : {
+    boxSizing: "border-box",
+    minWidth: 0,
+    ...getWidth(width),
   };
 
   const suppressIndices = useMemo(
@@ -135,8 +140,9 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
       <div
         ref={scrollRef}
         className="aov-body"
-        onWheel={autoScroll ? disableAutoScroll : undefined}
-        onTouchMove={autoScroll ? disableAutoScroll : undefined}
+        style={!isConstrained ? { overflow: "visible", height: "auto" } : undefined}
+        onWheel={autoScroll && isConstrained ? disableAutoScroll : undefined}
+        onTouchMove={autoScroll && isConstrained ? disableAutoScroll : undefined}
       >
         {parsedEvents.map((event, idx) => {
           if (suppressIndices.has(idx)) return null;

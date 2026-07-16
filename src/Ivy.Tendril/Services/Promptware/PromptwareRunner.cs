@@ -97,7 +97,10 @@ public class PromptwareRunner : IPromptwareRunner
 
         var jobId = JobIdAllocator.AllocateJobId(_configService.TendrilHome);
         // Agents pass this to `tendril job add-log` to target their own job log.
-        values["TendrilJobId"] = jobId;
+        if (options.Promptware != "AgentChat")
+        {
+            values["TendrilJobId"] = jobId;
+        }
         var logJob = JobLogWriter.BuildCliRunJob(jobId, options.Promptware, values);
         var logFile = JobLogWriter.SeedLog(_configService.TendrilHome, logJob);
         var firmwareContext = new FirmwareContext(programFolder, values);

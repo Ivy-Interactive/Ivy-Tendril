@@ -179,6 +179,8 @@ public class TendrilSettings
     public bool Telemetry { get; set; } = true;
     public bool DesktopNotifications { get; set; } = true;
     public string? DismissedUpdateVersion { get; set; }
+    public bool AlwaysUseDefaultChatType { get; set; } = false;
+    public string DefaultChatType { get; set; } = "CLI";
 
     public List<LevelConfig> Levels { get; set; } = new()
     {

@@ -185,6 +185,18 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             WritableDirectories = ResolveWritableDirectories(programFolder, configService),
             ExtraArguments = resolution.ExtraArgs,
             PromptFilePath = promptFilePath,
+            McpServers =
+            [
+                new McpServerConfig(
+                    "tendril",
+                    Environment.ProcessPath ?? "tendril",
+                    ["mcp"],
+                    new Dictionary<string, string>
+                    {
+                        ["TENDRIL_HOME"] = configService.TendrilHome,
+                        ["TENDRIL_CONFIG"] = configService.ConfigPath
+                    })
+            ]
         };
 
         var spec = resolution.Cli.BuildProcessSpec(launchConfig);

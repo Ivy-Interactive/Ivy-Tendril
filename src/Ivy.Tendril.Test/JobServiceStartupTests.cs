@@ -215,6 +215,17 @@ public class JobServiceStartupTests
         {
         }
 
+        public void UpsertConnection(ConnectionItem connection) { }
+        public List<ConnectionItem> GetConnections() => new();
+        public ConnectionItem? GetConnectionByName(string name) => null;
+        public void DeleteConnection(string name) { }
+
+        public void UpsertWorkflow(WorkflowItem workflow) { }
+        public List<WorkflowItem> GetWorkflows(string? project = null) => new();
+        public WorkflowItem? GetWorkflowById(int id) => null;
+        public WorkflowItem? GetWorkflowByName(string name, string? project = null) => null;
+        public void DeleteWorkflow(int id) { }
+
         public void Dispose()
         {
         }

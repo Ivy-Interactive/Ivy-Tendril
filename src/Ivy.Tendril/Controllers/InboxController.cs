@@ -18,7 +18,7 @@ public class InboxController(IJobService jobService) : ControllerBase
         try
         {
             var project = request.Project ?? "Auto";
-            var args = new CreatePlanArgs(request.Description, project, SourcePath: request.SourcePath);
+            var args = new CreatePlanArgs(request.Description, project, SourcePath: request.SourcePath, Express: request.Express);
             var jobId = jobService.StartJob(args);
             return Ok(new { jobId, status = "Started", message = "Plan creation job started successfully" });
         }
@@ -32,5 +32,6 @@ public class InboxController(IJobService jobService) : ControllerBase
 public record CreatePlanRequest(
     string Description,
     string? Project = null,
-    string? SourcePath = null
+    string? SourcePath = null,
+    bool Express = false
 );

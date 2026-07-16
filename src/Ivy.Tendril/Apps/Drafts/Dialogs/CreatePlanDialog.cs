@@ -13,7 +13,7 @@ namespace Ivy.Tendril.Apps.Drafts.Dialogs;
 
 public class CreatePlanDialog(
     List<string> projectNames,
-    Action<string, string[], int, string?> onCreatePlan,
+    Action<string, string[], int, string?, bool> onCreatePlan,
     Action onClose,
     string[]? defaultProjects = null) : ViewBase
 {
@@ -54,6 +54,7 @@ public class CreatePlanDialog(
         var createPlanText = UseState("");
         var selectedProjects = UseState(_defaultProjects);
         var selectedPriority = UseState("Normal");
+        var isExpress = UseState(false);
         var configService = UseService<IConfigService>();
         var agentRunner = UseService<IAgentRunner>();
         var uploadSessionId = UseState(() => Guid.NewGuid().ToString("N"));
@@ -143,6 +144,12 @@ public class CreatePlanDialog(
                 {
                     UploadUrl = uploadContext.Value.UploadUrl,
                     AutoFocus = true,
+                    SelectedMode = isExpress.Value ? "express" : "default",
+                    OnModeChanged = e =>
+                    {
+                        isExpress.Set(e.Value == "express");
+                        return ValueTask.CompletedTask;
+                    },
                     OnSubmit = _ =>
                     {
                         if (!string.IsNullOrWhiteSpace(createPlanText.Value) && !isCreating.Value)
@@ -152,7 +159,7 @@ public class CreatePlanDialog(
                             var projects = selectedProjects.Value.Any()
                                 ? selectedProjects.Value
                                 : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
-                            onCreatePlan(createPlanText.Value, projects, ParsePriority(selectedPriority.Value), uploadSessionId.Value);
+                            onCreatePlan(createPlanText.Value, projects, ParsePriority(selectedPriority.Value), uploadSessionId.Value, isExpress.Value);
                             onClose();
                         }
                         return ValueTask.CompletedTask;

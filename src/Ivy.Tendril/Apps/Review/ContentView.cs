@@ -16,6 +16,7 @@ using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Git;
 using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.Logging;
+using Ivy.Tendril.Widgets;
 
 namespace Ivy.Tendril.Apps.Review;
 
@@ -40,6 +41,7 @@ public class ContentView(
         var syncingWorktrees = UseState(new HashSet<string>());
         var selectedRecTitles = UseState(() => new HashSet<string>());
         var selectedTab = UseState(0);
+        var draftComments = UseState(() => new List<DraftComment>());
         var args = UseArgs<ReviewAppArgs>();
         var nav = UseNavigation();
 
@@ -217,6 +219,8 @@ public class ContentView(
         UseEffect(() => { selectedRecTitles.Set(new HashSet<string>()); return Disposable.Empty; },
             selectedPlanState);
 
+        UseEffect(() => { draftComments.Set(new List<DraftComment>()); return Disposable.Empty; }, selectedPlanState);
+
         if (selectedPlanState.Value is null)
         {
             if (allPlans.Count == 0)
@@ -243,7 +247,7 @@ public class ContentView(
             selectedPlanState.Value, planData, planContentQuery, selectedTab, openVerification,
             openCommit, openFile, openArtifact, artifactContentQuery, assigneesQuery,
             assigneesError, syncingWorktrees, selectedRecTitles, pendingRecs,
-            client, copyToClipboard, logger, nav, args, showDebugJob);
+            client, copyToClipboard, logger, nav, args, showDebugJob, draftComments);
 
         var mainLayout = new HeaderLayout(
             header,
@@ -535,7 +539,8 @@ public class ContentView(
         ILogger<ContentView> logger,
         INavigator nav,
         ReviewAppArgs? args,
-        Action<string> showDebugJob)
+        Action<string> showDebugJob,
+        IState<List<DraftComment>> draftComments)
     {
         var content = Layout.Vertical().Height(Size.Full());
 
@@ -595,7 +600,15 @@ public class ContentView(
 
             var recommendationsTab = new RecommendationsTabView(pendingRecs, selectedRecTitles, config);
 
-            var changesTabView = new ChangesTabView(planData.AllChanges, planContentQuery.Loading, planContentQuery.Error, selectedPlan.Project);
+            var changesTabView = new ChangesTabView(
+                planData.AllChanges,
+                planContentQuery.Loading,
+                planContentQuery.Error,
+                draftComments,
+                selectedPlan!,
+                jobService,
+                refreshPlans,
+                selectedPlan.Project);
 
             var tabNamesList = new List<string> { "summary", "plan", "details", "git" };
             var tabList = new List<Tab>

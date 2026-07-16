@@ -16,6 +16,8 @@ using Spectre.Console;
 using Spectre.Console.Cli;
 using Velopack;
 
+using Ivy.Tendril.Services.Connections;
+
 namespace Ivy.Tendril;
 
 public class Program
@@ -142,6 +144,21 @@ public class Program
                 .AddConsoleFormatter<CleanConsoleFormatter, ConsoleFormatterOptions>());
             cliServices.AddSingleton<IPlanWatcherService, NullPlanWatcherService>();
             cliServices.AddAgentInfrastructure(opts => opts.IncludeBetaProviders = beta);
+            cliServices.AddHttpClient();
+            cliServices.AddSingleton<IConnectionProvider, SlackConnection>();
+            cliServices.AddSingleton<IConnectionProvider, DiscordConnection>();
+            cliServices.AddSingleton<IConnectionProvider, GitHubConnection>();
+            cliServices.AddSingleton<IConnectionExecutorService, ConnectionExecutorService>();
+            cliServices.AddSingleton<IPlanDatabaseService>(sp =>
+            {
+                var cfg = sp.GetRequiredService<IConfigService>();
+                var home = string.IsNullOrEmpty(cfg.TendrilHome)
+                    ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril")
+                    : cfg.TendrilHome;
+                var dbPath = Path.Combine(home, "tendril.db");
+                var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger<PlanDatabaseService>();
+                return new PlanDatabaseService(dbPath, logger);
+            });
 
             var configService = new ConfigService(Microsoft.Extensions.Logging.Abstractions.NullLogger<ConfigService>.Instance);
             cliServices.AddSingleton<IConfigService>(configService);
@@ -352,7 +369,7 @@ public class Program
             "update-promptwares", "job", "plan", "promptware",
             "trash", "verification", "project", "project-analyzer", "models", "config",
             "version", "--version", "report-bug", "reset", "update",
-            "--help", "-h", "run", "generate-certs"
+            "--help", "-h", "run", "generate-certs", "connection"
         };
         return cliCommands.Contains(firstArg);
     }
@@ -654,6 +671,30 @@ public class Program
                     .WithDescription("Get a top-level config value");
                 cfg.AddCommand<ConfigSetCommand>("set")
                     .WithDescription("Set a top-level config value");
+            });
+
+            config.AddBranch("connection", conn =>
+            {
+                conn.AddCommand<ConnectionListCommand>("list")
+                    .WithDescription("List all integrations/connections");
+                conn.AddCommand<ConnectionAddCommand>("add")
+                    .WithDescription("Add a new integration connection");
+                conn.AddCommand<ConnectionRemoveCommand>("remove")
+                    .WithDescription("Remove a connection");
+                conn.AddCommand<ConnectionRunCommand>("run")
+                    .WithDescription("Run an action on a connection");
+            });
+
+            config.AddBranch("workflow", wf =>
+            {
+                wf.AddCommand<WorkflowListCommand>("list")
+                    .WithDescription("List all workflows");
+                wf.AddCommand<WorkflowAddCommand>("add")
+                    .WithDescription("Add or update a workflow");
+                wf.AddCommand<WorkflowRemoveCommand>("remove")
+                    .WithDescription("Remove a workflow");
+                wf.AddCommand<WorkflowRunCommand>("run")
+                    .WithDescription("Run/trigger a workflow by name or ID");
             });
         });
         return app;
