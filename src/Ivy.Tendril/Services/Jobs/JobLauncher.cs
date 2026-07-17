@@ -1046,6 +1046,88 @@ internal class JobLauncher
                     return;
                 }
 
+                if (!IsJsonObject(expandedArgs))
+                {
+                    ctx.Job.EnqueueSystemOutput($"[Step: {step.Name}] Natural language arguments detected. Dispatching translation agent run using provider '{ctx.Job.Provider}'...");
+                    
+                    var schemaDescription = GetSchemaDescription(connection.Provider, step.Action);
+                    var contextDesc = string.Join("\n", contextOutputs.Select(kvp => $"Step '{kvp.Key}' Output:\n{kvp.Value}\n---"));
+
+                    var translatePrompt = $"""
+                        Translate the following natural language request into a valid structured JSON payload for connection provider '{connection.Provider}' and action '{step.Action}'.
+                        
+                        Request:
+                        {expandedArgs}
+                        
+                        Expected JSON parameter schema for this provider and action:
+                        {schemaDescription}
+                        
+                        Here is the context of output from previous steps in this workflow run:
+                        {contextDesc}
+                        
+                        Rules:
+                        1. Translate the request into a valid JSON object matching the expected schema.
+                        2. If the request references "findings", "report", "output", "details", or similar from previous steps, resolve those references by reading the provided step outputs context and incorporating the relevant details into the correct JSON fields.
+                        3. Return ONLY the raw JSON object. Do not include markdown code block formatting (```json) or any explanation.
+                        """;
+
+                    var agentJobArgs = new CustomAgentArgs(
+                        AgentName: ctx.Job.Provider,
+                        Project: workflow.Project,
+                        PlanFolderPath: null,
+                        PromptText: translatePrompt
+                    );
+
+                    string agentJobId;
+                    try
+                    {
+                        agentJobId = _jobService.StartJob(agentJobArgs);
+                    }
+                    catch (Exception ex)
+                    {
+                        ctx.Job.EnqueueSystemOutput($"Error launching translation agent job: {ex.Message}");
+                        ctx.CompleteJob(ctx.Job.Id, 1, false, false);
+                        return;
+                    }
+
+                    ctx.Job.EnqueueSystemOutput($"[Step: {step.Name}] Translation Agent Job started: {agentJobId}. Waiting for completion...");
+
+                    while (true)
+                    {
+                        await Task.Delay(1500);
+                        var agentJob = _jobService.GetJob(agentJobId);
+                        if (agentJob == null)
+                        {
+                            ctx.Job.EnqueueSystemOutput($"Error: Translation Agent Job {agentJobId} disappeared.");
+                            ctx.CompleteJob(ctx.Job.Id, 1, false, false);
+                            return;
+                        }
+
+                        if (agentJob.Status == JobStatus.Completed)
+                        {
+                            var outputText = GetTextOutput(agentJob);
+                            ctx.Job.EnqueueSystemOutput($"[Step: {step.Name}] Translation Agent Completed successfully.");
+                            
+                            var translatedResult = outputText.Trim();
+                            if (translatedResult.StartsWith("```"))
+                            {
+                                var lines = translatedResult.Split('\n');
+                                var filtered = lines.Where(l => !l.Trim().StartsWith("```")).ToArray();
+                                translatedResult = string.Join("\n", filtered).Trim();
+                            }
+                            
+                            expandedArgs = translatedResult;
+                            break;
+                        }
+                        if (agentJob.Status is JobStatus.Failed or JobStatus.Timeout or JobStatus.Stopped)
+                        {
+                            ctx.Job.EnqueueSystemOutput($"Error: Translation Agent Job {agentJobId} finished with status: {agentJob.Status}. Message: {agentJob.StatusMessage}");
+                            ctx.CompleteJob(ctx.Job.Id, 1, false, false);
+                            return;
+                        }
+                    }
+                }
+
                 try
                 {
                     var (success, result) = await _connectionExecutor.ExecuteActionAsync(connection, step.Action, expandedArgs);
@@ -1153,5 +1235,85 @@ internal class JobLauncher
             catch { }
         }
         return sb.ToString();
+    }
+
+    private static bool IsJsonObject(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return false;
+        var trimmed = input.Trim();
+        if (!trimmed.StartsWith("{") || !trimmed.EndsWith("}")) return false;
+        try
+        {
+            using var doc = JsonDocument.Parse(trimmed);
+            return doc.RootElement.ValueKind == JsonValueKind.Object;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string GetSchemaDescription(string provider, string action)
+    {
+        if (provider.Equals("Slack", StringComparison.OrdinalIgnoreCase))
+        {
+            if (action.Equals("send-message", StringComparison.OrdinalIgnoreCase))
+            {
+                return """
+                {
+                  "channel": "The name or ID of the Slack channel, e.g. '#general' or '#ivy-tendril-dumpster'",
+                  "text": "The text message content to send"
+                }
+                """;
+            }
+            if (action.Equals("add-reaction", StringComparison.OrdinalIgnoreCase))
+            {
+                return """
+                {
+                  "channel": "The name or ID of the Slack channel",
+                  "timestamp": "The timestamp of the message to react to",
+                  "reaction": "The name of the emoji reaction"
+                }
+                """;
+            }
+        }
+        else if (provider.Equals("Discord", StringComparison.OrdinalIgnoreCase))
+        {
+            if (action.Equals("send-message", StringComparison.OrdinalIgnoreCase))
+            {
+                return """
+                {
+                  "channel": "The Discord channel ID",
+                  "text": "The text message content to send"
+                }
+                """;
+            }
+        }
+        else if (provider.Equals("GitHub", StringComparison.OrdinalIgnoreCase))
+        {
+            if (action.Equals("create-pr", StringComparison.OrdinalIgnoreCase))
+            {
+                return """
+                {
+                  "repo": "The owner/repository name, e.g. 'owner/repo'",
+                  "title": "Pull Request title",
+                  "head": "The head branch name",
+                  "base": "The base branch name",
+                  "body": "PR description"
+                }
+                """;
+            }
+            if (action.Equals("comment-pr", StringComparison.OrdinalIgnoreCase))
+            {
+                return """
+                {
+                  "repo": "The owner/repository name, e.g. 'owner/repo'",
+                  "prNumber": "The pull request number, e.g. '123'",
+                  "body": "The comment text content"
+                }
+                """;
+            }
+        }
+        return "{}";
     }
 }

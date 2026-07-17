@@ -19,7 +19,9 @@ public class ConnectionExecutorService : IConnectionExecutorService
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly Dictionary<string, IConnectionProvider> _providers;
 
-    public ConnectionExecutorService(IHttpClientFactory httpClientFactory, IEnumerable<IConnectionProvider> providers)
+    public ConnectionExecutorService(
+        IHttpClientFactory httpClientFactory,
+        IEnumerable<IConnectionProvider> providers)
     {
         _httpClientFactory = httpClientFactory;
         _providers = providers.ToDictionary(p => p.ProviderName, p => p, StringComparer.OrdinalIgnoreCase);
