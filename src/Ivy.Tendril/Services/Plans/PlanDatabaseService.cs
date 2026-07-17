@@ -1501,10 +1501,10 @@ public class PlanDatabaseService : IPlanDatabaseService
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
-                              INSERT OR REPLACE INTO Workflows (Id, Name, Description, Project, Definition, IsActive, Created, Updated)
+                              INSERT OR REPLACE INTO Workflows (Id, Name, Description, Project, Definition, IsActive, IsSystem, Created, Updated)
                               VALUES (
                                   CASE WHEN @id = 0 THEN NULL ELSE @id END, 
-                                  @name, @description, @project, @definition, @isActive, @created, @updated
+                                  @name, @description, @project, @definition, @isActive, @isSystem, @created, @updated
                               )
                               """;
             cmd.Parameters.AddWithValue("@id", workflow.Id);
@@ -1513,6 +1513,7 @@ public class PlanDatabaseService : IPlanDatabaseService
             cmd.Parameters.AddWithValue("@project", workflow.Project);
             cmd.Parameters.AddWithValue("@definition", workflow.Definition);
             cmd.Parameters.AddWithValue("@isActive", workflow.IsActive ? 1 : 0);
+            cmd.Parameters.AddWithValue("@isSystem", workflow.IsSystem ? 1 : 0);
             cmd.Parameters.AddWithValue("@created", workflow.Created.ToString("O", CultureInfo.InvariantCulture));
             cmd.Parameters.AddWithValue("@updated", workflow.Updated.ToString("O", CultureInfo.InvariantCulture));
             cmd.ExecuteNonQuery();
@@ -1587,6 +1588,7 @@ public class PlanDatabaseService : IPlanDatabaseService
              Project = reader.GetString(reader.GetOrdinal("Project")),
              Definition = reader.GetString(reader.GetOrdinal("Definition")),
              IsActive = reader.GetInt32(reader.GetOrdinal("IsActive")) == 1,
+             IsSystem = reader.GetInt32(reader.GetOrdinal("IsSystem")) == 1,
              Created = DateTime.Parse(reader.GetString(reader.GetOrdinal("Created")), null, DateTimeStyles.RoundtripKind),
              Updated = DateTime.Parse(reader.GetString(reader.GetOrdinal("Updated")), null, DateTimeStyles.RoundtripKind)
          };

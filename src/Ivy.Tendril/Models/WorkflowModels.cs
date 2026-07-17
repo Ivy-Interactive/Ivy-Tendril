@@ -11,6 +11,7 @@ public record WorkflowItem
     public string Project { get; init; } = "default";
     public string Definition { get; init; } = ""; // JSON string representation of steps
     public bool IsActive { get; init; } = true;
+    public bool IsSystem { get; init; } = false;
     public DateTime Created { get; init; }
     public DateTime Updated { get; init; }
 }
