@@ -58,7 +58,8 @@ public static class PromptwareHelper
         // Prevent unit/integration tests from detecting the real vault
         if (Environment.CommandLine.Contains("testhost", StringComparison.OrdinalIgnoreCase) ||
             Environment.CommandLine.Contains("vstest", StringComparison.OrdinalIgnoreCase) ||
-            Environment.CommandLine.Contains("xunit", StringComparison.OrdinalIgnoreCase))
+            Environment.CommandLine.Contains("xunit", StringComparison.OrdinalIgnoreCase) ||
+            AppDomain.CurrentDomain.GetAssemblies().Any(a => a.FullName?.Contains("xunit", StringComparison.OrdinalIgnoreCase) == true || a.FullName?.Contains("Microsoft.TestPlatform", StringComparison.OrdinalIgnoreCase) == true))
         {
             return null;
         }
