@@ -253,6 +253,33 @@ public static class PromptwareHelper
                 }
             }
 
+            try
+            {
+                var configPath = Path.Combine(tendrilHome, "config.yaml");
+                if (File.Exists(configPath))
+                {
+                    var lines = File.ReadAllLines(configPath);
+                    foreach (var line in lines)
+                    {
+                        var trimmed = line.Trim();
+                        if (trimmed.StartsWith("- name:") || trimmed.StartsWith("name:"))
+                        {
+                            var idx = trimmed.IndexOf(':');
+                            var projectName = trimmed.Substring(idx + 1).Trim();
+                            if (!string.IsNullOrEmpty(projectName))
+                            {
+                                var projDir = Path.Combine(memoriesPath, projectName);
+                                if (!projectDirs.Any(d => d.Equals(projDir, StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    projectDirs.Add(projDir);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch { /* best effort */ }
+
             foreach (var projDir in projectDirs)
             {
                 var targetDir = Path.Combine(projDir, "promptware");
