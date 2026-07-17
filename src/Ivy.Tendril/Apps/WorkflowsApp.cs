@@ -39,18 +39,6 @@ public class WorkflowsApp : ViewBase
             Created = now,
             Updated = now
         });
-
-        db.UpsertWorkflow(new WorkflowItem
-        {
-            Name = "Tendril Core Lifecycle",
-            Description = "Core software engineering lifecycle workflow: from draft creation, to logic reviews, implementation, test verification, and automated PR generation.",
-            Project = project,
-            Definition = "{\"steps\":[{\"id\":\"start\",\"name\":\"Start\",\"type\":\"Trigger\",\"connectionName\":\"\",\"action\":\"\",\"args\":\"{}\",\"next\":[\"create_draft\"],\"x\":50,\"y\":200},{\"id\":\"create_draft\",\"name\":\"Create_Draft_Plan\",\"type\":\"Prompt\",\"connectionName\":\"\",\"action\":\"\",\"args\":\"Initialize the plan draft file, check requirements, analyze code context, and draft a structured implementation plan.\",\"provider\":\"CodeQuality\",\"model\":\"default\",\"next\":[\"review_draft\"],\"x\":380,\"y\":200},{\"id\":\"review_draft\",\"name\":\"Review_Draft_Plan\",\"type\":\"Prompt\",\"connectionName\":\"\",\"action\":\"\",\"args\":\"Evaluate the generated plan draft. Verify it aligns with architecture style rules, has clean spacing, and defines comprehensive test verifications.\",\"provider\":\"CodeQuality\",\"model\":\"default\",\"next\":[\"implement_draft\"],\"x\":710,\"y\":200},{\"id\":\"implement_draft\",\"name\":\"Implement_Plan\",\"type\":\"Prompt\",\"connectionName\":\"\",\"action\":\"\",\"args\":\"Implement the approved changes to codebase source files according to the implementation plan details.\",\"provider\":\"CodeQuality\",\"model\":\"default\",\"next\":[\"review_implementation\"],\"x\":1040,\"y\":200},{\"id\":\"review_implementation\",\"name\":\"Review_Implementation\",\"type\":\"Prompt\",\"connectionName\":\"\",\"action\":\"\",\"args\":\"Verify implementation correctness. Run syntax linting, execute automated tests, and perform a security scan on diff additions.\",\"provider\":\"CodeSecurity\",\"model\":\"default\",\"next\":[\"create_pr\"],\"x\":1370,\"y\":200},{\"id\":\"create_pr\",\"name\":\"Create_Pull_Request\",\"type\":\"Prompt\",\"connectionName\":\"\",\"action\":\"\",\"args\":\"Automatically check out a Git branch, commit modifications, push code to remote, and build a Pull Request targeting the main branch.\",\"provider\":\"CodeQuality\",\"model\":\"default\",\"next\":[],\"x\":1700,\"y\":200}]}",
-            IsActive = true,
-            IsSystem = true,
-            Created = now,
-            Updated = now
-        });
     }
 
     public override object Build()
@@ -79,7 +67,7 @@ public class WorkflowsApp : ViewBase
         }
 
         var currentProject = projectFilter.Value;
-        if (!string.IsNullOrEmpty(currentProject) && db.GetWorkflows(currentProject).Count == 0)
+        if (!string.IsNullOrEmpty(currentProject) && !db.GetWorkflows(currentProject).Any(w => w.Project == currentProject && !w.IsSystem))
         {
             SeedDefaultWorkflowsForProject(db, currentProject);
         }

@@ -65,6 +65,7 @@ interface WorkflowBuilderProps {
   availableProviders?: string[];
   isReadOnly?: boolean;
   selectedNodeId?: string;
+  selectedWorkflowId?: number;
   
   // Unified Sidebar Props
   workflows?: WorkflowItem[];
@@ -82,6 +83,7 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
   availableProviders = [],
   isReadOnly = false,
   selectedNodeId = "",
+  selectedWorkflowId = 0,
   
   // Unified Sidebar Default values
   workflows = [],
@@ -107,11 +109,11 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
 
   // Sidebar Accordion states
   const [expandedCategories, setExpandedCategories] = useState<{ [key: string]: boolean }>({
-    prompts: true,
+    prompts: false,
     connections: false,
     triggers: false,
-    flows: true,
-    templates: true,
+    flows: false,
+    templates: false,
   });
 
   // Global search or category search states
@@ -189,7 +191,9 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
   const getPortCoords = (s: WorkflowStep) => {
     const w = 280;
     let h = 250;
-    if (s.type.toLowerCase() === "trigger") h = 130;
+    if (s.type.toLowerCase() === "trigger") {
+      h = s.action === "webhook" && !s.connectionName ? 200 : 130;
+    }
     else if (s.type.toLowerCase() === "connection") h = 310;
     else if (s.type.toLowerCase() === "prompt") h = 250;
 
@@ -339,9 +343,18 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
       defaultArgs = draggedArgs;
     }
 
+    let stepName = `${type}_Step_${steps.length + 1}`;
+    if (type === "Trigger") {
+      if (draggedAction === "webhook") {
+        stepName = connectionName ? `${connectionName}_Trigger_Step_${steps.length + 1}` : `Webhook_Trigger_Step_${steps.length + 1}`;
+      } else {
+        stepName = `Manual_Trigger_Step_${steps.length + 1}`;
+      }
+    }
+
     const newStep: WorkflowStep = {
       id: Math.random().toString(36).substring(2, 9),
-      name: `${type}_Step_${steps.length + 1}`,
+      name: stepName,
       type,
       connectionName: connectionName || "",
       action: draggedAction || "",
@@ -476,6 +489,9 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
 
   // Active loaded workflow
   const loadedWorkflow = (() => {
+    if (selectedWorkflowId) {
+      return workflows.find(w => w.id === selectedWorkflowId);
+    }
     if (!workflowDefinitionJson) return undefined;
     try {
       const parsedTarget = JSON.parse(workflowDefinitionJson);
@@ -492,7 +508,7 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
   })();
 
   return (
-    <div className="wfb-shell">
+    <div className={`wfb-shell ${!workflowDefinitionJson ? "wfb-no-header" : ""}`}>
       {/* Redesigned Sidebar */}
       <div className="wfb-sidebar">
         
@@ -523,7 +539,7 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
               <span className="wfb-header-title">
                 {expandedCategories.prompts ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 <Terminal size={14} className="icon-prompt" />
-                Prompts
+                Prompts & Actions
               </span>
             </button>
             
@@ -534,7 +550,7 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
                   <input
                     type="text"
                     className="wfb-category-search"
-                    placeholder="Search prompts..."
+                    placeholder="Search prompts & actions..."
                     value={promptSearch}
                     onChange={(e) => setPromptSearch(e.target.value)}
                   />
@@ -915,6 +931,7 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
               const isTrigger = step.type.toLowerCase() === "trigger";
               const isConnection = step.type.toLowerCase() === "connection";
               const isPrompt = step.type.toLowerCase() === "prompt";
+              const isWebhookTrigger = isTrigger && step.action === "webhook";
 
               const selectedConnObj = availableConnections.find(
                 (c) => c.name === step.connectionName
@@ -928,7 +945,7 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
               return (
                 <div
                   key={step.id}
-                  className={`wfb-canvas-card type-${step.type.toLowerCase()} ${selectedNode === step.id ? "active" : ""}`}
+                  className={`wfb-canvas-card type-${step.type.toLowerCase()} ${selectedNode === step.id ? "active" : ""} ${isWebhookTrigger && !step.connectionName ? "webhook-generic" : ""}`}
                   style={{ left: `${step.x}px`, top: `${step.y}px` }}
                   onClick={() => handleCardClick(step.id)}
                 >
@@ -956,7 +973,7 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
                         placeholder="Step Name"
                       />
                     </div>
-                    {!isTrigger && !isReadOnly && (
+                    {(!isTrigger || steps.filter(s => s.type.toLowerCase() === "trigger").length > 1) && !isReadOnly && (
                       <button
                         className="wfb-btn"
                         style={{
@@ -978,10 +995,56 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
                         style={{
                           fontSize: "0.75rem",
                           color: "var(--muted-foreground)",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "6px"
                         }}
                       >
-                        Workflow Trigger: Manually run this workflow. Trigger payload can
-                        be injected in child step prompts.
+                        {step.action === "webhook" ? (
+                          <>
+                            <div style={{ fontWeight: 600, color: "var(--foreground)" }}>
+                              Webhook Trigger
+                            </div>
+                            <div>
+                              Starts workflow via incoming HTTP POST.
+                            </div>
+                            {step.connectionName ? (
+                              <div style={{ fontSize: "0.7rem", color: "var(--primary)" }}>
+                                Connection: {step.connectionName}
+                              </div>
+                            ) : (
+                              <div className="wfb-field-group" style={{ marginTop: "4px" }}>
+                                <span style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase" }}>Endpoint</span>
+                                <input
+                                  type="text"
+                                  className="wfb-input"
+                                  readOnly
+                                  style={{ fontFamily: "monospace", fontSize: "0.7rem", padding: "2px 4px" }}
+                                  value={`${window.location.origin}/api/jobs`}
+                                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                                />
+                                <span style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", marginTop: "2px" }}>Payload $type</span>
+                                <input
+                                  type="text"
+                                  className="wfb-input"
+                                  readOnly
+                                  style={{ fontFamily: "monospace", fontSize: "0.7rem", padding: "2px 4px" }}
+                                  value="WorkflowRun"
+                                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                                />
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <div style={{ fontWeight: 600, color: "var(--foreground)" }}>
+                              Manual Trigger
+                            </div>
+                            <div>
+                              Manually run this workflow. Trigger payload can be injected in child step prompts.
+                            </div>
+                          </>
+                        )}
                       </div>
                     )}
 

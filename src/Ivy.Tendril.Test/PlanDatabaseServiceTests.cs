@@ -1043,6 +1043,57 @@ public class PlanDatabaseServiceTests : IDisposable
         Assert.Equal("migration-test", jobs[0].Id);
     }
 
+    [Fact]
+    public void Migration_022_DeduplicatesSystemWorkflows()
+    {
+        using var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
+
+        using (var cmd = connection.CreateCommand())
+        {
+            cmd.CommandText = """
+                CREATE TABLE Workflows (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Name TEXT NOT NULL,
+                    Description TEXT,
+                    Project TEXT,
+                    Definition TEXT NOT NULL,
+                    IsActive INTEGER NOT NULL DEFAULT 1,
+                    IsSystem INTEGER NOT NULL DEFAULT 0,
+                    Created TEXT NOT NULL,
+                    Updated TEXT NOT NULL
+                );
+
+                INSERT INTO Workflows (Name, Project, Definition, IsSystem, Created, Updated)
+                VALUES 
+                ('W1', 'default', '{}', 1, 'now', 'now'),
+                ('W2', 'project1', '{}', 1, 'now', 'now'),
+                ('W3', 'project1', '{}', 0, 'now', 'now');
+                """;
+            cmd.ExecuteNonQuery();
+        }
+
+        var migration = new Ivy.Tendril.Database.Migrations.Migration_022_DeduplicateSystemWorkflows();
+        migration.Apply(connection);
+
+        using (var cmd = connection.CreateCommand())
+        {
+            cmd.CommandText = "SELECT COUNT(*) FROM Workflows WHERE IsSystem = 1;";
+            var systemCount = Convert.ToInt32(cmd.ExecuteScalar());
+            Assert.Equal(1, systemCount);
+
+            cmd.CommandText = "SELECT Project FROM Workflows WHERE IsSystem = 1;";
+            var project = cmd.ExecuteScalar()?.ToString();
+            Assert.Equal("default", project);
+
+            cmd.CommandText = "SELECT COUNT(*) FROM Workflows WHERE Name = 'W3';";
+            var nonSystemCount = Convert.ToInt32(cmd.ExecuteScalar());
+            Assert.Equal(1, nonSystemCount); // non-system workflows should not be affected
+        }
+    }
+
+
+
 
     [Fact]
     public void GetDashboardData_EmptyDatabase_ReturnsZeroCounts()

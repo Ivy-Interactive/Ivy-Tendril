@@ -61,6 +61,7 @@ public class ContentView(
         var definitionState = UseState(selectedWorkflow.Value?.Definition ?? "{\"steps\":[]}");
         var selectedNodeId = UseState<string?>(null);
         var selectedInspectorFile = UseState<string?>("Program.md");
+        var lastWorkflowId = UseState(selectedWorkflow.Value?.Id);
 
         UseEffect(() =>
         {
@@ -70,6 +71,7 @@ public class ContentView(
                 definitionState.Set(selectedWorkflow.Value.Definition);
                 selectedNodeId.Set(null);
                 selectedInspectorFile.Set("Program.md");
+                lastWorkflowId.Set(selectedWorkflow.Value.Id);
             }
             return Disposable.Empty;
         }, selectedWorkflow);
@@ -77,7 +79,7 @@ public class ContentView(
         UseEffect(() =>
         {
             var currentWf = selectedWorkflow.Value;
-            if (currentWf != null && isActiveState.Value != currentWf.IsActive)
+            if (currentWf != null && lastWorkflowId.Value == currentWf.Id && isActiveState.Value != currentWf.IsActive)
             {
                 var updated = currentWf with { IsActive = isActiveState.Value, Updated = DateTime.UtcNow };
                 db.UpsertWorkflow(updated);
@@ -102,7 +104,7 @@ public class ContentView(
                   | new Button("Ask Assistant").Outline().OnClick(() => showChat.Set(!showChat.Value))
                   | new Button("Run").Outline().OnClick(() =>
                     {
-                        var jobId = jobService.StartJob(new WorkflowRunArgs(wf.Id, "{}"));
+                        var jobId = jobService.StartJob(new WorkflowRunArgs(wf.Id, "{}", wf.Project));
                         client.Toast($"Started run for workflow '{wf.Name}'. Job ID: {jobId}", "Started");
                     })
                   | (wf.IsSystem
@@ -235,6 +237,7 @@ public class ContentView(
         var builderWidget = new WorkflowBuilder
         {
             WorkflowDefinitionJson = wf != null ? definitionState.Value : "",
+            SelectedWorkflowId = wf?.Id ?? 0,
             AvailableConnections = connections.Select(c => new WorkflowConnectionInfo(c.Id, c.Name, c.Provider, c.Permissions)).ToList(),
             AvailableProviders = new List<string> { "Auto", "Review", "CreatePlan", "ExecutePlan", "CreatePr", "RetryPlan", "SetupProject", "CodeQuality", "CodeSecurity" },
             IsReadOnly = wf != null ? wf.IsSystem : true,

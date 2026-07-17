@@ -25,6 +25,7 @@ public record WorkflowBuilder : WidgetBase<WorkflowBuilder>
     [Prop] public List<string> AvailableProviders { get; init; } = new();
     [Prop] public string SelectedNodeId { get; init; } = "";
     [Prop] public bool IsReadOnly { get; init; } = false;
+    [Prop] public int SelectedWorkflowId { get; init; } = 0;
 
     // Unified Sidebar Props
     [Prop] public List<WorkflowSidebarItem> Workflows { get; init; } = new();
@@ -97,6 +98,9 @@ public static class WorkflowBuilderExtensions
 
     public static WorkflowBuilder SelectedProject(this WorkflowBuilder w, string project) =>
         w with { SelectedProject = project };
+
+    public static WorkflowBuilder SelectedWorkflowId(this WorkflowBuilder w, int id) =>
+        w with { SelectedWorkflowId = id };
 
     public static WorkflowBuilder OnWorkflowSelect(
         this WorkflowBuilder w,

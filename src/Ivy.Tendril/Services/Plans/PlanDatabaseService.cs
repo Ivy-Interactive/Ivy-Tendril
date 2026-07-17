@@ -1530,7 +1530,7 @@ public class PlanDatabaseService : IPlanDatabaseService
              }
              else
              {
-                 return ReadList("SELECT * FROM Workflows WHERE Project = @project ORDER BY Name ASC", 
+                 return ReadList("SELECT * FROM Workflows WHERE Project = @project OR IsSystem = 1 ORDER BY Name ASC", 
                      MapWorkflowRow, 
                      new SqliteParameter("@project", project));
              }

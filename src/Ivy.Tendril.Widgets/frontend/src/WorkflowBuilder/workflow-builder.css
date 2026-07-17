@@ -4,12 +4,16 @@
   font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
   color: var(--foreground);
   width: 100%;
-  height: calc(100vh - 200px);
+  height: calc(100vh - 180px);
   min-height: 500px;
   background: var(--background);
   border: 1px solid var(--border);
   border-radius: var(--radius-fields, 8px);
   overflow: hidden;
+}
+
+.wfb-shell.wfb-no-header {
+  height: calc(100vh - 120px);
 }
 
 /* Left Sidebar Palette */
@@ -125,6 +129,10 @@
 
 .wfb-canvas-card.type-trigger {
   height: 130px;
+}
+
+.wfb-canvas-card.type-trigger.webhook-generic {
+  height: 200px;
 }
 
 .wfb-canvas-card.type-prompt {
