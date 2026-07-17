@@ -125,7 +125,8 @@ export const BrainMap: React.FC<BrainMapProps> = ({
 
       return {
         id: n.id,
-        name: n.label,
+        name: n.id,
+        labelContent: n.label,
         symbolSize: isSelected ? 28 : isMemory ? 20 : 12,
         value: n.id,
         category: isMemory ? 0 : 1,
@@ -143,6 +144,7 @@ export const BrainMap: React.FC<BrainMapProps> = ({
           color: labelColor,
           textBorderColor: textBorderColor,
           textBorderWidth: 2,
+          formatter: (params: any) => params.data.labelContent || params.name,
         },
       };
     });
@@ -224,7 +226,7 @@ export const BrainMap: React.FC<BrainMapProps> = ({
           label: {
             show: true,
             position: "right",
-            formatter: "{b}",
+            formatter: (params: any) => params.data.labelContent || params.name,
             color: labelColor,
           },
           force: {

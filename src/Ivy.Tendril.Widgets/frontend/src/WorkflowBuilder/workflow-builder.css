@@ -127,21 +127,7 @@
   transition: box-shadow 0.2s, border-color 0.2s;
 }
 
-.wfb-canvas-card.type-trigger {
-  height: 130px;
-}
 
-.wfb-canvas-card.type-trigger.webhook-generic {
-  height: 200px;
-}
-
-.wfb-canvas-card.type-prompt {
-  height: 250px;
-}
-
-.wfb-canvas-card.type-connection {
-  height: 310px;
-}
 
 .wfb-canvas-card:hover {
   border-color: var(--ring);
@@ -341,6 +327,7 @@
 .wfb-textarea {
   min-height: 50px;
   font-family: monospace;
+  resize: vertical;
 }
 
 .wfb-step-badge {

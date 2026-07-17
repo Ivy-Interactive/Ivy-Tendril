@@ -138,6 +138,42 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
 
   const canvasRef = useRef<HTMLDivElement>(null);
 
+  const [cardHeights, setCardHeights] = useState<{ [id: string]: number }>({});
+  const cardRefs = useRef<{ [id: string]: HTMLDivElement | null }>({});
+  const resizeObservers = useRef<{ [id: string]: ResizeObserver }>({});
+
+  const measureCardRef = (stepId: string) => (node: HTMLDivElement | null) => {
+    if (node) {
+      cardRefs.current[stepId] = node;
+      if (resizeObservers.current[stepId]) {
+        resizeObservers.current[stepId].disconnect();
+      }
+      const observer = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const newHeight = entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height;
+          setCardHeights((prev) => {
+            if (prev[stepId] === newHeight) return prev;
+            return { ...prev, [stepId]: newHeight };
+          });
+        }
+      });
+      observer.observe(node);
+      resizeObservers.current[stepId] = observer;
+    } else {
+      if (resizeObservers.current[stepId]) {
+        resizeObservers.current[stepId].disconnect();
+        delete resizeObservers.current[stepId];
+      }
+      delete cardRefs.current[stepId];
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      Object.values(resizeObservers.current).forEach((obs) => obs.disconnect());
+    };
+  }, []);
+
   useEffect(() => {
     try {
       if (workflowDefinitionJson) {
@@ -188,14 +224,33 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
     }
   }, [steps]);
 
+  const getCardHeight = (step: WorkflowStep): number => {
+    const type = step.type.toLowerCase();
+    if (type === "trigger") {
+      const action = step.action || "manual";
+      if (action === "webhook") {
+        return step.connectionName ? 180 : 240;
+      }
+      if (action === "schedule") {
+        return 190;
+      }
+      if (action === "event") {
+        return 155;
+      }
+      return 140; // manual
+    }
+    if (type === "connection") {
+      return 250;
+    }
+    if (type === "prompt") {
+      return 220;
+    }
+    return 250; // fallback
+  };
+
   const getPortCoords = (s: WorkflowStep) => {
     const w = 280;
-    let h = 250;
-    if (s.type.toLowerCase() === "trigger") {
-      h = s.action === "webhook" && !s.connectionName ? 200 : 130;
-    }
-    else if (s.type.toLowerCase() === "connection") h = 310;
-    else if (s.type.toLowerCase() === "prompt") h = 250;
+    const h = cardHeights[s.id] || getCardHeight(s);
 
     const x = s.x || 0;
     const y = s.y || 0;
@@ -947,6 +1002,7 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
               return (
                 <div
                   key={step.id}
+                  ref={measureCardRef(step.id)}
                   className={`wfb-canvas-card type-${step.type.toLowerCase()} ${selectedNode === step.id ? "active" : ""} ${isWebhookTrigger && !step.connectionName ? "webhook-generic" : ""}`}
                   style={{ left: `${step.x}px`, top: `${step.y}px` }}
                   onClick={() => handleCardClick(step.id)}

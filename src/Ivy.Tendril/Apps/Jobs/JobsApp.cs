@@ -82,6 +82,7 @@ public partial class JobsApp : ViewBase
 
         UseEffect(() => JobsApp.JobChangeHookDisposable(jobService, refreshToken));
         UseInterval(() => JobsApp.AutoRefreshCheck(jobService, refreshToken), TimeSpan.FromSeconds(5));
+        UseEffect(() => { refreshToken.Refresh(); }, selectedType, selectedStatus);
 
         var updateStream = UseDataTableUpdates(
             Observable.Interval(TimeSpan.FromSeconds(1))
