@@ -621,7 +621,9 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                     footer
                 ),
                 settings.Width,
-                sidebarHeaderCollapsed: new NewPlanButton(iconOnly: true),
+                sidebarHeaderCollapsed: Layout.Vertical().Gap(2).AlignContent(Align.Center)
+                    | new Image("/tendril/assets/Tendril.svg").Width(Size.Units(8)).Height(Size.Auto())
+                    | new NewPlanButton(iconOnly: true),
                 sidebarFooterCollapsed: collapsedSettingsMenu
             ).Open(sidebarOpen.Value).MainAppSidebar(),
             importIssuesDialog,
