@@ -1,0 +1,269 @@
+.tc-card {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 0.875rem;
+  background: var(--card, #ffffff);
+  /* Transparent border reserves space so the selected state's 1px border
+     doesn't shift the card's layout. */
+  border: 1px solid transparent;
+  border-radius: 0.75rem;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 2px 6px rgba(0, 0, 0, 0.08);
+  font-family: system-ui, -apple-system, sans-serif;
+  transition:
+    box-shadow 0.15s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.tc-card-clickable {
+  cursor: pointer;
+}
+
+.tc-card-clickable:hover {
+  background: color-mix(in srgb, var(--info, #3b82f6) 4%, var(--card, #ffffff));
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.07),
+    0 4px 10px rgba(0, 0, 0, 0.09);
+}
+
+.tc-card-clickable:focus-visible {
+  outline: 2px solid var(--ring, #0ea5e9);
+  outline-offset: 2px;
+}
+
+/* Selected card (its detail sheet is open): 5% info-tinted fill and a full
+   info-colored border. Wins over the hover background. */
+.tc-card-selected,
+.tc-card-selected.tc-card-clickable:hover {
+  background: color-mix(in srgb, var(--info, #3b82f6) 5%, var(--card, #ffffff));
+  border-color: var(--info, #3b82f6);
+}
+
+/* Top row: status icon tile + project pill on the left, "…" menu on the right */
+.tc-top {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 1.75rem;
+}
+
+.tc-top-spacer {
+  flex: 1;
+}
+
+/* Rounded-square tile holding the card's status icon */
+.tc-icon-tile {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  background: var(--muted, #f4f4f5);
+  border-radius: 0.5rem;
+  color: var(--muted-foreground, #6b7280);
+}
+
+.tc-icon-spin {
+  animation: tc-spin 1.6s linear infinite;
+}
+
+@keyframes tc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Project pill: light tint of the project color with the color as text */
+.tc-pill {
+  --tc-pill-color: #6366f1;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0.25rem 0.625rem;
+  background: color-mix(in srgb, var(--tc-pill-color) 13%, transparent);
+  border-radius: 0.4375rem;
+  color: var(--tc-pill-color);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* "…" actions dropdown trigger */
+.tc-menu-trigger {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  margin: -0.25rem;
+  background: transparent;
+  border: none;
+  border-radius: 0.5rem;
+  color: var(--foreground, #27272a);
+  cursor: pointer;
+}
+
+.tc-menu-trigger:hover {
+  background: var(--muted, #f4f4f5);
+}
+
+.tc-menu-trigger:focus-visible {
+  outline: 2px solid var(--ring, #0ea5e9);
+  outline-offset: 1px;
+}
+
+.tc-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 11rem;
+  padding: 0.25rem;
+  background: var(--popover, #ffffff);
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+  border-radius: 0.625rem;
+  box-shadow:
+    0 4px 6px rgba(0, 0, 0, 0.05),
+    0 10px 24px rgba(0, 0, 0, 0.12);
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.tc-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  background: transparent;
+  border: none;
+  border-radius: 0.4rem;
+  color: var(--popover-foreground, #111827);
+  font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tc-menu-item:hover {
+  background: var(--muted, #f3f4f6);
+}
+
+.tc-menu-item-icon {
+  flex: none;
+  color: var(--muted-foreground, #6b7280);
+}
+
+.tc-menu-item-destructive {
+  color: var(--destructive, #dc2626);
+}
+
+.tc-menu-item-destructive .tc-menu-item-icon {
+  color: var(--destructive, #dc2626);
+}
+
+.tc-title {
+  --tc-title-line-height: 1.35;
+  margin: 0.625rem 0 0;
+  color: var(--card-foreground, #18181b);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: var(--tc-title-line-height);
+  overflow-wrap: anywhere;
+  /* Fixed two-line title: always reserves two lines, truncates with an ellipsis */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: calc(2 * var(--tc-title-line-height) * 0.9375rem);
+}
+
+/* Muted status line under the title, with a small leading icon */
+.tc-status {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-top: 0.25rem;
+  color: var(--muted-foreground, #9ca3af);
+}
+
+.tc-status-icon {
+  flex: none;
+}
+
+.tc-status-text {
+  min-width: 0;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Footer metadata row: lead item (plan id) on the left, trailing items
+   (time, tokens) grouped on the right. */
+.tc-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.875rem;
+  color: var(--foreground, #3f3f46);
+}
+
+.tc-meta-trail {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.875rem;
+  min-width: 0;
+}
+
+.tc-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+  /* reset for the <button> variant */
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+}
+
+.tc-meta-item-clickable {
+  cursor: pointer;
+  border-radius: 0.3rem;
+}
+
+.tc-meta-item-clickable:hover {
+  color: var(--ring, #6366f1);
+}
+
+.tc-meta-item-clickable:hover .tc-meta-icon {
+  color: var(--ring, #6366f1);
+}
+
+.tc-meta-item-clickable:focus-visible {
+  outline: 2px solid var(--ring, #6366f1);
+  outline-offset: 2px;
+}
+
+.tc-meta-icon {
+  flex: none;
+  color: var(--muted-foreground, #52525b);
+}
+
+.tc-meta-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
