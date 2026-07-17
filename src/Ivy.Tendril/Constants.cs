@@ -95,5 +95,10 @@ public static class Constants
         {
             CreatePlan, ExecutePlan, RetryPlan, ExpandPlan, UpdatePlan, SplitPlan, CreatePr, CreateIssue, SetupProject, SyncRepo
         };
+
+        public static readonly HashSet<string> CliStartable = new(StringComparer.OrdinalIgnoreCase)
+        {
+            CreatePlan, ExecutePlan, RetryPlan, ExpandPlan, UpdatePlan, SplitPlan, CreatePr, CreateIssue, SyncRepo
+        };
     }
 }

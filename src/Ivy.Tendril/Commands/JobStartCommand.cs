@@ -98,9 +98,13 @@ public class JobStartSettings : CommandSettings
         var result = CliValidation.RequireNonEmpty(JobType, "job-type");
         if (!result.Successful) return result;
 
-        if (!Constants.JobTypes.BuiltIn.Contains(JobType, StringComparer.OrdinalIgnoreCase))
+        if (string.Equals(JobType, Constants.JobTypes.SetupProject, StringComparison.OrdinalIgnoreCase))
             return Spectre.Console.ValidationResult.Error(
-                $"Unknown job type '{JobType}'. Valid types: {string.Join(", ", Constants.JobTypes.BuiltIn)}");
+                "SetupProject cannot be started from the CLI. It runs automatically during onboarding or from Settings > Add Project.");
+
+        if (!Constants.JobTypes.CliStartable.Contains(JobType, StringComparer.OrdinalIgnoreCase))
+            return Spectre.Console.ValidationResult.Error(
+                $"Unknown job type '{JobType}'. Valid types: {string.Join(", ", Constants.JobTypes.CliStartable)}");
 
         return Spectre.Console.ValidationResult.Success();
     }
@@ -212,6 +216,6 @@ public class JobStartCommand : Command<JobStartSettings>
             return new RetryPlanArgs(planFolder, settings.ChangeRequest);
         }
 
-        throw new ArgumentException($"Unknown job type: {jobType}. Valid types: {string.Join(", ", Constants.JobTypes.BuiltIn)}");
+        throw new ArgumentException($"Unknown job type: {jobType}. Valid types: {string.Join(", ", Constants.JobTypes.CliStartable)}");
     }
 }
