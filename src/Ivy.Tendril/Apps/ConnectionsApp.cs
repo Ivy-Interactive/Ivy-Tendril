@@ -46,6 +46,180 @@ public class ConnectionsApp : ViewBase
         var isSubmittingRequest = UseState(false);
         var requestError = UseState<string?>(null);
 
+        var editName = UseState("");
+        var editConfig = UseState("");
+        var editPermissions = UseState("");
+        var editError = UseState<string?>(null);
+        var isEditSaving = UseState(false);
+        var editingConn = UseState<ConnectionItem?>(null);
+
+        var (editSheetView, triggerEdit) = UseTrigger<ConnectionItem>((isOpen, conn) =>
+        {
+            if (conn == null) return new Fragment();
+
+            var tokenLabel = conn.Provider switch
+            {
+                "Slack" => "OAuth Bot Token",
+                "Discord" => "Bot Token",
+                "GitHub" => "Personal Access Token (PAT)",
+                _ => "API Token / Secret Key"
+            };
+
+            var tokenPlaceholder = conn.Provider switch
+            {
+                "Slack" => "starts with xoxb-",
+                "Discord" => "Bot token from Discord Developer Portal",
+                "GitHub" => "starts with ghp_ or github_pat_",
+                _ => "token value"
+            };
+
+            var permissionsHelp = conn.Provider switch
+            {
+                "Slack" => "Allowed actions. E.g. send-message, add-reaction or * for all.",
+                "Discord" => "Allowed actions. E.g. send-message or * for all.",
+                "GitHub" => "Allowed actions. E.g. create-pr, comment-pr or * for all.",
+                _ => "Allowed actions (comma-separated)."
+            };
+
+            var nameField = editName.ToTextInput("e.g. production-alerts")
+                .WithField()
+                .Label("Connection Name")
+                .Required();
+
+            var tokenField = editConfig.ToTextInput(tokenPlaceholder)
+                .WithField()
+                .Label(tokenLabel)
+                .Required();
+
+            var permissionsField = editPermissions.ToTextInput("e.g. *")
+                .WithField()
+                .Label("Permissions")
+                .Description(permissionsHelp);
+
+            var secretsInfo = conn.Provider switch
+            {
+                "Slack" => (object)(Layout.Vertical()
+                    | (Layout.Horizontal().AlignContent(Align.Left)
+                       | Text.Muted("Need a Slack Bot Token?").Small()
+                       | new Button("Go to Slack App Console")
+                           .Variant(ButtonVariant.Ghost)
+                           .Small()
+                           .OnClick(() => navigator.Navigate("https://api.slack.com/apps"))
+                      )
+                    | Text.Muted("Create an app in your Slack workspace, enable 'bots' features, install it, and copy the Bot User OAuth Token (xoxb-...).").Small()),
+                "Discord" => (object)(Layout.Vertical()
+                    | (Layout.Horizontal().AlignContent(Align.Left)
+                       | Text.Muted("Need a Discord Bot Token?").Small()
+                       | new Button("Go to Discord Developer Portal")
+                           .Variant(ButtonVariant.Ghost)
+                           .Small()
+                           .OnClick(() => navigator.Navigate("https://discord.com/developers/applications"))
+                      )
+                    | Text.Muted("Create an application, add a Bot under the Bot tab, click 'Reset Token' to generate, and copy the Bot Token.").Small()),
+                "GitHub" => (object)(Layout.Vertical()
+                    | (Layout.Horizontal().AlignContent(Align.Left)
+                       | Text.Muted("Need a GitHub Personal Access Token?").Small()
+                       | new Button("Go to GitHub Tokens Settings")
+                           .Variant(ButtonVariant.Ghost)
+                           .Small()
+                           .OnClick(() => navigator.Navigate("https://github.com/settings/tokens"))
+                      )
+                    | Text.Muted("Generate a Personal Access Token (Classic or Fine-grained) with 'repo' scope (and 'workflow' if editing workflows) and copy the token (ghp_...).").Small()),
+                _ => new Fragment()
+            };
+
+            async Task SaveEditConnection()
+            {
+                var name = (editName.Value ?? "").Trim();
+                var configText = (editConfig.Value ?? "").Trim();
+                var perms = (editPermissions.Value ?? "").Trim();
+
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    editError.Value = "Name is required.";
+                    return;
+                }
+                if (string.IsNullOrWhiteSpace(configText))
+                {
+                    editError.Value = "Token/Secret is required.";
+                    return;
+                }
+
+                isEditSaving.Value = true;
+                editError.Value = null;
+
+                try
+                {
+                    var configJson = configText;
+                    if (!configText.StartsWith('{'))
+                    {
+                        configJson = System.Text.Json.JsonSerializer.Serialize(new { Token = configText });
+                    }
+
+                    var connItem = new ConnectionItem
+                    {
+                        Name = name,
+                        Provider = conn.Provider,
+                        ConnectionString = configJson,
+                        Permissions = string.IsNullOrWhiteSpace(perms) ? "*" : perms,
+                        Created = conn.Created,
+                        Updated = DateTime.UtcNow
+                    };
+
+                    if (!string.Equals(conn.Name, name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        db.DeleteConnection(conn.Name);
+                    }
+
+                    db.UpsertConnection(connItem);
+                    connections.Value = db.GetConnections();
+                    isOpen.Value = false;
+                }
+                catch (Exception ex)
+                {
+                    editError.Value = ex.Message;
+                }
+                finally
+                {
+                    isEditSaving.Value = false;
+                }
+            }
+
+            return new Sheet(
+                onClose: () => isOpen.Value = false,
+                content: Layout.Vertical()
+                    | nameField
+                    | tokenField
+                    | secretsInfo
+                    | permissionsField
+                    | (editError.Value != null ? Text.Danger(editError.Value) : null)
+                    | new Button("Save Changes")
+                        .Primary()
+                        .Loading(isEditSaving.Value)
+                        .OnClick(() => _ = SaveEditConnection()),
+                title: $"Edit {conn.Name}",
+                description: $"Modify configuration for {conn.Provider}"
+            ).Width(Size.Rem(24));
+        });
+
+        string GetTokenValue(string connectionString)
+        {
+            if (string.IsNullOrWhiteSpace(connectionString)) return "";
+            if (connectionString.TrimStart().StartsWith('{'))
+            {
+                try
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(connectionString);
+                    if (doc.RootElement.TryGetProperty("Token", out var tokenProp))
+                    {
+                        return tokenProp.GetString() ?? "";
+                    }
+                }
+                catch { }
+            }
+            return connectionString;
+        }
+
         async Task TestConnection(string connName)
         {
             var dict = new Dictionary<string, string>(testStatuses.Value);
@@ -292,6 +466,15 @@ public class ConnectionsApp : ViewBase
                                | (status != null && status != "Testing..." && status != "Success" ? Text.Danger(status).Small() : null)
                                | Layout.Horizontal().AlignContent(Align.Left)
                                  | new Button("Test").Small().OnClick(() => _ = TestConnection(connName))
+                                 | new Button("Edit").Small().OnClick(() =>
+                                   {
+                                       editingConn.Value = conn;
+                                       editName.Value = conn.Name;
+                                       editConfig.Value = GetTokenValue(conn.ConnectionString);
+                                       editPermissions.Value = conn.Permissions;
+                                       editError.Value = null;
+                                       triggerEdit(conn);
+                                   })
                                  | new Button("Delete").Small().Variant(ButtonVariant.Destructive).OnClick(() => DeleteConnection(connName))
                           );
                 }
@@ -312,7 +495,10 @@ public class ConnectionsApp : ViewBase
             (Provider: "GitHub", Description: "Allow agents to securely open pull requests and comment on PRs.", Icon: Icons.Github)
         };
 
+        var existingProviders = allConns.Select(c => c.Provider).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         var filteredProviders = availableProviders
+            .Where(p => !existingProviders.Contains(p.Provider))
             .Where(p => string.IsNullOrEmpty(catalogSearchQuery.Value)
                         || p.Provider.Contains(catalogSearchQuery.Value, StringComparison.OrdinalIgnoreCase)
                         || p.Description.Contains(catalogSearchQuery.Value, StringComparison.OrdinalIgnoreCase))
@@ -520,6 +706,7 @@ public class ConnectionsApp : ViewBase
 
         return Layout.Vertical().Height(Size.Full()).RemoveParentPadding()
             | sidebarLayout
-            | dialog;
+            | dialog
+            | editSheetView;
     }
 }

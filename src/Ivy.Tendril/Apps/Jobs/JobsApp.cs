@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Reactive.Linq;
 using Ivy;
 using Ivy.Tendril.Models;
@@ -108,22 +109,26 @@ public partial class JobsApp : ViewBase
         var rows = BuildJobRows(filteredJobs, planService);
         var jobsProgress = filteredJobs.Count > 0 ? BuildStatusProgress(filteredJobs, config) : null;
 
+        var typeOptions = availableTypes
+            .Select(t => new Option<string>(t == "All" ? "Type: All" : $"Type: {t}", t))
+            .ToArray<IAnyOption>();
+
+        var statusOptionsWithLabels = statusOptions
+            .Select(s => new Option<string>(s == "All" ? "Status: All" : $"Status: {s}", s))
+            .ToArray<IAnyOption>();
+
+        var typeFilter = selectedType.ToSelectInput(typeOptions)
+            .Width(Size.Px(180));
+
+        var statusFilter = selectedStatus.ToSelectInput(statusOptionsWithLabels)
+            .Width(Size.Px(180));
+
         var dataTable = JobsApp.BuildDataTable(nav, rows, refreshToken, updateStream, config, planService,
             jobService, client, showPlan, showOutput, showPrompt, showDebug, showRerun, jobs, projectColors, jobsProgress,
-            confirmDeleteOpen, deleteJobId);
-
-        var filterRow = Layout.Horizontal()
-            | selectedType.ToSelectInput(availableTypes)
-                .Placeholder("Filter by Type")
-                .Width(Size.Px(180))
-                .WithField().Label("Type")
-            | selectedStatus.ToSelectInput(statusOptions)
-                .Placeholder("Filter by Status")
-                .Width(Size.Px(180))
-                .WithField().Label("Status");
+            confirmDeleteOpen, deleteJobId, typeFilter, statusFilter);
 
         var layout = Layout.Vertical().Height(Size.Full());
 
-        return layout | filterRow | new Fragment(dataTable, planSheet, outputSheet, promptSheet, debugSheet, rerunDialog);
+        return layout | new Fragment(dataTable, planSheet, outputSheet, promptSheet, debugSheet, rerunDialog);
     }
 }

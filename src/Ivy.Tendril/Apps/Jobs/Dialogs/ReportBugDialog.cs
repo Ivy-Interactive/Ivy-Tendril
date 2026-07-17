@@ -47,7 +47,7 @@ public class ReportBugDialog(IState<bool> isOpen, string jobId) : ViewBase
             _ => isOpen.Set(false),
             new DialogHeader("Report Bug"),
             new DialogBody(
-                Layout.Vertical().Gap(2)
+                Layout.Vertical()
                 | Text.Muted("Describe the issue. Job logs and a sanitized copy of your config (secrets removed) will be attached to a public GitHub issue.")
                 | description.ToTextareaInput()
                     .Placeholder("What went wrong? How can we reproduce this?")

@@ -23,6 +23,11 @@ public partial class JobsApp
             return $"AI Edit memory note: {em.Memory}\nInstructions: {em.Instructions}";
         }
 
+        if (job.TypedArgs is WorkflowRunArgs)
+        {
+            return job.PlanFile;
+        }
+
         if (planService != null && !string.IsNullOrEmpty(job.PlanFile))
         {
             var fullPath = Path.Combine(planService.PlansDirectory, job.PlanFile);
@@ -110,6 +115,10 @@ public partial class JobsApp
 
     private static string GetPromptDisplay(JobItem j, IPlanReaderService planService)
     {
+        // Try WorkflowRun first to skip any path operations
+        if (j.TypedArgs is WorkflowRunArgs)
+            return TruncatePrompt(j.PlanFile);
+
         // Try loading plan title from service
         if (TryGetPlanTitle(j.PlanFile, planService, out var planTitle))
             return TruncatePrompt(planTitle);

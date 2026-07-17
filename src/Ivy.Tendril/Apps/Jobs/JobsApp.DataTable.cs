@@ -45,7 +45,9 @@ public partial class JobsApp
         Dictionary<string, string> projectColors,
         StackedProgress? jobsProgress,
         IState<bool> confirmDeleteOpen,
-        IState<string?> deleteJobId)
+        IState<string?> deleteJobId,
+        object typeFilter,
+        object statusFilter)
     {
         var dataTable = rows.AsQueryable()
             .ToDataTable(t => t.Id)
@@ -281,7 +283,9 @@ public partial class JobsApp
 
                 return ValueTask.CompletedTask;
             })
-            .HeaderRight(_ => Layout.Horizontal()
+            .HeaderRight(_ => Layout.Horizontal().AlignContent(Align.Center)
+                              | typeFilter
+                              | statusFilter
                               | (jobsProgress != null ? jobsProgress : null!)
                               | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
                                   new MenuItem("Clear Completed", Icon: Icons.Trash, Tag: "ClearCompleted")
