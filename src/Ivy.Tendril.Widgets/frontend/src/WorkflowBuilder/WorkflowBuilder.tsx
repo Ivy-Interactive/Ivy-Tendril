@@ -475,8 +475,21 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
     .filter(t => !templateSearch || t.name.toLowerCase().includes(templateSearch.toLowerCase()));
 
   // Active loaded workflow
-  const loadedWorkflow = workflows.find(w => JSON.stringify(JSON.parse(w.definition || "{}")) === JSON.stringify(JSON.parse(workflowDefinitionJson || "{}"))) 
-    || workflows[0];
+  const loadedWorkflow = (() => {
+    if (!workflowDefinitionJson) return undefined;
+    try {
+      const parsedTarget = JSON.parse(workflowDefinitionJson);
+      return workflows.find(w => {
+        try {
+          return JSON.stringify(JSON.parse(w.definition || "{}")) === JSON.stringify(parsedTarget);
+        } catch {
+          return false;
+        }
+      });
+    } catch {
+      return undefined;
+    }
+  })();
 
   return (
     <div className="wfb-shell">
@@ -810,320 +823,330 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
       >
-        {/* SVG connection lines */}
-        <svg className="wfb-canvas-svg">
-          <defs>
-            <marker
-              id="arrow"
-              viewBox="0 0 10 10"
-              refX="6"
-              refY="5"
-              markerWidth="6"
-              markerHeight="6"
-              orient="auto-start-reverse"
-            >
-              <path d="M 0 1 L 10 5 L 0 9 z" fill="var(--foreground)" opacity={0.6} />
-            </marker>
-          </defs>
+        {!loadedWorkflow ? (
+          <div className="wfb-canvas-placeholder">
+            <Workflow size={48} className="wfb-placeholder-icon" />
+            <h3>No Workflow Selected</h3>
+            <p>Select a workflow from Tendril Flows or Templates in the sidebar to start editing, or create a new template.</p>
+          </div>
+        ) : (
+          <>
+            {/* SVG connection lines */}
+            <svg className="wfb-canvas-svg">
+              <defs>
+                <marker
+                  id="arrow"
+                  viewBox="0 0 10 10"
+                  refX="6"
+                  refY="5"
+                  markerWidth="6"
+                  markerHeight="6"
+                  orient="auto-start-reverse"
+                >
+                  <path d="M 0 1 L 10 5 L 0 9 z" fill="var(--foreground)" opacity={0.6} />
+                </marker>
+              </defs>
 
-          {steps.map((source) => {
-            const outPort = getPortCoords(source).output;
-            return source.next.map((targetId) => {
-              const target = steps.find((s) => s.id === targetId);
-              if (!target) return null;
-              const inPort = getPortCoords(target).input;
+              {steps.map((source) => {
+                const outPort = getPortCoords(source).output;
+                return source.next.map((targetId) => {
+                  const target = steps.find((s) => s.id === targetId);
+                  if (!target) return null;
+                  const inPort = getPortCoords(target).input;
 
-              const midX = (outPort.x + inPort.x) / 2;
-              const midY = (outPort.y + inPort.y) / 2;
+                  const midX = (outPort.x + inPort.x) / 2;
+                  const midY = (outPort.y + inPort.y) / 2;
+
+                  return (
+                    <g key={`${source.id}-${targetId}`}>
+                      <path
+                        d={drawBezier(outPort.x, outPort.y, inPort.x, inPort.y)}
+                        className="wfb-connection-path"
+                        markerEnd="url(#arrow)"
+                      />
+                      {/* Delete button midpoint on edge */}
+                      {!isReadOnly && (
+                        <g
+                          className="wfb-connection-del-btn"
+                          onClick={() => removeConnection(source.id, targetId)}
+                          style={{ transformOrigin: `${midX}px ${midY}px` }}
+                        >
+                          <circle cx={midX} cy={midY} r={8} />
+                          <line
+                            x1={midX - 3}
+                            y1={midY - 3}
+                            x2={midX + 3}
+                            y2={midY + 3}
+                            stroke="white"
+                            strokeWidth={1.5}
+                          />
+                          <line
+                            x1={midX + 3}
+                            y1={midY - 3}
+                            x2={midX - 3}
+                            y2={midY + 3}
+                            stroke="white"
+                            strokeWidth={1.5}
+                          />
+                        </g>
+                      )}
+                    </g>
+                  );
+                });
+              })}
+
+              {/* Temp drag connection line */}
+              {tempConnection && (
+                <path
+                  d={drawBezier(
+                    tempConnection.fromX,
+                    tempConnection.fromY,
+                    tempConnection.toX,
+                    tempConnection.toY
+                  )}
+                  className="wfb-connection-path"
+                  style={{ stroke: "var(--primary)", strokeDasharray: "4 4" }}
+                />
+              )}
+            </svg>
+
+            {/* Step Nodes Cards */}
+            {steps.map((step) => {
+              const isTrigger = step.type.toLowerCase() === "trigger";
+              const isConnection = step.type.toLowerCase() === "connection";
+              const isPrompt = step.type.toLowerCase() === "prompt";
+
+              const selectedConnObj = availableConnections.find(
+                (c) => c.name === step.connectionName
+              );
+              const allowedActions = selectedConnObj
+                ? selectedConnObj.permissions
+                    .split(",")
+                    .map((p) => p.trim())
+                : [];
 
               return (
-                <g key={`${source.id}-${targetId}`}>
-                  <path
-                    d={drawBezier(outPort.x, outPort.y, inPort.x, inPort.y)}
-                    className="wfb-connection-path"
-                    markerEnd="url(#arrow)"
-                  />
-                  {/* Delete button midpoint on edge */}
-                  {!isReadOnly && (
-                    <g
-                      className="wfb-connection-del-btn"
-                      onClick={() => removeConnection(source.id, targetId)}
-                      style={{ transformOrigin: `${midX}px ${midY}px` }}
-                    >
-                      <circle cx={midX} cy={midY} r={8} />
-                      <line
-                        x1={midX - 3}
-                        y1={midY - 3}
-                        x2={midX + 3}
-                        y2={midY + 3}
-                        stroke="white"
-                        strokeWidth={1.5}
-                      />
-                      <line
-                        x1={midX + 3}
-                        y1={midY - 3}
-                        x2={midX - 3}
-                        y2={midY + 3}
-                        stroke="white"
-                        strokeWidth={1.5}
-                      />
-                    </g>
-                  )}
-                </g>
-              );
-            });
-          })}
-
-        {/* Temp drag connection line */}
-        {tempConnection && (
-          <path
-            d={drawBezier(
-              tempConnection.fromX,
-              tempConnection.fromY,
-              tempConnection.toX,
-              tempConnection.toY
-            )}
-            className="wfb-connection-path"
-            style={{ stroke: "var(--primary)", strokeDasharray: "4 4" }}
-          />
-        )}
-      </svg>
-
-      {/* Step Nodes Cards */}
-      {steps.map((step) => {
-        const isTrigger = step.type.toLowerCase() === "trigger";
-        const isConnection = step.type.toLowerCase() === "connection";
-        const isPrompt = step.type.toLowerCase() === "prompt";
-
-        const selectedConnObj = availableConnections.find(
-          (c) => c.name === step.connectionName
-        );
-        const allowedActions = selectedConnObj
-          ? selectedConnObj.permissions
-              .split(",")
-              .map((p) => p.trim())
-          : [];
-
-        return (
-          <div
-            key={step.id}
-            className={`wfb-canvas-card type-${step.type.toLowerCase()} ${selectedNode === step.id ? "active" : ""}`}
-            style={{ left: `${step.x}px`, top: `${step.y}px` }}
-            onClick={() => handleCardClick(step.id)}
-          >
-            {/* Drag Handle Header */}
-            <div
-              className="wfb-card-drag-handle"
-              onMouseDown={(e) => handleCardMouseDown(e, step.id)}
-            >
-              <div className="wfb-card-title">
-                <span
-                  className={`wfb-step-badge wfb-badge-${step.type.toLowerCase()}`}
-                >
-                  {step.type}
-                </span>
-                <input
-                  type="text"
-                  className="wfb-card-input-name"
-                  value={step.name}
-                  disabled={isReadOnly}
-                  onChange={(e) =>
-                    updateStep(step.id, {
-                      name: e.target.value.replace(/\s+/g, "_"),
-                    })
-                  }
-                  placeholder="Step Name"
-                />
-              </div>
-              {!isTrigger && !isReadOnly && (
-                <button
-                  className="wfb-btn"
-                  style={{
-                    padding: "4px",
-                    border: "none",
-                    background: "transparent",
-                  }}
-                  onClick={() => removeStep(step.id)}
-                >
-                  <Trash2 size={14} className="text-destructive" />
-                </button>
-              )}
-            </div>
-
-            {/* Form Input fields */}
-            <div className="wfb-card-body">
-              {isTrigger && (
                 <div
-                  style={{
-                    fontSize: "0.75rem",
-                    color: "var(--muted-foreground)",
-                  }}
+                  key={step.id}
+                  className={`wfb-canvas-card type-${step.type.toLowerCase()} ${selectedNode === step.id ? "active" : ""}`}
+                  style={{ left: `${step.x}px`, top: `${step.y}px` }}
+                  onClick={() => handleCardClick(step.id)}
                 >
-                  Workflow Trigger: Manually run this workflow. Trigger payload can
-                  be injected in child step prompts.
-                </div>
-              )}
-
-              {isConnection && (
-                <>
-                  <div className="wfb-field-group">
-                    <label className="wfb-label">Connection</label>
-                    <select
-                      className="wfb-select"
-                      value={step.connectionName}
-                      disabled={isReadOnly}
-                      onChange={(e) =>
-                        updateStep(step.id, {
-                          connectionName: e.target.value,
-                          action: "",
-                        })
-                      }
-                    >
-                      <option value="">-- Select Connection --</option>
-                      {availableConnections.map((conn) => (
-                        <option key={conn.id} value={conn.name}>
-                          {conn.name} ({conn.provider})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="wfb-field-group">
-                    <label className="wfb-label">Action</label>
-                    {allowedActions.includes("*") ||
-                    allowedActions.length === 0 ? (
+                  {/* Drag Handle Header */}
+                  <div
+                    className="wfb-card-drag-handle"
+                    onMouseDown={(e) => handleCardMouseDown(e, step.id)}
+                  >
+                    <div className="wfb-card-title">
+                      <span
+                        className={`wfb-step-badge wfb-badge-${step.type.toLowerCase()}`}
+                      >
+                        {step.type}
+                      </span>
                       <input
                         type="text"
-                        className="wfb-input"
-                        value={step.action}
+                        className="wfb-card-input-name"
+                        value={step.name}
                         disabled={isReadOnly}
                         onChange={(e) =>
-                          updateStep(step.id, { action: e.target.value })
+                          updateStep(step.id, {
+                            name: e.target.value.replace(/\s+/g, "_"),
+                          })
                         }
-                        placeholder="SendMessage"
+                        placeholder="Step Name"
                       />
-                    ) : (
-                      <select
-                        className="wfb-select"
-                        value={step.action}
-                        disabled={isReadOnly}
-                        onChange={(e) =>
-                          updateStep(step.id, { action: e.target.value })
-                        }
+                    </div>
+                    {!isTrigger && !isReadOnly && (
+                      <button
+                        className="wfb-btn"
+                        style={{
+                          padding: "4px",
+                          border: "none",
+                          background: "transparent",
+                        }}
+                        onClick={() => removeStep(step.id)}
                       >
-                        <option value="">-- Select Action --</option>
-                        {allowedActions.map((act) => (
-                          <option key={act} value={act}>
-                            {act}
-                          </option>
-                        ))}
-                      </select>
+                        <Trash2 size={14} className="text-destructive" />
+                      </button>
                     )}
                   </div>
 
-                  <div className="wfb-field-group">
-                    <label className="wfb-label">Payload arguments</label>
-                    <textarea
-                      className="wfb-textarea"
-                      value={step.args}
-                      disabled={isReadOnly}
-                      onChange={(e) =>
-                        updateStep(step.id, { args: e.target.value })
-                      }
-                      placeholder='{"channel": "#general", "text": "Hello!"}'
-                    />
-                  </div>
-                </>
-              )}
+                  {/* Form Input fields */}
+                  <div className="wfb-card-body">
+                    {isTrigger && (
+                      <div
+                        style={{
+                          fontSize: "0.75rem",
+                          color: "var(--muted-foreground)",
+                        }}
+                      >
+                        Workflow Trigger: Manually run this workflow. Trigger payload can
+                        be injected in child step prompts.
+                      </div>
+                    )}
 
-              {isPrompt && (
-                <>
-                  <div className="wfb-field-group">
-                    <label className="wfb-label">Agent Provider</label>
-                    <select
-                      className="wfb-select"
-                      value={step.provider}
-                      disabled={isReadOnly}
-                      onChange={(e) =>
-                        updateStep(step.id, { provider: e.target.value })
+                    {isConnection && (
+                      <>
+                        <div className="wfb-field-group">
+                          <label className="wfb-label">Connection</label>
+                          <select
+                            className="wfb-select"
+                            value={step.connectionName}
+                            disabled={isReadOnly}
+                            onChange={(e) =>
+                              updateStep(step.id, {
+                                connectionName: e.target.value,
+                                action: "",
+                              })
+                            }
+                          >
+                            <option value="">-- Select Connection --</option>
+                            {availableConnections.map((conn) => (
+                              <option key={conn.id} value={conn.name}>
+                                {conn.name} ({conn.provider})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="wfb-field-group">
+                          <label className="wfb-label">Action</label>
+                          {allowedActions.includes("*") ||
+                          allowedActions.length === 0 ? (
+                            <input
+                              type="text"
+                              className="wfb-input"
+                              value={step.action}
+                              disabled={isReadOnly}
+                              onChange={(e) =>
+                                updateStep(step.id, { action: e.target.value })
+                              }
+                              placeholder="SendMessage"
+                            />
+                          ) : (
+                            <select
+                              className="wfb-select"
+                              value={step.action}
+                              disabled={isReadOnly}
+                              onChange={(e) =>
+                                updateStep(step.id, { action: e.target.value })
+                              }
+                            >
+                              <option value="">-- Select Action --</option>
+                              {allowedActions.map((act) => (
+                                <option key={act} value={act}>
+                                  {act}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+
+                        <div className="wfb-field-group">
+                          <label className="wfb-label">Payload arguments</label>
+                          <textarea
+                            className="wfb-textarea"
+                            value={step.args}
+                            disabled={isReadOnly}
+                            onChange={(e) =>
+                              updateStep(step.id, { args: e.target.value })
+                            }
+                            placeholder='{"channel": "#general", "text": "Hello!"}'
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {isPrompt && (
+                      <>
+                        <div className="wfb-field-group">
+                          <label className="wfb-label">Agent Provider</label>
+                          <select
+                            className="wfb-select"
+                            value={step.provider}
+                            disabled={isReadOnly}
+                            onChange={(e) =>
+                              updateStep(step.id, { provider: e.target.value })
+                            }
+                          >
+                            {availableProviders.map((prov) => (
+                              <option key={prov} value={prov}>
+                                {prov}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="wfb-field-group">
+                          <label className="wfb-label">Prompt Template</label>
+                          <textarea
+                            className="wfb-textarea"
+                            value={step.args}
+                            disabled={isReadOnly}
+                            style={{ minHeight: "80px" }}
+                            onChange={(e) =>
+                              updateStep(step.id, { args: e.target.value })
+                            }
+                            placeholder="Analyze changes: {{steps.Start.output}}"
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Edge midpoint Connection Ports */}
+                  {!isReadOnly && (
+                    <>
+                      {!isTrigger && (
+                        <div
+                          className="wfb-port wfb-port-input"
+                          onMouseUp={(e) => handlePortMouseUp(e, step)}
+                        />
+                      )}
+                      <div
+                        className="wfb-port wfb-port-output"
+                        onMouseDown={(e) => handlePortMouseDown(e, step)}
+                      />
+                    </>
+                  )}
+
+                  {/* Spawn step (+) element button */}
+                  {!isReadOnly && (
+                    <button
+                      className="wfb-quick-add"
+                      onClick={() =>
+                        setSpawnMenuId(spawnMenuId === step.id ? null : step.id)
                       }
                     >
-                      {availableProviders.map((prov) => (
-                        <option key={prov} value={prov}>
-                          {prov}
-                        </option>
+                      <Plus size={12} />
+                    </button>
+                  )}
+
+                  {/* Floating Spawn Menu */}
+                  {spawnMenuId === step.id && !isReadOnly && (
+                    <div className="wfb-spawn-menu" style={{ right: "-180px", top: "20%" }}>
+                      <button
+                        className="wfb-spawn-option"
+                        onClick={() => spawnStep(step.id, "Prompt")}
+                      >
+                        + Connect Prompt Step
+                      </button>
+                      {availableConnections.map((conn) => (
+                        <button
+                          key={conn.id}
+                          className="wfb-spawn-option"
+                          onClick={() => spawnStep(step.id, "Connection", conn.name)}
+                        >
+                          + Connect {conn.name} ({conn.provider})
+                        </button>
                       ))}
-                    </select>
-                  </div>
-
-                  <div className="wfb-field-group">
-                    <label className="wfb-label">Prompt Template</label>
-                    <textarea
-                      className="wfb-textarea"
-                      value={step.args}
-                      disabled={isReadOnly}
-                      style={{ minHeight: "80px" }}
-                      onChange={(e) =>
-                        updateStep(step.id, { args: e.target.value })
-                      }
-                      placeholder="Analyze changes: {{steps.Start.output}}"
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Edge midpoint Connection Ports */}
-            {!isReadOnly && (
-              <>
-                {!isTrigger && (
-                  <div
-                    className="wfb-port wfb-port-input"
-                    onMouseUp={(e) => handlePortMouseUp(e, step)}
-                  />
-                )}
-                <div
-                  className="wfb-port wfb-port-output"
-                  onMouseDown={(e) => handlePortMouseDown(e, step)}
-                />
-              </>
-            )}
-
-            {/* Spawn step (+) element button */}
-            {!isReadOnly && (
-              <button
-                className="wfb-quick-add"
-                onClick={() =>
-                  setSpawnMenuId(spawnMenuId === step.id ? null : step.id)
-                }
-              >
-                <Plus size={12} />
-              </button>
-            )}
-
-            {/* Floating Spawn Menu */}
-            {spawnMenuId === step.id && !isReadOnly && (
-              <div className="wfb-spawn-menu" style={{ right: "-180px", top: "20%" }}>
-                <button
-                  className="wfb-spawn-option"
-                  onClick={() => spawnStep(step.id, "Prompt")}
-                >
-                  + Connect Prompt Step
-                </button>
-                {availableConnections.map((conn) => (
-                  <button
-                    key={conn.id}
-                    className="wfb-spawn-option"
-                    onClick={() => spawnStep(step.id, "Connection", conn.name)}
-                  >
-                    + Connect {conn.name} ({conn.provider})
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </>
+        )}
       </div>
     </div>
   );

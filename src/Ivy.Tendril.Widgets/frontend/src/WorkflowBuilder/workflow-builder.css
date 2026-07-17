@@ -640,3 +640,34 @@
   color: #6b7280;
   border: 1px solid #6b7280;
 }
+
+/* Canvas Placeholder empty state styling */
+.wfb-canvas-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--muted-foreground);
+  gap: 12px;
+  padding: 40px;
+  text-align: center;
+}
+
+.wfb-placeholder-icon {
+  color: rgba(107, 114, 128, 0.4);
+}
+
+.wfb-canvas-placeholder h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--foreground);
+  margin: 0;
+}
+
+.wfb-canvas-placeholder p {
+  font-size: 0.85rem;
+  max-width: 400px;
+  margin: 0;
+  line-height: 1.5;
+}

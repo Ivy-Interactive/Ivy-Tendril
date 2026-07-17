@@ -87,77 +87,73 @@ public class ContentView(
             return Disposable.Empty;
         }, isActiveState);
 
-        if (selectedWorkflow.Value == null)
-        {
-            return new NoContentView(
-                "No workflow selected",
-                "Select a workflow from the sidebar or click 'Create Workflow' to start editing."
-            );
-        }
-
         var wf = selectedWorkflow.Value;
         var connections = db.GetConnections();
 
-        var header = Layout.Horizontal()
-            | (Layout.Vertical().AlignContent(Align.Left)
-               | Text.H2(wf.Name)
-              )
-            | Layout.Horizontal().AlignContent(Align.Right)
-              | isActiveState.ToSwitchInput(label: "Active")
-              | new Button("Ask Assistant").Outline().OnClick(() => showChat.Set(!showChat.Value))
-              | new Button("Run").Outline().OnClick(() =>
-                {
-                    var jobId = jobService.StartJob(new WorkflowRunArgs(wf.Id, "{}"));
-                    client.Toast($"Started run for workflow '{wf.Name}'. Job ID: {jobId}", "Started");
-                })
-              | (wf.IsSystem
-                ? new Button("Clone Workflow").Primary().OnClick(() =>
-                  {
-                      var name = wf.Name + " (Copy)";
-                      var suffix = 1;
-                      while (db.GetWorkflowByName(name, wf.Project) != null)
+        object? header = null;
+        if (wf != null)
+        {
+            header = Layout.Horizontal()
+                | (Layout.Vertical().AlignContent(Align.Left)
+                   | Text.H2(wf.Name)
+                  )
+                | Layout.Horizontal().AlignContent(Align.Right)
+                  | isActiveState.ToSwitchInput(label: "Active")
+                  | new Button("Ask Assistant").Outline().OnClick(() => showChat.Set(!showChat.Value))
+                  | new Button("Run").Outline().OnClick(() =>
+                    {
+                        var jobId = jobService.StartJob(new WorkflowRunArgs(wf.Id, "{}"));
+                        client.Toast($"Started run for workflow '{wf.Name}'. Job ID: {jobId}", "Started");
+                    })
+                  | (wf.IsSystem
+                    ? new Button("Clone Workflow").Primary().OnClick(() =>
                       {
-                          name = $"{wf.Name} (Copy {suffix++})";
-                      }
+                          var name = wf.Name + " (Copy)";
+                          var suffix = 1;
+                          while (db.GetWorkflowByName(name, wf.Project) != null)
+                          {
+                              name = $"{wf.Name} (Copy {suffix++})";
+                          }
 
-                      var now = DateTime.UtcNow;
-                      var newWf = wf with
+                          var now = DateTime.UtcNow;
+                          var newWf = wf with
+                          {
+                              Id = 0,
+                              Name = name,
+                              IsSystem = false,
+                              Created = now,
+                              Updated = now
+                          };
+
+                          db.UpsertWorkflow(newWf);
+
+                          var created = db.GetWorkflowByName(name, wf.Project);
+                          if (created != null)
+                          {
+                              selectedWorkflow.Set(created);
+                          }
+
+                          refreshWorkflows();
+                          client.Toast($"Cloned workflow to '{name}'.", "Cloned");
+                      })
+                    : new Button("Save").Primary().OnClick(() =>
                       {
-                          Id = 0,
-                          Name = name,
-                          IsSystem = false,
-                          Created = now,
-                          Updated = now
-                      };
-
-                      db.UpsertWorkflow(newWf);
-
-                      var created = db.GetWorkflowByName(name, wf.Project);
-                      if (created != null)
+                          var updated = wf with { Definition = definitionState.Value, Updated = DateTime.UtcNow };
+                          db.UpsertWorkflow(updated);
+                          selectedWorkflow.Set(updated);
+                          refreshWorkflows();
+                          client.Toast("Workflow saved successfully.", "Saved");
+                      }))
+                  | (wf.IsSystem
+                    ? null
+                    : new Button("Delete").Destructive().OnClick(() =>
                       {
-                          selectedWorkflow.Set(created);
-                      }
-
-                      refreshWorkflows();
-                      client.Toast($"Cloned workflow to '{name}'.", "Cloned");
-                  })
-                : new Button("Save").Primary().OnClick(() =>
-                  {
-                      var updated = wf with { Definition = definitionState.Value, Updated = DateTime.UtcNow };
-                      db.UpsertWorkflow(updated);
-                      selectedWorkflow.Set(updated);
-                      refreshWorkflows();
-                      client.Toast("Workflow saved successfully.", "Saved");
-                  }))
-              | (wf.IsSystem
-                ? null
-                : new Button("Delete").Destructive().OnClick(() =>
-                  {
-                      db.DeleteWorkflow(wf.Id);
-                      selectedWorkflow.Set(null);
-                      refreshWorkflows();
-                      client.Toast($"Deleted workflow '{wf.Name}'.", "Deleted");
-                  }));
+                          db.DeleteWorkflow(wf.Id);
+                          selectedWorkflow.Set(null);
+                          refreshWorkflows();
+                          client.Toast($"Deleted workflow '{wf.Name}'.", "Deleted");
+                      }));
+        }
 
         // Render Promptware Inspector Panel if a prompt step is selected and pointing to a promptware
         object? inspectorPanel = null;
@@ -238,10 +234,10 @@ public class ContentView(
 
         var builderWidget = new WorkflowBuilder
         {
-            WorkflowDefinitionJson = definitionState.Value,
+            WorkflowDefinitionJson = wf != null ? definitionState.Value : "",
             AvailableConnections = connections.Select(c => new WorkflowConnectionInfo(c.Id, c.Name, c.Provider, c.Permissions)).ToList(),
             AvailableProviders = new List<string> { "Auto", "Review", "CreatePlan", "ExecutePlan", "CreatePr", "RetryPlan", "SetupProject", "CodeQuality", "CodeSecurity" },
-            IsReadOnly = wf.IsSystem,
+            IsReadOnly = wf != null ? wf.IsSystem : true,
             SelectedNodeId = selectedNodeId.Value ?? "",
             Workflows = workflows.Select(w => new WorkflowSidebarItem(w.Id, w.Name, w.Description, w.Project, w.IsActive, w.IsSystem)).ToList(),
             SystemPromptwares = systemPromptwaresList,
@@ -279,10 +275,17 @@ public class ContentView(
             }
         };
 
-        return Layout.Vertical()
-            | header
-            | new Separator()
-            | builderWidget
-            | inspectorPanel;
+        var view = Layout.Vertical();
+        if (header != null)
+        {
+            view |= header;
+            view |= new Separator();
+        }
+        view |= builderWidget;
+        if (inspectorPanel != null)
+        {
+            view |= inspectorPanel;
+        }
+        return view;
     }
 }
