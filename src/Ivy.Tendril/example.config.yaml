@@ -255,6 +255,18 @@ editor:
 
 telemetry: true
 
+# Slack bot integration (optional). Configure from the UI: Configuration > Slackbot.
+# The UI's "Create Slack App" button opens Slack with a pre-filled app manifest;
+# after installing the app to your workspace, paste the two tokens here or in the UI.
+# Mentioning the bot in a channel creates a Tendril plan from the message, using
+# the recent channel/thread history as context.
+# slackbot:
+#   enabled: true
+#   botToken: xoxb-...    # OAuth & Permissions > Bot User OAuth Token
+#   appToken: xapp-...    # Basic Information > App-Level Tokens (connections:write scope)
+#   project: Auto         # project for plans created from Slack ("Auto" = agent picks)
+#   historyLimit: 15      # number of context messages included in the plan description
+
 planTemplate: >
   # {title}
 

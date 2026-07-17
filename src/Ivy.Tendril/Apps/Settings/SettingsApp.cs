@@ -19,6 +19,7 @@ public class SettingsApp : ViewBase
     private const string TagPromptwares = "promptwares";
     internal const string TagProjects = "projects";
     private const string TagTunnel = "tunnel";
+    private const string TagSlackbot = "slackbot";
     private const string TagAdvanced = "advanced";
 
     public override object Build()
@@ -45,6 +46,7 @@ public class SettingsApp : ViewBase
             ("Notifications", TagNotifications, Icons.Bell),
             ("Security", TagSecurity, Icons.Lock),
             ("Tunnel", TagTunnel, Icons.Globe),
+            ("Slackbot", TagSlackbot, Icons.Slack),
             ("Advanced", TagAdvanced, Icons.Cog),
         };
 
@@ -71,6 +73,7 @@ public class SettingsApp : ViewBase
             TagPromptwares => new PromptwaresSetupView(),
             TagProjects => new ProjectsSetupView(),
             TagTunnel => new TunnelSetupView(),
+            TagSlackbot => new SlackbotSetupView(),
             TagAdvanced => new AdvancedSetupView(),
             _ => new CodingAgentSetupView()
         };
