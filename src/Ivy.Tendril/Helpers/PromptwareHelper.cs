@@ -56,10 +56,7 @@ public static class PromptwareHelper
     public static string? ResolveBrainwaresVaultDir(string? startDirectory = null)
     {
         // Prevent unit/integration tests from detecting the real vault
-        if (Environment.CommandLine.Contains("testhost", StringComparison.OrdinalIgnoreCase) ||
-            Environment.CommandLine.Contains("vstest", StringComparison.OrdinalIgnoreCase) ||
-            Environment.CommandLine.Contains("xunit", StringComparison.OrdinalIgnoreCase) ||
-            AppDomain.CurrentDomain.GetAssemblies().Any(a => a.FullName?.Contains("xunit", StringComparison.OrdinalIgnoreCase) == true || a.FullName?.Contains("Microsoft.TestPlatform", StringComparison.OrdinalIgnoreCase) == true))
+        if (IsTestEnvironment())
         {
             return null;
         }
@@ -99,42 +96,45 @@ public static class PromptwareHelper
     {
         var home = tendrilHome ?? Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
 
-        // 1. Resolve local Promptwares vault memories first
-        var vaultPath = ResolveBrainwaresVaultDir(planFolder);
-        if (vaultPath != null)
+        if (!IsTestEnvironment())
         {
-            var workspaceDir = planFolder ?? Directory.GetCurrentDirectory();
-            var projectName = FindProjectNameForPath(workspaceDir, home) ?? "global";
-            var memoriesDir = Path.Combine(vaultPath, "memories", projectName, "promptware");
-            Directory.CreateDirectory(memoriesDir);
-
-            // Copy default memories if missing on-demand
-            try
+            // 1. Resolve local Promptwares vault memories first
+            var vaultPath = ResolveBrainwaresVaultDir(planFolder);
+            if (vaultPath != null)
             {
-                var promptwareFolder = ResolvePromptwareFolder(promptwareName, home);
-                var localProjMemory = Path.Combine(promptwareFolder, "Memory");
-                if (Directory.Exists(localProjMemory))
+                var workspaceDir = planFolder ?? Directory.GetCurrentDirectory();
+                var projectName = FindProjectNameForPath(workspaceDir, home) ?? "global";
+                var memoriesDir = Path.Combine(vaultPath, "memories", projectName, "promptware");
+                Directory.CreateDirectory(memoriesDir);
+
+                // Copy default memories if missing on-demand
+                try
                 {
-                    foreach (var file in Directory.GetFiles(localProjMemory, "*.md"))
+                    var promptwareFolder = ResolvePromptwareFolder(promptwareName, home);
+                    var localProjMemory = Path.Combine(promptwareFolder, "Memory");
+                    if (Directory.Exists(localProjMemory))
                     {
-                        var targetFile = Path.Combine(memoriesDir, Path.GetFileName(file));
-                        if (!File.Exists(targetFile))
+                        foreach (var file in Directory.GetFiles(localProjMemory, "*.md"))
                         {
-                            File.Copy(file, targetFile);
+                            var targetFile = Path.Combine(memoriesDir, Path.GetFileName(file));
+                            if (!File.Exists(targetFile))
+                            {
+                                File.Copy(file, targetFile);
+                            }
                         }
                     }
                 }
+                catch { /* best effort */ }
+
+                return memoriesDir;
             }
-            catch { /* best effort */ }
 
-            return memoriesDir;
+            // 2. Fall back to user-wide global brainwares memories (~/.config/brainwares/memories)
+            var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var globalMemoriesDir = Path.Combine(userProfile, ".config", "brainwares", "memories");
+            if (Directory.Exists(globalMemoriesDir))
+                return globalMemoriesDir;
         }
-
-        // 2. Fall back to user-wide global brainwares memories (~/.config/brainwares/memories)
-        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var globalMemoriesDir = Path.Combine(userProfile, ".config", "brainwares", "memories");
-        if (Directory.Exists(globalMemoriesDir))
-            return globalMemoriesDir;
 
         // 3. Fall back to promptware folder's local Memory folder (development/packaging fallback)
         var promptwareFolderFallback = ResolvePromptwareFolder(promptwareName, home);
@@ -143,7 +143,8 @@ public static class PromptwareHelper
             return localProjMemoryFallback;
 
         // Default to globalMemoriesDir so we always have a valid write target
-        return globalMemoriesDir;
+        var userProfileFallback = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return Path.Combine(userProfileFallback, ".config", "brainwares", "memories");
     }
 
     public static string GetBwPath()
@@ -339,5 +340,13 @@ public static class PromptwareHelper
         }
         catch { }
         return null;
+    }
+
+    public static bool IsTestEnvironment()
+    {
+        return Environment.CommandLine.Contains("testhost", StringComparison.OrdinalIgnoreCase) ||
+               Environment.CommandLine.Contains("vstest", StringComparison.OrdinalIgnoreCase) ||
+               Environment.CommandLine.Contains("xunit", StringComparison.OrdinalIgnoreCase) ||
+               AppDomain.CurrentDomain.GetAssemblies().Any(a => a.FullName?.Contains("xunit", StringComparison.OrdinalIgnoreCase) == true || a.FullName?.Contains("Microsoft.TestPlatform", StringComparison.OrdinalIgnoreCase) == true);
     }
 }
