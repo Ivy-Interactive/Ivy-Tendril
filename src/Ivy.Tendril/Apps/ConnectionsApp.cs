@@ -210,7 +210,7 @@ public class ConnectionsApp : ViewBase
             connectionList = connectionList 
                 | new Box(
                     Layout.Vertical()
-                       | Icons.Plug.ToIcon().Width(Size.Px(48)).Height(Size.Px(48)).Color(Colors.Muted)
+                       | Icons.Plug.ToIcon().Color(Colors.Muted)
                        | Text.H3("No Connections Configured").Bold()
                        | Text.P("Set up integrations like Slack, Discord, or GitHub to enable automated agent runs.").Small().Muted()
                        | new Button("Add Connection")
@@ -514,11 +514,11 @@ public class ConnectionsApp : ViewBase
                     .Disabled(isSubmittingRequest.Value || string.IsNullOrWhiteSpace(requestDescription.Value))
                     .Loading(isSubmittingRequest.Value)
             )
-        ).Width(Size.Rem(32)) : new Fragment();
+        ) : new Fragment();
 
-        var sidebarLayout = new SidebarLayout(contentWithMobileHeader, sidebar).Padding(0);
+        var sidebarLayout = new SidebarLayout(contentWithMobileHeader, sidebar);
 
-        return Layout.Vertical().Height(Size.Full())
+        return Layout.Vertical().Height(Size.Full()).RemoveParentPadding()
             | sidebarLayout
             | dialog;
     }

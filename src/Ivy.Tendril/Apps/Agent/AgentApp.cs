@@ -169,17 +169,18 @@ public class AgentApp : ViewBase
 
         var resetControl = configService.Settings.AlwaysUseDefaultChatType
             ? Layout.Horizontal(
+                Layout.Spacer(),
                 new Button("Reset Default Chat Type").Outline().Small().OnClick(() =>
                 {
                     configService.Settings.AlwaysUseDefaultChatType = false;
                     configService.SaveSettings();
                     refreshTrigger.Set(refreshTrigger.Value + 1);
                 })
-              )
+              ).Height(Size.Shrink())
             : null;
 
         var mainLayout = resetControl != null
-            ? (object)Layout.Vertical(resetControl, tabView).Full().RemoveParentPadding()
+            ? (object)Layout.Vertical(resetControl, tabView.Height(Size.Full())).Full().RemoveParentPadding()
             : tabView.Height(Size.Full()).Width(Size.Full());
 
         return new Fragment(mainLayout, dialogView);
