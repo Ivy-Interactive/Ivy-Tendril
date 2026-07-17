@@ -11,6 +11,7 @@ public class PrStatusSyncService : IStartable, IDisposable
     private readonly IPlanDatabaseService _database;
     private readonly IGithubService _githubService;
     private readonly IPlanReaderService _planReader;
+    private readonly WorkflowTriggerService _workflowTriggerService;
     private readonly ILogger<PrStatusSyncService> _logger;
     private Timer? _timer;
 
@@ -18,11 +19,13 @@ public class PrStatusSyncService : IStartable, IDisposable
         IPlanDatabaseService database,
         IGithubService githubService,
         IPlanReaderService planReader,
+        WorkflowTriggerService workflowTriggerService,
         ILogger<PrStatusSyncService> logger)
     {
         _database = database;
         _githubService = githubService;
         _planReader = planReader;
+        _workflowTriggerService = workflowTriggerService;
         _logger = logger;
     }
 
@@ -90,6 +93,11 @@ public class PrStatusSyncService : IStartable, IDisposable
                     {
                         var resolvedStatus = statuses.GetValueOrDefault(url, "Open");
                         _database.UpsertPrStatus(url, parts[0], parts[1], resolvedStatus, now);
+
+                        if (string.Equals(resolvedStatus, "Merged", StringComparison.OrdinalIgnoreCase))
+                        {
+                            _workflowTriggerService.CheckAndTriggerPlanCompletedAndMerged(url);
+                        }
                     }
 
                     _logger.LogDebug("Synced {Count} PR statuses for {Repo}", urls.Count, ownerRepo);

@@ -471,6 +471,8 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
   const triggersList = [
     { name: "Manual Trigger", action: "manual", connectionName: "", provider: "system" },
     { name: "Webhook Trigger", action: "webhook", connectionName: "", provider: "system" },
+    { name: "Timed Trigger (Cron)", action: "schedule", connectionName: "", provider: "system" },
+    { name: "Tendril Event Trigger", action: "event", connectionName: "", provider: "system" },
     ...availableConnections.map(c => ({
       name: `${c.name} Trigger`,
       action: "webhook",
@@ -1000,7 +1002,27 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
                           gap: "6px"
                         }}
                       >
-                        {step.action === "webhook" ? (
+                        <div className="wfb-field-group">
+                          <label className="wfb-label">Trigger Type</label>
+                          <select
+                            className="wfb-select"
+                            value={step.action || "manual"}
+                            disabled={isReadOnly}
+                            onChange={(e) =>
+                              updateStep(step.id, {
+                                action: e.target.value,
+                                args: e.target.value === "schedule" ? "*/5 * * * *" : e.target.value === "event" ? "plan_completed_and_merged" : "{}"
+                              })
+                            }
+                          >
+                            <option value="manual">Manual Trigger</option>
+                            <option value="webhook">Webhook Trigger</option>
+                            <option value="schedule">Timed Trigger (Cron)</option>
+                            <option value="event">Tendril Event Trigger</option>
+                          </select>
+                        </div>
+
+                        {step.action === "webhook" && (
                           <>
                             <div style={{ fontWeight: 600, color: "var(--foreground)" }}>
                               Webhook Trigger
@@ -1035,15 +1057,49 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
                               </div>
                             )}
                           </>
-                        ) : (
-                          <>
-                            <div style={{ fontWeight: 600, color: "var(--foreground)" }}>
-                              Manual Trigger
+                        )}
+
+                        {step.action === "schedule" && (
+                          <div className="wfb-field-group">
+                            <label className="wfb-label">Cron Expression</label>
+                            <input
+                              type="text"
+                              className="wfb-input"
+                              value={step.args || "*/5 * * * *"}
+                              disabled={isReadOnly}
+                              onChange={(e) =>
+                                updateStep(step.id, { args: e.target.value })
+                              }
+                              placeholder="e.g. */5 * * * *"
+                            />
+                            <div style={{ fontSize: "0.65rem", marginTop: "2px", color: "var(--muted-foreground)" }}>
+                              Format: min hour day month day-of-week (e.g. 0 0 * * * for daily)
                             </div>
-                            <div>
-                              Manually run this workflow. Trigger payload can be injected in child step prompts.
-                            </div>
-                          </>
+                          </div>
+                        )}
+
+                        {step.action === "event" && (
+                          <div className="wfb-field-group">
+                            <label className="wfb-label">Event Type</label>
+                            <select
+                              className="wfb-select"
+                              value={step.args || "plan_completed_and_merged"}
+                              disabled={isReadOnly}
+                              onChange={(e) =>
+                                updateStep(step.id, { args: e.target.value })
+                              }
+                            >
+                              <option value="plan_completed_and_merged">Plan Completed & Merged</option>
+                              <option value="plan_created">Plan Created</option>
+                              <option value="plan_transitioned">Plan Transitioned</option>
+                            </select>
+                          </div>
+                        )}
+
+                        {(!step.action || step.action === "manual") && (
+                          <div>
+                            Manually run this workflow. Trigger payload can be injected in child step prompts.
+                          </div>
                         )}
                       </div>
                     )}

@@ -163,13 +163,25 @@ internal static class ServiceRegistration
             return new WorktreeCleanupService(config.PlanFolder, logger, lifecycleLogger);
         });
         server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<WorktreeCleanupService>());
+        server.Services.AddSingleton<WorkflowTriggerService>(sp =>
+        {
+            var database = sp.GetRequiredService<IPlanDatabaseService>();
+            var jobService = sp.GetRequiredService<IJobService>();
+            var planReader = sp.GetRequiredService<IPlanReaderService>();
+            var planWatcher = sp.GetRequiredService<IPlanWatcherService>();
+            var logger = sp.GetRequiredService<ILogger<WorkflowTriggerService>>();
+            return new WorkflowTriggerService(database, jobService, planReader, planWatcher, logger);
+        });
+        server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<WorkflowTriggerService>());
+
         server.Services.AddSingleton<PrStatusSyncService>(sp =>
         {
             var database = sp.GetRequiredService<IPlanDatabaseService>();
             var githubService = sp.GetRequiredService<IGithubService>();
             var planReader = sp.GetRequiredService<IPlanReaderService>();
+            var triggerService = sp.GetRequiredService<WorkflowTriggerService>();
             var logger = sp.GetRequiredService<ILogger<PrStatusSyncService>>();
-            return new PrStatusSyncService(database, githubService, planReader, logger);
+            return new PrStatusSyncService(database, githubService, planReader, triggerService, logger);
         });
         server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<PrStatusSyncService>());
 

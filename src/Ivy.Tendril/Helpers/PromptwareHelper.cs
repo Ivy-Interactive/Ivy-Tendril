@@ -139,7 +139,7 @@ public static class PromptwareHelper
         // 3. Fall back to promptware folder's local Memory folder (development/packaging fallback)
         var promptwareFolderFallback = ResolvePromptwareFolder(promptwareName, home);
         var localProjMemoryFallback = Path.Combine(promptwareFolderFallback, "Memory");
-        if (Directory.Exists(localProjMemoryFallback))
+        if (IsTestEnvironment() || Directory.Exists(localProjMemoryFallback))
             return localProjMemoryFallback;
 
         // Default to globalMemoriesDir so we always have a valid write target
