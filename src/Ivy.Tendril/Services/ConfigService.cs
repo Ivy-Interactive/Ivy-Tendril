@@ -179,6 +179,7 @@ public class TendrilSettings
     public bool Telemetry { get; set; } = true;
     public bool DesktopNotifications { get; set; } = true;
     public string? DismissedUpdateVersion { get; set; }
+    public bool OnboardingTourPending { get; set; }
 
     public List<LevelConfig> Levels { get; set; } = new()
     {

@@ -11,6 +11,7 @@ public class CompleteStepView(
     public override object Build()
     {
         var setupService = UseService<IOnboardingSetupService>();
+        var config = UseService<IConfigService>();
         var client = UseService<IClientProvider>();
 
         var isFinishing = UseState(false);
@@ -25,6 +26,10 @@ public class CompleteStepView(
             {
                 await setupService.FinalizeOnboardingAsync();
                 await setupService.StartBackgroundServicesAsync();
+
+                config.Settings.OnboardingTourPending = true;
+                config.SaveSettings();
+
                 client.ReloadPage();
             }
             catch (Exception ex)
