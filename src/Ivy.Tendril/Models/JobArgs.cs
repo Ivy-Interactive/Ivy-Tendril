@@ -176,7 +176,8 @@ public record CustomAgentArgs(
 
 public record WorkflowRunArgs(
     int WorkflowId,
-    string? TriggerPayload = null) : JobArgsBase
+    string? TriggerPayload = null,
+    string Project = "Auto") : JobArgsBase
 {
     public override string Type => "WorkflowRun";
 }

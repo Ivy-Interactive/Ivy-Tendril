@@ -292,7 +292,7 @@ public class WorkflowRunCommand(IPlanDatabaseService db, IJobService jobService,
             return 1;
         }
 
-        var args = new WorkflowRunArgs(workflow.Id, payloadJson);
+        var args = new WorkflowRunArgs(workflow.Id, payloadJson, workflow.Project);
         var jobId = _jobService.StartJob(args);
 
         AnsiConsole.MarkupLine($"[green]Started workflow run job. Job ID:[/] [bold]{jobId}[/]");

@@ -879,7 +879,7 @@ public class JobService : IJobService
         return job;
     }
 
-    private static (string PlanFile, string Project, int Priority) ExtractJobMetadata(JobArgsBase args)
+    private (string PlanFile, string Project, int Priority) ExtractJobMetadata(JobArgsBase args)
     {
         if (args is CreatePlanArgs cp)
         {
@@ -894,13 +894,61 @@ public class JobService : IJobService
 
         var folder = args.PlanFolder ?? "";
         var file = Path.GetFileName(folder);
-        if (!Directory.Exists(folder))
-            return (file, "Auto", 0);
+
+        string project = "Auto";
+        if (args is WorkflowRunArgs wr)
+        {
+            project = wr.Project;
+            if ((string.IsNullOrEmpty(project) || project == "Auto") && _database != null)
+            {
+                var wf = _database.GetWorkflowById(wr.WorkflowId);
+                if (wf != null)
+                {
+                    project = wf.Project;
+                }
+            }
+            if (string.IsNullOrEmpty(project))
+            {
+                project = "Auto";
+            }
+            
+            string planFile = "Workflow Run";
+            if (_database != null)
+            {
+                var wf = _database.GetWorkflowById(wr.WorkflowId);
+                if (wf != null)
+                {
+                    planFile = $"Run workflow: {wf.Name}";
+                }
+            }
+            return (planFile, project, 0);
+        }
+        else if (args is UpdateMemoriesArgs um) project = um.Project;
+        else if (args is EditMemoryArgs em) project = em.Project;
+        else if (args is CodeQualityArgs cq) project = cq.Project;
+        else if (args is CodeSecurityArgs cs) project = cs.Project;
+        else if (args is DocumentationArgs doc) project = doc.Project;
+        else if (args is CustomAgentArgs ca) project = ca.Project;
+
+        if (string.IsNullOrEmpty(project))
+        {
+            project = "Auto";
+        }
+
+        if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
+        {
+            var defaultFile = file;
+            if (string.IsNullOrEmpty(defaultFile))
+            {
+                defaultFile = args.Type;
+            }
+            return (defaultFile, project, 0);
+        }
 
         var plan = ReadPlanYaml(folder);
         return plan != null
-            ? (file, plan.Project, plan.Priority)
-            : (file, "Auto", 0);
+            ? (file, plan.Project != "Auto" && plan.Project != "" ? plan.Project : project, plan.Priority)
+            : (file, project, 0);
     }
 
     private void SetupInboxTracking(JobItem job, string id, JobArgsBase args, string? inboxFilePath)
