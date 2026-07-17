@@ -53,11 +53,7 @@ public class SettingsApp : ViewBase
             .Append(SidebarListRow.Build("Open config.yaml", Icons.FileText,
                 () => ConfigYamlUiHelper.OpenOrNavigate(config, navigator, client, isDesktop, capturedHost)));
 
-        var sidebarHeader = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Height(Size.Px(40))
-            | Icons.Settings2.ToIcon()
-            | Text.Literal("Configuration");
-
-        var sidebar = new HeaderLayout(sidebarHeader, Layout.Vertical(rows).Gap(1));
+        var sidebar = Layout.Vertical(rows).Gap(1);
 
         object content = selected.Value switch
         {
