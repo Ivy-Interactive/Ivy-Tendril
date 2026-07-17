@@ -1,4 +1,6 @@
 using System.Reactive.Linq;
+using Ivy;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Apps.Jobs.Dialogs;
 using Ivy.Tendril.Apps.Jobs.Sheets;
 using Ivy.Tendril.Apps.Views.Sheets;
@@ -21,6 +23,8 @@ public partial class JobsApp : ViewBase
         var openFile = UseState<string?>(null);
         var confirmDeleteOpen = UseState(false);
         var deleteJobId = UseState<string?>(null);
+        var selectedStatus = UseState("All");
+        var selectedType = UseState("All");
 
         var (planSheet, showPlan) = UseTrigger<string>((isOpen, planPath) =>
         {
@@ -83,16 +87,43 @@ public partial class JobsApp : ViewBase
                 .SelectMany(_ => JobsApp.BuildDataTableUpdates(jobService)));
 
         var jobs = jobService.GetJobs();
+
+        var availableTypes = new List<string> { "All" };
+        availableTypes.AddRange(jobs.Select(j => j.Type).Where(t => !string.IsNullOrEmpty(t)).Distinct().OrderBy(t => t));
+
+        var statusOptions = new List<string> { "All" };
+        statusOptions.AddRange(Enum.GetNames<JobStatus>());
+
+        var filteredJobs = jobs;
+        if (selectedStatus.Value != "All" && Enum.TryParse<JobStatus>(selectedStatus.Value, out var filterStatus))
+        {
+            filteredJobs = filteredJobs.Where(j => j.Status == filterStatus).ToList();
+        }
+        if (selectedType.Value != "All")
+        {
+            filteredJobs = filteredJobs.Where(j => j.Type == selectedType.Value).ToList();
+        }
+
         var projectColors = BuildProjectColorMapping(config);
-        var rows = BuildJobRows(jobs, planService);
-        var jobsProgress = jobs.Count > 0 ? BuildStatusProgress(jobs, config) : null;
+        var rows = BuildJobRows(filteredJobs, planService);
+        var jobsProgress = filteredJobs.Count > 0 ? BuildStatusProgress(filteredJobs, config) : null;
 
         var dataTable = JobsApp.BuildDataTable(nav, rows, refreshToken, updateStream, config, planService,
             jobService, client, showPlan, showOutput, showPrompt, showDebug, showRerun, jobs, projectColors, jobsProgress,
             confirmDeleteOpen, deleteJobId);
 
+        var filterRow = Layout.Horizontal()
+            | selectedType.ToSelectInput(availableTypes)
+                .Placeholder("Filter by Type")
+                .Width(Size.Px(180))
+                .WithField().Label("Type")
+            | selectedStatus.ToSelectInput(statusOptions)
+                .Placeholder("Filter by Status")
+                .Width(Size.Px(180))
+                .WithField().Label("Status");
+
         var layout = Layout.Vertical().Height(Size.Full());
 
-        return layout | new Fragment(dataTable, planSheet, outputSheet, promptSheet, debugSheet, rerunDialog);
+        return layout | filterRow | new Fragment(dataTable, planSheet, outputSheet, promptSheet, debugSheet, rerunDialog);
     }
 }
