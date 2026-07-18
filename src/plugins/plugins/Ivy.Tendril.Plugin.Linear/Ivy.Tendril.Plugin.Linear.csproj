@@ -6,7 +6,9 @@
     <Nullable>enable</Nullable>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <PackageId>Ivy.Tendril.Plugin.Linear</PackageId>
-    <Company>Ivy</Company>
+    <Title>Linear</Title>
+    <Authors>Ivy Interactive</Authors>
+    <Company>Ivy Interactive</Company>
     <Description>Linear integration plugin for Ivy Tendril — import issues from Linear into Tendril plans</Description>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/Ivy-Interactive/Ivy-Tendril</PackageProjectUrl>
