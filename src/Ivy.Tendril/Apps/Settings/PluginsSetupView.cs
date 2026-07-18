@@ -9,7 +9,7 @@ namespace Ivy.Tendril.Apps.Settings;
 
 internal static class PluginIconHelper
 {
-    private static readonly Size IconSize = Size.Units(4);
+    internal static readonly Size IconSize = Size.Units(5);
 
     public static object? ToWidget(PluginIcon? icon, string? pluginId = null)
     {
@@ -17,7 +17,7 @@ internal static class PluginIconHelper
         return icon.Kind switch
         {
             PluginIconKind.Named => IconsHelper.FromString(icon.Value) is { } parsed
-                ? new Icon(parsed)
+                ? new Icon(parsed).Width(IconSize).Height(IconSize)
                 : null,
             PluginIconKind.Url => new Image(icon.Value).Width(IconSize).Height(IconSize),
             PluginIconKind.File when pluginId is not null =>
@@ -176,8 +176,8 @@ public class PluginsSetupView : ViewBase
                    var header = Layout.Horizontal().Gap(2).AlignContent(Align.SpaceBetween)
                        | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
                            | (p.IconUrl is not null
-                               ? (object)new Image(p.IconUrl).Width(Size.Units(4)).Height(Size.Units(4))
-                               : new Icon(Icons.Plug))
+                               ? (object)new Image(p.IconUrl).Width(PluginIconHelper.IconSize).Height(PluginIconHelper.IconSize)
+                               : new Icon(Icons.Plug).Width(PluginIconHelper.IconSize).Height(PluginIconHelper.IconSize))
                            | Text.Block(p.Title))
                        | new Badge(p.Version, BadgeVariant.Secondary);
                    var content = Layout.Vertical().Gap(2)
