@@ -14,7 +14,7 @@ Find by session ID:
 find ~/.claude/projects -name "{SessionId}.jsonl"
 ```
 
-The SessionId is found in plan log entries at `{PlanFolder}/logs/*.md`.
+The SessionId is found in the Job Log at `$TENDRIL_HOME/Jobs/{jobId}-{planId}-{promptware}.md`.
 
 ## JSONL Structure
 

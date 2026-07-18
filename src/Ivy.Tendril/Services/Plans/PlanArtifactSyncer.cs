@@ -98,12 +98,9 @@ internal class PlanArtifactSyncer
         if (planId == null || safeTitle == null) return false;
 
         var branchName = $"tendril/{planId}-{safeTitle}";
-        var planRepoNames = new HashSet<string>(
-            plan.Repos.Select(r => Path.GetFileName(Environment.ExpandEnvironmentVariables(r))),
-            StringComparer.OrdinalIgnoreCase);
 
         var changed = false;
-        foreach (var wtDir in IterateWorktrees(worktreesDir, planRepoNames))
+        foreach (var wtDir in IterateWorktrees(worktreesDir))
         {
             var commits = ExtractCommitsFromWorktree(wtDir, branchName, plan);
             changed |= AddCommitsToPlan(plan, commits);
@@ -112,14 +109,10 @@ internal class PlanArtifactSyncer
         return changed;
     }
 
-    private static IEnumerable<string> IterateWorktrees(string worktreesDir, HashSet<string> planRepoNames)
+    private static IEnumerable<string> IterateWorktrees(string worktreesDir)
     {
         foreach (var wtDir in Directory.GetDirectories(worktreesDir))
         {
-            var wtName = Path.GetFileName(wtDir);
-            if (planRepoNames.Count > 0 && !planRepoNames.Contains(wtName))
-                continue;
-
             var gitFile = Path.Combine(wtDir, ".git");
             if (File.Exists(gitFile))
                 yield return wtDir;

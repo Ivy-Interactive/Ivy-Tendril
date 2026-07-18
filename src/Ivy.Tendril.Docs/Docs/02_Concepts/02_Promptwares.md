@@ -71,7 +71,7 @@ When `customInstructions` is set, Tendril appends them to the end of the Firmwar
 1. **Context** — Load `Program.md`; attach project context and custom instructions from `config.yaml`.
 2. **Tools** — Expose `Tools/` via the tool protocol.
 3. **Run** — Agent runs in the background with isolated state.
-4. **Capture** — Stream to `logs/`; tokens and cost – `costs.csv`.
+4. **Capture** — Stream to the job's log in `<TendrilHome>/Jobs/`; tokens and cost – `costs.csv`.
 
 ## Hooks (PowerShell)
 

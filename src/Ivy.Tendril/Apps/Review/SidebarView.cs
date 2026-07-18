@@ -74,7 +74,8 @@ public class SidebarView(
                     ? new Badge("Unverified").Variant(BadgeVariant.Warning).Small()
                     : null);
 
-            return SidebarListRow.Build($"#{plan.Id} {plan.Title}", badges, () => selectedPlanState.Set(clickablePlan));
+            return SidebarListRow.Build($"#{plan.Id} {plan.Title}", badges, () => selectedPlanState.Set(clickablePlan),
+                plan.FolderName == selectedPlanState.Value?.FolderName);
         }));
 
         return new HeaderLayout(BuildHeader(), content);

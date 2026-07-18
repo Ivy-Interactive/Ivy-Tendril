@@ -14,7 +14,7 @@ public class SetupProjectTests
     [MemberData(nameof(AgentTestData.Agents), MemberType = typeof(AgentTestData))]
     public async Task SetupProject_ConfiguresVerifications(string agent)
     {
-        var cliLog = Path.Combine(_fixture.TendrilHome, $"setup-project-{agent}.jsonl");
+        var cliLog = _fixture.CliLogPath($"setup-project-{agent}");
 
         var result = await _fixture.Runner.RunAsync(
             "SetupProject",

@@ -35,6 +35,9 @@ public class ProjectAgentStepView(
         var authCode = UseState<string?>(null);
         var isCloning = UseState(false);
 
+        var (installDialog, showInstallDialog) = UseTrigger<InstallDialogArgs>((isOpen, args) =>
+            new InstallMissingDialog(isOpen, args));
+
         UseEffect(async () =>
         {
             if (session.Started.Value) return;
@@ -124,9 +127,42 @@ public class ProjectAgentStepView(
                         await agentCheckCts.CancelAsync();
                         progressValue.Set(null);
                         progressMessage.Set(null);
-                        error.Set($"Please make sure your agent ({info.DisplayName}) is present and you are authorized.");
-                        isStepLoading.Set(false);
-                        return;
+
+                        var agentCheck = new SoftwareCheck(
+                            info.DisplayName,
+                            agentKey,
+                            info.InstallUrl ?? "",
+                            true,
+                            () => Task.FromResult(installStatus.IsInstalled))
+                        {
+                            LastError = installStatus.Error
+                        };
+
+                        var tcs = new TaskCompletionSource<bool>();
+                        showInstallDialog(new InstallDialogArgs(agentCheck, tcs));
+                        var resumed = await tcs.Task;
+
+                        if (!resumed)
+                        {
+                            isStepLoading.Set(false);
+                            return;
+                        }
+
+                        // Re-check installation after user dismisses dialog
+                        progressMessage.Set($"Checking {info.DisplayName} installation...");
+                        agentCheckCts = new CancellationTokenSource();
+                        _ = UxHelper.AnimateProgressAsync(progressValue, agentCheckCts.Token);
+
+                        installStatus = await healthCheck.CheckInstallAsync();
+                        if (!installStatus.IsInstalled)
+                        {
+                            await agentCheckCts.CancelAsync();
+                            progressValue.Set(null);
+                            progressMessage.Set(null);
+                            error.Set($"Please make sure your agent ({info.DisplayName}) is present and you are authorized.");
+                            isStepLoading.Set(false);
+                            return;
+                        }
                     }
 
                     if (agentKey != "opencode")
@@ -222,7 +258,11 @@ public class ProjectAgentStepView(
             }
         }, setupTrigger != null ? [setupTrigger, EffectTrigger.OnMount()] : [EffectTrigger.OnMount()]);
 
-        var running = session.Running.Value || isCloning.Value;
+        // With no setupTrigger the run starts on mount, so the step counts as
+        // about-to-start from the moment it renders until the session has started.
+        var aboutToStart = (setupTrigger == null || setupTrigger.Value) && !session.Started.Value;
+
+        var running = session.Running.Value || isCloning.Value || aboutToStart;
 
         var buttonArea = Layout.Horizontal().Width(Size.Full())
             | new Button("Back").Outline().Large().Icon(Icons.ArrowLeft)
@@ -237,7 +277,7 @@ public class ProjectAgentStepView(
         // output arrives, the AgentViewer's own status label (below the stream) shows the
         // "Starting…" loading indicator, so we don't render a separate Loading() above it —
         // that avoided a layout shift when the bordered/padded Box swapped in on first output.
-        var showStream = !isCloning.Value && (session.Running.Value || session.HasOutput.Value);
+        var showStream = !isCloning.Value && (session.Running.Value || session.HasOutput.Value || aboutToStart);
 
         var viewer = new AgentViewer()
             .Stream(session.Stream)
@@ -274,6 +314,7 @@ public class ProjectAgentStepView(
                         .Padding(4, 4, 0, 4)
                    : null!)
                | buttonArea
-               | (showHeader ? (object)new Spacer().Height(Size.Units(4)) : null!);
+               | (showHeader ? (object)new Spacer().Height(Size.Units(4)) : null!)
+               | installDialog;
     }
 }

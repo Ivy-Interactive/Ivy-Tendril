@@ -116,6 +116,31 @@ public class JobServiceCompletionGuardTests : IDisposable
         service.DeleteJob(id);
 
         Assert.Empty(plan.ResetToDraftCalls);
+        Assert.Empty(plan.Transitions);
+    }
+
+    [Fact]
+    public void DeleteJob_CompletedPlan_NonExecuteJob_DoesNotRevertState()
+    {
+        var (service, plan) = CreateServiceWithStub(currentStatus: PlanStatus.Completed);
+        var id = service.CreateTestJob(new CreatePrArgs("test-plan"));
+        service.GetJob(id)!.PreviousPlanState = PlanStatus.Review;
+
+        service.DeleteJob(id);
+
+        Assert.Empty(plan.Transitions);
+    }
+
+    [Fact]
+    public void DeleteJob_SkippedPlan_DoesNotRevertState()
+    {
+        var (service, plan) = CreateServiceWithStub(currentStatus: PlanStatus.Skipped);
+        var id = service.CreateTestJob(new CreatePrArgs("test-plan"));
+        service.GetJob(id)!.PreviousPlanState = PlanStatus.Review;
+
+        service.DeleteJob(id);
+
+        Assert.Empty(plan.Transitions);
     }
 
     [Fact]
@@ -403,10 +428,6 @@ public class JobServiceCompletionGuardTests : IDisposable
         public List<(int Number, string Content, DateTime Modified)> GetRevisions(string folderName)
         {
             return [];
-        }
-
-        public void AddLog(string folderName, string action, string content, string? jobId = null)
-        {
         }
 
         public void DeletePlan(string folderName)

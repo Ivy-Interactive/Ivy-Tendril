@@ -778,21 +778,42 @@ public class PlanDatabaseService : IPlanDatabaseService
         };
     }
 
-    public void PurgeOldJobs(int keepCount = 500)
+    public List<string> PurgeOldJobs(int keepCount = 500)
     {
         using (new WriteLockHandle(_lock))
         {
-            using var cmd = _connection.CreateCommand();
-            cmd.CommandText = """
-                              DELETE FROM Jobs
-                              WHERE Id NOT IN (
-                                  SELECT Id FROM Jobs
-                                  ORDER BY CompletedAt DESC
-                                  LIMIT @keepCount
-                              )
-                              """;
-            cmd.Parameters.AddWithValue("@keepCount", keepCount);
-            cmd.ExecuteNonQuery();
+            var purgedIds = new List<string>();
+            using (var selectCmd = _connection.CreateCommand())
+            {
+                selectCmd.CommandText = """
+                                        SELECT Id FROM Jobs
+                                        WHERE Id NOT IN (
+                                            SELECT Id FROM Jobs
+                                            ORDER BY CompletedAt DESC
+                                            LIMIT @keepCount
+                                        )
+                                        """;
+                selectCmd.Parameters.AddWithValue("@keepCount", keepCount);
+                using var reader = selectCmd.ExecuteReader();
+                while (reader.Read())
+                    purgedIds.Add(reader.GetString(0));
+            }
+
+            using (var deleteCmd = _connection.CreateCommand())
+            {
+                deleteCmd.CommandText = """
+                                        DELETE FROM Jobs
+                                        WHERE Id NOT IN (
+                                            SELECT Id FROM Jobs
+                                            ORDER BY CompletedAt DESC
+                                            LIMIT @keepCount
+                                        )
+                                        """;
+                deleteCmd.Parameters.AddWithValue("@keepCount", keepCount);
+                deleteCmd.ExecuteNonQuery();
+            }
+
+            return purgedIds;
         }
     }
 

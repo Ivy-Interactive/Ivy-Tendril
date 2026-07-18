@@ -9,6 +9,7 @@ namespace Ivy.Tendril.Services.Plans;
 public class PlanDatabaseSyncService : IDisposable
 {
     private readonly IPlanDatabaseService _database;
+    private readonly IConfigService _configService;
     private readonly ILogger<PlanDatabaseSyncService> _logger;
     private readonly PlanReaderService _planReader;
     private readonly IPlanWatcherService _watcher;
@@ -19,11 +20,13 @@ public class PlanDatabaseSyncService : IDisposable
         PlanReaderService planReader,
         IPlanDatabaseService database,
         IPlanWatcherService watcher,
+        IConfigService configService,
         ILogger<PlanDatabaseSyncService> logger)
     {
         _planReader = planReader;
         _database = database;
         _watcher = watcher;
+        _configService = configService;
         _logger = logger;
 
         _watcher.PlansChanged += OnPlansChanged;
@@ -62,6 +65,8 @@ public class PlanDatabaseSyncService : IDisposable
                 SyncPlanRecommendations(plan);
             }
 
+            // Purging old rows keeps the database small; the job artifacts under <TendrilHome>/Jobs/ are
+            // kept so a purged job can still be inspected and attached to a bug report.
             _database.PurgeOldJobs();
             _database.SetLastSyncTime(DateTime.UtcNow);
             _isInitialSyncComplete = true;
@@ -151,23 +156,20 @@ public class PlanDatabaseSyncService : IDisposable
         try
         {
             var lines = FileHelper.ReadAllLines(costsPath);
-            var logsDir = Path.Combine(plan.FolderPath, "Logs");
+            var planId = JobLogPaths.PlanIdFromFolderName(Path.GetFileName(plan.FolderPath));
 
-            // Build log file map for timestamp correlation
+            // Correlate each costs.csv row with the job log of the same promptware, oldest job first.
+            // Job logs are named "{jobId}-{planId}-{promptware}.md".
             var logsByPromptware =
                 new Dictionary<string, Queue<(string Path, int Num)>>(StringComparer.OrdinalIgnoreCase);
-            if (Directory.Exists(logsDir))
+            if (planId != null)
             {
-                var logFiles = Directory.GetFiles(logsDir, "*.md")
+                var logFiles = JobLogPaths.LogsForPlanId(_configService.TendrilHome, planId)
                     .Select(f =>
                     {
-                        var name = Path.GetFileNameWithoutExtension(f);
-                        var dashIdx = name.IndexOf('-');
-                        if (dashIdx < 0) return (Promptware: name, Path: f, Num: 0);
-                        var numPart = name[..dashIdx];
-                        var pwName = name[(dashIdx + 1)..];
-                        int.TryParse(numPart, out var num);
-                        return (Promptware: pwName, Path: f, Num: num);
+                        var parts = Path.GetFileNameWithoutExtension(f).Split('-');
+                        int.TryParse(parts[0], out var num);
+                        return (Promptware: parts[^1], Path: f, Num: num);
                     })
                     .OrderBy(l => l.Num)
                     .ToList();

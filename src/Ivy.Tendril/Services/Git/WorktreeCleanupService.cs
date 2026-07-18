@@ -180,9 +180,10 @@ public class WorktreeCleanupService : IStartable, IDisposable
     ///     kill locking processes) before throwing.
     /// </remarks>
     /// <summary>
-    ///     Removes a plan's execution work product: the Artifacts, Logs and Verification
-    ///     directories plus all git worktrees. Used when resetting a plan to a clean Draft
-    ///     (Reset to Draft, or deleting an ExecutePlan job).
+    ///     Removes a plan's execution work product: the Artifacts and Verification directories plus all
+    ///     git worktrees. Used when resetting a plan to a clean Draft (Reset to Draft, or deleting an
+    ///     ExecutePlan job). Job logs are NOT touched — they live in <c>&lt;TendrilHome&gt;/Jobs/</c> and
+    ///     are the forensic record of runs that happened, which a reset must not erase.
     /// </summary>
     public static void CleanPlanState(string planFolderPath, ILogger? logger = null)
     {
@@ -193,10 +194,12 @@ public class WorktreeCleanupService : IStartable, IDisposable
             ForceDeleteDirectory(artifactsDir, logger);
         }
 
+        // Legacy: plans written before job logs moved to <TendrilHome>/Jobs/ may still carry a Logs/
+        // folder. Nothing writes it any more; sweep it away when the plan is reset.
         var logsDir = Path.Combine(planFolderPath, "Logs");
         if (Directory.Exists(logsDir))
         {
-            logger?.LogInformation("Cleaning logs directory: {Path}", logsDir);
+            logger?.LogInformation("Cleaning legacy plan logs directory: {Path}", logsDir);
             ForceDeleteDirectory(logsDir, logger);
         }
 

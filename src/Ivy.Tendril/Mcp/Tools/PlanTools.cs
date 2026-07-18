@@ -256,20 +256,6 @@ public sealed class PlanTools : AuthenticatedToolBase
         });
     }
 
-    [McpServerTool(Name = "tendril_plan_add_log"), Description("Write an execution log entry to a plan")]
-    public string AddLog(
-        [Description("Plan ID")] string planId,
-        [Description("Action name (e.g., CreatePlan, ExecutePlan)")] string action,
-        [Description("Optional summary text")] string? summary = null)
-    {
-        return ExecuteAuthenticated(() =>
-        {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var logPath = PlanAddLogCommand.WriteLog(planFolder, action, summary);
-            return $"Log written: {Path.GetFileName(logPath)}";
-        });
-    }
-
     [McpServerTool(Name = "tendril_plan_rec_add"), Description("Add a recommendation to a plan")]
     public string RecAdd(
         [Description("Plan ID")] string planId,

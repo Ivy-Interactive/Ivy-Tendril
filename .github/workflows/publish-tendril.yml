@@ -414,7 +414,7 @@ jobs:
             export VPK_KEYCHAIN="$RUNNER_TEMP/app-signing.keychain-db"
             export VPK_SIGN_DISABLE_DEEP="true"
 
-            APP_DIR="./publish/desktop/IvyTendril.app"
+            APP_DIR="./publish/desktop/Ivy Tendril.app"
             rm -rf "$APP_DIR"
             mkdir -p "$APP_DIR/Contents/MacOS"
             mkdir -p "$APP_DIR/Contents/Resources"
@@ -539,6 +539,7 @@ jobs:
 
           vpk pack \
             --packId IvyTendril \
+            --packTitle "Ivy Tendril" \
             --packVersion ${{ needs.version.outputs.version }} \
             --packDir "$PACK_DIR" \
             --mainExe $EXE_NAME \
@@ -562,10 +563,10 @@ jobs:
           echo '#!/bin/sh
           rm -rf /tmp/velopack/IvyTendril
           sudo -u "$USER" rm -rf ~/Library/Caches/velopack/IvyTendril
-          sudo -u "$USER" env VELOPACK_FIRSTRUN=1 open "$2/IvyTendril.app/"
+          sudo -u "$USER" env VELOPACK_FIRSTRUN=1 open "$2/Ivy Tendril.app/"
 
           # Path to the installed app certificate
-          CERT_PATH="$3/Applications/IvyTendril.app/Contents/Resources/certs/localhost.crt"
+          CERT_PATH="$3/Applications/Ivy Tendril.app/Contents/Resources/certs/localhost.crt"
           if [ -f "$CERT_PATH" ]; then
             echo "Trusting Ivy Tendril localhost certificate system-wide..."
             security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$CERT_PATH"

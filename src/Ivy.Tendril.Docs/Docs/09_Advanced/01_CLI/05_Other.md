@@ -96,6 +96,20 @@ Reports a status update to the running Tendril server for a job in progress. Use
 | `--plan-id` | Plan ID associated with the job |
 | `--plan-title` | Plan title associated with the job |
 
+#### job add-log
+
+```terminal
+>tendril job add-log <job-id> <action> [--summary <text>]
+```
+
+Appends an `## Agent Log` section to the job's log in `<TendrilHome>/Jobs/` and prints the path to
+stdout. Writes straight to disk, so unlike `job start` and `job status` it does not need the Tendril
+server to be running. Agents pass the `TendrilJobId` firmware header value as `<job-id>`.
+
+| Option | Effect |
+|--------|--------|
+| `--summary` | Body text for the log entry |
+
 ## trash
 
 #### trash write

@@ -1,4 +1,5 @@
 using Ivy.Tendril.Apps.Drafts;
+using Ivy.Tendril.Apps.Jobs.Dialogs;
 using Ivy.Tendril.Apps.Review;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
@@ -7,6 +8,25 @@ namespace Ivy.Tendril.Apps.Jobs;
 
 public partial class JobsApp
 {
+    /// <summary>
+    /// Determines if a job can be rerun. Returns true for Failed/Timeout/Stopped
+    /// jobs (existing behavior), or for Completed jobs whose args type supports
+    /// corrective feedback (ExecutePlan/RetryPlan/UpdatePlan).
+    /// </summary>
+    internal static bool CanRerun(JobItem? job)
+    {
+        if (job == null) return false;
+
+        // Existing behavior: all failed-state jobs can be rerun regardless of type
+        if (job.Status is JobStatus.Failed or JobStatus.Timeout or JobStatus.Stopped)
+            return true;
+
+        // New: Completed jobs can be rerun only when their args support feedback
+        if (job.Status is JobStatus.Completed)
+            return RerunJobDialog.SupportsFeedback(job.TypedArgs);
+
+        return false;
+    }
     private static object BuildDataTable(
         INavigator nav,
         List<JobItemRow> rows,
@@ -187,7 +207,7 @@ public partial class JobsApp
                         .Tooltip("Stop this running job"));
                 }
 
-                if (job?.Status is JobStatus.Failed or JobStatus.Timeout or JobStatus.Stopped)
+                if (CanRerun(job))
                 {
                     actions.Add(new MenuItem("Rerun", Icon: Icons.RotateCw, Tag: "rerun-job")
                         .Tooltip("Rerun this job"));
@@ -229,7 +249,7 @@ public partial class JobsApp
                     }
                     else if (tag == "rerun-job")
                     {
-                        if (job.Status is JobStatus.Failed or JobStatus.Timeout or JobStatus.Stopped)
+                        if (CanRerun(job))
                         {
                             if (job.TypedArgs == null)
                             {

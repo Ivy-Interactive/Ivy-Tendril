@@ -390,23 +390,6 @@ public class PlanReaderService(
     }
 
     /// <summary>
-    ///     Appends a log entry to a plan's logs directory.
-    /// </summary>
-    /// <param name="folderName">Name of the plan folder.</param>
-    /// <param name="action">Action name used in the log filename (e.g. <c>ExecutePlan</c>).</param>
-    /// <param name="content">Markdown content of the log entry.</param>
-    public void AddLog(string folderName, string action, string content, string? jobId = null)
-    {
-        var logsDir = Path.Combine(PlansDirectory, folderName, "Logs");
-        FileHelper.EnsureDirectory(logsDir);
-
-        var logPath = !string.IsNullOrEmpty(jobId)
-            ? Path.Combine(logsDir, $"{jobId}-{action}.md")
-            : Path.Combine(logsDir, $"{action}.md");
-        FileHelper.WriteAllText(logPath, content);
-    }
-
-    /// <summary>
     ///     Deletes a plan folder and all its contents, including any associated git worktrees.
     /// </summary>
     /// <param name="folderName">Name of the plan folder.</param>

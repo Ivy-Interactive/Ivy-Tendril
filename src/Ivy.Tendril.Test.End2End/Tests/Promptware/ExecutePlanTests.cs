@@ -14,7 +14,7 @@ public class ExecutePlanTests
     [MemberData(nameof(AgentTestData.Agents), MemberType = typeof(AgentTestData))]
     public async Task ExecutePlan_ImplementsPlan_TransitionsToReview(string agent)
     {
-        var cliLog = Path.Combine(_fixture.TendrilHome, $"execute-plan-{agent}.jsonl");
+        var cliLog = _fixture.CliLogPath($"execute-plan-{agent}");
 
         var planFolder = PlanSetupHelper.CreateDraftPlan(
             _fixture.PlansDir,
@@ -48,7 +48,7 @@ public class ExecutePlanTests
     [MemberData(nameof(AgentTestData.Agents), MemberType = typeof(AgentTestData))]
     public async Task ExecutePlan_CreatesCommits_WithPlanIdPrefix(string agent)
     {
-        var cliLog = Path.Combine(_fixture.TendrilHome, $"execute-commits-{agent}.jsonl");
+        var cliLog = _fixture.CliLogPath($"execute-commits-{agent}");
 
         var planFolder = PlanSetupHelper.CreateDraftPlan(
             _fixture.PlansDir,

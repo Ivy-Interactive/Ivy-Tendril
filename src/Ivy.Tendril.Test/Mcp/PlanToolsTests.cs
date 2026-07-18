@@ -28,7 +28,7 @@ public class PlanToolsTests : IDisposable
         Environment.SetEnvironmentVariable("TENDRIL_HOME", _tempDir);
         Environment.SetEnvironmentVariable("TENDRIL_PLANS", null);
         Environment.SetEnvironmentVariable("TENDRIL_MCP_TOKEN", null);
-        _configService = new TestPlanConfigService(_repoDir);
+        _configService = new TestPlanConfigService(_repoDir, tendrilHome: _tempDir);
         _planTools = new PlanTools(new McpAuthenticationService(NullLogger<McpAuthenticationService>.Instance), _configService);
     }
 
@@ -342,24 +342,7 @@ public class PlanToolsTests : IDisposable
         Assert.Contains("DotnetBuild=Pass", verifications);
     }
 
-    // --- AddLog ---
-
-    [Fact]
-    public void AddLog_WritesLogFile()
-    {
-        var planFolder = CreateTestPlan();
-        var result = _planTools.AddLog("00001", "ExecutePlan", "Test summary");
-        Assert.Contains("Log written", result);
-
-        var logsDir = Path.Combine(planFolder, "Logs");
-        Assert.True(Directory.Exists(logsDir));
-        var logFiles = Directory.GetFiles(logsDir, "*.md");
-        Assert.Single(logFiles);
-        Assert.Contains("001-ExecutePlan.md", Path.GetFileName(logFiles[0]));
-
-        var content = File.ReadAllText(logFiles[0]);
-        Assert.Contains("Test summary", content);
-    }
+    // add-log moved to the job namespace — see JobAddLogTests.
 
     // --- Recommendations ---
 
@@ -492,7 +475,6 @@ public class PlanToolsTests : IDisposable
         Assert.Contains("Error: Authentication failed", authedTools.AddPr("00001", "https://github.com/test/pr/1"));
         Assert.Contains("Error: Authentication failed", authedTools.AddCommit("00001", "abc123"));
         Assert.Contains("Error: Authentication failed", authedTools.SetVerification("00001", "Build", "Pass"));
-        Assert.Contains("Error: Authentication failed", authedTools.AddLog("00001", "Test"));
         Assert.Contains("Error: Authentication failed", authedTools.RecAdd("00001", "Title", "Desc"));
         Assert.Contains("Error: Authentication failed", authedTools.RecAccept("00001", "Title"));
         Assert.Contains("Error: Authentication failed", authedTools.RecDecline("00001", "Title"));

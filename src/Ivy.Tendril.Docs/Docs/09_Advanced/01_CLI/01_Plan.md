@@ -176,13 +176,9 @@ read the exact git failure and decide how to recover.
 Removes a single worktree from `Worktrees/<repo-name>`. Attempts `git worktree remove --force` first; falls back to a force-delete. Also deletes the associated branch (`tendril/<plan-folder>` by default).
 
 
-## Logs & Revisions
+## Revisions
 
-```terminal
->tendril plan add-log <plan-id> <action> [--summary <text>]
-```
-
-Appends a numbered log entry to `Logs/` (e.g. `003-ExecutePlan.md`) and prints the path to stdout.
+Execution logs are written per job, not per plan — see `tendril job add-log`.
 
 ```terminal
 >cat revision.md | tendril plan write-revision <plan-id> --stdin

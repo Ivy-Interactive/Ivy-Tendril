@@ -932,7 +932,7 @@ public class PlanDatabaseServiceTests : IDisposable
 
         Assert.Equal(600, _db.GetRecentJobs(1000).Count);
 
-        _db.PurgeOldJobs();
+        var purgedIds = _db.PurgeOldJobs();
 
         var remaining = _db.GetRecentJobs(1000);
         Assert.Equal(500, remaining.Count);
@@ -943,6 +943,13 @@ public class PlanDatabaseServiceTests : IDisposable
         // The newest jobs should remain
         Assert.Contains(remaining, j => j.Id == "job-0599");
         Assert.Contains(remaining, j => j.Id == "job-0100");
+
+        // The returned id list matches the removed rows, not the retained ones
+        Assert.Equal(100, purgedIds.Count);
+        Assert.Contains("job-0000", purgedIds);
+        Assert.Contains("job-0099", purgedIds);
+        Assert.DoesNotContain("job-0599", purgedIds);
+        Assert.DoesNotContain("job-0100", purgedIds);
     }
 
     [Fact]
@@ -960,10 +967,11 @@ public class PlanDatabaseServiceTests : IDisposable
                 CompletedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMinutes(i)
             });
 
-        _db.PurgeOldJobs();
+        var purgedIds = _db.PurgeOldJobs();
 
         var remaining = _db.GetRecentJobs(1000);
         Assert.Equal(10, remaining.Count);
+        Assert.Empty(purgedIds);
     }
 
     [Fact]

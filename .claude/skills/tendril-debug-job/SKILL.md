@@ -1,19 +1,43 @@
-# tendril-debug-promptware
+# tendril-debug-job
 
-Analyze a promptware execution log to identify issues and improvement opportunities in Tendril, the promptware instructions, memory, or tools.
+Analyze a job's execution artifacts to identify issues and improvement opportunities in Tendril, the promptware instructions, memory, or tools.
 
 ## Invocation
 
 ```
-/tendril-debug-promptware <path> <comment>
+/tendril-debug-job <job-id> <comment>
 ```
 
-* **path** — Full path to the `.md` log file (e.g., `D:\Repos\_Ivy\Ivy-Tendril\src\Ivy.Tendril\Promptwares\CreatePlan\Logs\00001.md`)
+* **job-id** — Five-digit job id (e.g., `00458`). A full path to a job log also works.
 * **comment** — Free-text describing what to look for or what went wrong
+
+## Job Artifacts
+
+Every job writes four files, flat, into `$TENDRIL_HOME/Jobs/`. They share one stem:
+
+```
+{jobId}-{planId}-{promptware}      e.g. 00458-00044-ExecutePlan
+{jobId}-{promptware}               when the job has no plan (e.g. CreatePlan)
+```
+
+| File | Name |
+|------|------|
+| `{stem}.md` | **Job Log** — status, timings, CLI command, final output, agent-authored `## Agent Log` sections |
+| `{stem}.prompt.md` | **Job Prompt** — the exact prompt handed to the agent |
+| `{stem}.raw.jsonl` | **Job Raw Log** — unparsed CLI stream-json output |
+| `{stem}.eventwire.jsonl` | **Job Eventwire Log** — Tendril's parsed event stream |
+
+Locate them with a glob on the job id:
+
+```bash
+ls "$TENDRIL_HOME/Jobs/00458-"*
+```
+
+The promptware type is the **last** dash-separated segment of the stem; the plan id, when present, is the middle segment. There is no `Logs/` folder anywhere — not under promptwares, not under plans.
 
 ## What This Skill Does
 
-1. Reads the execution log (`.md`) and its companion raw output (`.raw.jsonl`)
+1. Reads the Job Log, the Job Prompt, and the Job Raw Log
 2. Reconstructs the agent's execution timeline: tool calls, decisions, errors, retries
 3. Cross-references with the promptware's Program.md, Memory, and Tools
 4. Identifies concrete improvements to Tendril code, promptware instructions, or agent behavior
@@ -21,42 +45,50 @@ Analyze a promptware execution log to identify issues and improvement opportunit
 
 ## Execution Steps
 
-### Phase 1 — Read the Execution Log
+### Phase 1 — Read the Job Log and Job Prompt
 
-The `.md` log file (produced by `PromptwareLogWriter`) has this structure:
+The Job Log (`{stem}.md`, produced by `JobLogWriter`) has this structure:
 
 ```markdown
-# Execution Log {number}
+# Job Log {stem}
 
+- **JobId:** {id}
+- **PlanId:** {planId}   # present whenever the job produced or targeted a plan
 - **Status:** {Completed|Failed|Timeout}
 - **Exit Code:** {0|1|N/A}
 - **Started:** {timestamp}
 - **Completed:** {timestamp}
 - **Duration:** {seconds}s
 - **Provider:** {claude|copilot|codex|...}
+- **SessionId:** {id}
+- **Cost:** ${amount}
+- **Tokens:** {count}
 
 ## CLI Command
 {full command line}
 
-## Compiled Prompt
-{full firmware + program.md + references + custom instructions}
-
 ## Final Output
 {agent's last text response}
+
+## Outcome
+{commits, verifications, final plan state — ExecutePlan/RetryPlan only}
+
+## Agent Log — {action} ({timestamp})
+{narrative the agent appended mid-run via `tendril job add-log`}
 ```
 
-Read this file. Extract:
-- The promptware type (from the path, e.g., `.../Promptwares/CreatePlan/Logs/...` → `CreatePlan`)
-- The program folder (parent of `Logs/`)
-- Status, exit code, duration
-- The compiled prompt (contains the firmware headers with all args)
+The compiled prompt is **not** in this file. Read `{stem}.prompt.md` for the full firmware + Program.md + references + custom instructions.
+
+Extract:
+- The promptware type and plan id (from the stem)
+- The program folder: `$TENDRIL_HOME/Promptwares/{promptware}` (in a dev checkout, `src/Ivy.Tendril/Promptwares/{promptware}`)
+- Status, exit code, duration, cost, tokens
+- The agent's own narrative from the `## Agent Log` sections
 - The final output
 
 ### Phase 2 — Analyze the Raw JSONL
 
-The companion file is at the same path with `.raw.jsonl` extension (e.g., `00001.raw.jsonl`).
-
-This is Claude's `--output-format stream-json` output. Each line is a JSON object with a `type` field:
+`{stem}.raw.jsonl` is the CLI's `--output-format stream-json` output. Each line is a JSON object with a `type` field:
 
 | Type | Contents |
 |------|----------|
@@ -64,6 +96,8 @@ This is Claude's `--output-format stream-json` output. Each line is a JSON objec
 | `assistant` | Agent response with `content[]` array (text blocks and tool_use blocks) and `usage` (token counts) |
 | `tool_result` | Result of a tool call |
 | `result` | Final result text |
+
+`{stem}.eventwire.jsonl` is Tendril's own parsed view of that same stream — use it when you want Tendril's interpretation (including `PermissionDenialEvent`) rather than the provider's raw wire format.
 
 **Analysis approach (use targeted reads, never read the whole file if large):**
 
@@ -80,6 +114,7 @@ This is Claude's `--output-format stream-json` output. Each line is a JSON objec
    - Grep for `error`, `failed`, `exception` in tool results
    - Count build-fix-build cycles (consecutive Bash calls with compilation errors)
    - Identify thrashing (read-edit-read-edit on same file)
+   - `src/scripts/AnalyzeFailed.ps1` dumps every failed shell command across all raw logs
 5. Timeline:
    - First and last timestamps for wall-clock duration
    - Long gaps between messages (rate limiting, slow tools)
@@ -107,11 +142,12 @@ Based on findings, check relevant Tendril source files:
 
 | File | What It Controls |
 |------|-----------------|
-| `Services/Agents/FirmwareCompiler.cs` | Firmware template, log allocation, prompt compilation |
+| `Helpers/JobLogPaths.cs` | Where every job artifact lives and how its stem is built |
+| `Services/FirmwareCompiler.cs` | Firmware template, prompt compilation |
 | `Services/Agents/AgentProviderFactory.cs` | Tool permissions, model/effort resolution |
-| `Services/JobLauncher.cs` | Job launch, firmware values, environment setup |
-| `Services/JobCompletionHandler.cs` | Post-completion processing, state transitions |
-| `Services/Agents/PromptwareLogWriter.cs` | Log writing |
+| `Services/Jobs/JobLauncher.cs` | Job launch, firmware values, environment setup |
+| `Services/Jobs/JobCompletionHandler.cs` | Post-completion processing, state transitions |
+| `Services/Promptware/JobLogWriter.cs` | Job Log / Job Prompt / raw log writing |
 | `Models/JobArgs.cs` | Typed POCO args passed to jobs |
 
 ### Phase 5 — Produce Recommendations
@@ -121,7 +157,7 @@ Output a structured analysis directly in the conversation (do NOT write files):
 ```markdown
 ## Execution Summary
 
-- **Promptware:** {type}
+- **Job:** {jobId} ({promptware}, plan {planId})
 - **Status:** {status} (exit code {code})
 - **Duration:** {duration}
 - **Tokens:** {input + output} (cache hit: {ratio}%)
