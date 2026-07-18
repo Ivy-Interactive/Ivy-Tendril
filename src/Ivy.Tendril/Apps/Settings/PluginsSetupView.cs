@@ -11,7 +11,7 @@ internal static class PluginIconHelper
 {
     internal static readonly Size IconSize = Size.Units(5);
 
-    public static object? ToWidget(PluginIcon? icon, string? pluginId = null)
+    public static object? ToWidget(PluginIcon? icon)
     {
         if (icon is null) return null;
         return icon.Kind switch
@@ -20,10 +20,22 @@ internal static class PluginIconHelper
                 ? new Icon(parsed).Width(IconSize).Height(IconSize)
                 : null,
             PluginIconKind.Url => new Image(icon.Value).Width(IconSize).Height(IconSize),
-            PluginIconKind.File when pluginId is not null =>
-                new Image($"/ivy/plugin-icons/{pluginId}/{icon.Value}").Width(IconSize).Height(IconSize),
             _ => null
         };
+    }
+
+    public static PluginIcon? FromApiResponse(string? iconKind, string? iconValue, string? fallbackIconUrl)
+    {
+        if (iconKind is not null && iconValue is not null)
+        {
+            return iconKind.ToLowerInvariant() switch
+            {
+                "named" => PluginIcon.Named(iconValue),
+                "url" => PluginIcon.Url(iconValue),
+                _ => fallbackIconUrl is not null ? PluginIcon.Url(fallbackIconUrl) : null
+            };
+        }
+        return fallbackIconUrl is not null ? PluginIcon.Url(fallbackIconUrl) : null;
     }
 
     public static Icon UnloadedIcon() => new Icon(Icons.Unplug).Width(IconSize).Height(IconSize);
@@ -31,7 +43,7 @@ internal static class PluginIconHelper
 
 public class PluginsSetupView : ViewBase
 {
-    private record AvailablePlugin(string PackageId, string Version, string Hash, string Title, string? Description, string? IconUrl, string? ProjectUrl);
+    private record AvailablePlugin(string PackageId, string Version, string Hash, string Title, string? Description, string? IconUrl, string? IconKind, string? IconValue, string? ProjectUrl);
 
     public override object Build()
     {
@@ -79,7 +91,7 @@ public class PluginsSetupView : ViewBase
                        var pluginConfig = configFactory.Create(id);
                        var customView = pluginManager.BuildPluginConfigurationView(id, pluginConfig);
                        var header = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                           | PluginIconHelper.ToWidget(manifest?.Icon, id)
+                           | PluginIconHelper.ToWidget(manifest?.Icon)
                            | Text.Block(manifest?.Title ?? id);
                        var content = Layout.Vertical().Gap(3)
                            | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
@@ -109,7 +121,7 @@ public class PluginsSetupView : ViewBase
                        var customView = pluginManager.BuildPluginConfigurationView(p.Id, pluginConfig);
                        var header = Layout.Horizontal().Gap(2).AlignContent(Align.SpaceBetween)
                            | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                               | PluginIconHelper.ToWidget(manifest?.Icon, p.Id)
+                               | PluginIconHelper.ToWidget(manifest?.Icon)
                                | Text.Block(p.Title))
                            | (Layout.Horizontal().Gap(1).AlignContent(Align.Right)
                                | Text.Block("Unconfigured").Muted().Small()
@@ -173,11 +185,11 @@ public class PluginsSetupView : ViewBase
                | Text.Block("Plugins approved and ready to install.").Muted().Small()
                | plugins.Select(p =>
                {
+                   var icon = PluginIconHelper.FromApiResponse(p.IconKind, p.IconValue, p.IconUrl);
                    var header = Layout.Horizontal().Gap(2).AlignContent(Align.SpaceBetween)
                        | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                           | (p.IconUrl is not null
-                               ? (object)new Image(p.IconUrl).Width(PluginIconHelper.IconSize).Height(PluginIconHelper.IconSize)
-                               : new Icon(Icons.Plug).Width(PluginIconHelper.IconSize).Height(PluginIconHelper.IconSize))
+                           | (PluginIconHelper.ToWidget(icon)
+                               ?? (object)new Icon(Icons.Plug).Width(PluginIconHelper.IconSize).Height(PluginIconHelper.IconSize))
                            | Text.Block(p.Title))
                        | new Badge(p.Version, BadgeVariant.Secondary);
                    var content = Layout.Vertical().Gap(2)
