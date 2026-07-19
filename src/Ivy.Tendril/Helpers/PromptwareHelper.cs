@@ -1,3 +1,8 @@
+using System.IO;
+using System.Collections.Generic;
+using System.Linq;
+using Ivy.Tendril.Services;
+
 namespace Ivy.Tendril.Helpers;
 
 public static class PromptwareHelper
@@ -244,31 +249,23 @@ public static class PromptwareHelper
             if (!Directory.Exists(memoriesPath)) return;
 
             var projectDirs = new List<string> { Path.Combine(memoriesPath, "global") };
-            foreach (var subDir in Directory.GetDirectories(memoriesPath))
-            {
-                var dirName = Path.GetFileName(subDir);
-                if (!dirName.Equals("promptwares", StringComparison.OrdinalIgnoreCase) && !dirName.StartsWith('.'))
-                {
-                    projectDirs.Add(subDir);
-                }
-            }
+            var validProjectNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "global" };
 
             try
             {
                 var configPath = Path.Combine(tendrilHome, "config.yaml");
                 if (File.Exists(configPath))
                 {
-                    var lines = File.ReadAllLines(configPath);
-                    foreach (var line in lines)
+                    var yaml = File.ReadAllText(configPath);
+                    var settings = YamlHelper.Deserializer.Deserialize<TendrilSettings>(yaml);
+                    if (settings?.Projects != null)
                     {
-                        var trimmed = line.Trim();
-                        if (trimmed.StartsWith("- name:") || trimmed.StartsWith("name:"))
+                        foreach (var p in settings.Projects)
                         {
-                            var idx = trimmed.IndexOf(':');
-                            var projectName = trimmed.Substring(idx + 1).Trim();
-                            if (!string.IsNullOrEmpty(projectName))
+                            if (!string.IsNullOrEmpty(p.Name))
                             {
-                                var projDir = Path.Combine(memoriesPath, projectName);
+                                validProjectNames.Add(p.Name);
+                                var projDir = Path.Combine(memoriesPath, p.Name);
                                 if (!projectDirs.Any(d => d.Equals(projDir, StringComparison.OrdinalIgnoreCase)))
                                 {
                                     projectDirs.Add(projDir);
@@ -279,6 +276,37 @@ public static class PromptwareHelper
                 }
             }
             catch { /* best effort */ }
+
+            // Delete fake/outdated project memory directories to clean up vault clutter
+            var fakeProjectNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "Bug", "Feature", "Epic", "Chore", "Nitpick",
+                "CheckResult", "NpmBuild", "NpmTest", "NpmLint", "RustClippy", "RustBuild", "RustTest",
+                "claude", "codex", "antigravity", "copilot",
+                "deep", "balanced", "quick",
+                "App", "Memory", "Tools"
+            };
+
+            foreach (var subDir in Directory.GetDirectories(memoriesPath))
+            {
+                var dirName = Path.GetFileName(subDir);
+                if (fakeProjectNames.Contains(dirName) && !validProjectNames.Contains(dirName))
+                {
+                    try
+                    {
+                        Directory.Delete(subDir, true);
+                    }
+                    catch { /* best effort */ }
+                }
+                else if (!dirName.Equals("promptwares", StringComparison.OrdinalIgnoreCase) && !dirName.StartsWith('.'))
+                {
+                    var projDir = Path.Combine(memoriesPath, dirName);
+                    if (!projectDirs.Any(d => d.Equals(projDir, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        projectDirs.Add(projDir);
+                    }
+                }
+            }
 
             foreach (var projDir in projectDirs)
             {
@@ -321,31 +349,27 @@ public static class PromptwareHelper
             var configPath = Path.Combine(tendrilHome, "config.yaml");
             if (!File.Exists(configPath)) return null;
 
-            var lines = File.ReadAllLines(configPath);
-            string? currentProjectName = null;
-            var targetPath = Path.GetFullPath(path).Replace('\\', '/').TrimEnd('/');
-
-            foreach (var line in lines)
+            var yaml = File.ReadAllText(configPath);
+            var settings = YamlHelper.Deserializer.Deserialize<TendrilSettings>(yaml);
+            if (settings?.Projects != null)
             {
-                var trimmed = line.Trim();
-                if (trimmed.StartsWith("- name:") || trimmed.StartsWith("name:"))
+                var targetPath = Path.GetFullPath(path).Replace('\\', '/').TrimEnd('/');
+                foreach (var p in settings.Projects)
                 {
-                    var idx = trimmed.IndexOf(':');
-                    currentProjectName = trimmed.Substring(idx + 1).Trim();
-                }
-                else if (trimmed.StartsWith("path:") && currentProjectName != null)
-                {
-                    var idx = trimmed.IndexOf(':');
-                    var repoPath = trimmed.Substring(idx + 1).Trim();
-                    try
+                    if (p.Repos == null) continue;
+                    foreach (var repo in p.Repos)
                     {
-                        var fullRepoPath = Path.GetFullPath(repoPath).Replace('\\', '/').TrimEnd('/');
-                        if (targetPath.StartsWith(fullRepoPath, StringComparison.OrdinalIgnoreCase))
+                        if (string.IsNullOrEmpty(repo.Path)) continue;
+                        try
                         {
-                            return currentProjectName;
+                            var fullRepoPath = Path.GetFullPath(repo.Path).Replace('\\', '/').TrimEnd('/');
+                            if (targetPath.StartsWith(fullRepoPath, StringComparison.OrdinalIgnoreCase))
+                            {
+                                return p.Name;
+                            }
                         }
+                        catch { }
                     }
-                    catch { }
                 }
             }
         }
