@@ -157,3 +157,27 @@
   transform: translate(-50%, -50%) scale(1);
 }
 
+/* Hide empty line number columns in unified view when no deletions or additions exist */
+.diff-unified-view.diff-no-deletions colgroup col:nth-child(1) {
+  display: none;
+}
+.diff-unified-view.diff-no-deletions .diff-row td:nth-child(1) {
+  display: none;
+}
+
+.diff-unified-view.diff-no-additions colgroup col:nth-child(2) {
+  display: none;
+}
+.diff-unified-view.diff-no-additions .diff-row td:nth-child(2) {
+  display: none;
+}
+
+/* Outer layout and widget padding adjustments */
+.ivy-diff-view {
+  padding-right: 1.25rem;
+}
+
+.ivy-tree {
+  padding-bottom: 2.5rem;
+}
+

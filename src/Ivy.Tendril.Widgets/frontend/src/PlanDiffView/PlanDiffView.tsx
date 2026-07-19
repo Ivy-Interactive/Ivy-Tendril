@@ -90,29 +90,21 @@ interface CommentWidgetContainerProps {
   onCancelForm: () => void;
   onStartEdit: (text: string) => void;
   onCancelEdit: () => void;
-  onDirectEdit: (newContent: string, commitMessage: string) => void;
 }
 
 const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
   comments,
   isEditing,
   editingText,
-  originalLineText,
   onAddComment,
   onUpdateComment,
   onDeleteComment,
   onCancelForm,
   onStartEdit,
   onCancelEdit,
-  onDirectEdit,
 }) => {
   const [inputText, setInputText] = useState("");
   const [activeTab, setActiveTab] = useState<"write" | "preview">("write");
-  const [activeMode, setActiveMode] = useState<"comment" | "edit">("comment");
-  
-  // Edit Line state
-  const [editText, setEditText] = useState(originalLineText);
-  const [commitMessage, setCommitMessage] = useState("");
 
   const hasComment = comments.length > 0;
 
@@ -127,7 +119,7 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
-                    className="hover:underline hover:text-[var(--foreground)]"
+                    className="hover:underline hover:text-[var(--foreground)] cursor-pointer"
                     onClick={() => onStartEdit(comment.content)}
                   >
                     Edit
@@ -135,7 +127,7 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
                   <span>&bull;</span>
                   <button
                     type="button"
-                    className="hover:underline hover:text-[var(--destructive)]"
+                    className="hover:underline hover:text-[var(--destructive)] cursor-pointer"
                     onClick={onDeleteComment}
                   >
                     Delete
@@ -150,154 +142,88 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {/* Main Mode Toggle: Comment vs Edit Line */}
-          <div className="flex border-b border-[var(--border)] pb-1 mb-1 gap-4">
-            <button
-              type="button"
-              className={`pb-1 text-[11px] font-semibold transition-all ${
-                activeMode === "comment"
-                  ? "text-[var(--foreground)] border-b-2 border-[var(--primary)]"
-                  : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-              }`}
-              onClick={() => setActiveMode("comment")}
-            >
-              Add Comment
-            </button>
-            <button
-              type="button"
-              className={`pb-1 text-[11px] font-semibold transition-all ${
-                activeMode === "edit"
-                  ? "text-[var(--foreground)] border-b-2 border-[var(--primary)]"
-                  : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-              }`}
-              onClick={() => setActiveMode("edit")}
-            >
-              Edit Line Directly
-            </button>
-          </div>
-
-          {activeMode === "comment" ? (
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between border-b border-[var(--border)] pb-1">
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    className={`pb-1 px-1 border-b-2 text-[11px] font-medium transition-all ${
-                      activeTab === "write"
-                        ? "border-[var(--primary)] text-[var(--foreground)]"
-                        : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                    }`}
-                    onClick={() => setActiveTab("write")}
-                  >
-                    Write
-                  </button>
-                  <button
-                    type="button"
-                    className={`pb-1 px-1 border-b-2 text-[11px] font-medium transition-all ${
-                      activeTab === "preview"
-                        ? "border-[var(--primary)] text-[var(--foreground)]"
-                        : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                    }`}
-                    onClick={() => setActiveTab("preview")}
-                  >
-                    Preview
-                  </button>
-                </div>
-                <span className="text-[10px] text-[var(--muted-foreground)]">
-                  Markdown instruction for the agent
-                </span>
-              </div>
-
-              {activeTab === "write" ? (
-                <textarea
-                  className="w-full min-h-[80px] p-2 text-[11px] bg-[var(--background)] border border-[var(--border)] rounded focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-y"
-                  placeholder="Enter instruction for the agent at this line..."
-                  value={isEditing ? (editingText ?? "") : inputText}
-                  onChange={(e) => {
-                    if (isEditing) {
-                      onStartEdit(e.target.value);
-                    } else {
-                      setInputText(e.target.value);
-                    }
-                  }}
-                  autoFocus
-                />
-              ) : (
-                <div className="w-full min-h-[80px] p-2 text-[11px] bg-[var(--muted)] border border-[var(--border)] rounded overflow-auto whitespace-pre-wrap">
-                  {(isEditing ? editingText : inputText) || <span className="text-[var(--muted-foreground)] italic">Nothing to preview</span>}
-                </div>
-              )}
-
-              <div className="flex items-center justify-end gap-2 mt-1">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between border-b border-[var(--border)] pb-1">
+              <div className="flex gap-2">
                 <button
                   type="button"
-                  className="px-3 py-1 text-[10px] font-medium border border-[var(--border)] rounded hover:bg-[var(--muted)] transition-colors"
-                  onClick={() => {
-                    if (isEditing) {
-                      onCancelEdit();
-                    } else {
-                      onCancelForm();
-                    }
-                  }}
+                  className={`pb-1 px-1 border-b-2 text-[11px] font-medium transition-all cursor-pointer ${
+                    activeTab === "write"
+                      ? "border-[var(--primary)] text-[var(--foreground)]"
+                      : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                  }`}
+                  onClick={() => setActiveTab("write")}
                 >
-                  Cancel
+                  Write
                 </button>
                 <button
                   type="button"
-                  className="px-3 py-1 text-[10px] font-medium bg-[var(--primary)] text-[var(--primary-foreground)] rounded hover:opacity-90 transition-colors disabled:opacity-50"
-                  disabled={isEditing ? !editingText?.trim() : !inputText.trim()}
-                  onClick={() => {
-                    if (isEditing) {
-                      onUpdateComment(editingText ?? "");
-                    } else {
-                      onAddComment(inputText);
-                      setInputText("");
-                    }
-                  }}
+                  className={`pb-1 px-1 border-b-2 text-[11px] font-medium transition-all cursor-pointer ${
+                    activeTab === "preview"
+                      ? "border-[var(--primary)] text-[var(--foreground)]"
+                      : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                  }`}
+                  onClick={() => setActiveTab("preview")}
                 >
-                  {isEditing ? "Update Comment" : "Add Comment"}
+                  Preview
                 </button>
               </div>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
               <span className="text-[10px] text-[var(--muted-foreground)]">
-                Replace this line of code and commit it directly to the branch
+                Markdown instruction for the agent
               </span>
+            </div>
+
+            {activeTab === "write" ? (
               <textarea
-                className="w-full font-mono min-h-[50px] p-2 text-[11px] bg-[var(--background)] border border-[var(--border)] rounded focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-y"
-                placeholder="Enter new line of code..."
-                value={editText}
-                onChange={(e) => setEditText(e.target.value)}
+                className="w-full min-h-[80px] p-2 text-[11px] bg-[var(--background)] border border-[var(--border)] rounded focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-y"
+                placeholder="Enter instruction for the agent at this line..."
+                value={isEditing ? (editingText ?? "") : inputText}
+                onChange={(e) => {
+                  if (isEditing) {
+                    onStartEdit(e.target.value);
+                  } else {
+                    setInputText(e.target.value);
+                  }
+                }}
                 autoFocus
               />
-              <input
-                type="text"
-                className="w-full p-2 text-[11px] bg-[var(--background)] border border-[var(--border)] rounded focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
-                placeholder="Commit message (optional)..."
-                value={commitMessage}
-                onChange={(e) => setCommitMessage(e.target.value)}
-              />
-              <div className="flex items-center justify-end gap-2 mt-1">
-                <button
-                  type="button"
-                  className="px-3 py-1 text-[10px] font-medium border border-[var(--border)] rounded hover:bg-[var(--muted)] transition-colors"
-                  onClick={onCancelForm}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="px-3 py-1 text-[10px] font-medium bg-[var(--success)] text-white rounded hover:opacity-90 transition-colors"
-                  onClick={() => {
-                    onDirectEdit(editText, commitMessage);
-                  }}
-                >
-                  Commit Change
-                </button>
+            ) : (
+              <div className="w-full min-h-[80px] p-2 text-[11px] bg-[var(--muted)] border border-[var(--border)] rounded overflow-auto whitespace-pre-wrap">
+                {(isEditing ? editingText : inputText) || <span className="text-[var(--muted-foreground)] italic">Nothing to preview</span>}
               </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 mt-1">
+              <button
+                type="button"
+                className="px-3 py-1 text-[10px] font-medium border border-[var(--border)] rounded hover:bg-[var(--muted)] transition-colors cursor-pointer"
+                onClick={() => {
+                  if (isEditing) {
+                    onCancelEdit();
+                  } else {
+                    onCancelForm();
+                  }
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="px-3 py-1 text-[10px] font-medium bg-[var(--primary)] text-[var(--primary-foreground)] rounded hover:opacity-90 transition-colors disabled:opacity-50 cursor-pointer"
+                disabled={isEditing ? !editingText?.trim() : !inputText.trim()}
+                onClick={() => {
+                  if (isEditing) {
+                    onUpdateComment(editingText ?? "");
+                  } else {
+                    onAddComment(inputText);
+                    setInputText("");
+                  }
+                }}
+              >
+                {isEditing ? "Update Comment" : "Add Comment"}
+              </button>
             </div>
-          )}
+          </div>
         </div>
       )}
     </div>
@@ -439,15 +365,6 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                 delete copy[changeKey];
                 return copy;
               });
-            }}
-            onDirectEdit={(newContent, commitMessage) => {
-              onIvyEvent("OnDirectEdit", id, [{
-                filePath,
-                lineNumber: getLineNumber(change),
-                newContent,
-                commitMessage
-              }]);
-              setActiveFormKeys(prev => ({ ...prev, [changeKey]: false }));
             }}
           />
         );
@@ -596,12 +513,12 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
           <div
             key={fileIndex}
             id={elementId}
-            className={`border border-[var(--border)] rounded-md ${isCollapsed ? "mb-0" : "mb-4"} overflow-hidden bg-[var(--background)]`}
+            className={`border border-[var(--border)] rounded-md ${isCollapsed ? "mb-0" : "mb-4"} bg-[var(--background)]`}
             style={{ scrollMarginTop: showFileDropdown ? "2rem" : 0 }}
           >
             {hasHeader && (
               <div
-                className="flex items-center justify-between px-3 py-2 text-[11px] bg-[var(--muted)] text-[var(--muted-foreground)] border-b border-[var(--border)] sticky z-10 font-sans"
+                className="flex items-center justify-between px-3 py-2 text-[11px] bg-[var(--muted)] text-[var(--muted-foreground)] border-b border-[var(--border)] sticky z-10 font-sans rounded-t-md"
                 style={{
                   top: showFileDropdown ? "2rem" : 0,
                 }}
@@ -666,7 +583,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                     <button
                       type="button"
                       aria-label="More actions"
-                      className="p-1 rounded hover:bg-[var(--muted)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors flex items-center justify-center"
+                      className="p-1 rounded hover:bg-[var(--muted)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors flex items-center justify-center cursor-pointer"
                       onClick={(e) => {
                         e.stopPropagation();
                         setActiveDropdownIndex(prev => prev === fileIndex ? null : fileIndex);
@@ -678,10 +595,10 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                       <div className="absolute right-0 mt-1 z-50 w-36 bg-[var(--background)] border border-[var(--border)] rounded-md shadow-lg py-1 text-xs">
                         <button
                           type="button"
-                          className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--muted)] text-[var(--foreground)] text-left"
+                          className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--muted)] text-[var(--foreground)] text-left cursor-pointer"
                           onClick={() => {
                             setActiveDropdownIndex(null);
-                            onIvyEvent("OnViewFile", id, [file.newPath || file.oldPath]);
+                            onIvyEvent("OnViewFile", id, [filePath]);
                           }}
                         >
                           <Eye className="w-3.5 h-3.5" />
@@ -689,10 +606,10 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                         </button>
                         <button
                           type="button"
-                          className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--muted)] text-[var(--foreground)] text-left"
+                          className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--muted)] text-[var(--foreground)] text-left cursor-pointer"
                           onClick={() => {
                             setActiveDropdownIndex(null);
-                            onIvyEvent("OnEditFile", id, [file.newPath || file.oldPath]);
+                            onIvyEvent("OnEditFile", id, [filePath]);
                           }}
                         >
                           <Pencil className="w-3.5 h-3.5" />
@@ -700,10 +617,10 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                         </button>
                         <button
                           type="button"
-                          className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-destructive/10 text-[var(--destructive)] text-left border-t border-[var(--border)]"
+                          className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-destructive/10 text-[var(--destructive)] text-left border-t border-[var(--border)] cursor-pointer"
                           onClick={() => {
                             setActiveDropdownIndex(null);
-                            onIvyEvent("OnDeleteFile", id, [file.newPath || file.oldPath]);
+                            onIvyEvent("OnDeleteFile", id, [filePath]);
                           }}
                         >
                           <Trash2 className="w-3.5 h-3.5 text-[var(--destructive)]" />
@@ -718,6 +635,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
             {!isCollapsed && (
               <div className="overflow-x-auto">
                 <Diff
+                  className={`${effectiveViewType === "unified" ? "diff-unified-view" : "diff-split-view"} ${deletions === 0 ? "diff-no-deletions" : ""} ${additions === 0 ? "diff-no-additions" : ""}`}
                   viewType={effectiveViewType}
                   diffType={file.type}
                   hunks={file.hunks}
