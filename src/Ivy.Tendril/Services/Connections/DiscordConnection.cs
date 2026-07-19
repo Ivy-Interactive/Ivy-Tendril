@@ -11,6 +11,8 @@ namespace Ivy.Tendril.Services.Connections;
 public class DiscordConnection : IConnectionProvider
 {
     public string ProviderName => "Discord";
+    public string Description => "Post messages to Discord channels to notify your team.";
+    public string Icon => "Discord";
 
     public async Task<(bool Success, string ErrorMessage)> TestConnectionAsync(string connectionString, HttpClient client)
     {

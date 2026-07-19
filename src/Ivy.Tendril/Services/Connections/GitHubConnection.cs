@@ -11,6 +11,8 @@ namespace Ivy.Tendril.Services.Connections;
 public class GitHubConnection : IConnectionProvider
 {
     public string ProviderName => "GitHub";
+    public string Description => "Allow agents to securely open pull requests and comment on PRs.";
+    public string Icon => "Github";
 
     public async Task<(bool Success, string ErrorMessage)> TestConnectionAsync(string connectionString, HttpClient client)
     {

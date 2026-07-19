@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OpenAI;
 
+using System.Linq;
 using Ivy.Tendril.Services.Connections;
 
 namespace Ivy.Tendril;
@@ -58,9 +59,14 @@ internal static class ServiceRegistration
         server.Services.AddSingleton<IOnboardingSetupService>(sp => sp.GetRequiredService<OnboardingSetupService>());
         server.Services.AddSingleton<GithubService>();
         server.Services.AddSingleton<IGithubService>(sp => sp.GetRequiredService<GithubService>());
-        server.Services.AddSingleton<IConnectionProvider, SlackConnection>();
-        server.Services.AddSingleton<IConnectionProvider, DiscordConnection>();
-        server.Services.AddSingleton<IConnectionProvider, GitHubConnection>();
+        // Dynamically discover and register all connection providers in this assembly
+        var providerInterface = typeof(IConnectionProvider);
+        var providerTypes = typeof(ServiceRegistration).Assembly.GetTypes()
+            .Where(t => providerInterface.IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
+        foreach (var type in providerTypes)
+        {
+            server.Services.AddSingleton(providerInterface, type);
+        }
         server.Services.AddSingleton<IConnectionExecutorService, ConnectionExecutorService>();
         server.Services.AddSingleton<IGitService>(sp =>
             new GitService(
@@ -94,7 +100,7 @@ internal static class ServiceRegistration
                 throw new InvalidOperationException("Cannot create PlanDatabaseService: TendrilHome is not configured. Complete onboarding first.");
             var dbPath = Path.Combine(cfg.TendrilHome, "tendril.db");
             var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger<PlanDatabaseService>();
-            return new PlanDatabaseService(dbPath, logger);
+            return new PlanDatabaseService(dbPath, logger, cfg.TendrilHome);
         });
         server.Services.AddSingleton<PlanDatabaseSyncService>(sp =>
         {

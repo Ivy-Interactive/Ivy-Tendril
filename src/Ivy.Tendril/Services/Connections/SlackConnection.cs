@@ -11,6 +11,8 @@ namespace Ivy.Tendril.Services.Connections;
 public class SlackConnection : IConnectionProvider
 {
     public string ProviderName => "Slack";
+    public string Description => "Connect Slack to post execution plans, update status, and receive alerts.";
+    public string Icon => "Slack";
 
     public async Task<(bool Success, string ErrorMessage)> TestConnectionAsync(string connectionString, HttpClient client)
     {

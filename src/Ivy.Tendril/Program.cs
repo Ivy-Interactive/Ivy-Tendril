@@ -9,14 +9,13 @@ using Ivy.Tendril.Infrastructure;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Git;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Services.Connections;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using Velopack;
-
-using Ivy.Tendril.Services.Connections;
 
 namespace Ivy.Tendril;
 
@@ -145,9 +144,14 @@ public class Program
             cliServices.AddSingleton<IPlanWatcherService, NullPlanWatcherService>();
             cliServices.AddAgentInfrastructure(opts => opts.IncludeBetaProviders = beta);
             cliServices.AddHttpClient();
-            cliServices.AddSingleton<IConnectionProvider, SlackConnection>();
-            cliServices.AddSingleton<IConnectionProvider, DiscordConnection>();
-            cliServices.AddSingleton<IConnectionProvider, GitHubConnection>();
+            // Dynamically discover and register all connection providers in this assembly
+            var providerInterface = typeof(IConnectionProvider);
+            var providerTypes = typeof(Program).Assembly.GetTypes()
+                .Where(t => providerInterface.IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
+            foreach (var type in providerTypes)
+            {
+                cliServices.AddSingleton(providerInterface, type);
+            }
             cliServices.AddSingleton<IConnectionExecutorService, ConnectionExecutorService>();
             cliServices.AddSingleton<IPlanDatabaseService>(sp =>
             {
@@ -157,7 +161,7 @@ public class Program
                     : cfg.TendrilHome;
                 var dbPath = Path.Combine(home, "tendril.db");
                 var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger<PlanDatabaseService>();
-                return new PlanDatabaseService(dbPath, logger);
+                return new PlanDatabaseService(dbPath, logger, home);
             });
 
             var configService = new ConfigService(Microsoft.Extensions.Logging.Abstractions.NullLogger<ConfigService>.Instance);
