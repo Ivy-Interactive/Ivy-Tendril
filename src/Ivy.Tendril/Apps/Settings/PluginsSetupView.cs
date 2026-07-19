@@ -258,36 +258,68 @@ public class PluginsSetupView : ViewBase
         if (installationType == PluginInstallationType.Unknown)
             return null;
 
-        var confirmMessage = installationType switch
-        {
-            PluginInstallationType.NuGet =>
-                "This will permanently delete the plugin package from disk.",
-            PluginInstallationType.Referenced =>
-                "This will remove this plugin from your references list. The plugin files will not be deleted.",
-            _ => "This will uninstall the plugin."
-        };
+        return new UninstallConfirmView(pluginId, pluginDirectory, installationType, uninstallService, client);
+    }
 
-        return new Button("Uninstall", onClick: _ =>
+    private class UninstallConfirmView(
+        string pluginId, string pluginDirectory, PluginInstallationType installationType,
+        PluginUninstallService uninstallService, IClientProvider client) : ViewBase
+    {
+        public override object Build()
         {
-            try
-            {
-                if (installationType == PluginInstallationType.NuGet)
-                    uninstallService.UninstallNuGetPlugin(pluginDirectory);
-                else
-                    uninstallService.UninstallReferencedPlugin(pluginDirectory);
+            var isOpen = UseState(false);
+            var deleteConfig = UseState(false);
 
-                uninstallService.CleanupPluginConfig(pluginId);
-                client.Toast($"Uninstalled '{pluginId}'", "Uninstalled");
-            }
-            catch (Exception ex)
+            var confirmMessage = installationType switch
             {
-                client.Toast($"Failed to uninstall: {ex.Message}", "Error");
-            }
-            return ValueTask.CompletedTask;
-        }, variant: ButtonVariant.Outline, icon: Icons.Trash2).WithConfirm(
-            confirmMessage,
-            title: "Uninstall Plugin",
-            confirmLabel: "Uninstall",
-            destructive: true);
+                PluginInstallationType.NuGet =>
+                    "This will permanently delete the plugin package from disk.",
+                PluginInstallationType.Referenced =>
+                    "This will remove this plugin from your references list. The plugin files will not be deleted.",
+                _ => "This will uninstall the plugin."
+            };
+
+            return new Fragment(
+                new Button("Uninstall", _ =>
+                {
+                    isOpen.Value = true;
+                    return ValueTask.CompletedTask;
+                }, variant: ButtonVariant.Outline, icon: Icons.Trash2),
+                isOpen.Value ? new Dialog(
+                    _ => { isOpen.Set(false); deleteConfig.Set(false); },
+                    new DialogHeader("Uninstall Plugin"),
+                    new DialogBody(
+                        Layout.Vertical().Gap(3)
+                        | confirmMessage
+                        | deleteConfig.ToBoolInput("Also delete plugin configuration")
+                    ),
+                    new DialogFooter(
+                        new Button("Cancel", _ => { isOpen.Value = false; deleteConfig.Value = false; }, variant: ButtonVariant.Outline),
+                        new Button("Uninstall", _ =>
+                        {
+                            try
+                            {
+                                if (installationType == PluginInstallationType.NuGet)
+                                    uninstallService.UninstallNuGetPlugin(pluginDirectory);
+                                else
+                                    uninstallService.UninstallReferencedPlugin(pluginDirectory);
+
+                                if (deleteConfig.Value)
+                                    uninstallService.CleanupPluginConfig(pluginId);
+
+                                client.Toast($"Uninstalled '{pluginId}'", "Uninstalled");
+                            }
+                            catch (Exception ex)
+                            {
+                                client.Toast($"Failed to uninstall: {ex.Message}", "Error");
+                            }
+                            isOpen.Value = false;
+                            deleteConfig.Value = false;
+                            return ValueTask.CompletedTask;
+                        }, variant: ButtonVariant.Destructive)
+                    )
+                ) : null
+            );
+        }
     }
 }
