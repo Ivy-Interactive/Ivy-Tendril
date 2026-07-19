@@ -72,7 +72,7 @@ public class WorkflowTriggerService : IStartable, IDisposable
                 {
                     if (plan.Status == PlanStatus.Completed)
                     {
-                        var allMergedOrNoPr = true;
+                        var allMerged = plan.Prs.Count > 0;
                         if (plan.Prs.Count > 0)
                         {
                             foreach (var url in plan.Prs)
@@ -80,13 +80,13 @@ public class WorkflowTriggerService : IStartable, IDisposable
                                 if (!prStatuses.TryGetValue(url, out var status) ||
                                     !string.Equals(status, "Merged", StringComparison.OrdinalIgnoreCase))
                                 {
-                                    allMergedOrNoPr = false;
+                                    allMerged = false;
                                     break;
                                 }
                             }
                         }
 
-                        if (allMergedOrNoPr)
+                        if (allMerged)
                         {
                             _triggeredPlanIds.Add(plan.Id);
                         }
@@ -245,7 +245,7 @@ public class WorkflowTriggerService : IStartable, IDisposable
             }
 
             var prStatuses = _database.GetAllPrStatuses();
-            var allMergedOrNoPr = true;
+            var allMerged = plan.Prs.Count > 0;
 
             if (plan.Prs.Count > 0)
             {
@@ -255,19 +255,19 @@ public class WorkflowTriggerService : IStartable, IDisposable
                     {
                         if (!string.Equals(status, "Merged", StringComparison.OrdinalIgnoreCase))
                         {
-                            allMergedOrNoPr = false;
+                            allMerged = false;
                             break;
                         }
                     }
                     else
                     {
-                        allMergedOrNoPr = false;
+                        allMerged = false;
                         break;
                     }
                 }
             }
 
-            if (allMergedOrNoPr)
+            if (allMerged)
             {
                 _triggeredPlanIds.Add(plan.Id);
                 _logger.LogInformation("Workflow trigger: Plan '{PlanTitle}' ({PlanFolder}) completed and merged! Triggering event.", plan.Title, plan.FolderName);
