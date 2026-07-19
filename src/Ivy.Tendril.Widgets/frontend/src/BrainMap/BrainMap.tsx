@@ -255,9 +255,31 @@ export const BrainMap: React.FC<BrainMapProps> = ({
     overflow: "hidden",
   };
 
+  const memoryCount = nodes.filter((n) => n.type === "memory").length;
+  const isDark = theme === "dark";
+
   return (
     <div style={style} className="brain-map-container">
       <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
+      <div
+        style={{
+          position: "absolute",
+          bottom: 12,
+          right: 12,
+          backgroundColor: isDark ? "rgba(31, 41, 55, 0.8)" : "rgba(255, 255, 255, 0.8)",
+          backdropFilter: "blur(4px)",
+          border: `1px solid ${isDark ? "#374151" : "#e5e7eb"}`,
+          borderRadius: 6,
+          padding: "4px 8px",
+          fontSize: 11,
+          fontFamily: "monospace",
+          color: isDark ? "#9ca3af" : "#4b5563",
+          pointerEvents: "none",
+          zIndex: 10,
+        }}
+      >
+        Memories: {memoryCount}
+      </div>
     </div>
   );
 };
