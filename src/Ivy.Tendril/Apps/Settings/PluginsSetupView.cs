@@ -125,6 +125,7 @@ public class PluginsSetupView : ViewBase
                        var manifest = pluginManager.GetPluginManifest(p.Id);
                        var pluginConfig = configFactory.Create(p.Id);
                        var customView = pluginManager.BuildPluginConfigurationView(p.Id, pluginConfig);
+                       var uninstallButton = BuildUninstallButton(p.Id, p.Directory, uninstallService, client);
                        var header = Layout.Horizontal().Gap(2).AlignContent(Align.SpaceBetween)
                            | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
                                | PluginIconHelper.ToWidget(manifest?.Icon)
@@ -134,8 +135,7 @@ public class PluginsSetupView : ViewBase
                                | new Icon(Icons.TriangleAlert, Colors.Warning));
                        var content = Layout.Vertical().Gap(3)
                            | Text.Block(string.Join(", ", p.ValidationErrors)).Muted().Small()
-                           | (customView ?? new PluginConfigurationView(p.Id, p.Schema, configFactory).Key(p.Id))
-                           | BuildUninstallButton(p.Id, p.Directory, uninstallService, client);
+                           | (customView ?? new PluginConfigurationView(p.Id, p.Schema, configFactory) { ExtraActions = uninstallButton }.Key(p.Id));
                        return (object)new Expandable(header, content) { Key = p.Id };
                    })).ToArray())
                | (unloadedPlugins.Count == 0 ? null! :
