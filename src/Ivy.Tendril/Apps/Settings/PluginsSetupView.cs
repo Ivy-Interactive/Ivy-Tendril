@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Net.Http.Json;
 using Ivy.Apps;
+using Ivy.Core.Plugins;
 using Ivy.Plugins;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
@@ -51,6 +52,7 @@ public class PluginsSetupView : ViewBase
         var client = UseService<IClientProvider>();
         var pluginManager = UseService<IPluginManager>();
         var configFactory = UseService<IIvyPluginConfigFactory>();
+        var uninstallService = UseService<PluginUninstallService>();
         var tendrilArgs = UseService<TendrilArgs>();
         var httpClientFactory = UseService<IHttpClientFactory>();
         UsePluginState();
@@ -68,6 +70,9 @@ public class PluginsSetupView : ViewBase
         var unconfiguredPlugins = pluginManager.GetUnconfiguredPlugins();
         var unloadedPlugins = pluginManager.GetUnloadedPlugins();
         var pluginsDir = Path.Combine(config.TendrilHome, "plugins");
+        var pluginDirectories = (pluginManager as PluginLoader)?.Plugins
+            .ToDictionary(p => p.Instance.Manifest.Id, p => p.Directory)
+            ?? new Dictionary<string, string>();
 
         var installedPackageIds = activePlugins
             .Concat(unconfiguredPlugins.Select(p => p.Id))
@@ -108,7 +113,8 @@ public class PluginsSetupView : ViewBase
                                    client.Toast(success ? $"Unloaded '{id}'" : $"Failed to unload '{id}'",
                                        success ? "Unloaded" : "Error");
                                    return ValueTask.CompletedTask;
-                               }, variant: ButtonVariant.Outline, icon: Icons.Power))
+                               }, variant: ButtonVariant.Outline, icon: Icons.Power)
+                               | BuildUninstallButton(id, pluginDirectories.GetValueOrDefault(id), uninstallService, client))
                            | (customView
                                ?? (schema is not null
                                    ? new PluginConfigurationView(id, schema, configFactory).Key(id)
@@ -128,7 +134,8 @@ public class PluginsSetupView : ViewBase
                                | new Icon(Icons.TriangleAlert, Colors.Warning));
                        var content = Layout.Vertical().Gap(3)
                            | Text.Block(string.Join(", ", p.ValidationErrors)).Muted().Small()
-                           | (customView ?? new PluginConfigurationView(p.Id, p.Schema, configFactory).Key(p.Id));
+                           | (customView ?? new PluginConfigurationView(p.Id, p.Schema, configFactory).Key(p.Id))
+                           | BuildUninstallButton(p.Id, p.Directory, uninstallService, client);
                        return (object)new Expandable(header, content) { Key = p.Id };
                    })).ToArray())
                | (unloadedPlugins.Count == 0 ? null! :
@@ -149,13 +156,15 @@ public class PluginsSetupView : ViewBase
                                : null!);
                        var content = Layout.Vertical().Gap(2)
                            | (isFailed ? (object)new Callout(p.FailureReason!).Variant(CalloutVariant.Destructive) : null!)
-                           | new Button(isFailed ? "Retry" : "Load", onClick: _ =>
-                           {
-                               var success = pluginManager.LoadPlugin(p.Directory);
-                               client.Toast(success ? $"Loaded '{p.Id}'" : $"Failed to load '{p.Id}'",
-                                   success ? "Installed" : "Error");
-                               return ValueTask.CompletedTask;
-                           }, variant: ButtonVariant.Outline, icon: isFailed ? Icons.RefreshCw : Icons.Plus);
+                           | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
+                               | new Button(isFailed ? "Retry" : "Load", onClick: _ =>
+                               {
+                                   var success = pluginManager.LoadPlugin(p.Directory);
+                                   client.Toast(success ? $"Loaded '{p.Id}'" : $"Failed to load '{p.Id}'",
+                                       success ? "Installed" : "Error");
+                                   return ValueTask.CompletedTask;
+                               }, variant: ButtonVariant.Outline, icon: isFailed ? Icons.RefreshCw : Icons.Plus)
+                               | BuildUninstallButton(p.Id, p.Directory, uninstallService, client));
                        return (object)new Expandable(header, content).Open();
                    }).ToArray()))
                | new Separator()
@@ -237,5 +246,48 @@ public class PluginsSetupView : ViewBase
             await using var fileStream = File.Create(destPath);
             await entryStream.CopyToAsync(fileStream);
         }
+    }
+
+    private static object? BuildUninstallButton(
+        string pluginId, string? pluginDirectory, PluginUninstallService uninstallService, IClientProvider client)
+    {
+        if (pluginDirectory is null)
+            return null;
+
+        var installationType = uninstallService.GetInstallationType(pluginDirectory);
+        if (installationType == PluginInstallationType.Unknown)
+            return null;
+
+        var confirmMessage = installationType switch
+        {
+            PluginInstallationType.NuGet =>
+                "This will permanently delete the plugin package from disk.",
+            PluginInstallationType.Referenced =>
+                "This will remove this plugin from your references list. The plugin files will not be deleted.",
+            _ => "This will uninstall the plugin."
+        };
+
+        return new Button("Uninstall", onClick: _ =>
+        {
+            try
+            {
+                if (installationType == PluginInstallationType.NuGet)
+                    uninstallService.UninstallNuGetPlugin(pluginDirectory);
+                else
+                    uninstallService.UninstallReferencedPlugin(pluginDirectory);
+
+                uninstallService.CleanupPluginConfig(pluginId);
+                client.Toast($"Uninstalled '{pluginId}'", "Uninstalled");
+            }
+            catch (Exception ex)
+            {
+                client.Toast($"Failed to uninstall: {ex.Message}", "Error");
+            }
+            return ValueTask.CompletedTask;
+        }, variant: ButtonVariant.Outline, icon: Icons.Trash2).WithConfirm(
+            confirmMessage,
+            title: "Uninstall Plugin",
+            confirmLabel: "Uninstall",
+            destructive: true);
     }
 }

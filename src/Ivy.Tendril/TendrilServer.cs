@@ -107,6 +107,7 @@ public static class TendrilServer
                 sharedAssemblyNames: ["Ivy.Tendril.Plugin.Abstractions", "Ivy.Tendril.Plugin.Extended.Abstractions"],
                 buildSourcePlugins: true,
                 deferPluginLoads: true);
+            server.Services.AddSingleton(new PluginUninstallService(pluginsDir));
         }
 
         // Eagerly register Ivy.Tendril.Widgets and framework widgets assemblies to ensure widgets
