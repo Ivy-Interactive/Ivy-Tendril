@@ -15,12 +15,11 @@
     <RepositoryUrl>https://github.com/Ivy-Interactive/Ivy-Tendril</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <TendrilIconKind>named</TendrilIconKind>
-    <TendrilIconValue>Linear</TendrilIconValue>
   </PropertyGroup>
 
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="tendril.json" Pack="true" PackagePath="\" />
   </ItemGroup>
 
   <ItemGroup>

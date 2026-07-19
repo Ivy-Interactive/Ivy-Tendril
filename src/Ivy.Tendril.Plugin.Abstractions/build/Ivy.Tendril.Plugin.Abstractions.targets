@@ -1,15 +1,3 @@
 <Project>
-  <!-- Auto-generate tendril.json at pack time when TendrilIconKind/TendrilIconValue are set -->
-  <Target Name="_GenerateTendrilJson"
-          BeforeTargets="GenerateNuspec"
-          Condition="'$(TendrilIconKind)' != '' AND '$(TendrilIconValue)' != ''">
-    <PropertyGroup>
-      <_TendrilJsonContent>{"icon":{"kind":"$(TendrilIconKind)","value":"$(TendrilIconValue)"}}</_TendrilJsonContent>
-      <_TendrilJsonPath>$(IntermediateOutputPath)tendril.json</_TendrilJsonPath>
-    </PropertyGroup>
-    <WriteLinesToFile File="$(_TendrilJsonPath)" Lines="$(_TendrilJsonContent)" Overwrite="true" />
-    <ItemGroup>
-      <_PackageFiles Include="$(_TendrilJsonPath)" PackagePath="/" />
-    </ItemGroup>
-  </Target>
+  <!-- Intentionally empty — reserved for future plugin build-time targets -->
 </Project>

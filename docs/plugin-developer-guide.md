@@ -149,6 +149,78 @@ Your plugin must be published as a NuGet package on [nuget.org](https://www.nuge
 - Must contain exactly one `[assembly: IvyPlugin(typeof(...))]` attribute
 - Package must build cleanly and contain all runtime dependencies
 
+### The `tendril.json` File
+
+In addition to standard NuGet metadata in the `.csproj`, plugins can include a `tendril.json` file at the package root to provide Tendril-specific metadata that NuGet's `.nuspec` format doesn't support.
+
+**Creating the file:**
+
+Add a `tendril.json` to your project directory:
+
+```json
+{
+  "icon": {
+    "kind": "named",
+    "value": "Linear"
+  }
+}
+```
+
+**Including it in the package:**
+
+Add this to your `.csproj`:
+
+```xml
+<ItemGroup>
+  <None Include="tendril.json" Pack="true" PackagePath="\" />
+</ItemGroup>
+```
+
+**Icon kinds:**
+
+| Kind | Value | Example |
+|------|-------|---------|
+| `named` | An icon name from the built-in [Lucide](https://lucide.dev/icons) icon set or brand icons (e.g., `Linear`, `Slack`, `Gamepad2`, `Bell`) | `{"kind": "named", "value": "Linear"}` |
+| `url` | A URL to an external image | `{"kind": "url", "value": "https://example.com/icon.png"}` |
+
+The icon specified in `tendril.json` is used in the **marketplace listing** (the "Available Plugins" section in Settings). It is separate from the runtime icon declared in your `PluginManifest` — though they should typically match.
+
+**Why both `tendril.json` and `PluginManifest.Icon`?**
+
+The marketplace icon (`tendril.json`) is extracted from the `.nupkg` when a version is submitted — it's used to display icons before the plugin is installed. The runtime icon (`PluginManifest.Icon`) is used once the plugin is loaded. They serve different audiences (store listing vs. installed plugin UI) but should be kept in sync.
+
+**Complete `.csproj` example with all metadata:**
+
+```xml
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <PackageId>Ivy.Tendril.Plugin.MyPlugin</PackageId>
+    <Title>My Plugin</Title>
+    <Authors>Your Name</Authors>
+    <Company>Your Company</Company>
+    <Description>A brief description of what your plugin does</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/your-org/your-plugin</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/your-org/your-plugin</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="tendril.json" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Ivy.Tendril.Plugin.Abstractions" Version="1.1.12" />
+  </ItemGroup>
+</Project>
+```
+
 ### Code Policy
 
 Each plugin version submitted to the marketplace goes through a **three-state approval workflow**:
@@ -1304,6 +1376,7 @@ public class LinearPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
 ```
 Ivy.Tendril.Plugin.Linear/
 ├── Ivy.Tendril.Plugin.Linear.csproj
+├── tendril.json
 ├── LinearPlugin.cs
 ├── LinearClientFactory.cs
 ├── ImportFromLinearDialog.cs
@@ -1322,7 +1395,19 @@ Ivy.Tendril.Plugin.Linear/
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <PackageId>Ivy.Tendril.Plugin.Linear</PackageId>
+    <Title>Linear</Title>
+    <Authors>Ivy Interactive</Authors>
+    <Description>Linear integration plugin for Ivy Tendril</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/Ivy-Interactive/Ivy-Tendril</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Ivy-Interactive/Ivy-Tendril</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="tendril.json" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Ivy.Tendril.Plugin.Abstractions" Version="1.1.12" />
@@ -1333,6 +1418,16 @@ Ivy.Tendril.Plugin.Linear/
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.5" />
   </ItemGroup>
 </Project>
+```
+
+**`tendril.json`:**
+```json
+{
+  "icon": {
+    "kind": "named",
+    "value": "Linear"
+  }
+}
 ```
 
 > **Important:** Set `<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>` so all dependencies are copied to the output directory. The plugin loader needs all DLLs in one place.
