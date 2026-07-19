@@ -244,30 +244,32 @@ public class WorkflowTriggerService : IStartable, IDisposable
                 return;
             }
 
-            var prStatuses = _database.GetAllPrStatuses();
-            var allMergedOrNoPr = true;
-
-            if (plan.Prs.Count > 0)
+            if (plan.Prs.Count == 0)
             {
-                foreach (var url in plan.Prs)
+                return;
+            }
+
+            var prStatuses = _database.GetAllPrStatuses();
+            var allMerged = true;
+
+            foreach (var url in plan.Prs)
+            {
+                if (prStatuses.TryGetValue(url, out var status))
                 {
-                    if (prStatuses.TryGetValue(url, out var status))
+                    if (!string.Equals(status, "Merged", StringComparison.OrdinalIgnoreCase))
                     {
-                        if (!string.Equals(status, "Merged", StringComparison.OrdinalIgnoreCase))
-                        {
-                            allMergedOrNoPr = false;
-                            break;
-                        }
-                    }
-                    else
-                    {
-                        allMergedOrNoPr = false;
+                        allMerged = false;
                         break;
                     }
                 }
+                else
+                {
+                    allMerged = false;
+                    break;
+                }
             }
 
-            if (allMergedOrNoPr)
+            if (allMerged)
             {
                 _triggeredPlanIds.Add(plan.Id);
                 _logger.LogInformation("Workflow trigger: Plan '{PlanTitle}' ({PlanFolder}) completed and merged! Triggering event.", plan.Title, plan.FolderName);
