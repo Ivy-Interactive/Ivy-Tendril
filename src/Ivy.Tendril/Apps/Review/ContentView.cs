@@ -578,21 +578,6 @@ public class ContentView(
         }
         else
         {
-            var gitData = GitTabDataBuilder.BuildGitTabData(planData.CommitRows, selectedPlan!, config, gitService);
-            var gitTabView = new GitTabView(
-                gitData,
-                selectedPlan!,
-                hash => openCommit.Set(hash),
-                path =>
-                {
-                    copyToClipboard(path);
-                    client.Toast("Copied path to clipboard", "Path Copied");
-                    return null!;
-                },
-                syncingWorktrees.Value,
-                worktreePath => SynchronizeWorktreeAsync(worktreePath, syncingWorktrees, planContentQuery, client, planService, selectedPlanState, logger)
-            );
-
             var totalArtifacts = (planData.Artifacts.GetValueOrDefault("screenshots")?.Count ?? 0)
                                  + (planData.Artifacts.ContainsKey("sample") ? 1 : 0);
 
@@ -608,9 +593,11 @@ public class ContentView(
                 selectedPlan!,
                 jobService,
                 refreshPlans,
+                planData.CommitRows,
+                hash => openCommit.Set(hash),
                 selectedPlan.Project);
 
-            var tabNamesList = new List<string> { "summary", "plan", "details", "git" };
+            var tabNamesList = new List<string> { "summary", "plan", "details" };
             var tabList = new List<Tab>
             {
                 // Summary is rendered via DraftMarkdown with a pinned Verifications sidebar, so it is
@@ -625,7 +612,6 @@ public class ContentView(
                     jobService.GetJobsForPlan(selectedPlan.FolderName),
                     showDebugJob, planService, selectedPlanState, refreshPlans,
                     folderPath => selectedPlanState.Set(planService.GetPlanByFolder(folderPath))))),
-                new Tab("Git", Cap(gitTabView)).Badge((gitData.WorktreeSections.Count + selectedPlan.Commits.Count + selectedPlan.Prs.Count).ToString()),
             };
 
             // Only surface the Changes tab once there are actual file changes — no point showing

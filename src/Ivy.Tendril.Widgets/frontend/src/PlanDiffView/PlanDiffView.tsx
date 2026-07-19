@@ -82,27 +82,36 @@ interface CommentWidgetContainerProps {
   comments: DraftComment[];
   isEditing?: boolean;
   editingText?: string;
+  originalLineText: string;
   onAddComment: (text: string) => void;
   onUpdateComment: (text: string) => void;
   onDeleteComment: () => void;
   onCancelForm: () => void;
   onStartEdit: (text: string) => void;
   onCancelEdit: () => void;
+  onDirectEdit: (newContent: string, commitMessage: string) => void;
 }
 
 const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
   comments,
   isEditing,
   editingText,
+  originalLineText,
   onAddComment,
   onUpdateComment,
   onDeleteComment,
   onCancelForm,
   onStartEdit,
   onCancelEdit,
+  onDirectEdit,
 }) => {
   const [inputText, setInputText] = useState("");
   const [activeTab, setActiveTab] = useState<"write" | "preview">("write");
+  const [activeMode, setActiveMode] = useState<"comment" | "edit">("comment");
+  
+  // Edit Line state
+  const [editText, setEditText] = useState(originalLineText);
+  const [commitMessage, setCommitMessage] = useState("");
 
   const hasComment = comments.length > 0;
 
@@ -139,87 +148,155 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
           ))}
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between border-b border-[var(--border)] pb-1">
-            <div className="flex gap-2">
-              <button
-                type="button"
-                className={`pb-1 px-1 border-b-2 text-[11px] font-medium transition-all ${
-                  activeTab === "write"
-                    ? "border-[var(--primary)] text-[var(--foreground)]"
-                    : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                }`}
-                onClick={() => setActiveTab("write")}
-              >
-                Write
-              </button>
-              <button
-                type="button"
-                className={`pb-1 px-1 border-b-2 text-[11px] font-medium transition-all ${
-                  activeTab === "preview"
-                    ? "border-[var(--primary)] text-[var(--foreground)]"
-                    : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                }`}
-                onClick={() => setActiveTab("preview")}
-              >
-                Preview
-              </button>
-            </div>
-            <span className="text-[10px] text-[var(--muted-foreground)]">
-              Markdown instruction for the agent
-            </span>
+        <div className="flex flex-col gap-3">
+          {/* Main Mode Toggle: Comment vs Edit Line */}
+          <div className="flex border-b border-[var(--border)] pb-1 mb-1 gap-4">
+            <button
+              type="button"
+              className={`pb-1 text-[11px] font-semibold transition-all ${
+                activeMode === "comment"
+                  ? "text-[var(--foreground)] border-b-2 border-[var(--primary)]"
+                  : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+              }`}
+              onClick={() => setActiveMode("comment")}
+            >
+              Add Comment
+            </button>
+            <button
+              type="button"
+              className={`pb-1 text-[11px] font-semibold transition-all ${
+                activeMode === "edit"
+                  ? "text-[var(--foreground)] border-b-2 border-[var(--primary)]"
+                  : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+              }`}
+              onClick={() => setActiveMode("edit")}
+            >
+              Edit Line Directly
+            </button>
           </div>
 
-          {activeTab === "write" ? (
-            <textarea
-              className="w-full min-h-[80px] p-2 text-[11px] bg-[var(--background)] border border-[var(--border)] rounded focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-y"
-              placeholder="Enter instruction for the agent at this line..."
-              value={isEditing ? (editingText ?? "") : inputText}
-              onChange={(e) => {
-                if (isEditing) {
-                  onStartEdit(e.target.value);
-                } else {
-                  setInputText(e.target.value);
-                }
-              }}
-              autoFocus
-            />
+          {activeMode === "comment" ? (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between border-b border-[var(--border)] pb-1">
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className={`pb-1 px-1 border-b-2 text-[11px] font-medium transition-all ${
+                      activeTab === "write"
+                        ? "border-[var(--primary)] text-[var(--foreground)]"
+                        : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                    }`}
+                    onClick={() => setActiveTab("write")}
+                  >
+                    Write
+                  </button>
+                  <button
+                    type="button"
+                    className={`pb-1 px-1 border-b-2 text-[11px] font-medium transition-all ${
+                      activeTab === "preview"
+                        ? "border-[var(--primary)] text-[var(--foreground)]"
+                        : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                    }`}
+                    onClick={() => setActiveTab("preview")}
+                  >
+                    Preview
+                  </button>
+                </div>
+                <span className="text-[10px] text-[var(--muted-foreground)]">
+                  Markdown instruction for the agent
+                </span>
+              </div>
+
+              {activeTab === "write" ? (
+                <textarea
+                  className="w-full min-h-[80px] p-2 text-[11px] bg-[var(--background)] border border-[var(--border)] rounded focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-y"
+                  placeholder="Enter instruction for the agent at this line..."
+                  value={isEditing ? (editingText ?? "") : inputText}
+                  onChange={(e) => {
+                    if (isEditing) {
+                      onStartEdit(e.target.value);
+                    } else {
+                      setInputText(e.target.value);
+                    }
+                  }}
+                  autoFocus
+                />
+              ) : (
+                <div className="w-full min-h-[80px] p-2 text-[11px] bg-[var(--muted)] border border-[var(--border)] rounded overflow-auto whitespace-pre-wrap">
+                  {(isEditing ? editingText : inputText) || <span className="text-[var(--muted-foreground)] italic">Nothing to preview</span>}
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 mt-1">
+                <button
+                  type="button"
+                  className="px-3 py-1 text-[10px] font-medium border border-[var(--border)] rounded hover:bg-[var(--muted)] transition-colors"
+                  onClick={() => {
+                    if (isEditing) {
+                      onCancelEdit();
+                    } else {
+                      onCancelForm();
+                    }
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="px-3 py-1 text-[10px] font-medium bg-[var(--primary)] text-[var(--primary-foreground)] rounded hover:opacity-90 transition-colors disabled:opacity-50"
+                  disabled={isEditing ? !editingText?.trim() : !inputText.trim()}
+                  onClick={() => {
+                    if (isEditing) {
+                      onUpdateComment(editingText ?? "");
+                    } else {
+                      onAddComment(inputText);
+                      setInputText("");
+                    }
+                  }}
+                >
+                  {isEditing ? "Update Comment" : "Add Comment"}
+                </button>
+              </div>
+            </div>
           ) : (
-            <div className="w-full min-h-[80px] p-2 text-[11px] bg-[var(--muted)] border border-[var(--border)] rounded overflow-auto whitespace-pre-wrap">
-              {(isEditing ? editingText : inputText) || <span className="text-[var(--muted-foreground)] italic">Nothing to preview</span>}
+            <div className="flex flex-col gap-2">
+              <span className="text-[10px] text-[var(--muted-foreground)]">
+                Replace this line of code and commit it directly to the branch
+              </span>
+              <textarea
+                className="w-full font-mono min-h-[50px] p-2 text-[11px] bg-[var(--background)] border border-[var(--border)] rounded focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-y"
+                placeholder="Enter new line of code..."
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                autoFocus
+              />
+              <input
+                type="text"
+                className="w-full p-2 text-[11px] bg-[var(--background)] border border-[var(--border)] rounded focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                placeholder="Commit message (optional)..."
+                value={commitMessage}
+                onChange={(e) => setCommitMessage(e.target.value)}
+              />
+              <div className="flex items-center justify-end gap-2 mt-1">
+                <button
+                  type="button"
+                  className="px-3 py-1 text-[10px] font-medium border border-[var(--border)] rounded hover:bg-[var(--muted)] transition-colors"
+                  onClick={onCancelForm}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="px-3 py-1 text-[10px] font-medium bg-[var(--success)] text-white rounded hover:opacity-90 transition-colors"
+                  onClick={() => {
+                    onDirectEdit(editText, commitMessage);
+                  }}
+                >
+                  Commit Change
+                </button>
+              </div>
             </div>
           )}
-
-          <div className="flex items-center justify-end gap-2 mt-1">
-            <button
-              type="button"
-              className="px-3 py-1 text-[10px] font-medium border border-[var(--border)] rounded hover:bg-[var(--muted)] transition-colors"
-              onClick={() => {
-                if (isEditing) {
-                  onCancelEdit();
-                } else {
-                  onCancelForm();
-                }
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="px-3 py-1 text-[10px] font-medium bg-[var(--primary)] text-[var(--primary-foreground)] rounded hover:opacity-90 transition-colors disabled:opacity-50"
-              disabled={isEditing ? !editingText?.trim() : !inputText.trim()}
-              onClick={() => {
-                if (isEditing) {
-                  onUpdateComment(editingText ?? "");
-                } else {
-                  onAddComment(inputText);
-                  setInputText("");
-                }
-              }}
-            >
-              {isEditing ? "Update Comment" : "Add Comment"}
-            </button>
-          </div>
         </div>
       )}
     </div>
@@ -305,6 +382,11 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
       const showForm = activeFormKeys[changeKey];
       const isEditing = editingCommentKeys[changeKey] !== undefined;
 
+      const rawLine = change?.content || "";
+      const originalLineText = rawLine.startsWith("+") || rawLine.startsWith("-") || rawLine.startsWith(" ")
+        ? rawLine.slice(1)
+        : rawLine;
+
       if (lineComments.length > 0 || showForm || isEditing) {
         widgets[changeKey] = (
           <CommentWidgetContainer
@@ -312,6 +394,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
             comments={lineComments}
             isEditing={isEditing}
             editingText={editingCommentKeys[changeKey]}
+            originalLineText={originalLineText}
             onAddComment={(text) => {
               handleAddComment(changeKey, text, getLineNumber(change));
               setActiveFormKeys(prev => ({ ...prev, [changeKey]: false }));
@@ -340,6 +423,15 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                 delete copy[changeKey];
                 return copy;
               });
+            }}
+            onDirectEdit={(newContent, commitMessage) => {
+              onIvyEvent("OnDirectEdit", id, [{
+                filePath,
+                lineNumber: getLineNumber(change),
+                newContent,
+                commitMessage
+              }]);
+              setActiveFormKeys(prev => ({ ...prev, [changeKey]: false }));
             }}
           />
         );
@@ -389,6 +481,22 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
 
   const showFileDropdown = isNarrow && fileMeta.length > 1;
 
+  function renderFilePath(path: string) {
+    const normalized = path.replace(/\\/g, "/");
+    const parts = normalized.split("/");
+    if (parts.length === 1) {
+      return <span className="font-semibold text-[var(--foreground)]">{path}</span>;
+    }
+    const dir = parts.slice(0, -1).join("/") + "/";
+    const file = parts[parts.length - 1];
+    return (
+      <span className="font-medium text-[var(--muted-foreground)]">
+        {dir}
+        <span className="font-semibold text-[var(--foreground)]">{file}</span>
+      </span>
+    );
+  }
+
   return (
     <div ref={containerRef} style={style} className={`ivy-diff-view text-xs${effectiveWordWrap ? " diff-wrap" : ""}`}>
       {showFileDropdown && (
@@ -422,9 +530,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
       {files.map((file, fileIndex) => {
         const { oldName, newName, isRename, hasHeader, elementId } = fileMeta[fileIndex];
 
-        const isCollapsed = collapsible
-          ? (collapsedState[fileIndex] ?? defaultCollapsed)
-          : false;
+        const isCollapsed = collapsedState[fileIndex] ?? defaultCollapsed;
 
         const toggleCollapsed = () => {
           if (!collapsible) return;
@@ -434,60 +540,133 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
           }));
         };
 
+        const { additions, deletions } = file.hunks
+          ? file.hunks.reduce(
+              (acc, hunk) => {
+                if (hunk.changes) {
+                  for (const change of hunk.changes) {
+                    if (change.type === "insert") acc.additions++;
+                    else if (change.type === "delete") acc.deletions++;
+                  }
+                }
+                return acc;
+              },
+              { additions: 0, deletions: 0 }
+            )
+          : { additions: 0, deletions: 0 };
+
+        const renderDiffSquares = (add: number, del: number) => {
+          const total = add + del;
+          const squares = [];
+          for (let i = 0; i < 5; i++) {
+            let colorClass = "bg-[var(--border)]"; // neutral grey
+            if (total > 0) {
+              const ratio = add / total;
+              const threshold = (i + 0.5) / 5;
+              if (ratio >= threshold) {
+                colorClass = "bg-[var(--success)]";
+              } else if (del / total >= (5 - i - 0.5) / 5) {
+                colorClass = "bg-[var(--destructive)]";
+              }
+            }
+            squares.push(
+              <span key={i} className={`w-1.5 h-1.5 rounded-sm ${colorClass}`} />
+            );
+          }
+          return <span className="flex gap-0.5 ml-1.5 items-center">{squares}</span>;
+        };
+
         return (
-          <div key={fileIndex} id={elementId} style={{ scrollMarginTop: showFileDropdown ? "2rem" : 0 }}>
+          <div
+            key={fileIndex}
+            id={elementId}
+            className="border border-[var(--border)] rounded-md mb-4 overflow-hidden bg-[var(--background)]"
+            style={{ scrollMarginTop: showFileDropdown ? "2rem" : 0 }}
+          >
             {hasHeader && (
               <div
-                className={`flex items-center gap-2 px-3 py-1.5 text-[11px] bg-[var(--muted)] text-[var(--muted-foreground)] border-b border-[var(--border)] sticky z-10${collapsible ? " cursor-pointer select-none" : ""}`}
+                className="flex items-center justify-between px-3 py-2 text-[11px] bg-[var(--muted)] text-[var(--muted-foreground)] border-b border-[var(--border)] sticky z-10 font-sans"
                 style={{
-                  fontFamily: 'var(--font-sans, sans-serif)',
                   top: showFileDropdown ? "2rem" : 0,
                 }}
-                onClick={collapsible ? toggleCollapsed : undefined}
               >
-                {collapsible && (
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 12 12"
-                    className="shrink-0 transition-transform duration-150"
-                    style={{ transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)" }}
-                  >
-                    <path d="M3 4.5L6 7.5L9 4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                )}
-                {isRename ? (
-                  <>
-                    <span className="font-semibold">{getBasename(oldName)}</span>
-                    <span className="opacity-40">&rarr;</span>
-                    <span className="font-semibold">{getBasename(newName)}</span>
-                  </>
-                ) : (
-                  <span className="font-semibold">{getBasename(newName || oldName)}</span>
-                )}
+                <div
+                  className="flex items-center gap-2 cursor-pointer select-none grow min-w-0"
+                  onClick={collapsible ? toggleCollapsed : undefined}
+                >
+                  {collapsible && (
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 12 12"
+                      className="shrink-0 transition-transform duration-150 text-[var(--muted-foreground)]"
+                      style={{ transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)" }}
+                    >
+                      <path d="M3 4.5L6 7.5L9 4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                  {isRename ? (
+                    <div className="flex items-center gap-1.5 min-w-0 truncate">
+                      {renderFilePath(oldName)}
+                      <span className="opacity-40">&rarr;</span>
+                      {renderFilePath(newName)}
+                    </div>
+                  ) : (
+                    <div className="truncate">
+                      {renderFilePath(newName || oldName)}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-4 shrink-0 pl-2">
+                  {/* Additions / Deletions count */}
+                  <span className="flex items-center gap-1 font-mono text-[11px]">
+                    {additions > 0 && <span className="text-[var(--success)]">+{additions}</span>}
+                    {deletions > 0 && <span className="text-[var(--destructive)]">-{deletions}</span>}
+                    {renderDiffSquares(additions, deletions)}
+                  </span>
+
+                  {/* Viewed / Collapsed Checkbox */}
+                  <label className="flex items-center gap-1.5 text-[11px] text-[var(--muted-foreground)] cursor-pointer select-none font-medium">
+                    <input
+                      type="checkbox"
+                      checked={isCollapsed}
+                      onChange={(e) => {
+                        setCollapsedState((prev) => ({
+                          ...prev,
+                          [fileIndex]: e.target.checked,
+                        }));
+                      }}
+                      className="rounded border-[var(--border)] text-[var(--primary)] focus:ring-[var(--primary)] w-3.5 h-3.5"
+                    />
+                    Viewed
+                  </label>
+                </div>
               </div>
             )}
             {!isCollapsed && (
-              <Diff
-                viewType={effectiveViewType}
-                diffType={file.type}
-                hunks={file.hunks}
-                widgets={getWidgets(file.hunks)}
-                gutterEvents={{
-                  onClick: ({ change }) => {
-                    if (change) {
-                      const changeKey = getChangeKey(change);
-                      setActiveFormKeys(prev => ({ ...prev, [changeKey]: !prev[changeKey] }));
-                    }
-                  },
-                }}
-              >
-                {(hunks) =>
-                  hunks.map((hunk) => (
-                    <Hunk key={hunk.content} hunk={hunk} />
-                  ))
-                }
-              </Diff>
+              <div className="overflow-x-auto">
+                <Diff
+                  viewType={effectiveViewType}
+                  diffType={file.type}
+                  hunks={file.hunks}
+                  widgets={getWidgets(file.hunks)}
+                  gutterEvents={{
+                    onClick: ({ change }) => {
+                      if (change) {
+                        const changeKey = getChangeKey(change);
+                        setActiveFormKeys((prev) => ({ ...prev, [changeKey]: !prev[changeKey] }));
+                      }
+                    },
+                  }}
+                >
+                  {(hunks) =>
+                    hunks.map((hunk) => (
+                      <Hunk key={hunk.content} hunk={hunk} />
+                    ))
+                  }
+                </Diff>
+              </div>
             )}
           </div>
         );
