@@ -268,7 +268,7 @@ public class PluginsSetupView : ViewBase
         public override object Build()
         {
             var isOpen = UseState(false);
-            var deleteConfig = UseState(false);
+            var keepConfig = UseState(true);
 
             var confirmMessage = installationType switch
             {
@@ -286,15 +286,15 @@ public class PluginsSetupView : ViewBase
                     return ValueTask.CompletedTask;
                 }, variant: ButtonVariant.Outline, icon: Icons.Trash2),
                 isOpen.Value ? new Dialog(
-                    _ => { isOpen.Set(false); deleteConfig.Set(false); },
+                    _ => { isOpen.Set(false); keepConfig.Set(true); },
                     new DialogHeader("Uninstall Plugin"),
                     new DialogBody(
                         Layout.Vertical().Gap(3)
                         | confirmMessage
-                        | deleteConfig.ToBoolInput("Also delete plugin configuration")
+                        | keepConfig.ToBoolInput("Keep plugin configuration")
                     ),
                     new DialogFooter(
-                        new Button("Cancel", _ => { isOpen.Value = false; deleteConfig.Value = false; }, variant: ButtonVariant.Outline),
+                        new Button("Cancel", _ => { isOpen.Value = false; keepConfig.Value = true; }, variant: ButtonVariant.Outline),
                         new Button("Uninstall", _ =>
                         {
                             try
@@ -304,7 +304,7 @@ public class PluginsSetupView : ViewBase
                                 else
                                     uninstallService.UninstallReferencedPlugin(pluginDirectory);
 
-                                if (deleteConfig.Value)
+                                if (!keepConfig.Value)
                                     uninstallService.CleanupPluginConfig(pluginId);
 
                                 client.Toast($"Uninstalled '{pluginId}'", "Uninstalled");
@@ -314,7 +314,7 @@ public class PluginsSetupView : ViewBase
                                 client.Toast($"Failed to uninstall: {ex.Message}", "Error");
                             }
                             isOpen.Value = false;
-                            deleteConfig.Value = false;
+                            keepConfig.Value = true;
                             return ValueTask.CompletedTask;
                         }, variant: ButtonVariant.Destructive)
                     )
